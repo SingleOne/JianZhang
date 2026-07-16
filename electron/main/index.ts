@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   DEFAULT_WATCHLIST_COLUMN_ORDER,
+  normalizeWatchlistColumnOrder,
   type AppState,
   type StockQuote,
   type WatchStock
@@ -49,7 +50,7 @@ function loadState(): AppState {
     return {
       watchlist: saved.watchlist ?? DEFAULT_WATCHLIST,
       settings: { ...DEFAULT_STATE.settings, ...saved.settings },
-      columnOrder: saved.columnOrder ?? [...DEFAULT_WATCHLIST_COLUMN_ORDER]
+      columnOrder: normalizeWatchlistColumnOrder(saved.columnOrder)
     }
   } catch {
     return structuredClone(DEFAULT_STATE)

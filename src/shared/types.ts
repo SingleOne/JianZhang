@@ -33,6 +33,13 @@ export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
 
 export type WatchlistColumnId = typeof DEFAULT_WATCHLIST_COLUMN_ORDER[number]
 
+export function normalizeWatchlistColumnOrder(
+  columnOrder: readonly WatchlistColumnId[] | undefined
+): WatchlistColumnId[] {
+  const source = columnOrder ?? DEFAULT_WATCHLIST_COLUMN_ORDER
+  return [...source.filter((columnId) => columnId !== 'operation'), 'operation']
+}
+
 export interface StockQuote {
   code: string
   name: string

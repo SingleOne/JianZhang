@@ -4,6 +4,8 @@ import {
   ArrowRight,
   ArrowUp,
   ArrowUpDown,
+  ChevronsLeft,
+  ChevronsRight,
   Columns3,
   GripVertical,
   MonitorUp,
@@ -31,6 +33,7 @@ import type {
   WatchlistColumnId,
   WatchStock
 } from '../shared/types'
+import { normalizeWatchlistColumnOrder } from '../shared/types'
 import { ExpandedStockDetails } from './ExpandedStockDetails'
 import { PositionEditor } from './PositionEditor'
 
@@ -66,6 +69,8 @@ interface SortState {
   column: WatchlistColumnId
   direction: 'asc' | 'desc'
 }
+
+type ColumnMove = -1 | 1 | 'start' | 'end'
 
 const COLUMN_META: Record<WatchlistColumnId, ColumnMeta> = {
   stock: { label: '名称 / 代码', width: 190, sortable: true, className: 'stock-column' },
@@ -143,6 +148,17 @@ export function WatchlistTable({
   const [draggingQuoteId, setDraggingQuoteId] = useState<string | null>(null)
   const [dragOverQuoteId, setDragOverQuoteId] = useState<string | null>(null)
   const [editingStock, setEditingStock] = useState<WatchStock | null>(null)
+  const renderedColumnOrder = useMemo(
+    () => normalizeWatchlistColumnOrder(columnOrder),
+    [columnOrder]
+  )
+  const adjustableColumnOrder = useMemo(
+    () => renderedColumnOrder.slice(0, -1),
+    [renderedColumnOrder]
+  )
+  const [columnMenuOrder, setColumnMenuOrder] = useState<WatchlistColumnId[]>(
+    () => adjustableColumnOrder
+  )
 
   const rows = useMemo(() => {
     const quoteMap = new Map(quotes.map((quote) => [quote.quoteId, quote]))
@@ -164,13 +180,21 @@ export function WatchlistTable({
     )
   }
 
-  const moveColumn = (columnId: WatchlistColumnId, offset: -1 | 1) => {
-    const currentIndex = columnOrder.indexOf(columnId)
-    const nextIndex = currentIndex + offset
-    if (nextIndex < 0 || nextIndex >= columnOrder.length) return
-    const nextOrder = [...columnOrder]
-    ;[nextOrder[currentIndex], nextOrder[nextIndex]] = [nextOrder[nextIndex], nextOrder[currentIndex]]
-    onColumnOrderChange(nextOrder)
+  const moveColumn = (columnId: WatchlistColumnId, move: ColumnMove) => {
+    const currentIndex = adjustableColumnOrder.indexOf(columnId)
+    if (currentIndex === -1) return
+
+    const nextIndex = move === 'start'
+      ? 0
+      : move === 'end'
+        ? adjustableColumnOrder.length - 1
+        : currentIndex + move
+    if (nextIndex < 0 || nextIndex >= adjustableColumnOrder.length || nextIndex === currentIndex) return
+
+    const nextOrder = [...adjustableColumnOrder]
+    const [movedColumn] = nextOrder.splice(currentIndex, 1)
+    nextOrder.splice(nextIndex, 0, movedColumn)
+    onColumnOrderChange([...nextOrder, 'operation'])
   }
 
   const changeSort = (column: WatchlistColumnId) => {
@@ -202,7 +226,12 @@ export function WatchlistTable({
             <RotateCcw size={15} />
             恢复手动排序
           </button>
-          <details className="column-order-menu">
+          <details
+            className="column-order-menu"
+            onToggle={(event) => {
+              if (event.currentTarget.open) setColumnMenuOrder([...adjustableColumnOrder])
+            }}
+          >
             <summary className="secondary-button table-tool-button">
               <Columns3 size={15} />
               调整列位置
@@ -210,35 +239,60 @@ export function WatchlistTable({
             <div className="column-order-popover">
               <div className="column-order-heading">
                 <strong>列显示顺序</strong>
-                <span>使用箭头移动列</span>
+                <span>顺序将在下次打开时更新</span>
               </div>
-              {columnOrder.map((columnId, index) => (
-                <div className="column-order-item" key={columnId}>
-                  <span>{COLUMN_META[columnId].label}</span>
-                  <span>
-                    <button
-                      className="icon-button column-move-button"
-                      type="button"
-                      disabled={index === 0}
-                      onClick={() => moveColumn(columnId, -1)}
-                      aria-label={`向左移动${COLUMN_META[columnId].label}列`}
-                      title="向左移动"
-                    >
-                      <ArrowLeft size={14} />
-                    </button>
-                    <button
-                      className="icon-button column-move-button"
-                      type="button"
-                      disabled={index === columnOrder.length - 1}
-                      onClick={() => moveColumn(columnId, 1)}
-                      aria-label={`向右移动${COLUMN_META[columnId].label}列`}
-                      title="向右移动"
-                    >
-                      <ArrowRight size={14} />
-                    </button>
-                  </span>
-                </div>
-              ))}
+              {columnMenuOrder.map((columnId) => {
+                const currentIndex = adjustableColumnOrder.indexOf(columnId)
+                const isFirst = currentIndex === 0
+                const isLast = currentIndex === adjustableColumnOrder.length - 1
+                return (
+                  <div className="column-order-item" key={columnId}>
+                    <span>{COLUMN_META[columnId].label}</span>
+                    <span>
+                      <button
+                        className="icon-button column-move-button"
+                        type="button"
+                        disabled={isFirst}
+                        onClick={() => moveColumn(columnId, 'start')}
+                        aria-label={`将${COLUMN_META[columnId].label}列移到最左侧`}
+                        title="移到最左侧"
+                      >
+                        <ChevronsLeft size={14} />
+                      </button>
+                      <button
+                        className="icon-button column-move-button"
+                        type="button"
+                        disabled={isFirst}
+                        onClick={() => moveColumn(columnId, -1)}
+                        aria-label={`向左移动${COLUMN_META[columnId].label}列`}
+                        title="向左移动一列"
+                      >
+                        <ArrowLeft size={14} />
+                      </button>
+                      <button
+                        className="icon-button column-move-button"
+                        type="button"
+                        disabled={isLast}
+                        onClick={() => moveColumn(columnId, 1)}
+                        aria-label={`向右移动${COLUMN_META[columnId].label}列`}
+                        title="向右移动一列"
+                      >
+                        <ArrowRight size={14} />
+                      </button>
+                      <button
+                        className="icon-button column-move-button"
+                        type="button"
+                        disabled={isLast}
+                        onClick={() => moveColumn(columnId, 'end')}
+                        aria-label={`将${COLUMN_META[columnId].label}列移到最右侧`}
+                        title="移到最右侧"
+                      >
+                        <ChevronsRight size={14} />
+                      </button>
+                    </span>
+                  </div>
+                )
+              })}
             </div>
           </details>
         </div>
@@ -247,13 +301,13 @@ export function WatchlistTable({
       <div className="table-scroller">
         <table className="watchlist-table">
           <colgroup>
-            {columnOrder.map((columnId) => (
+            {renderedColumnOrder.map((columnId) => (
               <col key={columnId} style={{ width: COLUMN_META[columnId].width }} />
             ))}
           </colgroup>
           <thead>
             <tr>
-              {columnOrder.map((columnId) => {
+              {renderedColumnOrder.map((columnId) => {
                 const meta = COLUMN_META[columnId]
                 const activeSort = sort?.column === columnId ? sort : null
                 return (
@@ -308,7 +362,7 @@ export function WatchlistTable({
                     tabIndex={0}
                     aria-expanded={selected}
                   >
-                    {columnOrder.map((columnId) => {
+                    {renderedColumnOrder.map((columnId) => {
                       switch (columnId) {
                         case 'stock':
                           return (
@@ -407,7 +461,7 @@ export function WatchlistTable({
                   </tr>
                   {selected ? (
                     <tr className="expanded-row">
-                      <td colSpan={columnOrder.length}>
+                      <td colSpan={renderedColumnOrder.length}>
                         <ExpandedStockDetails stock={stock} quote={quote} refreshSeconds={refreshSeconds} />
                       </td>
                     </tr>

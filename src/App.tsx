@@ -18,7 +18,7 @@ import type {
 export default function App() {
   const [state, setState] = useState<AppState>(initialState)
   const [quotes, setQuotes] = useState<StockQuote[]>([])
-  const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>('1.600519')
+  const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null)
   const [source, setSource] = useState<'eastmoney' | 'demo'>('eastmoney')
   const [initializing, setInitializing] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -32,9 +32,9 @@ export default function App() {
         setState(bootstrap.state)
         setQuotes(bootstrap.quotes)
         setSource(bootstrap.source)
-        if (!bootstrap.state.watchlist.some((stock) => stock.quoteId === selectedQuoteId)) {
-          setSelectedQuoteId(bootstrap.state.watchlist[0]?.quoteId ?? null)
-        }
+        setSelectedQuoteId((current) =>
+          current && bootstrap.state.watchlist.some((stock) => stock.quoteId === current) ? current : null
+        )
       })
       .catch((reason: unknown) => reportError(reason instanceof Error ? reason.message : '应用初始化失败'))
       .finally(() => setInitializing(false))
@@ -90,7 +90,7 @@ export default function App() {
 
   const removeStock = useCallback((quoteId: string) => {
     const nextWatchlist = state.watchlist.filter((stock) => stock.quoteId !== quoteId)
-    if (selectedQuoteId === quoteId) setSelectedQuoteId(nextWatchlist[0]?.quoteId ?? null)
+    if (selectedQuoteId === quoteId) setSelectedQuoteId(null)
     setQuotes((current) => current.filter((quote) => quote.quoteId !== quoteId))
     void persist({ ...state, watchlist: nextWatchlist })
   }, [persist, selectedQuoteId, state])

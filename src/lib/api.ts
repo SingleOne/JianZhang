@@ -1,5 +1,6 @@
 import {
   DEFAULT_WATCHLIST_COLUMN_ORDER,
+  normalizeWatchlistColumnOrder,
   type AppState,
   type BootstrapResult,
   type KlineResult,
@@ -71,7 +72,7 @@ function loadDemoState(): AppState {
   return {
     watchlist: parsed.watchlist,
     settings: { ...DEFAULT_STATE.settings, ...parsed.settings },
-    columnOrder: parsed.columnOrder ?? [...DEFAULT_WATCHLIST_COLUMN_ORDER]
+    columnOrder: normalizeWatchlistColumnOrder(parsed.columnOrder)
   }
 }
 
