@@ -17,7 +17,7 @@ import {
   Trash2,
   X
 } from 'lucide-react'
-import { Fragment, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import {
   formatAmount,
   formatCurrency,
@@ -251,7 +251,10 @@ export function WatchlistTable({
   const [draggingQuoteId, setDraggingQuoteId] = useState<string | null>(null)
   const [dragOverQuoteId, setDragOverQuoteId] = useState<string | null>(null)
   const [editingStock, setEditingStock] = useState<WatchStock | null>(null)
+  const [locatedQuoteId, setLocatedQuoteId] = useState<string | null>(null)
   const tableScrollerRef = useRef<HTMLDivElement>(null)
+  const locateTimerRef = useRef<number | undefined>(undefined)
+  const locateFrameRef = useRef<number | undefined>(undefined)
   const renderedColumnOrder = useMemo(
     () => normalizeWatchlistColumnOrder(columnOrder),
     [columnOrder]
@@ -274,6 +277,11 @@ export function WatchlistTable({
 
   const displayedRows = useMemo(() => sort ? sortRows(rows, sort) : rows, [rows, sort])
   const displayedStocks = useMemo(() => displayedRows.map(({ stock }) => stock), [displayedRows])
+
+  useEffect(() => () => {
+    window.clearTimeout(locateTimerRef.current)
+    window.cancelAnimationFrame(locateFrameRef.current ?? 0)
+  }, [])
 
   if (watchlist.length === 0) {
     return (
@@ -324,6 +332,13 @@ export function WatchlistTable({
       - (scroller.clientHeight - rowRect.height) / 2
     scroller.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' })
     row.focus({ preventScroll: true })
+    window.clearTimeout(locateTimerRef.current)
+    window.cancelAnimationFrame(locateFrameRef.current ?? 0)
+    setLocatedQuoteId(null)
+    locateFrameRef.current = window.requestAnimationFrame(() => {
+      setLocatedQuoteId(quoteId)
+      locateTimerRef.current = window.setTimeout(() => setLocatedQuoteId(null), 2000)
+    })
   }
 
   return (
@@ -464,7 +479,7 @@ export function WatchlistTable({
                 <Fragment key={stock.quoteId}>
                   <tr
                     data-quote-id={stock.quoteId}
-                    className={`stock-row ${selected ? 'is-selected' : ''} ${draggingQuoteId === stock.quoteId ? 'is-dragging' : ''} ${dragOverQuoteId === stock.quoteId ? 'is-drag-over' : ''}`}
+                    className={`stock-row ${selected ? 'is-selected' : ''} ${locatedQuoteId === stock.quoteId ? 'is-located' : ''} ${draggingQuoteId === stock.quoteId ? 'is-dragging' : ''} ${dragOverQuoteId === stock.quoteId ? 'is-drag-over' : ''}`}
                     onClick={() => onSelect(stock.quoteId)}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' || event.key === ' ') onSelect(stock.quoteId)

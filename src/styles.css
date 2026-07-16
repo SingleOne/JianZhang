@@ -1058,6 +1058,10 @@ tr:focus-visible {
   opacity: 0.56;
 }
 
+.stock-row.is-located td {
+  animation: locate-stock-row 440ms ease-in-out 4;
+}
+
 .stock-identity {
   min-width: 0;
   display: flex;
@@ -1955,6 +1959,13 @@ tr:focus-visible {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+@keyframes locate-stock-row {
+  50% {
+    background: #c9e4ff;
+    box-shadow: inset 0 0 0 1px #5aa4f5;
+  }
 }
 
 @keyframes live-pulse {
