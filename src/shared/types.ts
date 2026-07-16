@@ -4,7 +4,15 @@ export interface WatchStock {
   quoteId: string
   marketLabel: string
   showInTaskbar: boolean
+  isPriority: boolean
   position?: StockPosition
+}
+
+export function normalizeWatchlist(stocks: readonly WatchStock[]): WatchStock[] {
+  return stocks.map((stock) => ({
+    ...stock,
+    isPriority: Boolean(stock.position || stock.isPriority)
+  }))
 }
 
 export interface StockPosition {
@@ -22,10 +30,12 @@ export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
   'high',
   'low',
   'amount',
+  'radar',
   'positionQuantity',
   'cost',
   'marketValue',
   'todayProfit',
+  'todayProfitPercent',
   'totalProfit',
   'profitPercent',
   'operation'
@@ -62,8 +72,20 @@ export interface StockQuote {
   previousClose: number | null
   volume: number | null
   amount: number | null
+  radarSignals?: StockRadarSignal[]
   updatedAt: string
 }
+
+export interface StockRadarSignal {
+  type: string
+  label: string
+  date: string
+  time: string
+  info: string
+  direction: 'up' | 'down'
+}
+
+export type KlinePeriod = 'intraday' | 'fiveDay' | 'daily' | 'weekly' | 'monthly'
 
 export interface KlineBar {
   time: string
@@ -106,11 +128,44 @@ export interface SearchResult {
 }
 
 export interface AppSettings {
-  refreshSeconds: number
+  priorityRefreshSeconds: number
+  regularRefreshSeconds: number
   startWithWindows: boolean
   minimizeToTray: boolean
   showTaskbarTicker: boolean
   taskbarPositionPercent: number
+}
+
+export const DEFAULT_APP_SETTINGS: AppSettings = {
+  priorityRefreshSeconds: 5,
+  regularRefreshSeconds: 10,
+  startWithWindows: false,
+  minimizeToTray: true,
+  showTaskbarTicker: true,
+  taskbarPositionPercent: 0
+}
+
+export function normalizeAppSettings(
+  settings: (Partial<AppSettings> & { refreshSeconds?: number }) | undefined
+): AppSettings {
+  const legacyRefreshSeconds = settings?.refreshSeconds
+  const regularFallback = typeof legacyRefreshSeconds === 'number' && legacyRefreshSeconds !== 5
+    ? legacyRefreshSeconds
+    : DEFAULT_APP_SETTINGS.regularRefreshSeconds
+  return {
+    priorityRefreshSeconds: Math.min(300, Math.max(3,
+      settings?.priorityRefreshSeconds ?? DEFAULT_APP_SETTINGS.priorityRefreshSeconds
+    )),
+    regularRefreshSeconds: Math.min(300, Math.max(3,
+      settings?.regularRefreshSeconds ?? regularFallback
+    )),
+    startWithWindows: settings?.startWithWindows ?? DEFAULT_APP_SETTINGS.startWithWindows,
+    minimizeToTray: settings?.minimizeToTray ?? DEFAULT_APP_SETTINGS.minimizeToTray,
+    showTaskbarTicker: settings?.showTaskbarTicker ?? DEFAULT_APP_SETTINGS.showTaskbarTicker,
+    taskbarPositionPercent: Math.min(100, Math.max(0,
+      settings?.taskbarPositionPercent ?? DEFAULT_APP_SETTINGS.taskbarPositionPercent
+    ))
+  }
 }
 
 export interface AppState {
@@ -138,7 +193,7 @@ export interface StockDesktopApi {
   getBootstrap: () => Promise<BootstrapResult>
   searchStocks: (query: string) => Promise<SearchResult[]>
   refreshQuotes: () => Promise<StockQuote[]>
-  getKline: (quoteId: string) => Promise<KlineResult>
+  getKline: (quoteId: string, period: KlinePeriod) => Promise<KlineResult>
   getFundsFlow: (quoteId: string) => Promise<FundsFlowResult>
   saveState: (state: AppState) => Promise<AppState>
   exportConfig: (state: AppState) => Promise<ConfigExportResult>

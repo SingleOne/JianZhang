@@ -1,10 +1,14 @@
 import {
+  DEFAULT_APP_SETTINGS,
   DEFAULT_WATCHLIST_COLUMN_ORDER,
+  normalizeAppSettings,
+  normalizeWatchlist,
   normalizeWatchlistColumnOrder,
   type AppState,
   type BootstrapResult,
   type ConfigImportResult,
   type FundsFlowResult,
+  type KlinePeriod,
   type KlineResult,
   type SearchResult,
   type StockDesktopApi,
@@ -25,19 +29,14 @@ const DEMO_STOCKS: SearchResult[] = [
 
 const DEFAULT_WATCHLIST: WatchStock[] = DEMO_STOCKS.slice(0, 5).map((stock, index) => ({
   ...stock,
-  showInTaskbar: index < 2
+  showInTaskbar: index < 2,
+  isPriority: false
 }))
 
 const DEFAULT_STATE: AppState = {
   watchlist: DEFAULT_WATCHLIST,
   columnOrder: [...DEFAULT_WATCHLIST_COLUMN_ORDER],
-  settings: {
-    refreshSeconds: 5,
-    startWithWindows: false,
-    minimizeToTray: true,
-    showTaskbarTicker: true,
-    taskbarPositionPercent: 0
-  }
+  settings: { ...DEFAULT_APP_SETTINGS }
 }
 
 const DEMO_VALUES: Record<string, Omit<StockQuote, 'updatedAt'>> = {
@@ -73,8 +72,8 @@ function loadDemoState(): AppState {
   if (!saved) return structuredClone(DEFAULT_STATE)
   const parsed = JSON.parse(saved) as AppState
   return {
-    watchlist: parsed.watchlist,
-    settings: { ...DEFAULT_STATE.settings, ...parsed.settings },
+    watchlist: normalizeWatchlist(parsed.watchlist),
+    settings: normalizeAppSettings(parsed.settings),
     columnOrder: normalizeWatchlistColumnOrder(parsed.columnOrder)
   }
 }
@@ -83,7 +82,15 @@ function makeDemoQuotes(watchlist: WatchStock[]): StockQuote[] {
   const now = new Date().toISOString()
   return watchlist.map((stock, index) => {
     const known = DEMO_VALUES[stock.quoteId]
-    if (known) return { ...known, updatedAt: now }
+    const radarSignals = index === 0 ? [{
+      type: '8201',
+      label: '火箭发射',
+      date: new Date().toISOString().slice(0, 10).replaceAll('-', ''),
+      time: '10:28:16',
+      info: '',
+      direction: 'up' as const
+    }] : undefined
+    if (known) return { ...known, radarSignals, updatedAt: now }
     const base = 24 + index * 7.31
     return {
       code: stock.code,
@@ -98,25 +105,59 @@ function makeDemoQuotes(watchlist: WatchStock[]): StockQuote[] {
       previousClose: base - 0.18,
       volume: 182300,
       amount: 486320000,
+      radarSignals,
       updatedAt: now
     }
   })
 }
 
-function makeDemoKline(quoteId: string): KlineResult {
+function makeDemoKline(quoteId: string, period: KlinePeriod): KlineResult {
   const quote = DEMO_VALUES[quoteId]
   const base = quote?.open ?? 48
   const date = new Date().toISOString().slice(0, 10)
-  const bars = Array.from({ length: 48 }, (_, index) => {
-    const minutes = index < 24 ? 35 + index * 5 : 65 + index * 5
-    const hour = index < 24 ? 9 + Math.floor(minutes / 60) : 13 + Math.floor((minutes - 185) / 60)
-    const minute = index < 24 ? minutes % 60 : (minutes - 185) % 60
+  if (period === 'daily' || period === 'weekly' || period === 'monthly') {
+    const intervalDays = period === 'daily' ? 1 : period === 'weekly' ? 7 : 30
+    const count = period === 'monthly' ? 60 : period === 'weekly' ? 104 : 120
+    const bars = Array.from({ length: count }, (_, index) => {
+      const barDate = new Date()
+      barDate.setDate(barDate.getDate() - (count - index - 1) * intervalDays)
+      const wave = Math.sin(index / 5.4) * base * 0.045
+      const drift = (index - count / 2) * base * 0.0007
+      const open = base + wave + drift
+      const close = open + Math.sin(index * 1.3) * base * 0.012
+      return {
+        time: barDate.toISOString().slice(0, 10),
+        open,
+        close,
+        high: Math.max(open, close) + base * 0.008,
+        low: Math.min(open, close) - base * 0.007,
+        volume: 30_000 + ((index * 7123) % 90_000),
+        amount: (30_000 + ((index * 7123) % 90_000)) * close * 100
+      }
+    })
+    return {
+      quoteId,
+      name: quote?.name ?? '',
+      tradingDate: `${bars[0].time} 至 ${bars.at(-1)?.time ?? ''}`,
+      bars
+    }
+  }
+
+  const dayCount = period === 'fiveDay' ? 5 : 1
+  const bars = Array.from({ length: 48 * dayCount }, (_, index) => {
+    const minuteIndex = index % 48
+    const dayIndex = Math.floor(index / 48)
+    const minutes = minuteIndex < 24 ? 35 + minuteIndex * 5 : 65 + minuteIndex * 5
+    const hour = minuteIndex < 24 ? 9 + Math.floor(minutes / 60) : 13 + Math.floor((minutes - 185) / 60)
+    const minute = minuteIndex < 24 ? minutes % 60 : (minutes - 185) % 60
+    const barDate = new Date()
+    barDate.setDate(barDate.getDate() - (dayCount - dayIndex - 1))
     const wave = Math.sin(index / 4.2) * base * 0.0028
     const drift = (index - 20) * base * 0.000045
     const open = base + wave + drift
     const close = open + Math.sin(index * 1.7) * base * 0.0012
     return {
-      time: `${date} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+      time: `${barDate.toISOString().slice(0, 10)} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
       open,
       close,
       high: Math.max(open, close) + base * (0.0008 + (index % 3) * 0.0002),
@@ -125,7 +166,12 @@ function makeDemoKline(quoteId: string): KlineResult {
       amount: (850 + ((index * 173) % 2100)) * close * 100
     }
   })
-  return { quoteId, name: quote?.name ?? '', tradingDate: date, bars }
+  return {
+    quoteId,
+    name: quote?.name ?? '',
+    tradingDate: period === 'fiveDay' ? `${bars[0].time.slice(0, 10)} 至 ${date}` : date,
+    bars
+  }
 }
 
 function makeDemoFundsFlow(quoteId: string): FundsFlowResult {
@@ -171,8 +217,8 @@ const demoApi: StockDesktopApi = {
   async refreshQuotes() {
     return makeDemoQuotes(loadDemoState().watchlist)
   },
-  async getKline(quoteId) {
-    return makeDemoKline(quoteId)
+  async getKline(quoteId, period) {
+    return makeDemoKline(quoteId, period)
   },
   async getFundsFlow(quoteId) {
     return makeDemoFundsFlow(quoteId)

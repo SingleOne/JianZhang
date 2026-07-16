@@ -12,6 +12,7 @@ import {
   PencilLine,
   Pin,
   RotateCcw,
+  Star,
   Trash2
 } from 'lucide-react'
 import { Fragment, useMemo, useState } from 'react'
@@ -42,10 +43,12 @@ interface WatchlistTableProps {
   watchlist: WatchStock[]
   quotes: StockQuote[]
   columnOrder: WatchlistColumnId[]
-  refreshSeconds: number
+  priorityRefreshSeconds: number
+  regularRefreshSeconds: number
   selectedQuoteId: string | null
   onSelect: (quoteId: string) => void
   onToggleTaskbar: (quoteId: string) => void
+  onTogglePriority: (quoteId: string) => void
   onEditPosition: (quoteId: string, position: StockPosition | undefined) => void
   onReorder: (sourceQuoteId: string, targetQuoteId: string) => void
   onPin: (quoteId: string) => void
@@ -75,23 +78,27 @@ interface SortState {
 type ColumnMove = -1 | 1 | 'start' | 'end'
 
 const COLUMN_META: Record<WatchlistColumnId, ColumnMeta> = {
-  stock: { label: '名称 / 代码', width: 190, sortable: true, className: 'stock-column' },
-  latest: { label: '最新价', width: 95, sortable: true },
-  changePercent: { label: '涨跌幅', width: 100, sortable: true },
-  open: { label: '今开', width: 88, sortable: true },
-  high: { label: '最高', width: 88, sortable: true },
-  low: { label: '最低', width: 88, sortable: true },
-  amount: { label: '成交额', width: 110, sortable: true },
-  positionQuantity: { label: '持仓数量', width: 105, sortable: true },
-  cost: { label: '成本价', width: 95, sortable: true },
-  marketValue: { label: '持仓市值', width: 115, sortable: true },
-  todayProfit: { label: '今日收益', width: 115, sortable: true },
-  totalProfit: { label: '持仓收益', width: 115, sortable: true },
-  profitPercent: { label: '收益率', width: 100, sortable: true },
-  operation: { label: '操作', width: 225, sortable: false, className: 'operation-column' }
+  stock: { label: '名称 / 代码', width: 128, sortable: true, className: 'stock-column' },
+  latest: { label: '最新价', width: 72, sortable: true },
+  changePercent: { label: '涨跌幅', width: 76, sortable: true },
+  open: { label: '今开', width: 64, sortable: true },
+  high: { label: '最高', width: 64, sortable: true },
+  low: { label: '最低', width: 64, sortable: true },
+  amount: { label: '成交额', width: 80, sortable: true },
+  radar: { label: '雷达提示', width: 168, sortable: true, className: 'radar-column' },
+  positionQuantity: { label: '持仓数量', width: 84, sortable: true },
+  cost: { label: '成本价', width: 68, sortable: true },
+  marketValue: { label: '持仓市值', width: 88, sortable: true },
+  todayProfit: { label: '今日收益', width: 86, sortable: true },
+  todayProfitPercent: { label: '今日收益率', width: 88, sortable: true },
+  totalProfit: { label: '持仓收益', width: 86, sortable: true },
+  profitPercent: { label: '收益率', width: 76, sortable: true },
+  operation: { label: '操作', width: 125, sortable: false, className: 'operation-column' }
 }
 
-const ORDER_COLUMN_WIDTH = 76
+const ORDER_COLUMN_WIDTH = 52
+const TABLE_MIN_WIDTH = ORDER_COLUMN_WIDTH + Object.values(COLUMN_META)
+  .reduce((total, column) => total + column.width, 0)
 
 function valueClass(value: number | null | undefined): string {
   if (value === null || value === undefined || value === 0) return 'is-flat'
@@ -107,10 +114,15 @@ function sortValue(row: StockRowData, column: WatchlistColumnId): string | numbe
     case 'high': return row.quote?.high
     case 'low': return row.quote?.low
     case 'amount': return row.quote?.amount
+    case 'radar': {
+      const latestSignal = row.quote?.radarSignals?.[0]
+      return latestSignal ? `${latestSignal.date} ${latestSignal.time}` : null
+    }
     case 'positionQuantity': return row.stock.position?.quantity
     case 'cost': return row.stock.position?.cost
     case 'marketValue': return row.metrics.marketValue
     case 'todayProfit': return row.metrics.todayProfit
+    case 'todayProfitPercent': return row.metrics.todayProfitPercent
     case 'totalProfit': return row.metrics.totalProfit
     case 'profitPercent': return row.metrics.profitPercent
     case 'operation': return null
@@ -139,10 +151,12 @@ export function WatchlistTable({
   watchlist,
   quotes,
   columnOrder,
-  refreshSeconds,
+  priorityRefreshSeconds,
+  regularRefreshSeconds,
   selectedQuoteId,
   onSelect,
   onToggleTaskbar,
+  onTogglePriority,
   onEditPosition,
   onReorder,
   onPin,
@@ -304,7 +318,7 @@ export function WatchlistTable({
       </div>
 
       <div className="table-scroller">
-        <table className="watchlist-table">
+        <table className="watchlist-table" style={{ minWidth: TABLE_MIN_WIDTH }}>
           <colgroup>
             <col style={{ width: ORDER_COLUMN_WIDTH }} />
             {renderedColumnOrder.map((columnId) => (
@@ -432,6 +446,25 @@ export function WatchlistTable({
                         case 'high': return <td key={columnId}>{formatPrice(quote?.high)}</td>
                         case 'low': return <td key={columnId}>{formatPrice(quote?.low)}</td>
                         case 'amount': return <td key={columnId}>{formatAmount(quote?.amount)}</td>
+                        case 'radar':
+                          return (
+                            <td className="radar-column" key={columnId}>
+                              {quote?.radarSignals?.length ? (
+                                <div className="radar-tags">
+                                  {quote.radarSignals.map((signal) => (
+                                    <span
+                                      className={`radar-tag is-${signal.direction}`}
+                                      title={`${signal.date.slice(0, 4)}-${signal.date.slice(4, 6)}-${signal.date.slice(6, 8)} ${signal.time} · ${signal.label}`}
+                                      key={`${signal.date}-${signal.type}`}
+                                    >
+                                      <b>{signal.date.slice(4)}</b>
+                                      {signal.label}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : '--'}
+                            </td>
+                          )
                         case 'positionQuantity':
                           return (
                             <td key={columnId}>
@@ -444,6 +477,7 @@ export function WatchlistTable({
                         case 'cost': return <td key={columnId}>{formatPrice(stock.position?.cost)}</td>
                         case 'marketValue': return <td key={columnId}>{formatCurrency(metrics.marketValue)}</td>
                         case 'todayProfit': return <td className={valueClass(metrics.todayProfit)} key={columnId}>{formatProfit(metrics.todayProfit)}</td>
+                        case 'todayProfitPercent': return <td className={valueClass(metrics.todayProfitPercent)} key={columnId}>{formatPercent(metrics.todayProfitPercent)}</td>
                         case 'totalProfit': return <td className={valueClass(metrics.totalProfit)} key={columnId}>{formatProfit(metrics.totalProfit)}</td>
                         case 'profitPercent': return <td className={valueClass(metrics.profitPercent)} key={columnId}>{formatPercent(metrics.profitPercent)}</td>
                         case 'operation':
@@ -451,23 +485,36 @@ export function WatchlistTable({
                             <td className="operation-column" key={columnId}>
                               <div className="row-actions">
                                 <button
+                                  className={`row-action-button ${stock.isPriority ? 'is-active' : ''} ${stock.position ? 'is-locked' : ''}`}
+                                  type="button"
+                                  onClick={(event) => { event.stopPropagation(); onTogglePriority(stock.quoteId) }}
+                                  aria-pressed={stock.isPriority}
+                                  aria-disabled={Boolean(stock.position)}
+                                  aria-label={stock.isPriority ? `取消重点关注 ${stock.name}` : `重点关注 ${stock.name}`}
+                                  title={stock.position
+                                    ? '持仓股票已自动设为重点关注'
+                                    : stock.isPriority ? '取消重点关注' : '设为重点关注'}
+                                >
+                                  <Star size={15} fill={stock.isPriority ? 'currentColor' : 'none'} />
+                                </button>
+                                <button
                                   className={`row-action-button ${stock.showInTaskbar ? 'is-active' : ''}`}
                                   type="button"
                                   onClick={(event) => { event.stopPropagation(); onToggleTaskbar(stock.quoteId) }}
                                   aria-pressed={stock.showInTaskbar}
+                                  aria-label={stock.showInTaskbar ? `取消在任务栏显示 ${stock.name}` : `在任务栏显示 ${stock.name}`}
                                   title={stock.showInTaskbar ? '取消任务栏展示' : '直接在任务栏显示实时价格'}
                                 >
                                   <MonitorUp size={15} />
-                                  <span>{stock.showInTaskbar ? '已显示' : '任务栏'}</span>
                                 </button>
                                 <button
                                   className={`row-action-button ${stock.position ? 'has-position' : ''}`}
                                   type="button"
                                   onClick={(event) => { event.stopPropagation(); setEditingStock(stock) }}
+                                  aria-label={`编辑 ${stock.name} 的持仓`}
                                   title="编辑持仓数量和成本"
                                 >
                                   <PencilLine size={15} />
-                                  <span>持仓</span>
                                 </button>
                                 <button
                                   className="icon-button remove-button"
@@ -487,7 +534,11 @@ export function WatchlistTable({
                   {selected ? (
                     <tr className="expanded-row">
                       <td colSpan={renderedColumnOrder.length + 1}>
-                        <ExpandedStockDetails stock={stock} quote={quote} refreshSeconds={refreshSeconds} />
+                        <ExpandedStockDetails
+                          stock={stock}
+                          quote={quote}
+                          refreshSeconds={stock.isPriority ? priorityRefreshSeconds : regularRefreshSeconds}
+                        />
                       </td>
                     </tr>
                   ) : null}

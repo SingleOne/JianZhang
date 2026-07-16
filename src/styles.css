@@ -151,10 +151,10 @@ tr:focus-visible {
 }
 
 .workspace {
-  width: min(1480px, 100%);
+  width: 100%;
   min-height: 100%;
-  margin: 0 auto;
-  padding: 22px 26px 28px;
+  margin: 0;
+  padding: 16px 0 24px;
 }
 
 .command-bar {
@@ -165,6 +165,7 @@ tr:focus-visible {
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 16px;
+  padding: 0 14px;
 }
 
 .command-actions {
@@ -618,7 +619,9 @@ tr:focus-visible {
   overflow: visible;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 13px;
+  border-right: 0;
+  border-left: 0;
+  border-radius: 0;
   box-shadow: var(--shadow-sm);
 }
 
@@ -659,7 +662,7 @@ tr:focus-visible {
 }
 
 .portfolio-summary > span {
-  min-width: 104px;
+  min-width: 94px;
   display: grid;
   gap: 2px;
   padding: 5px 10px;
@@ -821,7 +824,6 @@ tr:focus-visible {
 
 .watchlist-table {
   width: 100%;
-  min-width: 1706px;
   table-layout: fixed;
   border-spacing: 0;
   border-collapse: separate;
@@ -829,13 +831,13 @@ tr:focus-visible {
 }
 
 .watchlist-table .order-column {
-  padding: 0 7px;
+  padding: 0 3px;
   text-align: center;
 }
 
 .watchlist-table th,
 .watchlist-table td {
-  padding: 0 10px;
+  padding: 0 5px;
   text-align: right;
   white-space: nowrap;
 }
@@ -850,7 +852,7 @@ tr:focus-visible {
 }
 
 .watchlist-table .stock-column {
-  padding-left: 18px;
+  padding-left: 8px;
   text-align: left;
 }
 
@@ -888,7 +890,7 @@ tr:focus-visible {
 
 .stock-row {
   position: relative;
-  height: 64px;
+  height: 60px;
   color: #475467;
   cursor: pointer;
 }
@@ -1030,11 +1032,11 @@ tr:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 5px;
+  gap: 3px;
 }
 
 .position-quantity-cell small {
-  padding: 1px 4px;
+  padding: 1px 3px;
   color: #9a6700;
   background: #fff7d6;
   border-radius: 4px;
@@ -1043,12 +1045,13 @@ tr:focus-visible {
 }
 
 .row-action-button {
+  width: 28px;
   height: 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 0 9px;
+  gap: 0;
+  padding: 0;
   color: #687386;
   background: #ffffff;
   border: 1px solid #dce2ea;
@@ -1071,6 +1074,10 @@ tr:focus-visible {
   border-color: #b9d0fb;
 }
 
+.row-action-button.is-locked {
+  cursor: default;
+}
+
 .operation-column {
   position: sticky;
   right: 0;
@@ -1078,6 +1085,12 @@ tr:focus-visible {
   text-align: center !important;
   background: #ffffff;
   box-shadow: -1px 0 0 #e7ebf1, -8px 0 14px rgba(15, 23, 42, 0.035);
+}
+
+.watchlist-table td.operation-column,
+.watchlist-table th.operation-column {
+  padding-right: 2px;
+  padding-left: 2px;
 }
 
 .watchlist-table th.operation-column {
@@ -1097,7 +1110,38 @@ tr:focus-visible {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 3px;
+}
+
+.radar-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 3px;
+  padding: 5px 0;
+}
+
+.radar-tag {
+  min-height: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-size: 9px;
+  line-height: 14px;
+}
+
+.radar-tag.is-up {
+  background: var(--red-soft);
+}
+
+.radar-tag.is-down {
+  background: var(--green-soft);
+}
+
+.radar-tag b {
+  font-weight: 750;
 }
 
 .remove-button {
@@ -1389,6 +1433,7 @@ tr:focus-visible {
 
 .legend-price { color: #3f7fd3; }
 .legend-average-price { color: #d89414; }
+.legend-candlestick { color: #6f62d9; }
 .legend-volume { color: #dc3742; }
 
 .overview-grid {
@@ -1597,6 +1642,11 @@ tr:focus-visible {
   height: 320px;
 }
 
+.period-kline-chart {
+  width: 100%;
+  height: 320px;
+}
+
 .chart-loading,
 .chart-error,
 .initial-loading {
@@ -1778,8 +1828,8 @@ tr:focus-visible {
 
 @media (max-width: 1180px) {
   .workspace {
-    padding-right: 18px;
-    padding-left: 18px;
+    padding-right: 0;
+    padding-left: 0;
   }
 
   .command-bar {

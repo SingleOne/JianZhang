@@ -12,9 +12,13 @@ import {
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
+  DEFAULT_APP_SETTINGS,
   DEFAULT_WATCHLIST_COLUMN_ORDER,
+  normalizeAppSettings,
+  normalizeWatchlist,
   normalizeWatchlistColumnOrder,
   type AppState,
+  type KlinePeriod,
   type StockQuote,
   type WatchStock
 } from '../../src/shared/types'
@@ -23,23 +27,17 @@ import { fetchFundsFlow, fetchKline, fetchQuotes, searchStocks } from './market'
 import { createAppIcon } from './tray-icons'
 
 const DEFAULT_WATCHLIST: WatchStock[] = [
-  { code: '600519', name: '贵州茅台', quoteId: '1.600519', marketLabel: '沪A', showInTaskbar: true },
-  { code: '300750', name: '宁德时代', quoteId: '0.300750', marketLabel: '深A', showInTaskbar: true },
-  { code: '002594', name: '比亚迪', quoteId: '0.002594', marketLabel: '深A', showInTaskbar: false },
-  { code: '600030', name: '中信证券', quoteId: '1.600030', marketLabel: '沪A', showInTaskbar: false },
-  { code: '600036', name: '招商银行', quoteId: '1.600036', marketLabel: '沪A', showInTaskbar: false }
+  { code: '600519', name: '贵州茅台', quoteId: '1.600519', marketLabel: '沪A', showInTaskbar: true, isPriority: false },
+  { code: '300750', name: '宁德时代', quoteId: '0.300750', marketLabel: '深A', showInTaskbar: true, isPriority: false },
+  { code: '002594', name: '比亚迪', quoteId: '0.002594', marketLabel: '深A', showInTaskbar: false, isPriority: false },
+  { code: '600030', name: '中信证券', quoteId: '1.600030', marketLabel: '沪A', showInTaskbar: false, isPriority: false },
+  { code: '600036', name: '招商银行', quoteId: '1.600036', marketLabel: '沪A', showInTaskbar: false, isPriority: false }
 ]
 
 const DEFAULT_STATE: AppState = {
   watchlist: DEFAULT_WATCHLIST,
   columnOrder: [...DEFAULT_WATCHLIST_COLUMN_ORDER],
-  settings: {
-    refreshSeconds: 5,
-    startWithWindows: false,
-    minimizeToTray: true,
-    showTaskbarTicker: true,
-    taskbarPositionPercent: 0
-  }
+  settings: { ...DEFAULT_APP_SETTINGS }
 }
 
 let mainWindow: BrowserWindow | null = null
@@ -47,8 +45,9 @@ let taskbarWindow: BrowserWindow | null = null
 let appTray: Tray | null = null
 let state: AppState = DEFAULT_STATE
 let latestQuotes: StockQuote[] = []
-let refreshTimer: NodeJS.Timeout | null = null
-let refreshInFlight = false
+let priorityRefreshTimer: NodeJS.Timeout | null = null
+let regularRefreshTimer: NodeJS.Timeout | null = null
+const refreshesInFlight = new Set<'all' | 'priority' | 'regular'>()
 let isQuitting = false
 
 function statePath(): string {
@@ -59,8 +58,8 @@ function loadState(): AppState {
   try {
     const saved = JSON.parse(readFileSync(statePath(), 'utf8')) as AppState
     return {
-      watchlist: saved.watchlist ?? DEFAULT_WATCHLIST,
-      settings: { ...DEFAULT_STATE.settings, ...saved.settings },
+      watchlist: normalizeWatchlist(saved.watchlist ?? DEFAULT_WATCHLIST),
+      settings: normalizeAppSettings(saved.settings),
       columnOrder: normalizeWatchlistColumnOrder(saved.columnOrder)
     }
   } catch {
@@ -111,10 +110,10 @@ function showMainWindow(quoteId?: string): void {
 
 function cleanupBeforeQuit(): void {
   isQuitting = true
-  if (refreshTimer) {
-    clearInterval(refreshTimer)
-    refreshTimer = null
-  }
+  if (priorityRefreshTimer) clearInterval(priorityRefreshTimer)
+  if (regularRefreshTimer) clearInterval(regularRefreshTimer)
+  priorityRefreshTimer = null
+  regularRefreshTimer = null
   appTray?.destroy()
   appTray = null
   taskbarWindow?.destroy()
@@ -243,12 +242,24 @@ function syncTaskbarWindow(): void {
   positionTaskbarWindow()
 }
 
-async function refreshAll(): Promise<StockQuote[]> {
-  if (refreshInFlight) return latestQuotes
-  refreshInFlight = true
+function mergeQuotes(refreshedQuotes: StockQuote[]): void {
+  const quoteMap = new Map(latestQuotes.map((quote) => [quote.quoteId, quote]))
+  for (const quote of refreshedQuotes) quoteMap.set(quote.quoteId, quote)
+  latestQuotes = state.watchlist.flatMap((stock) => {
+    const quote = quoteMap.get(stock.quoteId)
+    return quote ? [quote] : []
+  })
+}
+
+async function refreshStocks(
+  stocks: WatchStock[],
+  group: 'all' | 'priority' | 'regular'
+): Promise<StockQuote[]> {
+  if (stocks.length === 0 || refreshesInFlight.has(group)) return latestQuotes
+  refreshesInFlight.add(group)
 
   try {
-    latestQuotes = await fetchQuotes(state.watchlist)
+    mergeQuotes(await fetchQuotes(stocks, state.watchlist))
     sendToWindows('quotes:updated', latestQuotes)
     updateAppTrayMenu()
     syncTaskbarWindow()
@@ -258,13 +269,33 @@ async function refreshAll(): Promise<StockQuote[]> {
     sendToWindows('data:error', message)
     return latestQuotes
   } finally {
-    refreshInFlight = false
+    refreshesInFlight.delete(group)
   }
 }
 
-function restartRefreshTimer(): void {
-  if (refreshTimer) clearInterval(refreshTimer)
-  refreshTimer = setInterval(() => void refreshAll(), state.settings.refreshSeconds * 1000)
+function refreshAll(): Promise<StockQuote[]> {
+  return refreshStocks(state.watchlist, 'all')
+}
+
+function refreshPriorityStocks(): Promise<StockQuote[]> {
+  return refreshStocks(state.watchlist.filter((stock) => stock.isPriority), 'priority')
+}
+
+function refreshRegularStocks(): Promise<StockQuote[]> {
+  return refreshStocks(state.watchlist.filter((stock) => !stock.isPriority), 'regular')
+}
+
+function restartRefreshTimers(): void {
+  if (priorityRefreshTimer) clearInterval(priorityRefreshTimer)
+  if (regularRefreshTimer) clearInterval(regularRefreshTimer)
+  priorityRefreshTimer = setInterval(
+    () => void refreshPriorityStocks(),
+    state.settings.priorityRefreshSeconds * 1000
+  )
+  regularRefreshTimer = setInterval(
+    () => void refreshRegularStocks(),
+    state.settings.regularRefreshSeconds * 1000
+  )
 }
 
 function createWindow(): void {
@@ -311,23 +342,32 @@ function registerIpc(): void {
   ipcMain.handle('app:bootstrap', async () => ({ state, quotes: latestQuotes, source: 'eastmoney' as const }))
   ipcMain.handle('stocks:search', (_event, query: string) => searchStocks(query))
   ipcMain.handle('quotes:refresh', () => refreshAll())
-  ipcMain.handle('kline:get', (_event, quoteId: string) => fetchKline(quoteId))
+  ipcMain.handle('kline:get', (_event, quoteId: string, period: KlinePeriod) => fetchKline(quoteId, period))
   ipcMain.handle('funds-flow:get', (_event, quoteId: string) => fetchFundsFlow(quoteId))
   ipcMain.handle('state:save', async (_event, nextState: AppState) => {
-    const refreshSecondsChanged = state.settings.refreshSeconds !== nextState.settings.refreshSeconds
-    const startWithWindowsChanged = state.settings.startWithWindows !== nextState.settings.startWithWindows
-    const watchedStocksChanged = state.watchlist.length !== nextState.watchlist.length
-      || state.watchlist.some((stock) => !nextState.watchlist.some((nextStock) => nextStock.quoteId === stock.quoteId))
-    state = nextState
+    const normalizedState: AppState = {
+      ...nextState,
+      watchlist: normalizeWatchlist(nextState.watchlist),
+      settings: normalizeAppSettings(nextState.settings)
+    }
+    const refreshSettingsChanged = state.settings.priorityRefreshSeconds !== normalizedState.settings.priorityRefreshSeconds
+      || state.settings.regularRefreshSeconds !== normalizedState.settings.regularRefreshSeconds
+    const startWithWindowsChanged = state.settings.startWithWindows !== normalizedState.settings.startWithWindows
+    const watchedStocksChanged = state.watchlist.length !== normalizedState.watchlist.length
+      || state.watchlist.some((stock) => !normalizedState.watchlist.some((nextStock) => nextStock.quoteId === stock.quoteId))
+    const priorityChanged = state.watchlist.some((stock) => (
+      normalizedState.watchlist.find((nextStock) => nextStock.quoteId === stock.quoteId)?.isPriority !== stock.isPriority
+    ))
+    state = normalizedState
     persistState()
     if (startWithWindowsChanged) {
       app.setLoginItemSettings({ openAtLogin: state.settings.startWithWindows })
     }
-    if (refreshSecondsChanged) restartRefreshTimer()
+    if (refreshSettingsChanged) restartRefreshTimers()
     sendToWindows('state:updated', state)
     updateAppTrayMenu()
     syncTaskbarWindow()
-    if (watchedStocksChanged) void refreshAll()
+    if (watchedStocksChanged || priorityChanged) void refreshAll()
     return state
   })
   ipcMain.handle('config:export', async (_event, stateToExport: AppState) => {
@@ -389,7 +429,7 @@ if (!hasSingleInstanceLock) {
     screen.on('display-metrics-changed', syncTaskbarWindow)
     screen.on('display-added', syncTaskbarWindow)
     screen.on('display-removed', syncTaskbarWindow)
-    restartRefreshTimer()
+    restartRefreshTimers()
     void refreshAll()
   })
 }

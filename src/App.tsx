@@ -105,7 +105,7 @@ export default function App() {
     }
     const nextState = {
       ...state,
-      watchlist: [...state.watchlist, { ...result, showInTaskbar: false }]
+      watchlist: [...state.watchlist, { ...result, showInTaskbar: false, isPriority: false }]
     }
     setSelectedQuoteId(result.quoteId)
     void persist(nextState)
@@ -125,9 +125,20 @@ export default function App() {
     void persist({ ...state, watchlist: nextWatchlist })
   }, [persist, state])
 
+  const togglePriority = useCallback((quoteId: string) => {
+    const nextWatchlist = state.watchlist.map((stock) => (
+      stock.quoteId === quoteId && !stock.position
+        ? { ...stock, isPriority: !stock.isPriority }
+        : stock
+    ))
+    void persist({ ...state, watchlist: nextWatchlist })
+  }, [persist, state])
+
   const updatePosition = useCallback((quoteId: string, position: StockPosition | undefined) => {
     const nextWatchlist = state.watchlist.map((stock) =>
-      stock.quoteId === quoteId ? { ...stock, position } : stock
+      stock.quoteId === quoteId
+        ? { ...stock, position, isPriority: position ? true : stock.isPriority }
+        : stock
     )
     void persist({ ...state, watchlist: nextWatchlist })
   }, [persist, state])
@@ -230,7 +241,7 @@ export default function App() {
             <div className="panel-heading">
               <div className="panel-title">
                 <h1>我的自选</h1>
-                <span>{state.watchlist.length} 只股票 · {portfolioSummary.positionCount} 只有持仓 · 点击股票行展开行情详情</span>
+                <span>{state.watchlist.length} 只股票 · {state.watchlist.filter((stock) => stock.isPriority).length} 只重点 · {portfolioSummary.positionCount} 只有持仓 · 点击股票行展开行情详情</span>
               </div>
               <div className="panel-heading-side">
                 <div className="portfolio-summary" aria-label="全部持仓收益汇总">
@@ -238,6 +249,12 @@ export default function App() {
                     <small>今日总收益</small>
                     <strong className={portfolioSummary.todayProfit === null ? 'is-flat' : portfolioSummary.todayProfit >= 0 ? 'is-up' : 'is-down'}>
                       {formatProfit(portfolioSummary.todayProfit)}
+                    </strong>
+                  </span>
+                  <span>
+                    <small>今日收益率</small>
+                    <strong className={portfolioSummary.todayProfitPercent === null ? 'is-flat' : portfolioSummary.todayProfitPercent >= 0 ? 'is-up' : 'is-down'}>
+                      {formatPercent(portfolioSummary.todayProfitPercent)}
                     </strong>
                   </span>
                   <span>
@@ -255,7 +272,7 @@ export default function App() {
                 </div>
                 <div className="auto-refresh-state">
                   <span className="live-dot" />
-                  每 {state.settings.refreshSeconds} 秒自动刷新
+                  重点 {state.settings.priorityRefreshSeconds} 秒 · 其余 {state.settings.regularRefreshSeconds} 秒刷新
                 </div>
               </div>
             </div>
@@ -269,10 +286,12 @@ export default function App() {
                 watchlist={state.watchlist}
                 quotes={quotes}
                 columnOrder={state.columnOrder}
-                refreshSeconds={state.settings.refreshSeconds}
+                priorityRefreshSeconds={state.settings.priorityRefreshSeconds}
+                regularRefreshSeconds={state.settings.regularRefreshSeconds}
                 selectedQuoteId={selectedQuoteId}
                 onSelect={(quoteId) => setSelectedQuoteId((current) => current === quoteId ? null : quoteId)}
                 onToggleTaskbar={toggleTaskbar}
+                onTogglePriority={togglePriority}
                 onEditPosition={updatePosition}
                 onReorder={reorderWatchlist}
                 onPin={pinStock}

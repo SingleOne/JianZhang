@@ -1,4 +1,6 @@
 import {
+  normalizeAppSettings,
+  normalizeWatchlist,
   normalizeWatchlistColumnOrder,
   type AppSettings,
   type AppState,
@@ -41,10 +43,14 @@ function isWatchStock(value: unknown): value is WatchStock {
     && typeof stock.showInTaskbar === 'boolean'
 }
 
-function isAppSettings(value: unknown): value is AppSettings {
+function isCompatibleAppSettings(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false
-  const settings = value as Partial<AppSettings>
-  return typeof settings.refreshSeconds === 'number'
+  const settings = value as Partial<AppSettings> & { refreshSeconds?: number }
+  const hasRefreshSettings = (
+    typeof settings.priorityRefreshSeconds === 'number'
+    && typeof settings.regularRefreshSeconds === 'number'
+  ) || typeof settings.refreshSeconds === 'number'
+  return hasRefreshSettings
     && typeof settings.startWithWindows === 'boolean'
     && typeof settings.minimizeToTray === 'boolean'
     && typeof settings.showTaskbarTicker === 'boolean'
@@ -59,18 +65,14 @@ export function parseConfigDocument(value: unknown): AppState {
   }
 
   const importedState = document.state
-  if (!importedState || !Array.isArray(importedState.watchlist) || !isAppSettings(importedState.settings)) {
+  if (!importedState || !Array.isArray(importedState.watchlist) || !isCompatibleAppSettings(importedState.settings)) {
     throw new Error('配置内容不完整')
   }
   if (!importedState.watchlist.every(isWatchStock)) throw new Error('配置中的股票信息无效')
 
   return {
-    watchlist: importedState.watchlist,
-    settings: {
-      ...importedState.settings,
-      refreshSeconds: Math.min(300, Math.max(3, importedState.settings.refreshSeconds)),
-      taskbarPositionPercent: Math.min(100, Math.max(0, importedState.settings.taskbarPositionPercent))
-    },
+    watchlist: normalizeWatchlist(importedState.watchlist),
+    settings: normalizeAppSettings(importedState.settings),
     columnOrder: normalizeWatchlistColumnOrder(
       Array.isArray(importedState.columnOrder) ? importedState.columnOrder : undefined
     )

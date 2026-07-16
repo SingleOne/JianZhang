@@ -33,6 +33,7 @@ const watchlist = supportedStocks.map((stock) => {
     quoteId: `${stock.market}.${stock.code}`,
     marketLabel: stock.StockType,
     showInTaskbar: false,
+    isPriority: Boolean(position),
     ...(position ? { position } : {})
   }
 })
@@ -45,7 +46,8 @@ const document = {
   state: {
     watchlist,
     settings: {
-      refreshSeconds: 5,
+      priorityRefreshSeconds: 5,
+      regularRefreshSeconds: 10,
       startWithWindows: false,
       minimizeToTray: true,
       showTaskbarTicker: true,
@@ -53,8 +55,8 @@ const document = {
     },
     columnOrder: [
       'stock', 'latest', 'changePercent', 'open', 'high', 'low', 'amount',
-      'positionQuantity', 'cost', 'marketValue', 'todayProfit', 'totalProfit',
-      'profitPercent', 'operation'
+      'radar', 'positionQuantity', 'cost', 'marketValue', 'todayProfit',
+      'todayProfitPercent', 'totalProfit', 'profitPercent', 'operation'
     ]
   },
   source: {

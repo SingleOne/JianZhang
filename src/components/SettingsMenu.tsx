@@ -29,20 +29,40 @@ export function SettingsMenu({
         </div>
         <label className="setting-row setting-row-input">
           <span>
-            <strong>行情刷新</strong>
-            <small>建议不少于 3 秒</small>
+            <strong>重点关注刷新</strong>
+            <small>默认 5 秒，建议不少于 3 秒</small>
           </span>
           <span className="number-input-wrap">
             <input
               type="number"
               min="3"
               max="300"
-              value={settings.refreshSeconds}
+              value={settings.priorityRefreshSeconds}
               onChange={(event) => {
                 const value = Math.min(300, Math.max(3, Number(event.target.value) || 3))
-                onChange({ ...settings, refreshSeconds: value })
+                onChange({ ...settings, priorityRefreshSeconds: value })
               }}
-              aria-label="刷新间隔秒数"
+              aria-label="重点关注股票刷新间隔秒数"
+            />
+            <span>秒</span>
+          </span>
+        </label>
+        <label className="setting-row setting-row-input">
+          <span>
+            <strong>其余股票刷新</strong>
+            <small>默认 10 秒，建议不少于 3 秒</small>
+          </span>
+          <span className="number-input-wrap">
+            <input
+              type="number"
+              min="3"
+              max="300"
+              value={settings.regularRefreshSeconds}
+              onChange={(event) => {
+                const value = Math.min(300, Math.max(3, Number(event.target.value) || 3))
+                onChange({ ...settings, regularRefreshSeconds: value })
+              }}
+              aria-label="其余股票刷新间隔秒数"
             />
             <span>秒</span>
           </span>

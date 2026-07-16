@@ -13,6 +13,7 @@ import type { KlineBar } from '../shared/types'
 
 interface CandlestickChartProps {
   bars: KlineBar[]
+  variant?: 'intraday' | 'fiveDay'
 }
 
 function toTimestamp(value: string): UTCTimestamp {
@@ -22,10 +23,13 @@ function toTimestamp(value: string): UTCTimestamp {
   return Math.floor(Date.UTC(year, month - 1, day, hour, minute) / 1000) as UTCTimestamp
 }
 
-function timeLabel(time: Time): string {
+function timeLabel(time: Time, showDate: boolean): string {
   if (typeof time !== 'number') return ''
   const date = new Date(time * 1000)
-  return `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`
+  const hours = `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`
+  return showDate
+    ? `${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')} ${hours}`
+    : hours
 }
 
 function intradayAveragePrice(bars: KlineBar[]): LineData[] {
@@ -44,7 +48,7 @@ function intradayAveragePrice(bars: KlineBar[]): LineData[] {
   return result
 }
 
-export default function CandlestickChart({ bars }: CandlestickChartProps) {
+export default function CandlestickChart({ bars, variant = 'intraday' }: CandlestickChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -74,7 +78,7 @@ export default function CandlestickChart({ bars }: CandlestickChartProps) {
         secondsVisible: false,
         rightOffset: 2,
         barSpacing: 10,
-        tickMarkFormatter: timeLabel
+        tickMarkFormatter: (time: Time) => timeLabel(time, variant === 'fiveDay')
       },
       crosshair: {
         mode: CrosshairMode.Normal,
@@ -82,7 +86,7 @@ export default function CandlestickChart({ bars }: CandlestickChartProps) {
         horzLine: { color: '#94a3b8', width: 1, labelBackgroundColor: '#334155' }
       },
       localization: {
-        timeFormatter: timeLabel,
+        timeFormatter: (time: Time) => timeLabel(time, variant === 'fiveDay'),
         priceFormatter: (price: number) => price.toFixed(2)
       }
     })
@@ -103,14 +107,16 @@ export default function CandlestickChart({ bars }: CandlestickChartProps) {
       value: bar.close
     })))
 
-    const averagePriceLine = chart.addSeries(LineSeries, {
-      color: '#d89414',
-      lineWidth: 1,
-      priceLineVisible: false,
-      lastValueVisible: false,
-      crosshairMarkerVisible: false
-    })
-    averagePriceLine.setData(intradayAveragePrice(bars))
+    if (variant === 'intraday') {
+      const averagePriceLine = chart.addSeries(LineSeries, {
+        color: '#d89414',
+        lineWidth: 1,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false
+      })
+      averagePriceLine.setData(intradayAveragePrice(bars))
+    }
 
     const volume = chart.addSeries(HistogramSeries, {
       priceFormat: { type: 'volume' },
@@ -136,7 +142,7 @@ export default function CandlestickChart({ bars }: CandlestickChartProps) {
       resizeObserver.disconnect()
       chart.remove()
     }
-  }, [bars])
+  }, [bars, variant])
 
   return <div className="candlestick-chart" ref={containerRef} />
 }
