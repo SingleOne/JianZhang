@@ -37,7 +37,16 @@ export function normalizeWatchlistColumnOrder(
   columnOrder: readonly WatchlistColumnId[] | undefined
 ): WatchlistColumnId[] {
   const source = columnOrder ?? DEFAULT_WATCHLIST_COLUMN_ORDER
-  return [...source.filter((columnId) => columnId !== 'operation'), 'operation']
+  const validColumns = new Set<WatchlistColumnId>(DEFAULT_WATCHLIST_COLUMN_ORDER)
+  const normalized = source.filter((columnId, index) => (
+    columnId !== 'operation'
+    && validColumns.has(columnId)
+    && source.indexOf(columnId) === index
+  ))
+  const missingColumns = DEFAULT_WATCHLIST_COLUMN_ORDER.filter((columnId) => (
+    columnId !== 'operation' && !normalized.includes(columnId)
+  ))
+  return [...normalized, ...missingColumns, 'operation']
 }
 
 export interface StockQuote {
@@ -94,6 +103,15 @@ export interface AppState {
   columnOrder: WatchlistColumnId[]
 }
 
+export interface ConfigExportResult {
+  canceled: boolean
+  filePath?: string
+}
+
+export interface ConfigImportResult extends ConfigExportResult {
+  state?: AppState
+}
+
 export interface BootstrapResult {
   state: AppState
   quotes: StockQuote[]
@@ -106,6 +124,8 @@ export interface StockDesktopApi {
   refreshQuotes: () => Promise<StockQuote[]>
   getKline: (quoteId: string) => Promise<KlineResult>
   saveState: (state: AppState) => Promise<AppState>
+  exportConfig: (state: AppState) => Promise<ConfigExportResult>
+  importConfig: () => Promise<ConfigImportResult>
   hideWindow: () => Promise<void>
   quitApp: () => Promise<void>
   onQuotesUpdated: (callback: (quotes: StockQuote[]) => void) => () => void

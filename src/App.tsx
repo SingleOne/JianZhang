@@ -1,4 +1,4 @@
-import { RefreshCw, Signal, WifiOff } from 'lucide-react'
+import { CircleCheck, RefreshCw, Signal, WifiOff } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AppTitlebar } from './components/AppTitlebar'
 import { SearchBar } from './components/SearchBar'
@@ -22,9 +22,19 @@ export default function App() {
   const [source, setSource] = useState<'eastmoney' | 'demo'>('eastmoney')
   const [initializing, setInitializing] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [configBusy, setConfigBusy] = useState(false)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
 
-  const reportError = useCallback((message: string) => setError(message), [])
+  const reportError = useCallback((message: string) => {
+    setNotice('')
+    setError(message)
+  }, [])
+
+  const reportSuccess = useCallback((message: string) => {
+    setError('')
+    setNotice(message)
+  }, [])
 
   useEffect(() => {
     stockApi.getBootstrap()
@@ -57,6 +67,12 @@ export default function App() {
     return () => window.clearTimeout(timer)
   }, [error])
 
+  useEffect(() => {
+    if (!notice) return
+    const timer = window.setTimeout(() => setNotice(''), 4200)
+    return () => window.clearTimeout(timer)
+  }, [notice])
+
   const quoteIds = useMemo(() => new Set(state.watchlist.map((stock) => stock.quoteId)), [state.watchlist])
   const lastUpdated = quotes.reduce<string | undefined>((latest, quote) => {
     if (!latest || quote.updatedAt > latest) return quote.updatedAt
@@ -69,8 +85,10 @@ export default function App() {
       const saved = await stockApi.saveState(nextState)
       setState(saved)
       if (!isDesktopRuntime) setQuotes(await stockApi.refreshQuotes())
+      return saved
     } catch (reason) {
       reportError(reason instanceof Error ? reason.message : '设置保存失败')
+      return null
     }
   }, [reportError])
 
@@ -127,6 +145,40 @@ export default function App() {
     void persist({ ...state, settings })
   }, [persist, state])
 
+  const exportConfig = useCallback(async () => {
+    setConfigBusy(true)
+    try {
+      const result = await stockApi.exportConfig(state)
+      if (!result.canceled) reportSuccess('配置已导出到所选位置')
+    } catch (reason) {
+      reportError(reason instanceof Error ? reason.message : '配置导出失败')
+    } finally {
+      setConfigBusy(false)
+    }
+  }, [reportError, reportSuccess, state])
+
+  const importConfig = useCallback(async () => {
+    setConfigBusy(true)
+    try {
+      const result = await stockApi.importConfig()
+      if (result.canceled || !result.state) return
+      const confirmed = window.confirm(
+        `导入后将用文件中的 ${result.state.watchlist.length} 只股票和全部设置覆盖当前配置，是否继续？`
+      )
+      if (!confirmed) return
+
+      const importedQuoteIds = new Set(result.state.watchlist.map((stock) => stock.quoteId))
+      setSelectedQuoteId(null)
+      setQuotes((current) => current.filter((quote) => importedQuoteIds.has(quote.quoteId)))
+      const saved = await persist(result.state)
+      if (saved) reportSuccess(`已导入 ${saved.watchlist.length} 只股票及全部设置`)
+    } catch (reason) {
+      reportError(reason instanceof Error ? reason.message : '配置导入失败')
+    } finally {
+      setConfigBusy(false)
+    }
+  }, [persist, reportError, reportSuccess])
+
   const refreshNow = async () => {
     setRefreshing(true)
     try {
@@ -149,7 +201,13 @@ export default function App() {
               <RefreshCw size={17} className={refreshing ? 'is-spinning' : ''} />
               立即刷新
             </button>
-            <SettingsMenu settings={state.settings} onChange={updateSettings} />
+            <SettingsMenu
+              settings={state.settings}
+              onChange={updateSettings}
+              onImportConfig={importConfig}
+              onExportConfig={exportConfig}
+              configBusy={configBusy}
+            />
           </section>
 
           <section className="watchlist-panel" aria-label="我的自选">
@@ -199,6 +257,7 @@ export default function App() {
       </footer>
 
       {error ? <div className="error-toast"><WifiOff size={17} />{error}</div> : null}
+      {notice ? <div className="success-toast"><CircleCheck size={17} />{notice}</div> : null}
     </div>
   )
 }

@@ -1,12 +1,21 @@
-import { Settings2 } from 'lucide-react'
+import { Download, Settings2, Upload } from 'lucide-react'
 import type { AppSettings } from '../shared/types'
 
 interface SettingsMenuProps {
   settings: AppSettings
   onChange: (settings: AppSettings) => void
+  onImportConfig: () => void
+  onExportConfig: () => void
+  configBusy: boolean
 }
 
-export function SettingsMenu({ settings, onChange }: SettingsMenuProps) {
+export function SettingsMenu({
+  settings,
+  onChange,
+  onImportConfig,
+  onExportConfig,
+  configBusy
+}: SettingsMenuProps) {
   return (
     <details className="settings-menu">
       <summary className="secondary-button">
@@ -98,6 +107,22 @@ export function SettingsMenu({ settings, onChange }: SettingsMenuProps) {
             onChange={(event) => onChange({ ...settings, minimizeToTray: event.target.checked })}
           />
         </label>
+        <div className="config-management">
+          <span>
+            <strong>配置管理</strong>
+            <small>备份或恢复自选、持仓、排序与应用设置</small>
+          </span>
+          <span className="config-management-actions">
+            <button type="button" onClick={onImportConfig} disabled={configBusy}>
+              <Upload size={15} />
+              导入配置
+            </button>
+            <button type="button" onClick={onExportConfig} disabled={configBusy}>
+              <Download size={15} />
+              导出配置
+            </button>
+          </span>
+        </div>
       </div>
     </details>
   )

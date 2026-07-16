@@ -439,7 +439,7 @@ tr:focus-visible {
 }
 
 .setting-row:last-child {
-  border-bottom: 0;
+  border-bottom: 1px solid #f0f2f6;
 }
 
 .setting-row > span:first-child {
@@ -451,6 +451,59 @@ tr:focus-visible {
   color: #344054;
   font-size: 12px;
   font-weight: 650;
+}
+
+.config-management {
+  display: grid;
+  gap: 10px;
+  padding: 13px 0 2px;
+}
+
+.config-management > span:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.config-management strong {
+  color: #586579;
+  font-weight: 600;
+}
+
+.config-management small {
+  color: var(--subtle);
+  font-size: 11px;
+}
+
+.config-management-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.config-management-actions button {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #445268;
+  background: #f8fafc;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.config-management-actions button:hover:not(:disabled) {
+  color: var(--blue);
+  border-color: #a9c3f8;
+  background: #f7faff;
+}
+
+.config-management-actions button:disabled {
+  color: #a1a9b8;
+  cursor: default;
 }
 
 .setting-row small {
@@ -1395,7 +1448,8 @@ tr:focus-visible {
   background: #dfe4ec;
 }
 
-.error-toast {
+.error-toast,
+.success-toast {
   position: fixed;
   right: 20px;
   bottom: 48px;
@@ -1412,6 +1466,11 @@ tr:focus-visible {
   box-shadow: var(--shadow-menu);
   font-size: 12px;
   animation: toast-in 180ms ease-out;
+}
+
+.success-toast {
+  color: #087452;
+  border: 1px solid #b9e4d3;
 }
 
 .is-spinning {

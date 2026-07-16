@@ -3,12 +3,14 @@ import {
   normalizeWatchlistColumnOrder,
   type AppState,
   type BootstrapResult,
+  type ConfigImportResult,
   type KlineResult,
   type SearchResult,
   type StockDesktopApi,
   type StockQuote,
   type WatchStock
 } from '../shared/types'
+import { createConfigDocument, parseConfigDocument } from '../shared/config'
 
 const DEMO_STOCKS: SearchResult[] = [
   { code: '600519', name: '贵州茅台', quoteId: '1.600519', marketLabel: '沪A' },
@@ -127,6 +129,10 @@ function makeDemoKline(quoteId: string): KlineResult {
 
 const noSubscribe = (): (() => void) => () => undefined
 
+function demoConfigFileName(): string {
+  return `见涨-配置-${new Date().toISOString().slice(0, 19).replaceAll(':', '-')}.json`
+}
+
 const demoApi: StockDesktopApi = {
   async getBootstrap(): Promise<BootstrapResult> {
     const state = loadDemoState()
@@ -147,6 +153,40 @@ const demoApi: StockDesktopApi = {
   async saveState(state) {
     localStorage.setItem('jianzhang-demo-state-v1', JSON.stringify(state))
     return state
+  },
+  async exportConfig(state) {
+    const fileName = demoConfigFileName()
+    const blob = new Blob([JSON.stringify(createConfigDocument(state, 'browser-preview'), null, 2)], {
+      type: 'application/json'
+    })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = fileName
+    link.click()
+    URL.revokeObjectURL(link.href)
+    return { canceled: false, filePath: fileName }
+  },
+  async importConfig() {
+    return new Promise<ConfigImportResult>((resolve, reject) => {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = '.json,application/json'
+      input.onchange = () => {
+        const file = input.files?.[0]
+        if (!file) {
+          resolve({ canceled: true })
+          return
+        }
+        file.text()
+          .then((content) => resolve({
+            canceled: false,
+            filePath: file.name,
+            state: parseConfigDocument(JSON.parse(content))
+          }))
+          .catch(reject)
+      }
+      input.click()
+    })
   },
   async hideWindow() {},
   async quitApp() {},

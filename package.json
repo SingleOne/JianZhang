@@ -1,6 +1,6 @@
 {
   "name": "jianzhang-stock-desktop",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "见涨 - Windows 11 实时股票自选桌面应用",
   "main": "out/main/index.js",
   "author": "Codex",

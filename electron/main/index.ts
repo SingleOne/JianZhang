@@ -1,4 +1,14 @@
-import { app, BrowserWindow, ipcMain, Menu, screen, Tray } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  screen,
+  Tray,
+  type OpenDialogOptions,
+  type SaveDialogOptions
+} from 'electron'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
@@ -8,6 +18,7 @@ import {
   type StockQuote,
   type WatchStock
 } from '../../src/shared/types'
+import { createConfigDocument, parseConfigDocument } from '../../src/shared/config'
 import { fetchKline, fetchQuotes, searchStocks } from './market'
 import { createAppIcon } from './tray-icons'
 
@@ -59,6 +70,17 @@ function loadState(): AppState {
 
 function persistState(): void {
   writeFileSync(statePath(), JSON.stringify(state, null, 2), 'utf8')
+}
+
+function configTimestamp(): string {
+  const now = new Date()
+  const date = [now.getFullYear(), now.getMonth() + 1, now.getDate()]
+    .map((part, index) => index === 0 ? String(part) : String(part).padStart(2, '0'))
+    .join('-')
+  const time = [now.getHours(), now.getMinutes(), now.getSeconds()]
+    .map((part) => String(part).padStart(2, '0'))
+    .join('-')
+  return `${date}-${time}`
 }
 
 function sendToWindows(channel: string, payload: unknown): void {
@@ -306,6 +328,36 @@ function registerIpc(): void {
     syncTaskbarWindow()
     if (watchedStocksChanged) void refreshAll()
     return state
+  })
+  ipcMain.handle('config:export', async (_event, stateToExport: AppState) => {
+    const options: SaveDialogOptions = {
+      title: '导出见涨配置',
+      defaultPath: join(app.getPath('documents'), `见涨-配置-${configTimestamp()}.json`),
+      filters: [{ name: 'JSON 配置文件', extensions: ['json'] }]
+    }
+    const result = mainWindow
+      ? await dialog.showSaveDialog(mainWindow, options)
+      : await dialog.showSaveDialog(options)
+    if (result.canceled || !result.filePath) return { canceled: true }
+
+    const document = createConfigDocument(stateToExport, app.getVersion())
+    writeFileSync(result.filePath, JSON.stringify(document, null, 2), 'utf8')
+    return { canceled: false, filePath: result.filePath }
+  })
+  ipcMain.handle('config:import', async () => {
+    const options: OpenDialogOptions = {
+      title: '导入见涨配置',
+      properties: ['openFile'],
+      filters: [{ name: 'JSON 配置文件', extensions: ['json'] }]
+    }
+    const result = mainWindow
+      ? await dialog.showOpenDialog(mainWindow, options)
+      : await dialog.showOpenDialog(options)
+    const filePath = result.filePaths[0]
+    if (result.canceled || !filePath) return { canceled: true }
+
+    const importedState = parseConfigDocument(JSON.parse(readFileSync(filePath, 'utf8')))
+    return { canceled: false, filePath, state: importedState }
   })
   ipcMain.handle('app:hide', () => mainWindow?.hide())
   ipcMain.handle('app:quit', quitApp)
