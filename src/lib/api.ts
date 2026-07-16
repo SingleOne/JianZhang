@@ -1,0 +1,160 @@
+import {
+  DEFAULT_WATCHLIST_COLUMN_ORDER,
+  type AppState,
+  type BootstrapResult,
+  type KlineResult,
+  type SearchResult,
+  type StockDesktopApi,
+  type StockQuote,
+  type WatchStock
+} from '../shared/types'
+
+const DEMO_STOCKS: SearchResult[] = [
+  { code: '600519', name: '贵州茅台', quoteId: '1.600519', marketLabel: '沪A' },
+  { code: '300750', name: '宁德时代', quoteId: '0.300750', marketLabel: '深A' },
+  { code: '002594', name: '比亚迪', quoteId: '0.002594', marketLabel: '深A' },
+  { code: '600030', name: '中信证券', quoteId: '1.600030', marketLabel: '沪A' },
+  { code: '600036', name: '招商银行', quoteId: '1.600036', marketLabel: '沪A' },
+  { code: '000858', name: '五粮液', quoteId: '0.000858', marketLabel: '深A' },
+  { code: '601318', name: '中国平安', quoteId: '1.601318', marketLabel: '沪A' }
+]
+
+const DEFAULT_WATCHLIST: WatchStock[] = DEMO_STOCKS.slice(0, 5).map((stock, index) => ({
+  ...stock,
+  showInTaskbar: index < 2
+}))
+
+const DEFAULT_STATE: AppState = {
+  watchlist: DEFAULT_WATCHLIST,
+  columnOrder: [...DEFAULT_WATCHLIST_COLUMN_ORDER],
+  settings: {
+    refreshSeconds: 5,
+    startWithWindows: false,
+    minimizeToTray: true,
+    showTaskbarTicker: true,
+    taskbarPositionPercent: 0
+  }
+}
+
+const DEMO_VALUES: Record<string, Omit<StockQuote, 'updatedAt'>> = {
+  '1.600519': {
+    code: '600519', name: '贵州茅台', quoteId: '1.600519', latest: 1248.06, change: -3.0,
+    changePercent: -0.24, open: 1252.0, high: 1264.62, low: 1245.05, previousClose: 1251.06,
+    volume: 17225, amount: 2161774015
+  },
+  '0.300750': {
+    code: '300750', name: '宁德时代', quoteId: '0.300750', latest: 367.81, change: -5.19,
+    changePercent: -1.39, open: 369.48, high: 370.97, low: 364.5, previousClose: 373.0,
+    volume: 75470, amount: 2776714534
+  },
+  '0.002594': {
+    code: '002594', name: '比亚迪', quoteId: '0.002594', latest: 92.63, change: 0.87,
+    changePercent: 0.95, open: 91.74, high: 92.8, low: 91.15, previousClose: 91.76,
+    volume: 142119, amount: 1310129948
+  },
+  '1.600030': {
+    code: '600030', name: '中信证券', quoteId: '1.600030', latest: 31.07, change: 0.21,
+    changePercent: 0.68, open: 30.83, high: 31.18, low: 30.72, previousClose: 30.86,
+    volume: 438210, amount: 1356948120
+  },
+  '1.600036': {
+    code: '600036', name: '招商银行', quoteId: '1.600036', latest: 48.26, change: -0.18,
+    changePercent: -0.37, open: 48.51, high: 48.64, low: 48.08, previousClose: 48.44,
+    volume: 264580, amount: 1278830400
+  }
+}
+
+function loadDemoState(): AppState {
+  const saved = localStorage.getItem('jianzhang-demo-state-v1')
+  if (!saved) return structuredClone(DEFAULT_STATE)
+  const parsed = JSON.parse(saved) as AppState
+  return {
+    watchlist: parsed.watchlist,
+    settings: { ...DEFAULT_STATE.settings, ...parsed.settings },
+    columnOrder: parsed.columnOrder ?? [...DEFAULT_WATCHLIST_COLUMN_ORDER]
+  }
+}
+
+function makeDemoQuotes(watchlist: WatchStock[]): StockQuote[] {
+  const now = new Date().toISOString()
+  return watchlist.map((stock, index) => {
+    const known = DEMO_VALUES[stock.quoteId]
+    if (known) return { ...known, updatedAt: now }
+    const base = 24 + index * 7.31
+    return {
+      code: stock.code,
+      name: stock.name,
+      quoteId: stock.quoteId,
+      latest: base,
+      change: 0.18,
+      changePercent: 0.76,
+      open: base - 0.22,
+      high: base + 0.64,
+      low: base - 0.51,
+      previousClose: base - 0.18,
+      volume: 182300,
+      amount: 486320000,
+      updatedAt: now
+    }
+  })
+}
+
+function makeDemoKline(quoteId: string): KlineResult {
+  const quote = DEMO_VALUES[quoteId]
+  const base = quote?.open ?? 48
+  const date = new Date().toISOString().slice(0, 10)
+  const bars = Array.from({ length: 48 }, (_, index) => {
+    const minutes = index < 24 ? 35 + index * 5 : 65 + index * 5
+    const hour = index < 24 ? 9 + Math.floor(minutes / 60) : 13 + Math.floor((minutes - 185) / 60)
+    const minute = index < 24 ? minutes % 60 : (minutes - 185) % 60
+    const wave = Math.sin(index / 4.2) * base * 0.0028
+    const drift = (index - 20) * base * 0.000045
+    const open = base + wave + drift
+    const close = open + Math.sin(index * 1.7) * base * 0.0012
+    return {
+      time: `${date} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+      open,
+      close,
+      high: Math.max(open, close) + base * (0.0008 + (index % 3) * 0.0002),
+      low: Math.min(open, close) - base * (0.0007 + (index % 2) * 0.0002),
+      volume: 850 + ((index * 173) % 2100),
+      amount: (850 + ((index * 173) % 2100)) * close * 100
+    }
+  })
+  return { quoteId, name: quote?.name ?? '', tradingDate: date, bars }
+}
+
+const noSubscribe = (): (() => void) => () => undefined
+
+const demoApi: StockDesktopApi = {
+  async getBootstrap(): Promise<BootstrapResult> {
+    const state = loadDemoState()
+    return { state, quotes: makeDemoQuotes(state.watchlist), source: 'demo' }
+  },
+  async searchStocks(query) {
+    const normalized = query.trim().toLowerCase()
+    return DEMO_STOCKS.filter(
+      (stock) => stock.code.includes(normalized) || stock.name.toLowerCase().includes(normalized)
+    )
+  },
+  async refreshQuotes() {
+    return makeDemoQuotes(loadDemoState().watchlist)
+  },
+  async getKline(quoteId) {
+    return makeDemoKline(quoteId)
+  },
+  async saveState(state) {
+    localStorage.setItem('jianzhang-demo-state-v1', JSON.stringify(state))
+    return state
+  },
+  async hideWindow() {},
+  async quitApp() {},
+  onQuotesUpdated: noSubscribe,
+  onStateUpdated: noSubscribe,
+  onSelectStock: noSubscribe,
+  onDataError: noSubscribe
+}
+
+export const stockApi = window.stockApi ?? demoApi
+export const isDesktopRuntime = Boolean(window.stockApi)
+export const initialState = DEFAULT_STATE
