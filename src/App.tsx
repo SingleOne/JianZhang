@@ -5,7 +5,8 @@ import { SearchBar } from './components/SearchBar'
 import { SettingsMenu } from './components/SettingsMenu'
 import { WatchlistTable } from './components/WatchlistTable'
 import { initialState, isDesktopRuntime, stockApi } from './lib/api'
-import { formatUpdateTime } from './lib/format'
+import { formatPercent, formatProfit, formatUpdateTime } from './lib/format'
+import { calculatePortfolioSummary } from './lib/portfolio'
 import type {
   AppSettings,
   AppState,
@@ -74,6 +75,10 @@ export default function App() {
   }, [notice])
 
   const quoteIds = useMemo(() => new Set(state.watchlist.map((stock) => stock.quoteId)), [state.watchlist])
+  const portfolioSummary = useMemo(
+    () => calculatePortfolioSummary(state.watchlist, quotes),
+    [quotes, state.watchlist]
+  )
   const lastUpdated = quotes.reduce<string | undefined>((latest, quote) => {
     if (!latest || quote.updatedAt > latest) return quote.updatedAt
     return latest
@@ -137,6 +142,15 @@ export default function App() {
     void persist({ ...state, watchlist: nextWatchlist })
   }, [persist, state])
 
+  const pinStock = useCallback((quoteId: string) => {
+    const currentIndex = state.watchlist.findIndex((stock) => stock.quoteId === quoteId)
+    if (currentIndex <= 0) return
+    const nextWatchlist = [...state.watchlist]
+    const [pinnedStock] = nextWatchlist.splice(currentIndex, 1)
+    nextWatchlist.unshift(pinnedStock)
+    void persist({ ...state, watchlist: nextWatchlist })
+  }, [persist, state])
+
   const updateColumnOrder = useCallback((columnOrder: WatchlistColumnId[]) => {
     void persist({ ...state, columnOrder })
   }, [persist, state])
@@ -197,28 +211,52 @@ export default function App() {
         <div className="workspace">
           <section className="command-bar" aria-label="自选股操作">
             <SearchBar onAdd={addStock} existingQuoteIds={quoteIds} onError={reportError} />
-            <button className="secondary-button refresh-button" onClick={refreshNow} disabled={refreshing}>
-              <RefreshCw size={17} className={refreshing ? 'is-spinning' : ''} />
-              立即刷新
-            </button>
-            <SettingsMenu
-              settings={state.settings}
-              onChange={updateSettings}
-              onImportConfig={importConfig}
-              onExportConfig={exportConfig}
-              configBusy={configBusy}
-            />
+            <div className="command-actions">
+              <button className="secondary-button refresh-button" onClick={refreshNow} disabled={refreshing}>
+                <RefreshCw size={17} className={refreshing ? 'is-spinning' : ''} />
+                立即刷新
+              </button>
+              <SettingsMenu
+                settings={state.settings}
+                onChange={updateSettings}
+                onImportConfig={importConfig}
+                onExportConfig={exportConfig}
+                configBusy={configBusy}
+              />
+            </div>
           </section>
 
           <section className="watchlist-panel" aria-label="我的自选">
             <div className="panel-heading">
-              <div>
+              <div className="panel-title">
                 <h1>我的自选</h1>
-                <span>{state.watchlist.length} 只股票 · 点击任意行展开当日 K 线</span>
+                <span>{state.watchlist.length} 只股票 · {portfolioSummary.positionCount} 只有持仓 · 点击股票行展开行情详情</span>
               </div>
-              <div className="auto-refresh-state">
-                <span className="live-dot" />
-                每 {state.settings.refreshSeconds} 秒自动刷新
+              <div className="panel-heading-side">
+                <div className="portfolio-summary" aria-label="全部持仓收益汇总">
+                  <span>
+                    <small>今日总收益</small>
+                    <strong className={portfolioSummary.todayProfit === null ? 'is-flat' : portfolioSummary.todayProfit >= 0 ? 'is-up' : 'is-down'}>
+                      {formatProfit(portfolioSummary.todayProfit)}
+                    </strong>
+                  </span>
+                  <span>
+                    <small>持仓总收益</small>
+                    <strong className={portfolioSummary.totalProfit === null ? 'is-flat' : portfolioSummary.totalProfit >= 0 ? 'is-up' : 'is-down'}>
+                      {formatProfit(portfolioSummary.totalProfit)}
+                    </strong>
+                  </span>
+                  <span>
+                    <small>总收益率</small>
+                    <strong className={portfolioSummary.profitPercent === null ? 'is-flat' : portfolioSummary.profitPercent >= 0 ? 'is-up' : 'is-down'}>
+                      {formatPercent(portfolioSummary.profitPercent)}
+                    </strong>
+                  </span>
+                </div>
+                <div className="auto-refresh-state">
+                  <span className="live-dot" />
+                  每 {state.settings.refreshSeconds} 秒自动刷新
+                </div>
               </div>
             </div>
             {initializing ? (
@@ -237,6 +275,7 @@ export default function App() {
                 onToggleTaskbar={toggleTaskbar}
                 onEditPosition={updatePosition}
                 onReorder={reorderWatchlist}
+                onPin={pinStock}
                 onColumnOrderChange={updateColumnOrder}
                 onRemove={removeStock}
               />

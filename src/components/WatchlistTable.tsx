@@ -10,6 +10,7 @@ import {
   GripVertical,
   MonitorUp,
   PencilLine,
+  Pin,
   RotateCcw,
   Trash2
 } from 'lucide-react'
@@ -47,6 +48,7 @@ interface WatchlistTableProps {
   onToggleTaskbar: (quoteId: string) => void
   onEditPosition: (quoteId: string, position: StockPosition | undefined) => void
   onReorder: (sourceQuoteId: string, targetQuoteId: string) => void
+  onPin: (quoteId: string) => void
   onColumnOrderChange: (columnOrder: WatchlistColumnId[]) => void
   onRemove: (quoteId: string) => void
 }
@@ -88,6 +90,8 @@ const COLUMN_META: Record<WatchlistColumnId, ColumnMeta> = {
   profitPercent: { label: '收益率', width: 100, sortable: true },
   operation: { label: '操作', width: 225, sortable: false, className: 'operation-column' }
 }
+
+const ORDER_COLUMN_WIDTH = 76
 
 function valueClass(value: number | null | undefined): string {
   if (value === null || value === undefined || value === 0) return 'is-flat'
@@ -141,6 +145,7 @@ export function WatchlistTable({
   onToggleTaskbar,
   onEditPosition,
   onReorder,
+  onPin,
   onColumnOrderChange,
   onRemove
 }: WatchlistTableProps) {
@@ -213,7 +218,7 @@ export function WatchlistTable({
         <span>
           {sort
             ? `当前按“${COLUMN_META[sort.column].label}”${sort.direction === 'asc' ? '升序' : '降序'}排列`
-            : '当前为手动排序 · 拖动股票名称左侧手柄调整顺序'}
+            : '当前为手动排序 · 使用最左侧的拖动手柄或置顶按钮调整顺序'}
         </span>
         <div className="table-toolbar-actions">
           <button
@@ -301,12 +306,14 @@ export function WatchlistTable({
       <div className="table-scroller">
         <table className="watchlist-table">
           <colgroup>
+            <col style={{ width: ORDER_COLUMN_WIDTH }} />
             {renderedColumnOrder.map((columnId) => (
               <col key={columnId} style={{ width: COLUMN_META[columnId].width }} />
             ))}
           </colgroup>
           <thead>
             <tr>
+              <th className="order-column">排序</th>
               {renderedColumnOrder.map((columnId) => {
                 const meta = COLUMN_META[columnId]
                 const activeSort = sort?.column === columnId ? sort : null
@@ -335,7 +342,7 @@ export function WatchlistTable({
             </tr>
           </thead>
           <tbody>
-            {displayedRows.map(({ stock, quote, metrics }) => {
+            {displayedRows.map(({ stock, quote, metrics, manualIndex }) => {
               const selected = selectedQuoteId === stock.quoteId
               const quoteDirection = valueClass(quote?.changePercent)
               return (
@@ -362,29 +369,47 @@ export function WatchlistTable({
                     tabIndex={0}
                     aria-expanded={selected}
                   >
+                    <td className="order-column">
+                      <div className="row-order-actions">
+                        <span
+                          className={`row-drag-handle ${sort ? 'is-disabled' : ''}`}
+                          draggable={!sort}
+                          onClick={(event) => event.stopPropagation()}
+                          onDragStart={(event) => {
+                            event.stopPropagation()
+                            event.dataTransfer.effectAllowed = 'move'
+                            setDraggingQuoteId(stock.quoteId)
+                          }}
+                          onDragEnd={() => {
+                            setDraggingQuoteId(null)
+                            setDragOverQuoteId(null)
+                          }}
+                          title={sort ? '请先恢复手动排序' : '拖动调整股票顺序'}
+                        >
+                          <GripVertical size={15} />
+                        </span>
+                        <button
+                          className="icon-button row-pin-button"
+                          type="button"
+                          disabled={!sort && manualIndex === 0}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            setSort(null)
+                            onPin(stock.quoteId)
+                          }}
+                          aria-label={`置顶 ${stock.name}`}
+                          title={sort ? '置顶并恢复手动排序' : '置顶'}
+                        >
+                          <Pin size={13} />
+                        </button>
+                      </div>
+                    </td>
                     {renderedColumnOrder.map((columnId) => {
                       switch (columnId) {
                         case 'stock':
                           return (
                             <td className="stock-column" key={columnId}>
                               <div className="stock-identity">
-                                <span
-                                  className={`row-drag-handle ${sort ? 'is-disabled' : ''}`}
-                                  draggable={!sort}
-                                  onClick={(event) => event.stopPropagation()}
-                                  onDragStart={(event) => {
-                                    event.stopPropagation()
-                                    event.dataTransfer.effectAllowed = 'move'
-                                    setDraggingQuoteId(stock.quoteId)
-                                  }}
-                                  onDragEnd={() => {
-                                    setDraggingQuoteId(null)
-                                    setDragOverQuoteId(null)
-                                  }}
-                                  title={sort ? '请先恢复手动排序' : '拖动调整股票顺序'}
-                                >
-                                  <GripVertical size={15} />
-                                </span>
                                 <span>
                                   <strong>{stock.name}</strong>
                                   <small>{stock.code} · {stock.marketLabel}</small>
@@ -461,7 +486,7 @@ export function WatchlistTable({
                   </tr>
                   {selected ? (
                     <tr className="expanded-row">
-                      <td colSpan={renderedColumnOrder.length}>
+                      <td colSpan={renderedColumnOrder.length + 1}>
                         <ExpandedStockDetails stock={stock} quote={quote} refreshSeconds={refreshSeconds} />
                       </td>
                     </tr>

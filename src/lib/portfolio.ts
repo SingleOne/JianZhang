@@ -1,10 +1,15 @@
-import type { StockQuote, StockPosition } from '../shared/types'
+import type { StockQuote, StockPosition, WatchStock } from '../shared/types'
 
 export interface PositionMetrics {
   marketValue: number | null
   todayProfit: number | null
   totalProfit: number | null
   profitPercent: number | null
+}
+
+export interface PortfolioSummary extends PositionMetrics {
+  costBasis: number | null
+  positionCount: number
 }
 
 export function currentDateKey(): string {
@@ -38,5 +43,54 @@ export function calculatePositionMetrics(
     todayProfit,
     totalProfit,
     profitPercent: (quote.latest / position.cost - 1) * 100
+  }
+}
+
+export function calculatePortfolioSummary(
+  watchlist: WatchStock[],
+  quotes: StockQuote[]
+): PortfolioSummary {
+  const quoteMap = new Map(quotes.map((quote) => [quote.quoteId, quote]))
+  let positionCount = 0
+  let costBasis = 0
+  let marketValue = 0
+  let todayProfit = 0
+  let totalProfit = 0
+  let pricedPositionCount = 0
+  let todayPricedPositionCount = 0
+
+  for (const stock of watchlist) {
+    if (!stock.position) continue
+    positionCount += 1
+    const metrics = calculatePositionMetrics(stock.position, quoteMap.get(stock.quoteId))
+    if (metrics.marketValue === null || metrics.totalProfit === null) continue
+    pricedPositionCount += 1
+    costBasis += stock.position.cost * stock.position.quantity
+    marketValue += metrics.marketValue
+    totalProfit += metrics.totalProfit
+    if (metrics.todayProfit !== null) {
+      todayPricedPositionCount += 1
+      todayProfit += metrics.todayProfit
+    }
+  }
+
+  if (pricedPositionCount === 0) {
+    return {
+      costBasis: null,
+      marketValue: null,
+      todayProfit: null,
+      totalProfit: null,
+      profitPercent: null,
+      positionCount
+    }
+  }
+
+  return {
+    costBasis,
+    marketValue,
+    todayProfit: todayPricedPositionCount > 0 ? todayProfit : null,
+    totalProfit,
+    profitPercent: costBasis > 0 ? totalProfit / costBasis * 100 : null,
+    positionCount
   }
 }

@@ -4,6 +4,7 @@ import {
   type AppState,
   type BootstrapResult,
   type ConfigImportResult,
+  type FundsFlowResult,
   type KlineResult,
   type SearchResult,
   type StockDesktopApi,
@@ -127,6 +128,29 @@ function makeDemoKline(quoteId: string): KlineResult {
   return { quoteId, name: quote?.name ?? '', tradingDate: date, bars }
 }
 
+function makeDemoFundsFlow(quoteId: string): FundsFlowResult {
+  const quote = DEMO_VALUES[quoteId]
+  const tradingDate = new Date().toISOString().slice(0, 10)
+  const points = Array.from({ length: 48 }, (_, index) => {
+    const minutes = index < 24 ? 35 + index * 5 : 65 + index * 5
+    const hour = index < 24 ? 9 + Math.floor(minutes / 60) : 13 + Math.floor((minutes - 185) / 60)
+    const minute = index < 24 ? minutes % 60 : (minutes - 185) % 60
+    const main = Math.sin(index / 5) * 38_000_000 + index * 420_000
+    const large = main * 0.42 + Math.cos(index / 4) * 7_000_000
+    const medium = -main * 0.48 + Math.sin(index / 3) * 5_000_000
+    const small = -(main + medium)
+    return {
+      time: `${tradingDate} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+      main,
+      superLarge: main - large,
+      large,
+      medium,
+      small
+    }
+  })
+  return { quoteId, name: quote?.name ?? '', tradingDate, points }
+}
+
 const noSubscribe = (): (() => void) => () => undefined
 
 function demoConfigFileName(): string {
@@ -149,6 +173,9 @@ const demoApi: StockDesktopApi = {
   },
   async getKline(quoteId) {
     return makeDemoKline(quoteId)
+  },
+  async getFundsFlow(quoteId) {
+    return makeDemoFundsFlow(quoteId)
   },
   async saveState(state) {
     localStorage.setItem('jianzhang-demo-state-v1', JSON.stringify(state))

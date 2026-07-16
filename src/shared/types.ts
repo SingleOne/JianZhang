@@ -82,6 +82,22 @@ export interface KlineResult {
   bars: KlineBar[]
 }
 
+export interface FundsFlowPoint {
+  time: string
+  main: number
+  superLarge: number
+  large: number
+  medium: number
+  small: number
+}
+
+export interface FundsFlowResult {
+  quoteId: string
+  name: string
+  tradingDate: string
+  points: FundsFlowPoint[]
+}
+
 export interface SearchResult {
   code: string
   name: string
@@ -123,6 +139,7 @@ export interface StockDesktopApi {
   searchStocks: (query: string) => Promise<SearchResult[]>
   refreshQuotes: () => Promise<StockQuote[]>
   getKline: (quoteId: string) => Promise<KlineResult>
+  getFundsFlow: (quoteId: string) => Promise<FundsFlowResult>
   saveState: (state: AppState) => Promise<AppState>
   exportConfig: (state: AppState) => Promise<ConfigExportResult>
   importConfig: () => Promise<ConfigImportResult>

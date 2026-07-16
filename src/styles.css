@@ -161,10 +161,17 @@ tr:focus-visible {
   position: relative;
   z-index: 20;
   display: grid;
-  grid-template-columns: minmax(400px, 680px) auto auto;
+  grid-template-columns: minmax(400px, 680px) auto;
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 16px;
+}
+
+.command-actions {
+  display: flex;
+  align-items: center;
+  justify-self: end;
+  gap: 8px;
 }
 
 .search-composer {
@@ -638,6 +645,40 @@ tr:focus-visible {
   font-size: 12px;
 }
 
+.panel-heading-side {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 18px;
+}
+
+.portfolio-summary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.portfolio-summary > span {
+  min-width: 104px;
+  display: grid;
+  gap: 2px;
+  padding: 5px 10px;
+  background: #f8fafc;
+  border: 1px solid #edf0f4;
+  border-radius: 7px;
+}
+
+.portfolio-summary small {
+  color: #8a94a6;
+  font-size: 9px;
+}
+
+.portfolio-summary strong {
+  font-size: 12px;
+  font-weight: 720;
+  font-variant-numeric: tabular-nums;
+}
+
 .auto-refresh-state {
   display: flex;
   align-items: center;
@@ -657,6 +698,7 @@ tr:focus-visible {
 }
 
 .table-scroller {
+  position: relative;
   overflow-x: auto;
 }
 
@@ -779,11 +821,16 @@ tr:focus-visible {
 
 .watchlist-table {
   width: 100%;
-  min-width: 1630px;
+  min-width: 1706px;
   table-layout: fixed;
   border-spacing: 0;
   border-collapse: separate;
   font-variant-numeric: tabular-nums;
+}
+
+.watchlist-table .order-column {
+  padding: 0 7px;
+  text-align: center;
 }
 
 .watchlist-table th,
@@ -876,7 +923,6 @@ tr:focus-visible {
 .stock-identity {
   display: flex;
   align-items: center;
-  gap: 6px;
 }
 
 .stock-identity > span {
@@ -920,6 +966,30 @@ tr:focus-visible {
   color: #d5dae2;
   background: transparent;
   cursor: not-allowed;
+}
+
+.row-order-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
+
+.row-pin-button {
+  width: 25px;
+  height: 28px;
+  color: #8c96a7;
+  border-radius: 6px;
+}
+
+.row-pin-button:hover:not(:disabled) {
+  color: var(--blue);
+  background: var(--blue-soft);
+}
+
+.row-pin-button:disabled {
+  color: #d5dae2;
+  cursor: default;
 }
 
 .latest-price {
@@ -1002,7 +1072,25 @@ tr:focus-visible {
 }
 
 .operation-column {
+  position: sticky;
+  right: 0;
+  z-index: 3;
   text-align: center !important;
+  background: #ffffff;
+  box-shadow: -1px 0 0 #e7ebf1, -8px 0 14px rgba(15, 23, 42, 0.035);
+}
+
+.watchlist-table th.operation-column {
+  z-index: 6;
+  background: #f8fafc;
+}
+
+.stock-row:hover .operation-column {
+  background: #fafcff;
+}
+
+.stock-row.is-selected .operation-column {
+  background: var(--surface-selected);
 }
 
 .row-actions {
@@ -1220,8 +1308,42 @@ tr:focus-visible {
 }
 
 .stock-details {
-  padding: 19px 24px 23px 47px;
+  padding: 14px 24px 23px;
   text-align: left;
+}
+
+.detail-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e5eaf1;
+}
+
+.detail-tabs button {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  color: #718096;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.detail-tabs button:hover {
+  color: #3f6fad;
+  background: #f1f5fb;
+}
+
+.detail-tabs button.is-active {
+  color: var(--blue);
+  background: #eaf2ff;
 }
 
 .overview-header {
@@ -1310,6 +1432,164 @@ tr:focus-visible {
   background: #ffffff;
   border: 1px solid var(--border);
   border-radius: 9px;
+}
+
+.funds-flow-panel {
+  position: relative;
+}
+
+.funds-flow-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 12px;
+}
+
+.funds-flow-heading > div {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.funds-flow-heading strong {
+  color: #263044;
+  font-size: 13px;
+}
+
+.funds-flow-heading span {
+  color: #8a94a6;
+  font-size: 11px;
+}
+
+.funds-flow-legend::before {
+  width: 13px;
+  height: 2px;
+  display: inline-block;
+  margin: 0 5px 2px 0;
+  content: "";
+  background: #6f62d9;
+}
+
+.funds-flow-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(110px, 1fr));
+  margin-bottom: 13px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+
+.funds-flow-summary > div {
+  display: grid;
+  gap: 5px;
+  padding: 11px 14px;
+  border-right: 1px solid #edf0f4;
+}
+
+.funds-flow-summary > div:last-child {
+  border-right: 0;
+}
+
+.funds-flow-summary span {
+  color: #8a94a6;
+  font-size: 10px;
+}
+
+.funds-flow-summary strong {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.funds-flow-content {
+  display: grid;
+  grid-template-columns: minmax(460px, 1fr) minmax(540px, 0.9fr);
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+
+.funds-flow-chart-panel {
+  min-width: 0;
+  border-right: 1px solid #edf0f4;
+}
+
+.funds-flow-chart {
+  width: 100%;
+  height: 240px;
+}
+
+.funds-flow-table-wrap {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.funds-flow-table {
+  width: 100%;
+  min-width: 540px;
+  border-spacing: 0;
+  border-collapse: separate;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.funds-flow-table th,
+.funds-flow-table td {
+  height: 26px;
+  padding: 0 7px;
+  text-align: right;
+  border-bottom: 1px solid #f0f2f6;
+  white-space: nowrap;
+}
+
+.funds-flow-table th {
+  height: 32px;
+  color: #7d899a;
+  background: #f8fafc;
+  font-weight: 650;
+}
+
+.funds-flow-table th:first-child,
+.funds-flow-table td:first-child {
+  text-align: left;
+}
+
+.funds-flow-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.funds-flow-warning {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 4;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  color: #8a5a00;
+  background: rgba(255, 249, 224, 0.96);
+  border: 1px solid #f0d98a;
+  border-radius: 7px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+  font-size: 10px;
+  transform: translateX(-50%);
+}
+
+.funds-flow-warning button {
+  padding: 0;
+  color: #8a5a00;
+  background: transparent;
+  border: 0;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.chart-loading.compact {
+  height: 240px;
 }
 
 .candlestick-chart {
@@ -1503,14 +1783,18 @@ tr:focus-visible {
   }
 
   .command-bar {
-    grid-template-columns: minmax(380px, 1fr) auto auto;
+    grid-template-columns: minmax(380px, 1fr) auto;
+  }
+
+  .portfolio-summary > span {
+    min-width: 92px;
   }
 
 }
 
 @media (max-width: 900px) {
   .command-bar {
-    grid-template-columns: 1fr auto auto;
+    grid-template-columns: 1fr auto;
   }
 
   .primary-button span {
@@ -1519,6 +1803,21 @@ tr:focus-visible {
 
   .overview-grid {
     grid-template-columns: repeat(3, 1fr);
+  }
+
+  .panel-heading-side {
+    align-items: flex-end;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .funds-flow-content {
+    grid-template-columns: 1fr;
+  }
+
+  .funds-flow-chart-panel {
+    border-right: 0;
+    border-bottom: 1px solid #edf0f4;
   }
 
   .overview-item:nth-child(3) {

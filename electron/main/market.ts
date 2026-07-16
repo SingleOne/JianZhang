@@ -1,5 +1,11 @@
 import { net } from 'electron'
-import type { KlineResult, SearchResult, StockQuote, WatchStock } from '../../src/shared/types'
+import type {
+  FundsFlowResult,
+  KlineResult,
+  SearchResult,
+  StockQuote,
+  WatchStock
+} from '../../src/shared/types'
 
 const SEARCH_TOKEN = 'D43BF722C8E33A67B1BDCC6FDED9C901'
 const EASTMONEY_HEADERS = {
@@ -176,4 +182,38 @@ export async function fetchKline(quoteId: string): Promise<KlineResult> {
   } catch {
     return fetchFiveMinuteKline(quoteId)
   }
+}
+
+export async function fetchFundsFlow(quoteId: string): Promise<FundsFlowResult> {
+  const url = new URL('https://push2.eastmoney.com/api/qt/stock/fflow/kline/get')
+  url.searchParams.set('secid', quoteId)
+  url.searchParams.set('lmt', '0')
+  url.searchParams.set('klt', '1')
+  url.searchParams.set('fields1', 'f1,f2,f3,f7')
+  url.searchParams.set('fields2', 'f51,f52,f53,f54,f55')
+
+  const payload = await requestJson<{
+    data?: { name?: string; klines?: string[] }
+  }>(url.toString())
+  const lines = payload.data?.klines ?? []
+  if (lines.length === 0) throw new Error('行情服务未返回资金流向数据')
+
+  const tradingDate = lines.at(-1)?.slice(0, 10) ?? ''
+  const points = lines
+    .filter((line) => line.startsWith(tradingDate))
+    .map((line) => {
+      const [time, main, small, medium, large] = line.split(',')
+      const mainValue = Number(main)
+      const largeValue = Number(large)
+      return {
+        time,
+        main: mainValue,
+        superLarge: mainValue - largeValue,
+        large: largeValue,
+        medium: Number(medium),
+        small: Number(small)
+      }
+    })
+
+  return { quoteId, name: payload.data?.name ?? '', tradingDate, points }
 }

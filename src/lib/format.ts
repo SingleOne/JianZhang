@@ -20,6 +20,12 @@ export function formatAmount(value: number | null | undefined): string {
   return value.toLocaleString('zh-CN')
 }
 
+export function formatSignedAmount(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '--'
+  if (value === 0) return '0'
+  return `${value >= 0 ? '+' : '-'}${formatAmount(Math.abs(value))}`
+}
+
 export function formatCurrency(value: number | null | undefined): string {
   if (value === null || value === undefined) return '--'
   const absolute = Math.abs(value)

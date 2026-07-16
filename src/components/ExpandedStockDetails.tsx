@@ -1,8 +1,9 @@
-import { AlertCircle, BarChart3, RefreshCw } from 'lucide-react'
+import { AlertCircle, BarChart3, RefreshCw, TrendingUp } from 'lucide-react'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { stockApi } from '../lib/api'
 import { formatAmount, formatPrice, formatVolume } from '../lib/format'
 import type { KlineResult, StockQuote, WatchStock } from '../shared/types'
+import { FundsFlowPanel } from './FundsFlowPanel'
 
 const CandlestickChart = lazy(() => import('./CandlestickChart'))
 
@@ -20,6 +21,7 @@ interface ExpandedStockDetailsProps {
 }
 
 export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedStockDetailsProps) {
+  const [activeTab, setActiveTab] = useState<'trend' | 'funds'>('trend')
   const [data, setData] = useState<KlineResult | null>(() => klineCache.get(stock.quoteId)?.data ?? null)
   const [loading, setLoading] = useState(!data)
   const [error, setError] = useState('')
@@ -78,8 +80,31 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
   ]
 
   return (
-    <section className="stock-details" aria-label={`${stock.name} K线详情`}>
-      <div className="overview-header">
+    <section className="stock-details" aria-label={`${stock.name} 行情详情`}>
+      <div className="detail-tabs" role="tablist" aria-label="行情详情类型">
+        <button
+          className={activeTab === 'trend' ? 'is-active' : ''}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'trend'}
+          onClick={() => setActiveTab('trend')}
+        >
+          <BarChart3 size={15} />
+          分时走势
+        </button>
+        <button
+          className={activeTab === 'funds' ? 'is-active' : ''}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'funds'}
+          onClick={() => setActiveTab('funds')}
+        >
+          <TrendingUp size={15} />
+          资金流向
+        </button>
+      </div>
+      {activeTab === 'trend' ? <div className="trend-tab-panel" role="tabpanel">
+        <div className="overview-header">
         <div>
           <strong>今日概览</strong>
           <span>{data?.tradingDate || '最近交易日'} · 盘中分时线</span>
@@ -89,16 +114,16 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
           <span className="legend-average-price">成交均价</span>
           <span className="legend-volume">成交量</span>
         </div>
-      </div>
-      <div className="overview-grid">
+        </div>
+        <div className="overview-grid">
         {overview.map(([label, value]) => (
           <div className="overview-item" key={label}>
             <span>{label}</span>
             <strong>{value}</strong>
           </div>
         ))}
-      </div>
-      <div className="chart-panel">
+        </div>
+        <div className="chart-panel">
         {error && data ? (
           <div className="chart-refresh-warning">
             <AlertCircle size={14} />
@@ -131,7 +156,12 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
         ) : (
           <div className="chart-loading">最近交易日暂无 K 线数据</div>
         )}
-      </div>
+        </div>
+      </div> : (
+        <div className="funds-tab-panel" role="tabpanel">
+          <FundsFlowPanel stock={stock} refreshSeconds={refreshSeconds} />
+        </div>
+      )}
     </section>
   )
 }

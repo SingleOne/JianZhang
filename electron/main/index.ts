@@ -19,7 +19,7 @@ import {
   type WatchStock
 } from '../../src/shared/types'
 import { createConfigDocument, parseConfigDocument } from '../../src/shared/config'
-import { fetchKline, fetchQuotes, searchStocks } from './market'
+import { fetchFundsFlow, fetchKline, fetchQuotes, searchStocks } from './market'
 import { createAppIcon } from './tray-icons'
 
 const DEFAULT_WATCHLIST: WatchStock[] = [
@@ -312,6 +312,7 @@ function registerIpc(): void {
   ipcMain.handle('stocks:search', (_event, query: string) => searchStocks(query))
   ipcMain.handle('quotes:refresh', () => refreshAll())
   ipcMain.handle('kline:get', (_event, quoteId: string) => fetchKline(quoteId))
+  ipcMain.handle('funds-flow:get', (_event, quoteId: string) => fetchFundsFlow(quoteId))
   ipcMain.handle('state:save', async (_event, nextState: AppState) => {
     const refreshSecondsChanged = state.settings.refreshSeconds !== nextState.settings.refreshSeconds
     const startWithWindowsChanged = state.settings.startWithWindows !== nextState.settings.startWithWindows
