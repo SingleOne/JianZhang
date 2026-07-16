@@ -227,6 +227,7 @@ function mergeRadarSignals(...maps: Array<RadarSignalMap | undefined>): RadarSig
 }
 
 function currentRadarSignals(stocks: WatchStock[]): RadarSignalMap {
+  if (stocks.length === 0) return new Map()
   const { startDate, endDate } = recentRadarDates()
   const watchlistKey = stocks.map((stock) => stock.quoteId).sort().join(',')
   const todayCacheValid = todayRadarCache?.date === endDate && todayRadarCache.watchlistKey === watchlistKey

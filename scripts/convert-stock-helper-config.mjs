@@ -34,6 +34,7 @@ const watchlist = supportedStocks.map((stock) => {
     marketLabel: stock.StockType,
     showInTaskbar: false,
     isPriority: Boolean(position),
+    showRadarSignals: true,
     ...(position ? { position } : {})
   }
 })

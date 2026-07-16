@@ -30,7 +30,8 @@ const DEMO_STOCKS: SearchResult[] = [
 const DEFAULT_WATCHLIST: WatchStock[] = DEMO_STOCKS.slice(0, 5).map((stock, index) => ({
   ...stock,
   showInTaskbar: index < 2,
-  isPriority: false
+  isPriority: false,
+  showRadarSignals: true
 }))
 
 const DEFAULT_STATE: AppState = {

@@ -105,7 +105,12 @@ export default function App() {
     }
     const nextState = {
       ...state,
-      watchlist: [...state.watchlist, { ...result, showInTaskbar: false, isPriority: false }]
+      watchlist: [...state.watchlist, {
+        ...result,
+        showInTaskbar: false,
+        isPriority: false,
+        showRadarSignals: true
+      }]
     }
     setSelectedQuoteId(result.quoteId)
     void persist(nextState)
@@ -134,10 +139,14 @@ export default function App() {
     void persist({ ...state, watchlist: nextWatchlist })
   }, [persist, state])
 
-  const updatePosition = useCallback((quoteId: string, position: StockPosition | undefined) => {
+  const updatePosition = useCallback((
+    quoteId: string,
+    position: StockPosition | undefined,
+    showRadarSignals: boolean
+  ) => {
     const nextWatchlist = state.watchlist.map((stock) =>
       stock.quoteId === quoteId
-        ? { ...stock, position, isPriority: position ? true : stock.isPriority }
+        ? { ...stock, position, showRadarSignals, isPriority: position ? true : stock.isPriority }
         : stock
     )
     void persist({ ...state, watchlist: nextWatchlist })
@@ -270,7 +279,10 @@ export default function App() {
                     </strong>
                   </span>
                 </div>
-                <div className="auto-refresh-state">
+                <div
+                  className="auto-refresh-state"
+                  title="仅在北京时间 09:15:00–11:30:30、12:59:30–15:30:30 自动刷新"
+                >
                   <span className="live-dot" />
                   重点 {state.settings.priorityRefreshSeconds} 秒 · 其余 {state.settings.regularRefreshSeconds} 秒刷新
                 </div>

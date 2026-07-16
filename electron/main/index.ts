@@ -23,15 +23,16 @@ import {
   type WatchStock
 } from '../../src/shared/types'
 import { createConfigDocument, parseConfigDocument } from '../../src/shared/config'
+import { isBeijingAutoRefreshTime } from '../../src/shared/market-hours'
 import { fetchFundsFlow, fetchKline, fetchQuotes, searchStocks } from './market'
 import { createAppIcon } from './tray-icons'
 
 const DEFAULT_WATCHLIST: WatchStock[] = [
-  { code: '600519', name: '贵州茅台', quoteId: '1.600519', marketLabel: '沪A', showInTaskbar: true, isPriority: false },
-  { code: '300750', name: '宁德时代', quoteId: '0.300750', marketLabel: '深A', showInTaskbar: true, isPriority: false },
-  { code: '002594', name: '比亚迪', quoteId: '0.002594', marketLabel: '深A', showInTaskbar: false, isPriority: false },
-  { code: '600030', name: '中信证券', quoteId: '1.600030', marketLabel: '沪A', showInTaskbar: false, isPriority: false },
-  { code: '600036', name: '招商银行', quoteId: '1.600036', marketLabel: '沪A', showInTaskbar: false, isPriority: false }
+  { code: '600519', name: '贵州茅台', quoteId: '1.600519', marketLabel: '沪A', showInTaskbar: true, isPriority: false, showRadarSignals: true },
+  { code: '300750', name: '宁德时代', quoteId: '0.300750', marketLabel: '深A', showInTaskbar: true, isPriority: false, showRadarSignals: true },
+  { code: '002594', name: '比亚迪', quoteId: '0.002594', marketLabel: '深A', showInTaskbar: false, isPriority: false, showRadarSignals: true },
+  { code: '600030', name: '中信证券', quoteId: '1.600030', marketLabel: '沪A', showInTaskbar: false, isPriority: false, showRadarSignals: true },
+  { code: '600036', name: '招商银行', quoteId: '1.600036', marketLabel: '沪A', showInTaskbar: false, isPriority: false, showRadarSignals: true }
 ]
 
 const DEFAULT_STATE: AppState = {
@@ -259,7 +260,7 @@ async function refreshStocks(
   refreshesInFlight.add(group)
 
   try {
-    mergeQuotes(await fetchQuotes(stocks, state.watchlist))
+    mergeQuotes(await fetchQuotes(stocks, state.watchlist.filter((stock) => stock.showRadarSignals)))
     sendToWindows('quotes:updated', latestQuotes)
     updateAppTrayMenu()
     syncTaskbarWindow()
@@ -278,11 +279,17 @@ function refreshAll(): Promise<StockQuote[]> {
 }
 
 function refreshPriorityStocks(): Promise<StockQuote[]> {
+  if (!isBeijingAutoRefreshTime()) return Promise.resolve(latestQuotes)
   return refreshStocks(state.watchlist.filter((stock) => stock.isPriority), 'priority')
 }
 
 function refreshRegularStocks(): Promise<StockQuote[]> {
+  if (!isBeijingAutoRefreshTime()) return Promise.resolve(latestQuotes)
   return refreshStocks(state.watchlist.filter((stock) => !stock.isPriority), 'regular')
+}
+
+function refreshAllAutomatically(): Promise<StockQuote[]> {
+  return isBeijingAutoRefreshTime() ? refreshAll() : Promise.resolve(latestQuotes)
 }
 
 function restartRefreshTimers(): void {
@@ -367,7 +374,7 @@ function registerIpc(): void {
     sendToWindows('state:updated', state)
     updateAppTrayMenu()
     syncTaskbarWindow()
-    if (watchedStocksChanged || priorityChanged) void refreshAll()
+    if (watchedStocksChanged || priorityChanged) void refreshAllAutomatically()
     return state
   })
   ipcMain.handle('config:export', async (_event, stateToExport: AppState) => {
@@ -412,7 +419,7 @@ if (!hasSingleInstanceLock) {
   app.on('second-instance', () => {
     showMainWindow()
     syncTaskbarWindow()
-    void refreshAll()
+    void refreshAllAutomatically()
   })
 
   app.whenReady().then(() => {
@@ -430,7 +437,7 @@ if (!hasSingleInstanceLock) {
     screen.on('display-added', syncTaskbarWindow)
     screen.on('display-removed', syncTaskbarWindow)
     restartRefreshTimers()
-    void refreshAll()
+    void refreshAllAutomatically()
   })
 }
 

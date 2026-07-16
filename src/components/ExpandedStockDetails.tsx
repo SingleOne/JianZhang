@@ -2,6 +2,7 @@ import { AlertCircle, BarChart3, RefreshCw, TrendingUp } from 'lucide-react'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { stockApi } from '../lib/api'
 import { formatAmount, formatPrice, formatVolume } from '../lib/format'
+import { isBeijingAutoRefreshTime, millisecondsUntilNextAutoRefreshWindow } from '../shared/market-hours'
 import type { KlinePeriod, KlineResult, StockQuote, WatchStock } from '../shared/types'
 import { FundsFlowPanel } from './FundsFlowPanel'
 
@@ -63,8 +64,12 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
     const scheduleRefresh = () => {
       if (!isLiveChart) return
       refreshTimer = window.setTimeout(() => {
-        setRefreshVersion((current) => current + 1)
-      }, freshness)
+        if (isBeijingAutoRefreshTime()) {
+          setRefreshVersion((current) => current + 1)
+        } else {
+          scheduleRefresh()
+        }
+      }, isBeijingAutoRefreshTime() ? freshness : millisecondsUntilNextAutoRefreshWindow())
     }
 
     if (refreshVersion === 0 && cached && Date.now() - cached.cachedAt < freshness) {

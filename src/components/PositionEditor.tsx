@@ -6,7 +6,7 @@ import type { StockPosition, WatchStock } from '../shared/types'
 
 interface PositionEditorProps {
   stock: WatchStock
-  onSave: (position: StockPosition | undefined) => void
+  onSave: (position: StockPosition | undefined, showRadarSignals: boolean) => void
   onClose: () => void
 }
 
@@ -14,6 +14,8 @@ export function PositionEditor({ stock, onSave, onClose }: PositionEditorProps) 
   const [quantity, setQuantity] = useState(stock.position?.quantity.toString() ?? '')
   const [cost, setCost] = useState(stock.position?.cost.toString() ?? '')
   const [openedToday, setOpenedToday] = useState(isPositionOpenedToday(stock.position))
+  const [showRadarSignals, setShowRadarSignals] = useState(stock.showRadarSignals)
+  const hasPositionInput = quantity.trim() !== '' || cost.trim() !== ''
 
   return createPortal(
     <div className="position-dialog-backdrop" role="presentation" onMouseDown={onClose}>
@@ -44,12 +46,12 @@ export function PositionEditor({ stock, onSave, onClose }: PositionEditorProps) 
           className="position-form"
           onSubmit={(event) => {
             event.preventDefault()
-            onSave({
+            onSave(hasPositionInput ? {
               quantity: Number(quantity),
               cost: Number(cost),
               openedToday,
               openedOn: openedToday ? currentDateKey() : undefined
-            })
+            } : undefined, showRadarSignals)
           }}
         >
           <label>
@@ -59,7 +61,7 @@ export function PositionEditor({ stock, onSave, onClose }: PositionEditorProps) 
                 type="number"
                 min="1"
                 step="1"
-                required
+                required={hasPositionInput}
                 autoFocus
                 value={quantity}
                 onChange={(event) => setQuantity(event.target.value)}
@@ -75,7 +77,7 @@ export function PositionEditor({ stock, onSave, onClose }: PositionEditorProps) 
                 type="number"
                 min="0.001"
                 step="0.001"
-                required
+                required={hasPositionInput}
                 value={cost}
                 onChange={(event) => setCost(event.target.value)}
                 placeholder="例如 12.580"
@@ -83,7 +85,7 @@ export function PositionEditor({ stock, onSave, onClose }: PositionEditorProps) 
               <span>元</span>
             </span>
           </label>
-          <label className="opened-today-row">
+          <label className="position-switch-row">
             <span>
               <strong>本日建仓</strong>
               <small>勾选后，今日收益按成本价计算</small>
@@ -95,16 +97,28 @@ export function PositionEditor({ stock, onSave, onClose }: PositionEditorProps) 
               onChange={(event) => setOpenedToday(event.target.checked)}
             />
           </label>
+          <label className="position-switch-row">
+            <span>
+              <strong>显示异动数据</strong>
+              <small>关闭后，该股票不显示异动提示标签</small>
+            </span>
+            <input
+              className="switch-input"
+              type="checkbox"
+              checked={showRadarSignals}
+              onChange={(event) => setShowRadarSignals(event.target.checked)}
+            />
+          </label>
 
           <footer className="position-dialog-actions">
             {stock.position ? (
-              <button className="clear-position-button" type="button" onClick={() => onSave(undefined)}>
+              <button className="clear-position-button" type="button" onClick={() => onSave(undefined, showRadarSignals)}>
                 清空持仓
               </button>
             ) : <span />}
             <span>
               <button className="secondary-button compact-button" type="button" onClick={onClose}>取消</button>
-              <button className="primary-button compact-button" type="submit">保存持仓</button>
+              <button className="primary-button compact-button" type="submit">保存设置</button>
             </span>
           </footer>
         </form>

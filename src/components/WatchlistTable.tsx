@@ -12,10 +12,12 @@ import {
   PencilLine,
   Pin,
   RotateCcw,
+  Search,
   Star,
-  Trash2
+  Trash2,
+  X
 } from 'lucide-react'
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useMemo, useRef, useState } from 'react'
 import {
   formatAmount,
   formatCurrency,
@@ -49,7 +51,7 @@ interface WatchlistTableProps {
   onSelect: (quoteId: string) => void
   onToggleTaskbar: (quoteId: string) => void
   onTogglePriority: (quoteId: string) => void
-  onEditPosition: (quoteId: string, position: StockPosition | undefined) => void
+  onEditPosition: (quoteId: string, position: StockPosition | undefined, showRadarSignals: boolean) => void
   onReorder: (sourceQuoteId: string, targetQuoteId: string) => void
   onPin: (quoteId: string) => void
   onColumnOrderChange: (columnOrder: WatchlistColumnId[]) => void
@@ -78,14 +80,14 @@ interface SortState {
 type ColumnMove = -1 | 1 | 'start' | 'end'
 
 const COLUMN_META: Record<WatchlistColumnId, ColumnMeta> = {
-  stock: { label: '名称 / 代码', width: 128, sortable: true, className: 'stock-column' },
+  stock: { label: '名称 / 代码', width: 77, sortable: true, className: 'stock-column' },
   latest: { label: '最新价', width: 72, sortable: true },
   changePercent: { label: '涨跌幅', width: 76, sortable: true },
   open: { label: '今开', width: 64, sortable: true },
   high: { label: '最高', width: 64, sortable: true },
   low: { label: '最低', width: 64, sortable: true },
   amount: { label: '成交额', width: 80, sortable: true },
-  radar: { label: '雷达提示', width: 168, sortable: true, className: 'radar-column' },
+  radar: { label: '异动提示', width: 168, sortable: true, className: 'radar-column' },
   positionQuantity: { label: '持仓数量', width: 84, sortable: true },
   cost: { label: '成本价', width: 68, sortable: true },
   marketValue: { label: '持仓市值', width: 88, sortable: true },
@@ -115,6 +117,7 @@ function sortValue(row: StockRowData, column: WatchlistColumnId): string | numbe
     case 'low': return row.quote?.low
     case 'amount': return row.quote?.amount
     case 'radar': {
+      if (!row.stock.showRadarSignals) return null
       const latestSignal = row.quote?.radarSignals?.[0]
       return latestSignal ? `${latestSignal.date} ${latestSignal.time}` : null
     }
@@ -147,6 +150,87 @@ function sortRows(rows: StockRowData[], sort: SortState): StockRowData[] {
   })
 }
 
+interface TableStockSearchProps {
+  stocks: WatchStock[]
+  onChoose: (quoteId: string) => void
+}
+
+function TableStockSearch({ stocks, onChoose }: TableStockSearchProps) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const results = useMemo(() => {
+    const normalized = query.trim().toLocaleLowerCase('zh-CN')
+    if (!normalized) return stocks
+    return stocks.filter((stock) => (
+      stock.name.toLocaleLowerCase('zh-CN').includes(normalized) || stock.code.includes(normalized)
+    ))
+  }, [query, stocks])
+
+  const choose = (quoteId: string) => {
+    setQuery('')
+    setOpen(false)
+    onChoose(quoteId)
+  }
+
+  return (
+    <div
+      className="table-stock-search"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false)
+      }}
+    >
+      <div className={`table-stock-search-field ${open ? 'is-open' : ''}`}>
+        <Search size={14} aria-hidden="true" />
+        <input
+          type="text"
+          value={query}
+          onChange={(event) => {
+            setQuery(event.target.value)
+            setOpen(true)
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && results[0]) choose(results[0].quoteId)
+            if (event.key === 'Escape') setOpen(false)
+          }}
+          placeholder="搜索当前股票"
+          aria-label="搜索当前表格股票"
+          aria-expanded={open}
+        />
+        {query ? (
+          <button
+            type="button"
+            onClick={() => {
+              setQuery('')
+              setOpen(true)
+            }}
+            aria-label="清空表格搜索"
+          >
+            <X size={13} />
+          </button>
+        ) : null}
+      </div>
+      {open ? (
+        <div className="table-stock-search-results" role="listbox">
+          {results.length > 0 ? results.map((stock) => (
+            <button
+              className="table-stock-search-result"
+              type="button"
+              role="option"
+              key={stock.quoteId}
+              onClick={() => choose(stock.quoteId)}
+            >
+              <strong>{stock.name}</strong>
+              <span>{stock.code}</span>
+              <small>{stock.marketLabel}</small>
+            </button>
+          )) : <div className="table-stock-search-empty">当前表格中没有匹配股票</div>}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 export function WatchlistTable({
   watchlist,
   quotes,
@@ -167,6 +251,7 @@ export function WatchlistTable({
   const [draggingQuoteId, setDraggingQuoteId] = useState<string | null>(null)
   const [dragOverQuoteId, setDragOverQuoteId] = useState<string | null>(null)
   const [editingStock, setEditingStock] = useState<WatchStock | null>(null)
+  const tableScrollerRef = useRef<HTMLDivElement>(null)
   const renderedColumnOrder = useMemo(
     () => normalizeWatchlistColumnOrder(columnOrder),
     [columnOrder]
@@ -188,6 +273,7 @@ export function WatchlistTable({
   }, [quotes, watchlist])
 
   const displayedRows = useMemo(() => sort ? sortRows(rows, sort) : rows, [rows, sort])
+  const displayedStocks = useMemo(() => displayedRows.map(({ stock }) => stock), [displayedRows])
 
   if (watchlist.length === 0) {
     return (
@@ -226,6 +312,20 @@ export function WatchlistTable({
     })
   }
 
+  const scrollToStock = (quoteId: string) => {
+    const scroller = tableScrollerRef.current
+    const row = scroller?.querySelector<HTMLTableRowElement>(`tr[data-quote-id="${quoteId}"]`)
+    if (!scroller || !row) return
+
+    const scrollerRect = scroller.getBoundingClientRect()
+    const rowRect = row.getBoundingClientRect()
+    const targetTop = scroller.scrollTop
+      + rowRect.top - scrollerRect.top
+      - (scroller.clientHeight - rowRect.height) / 2
+    scroller.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' })
+    row.focus({ preventScroll: true })
+  }
+
   return (
     <div className="watchlist-table-area">
       <div className="table-toolbar">
@@ -235,6 +335,7 @@ export function WatchlistTable({
             : '当前为手动排序 · 使用最左侧的拖动手柄或置顶按钮调整顺序'}
         </span>
         <div className="table-toolbar-actions">
+          <TableStockSearch stocks={displayedStocks} onChoose={scrollToStock} />
           <button
             className="secondary-button table-tool-button"
             type="button"
@@ -317,7 +418,7 @@ export function WatchlistTable({
         </div>
       </div>
 
-      <div className="table-scroller">
+      <div className="table-scroller" ref={tableScrollerRef}>
         <table className="watchlist-table" style={{ minWidth: TABLE_MIN_WIDTH }}>
           <colgroup>
             <col style={{ width: ORDER_COLUMN_WIDTH }} />
@@ -362,6 +463,7 @@ export function WatchlistTable({
               return (
                 <Fragment key={stock.quoteId}>
                   <tr
+                    data-quote-id={stock.quoteId}
                     className={`stock-row ${selected ? 'is-selected' : ''} ${draggingQuoteId === stock.quoteId ? 'is-dragging' : ''} ${dragOverQuoteId === stock.quoteId ? 'is-drag-over' : ''}`}
                     onClick={() => onSelect(stock.quoteId)}
                     onKeyDown={(event) => {
@@ -449,7 +551,7 @@ export function WatchlistTable({
                         case 'radar':
                           return (
                             <td className="radar-column" key={columnId}>
-                              {quote?.radarSignals?.length ? (
+                              {stock.showRadarSignals && quote?.radarSignals?.length ? (
                                 <div className="radar-tags">
                                   {quote.radarSignals.map((signal) => (
                                     <span
@@ -554,8 +656,8 @@ export function WatchlistTable({
           key={editingStock.quoteId}
           stock={editingStock}
           onClose={() => setEditingStock(null)}
-          onSave={(position) => {
-            onEditPosition(editingStock.quoteId, position)
+          onSave={(position, showRadarSignals) => {
+            onEditPosition(editingStock.quoteId, position, showRadarSignals)
             setEditingStock(null)
           }}
         />

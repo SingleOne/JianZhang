@@ -5,13 +5,15 @@ export interface WatchStock {
   marketLabel: string
   showInTaskbar: boolean
   isPriority: boolean
+  showRadarSignals: boolean
   position?: StockPosition
 }
 
 export function normalizeWatchlist(stocks: readonly WatchStock[]): WatchStock[] {
   return stocks.map((stock) => ({
     ...stock,
-    isPriority: Boolean(stock.position || stock.isPriority)
+    isPriority: Boolean(stock.position || stock.isPriority),
+    showRadarSignals: stock.showRadarSignals ?? true
   }))
 }
 

@@ -2,6 +2,7 @@ import { AlertCircle, RefreshCw, TrendingUp } from 'lucide-react'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { stockApi } from '../lib/api'
 import { formatSignedAmount } from '../lib/format'
+import { isBeijingAutoRefreshTime, millisecondsUntilNextAutoRefreshWindow } from '../shared/market-hours'
 import type { FundsFlowResult, WatchStock } from '../shared/types'
 
 const FundsFlowChart = lazy(() => import('./FundsFlowChart'))
@@ -39,8 +40,12 @@ export function FundsFlowPanel({ stock, refreshSeconds }: FundsFlowPanelProps) {
 
     const scheduleRefresh = () => {
       refreshTimer = window.setTimeout(() => {
-        setRefreshVersion((current) => current + 1)
-      }, refreshMilliseconds)
+        if (isBeijingAutoRefreshTime()) {
+          setRefreshVersion((current) => current + 1)
+        } else {
+          scheduleRefresh()
+        }
+      }, isBeijingAutoRefreshTime() ? refreshMilliseconds : millisecondsUntilNextAutoRefreshWindow())
     }
 
     if (refreshVersion === 0 && cached && Date.now() - cached.cachedAt < refreshMilliseconds) {
