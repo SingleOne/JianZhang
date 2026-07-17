@@ -29,6 +29,7 @@ import {
 } from '../lib/format'
 import {
   calculatePositionMetrics,
+  currentDateKey,
   getPositionHoldingDays,
   isPositionOpenedToday,
   type PositionMetrics
@@ -37,6 +38,7 @@ import type {
   StockPosition,
   StockPositionSnapshot,
   StockQuote,
+  StockRadarSignal,
   TTradingAccount,
   TTradingAccounts,
   TTradingFeeSettings,
@@ -96,6 +98,13 @@ interface SortState {
   direction: 'asc' | 'desc'
 }
 
+interface RadarPopoverState {
+  quoteId: string
+  left: number
+  top: number
+  placement: 'above' | 'below'
+}
+
 type ColumnMove = -1 | 1 | 'start' | 'end'
 
 const COLUMN_META: Record<WatchlistColumnId, ColumnMeta> = {
@@ -106,7 +115,7 @@ const COLUMN_META: Record<WatchlistColumnId, ColumnMeta> = {
   high: { label: '最高', width: 64, sortable: true },
   low: { label: '最低', width: 64, sortable: true },
   amount: { label: '成交额', width: 80, sortable: true },
-  radar: { label: '异动提示', width: 168, sortable: true, className: 'radar-column' },
+  radar: { label: '异动提示', width: 100, sortable: true, className: 'radar-column' },
   positionQuantity: { label: '持仓数量', width: 84, sortable: true },
   cost: { label: '成本价', width: 68, sortable: true },
   marketValue: { label: '持仓市值', width: 88, sortable: true },
@@ -120,6 +129,15 @@ const COLUMN_META: Record<WatchlistColumnId, ColumnMeta> = {
 const ORDER_COLUMN_WIDTH = 52
 const TABLE_MIN_WIDTH = ORDER_COLUMN_WIDTH + Object.values(COLUMN_META)
   .reduce((total, column) => total + column.width, 0)
+
+function currentCompactDate(): string {
+  return currentDateKey().replaceAll('-', '')
+}
+
+function todayRadarSignals(signals: StockRadarSignal[] | undefined): StockRadarSignal[] {
+  const today = currentCompactDate()
+  return signals?.filter((signal) => signal.date === today) ?? []
+}
 
 function valueClass(value: number | null | undefined): string {
   if (value === null || value === undefined || value === 0) return 'is-flat'
@@ -137,7 +155,7 @@ function sortValue(row: StockRowData, column: WatchlistColumnId): string | numbe
     case 'amount': return row.quote?.amount
     case 'radar': {
       if (!row.stock.showRadarSignals) return null
-      const latestSignal = row.quote?.radarSignals?.[0]
+      const latestSignal = todayRadarSignals(row.quote?.radarSignals)[0]
       return latestSignal ? `${latestSignal.date} ${latestSignal.time}` : null
     }
     case 'positionQuantity': return row.stock.position?.quantity
@@ -274,8 +292,11 @@ export function WatchlistTable({
   const [dragOverQuoteId, setDragOverQuoteId] = useState<string | null>(null)
   const [editingStock, setEditingStock] = useState<WatchStock | null>(null)
   const [tTradingStock, setTTradingStock] = useState<WatchStock | null>(null)
+  const [radarPopover, setRadarPopover] = useState<RadarPopoverState | null>(null)
   const [locatedQuoteId, setLocatedQuoteId] = useState<string | null>(null)
   const tableScrollerRef = useRef<HTMLDivElement>(null)
+  const radarAnchorRef = useRef<HTMLButtonElement | null>(null)
+  const radarPopoverRef = useRef<HTMLDivElement>(null)
   const locateTimerRef = useRef<number | undefined>(undefined)
   const locateFrameRef = useRef<number | undefined>(undefined)
   const renderedColumnOrder = useMemo(
@@ -300,11 +321,39 @@ export function WatchlistTable({
 
   const displayedRows = useMemo(() => sort ? sortRows(rows, sort) : rows, [rows, sort])
   const displayedStocks = useMemo(() => displayedRows.map(({ stock }) => stock), [displayedRows])
+  const activeRadarRow = radarPopover
+    ? rows.find(({ stock }) => stock.quoteId === radarPopover.quoteId)
+    : undefined
 
   useEffect(() => () => {
     window.clearTimeout(locateTimerRef.current)
     window.cancelAnimationFrame(locateFrameRef.current ?? 0)
   }, [])
+
+  useEffect(() => {
+    if (!radarPopover) return
+
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (radarPopoverRef.current?.contains(target) || radarAnchorRef.current?.contains(target)) return
+      setRadarPopover(null)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setRadarPopover(null)
+    }
+    const closePopover = () => setRadarPopover(null)
+    const scroller = tableScrollerRef.current
+    document.addEventListener('pointerdown', closeOnOutsidePointer)
+    document.addEventListener('keydown', closeOnEscape)
+    window.addEventListener('resize', closePopover)
+    scroller?.addEventListener('scroll', closePopover)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer)
+      document.removeEventListener('keydown', closeOnEscape)
+      window.removeEventListener('resize', closePopover)
+      scroller?.removeEventListener('scroll', closePopover)
+    }
+  }, [radarPopover])
 
   if (watchlist.length === 0) {
     return (
@@ -498,6 +547,10 @@ export function WatchlistTable({
             {displayedRows.map(({ stock, quote, metrics, manualIndex }) => {
               const selected = selectedQuoteId === stock.quoteId
               const quoteDirection = valueClass(quote?.changePercent)
+              const currentRadarSignals = stock.showRadarSignals
+                ? todayRadarSignals(quote?.radarSignals)
+                : []
+              const latestRadarSignal = currentRadarSignals[0]
               return (
                 <Fragment key={stock.quoteId}>
                   <tr
@@ -589,19 +642,34 @@ export function WatchlistTable({
                         case 'radar':
                           return (
                             <td className="radar-column" key={columnId}>
-                              {stock.showRadarSignals && quote?.radarSignals?.length ? (
-                                <div className="radar-tags">
-                                  {quote.radarSignals.map((signal) => (
-                                    <span
-                                      className={`radar-tag is-${signal.direction}`}
-                                      title={`${signal.date.slice(0, 4)}-${signal.date.slice(4, 6)}-${signal.date.slice(6, 8)} ${signal.time} · ${signal.label}`}
-                                      key={`${signal.date}-${signal.type}`}
-                                    >
-                                      <b>{signal.date.slice(4)}</b>
-                                      {signal.label}
-                                    </span>
-                                  ))}
-                                </div>
+                              {latestRadarSignal ? (
+                                <button
+                                  className={`radar-summary-button is-${latestRadarSignal.direction}`}
+                                  type="button"
+                                  aria-expanded={radarPopover?.quoteId === stock.quoteId}
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    if (radarPopover?.quoteId === stock.quoteId) {
+                                      setRadarPopover(null)
+                                      return
+                                    }
+                                    const rect = event.currentTarget.getBoundingClientRect()
+                                    radarAnchorRef.current = event.currentTarget
+                                    const placement = rect.bottom + 280 > window.innerHeight && rect.top > 280
+                                      ? 'above'
+                                      : 'below'
+                                    setRadarPopover({
+                                      quoteId: stock.quoteId,
+                                      left: Math.max(12, Math.min(rect.left, window.innerWidth - 332)),
+                                      top: placement === 'above' ? rect.top - 7 : rect.bottom + 7,
+                                      placement
+                                    })
+                                  }}
+                                  title={`今日 ${currentRadarSignals.length} 条异动，点击查看近 5 日详情`}
+                                >
+                                  <span>今日有异动</span>
+                                  <b>{currentRadarSignals.length}</b>
+                                </button>
                               ) : '--'}
                             </td>
                           )
@@ -707,6 +775,42 @@ export function WatchlistTable({
           </tbody>
         </table>
       </div>
+
+      {radarPopover && activeRadarRow?.quote?.radarSignals?.length ? (
+        <div
+          className={`radar-popover is-${todayRadarSignals(activeRadarRow.quote.radarSignals)[0]?.direction ?? 'up'} ${radarPopover.placement === 'above' ? 'is-above' : ''}`}
+          style={{ left: radarPopover.left, top: radarPopover.top }}
+          ref={radarPopoverRef}
+          role="dialog"
+          aria-label={`${activeRadarRow.stock.name}近5日异动提示`}
+        >
+          <div className="radar-popover-heading">
+            <span>
+              <strong>{activeRadarRow.stock.name}</strong>
+              <small>{activeRadarRow.stock.code}</small>
+            </span>
+            <b>近 5 日异动</b>
+            <button
+              className="icon-button radar-popover-close"
+              type="button"
+              onClick={() => setRadarPopover(null)}
+              aria-label="关闭异动提示"
+              title="关闭"
+            >
+              <X size={14} />
+            </button>
+          </div>
+          <div className="radar-popover-list">
+            {activeRadarRow.quote.radarSignals.map((signal) => (
+              <div className={`radar-popover-item is-${signal.direction}`} key={`${signal.date}-${signal.type}`}>
+                <time>{signal.date.slice(4, 6)}-{signal.date.slice(6, 8)} {signal.time}</time>
+                <strong>{signal.label}</strong>
+                {signal.info ? <small>{signal.info}</small> : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {editingStock ? (
         <PositionEditor

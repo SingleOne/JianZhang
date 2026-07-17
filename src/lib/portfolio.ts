@@ -1,4 +1,5 @@
 import type { StockQuote, StockPosition, WatchStock } from '../shared/types'
+import { countAStockTradingDays } from '../shared/trading-calendar'
 
 export interface PositionMetrics {
   marketValue: number | null
@@ -27,13 +28,7 @@ export function isPositionOpenedToday(position: StockPosition | undefined): bool
 export function getPositionHoldingDays(position: StockPosition | undefined): number | null {
   if (!position?.openedOn) return null
 
-  const [openedYear, openedMonth, openedDay] = position.openedOn.split('-').map(Number)
-  const [currentYear, currentMonth, currentDay] = currentDateKey().split('-').map(Number)
-  const holdingDays = Math.floor((
-    Date.UTC(currentYear, currentMonth - 1, currentDay)
-    - Date.UTC(openedYear, openedMonth - 1, openedDay)
-  ) / 86_400_000) + 1
-
+  const holdingDays = countAStockTradingDays(position.openedOn, currentDateKey())
   return holdingDays > 0 ? holdingDays : null
 }
 

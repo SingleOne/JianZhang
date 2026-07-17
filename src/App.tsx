@@ -24,6 +24,11 @@ function directionClass(value: number | null | undefined): string {
   return value > 0 ? 'is-up' : 'is-down'
 }
 
+function cardDirectionClass(value: number | null | undefined): string {
+  if (value === null || value === undefined || value === 0) return 'is-card-flat'
+  return value > 0 ? 'is-card-up' : 'is-card-down'
+}
+
 export default function App() {
   const [state, setState] = useState<AppState>(initialState)
   const [quotes, setQuotes] = useState<StockQuote[]>([])
@@ -278,7 +283,7 @@ export default function App() {
                 <div className="market-index-summary command-market-index-summary" aria-label="大盘指数行情">
                   {marketIndexQuotes.map(({ index, quote }) => (
                     <span
-                      className="market-index-card"
+                      className={`market-index-card ${cardDirectionClass(quote?.changePercent)}`}
                       title={`${index.name} ${formatPrice(quote?.latest)} ${formatPercent(quote?.changePercent)}`}
                       key={index.id}
                     >
@@ -317,25 +322,25 @@ export default function App() {
               </div>
               <div className="panel-heading-side">
                 <div className="portfolio-summary" aria-label="全部持仓收益汇总">
-                  <span>
+                  <span className={cardDirectionClass(portfolioSummary.todayProfit)}>
                     <small>今日总收益</small>
                     <strong className={portfolioSummary.todayProfit === null ? 'is-flat' : portfolioSummary.todayProfit >= 0 ? 'is-up' : 'is-down'}>
                       {formatProfit(portfolioSummary.todayProfit)}
                     </strong>
                   </span>
-                  <span>
+                  <span className={cardDirectionClass(portfolioSummary.todayProfitPercent)}>
                     <small>今日收益率</small>
                     <strong className={portfolioSummary.todayProfitPercent === null ? 'is-flat' : portfolioSummary.todayProfitPercent >= 0 ? 'is-up' : 'is-down'}>
                       {formatPercent(portfolioSummary.todayProfitPercent)}
                     </strong>
                   </span>
-                  <span>
+                  <span className={cardDirectionClass(portfolioSummary.totalProfit)}>
                     <small>持仓总收益</small>
                     <strong className={portfolioSummary.totalProfit === null ? 'is-flat' : portfolioSummary.totalProfit >= 0 ? 'is-up' : 'is-down'}>
                       {formatProfit(portfolioSummary.totalProfit)}
                     </strong>
                   </span>
-                  <span>
+                  <span className={cardDirectionClass(portfolioSummary.profitPercent)}>
                     <small>总收益率</small>
                     <strong className={portfolioSummary.profitPercent === null ? 'is-flat' : portfolioSummary.profitPercent >= 0 ? 'is-up' : 'is-down'}>
                       {formatPercent(portfolioSummary.profitPercent)}
