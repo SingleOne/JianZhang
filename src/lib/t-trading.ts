@@ -5,11 +5,13 @@ import type {
   TTrade,
   TTradeFees,
   TTradeSide,
+  TTradingDirection,
   TSellPlanLevel
 } from '../shared/types'
 import { currentDateKey } from './portfolio'
 
 export interface TBatchMetrics {
+  direction: TTradingDirection
   remainingQuantity: number
   remainingCostBasis: number
   averageCost: number | null
@@ -17,6 +19,12 @@ export interface TBatchMetrics {
   floatingProfit: number | null
   buyAmount: number
   sellAmount: number
+}
+
+export function getTBatchDirection(
+  batch: Pick<TTradingBatch, 'direction'> | undefined
+): TTradingDirection {
+  return batch?.direction ?? 'forward'
 }
 
 export function roundMoney(value: number): number {
@@ -73,6 +81,8 @@ export function calculateTBatchMetrics(
   batch: TTradingBatch | undefined,
   latestPrice?: number | null
 ): TBatchMetrics {
+  const direction = getTBatchDirection(batch)
+  const openingSide: TTradeSide = direction === 'forward' ? 'buy' : 'sell'
   let remainingQuantity = 0
   let remainingCostBasis = 0
   let realizedProfit = 0
@@ -84,10 +94,13 @@ export function calculateTBatchMetrics(
     const amount = trade.price * trade.quantity
     const fees = totalTradeFees(trade.fees)
 
-    if (trade.side === 'buy') {
+    if (trade.side === openingSide) {
       remainingQuantity += trade.quantity
-      remainingCostBasis += amount + fees
-      buyAmount += amount
+      remainingCostBasis += direction === 'forward'
+        ? amount + fees
+        : amount - fees
+      if (trade.side === 'buy') buyAmount += amount
+      else sellAmount += amount
       continue
     }
 
@@ -97,8 +110,11 @@ export function calculateTBatchMetrics(
     const allocatedCost = averageCost * trade.quantity
     remainingQuantity -= trade.quantity
     remainingCostBasis -= allocatedCost
-    realizedProfit += amount - fees - allocatedCost
-    sellAmount += amount
+    realizedProfit += direction === 'forward'
+      ? amount - fees - allocatedCost
+      : allocatedCost - amount - fees
+    if (trade.side === 'buy') buyAmount += amount
+    else sellAmount += amount
   }
 
   if (Math.abs(remainingQuantity) < 0.000001) {
@@ -111,16 +127,42 @@ export function calculateTBatchMetrics(
     : null
 
   return {
+    direction,
     remainingQuantity,
     remainingCostBasis,
     averageCost,
     realizedProfit,
     floatingProfit: averageCost !== null && latestPrice !== null && latestPrice !== undefined
-      ? (latestPrice - averageCost) * remainingQuantity
+      ? (direction === 'forward'
+        ? latestPrice - averageCost
+        : averageCost - latestPrice) * remainingQuantity
       : null,
     buyAmount,
     sellAmount
   }
+}
+
+export function validateTBatchTrades(batch: TTradingBatch): string | undefined {
+  const direction = getTBatchDirection(batch)
+  const openingSide: TTradeSide = direction === 'forward' ? 'buy' : 'sell'
+  let runningTQuantity = 0
+  let runningPositionQuantity = batch.openingPosition?.quantity ?? 0
+
+  for (const trade of batch.trades) {
+    runningPositionQuantity += trade.side === 'buy' ? trade.quantity : -trade.quantity
+    if (runningPositionQuantity < 0) {
+      return '卖出数量不能超过批次内可用持仓数量'
+    }
+    if (trade.purpose !== 't') continue
+    runningTQuantity += trade.side === openingSide ? trade.quantity : -trade.quantity
+    if (runningTQuantity < 0) {
+      return direction === 'forward'
+        ? '交易顺序或数量会导致T仓卖超，请检查买卖流水'
+        : '交易顺序或数量会导致反T回补超额，请检查买卖流水'
+    }
+  }
+
+  return undefined
 }
 
 export function createDefaultSellLevels(quantity: number): TSellPlanLevel[] {

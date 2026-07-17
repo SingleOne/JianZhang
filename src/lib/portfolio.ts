@@ -1,4 +1,4 @@
-import type { StockQuote, StockPosition, WatchStock } from '../shared/types'
+import type { StockQuote, StockPosition, TTradingAccount, WatchStock } from '../shared/types'
 import { countAStockTradingDays } from '../shared/trading-calendar'
 
 export interface PositionMetrics {
@@ -23,6 +23,27 @@ export function currentDateKey(): string {
 
 export function isPositionOpenedToday(position: StockPosition | undefined): boolean {
   return position?.openedOn === currentDateKey()
+}
+
+export function getAvailablePositionQuantity(
+  position: StockPosition | undefined,
+  account: TTradingAccount | undefined
+): number | null {
+  if (!position) return null
+  if (isPositionOpenedToday(position)) return 0
+
+  const today = currentDateKey()
+  const trades = [
+    ...(account?.activeBatch?.trades ?? []),
+    ...(account?.history.flatMap((batch) => batch.trades) ?? [])
+  ]
+  const todayPurchasedQuantity = trades.reduce((total, trade) => (
+    trade.side === 'buy' && trade.tradedAt.slice(0, 10) === today
+      ? total + trade.quantity
+      : total
+  ), 0)
+
+  return Math.max(0, position.quantity - todayPurchasedQuantity)
 }
 
 export function getPositionHoldingDays(

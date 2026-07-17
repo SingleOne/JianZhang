@@ -16,9 +16,11 @@ import {
   calculateTBatchMetrics,
   calculateTradeFees,
   createDefaultSellLevels,
+  getTBatchDirection,
   recalculatePositionFromBatch,
   roundMoney,
-  totalTradeFees
+  totalTradeFees,
+  validateTBatchTrades
 } from '../lib/t-trading'
 import type {
   StockPosition,
@@ -68,6 +70,18 @@ function formatTradeTime(value: string): string {
   return value.replace('T', ' ').slice(0, 16)
 }
 
+function batchDirectionLabel(batch: TTradingBatch | undefined): string {
+  return getTBatchDirection(batch) === 'reverse' ? '反T' : '正T'
+}
+
+function tradeLabel(trade: TTrade, batch: TTradingBatch | undefined): string {
+  if (trade.purpose === 'base') return trade.side === 'buy' ? '底仓买入' : '底仓卖出'
+  if (getTBatchDirection(batch) === 'reverse') {
+    return trade.side === 'sell' ? '反T卖出' : '回补买入'
+  }
+  return trade.side === 'buy' ? 'T仓买入' : 'T仓卖出'
+}
+
 export function TTradingDrawer({
   stock,
   quote,
@@ -109,6 +123,22 @@ export function TTradingDrawer({
     () => calculateTBatchMetrics(currentAccount.activeBatch, quote?.latest),
     [currentAccount.activeBatch, quote?.latest]
   )
+  const isReverseBatch = activeMetrics.direction === 'reverse'
+  const tPurposeLabel = currentAccount.activeBatch
+    ? isReverseBatch
+      ? side === 'sell' ? '增加反T' : '回补反T'
+      : side === 'buy' ? '计入T仓' : '卖出T仓'
+    : side === 'buy' ? '开启正T' : '开启反T'
+  const basePurposeLabel = side === 'buy' ? '增加底仓' : '减持底仓'
+  const entryHint = currentAccount.activeBatch
+    ? isReverseBatch
+      ? '反T批次：卖出建立待回补数量，买入用于回补反T'
+      : '正T批次：买入建立T仓，卖出用于清空T仓'
+    : '计入T仓的首笔买入开启正T，首笔卖出开启反T'
+  const totalHistoryProfit = currentAccount.history.reduce(
+    (total, batch) => total + (batch.settlement?.finalProfit ?? 0),
+    0
+  )
   const numericPrice = Number(price)
   const numericQuantity = Number(quantity)
   const calculatedFees = useMemo(
@@ -143,30 +173,37 @@ export function TTradingDrawer({
 
   const sellLevelRows = useMemo(() => {
     const averageCost = activeMetrics.averageCost
+    const closingSide = isReverseBatch ? 'buy' : 'sell'
     let cumulativeProfit = activeMetrics.realizedProfit
     return (currentAccount.activeBatch?.sellLevels ?? []).map((level, index) => {
       const targetPrice = averageCost === null
         ? null
-        : averageCost * (1 + level.targetPercent / 100)
+        : averageCost * (isReverseBatch
+          ? 1 - level.targetPercent / 100
+          : 1 + level.targetPercent / 100)
       const hasSellQuantity = level.quantity >= 100
       const fees = targetPrice === null || !hasSellQuantity
         ? emptyFees()
-        : calculateTradeFees(targetPrice * level.quantity, 'sell', feeSettings, stock.marketLabel)
+        : calculateTradeFees(targetPrice * level.quantity, closingSide, feeSettings, stock.marketLabel)
       const expectedProfit = targetPrice === null || averageCost === null || !hasSellQuantity
         ? null
-        : (targetPrice - averageCost) * level.quantity - totalTradeFees(fees)
+        : (isReverseBatch
+          ? averageCost - targetPrice
+          : targetPrice - averageCost) * level.quantity - totalTradeFees(fees)
       const fullPositionFees = targetPrice === null
         ? emptyFees()
         : calculateTradeFees(
           targetPrice * activeMetrics.remainingQuantity,
-          'sell',
+          closingSide,
           feeSettings,
           stock.marketLabel
         )
       const fullPositionProfit = targetPrice === null || averageCost === null
         ? null
         : activeMetrics.realizedProfit
-          + (targetPrice - averageCost) * activeMetrics.remainingQuantity
+          + (isReverseBatch
+            ? averageCost - targetPrice
+            : targetPrice - averageCost) * activeMetrics.remainingQuantity
           - totalTradeFees(fullPositionFees)
       if (expectedProfit !== null) cumulativeProfit += expectedProfit
       return {
@@ -185,6 +222,7 @@ export function TTradingDrawer({
     activeMetrics.remainingQuantity,
     currentAccount.activeBatch?.sellLevels,
     feeSettings,
+    isReverseBatch,
     stock.marketLabel
   ])
   const activeTradesDescending = useMemo(
@@ -227,11 +265,10 @@ export function TTradingDrawer({
       return
     }
 
-    const resolvedPurpose = side === 'sell' ? 't' : purpose
     const trade: TTrade = {
       id: editingTradeId ?? crypto.randomUUID(),
       side,
-      purpose: resolvedPurpose,
+      purpose,
       tradedAt,
       price: numericPrice,
       quantity: numericQuantity,
@@ -239,7 +276,11 @@ export function TTradingDrawer({
       note: note.trim()
     }
 
-    if (resolvedPurpose === 'base' && !currentAccount.activeBatch) {
+    if (purpose === 'base' && !currentAccount.activeBatch) {
+      if (side === 'sell' && numericQuantity > (stock.position?.quantity ?? 0)) {
+        setError('减持数量不能超过当前持仓数量')
+        return
+      }
       applyAccount(currentAccount, applyTradeToPosition(stock.position, trade))
       resetTradeForm()
       return
@@ -256,17 +297,13 @@ export function TTradingDrawer({
         id: crypto.randomUUID(),
         sequence: Math.max(0, ...currentAccount.history.map((item) => item.sequence)) + 1,
         openedAt: tradedAt,
+        direction: side === 'buy' ? 'forward' : 'reverse',
         openingPosition: positionSnapshot(stock.position),
         trades: [],
         sellLevels: []
       }
     }
 
-    const beforeMetrics = calculateTBatchMetrics(batch)
-    if (side === 'sell' && numericQuantity > beforeMetrics.remainingQuantity) {
-      setError(`卖出数量不能超过当前T仓 ${beforeMetrics.remainingQuantity} 股`)
-      return
-    }
     if (
       !editingTradeId
       && activeMetrics.remainingQuantity === 0
@@ -278,16 +315,12 @@ export function TTradingDrawer({
 
     const nextTrades = [...batch.trades, trade]
       .sort((left, right) => left.tradedAt.localeCompare(right.tradedAt))
-    let runningTQuantity = 0
-    for (const item of nextTrades) {
-      if (item.purpose !== 't') continue
-      runningTQuantity += item.side === 'buy' ? item.quantity : -item.quantity
-      if (runningTQuantity < 0) {
-        setError('交易顺序或数量会导致T仓卖超，请检查买卖流水')
-        return
-      }
-    }
     const nextBatch = { ...batch, trades: nextTrades }
+    const validationError = validateTBatchTrades(nextBatch)
+    if (validationError) {
+      setError(validationError)
+      return
+    }
     const nextMetrics = calculateTBatchMetrics(nextBatch)
     nextBatch.sellLevels = createDefaultSellLevels(nextMetrics.remainingQuantity)
     const hasTTrades = nextBatch.trades.some((trade) => trade.purpose === 't')
@@ -317,6 +350,11 @@ export function TTradingDrawer({
     const nextBatch = {
       ...batch,
       trades: batch.trades.filter((trade) => trade.id !== tradeId)
+    }
+    const validationError = validateTBatchTrades(nextBatch)
+    if (validationError) {
+      setError(validationError)
+      return
     }
     const nextMetrics = calculateTBatchMetrics(nextBatch)
     nextBatch.sellLevels = createDefaultSellLevels(nextMetrics.remainingQuantity)
@@ -502,15 +540,15 @@ export function TTradingDrawer({
               <strong>{formatShares(stock.position?.quantity)}</strong>
             </span>
             <span>
-              <small>当前T仓</small>
+              <small>{isReverseBatch ? '待回补数量' : '当前T仓'}</small>
               <strong>{formatShares(activeMetrics.remainingQuantity)}</strong>
             </span>
             <span>
-              <small>T仓成本</small>
+              <small>{isReverseBatch ? '反T基准价' : 'T仓成本'}</small>
               <strong>{formatCost(activeMetrics.averageCost)}</strong>
             </span>
             <span>
-              <small>已实现收益</small>
+              <small>当前批次收益</small>
               <strong className={valueClass(activeMetrics.realizedProfit)}>
                 {formatProfit(activeMetrics.realizedProfit)}
               </strong>
@@ -531,7 +569,7 @@ export function TTradingDrawer({
             <div className="t-card-heading">
               <span>
                 <strong>{editingTradeId ? '修改交易' : '快速录入交易'}</strong>
-                <small>买入时选择T仓或增加底仓，卖出只冲减当前T仓</small>
+                <small>{entryHint}</small>
               </span>
               {editingTradeId ? (
                 <button type="button" className="text-button" onClick={resetTradeForm}>取消修改</button>
@@ -551,26 +589,22 @@ export function TTradingDrawer({
                 type="button"
                 onClick={() => { setSide('sell'); setPurpose('t') }}
               >
-                卖出T仓
+                卖出
               </button>
-              {side === 'buy' ? (
-                <>
-                  <button
-                    className={purpose === 't' ? 'is-purpose-active' : ''}
-                    type="button"
-                    onClick={() => setPurpose('t')}
-                  >
-                    计入T仓
-                  </button>
-                  <button
-                    className={purpose === 'base' ? 'is-purpose-active' : ''}
-                    type="button"
-                    onClick={() => setPurpose('base')}
-                  >
-                    增加底仓
-                  </button>
-                </>
-              ) : null}
+              <button
+                className={purpose === 't' ? 'is-purpose-active' : ''}
+                type="button"
+                onClick={() => setPurpose('t')}
+              >
+                {tPurposeLabel}
+              </button>
+              <button
+                className={purpose === 'base' ? 'is-purpose-active' : ''}
+                type="button"
+                onClick={() => setPurpose('base')}
+              >
+                {basePurposeLabel}
+              </button>
             </div>
 
             <div className="t-form-grid">
@@ -635,8 +669,11 @@ export function TTradingDrawer({
               <section className="t-card">
                 <div className="t-card-heading">
                   <span>
-                    <strong>当前批次 #{currentAccount.activeBatch.sequence}</strong>
-                    <small>开始于 {formatTradeTime(currentAccount.activeBatch.openedAt)}</small>
+                    <strong>{batchDirectionLabel(currentAccount.activeBatch)}批次 #{currentAccount.activeBatch.sequence}</strong>
+                    <small>
+                      {isReverseBatch ? '先卖后买 · ' : '先买后卖 · '}
+                      开始于 {formatTradeTime(currentAccount.activeBatch.openedAt)}
+                    </small>
                   </span>
                   <em>{currentAccount.activeBatch.trades.length} 笔流水</em>
                 </div>
@@ -644,7 +681,7 @@ export function TTradingDrawer({
                   {visibleActiveTrades.map((trade) => (
                     <div className="t-trade-row" key={trade.id}>
                       <span className={`t-trade-side is-${trade.side}`}>
-                        {trade.purpose === 'base' ? '底仓' : trade.side === 'buy' ? 'T买' : 'T卖'}
+                        {tradeLabel(trade, currentAccount.activeBatch)}
                       </span>
                       <span>
                         <strong>{formatShares(trade.quantity)} × {formatPrice(trade.price)}</strong>
@@ -689,8 +726,12 @@ export function TTradingDrawer({
                 <section className="t-card">
                   <div className="t-card-heading">
                     <span>
-                      <strong>五档卖出计划</strong>
-                      <small>默认 +1% 至 +5%，预期收益已扣除预计卖出费用</small>
+                      <strong>{isReverseBatch ? '五档回补计划' : '五档卖出计划'}</strong>
+                      <small>
+                        {isReverseBatch
+                          ? '默认 -1% 至 -5%，预期收益已扣除预计买入费用'
+                          : '默认 +1% 至 +5%，预期收益已扣除预计卖出费用'}
+                      </small>
                     </span>
                     <button type="button" className="text-button" onClick={resetSellLevels}>
                       <RefreshCcw size={13} /> 重新均分
@@ -699,11 +740,11 @@ export function TTradingDrawer({
                   <div className="t-sell-levels">
                     <div className="t-sell-level t-sell-level-head">
                       <span>档位</span>
-                      <span>目标涨幅</span>
+                      <span>{isReverseBatch ? '目标跌幅' : '目标涨幅'}</span>
                       <span>目标价格</span>
-                      <span>卖出数量</span>
+                      <span>{isReverseBatch ? '回补数量' : '卖出数量'}</span>
                       <span>本档净收益</span>
-                      <span>全仓卖出收益</span>
+                      <span>{isReverseBatch ? '全部回补收益' : '全仓卖出收益'}</span>
                       <span>累计收益</span>
                     </div>
                     {sellLevelRows.map((level) => (
@@ -743,7 +784,7 @@ export function TTradingDrawer({
                 <section className="t-card t-settlement-card">
                   <div className="t-card-heading">
                     <span>
-                      <strong>本批次T仓已清空</strong>
+                      <strong>{isReverseBatch ? '本批次反T已回补完成' : '本批次T仓已清空'}</strong>
                       <small>填写券商最新持仓成本后，以成本推算收益作为最终结果</small>
                     </span>
                     <CheckCircle2 size={20} />
@@ -808,7 +849,7 @@ export function TTradingDrawer({
                     </div>
                   ) : null}
                   <div className="t-entry-actions">
-                    <span>结算后，下一笔T仓买入将创建新批次</span>
+                    <span>结算后，下一笔计入T仓的交易将创建新批次</span>
                     <button className="primary-button compact-button" type="button" onClick={settleBatch}>
                       确认结算并归档
                     </button>
@@ -820,7 +861,7 @@ export function TTradingDrawer({
             <section className="t-empty-batch">
               <Repeat2 size={24} />
               <strong>当前没有进行中的T批次</strong>
-              <span>录入第一笔“计入T仓”的买入后自动创建新批次</span>
+              <span>首笔计入T仓的买入开启正T，卖出开启反T</span>
             </section>
           )}
 
@@ -831,14 +872,21 @@ export function TTradingDrawer({
                   <strong>做T历史</strong>
                   <small>共完成 {currentAccount.history.length} 个批次</small>
                 </span>
+                <em className={`t-history-total ${valueClass(totalHistoryProfit)}`}>
+                  做T总收益 {formatProfit(totalHistoryProfit)}
+                </em>
               </div>
               <div className="t-history-list">
                 {currentAccount.history.map((batch) => (
                   <details key={batch.id}>
                     <summary>
                       <span>
-                        <strong>批次 #{batch.sequence}</strong>
-                        <small>{formatTradeTime(batch.openedAt)} 至 {batch.settlement ? formatTradeTime(batch.settlement.settledAt) : '--'}</small>
+                        <strong>{batchDirectionLabel(batch)}批次 #{batch.sequence}</strong>
+                        <small>
+                          {formatTradeTime(batch.openedAt)} 至 {batch.trades.length > 0
+                            ? formatTradeTime(batch.trades[batch.trades.length - 1].tradedAt)
+                            : '--'}
+                        </small>
                       </span>
                       <span>
                         <small>{batch.settlement?.source === 'position-cost' ? '成本校准收益' : '流水收益'}</small>
@@ -848,14 +896,21 @@ export function TTradingDrawer({
                       </span>
                     </summary>
                     <div>
-                      {batch.trades.map((trade) => (
-                        <span key={trade.id}>
-                          <b>{trade.purpose === 'base' ? '底仓买入' : trade.side === 'buy' ? 'T仓买入' : 'T仓卖出'}</b>
-                          {formatTradeTime(trade.tradedAt)}
-                          {formatShares(trade.quantity)} × {formatPrice(trade.price)}
-                          费用 {formatCurrency(totalTradeFees(trade.fees))}
-                        </span>
-                      ))}
+                      {batch.trades.map((trade) => {
+                        const totalFees = totalTradeFees(trade.fees)
+                        const amountChange = trade.side === 'buy'
+                          ? -(trade.price * trade.quantity + totalFees)
+                          : trade.price * trade.quantity - totalFees
+                        return (
+                          <span className="t-history-trade" key={trade.id}>
+                            <b>{tradeLabel(trade, batch)}</b>
+                            <span>{formatTradeTime(trade.tradedAt)}</span>
+                            <span>{formatShares(trade.quantity)} × {formatPrice(trade.price)}</span>
+                            <span>费用 {formatCurrency(totalFees)}</span>
+                            <strong className={valueClass(amountChange)}>金额变动 {formatProfit(amountChange)}</strong>
+                          </span>
+                        )
+                      })}
                       {batch.settlement ? (
                         <div className="t-history-settlement">
                           <p>
@@ -898,23 +953,35 @@ export function TTradingDrawer({
                               {historyProfitError ? <small>{historyProfitError}</small> : null}
                             </div>
                           ) : (
-                            <button
-                              className="text-button t-history-edit-button"
-                              type="button"
-                              onClick={() => startEditingHistoryProfit(batch)}
-                            >
-                              <PencilLine size={12} />
-                              修改成本校准收益
-                            </button>
+                            <div className="t-history-actions">
+                              <button
+                                className="text-button t-history-edit-button"
+                                type="button"
+                                onClick={() => startEditingHistoryProfit(batch)}
+                              >
+                                <PencilLine size={12} />
+                                修改成本校准收益
+                              </button>
+                              <button
+                                className="text-button t-history-delete-button"
+                                type="button"
+                                onClick={() => deleteHistoryBatch(batch)}
+                              >
+                                <Trash2 size={12} />
+                                删除此批次
+                              </button>
+                            </div>
                           )}
-                          <button
-                            className="text-button t-history-delete-button"
-                            type="button"
-                            onClick={() => deleteHistoryBatch(batch)}
-                          >
-                            <Trash2 size={12} />
-                            删除此批次
-                          </button>
+                          {editingHistoryBatchId === batch.id ? (
+                            <button
+                              className="text-button t-history-delete-button"
+                              type="button"
+                              onClick={() => deleteHistoryBatch(batch)}
+                            >
+                              <Trash2 size={12} />
+                              删除此批次
+                            </button>
+                          ) : null}
                         </div>
                       ) : null}
                     </div>

@@ -1476,12 +1476,13 @@ tr:focus-visible {
   line-height: 1.1;
 }
 
-.position-quantity-cell small.is-today {
-  padding: 1px 3px;
-  color: #9a6700;
-  background: #fff7d6;
-  border-radius: 4px;
-  font-weight: 700;
+.today-market-cell {
+  display: inline-grid;
+  justify-items: center;
+  gap: 3px;
+  color: #475467;
+  font-size: 11px;
+  line-height: 1.1;
 }
 
 .row-action-button {
@@ -1831,7 +1832,28 @@ tr:focus-visible {
 
 .position-dialog-header small {
   color: #8a94a6;
+  font-size: 13px;
+}
+
+.position-dialog-title-line {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.position-header-radar-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #667085;
   font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.position-header-radar-switch .switch-input {
+  transform: scale(0.9);
+  transform-origin: center;
 }
 
 .position-dialog-icon {
@@ -1916,32 +1938,6 @@ tr:focus-visible {
   font-weight: 500;
 }
 
-.position-switch-row {
-  min-height: 58px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 9px 11px;
-  background: #f8fafc;
-  border: 1px solid #edf0f5;
-  border-radius: 9px;
-}
-
-.position-switch-row > span {
-  display: grid;
-  gap: 3px;
-}
-
-.position-switch-row strong {
-  color: #344054;
-  font-size: 12px;
-}
-
-.position-switch-row small {
-  color: #8a94a6;
-  font-size: 10px;
-}
-
 .position-snapshot-panel {
   overflow: hidden;
   border: 1px solid #dfe5ee;
@@ -1971,7 +1967,7 @@ tr:focus-visible {
 
 .position-snapshot-panel > header small {
   color: #8490a3;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .position-snapshot-add {
@@ -2048,12 +2044,17 @@ tr:focus-visible {
 .position-snapshot-name small {
   overflow: hidden;
   color: #8a94a6;
-  font-size: 9px;
+  font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.position-snapshot-name input,
+.position-snapshot-time {
+  color: #3d4a5f;
+  font-size: 10px;
+  font-weight: 600;
+}
+
 .position-snapshot-number {
   min-width: 0;
   height: 28px;
@@ -2068,7 +2069,6 @@ tr:focus-visible {
   text-align: center;
 }
 
-.position-snapshot-name input:focus,
 .position-snapshot-number:focus {
   border-color: #8cb1ff;
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
@@ -2187,7 +2187,7 @@ tr:focus-visible {
 .t-trading-content {
   display: grid;
   align-content: start;
-  gap: 12px;
+  gap: 8px;
   padding: 14px;
   overflow-y: auto;
 }
@@ -2267,6 +2267,23 @@ tr:focus-visible {
   color: #8993a3;
   font-size: 12px;
   font-style: normal;
+}
+
+.t-card-heading .t-history-total {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.t-card-heading .t-history-total.is-up {
+  color: var(--red);
+}
+
+.t-card-heading .t-history-total.is-down {
+  color: var(--green);
+}
+
+.t-card-heading .t-history-total.is-flat {
+  color: #667085;
 }
 
 .text-button {
@@ -2691,12 +2708,27 @@ tr:focus-visible {
   border-top: 1px solid #e8ecf2;
 }
 
-.t-history-list details > div > span {
+.t-history-list details > div > .t-history-trade {
   display: grid;
-  grid-template-columns: 70px 120px 1fr 120px;
+  grid-template-columns: 0.8fr 1.5fr 1fr 0.9fr 1.35fr;
+  align-items: center;
   gap: 8px;
   color: #687386;
   font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.t-history-trade > * {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.t-history-trade > :last-child {
+  text-align: right;
+}
+
+.t-history-trade strong {
+  font-weight: 700;
 }
 
 .t-history-list details b {
@@ -2720,6 +2752,27 @@ tr:focus-visible {
 
 .t-history-edit-button {
   width: max-content;
+}
+
+.t-history-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.t-history-delete-button {
+  width: max-content;
+  padding: 3px 8px;
+  color: #d92d3a;
+  background: #fffafb;
+  border: 1px solid #f3a8af;
+  border-radius: 5px;
+}
+
+.t-history-delete-button:hover {
+  color: #b4232c;
+  background: #fff1f2;
+  border-color: #e26a73;
 }
 
 .t-history-profit-editor {

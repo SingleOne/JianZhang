@@ -111,6 +111,7 @@ export interface TTradeFees {
 
 export type TTradeSide = 'buy' | 'sell'
 export type TTradePurpose = 't' | 'base'
+export type TTradingDirection = 'forward' | 'reverse'
 
 export interface TTrade {
   id: string
@@ -149,6 +150,8 @@ export interface TTradingBatch {
   id: string
   sequence: number
   openedAt: string
+  /** 缺省时视为旧版正T批次，保证原有配置兼容。 */
+  direction?: TTradingDirection
   openingPosition?: TPositionSnapshot
   trades: TTrade[]
   sellLevels: TSellPlanLevel[]

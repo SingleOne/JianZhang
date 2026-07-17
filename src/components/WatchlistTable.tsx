@@ -30,8 +30,8 @@ import {
 import {
   calculatePositionMetrics,
   currentDateKey,
+  getAvailablePositionQuantity,
   getPositionHoldingDays,
-  isPositionOpenedToday,
   type PositionMetrics
 } from '../lib/portfolio'
 import { calculateTBatchMetrics } from '../lib/t-trading'
@@ -113,10 +113,10 @@ const COLUMN_META: Record<WatchlistColumnId, ColumnMeta> = {
   stock: { label: '名称 / 代码', width: 77, sortable: true, className: 'stock-column' },
   latest: { label: '最新价', width: 72, sortable: true },
   changePercent: { label: '涨跌幅', width: 76, sortable: true },
-  open: { label: '今开', width: 64, sortable: true },
+  open: { label: '今日', width: 70, sortable: true },
   high: { label: '最高', width: 64, sortable: true },
   low: { label: '最低', width: 64, sortable: true },
-  amount: { label: '成交额', width: 80, sortable: true },
+  amount: { label: '持仓天数', width: 80, sortable: true },
   radar: { label: '异动提示', width: 100, sortable: true, className: 'radar-column' },
   positionQuantity: { label: '持仓数量', width: 84, sortable: true },
   cost: { label: '成本价', width: 68, sortable: true },
@@ -147,7 +147,11 @@ function valueClass(value: number | null | undefined): string {
   return value > 0 ? 'is-up' : 'is-down'
 }
 
-function sortValue(row: StockRowData, column: WatchlistColumnId): string | number | null | undefined {
+function sortValue(
+  row: StockRowData,
+  column: WatchlistColumnId,
+  tradingCalendarClosedDates: string[]
+): string | number | null | undefined {
   switch (column) {
     case 'stock': return `${row.stock.name} ${row.stock.code}`
     case 'latest': return row.quote?.latest
@@ -155,7 +159,7 @@ function sortValue(row: StockRowData, column: WatchlistColumnId): string | numbe
     case 'open': return row.quote?.open
     case 'high': return row.quote?.high
     case 'low': return row.quote?.low
-    case 'amount': return row.quote?.amount
+    case 'amount': return getPositionHoldingDays(row.stock.position, tradingCalendarClosedDates)
     case 'radar': {
       if (!row.stock.showRadarSignals) return null
       const latestSignal = todayRadarSignals(row.quote?.radarSignals)[0]
@@ -172,10 +176,14 @@ function sortValue(row: StockRowData, column: WatchlistColumnId): string | numbe
   }
 }
 
-function sortRows(rows: StockRowData[], sort: SortState): StockRowData[] {
+function sortRows(
+  rows: StockRowData[],
+  sort: SortState,
+  tradingCalendarClosedDates: string[]
+): StockRowData[] {
   return [...rows].sort((left, right) => {
-    const leftValue = sortValue(left, sort.column)
-    const rightValue = sortValue(right, sort.column)
+    const leftValue = sortValue(left, sort.column, tradingCalendarClosedDates)
+    const rightValue = sortValue(right, sort.column, tradingCalendarClosedDates)
     const leftMissing = leftValue === null || leftValue === undefined
     const rightMissing = rightValue === null || rightValue === undefined
 
@@ -324,7 +332,10 @@ export function WatchlistTable({
     })
   }, [quotes, watchlist])
 
-  const displayedRows = useMemo(() => sort ? sortRows(rows, sort) : rows, [rows, sort])
+  const displayedRows = useMemo(
+    () => sort ? sortRows(rows, sort, tradingCalendarClosedDates) : rows,
+    [rows, sort, tradingCalendarClosedDates]
+  )
   const displayedStocks = useMemo(() => displayedRows.map(({ stock }) => stock), [displayedRows])
   const activeRadarRow = radarPopover
     ? rows.find(({ stock }) => stock.quoteId === radarPopover.quoteId)
@@ -579,8 +590,17 @@ export function WatchlistTable({
                 ? todayRadarSignals(quote?.radarSignals)
                 : []
               const latestRadarSignal = currentRadarSignals[0]
-              const activeTBatch = tTradingAccounts[stock.quoteId]?.activeBatch
+              const tradingAccount = tTradingAccounts[stock.quoteId]
+              const activeTBatch = tradingAccount?.activeBatch
               const tFloatingProfit = calculateTBatchMetrics(activeTBatch, quote?.latest).floatingProfit
+              const holdingDays = getPositionHoldingDays(
+                stock.position,
+                tradingCalendarClosedDates
+              )
+              const availablePositionQuantity = getAvailablePositionQuantity(
+                stock.position,
+                tradingAccount
+              )
               const tButtonState = !activeTBatch
                 ? ''
                 : tFloatingProfit !== null && tFloatingProfit > 0
@@ -717,10 +737,21 @@ export function WatchlistTable({
                               </div>
                             </td>
                           )
-                        case 'open': return <td key={columnId}>{formatPrice(quote?.open)}</td>
+                        case 'open':
+                          return (
+                            <td key={columnId}>
+                              <span
+                                className="today-market-cell"
+                                title={`今开 ${formatPrice(quote?.open)}，成交额 ${formatAmount(quote?.amount)}`}
+                              >
+                                <span>{formatPrice(quote?.open)}</span>
+                                <span>{formatAmount(quote?.amount)}</span>
+                              </span>
+                            </td>
+                          )
                         case 'high': return <td key={columnId}>{formatPrice(quote?.high)}</td>
                         case 'low': return <td key={columnId}>{formatPrice(quote?.low)}</td>
-                        case 'amount': return <td key={columnId}>{formatAmount(quote?.amount)}</td>
+                        case 'amount': return <td key={columnId}>{holdingDays ? `${holdingDays} 天` : '--'}</td>
                         case 'radar':
                           return (
                             <td className="radar-column" key={columnId}>
@@ -756,21 +787,13 @@ export function WatchlistTable({
                             </td>
                           )
                         case 'positionQuantity': {
-                          const holdingDays = getPositionHoldingDays(
-                            stock.position,
-                            tradingCalendarClosedDates
-                          )
-                          const openedToday = isPositionOpenedToday(stock.position)
                           return (
                             <td className="position-value-cell" key={columnId}>
                               <span className="position-quantity-cell">
                                 <span>{formatShares(stock.position?.quantity)}</span>
-                                {holdingDays ? (
-                                  <small
-                                    className={openedToday ? 'is-today' : undefined}
-                                    title={`建仓日期：${stock.position?.openedOn}`}
-                                  >
-                                    {openedToday ? '今日建仓' : `持仓 ${holdingDays} 天`}
+                                {availablePositionQuantity !== null ? (
+                                  <small title="已扣除今日买入数量">
+                                    可用 {formatShares(availablePositionQuantity)}
                                   </small>
                                 ) : null}
                               </span>

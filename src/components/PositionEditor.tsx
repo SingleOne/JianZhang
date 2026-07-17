@@ -52,7 +52,6 @@ function valueClass(value: number | null | undefined): string {
 
 function formatSnapshotTime(value: string): string {
   return new Intl.DateTimeFormat('zh-CN', {
-    year: 'numeric',
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
@@ -62,12 +61,7 @@ function formatSnapshotTime(value: string): string {
 }
 
 function defaultSnapshotName(createdAt: string): string {
-  const date = new Date(createdAt)
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  const hour = String(date.getHours()).padStart(2, '0')
-  const minute = String(date.getMinutes()).padStart(2, '0')
-  return `操作前 ${month}-${day} ${hour}:${minute}`
+  return formatSnapshotTime(createdAt)
 }
 
 export function PositionEditor({ stock, quote, onSave, onClose }: PositionEditorProps) {
@@ -99,7 +93,7 @@ export function PositionEditor({ stock, quote, onSave, onClose }: PositionEditor
 
   const updateSnapshot = (
     snapshotId: string,
-    changes: Partial<Pick<StockPositionSnapshot, 'name' | 'quantity' | 'cost'>>
+    changes: Partial<Pick<StockPositionSnapshot, 'quantity' | 'cost'>>
   ) => {
     setPositionSnapshots((current) => current.map((snapshot) => (
       snapshot.id === snapshotId ? { ...snapshot, ...changes } : snapshot
@@ -122,7 +116,18 @@ export function PositionEditor({ stock, quote, onSave, onClose }: PositionEditor
           <div>
             <span className="position-dialog-icon"><BriefcaseBusiness size={18} /></span>
             <span>
-              <strong id="position-dialog-title">编辑持仓</strong>
+              <span className="position-dialog-title-line">
+                <strong id="position-dialog-title">编辑持仓</strong>
+                <label className="position-header-radar-switch">
+                  <span>显示异动数据</span>
+                  <input
+                    className="switch-input"
+                    type="checkbox"
+                    checked={showRadarSignals}
+                    onChange={(event) => setShowRadarSignals(event.target.checked)}
+                  />
+                </label>
+              </span>
               <small>{stock.name} · {stock.code}</small>
             </span>
           </div>
@@ -188,19 +193,6 @@ export function PositionEditor({ stock, quote, onSave, onClose }: PositionEditor
               </span>
             </label>
           </div>
-          <label className="position-switch-row">
-            <span>
-              <strong>显示异动数据</strong>
-              <small>关闭后，该股票不显示异动提示标签</small>
-            </span>
-            <input
-              className="switch-input"
-              type="checkbox"
-              checked={showRadarSignals}
-              onChange={(event) => setShowRadarSignals(event.target.checked)}
-            />
-          </label>
-
           <section className="position-snapshot-panel">
             <header>
               <span>
@@ -216,7 +208,7 @@ export function PositionEditor({ stock, quote, onSave, onClose }: PositionEditor
                 onClick={addSnapshot}
               >
                 <Camera size={14} />
-                保存修改前持仓
+                保存持仓快照
               </button>
             </header>
 
@@ -229,7 +221,7 @@ export function PositionEditor({ stock, quote, onSave, onClose }: PositionEditor
                   <span>持仓市值</span>
                   <span>持仓收益</span>
                   <span>收益率</span>
-                  <span>较当前收益差</span>
+                  <span>较当前收益</span>
                   <span />
                 </div>
                 <div className="position-snapshot-row is-current">
@@ -261,18 +253,7 @@ export function PositionEditor({ stock, quote, onSave, onClose }: PositionEditor
                     : metrics.totalProfit - currentMetrics.totalProfit
                   return (
                     <div className="position-snapshot-row" key={snapshot.id}>
-                      <span className="position-snapshot-name">
-                        <input
-                          type="text"
-                          required
-                          value={snapshot.name}
-                          onChange={(event) => updateSnapshot(snapshot.id, {
-                            name: event.target.value
-                          })}
-                          aria-label="快照名称"
-                        />
-                        <small>{formatSnapshotTime(snapshot.createdAt)}</small>
-                      </span>
+                      <span className="position-snapshot-time">{formatSnapshotTime(snapshot.createdAt)}</span>
                       <input
                         className="position-snapshot-number"
                         type="number"
@@ -283,7 +264,7 @@ export function PositionEditor({ stock, quote, onSave, onClose }: PositionEditor
                         onChange={(event) => updateSnapshot(snapshot.id, {
                           quantity: Number(event.target.value)
                         })}
-                        aria-label={`${snapshot.name}持仓数量`}
+                        aria-label={`${formatSnapshotTime(snapshot.createdAt)}持仓数量`}
                       />
                       <input
                         className="position-snapshot-number"
@@ -295,7 +276,7 @@ export function PositionEditor({ stock, quote, onSave, onClose }: PositionEditor
                         onChange={(event) => updateSnapshot(snapshot.id, {
                           cost: Number(event.target.value)
                         })}
-                        aria-label={`${snapshot.name}成本价`}
+                        aria-label={`${formatSnapshotTime(snapshot.createdAt)}成本价`}
                       />
                       <span>{formatCurrency(metrics.marketValue)}</span>
                       <span className={valueClass(metrics.totalProfit)}>
@@ -313,8 +294,8 @@ export function PositionEditor({ stock, quote, onSave, onClose }: PositionEditor
                         onClick={() => setPositionSnapshots((current) => (
                           current.filter((item) => item.id !== snapshot.id)
                         ))}
-                        title={`删除${snapshot.name}`}
-                        aria-label={`删除${snapshot.name}`}
+                        title={`删除${formatSnapshotTime(snapshot.createdAt)}快照`}
+                        aria-label={`删除${formatSnapshotTime(snapshot.createdAt)}快照`}
                       >
                         <Trash2 size={14} />
                       </button>
@@ -323,7 +304,7 @@ export function PositionEditor({ stock, quote, onSave, onClose }: PositionEditor
                 })}
                 {positionSnapshots.length === 0 ? (
                   <div className="position-snapshot-empty">
-                    操作前保存一次当前持仓，之后即可和新持仓实时比较。
+                    保存一次当前持仓，之后即可和新持仓实时比较。
                   </div>
                 ) : null}
               </div>
