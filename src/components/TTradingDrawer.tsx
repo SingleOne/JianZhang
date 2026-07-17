@@ -115,9 +115,10 @@ export function TTradingDrawer({
     () => calculateTradeFees(
       Math.max(0, numericPrice * numericQuantity),
       side,
-      feeSettings
+      feeSettings,
+      stock.marketLabel
     ),
-    [feeSettings, numericPrice, numericQuantity, side]
+    [feeSettings, numericPrice, numericQuantity, side, stock.marketLabel]
   )
   const tradeFees = manualFees ? feeOverrides : calculatedFees
   const readyToSettle = Boolean(
@@ -150,13 +151,18 @@ export function TTradingDrawer({
       const hasSellQuantity = level.quantity >= 100
       const fees = targetPrice === null || !hasSellQuantity
         ? emptyFees()
-        : calculateTradeFees(targetPrice * level.quantity, 'sell', feeSettings)
+        : calculateTradeFees(targetPrice * level.quantity, 'sell', feeSettings, stock.marketLabel)
       const expectedProfit = targetPrice === null || averageCost === null || !hasSellQuantity
         ? null
         : (targetPrice - averageCost) * level.quantity - totalTradeFees(fees)
       const fullPositionFees = targetPrice === null
         ? emptyFees()
-        : calculateTradeFees(targetPrice * activeMetrics.remainingQuantity, 'sell', feeSettings)
+        : calculateTradeFees(
+          targetPrice * activeMetrics.remainingQuantity,
+          'sell',
+          feeSettings,
+          stock.marketLabel
+        )
       const fullPositionProfit = targetPrice === null || averageCost === null
         ? null
         : activeMetrics.realizedProfit
@@ -178,7 +184,8 @@ export function TTradingDrawer({
     activeMetrics.realizedProfit,
     activeMetrics.remainingQuantity,
     currentAccount.activeBatch?.sellLevels,
-    feeSettings
+    feeSettings,
+    stock.marketLabel
   ])
   const activeTradesDescending = useMemo(
     () => (currentAccount.activeBatch?.trades ?? [])
@@ -569,7 +576,7 @@ export function TTradingDrawer({
             <div className="t-form-grid">
               <label>
                 <span>成交价格</span>
-                <input type="number" min="0.001" step="0.001" value={price} onChange={(event) => setPrice(event.target.value)} />
+                <input type="number" min="0.01" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} />
               </label>
               <label>
                 <span>成交数量</span>
@@ -712,7 +719,7 @@ export function TTradingDrawer({
                           />
                           <span>%</span>
                         </label>
-                        <span>{formatPrice(level.targetPrice)}</span>
+                        <span>{level.targetPrice === null ? '--' : level.targetPrice.toFixed(2)}</span>
                         <label>
                           <input
                             type="number"

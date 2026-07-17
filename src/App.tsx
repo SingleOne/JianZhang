@@ -8,6 +8,7 @@ import { initialState, isDesktopRuntime, stockApi } from './lib/api'
 import { formatPercent, formatPrice, formatProfit, formatUpdateTime } from './lib/format'
 import { calculatePortfolioSummary } from './lib/portfolio'
 import { MARKET_INDEX_OPTIONS } from './shared/types'
+import packageInfo from '../package.json'
 import type {
   AppSettings,
   AppState,
@@ -414,6 +415,8 @@ export default function App() {
         <span className="status-separator" />
         <span>{error ? '行情连接异常，保留最近数据' : `最近更新 ${formatUpdateTime(lastUpdated)}`}</span>
         <span className="status-spacer" />
+        <span className="status-version">版本 v{packageInfo.version}</span>
+        <span className="status-separator" />
         <span>红涨绿跌 · 行情仅供参考</span>
       </footer>
 

@@ -1,7 +1,7 @@
 import { BriefcaseBusiness, Camera, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { formatCurrency, formatPercent, formatPrice, formatProfit, formatShares } from '../lib/format'
+import { formatCost, formatCurrency, formatPercent, formatPrice, formatProfit, formatShares } from '../lib/format'
 import { currentDateKey } from '../lib/portfolio'
 import type {
   StockPosition,
@@ -238,7 +238,7 @@ export function PositionEditor({ stock, quote, onSave, onClose }: PositionEditor
                     <small>按上方输入实时预览</small>
                   </span>
                   <strong>{formatShares(currentQuantity)}</strong>
-                  <strong>{currentCost > 0 ? formatPrice(currentCost) : '--'}</strong>
+                  <strong>{currentCost > 0 ? formatCost(currentCost) : '--'}</strong>
                   <span>{formatCurrency(currentMetrics.marketValue)}</span>
                   <span className={valueClass(currentMetrics.totalProfit)}>
                     {formatProfit(currentMetrics.totalProfit)}

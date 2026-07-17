@@ -40,7 +40,8 @@ function feeByRate(amount: number, ratePerTenThousand: number): number {
 export function calculateTradeFees(
   amount: number,
   side: TTradeSide,
-  settings: TTradingFeeSettings
+  settings: TTradingFeeSettings,
+  marketLabel: string
 ): TTradeFees {
   const handling = feeByRate(amount, settings.handlingRatePerTenThousand)
   const regulatory = feeByRate(amount, settings.regulatoryRatePerTenThousand)
@@ -49,9 +50,12 @@ export function calculateTradeFees(
     feeByRate(amount, settings.transferRatePerTenThousand)
   )
   const baseCommission = feeByRate(amount, settings.commissionRatePerTenThousand)
+  const minimumBundleFees = marketLabel === '沪A'
+    ? handling + regulatory
+    : handling + regulatory + transfer
   const minimumCommission = Math.max(
     0,
-    roundMoney(settings.minimumCommissionBundle - handling - regulatory - transfer)
+    roundMoney(settings.minimumCommissionBundle - minimumBundleFees)
   )
 
   return {

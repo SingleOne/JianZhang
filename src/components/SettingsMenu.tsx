@@ -111,7 +111,7 @@ export function SettingsMenu({
         </label>
         <fieldset className="trading-fee-setting">
           <legend>做T费用</legend>
-          <small>佣金按净佣金计算，佣金、经手费、证管费和过户费合计最低 5 元</small>
+          <small>佣金按净佣金计算；深A将过户费计入最低 5 元，沪A过户费在最低 5 元外单独收取</small>
           <div className="trading-fee-grid">
             <label>
               <span>佣金</span>
