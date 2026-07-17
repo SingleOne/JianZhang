@@ -120,14 +120,12 @@ export function calculateTBatchMetrics(
 }
 
 export function createDefaultSellLevels(quantity: number): TSellPlanLevel[] {
-  const baseQuantity = Math.floor(quantity / 5)
-  let assignedQuantity = 0
+  const totalLots = Math.floor(quantity / 100)
+  const baseLots = Math.floor(totalLots / 5)
+  const extraLots = totalLots % 5
   return [1, 2, 3, 4, 5].map((targetPercent, index) => {
-    const levelQuantity = index === 4
-      ? Math.max(0, quantity - assignedQuantity)
-      : baseQuantity
-    assignedQuantity += levelQuantity
-    return { targetPercent, quantity: levelQuantity }
+    const lots = baseLots + (index < extraLots ? 1 : 0)
+    return { targetPercent, quantity: lots * 100 }
   })
 }
 

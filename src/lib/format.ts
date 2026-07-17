@@ -3,6 +3,11 @@ export function formatPrice(value: number | null | undefined): string {
   return value >= 100 ? value.toFixed(2) : value.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')
 }
 
+export function formatCost(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '--'
+  return value.toFixed(4)
+}
+
 export function formatSigned(value: number | null | undefined, digits = 2): string {
   if (value === null || value === undefined) return '--'
   return `${value >= 0 ? '+' : ''}${value.toFixed(digits)}`

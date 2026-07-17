@@ -20,6 +20,7 @@ import {
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import {
   formatAmount,
+  formatCost,
   formatCurrency,
   formatPercent,
   formatPrice,
@@ -33,6 +34,7 @@ import {
   isPositionOpenedToday,
   type PositionMetrics
 } from '../lib/portfolio'
+import { calculateTBatchMetrics } from '../lib/t-trading'
 import type {
   StockPosition,
   StockPositionSnapshot,
@@ -577,6 +579,15 @@ export function WatchlistTable({
                 ? todayRadarSignals(quote?.radarSignals)
                 : []
               const latestRadarSignal = currentRadarSignals[0]
+              const activeTBatch = tTradingAccounts[stock.quoteId]?.activeBatch
+              const tFloatingProfit = calculateTBatchMetrics(activeTBatch, quote?.latest).floatingProfit
+              const tButtonState = !activeTBatch
+                ? ''
+                : tFloatingProfit !== null && tFloatingProfit > 0
+                  ? 'is-t-profit-up'
+                  : tFloatingProfit !== null && tFloatingProfit < 0
+                    ? 'is-t-profit-down'
+                    : 'is-active'
               return (
                 <Fragment key={stock.quoteId}>
                   <tr
@@ -672,7 +683,7 @@ export function WatchlistTable({
                           <PencilLine size={15} />
                         </button>
                         <button
-                          className={`row-action-button ${tTradingAccounts[stock.quoteId]?.activeBatch ? 'is-active' : ''}`}
+                          className={`row-action-button ${tButtonState}`}
                           type="button"
                           onClick={(event) => { event.stopPropagation(); setTTradingStock(stock) }}
                           aria-label={`管理 ${stock.name} 的T仓交易`}
@@ -766,7 +777,7 @@ export function WatchlistTable({
                             </td>
                           )
                         }
-                        case 'cost': return <td className="position-value-cell" key={columnId}>{formatPrice(stock.position?.cost)}</td>
+                        case 'cost': return <td className="position-value-cell" key={columnId}>{formatCost(stock.position?.cost)}</td>
                         case 'marketValue': return <td className="position-value-cell" key={columnId}>{formatCurrency(metrics.marketValue)}</td>
                         case 'todayProfit': return <td className={valueClass(metrics.todayProfit)} key={columnId}>{formatProfit(metrics.todayProfit)}</td>
                         case 'todayProfitPercent': return <td className={valueClass(metrics.todayProfitPercent)} key={columnId}>{formatPercent(metrics.todayProfitPercent)}</td>

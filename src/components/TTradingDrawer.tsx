@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { formatCurrency, formatPrice, formatProfit, formatShares } from '../lib/format'
+import { formatCost, formatCurrency, formatPrice, formatProfit, formatShares } from '../lib/format'
 import {
   applyTradeToPosition,
   calculateCostAdjustedProfit,
@@ -103,6 +103,7 @@ export function TTradingDrawer({
   const [editingHistoryBatchId, setEditingHistoryBatchId] = useState<string | null>(null)
   const [historyProfitDraft, setHistoryProfitDraft] = useState('')
   const [historyProfitError, setHistoryProfitError] = useState('')
+  const [showAllActiveTrades, setShowAllActiveTrades] = useState(false)
 
   const activeMetrics = useMemo(
     () => calculateTBatchMetrics(currentAccount.activeBatch, quote?.latest),
@@ -146,10 +147,11 @@ export function TTradingDrawer({
       const targetPrice = averageCost === null
         ? null
         : averageCost * (1 + level.targetPercent / 100)
-      const fees = targetPrice === null
+      const hasSellQuantity = level.quantity >= 100
+      const fees = targetPrice === null || !hasSellQuantity
         ? emptyFees()
         : calculateTradeFees(targetPrice * level.quantity, 'sell', feeSettings)
-      const expectedProfit = targetPrice === null || averageCost === null
+      const expectedProfit = targetPrice === null || averageCost === null || !hasSellQuantity
         ? null
         : (targetPrice - averageCost) * level.quantity - totalTradeFees(fees)
       const fullPositionFees = targetPrice === null
@@ -178,6 +180,19 @@ export function TTradingDrawer({
     currentAccount.activeBatch?.sellLevels,
     feeSettings
   ])
+  const activeTradesDescending = useMemo(
+    () => (currentAccount.activeBatch?.trades ?? [])
+      .map((trade, index) => ({ trade, index }))
+      .sort((left, right) => (
+        right.trade.tradedAt.localeCompare(left.trade.tradedAt)
+        || right.index - left.index
+      ))
+      .map(({ trade }) => trade),
+    [currentAccount.activeBatch?.trades]
+  )
+  const visibleActiveTrades = showAllActiveTrades
+    ? activeTradesDescending
+    : activeTradesDescending.slice(0, 5)
 
   const resetTradeForm = () => {
     setSide('buy')
@@ -232,7 +247,7 @@ export function TTradingDrawer({
     } else {
       batch = {
         id: crypto.randomUUID(),
-        sequence: currentAccount.history.length + 1,
+        sequence: Math.max(0, ...currentAccount.history.map((item) => item.sequence)) + 1,
         openedAt: tradedAt,
         openingPosition: positionSnapshot(stock.position),
         trades: [],
@@ -418,6 +433,20 @@ export function TTradingDrawer({
     cancelEditingHistoryProfit()
   }
 
+  const deleteHistoryBatch = (batch: TTradingBatch) => {
+    const confirmed = window.confirm(
+      `确定删除做T历史批次 #${batch.sequence} 吗？删除后无法恢复。`
+    )
+    if (!confirmed) return
+
+    applyAccount({
+      ...currentAccount,
+      history: currentAccount.history.filter((item) => item.id !== batch.id)
+    }, stock.position)
+
+    if (editingHistoryBatchId === batch.id) cancelEditingHistoryProfit()
+  }
+
   const feeInput = (
     key: keyof TTradeFees,
     label: string
@@ -471,7 +500,7 @@ export function TTradingDrawer({
             </span>
             <span>
               <small>T仓成本</small>
-              <strong>{formatPrice(activeMetrics.averageCost)}</strong>
+              <strong>{formatCost(activeMetrics.averageCost)}</strong>
             </span>
             <span>
               <small>已实现收益</small>
@@ -544,7 +573,7 @@ export function TTradingDrawer({
               </label>
               <label>
                 <span>成交数量</span>
-                <input type="number" min="1" step="100" value={quantity} onChange={(event) => setQuantity(event.target.value)} />
+                <input type="number" min="100" step="100" value={quantity} onChange={(event) => setQuantity(event.target.value)} />
               </label>
               <label>
                 <span>成交时间</span>
@@ -605,7 +634,7 @@ export function TTradingDrawer({
                   <em>{currentAccount.activeBatch.trades.length} 笔流水</em>
                 </div>
                 <div className="t-trade-list">
-                  {currentAccount.activeBatch.trades.map((trade) => (
+                  {visibleActiveTrades.map((trade) => (
                     <div className="t-trade-row" key={trade.id}>
                       <span className={`t-trade-side is-${trade.side}`}>
                         {trade.purpose === 'base' ? '底仓' : trade.side === 'buy' ? 'T买' : 'T卖'}
@@ -635,6 +664,17 @@ export function TTradingDrawer({
                       </span>
                     </div>
                   ))}
+                  {activeTradesDescending.length > 5 ? (
+                    <button
+                      className="t-trade-more-button"
+                      type="button"
+                      onClick={() => setShowAllActiveTrades((current) => !current)}
+                    >
+                      {showAllActiveTrades
+                        ? '收起交易记录'
+                        : `显示更多（其余 ${activeTradesDescending.length - 5} 条）`}
+                    </button>
+                  ) : null}
                 </div>
               </section>
 
@@ -676,9 +716,9 @@ export function TTradingDrawer({
                         <label>
                           <input
                             type="number"
-                            min="0"
+                            min="100"
                             step="100"
-                            value={level.quantity}
+                            value={level.quantity || ''}
                             onChange={(event) => updateSellLevel(level.index, 'quantity', Number(event.target.value))}
                           />
                           <span>股</span>
@@ -732,8 +772,8 @@ export function TTradingDrawer({
                       <span>最新持仓成本</span>
                       <input
                         type="number"
-                        min="0.001"
-                        step="0.001"
+                        min="0.0001"
+                        step="0.0001"
                         value={latestPositionCost}
                         onChange={(event) => setLatestPositionCost(event.target.value)}
                         placeholder="留空则采用流水收益"
@@ -860,6 +900,14 @@ export function TTradingDrawer({
                               修改成本校准收益
                             </button>
                           )}
+                          <button
+                            className="text-button t-history-delete-button"
+                            type="button"
+                            onClick={() => deleteHistoryBatch(batch)}
+                          >
+                            <Trash2 size={12} />
+                            删除此批次
+                          </button>
                         </div>
                       ) : null}
                     </div>

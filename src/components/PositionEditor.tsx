@@ -149,7 +149,7 @@ export function PositionEditor({ stock, quote, onSave, onClose }: PositionEditor
               <span className="position-input-wrap">
                 <input
                   type="number"
-                  min="1"
+                  min="100"
                   step="100"
                   required={hasPositionInput}
                   autoFocus
@@ -165,12 +165,12 @@ export function PositionEditor({ stock, quote, onSave, onClose }: PositionEditor
               <span className="position-input-wrap">
                 <input
                   type="number"
-                  min="0.001"
-                  step="0.001"
+                  min="0.0001"
+                  step="0.0001"
                   required={hasPositionInput}
                   value={cost}
                   onChange={(event) => setCost(event.target.value)}
-                  placeholder="例如 12.580"
+                  placeholder="例如 12.5800"
                 />
                 <span>元</span>
               </span>
@@ -276,7 +276,7 @@ export function PositionEditor({ stock, quote, onSave, onClose }: PositionEditor
                       <input
                         className="position-snapshot-number"
                         type="number"
-                        min="1"
+                        min="100"
                         step="100"
                         required
                         value={snapshot.quantity}
@@ -288,8 +288,8 @@ export function PositionEditor({ stock, quote, onSave, onClose }: PositionEditor
                       <input
                         className="position-snapshot-number"
                         type="number"
-                        min="0.001"
-                        step="0.001"
+                        min="0.0001"
+                        step="0.0001"
                         required
                         value={snapshot.cost}
                         onChange={(event) => updateSnapshot(snapshot.id, {
