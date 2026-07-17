@@ -21,7 +21,20 @@ export function currentDateKey(): string {
 }
 
 export function isPositionOpenedToday(position: StockPosition | undefined): boolean {
-  return Boolean(position?.openedToday && position.openedOn === currentDateKey())
+  return position?.openedOn === currentDateKey()
+}
+
+export function getPositionHoldingDays(position: StockPosition | undefined): number | null {
+  if (!position?.openedOn) return null
+
+  const [openedYear, openedMonth, openedDay] = position.openedOn.split('-').map(Number)
+  const [currentYear, currentMonth, currentDay] = currentDateKey().split('-').map(Number)
+  const holdingDays = Math.floor((
+    Date.UTC(currentYear, currentMonth - 1, currentDay)
+    - Date.UTC(openedYear, openedMonth - 1, openedDay)
+  ) / 86_400_000) + 1
+
+  return holdingDays > 0 ? holdingDays : null
 }
 
 export function calculatePositionMetrics(

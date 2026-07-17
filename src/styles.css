@@ -760,9 +760,11 @@ tr:focus-visible {
   display: grid;
   gap: 2px;
   padding: 5px 9px;
-  background: #f8fafc;
-  border: 1px solid #edf0f4;
+  background: #ffffff;
+  border: 1px solid #cfd8e6;
+  border-left: 3px solid #76a7f7;
   border-radius: 7px;
+  box-shadow: 0 2px 7px rgba(15, 23, 42, 0.08);
 }
 
 .market-index-card small {
@@ -1299,18 +1301,27 @@ tr:focus-visible {
 }
 
 .position-quantity-cell {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 3px;
+  display: inline-grid;
+  justify-items: end;
+  gap: 2px;
+}
+
+.position-value-cell {
+  font-weight: 700;
 }
 
 .position-quantity-cell small {
+  color: #8490a3;
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.1;
+}
+
+.position-quantity-cell small.is-today {
   padding: 1px 3px;
   color: #9a6700;
   background: #fff7d6;
   border-radius: 4px;
-  font-size: 9px;
   font-weight: 700;
 }
 

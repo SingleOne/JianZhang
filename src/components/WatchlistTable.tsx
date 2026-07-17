@@ -28,6 +28,7 @@ import {
 } from '../lib/format'
 import {
   calculatePositionMetrics,
+  getPositionHoldingDays,
   isPositionOpenedToday,
   type PositionMetrics
 } from '../lib/portfolio'
@@ -582,17 +583,27 @@ export function WatchlistTable({
                               ) : '--'}
                             </td>
                           )
-                        case 'positionQuantity':
+                        case 'positionQuantity': {
+                          const holdingDays = getPositionHoldingDays(stock.position)
+                          const openedToday = isPositionOpenedToday(stock.position)
                           return (
-                            <td key={columnId}>
+                            <td className="position-value-cell" key={columnId}>
                               <span className="position-quantity-cell">
                                 <span>{formatShares(stock.position?.quantity)}</span>
-                                {isPositionOpenedToday(stock.position) ? <small>本日</small> : null}
+                                {holdingDays ? (
+                                  <small
+                                    className={openedToday ? 'is-today' : undefined}
+                                    title={`建仓日期：${stock.position?.openedOn}`}
+                                  >
+                                    {openedToday ? '今日建仓' : `持仓 ${holdingDays} 天`}
+                                  </small>
+                                ) : null}
                               </span>
                             </td>
                           )
-                        case 'cost': return <td key={columnId}>{formatPrice(stock.position?.cost)}</td>
-                        case 'marketValue': return <td key={columnId}>{formatCurrency(metrics.marketValue)}</td>
+                        }
+                        case 'cost': return <td className="position-value-cell" key={columnId}>{formatPrice(stock.position?.cost)}</td>
+                        case 'marketValue': return <td className="position-value-cell" key={columnId}>{formatCurrency(metrics.marketValue)}</td>
                         case 'todayProfit': return <td className={valueClass(metrics.todayProfit)} key={columnId}>{formatProfit(metrics.todayProfit)}</td>
                         case 'todayProfitPercent': return <td className={valueClass(metrics.todayProfitPercent)} key={columnId}>{formatPercent(metrics.todayProfitPercent)}</td>
                         case 'totalProfit': return <td className={valueClass(metrics.totalProfit)} key={columnId}>{formatProfit(metrics.totalProfit)}</td>

@@ -1,7 +1,7 @@
 import { BriefcaseBusiness, X } from 'lucide-react'
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { currentDateKey, isPositionOpenedToday } from '../lib/portfolio'
+import { currentDateKey } from '../lib/portfolio'
 import type { StockPosition, WatchStock } from '../shared/types'
 
 interface PositionEditorProps {
@@ -13,7 +13,9 @@ interface PositionEditorProps {
 export function PositionEditor({ stock, onSave, onClose }: PositionEditorProps) {
   const [quantity, setQuantity] = useState(stock.position?.quantity.toString() ?? '')
   const [cost, setCost] = useState(stock.position?.cost.toString() ?? '')
-  const [openedToday, setOpenedToday] = useState(isPositionOpenedToday(stock.position))
+  const [openedOn, setOpenedOn] = useState(
+    stock.position ? stock.position.openedOn ?? '' : currentDateKey()
+  )
   const [showRadarSignals, setShowRadarSignals] = useState(stock.showRadarSignals)
   const hasPositionInput = quantity.trim() !== '' || cost.trim() !== ''
 
@@ -49,8 +51,8 @@ export function PositionEditor({ stock, onSave, onClose }: PositionEditorProps) 
             onSave(hasPositionInput ? {
               quantity: Number(quantity),
               cost: Number(cost),
-              openedToday,
-              openedOn: openedToday ? currentDateKey() : undefined
+              openedToday: openedOn === currentDateKey(),
+              openedOn
             } : undefined, showRadarSignals)
           }}
         >
@@ -85,17 +87,17 @@ export function PositionEditor({ stock, onSave, onClose }: PositionEditorProps) 
               <span>元</span>
             </span>
           </label>
-          <label className="position-switch-row">
-            <span>
-              <strong>本日建仓</strong>
-              <small>勾选后，今日收益按成本价计算</small>
+          <label>
+            <span>建仓日期</span>
+            <span className="position-input-wrap">
+              <input
+                type="date"
+                max={currentDateKey()}
+                required={hasPositionInput}
+                value={openedOn}
+                onChange={(event) => setOpenedOn(event.target.value)}
+              />
             </span>
-            <input
-              className="switch-input"
-              type="checkbox"
-              checked={openedToday}
-              onChange={(event) => setOpenedToday(event.target.checked)}
-            />
           </label>
           <label className="position-switch-row">
             <span>
