@@ -1522,7 +1522,10 @@ tr:focus-visible {
 }
 
 .position-dialog {
-  width: min(430px, 100%);
+  width: min(920px, 100%);
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   background: #ffffff;
   border: 1px solid rgba(255, 255, 255, 0.76);
@@ -1534,6 +1537,7 @@ tr:focus-visible {
 .position-dialog-header {
   height: 66px;
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: space-between;
   padding: 0 17px;
@@ -1584,16 +1588,22 @@ tr:focus-visible {
 }
 
 .position-form {
+  min-height: 0;
   display: grid;
   gap: 15px;
   padding: 18px;
+  overflow-y: auto;
 }
 
-.position-form > label:not(.position-switch-row) {
+.position-fields {
   display: grid;
-  grid-template-columns: 82px minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.position-fields > label {
+  display: grid;
+  gap: 7px;
   color: #475467;
   font-size: 12px;
   font-weight: 650;
@@ -1660,6 +1670,153 @@ tr:focus-visible {
 
 .position-switch-row small {
   color: #8a94a6;
+  font-size: 10px;
+}
+
+.position-snapshot-panel {
+  overflow: hidden;
+  border: 1px solid #dfe5ee;
+  border-radius: 10px;
+}
+
+.position-snapshot-panel > header {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 12px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e4e9f0;
+}
+
+.position-snapshot-panel > header > span {
+  display: grid;
+  gap: 3px;
+}
+
+.position-snapshot-panel > header strong {
+  color: #344054;
+  font-size: 12px;
+}
+
+.position-snapshot-panel > header small {
+  color: #8490a3;
+  font-size: 10px;
+}
+
+.position-snapshot-add {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  padding: 0 10px;
+  font-size: 11px;
+}
+
+.position-snapshot-add:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.position-snapshot-scroll {
+  overflow-x: auto;
+}
+
+.position-snapshot-table {
+  min-width: 820px;
+}
+
+.position-snapshot-row {
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: minmax(155px, 1.35fr) 82px 82px 102px 96px 78px 108px 32px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  color: #566277;
+  border-bottom: 1px solid #edf0f4;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.position-snapshot-row:last-child {
+  border-bottom: 0;
+}
+
+.position-snapshot-table-header {
+  min-height: 30px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  color: #8490a3;
+  background: #fbfcfd;
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.position-snapshot-row.is-current {
+  background: #f3f7ff;
+}
+
+.position-snapshot-row.is-current > strong {
+  color: #334155;
+}
+
+.position-snapshot-name {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.position-snapshot-name strong {
+  color: #1f3f75;
+  font-size: 11px;
+}
+
+.position-snapshot-name small {
+  overflow: hidden;
+  color: #8a94a6;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.position-snapshot-name input,
+.position-snapshot-number {
+  min-width: 0;
+  height: 28px;
+  padding: 0 7px;
+  color: #3d4a5f;
+  background: #ffffff;
+  border: 1px solid #dfe5ec;
+  border-radius: 6px;
+  outline: 0;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.position-snapshot-name input:focus,
+.position-snapshot-number:focus {
+  border-color: #8cb1ff;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
+}
+
+.position-snapshot-delete {
+  width: 28px;
+  height: 28px;
+  color: #a0a8b5;
+}
+
+.position-snapshot-delete:hover {
+  color: var(--red);
+  background: #fff1f1;
+}
+
+.position-snapshot-empty {
+  padding: 18px;
+  color: #8a94a6;
+  text-align: center;
   font-size: 10px;
 }
 
@@ -2252,6 +2409,17 @@ tr:focus-visible {
 
 .clear-position-button:hover {
   text-decoration: underline;
+}
+
+@media (max-width: 700px) {
+  .position-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .position-snapshot-panel > header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 .stock-details {

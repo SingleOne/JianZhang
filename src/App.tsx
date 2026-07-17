@@ -13,6 +13,7 @@ import type {
   AppState,
   SearchResult,
   StockPosition,
+  StockPositionSnapshot,
   StockQuote,
   TTradingAccount,
   WatchlistColumnId
@@ -156,11 +157,18 @@ export default function App() {
   const updatePosition = useCallback((
     quoteId: string,
     position: StockPosition | undefined,
-    showRadarSignals: boolean
+    showRadarSignals: boolean,
+    positionSnapshots: StockPositionSnapshot[]
   ) => {
     const nextWatchlist = state.watchlist.map((stock) =>
       stock.quoteId === quoteId
-        ? { ...stock, position, showRadarSignals, isPriority: position ? true : stock.isPriority }
+        ? {
+            ...stock,
+            position,
+            positionSnapshots,
+            showRadarSignals,
+            isPriority: position ? true : stock.isPriority
+          }
         : stock
     )
     void persist({ ...state, watchlist: nextWatchlist })

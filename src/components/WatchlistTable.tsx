@@ -35,6 +35,7 @@ import {
 } from '../lib/portfolio'
 import type {
   StockPosition,
+  StockPositionSnapshot,
   StockQuote,
   TTradingAccount,
   TTradingAccounts,
@@ -59,7 +60,12 @@ interface WatchlistTableProps {
   onSelect: (quoteId: string) => void
   onToggleTaskbar: (quoteId: string) => void
   onTogglePriority: (quoteId: string) => void
-  onEditPosition: (quoteId: string, position: StockPosition | undefined, showRadarSignals: boolean) => void
+  onEditPosition: (
+    quoteId: string,
+    position: StockPosition | undefined,
+    showRadarSignals: boolean,
+    positionSnapshots: StockPositionSnapshot[]
+  ) => void
   onUpdateTTrading: (
     quoteId: string,
     account: TTradingAccount,
@@ -705,10 +711,11 @@ export function WatchlistTable({
       {editingStock ? (
         <PositionEditor
           key={editingStock.quoteId}
-          stock={editingStock}
+          stock={watchlist.find((stock) => stock.quoteId === editingStock.quoteId) ?? editingStock}
+          quote={quotes.find((quote) => quote.quoteId === editingStock.quoteId)}
           onClose={() => setEditingStock(null)}
-          onSave={(position, showRadarSignals) => {
-            onEditPosition(editingStock.quoteId, position, showRadarSignals)
+          onSave={(position, showRadarSignals, positionSnapshots) => {
+            onEditPosition(editingStock.quoteId, position, showRadarSignals, positionSnapshots)
             setEditingStock(null)
           }}
         />

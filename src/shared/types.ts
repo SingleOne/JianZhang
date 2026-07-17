@@ -1,3 +1,11 @@
+export interface StockPositionSnapshot {
+  id: string
+  name: string
+  createdAt: string
+  quantity: number
+  cost: number
+}
+
 export interface WatchStock {
   code: string
   name: string
@@ -7,13 +15,26 @@ export interface WatchStock {
   isPriority: boolean
   showRadarSignals: boolean
   position?: StockPosition
+  positionSnapshots?: StockPositionSnapshot[]
 }
 
 export function normalizeWatchlist(stocks: readonly WatchStock[]): WatchStock[] {
   return stocks.map((stock) => ({
     ...stock,
     isPriority: Boolean(stock.position || stock.isPriority),
-    showRadarSignals: stock.showRadarSignals ?? true
+    showRadarSignals: stock.showRadarSignals ?? true,
+    positionSnapshots: Array.isArray(stock.positionSnapshots)
+      ? stock.positionSnapshots.filter((snapshot) => (
+          snapshot
+          && typeof snapshot.id === 'string'
+          && typeof snapshot.name === 'string'
+          && typeof snapshot.createdAt === 'string'
+          && Number.isFinite(snapshot.quantity)
+          && snapshot.quantity > 0
+          && Number.isFinite(snapshot.cost)
+          && snapshot.cost > 0
+        ))
+      : []
   }))
 }
 
