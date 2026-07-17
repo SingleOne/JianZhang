@@ -25,10 +25,13 @@ export function isPositionOpenedToday(position: StockPosition | undefined): bool
   return position?.openedOn === currentDateKey()
 }
 
-export function getPositionHoldingDays(position: StockPosition | undefined): number | null {
+export function getPositionHoldingDays(
+  position: StockPosition | undefined,
+  additionalClosedDates: readonly string[] = []
+): number | null {
   if (!position?.openedOn) return null
 
-  const holdingDays = countAStockTradingDays(position.openedOn, currentDateKey())
+  const holdingDays = countAStockTradingDays(position.openedOn, currentDateKey(), additionalClosedDates)
   return holdingDays > 0 ? holdingDays : null
 }
 

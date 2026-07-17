@@ -59,6 +59,7 @@ interface WatchlistTableProps {
   selectedQuoteId: string | null
   tTradingAccounts: TTradingAccounts
   tTradingFees: TTradingFeeSettings
+  tradingCalendarClosedDates: string[]
   onSelect: (quoteId: string) => void
   onToggleTaskbar: (quoteId: string) => void
   onTogglePriority: (quoteId: string) => void
@@ -123,11 +124,12 @@ const COLUMN_META: Record<WatchlistColumnId, ColumnMeta> = {
   todayProfitPercent: { label: '今日收益率', width: 88, sortable: true },
   totalProfit: { label: '持仓收益', width: 86, sortable: true },
   profitPercent: { label: '收益率', width: 76, sortable: true },
-  operation: { label: '操作', width: 153, sortable: false, className: 'operation-column' }
+  operation: { label: '设置', width: 64, sortable: false, className: 'settings-column' }
 }
 
 const ORDER_COLUMN_WIDTH = 52
-const TABLE_MIN_WIDTH = ORDER_COLUMN_WIDTH + Object.values(COLUMN_META)
+const DELETE_COLUMN_WIDTH = 40
+const TABLE_MIN_WIDTH = ORDER_COLUMN_WIDTH + DELETE_COLUMN_WIDTH + Object.values(COLUMN_META)
   .reduce((total, column) => total + column.width, 0)
 
 function currentCompactDate(): string {
@@ -277,6 +279,7 @@ export function WatchlistTable({
   selectedQuoteId,
   tTradingAccounts,
   tTradingFees,
+  tradingCalendarClosedDates,
   onSelect,
   onToggleTaskbar,
   onTogglePriority,
@@ -509,14 +512,17 @@ export function WatchlistTable({
         <table className="watchlist-table" style={{ minWidth: TABLE_MIN_WIDTH }}>
           <colgroup>
             <col style={{ width: ORDER_COLUMN_WIDTH }} />
-            {renderedColumnOrder.map((columnId) => (
+            <col style={{ width: COLUMN_META.operation.width }} />
+            {adjustableColumnOrder.map((columnId) => (
               <col key={columnId} style={{ width: COLUMN_META[columnId].width }} />
             ))}
+            <col style={{ width: DELETE_COLUMN_WIDTH }} />
           </colgroup>
           <thead>
             <tr>
               <th className="order-column">排序</th>
-              {renderedColumnOrder.map((columnId) => {
+              <th className="settings-column">{COLUMN_META.operation.label}</th>
+              {adjustableColumnOrder.map((columnId) => {
                 const meta = COLUMN_META[columnId]
                 const activeSort = sort?.column === columnId ? sort : null
                 return (
@@ -541,6 +547,7 @@ export function WatchlistTable({
                   </th>
                 )
               })}
+              <th className="delete-column">删除</th>
             </tr>
           </thead>
           <tbody>
@@ -611,7 +618,52 @@ export function WatchlistTable({
                         </button>
                       </div>
                     </td>
-                    {renderedColumnOrder.map((columnId) => {
+                    <td className="settings-column">
+                      <div className="row-actions">
+                        <button
+                          className={`row-action-button ${stock.isPriority ? 'is-active' : ''} ${stock.position ? 'is-locked' : ''}`}
+                          type="button"
+                          onClick={(event) => { event.stopPropagation(); onTogglePriority(stock.quoteId) }}
+                          aria-pressed={stock.isPriority}
+                          aria-disabled={Boolean(stock.position)}
+                          aria-label={stock.isPriority ? `取消重点关注 ${stock.name}` : `重点关注 ${stock.name}`}
+                          title={stock.position
+                            ? '持仓股票已自动设为重点关注'
+                            : stock.isPriority ? '取消重点关注' : '设为重点关注'}
+                        >
+                          <Star size={15} fill={stock.isPriority ? 'currentColor' : 'none'} />
+                        </button>
+                        <button
+                          className={`row-action-button ${stock.showInTaskbar ? 'is-active' : ''}`}
+                          type="button"
+                          onClick={(event) => { event.stopPropagation(); onToggleTaskbar(stock.quoteId) }}
+                          aria-pressed={stock.showInTaskbar}
+                          aria-label={stock.showInTaskbar ? `取消在任务栏显示 ${stock.name}` : `在任务栏显示 ${stock.name}`}
+                          title={stock.showInTaskbar ? '取消任务栏展示' : '直接在任务栏显示实时价格'}
+                        >
+                          <MonitorUp size={15} />
+                        </button>
+                        <button
+                          className={`row-action-button ${stock.position ? 'has-position' : ''}`}
+                          type="button"
+                          onClick={(event) => { event.stopPropagation(); setEditingStock(stock) }}
+                          aria-label={`编辑 ${stock.name} 的持仓`}
+                          title="编辑持仓数量和成本"
+                        >
+                          <PencilLine size={15} />
+                        </button>
+                        <button
+                          className={`row-action-button ${tTradingAccounts[stock.quoteId]?.activeBatch ? 'is-active' : ''}`}
+                          type="button"
+                          onClick={(event) => { event.stopPropagation(); setTTradingStock(stock) }}
+                          aria-label={`管理 ${stock.name} 的做T交易`}
+                          title={tTradingAccounts[stock.quoteId]?.activeBatch ? '继续记录当前T批次' : '做T管理'}
+                        >
+                          <Repeat2 size={15} />
+                        </button>
+                      </div>
+                    </td>
+                    {adjustableColumnOrder.map((columnId) => {
                       switch (columnId) {
                         case 'stock':
                           return (
@@ -674,7 +726,10 @@ export function WatchlistTable({
                             </td>
                           )
                         case 'positionQuantity': {
-                          const holdingDays = getPositionHoldingDays(stock.position)
+                          const holdingDays = getPositionHoldingDays(
+                            stock.position,
+                            tradingCalendarClosedDates
+                          )
                           const openedToday = isPositionOpenedToday(stock.position)
                           return (
                             <td className="position-value-cell" key={columnId}>
@@ -698,69 +753,24 @@ export function WatchlistTable({
                         case 'todayProfitPercent': return <td className={valueClass(metrics.todayProfitPercent)} key={columnId}>{formatPercent(metrics.todayProfitPercent)}</td>
                         case 'totalProfit': return <td className={valueClass(metrics.totalProfit)} key={columnId}>{formatProfit(metrics.totalProfit)}</td>
                         case 'profitPercent': return <td className={valueClass(metrics.profitPercent)} key={columnId}>{formatPercent(metrics.profitPercent)}</td>
-                        case 'operation':
-                          return (
-                            <td className="operation-column" key={columnId}>
-                              <div className="row-actions">
-                                <button
-                                  className={`row-action-button ${stock.isPriority ? 'is-active' : ''} ${stock.position ? 'is-locked' : ''}`}
-                                  type="button"
-                                  onClick={(event) => { event.stopPropagation(); onTogglePriority(stock.quoteId) }}
-                                  aria-pressed={stock.isPriority}
-                                  aria-disabled={Boolean(stock.position)}
-                                  aria-label={stock.isPriority ? `取消重点关注 ${stock.name}` : `重点关注 ${stock.name}`}
-                                  title={stock.position
-                                    ? '持仓股票已自动设为重点关注'
-                                    : stock.isPriority ? '取消重点关注' : '设为重点关注'}
-                                >
-                                  <Star size={15} fill={stock.isPriority ? 'currentColor' : 'none'} />
-                                </button>
-                                <button
-                                  className={`row-action-button ${stock.showInTaskbar ? 'is-active' : ''}`}
-                                  type="button"
-                                  onClick={(event) => { event.stopPropagation(); onToggleTaskbar(stock.quoteId) }}
-                                  aria-pressed={stock.showInTaskbar}
-                                  aria-label={stock.showInTaskbar ? `取消在任务栏显示 ${stock.name}` : `在任务栏显示 ${stock.name}`}
-                                  title={stock.showInTaskbar ? '取消任务栏展示' : '直接在任务栏显示实时价格'}
-                                >
-                                  <MonitorUp size={15} />
-                                </button>
-                                <button
-                                  className={`row-action-button ${stock.position ? 'has-position' : ''}`}
-                                  type="button"
-                                  onClick={(event) => { event.stopPropagation(); setEditingStock(stock) }}
-                                  aria-label={`编辑 ${stock.name} 的持仓`}
-                                  title="编辑持仓数量和成本"
-                                >
-                                  <PencilLine size={15} />
-                                </button>
-                                <button
-                                  className={`row-action-button ${tTradingAccounts[stock.quoteId]?.activeBatch ? 'is-active' : ''}`}
-                                  type="button"
-                                  onClick={(event) => { event.stopPropagation(); setTTradingStock(stock) }}
-                                  aria-label={`管理 ${stock.name} 的做T交易`}
-                                  title={tTradingAccounts[stock.quoteId]?.activeBatch ? '继续记录当前T批次' : '做T管理'}
-                                >
-                                  <Repeat2 size={15} />
-                                </button>
-                                <button
-                                  className="icon-button remove-button"
-                                  type="button"
-                                  onClick={(event) => { event.stopPropagation(); onRemove(stock.quoteId) }}
-                                  aria-label={`移除 ${stock.name}`}
-                                  title="移除自选"
-                                >
-                                  <Trash2 size={15} />
-                                </button>
-                              </div>
-                            </td>
-                          )
+                        case 'operation': return null
                       }
                     })}
+                    <td className="delete-column">
+                      <button
+                        className="icon-button remove-button"
+                        type="button"
+                        onClick={(event) => { event.stopPropagation(); onRemove(stock.quoteId) }}
+                        aria-label={`移除 ${stock.name}`}
+                        title="移除自选"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </td>
                   </tr>
                   {selected ? (
                     <tr className="expanded-row">
-                      <td colSpan={renderedColumnOrder.length + 1}>
+                      <td colSpan={adjustableColumnOrder.length + 3}>
                         <ExpandedStockDetails
                           stock={stock}
                           quote={quote}

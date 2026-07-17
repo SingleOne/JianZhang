@@ -285,6 +285,26 @@ export interface SearchResult {
   marketLabel: string
 }
 
+export const BUILT_IN_TRADING_CALENDAR_END_YEAR = 2026
+
+export interface TradingCalendarSettings {
+  closedDates: string[]
+  coveredThroughYear: number
+  lastRefreshedAt: string | null
+  lastCheckedYear: number | null
+  lastAttemptedAt: string | null
+  lastError: string | null
+}
+
+export const DEFAULT_TRADING_CALENDAR_SETTINGS: TradingCalendarSettings = {
+  closedDates: [],
+  coveredThroughYear: BUILT_IN_TRADING_CALENDAR_END_YEAR,
+  lastRefreshedAt: null,
+  lastCheckedYear: null,
+  lastAttemptedAt: null,
+  lastError: null
+}
+
 export interface AppSettings {
   priorityRefreshSeconds: number
   regularRefreshSeconds: number
@@ -294,6 +314,7 @@ export interface AppSettings {
   showTaskbarTicker: boolean
   taskbarPositionPercent: number
   tTradingFees: TTradingFeeSettings
+  tradingCalendar: TradingCalendarSettings
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -304,7 +325,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   minimizeToTray: true,
   showTaskbarTicker: true,
   taskbarPositionPercent: 0,
-  tTradingFees: { ...DEFAULT_T_TRADING_FEE_SETTINGS }
+  tTradingFees: { ...DEFAULT_T_TRADING_FEE_SETTINGS },
+  tradingCalendar: { ...DEFAULT_TRADING_CALENDAR_SETTINGS }
 }
 
 function normalizeTTradingFeeSettings(
@@ -338,6 +360,25 @@ function normalizeTTradingFeeSettings(
   }
 }
 
+export function normalizeTradingCalendarSettings(
+  calendar: Partial<TradingCalendarSettings> | undefined
+): TradingCalendarSettings {
+  const closedDates = Array.isArray(calendar?.closedDates)
+    ? [...new Set(calendar.closedDates.filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)))].sort()
+    : []
+  return {
+    closedDates,
+    coveredThroughYear: Math.max(
+      BUILT_IN_TRADING_CALENDAR_END_YEAR,
+      calendar?.coveredThroughYear ?? BUILT_IN_TRADING_CALENDAR_END_YEAR
+    ),
+    lastRefreshedAt: calendar?.lastRefreshedAt ?? null,
+    lastCheckedYear: calendar?.lastCheckedYear ?? null,
+    lastAttemptedAt: calendar?.lastAttemptedAt ?? null,
+    lastError: calendar?.lastError ?? null
+  }
+}
+
 export function normalizeAppSettings(
   settings: (Partial<AppSettings> & { refreshSeconds?: number }) | undefined
 ): AppSettings {
@@ -361,7 +402,8 @@ export function normalizeAppSettings(
     taskbarPositionPercent: Math.min(100, Math.max(0,
       settings?.taskbarPositionPercent ?? DEFAULT_APP_SETTINGS.taskbarPositionPercent
     )),
-    tTradingFees: normalizeTTradingFeeSettings(settings?.tTradingFees)
+    tTradingFees: normalizeTTradingFeeSettings(settings?.tTradingFees),
+    tradingCalendar: normalizeTradingCalendarSettings(settings?.tradingCalendar)
   }
 }
 
@@ -394,6 +436,7 @@ export interface StockDesktopApi {
   getKline: (quoteId: string, period: KlinePeriod, limit?: number) => Promise<KlineResult>
   getFundsFlow: (quoteId: string) => Promise<FundsFlowResult>
   getSectorIndex: (quoteId: string) => Promise<SectorIndexResult>
+  refreshTradingCalendar: () => Promise<TradingCalendarSettings>
   saveState: (state: AppState) => Promise<AppState>
   exportConfig: (state: AppState) => Promise<ConfigExportResult>
   importConfig: () => Promise<ConfigImportResult>

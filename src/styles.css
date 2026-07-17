@@ -484,6 +484,65 @@ tr:focus-visible {
   padding: 13px 0 2px;
 }
 
+.trading-calendar-setting {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f2f6;
+}
+
+.trading-calendar-setting > span {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.trading-calendar-setting strong {
+  color: #344054;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.trading-calendar-setting small {
+  color: #8a94a6;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.trading-calendar-setting small.is-error {
+  color: var(--red);
+}
+
+.trading-calendar-setting button {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 9px;
+  color: var(--blue);
+  background: #f7faff;
+  border: 1px solid #b9cdf7;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.trading-calendar-setting button:hover:not(:disabled) {
+  border-color: #8eb0f4;
+  background: var(--blue-soft);
+}
+
+.trading-calendar-setting button:disabled {
+  color: #98a2b3;
+  border-color: var(--border);
+  background: #f8fafc;
+  cursor: default;
+}
+
 .config-management > span:first-child {
   display: grid;
   gap: 3px;
@@ -811,7 +870,8 @@ tr:focus-visible {
   flex: 1;
   flex-wrap: nowrap;
   justify-content: flex-start;
-  padding-left: 12px;
+  margin-block: -12px;
+  padding: 12px 0 12px 12px;
   overflow-x: auto;
   border-left: 1px solid #d8dee8;
 }
@@ -1176,8 +1236,12 @@ tr:focus-visible {
 }
 
 .watchlist-table .order-column {
+  position: sticky;
+  left: 0;
+  z-index: 4;
   padding: 0 3px;
   text-align: center;
+  background: #ffffff;
 }
 
 .watchlist-table th,
@@ -1194,6 +1258,11 @@ tr:focus-visible {
   border-bottom: 1px solid var(--border);
   font-size: 11px;
   font-weight: 600;
+}
+
+.watchlist-table th.order-column {
+  z-index: 7;
+  background: #f8fafc;
 }
 
 .watchlist-table .stock-column {
@@ -1444,39 +1513,52 @@ tr:focus-visible {
   cursor: default;
 }
 
-.operation-column {
+.settings-column {
   position: sticky;
-  right: 0;
+  left: 52px;
   z-index: 3;
   text-align: center !important;
   background: #ffffff;
-  box-shadow: -1px 0 0 #e7ebf1, -8px 0 14px rgba(15, 23, 42, 0.035);
+  box-shadow: 1px 0 0 #e7ebf1, 8px 0 14px rgba(15, 23, 42, 0.035);
 }
 
-.watchlist-table td.operation-column,
-.watchlist-table th.operation-column {
+.watchlist-table td.settings-column,
+.watchlist-table th.settings-column {
   padding-right: 2px;
   padding-left: 2px;
 }
 
-.watchlist-table th.operation-column {
+.watchlist-table th.settings-column {
   z-index: 6;
   background: #f8fafc;
 }
 
-.stock-row:hover .operation-column {
+.stock-row:hover .order-column,
+.stock-row:hover .settings-column {
   background: #fafcff;
 }
 
-.stock-row.is-selected .operation-column {
+.stock-row.is-selected .order-column,
+.stock-row.is-selected .settings-column {
   background: var(--surface-selected);
 }
 
 .row-actions {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: inline-grid;
+  grid-template-columns: repeat(2, 25px);
+  place-content: center;
   gap: 3px;
+}
+
+.settings-column .row-action-button {
+  width: 25px;
+  height: 25px;
+}
+
+.delete-column {
+  padding-right: 2px !important;
+  padding-left: 2px !important;
+  text-align: center !important;
 }
 
 .radar-summary-button {

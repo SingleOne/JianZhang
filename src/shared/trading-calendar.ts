@@ -63,26 +63,35 @@ const MARKET_CLOSED_DATES = new Set(
   })
 )
 
-const tradingDayCountCache = new Map<string, number>()
+const combinedClosedDatesCache = new WeakMap<readonly string[], ReadonlySet<string>>()
 
-export function countAStockTradingDays(startDate: string, endDate: string): number {
-  const cacheKey = `${startDate}:${endDate}`
-  const cached = tradingDayCountCache.get(cacheKey)
-  if (cached !== undefined) return cached
+function marketClosedDates(additionalClosedDates: readonly string[]): ReadonlySet<string> {
+  if (additionalClosedDates.length === 0) return MARKET_CLOSED_DATES
+  const cached = combinedClosedDatesCache.get(additionalClosedDates)
+  if (cached) return cached
+  const combined = new Set([...MARKET_CLOSED_DATES, ...additionalClosedDates])
+  combinedClosedDatesCache.set(additionalClosedDates, combined)
+  return combined
+}
 
+export function countAStockTradingDays(
+  startDate: string,
+  endDate: string,
+  additionalClosedDates: readonly string[] = []
+): number {
   const startTime = utcTime(startDate)
   const endTime = utcTime(endDate)
   if (startTime > endTime) return 0
 
+  const closedDates = marketClosedDates(additionalClosedDates)
   let count = 0
   for (let time = startTime; time <= endTime; time += DAY_IN_MILLISECONDS) {
     const date = new Date(time)
     const dayOfWeek = date.getUTCDay()
-    if (dayOfWeek !== 0 && dayOfWeek !== 6 && !MARKET_CLOSED_DATES.has(utcDateKey(time))) {
+    if (dayOfWeek !== 0 && dayOfWeek !== 6 && !closedDates.has(utcDateKey(time))) {
       count += 1
     }
   }
 
-  tradingDayCountCache.set(cacheKey, count)
   return count
 }

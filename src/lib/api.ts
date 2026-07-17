@@ -315,6 +315,9 @@ const demoApi: StockDesktopApi = {
   async getSectorIndex(quoteId) {
     return makeDemoSectorIndex(quoteId)
   },
+  async refreshTradingCalendar() {
+    throw new Error('交易日历在线刷新仅在 Windows 桌面版中可用')
+  },
   async saveState(state) {
     localStorage.setItem('jianzhang-demo-state-v1', JSON.stringify(state))
     return state

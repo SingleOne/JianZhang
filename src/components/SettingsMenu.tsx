@@ -1,4 +1,4 @@
-import { Download, Settings2, Upload } from 'lucide-react'
+import { Download, RefreshCw, Settings2, Upload } from 'lucide-react'
 import { MARKET_INDEX_OPTIONS, type AppSettings, type MarketIndexId } from '../shared/types'
 
 interface SettingsMenuProps {
@@ -7,6 +7,21 @@ interface SettingsMenuProps {
   onImportConfig: () => void
   onExportConfig: () => void
   configBusy: boolean
+  onRefreshTradingCalendar: () => void
+  calendarRefreshing: boolean
+}
+
+function formatCalendarRefreshTime(value: string | null): string {
+  if (!value) return '尚未在线刷新'
+  return new Date(value).toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  })
 }
 
 export function SettingsMenu({
@@ -14,7 +29,9 @@ export function SettingsMenu({
   onChange,
   onImportConfig,
   onExportConfig,
-  configBusy
+  configBusy,
+  onRefreshTradingCalendar,
+  calendarRefreshing
 }: SettingsMenuProps) {
   const toggleMarketIndex = (indexId: MarketIndexId, selected: boolean) => {
     const selectedIds = new Set(settings.marketIndexIds)
@@ -240,6 +257,30 @@ export function SettingsMenu({
             onChange={(event) => onChange({ ...settings, minimizeToTray: event.target.checked })}
           />
         </label>
+        <div className="trading-calendar-setting">
+          <span>
+            <strong>交易日历</strong>
+            <small>每年首次启动时自动从上交所更新，失败时可手动重试</small>
+            <small>
+              已覆盖至 {settings.tradingCalendar.coveredThroughYear} 年 ·
+              最近刷新：{formatCalendarRefreshTime(settings.tradingCalendar.lastRefreshedAt)}
+            </small>
+            {settings.tradingCalendar.lastError ? (
+              <small className="is-error">
+                最近尝试 {formatCalendarRefreshTime(settings.tradingCalendar.lastAttemptedAt)} 失败：
+                {settings.tradingCalendar.lastError}
+              </small>
+            ) : null}
+          </span>
+          <button
+            type="button"
+            onClick={onRefreshTradingCalendar}
+            disabled={calendarRefreshing}
+          >
+            <RefreshCw size={14} className={calendarRefreshing ? 'is-spinning' : ''} />
+            {calendarRefreshing ? '刷新中' : '手动刷新'}
+          </button>
+        </div>
         <div className="config-management">
           <span>
             <strong>配置管理</strong>

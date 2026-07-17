@@ -36,6 +36,7 @@ export default function App() {
   const [source, setSource] = useState<'eastmoney' | 'demo'>('eastmoney')
   const [initializing, setInitializing] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [calendarRefreshing, setCalendarRefreshing] = useState(false)
   const [configBusy, setConfigBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -271,6 +272,22 @@ export default function App() {
     }
   }
 
+  const refreshTradingCalendar = async () => {
+    setCalendarRefreshing(true)
+    try {
+      const tradingCalendar = await stockApi.refreshTradingCalendar()
+      setState((current) => ({
+        ...current,
+        settings: { ...current.settings, tradingCalendar }
+      }))
+      reportSuccess(`交易日历已更新至 ${tradingCalendar.coveredThroughYear} 年`)
+    } catch (reason) {
+      reportError(reason instanceof Error ? reason.message : '交易日历刷新失败')
+    } finally {
+      setCalendarRefreshing(false)
+    }
+  }
+
   return (
     <div className="app-shell">
       <AppTitlebar lastUpdated={lastUpdated} />
@@ -310,6 +327,8 @@ export default function App() {
                 onImportConfig={importConfig}
                 onExportConfig={exportConfig}
                 configBusy={configBusy}
+                onRefreshTradingCalendar={refreshTradingCalendar}
+                calendarRefreshing={calendarRefreshing}
               />
             </div>
           </section>
@@ -371,6 +390,7 @@ export default function App() {
                 selectedQuoteId={selectedQuoteId}
                 tTradingAccounts={state.tTradingAccounts}
                 tTradingFees={state.settings.tTradingFees}
+                tradingCalendarClosedDates={state.settings.tradingCalendar.closedDates}
                 onSelect={(quoteId) => setSelectedQuoteId((current) => current === quoteId ? null : quoteId)}
                 onToggleTaskbar={toggleTaskbar}
                 onTogglePriority={togglePriority}

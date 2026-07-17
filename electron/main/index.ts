@@ -16,17 +16,20 @@ import {
   DEFAULT_WATCHLIST_COLUMN_ORDER,
   getMarketIndexStocks,
   normalizeAppSettings,
+  normalizeTradingCalendarSettings,
   normalizeTTradingAccounts,
   normalizeWatchlist,
   normalizeWatchlistColumnOrder,
   type AppState,
   type KlinePeriod,
   type StockQuote,
+  type TradingCalendarSettings,
   type WatchStock
 } from '../../src/shared/types'
 import { createConfigDocument, parseConfigDocument } from '../../src/shared/config'
 import { isBeijingAutoRefreshTime } from '../../src/shared/market-hours'
 import { fetchFundsFlow, fetchKline, fetchQuotes, fetchSectorIndex, searchStocks } from './market'
+import { fetchSseTradingCalendar } from './trading-calendar'
 import { createAppIcon } from './tray-icons'
 
 const DEFAULT_WATCHLIST: WatchStock[] = [
@@ -51,6 +54,8 @@ let state: AppState = DEFAULT_STATE
 let latestQuotes: StockQuote[] = []
 let priorityRefreshTimer: NodeJS.Timeout | null = null
 let regularRefreshTimer: NodeJS.Timeout | null = null
+let tradingCalendarCheckTimer: NodeJS.Timeout | null = null
+let tradingCalendarRefresh: Promise<TradingCalendarSettings> | null = null
 const refreshesInFlight = new Set<'all' | 'priority' | 'regular'>()
 let isQuitting = false
 
@@ -117,8 +122,10 @@ function cleanupBeforeQuit(): void {
   isQuitting = true
   if (priorityRefreshTimer) clearInterval(priorityRefreshTimer)
   if (regularRefreshTimer) clearInterval(regularRefreshTimer)
+  if (tradingCalendarCheckTimer) clearInterval(tradingCalendarCheckTimer)
   priorityRefreshTimer = null
   regularRefreshTimer = null
+  tradingCalendarCheckTimer = null
   appTray?.destroy()
   appTray = null
   taskbarWindow?.destroy()
@@ -305,6 +312,65 @@ function refreshAllAutomatically(): Promise<StockQuote[]> {
   return isBeijingAutoRefreshTime() ? refreshAll() : Promise.resolve(latestQuotes)
 }
 
+function saveTradingCalendar(calendar: TradingCalendarSettings): TradingCalendarSettings {
+  state = {
+    ...state,
+    settings: {
+      ...state.settings,
+      tradingCalendar: normalizeTradingCalendarSettings(calendar)
+    }
+  }
+  persistState()
+  sendToWindows('state:updated', state)
+  return state.settings.tradingCalendar
+}
+
+function refreshTradingCalendar(): Promise<TradingCalendarSettings> {
+  if (tradingCalendarRefresh) return tradingCalendarRefresh
+
+  const year = new Date().getFullYear()
+  const attemptedAt = new Date().toISOString()
+  tradingCalendarRefresh = fetchSseTradingCalendar(year)
+    .then((result) => {
+      const current = state.settings.tradingCalendar
+      const closedDates = [
+        ...current.closedDates.filter((date) => !date.startsWith(`${result.year}-`)),
+        ...result.closedDates
+      ].sort()
+      return saveTradingCalendar({
+        ...current,
+        closedDates,
+        coveredThroughYear: Math.max(current.coveredThroughYear, result.year),
+        lastRefreshedAt: new Date().toISOString(),
+        lastCheckedYear: result.year,
+        lastAttemptedAt: attemptedAt,
+        lastError: null
+      })
+    })
+    .catch((reason: unknown) => {
+      const message = reason instanceof Error ? reason.message : '交易日历刷新失败'
+      saveTradingCalendar({
+        ...state.settings.tradingCalendar,
+        lastCheckedYear: year,
+        lastAttemptedAt: attemptedAt,
+        lastError: message
+      })
+      throw new Error(message)
+    })
+    .finally(() => {
+      tradingCalendarRefresh = null
+    })
+  return tradingCalendarRefresh
+}
+
+function refreshTradingCalendarAutomatically(): Promise<TradingCalendarSettings> {
+  const year = new Date().getFullYear()
+  if (state.settings.tradingCalendar.lastCheckedYear === year) {
+    return Promise.resolve(state.settings.tradingCalendar)
+  }
+  return refreshTradingCalendar()
+}
+
 function restartRefreshTimers(): void {
   if (priorityRefreshTimer) clearInterval(priorityRefreshTimer)
   if (regularRefreshTimer) clearInterval(regularRefreshTimer)
@@ -370,6 +436,7 @@ function registerIpc(): void {
   ))
   ipcMain.handle('funds-flow:get', (_event, quoteId: string) => fetchFundsFlow(quoteId))
   ipcMain.handle('sector-index:get', (_event, quoteId: string) => fetchSectorIndex(quoteId))
+  ipcMain.handle('trading-calendar:refresh', () => refreshTradingCalendar())
   ipcMain.handle('state:save', async (_event, nextState: AppState) => {
     const normalizedState: AppState = {
       ...nextState,
@@ -459,7 +526,12 @@ if (!hasSingleInstanceLock) {
     screen.on('display-added', syncTaskbarWindow)
     screen.on('display-removed', syncTaskbarWindow)
     restartRefreshTimers()
+    tradingCalendarCheckTimer = setInterval(
+      () => void refreshTradingCalendarAutomatically().catch(() => undefined),
+      6 * 60 * 60 * 1000
+    )
     void refreshAllAutomatically()
+    void refreshTradingCalendarAutomatically().catch(() => undefined)
   })
 }
 
