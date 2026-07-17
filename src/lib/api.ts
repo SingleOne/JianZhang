@@ -3,6 +3,7 @@ import {
   DEFAULT_WATCHLIST_COLUMN_ORDER,
   getMarketIndexStocks,
   normalizeAppSettings,
+  normalizeTTradingAccounts,
   normalizeWatchlist,
   normalizeWatchlistColumnOrder,
   type AppState,
@@ -49,7 +50,8 @@ const DEFAULT_WATCHLIST: WatchStock[] = DEMO_STOCKS.slice(0, 5).map((stock, inde
 const DEFAULT_STATE: AppState = {
   watchlist: DEFAULT_WATCHLIST,
   columnOrder: [...DEFAULT_WATCHLIST_COLUMN_ORDER],
-  settings: { ...DEFAULT_APP_SETTINGS }
+  settings: { ...DEFAULT_APP_SETTINGS },
+  tTradingAccounts: {}
 }
 
 const DEMO_VALUES: Record<string, Omit<StockQuote, 'updatedAt'>> = {
@@ -132,7 +134,8 @@ function loadDemoState(): AppState {
   return {
     watchlist: normalizeWatchlist(parsed.watchlist),
     settings: normalizeAppSettings(parsed.settings),
-    columnOrder: normalizeWatchlistColumnOrder(parsed.columnOrder)
+    columnOrder: normalizeWatchlistColumnOrder(parsed.columnOrder),
+    tTradingAccounts: normalizeTTradingAccounts(parsed.tTradingAccounts)
   }
 }
 

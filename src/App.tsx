@@ -14,6 +14,7 @@ import type {
   SearchResult,
   StockPosition,
   StockQuote,
+  TTradingAccount,
   WatchlistColumnId
 } from './shared/types'
 
@@ -163,6 +164,26 @@ export default function App() {
         : stock
     )
     void persist({ ...state, watchlist: nextWatchlist })
+  }, [persist, state])
+
+  const updateTTrading = useCallback((
+    quoteId: string,
+    account: TTradingAccount,
+    position: StockPosition | undefined
+  ) => {
+    const nextWatchlist = state.watchlist.map((stock) => (
+      stock.quoteId === quoteId
+        ? { ...stock, position, isPriority: position ? true : stock.isPriority }
+        : stock
+    ))
+    void persist({
+      ...state,
+      watchlist: nextWatchlist,
+      tTradingAccounts: {
+        ...state.tTradingAccounts,
+        [quoteId]: account
+      }
+    })
   }, [persist, state])
 
   const reorderWatchlist = useCallback((sourceQuoteId: string, targetQuoteId: string) => {
@@ -335,10 +356,13 @@ export default function App() {
                 priorityRefreshSeconds={state.settings.priorityRefreshSeconds}
                 regularRefreshSeconds={state.settings.regularRefreshSeconds}
                 selectedQuoteId={selectedQuoteId}
+                tTradingAccounts={state.tTradingAccounts}
+                tTradingFees={state.settings.tTradingFees}
                 onSelect={(quoteId) => setSelectedQuoteId((current) => current === quoteId ? null : quoteId)}
                 onToggleTaskbar={toggleTaskbar}
                 onTogglePriority={togglePriority}
                 onEditPosition={updatePosition}
+                onUpdateTTrading={updateTTrading}
                 onReorder={reorderWatchlist}
                 onPin={pinStock}
                 onColumnOrderChange={updateColumnOrder}

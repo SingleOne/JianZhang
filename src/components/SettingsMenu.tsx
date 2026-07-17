@@ -28,6 +28,19 @@ export function SettingsMenu({
     })
   }
 
+  const updateTradingFee = (
+    key: keyof AppSettings['tTradingFees'],
+    value: number
+  ) => {
+    onChange({
+      ...settings,
+      tTradingFees: {
+        ...settings.tTradingFees,
+        [key]: Math.max(0, value || 0)
+      }
+    })
+  }
+
   return (
     <details className="settings-menu">
       <summary className="secondary-button">
@@ -79,6 +92,78 @@ export function SettingsMenu({
             <span>秒</span>
           </span>
         </label>
+        <fieldset className="trading-fee-setting">
+          <legend>做T费用</legend>
+          <small>佣金按净佣金计算，佣金、经手费和证管费合计最低 5 元</small>
+          <div className="trading-fee-grid">
+            <label>
+              <span>佣金</span>
+              <input
+                type="number"
+                min="0"
+                step="0.001"
+                value={settings.tTradingFees.commissionRatePerTenThousand}
+                onChange={(event) => updateTradingFee('commissionRatePerTenThousand', Number(event.target.value))}
+              />
+              <em>万分</em>
+            </label>
+            <label>
+              <span>最低合计</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={settings.tTradingFees.minimumCommissionBundle}
+                onChange={(event) => updateTradingFee('minimumCommissionBundle', Number(event.target.value))}
+              />
+              <em>元</em>
+            </label>
+            <label>
+              <span>经手费</span>
+              <input
+                type="number"
+                min="0"
+                step="0.001"
+                value={settings.tTradingFees.handlingRatePerTenThousand}
+                onChange={(event) => updateTradingFee('handlingRatePerTenThousand', Number(event.target.value))}
+              />
+              <em>万分</em>
+            </label>
+            <label>
+              <span>证管费</span>
+              <input
+                type="number"
+                min="0"
+                step="0.001"
+                value={settings.tTradingFees.regulatoryRatePerTenThousand}
+                onChange={(event) => updateTradingFee('regulatoryRatePerTenThousand', Number(event.target.value))}
+              />
+              <em>万分</em>
+            </label>
+            <label>
+              <span>过户费</span>
+              <input
+                type="number"
+                min="0"
+                step="0.001"
+                value={settings.tTradingFees.transferRatePerTenThousand}
+                onChange={(event) => updateTradingFee('transferRatePerTenThousand', Number(event.target.value))}
+              />
+              <em>万分</em>
+            </label>
+            <label>
+              <span>印花税</span>
+              <input
+                type="number"
+                min="0"
+                step="0.001"
+                value={settings.tTradingFees.stampDutyRatePerTenThousand}
+                onChange={(event) => updateTradingFee('stampDutyRatePerTenThousand', Number(event.target.value))}
+              />
+              <em>万分</em>
+            </label>
+          </div>
+        </fieldset>
         <fieldset className="market-index-setting">
           <legend>大盘指数</legend>
           <small>选择显示在总收益左侧的指数，按其余股票间隔刷新</small>

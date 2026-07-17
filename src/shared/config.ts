@@ -1,5 +1,6 @@
 import {
   normalizeAppSettings,
+  normalizeTTradingAccounts,
   normalizeWatchlist,
   normalizeWatchlistColumnOrder,
   type AppSettings,
@@ -8,11 +9,11 @@ import {
 } from './types'
 
 export const JIANZHANG_CONFIG_FORMAT = 'jianzhang-config'
-export const JIANZHANG_CONFIG_VERSION = 1
+export const JIANZHANG_CONFIG_VERSION = 2
 
 export interface JianzhangConfigDocument {
   format: typeof JIANZHANG_CONFIG_FORMAT
-  formatVersion: typeof JIANZHANG_CONFIG_VERSION
+  formatVersion: number
   applicationVersion: string
   exportedAt: string
   state: AppState
@@ -60,7 +61,10 @@ function isCompatibleAppSettings(value: unknown): boolean {
 export function parseConfigDocument(value: unknown): AppState {
   if (!value || typeof value !== 'object') throw new Error('文件不是有效的见涨配置')
   const document = value as Partial<JianzhangConfigDocument>
-  if (document.format !== JIANZHANG_CONFIG_FORMAT || document.formatVersion !== JIANZHANG_CONFIG_VERSION) {
+  if (
+    document.format !== JIANZHANG_CONFIG_FORMAT
+    || (document.formatVersion !== 1 && document.formatVersion !== JIANZHANG_CONFIG_VERSION)
+  ) {
     throw new Error('配置格式或版本不受支持')
   }
 
@@ -75,6 +79,7 @@ export function parseConfigDocument(value: unknown): AppState {
     settings: normalizeAppSettings(importedState.settings),
     columnOrder: normalizeWatchlistColumnOrder(
       Array.isArray(importedState.columnOrder) ? importedState.columnOrder : undefined
-    )
+    ),
+    tTradingAccounts: normalizeTTradingAccounts(importedState.tTradingAccounts)
   }
 }

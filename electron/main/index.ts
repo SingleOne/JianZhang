@@ -16,6 +16,7 @@ import {
   DEFAULT_WATCHLIST_COLUMN_ORDER,
   getMarketIndexStocks,
   normalizeAppSettings,
+  normalizeTTradingAccounts,
   normalizeWatchlist,
   normalizeWatchlistColumnOrder,
   type AppState,
@@ -39,7 +40,8 @@ const DEFAULT_WATCHLIST: WatchStock[] = [
 const DEFAULT_STATE: AppState = {
   watchlist: DEFAULT_WATCHLIST,
   columnOrder: [...DEFAULT_WATCHLIST_COLUMN_ORDER],
-  settings: { ...DEFAULT_APP_SETTINGS }
+  settings: { ...DEFAULT_APP_SETTINGS },
+  tTradingAccounts: {}
 }
 
 let mainWindow: BrowserWindow | null = null
@@ -62,7 +64,8 @@ function loadState(): AppState {
     return {
       watchlist: normalizeWatchlist(saved.watchlist ?? DEFAULT_WATCHLIST),
       settings: normalizeAppSettings(saved.settings),
-      columnOrder: normalizeWatchlistColumnOrder(saved.columnOrder)
+      columnOrder: normalizeWatchlistColumnOrder(saved.columnOrder),
+      tTradingAccounts: normalizeTTradingAccounts(saved.tTradingAccounts)
     }
   } catch {
     return structuredClone(DEFAULT_STATE)
@@ -371,7 +374,8 @@ function registerIpc(): void {
     const normalizedState: AppState = {
       ...nextState,
       watchlist: normalizeWatchlist(nextState.watchlist),
-      settings: normalizeAppSettings(nextState.settings)
+      settings: normalizeAppSettings(nextState.settings),
+      tTradingAccounts: normalizeTTradingAccounts(nextState.tTradingAccounts)
     }
     const refreshSettingsChanged = state.settings.priorityRefreshSeconds !== normalizedState.settings.priorityRefreshSeconds
       || state.settings.regularRefreshSeconds !== normalizedState.settings.regularRefreshSeconds

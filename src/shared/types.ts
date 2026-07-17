@@ -62,6 +62,94 @@ export interface StockPosition {
   openedOn?: string
 }
 
+export interface TTradingFeeSettings {
+  commissionRatePerTenThousand: number
+  minimumCommissionBundle: number
+  handlingRatePerTenThousand: number
+  regulatoryRatePerTenThousand: number
+  transferRatePerTenThousand: number
+  stampDutyRatePerTenThousand: number
+}
+
+export const DEFAULT_T_TRADING_FEE_SETTINGS: TTradingFeeSettings = {
+  commissionRatePerTenThousand: 5.313,
+  minimumCommissionBundle: 5,
+  handlingRatePerTenThousand: 0.341,
+  regulatoryRatePerTenThousand: 0.2,
+  transferRatePerTenThousand: 0.1,
+  stampDutyRatePerTenThousand: 5
+}
+
+export interface TTradeFees {
+  commission: number
+  handling: number
+  regulatory: number
+  transfer: number
+  stampDuty: number
+}
+
+export type TTradeSide = 'buy' | 'sell'
+export type TTradePurpose = 't' | 'base'
+
+export interface TTrade {
+  id: string
+  side: TTradeSide
+  purpose: TTradePurpose
+  tradedAt: string
+  price: number
+  quantity: number
+  fees: TTradeFees
+  note: string
+}
+
+export interface TPositionSnapshot {
+  quantity: number
+  cost: number
+  openedOn?: string
+}
+
+export interface TSellPlanLevel {
+  targetPercent: number
+  quantity: number
+}
+
+export interface TBatchSettlement {
+  settledAt: string
+  latestPositionQuantity: number
+  latestPositionCost?: number
+  ledgerProfit: number
+  costAdjustedProfit?: number
+  finalProfit: number
+  source: 'ledger' | 'position-cost'
+  note: string
+}
+
+export interface TTradingBatch {
+  id: string
+  sequence: number
+  openedAt: string
+  openingPosition?: TPositionSnapshot
+  trades: TTrade[]
+  sellLevels: TSellPlanLevel[]
+  settlement?: TBatchSettlement
+}
+
+export interface TTradingAccount {
+  quoteId: string
+  code: string
+  name: string
+  activeBatch?: TTradingBatch
+  history: TTradingBatch[]
+}
+
+export type TTradingAccounts = Record<string, TTradingAccount>
+
+export function normalizeTTradingAccounts(
+  accounts: TTradingAccounts | undefined
+): TTradingAccounts {
+  return accounts ?? {}
+}
+
 export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
   'stock',
   'latest',
@@ -184,6 +272,7 @@ export interface AppSettings {
   minimizeToTray: boolean
   showTaskbarTicker: boolean
   taskbarPositionPercent: number
+  tTradingFees: TTradingFeeSettings
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -193,7 +282,39 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   startWithWindows: false,
   minimizeToTray: true,
   showTaskbarTicker: true,
-  taskbarPositionPercent: 0
+  taskbarPositionPercent: 0,
+  tTradingFees: { ...DEFAULT_T_TRADING_FEE_SETTINGS }
+}
+
+function normalizeTTradingFeeSettings(
+  settings: Partial<TTradingFeeSettings> | undefined
+): TTradingFeeSettings {
+  return {
+    commissionRatePerTenThousand: Math.max(0,
+      settings?.commissionRatePerTenThousand
+        ?? DEFAULT_T_TRADING_FEE_SETTINGS.commissionRatePerTenThousand
+    ),
+    minimumCommissionBundle: Math.max(0,
+      settings?.minimumCommissionBundle
+        ?? DEFAULT_T_TRADING_FEE_SETTINGS.minimumCommissionBundle
+    ),
+    handlingRatePerTenThousand: Math.max(0,
+      settings?.handlingRatePerTenThousand
+        ?? DEFAULT_T_TRADING_FEE_SETTINGS.handlingRatePerTenThousand
+    ),
+    regulatoryRatePerTenThousand: Math.max(0,
+      settings?.regulatoryRatePerTenThousand
+        ?? DEFAULT_T_TRADING_FEE_SETTINGS.regulatoryRatePerTenThousand
+    ),
+    transferRatePerTenThousand: Math.max(0,
+      settings?.transferRatePerTenThousand
+        ?? DEFAULT_T_TRADING_FEE_SETTINGS.transferRatePerTenThousand
+    ),
+    stampDutyRatePerTenThousand: Math.max(0,
+      settings?.stampDutyRatePerTenThousand
+        ?? DEFAULT_T_TRADING_FEE_SETTINGS.stampDutyRatePerTenThousand
+    )
+  }
 }
 
 export function normalizeAppSettings(
@@ -218,7 +339,8 @@ export function normalizeAppSettings(
     showTaskbarTicker: settings?.showTaskbarTicker ?? DEFAULT_APP_SETTINGS.showTaskbarTicker,
     taskbarPositionPercent: Math.min(100, Math.max(0,
       settings?.taskbarPositionPercent ?? DEFAULT_APP_SETTINGS.taskbarPositionPercent
-    ))
+    )),
+    tTradingFees: normalizeTTradingFeeSettings(settings?.tTradingFees)
   }
 }
 
@@ -226,6 +348,7 @@ export interface AppState {
   watchlist: WatchStock[]
   settings: AppSettings
   columnOrder: WatchlistColumnId[]
+  tTradingAccounts: TTradingAccounts
 }
 
 export interface ConfigExportResult {

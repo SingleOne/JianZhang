@@ -12,6 +12,7 @@ import {
   PencilLine,
   Pin,
   RotateCcw,
+  Repeat2,
   Search,
   Star,
   Trash2,
@@ -35,12 +36,16 @@ import {
 import type {
   StockPosition,
   StockQuote,
+  TTradingAccount,
+  TTradingAccounts,
+  TTradingFeeSettings,
   WatchlistColumnId,
   WatchStock
 } from '../shared/types'
 import { normalizeWatchlistColumnOrder } from '../shared/types'
 import { ExpandedStockDetails } from './ExpandedStockDetails'
 import { PositionEditor } from './PositionEditor'
+import { TTradingDrawer } from './TTradingDrawer'
 
 interface WatchlistTableProps {
   watchlist: WatchStock[]
@@ -49,10 +54,17 @@ interface WatchlistTableProps {
   priorityRefreshSeconds: number
   regularRefreshSeconds: number
   selectedQuoteId: string | null
+  tTradingAccounts: TTradingAccounts
+  tTradingFees: TTradingFeeSettings
   onSelect: (quoteId: string) => void
   onToggleTaskbar: (quoteId: string) => void
   onTogglePriority: (quoteId: string) => void
   onEditPosition: (quoteId: string, position: StockPosition | undefined, showRadarSignals: boolean) => void
+  onUpdateTTrading: (
+    quoteId: string,
+    account: TTradingAccount,
+    position: StockPosition | undefined
+  ) => void
   onReorder: (sourceQuoteId: string, targetQuoteId: string) => void
   onPin: (quoteId: string) => void
   onColumnOrderChange: (columnOrder: WatchlistColumnId[]) => void
@@ -96,7 +108,7 @@ const COLUMN_META: Record<WatchlistColumnId, ColumnMeta> = {
   todayProfitPercent: { label: '今日收益率', width: 88, sortable: true },
   totalProfit: { label: '持仓收益', width: 86, sortable: true },
   profitPercent: { label: '收益率', width: 76, sortable: true },
-  operation: { label: '操作', width: 125, sortable: false, className: 'operation-column' }
+  operation: { label: '操作', width: 153, sortable: false, className: 'operation-column' }
 }
 
 const ORDER_COLUMN_WIDTH = 52
@@ -239,10 +251,13 @@ export function WatchlistTable({
   priorityRefreshSeconds,
   regularRefreshSeconds,
   selectedQuoteId,
+  tTradingAccounts,
+  tTradingFees,
   onSelect,
   onToggleTaskbar,
   onTogglePriority,
   onEditPosition,
+  onUpdateTTrading,
   onReorder,
   onPin,
   onColumnOrderChange,
@@ -252,6 +267,7 @@ export function WatchlistTable({
   const [draggingQuoteId, setDraggingQuoteId] = useState<string | null>(null)
   const [dragOverQuoteId, setDragOverQuoteId] = useState<string | null>(null)
   const [editingStock, setEditingStock] = useState<WatchStock | null>(null)
+  const [tTradingStock, setTTradingStock] = useState<WatchStock | null>(null)
   const [locatedQuoteId, setLocatedQuoteId] = useState<string | null>(null)
   const tableScrollerRef = useRef<HTMLDivElement>(null)
   const locateTimerRef = useRef<number | undefined>(undefined)
@@ -645,6 +661,15 @@ export function WatchlistTable({
                                   <PencilLine size={15} />
                                 </button>
                                 <button
+                                  className={`row-action-button ${tTradingAccounts[stock.quoteId]?.activeBatch ? 'is-active' : ''}`}
+                                  type="button"
+                                  onClick={(event) => { event.stopPropagation(); setTTradingStock(stock) }}
+                                  aria-label={`管理 ${stock.name} 的做T交易`}
+                                  title={tTradingAccounts[stock.quoteId]?.activeBatch ? '继续记录当前T批次' : '做T管理'}
+                                >
+                                  <Repeat2 size={15} />
+                                </button>
+                                <button
                                   className="icon-button remove-button"
                                   type="button"
                                   onClick={(event) => { event.stopPropagation(); onRemove(stock.quoteId) }}
@@ -685,6 +710,20 @@ export function WatchlistTable({
           onSave={(position, showRadarSignals) => {
             onEditPosition(editingStock.quoteId, position, showRadarSignals)
             setEditingStock(null)
+          }}
+        />
+      ) : null}
+
+      {tTradingStock ? (
+        <TTradingDrawer
+          key={tTradingStock.quoteId}
+          stock={watchlist.find((stock) => stock.quoteId === tTradingStock.quoteId) ?? tTradingStock}
+          quote={quotes.find((quote) => quote.quoteId === tTradingStock.quoteId)}
+          account={tTradingAccounts[tTradingStock.quoteId]}
+          feeSettings={tTradingFees}
+          onClose={() => setTTradingStock(null)}
+          onApply={(account, position) => {
+            onUpdateTTrading(tTradingStock.quoteId, account, position)
           }}
         />
       ) : null}
