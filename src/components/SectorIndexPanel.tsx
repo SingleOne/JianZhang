@@ -101,6 +101,7 @@ export default function SectorIndexPanel({ stock, refreshSeconds }: SectorIndexP
   }
 
   const quote = data?.quote
+  const trendBars = data?.trend.bars.filter((bar) => bar.time.slice(11, 16) >= '09:30') ?? []
   const summary = [
     ['最新点位', formatPrice(quote?.latest), valueClass(quote?.change)],
     ['涨跌', formatSigned(quote?.change), valueClass(quote?.change)],
@@ -142,18 +143,17 @@ export default function SectorIndexPanel({ stock, refreshSeconds }: SectorIndexP
       <div className="overview-header sector-index-chart-heading">
         <div>
           <strong>板块分时</strong>
-          <span>{data?.trend.tradingDate || '最近交易日'} · 价格与本日成交均价</span>
+          <span>{data?.trend.tradingDate || '最近交易日'} · 连续竞价走势</span>
         </div>
         <div className="chart-legend" aria-label="板块图表图例">
           <span className="legend-price">价格</span>
-          <span className="legend-average-price">成交均价</span>
           <span className="legend-volume">成交量</span>
         </div>
       </div>
       <div className="chart-panel">
-        {data && data.trend.bars.length > 0 ? (
+        {data && trendBars.length > 0 ? (
           <Suspense fallback={<div className="chart-loading">正在初始化板块分时图…</div>}>
-            <CandlestickChart bars={data.trend.bars} variant="intraday" />
+            <CandlestickChart bars={trendBars} variant="sectorIntraday" />
           </Suspense>
         ) : (
           <div className="chart-loading">最近交易日暂无板块分时数据</div>

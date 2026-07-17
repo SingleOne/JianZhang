@@ -243,7 +243,28 @@ export default function App() {
       <main className="app-main">
         <div className="workspace">
           <section className="command-bar" aria-label="自选股操作">
-            <SearchBar onAdd={addStock} existingQuoteIds={quoteIds} onError={reportError} />
+            <div className="command-bar-main">
+              <SearchBar onAdd={addStock} existingQuoteIds={quoteIds} onError={reportError} />
+              {marketIndexQuotes.length > 0 ? (
+                <div className="market-index-summary command-market-index-summary" aria-label="大盘指数行情">
+                  {marketIndexQuotes.map(({ index, quote }) => (
+                    <span
+                      className="market-index-card"
+                      title={`${index.name} ${formatPrice(quote?.latest)} ${formatPercent(quote?.changePercent)}`}
+                      key={index.id}
+                    >
+                      <small>{index.name}</small>
+                      <span>
+                        <strong>{formatPrice(quote?.latest)}</strong>
+                        <em className={directionClass(quote?.changePercent)}>
+                          {formatPercent(quote?.changePercent)}
+                        </em>
+                      </span>
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
             <div className="command-actions">
               <button className="secondary-button refresh-button" onClick={refreshNow} disabled={refreshing}>
                 <RefreshCw size={17} className={refreshing ? 'is-spinning' : ''} />
@@ -266,25 +287,6 @@ export default function App() {
                 <span>{state.watchlist.length} 只股票 · {state.watchlist.filter((stock) => stock.isPriority).length} 只重点 · {portfolioSummary.positionCount} 只有持仓 · 点击股票行展开行情详情</span>
               </div>
               <div className="panel-heading-side">
-                {marketIndexQuotes.length > 0 ? (
-                  <div className="market-index-summary" aria-label="大盘指数行情">
-                    {marketIndexQuotes.map(({ index, quote }) => (
-                      <span
-                        className="market-index-card"
-                        title={`${index.name} ${formatPrice(quote?.latest)} ${formatPercent(quote?.changePercent)}`}
-                        key={index.id}
-                      >
-                        <small>{index.name}</small>
-                        <span>
-                          <strong>{formatPrice(quote?.latest)}</strong>
-                          <em className={directionClass(quote?.changePercent)}>
-                            {formatPercent(quote?.changePercent)}
-                          </em>
-                        </span>
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
                 <div className="portfolio-summary" aria-label="全部持仓收益汇总">
                   <span>
                     <small>今日总收益</small>

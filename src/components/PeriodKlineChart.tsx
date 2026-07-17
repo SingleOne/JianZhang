@@ -86,7 +86,7 @@ export default function PeriodKlineChart({
       },
       rightPriceScale: {
         borderColor: '#e2e8f0',
-        scaleMargins: { top: 0.08, bottom: 0.3 }
+        scaleMargins: { top: 0.16, bottom: 0.32 }
       },
       timeScale: {
         borderColor: '#e2e8f0',

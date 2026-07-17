@@ -14,12 +14,12 @@ import {
   type WhitespaceData
 } from 'lightweight-charts'
 import { useEffect, useRef } from 'react'
-import { formatPrice } from '../lib/format'
+import { formatAmount, formatPrice, formatVolume } from '../lib/format'
 import type { KlineBar } from '../shared/types'
 
 interface CandlestickChartProps {
   bars: KlineBar[]
-  variant?: 'intraday' | 'fiveDay'
+  variant?: 'intraday' | 'sectorIntraday' | 'fiveDay'
   onHoverBar?: (bar: KlineBar | null) => void
 }
 
@@ -61,11 +61,11 @@ function isRegularBar(bar: KlineBar): boolean {
   return minuteOfDay(bar) >= 9 * 60 + 30
 }
 
-function intradaySessionSlots(bars: KlineBar[]): UTCTimestamp[] {
+function intradaySessionSlots(bars: KlineBar[], includeAuction: boolean): UTCTimestamp[] {
   const date = bars[0].time.slice(0, 10)
   const slots: UTCTimestamp[] = []
 
-  for (let minute = 9 * 60 + 15; minute <= 11 * 60 + 30; minute += 1) {
+  for (let minute = includeAuction ? 9 * 60 + 15 : 9 * 60 + 30; minute <= 11 * 60 + 30; minute += 1) {
     slots.push(timestampAtMinute(date, minute))
   }
   for (let minute = 13 * 60; minute <= 15 * 60; minute += 1) {
@@ -128,11 +128,14 @@ function intradayVolumeData(
 }
 
 function intradayExtremaMarkers(bars: KlineBar[]): SeriesMarker<Time>[] {
-  let highestBar = bars[0]
-  let lowestBar = bars[0]
+  const regularBars = bars.filter(isRegularBar)
+  if (regularBars.length === 0) return []
 
-  for (let index = 1; index < bars.length; index += 1) {
-    const bar = bars[index]
+  let highestBar = regularBars[0]
+  let lowestBar = regularBars[0]
+
+  for (let index = 1; index < regularBars.length; index += 1) {
+    const bar = regularBars[index]
     if (bar.high > highestBar.high) highestBar = bar
     if (bar.low < lowestBar.low) lowestBar = bar
   }
@@ -169,17 +172,22 @@ export default function CandlestickChart({
   const priceContainerRef = useRef<HTMLDivElement>(null)
   const volumeContainerRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
+  const volumeTooltipRef = useRef<HTMLDivElement>(null)
   const auctionZoneRef = useRef<HTMLDivElement>(null)
   const auctionBoundaryRef = useRef<HTMLDivElement>(null)
-  const isIntraday = variant === 'intraday'
+  const isIntraday = variant !== 'fiveDay'
+  const showAuction = variant === 'intraday'
 
   useEffect(() => {
     const priceContainer = priceContainerRef.current
     if (!priceContainer) return
 
     const volumeContainer = volumeContainerRef.current
-    const barsByTime = new Map(bars.map((bar) => [toTimestamp(bar.time), bar]))
-    const sessionSlots = isIntraday ? intradaySessionSlots(bars) : []
+    const chartBars = showAuction ? bars : bars.filter(isRegularBar)
+    if (chartBars.length === 0) return
+
+    const barsByTime = new Map(chartBars.map((bar) => [toTimestamp(bar.time), bar]))
+    const sessionSlots = isIntraday ? intradaySessionSlots(chartBars, showAuction) : []
     const fixedTimeRange = isIntraday
       ? { from: sessionSlots[0], to: sessionSlots.at(-1)! }
       : null
@@ -200,7 +208,7 @@ export default function CandlestickChart({
       rightPriceScale: {
         borderColor: '#e2e8f0',
         minimumWidth: 72,
-        scaleMargins: isIntraday ? { top: 0.08, bottom: 0.08 } : { top: 0.08, bottom: 0.32 }
+        scaleMargins: isIntraday ? { top: 0.18, bottom: 0.18 } : { top: 0.08, bottom: 0.32 }
       },
       timeScale: {
         visible: !isIntraday,
@@ -250,7 +258,7 @@ export default function CandlestickChart({
     })
     priceLine.setData(isIntraday
       ? intradayLineData(sessionSlots, barsByTime, isRegularBar)
-      : bars.map((bar) => ({ time: toTimestamp(bar.time), value: bar.close })))
+      : chartBars.map((bar) => ({ time: toTimestamp(bar.time), value: bar.close })))
 
     if (isIntraday) {
       const timeRangeAnchor = priceChart.addSeries(LineSeries, {
@@ -266,28 +274,42 @@ export default function CandlestickChart({
         { time: fixedTimeRange!.to, value: 0 }
       ])
 
-      const auctionLine = priceChart.addSeries(LineSeries, {
-        color: '#8b5cf6',
-        lineWidth: 2,
-        priceLineVisible: false,
-        lastValueVisible: false,
-        crosshairMarkerVisible: true,
-        crosshairMarkerRadius: 3,
-        crosshairMarkerBorderColor: '#8b5cf6',
-        crosshairMarkerBackgroundColor: '#ffffff'
-      })
-      auctionLine.setData(intradayLineData(sessionSlots, barsByTime, isAuctionBar))
+      if (showAuction) {
+        const auctionLine = priceChart.addSeries(LineSeries, {
+          color: '#8b5cf6',
+          lineWidth: 2,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          crosshairMarkerVisible: true,
+          crosshairMarkerRadius: 3,
+          crosshairMarkerBorderColor: '#8b5cf6',
+          crosshairMarkerBackgroundColor: '#ffffff'
+        })
+        auctionLine.setData(intradayLineData(sessionSlots, barsByTime, isAuctionBar))
 
-      const averagePriceLine = priceChart.addSeries(LineSeries, {
-        color: '#d89414',
-        lineWidth: 1,
+        const averagePriceLine = priceChart.addSeries(LineSeries, {
+          color: '#d89414',
+          lineWidth: 1,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          crosshairMarkerVisible: false
+        })
+        averagePriceLine.setData(intradayAverageData(sessionSlots, chartBars))
+      }
+
+      const extremaAnchor = priceChart.addSeries(LineSeries, {
+        color: 'transparent',
+        lineVisible: false,
         priceLineVisible: false,
         lastValueVisible: false,
         crosshairMarkerVisible: false
       })
-      averagePriceLine.setData(intradayAverageData(sessionSlots, bars))
+      extremaAnchor.setData(chartBars.map((bar) => ({
+        time: toTimestamp(bar.time),
+        value: bar.close
+      })))
 
-      createSeriesMarkers(priceLine, intradayExtremaMarkers(bars), {
+      createSeriesMarkers(extremaAnchor, intradayExtremaMarkers(chartBars), {
         autoScale: true,
         zOrder: 'aboveSeries'
       })
@@ -357,7 +379,7 @@ export default function CandlestickChart({
         priceLineVisible: false
       })
       volume.priceScale().applyOptions({ scaleMargins: { top: 0.76, bottom: 0 } })
-      volume.setData(bars.map((bar) => ({
+      volume.setData(chartBars.map((bar) => ({
         time: toTimestamp(bar.time),
         value: bar.volume,
         color: bar.close >= bar.open ? 'rgba(220, 55, 66, 0.34)' : 'rgba(24, 146, 102, 0.34)'
@@ -366,6 +388,26 @@ export default function CandlestickChart({
 
     const hideTooltip = () => {
       if (tooltipRef.current) tooltipRef.current.style.display = 'none'
+    }
+    const hideVolumeTooltip = () => {
+      if (volumeTooltipRef.current) volumeTooltipRef.current.style.display = 'none'
+    }
+    const placeTooltip = (
+      tooltip: HTMLDivElement,
+      point: { x: number; y: number },
+      container: HTMLDivElement
+    ) => {
+      tooltip.style.display = 'block'
+      const tooltipWidth = tooltip.offsetWidth
+      const tooltipHeight = tooltip.offsetHeight
+      const left = point.x + tooltipWidth + 20 > container.clientWidth
+        ? point.x - tooltipWidth - 12
+        : point.x + 12
+      const top = point.y - tooltipHeight - 10 < 6
+        ? point.y + 12
+        : point.y - tooltipHeight - 10
+      tooltip.style.left = `${Math.max(6, left)}px`
+      tooltip.style.top = `${top}px`
     }
     const handleCrosshairMove = (param: MouseEventParams<Time>) => {
       const bar = typeof param.time === 'number'
@@ -385,19 +427,24 @@ export default function CandlestickChart({
       }
 
       tooltip.textContent = `${bar.time.slice(11, 16)}  价格 ${formatPrice(bar.close)}`
-      tooltip.style.display = 'block'
-      const tooltipWidth = tooltip.offsetWidth
-      const tooltipHeight = tooltip.offsetHeight
-      const left = point.x + tooltipWidth + 20 > priceContainer.clientWidth
-        ? point.x - tooltipWidth - 12
-        : point.x + 12
-      const top = point.y - tooltipHeight - 10 < 6
-        ? point.y + 12
-        : point.y - tooltipHeight - 10
-      tooltip.style.left = `${Math.max(6, left)}px`
-      tooltip.style.top = `${top}px`
+      placeTooltip(tooltip, point, priceContainer)
+    }
+    const handleVolumeCrosshairMove = (param: MouseEventParams<Time>) => {
+      const bar = typeof param.time === 'number'
+        ? barsByTime.get(param.time as UTCTimestamp)
+        : undefined
+      const tooltip = volumeTooltipRef.current
+      const point = param.point
+      if (!tooltip || !volumeContainer || !bar || !point || point.x < 0 || point.y < 0) {
+        hideVolumeTooltip()
+        return
+      }
+
+      tooltip.textContent = `${bar.time.slice(11, 16)}  成交量 ${formatVolume(bar.volume)}  成交额 ${formatAmount(bar.amount)}`
+      placeTooltip(tooltip, point, volumeContainer)
     }
     priceChart.subscribeCrosshairMove(handleCrosshairMove)
+    volumeChart?.subscribeCrosshairMove(handleVolumeCrosshairMove)
 
     if (fixedTimeRange) {
       priceChart.timeScale().setVisibleRange(fixedTimeRange)
@@ -406,8 +453,8 @@ export default function CandlestickChart({
     }
 
     const updateAuctionZone = () => {
-      if (!isIntraday || !auctionZoneRef.current || !auctionBoundaryRef.current) return
-      const date = bars[0].time.slice(0, 10)
+      if (!showAuction || !auctionZoneRef.current || !auctionBoundaryRef.current) return
+      const date = chartBars[0].time.slice(0, 10)
       const firstTime = timestampAtMinute(date, 9 * 60 + 15)
       const previousTime = timestampAtMinute(date, 9 * 60 + 24)
       const lastTime = timestampAtMinute(date, 9 * 60 + 25)
@@ -448,18 +495,20 @@ export default function CandlestickChart({
       priceResizeObserver.disconnect()
       volumeResizeObserver?.disconnect()
       priceChart.unsubscribeCrosshairMove(handleCrosshairMove)
+      volumeChart?.unsubscribeCrosshairMove(handleVolumeCrosshairMove)
       hideTooltip()
+      hideVolumeTooltip()
       if (!isIntraday) onHoverBar?.(null)
       priceChart.remove()
       volumeChart?.remove()
     }
-  }, [bars, isIntraday, onHoverBar, variant])
+  }, [bars, isIntraday, onHoverBar, showAuction, variant])
 
   return (
     <div className={`candlestick-chart ${isIntraday ? 'is-intraday' : 'is-five-day'}`}>
       <div className={isIntraday ? 'intraday-price-chart' : 'five-day-chart'}>
         <div className="chart-host" ref={priceContainerRef} />
-        {isIntraday ? (
+        {showAuction ? (
           <>
             <div className="auction-zone" ref={auctionZoneRef}><span>集合竞价</span></div>
             <div className="auction-boundary" ref={auctionBoundaryRef} />
@@ -471,6 +520,7 @@ export default function CandlestickChart({
         <div className="intraday-volume-chart">
           <div className="chart-host" ref={volumeContainerRef} />
           <span className="intraday-volume-label">成交量</span>
+          <div className="intraday-volume-tooltip" ref={volumeTooltipRef} />
         </div>
       ) : null}
     </div>

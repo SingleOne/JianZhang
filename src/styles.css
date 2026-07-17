@@ -164,11 +164,23 @@ tr:focus-visible {
   position: relative;
   z-index: 20;
   display: grid;
-  grid-template-columns: minmax(400px, 680px) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 16px;
   padding: 0 14px;
+}
+
+.command-bar-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.command-bar-main .search-composer {
+  min-width: 400px;
+  flex: 0 1 680px;
 }
 
 .command-actions {
@@ -727,6 +739,20 @@ tr:focus-visible {
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: 4px;
+}
+
+.command-market-index-summary {
+  min-width: 0;
+  flex: 1;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  padding-left: 12px;
+  overflow-x: auto;
+  border-left: 1px solid #d8dee8;
+}
+
+.command-market-index-summary .market-index-card {
+  flex: 0 0 auto;
 }
 
 .market-index-card {
@@ -2003,7 +2029,8 @@ tr:focus-visible {
   border-left: 1px dashed rgba(124, 58, 237, 0.72);
 }
 
-.intraday-price-tooltip {
+.intraday-price-tooltip,
+.intraday-volume-tooltip {
   position: absolute;
   z-index: 6;
   display: none;
@@ -2245,6 +2272,10 @@ tr:focus-visible {
 
   .command-bar {
     grid-template-columns: minmax(380px, 1fr) auto;
+  }
+
+  .command-bar-main .search-composer {
+    min-width: 380px;
   }
 
   .portfolio-summary > span {
