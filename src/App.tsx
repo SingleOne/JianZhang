@@ -5,7 +5,7 @@ import { SearchBar } from './components/SearchBar'
 import { SettingsMenu } from './components/SettingsMenu'
 import { WatchlistTable } from './components/WatchlistTable'
 import { initialState, isDesktopRuntime, stockApi } from './lib/api'
-import { formatPercent, formatPrice, formatProfit, formatUpdateTime } from './lib/format'
+import { formatCurrency, formatPercent, formatPrice, formatProfit, formatUpdateTime } from './lib/format'
 import { calculatePortfolioSummary } from './lib/portfolio'
 import { MARKET_INDEX_OPTIONS } from './shared/types'
 import packageInfo from '../package.json'
@@ -91,8 +91,8 @@ export default function App() {
 
   const quoteIds = useMemo(() => new Set(state.watchlist.map((stock) => stock.quoteId)), [state.watchlist])
   const portfolioSummary = useMemo(
-    () => calculatePortfolioSummary(state.watchlist, quotes),
-    [quotes, state.watchlist]
+    () => calculatePortfolioSummary(state.watchlist, quotes, state.tTradingAccounts),
+    [quotes, state.tTradingAccounts, state.watchlist]
   )
   const marketIndexQuotes = useMemo(() => {
     const selectedIds = new Set(state.settings.marketIndexIds)
@@ -342,6 +342,10 @@ export default function App() {
               </div>
               <div className="panel-heading-side">
                 <div className="portfolio-summary" aria-label="全部持仓收益汇总">
+                  <span>
+                    <small>持仓总市值</small>
+                    <strong>{formatCurrency(portfolioSummary.marketValue)}</strong>
+                  </span>
                   <span className={cardDirectionClass(portfolioSummary.todayProfit)}>
                     <small>今日总收益</small>
                     <strong className={portfolioSummary.todayProfit === null ? 'is-flat' : portfolioSummary.todayProfit >= 0 ? 'is-up' : 'is-down'}>

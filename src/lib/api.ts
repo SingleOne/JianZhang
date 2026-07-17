@@ -1,11 +1,12 @@
 import {
   DEFAULT_APP_SETTINGS,
   DEFAULT_WATCHLIST_COLUMN_ORDER,
+  WATCHLIST_COLUMN_ORDER_VERSION,
   getMarketIndexStocks,
+  migrateWatchlistColumnOrder,
   normalizeAppSettings,
   normalizeTTradingAccounts,
   normalizeWatchlist,
-  normalizeWatchlistColumnOrder,
   type AppState,
   type BootstrapResult,
   type ConfigImportResult,
@@ -50,6 +51,7 @@ const DEFAULT_WATCHLIST: WatchStock[] = DEMO_STOCKS.slice(0, 5).map((stock, inde
 const DEFAULT_STATE: AppState = {
   watchlist: DEFAULT_WATCHLIST,
   columnOrder: [...DEFAULT_WATCHLIST_COLUMN_ORDER],
+  columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
   settings: { ...DEFAULT_APP_SETTINGS },
   tTradingAccounts: {}
 }
@@ -134,7 +136,8 @@ function loadDemoState(): AppState {
   return {
     watchlist: normalizeWatchlist(parsed.watchlist),
     settings: normalizeAppSettings(parsed.settings),
-    columnOrder: normalizeWatchlistColumnOrder(parsed.columnOrder),
+    columnOrder: migrateWatchlistColumnOrder(parsed.columnOrder, parsed.columnOrderVersion),
+    columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
     tTradingAccounts: normalizeTTradingAccounts(parsed.tTradingAccounts)
   }
 }

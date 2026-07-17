@@ -328,9 +328,18 @@ export function WatchlistTable({
     const quoteMap = new Map(quotes.map((quote) => [quote.quoteId, quote]))
     return watchlist.map((stock, manualIndex) => {
       const quote = quoteMap.get(stock.quoteId)
-      return { stock, quote, metrics: calculatePositionMetrics(stock.position, quote), manualIndex }
+      return {
+        stock,
+        quote,
+        metrics: calculatePositionMetrics(
+          stock.position,
+          quote,
+          tTradingAccounts[stock.quoteId]
+        ),
+        manualIndex
+      }
     })
-  }, [quotes, watchlist])
+  }, [quotes, tTradingAccounts, watchlist])
 
   const displayedRows = useMemo(
     () => sort ? sortRows(rows, sort, tradingCalendarClosedDates) : rows,
@@ -744,8 +753,8 @@ export function WatchlistTable({
                                 className="today-market-cell"
                                 title={`今开 ${formatPrice(quote?.open)}，成交额 ${formatAmount(quote?.amount)}`}
                               >
-                                <span>{formatPrice(quote?.open)}</span>
-                                <span>{formatAmount(quote?.amount)}</span>
+                                <span>今开：{formatPrice(quote?.open)}</span>
+                                <span>成交额：{formatAmount(quote?.amount)}</span>
                               </span>
                             </td>
                           )

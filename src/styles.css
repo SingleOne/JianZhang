@@ -2201,12 +2201,14 @@ tr:focus-visible {
 .t-overview-grid > span {
   min-width: 0;
   display: grid;
+  justify-items: center;
   gap: 5px;
   padding: 10px 11px;
   background: #ffffff;
   border: 1px solid #e1e6ee;
   border-radius: 9px;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.025);
+  text-align: center;
 }
 
 .t-overview-grid small,
@@ -2232,6 +2234,10 @@ tr:focus-visible {
 
 .t-overview-grid strong.is-down,
 .t-settlement-preview strong.is-down {
+  color: var(--green);
+}
+
+.t-overview-grid > span.t-overview-fee strong {
   color: var(--green);
 }
 
@@ -2269,21 +2275,43 @@ tr:focus-visible {
   font-style: normal;
 }
 
-.t-card-heading .t-history-total {
+.t-batch-summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 16px;
   font-variant-numeric: tabular-nums;
-  font-weight: 700;
 }
 
-.t-card-heading .t-history-total.is-up {
+.t-batch-summary > span {
+  display: grid;
+  gap: 3px;
+  text-align: right;
+}
+
+.t-batch-summary small,
+.t-batch-summary em {
+  color: #8993a3;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.t-batch-summary strong {
+  color: #29364a;
+  font-size: 13px;
+}
+
+.t-batch-summary strong.is-up {
   color: var(--red);
 }
 
-.t-card-heading .t-history-total.is-down {
+.t-batch-summary strong.is-down {
   color: var(--green);
 }
 
-.t-card-heading .t-history-total.is-flat {
-  color: #667085;
+.t-batch-summary em {
+  align-self: center;
+  white-space: nowrap;
 }
 
 .text-button {
@@ -2368,6 +2396,16 @@ tr:focus-visible {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
 }
 
+.t-trade-entry .t-form-grid label,
+.t-trade-entry .t-fee-inputs label {
+  font-size: 11px;
+}
+
+.t-trade-entry .t-form-grid input,
+.t-trade-entry .t-fee-inputs input {
+  font-size: 12px;
+}
+
 .t-fee-summary {
   min-height: 35px;
   display: flex;
@@ -2380,7 +2418,7 @@ tr:focus-visible {
   background: #f8fafc;
   border: 1px solid #edf0f4;
   border-radius: 7px;
-  font-size: 10px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -2439,7 +2477,7 @@ tr:focus-visible {
 .t-trade-row {
   min-height: 48px;
   display: grid;
-  grid-template-columns: 42px minmax(190px, 1fr) 100px 62px;
+  grid-template-columns: 72px minmax(190px, 1fr) 100px 62px;
   align-items: center;
   gap: 8px;
   padding: 6px 9px;
@@ -2471,8 +2509,9 @@ tr:focus-visible {
   color: var(--red);
   background: var(--red-soft);
   border-radius: 5px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .t-trade-side.is-sell {
@@ -2487,12 +2526,12 @@ tr:focus-visible {
 
 .t-trade-row strong {
   color: #344054;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .t-trade-row small {
   color: #8a94a6;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .t-trade-amount {
@@ -2500,7 +2539,7 @@ tr:focus-visible {
   justify-items: end;
   gap: 3px;
   color: #586579;
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
@@ -2508,6 +2547,7 @@ tr:focus-visible {
 .t-trade-amount small {
   color: #7b8799;
   font-size: 10px;
+  font-weight: 700;
 }
 
 .t-trade-actions {
@@ -2536,7 +2576,7 @@ tr:focus-visible {
 }
 
 .t-sell-level {
-  min-height: 42px;
+  min-height: 44px;
   display: grid;
   grid-template-columns: 42px 105px 90px 120px 1fr 1fr 1fr;
   align-items: center;
@@ -2544,7 +2584,7 @@ tr:focus-visible {
   padding: 4px 9px;
   color: #586579;
   border-bottom: 1px solid #edf0f4;
-  font-size: 10px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
@@ -2565,7 +2605,7 @@ tr:focus-visible {
 }
 
 .t-sell-level label {
-  height: 30px;
+  height: 32px;
   display: flex;
   align-items: center;
   overflow: hidden;
@@ -2587,7 +2627,7 @@ tr:focus-visible {
 .t-sell-level label span {
   padding: 0 6px;
   color: #8a94a6;
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .t-settlement-card {
@@ -2655,6 +2695,43 @@ tr:focus-visible {
 .t-history-list {
   display: grid;
   gap: 6px;
+}
+
+.t-history-pagination {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.t-history-pagination button {
+  min-height: 26px;
+  padding: 0 8px;
+  color: #4f5d73;
+  background: #ffffff;
+  border: 1px solid #dce3ec;
+  border-radius: 5px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.t-history-pagination button:hover:not(:disabled) {
+  color: var(--blue);
+  background: #f4f8ff;
+  border-color: #b9d0fb;
+}
+
+.t-history-pagination button:disabled {
+  color: #a9b2c0;
+  background: #f7f8fa;
+  cursor: default;
+}
+
+.t-history-pagination span {
+  min-width: 34px;
+  color: #6f7c90;
+  font-size: 11px;
+  text-align: center;
 }
 
 .t-history-list details {

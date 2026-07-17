@@ -1,10 +1,18 @@
-import type { StockQuote, StockPosition, TTradingAccount, WatchStock } from '../shared/types'
+import type {
+  StockQuote,
+  StockPosition,
+  TTrade,
+  TTradingAccount,
+  TTradingAccounts,
+  WatchStock
+} from '../shared/types'
 import { countAStockTradingDays } from '../shared/trading-calendar'
 
 export interface PositionMetrics {
   marketValue: number | null
   todayProfit: number | null
   todayProfitPercent: number | null
+  todayCostBasis: number | null
   totalProfit: number | null
   profitPercent: number | null
 }
@@ -33,10 +41,7 @@ export function getAvailablePositionQuantity(
   if (isPositionOpenedToday(position)) return 0
 
   const today = currentDateKey()
-  const trades = [
-    ...(account?.activeBatch?.trades ?? []),
-    ...(account?.history.flatMap((batch) => batch.trades) ?? [])
-  ]
+  const trades = getAccountTrades(account)
   const todayPurchasedQuantity = trades.reduce((total, trade) => (
     trade.side === 'buy' && trade.tradedAt.slice(0, 10) === today
       ? total + trade.quantity
@@ -56,39 +61,94 @@ export function getPositionHoldingDays(
   return holdingDays > 0 ? holdingDays : null
 }
 
+function getAccountTrades(account: TTradingAccount | undefined): TTrade[] {
+  return [
+    ...(account?.baseTrades ?? []),
+    ...(account?.activeBatch?.trades ?? []),
+    ...(account?.history.flatMap((batch) => batch.trades) ?? [])
+  ]
+}
+
+function getTradeFees(trade: TTrade): number {
+  return trade.fees.commission
+    + trade.fees.handling
+    + trade.fees.regulatory
+    + trade.fees.transfer
+    + trade.fees.stampDuty
+}
+
 export function calculatePositionMetrics(
   position: StockPosition | undefined,
-  quote: StockQuote | undefined
+  quote: StockQuote | undefined,
+  account?: TTradingAccount
 ): PositionMetrics {
-  if (!position || quote?.latest === null || quote?.latest === undefined) {
-    return {
-      marketValue: null,
-      todayProfit: null,
-      todayProfitPercent: null,
-      totalProfit: null,
-      profitPercent: null
+  const latest = quote?.latest
+  const marketValue = position && latest !== null && latest !== undefined
+    ? latest * position.quantity
+    : null
+  const totalProfit = position && latest !== null && latest !== undefined
+    ? (latest - position.cost) * position.quantity
+    : null
+  const today = currentDateKey()
+  const todayTrades = getAccountTrades(account)
+    .filter((trade) => trade.tradedAt.slice(0, 10) === today)
+
+  let todayProfit: number | null = null
+  let todayCostBasis: number | null = null
+  if (position || todayTrades.length > 0) {
+    const currentQuantity = position?.quantity ?? 0
+    let buyQuantity = 0
+    let sellQuantity = 0
+    let buyCost = 0
+    let sellProceeds = 0
+
+    for (const trade of todayTrades) {
+      const amount = trade.price * trade.quantity
+      const fees = getTradeFees(trade)
+      if (trade.side === 'buy') {
+        buyQuantity += trade.quantity
+        buyCost += amount + fees
+      } else {
+        sellQuantity += trade.quantity
+        sellProceeds += amount - fees
+      }
+    }
+
+    const openingQuantity = Math.max(0, currentQuantity - buyQuantity + sellQuantity)
+    const openedToday = isPositionOpenedToday(position)
+    const openingValue = openedToday && position
+      ? position.cost * currentQuantity - buyCost + sellProceeds
+      : quote?.previousClose === null || quote?.previousClose === undefined
+        ? null
+        : openingQuantity * quote.previousClose
+    const currentValue = currentQuantity === 0
+      ? 0
+      : marketValue
+
+    if (openingValue !== null && currentValue !== null) {
+      todayCostBasis = openingValue + buyCost
+      todayProfit = currentValue + sellProceeds - todayCostBasis
     }
   }
-
-  const marketValue = quote.latest * position.quantity
-  const totalProfit = (quote.latest - position.cost) * position.quantity
-  const todayBase = isPositionOpenedToday(position) ? position.cost : quote.previousClose
-  const todayProfit = todayBase === null || todayBase === undefined
-    ? null
-    : (quote.latest - todayBase) * position.quantity
 
   return {
     marketValue,
     todayProfit,
-    todayProfitPercent: todayBase && todayBase > 0 ? (quote.latest / todayBase - 1) * 100 : null,
+    todayProfitPercent: todayProfit !== null && todayCostBasis && todayCostBasis > 0
+      ? todayProfit / todayCostBasis * 100
+      : null,
+    todayCostBasis,
     totalProfit,
-    profitPercent: (quote.latest / position.cost - 1) * 100
+    profitPercent: position && latest !== null && latest !== undefined
+      ? (latest / position.cost - 1) * 100
+      : null
   }
 }
 
 export function calculatePortfolioSummary(
   watchlist: WatchStock[],
-  quotes: StockQuote[]
+  quotes: StockQuote[],
+  tTradingAccounts: TTradingAccounts
 ): PortfolioSummary {
   const quoteMap = new Map(quotes.map((quote) => [quote.quoteId, quote]))
   let positionCount = 0
@@ -101,39 +161,32 @@ export function calculatePortfolioSummary(
   let todayPricedPositionCount = 0
 
   for (const stock of watchlist) {
-    if (!stock.position) continue
-    positionCount += 1
-    const metrics = calculatePositionMetrics(stock.position, quoteMap.get(stock.quoteId))
-    if (metrics.marketValue === null || metrics.totalProfit === null) continue
-    pricedPositionCount += 1
-    costBasis += stock.position.cost * stock.position.quantity
-    marketValue += metrics.marketValue
-    totalProfit += metrics.totalProfit
-    if (metrics.todayProfit !== null) {
+    if (stock.position) positionCount += 1
+    const metrics = calculatePositionMetrics(
+      stock.position,
+      quoteMap.get(stock.quoteId),
+      tTradingAccounts[stock.quoteId]
+    )
+    if (stock.position && metrics.marketValue !== null && metrics.totalProfit !== null) {
+      pricedPositionCount += 1
+      costBasis += stock.position.cost * stock.position.quantity
+      marketValue += metrics.marketValue
+      totalProfit += metrics.totalProfit
+    }
+    if (metrics.todayProfit !== null && metrics.todayCostBasis !== null) {
       todayPricedPositionCount += 1
       todayProfit += metrics.todayProfit
-      todayCostBasis += metrics.marketValue - metrics.todayProfit
-    }
-  }
-
-  if (pricedPositionCount === 0) {
-    return {
-      costBasis: null,
-      marketValue: null,
-      todayProfit: null,
-      todayProfitPercent: null,
-      totalProfit: null,
-      profitPercent: null,
-      positionCount
+      todayCostBasis += metrics.todayCostBasis
     }
   }
 
   return {
-    costBasis,
-    marketValue,
+    costBasis: pricedPositionCount > 0 ? costBasis : null,
+    marketValue: pricedPositionCount > 0 ? marketValue : null,
     todayProfit: todayPricedPositionCount > 0 ? todayProfit : null,
     todayProfitPercent: todayCostBasis > 0 ? todayProfit / todayCostBasis * 100 : null,
-    totalProfit,
+    todayCostBasis: todayPricedPositionCount > 0 ? todayCostBasis : null,
+    totalProfit: pricedPositionCount > 0 ? totalProfit : null,
     profitPercent: costBasis > 0 ? totalProfit / costBasis * 100 : null,
     positionCount
   }

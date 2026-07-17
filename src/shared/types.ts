@@ -164,6 +164,7 @@ export interface TTradingAccount {
   name: string
   activeBatch?: TTradingBatch
   history: TTradingBatch[]
+  baseTrades?: TTrade[]
 }
 
 export type TTradingAccounts = Record<string, TTradingAccount>
@@ -186,19 +187,48 @@ export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
   'positionQuantity',
   'cost',
   'marketValue',
+  'totalProfit',
+  'profitPercent',
+  'todayProfit',
+  'todayProfitPercent',
+  'operation'
+] as const
+
+export type WatchlistColumnId = typeof DEFAULT_WATCHLIST_COLUMN_ORDER[number]
+export const WATCHLIST_COLUMN_ORDER_VERSION = 1
+
+const PREVIOUS_DEFAULT_WATCHLIST_COLUMN_ORDER: readonly WatchlistColumnId[] = [
+  'stock',
+  'latest',
+  'changePercent',
+  'open',
+  'high',
+  'low',
+  'amount',
+  'radar',
+  'positionQuantity',
+  'cost',
+  'marketValue',
   'todayProfit',
   'todayProfitPercent',
   'totalProfit',
   'profitPercent',
   'operation'
-] as const
+]
 
-export type WatchlistColumnId = typeof DEFAULT_WATCHLIST_COLUMN_ORDER[number]
+function isPreviousDefaultColumnOrder(columnOrder: readonly WatchlistColumnId[]): boolean {
+  return columnOrder.length === PREVIOUS_DEFAULT_WATCHLIST_COLUMN_ORDER.length
+    && columnOrder.every((columnId, index) => (
+      columnId === PREVIOUS_DEFAULT_WATCHLIST_COLUMN_ORDER[index]
+    ))
+}
 
 export function normalizeWatchlistColumnOrder(
   columnOrder: readonly WatchlistColumnId[] | undefined
 ): WatchlistColumnId[] {
-  const source = columnOrder ?? DEFAULT_WATCHLIST_COLUMN_ORDER
+  const source = columnOrder && isPreviousDefaultColumnOrder(columnOrder)
+    ? DEFAULT_WATCHLIST_COLUMN_ORDER
+    : columnOrder ?? DEFAULT_WATCHLIST_COLUMN_ORDER
   const validColumns = new Set<WatchlistColumnId>(DEFAULT_WATCHLIST_COLUMN_ORDER)
   const normalized = source.filter((columnId, index) => (
     columnId !== 'operation'
@@ -209,6 +239,19 @@ export function normalizeWatchlistColumnOrder(
     columnId !== 'operation' && !normalized.includes(columnId)
   ))
   return [...normalized, ...missingColumns, 'operation']
+}
+
+export function migrateWatchlistColumnOrder(
+  columnOrder: readonly WatchlistColumnId[] | undefined,
+  version: number | undefined
+): WatchlistColumnId[] {
+  const normalized = normalizeWatchlistColumnOrder(columnOrder)
+  if ((version ?? 0) >= WATCHLIST_COLUMN_ORDER_VERSION) return normalized
+
+  const migrated: WatchlistColumnId[] = normalized.filter((columnId) => columnId !== 'todayProfit')
+  const profitPercentIndex = migrated.indexOf('profitPercent')
+  migrated.splice(profitPercentIndex + 1, 0, 'todayProfit')
+  return migrated
 }
 
 export interface StockQuote {
@@ -414,6 +457,7 @@ export interface AppState {
   watchlist: WatchStock[]
   settings: AppSettings
   columnOrder: WatchlistColumnId[]
+  columnOrderVersion?: number
   tTradingAccounts: TTradingAccounts
 }
 

@@ -14,7 +14,9 @@ import { join } from 'node:path'
 import {
   DEFAULT_APP_SETTINGS,
   DEFAULT_WATCHLIST_COLUMN_ORDER,
+  WATCHLIST_COLUMN_ORDER_VERSION,
   getMarketIndexStocks,
+  migrateWatchlistColumnOrder,
   normalizeAppSettings,
   normalizeTradingCalendarSettings,
   normalizeTTradingAccounts,
@@ -43,6 +45,7 @@ const DEFAULT_WATCHLIST: WatchStock[] = [
 const DEFAULT_STATE: AppState = {
   watchlist: DEFAULT_WATCHLIST,
   columnOrder: [...DEFAULT_WATCHLIST_COLUMN_ORDER],
+  columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
   settings: { ...DEFAULT_APP_SETTINGS },
   tTradingAccounts: {}
 }
@@ -66,12 +69,17 @@ function statePath(): string {
 function loadState(): AppState {
   try {
     const saved = JSON.parse(readFileSync(statePath(), 'utf8')) as AppState
-    return {
+    const loadedState: AppState = {
       watchlist: normalizeWatchlist(saved.watchlist ?? DEFAULT_WATCHLIST),
       settings: normalizeAppSettings(saved.settings),
-      columnOrder: normalizeWatchlistColumnOrder(saved.columnOrder),
+      columnOrder: migrateWatchlistColumnOrder(saved.columnOrder, saved.columnOrderVersion),
+      columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
       tTradingAccounts: normalizeTTradingAccounts(saved.tTradingAccounts)
     }
+    if (saved.columnOrderVersion !== WATCHLIST_COLUMN_ORDER_VERSION) {
+      writeFileSync(statePath(), JSON.stringify(loadedState, null, 2), 'utf8')
+    }
+    return loadedState
   } catch {
     return structuredClone(DEFAULT_STATE)
   }
@@ -442,6 +450,8 @@ function registerIpc(): void {
       ...nextState,
       watchlist: normalizeWatchlist(nextState.watchlist),
       settings: normalizeAppSettings(nextState.settings),
+      columnOrder: normalizeWatchlistColumnOrder(nextState.columnOrder),
+      columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
       tTradingAccounts: normalizeTTradingAccounts(nextState.tTradingAccounts)
     }
     const refreshSettingsChanged = state.settings.priorityRefreshSeconds !== normalizedState.settings.priorityRefreshSeconds

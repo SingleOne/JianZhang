@@ -44,6 +44,8 @@ interface TTradingDrawerProps {
   onClose: () => void
 }
 
+const HISTORY_PAGE_SIZE = 10
+
 function localDateTimeInput(): string {
   const now = new Date()
   return new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
@@ -118,6 +120,7 @@ export function TTradingDrawer({
   const [historyProfitDraft, setHistoryProfitDraft] = useState('')
   const [historyProfitError, setHistoryProfitError] = useState('')
   const [showAllActiveTrades, setShowAllActiveTrades] = useState(false)
+  const [historyPage, setHistoryPage] = useState(0)
 
   const activeMetrics = useMemo(
     () => calculateTBatchMetrics(currentAccount.activeBatch, quote?.latest),
@@ -138,6 +141,23 @@ export function TTradingDrawer({
   const totalHistoryProfit = currentAccount.history.reduce(
     (total, batch) => total + (batch.settlement?.finalProfit ?? 0),
     0
+  )
+  const currentBatchFees = (currentAccount.activeBatch?.trades ?? []).reduce(
+    (total, trade) => total + totalTradeFees(trade.fees),
+    0
+  )
+  const totalHistoryFees = currentAccount.history.reduce(
+    (total, batch) => total + batch.trades.reduce(
+      (batchTotal, trade) => batchTotal + totalTradeFees(trade.fees),
+      0
+    ),
+    0
+  )
+  const historyPageCount = Math.ceil(currentAccount.history.length / HISTORY_PAGE_SIZE)
+  const currentHistoryPage = Math.min(historyPage, Math.max(0, historyPageCount - 1))
+  const visibleHistoryBatches = currentAccount.history.slice(
+    currentHistoryPage * HISTORY_PAGE_SIZE,
+    (currentHistoryPage + 1) * HISTORY_PAGE_SIZE
   )
   const numericPrice = Number(price)
   const numericQuantity = Number(quantity)
@@ -281,7 +301,13 @@ export function TTradingDrawer({
         setError('减持数量不能超过当前持仓数量')
         return
       }
-      applyAccount(currentAccount, applyTradeToPosition(stock.position, trade))
+      applyAccount(
+        {
+          ...currentAccount,
+          baseTrades: [...(currentAccount.baseTrades ?? []), trade]
+        },
+        applyTradeToPosition(stock.position, trade)
+      )
       resetTradeForm()
       return
     }
@@ -431,6 +457,7 @@ export function TTradingDrawer({
       activeBatch: undefined,
       history: [settledBatch, ...currentAccount.history]
     }, nextPosition)
+    setHistoryPage(0)
     setSettlementNote('')
     setSettlementBatchId('')
     resetTradeForm()
@@ -548,20 +575,18 @@ export function TTradingDrawer({
               <strong>{formatCost(activeMetrics.averageCost)}</strong>
             </span>
             <span>
-              <small>当前批次收益</small>
-              <strong className={valueClass(activeMetrics.realizedProfit)}>
-                {formatProfit(activeMetrics.realizedProfit)}
-              </strong>
-            </span>
-            <span>
-              <small>浮动收益</small>
-              <strong className={valueClass(activeMetrics.floatingProfit)}>
-                {formatProfit(activeMetrics.floatingProfit)}
-              </strong>
-            </span>
-            <span>
               <small>当前价格</small>
               <strong>{formatPrice(quote?.latest)}</strong>
+            </span>
+            <span>
+              <small>做T总收益</small>
+              <strong className={valueClass(totalHistoryProfit)}>
+                {formatProfit(totalHistoryProfit)}
+              </strong>
+            </span>
+            <span className="t-overview-fee">
+              <small>做T总费用</small>
+              <strong>{formatCurrency(totalHistoryFees)}</strong>
             </span>
           </section>
 
@@ -675,7 +700,25 @@ export function TTradingDrawer({
                       开始于 {formatTradeTime(currentAccount.activeBatch.openedAt)}
                     </small>
                   </span>
-                  <em>{currentAccount.activeBatch.trades.length} 笔流水</em>
+                  <div className="t-batch-summary">
+                    <span>
+                      <small>当前批次收益</small>
+                      <strong className={valueClass(activeMetrics.realizedProfit)}>
+                        {formatProfit(activeMetrics.realizedProfit)}
+                      </strong>
+                    </span>
+                    <span>
+                      <small>浮动收益</small>
+                      <strong className={valueClass(activeMetrics.floatingProfit)}>
+                        {formatProfit(activeMetrics.floatingProfit)}
+                      </strong>
+                    </span>
+                    <span>
+                      <small>当前批次费用</small>
+                      <strong>{formatCurrency(currentBatchFees)}</strong>
+                    </span>
+                    <em>{currentAccount.activeBatch.trades.length} 笔流水</em>
+                  </div>
                 </div>
                 <div className="t-trade-list">
                   {visibleActiveTrades.map((trade) => (
@@ -872,12 +915,28 @@ export function TTradingDrawer({
                   <strong>做T历史</strong>
                   <small>共完成 {currentAccount.history.length} 个批次</small>
                 </span>
-                <em className={`t-history-total ${valueClass(totalHistoryProfit)}`}>
-                  做T总收益 {formatProfit(totalHistoryProfit)}
-                </em>
+                {historyPageCount > 1 ? (
+                  <div className="t-history-pagination" aria-label="做T历史分页">
+                    <button
+                      type="button"
+                      onClick={() => setHistoryPage((current) => Math.max(0, current - 1))}
+                      disabled={currentHistoryPage === 0}
+                    >
+                      上一页
+                    </button>
+                    <span>{currentHistoryPage + 1} / {historyPageCount}</span>
+                    <button
+                      type="button"
+                      onClick={() => setHistoryPage((current) => Math.min(historyPageCount - 1, current + 1))}
+                      disabled={currentHistoryPage === historyPageCount - 1}
+                    >
+                      下一页
+                    </button>
+                  </div>
+                ) : null}
               </div>
               <div className="t-history-list">
-                {currentAccount.history.map((batch) => (
+                {visibleHistoryBatches.map((batch) => (
                   <details key={batch.id}>
                     <summary>
                       <span>
