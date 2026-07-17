@@ -17,6 +17,44 @@ export function normalizeWatchlist(stocks: readonly WatchStock[]): WatchStock[] 
   }))
 }
 
+export const MARKET_INDEX_OPTIONS = [
+  { id: 'shanghai', code: '000001', name: '上证指数', quoteId: '1.000001', marketLabel: '沪指' },
+  { id: 'shenzhen', code: '399001', name: '深证成指', quoteId: '0.399001', marketLabel: '深指' },
+  { id: 'chinext', code: '399006', name: '创业板指', quoteId: '0.399006', marketLabel: '创业板' },
+  { id: 'sse50', code: '000016', name: '上证50', quoteId: '1.000016', marketLabel: '沪指' },
+  { id: 'csi300', code: '000300', name: '沪深300', quoteId: '1.000300', marketLabel: '沪深' },
+  { id: 'star50', code: '000688', name: '科创50', quoteId: '1.000688', marketLabel: '科创板' },
+  { id: 'csi500', code: '000905', name: '中证500', quoteId: '1.000905', marketLabel: '中证' },
+  { id: 'csi1000', code: '000852', name: '中证1000', quoteId: '1.000852', marketLabel: '中证' },
+  { id: 'bse50', code: '899050', name: '北证50', quoteId: '0.899050', marketLabel: '北交所' }
+] as const
+
+export type MarketIndexId = typeof MARKET_INDEX_OPTIONS[number]['id']
+
+export const DEFAULT_MARKET_INDEX_IDS: MarketIndexId[] = ['shanghai', 'shenzhen', 'chinext']
+
+export function normalizeMarketIndexIds(indexIds: readonly string[] | undefined): MarketIndexId[] {
+  const selectedIds = new Set(indexIds ?? DEFAULT_MARKET_INDEX_IDS)
+  return MARKET_INDEX_OPTIONS
+    .filter((index) => selectedIds.has(index.id))
+    .map((index) => index.id)
+}
+
+export function getMarketIndexStocks(indexIds: readonly MarketIndexId[]): WatchStock[] {
+  const selectedIds = new Set(indexIds)
+  return MARKET_INDEX_OPTIONS
+    .filter((index) => selectedIds.has(index.id))
+    .map((index) => ({
+      code: index.code,
+      name: index.name,
+      quoteId: index.quoteId,
+      marketLabel: index.marketLabel,
+      showInTaskbar: false,
+      isPriority: false,
+      showRadarSignals: false
+    }))
+}
+
 export interface StockPosition {
   quantity: number
   cost: number
@@ -122,6 +160,15 @@ export interface FundsFlowResult {
   points: FundsFlowPoint[]
 }
 
+export interface SectorIndexResult {
+  stockQuoteId: string
+  boardCode: string
+  boardName: string
+  boardQuoteId: string
+  quote: StockQuote
+  trend: KlineResult
+}
+
 export interface SearchResult {
   code: string
   name: string
@@ -132,6 +179,7 @@ export interface SearchResult {
 export interface AppSettings {
   priorityRefreshSeconds: number
   regularRefreshSeconds: number
+  marketIndexIds: MarketIndexId[]
   startWithWindows: boolean
   minimizeToTray: boolean
   showTaskbarTicker: boolean
@@ -141,6 +189,7 @@ export interface AppSettings {
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   priorityRefreshSeconds: 5,
   regularRefreshSeconds: 10,
+  marketIndexIds: [...DEFAULT_MARKET_INDEX_IDS],
   startWithWindows: false,
   minimizeToTray: true,
   showTaskbarTicker: true,
@@ -161,6 +210,9 @@ export function normalizeAppSettings(
     regularRefreshSeconds: Math.min(300, Math.max(3,
       settings?.regularRefreshSeconds ?? regularFallback
     )),
+    marketIndexIds: normalizeMarketIndexIds(
+      Array.isArray(settings?.marketIndexIds) ? settings.marketIndexIds : undefined
+    ),
     startWithWindows: settings?.startWithWindows ?? DEFAULT_APP_SETTINGS.startWithWindows,
     minimizeToTray: settings?.minimizeToTray ?? DEFAULT_APP_SETTINGS.minimizeToTray,
     showTaskbarTicker: settings?.showTaskbarTicker ?? DEFAULT_APP_SETTINGS.showTaskbarTicker,
@@ -197,6 +249,7 @@ export interface StockDesktopApi {
   refreshQuotes: () => Promise<StockQuote[]>
   getKline: (quoteId: string, period: KlinePeriod, limit?: number) => Promise<KlineResult>
   getFundsFlow: (quoteId: string) => Promise<FundsFlowResult>
+  getSectorIndex: (quoteId: string) => Promise<SectorIndexResult>
   saveState: (state: AppState) => Promise<AppState>
   exportConfig: (state: AppState) => Promise<ConfigExportResult>
   importConfig: () => Promise<ConfigImportResult>

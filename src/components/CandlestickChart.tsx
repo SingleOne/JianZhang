@@ -1,12 +1,14 @@
 import {
   ColorType,
   createChart,
+  createSeriesMarkers,
   CrosshairMode,
   HistogramSeries,
   LineSeries,
   type HistogramData,
   type LineData,
   type MouseEventParams,
+  type SeriesMarker,
   type Time,
   type UTCTimestamp,
   type WhitespaceData
@@ -125,6 +127,40 @@ function intradayVolumeData(
   })
 }
 
+function intradayExtremaMarkers(bars: KlineBar[]): SeriesMarker<Time>[] {
+  let highestBar = bars[0]
+  let lowestBar = bars[0]
+
+  for (let index = 1; index < bars.length; index += 1) {
+    const bar = bars[index]
+    if (bar.high > highestBar.high) highestBar = bar
+    if (bar.low < lowestBar.low) lowestBar = bar
+  }
+
+  const highMarker: SeriesMarker<Time> = {
+    time: toTimestamp(highestBar.time),
+    position: 'atPriceTop',
+    price: highestBar.high,
+    shape: 'arrowDown',
+    color: '#dc3742',
+    text: `最高 ${formatPrice(highestBar.high)}`,
+    size: 1
+  }
+  const lowMarker: SeriesMarker<Time> = {
+    time: toTimestamp(lowestBar.time),
+    position: 'atPriceBottom',
+    price: lowestBar.low,
+    shape: 'arrowUp',
+    color: '#189266',
+    text: `最低 ${formatPrice(lowestBar.low)}`,
+    size: 1
+  }
+
+  return toTimestamp(highestBar.time) <= toTimestamp(lowestBar.time)
+    ? [highMarker, lowMarker]
+    : [lowMarker, highMarker]
+}
+
 export default function CandlestickChart({
   bars,
   variant = 'intraday',
@@ -144,8 +180,8 @@ export default function CandlestickChart({
     const volumeContainer = volumeContainerRef.current
     const barsByTime = new Map(bars.map((bar) => [toTimestamp(bar.time), bar]))
     const sessionSlots = isIntraday ? intradaySessionSlots(bars) : []
-    const fixedRange = isIntraday
-      ? { from: -0.5, to: sessionSlots.length - 0.5 }
+    const fixedTimeRange = isIntraday
+      ? { from: sessionSlots[0], to: sessionSlots.at(-1)! }
       : null
 
     const priceChart = createChart(priceContainer, {
@@ -171,15 +207,15 @@ export default function CandlestickChart({
         borderColor: '#e2e8f0',
         timeVisible: true,
         secondsVisible: false,
-        rightOffset: isIntraday ? 0 : 2,
+        rightOffset: 0,
         barSpacing: 10,
-        fixLeftEdge: isIntraday,
-        fixRightEdge: isIntraday,
-        lockVisibleTimeRangeOnResize: isIntraday,
+        fixLeftEdge: true,
+        fixRightEdge: true,
+        lockVisibleTimeRangeOnResize: true,
         tickMarkFormatter: (time: Time) => timeLabel(time, variant === 'fiveDay')
       },
-      handleScroll: !isIntraday,
-      handleScale: !isIntraday,
+      handleScroll: false,
+      handleScale: false,
       crosshair: {
         mode: CrosshairMode.Normal,
         vertLine: {
@@ -217,6 +253,19 @@ export default function CandlestickChart({
       : bars.map((bar) => ({ time: toTimestamp(bar.time), value: bar.close })))
 
     if (isIntraday) {
+      const timeRangeAnchor = priceChart.addSeries(LineSeries, {
+        priceScaleId: '',
+        color: 'transparent',
+        lineVisible: false,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false
+      })
+      timeRangeAnchor.setData([
+        { time: fixedTimeRange!.from, value: 0 },
+        { time: fixedTimeRange!.to, value: 0 }
+      ])
+
       const auctionLine = priceChart.addSeries(LineSeries, {
         color: '#8b5cf6',
         lineWidth: 2,
@@ -237,6 +286,11 @@ export default function CandlestickChart({
         crosshairMarkerVisible: false
       })
       averagePriceLine.setData(intradayAverageData(sessionSlots, bars))
+
+      createSeriesMarkers(priceLine, intradayExtremaMarkers(bars), {
+        autoScale: true,
+        zOrder: 'aboveSeries'
+      })
     }
 
     let volumeChart: ReturnType<typeof createChart> | null = null
@@ -282,7 +336,19 @@ export default function CandlestickChart({
         priceLineVisible: false
       })
       volume.setData(intradayVolumeData(sessionSlots, barsByTime))
-      volumeChart.timeScale().setVisibleLogicalRange(fixedRange!)
+      const timeRangeAnchor = volumeChart.addSeries(LineSeries, {
+        priceScaleId: '',
+        color: 'transparent',
+        lineVisible: false,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false
+      })
+      timeRangeAnchor.setData([
+        { time: fixedTimeRange!.from, value: 0 },
+        { time: fixedTimeRange!.to, value: 0 }
+      ])
+      volumeChart.timeScale().setVisibleRange(fixedTimeRange!)
     } else {
       const volume = priceChart.addSeries(HistogramSeries, {
         priceFormat: { type: 'volume' },
@@ -333,8 +399,8 @@ export default function CandlestickChart({
     }
     priceChart.subscribeCrosshairMove(handleCrosshairMove)
 
-    if (fixedRange) {
-      priceChart.timeScale().setVisibleLogicalRange(fixedRange)
+    if (fixedTimeRange) {
+      priceChart.timeScale().setVisibleRange(fixedTimeRange)
     } else {
       priceChart.timeScale().fitContent()
     }

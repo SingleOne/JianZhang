@@ -14,6 +14,7 @@ import { join } from 'node:path'
 import {
   DEFAULT_APP_SETTINGS,
   DEFAULT_WATCHLIST_COLUMN_ORDER,
+  getMarketIndexStocks,
   normalizeAppSettings,
   normalizeWatchlist,
   normalizeWatchlistColumnOrder,
@@ -24,7 +25,7 @@ import {
 } from '../../src/shared/types'
 import { createConfigDocument, parseConfigDocument } from '../../src/shared/config'
 import { isBeijingAutoRefreshTime } from '../../src/shared/market-hours'
-import { fetchFundsFlow, fetchKline, fetchQuotes, searchStocks } from './market'
+import { fetchFundsFlow, fetchKline, fetchQuotes, fetchSectorIndex, searchStocks } from './market'
 import { createAppIcon } from './tray-icons'
 
 const DEFAULT_WATCHLIST: WatchStock[] = [
@@ -246,7 +247,8 @@ function syncTaskbarWindow(): void {
 function mergeQuotes(refreshedQuotes: StockQuote[]): void {
   const quoteMap = new Map(latestQuotes.map((quote) => [quote.quoteId, quote]))
   for (const quote of refreshedQuotes) quoteMap.set(quote.quoteId, quote)
-  latestQuotes = state.watchlist.flatMap((stock) => {
+  const displayedStocks = [...state.watchlist, ...getMarketIndexStocks(state.settings.marketIndexIds)]
+  latestQuotes = displayedStocks.flatMap((stock) => {
     const quote = quoteMap.get(stock.quoteId)
     return quote ? [quote] : []
   })
@@ -254,13 +256,21 @@ function mergeQuotes(refreshedQuotes: StockQuote[]): void {
 
 async function refreshStocks(
   stocks: WatchStock[],
-  group: 'all' | 'priority' | 'regular'
+  group: 'all' | 'priority' | 'regular',
+  includeMarketIndices = false
 ): Promise<StockQuote[]> {
-  if (stocks.length === 0 || refreshesInFlight.has(group)) return latestQuotes
+  const marketIndices = includeMarketIndices ? getMarketIndexStocks(state.settings.marketIndexIds) : []
+  if ((stocks.length === 0 && marketIndices.length === 0) || refreshesInFlight.has(group)) return latestQuotes
   refreshesInFlight.add(group)
 
   try {
-    mergeQuotes(await fetchQuotes(stocks, state.watchlist.filter((stock) => stock.showRadarSignals)))
+    const [stockQuotes, marketIndexQuotes] = await Promise.all([
+      stocks.length > 0
+        ? fetchQuotes(stocks, state.watchlist.filter((stock) => stock.showRadarSignals))
+        : Promise.resolve([]),
+      marketIndices.length > 0 ? fetchQuotes(marketIndices, []) : Promise.resolve([])
+    ])
+    mergeQuotes([...stockQuotes, ...marketIndexQuotes])
     sendToWindows('quotes:updated', latestQuotes)
     updateAppTrayMenu()
     syncTaskbarWindow()
@@ -275,7 +285,7 @@ async function refreshStocks(
 }
 
 function refreshAll(): Promise<StockQuote[]> {
-  return refreshStocks(state.watchlist, 'all')
+  return refreshStocks(state.watchlist, 'all', true)
 }
 
 function refreshPriorityStocks(): Promise<StockQuote[]> {
@@ -285,7 +295,7 @@ function refreshPriorityStocks(): Promise<StockQuote[]> {
 
 function refreshRegularStocks(): Promise<StockQuote[]> {
   if (!isBeijingAutoRefreshTime()) return Promise.resolve(latestQuotes)
-  return refreshStocks(state.watchlist.filter((stock) => !stock.isPriority), 'regular')
+  return refreshStocks(state.watchlist.filter((stock) => !stock.isPriority), 'regular', true)
 }
 
 function refreshAllAutomatically(): Promise<StockQuote[]> {
@@ -356,6 +366,7 @@ function registerIpc(): void {
     fetchKline(quoteId, period, limit)
   ))
   ipcMain.handle('funds-flow:get', (_event, quoteId: string) => fetchFundsFlow(quoteId))
+  ipcMain.handle('sector-index:get', (_event, quoteId: string) => fetchSectorIndex(quoteId))
   ipcMain.handle('state:save', async (_event, nextState: AppState) => {
     const normalizedState: AppState = {
       ...nextState,
@@ -364,6 +375,7 @@ function registerIpc(): void {
     }
     const refreshSettingsChanged = state.settings.priorityRefreshSeconds !== normalizedState.settings.priorityRefreshSeconds
       || state.settings.regularRefreshSeconds !== normalizedState.settings.regularRefreshSeconds
+    const marketIndicesChanged = state.settings.marketIndexIds.join(',') !== normalizedState.settings.marketIndexIds.join(',')
     const startWithWindowsChanged = state.settings.startWithWindows !== normalizedState.settings.startWithWindows
     const watchedStocksChanged = state.watchlist.length !== normalizedState.watchlist.length
       || state.watchlist.some((stock) => !normalizedState.watchlist.some((nextStock) => nextStock.quoteId === stock.quoteId))
@@ -379,7 +391,8 @@ function registerIpc(): void {
     sendToWindows('state:updated', state)
     updateAppTrayMenu()
     syncTaskbarWindow()
-    if (watchedStocksChanged || priorityChanged) void refreshAllAutomatically()
+    if (marketIndicesChanged) void refreshAll()
+    else if (watchedStocksChanged || priorityChanged) void refreshAllAutomatically()
     return state
   })
   ipcMain.handle('config:export', async (_event, stateToExport: AppState) => {

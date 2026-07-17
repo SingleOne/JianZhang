@@ -4,6 +4,7 @@ import type {
   KlinePeriod,
   KlineResult,
   SearchResult,
+  SectorIndexResult,
   StockQuote,
   StockRadarSignal,
   WatchStock
@@ -89,6 +90,15 @@ let historyRadarCache: RadarCache | undefined
 let todayRadarRefresh: Promise<void> | undefined
 let historyRadarRefresh: Promise<void> | undefined
 
+interface SectorBinding {
+  boardCode: string
+  boardName: string
+  boardQuoteId: string
+  cachedAt: number
+}
+
+const sectorBindingCache = new Map<string, SectorBinding>()
+
 async function requestJson<T>(url: string): Promise<T> {
   let lastError: unknown
 
@@ -110,6 +120,16 @@ async function requestJson<T>(url: string): Promise<T> {
   }
 
   throw lastError instanceof Error ? lastError : new Error('行情服务暂时不可用')
+}
+
+async function requestText(url: string): Promise<string> {
+  const response = await net.fetch(url, {
+    headers: EASTMONEY_HEADERS,
+    signal: AbortSignal.timeout(12_000)
+  })
+
+  if (!response.ok) throw new Error(`行情服务返回 ${response.status}`)
+  return response.text()
 }
 
 function scaled(value: number | '-' | undefined): number | null {
@@ -450,6 +470,56 @@ export async function fetchKline(
           bars: fallback.bars.filter((bar) => bar.time.startsWith(tradingDate))
         }
       }
+  }
+}
+
+async function fetchSectorBinding(stockQuoteId: string): Promise<SectorBinding> {
+  const cached = sectorBindingCache.get(stockQuoteId)
+  if (cached && Date.now() - cached.cachedAt < 24 * 60 * 60_000) return cached
+
+  const html = await requestText(`https://quote.eastmoney.com/unify/r/${stockQuoteId}`)
+  const quotedata = html.match(/var\s+quotedata\s*=\s*(\{[^;]+\});/)
+  if (!quotedata) throw new Error('暂未获取到该股票的所属板块')
+
+  const data = JSON.parse(quotedata[1]) as { bk_id?: string; bk_name?: string }
+  if (!data.bk_id || !data.bk_name) throw new Error('该股票暂无所属行业板块数据')
+
+  const boardCode = data.bk_id.toUpperCase()
+  const binding = {
+    boardCode,
+    boardName: data.bk_name,
+    boardQuoteId: `90.${boardCode}`,
+    cachedAt: Date.now()
+  }
+  sectorBindingCache.set(stockQuoteId, binding)
+  return binding
+}
+
+export async function fetchSectorIndex(stockQuoteId: string): Promise<SectorIndexResult> {
+  const binding = await fetchSectorBinding(stockQuoteId)
+  const boardStock: WatchStock = {
+    code: binding.boardCode,
+    name: binding.boardName,
+    quoteId: binding.boardQuoteId,
+    marketLabel: '行业板块',
+    showInTaskbar: false,
+    isPriority: false,
+    showRadarSignals: false
+  }
+  const [quotes, trend] = await Promise.all([
+    fetchQuotes([boardStock], []),
+    fetchKline(binding.boardQuoteId, 'intraday')
+  ])
+  const quote = quotes[0]
+  if (!quote) throw new Error('行情服务未返回板块指数数据')
+
+  return {
+    stockQuoteId,
+    boardCode: binding.boardCode,
+    boardName: binding.boardName,
+    boardQuoteId: binding.boardQuoteId,
+    quote,
+    trend
   }
 }
 

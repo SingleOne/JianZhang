@@ -5,8 +5,9 @@ import { SearchBar } from './components/SearchBar'
 import { SettingsMenu } from './components/SettingsMenu'
 import { WatchlistTable } from './components/WatchlistTable'
 import { initialState, isDesktopRuntime, stockApi } from './lib/api'
-import { formatPercent, formatProfit, formatUpdateTime } from './lib/format'
+import { formatPercent, formatPrice, formatProfit, formatUpdateTime } from './lib/format'
 import { calculatePortfolioSummary } from './lib/portfolio'
+import { MARKET_INDEX_OPTIONS } from './shared/types'
 import type {
   AppSettings,
   AppState,
@@ -15,6 +16,11 @@ import type {
   StockQuote,
   WatchlistColumnId
 } from './shared/types'
+
+function directionClass(value: number | null | undefined): string {
+  if (value === null || value === undefined || value === 0) return 'is-flat'
+  return value > 0 ? 'is-up' : 'is-down'
+}
 
 export default function App() {
   const [state, setState] = useState<AppState>(initialState)
@@ -79,6 +85,13 @@ export default function App() {
     () => calculatePortfolioSummary(state.watchlist, quotes),
     [quotes, state.watchlist]
   )
+  const marketIndexQuotes = useMemo(() => {
+    const selectedIds = new Set(state.settings.marketIndexIds)
+    const quotesById = new Map(quotes.map((quote) => [quote.quoteId, quote]))
+    return MARKET_INDEX_OPTIONS
+      .filter((index) => selectedIds.has(index.id))
+      .map((index) => ({ index, quote: quotesById.get(index.quoteId) }))
+  }, [quotes, state.settings.marketIndexIds])
   const lastUpdated = quotes.reduce<string | undefined>((latest, quote) => {
     if (!latest || quote.updatedAt > latest) return quote.updatedAt
     return latest
@@ -253,6 +266,25 @@ export default function App() {
                 <span>{state.watchlist.length} 只股票 · {state.watchlist.filter((stock) => stock.isPriority).length} 只重点 · {portfolioSummary.positionCount} 只有持仓 · 点击股票行展开行情详情</span>
               </div>
               <div className="panel-heading-side">
+                {marketIndexQuotes.length > 0 ? (
+                  <div className="market-index-summary" aria-label="大盘指数行情">
+                    {marketIndexQuotes.map(({ index, quote }) => (
+                      <span
+                        className="market-index-card"
+                        title={`${index.name} ${formatPrice(quote?.latest)} ${formatPercent(quote?.changePercent)}`}
+                        key={index.id}
+                      >
+                        <small>{index.name}</small>
+                        <span>
+                          <strong>{formatPrice(quote?.latest)}</strong>
+                          <em className={directionClass(quote?.changePercent)}>
+                            {formatPercent(quote?.changePercent)}
+                          </em>
+                        </span>
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
                 <div className="portfolio-summary" aria-label="全部持仓收益汇总">
                   <span>
                     <small>今日总收益</small>

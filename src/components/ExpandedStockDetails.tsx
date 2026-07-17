@@ -1,16 +1,17 @@
-import { AlertCircle, BarChart3, RefreshCw, TrendingUp } from 'lucide-react'
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+import { AlertCircle, BarChart3, Layers, RefreshCw, TrendingUp } from 'lucide-react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { stockApi } from '../lib/api'
-import { formatAmount, formatPrice, formatVolume } from '../lib/format'
+import { formatAmount, formatPercent, formatPrice, formatVolume } from '../lib/format'
 import { isBeijingAutoRefreshTime, millisecondsUntilNextAutoRefreshWindow } from '../shared/market-hours'
 import type { KlineBar, KlinePeriod, KlineResult, StockQuote, WatchStock } from '../shared/types'
 import { FundsFlowPanel } from './FundsFlowPanel'
 
 const CandlestickChart = lazy(() => import('./CandlestickChart'))
 const PeriodKlineChart = lazy(() => import('./PeriodKlineChart'))
+const SectorIndexPanel = lazy(() => import('./SectorIndexPanel'))
 
 type PriceTab = Exclude<KlinePeriod, 'intraday'> | 'trend'
-type DetailTab = PriceTab | 'funds'
+type DetailTab = PriceTab | 'funds' | 'sector'
 type HistoricalPeriod = Extract<KlinePeriod, 'daily' | 'weekly' | 'monthly'>
 
 interface KlineCacheEntry {
@@ -69,7 +70,9 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
   const [historyLimits, setHistoryLimits] = useState<Record<HistoricalPeriod, number>>({
     ...INITIAL_HISTORY_LIMITS
   })
-  const activeHistoricalLimit = activeTab !== 'funds' && isHistoricalTab(activeTab)
+  const activeHistoricalLimit = activeTab !== 'funds'
+    && activeTab !== 'sector'
+    && isHistoricalTab(activeTab)
     ? historyLimits[activeTab]
     : undefined
 
@@ -78,7 +81,7 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
   }, [activeTab, stock.quoteId])
 
   useEffect(() => {
-    if (activeTab === 'funds') return
+    if (activeTab === 'funds' || activeTab === 'sector') return
 
     const tab = activeTab
     const key = cacheKey(stock.quoteId, tab)
@@ -137,7 +140,7 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
     }
   }, [activeHistoricalLimit, activeTab, refreshSeconds, refreshVersion, stock.quoteId])
 
-  const priceTab = activeTab === 'funds' ? null : activeTab
+  const priceTab = activeTab === 'funds' || activeTab === 'sector' ? null : activeTab
   const data = priceTab ? dataByTab[priceTab] ?? null : null
   const error = priceTab ? errors[priceTab] ?? '' : ''
   const tabMeta = priceTab ? PRICE_TABS.find((item) => item.id === priceTab) : undefined
@@ -145,9 +148,22 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
   const historicalPeriod = priceTab && isHistoricalTab(priceTab) ? priceTab : null
   const isHistorical = historicalPeriod !== null
   const overviewBar = priceTab === 'trend' ? null : hoveredBar
+  const changePercentByTime = useMemo(() => {
+    const changes = new Map<string, number>()
+    if (!isHistorical || !data) return changes
+
+    for (let index = 1; index < data.bars.length; index += 1) {
+      const previousClose = data.bars[index - 1].close
+      if (previousClose !== 0) {
+        changes.set(data.bars[index].time, (data.bars[index].close - previousClose) / previousClose * 100)
+      }
+    }
+    return changes
+  }, [data, isHistorical])
   const overview = overviewBar ? [
     ['开盘', formatPrice(overviewBar.open)],
     ['收盘', formatPrice(overviewBar.close)],
+    ...(isHistorical ? [['涨幅', formatPercent(changePercentByTime.get(overviewBar.time))]] : []),
     ['最高', formatPrice(overviewBar.high)],
     ['最低', formatPrice(overviewBar.low)],
     ['成交量', formatVolume(overviewBar.volume)],
@@ -202,6 +218,16 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
         >
           <TrendingUp size={15} />
           资金流向
+        </button>
+        <button
+          className={activeTab === 'sector' ? 'is-active' : ''}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'sector'}
+          onClick={() => setActiveTab('sector')}
+        >
+          <Layers size={15} />
+          板块
         </button>
       </div>
 
@@ -276,9 +302,15 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
             )}
           </div>
         </div>
-      ) : (
+      ) : activeTab === 'funds' ? (
         <div className="funds-tab-panel" role="tabpanel">
           <FundsFlowPanel stock={stock} refreshSeconds={refreshSeconds} />
+        </div>
+      ) : (
+        <div className="sector-tab-panel" role="tabpanel">
+          <Suspense fallback={<div className="chart-loading">正在加载板块详情…</div>}>
+            <SectorIndexPanel stock={stock} refreshSeconds={refreshSeconds} />
+          </Suspense>
         </div>
       )}
     </section>

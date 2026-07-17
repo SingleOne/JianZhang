@@ -1,6 +1,7 @@
 import {
   DEFAULT_APP_SETTINGS,
   DEFAULT_WATCHLIST_COLUMN_ORDER,
+  getMarketIndexStocks,
   normalizeAppSettings,
   normalizeWatchlist,
   normalizeWatchlistColumnOrder,
@@ -11,6 +12,7 @@ import {
   type KlinePeriod,
   type KlineResult,
   type SearchResult,
+  type SectorIndexResult,
   type StockDesktopApi,
   type StockQuote,
   type WatchStock
@@ -27,6 +29,16 @@ const DEMO_STOCKS: SearchResult[] = [
   { code: '601318', name: '中国平安', quoteId: '1.601318', marketLabel: '沪A' }
 ]
 
+const DEMO_SECTORS: Record<string, { code: string; name: string; quoteId: string }> = {
+  '1.600519': { code: 'BK0896', name: '白酒', quoteId: '90.BK0896' },
+  '0.300750': { code: 'BK1033', name: '电池', quoteId: '90.BK1033' },
+  '0.002594': { code: 'BK1029', name: '汽车整车', quoteId: '90.BK1029' },
+  '1.600030': { code: 'BK0473', name: '证券', quoteId: '90.BK0473' },
+  '1.600036': { code: 'BK0475', name: '银行Ⅱ', quoteId: '90.BK0475' },
+  '0.000858': { code: 'BK0896', name: '白酒', quoteId: '90.BK0896' },
+  '1.601318': { code: 'BK0474', name: '保险', quoteId: '90.BK0474' }
+}
+
 const DEFAULT_WATCHLIST: WatchStock[] = DEMO_STOCKS.slice(0, 5).map((stock, index) => ({
   ...stock,
   showInTaskbar: index < 2,
@@ -41,6 +53,51 @@ const DEFAULT_STATE: AppState = {
 }
 
 const DEMO_VALUES: Record<string, Omit<StockQuote, 'updatedAt'>> = {
+  '1.000001': {
+    code: '000001', name: '上证指数', quoteId: '1.000001', latest: 3516.28, change: 18.64,
+    changePercent: 0.53, open: 3499.42, high: 3522.17, low: 3491.08, previousClose: 3497.64,
+    volume: 428_621_900, amount: 512_684_000_000
+  },
+  '0.399001': {
+    code: '399001', name: '深证成指', quoteId: '0.399001', latest: 10728.46, change: -31.62,
+    changePercent: -0.29, open: 10754.81, high: 10788.36, low: 10692.17, previousClose: 10760.08,
+    volume: 512_386_400, amount: 688_275_000_000
+  },
+  '0.399006': {
+    code: '399006', name: '创业板指', quoteId: '0.399006', latest: 2218.75, change: 14.28,
+    changePercent: 0.65, open: 2205.12, high: 2226.44, low: 2198.63, previousClose: 2204.47,
+    volume: 143_862_000, amount: 276_518_000_000
+  },
+  '90.BK0896': {
+    code: 'BK0896', name: '白酒', quoteId: '90.BK0896', latest: 42876.42, change: 286.14,
+    changePercent: 0.67, open: 42620.15, high: 43118.26, low: 42571.88, previousClose: 42590.28,
+    volume: 2_865_300, amount: 42_168_400_000
+  },
+  '90.BK1033': {
+    code: 'BK1033', name: '电池', quoteId: '90.BK1033', latest: 1584.28, change: -8.47,
+    changePercent: -0.53, open: 1591.36, high: 1603.42, low: 1576.18, previousClose: 1592.75,
+    volume: 8_735_600, amount: 68_276_000_000
+  },
+  '90.BK1029': {
+    code: 'BK1029', name: '汽车整车', quoteId: '90.BK1029', latest: 1846.75, change: 21.36,
+    changePercent: 1.17, open: 1828.46, high: 1859.72, low: 1821.05, previousClose: 1825.39,
+    volume: 6_482_100, amount: 51_739_000_000
+  },
+  '90.BK0473': {
+    code: 'BK0473', name: '证券', quoteId: '90.BK0473', latest: 1358.12, change: 9.64,
+    changePercent: 0.71, open: 1349.88, high: 1364.24, low: 1345.17, previousClose: 1348.48,
+    volume: 7_164_800, amount: 57_829_000_000
+  },
+  '90.BK0475': {
+    code: 'BK0475', name: '银行Ⅱ', quoteId: '90.BK0475', latest: 1205.36, change: -3.12,
+    changePercent: -0.26, open: 1208.75, high: 1212.63, low: 1201.48, previousClose: 1208.48,
+    volume: 5_732_400, amount: 48_615_000_000
+  },
+  '90.BK0474': {
+    code: 'BK0474', name: '保险', quoteId: '90.BK0474', latest: 1098.62, change: 7.94,
+    changePercent: 0.73, open: 1092.18, high: 1104.37, low: 1088.56, previousClose: 1090.68,
+    volume: 3_164_200, amount: 25_742_000_000
+  },
   '1.600519': {
     code: '600519', name: '贵州茅台', quoteId: '1.600519', latest: 1248.06, change: -3.0,
     changePercent: -0.24, open: 1252.0, high: 1264.62, low: 1245.05, previousClose: 1251.06,
@@ -201,6 +258,29 @@ function makeDemoFundsFlow(quoteId: string): FundsFlowResult {
   return { quoteId, name: quote?.name ?? '', tradingDate, points }
 }
 
+function makeDemoSectorIndex(stockQuoteId: string): SectorIndexResult {
+  const sector = DEMO_SECTORS[stockQuoteId] ?? {
+    code: 'BK0727',
+    name: '综合行业',
+    quoteId: '90.BK0727'
+  }
+  const sectorStock: WatchStock = {
+    ...sector,
+    marketLabel: '行业板块',
+    showInTaskbar: false,
+    isPriority: false,
+    showRadarSignals: false
+  }
+  return {
+    stockQuoteId,
+    boardCode: sector.code,
+    boardName: sector.name,
+    boardQuoteId: sector.quoteId,
+    quote: makeDemoQuotes([sectorStock])[0],
+    trend: makeDemoKline(sector.quoteId, 'intraday')
+  }
+}
+
 const noSubscribe = (): (() => void) => () => undefined
 
 function demoConfigFileName(): string {
@@ -210,7 +290,8 @@ function demoConfigFileName(): string {
 const demoApi: StockDesktopApi = {
   async getBootstrap(): Promise<BootstrapResult> {
     const state = loadDemoState()
-    return { state, quotes: makeDemoQuotes(state.watchlist), source: 'demo' }
+    const marketIndices = getMarketIndexStocks(state.settings.marketIndexIds)
+    return { state, quotes: makeDemoQuotes([...state.watchlist, ...marketIndices]), source: 'demo' }
   },
   async searchStocks(query) {
     const normalized = query.trim().toLowerCase()
@@ -219,13 +300,17 @@ const demoApi: StockDesktopApi = {
     )
   },
   async refreshQuotes() {
-    return makeDemoQuotes(loadDemoState().watchlist)
+    const state = loadDemoState()
+    return makeDemoQuotes([...state.watchlist, ...getMarketIndexStocks(state.settings.marketIndexIds)])
   },
   async getKline(quoteId, period, limit) {
     return makeDemoKline(quoteId, period, limit)
   },
   async getFundsFlow(quoteId) {
     return makeDemoFundsFlow(quoteId)
+  },
+  async getSectorIndex(quoteId) {
+    return makeDemoSectorIndex(quoteId)
   },
   async saveState(state) {
     localStorage.setItem('jianzhang-demo-state-v1', JSON.stringify(state))

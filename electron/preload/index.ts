@@ -13,6 +13,7 @@ const api: StockDesktopApi = {
   refreshQuotes: () => ipcRenderer.invoke('quotes:refresh'),
   getKline: (quoteId, period, limit) => ipcRenderer.invoke('kline:get', quoteId, period, limit),
   getFundsFlow: (quoteId) => ipcRenderer.invoke('funds-flow:get', quoteId),
+  getSectorIndex: (quoteId) => ipcRenderer.invoke('sector-index:get', quoteId),
   saveState: (state) => ipcRenderer.invoke('state:save', state),
   exportConfig: (state) => ipcRenderer.invoke('config:export', state),
   importConfig: () => ipcRenderer.invoke('config:import'),

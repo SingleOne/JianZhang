@@ -1,5 +1,5 @@
 import { Download, Settings2, Upload } from 'lucide-react'
-import type { AppSettings } from '../shared/types'
+import { MARKET_INDEX_OPTIONS, type AppSettings, type MarketIndexId } from '../shared/types'
 
 interface SettingsMenuProps {
   settings: AppSettings
@@ -16,6 +16,18 @@ export function SettingsMenu({
   onExportConfig,
   configBusy
 }: SettingsMenuProps) {
+  const toggleMarketIndex = (indexId: MarketIndexId, selected: boolean) => {
+    const selectedIds = new Set(settings.marketIndexIds)
+    if (selected) selectedIds.add(indexId)
+    else selectedIds.delete(indexId)
+    onChange({
+      ...settings,
+      marketIndexIds: MARKET_INDEX_OPTIONS
+        .filter((index) => selectedIds.has(index.id))
+        .map((index) => index.id)
+    })
+  }
+
   return (
     <details className="settings-menu">
       <summary className="secondary-button">
@@ -67,6 +79,22 @@ export function SettingsMenu({
             <span>秒</span>
           </span>
         </label>
+        <fieldset className="market-index-setting">
+          <legend>大盘指数</legend>
+          <small>选择显示在总收益左侧的指数，按其余股票间隔刷新</small>
+          <div className="market-index-options">
+            {MARKET_INDEX_OPTIONS.map((index) => (
+              <label key={index.id}>
+                <input
+                  type="checkbox"
+                  checked={settings.marketIndexIds.includes(index.id)}
+                  onChange={(event) => toggleMarketIndex(index.id, event.target.checked)}
+                />
+                <span>{index.name}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
         <label className="setting-row">
           <span>
             <strong>任务栏行情</strong>
