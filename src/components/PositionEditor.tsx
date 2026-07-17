@@ -150,7 +150,7 @@ export function PositionEditor({ stock, quote, onSave, onClose }: PositionEditor
                 <input
                   type="number"
                   min="1"
-                  step="1"
+                  step="100"
                   required={hasPositionInput}
                   autoFocus
                   value={quantity}
@@ -277,7 +277,7 @@ export function PositionEditor({ stock, quote, onSave, onClose }: PositionEditor
                         className="position-snapshot-number"
                         type="number"
                         min="1"
-                        step="1"
+                        step="100"
                         required
                         value={snapshot.quantity}
                         onChange={(event) => updateSnapshot(snapshot.id, {

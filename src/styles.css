@@ -935,16 +935,19 @@ tr:focus-visible {
   padding: 5px 10px;
   background: #f8fafc;
   border: 1px solid #edf0f4;
+  border-left: 3px solid #98a2b3;
   border-radius: 7px;
 }
 
 .portfolio-summary > span.is-card-up {
   border-color: rgba(220, 55, 66, 0.2);
+  border-left-color: var(--red);
   box-shadow: 0 3px 12px rgba(220, 55, 66, 0.2);
 }
 
 .portfolio-summary > span.is-card-down {
   border-color: rgba(24, 146, 102, 0.2);
+  border-left-color: var(--green);
   box-shadow: 0 3px 12px rgba(24, 146, 102, 0.2);
 }
 
@@ -1247,7 +1250,7 @@ tr:focus-visible {
 .watchlist-table th,
 .watchlist-table td {
   padding: 0 5px;
-  text-align: right;
+  text-align: center;
   white-space: nowrap;
 }
 
@@ -1267,7 +1270,7 @@ tr:focus-visible {
 
 .watchlist-table .stock-column {
   padding-left: 8px;
-  text-align: left;
+  text-align: center;
 }
 
 .column-sort-button {
@@ -1275,7 +1278,7 @@ tr:focus-visible {
   height: 40px;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 4px;
   padding: 0;
   color: inherit;
@@ -1299,7 +1302,7 @@ tr:focus-visible {
 }
 
 .stock-column .column-sort-button {
-  justify-content: flex-start;
+  justify-content: center;
 }
 
 .stock-row {
@@ -1344,6 +1347,7 @@ tr:focus-visible {
   min-width: 0;
   display: flex;
   align-items: center;
+  justify-content: center;
   overflow: hidden;
 }
 
@@ -1352,6 +1356,7 @@ tr:focus-visible {
   display: grid;
   gap: 4px;
   overflow: hidden;
+  text-align: center;
 }
 
 .stock-identity strong {
@@ -1428,7 +1433,7 @@ tr:focus-visible {
 
 .change-cell {
   display: grid;
-  justify-items: end;
+  justify-items: center;
   gap: 3px;
 }
 
@@ -1456,7 +1461,7 @@ tr:focus-visible {
 
 .position-quantity-cell {
   display: inline-grid;
-  justify-items: end;
+  justify-items: center;
   gap: 2px;
 }
 
@@ -1511,6 +1516,19 @@ tr:focus-visible {
 
 .row-action-button.is-locked {
   cursor: default;
+}
+
+.t-letter-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid currentColor;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
 }
 
 .settings-column {
@@ -1727,6 +1745,26 @@ tr:focus-visible {
   white-space: normal;
   background: #f8fafc;
   border-bottom: 1px solid var(--border);
+}
+
+.expanded-row-motion {
+  display: grid;
+  grid-template-rows: 1fr;
+  overflow: hidden;
+  transform-origin: top center;
+}
+
+.expanded-row-content {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.expanded-row.is-opening .expanded-row-motion {
+  animation: stock-details-open 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.expanded-row.is-closing .expanded-row-motion {
+  animation: stock-details-close 180ms ease-in forwards;
 }
 
 .position-dialog-backdrop {
@@ -1958,6 +1996,7 @@ tr:focus-visible {
   border-bottom: 1px solid #edf0f4;
   font-size: 10px;
   font-variant-numeric: tabular-nums;
+  text-align: center;
 }
 
 .position-snapshot-row:last-child {
@@ -1986,6 +2025,7 @@ tr:focus-visible {
   min-width: 0;
   display: grid;
   gap: 3px;
+  text-align: center;
 }
 
 .position-snapshot-name strong {
@@ -2013,6 +2053,7 @@ tr:focus-visible {
   outline: 0;
   font-size: 10px;
   font-variant-numeric: tabular-nums;
+  text-align: center;
 }
 
 .position-snapshot-name input:focus,
@@ -2170,6 +2211,16 @@ tr:focus-visible {
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.t-overview-grid strong.is-up,
+.t-settlement-preview strong.is-up {
+  color: var(--red);
+}
+
+.t-overview-grid strong.is-down,
+.t-settlement-preview strong.is-down {
+  color: var(--green);
 }
 
 .t-card {
@@ -2401,10 +2452,18 @@ tr:focus-visible {
 }
 
 .t-trade-amount {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
   color: #586579;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   text-align: right;
+}
+
+.t-trade-amount small {
+  color: #7b8799;
+  font-size: 9px;
 }
 
 .t-trade-actions {
@@ -2435,7 +2494,7 @@ tr:focus-visible {
 .t-sell-level {
   min-height: 42px;
   display: grid;
-  grid-template-columns: 42px 115px 95px 135px 1fr 1fr;
+  grid-template-columns: 42px 105px 90px 120px 1fr 1fr 1fr;
   align-items: center;
   gap: 7px;
   padding: 4px 9px;
@@ -2443,7 +2502,7 @@ tr:focus-visible {
   border-bottom: 1px solid #edf0f4;
   font-size: 10px;
   font-variant-numeric: tabular-nums;
-  text-align: right;
+  text-align: center;
 }
 
 .t-sell-level:last-child {
@@ -2478,7 +2537,7 @@ tr:focus-visible {
   padding: 0 6px;
   border: 0;
   outline: 0;
-  text-align: right;
+  text-align: center;
 }
 
 .t-sell-level label span {
@@ -2584,6 +2643,14 @@ tr:focus-visible {
   font-size: 11px;
 }
 
+.t-history-list summary strong.is-up {
+  color: var(--red);
+}
+
+.t-history-list summary strong.is-down {
+  color: var(--green);
+}
+
 .t-history-list summary small {
   color: #8a94a6;
   font-size: 9px;
@@ -2613,6 +2680,54 @@ tr:focus-visible {
   margin: 3px 0 0;
   color: #586579;
   font-size: 10px;
+}
+
+.t-history-list p strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.t-history-settlement {
+  display: grid;
+  gap: 7px;
+}
+
+.t-history-edit-button {
+  width: max-content;
+}
+
+.t-history-profit-editor {
+  display: flex;
+  align-items: end;
+  gap: 7px;
+}
+
+.t-history-profit-editor label {
+  display: grid;
+  gap: 4px;
+  color: #687386;
+  font-size: 9px;
+}
+
+.t-history-profit-editor input {
+  width: 150px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid #dce2ea;
+  border-radius: 6px;
+  outline: 0;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.t-history-profit-editor input:focus {
+  border-color: #8cb1ff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+
+.t-history-profit-editor > small {
+  align-self: center;
+  color: #c93643;
+  font-size: 9px;
 }
 
 @keyframes t-drawer-in {
@@ -2926,7 +3041,7 @@ tr:focus-visible {
 .funds-flow-table td {
   height: 26px;
   padding: 0 7px;
-  text-align: right;
+  text-align: center;
   border-bottom: 1px solid #f0f2f6;
   white-space: nowrap;
 }
@@ -2940,7 +3055,7 @@ tr:focus-visible {
 
 .funds-flow-table th:first-child,
 .funds-flow-table td:first-child {
-  text-align: left;
+  text-align: center;
 }
 
 .funds-flow-table tbody tr:last-child td {
@@ -3269,6 +3384,34 @@ tr:focus-visible {
   }
 }
 
+@keyframes stock-details-open {
+  from {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes stock-details-close {
+  from {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
 @keyframes live-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.45; }
@@ -3322,7 +3465,7 @@ tr:focus-visible {
   }
 
   .t-sell-level {
-    grid-template-columns: 32px 90px 80px 105px 1fr 1fr;
+    grid-template-columns: 32px 80px 75px 95px 1fr 1fr 1fr;
   }
 
   .command-bar {

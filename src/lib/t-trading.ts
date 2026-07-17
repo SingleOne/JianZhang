@@ -44,17 +44,21 @@ export function calculateTradeFees(
 ): TTradeFees {
   const handling = feeByRate(amount, settings.handlingRatePerTenThousand)
   const regulatory = feeByRate(amount, settings.regulatoryRatePerTenThousand)
+  const transfer = Math.max(
+    0.01,
+    feeByRate(amount, settings.transferRatePerTenThousand)
+  )
   const baseCommission = feeByRate(amount, settings.commissionRatePerTenThousand)
   const minimumCommission = Math.max(
     0,
-    roundMoney(settings.minimumCommissionBundle - handling - regulatory)
+    roundMoney(settings.minimumCommissionBundle - handling - regulatory - transfer)
   )
 
   return {
     commission: Math.max(baseCommission, minimumCommission),
     handling,
     regulatory,
-    transfer: Math.max(0.01, feeByRate(amount, settings.transferRatePerTenThousand)),
+    transfer,
     stampDuty: side === 'sell'
       ? feeByRate(amount, settings.stampDutyRatePerTenThousand)
       : 0

@@ -12,7 +12,6 @@ import {
   PencilLine,
   Pin,
   RotateCcw,
-  Repeat2,
   Search,
   Star,
   Trash2,
@@ -295,6 +294,7 @@ export function WatchlistTable({
   const [dragOverQuoteId, setDragOverQuoteId] = useState<string | null>(null)
   const [editingStock, setEditingStock] = useState<WatchStock | null>(null)
   const [tTradingStock, setTTradingStock] = useState<WatchStock | null>(null)
+  const [closingQuoteIds, setClosingQuoteIds] = useState<Set<string>>(() => new Set())
   const [radarPopover, setRadarPopover] = useState<RadarPopoverState | null>(null)
   const [locatedQuoteId, setLocatedQuoteId] = useState<string | null>(null)
   const tableScrollerRef = useRef<HTMLDivElement>(null)
@@ -392,6 +392,24 @@ export function WatchlistTable({
         return { column, direction: current.direction === 'asc' ? 'desc' : 'asc' }
       }
       return { column, direction: column === 'stock' ? 'asc' : 'desc' }
+    })
+  }
+
+  const toggleStockDetails = (quoteId: string) => {
+    setClosingQuoteIds((current) => {
+      const next = new Set(current)
+      if (selectedQuoteId) next.add(selectedQuoteId)
+      if (selectedQuoteId !== quoteId) next.delete(quoteId)
+      return next
+    })
+    onSelect(quoteId)
+  }
+
+  const finishClosingStockDetails = (quoteId: string) => {
+    setClosingQuoteIds((current) => {
+      const next = new Set(current)
+      next.delete(quoteId)
+      return next
     })
   }
 
@@ -553,6 +571,7 @@ export function WatchlistTable({
           <tbody>
             {displayedRows.map(({ stock, quote, metrics, manualIndex }) => {
               const selected = selectedQuoteId === stock.quoteId
+              const closing = closingQuoteIds.has(stock.quoteId)
               const quoteDirection = valueClass(quote?.changePercent)
               const currentRadarSignals = stock.showRadarSignals
                 ? todayRadarSignals(quote?.radarSignals)
@@ -563,9 +582,9 @@ export function WatchlistTable({
                   <tr
                     data-quote-id={stock.quoteId}
                     className={`stock-row ${selected ? 'is-selected' : ''} ${locatedQuoteId === stock.quoteId ? 'is-located' : ''} ${draggingQuoteId === stock.quoteId ? 'is-dragging' : ''} ${dragOverQuoteId === stock.quoteId ? 'is-drag-over' : ''}`}
-                    onClick={() => onSelect(stock.quoteId)}
+                    onClick={() => toggleStockDetails(stock.quoteId)}
                     onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') onSelect(stock.quoteId)
+                      if (event.key === 'Enter' || event.key === ' ') toggleStockDetails(stock.quoteId)
                     }}
                     onDragOver={(event) => {
                       if (sort || !draggingQuoteId || draggingQuoteId === stock.quoteId) return
@@ -656,10 +675,10 @@ export function WatchlistTable({
                           className={`row-action-button ${tTradingAccounts[stock.quoteId]?.activeBatch ? 'is-active' : ''}`}
                           type="button"
                           onClick={(event) => { event.stopPropagation(); setTTradingStock(stock) }}
-                          aria-label={`管理 ${stock.name} 的做T交易`}
-                          title={tTradingAccounts[stock.quoteId]?.activeBatch ? '继续记录当前T批次' : '做T管理'}
+                          aria-label={`管理 ${stock.name} 的T仓交易`}
+                          title={tTradingAccounts[stock.quoteId]?.activeBatch ? '继续记录当前T批次' : 'T仓管理'}
                         >
-                          <Repeat2 size={15} />
+                          <span className="t-letter-icon" aria-hidden="true">T</span>
                         </button>
                       </div>
                     </td>
@@ -768,14 +787,25 @@ export function WatchlistTable({
                       </button>
                     </td>
                   </tr>
-                  {selected ? (
-                    <tr className="expanded-row">
+                  {selected || closing ? (
+                    <tr className={`expanded-row ${closing && !selected ? 'is-closing' : 'is-opening'}`}>
                       <td colSpan={adjustableColumnOrder.length + 3}>
-                        <ExpandedStockDetails
-                          stock={stock}
-                          quote={quote}
-                          refreshSeconds={stock.isPriority ? priorityRefreshSeconds : regularRefreshSeconds}
-                        />
+                        <div
+                          className="expanded-row-motion"
+                          onAnimationEnd={(event) => {
+                            if (event.currentTarget === event.target && closing && !selected) {
+                              finishClosingStockDetails(stock.quoteId)
+                            }
+                          }}
+                        >
+                          <div className="expanded-row-content">
+                            <ExpandedStockDetails
+                              stock={stock}
+                              quote={quote}
+                              refreshSeconds={stock.isPriority ? priorityRefreshSeconds : regularRefreshSeconds}
+                            />
+                          </div>
+                        </div>
                       </td>
                     </tr>
                   ) : null}

@@ -17,6 +17,7 @@ import {
   calculateTradeFees,
   createDefaultSellLevels,
   recalculatePositionFromBatch,
+  roundMoney,
   totalTradeFees
 } from '../lib/t-trading'
 import type {
@@ -99,6 +100,9 @@ export function TTradingDrawer({
     stock.position?.cost.toString() ?? ''
   )
   const [settlementNote, setSettlementNote] = useState('')
+  const [editingHistoryBatchId, setEditingHistoryBatchId] = useState<string | null>(null)
+  const [historyProfitDraft, setHistoryProfitDraft] = useState('')
+  const [historyProfitError, setHistoryProfitError] = useState('')
 
   const activeMetrics = useMemo(
     () => calculateTBatchMetrics(currentAccount.activeBatch, quote?.latest),
@@ -148,12 +152,29 @@ export function TTradingDrawer({
       const expectedProfit = targetPrice === null || averageCost === null
         ? null
         : (targetPrice - averageCost) * level.quantity - totalTradeFees(fees)
+      const fullPositionFees = targetPrice === null
+        ? emptyFees()
+        : calculateTradeFees(targetPrice * activeMetrics.remainingQuantity, 'sell', feeSettings)
+      const fullPositionProfit = targetPrice === null || averageCost === null
+        ? null
+        : activeMetrics.realizedProfit
+          + (targetPrice - averageCost) * activeMetrics.remainingQuantity
+          - totalTradeFees(fullPositionFees)
       if (expectedProfit !== null) cumulativeProfit += expectedProfit
-      return { ...level, index, targetPrice, fees, expectedProfit, cumulativeProfit }
+      return {
+        ...level,
+        index,
+        targetPrice,
+        fees,
+        expectedProfit,
+        cumulativeProfit,
+        fullPositionProfit
+      }
     })
   }, [
     activeMetrics.averageCost,
     activeMetrics.realizedProfit,
+    activeMetrics.remainingQuantity,
     currentAccount.activeBatch?.sellLevels,
     feeSettings
   ])
@@ -355,6 +376,48 @@ export function TTradingDrawer({
     resetTradeForm()
   }
 
+  const startEditingHistoryProfit = (batch: TTradingBatch) => {
+    if (!batch.settlement) return
+    setEditingHistoryBatchId(batch.id)
+    setHistoryProfitDraft(
+      (batch.settlement.costAdjustedProfit ?? batch.settlement.finalProfit).toString()
+    )
+    setHistoryProfitError('')
+  }
+
+  const cancelEditingHistoryProfit = () => {
+    setEditingHistoryBatchId(null)
+    setHistoryProfitDraft('')
+    setHistoryProfitError('')
+  }
+
+  const saveHistoryProfit = (batchId: string) => {
+    if (historyProfitDraft.trim() === '') {
+      setHistoryProfitError('请输入成本校准收益')
+      return
+    }
+    const profit = Number(historyProfitDraft)
+    if (!Number.isFinite(profit)) {
+      setHistoryProfitError('请输入有效的收益金额')
+      return
+    }
+    const roundedProfit = roundMoney(profit)
+    const history = currentAccount.history.map((batch) => {
+      if (batch.id !== batchId || !batch.settlement) return batch
+      return {
+        ...batch,
+        settlement: {
+          ...batch.settlement,
+          costAdjustedProfit: roundedProfit,
+          finalProfit: roundedProfit,
+          source: 'position-cost' as const
+        }
+      }
+    })
+    applyAccount({ ...currentAccount, history }, stock.position)
+    cancelEditingHistoryProfit()
+  }
+
   const feeInput = (
     key: keyof TTradeFees,
     label: string
@@ -387,7 +450,7 @@ export function TTradingDrawer({
           <div>
             <span className="t-trading-icon"><Repeat2 size={20} /></span>
             <span>
-              <strong id="t-trading-title">做T管理 · {stock.name}</strong>
+              <strong id="t-trading-title">T仓管理 · {stock.name}</strong>
               <small>{stock.code} · 记录T仓买卖、目标价格与批次收益</small>
             </span>
           </div>
@@ -481,7 +544,7 @@ export function TTradingDrawer({
               </label>
               <label>
                 <span>成交数量</span>
-                <input type="number" min="1" step="1" value={quantity} onChange={(event) => setQuantity(event.target.value)} />
+                <input type="number" min="1" step="100" value={quantity} onChange={(event) => setQuantity(event.target.value)} />
               </label>
               <label>
                 <span>成交时间</span>
@@ -551,7 +614,17 @@ export function TTradingDrawer({
                         <strong>{formatShares(trade.quantity)} × {formatPrice(trade.price)}</strong>
                         <small>{formatTradeTime(trade.tradedAt)} · 费用 {formatCurrency(totalTradeFees(trade.fees))}</small>
                       </span>
-                      <span className="t-trade-amount">{formatCurrency(trade.price * trade.quantity)}</span>
+                      <span className="t-trade-amount">
+                        <span>{formatCurrency(trade.price * trade.quantity)}</span>
+                        <small>
+                          {trade.side === 'buy' ? '含费成本' : '净到账'}
+                          {' '}
+                          {formatCurrency(
+                            trade.price * trade.quantity
+                            + (trade.side === 'buy' ? 1 : -1) * totalTradeFees(trade.fees)
+                          )}
+                        </small>
+                      </span>
                       <span className="t-trade-actions">
                         <button className="icon-button" type="button" onClick={() => editTrade(trade)} title="修改交易">
                           <PencilLine size={14} />
@@ -583,6 +656,7 @@ export function TTradingDrawer({
                       <span>目标价格</span>
                       <span>卖出数量</span>
                       <span>本档净收益</span>
+                      <span>全仓卖出收益</span>
                       <span>累计收益</span>
                     </div>
                     {sellLevelRows.map((level) => (
@@ -603,13 +677,14 @@ export function TTradingDrawer({
                           <input
                             type="number"
                             min="0"
-                            step="1"
+                            step="100"
                             value={level.quantity}
                             onChange={(event) => updateSellLevel(level.index, 'quantity', Number(event.target.value))}
                           />
                           <span>股</span>
                         </label>
                         <span className={valueClass(level.expectedProfit)}>{formatProfit(level.expectedProfit)}</span>
+                        <span className={valueClass(level.fullPositionProfit)}>{formatProfit(level.fullPositionProfit)}</span>
                         <span className={valueClass(level.cumulativeProfit)}>{formatProfit(level.cumulativeProfit)}</span>
                       </div>
                     ))}
@@ -648,7 +723,7 @@ export function TTradingDrawer({
                       <input
                         type="number"
                         min="0"
-                        step="1"
+                        step="100"
                         value={latestPositionQuantity}
                         onChange={(event) => setLatestPositionQuantity(event.target.value)}
                       />
@@ -720,7 +795,7 @@ export function TTradingDrawer({
                       </span>
                       <span>
                         <small>{batch.settlement?.source === 'position-cost' ? '成本校准收益' : '流水收益'}</small>
-                        <strong className={valueClass(batch.settlement?.finalProfit)}>
+                        <strong className={`t-history-profit ${valueClass(batch.settlement?.finalProfit)}`}>
                           {formatProfit(batch.settlement?.finalProfit)}
                         </strong>
                       </span>
@@ -735,13 +810,57 @@ export function TTradingDrawer({
                         </span>
                       ))}
                       {batch.settlement ? (
-                        <p>
-                          流水收益 {formatProfit(batch.settlement.ledgerProfit)}
-                          {batch.settlement.costAdjustedProfit !== undefined
-                            ? ` · 成本推算 ${formatProfit(batch.settlement.costAdjustedProfit)}`
-                            : ''}
-                          {batch.settlement.note ? ` · ${batch.settlement.note}` : ''}
-                        </p>
+                        <div className="t-history-settlement">
+                          <p>
+                            流水收益{' '}
+                            <strong className={valueClass(batch.settlement.ledgerProfit)}>
+                              {formatProfit(batch.settlement.ledgerProfit)}
+                            </strong>
+                            {batch.settlement.costAdjustedProfit !== undefined ? (
+                              <>
+                                {' · 成本校准 '}
+                                <strong className={valueClass(batch.settlement.costAdjustedProfit)}>
+                                  {formatProfit(batch.settlement.costAdjustedProfit)}
+                                </strong>
+                              </>
+                            ) : null}
+                            {batch.settlement.note ? ` · ${batch.settlement.note}` : ''}
+                          </p>
+                          {editingHistoryBatchId === batch.id ? (
+                            <div className="t-history-profit-editor">
+                              <label>
+                                <span>成本校准收益</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={historyProfitDraft}
+                                  onChange={(event) => setHistoryProfitDraft(event.target.value)}
+                                  autoFocus
+                                />
+                              </label>
+                              <button
+                                className="primary-button compact-button"
+                                type="button"
+                                onClick={() => saveHistoryProfit(batch.id)}
+                              >
+                                保存
+                              </button>
+                              <button className="text-button" type="button" onClick={cancelEditingHistoryProfit}>
+                                取消
+                              </button>
+                              {historyProfitError ? <small>{historyProfitError}</small> : null}
+                            </div>
+                          ) : (
+                            <button
+                              className="text-button t-history-edit-button"
+                              type="button"
+                              onClick={() => startEditingHistoryProfit(batch)}
+                            >
+                              <PencilLine size={12} />
+                              修改成本校准收益
+                            </button>
+                          )}
+                        </div>
                       ) : null}
                     </div>
                   </details>
