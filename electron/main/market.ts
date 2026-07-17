@@ -394,7 +394,7 @@ async function fetchIntradayTrend(quoteId: string): Promise<KlineResult> {
   const url = new URL('https://push2.eastmoney.com/api/qt/stock/trends2/get')
   url.searchParams.set('secid', quoteId)
   url.searchParams.set('ndays', '1')
-  url.searchParams.set('iscr', '0')
+  url.searchParams.set('iscr', '1')
   url.searchParams.set('iscca', '0')
   url.searchParams.set('fields1', 'f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13')
   url.searchParams.set('fields2', 'f51,f52,f53,f54,f55,f56,f57,f58')
@@ -429,13 +429,15 @@ async function fetchHistoricalKline(
 
 export async function fetchKline(
   quoteId: string,
-  period: KlinePeriod = 'intraday'
+  period: KlinePeriod = 'intraday',
+  limit?: number
 ): Promise<KlineResult> {
+  const requestedLimit = Math.max(1, Math.round(limit ?? 0))
   switch (period) {
     case 'fiveDay': return fetchHistoricalKline(quoteId, '5', 240)
-    case 'daily': return fetchHistoricalKline(quoteId, '101', 120)
-    case 'weekly': return fetchHistoricalKline(quoteId, '102', 104)
-    case 'monthly': return fetchHistoricalKline(quoteId, '103', 60)
+    case 'daily': return fetchHistoricalKline(quoteId, '101', requestedLimit || 120)
+    case 'weekly': return fetchHistoricalKline(quoteId, '102', requestedLimit || 104)
+    case 'monthly': return fetchHistoricalKline(quoteId, '103', requestedLimit || 60)
     case 'intraday':
       try {
         return await fetchIntradayTrend(quoteId)

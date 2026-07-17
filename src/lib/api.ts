@@ -112,13 +112,13 @@ function makeDemoQuotes(watchlist: WatchStock[]): StockQuote[] {
   })
 }
 
-function makeDemoKline(quoteId: string, period: KlinePeriod): KlineResult {
+function makeDemoKline(quoteId: string, period: KlinePeriod, limit?: number): KlineResult {
   const quote = DEMO_VALUES[quoteId]
   const base = quote?.open ?? 48
   const date = new Date().toISOString().slice(0, 10)
   if (period === 'daily' || period === 'weekly' || period === 'monthly') {
     const intervalDays = period === 'daily' ? 1 : period === 'weekly' ? 7 : 30
-    const count = period === 'monthly' ? 60 : period === 'weekly' ? 104 : 120
+    const count = limit ?? (period === 'monthly' ? 60 : period === 'weekly' ? 104 : 120)
     const bars = Array.from({ length: count }, (_, index) => {
       const barDate = new Date()
       barDate.setDate(barDate.getDate() - (count - index - 1) * intervalDays)
@@ -145,12 +145,15 @@ function makeDemoKline(quoteId: string, period: KlinePeriod): KlineResult {
   }
 
   const dayCount = period === 'fiveDay' ? 5 : 1
-  const bars = Array.from({ length: 48 * dayCount }, (_, index) => {
-    const minuteIndex = index % 48
-    const dayIndex = Math.floor(index / 48)
-    const minutes = minuteIndex < 24 ? 35 + minuteIndex * 5 : 65 + minuteIndex * 5
-    const hour = minuteIndex < 24 ? 9 + Math.floor(minutes / 60) : 13 + Math.floor((minutes - 185) / 60)
-    const minute = minuteIndex < 24 ? minutes % 60 : (minutes - 185) % 60
+  const pointsPerDay = period === 'intraday' ? 63 : 48
+  const bars = Array.from({ length: pointsPerDay * dayCount }, (_, index) => {
+    const minuteIndex = index % pointsPerDay
+    const dayIndex = Math.floor(index / pointsPerDay)
+    const isAuction = period === 'intraday' && minuteIndex < 15
+    const regularIndex = isAuction ? 0 : minuteIndex - (period === 'intraday' ? 15 : 0)
+    const sessionMinutes = regularIndex < 24 ? 30 + regularIndex * 5 : (regularIndex - 24) * 5
+    const hour = isAuction ? 9 : regularIndex < 24 ? 9 + Math.floor(sessionMinutes / 60) : 13 + Math.floor(sessionMinutes / 60)
+    const minute = isAuction ? 15 + minuteIndex : sessionMinutes % 60
     const barDate = new Date()
     barDate.setDate(barDate.getDate() - (dayCount - dayIndex - 1))
     const wave = Math.sin(index / 4.2) * base * 0.0028
@@ -163,8 +166,8 @@ function makeDemoKline(quoteId: string, period: KlinePeriod): KlineResult {
       close,
       high: Math.max(open, close) + base * (0.0008 + (index % 3) * 0.0002),
       low: Math.min(open, close) - base * (0.0007 + (index % 2) * 0.0002),
-      volume: 850 + ((index * 173) % 2100),
-      amount: (850 + ((index * 173) % 2100)) * close * 100
+      volume: isAuction ? 0 : 850 + ((index * 173) % 2100),
+      amount: isAuction ? 0 : (850 + ((index * 173) % 2100)) * close * 100
     }
   })
   return {
@@ -218,8 +221,8 @@ const demoApi: StockDesktopApi = {
   async refreshQuotes() {
     return makeDemoQuotes(loadDemoState().watchlist)
   },
-  async getKline(quoteId, period) {
-    return makeDemoKline(quoteId, period)
+  async getKline(quoteId, period, limit) {
+    return makeDemoKline(quoteId, period, limit)
   },
   async getFundsFlow(quoteId) {
     return makeDemoFundsFlow(quoteId)

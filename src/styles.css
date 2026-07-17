@@ -1580,6 +1580,7 @@ tr:focus-visible {
 }
 
 .legend-price { color: #3f7fd3; }
+.legend-auction-price { color: #8b5cf6; }
 .legend-average-price { color: #d89414; }
 .legend-candlestick { color: #6f62d9; }
 .legend-volume { color: #dc3742; }
@@ -1786,13 +1787,66 @@ tr:focus-visible {
 }
 
 .candlestick-chart {
+  position: relative;
   width: 100%;
   height: 320px;
+}
+
+.chart-host {
+  position: absolute;
+  inset: 0;
+}
+
+.auction-zone {
+  position: absolute;
+  top: 0;
+  bottom: 25px;
+  z-index: 3;
+  overflow: hidden;
+  pointer-events: none;
+  background: rgba(139, 92, 246, 0.07);
+}
+
+.auction-zone span {
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  padding: 2px 5px;
+  color: #7c3aed;
+  background: rgba(255, 255, 255, 0.82);
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.auction-boundary {
+  position: absolute;
+  top: 0;
+  bottom: 25px;
+  z-index: 4;
+  width: 0;
+  pointer-events: none;
+  border-left: 1px dashed rgba(124, 58, 237, 0.72);
 }
 
 .period-kline-chart {
   width: 100%;
   height: 320px;
+}
+
+.chart-history-loading {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 5;
+  padding: 5px 8px;
+  color: #55739b;
+  background: rgba(239, 246, 255, 0.94);
+  border: 1px solid #cfe0f7;
+  border-radius: 6px;
+  font-size: 10px;
 }
 
 .chart-loading,

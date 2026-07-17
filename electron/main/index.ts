@@ -102,7 +102,7 @@ function formatPercent(value: number | null): string {
 function showMainWindow(quoteId?: string): void {
   if (!mainWindow || mainWindow.isDestroyed()) return
   mainWindow.show()
-  mainWindow.restore()
+  if (mainWindow.isMinimized()) mainWindow.restore()
   mainWindow.focus()
   if (quoteId) {
     mainWindow.webContents.send('stock:selected', quoteId)
@@ -330,7 +330,10 @@ function createWindow(): void {
   })
 
   mainWindow.setMenuBarVisibility(false)
-  mainWindow.on('ready-to-show', () => mainWindow?.show())
+  mainWindow.on('ready-to-show', () => {
+    mainWindow?.maximize()
+    mainWindow?.show()
+  })
   mainWindow.on('close', (event) => {
     if (!isQuitting && state.settings.minimizeToTray) {
       event.preventDefault()
@@ -349,7 +352,9 @@ function registerIpc(): void {
   ipcMain.handle('app:bootstrap', async () => ({ state, quotes: latestQuotes, source: 'eastmoney' as const }))
   ipcMain.handle('stocks:search', (_event, query: string) => searchStocks(query))
   ipcMain.handle('quotes:refresh', () => refreshAll())
-  ipcMain.handle('kline:get', (_event, quoteId: string, period: KlinePeriod) => fetchKline(quoteId, period))
+  ipcMain.handle('kline:get', (_event, quoteId: string, period: KlinePeriod, limit?: number) => (
+    fetchKline(quoteId, period, limit)
+  ))
   ipcMain.handle('funds-flow:get', (_event, quoteId: string) => fetchFundsFlow(quoteId))
   ipcMain.handle('state:save', async (_event, nextState: AppState) => {
     const normalizedState: AppState = {

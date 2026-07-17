@@ -195,7 +195,7 @@ export interface StockDesktopApi {
   getBootstrap: () => Promise<BootstrapResult>
   searchStocks: (query: string) => Promise<SearchResult[]>
   refreshQuotes: () => Promise<StockQuote[]>
-  getKline: (quoteId: string, period: KlinePeriod) => Promise<KlineResult>
+  getKline: (quoteId: string, period: KlinePeriod, limit?: number) => Promise<KlineResult>
   getFundsFlow: (quoteId: string) => Promise<FundsFlowResult>
   saveState: (state: AppState) => Promise<AppState>
   exportConfig: (state: AppState) => Promise<ConfigExportResult>

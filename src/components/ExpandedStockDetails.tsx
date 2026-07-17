@@ -1,9 +1,9 @@
 import { AlertCircle, BarChart3, RefreshCw, TrendingUp } from 'lucide-react'
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { stockApi } from '../lib/api'
 import { formatAmount, formatPrice, formatVolume } from '../lib/format'
 import { isBeijingAutoRefreshTime, millisecondsUntilNextAutoRefreshWindow } from '../shared/market-hours'
-import type { KlinePeriod, KlineResult, StockQuote, WatchStock } from '../shared/types'
+import type { KlineBar, KlinePeriod, KlineResult, StockQuote, WatchStock } from '../shared/types'
 import { FundsFlowPanel } from './FundsFlowPanel'
 
 const CandlestickChart = lazy(() => import('./CandlestickChart'))
@@ -11,20 +11,36 @@ const PeriodKlineChart = lazy(() => import('./PeriodKlineChart'))
 
 type PriceTab = Exclude<KlinePeriod, 'intraday'> | 'trend'
 type DetailTab = PriceTab | 'funds'
+type HistoricalPeriod = Extract<KlinePeriod, 'daily' | 'weekly' | 'monthly'>
 
 interface KlineCacheEntry {
   data: KlineResult
   cachedAt: number
+  requestedLimit?: number
 }
 
 const klineCache = new Map<string, KlineCacheEntry>()
 const PRICE_TABS: Array<{ id: PriceTab; label: string; description: string }> = [
-  { id: 'trend', label: '分时', description: '盘中分时线' },
+  { id: 'trend', label: '分时', description: '集合竞价与盘中分时线' },
   { id: 'fiveDay', label: '五日', description: '五日分时线' },
   { id: 'daily', label: '日K', description: '日 K 线' },
   { id: 'weekly', label: '周K', description: '周 K 线' },
   { id: 'monthly', label: '月K', description: '月 K 线' }
 ]
+const INITIAL_HISTORY_LIMITS: Record<HistoricalPeriod, number> = {
+  daily: 120,
+  weekly: 104,
+  monthly: 60
+}
+const MAX_HISTORY_LIMITS: Record<HistoricalPeriod, number> = {
+  daily: 1920,
+  weekly: 1664,
+  monthly: 960
+}
+
+function isHistoricalTab(tab: PriceTab): tab is HistoricalPeriod {
+  return tab === 'daily' || tab === 'weekly' || tab === 'monthly'
+}
 
 function apiPeriod(tab: PriceTab): KlinePeriod {
   return tab === 'trend' ? 'intraday' : tab
@@ -49,6 +65,17 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
   const [loadingTab, setLoadingTab] = useState<PriceTab | null>(initialTrend ? null : 'trend')
   const [errors, setErrors] = useState<Partial<Record<PriceTab, string>>>({})
   const [refreshVersion, setRefreshVersion] = useState(0)
+  const [hoveredBar, setHoveredBar] = useState<KlineBar | null>(null)
+  const [historyLimits, setHistoryLimits] = useState<Record<HistoricalPeriod, number>>({
+    ...INITIAL_HISTORY_LIMITS
+  })
+  const activeHistoricalLimit = activeTab !== 'funds' && isHistoricalTab(activeTab)
+    ? historyLimits[activeTab]
+    : undefined
+
+  useEffect(() => {
+    setHoveredBar(null)
+  }, [activeTab, stock.quoteId])
 
   useEffect(() => {
     if (activeTab === 'funds') return
@@ -57,6 +84,9 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
     const key = cacheKey(stock.quoteId, tab)
     const cached = klineCache.get(key)
     const isLiveChart = tab === 'trend' || tab === 'fiveDay'
+    const requestedLimit = isHistoricalTab(tab) ? activeHistoricalLimit : undefined
+    const cacheHasRequestedRange = requestedLimit === undefined
+      || (cached?.requestedLimit ?? 0) >= requestedLimit
     const freshness = isLiveChart ? Math.max(3, refreshSeconds) * 1000 : 5 * 60 * 1000
     let refreshTimer: number | undefined
     let active = true
@@ -72,7 +102,7 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
       }, isBeijingAutoRefreshTime() ? freshness : millisecondsUntilNextAutoRefreshWindow())
     }
 
-    if (refreshVersion === 0 && cached && Date.now() - cached.cachedAt < freshness) {
+    if (refreshVersion === 0 && cached && cacheHasRequestedRange && Date.now() - cached.cachedAt < freshness) {
       setDataByTab((current) => ({ ...current, [tab]: cached.data }))
       setErrors((current) => ({ ...current, [tab]: '' }))
       setLoadingTab(null)
@@ -80,12 +110,12 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
       return () => window.clearTimeout(refreshTimer)
     }
 
-    if (!cached) setLoadingTab(tab)
+    setLoadingTab(tab)
     setErrors((current) => ({ ...current, [tab]: '' }))
-    stockApi.getKline(stock.quoteId, apiPeriod(tab))
+    stockApi.getKline(stock.quoteId, apiPeriod(tab), requestedLimit)
       .then((result) => {
         if (!active) return
-        klineCache.set(key, { data: result, cachedAt: Date.now() })
+        klineCache.set(key, { data: result, cachedAt: Date.now(), requestedLimit })
         setDataByTab((current) => ({ ...current, [tab]: result }))
       })
       .catch((reason: unknown) => {
@@ -105,9 +135,23 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
       active = false
       window.clearTimeout(refreshTimer)
     }
-  }, [activeTab, refreshSeconds, refreshVersion, stock.quoteId])
+  }, [activeHistoricalLimit, activeTab, refreshSeconds, refreshVersion, stock.quoteId])
 
-  const overview = [
+  const priceTab = activeTab === 'funds' ? null : activeTab
+  const data = priceTab ? dataByTab[priceTab] ?? null : null
+  const error = priceTab ? errors[priceTab] ?? '' : ''
+  const tabMeta = priceTab ? PRICE_TABS.find((item) => item.id === priceTab) : undefined
+  const isLoading = priceTab !== null && loadingTab === priceTab
+  const historicalPeriod = priceTab && isHistoricalTab(priceTab) ? priceTab : null
+  const isHistorical = historicalPeriod !== null
+  const overview = hoveredBar ? [
+    ['开盘', formatPrice(hoveredBar.open)],
+    ['收盘', formatPrice(hoveredBar.close)],
+    ['最高', formatPrice(hoveredBar.high)],
+    ['最低', formatPrice(hoveredBar.low)],
+    ['成交量', formatVolume(hoveredBar.volume)],
+    ['成交额', formatAmount(hoveredBar.amount)]
+  ] : [
     ['今开', formatPrice(quote?.open)],
     ['昨收', formatPrice(quote?.previousClose)],
     ['最高', formatPrice(quote?.high)],
@@ -115,12 +159,17 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
     ['成交量', formatVolume(quote?.volume)],
     ['成交额', formatAmount(quote?.amount)]
   ]
-  const priceTab = activeTab === 'funds' ? null : activeTab
-  const data = priceTab ? dataByTab[priceTab] ?? null : null
-  const error = priceTab ? errors[priceTab] ?? '' : ''
-  const tabMeta = priceTab ? PRICE_TABS.find((item) => item.id === priceTab) : undefined
-  const isLoading = priceTab !== null && loadingTab === priceTab
-  const isHistorical = priceTab === 'daily' || priceTab === 'weekly' || priceTab === 'monthly'
+
+  const handleHoverBar = useCallback((bar: KlineBar | null) => {
+    setHoveredBar(bar)
+  }, [])
+
+  const requestMoreHistory = useCallback((period: HistoricalPeriod) => {
+    setHistoryLimits((current) => {
+      const nextLimit = Math.min(MAX_HISTORY_LIMITS[period], current[period] * 2)
+      return nextLimit === current[period] ? current : { ...current, [period]: nextLimit }
+    })
+  }, [])
 
   const retryCurrentTab = () => {
     if (priceTab) klineCache.delete(cacheKey(stock.quoteId, priceTab))
@@ -160,12 +209,13 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
           <div className="overview-header">
             <div>
               <strong>今日概览</strong>
-              <span>{data?.tradingDate || '最近交易日'} · {tabMeta?.description}</span>
+              <span>{hoveredBar?.time || data?.tradingDate || '最近交易日'} · {tabMeta?.description}</span>
             </div>
             <div className="chart-legend" aria-label="图表图例">
               <span className={isHistorical ? 'legend-candlestick' : 'legend-price'}>
                 {isHistorical ? 'K线' : '价格'}
               </span>
+              {priceTab === 'trend' ? <span className="legend-auction-price">集合竞价</span> : null}
               {priceTab === 'trend' ? <span className="legend-average-price">成交均价</span> : null}
               <span className="legend-volume">成交量</span>
             </div>
@@ -186,6 +236,9 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
                 <button type="button" onClick={retryCurrentTab}>重试</button>
               </div>
             ) : null}
+            {isLoading && data && isHistorical ? (
+              <div className="chart-history-loading">正在加载更早数据…</div>
+            ) : null}
             {isLoading && !data ? (
               <div className="chart-loading">
                 <BarChart3 size={28} />
@@ -202,10 +255,19 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
               </div>
             ) : data && data.bars.length > 0 ? (
               <Suspense fallback={<div className="chart-loading">正在初始化图表…</div>}>
-                {isHistorical ? (
-                  <PeriodKlineChart bars={data.bars} period={priceTab} />
+                {historicalPeriod ? (
+                  <PeriodKlineChart
+                    bars={data.bars}
+                    period={historicalPeriod}
+                    onHoverBar={handleHoverBar}
+                    onRequestMore={requestMoreHistory}
+                  />
                 ) : (
-                  <CandlestickChart bars={data.bars} variant={priceTab === 'fiveDay' ? 'fiveDay' : 'intraday'} />
+                  <CandlestickChart
+                    bars={data.bars}
+                    variant={priceTab === 'fiveDay' ? 'fiveDay' : 'intraday'}
+                    onHoverBar={handleHoverBar}
+                  />
                 )}
               </Suspense>
             ) : (
