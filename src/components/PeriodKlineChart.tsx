@@ -2,15 +2,18 @@ import {
   CandlestickSeries,
   ColorType,
   createChart,
+  createSeriesMarkers,
   CrosshairMode,
   HistogramSeries,
   type IChartApi,
   type ISeriesApi,
   type MouseEventParams,
+  type SeriesMarker,
   type Time,
   type UTCTimestamp
 } from 'lightweight-charts'
 import { useEffect, useRef } from 'react'
+import { formatPrice } from '../lib/format'
 import type { KlineBar, KlinePeriod } from '../shared/types'
 
 type HistoricalPeriod = Extract<KlinePeriod, 'daily' | 'weekly' | 'monthly'>
@@ -52,12 +55,15 @@ export default function PeriodKlineChart({
   const chartRef = useRef<IChartApi | null>(null)
   const candlesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
   const volumeRef = useRef<ISeriesApi<'Histogram'> | null>(null)
+  const barsRef = useRef(bars)
   const barsByTimeRef = useRef(new Map<UTCTimestamp, KlineBar>())
   const dataLengthRef = useRef(0)
   const lastRequestedLengthRef = useRef(-1)
   const isAligningRangeRef = useRef(false)
   const onHoverBarRef = useRef(onHoverBar)
   const onRequestMoreRef = useRef(onRequestMore)
+  const updateExtremaMarkersRef = useRef<(range: { from: number; to: number } | null) => void>(() => {})
+  barsRef.current = bars
   onHoverBarRef.current = onHoverBar
   onRequestMoreRef.current = onRequestMore
 
@@ -115,6 +121,58 @@ export default function PeriodKlineChart({
       lastValueVisible: true
     })
     candlesRef.current = candles
+    const extremaMarkers = createSeriesMarkers(candles, [], {
+      autoScale: true,
+      zOrder: 'aboveSeries'
+    })
+
+    const updateExtremaMarkers = (range: { from: number; to: number } | null) => {
+      const currentBars = barsRef.current
+      if (!range || currentBars.length === 0) {
+        extremaMarkers.setMarkers([])
+        return
+      }
+
+      const firstIndex = Math.max(0, Math.ceil(range.from))
+      const lastIndex = Math.min(currentBars.length - 1, Math.floor(range.to))
+      if (firstIndex > lastIndex) {
+        extremaMarkers.setMarkers([])
+        return
+      }
+
+      let highestBar = currentBars[firstIndex]
+      let lowestBar = currentBars[firstIndex]
+      for (let index = firstIndex + 1; index <= lastIndex; index += 1) {
+        const bar = currentBars[index]
+        if (bar.high > highestBar.high) highestBar = bar
+        if (bar.low < lowestBar.low) lowestBar = bar
+      }
+
+      const highMarker: SeriesMarker<Time> = {
+        time: toTimestamp(highestBar.time),
+        position: 'atPriceTop',
+        price: highestBar.high,
+        shape: 'arrowDown',
+        color: '#dc3742',
+        text: `最高 ${formatPrice(highestBar.high)}`,
+        size: 1
+      }
+      const lowMarker: SeriesMarker<Time> = {
+        time: toTimestamp(lowestBar.time),
+        position: 'atPriceBottom',
+        price: lowestBar.low,
+        shape: 'arrowUp',
+        color: '#189266',
+        text: `最低 ${formatPrice(lowestBar.low)}`,
+        size: 1
+      }
+      extremaMarkers.setMarkers(
+        toTimestamp(highestBar.time) <= toTimestamp(lowestBar.time)
+          ? [highMarker, lowMarker]
+          : [lowMarker, highMarker]
+      )
+    }
+    updateExtremaMarkersRef.current = updateExtremaMarkers
 
     const volume = chart.addSeries(HistogramSeries, {
       priceFormat: { type: 'volume' },
@@ -137,6 +195,9 @@ export default function PeriodKlineChart({
       const latestEdge = dataLengthRef.current - 0.5
       const visibleSpan = Math.max(5, range.to - range.from)
       const alignedFrom = latestEdge - visibleSpan
+      const alignedRange = { from: alignedFrom, to: latestEdge }
+
+      updateExtremaMarkers(alignedRange)
 
       if (alignedFrom < 12 && lastRequestedLengthRef.current !== dataLengthRef.current) {
         lastRequestedLengthRef.current = dataLengthRef.current
@@ -145,7 +206,7 @@ export default function PeriodKlineChart({
 
       if (Math.abs(range.to - latestEdge) > 0.05) {
         isAligningRangeRef.current = true
-        chart.timeScale().setVisibleLogicalRange({ from: alignedFrom, to: latestEdge })
+        chart.timeScale().setVisibleLogicalRange(alignedRange)
         requestAnimationFrame(() => { isAligningRangeRef.current = false })
       }
     }
@@ -165,6 +226,7 @@ export default function PeriodKlineChart({
       chartRef.current = null
       candlesRef.current = null
       volumeRef.current = null
+      updateExtremaMarkersRef.current = () => {}
     }
   }, [period])
 
@@ -194,8 +256,10 @@ export default function PeriodKlineChart({
 
     const visibleSpan = currentSpan ?? Math.min(INITIAL_VISIBLE_BARS[period], bars.length)
     const latestEdge = bars.length - 0.5
+    const nextRange = { from: latestEdge - visibleSpan, to: latestEdge }
     isAligningRangeRef.current = true
-    chart.timeScale().setVisibleLogicalRange({ from: latestEdge - visibleSpan, to: latestEdge })
+    chart.timeScale().setVisibleLogicalRange(nextRange)
+    updateExtremaMarkersRef.current(nextRange)
     requestAnimationFrame(() => { isAligningRangeRef.current = false })
   }, [bars, period])
 

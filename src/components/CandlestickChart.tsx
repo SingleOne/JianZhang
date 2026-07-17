@@ -4,12 +4,15 @@ import {
   CrosshairMode,
   HistogramSeries,
   LineSeries,
+  type HistogramData,
   type LineData,
   type MouseEventParams,
   type Time,
-  type UTCTimestamp
+  type UTCTimestamp,
+  type WhitespaceData
 } from 'lightweight-charts'
 import { useEffect, useRef } from 'react'
+import { formatPrice } from '../lib/format'
 import type { KlineBar } from '../shared/types'
 
 interface CandlestickChartProps {
@@ -18,11 +21,20 @@ interface CandlestickChartProps {
   onHoverBar?: (bar: KlineBar | null) => void
 }
 
+type LinePoint = LineData | WhitespaceData
+type VolumePoint = HistogramData | WhitespaceData
+
 function toTimestamp(value: string): UTCTimestamp {
   const [datePart, timePart] = value.split(' ')
   const [year, month, day] = datePart.split('-').map(Number)
   const [hour, minute] = timePart.split(':').map(Number)
   return Math.floor(Date.UTC(year, month - 1, day, hour, minute) / 1000) as UTCTimestamp
+}
+
+function timestampAtMinute(date: string, minuteOfDay: number): UTCTimestamp {
+  const hour = Math.floor(minuteOfDay / 60)
+  const minute = minuteOfDay % 60
+  return toTimestamp(`${date} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`)
 }
 
 function timeLabel(time: Time, showDate: boolean): string {
@@ -47,8 +59,22 @@ function isRegularBar(bar: KlineBar): boolean {
   return minuteOfDay(bar) >= 9 * 60 + 30
 }
 
-function intradayAveragePrice(bars: KlineBar[]): LineData[] {
-  const result: LineData[] = []
+function intradaySessionSlots(bars: KlineBar[]): UTCTimestamp[] {
+  const date = bars[0].time.slice(0, 10)
+  const slots: UTCTimestamp[] = []
+
+  for (let minute = 9 * 60 + 15; minute <= 11 * 60 + 30; minute += 1) {
+    slots.push(timestampAtMinute(date, minute))
+  }
+  for (let minute = 13 * 60; minute <= 15 * 60; minute += 1) {
+    slots.push(timestampAtMinute(date, minute))
+  }
+
+  return slots
+}
+
+function intradayAveragePrice(bars: KlineBar[]): Map<UTCTimestamp, number> {
+  const result = new Map<UTCTimestamp, number>()
   let cumulativeAmount = 0
   let cumulativeShares = 0
 
@@ -56,11 +82,47 @@ function intradayAveragePrice(bars: KlineBar[]): LineData[] {
     cumulativeAmount += bar.amount
     cumulativeShares += bar.volume * 100
     if (isRegularBar(bar) && cumulativeShares > 0) {
-      result.push({ time: toTimestamp(bar.time), value: cumulativeAmount / cumulativeShares })
+      result.set(toTimestamp(bar.time), cumulativeAmount / cumulativeShares)
     }
   }
 
   return result
+}
+
+function intradayLineData(
+  slots: UTCTimestamp[],
+  barsByTime: Map<UTCTimestamp, KlineBar>,
+  include: (bar: KlineBar) => boolean
+): LinePoint[] {
+  return slots.map((time) => {
+    const bar = barsByTime.get(time)
+    return bar && include(bar) ? { time, value: bar.close } : { time }
+  })
+}
+
+function intradayAverageData(slots: UTCTimestamp[], bars: KlineBar[]): LinePoint[] {
+  const averages = intradayAveragePrice(bars)
+  return slots.map((time) => {
+    const value = averages.get(time)
+    return value === undefined ? { time } : { time, value }
+  })
+}
+
+function intradayVolumeData(
+  slots: UTCTimestamp[],
+  barsByTime: Map<UTCTimestamp, KlineBar>
+): VolumePoint[] {
+  return slots.map((time) => {
+    const bar = barsByTime.get(time)
+    if (!bar) return { time }
+    return {
+      time,
+      value: bar.volume,
+      color: isAuctionBar(bar)
+        ? 'rgba(139, 92, 246, 0.48)'
+        : bar.close >= bar.open ? 'rgba(220, 55, 66, 0.48)' : 'rgba(24, 146, 102, 0.48)'
+    }
+  })
 }
 
 export default function CandlestickChart({
@@ -68,18 +130,27 @@ export default function CandlestickChart({
   variant = 'intraday',
   onHoverBar
 }: CandlestickChartProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
+  const priceContainerRef = useRef<HTMLDivElement>(null)
+  const volumeContainerRef = useRef<HTMLDivElement>(null)
+  const tooltipRef = useRef<HTMLDivElement>(null)
   const auctionZoneRef = useRef<HTMLDivElement>(null)
   const auctionBoundaryRef = useRef<HTMLDivElement>(null)
+  const isIntraday = variant === 'intraday'
 
   useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
+    const priceContainer = priceContainerRef.current
+    if (!priceContainer) return
 
-    const isIntraday = variant === 'intraday'
-    const chart = createChart(container, {
-      width: container.clientWidth,
-      height: 320,
+    const volumeContainer = volumeContainerRef.current
+    const barsByTime = new Map(bars.map((bar) => [toTimestamp(bar.time), bar]))
+    const sessionSlots = isIntraday ? intradaySessionSlots(bars) : []
+    const fixedRange = isIntraday
+      ? { from: -0.5, to: sessionSlots.length - 0.5 }
+      : null
+
+    const priceChart = createChart(priceContainer, {
+      width: priceContainer.clientWidth,
+      height: priceContainer.clientHeight,
       layout: {
         background: { type: ColorType.Solid, color: '#ffffff' },
         textColor: '#64748b',
@@ -92,9 +163,11 @@ export default function CandlestickChart({
       },
       rightPriceScale: {
         borderColor: '#e2e8f0',
-        scaleMargins: { top: 0.08, bottom: 0.32 }
+        minimumWidth: 72,
+        scaleMargins: isIntraday ? { top: 0.08, bottom: 0.08 } : { top: 0.08, bottom: 0.32 }
       },
       timeScale: {
+        visible: !isIntraday,
         borderColor: '#e2e8f0',
         timeVisible: true,
         secondsVisible: false,
@@ -102,22 +175,33 @@ export default function CandlestickChart({
         barSpacing: 10,
         fixLeftEdge: isIntraday,
         fixRightEdge: isIntraday,
+        lockVisibleTimeRangeOnResize: isIntraday,
         tickMarkFormatter: (time: Time) => timeLabel(time, variant === 'fiveDay')
       },
       handleScroll: !isIntraday,
       handleScale: !isIntraday,
       crosshair: {
         mode: CrosshairMode.Normal,
-        vertLine: { color: '#94a3b8', width: 1, labelBackgroundColor: '#334155' },
-        horzLine: { color: '#94a3b8', width: 1, labelBackgroundColor: '#334155' }
+        vertLine: {
+          color: '#94a3b8',
+          width: 1,
+          labelVisible: !isIntraday,
+          labelBackgroundColor: '#334155'
+        },
+        horzLine: {
+          color: '#94a3b8',
+          width: 1,
+          labelVisible: !isIntraday,
+          labelBackgroundColor: '#334155'
+        }
       },
       localization: {
         timeFormatter: (time: Time) => timeLabel(time, variant === 'fiveDay'),
-        priceFormatter: (price: number) => price.toFixed(2)
+        priceFormatter: formatPrice
       }
     })
 
-    const priceLine = chart.addSeries(LineSeries, {
+    const priceLine = priceChart.addSeries(LineSeries, {
       color: '#3f7fd3',
       lineWidth: 2,
       priceLineVisible: true,
@@ -128,14 +212,12 @@ export default function CandlestickChart({
       crosshairMarkerBorderColor: '#3f7fd3',
       crosshairMarkerBackgroundColor: '#ffffff'
     })
-    const priceBars = isIntraday ? bars.filter(isRegularBar) : bars
-    priceLine.setData(priceBars.map((bar) => ({
-      time: toTimestamp(bar.time),
-      value: bar.close
-    })))
+    priceLine.setData(isIntraday
+      ? intradayLineData(sessionSlots, barsByTime, isRegularBar)
+      : bars.map((bar) => ({ time: toTimestamp(bar.time), value: bar.close })))
 
     if (isIntraday) {
-      const auctionLine = chart.addSeries(LineSeries, {
+      const auctionLine = priceChart.addSeries(LineSeries, {
         color: '#8b5cf6',
         lineWidth: 2,
         priceLineVisible: false,
@@ -145,57 +227,130 @@ export default function CandlestickChart({
         crosshairMarkerBorderColor: '#8b5cf6',
         crosshairMarkerBackgroundColor: '#ffffff'
       })
-      auctionLine.setData(bars.filter(isAuctionBar).map((bar) => ({
-        time: toTimestamp(bar.time),
-        value: bar.close
-      })))
+      auctionLine.setData(intradayLineData(sessionSlots, barsByTime, isAuctionBar))
 
-      const averagePriceLine = chart.addSeries(LineSeries, {
+      const averagePriceLine = priceChart.addSeries(LineSeries, {
         color: '#d89414',
         lineWidth: 1,
         priceLineVisible: false,
         lastValueVisible: false,
         crosshairMarkerVisible: false
       })
-      averagePriceLine.setData(intradayAveragePrice(bars))
+      averagePriceLine.setData(intradayAverageData(sessionSlots, bars))
     }
 
-    const volume = chart.addSeries(HistogramSeries, {
-      priceFormat: { type: 'volume' },
-      priceScaleId: '',
-      lastValueVisible: false,
-      priceLineVisible: false
-    })
-    volume.priceScale().applyOptions({ scaleMargins: { top: 0.76, bottom: 0 } })
-    volume.setData(bars.map((bar) => ({
-      time: toTimestamp(bar.time),
-      value: bar.volume,
-      color: isIntraday && isAuctionBar(bar)
-        ? 'rgba(139, 92, 246, 0.35)'
-        : bar.close >= bar.open ? 'rgba(220, 55, 66, 0.34)' : 'rgba(24, 146, 102, 0.34)'
-    })))
+    let volumeChart: ReturnType<typeof createChart> | null = null
+    if (isIntraday && volumeContainer) {
+      volumeChart = createChart(volumeContainer, {
+        width: volumeContainer.clientWidth,
+        height: volumeContainer.clientHeight,
+        layout: {
+          background: { type: ColorType.Solid, color: '#ffffff' },
+          textColor: '#64748b',
+          fontFamily: 'Segoe UI, Microsoft YaHei, sans-serif',
+          fontSize: 10
+        },
+        grid: {
+          vertLines: { color: '#edf1f7' },
+          horzLines: { color: '#f3f5f8' }
+        },
+        rightPriceScale: {
+          borderColor: '#e2e8f0',
+          minimumWidth: 72,
+          scaleMargins: { top: 0.12, bottom: 0 }
+        },
+        timeScale: {
+          borderColor: '#e2e8f0',
+          timeVisible: true,
+          secondsVisible: false,
+          rightOffset: 0,
+          fixLeftEdge: true,
+          fixRightEdge: true,
+          lockVisibleTimeRangeOnResize: true,
+          tickMarkFormatter: (time: Time) => timeLabel(time, false)
+        },
+        handleScroll: false,
+        handleScale: false,
+        crosshair: { mode: CrosshairMode.Hidden },
+        localization: {
+          timeFormatter: (time: Time) => timeLabel(time, false)
+        }
+      })
+      const volume = volumeChart.addSeries(HistogramSeries, {
+        priceFormat: { type: 'volume' },
+        lastValueVisible: false,
+        priceLineVisible: false
+      })
+      volume.setData(intradayVolumeData(sessionSlots, barsByTime))
+      volumeChart.timeScale().setVisibleLogicalRange(fixedRange!)
+    } else {
+      const volume = priceChart.addSeries(HistogramSeries, {
+        priceFormat: { type: 'volume' },
+        priceScaleId: '',
+        lastValueVisible: false,
+        priceLineVisible: false
+      })
+      volume.priceScale().applyOptions({ scaleMargins: { top: 0.76, bottom: 0 } })
+      volume.setData(bars.map((bar) => ({
+        time: toTimestamp(bar.time),
+        value: bar.volume,
+        color: bar.close >= bar.open ? 'rgba(220, 55, 66, 0.34)' : 'rgba(24, 146, 102, 0.34)'
+      })))
+    }
 
-    const barByTime = new Map(bars.map((bar) => [toTimestamp(bar.time), bar]))
+    const hideTooltip = () => {
+      if (tooltipRef.current) tooltipRef.current.style.display = 'none'
+    }
     const handleCrosshairMove = (param: MouseEventParams<Time>) => {
-      onHoverBar?.(typeof param.time === 'number' ? barByTime.get(param.time as UTCTimestamp) ?? null : null)
+      const bar = typeof param.time === 'number'
+        ? barsByTime.get(param.time as UTCTimestamp)
+        : undefined
+
+      if (!isIntraday) {
+        onHoverBar?.(bar ?? null)
+        return
+      }
+
+      const tooltip = tooltipRef.current
+      const point = param.point
+      if (!tooltip || !bar || !point || point.x < 0 || point.y < 0) {
+        hideTooltip()
+        return
+      }
+
+      tooltip.textContent = `${bar.time.slice(11, 16)}  价格 ${formatPrice(bar.close)}`
+      tooltip.style.display = 'block'
+      const tooltipWidth = tooltip.offsetWidth
+      const tooltipHeight = tooltip.offsetHeight
+      const left = point.x + tooltipWidth + 20 > priceContainer.clientWidth
+        ? point.x - tooltipWidth - 12
+        : point.x + 12
+      const top = point.y - tooltipHeight - 10 < 6
+        ? point.y + 12
+        : point.y - tooltipHeight - 10
+      tooltip.style.left = `${Math.max(6, left)}px`
+      tooltip.style.top = `${top}px`
     }
-    chart.subscribeCrosshairMove(handleCrosshairMove)
-    chart.timeScale().fitContent()
+    priceChart.subscribeCrosshairMove(handleCrosshairMove)
+
+    if (fixedRange) {
+      priceChart.timeScale().setVisibleLogicalRange(fixedRange)
+    } else {
+      priceChart.timeScale().fitContent()
+    }
 
     const updateAuctionZone = () => {
       if (!isIntraday || !auctionZoneRef.current || !auctionBoundaryRef.current) return
-      const auctionBars = bars.filter(isAuctionBar)
-      const first = auctionBars[0]
-      const last = auctionBars.at(-1)
-      const previous = auctionBars.at(-2)
-      if (!first || !last) return
+      const date = bars[0].time.slice(0, 10)
+      const firstTime = timestampAtMinute(date, 9 * 60 + 15)
+      const previousTime = timestampAtMinute(date, 9 * 60 + 24)
+      const lastTime = timestampAtMinute(date, 9 * 60 + 25)
+      const firstX = priceChart.timeScale().timeToCoordinate(firstTime)
+      const previousX = priceChart.timeScale().timeToCoordinate(previousTime)
+      const lastX = priceChart.timeScale().timeToCoordinate(lastTime)
+      if (firstX === null || previousX === null || lastX === null) return
 
-      const firstX = chart.timeScale().timeToCoordinate(toTimestamp(first.time))
-      const lastX = chart.timeScale().timeToCoordinate(toTimestamp(last.time))
-      const previousX = previous ? chart.timeScale().timeToCoordinate(toTimestamp(previous.time)) : null
-      if (firstX === null || lastX === null) return
-
-      const halfSpacing = previousX === null ? 3 : Math.max(2, (lastX - previousX) / 2)
+      const halfSpacing = Math.max(2, (lastX - previousX) / 2)
       const left = Math.max(0, firstX - halfSpacing)
       const right = lastX + halfSpacing
       auctionZoneRef.current.style.left = `${left}px`
@@ -204,28 +359,53 @@ export default function CandlestickChart({
     }
     updateAuctionZone()
 
-    const resizeObserver = new ResizeObserver(([entry]) => {
-      chart.applyOptions({ width: Math.floor(entry.contentRect.width) })
+    const priceResizeObserver = new ResizeObserver(([entry]) => {
+      priceChart.applyOptions({
+        width: Math.floor(entry.contentRect.width),
+        height: Math.floor(entry.contentRect.height)
+      })
       updateAuctionZone()
     })
-    resizeObserver.observe(container)
+    priceResizeObserver.observe(priceContainer)
+
+    const volumeResizeObserver = volumeChart && volumeContainer
+      ? new ResizeObserver(([entry]) => {
+          volumeChart?.applyOptions({
+            width: Math.floor(entry.contentRect.width),
+            height: Math.floor(entry.contentRect.height)
+          })
+        })
+      : null
+    if (volumeResizeObserver && volumeContainer) volumeResizeObserver.observe(volumeContainer)
 
     return () => {
-      resizeObserver.disconnect()
-      chart.unsubscribeCrosshairMove(handleCrosshairMove)
-      onHoverBar?.(null)
-      chart.remove()
+      priceResizeObserver.disconnect()
+      volumeResizeObserver?.disconnect()
+      priceChart.unsubscribeCrosshairMove(handleCrosshairMove)
+      hideTooltip()
+      if (!isIntraday) onHoverBar?.(null)
+      priceChart.remove()
+      volumeChart?.remove()
     }
-  }, [bars, onHoverBar, variant])
+  }, [bars, isIntraday, onHoverBar, variant])
 
   return (
-    <div className="candlestick-chart">
-      <div className="chart-host" ref={containerRef} />
-      {variant === 'intraday' ? (
-        <>
-          <div className="auction-zone" ref={auctionZoneRef}><span>集合竞价</span></div>
-          <div className="auction-boundary" ref={auctionBoundaryRef} />
-        </>
+    <div className={`candlestick-chart ${isIntraday ? 'is-intraday' : 'is-five-day'}`}>
+      <div className={isIntraday ? 'intraday-price-chart' : 'five-day-chart'}>
+        <div className="chart-host" ref={priceContainerRef} />
+        {isIntraday ? (
+          <>
+            <div className="auction-zone" ref={auctionZoneRef}><span>集合竞价</span></div>
+            <div className="auction-boundary" ref={auctionBoundaryRef} />
+            <div className="intraday-price-tooltip" ref={tooltipRef} />
+          </>
+        ) : null}
+      </div>
+      {isIntraday ? (
+        <div className="intraday-volume-chart">
+          <div className="chart-host" ref={volumeContainerRef} />
+          <span className="intraday-volume-label">成交量</span>
+        </div>
       ) : null}
     </div>
   )

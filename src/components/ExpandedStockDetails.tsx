@@ -144,13 +144,14 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
   const isLoading = priceTab !== null && loadingTab === priceTab
   const historicalPeriod = priceTab && isHistoricalTab(priceTab) ? priceTab : null
   const isHistorical = historicalPeriod !== null
-  const overview = hoveredBar ? [
-    ['开盘', formatPrice(hoveredBar.open)],
-    ['收盘', formatPrice(hoveredBar.close)],
-    ['最高', formatPrice(hoveredBar.high)],
-    ['最低', formatPrice(hoveredBar.low)],
-    ['成交量', formatVolume(hoveredBar.volume)],
-    ['成交额', formatAmount(hoveredBar.amount)]
+  const overviewBar = priceTab === 'trend' ? null : hoveredBar
+  const overview = overviewBar ? [
+    ['开盘', formatPrice(overviewBar.open)],
+    ['收盘', formatPrice(overviewBar.close)],
+    ['最高', formatPrice(overviewBar.high)],
+    ['最低', formatPrice(overviewBar.low)],
+    ['成交量', formatVolume(overviewBar.volume)],
+    ['成交额', formatAmount(overviewBar.amount)]
   ] : [
     ['今开', formatPrice(quote?.open)],
     ['昨收', formatPrice(quote?.previousClose)],
@@ -209,7 +210,7 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
           <div className="overview-header">
             <div>
               <strong>今日概览</strong>
-              <span>{hoveredBar?.time || data?.tradingDate || '最近交易日'} · {tabMeta?.description}</span>
+              <span>{overviewBar?.time || data?.tradingDate || '最近交易日'} · {tabMeta?.description}</span>
             </div>
             <div className="chart-legend" aria-label="图表图例">
               <span className={isHistorical ? 'legend-candlestick' : 'legend-price'}>
@@ -266,7 +267,7 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
                   <CandlestickChart
                     bars={data.bars}
                     variant={priceTab === 'fiveDay' ? 'fiveDay' : 'intraday'}
-                    onHoverBar={handleHoverBar}
+                    onHoverBar={priceTab === 'trend' ? undefined : handleHoverBar}
                   />
                 )}
               </Suspense>
