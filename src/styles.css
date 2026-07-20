@@ -4325,7 +4325,10 @@ tr:focus-visible {
 
 html.taskbar-mode,
 html.taskbar-mode body,
-html.taskbar-mode #root {
+html.taskbar-mode #root,
+html.tray-mode,
+html.tray-mode body,
+html.tray-mode #root {
   min-width: 0;
   overflow: hidden;
   color: #111827;
@@ -4358,10 +4361,9 @@ html.taskbar-mode #root {
   user-select: none;
 }
 
-.taskbar-detail-panel {
-  position: absolute;
-  right: 3px;
-  left: 3px;
+.tray-summary-panel {
+  width: 100%;
+  height: 100%;
   overflow: hidden;
   pointer-events: none;
   color: #344054;
@@ -4369,17 +4371,9 @@ html.taskbar-mode #root {
   border: 1px solid rgba(193, 202, 216, 0.92);
   border-radius: 10px;
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.24);
-  opacity: 0;
-  transform: translateY(6px);
-  transition: opacity 140ms ease, transform 140ms ease;
 }
 
-.taskbar-detail-panel.is-visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.taskbar-detail-panel > header {
+.tray-summary-panel > header {
   padding: 8px 10px 6px;
   color: #657187;
   border-bottom: 1px solid #edf0f4;
@@ -4387,12 +4381,12 @@ html.taskbar-mode #root {
   font-weight: 700;
 }
 
-.taskbar-detail-list {
+.tray-summary-list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
 }
 
-.taskbar-detail-item {
+.tray-summary-item {
   min-width: 0;
   display: grid;
   gap: 5px;
@@ -4403,8 +4397,8 @@ html.taskbar-mode #root {
   font-variant-numeric: tabular-nums;
 }
 
-.taskbar-detail-heading,
-.taskbar-detail-t {
+.tray-summary-heading,
+.tray-summary-t {
   min-width: 0;
   display: flex;
   align-items: center;
@@ -4413,46 +4407,46 @@ html.taskbar-mode #root {
   white-space: nowrap;
 }
 
-.taskbar-detail-heading > span,
-.taskbar-detail-t {
+.tray-summary-heading > span,
+.tray-summary-t {
   color: #657187;
 }
 
-.taskbar-detail-heading > span {
+.tray-summary-heading > span {
   display: inline-flex;
   align-items: center;
   gap: 5px;
 }
 
-.taskbar-detail-heading b {
+.tray-summary-heading b {
   font-weight: 700;
 }
 
-.taskbar-detail-t {
+.tray-summary-t {
   gap: 10px;
   overflow: hidden;
   font-size: 10px;
 }
 
-.taskbar-detail-t > span {
+.tray-summary-t > span {
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.taskbar-detail-t.is-empty {
+.tray-summary-t.is-empty {
   justify-content: flex-start;
   color: #98a2b3;
 }
 
-.taskbar-detail-panel .is-up {
+.tray-summary-panel .is-up {
   color: #c92733;
 }
 
-.taskbar-detail-panel .is-down {
+.tray-summary-panel .is-down {
   color: #087c57;
 }
 
-.taskbar-detail-panel .is-flat {
+.tray-summary-panel .is-flat {
   color: #657187;
 }
 
@@ -4509,7 +4503,10 @@ html.taskbar-mode #root {
 @media (prefers-color-scheme: dark) {
   html.taskbar-mode,
   html.taskbar-mode body,
-  html.taskbar-mode #root {
+  html.taskbar-mode #root,
+  html.tray-mode,
+  html.tray-mode body,
+  html.tray-mode #root {
     color: #f8fafc;
   }
 
@@ -4521,34 +4518,34 @@ html.taskbar-mode #root {
     text-shadow: 0 1px 1px rgba(0, 0, 0, 0.55);
   }
 
-  .taskbar-detail-panel {
+  .tray-summary-panel {
     color: #e2e8f0;
     background: rgba(24, 32, 46, 0.97);
     border-color: rgba(96, 111, 132, 0.88);
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.48);
   }
 
-  .taskbar-detail-panel > header,
-  .taskbar-detail-item {
+  .tray-summary-panel > header,
+  .tray-summary-item {
     border-color: rgba(96, 111, 132, 0.38);
   }
 
-  .taskbar-detail-panel > header,
-  .taskbar-detail-heading > span,
-  .taskbar-detail-t {
+  .tray-summary-panel > header,
+  .tray-summary-heading > span,
+  .tray-summary-t {
     color: #b6c0ce;
   }
 
-  .taskbar-detail-t.is-empty,
-  .taskbar-detail-panel .is-flat {
+  .tray-summary-t.is-empty,
+  .tray-summary-panel .is-flat {
     color: #98a6b8;
   }
 
-  .taskbar-detail-panel .is-up {
+  .tray-summary-panel .is-up {
     color: #ff6b75;
   }
 
-  .taskbar-detail-panel .is-down {
+  .tray-summary-panel .is-down {
     color: #51d39e;
   }
 

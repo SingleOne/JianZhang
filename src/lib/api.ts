@@ -336,11 +336,8 @@ const demoApi: StockDesktopApi = {
     const marketIndices = getMarketIndexStocks(state.settings.marketIndexIds)
     return { state, quotes: makeDemoQuotes([...state.watchlist, ...marketIndices]), source: 'demo' }
   },
-  async getTaskbarStatus() {
-    return {
-      layout: { taskbarHeight: 48, detailHeight: 110 },
-      hovered: false
-    }
+  async getTaskbarLayout() {
+    return { taskbarHeight: 48 }
   },
   async searchStocks(query) {
     const normalized = query.trim().toLowerCase()
@@ -410,7 +407,6 @@ const demoApi: StockDesktopApi = {
   onQuotesUpdated: noSubscribe,
   onStateUpdated: noSubscribe,
   onTaskbarLayout: noSubscribe,
-  onTaskbarHoverChanged: noSubscribe,
   onSelectStock: noSubscribe,
   onDataError: noSubscribe
 }

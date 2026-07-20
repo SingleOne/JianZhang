@@ -14,7 +14,7 @@ function subscribe<T>(channel: string, callback: (payload: T) => void): () => vo
 
 const api: StockDesktopApi = {
   getBootstrap: () => ipcRenderer.invoke('app:bootstrap'),
-  getTaskbarStatus: () => ipcRenderer.invoke('taskbar:status'),
+  getTaskbarLayout: () => ipcRenderer.invoke('taskbar:layout:get'),
   searchStocks: (query) => ipcRenderer.invoke('stocks:search', query),
   refreshQuotes: () => ipcRenderer.invoke('quotes:refresh'),
   getKline: (quoteId, period, limit) => ipcRenderer.invoke('kline:get', quoteId, period, limit),
@@ -30,7 +30,6 @@ const api: StockDesktopApi = {
   onQuotesUpdated: (callback) => subscribe<StockQuote[]>('quotes:updated', callback),
   onStateUpdated: (callback) => subscribe<AppState>('state:updated', callback),
   onTaskbarLayout: (callback) => subscribe<TaskbarLayout>('taskbar:layout', callback),
-  onTaskbarHoverChanged: (callback) => subscribe<boolean>('taskbar:hover-changed', callback),
   onSelectStock: (callback) => subscribe<string>('stock:selected', callback),
   onDataError: (callback) => subscribe<string>('data:error', callback)
 }

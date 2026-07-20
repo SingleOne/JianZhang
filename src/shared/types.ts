@@ -614,17 +614,11 @@ export interface BootstrapResult {
 
 export interface TaskbarLayout {
   taskbarHeight: number
-  detailHeight: number
-}
-
-export interface TaskbarStatus {
-  layout: TaskbarLayout
-  hovered: boolean
 }
 
 export interface StockDesktopApi {
   getBootstrap: () => Promise<BootstrapResult>
-  getTaskbarStatus: () => Promise<TaskbarStatus>
+  getTaskbarLayout: () => Promise<TaskbarLayout>
   searchStocks: (query: string) => Promise<SearchResult[]>
   refreshQuotes: () => Promise<StockQuote[]>
   getKline: (quoteId: string, period: KlinePeriod, limit?: number) => Promise<KlineResult>
@@ -640,7 +634,6 @@ export interface StockDesktopApi {
   onQuotesUpdated: (callback: (quotes: StockQuote[]) => void) => () => void
   onStateUpdated: (callback: (state: AppState) => void) => () => void
   onTaskbarLayout: (callback: (layout: TaskbarLayout) => void) => () => void
-  onTaskbarHoverChanged: (callback: (hovered: boolean) => void) => () => void
   onSelectStock: (callback: (quoteId: string) => void) => () => void
   onDataError: (callback: (message: string) => void) => () => void
 }

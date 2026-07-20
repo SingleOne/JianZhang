@@ -1,15 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { initialState, stockApi } from '../lib/api'
-import {
-  formatCost,
-  formatPercent,
-  formatPrice,
-  formatProfit,
-  formatShares
-} from '../lib/format'
-import { calculatePositionMetrics } from '../lib/portfolio'
+import { formatPercent, formatPrice } from '../lib/format'
 import { getTriggeredTAlertBadges } from '../lib/t-alerts'
-import { calculateTBatchMetrics } from '../lib/t-trading'
 import type { AppState, StockQuote, TaskbarLayout } from '../shared/types'
 import { TAlertBadges } from './TAlertBadges'
 
@@ -18,32 +10,14 @@ function directionClass(changePercent: number | null | undefined): string {
   return changePercent > 0 ? 'is-up' : 'is-down'
 }
 
-function valueClass(value: number | null | undefined): string {
-  if (value === null || value === undefined || value === 0) return 'is-flat'
-  return value > 0 ? 'is-up' : 'is-down'
-}
-
 export function TaskbarTicker() {
   const [state, setState] = useState<AppState>(initialState)
   const [quotes, setQuotes] = useState<StockQuote[]>([])
-  const [layout, setLayout] = useState<TaskbarLayout>({ taskbarHeight: 48, detailHeight: 110 })
-  const [showDetails, setShowDetails] = useState(false)
-  const hoverTimerRef = useRef<number | undefined>(undefined)
-
-  const startDetailTimer = useCallback(() => {
-    window.clearTimeout(hoverTimerRef.current)
-    hoverTimerRef.current = window.setTimeout(() => setShowDetails(true), 1000)
-  }, [])
-
-  const hideDetails = useCallback(() => {
-    window.clearTimeout(hoverTimerRef.current)
-    setShowDetails(false)
-  }, [])
+  const [layout, setLayout] = useState<TaskbarLayout>({ taskbarHeight: 48 })
 
   useEffect(() => {
     let active = true
     let receivedLayoutEvent = false
-    let receivedHoverEvent = false
 
     const unsubscribeQuotes = stockApi.onQuotesUpdated(setQuotes)
     const unsubscribeState = stockApi.onStateUpdated(setState)
@@ -51,24 +25,15 @@ export function TaskbarTicker() {
       receivedLayoutEvent = true
       setLayout(nextLayout)
     })
-    const unsubscribeHover = stockApi.onTaskbarHoverChanged((hovered) => {
-      receivedHoverEvent = true
-      if (hovered) startDetailTimer()
-      else hideDetails()
-    })
 
     void Promise.all([
       stockApi.getBootstrap(),
-      stockApi.getTaskbarStatus()
-    ]).then(([bootstrap, status]) => {
+      stockApi.getTaskbarLayout()
+    ]).then(([bootstrap, taskbarLayout]) => {
       if (!active) return
       setState(bootstrap.state)
       setQuotes(bootstrap.quotes)
-      if (!receivedLayoutEvent) setLayout(status.layout)
-      if (!receivedHoverEvent) {
-        if (status.hovered) startDetailTimer()
-        else hideDetails()
-      }
+      if (!receivedLayoutEvent) setLayout(taskbarLayout)
     })
 
     return () => {
@@ -76,10 +41,8 @@ export function TaskbarTicker() {
       unsubscribeQuotes()
       unsubscribeState()
       unsubscribeLayout()
-      unsubscribeHover()
-      window.clearTimeout(hoverTimerRef.current)
     }
-  }, [hideDetails, startDetailTimer])
+  }, [])
 
   const selectedStocks = useMemo(() => {
     const quoteMap = new Map(quotes.map((quote) => [quote.quoteId, quote]))
@@ -90,11 +53,7 @@ export function TaskbarTicker() {
         return {
           stock,
           quote,
-          alertBadges: getTriggeredTAlertBadges(account?.activeBatch),
-          positionMetrics: calculatePositionMetrics(stock.position, quote, account),
-          tMetrics: account?.activeBatch
-            ? calculateTBatchMetrics(account.activeBatch, quote?.latest)
-            : null
+          alertBadges: getTriggeredTAlertBadges(account?.activeBatch)
         }
       })
       .filter(({ stock, alertBadges }) => stock.showInTaskbar || alertBadges.length > 0)
@@ -102,49 +61,9 @@ export function TaskbarTicker() {
 
   return (
     <div className="taskbar-ticker-shell">
-      <aside
-        className={`taskbar-detail-panel ${showDetails ? 'is-visible' : ''}`}
-        style={{
-          bottom: layout.taskbarHeight + 8,
-          maxHeight: Math.max(72, layout.detailHeight - 12)
-        }}
-        aria-hidden={!showDetails}
-      >
-        <header>今日收益与 T 仓概览</header>
-        <div className="taskbar-detail-list">
-          {selectedStocks.map(({ stock, positionMetrics, tMetrics }) => (
-            <section className="taskbar-detail-item" key={stock.quoteId}>
-              <div className="taskbar-detail-heading">
-                <strong>{stock.name}</strong>
-                <span>
-                  今日
-                  <b className={valueClass(positionMetrics.todayProfit)}>
-                    {formatProfit(positionMetrics.todayProfit)}
-                  </b>
-                  <b className={valueClass(positionMetrics.todayProfitPercent)}>
-                    {formatPercent(positionMetrics.todayProfitPercent)}
-                  </b>
-                </span>
-              </div>
-              {tMetrics ? (
-                <div className="taskbar-detail-t">
-                  <span>{tMetrics.direction === 'reverse' ? '反T待回补' : '正T持有'} {formatShares(tMetrics.remainingQuantity)}</span>
-                  <span>{tMetrics.direction === 'reverse' ? '基准价' : '成本'} {formatCost(tMetrics.averageCost)}</span>
-                  <span className={valueClass(tMetrics.floatingProfit)}>浮动 {formatProfit(tMetrics.floatingProfit)}</span>
-                </div>
-              ) : (
-                <div className="taskbar-detail-t is-empty">暂无进行中的 T 仓</div>
-              )}
-            </section>
-          ))}
-        </div>
-      </aside>
-
       <div
         className={`taskbar-ticker ${selectedStocks.length === 1 ? 'is-single' : ''}`}
         style={{ height: layout.taskbarHeight }}
-        onMouseEnter={startDetailTimer}
-        onMouseLeave={hideDetails}
       >
         {selectedStocks.map(({ stock, quote, alertBadges }) => {
           const direction = directionClass(quote?.changePercent)

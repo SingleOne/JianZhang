@@ -7,7 +7,6 @@ import {
   screen,
   Tray,
   type OpenDialogOptions,
-  type Rectangle,
   type SaveDialogOptions
 } from 'electron'
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -68,17 +67,17 @@ const DEFAULT_STATE: AppState = {
 
 let mainWindow: BrowserWindow | null = null
 let taskbarWindow: BrowserWindow | null = null
+let trayPopupWindow: BrowserWindow | null = null
 let appTray: Tray | null = null
 let state: AppState = DEFAULT_STATE
 let latestQuotes: StockQuote[] = []
 let priorityRefreshTimer: NodeJS.Timeout | null = null
 let regularRefreshTimer: NodeJS.Timeout | null = null
 let tradingCalendarCheckTimer: NodeJS.Timeout | null = null
-let taskbarHoverTrackingTimer: NodeJS.Timeout | null = null
+let trayPopupShowTimer: NodeJS.Timeout | null = null
 let tradingCalendarRefresh: Promise<TradingCalendarSettings> | null = null
-let taskbarTickerBounds: Rectangle | null = null
-let taskbarLayout: TaskbarLayout = { taskbarHeight: 48, detailHeight: 110 }
-let taskbarHovered = false
+let taskbarLayout: TaskbarLayout = { taskbarHeight: 48 }
+let trayHovered = false
 const refreshesInFlight = new Set<'all' | 'priority' | 'regular'>()
 let isQuitting = false
 
@@ -121,7 +120,7 @@ function configTimestamp(): string {
 }
 
 function sendToWindows(channel: string, payload: unknown): void {
-  for (const window of [mainWindow, taskbarWindow]) {
+  for (const window of [mainWindow, taskbarWindow, trayPopupWindow]) {
     if (window && !window.isDestroyed()) window.webContents.send(channel, payload)
   }
 }
@@ -156,14 +155,15 @@ function cleanupBeforeQuit(): void {
   if (priorityRefreshTimer) clearInterval(priorityRefreshTimer)
   if (regularRefreshTimer) clearInterval(regularRefreshTimer)
   if (tradingCalendarCheckTimer) clearInterval(tradingCalendarCheckTimer)
-  if (taskbarHoverTrackingTimer) clearInterval(taskbarHoverTrackingTimer)
+  if (trayPopupShowTimer) clearTimeout(trayPopupShowTimer)
   priorityRefreshTimer = null
   regularRefreshTimer = null
   tradingCalendarCheckTimer = null
-  taskbarHoverTrackingTimer = null
-  taskbarTickerBounds = null
+  trayPopupShowTimer = null
   appTray?.destroy()
   appTray = null
+  trayPopupWindow?.destroy()
+  trayPopupWindow = null
   taskbarWindow?.destroy()
   taskbarWindow = null
 }
@@ -214,38 +214,118 @@ function hasActiveTaskbarAlert(): boolean {
   ))
 }
 
-function setTaskbarHovered(hovered: boolean): void {
-  if (taskbarHovered === hovered) return
-  taskbarHovered = hovered
-  if (taskbarWindow && !taskbarWindow.isDestroyed()) {
-    taskbarWindow.webContents.send('taskbar:hover-changed', hovered)
+function trayPopupSize(): { width: number; height: number } {
+  const selectedCount = taskbarVisibleStocks().length
+  const columns = selectedCount > 1 ? 2 : 1
+  const rows = Math.ceil(selectedCount / columns)
+  return {
+    width: columns === 2 ? 520 : 300,
+    height: 35 + rows * 56
   }
 }
 
-function updateTaskbarHoverState(): void {
-  if (
-    !taskbarWindow
-    || taskbarWindow.isDestroyed()
-    || !taskbarWindow.isVisible()
-    || !taskbarTickerBounds
-  ) {
-    setTaskbarHovered(false)
+function positionTrayPopupWindow(): void {
+  if (!trayPopupWindow || trayPopupWindow.isDestroyed() || !appTray) return
+
+  const trayBounds = appTray.getBounds()
+  const trayCenter = {
+    x: trayBounds.x + Math.floor(trayBounds.width / 2),
+    y: trayBounds.y + Math.floor(trayBounds.height / 2)
+  }
+  const display = screen.getDisplayNearestPoint(trayCenter)
+  const { width, height: contentHeight } = trayPopupSize()
+  const margin = 8
+  const height = Math.min(contentHeight, display.workArea.height - margin * 2)
+  const minX = display.workArea.x + margin
+  const maxX = display.workArea.x + display.workArea.width - width - margin
+  const x = Math.min(maxX, Math.max(minX, trayCenter.x - Math.floor(width / 2)))
+  const workAreaBottom = display.workArea.y + display.workArea.height
+  const trayIsBelowWorkArea = trayCenter.y >= workAreaBottom
+  const y = trayIsBelowWorkArea
+    ? workAreaBottom - height - margin
+    : Math.min(
+        workAreaBottom - height - margin,
+        Math.max(display.workArea.y + margin, trayBounds.y + trayBounds.height + margin)
+      )
+
+  trayPopupWindow.setBounds({ x, y, width, height })
+}
+
+function hideTrayPopup(): void {
+  if (trayPopupShowTimer) clearTimeout(trayPopupShowTimer)
+  trayPopupShowTimer = null
+  if (trayPopupWindow && !trayPopupWindow.isDestroyed()) trayPopupWindow.hide()
+}
+
+function showTrayPopup(): void {
+  if (!trayHovered || taskbarVisibleStocks().length === 0) return
+  if (!trayPopupWindow || trayPopupWindow.isDestroyed()) {
+    createTrayPopupWindow()
+    return
+  }
+  positionTrayPopupWindow()
+  trayPopupWindow.setAlwaysOnTop(true, 'pop-up-menu')
+  trayPopupWindow.showInactive()
+}
+
+function setTrayHovered(hovered: boolean): void {
+  if (trayHovered === hovered) return
+  trayHovered = hovered
+  if (!hovered) {
+    hideTrayPopup()
     return
   }
 
-  const cursor = screen.getCursorScreenPoint()
-  const bounds = taskbarTickerBounds
-  setTaskbarHovered(
-    cursor.x >= bounds.x
-    && cursor.x < bounds.x + bounds.width
-    && cursor.y >= bounds.y
-    && cursor.y < bounds.y + bounds.height
-  )
+  trayPopupShowTimer = setTimeout(() => {
+    trayPopupShowTimer = null
+    showTrayPopup()
+  }, 1000)
 }
 
-function startTaskbarHoverTracking(): void {
-  if (taskbarHoverTrackingTimer) clearInterval(taskbarHoverTrackingTimer)
-  taskbarHoverTrackingTimer = setInterval(updateTaskbarHoverState, 80)
+function createTrayPopupWindow(): void {
+  if (trayPopupWindow && !trayPopupWindow.isDestroyed()) return
+
+  const window = new BrowserWindow({
+    width: 300,
+    height: 91,
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    closable: false,
+    focusable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    hasShadow: true,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+      backgroundThrottling: false
+    }
+  })
+  trayPopupWindow = window
+
+  window.setAlwaysOnTop(true, 'pop-up-menu')
+  window.setIgnoreMouseEvents(true)
+  window.setMenuBarVisibility(false)
+  window.on('closed', () => {
+    if (trayPopupWindow === window) trayPopupWindow = null
+  })
+  window.webContents.on('did-finish-load', () => {
+    if (trayHovered) showTrayPopup()
+  })
+
+  if (process.env.ELECTRON_RENDERER_URL) {
+    void window.loadURL(`${process.env.ELECTRON_RENDERER_URL}?mode=tray`)
+  } else {
+    void window.loadFile(join(__dirname, '../renderer/index.html'), { query: { mode: 'tray' } })
+  }
 }
 
 function positionTaskbarWindow(): void {
@@ -258,8 +338,6 @@ function positionTaskbarWindow(): void {
   const selectedCount = taskbarVisibleStocks().length
 
   if ((!state.settings.showTaskbarTicker && !hasActiveTaskbarAlert()) || selectedCount === 0 || taskbarHeight < 24) {
-    setTaskbarHovered(false)
-    taskbarTickerBounds = null
     taskbarWindow.hide()
     return
   }
@@ -267,26 +345,21 @@ function positionTaskbarWindow(): void {
   const columns = Math.ceil(selectedCount / 2)
   const availableWidth = Math.max(280, Math.floor(display.bounds.width / 2 - 110))
   const width = Math.min(availableWidth, Math.max(280, columns * 260))
-  const detailColumns = Math.max(1, Math.floor(width / 250))
-  const detailRows = Math.ceil(selectedCount / detailColumns)
-  const detailHeight = 54 + detailRows * 56
   const horizontalMargin = 24
   const travelWidth = Math.max(0, display.bounds.width - width - horizontalMargin * 2)
   const positionPercent = Math.min(100, Math.max(0, state.settings.taskbarPositionPercent))
   const x = display.bounds.x + horizontalMargin + Math.round(travelWidth * positionPercent / 100)
-  taskbarTickerBounds = { x, y: taskbarTop, width, height: taskbarHeight }
-  taskbarLayout = { taskbarHeight, detailHeight }
+  taskbarLayout = { taskbarHeight }
 
   taskbarWindow.setBounds({
     x,
-    y: taskbarTop - detailHeight,
+    y: taskbarTop,
     width,
-    height: taskbarHeight + detailHeight
+    height: taskbarHeight
   })
   taskbarWindow.webContents.send('taskbar:layout', taskbarLayout)
   taskbarWindow.setAlwaysOnTop(true, 'pop-up-menu')
   taskbarWindow.showInactive()
-  updateTaskbarHoverState()
 }
 
 function createTaskbarWindow(): void {
@@ -319,19 +392,14 @@ function createTaskbarWindow(): void {
   taskbarWindow = window
 
   window.setAlwaysOnTop(true, 'pop-up-menu')
-  window.setIgnoreMouseEvents(true, { forward: true })
+  window.setIgnoreMouseEvents(true)
   window.setMenuBarVisibility(false)
   window.on('closed', () => {
-    if (taskbarHoverTrackingTimer) clearInterval(taskbarHoverTrackingTimer)
-    taskbarHoverTrackingTimer = null
-    taskbarTickerBounds = null
-    taskbarHovered = false
     if (taskbarWindow === window) taskbarWindow = null
   })
   window.webContents.on('did-finish-load', () => {
     syncTaskbarWindow()
     setTimeout(positionTaskbarWindow, 100)
-    startTaskbarHoverTracking()
   })
 
   if (process.env.ELECTRON_RENDERER_URL) {
@@ -346,8 +414,6 @@ function syncTaskbarWindow(): void {
     && (state.settings.showTaskbarTicker || hasActiveTaskbarAlert())
 
   if (!shouldShow) {
-    setTaskbarHovered(false)
-    taskbarTickerBounds = null
     if (taskbarWindow && !taskbarWindow.isDestroyed()) taskbarWindow.hide()
     return
   }
@@ -554,7 +620,7 @@ function createWindow(): void {
 
 function registerIpc(): void {
   ipcMain.handle('app:bootstrap', async () => ({ state, quotes: latestQuotes, source: 'eastmoney' as const }))
-  ipcMain.handle('taskbar:status', () => ({ layout: taskbarLayout, hovered: taskbarHovered }))
+  ipcMain.handle('taskbar:layout:get', () => taskbarLayout)
   ipcMain.handle('stocks:search', (_event, query: string) => searchStocks(query))
   ipcMain.handle('quotes:refresh', () => refreshAll())
   ipcMain.handle('kline:get', (_event, quoteId: string, period: KlinePeriod, limit?: number) => (
@@ -591,6 +657,7 @@ function registerIpc(): void {
     sendToWindows('state:updated', state)
     updateAppTrayMenu()
     syncTaskbarWindow()
+    if (trayPopupWindow?.isVisible()) positionTrayPopupWindow()
     if (marketIndicesChanged) void refreshAll()
     else if (watchedStocksChanged || priorityChanged) void refreshAllAutomatically()
     return state
@@ -648,10 +715,18 @@ if (!hasSingleInstanceLock) {
     syncTaskbarWindow()
 
     appTray = new Tray(createAppIcon())
-    appTray.setToolTip('见涨 · 实时股票行情')
-    appTray.on('click', () => showMainWindow())
+    appTray.on('click', () => {
+      setTrayHovered(false)
+      showMainWindow()
+    })
+    appTray.on('mouse-enter', () => setTrayHovered(true))
+    appTray.on('mouse-move', () => setTrayHovered(true))
+    appTray.on('mouse-leave', () => setTrayHovered(false))
     updateAppTrayMenu()
-    screen.on('display-metrics-changed', syncTaskbarWindow)
+    screen.on('display-metrics-changed', () => {
+      syncTaskbarWindow()
+      if (trayPopupWindow?.isVisible()) positionTrayPopupWindow()
+    })
     screen.on('display-added', syncTaskbarWindow)
     screen.on('display-removed', syncTaskbarWindow)
     restartRefreshTimers()
