@@ -11,17 +11,29 @@ import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { formatCost, formatCurrency, formatPrice, formatProfit, formatShares } from '../lib/format'
 import {
+  applyTAlertTriggers,
+  getTPlanRows,
+  handleTPlanAlert,
+  handleTriggeredTPlanAlertsForTrade,
+  restoreTPlanAlert,
+  setTAlertEnabled,
+  updateTPlanLevel,
+  type TAlertSide
+} from '../lib/t-alerts'
+import {
   applyTradeToPosition,
   calculateCostAdjustedProfit,
   calculateTBatchMetrics,
   calculateTradeFees,
-  createDefaultSellLevels,
   getTBatchDirection,
   recalculatePositionFromBatch,
+  rebalanceTBatchPlans,
+  resetTBatchPlans,
   roundMoney,
   totalTradeFees,
   validateTBatchTrades
 } from '../lib/t-trading'
+import { TPlanTable } from './TPlanTable'
 import type {
   StockPosition,
   StockQuote,
@@ -191,60 +203,14 @@ export function TTradingDrawer({
     stock.position?.quantity
   ])
 
-  const sellLevelRows = useMemo(() => {
-    const averageCost = activeMetrics.averageCost
-    const closingSide = isReverseBatch ? 'buy' : 'sell'
-    let cumulativeProfit = activeMetrics.realizedProfit
-    return (currentAccount.activeBatch?.sellLevels ?? []).map((level, index) => {
-      const targetPrice = averageCost === null
-        ? null
-        : averageCost * (isReverseBatch
-          ? 1 - level.targetPercent / 100
-          : 1 + level.targetPercent / 100)
-      const hasSellQuantity = level.quantity >= 100
-      const fees = targetPrice === null || !hasSellQuantity
-        ? emptyFees()
-        : calculateTradeFees(targetPrice * level.quantity, closingSide, feeSettings, stock.marketLabel)
-      const expectedProfit = targetPrice === null || averageCost === null || !hasSellQuantity
-        ? null
-        : (isReverseBatch
-          ? averageCost - targetPrice
-          : targetPrice - averageCost) * level.quantity - totalTradeFees(fees)
-      const fullPositionFees = targetPrice === null
-        ? emptyFees()
-        : calculateTradeFees(
-          targetPrice * activeMetrics.remainingQuantity,
-          closingSide,
-          feeSettings,
-          stock.marketLabel
-        )
-      const fullPositionProfit = targetPrice === null || averageCost === null
-        ? null
-        : activeMetrics.realizedProfit
-          + (isReverseBatch
-            ? averageCost - targetPrice
-            : targetPrice - averageCost) * activeMetrics.remainingQuantity
-          - totalTradeFees(fullPositionFees)
-      if (expectedProfit !== null) cumulativeProfit += expectedProfit
-      return {
-        ...level,
-        index,
-        targetPrice,
-        fees,
-        expectedProfit,
-        cumulativeProfit,
-        fullPositionProfit
-      }
-    })
-  }, [
-    activeMetrics.averageCost,
-    activeMetrics.realizedProfit,
-    activeMetrics.remainingQuantity,
-    currentAccount.activeBatch?.sellLevels,
-    feeSettings,
-    isReverseBatch,
-    stock.marketLabel
-  ])
+  const buyLevelRows = useMemo(
+    () => getTPlanRows(currentAccount.activeBatch, 'buy', feeSettings, stock.marketLabel),
+    [currentAccount.activeBatch, feeSettings, stock.marketLabel]
+  )
+  const sellLevelRows = useMemo(
+    () => getTPlanRows(currentAccount.activeBatch, 'sell', feeSettings, stock.marketLabel),
+    [currentAccount.activeBatch, feeSettings, stock.marketLabel]
+  )
   const activeTradesDescending = useMemo(
     () => (currentAccount.activeBatch?.trades ?? [])
       .map((trade, index) => ({ trade, index }))
@@ -326,7 +292,9 @@ export function TTradingDrawer({
         direction: side === 'buy' ? 'forward' : 'reverse',
         openingPosition: positionSnapshot(stock.position),
         trades: [],
-        sellLevels: []
+        buyLevels: [],
+        sellLevels: [],
+        alertEnabled: false
       }
     }
 
@@ -348,11 +316,14 @@ export function TTradingDrawer({
       return
     }
     const nextMetrics = calculateTBatchMetrics(nextBatch)
-    nextBatch.sellLevels = createDefaultSellLevels(nextMetrics.remainingQuantity)
+    let plannedBatch = rebalanceTBatchPlans(nextBatch, nextMetrics.remainingQuantity)
+    if (purpose === 't') {
+      plannedBatch = handleTriggeredTPlanAlertsForTrade(plannedBatch, side)
+    }
     const hasTTrades = nextBatch.trades.some((trade) => trade.purpose === 't')
     applyAccount(
-      { ...currentAccount, activeBatch: hasTTrades ? nextBatch : undefined },
-      recalculatePositionFromBatch(nextBatch)
+      { ...currentAccount, activeBatch: hasTTrades ? plannedBatch : undefined },
+      recalculatePositionFromBatch(plannedBatch)
     )
     resetTradeForm()
   }
@@ -383,37 +354,74 @@ export function TTradingDrawer({
       return
     }
     const nextMetrics = calculateTBatchMetrics(nextBatch)
-    nextBatch.sellLevels = createDefaultSellLevels(nextMetrics.remainingQuantity)
+    const plannedBatch = rebalanceTBatchPlans(nextBatch, nextMetrics.remainingQuantity)
     const hasTTrades = nextBatch.trades.some((trade) => trade.purpose === 't')
     applyAccount(
-      { ...currentAccount, activeBatch: hasTTrades ? nextBatch : undefined },
-      recalculatePositionFromBatch(nextBatch)
+      { ...currentAccount, activeBatch: hasTTrades ? plannedBatch : undefined },
+      recalculatePositionFromBatch(plannedBatch)
     )
     if (editingTradeId === tradeId) resetTradeForm()
   }
 
-  const updateSellLevel = (
+  const updatePlanLevel = (
+    side: TAlertSide,
     index: number,
     key: 'targetPercent' | 'quantity',
     value: number
   ) => {
     const batch = currentAccount.activeBatch
     if (!batch) return
-    const sellLevels = batch.sellLevels.map((level, levelIndex) => (
-      levelIndex === index ? { ...level, [key]: Math.max(0, value || 0) } : level
-    ))
-    applyAccount({ ...currentAccount, activeBatch: { ...batch, sellLevels } }, stock.position)
+    const nextBatch = updateTPlanLevel(batch, side, index, key, value)
+    applyAccount({
+      ...currentAccount,
+      activeBatch: nextBatch.alertEnabled
+        ? applyTAlertTriggers(nextBatch, quote?.latest).batch
+        : nextBatch
+    }, stock.position)
   }
 
-  const resetSellLevels = () => {
+  const resetPlanLevels = () => {
+    const batch = currentAccount.activeBatch
+    if (!batch) return
+    const nextBatch = resetTBatchPlans(batch, activeMetrics.remainingQuantity)
+    applyAccount({
+      ...currentAccount,
+      activeBatch: nextBatch.alertEnabled
+        ? applyTAlertTriggers(nextBatch, quote?.latest).batch
+        : nextBatch
+    }, stock.position)
+  }
+
+  const togglePriceAlerts = () => {
+    const batch = currentAccount.activeBatch
+    if (!batch) return
+    const nextBatch = setTAlertEnabled(batch, !batch.alertEnabled)
+    applyAccount({
+      ...currentAccount,
+      activeBatch: nextBatch.alertEnabled
+        ? applyTAlertTriggers(nextBatch, quote?.latest).batch
+        : nextBatch
+    }, stock.position)
+  }
+
+  const handlePlanAlert = (side: TAlertSide, index?: number) => {
     const batch = currentAccount.activeBatch
     if (!batch) return
     applyAccount({
       ...currentAccount,
-      activeBatch: {
-        ...batch,
-        sellLevels: createDefaultSellLevels(activeMetrics.remainingQuantity)
-      }
+      activeBatch: handleTPlanAlert(batch, side, index)
+    }, stock.position)
+  }
+
+  const restorePlanAlert = (side: TAlertSide, index: number) => {
+    const batch = currentAccount.activeBatch
+    if (!batch) return
+    const nextBatch = restoreTPlanAlert(batch, side, index)
+    applyAccount({
+      ...currentAccount,
+      activeBatch: nextBatch.alertEnabled
+        ? applyTAlertTriggers(nextBatch, quote?.latest).batch
+        : nextBatch
     }, stock.position)
   }
 
@@ -445,11 +453,11 @@ export function TTradingDrawer({
     const settledBatch = { ...batch, settlement }
     const nextPosition = finalQuantity > 0 && finalCost !== undefined
       ? {
-          quantity: finalQuantity,
-          cost: finalCost,
-          openedToday: false,
-          openedOn: stock.position?.openedOn ?? batch.openingPosition?.openedOn
-        }
+        quantity: finalQuantity,
+        cost: finalCost,
+        openedToday: false,
+        openedOn: stock.position?.openedOn ?? batch.openingPosition?.openedOn
+      }
       : undefined
 
     applyAccount({
@@ -766,59 +774,50 @@ export function TTradingDrawer({
               </section>
 
               {activeMetrics.remainingQuantity > 0 ? (
-                <section className="t-card">
+                <section className="t-card t-dual-plan-card">
                   <div className="t-card-heading">
                     <span>
-                      <strong>{isReverseBatch ? '五档回补计划' : '五档卖出计划'}</strong>
+                      <strong>当前T仓双五档计划</strong>
                       <small>
                         {isReverseBatch
-                          ? '默认 -1% 至 -5%，预期收益已扣除预计买入费用'
-                          : '默认 +1% 至 +5%，预期收益已扣除预计卖出费用'}
+                          ? '当前为反T，买入侧为回补重点；买卖两侧均可设置价格提醒'
+                          : '当前为正T，卖出侧为止盈重点；买卖两侧均可设置价格提醒'}
                       </small>
                     </span>
-                    <button type="button" className="text-button" onClick={resetSellLevels}>
-                      <RefreshCcw size={13} /> 重新均分
-                    </button>
+                    <span className="t-plan-heading-actions">
+                      <label className="t-alert-toggle">
+                        <span>价格提醒</span>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(currentAccount.activeBatch?.alertEnabled)}
+                          onChange={togglePriceAlerts}
+                        />
+                        <i aria-hidden="true" />
+                      </label>
+                      <button type="button" className="text-button" onClick={resetPlanLevels}>
+                        <RefreshCcw size={13} /> 重置双五档
+                      </button>
+                    </span>
                   </div>
-                  <div className="t-sell-levels">
-                    <div className="t-sell-level t-sell-level-head">
-                      <span>档位</span>
-                      <span>{isReverseBatch ? '目标跌幅' : '目标涨幅'}</span>
-                      <span>目标价格</span>
-                      <span>{isReverseBatch ? '回补数量' : '卖出数量'}</span>
-                      <span>本档净收益</span>
-                      <span>{isReverseBatch ? '全部回补收益' : '全仓卖出收益'}</span>
-                      <span>累计收益</span>
-                    </div>
-                    {sellLevelRows.map((level) => (
-                      <div className="t-sell-level" key={level.index}>
-                        <strong>{level.index + 1}</strong>
-                        <label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.1"
-                            value={level.targetPercent}
-                            onChange={(event) => updateSellLevel(level.index, 'targetPercent', Number(event.target.value))}
-                          />
-                          <span>%</span>
-                        </label>
-                        <span>{level.targetPrice === null ? '--' : level.targetPrice.toFixed(2)}</span>
-                        <label>
-                          <input
-                            type="number"
-                            min="100"
-                            step="100"
-                            value={level.quantity || ''}
-                            onChange={(event) => updateSellLevel(level.index, 'quantity', Number(event.target.value))}
-                          />
-                          <span>股</span>
-                        </label>
-                        <span className={valueClass(level.expectedProfit)}>{formatProfit(level.expectedProfit)}</span>
-                        <span className={valueClass(level.fullPositionProfit)}>{formatProfit(level.fullPositionProfit)}</span>
-                        <span className={valueClass(level.cumulativeProfit)}>{formatProfit(level.cumulativeProfit)}</span>
-                      </div>
-                    ))}
+                  <div className="t-plan-grid">
+                    <TPlanTable
+                      side="buy"
+                      rows={buyLevelRows}
+                      alertEnabled={Boolean(currentAccount.activeBatch?.alertEnabled)}
+                      emphasized={isReverseBatch}
+                      onUpdateLevel={(index, key, value) => updatePlanLevel('buy', index, key, value)}
+                      onHandleAlert={(index) => handlePlanAlert('buy', index)}
+                      onRestoreAlert={(index) => restorePlanAlert('buy', index)}
+                    />
+                    <TPlanTable
+                      side="sell"
+                      rows={sellLevelRows}
+                      alertEnabled={Boolean(currentAccount.activeBatch?.alertEnabled)}
+                      emphasized={!isReverseBatch}
+                      onUpdateLevel={(index, key, value) => updatePlanLevel('sell', index, key, value)}
+                      onHandleAlert={(index) => handlePlanAlert('sell', index)}
+                      onRestoreAlert={(index) => restorePlanAlert('sell', index)}
+                    />
                   </div>
                 </section>
               ) : null}

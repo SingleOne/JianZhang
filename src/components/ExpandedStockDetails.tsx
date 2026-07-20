@@ -5,6 +5,7 @@ import { formatAmount, formatPercent, formatPrice, formatVolume } from '../lib/f
 import { isBeijingAutoRefreshTime, millisecondsUntilNextAutoRefreshWindow } from '../shared/market-hours'
 import type { KlineBar, KlinePeriod, KlineResult, StockQuote, WatchStock } from '../shared/types'
 import { FundsFlowPanel } from './FundsFlowPanel'
+import { OrderBookPanel } from './OrderBookPanel'
 
 const CandlestickChart = lazy(() => import('./CandlestickChart'))
 const PeriodKlineChart = lazy(() => import('./PeriodKlineChart'))
@@ -255,51 +256,56 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
               </div>
             ))}
           </div>
-          <div className="chart-panel">
-            {error && data ? (
-              <div className="chart-refresh-warning">
-                <AlertCircle size={14} />
-                <span>{tabMeta?.label}数据刷新失败，当前显示最近一次数据</span>
-                <button type="button" onClick={retryCurrentTab}>重试</button>
-              </div>
+          <div className={`chart-panel ${priceTab === 'trend' ? 'has-order-book' : ''}`}>
+            <div className="chart-content">
+              {error && data ? (
+                <div className="chart-refresh-warning">
+                  <AlertCircle size={14} />
+                  <span>{tabMeta?.label}数据刷新失败，当前显示最近一次数据</span>
+                  <button type="button" onClick={retryCurrentTab}>重试</button>
+                </div>
+              ) : null}
+              {isLoading && data && isHistorical ? (
+                <div className="chart-history-loading">正在加载更早数据…</div>
+              ) : null}
+              {isLoading && !data ? (
+                <div className="chart-loading">
+                  <BarChart3 size={28} />
+                  <span>正在加载{tabMeta?.label}数据…</span>
+                </div>
+              ) : error && !data ? (
+                <div className="chart-error">
+                  <AlertCircle size={18} />
+                  <span>{error}</span>
+                  <button className="secondary-button chart-retry-button" type="button" onClick={retryCurrentTab}>
+                    <RefreshCw size={14} />
+                    重新获取
+                  </button>
+                </div>
+              ) : data && data.bars.length > 0 ? (
+                <Suspense fallback={<div className="chart-loading">正在初始化图表…</div>}>
+                  {historicalPeriod ? (
+                    <PeriodKlineChart
+                      bars={data.bars}
+                      period={historicalPeriod}
+                      onHoverBar={handleHoverBar}
+                      onRequestMore={requestMoreHistory}
+                    />
+                  ) : (
+                    <CandlestickChart
+                      bars={data.bars}
+                      variant={priceTab === 'fiveDay' ? 'fiveDay' : 'intraday'}
+                      onHoverBar={priceTab === 'trend' ? undefined : handleHoverBar}
+                    />
+                  )}
+                </Suspense>
+              ) : (
+                <div className="chart-loading">最近交易日暂无{tabMeta?.label}数据</div>
+              )}
+            </div>
+            {priceTab === 'trend' ? (
+              <OrderBookPanel stock={stock} refreshSeconds={refreshSeconds} />
             ) : null}
-            {isLoading && data && isHistorical ? (
-              <div className="chart-history-loading">正在加载更早数据…</div>
-            ) : null}
-            {isLoading && !data ? (
-              <div className="chart-loading">
-                <BarChart3 size={28} />
-                <span>正在加载{tabMeta?.label}数据…</span>
-              </div>
-            ) : error && !data ? (
-              <div className="chart-error">
-                <AlertCircle size={18} />
-                <span>{error}</span>
-                <button className="secondary-button chart-retry-button" type="button" onClick={retryCurrentTab}>
-                  <RefreshCw size={14} />
-                  重新获取
-                </button>
-              </div>
-            ) : data && data.bars.length > 0 ? (
-              <Suspense fallback={<div className="chart-loading">正在初始化图表…</div>}>
-                {historicalPeriod ? (
-                  <PeriodKlineChart
-                    bars={data.bars}
-                    period={historicalPeriod}
-                    onHoverBar={handleHoverBar}
-                    onRequestMore={requestMoreHistory}
-                  />
-                ) : (
-                  <CandlestickChart
-                    bars={data.bars}
-                    variant={priceTab === 'fiveDay' ? 'fiveDay' : 'intraday'}
-                    onHoverBar={priceTab === 'trend' ? undefined : handleHoverBar}
-                  />
-                )}
-              </Suspense>
-            ) : (
-              <div className="chart-loading">最近交易日暂无{tabMeta?.label}数据</div>
-            )}
           </div>
         </div>
       ) : activeTab === 'funds' ? (

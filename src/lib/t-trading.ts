@@ -6,7 +6,12 @@ import type {
   TTradeFees,
   TTradeSide,
   TTradingDirection,
+  TPlanLevel,
   TSellPlanLevel
+} from '../shared/types'
+import {
+  createDefaultTPlanLevels,
+  normalizeActiveTTradingBatch
 } from '../shared/types'
 import { currentDateKey } from './portfolio'
 
@@ -166,13 +171,39 @@ export function validateTBatchTrades(batch: TTradingBatch): string | undefined {
 }
 
 export function createDefaultSellLevels(quantity: number): TSellPlanLevel[] {
-  const totalLots = Math.floor(quantity / 100)
-  const baseLots = Math.floor(totalLots / 5)
-  const extraLots = totalLots % 5
-  return [1, 2, 3, 4, 5].map((targetPercent, index) => {
-    const lots = baseLots + (index < extraLots ? 1 : 0)
-    return { targetPercent, quantity: lots * 100 }
+  return createDefaultTPlanLevels(quantity)
+}
+
+export function rebalanceTPlanLevels(
+  levels: readonly TPlanLevel[] | undefined,
+  quantity: number
+): TPlanLevel[] {
+  const defaults = createDefaultTPlanLevels(quantity)
+  return defaults.map((fallback, index) => {
+    const level = levels?.[index]
+    return level ? { ...level, quantity: fallback.quantity } : fallback
   })
+}
+
+export function rebalanceTBatchPlans(
+  batch: TTradingBatch,
+  quantity: number
+): TTradingBatch {
+  const normalized = normalizeActiveTTradingBatch(batch)
+  return {
+    ...normalized,
+    buyLevels: rebalanceTPlanLevels(normalized.buyLevels, quantity),
+    sellLevels: rebalanceTPlanLevels(normalized.sellLevels, quantity)
+  }
+}
+
+export function resetTBatchPlans(batch: TTradingBatch, quantity: number): TTradingBatch {
+  const normalized = normalizeActiveTTradingBatch(batch)
+  return {
+    ...normalized,
+    buyLevels: createDefaultTPlanLevels(quantity),
+    sellLevels: createDefaultTPlanLevels(quantity)
+  }
 }
 
 export function applyTradeToPosition(

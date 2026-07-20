@@ -34,6 +34,7 @@ import {
   getPositionHoldingDays,
   type PositionMetrics
 } from '../lib/portfolio'
+import { getTriggeredTAlertBadges } from '../lib/t-alerts'
 import { calculateTBatchMetrics } from '../lib/t-trading'
 import type {
   StockPosition,
@@ -49,6 +50,7 @@ import type {
 import { normalizeWatchlistColumnOrder } from '../shared/types'
 import { ExpandedStockDetails } from './ExpandedStockDetails'
 import { PositionEditor } from './PositionEditor'
+import { TAlertBadges } from './TAlertBadges'
 import { TTradingDrawer } from './TTradingDrawer'
 
 interface WatchlistTableProps {
@@ -118,6 +120,7 @@ const COLUMN_META: Record<WatchlistColumnId, ColumnMeta> = {
   low: { label: '最低', width: 64, sortable: true },
   amount: { label: '持仓天数', width: 80, sortable: true },
   radar: { label: '异动提示', width: 100, sortable: true, className: 'radar-column' },
+  tAlert: { label: 'T提醒', width: 118, sortable: false, className: 't-alert-column' },
   positionQuantity: { label: '持仓数量', width: 84, sortable: true },
   cost: { label: '成本价', width: 68, sortable: true },
   marketValue: { label: '持仓市值', width: 88, sortable: true },
@@ -165,6 +168,7 @@ function sortValue(
       const latestSignal = todayRadarSignals(row.quote?.radarSignals)[0]
       return latestSignal ? `${latestSignal.date} ${latestSignal.time}` : null
     }
+    case 'tAlert': return null
     case 'positionQuantity': return row.stock.position?.quantity
     case 'cost': return row.stock.position?.cost
     case 'marketValue': return row.metrics.marketValue
@@ -602,6 +606,7 @@ export function WatchlistTable({
               const tradingAccount = tTradingAccounts[stock.quoteId]
               const activeTBatch = tradingAccount?.activeBatch
               const tFloatingProfit = calculateTBatchMetrics(activeTBatch, quote?.latest).floatingProfit
+              const tAlertBadges = getTriggeredTAlertBadges(activeTBatch)
               const holdingDays = getPositionHoldingDays(
                 stock.position,
                 tradingCalendarClosedDates
@@ -791,6 +796,24 @@ export function WatchlistTable({
                                 >
                                   <span>今日有异动</span>
                                   <b>{currentRadarSignals.length}</b>
+                                </button>
+                              ) : '--'}
+                            </td>
+                          )
+                        case 'tAlert':
+                          return (
+                            <td className="t-alert-column" key={columnId}>
+                              {tAlertBadges.length > 0 ? (
+                                <button
+                                  type="button"
+                                  className="t-alert-cell-button"
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    setTTradingStock(stock)
+                                  }}
+                                  title="查看当前 T 仓价格提醒"
+                                >
+                                  <TAlertBadges badges={tAlertBadges} />
                                 </button>
                               ) : '--'}
                             </td>

@@ -130,10 +130,17 @@ export interface TPositionSnapshot {
   openedOn?: string
 }
 
-export interface TSellPlanLevel {
+export type TAlertStatus = 'armed' | 'triggered' | 'handled'
+
+export interface TPlanLevel {
   targetPercent: number
   quantity: number
+  alertStatus?: TAlertStatus
+  triggeredAt?: string
 }
+
+/** 兼容旧代码中仅存在卖出计划时的类型名称。 */
+export type TSellPlanLevel = TPlanLevel
 
 export interface TBatchSettlement {
   settledAt: string
@@ -154,7 +161,12 @@ export interface TTradingBatch {
   direction?: TTradingDirection
   openingPosition?: TPositionSnapshot
   trades: TTrade[]
-  sellLevels: TSellPlanLevel[]
+  /** 低于当前 T 仓平均成本的五档买入计划。 */
+  buyLevels?: TPlanLevel[]
+  /** 高于当前 T 仓平均成本的五档卖出计划。 */
+  sellLevels: TPlanLevel[]
+  /** 当前批次的买卖十档价格提醒总开关。 */
+  alertEnabled?: boolean
   settlement?: TBatchSettlement
 }
 
@@ -169,10 +181,72 @@ export interface TTradingAccount {
 
 export type TTradingAccounts = Record<string, TTradingAccount>
 
+function activeTQuantity(batch: TTradingBatch): number {
+  const openingSide: TTradeSide = (batch.direction ?? 'forward') === 'reverse' ? 'sell' : 'buy'
+  return Math.max(0, batch.trades.reduce((total, trade) => (
+    trade.purpose !== 't'
+      ? total
+      : total + (trade.side === openingSide ? trade.quantity : -trade.quantity)
+  ), 0))
+}
+
+export function createDefaultTPlanLevels(quantity: number): TPlanLevel[] {
+  const totalLots = Math.floor(quantity / 100)
+  const baseLots = Math.floor(totalLots / 5)
+  const extraLots = totalLots % 5
+  return [1, 2, 3, 4, 5].map((targetPercent, index) => ({
+    targetPercent,
+    quantity: (baseLots + (index < extraLots ? 1 : 0)) * 100,
+    alertStatus: 'armed' as const
+  }))
+}
+
+function normalizeTPlanLevels(
+  levels: readonly TPlanLevel[] | undefined,
+  quantity: number
+): TPlanLevel[] {
+  const defaults = createDefaultTPlanLevels(quantity)
+  return defaults.map((fallback, index) => {
+    const level = levels?.[index]
+    if (!level) return fallback
+    return {
+      targetPercent: Math.max(0, level.targetPercent ?? fallback.targetPercent),
+      quantity: Math.max(0, level.quantity ?? fallback.quantity),
+      alertStatus: level.alertStatus === 'triggered' || level.alertStatus === 'handled'
+        ? level.alertStatus
+        : 'armed',
+      triggeredAt: level.triggeredAt
+    }
+  })
+}
+
+export function normalizeActiveTTradingBatch(batch: TTradingBatch): TTradingBatch {
+  const quantity = activeTQuantity(batch)
+  const direction = batch.direction ?? 'forward'
+  const legacyLevels = normalizeTPlanLevels(batch.sellLevels, quantity)
+  const hasBuyLevels = Array.isArray(batch.buyLevels)
+
+  return {
+    ...batch,
+    buyLevels: direction === 'reverse' && !hasBuyLevels
+      ? legacyLevels
+      : normalizeTPlanLevels(batch.buyLevels, quantity),
+    sellLevels: direction === 'reverse' && !hasBuyLevels
+      ? createDefaultTPlanLevels(quantity)
+      : legacyLevels,
+    alertEnabled: batch.alertEnabled ?? false
+  }
+}
+
 export function normalizeTTradingAccounts(
   accounts: TTradingAccounts | undefined
 ): TTradingAccounts {
-  return accounts ?? {}
+  return Object.fromEntries(Object.entries(accounts ?? {}).map(([quoteId, account]) => [
+    quoteId,
+    account.activeBatch
+      ? { ...account, activeBatch: normalizeActiveTTradingBatch(account.activeBatch) }
+      : account
+  ]))
 }
 
 export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
@@ -184,6 +258,7 @@ export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
   'low',
   'amount',
   'radar',
+  'tAlert',
   'positionQuantity',
   'cost',
   'marketValue',
@@ -195,7 +270,7 @@ export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
 ] as const
 
 export type WatchlistColumnId = typeof DEFAULT_WATCHLIST_COLUMN_ORDER[number]
-export const WATCHLIST_COLUMN_ORDER_VERSION = 1
+export const WATCHLIST_COLUMN_ORDER_VERSION = 2
 
 const PREVIOUS_DEFAULT_WATCHLIST_COLUMN_ORDER: readonly WatchlistColumnId[] = [
   'stock',
@@ -248,9 +323,13 @@ export function migrateWatchlistColumnOrder(
   const normalized = normalizeWatchlistColumnOrder(columnOrder)
   if ((version ?? 0) >= WATCHLIST_COLUMN_ORDER_VERSION) return normalized
 
-  const migrated: WatchlistColumnId[] = normalized.filter((columnId) => columnId !== 'todayProfit')
+  const migrated: WatchlistColumnId[] = normalized.filter((columnId) => (
+    columnId !== 'todayProfit' && columnId !== 'tAlert'
+  ))
   const profitPercentIndex = migrated.indexOf('profitPercent')
   migrated.splice(profitPercentIndex + 1, 0, 'todayProfit')
+  const radarIndex = migrated.indexOf('radar')
+  migrated.splice(radarIndex + 1, 0, 'tAlert')
   return migrated
 }
 
@@ -268,6 +347,21 @@ export interface StockQuote {
   volume: number | null
   amount: number | null
   radarSignals?: StockRadarSignal[]
+  updatedAt: string
+}
+
+export interface OrderBookLevel {
+  price: number | null
+  volume: number | null
+}
+
+export interface StockOrderBook {
+  quoteId: string
+  name: string
+  latest: number | null
+  previousClose: number | null
+  bids: OrderBookLevel[]
+  asks: OrderBookLevel[]
   updatedAt: string
 }
 
@@ -481,6 +575,7 @@ export interface StockDesktopApi {
   searchStocks: (query: string) => Promise<SearchResult[]>
   refreshQuotes: () => Promise<StockQuote[]>
   getKline: (quoteId: string, period: KlinePeriod, limit?: number) => Promise<KlineResult>
+  getOrderBook: (quoteId: string) => Promise<StockOrderBook>
   getFundsFlow: (quoteId: string) => Promise<FundsFlowResult>
   getSectorIndex: (quoteId: string) => Promise<SectorIndexResult>
   refreshTradingCalendar: () => Promise<TradingCalendarSettings>

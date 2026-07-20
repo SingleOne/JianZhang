@@ -30,7 +30,18 @@ import {
 } from '../../src/shared/types'
 import { createConfigDocument, parseConfigDocument } from '../../src/shared/config'
 import { isBeijingAutoRefreshTime } from '../../src/shared/market-hours'
-import { fetchFundsFlow, fetchKline, fetchQuotes, fetchSectorIndex, searchStocks } from './market'
+import {
+  accountHasTriggeredTAlerts,
+  applyTAlertTriggersToAccounts
+} from '../../src/lib/t-alerts'
+import {
+  fetchFundsFlow,
+  fetchKline,
+  fetchOrderBook,
+  fetchQuotes,
+  fetchSectorIndex,
+  searchStocks
+} from './market'
 import { fetchSseTradingCalendar } from './trading-calendar'
 import { createAppIcon } from './tray-icons'
 
@@ -148,8 +159,7 @@ function quitApp(): void {
 function updateAppTrayMenu(): void {
   if (!appTray) return
 
-  const selectedItems = state.watchlist
-    .filter((stock) => stock.showInTaskbar)
+  const selectedItems = taskbarVisibleStocks()
     .map((stock) => {
       const quote = latestQuotes.find((item) => item.quoteId === stock.quoteId)
       return {
@@ -170,6 +180,18 @@ function updateAppTrayMenu(): void {
   )
 }
 
+function taskbarVisibleStocks(): WatchStock[] {
+  return state.watchlist.filter((stock) => (
+    stock.showInTaskbar || accountHasTriggeredTAlerts(state.tTradingAccounts[stock.quoteId])
+  ))
+}
+
+function hasActiveTaskbarAlert(): boolean {
+  return state.watchlist.some((stock) => (
+    accountHasTriggeredTAlerts(state.tTradingAccounts[stock.quoteId])
+  ))
+}
+
 function positionTaskbarWindow(): void {
   if (!taskbarWindow || taskbarWindow.isDestroyed()) return
 
@@ -177,16 +199,16 @@ function positionTaskbarWindow(): void {
   const taskbarTop = display.workArea.y + display.workArea.height
   const displayBottom = display.bounds.y + display.bounds.height
   const taskbarHeight = displayBottom - taskbarTop
-  const selectedCount = state.watchlist.filter((stock) => stock.showInTaskbar).length
+  const selectedCount = taskbarVisibleStocks().length
 
-  if (!state.settings.showTaskbarTicker || selectedCount === 0 || taskbarHeight < 24) {
+  if ((!state.settings.showTaskbarTicker && !hasActiveTaskbarAlert()) || selectedCount === 0 || taskbarHeight < 24) {
     taskbarWindow.hide()
     return
   }
 
   const columns = Math.ceil(selectedCount / 2)
   const availableWidth = Math.max(280, Math.floor(display.bounds.width / 2 - 110))
-  const width = Math.min(availableWidth, Math.max(280, columns * 230))
+  const width = Math.min(availableWidth, Math.max(280, columns * 260))
   const horizontalMargin = 24
   const travelWidth = Math.max(0, display.bounds.width - width - horizontalMargin * 2)
   const positionPercent = Math.min(100, Math.max(0, state.settings.taskbarPositionPercent))
@@ -246,8 +268,8 @@ function createTaskbarWindow(): void {
 }
 
 function syncTaskbarWindow(): void {
-  const shouldShow = state.settings.showTaskbarTicker
-    && state.watchlist.some((stock) => stock.showInTaskbar)
+  const shouldShow = taskbarVisibleStocks().length > 0
+    && (state.settings.showTaskbarTicker || hasActiveTaskbarAlert())
 
   if (!shouldShow) {
     if (taskbarWindow && !taskbarWindow.isDestroyed()) taskbarWindow.hide()
@@ -289,6 +311,12 @@ async function refreshStocks(
       marketIndices.length > 0 ? fetchQuotes(marketIndices, []) : Promise.resolve([])
     ])
     mergeQuotes([...stockQuotes, ...marketIndexQuotes])
+    const alertUpdate = applyTAlertTriggersToAccounts(state.tTradingAccounts, latestQuotes)
+    if (alertUpdate.changed) {
+      state = { ...state, tTradingAccounts: alertUpdate.accounts }
+      persistState()
+      sendToWindows('state:updated', state)
+    }
     sendToWindows('quotes:updated', latestQuotes)
     updateAppTrayMenu()
     syncTaskbarWindow()
@@ -442,6 +470,7 @@ function registerIpc(): void {
   ipcMain.handle('kline:get', (_event, quoteId: string, period: KlinePeriod, limit?: number) => (
     fetchKline(quoteId, period, limit)
   ))
+  ipcMain.handle('order-book:get', (_event, quoteId: string) => fetchOrderBook(quoteId))
   ipcMain.handle('funds-flow:get', (_event, quoteId: string) => fetchFundsFlow(quoteId))
   ipcMain.handle('sector-index:get', (_event, quoteId: string) => fetchSectorIndex(quoteId))
   ipcMain.handle('trading-calendar:refresh', () => refreshTradingCalendar())

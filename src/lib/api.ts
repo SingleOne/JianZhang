@@ -16,6 +16,7 @@ import {
   type SearchResult,
   type SectorIndexResult,
   type StockDesktopApi,
+  type StockOrderBook,
   type StockQuote,
   type WatchStock
 } from '../shared/types'
@@ -241,6 +242,27 @@ function makeDemoKline(quoteId: string, period: KlinePeriod, limit?: number): Kl
   }
 }
 
+function makeDemoOrderBook(quoteId: string): StockOrderBook {
+  const quote = DEMO_VALUES[quoteId]
+  const latest = quote?.latest ?? 48
+  const priceAt = (offset: number) => Number((latest + offset * 0.01).toFixed(2))
+  return {
+    quoteId,
+    name: quote?.name ?? '',
+    latest,
+    previousClose: quote?.previousClose ?? latest,
+    bids: Array.from({ length: 5 }, (_, index) => ({
+      price: priceAt(-(index + 1)),
+      volume: 260 + ((index * 173) % 1100)
+    })),
+    asks: Array.from({ length: 5 }, (_, index) => ({
+      price: priceAt(index + 1),
+      volume: 310 + ((index * 227) % 1200)
+    })),
+    updatedAt: new Date().toISOString()
+  }
+}
+
 function makeDemoFundsFlow(quoteId: string): FundsFlowResult {
   const quote = DEMO_VALUES[quoteId]
   const tradingDate = new Date().toISOString().slice(0, 10)
@@ -311,6 +333,9 @@ const demoApi: StockDesktopApi = {
   },
   async getKline(quoteId, period, limit) {
     return makeDemoKline(quoteId, period, limit)
+  },
+  async getOrderBook(quoteId) {
+    return makeDemoOrderBook(quoteId)
   },
   async getFundsFlow(quoteId) {
     return makeDemoFundsFlow(quoteId)

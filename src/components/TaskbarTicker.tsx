@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { initialState, stockApi } from '../lib/api'
 import { formatPercent, formatPrice } from '../lib/format'
+import { getTriggeredTAlertBadges } from '../lib/t-alerts'
 import type { AppState, StockQuote } from '../shared/types'
+import { TAlertBadges } from './TAlertBadges'
 
 function directionClass(changePercent: number | null | undefined): string {
   if (changePercent === null || changePercent === undefined || changePercent === 0) return 'is-flat'
@@ -29,13 +31,17 @@ export function TaskbarTicker() {
   const selectedStocks = useMemo(() => {
     const quoteMap = new Map(quotes.map((quote) => [quote.quoteId, quote]))
     return state.watchlist
-      .filter((stock) => stock.showInTaskbar)
-      .map((stock) => ({ stock, quote: quoteMap.get(stock.quoteId) }))
-  }, [quotes, state.watchlist])
+      .map((stock) => ({
+        stock,
+        quote: quoteMap.get(stock.quoteId),
+        alertBadges: getTriggeredTAlertBadges(state.tTradingAccounts[stock.quoteId]?.activeBatch)
+      }))
+      .filter(({ stock, alertBadges }) => stock.showInTaskbar || alertBadges.length > 0)
+  }, [quotes, state.tTradingAccounts, state.watchlist])
 
   return (
     <div className={`taskbar-ticker ${selectedStocks.length === 1 ? 'is-single' : ''}`}>
-      {selectedStocks.map(({ stock, quote }) => {
+      {selectedStocks.map(({ stock, quote, alertBadges }) => {
         const direction = directionClass(quote?.changePercent)
         const arrow = direction === 'is-up' ? '↑' : direction === 'is-down' ? '↓' : '·'
         return (
@@ -44,6 +50,7 @@ export function TaskbarTicker() {
             <span className="taskbar-stock-arrow">{arrow}</span>
             <strong>{formatPrice(quote?.latest)}</strong>
             <span className="taskbar-stock-change">{formatPercent(quote?.changePercent)}</span>
+            <TAlertBadges badges={alertBadges} compact />
           </div>
         )
       })}

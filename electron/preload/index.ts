@@ -12,6 +12,7 @@ const api: StockDesktopApi = {
   searchStocks: (query) => ipcRenderer.invoke('stocks:search', query),
   refreshQuotes: () => ipcRenderer.invoke('quotes:refresh'),
   getKline: (quoteId, period, limit) => ipcRenderer.invoke('kline:get', quoteId, period, limit),
+  getOrderBook: (quoteId) => ipcRenderer.invoke('order-book:get', quoteId),
   getFundsFlow: (quoteId) => ipcRenderer.invoke('funds-flow:get', quoteId),
   getSectorIndex: (quoteId) => ipcRenderer.invoke('sector-index:get', quoteId),
   refreshTradingCalendar: () => ipcRenderer.invoke('trading-calendar:refresh'),

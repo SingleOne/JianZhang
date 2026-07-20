@@ -3,8 +3,10 @@ import type {
   FundsFlowResult,
   KlinePeriod,
   KlineResult,
+  OrderBookLevel,
   SearchResult,
   SectorIndexResult,
+  StockOrderBook,
   StockQuote,
   StockRadarSignal,
   WatchStock
@@ -66,6 +68,32 @@ interface EastmoneyQuoteItem {
   f16?: number | '-'
   f17?: number | '-'
   f18?: number | '-'
+}
+
+interface EastmoneyOrderBookData {
+  f11?: number | '-'
+  f12?: number | '-'
+  f13?: number | '-'
+  f14?: number | '-'
+  f15?: number | '-'
+  f16?: number | '-'
+  f17?: number | '-'
+  f18?: number | '-'
+  f19?: number | '-'
+  f20?: number | '-'
+  f31?: number | '-'
+  f32?: number | '-'
+  f33?: number | '-'
+  f34?: number | '-'
+  f35?: number | '-'
+  f36?: number | '-'
+  f37?: number | '-'
+  f38?: number | '-'
+  f39?: number | '-'
+  f40?: number | '-'
+  f43?: number | '-'
+  f58?: string
+  f60?: number | '-'
 }
 
 interface EastmoneyRadarItem {
@@ -195,6 +223,46 @@ export async function fetchQuotes(
     radarSignals: radarSignals.get(quoteIdByCode.get(item.f12 ?? '') ?? ''),
     updatedAt: now
   }))
+}
+
+export async function fetchOrderBook(quoteId: string): Promise<StockOrderBook> {
+  const url = new URL('https://push2.eastmoney.com/api/qt/stock/get')
+  url.searchParams.set('secid', quoteId)
+  url.searchParams.set('invt', '2')
+  url.searchParams.set('fltt', '2')
+  url.searchParams.set(
+    'fields',
+    'f43,f58,f60,f11,f12,f13,f14,f15,f16,f17,f18,f19,f20,f31,f32,f33,f34,f35,f36,f37,f38,f39,f40'
+  )
+
+  const payload = await requestJson<{ data?: EastmoneyOrderBookData }>(url.toString())
+  const data = payload.data
+  if (!data) throw new Error('行情服务未返回五档数据')
+
+  const bids: OrderBookLevel[] = [
+    { price: rawNumber(data.f11), volume: rawNumber(data.f12) },
+    { price: rawNumber(data.f13), volume: rawNumber(data.f14) },
+    { price: rawNumber(data.f15), volume: rawNumber(data.f16) },
+    { price: rawNumber(data.f17), volume: rawNumber(data.f18) },
+    { price: rawNumber(data.f19), volume: rawNumber(data.f20) }
+  ]
+  const asks: OrderBookLevel[] = [
+    { price: rawNumber(data.f31), volume: rawNumber(data.f32) },
+    { price: rawNumber(data.f33), volume: rawNumber(data.f34) },
+    { price: rawNumber(data.f35), volume: rawNumber(data.f36) },
+    { price: rawNumber(data.f37), volume: rawNumber(data.f38) },
+    { price: rawNumber(data.f39), volume: rawNumber(data.f40) }
+  ]
+
+  return {
+    quoteId,
+    name: data.f58 ?? '',
+    latest: rawNumber(data.f43),
+    previousClose: rawNumber(data.f60),
+    bids,
+    asks,
+    updatedAt: new Date().toISOString()
+  }
 }
 
 function compactDate(date: Date): string {
