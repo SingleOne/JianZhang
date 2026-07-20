@@ -780,8 +780,8 @@ export function TTradingDrawer({
                       <strong>当前T仓双五档计划</strong>
                       <small>
                         {isReverseBatch
-                          ? '当前为反T，买入侧为回补重点；买卖两侧均可设置价格提醒'
-                          : '当前为正T，卖出侧为止盈重点；买卖两侧均可设置价格提醒'}
+                          ? '买入侧显示回补收益，卖出侧显示继续反T后的仓位与成本'
+                          : '买入侧显示加仓后的仓位与成本，卖出侧显示价差收益'}
                       </small>
                     </span>
                     <span className="t-plan-heading-actions">
@@ -806,6 +806,7 @@ export function TTradingDrawer({
                         rows={buyLevelRows}
                         alertEnabled={Boolean(currentAccount.activeBatch?.alertEnabled)}
                         emphasized={isReverseBatch}
+                        openingPlan={!isReverseBatch}
                         onUpdateLevel={(index, key, value) => updatePlanLevel('buy', index, key, value)}
                         onHandleAlert={(index) => handlePlanAlert('buy', index)}
                         onRestoreAlert={(index) => restorePlanAlert('buy', index)}
@@ -815,6 +816,7 @@ export function TTradingDrawer({
                         rows={sellLevelRows}
                         alertEnabled={Boolean(currentAccount.activeBatch?.alertEnabled)}
                         emphasized={!isReverseBatch}
+                        openingPlan={isReverseBatch}
                         onUpdateLevel={(index, key, value) => updatePlanLevel('sell', index, key, value)}
                         onHandleAlert={(index) => handlePlanAlert('sell', index)}
                         onRestoreAlert={(index) => restorePlanAlert('sell', index)}

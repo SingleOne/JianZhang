@@ -1477,11 +1477,19 @@ tr:focus-visible {
 }
 
 .today-market-cell {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  justify-items: center;
+  gap: 4px 10px;
+  color: #475467;
+  line-height: 1.2;
+}
+
+.combined-profit-cell {
   display: inline-grid;
   justify-items: center;
   gap: 3px;
-  color: #475467;
-  font-size: 11px;
   line-height: 1.1;
 }
 
@@ -2799,6 +2807,10 @@ tr:focus-visible {
   text-align: center;
 }
 
+.t-plan-table.is-opening-plan .t-plan-level {
+  grid-template-columns: 30px 62px 68px 78px minmax(90px, 1fr) minmax(84px, 1fr);
+}
+
 .t-plan-level:last-child {
   border-bottom: 0;
 }
@@ -2878,12 +2890,17 @@ tr:focus-visible {
 
 .t-alert-badge {
   min-width: 25px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
   padding: 2px 4px;
   color: #ffffff;
   border-radius: 4px;
   font-size: 10px;
   font-weight: 750;
-  line-height: 14px;
+  line-height: 1;
   text-align: center;
   animation: t-alert-flash 850ms ease-in-out infinite;
 }
@@ -2905,9 +2922,9 @@ tr:focus-visible {
 
 .t-alert-badges.is-compact .t-alert-badge {
   min-width: 21px;
-  padding: 1px 3px;
+  height: 16px;
+  padding: 0 3px;
   font-size: 9px;
-  line-height: 12px;
 }
 
 .t-alert-column {
@@ -3558,6 +3575,21 @@ tr:focus-visible {
   font-weight: 700;
 }
 
+.sector-index-latest span.is-up,
+.sector-index-summary strong.is-up {
+  color: var(--red);
+}
+
+.sector-index-latest span.is-down,
+.sector-index-summary strong.is-down {
+  color: var(--green);
+}
+
+.sector-index-latest span.is-flat,
+.sector-index-summary strong.is-flat {
+  color: #475467;
+}
+
 .sector-index-summary {
   grid-template-columns: repeat(8, minmax(80px, 1fr));
 }
@@ -4173,9 +4205,18 @@ html.taskbar-mode #root {
   background: transparent !important;
 }
 
-.taskbar-ticker {
+.taskbar-ticker-shell {
+  position: relative;
   width: 100%;
   height: 100%;
+}
+
+.taskbar-ticker {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
   display: grid;
   grid-template-rows: repeat(2, minmax(0, 1fr));
   grid-auto-flow: column;
@@ -4188,6 +4229,104 @@ html.taskbar-mode #root {
   font-variant-numeric: tabular-nums;
   line-height: 18px;
   user-select: none;
+}
+
+.taskbar-detail-panel {
+  position: absolute;
+  right: 3px;
+  left: 3px;
+  overflow: hidden;
+  pointer-events: none;
+  color: #344054;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid rgba(193, 202, 216, 0.92);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.24);
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.taskbar-detail-panel.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.taskbar-detail-panel > header {
+  padding: 8px 10px 6px;
+  color: #657187;
+  border-bottom: 1px solid #edf0f4;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.taskbar-detail-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.taskbar-detail-item {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  padding: 7px 10px;
+  border-right: 1px solid #edf0f4;
+  border-bottom: 1px solid #edf0f4;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.taskbar-detail-heading,
+.taskbar-detail-t {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.taskbar-detail-heading > span,
+.taskbar-detail-t {
+  color: #657187;
+}
+
+.taskbar-detail-heading > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.taskbar-detail-heading b {
+  font-weight: 700;
+}
+
+.taskbar-detail-t {
+  gap: 10px;
+  overflow: hidden;
+  font-size: 10px;
+}
+
+.taskbar-detail-t > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.taskbar-detail-t.is-empty {
+  justify-content: flex-start;
+  color: #98a2b3;
+}
+
+.taskbar-detail-panel .is-up {
+  color: #c92733;
+}
+
+.taskbar-detail-panel .is-down {
+  color: #087c57;
+}
+
+.taskbar-detail-panel .is-flat {
+  color: #657187;
 }
 
 .taskbar-ticker.is-single {
@@ -4253,6 +4392,37 @@ html.taskbar-mode #root {
 
   .taskbar-quote {
     text-shadow: 0 1px 1px rgba(0, 0, 0, 0.55);
+  }
+
+  .taskbar-detail-panel {
+    color: #e2e8f0;
+    background: rgba(24, 32, 46, 0.97);
+    border-color: rgba(96, 111, 132, 0.88);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.48);
+  }
+
+  .taskbar-detail-panel > header,
+  .taskbar-detail-item {
+    border-color: rgba(96, 111, 132, 0.38);
+  }
+
+  .taskbar-detail-panel > header,
+  .taskbar-detail-heading > span,
+  .taskbar-detail-t {
+    color: #b6c0ce;
+  }
+
+  .taskbar-detail-t.is-empty,
+  .taskbar-detail-panel .is-flat {
+    color: #98a6b8;
+  }
+
+  .taskbar-detail-panel .is-up {
+    color: #ff6b75;
+  }
+
+  .taskbar-detail-panel .is-down {
+    color: #51d39e;
   }
 
   .taskbar-quote.is-up {

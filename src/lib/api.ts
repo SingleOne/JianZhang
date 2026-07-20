@@ -18,6 +18,7 @@ import {
   type StockDesktopApi,
   type StockOrderBook,
   type StockQuote,
+  type StockSectorQuote,
   type WatchStock
 } from '../shared/types'
 import { createConfigDocument, parseConfigDocument } from '../shared/config'
@@ -40,6 +41,17 @@ const DEMO_SECTORS: Record<string, { code: string; name: string; quoteId: string
   '1.600036': { code: 'BK0475', name: '银行Ⅱ', quoteId: '90.BK0475' },
   '0.000858': { code: 'BK0896', name: '白酒', quoteId: '90.BK0896' },
   '1.601318': { code: 'BK0474', name: '保险', quoteId: '90.BK0474' }
+}
+
+function makeDemoSectorQuote(stockQuoteId: string): StockSectorQuote | undefined {
+  const sector = DEMO_SECTORS[stockQuoteId]
+  if (!sector) return undefined
+  return {
+    code: sector.code,
+    name: sector.name,
+    quoteId: sector.quoteId,
+    changePercent: DEMO_VALUES[sector.quoteId]?.changePercent ?? null
+  }
 }
 
 const DEFAULT_WATCHLIST: WatchStock[] = DEMO_STOCKS.slice(0, 5).map((stock, index) => ({
@@ -147,6 +159,7 @@ function makeDemoQuotes(watchlist: WatchStock[]): StockQuote[] {
   const now = new Date().toISOString()
   return watchlist.map((stock, index) => {
     const known = DEMO_VALUES[stock.quoteId]
+    const sector = makeDemoSectorQuote(stock.quoteId)
     const radarSignals = index === 0 ? [{
       type: '8201',
       label: '火箭发射',
@@ -155,7 +168,7 @@ function makeDemoQuotes(watchlist: WatchStock[]): StockQuote[] {
       info: '',
       direction: 'up' as const
     }] : undefined
-    if (known) return { ...known, radarSignals, updatedAt: now }
+    if (known) return { ...known, sector, radarSignals, updatedAt: now }
     const base = 24 + index * 7.31
     return {
       code: stock.code,
@@ -170,6 +183,7 @@ function makeDemoQuotes(watchlist: WatchStock[]): StockQuote[] {
       previousClose: base - 0.18,
       volume: 182300,
       amount: 486320000,
+      sector,
       radarSignals,
       updatedAt: now
     }
@@ -388,6 +402,7 @@ const demoApi: StockDesktopApi = {
   async quitApp() {},
   onQuotesUpdated: noSubscribe,
   onStateUpdated: noSubscribe,
+  onTaskbarLayout: noSubscribe,
   onSelectStock: noSubscribe,
   onDataError: noSubscribe
 }

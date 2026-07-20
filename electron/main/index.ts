@@ -24,6 +24,7 @@ import {
   normalizeWatchlistColumnOrder,
   type AppState,
   type KlinePeriod,
+  type StockSectorQuote,
   type StockQuote,
   type TradingCalendarSettings,
   type WatchStock
@@ -34,12 +35,14 @@ import {
   accountHasTriggeredTAlerts,
   applyTAlertTriggersToAccounts
 } from '../../src/lib/t-alerts'
+import { calculatePositionMetrics } from '../../src/lib/portfolio'
 import {
   fetchFundsFlow,
   fetchKline,
   fetchOrderBook,
   fetchQuotes,
   fetchSectorIndex,
+  fetchSectorQuotes,
   searchStocks
 } from './market'
 import { fetchSseTradingCalendar } from './trading-calendar'
@@ -127,6 +130,11 @@ function formatPercent(value: number | null): string {
   return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
 }
 
+function formatProfit(value: number | null): string {
+  if (value === null) return '--'
+  return `${value >= 0 ? '+' : ''}${value.toFixed(2)}`
+}
+
 function showMainWindow(quoteId?: string): void {
   if (!mainWindow || mainWindow.isDestroyed()) return
   mainWindow.show()
@@ -162,8 +170,13 @@ function updateAppTrayMenu(): void {
   const selectedItems = taskbarVisibleStocks()
     .map((stock) => {
       const quote = latestQuotes.find((item) => item.quoteId === stock.quoteId)
+      const todayProfit = calculatePositionMetrics(
+        stock.position,
+        quote,
+        state.tTradingAccounts[stock.quoteId]
+      ).todayProfit
       return {
-        label: `${stock.name}  ${formatPrice(quote?.latest ?? null)}  ${formatPercent(quote?.changePercent ?? null)}`,
+        label: `${stock.name}  ${formatPrice(quote?.latest ?? null)}  ${formatPercent(quote?.changePercent ?? null)}  今日盈利 ${formatProfit(todayProfit)}`,
         click: () => showMainWindow(stock.quoteId)
       }
     })
@@ -209,16 +222,20 @@ function positionTaskbarWindow(): void {
   const columns = Math.ceil(selectedCount / 2)
   const availableWidth = Math.max(280, Math.floor(display.bounds.width / 2 - 110))
   const width = Math.min(availableWidth, Math.max(280, columns * 260))
+  const detailColumns = Math.max(1, Math.floor(width / 250))
+  const detailRows = Math.ceil(selectedCount / detailColumns)
+  const detailHeight = 54 + detailRows * 56
   const horizontalMargin = 24
   const travelWidth = Math.max(0, display.bounds.width - width - horizontalMargin * 2)
   const positionPercent = Math.min(100, Math.max(0, state.settings.taskbarPositionPercent))
 
   taskbarWindow.setBounds({
     x: display.bounds.x + horizontalMargin + Math.round(travelWidth * positionPercent / 100),
-    y: taskbarTop,
+    y: taskbarTop - detailHeight,
     width,
-    height: taskbarHeight
+    height: taskbarHeight + detailHeight
   })
+  taskbarWindow.webContents.send('taskbar:layout', { taskbarHeight, detailHeight })
   taskbarWindow.setAlwaysOnTop(true, 'pop-up-menu')
   taskbarWindow.showInactive()
 }
@@ -228,7 +245,7 @@ function createTaskbarWindow(): void {
 
   const window = new BrowserWindow({
     width: 280,
-    height: 48,
+    height: 158,
     show: false,
     frame: false,
     transparent: true,
@@ -253,12 +270,15 @@ function createTaskbarWindow(): void {
   taskbarWindow = window
 
   window.setAlwaysOnTop(true, 'pop-up-menu')
-  window.setIgnoreMouseEvents(true)
+  window.setIgnoreMouseEvents(true, { forward: true })
   window.setMenuBarVisibility(false)
   window.on('closed', () => {
     if (taskbarWindow === window) taskbarWindow = null
   })
-  window.webContents.on('did-finish-load', syncTaskbarWindow)
+  window.webContents.on('did-finish-load', () => {
+    syncTaskbarWindow()
+    setTimeout(positionTaskbarWindow, 100)
+  })
 
   if (process.env.ELECTRON_RENDERER_URL) {
     void window.loadURL(`${process.env.ELECTRON_RENDERER_URL}?mode=taskbar`)
@@ -286,7 +306,13 @@ function syncTaskbarWindow(): void {
 
 function mergeQuotes(refreshedQuotes: StockQuote[]): void {
   const quoteMap = new Map(latestQuotes.map((quote) => [quote.quoteId, quote]))
-  for (const quote of refreshedQuotes) quoteMap.set(quote.quoteId, quote)
+  for (const quote of refreshedQuotes) {
+    const previousSector = quoteMap.get(quote.quoteId)?.sector
+    quoteMap.set(
+      quote.quoteId,
+      quote.sector || !previousSector ? quote : { ...quote, sector: previousSector }
+    )
+  }
   const displayedStocks = [...state.watchlist, ...getMarketIndexStocks(state.settings.marketIndexIds)]
   latestQuotes = displayedStocks.flatMap((stock) => {
     const quote = quoteMap.get(stock.quoteId)
@@ -304,13 +330,20 @@ async function refreshStocks(
   refreshesInFlight.add(group)
 
   try {
-    const [stockQuotes, marketIndexQuotes] = await Promise.all([
+    const [stockQuotes, marketIndexQuotes, sectorQuotes] = await Promise.all([
       stocks.length > 0
         ? fetchQuotes(stocks, state.watchlist.filter((stock) => stock.showRadarSignals))
         : Promise.resolve([]),
-      marketIndices.length > 0 ? fetchQuotes(marketIndices, []) : Promise.resolve([])
+      marketIndices.length > 0 ? fetchQuotes(marketIndices, []) : Promise.resolve([]),
+      stocks.length > 0
+        ? fetchSectorQuotes(stocks).catch(() => new Map<string, StockSectorQuote>())
+        : Promise.resolve(new Map<string, StockSectorQuote>())
     ])
-    mergeQuotes([...stockQuotes, ...marketIndexQuotes])
+    const enrichedStockQuotes = stockQuotes.map((quote) => {
+      const sector = sectorQuotes.get(quote.quoteId)
+      return sector ? { ...quote, sector } : quote
+    })
+    mergeQuotes([...enrichedStockQuotes, ...marketIndexQuotes])
     const alertUpdate = applyTAlertTriggersToAccounts(state.tTradingAccounts, latestQuotes)
     if (alertUpdate.changed) {
       state = { ...state, tTradingAccounts: alertUpdate.accounts }

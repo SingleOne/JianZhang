@@ -253,9 +253,8 @@ export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
   'stock',
   'latest',
   'changePercent',
+  'sectorChangePercent',
   'open',
-  'high',
-  'low',
   'amount',
   'radar',
   'tAlert',
@@ -263,51 +262,21 @@ export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
   'cost',
   'marketValue',
   'totalProfit',
-  'profitPercent',
   'todayProfit',
-  'todayProfitPercent',
   'operation'
 ] as const
 
 export type WatchlistColumnId = typeof DEFAULT_WATCHLIST_COLUMN_ORDER[number]
-export const WATCHLIST_COLUMN_ORDER_VERSION = 2
-
-const PREVIOUS_DEFAULT_WATCHLIST_COLUMN_ORDER: readonly WatchlistColumnId[] = [
-  'stock',
-  'latest',
-  'changePercent',
-  'open',
-  'high',
-  'low',
-  'amount',
-  'radar',
-  'positionQuantity',
-  'cost',
-  'marketValue',
-  'todayProfit',
-  'todayProfitPercent',
-  'totalProfit',
-  'profitPercent',
-  'operation'
-]
-
-function isPreviousDefaultColumnOrder(columnOrder: readonly WatchlistColumnId[]): boolean {
-  return columnOrder.length === PREVIOUS_DEFAULT_WATCHLIST_COLUMN_ORDER.length
-    && columnOrder.every((columnId, index) => (
-      columnId === PREVIOUS_DEFAULT_WATCHLIST_COLUMN_ORDER[index]
-    ))
-}
+export const WATCHLIST_COLUMN_ORDER_VERSION = 4
 
 export function normalizeWatchlistColumnOrder(
-  columnOrder: readonly WatchlistColumnId[] | undefined
+  columnOrder: readonly string[] | undefined
 ): WatchlistColumnId[] {
-  const source = columnOrder && isPreviousDefaultColumnOrder(columnOrder)
-    ? DEFAULT_WATCHLIST_COLUMN_ORDER
-    : columnOrder ?? DEFAULT_WATCHLIST_COLUMN_ORDER
+  const source = columnOrder ?? DEFAULT_WATCHLIST_COLUMN_ORDER
   const validColumns = new Set<WatchlistColumnId>(DEFAULT_WATCHLIST_COLUMN_ORDER)
-  const normalized = source.filter((columnId, index) => (
+  const normalized = source.filter((columnId, index): columnId is WatchlistColumnId => (
     columnId !== 'operation'
-    && validColumns.has(columnId)
+    && validColumns.has(columnId as WatchlistColumnId)
     && source.indexOf(columnId) === index
   ))
   const missingColumns = DEFAULT_WATCHLIST_COLUMN_ORDER.filter((columnId) => (
@@ -317,20 +286,35 @@ export function normalizeWatchlistColumnOrder(
 }
 
 export function migrateWatchlistColumnOrder(
-  columnOrder: readonly WatchlistColumnId[] | undefined,
+  columnOrder: readonly string[] | undefined,
   version: number | undefined
 ): WatchlistColumnId[] {
-  const normalized = normalizeWatchlistColumnOrder(columnOrder)
-  if ((version ?? 0) >= WATCHLIST_COLUMN_ORDER_VERSION) return normalized
+  let migrated = normalizeWatchlistColumnOrder(columnOrder)
 
-  const migrated: WatchlistColumnId[] = normalized.filter((columnId) => (
-    columnId !== 'todayProfit' && columnId !== 'tAlert'
-  ))
-  const profitPercentIndex = migrated.indexOf('profitPercent')
-  migrated.splice(profitPercentIndex + 1, 0, 'todayProfit')
-  const radarIndex = migrated.indexOf('radar')
-  migrated.splice(radarIndex + 1, 0, 'tAlert')
+  if ((version ?? 0) < 2) {
+    migrated = migrated.filter((columnId) => (
+      columnId !== 'todayProfit' && columnId !== 'tAlert'
+    ))
+    const totalProfitIndex = migrated.indexOf('totalProfit')
+    migrated.splice(totalProfitIndex + 1, 0, 'todayProfit')
+    const radarIndex = migrated.indexOf('radar')
+    migrated.splice(radarIndex + 1, 0, 'tAlert')
+  }
+
+  if ((version ?? 0) < WATCHLIST_COLUMN_ORDER_VERSION) {
+    migrated = migrated.filter((columnId) => columnId !== 'sectorChangePercent')
+    const changePercentIndex = migrated.indexOf('changePercent')
+    migrated.splice(changePercentIndex + 1, 0, 'sectorChangePercent')
+  }
+
   return migrated
+}
+
+export interface StockSectorQuote {
+  code: string
+  name: string
+  quoteId: string
+  changePercent: number | null
 }
 
 export interface StockQuote {
@@ -346,6 +330,7 @@ export interface StockQuote {
   previousClose: number | null
   volume: number | null
   amount: number | null
+  sector?: StockSectorQuote
   radarSignals?: StockRadarSignal[]
   updatedAt: string
 }
@@ -570,6 +555,11 @@ export interface BootstrapResult {
   source: 'eastmoney' | 'demo'
 }
 
+export interface TaskbarLayout {
+  taskbarHeight: number
+  detailHeight: number
+}
+
 export interface StockDesktopApi {
   getBootstrap: () => Promise<BootstrapResult>
   searchStocks: (query: string) => Promise<SearchResult[]>
@@ -586,6 +576,7 @@ export interface StockDesktopApi {
   quitApp: () => Promise<void>
   onQuotesUpdated: (callback: (quotes: StockQuote[]) => void) => () => void
   onStateUpdated: (callback: (state: AppState) => void) => () => void
+  onTaskbarLayout: (callback: (layout: TaskbarLayout) => void) => () => void
   onSelectStock: (callback: (quoteId: string) => void) => () => void
   onDataError: (callback: (message: string) => void) => () => void
 }

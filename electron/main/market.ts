@@ -9,6 +9,7 @@ import type {
   StockOrderBook,
   StockQuote,
   StockRadarSignal,
+  StockSectorQuote,
   WatchStock
 } from '../../src/shared/types'
 
@@ -561,6 +562,45 @@ async function fetchSectorBinding(stockQuoteId: string): Promise<SectorBinding> 
   }
   sectorBindingCache.set(stockQuoteId, binding)
   return binding
+}
+
+export async function fetchSectorQuotes(
+  stocks: WatchStock[]
+): Promise<Map<string, StockSectorQuote>> {
+  const bindings = (await Promise.all(stocks.map(async (stock) => {
+    try {
+      return { stockQuoteId: stock.quoteId, binding: await fetchSectorBinding(stock.quoteId) }
+    } catch {
+      return null
+    }
+  }))).filter((entry): entry is { stockQuoteId: string; binding: SectorBinding } => entry !== null)
+
+  const uniqueBoards = new Map(bindings.map(({ binding }) => [
+    binding.boardQuoteId,
+    {
+      code: binding.boardCode,
+      name: binding.boardName,
+      quoteId: binding.boardQuoteId,
+      marketLabel: '行业板块',
+      showInTaskbar: false,
+      isPriority: false,
+      showRadarSignals: false
+    } satisfies WatchStock
+  ]))
+  const boardQuotes = await fetchQuotes([...uniqueBoards.values()], [])
+  const boardQuoteMap = new Map(boardQuotes.map((quote) => [quote.quoteId, quote]))
+
+  return new Map(bindings.flatMap(({ stockQuoteId, binding }) => {
+    const quote = boardQuoteMap.get(binding.boardQuoteId)
+    return quote
+      ? [[stockQuoteId, {
+          code: binding.boardCode,
+          name: binding.boardName,
+          quoteId: binding.boardQuoteId,
+          changePercent: quote.changePercent
+        } satisfies StockSectorQuote] as const]
+      : []
+  }))
 }
 
 export async function fetchSectorIndex(stockQuoteId: string): Promise<SectorIndexResult> {

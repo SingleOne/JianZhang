@@ -1,4 +1,4 @@
-import { formatPrice, formatProfit } from '../lib/format'
+import { formatCost, formatPrice, formatProfit, formatShares } from '../lib/format'
 import type { TAlertSide, TPlanRow } from '../lib/t-alerts'
 
 interface TPlanTableProps {
@@ -6,6 +6,7 @@ interface TPlanTableProps {
   rows: readonly TPlanRow[]
   alertEnabled: boolean
   emphasized: boolean
+  openingPlan: boolean
   onUpdateLevel: (index: number, key: 'targetPercent' | 'quantity', value: number) => void
   onHandleAlert: (index?: number) => void
   onRestoreAlert: (index: number) => void
@@ -21,6 +22,7 @@ export function TPlanTable({
   rows,
   alertEnabled,
   emphasized,
+  openingPlan,
   onUpdateLevel,
   onHandleAlert,
   onRestoreAlert
@@ -28,13 +30,16 @@ export function TPlanTable({
   const isBuy = side === 'buy'
   const triggeredCount = rows.filter((row) => row.alertStatus === 'triggered').length
   const sideLabel = isBuy ? '买入五档' : '卖出五档'
+  const planHint = openingPlan
+    ? isBuy ? '目标买入后的T仓仓位与成本' : '目标卖出后的反T仓位与成本'
+    : isBuy ? '目标跌幅 -1% 至 -5%' : '目标涨幅 +1% 至 +5%'
 
   return (
-    <section className={`t-plan-table is-${side} ${emphasized ? 'is-emphasized' : ''}`}>
+    <section className={`t-plan-table is-${side} ${emphasized ? 'is-emphasized' : ''} ${openingPlan ? 'is-opening-plan' : ''}`}>
       <header className="t-plan-table-heading">
         <span>
           <strong>{sideLabel}</strong>
-          <small>{isBuy ? '目标跌幅 -1% 至 -5%' : '目标涨幅 +1% 至 +5%'}</small>
+          <small>{planHint}</small>
         </span>
         {alertEnabled && triggeredCount > 0 ? (
           <button type="button" className="text-button" onClick={() => onHandleAlert()}>
@@ -48,9 +53,18 @@ export function TPlanTable({
           <span>{isBuy ? '跌幅' : '涨幅'}</span>
           <span>目标价</span>
           <span>数量</span>
-          <span title="本档价差收益">本档</span>
-          <span title="累计价差收益">累计</span>
-          <span title="全仓价差收益">全仓</span>
+          {openingPlan ? (
+            <>
+              <span>{isBuy ? '买后T仓' : '卖后反T仓'}</span>
+              <span>{isBuy ? '买后成本' : '卖后成本'}</span>
+            </>
+          ) : (
+            <>
+              <span title="本档价差收益">本档</span>
+              <span title="累计价差收益">累计</span>
+              <span title="全仓价差收益">全仓</span>
+            </>
+          )}
         </div>
         {rows.map((level) => {
           const status = level.alertStatus ?? 'armed'
@@ -90,9 +104,18 @@ export function TPlanTable({
                 />
                 <span>股</span>
               </label>
-              <span className={valueClass(level.expectedProfit)}>{formatProfit(level.expectedProfit)}</span>
-              <span className={valueClass(level.cumulativeProfit)}>{formatProfit(level.cumulativeProfit)}</span>
-              <span className={valueClass(level.fullPositionProfit)}>{formatProfit(level.fullPositionProfit)}</span>
+              {openingPlan ? (
+                <>
+                  <span>{formatShares(level.projectedQuantity)}</span>
+                  <span>{formatCost(level.projectedCost)}</span>
+                </>
+              ) : (
+                <>
+                  <span className={valueClass(level.expectedProfit)}>{formatProfit(level.expectedProfit)}</span>
+                  <span className={valueClass(level.cumulativeProfit)}>{formatProfit(level.cumulativeProfit)}</span>
+                  <span className={valueClass(level.fullPositionProfit)}>{formatProfit(level.fullPositionProfit)}</span>
+                </>
+              )}
             </div>
           )
         })}

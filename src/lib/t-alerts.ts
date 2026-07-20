@@ -20,6 +20,8 @@ export interface TPlanRow extends TPlanLevel {
   expectedProfit: number | null
   cumulativeProfit: number | null
   fullPositionProfit: number | null
+  projectedQuantity: number | null
+  projectedCost: number | null
 }
 
 export interface TAlertBadge {
@@ -61,6 +63,10 @@ export function getTPlanRows(
   const metrics = calculateTBatchMetrics(batch)
   const averageCost = metrics.averageCost
   let cumulativeProfit = metrics.realizedProfit
+  const isOpeningPlan = (
+    (metrics.direction === 'forward' && side === 'buy')
+    || (metrics.direction === 'reverse' && side === 'sell')
+  )
 
   return levelsForSide(batch, side).map((level, index) => {
     const targetPrice = tPlanTargetPrice(averageCost, side, level.targetPercent)
@@ -71,7 +77,7 @@ export function getTPlanRows(
     const difference = targetPrice === null || averageCost === null
       ? null
       : side === 'buy' ? averageCost - targetPrice : targetPrice - averageCost
-    const expectedProfit = difference === null || !hasQuantity
+    const expectedProfit = isOpeningPlan || difference === null || !hasQuantity
       ? null
       : difference * level.quantity - fees
     const fullPositionFees = targetPrice === null
@@ -82,9 +88,22 @@ export function getTPlanRows(
         feeSettings,
         marketLabel
       ))
-    const fullPositionProfit = difference === null
+    const fullPositionProfit = isOpeningPlan || difference === null
       ? null
       : metrics.realizedProfit + difference * metrics.remainingQuantity - fullPositionFees
+    const projectedQuantity = isOpeningPlan && targetPrice !== null && hasQuantity
+      ? metrics.remainingQuantity + level.quantity
+      : null
+    const projectedCostBasis = projectedQuantity === null || targetPrice === null
+      ? null
+      : metrics.remainingCostBasis + (
+          side === 'buy'
+            ? targetPrice * level.quantity + fees
+            : targetPrice * level.quantity - fees
+        )
+    const projectedCost = projectedQuantity && projectedCostBasis !== null
+      ? projectedCostBasis / projectedQuantity
+      : null
 
     if (expectedProfit !== null) cumulativeProfit += expectedProfit
     return {
@@ -93,7 +112,9 @@ export function getTPlanRows(
       targetPrice,
       expectedProfit,
       cumulativeProfit: expectedProfit === null ? null : cumulativeProfit,
-      fullPositionProfit
+      fullPositionProfit,
+      projectedQuantity,
+      projectedCost
     }
   })
 }
@@ -142,13 +163,20 @@ export function applyTAlertTriggers(
 
   for (const side of ['buy', 'sell'] as const) {
     const nextLevels = levelsForSide(nextBatch, side).map((level) => {
-      if (level.alertStatus !== 'armed' || !priceTriggersLevel(
-        latest,
-        tPlanTargetPrice(averageCost, side, level.targetPercent),
-        side
-      )) {
+      const targetPrice = tPlanTargetPrice(averageCost, side, level.targetPercent)
+      if (targetPrice === null) {
         return level
       }
+
+      const status = level.alertStatus ?? 'armed'
+      const isTriggered = priceTriggersLevel(latest, targetPrice, side)
+      if (!isTriggered) {
+        if (status === 'armed') return level
+        changed = true
+        return { ...level, alertStatus: 'armed' as const, triggeredAt: undefined }
+      }
+
+      if (status !== 'armed') return level
       changed = true
       return { ...level, alertStatus: 'triggered' as const, triggeredAt: new Date().toISOString() }
     })

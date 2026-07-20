@@ -115,19 +115,16 @@ const COLUMN_META: Record<WatchlistColumnId, ColumnMeta> = {
   stock: { label: '名称 / 代码', width: 77, sortable: true, className: 'stock-column' },
   latest: { label: '最新价', width: 72, sortable: true },
   changePercent: { label: '涨跌幅', width: 76, sortable: true },
-  open: { label: '今日', width: 70, sortable: true },
-  high: { label: '最高', width: 64, sortable: true },
-  low: { label: '最低', width: 64, sortable: true },
+  sectorChangePercent: { label: '板块涨跌幅', width: 94, sortable: true },
+  open: { label: '今日概览', width: 190, sortable: true },
   amount: { label: '持仓天数', width: 80, sortable: true },
   radar: { label: '异动提示', width: 100, sortable: true, className: 'radar-column' },
   tAlert: { label: 'T提醒', width: 118, sortable: false, className: 't-alert-column' },
   positionQuantity: { label: '持仓数量', width: 84, sortable: true },
   cost: { label: '成本价', width: 68, sortable: true },
   marketValue: { label: '持仓市值', width: 88, sortable: true },
-  todayProfit: { label: '今日收益', width: 86, sortable: true },
-  todayProfitPercent: { label: '今日收益率', width: 88, sortable: true },
-  totalProfit: { label: '持仓收益', width: 86, sortable: true },
-  profitPercent: { label: '收益率', width: 76, sortable: true },
+  todayProfit: { label: '今日收益', width: 108, sortable: true },
+  totalProfit: { label: '持仓收益', width: 108, sortable: true },
   operation: { label: '设置', width: 64, sortable: false, className: 'settings-column' }
 }
 
@@ -159,9 +156,8 @@ function sortValue(
     case 'stock': return `${row.stock.name} ${row.stock.code}`
     case 'latest': return row.quote?.latest
     case 'changePercent': return row.quote?.changePercent
+    case 'sectorChangePercent': return row.quote?.sector?.changePercent
     case 'open': return row.quote?.open
-    case 'high': return row.quote?.high
-    case 'low': return row.quote?.low
     case 'amount': return getPositionHoldingDays(row.stock.position, tradingCalendarClosedDates)
     case 'radar': {
       if (!row.stock.showRadarSignals) return null
@@ -173,9 +169,7 @@ function sortValue(
     case 'cost': return row.stock.position?.cost
     case 'marketValue': return row.metrics.marketValue
     case 'todayProfit': return row.metrics.todayProfit
-    case 'todayProfitPercent': return row.metrics.todayProfitPercent
     case 'totalProfit': return row.metrics.totalProfit
-    case 'profitPercent': return row.metrics.profitPercent
     case 'operation': return null
   }
 }
@@ -599,6 +593,7 @@ export function WatchlistTable({
               const selected = selectedQuoteId === stock.quoteId
               const closing = closingQuoteIds.has(stock.quoteId)
               const quoteDirection = valueClass(quote?.changePercent)
+              const sectorDirection = valueClass(quote?.sector?.changePercent)
               const currentRadarSignals = stock.showRadarSignals
                 ? todayRadarSignals(quote?.radarSignals)
                 : []
@@ -751,20 +746,33 @@ export function WatchlistTable({
                               </div>
                             </td>
                           )
+                        case 'sectorChangePercent':
+                          return (
+                            <td
+                              key={columnId}
+                              title={quote?.sector
+                                ? `${quote.sector.name}（${quote.sector.code}）`
+                                : '暂无所属行业板块行情'}
+                            >
+                              <strong className={sectorDirection}>
+                                {formatPercent(quote?.sector?.changePercent)}
+                              </strong>
+                            </td>
+                          )
                         case 'open':
                           return (
                             <td key={columnId}>
                               <span
                                 className="today-market-cell"
-                                title={`今开 ${formatPrice(quote?.open)}，成交额 ${formatAmount(quote?.amount)}`}
+                                title={`今开 ${formatPrice(quote?.open)}，最高 ${formatPrice(quote?.high)}，最低 ${formatPrice(quote?.low)}，成交额 ${formatAmount(quote?.amount)}`}
                               >
                                 <span>今开：{formatPrice(quote?.open)}</span>
+                                <span>最高：{formatPrice(quote?.high)}</span>
+                                <span>最低：{formatPrice(quote?.low)}</span>
                                 <span>成交额：{formatAmount(quote?.amount)}</span>
                               </span>
                             </td>
                           )
-                        case 'high': return <td key={columnId}>{formatPrice(quote?.high)}</td>
-                        case 'low': return <td key={columnId}>{formatPrice(quote?.low)}</td>
                         case 'amount': return <td key={columnId}>{holdingDays ? `${holdingDays} 天` : '--'}</td>
                         case 'radar':
                           return (
@@ -834,10 +842,24 @@ export function WatchlistTable({
                         }
                         case 'cost': return <td className="position-value-cell" key={columnId}>{formatCost(stock.position?.cost)}</td>
                         case 'marketValue': return <td className="position-value-cell" key={columnId}>{formatCurrency(metrics.marketValue)}</td>
-                        case 'todayProfit': return <td className={valueClass(metrics.todayProfit)} key={columnId}>{formatProfit(metrics.todayProfit)}</td>
-                        case 'todayProfitPercent': return <td className={valueClass(metrics.todayProfitPercent)} key={columnId}>{formatPercent(metrics.todayProfitPercent)}</td>
-                        case 'totalProfit': return <td className={valueClass(metrics.totalProfit)} key={columnId}>{formatProfit(metrics.totalProfit)}</td>
-                        case 'profitPercent': return <td className={valueClass(metrics.profitPercent)} key={columnId}>{formatPercent(metrics.profitPercent)}</td>
+                        case 'todayProfit':
+                          return (
+                            <td key={columnId}>
+                              <span className="combined-profit-cell">
+                                <span className={valueClass(metrics.todayProfit)}>{formatProfit(metrics.todayProfit)}</span>
+                                <span className={valueClass(metrics.todayProfitPercent)}>{formatPercent(metrics.todayProfitPercent)}</span>
+                              </span>
+                            </td>
+                          )
+                        case 'totalProfit':
+                          return (
+                            <td key={columnId}>
+                              <span className="combined-profit-cell">
+                                <span className={valueClass(metrics.totalProfit)}>{formatProfit(metrics.totalProfit)}</span>
+                                <span className={valueClass(metrics.profitPercent)}>{formatPercent(metrics.profitPercent)}</span>
+                              </span>
+                            </td>
+                          )
                         case 'operation': return null
                       }
                     })}

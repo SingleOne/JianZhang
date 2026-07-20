@@ -1,5 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AppState, StockDesktopApi, StockQuote } from '../../src/shared/types'
+import type {
+  AppState,
+  StockDesktopApi,
+  StockQuote,
+  TaskbarLayout
+} from '../../src/shared/types'
 
 function subscribe<T>(channel: string, callback: (payload: T) => void): () => void {
   const listener = (_event: Electron.IpcRendererEvent, payload: T): void => callback(payload)
@@ -23,6 +28,7 @@ const api: StockDesktopApi = {
   quitApp: () => ipcRenderer.invoke('app:quit'),
   onQuotesUpdated: (callback) => subscribe<StockQuote[]>('quotes:updated', callback),
   onStateUpdated: (callback) => subscribe<AppState>('state:updated', callback),
+  onTaskbarLayout: (callback) => subscribe<TaskbarLayout>('taskbar:layout', callback),
   onSelectStock: (callback) => subscribe<string>('stock:selected', callback),
   onDataError: (callback) => subscribe<string>('data:error', callback)
 }
