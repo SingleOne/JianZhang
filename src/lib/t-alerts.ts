@@ -122,18 +122,20 @@ export function getTPlanRows(
 export function getTriggeredTAlertBadges(batch: TTradingBatch | undefined): TAlertBadge[] {
   if (!batch?.alertEnabled) return []
   const averageCost = calculateTBatchMetrics(batch).averageCost
-  return (['buy', 'sell'] as const).flatMap((side) => (
-    levelsForSide(batch, side).flatMap((level, index) => (
-      level.alertStatus === 'triggered'
-        ? [{
-            side,
-            index,
-            label: `T${index + 1}`,
-            targetPrice: tPlanTargetPrice(averageCost, side, level.targetPercent)
-          }]
-        : []
-    ))
-  ))
+  return (['buy', 'sell'] as const).flatMap((side) => {
+    const levels = levelsForSide(batch, side)
+    let index = levels.length - 1
+    while (index >= 0 && levels[index].alertStatus !== 'triggered') index -= 1
+    if (index < 0) return []
+
+    const level = levels[index]
+    return [{
+      side,
+      index,
+      label: `T${index + 1}`,
+      targetPrice: tPlanTargetPrice(averageCost, side, level.targetPercent)
+    }]
+  })
 }
 
 export function hasTriggeredTAlerts(batch: TTradingBatch | undefined): boolean {

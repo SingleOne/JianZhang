@@ -1860,6 +1860,12 @@ tr:focus-visible {
   font-size: 10px;
 }
 
+.radar-popover-item strong[title] {
+  cursor: help;
+  text-decoration: underline dotted currentColor;
+  text-underline-offset: 3px;
+}
+
 .radar-popover-item.is-up strong {
   color: var(--red);
 }

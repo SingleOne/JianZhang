@@ -131,6 +131,31 @@ const COLUMN_META: Record<WatchlistColumnId, ColumnMeta> = {
   operation: { label: '设置', width: 64, sortable: false, className: 'settings-column' }
 }
 
+const RADAR_SIGNAL_DESCRIPTIONS: Record<string, string> = {
+  4: '股价触及涨停价，并有买单将涨停价封住。',
+  8: '股价触及跌停价，并有卖单将跌停价封住。',
+  16: '原本封住的涨停板被卖单打开，股价离开涨停价。',
+  32: '原本封住的跌停板被买单打开，股价离开跌停价。',
+  64: '盘口中出现较大的买入委托或主动买入。',
+  128: '盘口中出现较大的卖出委托或主动卖出。',
+  8193: '短时间内出现金额较大的主动买入成交。',
+  8194: '短时间内出现金额较大的主动卖出成交。',
+  8201: '股价在短时间内快速向上拉升。',
+  8202: '股价下跌后在短时间内明显回升。',
+  8203: '股价在较高位置短时间内快速下跌。',
+  8204: '股价的下跌速度在短时间内明显加快。',
+  8207: '集合竞价阶段的股票价格明显上涨。',
+  8208: '集合竞价阶段的股票价格明显下跌。',
+  8209: '股票开盘价高于近5个交易日均线。',
+  8210: '股票开盘价低于近5个交易日均线。',
+  8211: '价格相对上一交易日形成向上的跳空缺口。',
+  8212: '价格相对上一交易日形成向下的跳空缺口。',
+  8213: '股价达到近60个交易日的新高。',
+  8214: '股价达到近60个交易日的新低。',
+  8215: '股价在近60个交易日内出现较大幅度上涨。',
+  8216: '股价在近60个交易日内出现较大幅度下跌。'
+}
+
 const ORDER_COLUMN_WIDTH = 52
 const DELETE_COLUMN_WIDTH = 40
 const TABLE_MIN_WIDTH = ORDER_COLUMN_WIDTH + DELETE_COLUMN_WIDTH + Object.values(COLUMN_META)
@@ -952,7 +977,7 @@ export function WatchlistTable({
             {activeRadarRow.quote.radarSignals.map((signal) => (
               <div className={`radar-popover-item is-${signal.direction}`} key={`${signal.date}-${signal.type}`}>
                 <time>{signal.date.slice(4, 6)}-{signal.date.slice(6, 8)} {signal.time}</time>
-                <strong>{signal.label}</strong>
+                <strong title={RADAR_SIGNAL_DESCRIPTIONS[signal.type]}>{signal.label}</strong>
                 {signal.info ? <small>{signal.info}</small> : null}
               </div>
             ))}
