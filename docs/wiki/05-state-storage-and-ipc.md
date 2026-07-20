@@ -220,7 +220,7 @@ sequenceDiagram
 4. 渲染层只拿“是否已配置、提供商、显示名称”等非敏感状态。
 5. IPC 只提供设置/清除/测试连接动作，不提供读取明文接口。
 
-详见 [AI 扩展入口（未实现）](08-ai-extension-points.md)。
+详见 [AI 可移除模块设计（未实现）](08-ai-extension-points.md)。
 
 ## 新增 IPC 的固定步骤
 
@@ -231,4 +231,3 @@ sequenceDiagram
 5. 在 `src/lib/api.ts` 给 `demoApi` 补等价实现。
 6. 在 React 中调用。
 7. 如果结果持久化，再补默认值、normalize 和配置兼容。
-

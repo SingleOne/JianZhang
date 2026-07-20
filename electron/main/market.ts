@@ -460,7 +460,7 @@ function toHistoricalKlineResult(quoteId: string, name: string | undefined, line
   if (lines.length === 0) throw new Error('行情服务未返回 K 线数据')
 
   const bars = lines.map((line) => {
-    const [time, open, close, high, low, volume, amount] = line.split(',')
+    const [time, open, close, high, low, volume, amount, , , , turnoverRate] = line.split(',')
     return {
       time,
       open: Number(open),
@@ -468,7 +468,8 @@ function toHistoricalKlineResult(quoteId: string, name: string | undefined, line
       high: Number(high),
       low: Number(low),
       volume: Number(volume),
-      amount: Number(amount)
+      amount: Number(amount),
+      turnoverRate: turnoverRate === undefined ? undefined : Number(turnoverRate)
     }
   })
   const firstDate = bars[0]?.time.slice(0, 10) ?? ''

@@ -1,10 +1,39 @@
-# AI 扩展入口（未实现）
+# AI 可移除模块设计（未实现）
 
 [Wiki 首页](README.md) · [系统架构](01-architecture.md) · [行情数据链路](03-market-data.md)
 
 > 状态：规划参考，当前仓库没有 AI、新闻抓取或技术指标模块。
 >
 > 目标方向：指标分析、要闻汇总、智能盯盘和结构化做 T 建议，同时支持 OpenAI 与 DeepSeek。
+>
+> 架构决策：AI 必须作为可插拔的独立模块实现。关闭、构建剔除或删除该模块后，行情、持仓、做 T、提醒和配置导入导出仍应完整运行。
+>
+> 非 AI 的指标、要闻和客观观察事件先作为独立 `market-insight` 模块实施，详见 [非 AI 市场洞察与智能盯盘实现计划](../non-ai-market-insight-implementation-plan.md)。AI 模块只消费其标准化快照，不反向控制该模块。
+
+## 不可破坏的模块边界
+
+核心代码不得依赖 AI 的类型、状态或输出。依赖方向只能是：
+
+```mermaid
+flowchart LR
+    CORE["见涨核心<br/>行情/持仓/T计划/提醒"] --> PORT["稳定能力接口<br/>只读快照与现有写命令"]
+    INSIGHT["可选 market-insight 模块"] --> PORT
+    INSIGHT -->|"MarketInsightSnapshot"| AI
+    AI["src/modules/ai<br/>Provider/推理/建议/UI"] --> PORT
+    AI --> STORE["modules/ai 独立存储"]
+    AI --> NET["OpenAI / DeepSeek"]
+```
+
+具体约束：
+
+- AI 模块可以读取核心提供的行情、K 线、盘口、资金流、持仓和 T 计划快照。
+- AI 模块可以在用户确认后调用现有 T 计划更新命令，但核心层不能接收 `AiTAdvice` 等 AI 专有类型。
+- AI 不得写入 `AppState`、`AppSettings` 或核心 `settings.json`，避免配置导出、状态广播和迁移逻辑被 AI 污染。
+- AI 不得插入 `refreshStocks`、`applyTAlertTriggersToAccounts` 等核心刷新与提醒函数内部。
+- AI 的 Provider、提示词、推理、建议缓存、密钥、IPC 和建议 UI 全部放在同一模块目录。
+- 本地指标、原始要闻和客观观察事件属于可独立移除的 `market-insight` 模块；AI 只能读取它的公开快照。
+- 第一版不接入核心任务栏提醒；以后若需要，应通过通用通知能力接入，不能让任务栏组件反向依赖 AI。
+- 移除 AI 模块后，核心功能不能出现空白标签、失效 IPC、启动报错或残留网络请求。
 
 ## 为什么现有架构适合扩展
 
@@ -31,15 +60,14 @@ AI 不应直接接收一张截图后自由给出交易结论，也不应承担�
 
 ```mermaid
 flowchart LR
-    MARKET["行情/K线/盘口/资金流/板块"] --> IND["本地指标引擎"]
+    MARKET["行情/K线/盘口/资金流/板块"] --> INSIGHT["market-insight 模块"]
     POSITION["持仓/T计划/可用数量"] --> RULES["本地约束与信号门控"]
-    NEWS["新闻与公告归一化"] --> CONTEXT["AiAnalysisContext"]
-    IND --> CONTEXT
+    INSIGHT --> CONTEXT["AiAnalysisContext"]
     RULES --> CONTEXT
     CONTEXT --> ADAPTER["统一 AI Provider"]
     ADAPTER --> OUTPUT["结构化 AiTAdvice"]
     OUTPUT --> VALIDATE["本地校验"]
-    VALIDATE --> UI["AI盯盘面板/分时标记/任务栏提醒"]
+    VALIDATE --> UI["AI盯盘面板/分时标记"]
     UI -->|"用户确认"| PLAN["应用到现有 T 计划"]
 ```
 
@@ -50,35 +78,101 @@ flowchart LR
 - 第一版只给建议，不自动下单。
 - AI 结果不能静默覆盖现有 T 计划，必须展示差异并由用户确认。
 
-## 建议新增目录
+## 独立模块目录
 
 ```text
-electron/main/ai/
-├─ index.ts                 # AI 服务编排
-├─ providers/
-│  ├─ openai.ts
-│  └─ deepseek.ts
-├─ secrets.ts               # 主进程秘密存储
-├─ news.ts                  # 新闻 provider 编排
-├─ prompts.ts               # 版本化提示模板
-└─ cache.ts                 # 快照哈希、结果、冷却和预算
-
-src/lib/indicators/
-├─ intraday.ts
-├─ trend.ts
-├─ momentum.ts
-└─ index.ts
-
-src/shared/ai-types.ts       # provider 设置、上下文、结构化结果
-
-src/components/ai/
-├─ AiAnalysisPanel.tsx
-├─ AiAdviceCard.tsx
-├─ AiNewsList.tsx
-└─ AiChartOverlay.tsx
+src/modules/ai/
+├─ README.md                    # 模块能力、边界和删除清单
+├─ shared/
+│  ├─ types.ts                  # AiAnalysisContext / AiTAdvice
+│  ├─ schema.ts                 # 结构化输出校验
+│  └─ constants.ts              # IPC 名称与模块版本
+├─ main/
+│  ├─ register.ts               # 注册 ai:* IPC；模块主进程唯一入口
+│  ├─ service.ts                # 分析任务编排
+│  ├─ providers/
+│  │  ├─ openai-api.ts
+│  │  ├─ openai-codex.ts        # 本机官方 Codex Runtime 适配器
+│  │  └─ deepseek.ts
+│  ├─ prompts/                  # 带版本号的提示模板
+│  ├─ storage.ts                # 模块设置、缓存和历史
+│  └─ secrets.ts                # safeStorage 加密凭证
+├─ preload/
+│  ├─ register.ts               # window.aiApi；模块 preload 唯一入口
+│  └─ types.ts
+└─ renderer/
+   ├─ register.tsx              # 模块 UI 唯一入口
+   ├─ AiAnalysisPanel.tsx
+   ├─ AiAdviceCard.tsx
+   ├─ AiNewsList.tsx
+   └─ AiChartOverlay.tsx
 ```
 
-也可以先把类型放入现有 `src/shared/types.ts`；当 AI 类型数量增长后再独立文件，避免过早拆分。
+不把 AI 类型暂存在现有 `src/shared/types.ts`。本地指标和新闻也不放入通用 `src/lib`，而是放入可独立构建剔除的 `src/modules/market-insight/`。如果合规结论只允许客观行情工具，可以单独移除 AI；如果连规则型观察能力也不允许，则同时剔除两个模块。
+
+核心仓库只保留三个明确安装点：
+
+| 安装点 | 职责 | 移除时操作 |
+| --- | --- | --- |
+| `electron/main/index.ts` | 条件注册 AI 主进程入口 | 删除一处注册 |
+| `electron/preload/index.ts` | 条件挂载 `window.aiApi` | 删除一处挂载 |
+| `src/components/ExpandedStockDetails.tsx` | 条件挂载 AI 标签页 | 删除一处 UI 插槽 |
+
+实现时应让安装点保持很薄，不在其中编写指标、Provider 或业务判断。
+
+## 三层退出机制
+
+### 1. 运行时关闭
+
+模块设置中提供总开关，默认关闭：
+
+```ts
+interface AiModuleSettings {
+  enabled: boolean
+  provider: 'openai-api' | 'openai-codex' | 'deepseek'
+}
+```
+
+`enabled = false` 时必须同时满足：
+
+- 不启动定时分析任务。
+- 不抓取 AI 专用新闻。
+- 不调用任何模型 Provider。
+- 不注册 AI 触发提醒。
+- UI 只显示“模块未启用”或完全隐藏，由产品模式决定。
+
+运行时开关适合个人临时停用，不作为正式合规下线的唯一措施。
+
+### 2. 构建时剔除
+
+增加构建变量，例如：
+
+```text
+JIANZHANG_AI_MODULE=0
+```
+
+为 `0` 时三个安装点都走禁用分支，打包产物不得包含 AI renderer chunk、Provider 地址、提示词和 `ai:*` IPC 实现。正式发布无 AI 版本时，需要检查 `out/` 中不存在：
+
+- `api.openai.com`
+- `api.deepseek.com`
+- `chatgpt.com/backend-api/codex`
+- AI 提示词和 AI 专用 IPC
+
+Provider 优先使用 Node 内置 `fetch`，避免把 OpenAI、DeepSeek SDK 加入根 `dependencies`。如果以后确实需要专用依赖，应保证无 AI 构建不会把依赖复制进安装包，并把这一项加入产物检查。
+
+构建开关用于快速发布不带 AI 能力的版本。是否已经满足监管要求仍需由合规人员确认，不能只依据界面是否隐藏。
+
+### 3. 源码级删除
+
+需要彻底移除时：
+
+1. 删除 `src/modules/ai/`。
+2. 删除三个安装点中的注册/挂载代码。
+3. 删除 AI 构建变量和 AI 专用依赖。
+4. 删除 `%APPDATA%\见涨\modules\ai\` 下的本地凭证、缓存和历史；这是用户数据删除动作，需要在卸载/迁移界面明确确认。
+5. 重新打包并执行产物扫描。
+
+目标是让源码级删除只影响模块目录、三个安装点和构建配置，不修改行情、持仓、做 T 或提醒业务。
 
 ## Provider 抽象
 
@@ -97,9 +191,11 @@ interface AiProvider {
 | --- | --- | --- |
 | OpenAI API Key | OpenAI Responses API | 可选内置 web search，也可使用应用新闻工具 |
 | DeepSeek API Key | DeepSeek Chat Completions / 兼容接口 | 调用应用自有新闻工具 |
-| OpenAI 账号登录 | 单独的实验性通道 | 不与普通 API Key 混为同一种凭证 |
+| OpenAI 账号登录 | 本机官方 Codex CLI / Runtime 适配器（规划，需验证） | 调用应用自有新闻工具 |
 
 OpenAI 的普通 API 使用 Bearer 凭证，且官方明确不应把 API Key 暴露在客户端代码中：[API Authentication](https://developers.openai.com/api/reference/overview#authentication)。“Sign in with ChatGPT”是 Codex 产品的认证方式，普通平台 API 调用仍使用平台 API Key，两者应作为不同接入路线处理：[Codex Authentication](https://learn.chatgpt.com/docs/auth)。
+
+账号登录通道不复制 Hermes 的 OAuth Client ID，不自行请求 ChatGPT 内部 Codex 接口，也不读取或复制 `~/.codex/auth.json`。规划方案是让用户通过官方 `codex login` 完成浏览器登录，由 AI 模块启动并连接本机 Codex Runtime；模块只观察“已登录/未登录”和运行结果。开发该适配器前还需单独核对届时的官方接口、适用场景和使用条款，不满足条件就只保留 OpenAI API Key 通道。
 
 DeepSeek 提供 Chat Completions、JSON Output 和工具调用能力，可通过适配器转换成相同业务结果：[DeepSeek Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/)。
 
@@ -120,7 +216,7 @@ DeepSeek 提供 Chat Completions、JSON Output 和工具调用能力，可通过
   → IPC ai:credential:set
   → Electron 主进程
   → safeStorage.encryptString
-  → 独立 secrets 文件
+  → %APPDATA%\见涨\modules\ai\secrets.bin
 ```
 
 渲染层只获得：
@@ -137,6 +233,8 @@ DeepSeek 提供 Chat Completions、JSON Output 和工具调用能力，可通过
 不要提供读取明文 Key 的 IPC。
 
 ## 本地指标引擎
+
+本节定义的是 AI 所需的输入口径，实际代码归属 `market-insight` 模块，实施步骤以 [非 AI 实现计划](../non-ai-market-insight-implementation-plan.md) 为准。
 
 第一阶段建议计算：
 
@@ -169,7 +267,7 @@ DeepSeek 提供 Chat Completions、JSON Output 和工具调用能力，可通过
 
 ## 新闻层
 
-建议先定义应用自己的 `NewsProvider`，再让两个 AI provider 使用相同新闻结果：
+由 `market-insight` 模块定义应用自己的 `NewsProvider`，两个 AI provider 使用相同的标准化新闻结果：
 
 ```ts
 interface NewsItem {
@@ -250,7 +348,7 @@ interface AiTAdvice {
 
 ## UI 落点
 
-优先在 `ExpandedStockDetails` 增加“AI 盯盘”标签：
+通过模块 renderer 入口向 `ExpandedStockDetails` 挂载“AI 盯盘”标签：
 
 ```text
 结论与时效
@@ -280,26 +378,28 @@ interface AiTAdvice {
 
 | 需求 | 当前落点 |
 | --- | --- |
-| 取得行情快照 | `electron/main/market.ts` 和主进程 `latestQuotes` |
-| 取得 K 线/盘口/资金流/板块 | 现有 fetch 函数 |
-| 取得持仓/T 批次 | 主进程 `state` |
-| 计算可用数量 | `getAvailablePositionQuantity` |
-| 增加后台触发 | 参考 `refreshStocks → applyTAlertTriggersToAccounts` |
-| 增加 IPC | `StockDesktopApi` → preload → `registerIpc` |
-| 增加详情页 | `ExpandedStockDetails` |
-| 叠加分时标记 | `CandlestickChart` props/series markers |
-| 应用到 T 计划 | `TTradingDrawer` / `updateTPlanLevel`，需增加用户确认 |
-| 任务栏提示 | `TaskbarTicker`，仅在建议状态变化时显示 |
+| 取得行情快照 | 模块入口从主进程 `latestQuotes` 接收只读快照 |
+| 取得 K 线/盘口/资金流/板块 | 模块通过注入的现有 fetch 能力读取 |
+| 取得持仓/T 批次 | 模块读取主进程 `state` 的只读投影 |
+| 计算可用数量 | 模块调用现有 `getAvailablePositionQuantity` |
+| 增加后台触发 | 模块拥有独立调度器，不修改 `refreshStocks` |
+| 增加 IPC | 独立 `window.aiApi` 与 `ai:*` IPC，不扩充 `StockDesktopApi` |
+| 增加详情页 | `ExpandedStockDetails` 只保留一个模块插槽 |
+| 叠加分时标记 | AI renderer 包装 `CandlestickChart` 输入，不让图表依赖 AI 类型 |
+| 应用到 T 计划 | 用户确认后调用现有 `updateTPlanLevel` |
+| 通知 | 第一版留在 AI 面板；以后仅通过通用通知能力接入 |
 
 ## 实施顺序
 
-1. Provider 设置、秘密存储、连接测试。
-2. 本地指标引擎和 `AiAnalysisContext`。
-3. 单只股票手动“立即分析”。
-4. 新闻 provider、去重和来源展示。
-5. 事件门控、冷却、缓存和预算。
-6. 分时覆盖层和“应用到 T 计划”确认流程。
-7. 记录匿名化分析快照，做历史回放和 provider 对比。
+1. 先按独立计划实现并验收非 AI `market-insight` 模块。
+2. 实现空 AI 模块、三个薄安装点、总开关和无 AI 构建。
+3. 验证 `JIANZHANG_AI_MODULE=0` 的产物中没有 AI 代码和网络地址。
+4. Provider 设置、独立秘密存储、连接测试。
+5. 把 `MarketInsightSnapshot` 转换为 `AiAnalysisContext`。
+6. 单只股票手动“立即分析”。
+7. 事件门控、冷却、缓存和预算。
+8. 分时覆盖层和“应用到 T 计划”确认流程。
+9. 记录匿名化分析快照，做历史回放和 provider 对比。
 
 该功能属于独立的新模块。真正进入开发并准备打包时，应先确认是否将当前 3.x 升级到 4.0.0。
 
@@ -308,4 +408,10 @@ interface AiTAdvice {
 - 默认只提供观察建议，不自动交易。
 - 明确显示数据截止时间、建议有效期、失效条件和来源。
 - AI 不得绕过本地 T+1、数量和持仓限制。
-- 公开发布或商业化前，需要专项评估“买卖时机建议/荐股软件”和生成式 AI 服务相关合规要求；仅写“非投资建议”不能代替资质和产品流程评估。
+- 不以“研究辅助”“仅供参考”或“非投资建议”等文案替代业务实质判断。
+- 公开发布或商业化前，需要专项评估证券投资咨询、“荐股软件”、个人信息、数据来源和生成式 AI 服务等合规要求。
+- 合规未形成明确放行结论时，发行包使用 `JIANZHANG_AI_MODULE=0`，而不是仅在设置中关闭按钮。
+
+证监会公开规则将涉及具体证券的投资分析意见、价格走势预测、证券选择建议或买卖时机建议列为“荐股软件”功能；向投资者销售或提供并直接或间接获取经济利益的，属于证券投资咨询业务。这与是否由 AI 生成、是否自动下单并不是同一个判断维度：[证监会关于规范“荐股软件”的说明](https://www.csrc.gov.cn/csrc/c100028/c1002385/content.shtml)、[现行规则汇编中的“荐股软件”条款](https://www.csrc.gov.cn/csrc/c101950/c1048010/1048010/files/%E9%99%84%E4%BB%B61%EF%BC%9A%E3%80%8A%E5%85%B3%E4%BA%8E%E4%BF%AE%E6%94%B9%E9%83%A8%E5%88%86%E8%AF%81%E5%88%B8%E6%9C%9F%E8%B4%A7%E8%A7%84%E8%8C%83%E6%80%A7%E6%96%87%E4%BB%B6%E7%9A%84%E5%86%B3%E5%AE%9A%E3%80%8B.pdf)。
+
+以上是为了约束软件架构和发布流程，不构成法律意见。正式上线前应让熟悉证券及生成式 AI 监管的专业人员对产品形态、用户范围、收费方式、展示文案、数据来源和留痕机制做专项评估。

@@ -4,6 +4,7 @@ import {
   createSeriesMarkers,
   CrosshairMode,
   HistogramSeries,
+  LineStyle,
   LineSeries,
   type HistogramData,
   type LineData,
@@ -17,10 +18,17 @@ import { useEffect, useRef } from 'react'
 import { formatAmount, formatPrice, formatVolume } from '../lib/format'
 import type { KlineBar } from '../shared/types'
 
+interface ChartReferenceOverlay {
+  openingRange15: { high: number | null; low: number | null }
+  tPlanLevels: Array<{ id: string; label: string; price: number; side: 'buy' | 'sell' }>
+  eventMarkers: Array<{ time: string; title: string; severity: 'info' | 'attention' }>
+}
+
 interface CandlestickChartProps {
   bars: KlineBar[]
   variant?: 'intraday' | 'sectorIntraday' | 'fiveDay'
   onHoverBar?: (bar: KlineBar | null) => void
+  marketInsightOverlay?: ChartReferenceOverlay | null
 }
 
 type LinePoint = LineData | WhitespaceData
@@ -81,9 +89,10 @@ function intradayAveragePrice(bars: KlineBar[]): Map<UTCTimestamp, number> {
   let cumulativeShares = 0
 
   for (const bar of bars) {
+    if (!isRegularBar(bar)) continue
     cumulativeAmount += bar.amount
     cumulativeShares += bar.volume * 100
-    if (isRegularBar(bar) && cumulativeShares > 0) {
+    if (cumulativeShares > 0) {
       result.set(toTimestamp(bar.time), cumulativeAmount / cumulativeShares)
     }
   }
@@ -103,7 +112,7 @@ function intradayLineData(
 }
 
 function intradayAverageData(slots: UTCTimestamp[], bars: KlineBar[]): LinePoint[] {
-  const averages = intradayAveragePrice(bars)
+  const averages = intradayAveragePrice(bars.slice(0, -1))
   return slots.map((time) => {
     const value = averages.get(time)
     return value === undefined ? { time } : { time, value }
@@ -167,7 +176,8 @@ function intradayExtremaMarkers(bars: KlineBar[]): SeriesMarker<Time>[] {
 export default function CandlestickChart({
   bars,
   variant = 'intraday',
-  onHoverBar
+  onHoverBar,
+  marketInsightOverlay = null
 }: CandlestickChartProps) {
   const priceContainerRef = useRef<HTMLDivElement>(null)
   const volumeContainerRef = useRef<HTMLDivElement>(null)
@@ -297,6 +307,36 @@ export default function CandlestickChart({
         averagePriceLine.setData(intradayAverageData(sessionSlots, chartBars))
       }
 
+      if (marketInsightOverlay) {
+        const priceLines = [
+          marketInsightOverlay.openingRange15.high === null ? null : {
+            price: marketInsightOverlay.openingRange15.high,
+            color: '#8b5cf6',
+            lineWidth: 1 as const,
+            lineStyle: LineStyle.Dashed,
+            axisLabelVisible: true,
+            title: '开盘15分高'
+          },
+          marketInsightOverlay.openingRange15.low === null ? null : {
+            price: marketInsightOverlay.openingRange15.low,
+            color: '#8b5cf6',
+            lineWidth: 1 as const,
+            lineStyle: LineStyle.Dashed,
+            axisLabelVisible: true,
+            title: '开盘15分低'
+          },
+          ...marketInsightOverlay.tPlanLevels.map((level) => ({
+            price: level.price,
+            color: level.side === 'buy' ? '#189266' : '#dc3742',
+            lineWidth: 1 as const,
+            lineStyle: LineStyle.LargeDashed,
+            axisLabelVisible: true,
+            title: level.label
+          }))
+        ]
+        for (const options of priceLines) if (options) priceLine.createPriceLine(options)
+      }
+
       const extremaAnchor = priceChart.addSeries(LineSeries, {
         color: 'transparent',
         lineVisible: false,
@@ -309,7 +349,18 @@ export default function CandlestickChart({
         value: bar.close
       })))
 
-      createSeriesMarkers(extremaAnchor, intradayExtremaMarkers(chartBars), {
+      const insightMarkers = marketInsightOverlay?.eventMarkers.flatMap((event) => {
+        if (!event.time.includes(' ')) return []
+        return [{
+          time: toTimestamp(event.time),
+          position: event.severity === 'attention' ? 'aboveBar' as const : 'belowBar' as const,
+          shape: event.severity === 'attention' ? 'circle' as const : 'square' as const,
+          color: event.severity === 'attention' ? '#d89414' : '#3f7fd3',
+          text: event.title,
+          size: 1
+        } satisfies SeriesMarker<Time>]
+      }) ?? []
+      createSeriesMarkers(extremaAnchor, [...intradayExtremaMarkers(chartBars), ...insightMarkers], {
         autoScale: true,
         zOrder: 'aboveSeries'
       })
@@ -502,7 +553,7 @@ export default function CandlestickChart({
       priceChart.remove()
       volumeChart?.remove()
     }
-  }, [bars, isIntraday, onHoverBar, showAuction, variant])
+  }, [bars, isIntraday, marketInsightOverlay, onHoverBar, showAuction, variant])
 
   return (
     <div className={`candlestick-chart ${isIntraday ? 'is-intraday' : 'is-five-day'}`}>

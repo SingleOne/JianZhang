@@ -97,6 +97,7 @@
 | --- | --- |
 | [`scripts/convert-stock-helper-config.mjs`](../../scripts/convert-stock-helper-config.mjs) | 转换“股票基金助手”配置 |
 | [`scripts/generate-icon.mjs`](../../scripts/generate-icon.mjs) | 生成打包图标 |
+| [`docs/non-ai-market-insight-implementation-plan.md`](../non-ai-market-insight-implementation-plan.md) | 非 AI 指标、要闻与智能盯盘的当前实施计划 |
 | [`docs/t-trading-alert-implementation-plan.md`](../t-trading-alert-implementation-plan.md) | 双五档提醒的历史设计记录，状态说明已过时 |
 
 ## 高频符号反查
@@ -113,4 +114,3 @@
 | 双五档表数据 | `getTPlanRows` |
 | 后台触发 T 提醒 | `applyTAlertTriggersToAccounts` |
 | 旧配置兼容 | `parseConfigDocument`、全部 `normalize*` / `migrate*` |
-

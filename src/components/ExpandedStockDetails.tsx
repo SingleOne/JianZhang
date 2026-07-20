@@ -1,4 +1,4 @@
-import { AlertCircle, BarChart3, Layers, RefreshCw, TrendingUp } from 'lucide-react'
+import { AlertCircle, BarChart3, Layers, Radar, RefreshCw, TrendingUp } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { stockApi } from '../lib/api'
 import { formatAmount, formatPercent, formatPrice, formatVolume } from '../lib/format'
@@ -6,13 +6,17 @@ import { isBeijingAutoRefreshTime, millisecondsUntilNextAutoRefreshWindow } from
 import type { KlineBar, KlinePeriod, KlineResult, StockQuote, WatchStock } from '../shared/types'
 import { FundsFlowPanel } from './FundsFlowPanel'
 import { OrderBookPanel } from './OrderBookPanel'
+import type { MarketInsightSnapshot } from '../modules/market-insight/shared/types'
 
 const CandlestickChart = lazy(() => import('./CandlestickChart'))
 const PeriodKlineChart = lazy(() => import('./PeriodKlineChart'))
 const SectorIndexPanel = lazy(() => import('./SectorIndexPanel'))
+const MarketInsightPanel = __JIANZHANG_MARKET_INSIGHT_ENABLED__
+  ? lazy(() => import('../modules/market-insight/renderer/register').then((module) => ({ default: module.MarketInsightPanel })))
+  : null
 
 type PriceTab = Exclude<KlinePeriod, 'intraday'> | 'trend'
-type DetailTab = PriceTab | 'funds' | 'sector'
+type DetailTab = PriceTab | 'funds' | 'sector' | 'insight'
 type HistoricalPeriod = Extract<KlinePeriod, 'daily' | 'weekly' | 'monthly'>
 
 interface KlineCacheEntry {
@@ -71,8 +75,11 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
   const [historyLimits, setHistoryLimits] = useState<Record<HistoricalPeriod, number>>({
     ...INITIAL_HISTORY_LIMITS
   })
+  const [marketInsightSnapshot, setMarketInsightSnapshot] = useState<MarketInsightSnapshot | null>(null)
+  const [showInsightOverlay, setShowInsightOverlay] = useState(true)
   const activeHistoricalLimit = activeTab !== 'funds'
     && activeTab !== 'sector'
+    && activeTab !== 'insight'
     && isHistoricalTab(activeTab)
     ? historyLimits[activeTab]
     : undefined
@@ -82,7 +89,11 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
   }, [activeTab, stock.quoteId])
 
   useEffect(() => {
-    if (activeTab === 'funds' || activeTab === 'sector') return
+    setMarketInsightSnapshot(null)
+  }, [stock.quoteId])
+
+  useEffect(() => {
+    if (activeTab === 'funds' || activeTab === 'sector' || activeTab === 'insight') return
 
     const tab = activeTab
     const key = cacheKey(stock.quoteId, tab)
@@ -141,7 +152,7 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
     }
   }, [activeHistoricalLimit, activeTab, refreshSeconds, refreshVersion, stock.quoteId])
 
-  const priceTab = activeTab === 'funds' || activeTab === 'sector' ? null : activeTab
+  const priceTab = activeTab === 'funds' || activeTab === 'sector' || activeTab === 'insight' ? null : activeTab
   const data = priceTab ? dataByTab[priceTab] ?? null : null
   const error = priceTab ? errors[priceTab] ?? '' : ''
   const tabMeta = priceTab ? PRICE_TABS.find((item) => item.id === priceTab) : undefined
@@ -230,6 +241,18 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
           <Layers size={15} />
           板块
         </button>
+        {MarketInsightPanel ? (
+          <button
+            className={activeTab === 'insight' ? 'is-active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'insight'}
+            onClick={() => setActiveTab('insight')}
+          >
+            <Radar size={15} />
+            市场观察
+          </button>
+        ) : null}
       </div>
 
       {priceTab ? (
@@ -244,7 +267,7 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
                 {isHistorical ? 'K线' : '价格'}
               </span>
               {priceTab === 'trend' ? <span className="legend-auction-price">集合竞价</span> : null}
-              {priceTab === 'trend' ? <span className="legend-average-price">成交均价</span> : null}
+              {priceTab === 'trend' ? <span className="legend-average-price">VWAP</span> : null}
               <span className="legend-volume">成交量</span>
             </div>
           </div>
@@ -296,6 +319,7 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
                       bars={data.bars}
                       variant={priceTab === 'fiveDay' ? 'fiveDay' : 'intraday'}
                       onHoverBar={priceTab === 'trend' ? undefined : handleHoverBar}
+                      marketInsightOverlay={priceTab === 'trend' && showInsightOverlay ? marketInsightSnapshot?.chartOverlay : null}
                     />
                   )}
                 </Suspense>
@@ -312,13 +336,22 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
         <div className="funds-tab-panel" role="tabpanel">
           <FundsFlowPanel stock={stock} refreshSeconds={refreshSeconds} />
         </div>
-      ) : (
+      ) : activeTab === 'sector' ? (
         <div className="sector-tab-panel" role="tabpanel">
           <Suspense fallback={<div className="chart-loading">正在加载板块详情…</div>}>
             <SectorIndexPanel stock={stock} refreshSeconds={refreshSeconds} />
           </Suspense>
         </div>
-      )}
+      ) : MarketInsightPanel ? (
+        <Suspense fallback={<div className="chart-loading">正在初始化市场观察…</div>}>
+          <MarketInsightPanel
+            stock={stock}
+            quote={quote}
+            onSnapshotChanged={setMarketInsightSnapshot}
+            onChartOverlayEnabledChange={setShowInsightOverlay}
+          />
+        </Suspense>
+      ) : null}
     </section>
   )
 }

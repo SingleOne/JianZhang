@@ -23,7 +23,8 @@
 | `AppState`、本地 JSON、配置迁移和 IPC | [状态、存储与 IPC](05-state-storage-and-ipc.md) |
 | React 组件层级和各组件职责 | [界面与组件](06-ui-components.md) |
 | 本地开发、构建、版本和打包约束 | [开发与发布](07-development-and-release.md) |
-| 后续接入指标、新闻和 AI 分析的代码落点 | [AI 扩展入口（未实现）](08-ai-extension-points.md) |
+| 不使用模型的指标、要闻和智能盯盘实施步骤 | [非 AI 市场洞察实现计划](../non-ai-market-insight-implementation-plan.md) |
+| 可随时剔除的指标、新闻和 AI 分析模块 | [AI 可移除模块设计（未实现）](08-ai-extension-points.md) |
 | 按目录查看每个源码文件的职责 | [源码索引](09-source-index.md) |
 
 ## 一句话架构
@@ -93,5 +94,5 @@ JianZhang/
 
 1. [功能地图](02-feature-map.md)中的功能到文件映射。
 2. 涉及的数据链路、状态结构或 IPC 页面。
-3. [AI 扩展入口](08-ai-extension-points.md)中已经失效的扩展假设。
+3. [AI 可移除模块设计](08-ai-extension-points.md)中已经失效的扩展假设。
 4. 本页的仓库结构和快速入口。

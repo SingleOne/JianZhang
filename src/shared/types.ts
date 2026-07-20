@@ -387,6 +387,7 @@ export interface KlineBar {
   low: number
   volume: number
   amount: number
+  turnoverRate?: number
 }
 
 export interface KlineResult {

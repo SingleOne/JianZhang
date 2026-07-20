@@ -712,15 +712,15 @@ export function TTradingDrawer({
                   </span>
                   <div className="t-batch-summary">
                     <span>
-                      <small>当前批次收益</small>
-                      <strong className={valueClass(activeMetrics.realizedProfit)}>
-                        {formatProfit(activeMetrics.realizedProfit)}
-                      </strong>
-                    </span>
-                    <span>
                       <small>浮动收益</small>
                       <strong className={valueClass(activeMetrics.floatingProfit)}>
                         {formatProfit(activeMetrics.floatingProfit)}
+                      </strong>
+                    </span>
+                    <span>
+                      <small>当前批次收益</small>
+                      <strong className={valueClass(activeMetrics.realizedProfit)}>
+                        {formatProfit(activeMetrics.realizedProfit)}
                       </strong>
                     </span>
                     <span>

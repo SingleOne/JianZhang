@@ -80,6 +80,22 @@ let taskbarLayout: TaskbarLayout = { taskbarHeight: 48 }
 let trayHovered = false
 const refreshesInFlight = new Set<'all' | 'priority' | 'regular'>()
 let isQuitting = false
+let marketInsightRuntime: { dispose: () => void } | null = null
+
+class MarketDataHub {
+  private readonly listeners = new Set<(quotes: readonly StockQuote[]) => void>()
+
+  subscribe(listener: (quotes: readonly StockQuote[]) => void): () => void {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
+  publish(quotes: readonly StockQuote[]): void {
+    for (const listener of this.listeners) listener(quotes)
+  }
+}
+
+const marketDataHub = new MarketDataHub()
 
 function statePath(): string {
   return join(app.getPath('userData'), 'settings.json')
@@ -152,6 +168,8 @@ function showMainWindow(quoteId?: string): void {
 
 function cleanupBeforeQuit(): void {
   isQuitting = true
+  marketInsightRuntime?.dispose()
+  marketInsightRuntime = null
   if (priorityRefreshTimer) clearInterval(priorityRefreshTimer)
   if (regularRefreshTimer) clearInterval(regularRefreshTimer)
   if (tradingCalendarCheckTimer) clearInterval(tradingCalendarCheckTimer)
@@ -466,6 +484,7 @@ async function refreshStocks(
       return sector ? { ...quote, sector } : quote
     })
     mergeQuotes([...enrichedStockQuotes, ...marketIndexQuotes])
+    marketDataHub.publish(latestQuotes)
     const alertUpdate = applyTAlertTriggersToAccounts(state.tTradingAccounts, latestQuotes)
     if (alertUpdate.changed) {
       state = { ...state, tTradingAccounts: alertUpdate.accounts }
@@ -707,10 +726,21 @@ if (!hasSingleInstanceLock) {
     void refreshAllAutomatically()
   })
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     app.setAppUserModelId('com.jianzhang.stock')
     state = loadState()
     registerIpc()
+    if (__JIANZHANG_MARKET_INSIGHT_ENABLED__) {
+      const { installMarketInsight } = await import('../../src/modules/market-insight/main/register')
+      marketInsightRuntime = installMarketInsight({
+        marketDataHub,
+        getState: () => state,
+        getKline: (quoteId, period, limit) => fetchKline(quoteId, period, limit),
+        getOrderBook: (quoteId) => fetchOrderBook(quoteId),
+        getFundsFlow: (quoteId) => fetchFundsFlow(quoteId),
+        notifyUpdated: (quoteId) => sendToWindows('insight:updated', quoteId)
+      })
+    }
     createWindow()
     syncTaskbarWindow()
 
