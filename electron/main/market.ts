@@ -233,7 +233,7 @@ export async function fetchOrderBook(quoteId: string): Promise<StockOrderBook> {
   url.searchParams.set('fltt', '2')
   url.searchParams.set(
     'fields',
-    'f43,f58,f60,f11,f12,f13,f14,f15,f16,f17,f18,f19,f20,f31,f32,f33,f34,f35,f36,f37,f38,f39,f40'
+    'f43,f58,f60,f531,f11,f12,f13,f14,f15,f16,f17,f18,f19,f20,f31,f32,f33,f34,f35,f36,f37,f38,f39,f40'
   )
 
   const payload = await requestJson<{ data?: EastmoneyOrderBookData }>(url.toString())
@@ -241,18 +241,18 @@ export async function fetchOrderBook(quoteId: string): Promise<StockOrderBook> {
   if (!data) throw new Error('行情服务未返回五档数据')
 
   const bids: OrderBookLevel[] = [
-    { price: rawNumber(data.f11), volume: rawNumber(data.f12) },
-    { price: rawNumber(data.f13), volume: rawNumber(data.f14) },
-    { price: rawNumber(data.f15), volume: rawNumber(data.f16) },
+    { price: rawNumber(data.f19), volume: rawNumber(data.f20) },
     { price: rawNumber(data.f17), volume: rawNumber(data.f18) },
-    { price: rawNumber(data.f19), volume: rawNumber(data.f20) }
+    { price: rawNumber(data.f15), volume: rawNumber(data.f16) },
+    { price: rawNumber(data.f13), volume: rawNumber(data.f14) },
+    { price: rawNumber(data.f11), volume: rawNumber(data.f12) }
   ]
   const asks: OrderBookLevel[] = [
-    { price: rawNumber(data.f31), volume: rawNumber(data.f32) },
-    { price: rawNumber(data.f33), volume: rawNumber(data.f34) },
-    { price: rawNumber(data.f35), volume: rawNumber(data.f36) },
+    { price: rawNumber(data.f39), volume: rawNumber(data.f40) },
     { price: rawNumber(data.f37), volume: rawNumber(data.f38) },
-    { price: rawNumber(data.f39), volume: rawNumber(data.f40) }
+    { price: rawNumber(data.f35), volume: rawNumber(data.f36) },
+    { price: rawNumber(data.f33), volume: rawNumber(data.f34) },
+    { price: rawNumber(data.f31), volume: rawNumber(data.f32) }
   ]
 
   return {
