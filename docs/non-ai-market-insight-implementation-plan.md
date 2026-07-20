@@ -200,7 +200,6 @@ type WatchEventType =
   | 'order_book_imbalance_change'
   | 'funds_flow_direction_change'
   | 'relative_strength_change'
-  | 'near_existing_t_level'
   | 'new_announcement'
 
 interface WatchEvent {
@@ -589,7 +588,7 @@ IPC 统一使用 `insight:*` 命名空间。
 交付：
 
 - T 仓均价和双五档距离计算。
-- `near_existing_t_level` 事件。
+- 最近档位标记和双五档距离展示。
 - 图表现有档位价格线。
 
 验收：

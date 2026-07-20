@@ -139,6 +139,15 @@ export default function MarketInsightPanel({
     }
   }
 
+  const toggleOlderNews = async () => {
+    if (!settings) return
+    try {
+      await saveSettings({ ...settings, includeOlderNews: !settings.includeOlderNews })
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '要闻查询范围保存失败')
+    }
+  }
+
   const acknowledge = async (eventId: string) => {
     try {
       await marketInsightApi.acknowledgeEvent(eventId)
@@ -229,17 +238,6 @@ export default function MarketInsightPanel({
             />
           </label>
           <label>
-            接近 T 档
-            <input
-              type="number"
-              min="0.1"
-              step="0.1"
-              value={settings.nearTLevelPercent}
-              onChange={(event) => setSettings({ ...settings, nearTLevelPercent: Number(event.target.value) })}
-            />
-            %
-          </label>
-          <label>
             冷却
             <input
               type="number"
@@ -260,10 +258,16 @@ export default function MarketInsightPanel({
       {loading && !snapshot ? <div className="chart-loading">正在计算确定性市场指标…</div> : null}
       {snapshot ? (
         <div className="insight-content">
-          <IndicatorGrid title="分时观察" values={snapshot.indicators.intraday} />
+          <IndicatorGrid
+            title="分时观察"
+            values={snapshot.indicators.intraday}
+            headingValueId="price-volume-state"
+          />
           <IndicatorGrid title="趋势" values={snapshot.indicators.trend} />
-          <IndicatorGrid title="动量" values={snapshot.indicators.momentum} />
-          <IndicatorGrid title="波动" values={snapshot.indicators.volatility} />
+          <div className="insight-indicator-split">
+            <IndicatorGrid title="动量" values={snapshot.indicators.momentum} />
+            <IndicatorGrid title="波动" values={snapshot.indicators.volatility} />
+          </div>
           <IndicatorGrid title="盘口与相对强弱" values={[...snapshot.indicators.orderBook, ...snapshot.indicators.relativeStrength]} />
           <WatchEventList
             events={snapshot.events}
@@ -274,6 +278,8 @@ export default function MarketInsightPanel({
           <NewsTimeline
             news={snapshot.news}
             status={status}
+            includeOlderNews={settings?.includeOlderNews ?? false}
+            onToggleOlderNews={() => void toggleOlderNews()}
             onOpenSource={(url) => void openSource(url)}
           />
           <p className="insight-disclaimer">窗口指标使用已闭合 K 线，最后一根可能未闭合的分时柱不计入窗口；盘口只反映可见委托，不代表真实成交意愿或必然走势。所有观察事件仅陈述可复算的客观条件，不构成交易建议。</p>

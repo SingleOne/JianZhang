@@ -5,6 +5,7 @@ export interface NewsQuery {
   code: string
   sectorQuoteId?: string
   fetchedAt: string
+  newsLookbackDays: number
 }
 
 export interface MarketNewsProvider {

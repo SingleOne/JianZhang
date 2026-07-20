@@ -15,8 +15,7 @@ export function reconcileWatchEvents(
     'vwap_cross',
     'opening_range_break',
     'volume_spike',
-    'intraday_extreme',
-    'near_existing_t_level'
+    'intraday_extreme'
   ])
   const active = existing.map((event) => (
     (

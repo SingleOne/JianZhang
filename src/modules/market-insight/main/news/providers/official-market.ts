@@ -12,24 +12,37 @@ import {
 
 abstract class MarketOnlyProvider implements MarketNewsProvider {
   abstract readonly id: string
-  private cache: { items: MarketNewsItem[]; expiresAt: number } | null = null
-  private refresh: Promise<MarketNewsItem[]> | null = null
+  private cache: { items: MarketNewsItem[]; expiresAt: number; lookbackDays: number } | null = null
+  private refresh: { task: Promise<MarketNewsItem[]>; lookbackDays: number } | null = null
 
   fetchStockNews = emptyNews
   fetchSectorNews = emptyNews
 
   fetchMarketNews(input: NewsQuery): Promise<MarketNewsItem[]> {
-    if (this.cache && this.cache.expiresAt > Date.now()) return Promise.resolve(this.cache.items)
-    if (this.refresh) return this.refresh
-    this.refresh = this.loadMarketNews(input)
+    if (
+      this.cache
+      && this.cache.expiresAt > Date.now()
+      && this.cache.lookbackDays >= input.newsLookbackDays
+    ) return Promise.resolve(this.cache.items)
+    if (this.refresh) {
+      return this.refresh.lookbackDays >= input.newsLookbackDays
+        ? this.refresh.task
+        : this.refresh.task.then(() => this.fetchMarketNews(input))
+    }
+    const task = this.loadMarketNews(input)
       .then((items) => {
-        this.cache = { items, expiresAt: Date.now() + 10 * 60_000 }
+        this.cache = {
+          items,
+          expiresAt: Date.now() + 10 * 60_000,
+          lookbackDays: input.newsLookbackDays
+        }
         return items
       })
       .finally(() => {
         this.refresh = null
       })
-    return this.refresh
+    this.refresh = { task, lookbackDays: input.newsLookbackDays }
+    return task
   }
 
   protected abstract loadMarketNews(input: NewsQuery): Promise<MarketNewsItem[]>
@@ -49,7 +62,8 @@ export class CsrcNewsProvider extends MarketOnlyProvider {
   readonly id = 'csrc-news'
 
   protected async loadMarketNews(input: NewsQuery): Promise<MarketNewsItem[]> {
-    const url = 'https://www.csrc.gov.cn/searchList/a1a078ee0bc54721ab6b148884c784a8?_isAgg=true&_isJson=true&_pageSize=20&_template=index&_rangeTimeGte=&_channelName=&page=1'
+    const pageSize = input.newsLookbackDays > 7 ? 100 : 20
+    const url = `https://www.csrc.gov.cn/searchList/a1a078ee0bc54721ab6b148884c784a8?_isAgg=true&_isJson=true&_pageSize=${pageSize}&_template=index&_rangeTimeGte=&_channelName=&page=1`
     const payload = await requestJson<CsrcListResponse>(url, {
       headers: { Referer: 'https://www.csrc.gov.cn/csrc/c100028/common_xq_list.shtml' }
     })
@@ -82,7 +96,8 @@ export class SseNoticeProvider extends MarketOnlyProvider {
       headers: { Referer: 'https://www.sse.com.cn/disclosure/announcement/general/' }
     })
     const pattern = /<dd>\s*<span>\s*(\d{4}-\d{2}-\d{2})\s*<\/span>\s*<a[^>]+href="([^"]+)"[^>]+title="([^"]+)"/gi
-    return [...html.matchAll(pattern)].slice(0, 20).map((match): MarketNewsItem => {
+    const limit = input.newsLookbackDays > 7 ? 100 : 20
+    return [...html.matchAll(pattern)].slice(0, limit).map((match): MarketNewsItem => {
       const itemUrl = absoluteUrl(match[2], pageUrl)
       return {
         id: sourceId('sse', itemUrl),
@@ -90,7 +105,7 @@ export class SseNoticeProvider extends MarketOnlyProvider {
         source: '上海证券交易所',
         publishedAt: chinaDateTimeToIso(match[1]),
         url: itemUrl,
-        category: 'market',
+        category: 'announcement',
         scope: 'market',
         relatedQuoteIds: [],
         fetchedAt: input.fetchedAt
@@ -108,7 +123,8 @@ export class SzseNoticeProvider extends MarketOnlyProvider {
       headers: { Referer: 'https://www.szse.cn/' }
     })
     const pattern = /var curHref\s*=\s*'([^']+)'[\s\S]{0,500}?var curTitle\s*=\s*'([^']+)'[\s\S]{0,1800}?<span class="time">\s*(\d{4}-\d{2}-\d{2})\s*<\/span>/gi
-    return [...html.matchAll(pattern)].slice(0, 20).map((match): MarketNewsItem => {
+    const limit = input.newsLookbackDays > 7 ? 100 : 20
+    return [...html.matchAll(pattern)].slice(0, limit).map((match): MarketNewsItem => {
       const itemUrl = absoluteUrl(match[1], pageUrl)
       return {
         id: sourceId('szse', itemUrl),
@@ -116,7 +132,7 @@ export class SzseNoticeProvider extends MarketOnlyProvider {
         source: '深圳证券交易所',
         publishedAt: chinaDateTimeToIso(match[3]),
         url: itemUrl,
-        category: 'market',
+        category: 'announcement',
         scope: 'market',
         relatedQuoteIds: [],
         fetchedAt: input.fetchedAt
@@ -130,7 +146,8 @@ export class BseNoticeProvider extends MarketOnlyProvider {
 
   protected async loadMarketNews(input: NewsQuery): Promise<MarketNewsItem[]> {
     const pageUrl = 'https://www.bse.cn/disclosure/vocational.html'
-    const endpoint = 'https://www.bse.cn/disclosureInfoController/stockInfoResult.do?callback=marketInsight&page=0&pageSize=20&disclosureType=9506&siteId=6&xxfcbj=2'
+    const pageSize = input.newsLookbackDays > 7 ? 100 : 20
+    const endpoint = `https://www.bse.cn/disclosureInfoController/stockInfoResult.do?callback=marketInsight&page=0&pageSize=${pageSize}&disclosureType=9506&siteId=6&xxfcbj=2`
     const response = await requestText(endpoint, {
       method: 'POST',
       headers: { Referer: 'https://www.bse.cn/' }
@@ -162,7 +179,7 @@ export class BseNoticeProvider extends MarketOnlyProvider {
         source: '北京证券交易所',
         publishedAt: chinaDateTimeToIso(item.publishDate),
         url: itemUrl,
-        category: 'market',
+        category: 'announcement',
         scope: 'market',
         relatedQuoteIds: [],
         fetchedAt: input.fetchedAt

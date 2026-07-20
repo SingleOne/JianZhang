@@ -32,6 +32,9 @@ export class MarketNewsRegistry {
     const successful = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
     this.warning = errors.length > 0 ? `部分来源不可用（${errors.join('；')}）` : null
     if (successful.length === 0 && errors.length > 0) throw new Error(errors.join('；'))
-    return normalizeNews(successful.flat())
+    const cutoff = new Date(query.fetchedAt).getTime() - query.newsLookbackDays * 24 * 60 * 60_000
+    return normalizeNews(successful.flat()).filter((item) => (
+      item.category === 'announcement' || new Date(item.publishedAt).getTime() >= cutoff
+    ))
   }
 }

@@ -153,10 +153,6 @@ export function detectWatchEvents(
   if (relative !== null && previousRelative !== null && Math.sign(relative) !== Math.sign(previousRelative)) {
     events.push(draft(current.quoteId, 'relative_strength_change', 'info', '相对强弱方向变化', [`当前相对强弱 ${relative.toFixed(2)}%`], occurredAt, 30))
   }
-  for (const level of current.existingTPlanDistances.filter((item) => item.isNear)) {
-    activeContinuousFingerprints.add(eventFingerprint(current.quoteId, 'near_existing_t_level', level.id))
-    events.push(draft(current.quoteId, 'near_existing_t_level', 'attention', `接近用户 ${level.label}`, [`距离该档位 ${level.distancePercent?.toFixed(2) ?? '--'}%`, `档位价格 ${level.price.toFixed(3)}`], occurredAt, 15, [], level.id))
-  }
   events.push(...detectNewAnnouncementEvents(previous?.news ?? null, current.news, current.quoteId, occurredAt))
   return { drafts: events, activeContinuousFingerprints: [...activeContinuousFingerprints] }
 }

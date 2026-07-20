@@ -123,9 +123,9 @@ function createSnapshot(quoteId: string): MarketInsightSnapshot {
   const orderBookResult = calculateOrderBookIndicators(orderBook, DEMO_TIME)
   const relative = calculateRelativeStrengthIndicators({ quote, fundsFlow }, DEMO_TIME)
   const distances = [
-    { id: 'position-cost', label: 'T 仓均价', side: 'position' as const, price: (latest ?? 0) * 0.992, distancePercent: 0.81, quantity: 1_000, isNear: false, isNearest: false },
-    { id: 'buy-1', label: 'T1 买入档', side: 'buy' as const, price: (latest ?? 0) * 0.996, distancePercent: 0.4, quantity: 100, isNear: true, isNearest: true },
-    { id: 'sell-1', label: 'T1 卖出档', side: 'sell' as const, price: (latest ?? 0) * 1.012, distancePercent: -1.19, quantity: 100, isNear: false, isNearest: false }
+    { id: 'position-cost', label: 'T 仓均价', side: 'position' as const, price: (latest ?? 0) * 0.992, distancePercent: 0.81, quantity: 1_000, isNearest: false },
+    { id: 'buy-1', label: 'T1 买入档', side: 'buy' as const, price: (latest ?? 0) * 0.996, distancePercent: 0.4, quantity: 100, isNearest: true },
+    { id: 'sell-1', label: 'T1 卖出档', side: 'sell' as const, price: (latest ?? 0) * 1.012, distancePercent: -1.19, quantity: 100, isNearest: false }
   ]
   const snapshot: MarketInsightSnapshot = {
     version: MARKET_INSIGHT_MODULE_VERSION,

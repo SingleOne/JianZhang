@@ -49,7 +49,6 @@ export type WatchEventType =
   | 'order_book_imbalance_change'
   | 'funds_flow_direction_change'
   | 'relative_strength_change'
-  | 'near_existing_t_level'
   | 'new_announcement'
 
 export interface WatchEvent {
@@ -73,7 +72,6 @@ export interface TPlanDistance {
   price: number
   distancePercent: number | null
   quantity: number | null
-  isNear: boolean
   isNearest: boolean
 }
 
@@ -101,10 +99,10 @@ export interface MarketInsightSettings {
   enabled: boolean
   watchedQuoteIds: string[]
   showChartOverlay: boolean
-  nearTLevelPercent: number
   volumeSpikeRatio: number
   eventCooldownMinutes: number
   newsCacheHours: number
+  includeOlderNews: boolean
 }
 
 export interface MarketInsightStatus {

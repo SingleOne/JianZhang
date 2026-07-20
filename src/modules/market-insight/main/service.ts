@@ -422,7 +422,6 @@ export class MarketInsightService {
       price: cost,
       distancePercent: cost === 0 ? null : (latest / cost - 1) * 100,
       quantity: availableQuantity,
-      isNear: cost !== 0 && Math.abs(latest / cost - 1) * 100 <= this.settings.nearTLevelPercent,
       isNearest: false
     }
     if (!batch) return [position]
@@ -436,7 +435,6 @@ export class MarketInsightService {
         price,
         distancePercent,
         quantity: level.quantity,
-        isNear: distancePercent !== null && Math.abs(distancePercent) <= this.settings.nearTLevelPercent,
         isNearest: false
       }
     })
@@ -456,7 +454,8 @@ export class MarketInsightService {
       quoteId: stock.quoteId,
       code: stock.code,
       sectorQuoteId: this.quotes.get(stock.quoteId)?.sector?.quoteId,
-      fetchedAt
+      fetchedAt,
+      newsLookbackDays: this.settings.includeOlderNews ? 30 : 7
     }).then((items) => {
       this.newsIndex[stock.quoteId] = items.map((item) => item.id)
       this.storage.saveNewsIndex(this.newsIndex)
@@ -519,8 +518,7 @@ export class MarketInsightService {
       'vwap_cross',
       'opening_range_break',
       'volume_spike',
-      'intraday_extreme',
-      'near_existing_t_level'
+      'intraday_extreme'
     ])
     const activeContinuousFingerprints = this.events.flatMap((event) => (
       event.status !== 'expired' && continuousTypes.has(event.type) ? [event.fingerprint] : []

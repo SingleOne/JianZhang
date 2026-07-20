@@ -13,9 +13,9 @@ export function normalizeMarketInsightSettings(input: Partial<MarketInsightSetti
     enabled: input?.enabled !== false,
     watchedQuoteIds,
     showChartOverlay: input?.showChartOverlay !== false,
-    nearTLevelPercent: positiveNumber(input?.nearTLevelPercent, DEFAULT_MARKET_INSIGHT_SETTINGS.nearTLevelPercent),
     volumeSpikeRatio: positiveNumber(input?.volumeSpikeRatio, DEFAULT_MARKET_INSIGHT_SETTINGS.volumeSpikeRatio),
     eventCooldownMinutes: positiveNumber(input?.eventCooldownMinutes, DEFAULT_MARKET_INSIGHT_SETTINGS.eventCooldownMinutes),
-    newsCacheHours: positiveNumber(input?.newsCacheHours, DEFAULT_MARKET_INSIGHT_SETTINGS.newsCacheHours)
+    newsCacheHours: positiveNumber(input?.newsCacheHours, DEFAULT_MARKET_INSIGHT_SETTINGS.newsCacheHours),
+    includeOlderNews: input?.includeOlderNews === true
   }
 }

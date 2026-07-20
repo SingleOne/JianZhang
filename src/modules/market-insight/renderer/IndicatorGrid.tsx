@@ -4,6 +4,7 @@ import type { IndicatorValue } from '../shared/types'
 interface IndicatorGridProps {
   title: string
   values: readonly IndicatorValue[]
+  headingValueId?: string
 }
 
 function formatIndicator(value: IndicatorValue): string {
@@ -18,19 +19,35 @@ function formatIndicator(value: IndicatorValue): string {
   return value.value.toFixed(2)
 }
 
-export function IndicatorGrid({ title, values }: IndicatorGridProps) {
+export function IndicatorGrid({ title, values, headingValueId }: IndicatorGridProps) {
   if (values.length === 0) return null
+  const headingValue = headingValueId
+    ? values.find((value) => value.id === headingValueId)
+    : undefined
+  const gridValues = headingValue
+    ? values.filter((value) => value.id !== headingValue.id)
+    : values
   return (
     <section className="insight-indicator-section">
-      <h3>{title}</h3>
-      <div className="insight-indicator-grid">
-        {values.map((value) => (
-          <div className="insight-indicator" key={value.id} title={`数据周期：${value.sourcePeriod}`}>
-            <span>{value.label}</span>
-            <strong className={`is-${value.state}`}>{formatIndicator(value)}</strong>
-          </div>
-        ))}
+      <div className="insight-indicator-heading">
+        <h3>{title}</h3>
+        {headingValue ? (
+          <span className="insight-heading-value" title={`数据周期：${headingValue.sourcePeriod}`}>
+            <span>{headingValue.label}</span>
+            <strong className={`is-${headingValue.state}`}>{formatIndicator(headingValue)}</strong>
+          </span>
+        ) : null}
       </div>
+      {gridValues.length > 0 ? (
+        <div className="insight-indicator-grid">
+          {gridValues.map((value) => (
+            <div className="insight-indicator" key={value.id} title={`数据周期：${value.sourcePeriod}`}>
+              <span>{value.label}</span>
+              <strong className={`is-${value.state}`}>{formatIndicator(value)}</strong>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </section>
   )
 }

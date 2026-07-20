@@ -19,10 +19,10 @@ export const DEFAULT_MARKET_INSIGHT_SETTINGS: MarketInsightSettings = {
   enabled: true,
   watchedQuoteIds: [],
   showChartOverlay: true,
-  nearTLevelPercent: 0.5,
   volumeSpikeRatio: 2.3,
   eventCooldownMinutes: 30,
-  newsCacheHours: 12
+  newsCacheHours: 12,
+  includeOlderNews: false
 }
 
 export const MARKET_INSIGHT_REFRESH_INTERVALS = {
