@@ -7,6 +7,7 @@ import {
   screen,
   Tray,
   type OpenDialogOptions,
+  type Rectangle,
   type SaveDialogOptions
 } from 'electron'
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -26,6 +27,7 @@ import {
   type KlinePeriod,
   type StockSectorQuote,
   type StockQuote,
+  type TaskbarLayout,
   type TradingCalendarSettings,
   type WatchStock
 } from '../../src/shared/types'
@@ -74,7 +76,8 @@ let regularRefreshTimer: NodeJS.Timeout | null = null
 let tradingCalendarCheckTimer: NodeJS.Timeout | null = null
 let taskbarHoverTrackingTimer: NodeJS.Timeout | null = null
 let tradingCalendarRefresh: Promise<TradingCalendarSettings> | null = null
-let taskbarTickerHeight = 48
+let taskbarTickerBounds: Rectangle | null = null
+let taskbarLayout: TaskbarLayout = { taskbarHeight: 48, detailHeight: 110 }
 let taskbarHovered = false
 const refreshesInFlight = new Set<'all' | 'priority' | 'regular'>()
 let isQuitting = false
@@ -158,6 +161,7 @@ function cleanupBeforeQuit(): void {
   regularRefreshTimer = null
   tradingCalendarCheckTimer = null
   taskbarHoverTrackingTimer = null
+  taskbarTickerBounds = null
   appTray?.destroy()
   appTray = null
   taskbarWindow?.destroy()
@@ -219,18 +223,22 @@ function setTaskbarHovered(hovered: boolean): void {
 }
 
 function updateTaskbarHoverState(): void {
-  if (!taskbarWindow || taskbarWindow.isDestroyed() || !taskbarWindow.isVisible()) {
+  if (
+    !taskbarWindow
+    || taskbarWindow.isDestroyed()
+    || !taskbarWindow.isVisible()
+    || !taskbarTickerBounds
+  ) {
     setTaskbarHovered(false)
     return
   }
 
   const cursor = screen.getCursorScreenPoint()
-  const bounds = taskbarWindow.getBounds()
-  const tickerTop = bounds.y + bounds.height - taskbarTickerHeight
+  const bounds = taskbarTickerBounds
   setTaskbarHovered(
     cursor.x >= bounds.x
     && cursor.x < bounds.x + bounds.width
-    && cursor.y >= tickerTop
+    && cursor.y >= bounds.y
     && cursor.y < bounds.y + bounds.height
   )
 }
@@ -251,6 +259,7 @@ function positionTaskbarWindow(): void {
 
   if ((!state.settings.showTaskbarTicker && !hasActiveTaskbarAlert()) || selectedCount === 0 || taskbarHeight < 24) {
     setTaskbarHovered(false)
+    taskbarTickerBounds = null
     taskbarWindow.hide()
     return
   }
@@ -264,17 +273,20 @@ function positionTaskbarWindow(): void {
   const horizontalMargin = 24
   const travelWidth = Math.max(0, display.bounds.width - width - horizontalMargin * 2)
   const positionPercent = Math.min(100, Math.max(0, state.settings.taskbarPositionPercent))
-  taskbarTickerHeight = taskbarHeight
+  const x = display.bounds.x + horizontalMargin + Math.round(travelWidth * positionPercent / 100)
+  taskbarTickerBounds = { x, y: taskbarTop, width, height: taskbarHeight }
+  taskbarLayout = { taskbarHeight, detailHeight }
 
   taskbarWindow.setBounds({
-    x: display.bounds.x + horizontalMargin + Math.round(travelWidth * positionPercent / 100),
+    x,
     y: taskbarTop - detailHeight,
     width,
     height: taskbarHeight + detailHeight
   })
-  taskbarWindow.webContents.send('taskbar:layout', { taskbarHeight, detailHeight })
+  taskbarWindow.webContents.send('taskbar:layout', taskbarLayout)
   taskbarWindow.setAlwaysOnTop(true, 'pop-up-menu')
   taskbarWindow.showInactive()
+  updateTaskbarHoverState()
 }
 
 function createTaskbarWindow(): void {
@@ -312,6 +324,7 @@ function createTaskbarWindow(): void {
   window.on('closed', () => {
     if (taskbarHoverTrackingTimer) clearInterval(taskbarHoverTrackingTimer)
     taskbarHoverTrackingTimer = null
+    taskbarTickerBounds = null
     taskbarHovered = false
     if (taskbarWindow === window) taskbarWindow = null
   })
@@ -334,6 +347,7 @@ function syncTaskbarWindow(): void {
 
   if (!shouldShow) {
     setTaskbarHovered(false)
+    taskbarTickerBounds = null
     if (taskbarWindow && !taskbarWindow.isDestroyed()) taskbarWindow.hide()
     return
   }
@@ -540,6 +554,7 @@ function createWindow(): void {
 
 function registerIpc(): void {
   ipcMain.handle('app:bootstrap', async () => ({ state, quotes: latestQuotes, source: 'eastmoney' as const }))
+  ipcMain.handle('taskbar:status', () => ({ layout: taskbarLayout, hovered: taskbarHovered }))
   ipcMain.handle('stocks:search', (_event, query: string) => searchStocks(query))
   ipcMain.handle('quotes:refresh', () => refreshAll())
   ipcMain.handle('kline:get', (_event, quoteId: string, period: KlinePeriod, limit?: number) => (

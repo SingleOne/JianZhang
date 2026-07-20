@@ -291,7 +291,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <AppTitlebar lastUpdated={lastUpdated} />
+      <AppTitlebar />
       <main className="app-main">
         <div className="workspace">
           <section className="command-bar" aria-label="自选股操作">

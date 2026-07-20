@@ -41,19 +41,38 @@ export function TaskbarTicker() {
   }, [])
 
   useEffect(() => {
-    void stockApi.getBootstrap().then((bootstrap) => {
-      setState(bootstrap.state)
-      setQuotes(bootstrap.quotes)
-    })
+    let active = true
+    let receivedLayoutEvent = false
+    let receivedHoverEvent = false
 
     const unsubscribeQuotes = stockApi.onQuotesUpdated(setQuotes)
     const unsubscribeState = stockApi.onStateUpdated(setState)
-    const unsubscribeLayout = stockApi.onTaskbarLayout(setLayout)
+    const unsubscribeLayout = stockApi.onTaskbarLayout((nextLayout) => {
+      receivedLayoutEvent = true
+      setLayout(nextLayout)
+    })
     const unsubscribeHover = stockApi.onTaskbarHoverChanged((hovered) => {
+      receivedHoverEvent = true
       if (hovered) startDetailTimer()
       else hideDetails()
     })
+
+    void Promise.all([
+      stockApi.getBootstrap(),
+      stockApi.getTaskbarStatus()
+    ]).then(([bootstrap, status]) => {
+      if (!active) return
+      setState(bootstrap.state)
+      setQuotes(bootstrap.quotes)
+      if (!receivedLayoutEvent) setLayout(status.layout)
+      if (!receivedHoverEvent) {
+        if (status.hovered) startDetailTimer()
+        else hideDetails()
+      }
+    })
+
     return () => {
+      active = false
       unsubscribeQuotes()
       unsubscribeState()
       unsubscribeLayout()

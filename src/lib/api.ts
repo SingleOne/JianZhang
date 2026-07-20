@@ -73,72 +73,72 @@ const DEMO_VALUES: Record<string, Omit<StockQuote, 'updatedAt'>> = {
   '1.000001': {
     code: '000001', name: '上证指数', quoteId: '1.000001', latest: 3516.28, change: 18.64,
     changePercent: 0.53, open: 3499.42, high: 3522.17, low: 3491.08, previousClose: 3497.64,
-    volume: 428_621_900, amount: 512_684_000_000
+    volume: 428_621_900, amount: 512_684_000_000, turnoverRate: 0.86
   },
   '0.399001': {
     code: '399001', name: '深证成指', quoteId: '0.399001', latest: 10728.46, change: -31.62,
     changePercent: -0.29, open: 10754.81, high: 10788.36, low: 10692.17, previousClose: 10760.08,
-    volume: 512_386_400, amount: 688_275_000_000
+    volume: 512_386_400, amount: 688_275_000_000, turnoverRate: 1.24
   },
   '0.399006': {
     code: '399006', name: '创业板指', quoteId: '0.399006', latest: 2218.75, change: 14.28,
     changePercent: 0.65, open: 2205.12, high: 2226.44, low: 2198.63, previousClose: 2204.47,
-    volume: 143_862_000, amount: 276_518_000_000
+    volume: 143_862_000, amount: 276_518_000_000, turnoverRate: 1.68
   },
   '90.BK0896': {
     code: 'BK0896', name: '白酒', quoteId: '90.BK0896', latest: 42876.42, change: 286.14,
     changePercent: 0.67, open: 42620.15, high: 43118.26, low: 42571.88, previousClose: 42590.28,
-    volume: 2_865_300, amount: 42_168_400_000
+    volume: 2_865_300, amount: 42_168_400_000, turnoverRate: 1.12
   },
   '90.BK1033': {
     code: 'BK1033', name: '电池', quoteId: '90.BK1033', latest: 1584.28, change: -8.47,
     changePercent: -0.53, open: 1591.36, high: 1603.42, low: 1576.18, previousClose: 1592.75,
-    volume: 8_735_600, amount: 68_276_000_000
+    volume: 8_735_600, amount: 68_276_000_000, turnoverRate: 1.84
   },
   '90.BK1029': {
     code: 'BK1029', name: '汽车整车', quoteId: '90.BK1029', latest: 1846.75, change: 21.36,
     changePercent: 1.17, open: 1828.46, high: 1859.72, low: 1821.05, previousClose: 1825.39,
-    volume: 6_482_100, amount: 51_739_000_000
+    volume: 6_482_100, amount: 51_739_000_000, turnoverRate: 1.57
   },
   '90.BK0473': {
     code: 'BK0473', name: '证券', quoteId: '90.BK0473', latest: 1358.12, change: 9.64,
     changePercent: 0.71, open: 1349.88, high: 1364.24, low: 1345.17, previousClose: 1348.48,
-    volume: 7_164_800, amount: 57_829_000_000
+    volume: 7_164_800, amount: 57_829_000_000, turnoverRate: 1.36
   },
   '90.BK0475': {
     code: 'BK0475', name: '银行Ⅱ', quoteId: '90.BK0475', latest: 1205.36, change: -3.12,
     changePercent: -0.26, open: 1208.75, high: 1212.63, low: 1201.48, previousClose: 1208.48,
-    volume: 5_732_400, amount: 48_615_000_000
+    volume: 5_732_400, amount: 48_615_000_000, turnoverRate: 0.72
   },
   '90.BK0474': {
     code: 'BK0474', name: '保险', quoteId: '90.BK0474', latest: 1098.62, change: 7.94,
     changePercent: 0.73, open: 1092.18, high: 1104.37, low: 1088.56, previousClose: 1090.68,
-    volume: 3_164_200, amount: 25_742_000_000
+    volume: 3_164_200, amount: 25_742_000_000, turnoverRate: 0.94
   },
   '1.600519': {
     code: '600519', name: '贵州茅台', quoteId: '1.600519', latest: 1248.06, change: -3.0,
     changePercent: -0.24, open: 1252.0, high: 1264.62, low: 1245.05, previousClose: 1251.06,
-    volume: 17225, amount: 2161774015
+    volume: 17225, amount: 2161774015, turnoverRate: 0.14
   },
   '0.300750': {
     code: '300750', name: '宁德时代', quoteId: '0.300750', latest: 367.81, change: -5.19,
     changePercent: -1.39, open: 369.48, high: 370.97, low: 364.5, previousClose: 373.0,
-    volume: 75470, amount: 2776714534
+    volume: 75470, amount: 2776714534, turnoverRate: 0.65
   },
   '0.002594': {
     code: '002594', name: '比亚迪', quoteId: '0.002594', latest: 92.63, change: 0.87,
     changePercent: 0.95, open: 91.74, high: 92.8, low: 91.15, previousClose: 91.76,
-    volume: 142119, amount: 1310129948
+    volume: 142119, amount: 1310129948, turnoverRate: 0.49
   },
   '1.600030': {
     code: '600030', name: '中信证券', quoteId: '1.600030', latest: 31.07, change: 0.21,
     changePercent: 0.68, open: 30.83, high: 31.18, low: 30.72, previousClose: 30.86,
-    volume: 438210, amount: 1356948120
+    volume: 438210, amount: 1356948120, turnoverRate: 0.38
   },
   '1.600036': {
     code: '600036', name: '招商银行', quoteId: '1.600036', latest: 48.26, change: -0.18,
     changePercent: -0.37, open: 48.51, high: 48.64, low: 48.08, previousClose: 48.44,
-    volume: 264580, amount: 1278830400
+    volume: 264580, amount: 1278830400, turnoverRate: 0.13
   }
 }
 
@@ -183,6 +183,7 @@ function makeDemoQuotes(watchlist: WatchStock[]): StockQuote[] {
       previousClose: base - 0.18,
       volume: 182300,
       amount: 486320000,
+      turnoverRate: 1.26,
       sector,
       radarSignals,
       updatedAt: now
@@ -334,6 +335,12 @@ const demoApi: StockDesktopApi = {
     const state = loadDemoState()
     const marketIndices = getMarketIndexStocks(state.settings.marketIndexIds)
     return { state, quotes: makeDemoQuotes([...state.watchlist, ...marketIndices]), source: 'demo' }
+  },
+  async getTaskbarStatus() {
+    return {
+      layout: { taskbarHeight: 48, detailHeight: 110 },
+      hovered: false
+    }
   },
   async searchStocks(query) {
     const normalized = query.trim().toLowerCase()

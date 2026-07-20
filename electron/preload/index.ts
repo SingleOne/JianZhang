@@ -14,6 +14,7 @@ function subscribe<T>(channel: string, callback: (payload: T) => void): () => vo
 
 const api: StockDesktopApi = {
   getBootstrap: () => ipcRenderer.invoke('app:bootstrap'),
+  getTaskbarStatus: () => ipcRenderer.invoke('taskbar:status'),
   searchStocks: (query) => ipcRenderer.invoke('stocks:search', query),
   refreshQuotes: () => ipcRenderer.invoke('quotes:refresh'),
   getKline: (quoteId, period, limit) => ipcRenderer.invoke('kline:get', quoteId, period, limit),

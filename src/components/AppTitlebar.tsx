@@ -1,6 +1,5 @@
 import { Activity } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { formatUpdateTime } from '../lib/format'
 
 function marketState(date: Date): { open: boolean; label: string } {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -15,11 +14,7 @@ function marketState(date: Date): { open: boolean; label: string } {
   return { open, label: open ? 'A股交易中' : 'A股已休市' }
 }
 
-interface AppTitlebarProps {
-  lastUpdated?: string
-}
-
-export function AppTitlebar({ lastUpdated }: AppTitlebarProps) {
+export function AppTitlebar() {
   const [now, setNow] = useState(() => new Date())
   const market = marketState(now)
 
@@ -41,8 +36,6 @@ export function AppTitlebar({ lastUpdated }: AppTitlebarProps) {
         <Activity size={13} />
         <span>{market.label}</span>
       </div>
-      <div className="titlebar-spacer" />
-      <div className="titlebar-update">更新于 {formatUpdateTime(lastUpdated)}</div>
     </header>
   )
 }

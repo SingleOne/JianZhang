@@ -63,6 +63,7 @@ interface EastmoneyQuoteItem {
   f4?: number | '-'
   f5?: number | '-'
   f6?: number | '-'
+  f8?: number | '-'
   f12?: string
   f14?: string
   f15?: number | '-'
@@ -201,7 +202,7 @@ export async function fetchQuotes(
 
   const url = new URL('https://push2.eastmoney.com/api/qt/ulist.np/get')
   url.searchParams.set('secids', stocks.map((stock) => stock.quoteId).join(','))
-  url.searchParams.set('fields', 'f2,f3,f4,f5,f6,f12,f14,f15,f16,f17,f18')
+  url.searchParams.set('fields', 'f2,f3,f4,f5,f6,f8,f12,f14,f15,f16,f17,f18')
 
   const radarSignals = currentRadarSignals(radarStocks)
   const payload = await requestJson<{ data?: { diff?: EastmoneyQuoteItem[] } }>(url.toString())
@@ -221,6 +222,7 @@ export async function fetchQuotes(
     previousClose: scaled(item.f18),
     volume: rawNumber(item.f5),
     amount: rawNumber(item.f6),
+    turnoverRate: scaled(item.f8),
     radarSignals: radarSignals.get(quoteIdByCode.get(item.f12 ?? '') ?? ''),
     updatedAt: now
   }))

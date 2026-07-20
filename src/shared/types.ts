@@ -265,6 +265,7 @@ export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
   'changePercent',
   'sectorChangePercent',
   'open',
+  'trading',
   'amount',
   'radar',
   'tAlert',
@@ -277,7 +278,7 @@ export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
 ] as const
 
 export type WatchlistColumnId = typeof DEFAULT_WATCHLIST_COLUMN_ORDER[number]
-export const WATCHLIST_COLUMN_ORDER_VERSION = 4
+export const WATCHLIST_COLUMN_ORDER_VERSION = 5
 
 export function normalizeWatchlistColumnOrder(
   columnOrder: readonly string[] | undefined
@@ -311,10 +312,16 @@ export function migrateWatchlistColumnOrder(
     migrated.splice(radarIndex + 1, 0, 'tAlert')
   }
 
-  if ((version ?? 0) < WATCHLIST_COLUMN_ORDER_VERSION) {
+  if ((version ?? 0) < 4) {
     migrated = migrated.filter((columnId) => columnId !== 'sectorChangePercent')
     const changePercentIndex = migrated.indexOf('changePercent')
     migrated.splice(changePercentIndex + 1, 0, 'sectorChangePercent')
+  }
+
+  if ((version ?? 0) < 5) {
+    migrated = migrated.filter((columnId) => columnId !== 'trading')
+    const openIndex = migrated.indexOf('open')
+    migrated.splice(openIndex + 1, 0, 'trading')
   }
 
   return migrated
@@ -340,6 +347,7 @@ export interface StockQuote {
   previousClose: number | null
   volume: number | null
   amount: number | null
+  turnoverRate: number | null
   sector?: StockSectorQuote
   radarSignals?: StockRadarSignal[]
   updatedAt: string
@@ -609,8 +617,14 @@ export interface TaskbarLayout {
   detailHeight: number
 }
 
+export interface TaskbarStatus {
+  layout: TaskbarLayout
+  hovered: boolean
+}
+
 export interface StockDesktopApi {
   getBootstrap: () => Promise<BootstrapResult>
+  getTaskbarStatus: () => Promise<TaskbarStatus>
   searchStocks: (query: string) => Promise<SearchResult[]>
   refreshQuotes: () => Promise<StockQuote[]>
   getKline: (quoteId: string, period: KlinePeriod, limit?: number) => Promise<KlineResult>

@@ -131,15 +131,8 @@ tr:focus-visible {
   animation: live-pulse 1.8s ease-in-out infinite;
 }
 
-.titlebar-spacer,
 .status-spacer {
   flex: 1;
-}
-
-.titlebar-update {
-  color: #8490a3;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
 }
 
 .app-main {
@@ -1604,6 +1597,18 @@ tr:focus-visible {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   justify-items: center;
   gap: 4px 10px;
+  color: #475467;
+  line-height: 1.2;
+}
+
+.today-market-open {
+  grid-column: 1 / -1;
+}
+
+.trading-market-cell {
+  display: inline-grid;
+  justify-items: center;
+  gap: 4px;
   color: #475467;
   line-height: 1.2;
 }

@@ -119,6 +119,7 @@ const COLUMN_META: Record<WatchlistColumnId, ColumnMeta> = {
   changePercent: { label: '涨跌幅', width: 76, sortable: true },
   sectorChangePercent: { label: '板块涨跌幅', width: 94, sortable: true },
   open: { label: '今日概览', width: 190, sortable: true },
+  trading: { label: '成交', width: 112, sortable: true },
   amount: { label: '持仓天数', width: 80, sortable: true },
   radar: { label: '异动提示', width: 100, sortable: true, className: 'radar-column' },
   tAlert: { label: 'T提醒', width: 118, sortable: false, className: 't-alert-column' },
@@ -149,6 +150,10 @@ function valueClass(value: number | null | undefined): string {
   return value > 0 ? 'is-up' : 'is-down'
 }
 
+function formatTurnoverRate(value: number | null | undefined): string {
+  return value === null || value === undefined ? '--' : `${value.toFixed(2)}%`
+}
+
 function sortValue(
   row: StockRowData,
   column: WatchlistColumnId,
@@ -160,6 +165,7 @@ function sortValue(
     case 'changePercent': return row.quote?.changePercent
     case 'sectorChangePercent': return row.quote?.sector?.changePercent
     case 'open': return row.quote?.open
+    case 'trading': return row.quote?.amount
     case 'amount': return getPositionHoldingDays(row.stock.position, tradingCalendarClosedDates)
     case 'radar': {
       if (!row.stock.showRadarSignals) return null
@@ -767,12 +773,23 @@ export function WatchlistTable({
                             <td key={columnId}>
                               <span
                                 className="today-market-cell"
-                                title={`今开 ${formatPrice(quote?.open)}，最高 ${formatPrice(quote?.high)}，最低 ${formatPrice(quote?.low)}，成交额 ${formatAmount(quote?.amount)}`}
+                                title={`今开 ${formatPrice(quote?.open)}，最低 ${formatPrice(quote?.low)}，最高 ${formatPrice(quote?.high)}`}
                               >
-                                <span>今开：{formatPrice(quote?.open)}</span>
-                                <span>最高：{formatPrice(quote?.high)}</span>
+                                <span className="today-market-open">今开：{formatPrice(quote?.open)}</span>
                                 <span>最低：{formatPrice(quote?.low)}</span>
+                                <span>最高：{formatPrice(quote?.high)}</span>
+                              </span>
+                            </td>
+                          )
+                        case 'trading':
+                          return (
+                            <td key={columnId}>
+                              <span
+                                className="trading-market-cell"
+                                title={`成交额 ${formatAmount(quote?.amount)}，换手率 ${formatTurnoverRate(quote?.turnoverRate)}`}
+                              >
                                 <span>成交额：{formatAmount(quote?.amount)}</span>
+                                <span>换手率：{formatTurnoverRate(quote?.turnoverRate)}</span>
                               </span>
                             </td>
                           )
