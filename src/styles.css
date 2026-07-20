@@ -2632,6 +2632,11 @@ tr:focus-visible {
 }
 
 .t-dual-plan-card {
+  min-width: 0;
+}
+
+.t-plan-scroll {
+  min-width: 0;
   overflow-x: auto;
 }
 

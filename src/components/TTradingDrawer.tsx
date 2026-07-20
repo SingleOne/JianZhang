@@ -799,25 +799,27 @@ export function TTradingDrawer({
                       </button>
                     </span>
                   </div>
-                  <div className="t-plan-grid">
-                    <TPlanTable
-                      side="buy"
-                      rows={buyLevelRows}
-                      alertEnabled={Boolean(currentAccount.activeBatch?.alertEnabled)}
-                      emphasized={isReverseBatch}
-                      onUpdateLevel={(index, key, value) => updatePlanLevel('buy', index, key, value)}
-                      onHandleAlert={(index) => handlePlanAlert('buy', index)}
-                      onRestoreAlert={(index) => restorePlanAlert('buy', index)}
-                    />
-                    <TPlanTable
-                      side="sell"
-                      rows={sellLevelRows}
-                      alertEnabled={Boolean(currentAccount.activeBatch?.alertEnabled)}
-                      emphasized={!isReverseBatch}
-                      onUpdateLevel={(index, key, value) => updatePlanLevel('sell', index, key, value)}
-                      onHandleAlert={(index) => handlePlanAlert('sell', index)}
-                      onRestoreAlert={(index) => restorePlanAlert('sell', index)}
-                    />
+                  <div className="t-plan-scroll">
+                    <div className="t-plan-grid">
+                      <TPlanTable
+                        side="buy"
+                        rows={buyLevelRows}
+                        alertEnabled={Boolean(currentAccount.activeBatch?.alertEnabled)}
+                        emphasized={isReverseBatch}
+                        onUpdateLevel={(index, key, value) => updatePlanLevel('buy', index, key, value)}
+                        onHandleAlert={(index) => handlePlanAlert('buy', index)}
+                        onRestoreAlert={(index) => restorePlanAlert('buy', index)}
+                      />
+                      <TPlanTable
+                        side="sell"
+                        rows={sellLevelRows}
+                        alertEnabled={Boolean(currentAccount.activeBatch?.alertEnabled)}
+                        emphasized={!isReverseBatch}
+                        onUpdateLevel={(index, key, value) => updatePlanLevel('sell', index, key, value)}
+                        onHandleAlert={(index) => handlePlanAlert('sell', index)}
+                        onRestoreAlert={(index) => restorePlanAlert('sell', index)}
+                      />
+                    </div>
                   </div>
                 </section>
               ) : null}
