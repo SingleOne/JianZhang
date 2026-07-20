@@ -11,6 +11,11 @@ interface SettingsMenuProps {
   calendarRefreshing: boolean
 }
 
+const T_PLAN_DEFAULT_GROUPS = [
+  { key: 'buyLevels', label: '买入五档', percentLabel: '跌幅' },
+  { key: 'sellLevels', label: '卖出五档', percentLabel: '涨幅' }
+] as const
+
 function formatCalendarRefreshTime(value: string | null): string {
   if (!value) return '尚未在线刷新'
   return new Date(value).toLocaleString('zh-CN', {
@@ -54,6 +59,25 @@ export function SettingsMenu({
       tTradingFees: {
         ...settings.tTradingFees,
         [key]: Math.max(0, value || 0)
+      }
+    })
+  }
+
+  const updateTPlanDefault = (
+    side: 'buyLevels' | 'sellLevels',
+    index: number,
+    key: 'targetPercent' | 'quantity',
+    value: number
+  ) => {
+    onChange({
+      ...settings,
+      tPlanDefaults: {
+        ...settings.tPlanDefaults,
+        [side]: settings.tPlanDefaults[side].map((level, levelIndex) => (
+          levelIndex === index
+            ? { ...level, [key]: Math.max(0, value || 0) }
+            : level
+        ))
       }
     })
   }
@@ -179,6 +203,57 @@ export function SettingsMenu({
               />
               <em>万分</em>
             </label>
+          </div>
+        </fieldset>
+        <fieldset className="t-plan-default-setting">
+          <legend>双五档默认值</legend>
+          <small>新建 T 仓、交易后重排以及“重置双五档”时使用</small>
+          <div className="t-plan-default-groups">
+            {T_PLAN_DEFAULT_GROUPS.map((group) => (
+              <section className="t-plan-default-group" key={group.key}>
+                <strong>{group.label}</strong>
+                <div className="t-plan-default-level is-head">
+                  <span>档</span>
+                  <span>{group.percentLabel}%</span>
+                  <span>数量</span>
+                </div>
+                {settings.tPlanDefaults[group.key].map((level, index) => (
+                  <div className="t-plan-default-level" key={index}>
+                    <b>T{index + 1}</b>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={level.targetPercent}
+                      onChange={(event) => {
+                        updateTPlanDefault(
+                          group.key,
+                          index,
+                          'targetPercent',
+                          Number(event.target.value)
+                        )
+                      }}
+                      aria-label={`${group.label} T${index + 1} ${group.percentLabel}`}
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      step="100"
+                      value={level.quantity}
+                      onChange={(event) => {
+                        updateTPlanDefault(
+                          group.key,
+                          index,
+                          'quantity',
+                          Number(event.target.value)
+                        )
+                      }}
+                      aria-label={`${group.label} T${index + 1} 数量`}
+                    />
+                  </div>
+                ))}
+              </section>
+            ))}
           </div>
         </fieldset>
         <fieldset className="market-index-setting">

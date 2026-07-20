@@ -715,6 +715,89 @@ tr:focus-visible {
   text-align: center;
 }
 
+.t-plan-default-setting {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 12px 0 13px;
+  border: 0;
+  border-bottom: 1px solid #f0f2f6;
+}
+
+.t-plan-default-setting legend {
+  padding: 0;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.t-plan-default-setting > small {
+  color: #8a94a6;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.t-plan-default-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.t-plan-default-group {
+  min-width: 0;
+  padding: 7px;
+  background: #f8fafc;
+  border: 1px solid #e5e9f0;
+  border-radius: 7px;
+}
+
+.t-plan-default-group > strong {
+  display: block;
+  margin-bottom: 5px;
+  color: #445268;
+  font-size: 10px;
+}
+
+.t-plan-default-level {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) minmax(0, 1.25fr);
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  margin-top: 4px;
+}
+
+.t-plan-default-level.is-head {
+  margin-top: 0;
+  color: #98a2b3;
+  font-size: 9px;
+  text-align: center;
+}
+
+.t-plan-default-level b {
+  color: #667085;
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.t-plan-default-level input {
+  min-width: 0;
+  width: 100%;
+  height: 27px;
+  padding: 0 3px;
+  color: #27364c;
+  background: #ffffff;
+  border: 1px solid #dfe4ec;
+  border-radius: 5px;
+  outline: 0;
+  text-align: right;
+}
+
+.t-plan-default-level input:focus {
+  border-color: #8eb0f4;
+  box-shadow: 0 0 0 2px rgba(46, 111, 234, 0.1);
+}
+
 .number-input-wrap {
   height: 31px;
   display: flex;

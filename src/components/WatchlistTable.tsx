@@ -41,6 +41,7 @@ import type {
   StockPositionSnapshot,
   StockQuote,
   StockRadarSignal,
+  TPlanDefaultSettings,
   TTradingAccount,
   TTradingAccounts,
   TTradingFeeSettings,
@@ -62,6 +63,7 @@ interface WatchlistTableProps {
   selectedQuoteId: string | null
   tTradingAccounts: TTradingAccounts
   tTradingFees: TTradingFeeSettings
+  tPlanDefaults: TPlanDefaultSettings
   tradingCalendarClosedDates: string[]
   onSelect: (quoteId: string) => void
   onToggleTaskbar: (quoteId: string) => void
@@ -286,6 +288,7 @@ export function WatchlistTable({
   selectedQuoteId,
   tTradingAccounts,
   tTradingFees,
+  tPlanDefaults,
   tradingCalendarClosedDates,
   onSelect,
   onToggleTaskbar,
@@ -960,6 +963,7 @@ export function WatchlistTable({
           quote={quotes.find((quote) => quote.quoteId === tTradingStock.quoteId)}
           account={tTradingAccounts[tTradingStock.quoteId]}
           feeSettings={tTradingFees}
+          planDefaults={tPlanDefaults}
           onClose={() => setTTradingStock(null)}
           onApply={(account, position) => {
             onUpdateTTrading(tTradingStock.quoteId, account, position)

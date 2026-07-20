@@ -139,6 +139,16 @@ export interface TPlanLevel {
   triggeredAt?: string
 }
 
+export interface TPlanDefaultLevel {
+  targetPercent: number
+  quantity: number
+}
+
+export interface TPlanDefaultSettings {
+  buyLevels: TPlanDefaultLevel[]
+  sellLevels: TPlanDefaultLevel[]
+}
+
 /** 兼容旧代码中仅存在卖出计划时的类型名称。 */
 export type TSellPlanLevel = TPlanLevel
 
@@ -430,6 +440,17 @@ export const DEFAULT_TRADING_CALENDAR_SETTINGS: TradingCalendarSettings = {
   lastError: null
 }
 
+export const DEFAULT_T_PLAN_SETTINGS: TPlanDefaultSettings = {
+  buyLevels: [1, 2, 3, 4, 5].map((targetPercent) => ({
+    targetPercent,
+    quantity: 100
+  })),
+  sellLevels: [1, 2, 3, 4, 5].map((targetPercent) => ({
+    targetPercent,
+    quantity: 100
+  }))
+}
+
 export interface AppSettings {
   priorityRefreshSeconds: number
   regularRefreshSeconds: number
@@ -439,6 +460,7 @@ export interface AppSettings {
   showTaskbarTicker: boolean
   taskbarPositionPercent: number
   tTradingFees: TTradingFeeSettings
+  tPlanDefaults: TPlanDefaultSettings
   tradingCalendar: TradingCalendarSettings
 }
 
@@ -451,6 +473,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   showTaskbarTicker: true,
   taskbarPositionPercent: 0,
   tTradingFees: { ...DEFAULT_T_TRADING_FEE_SETTINGS },
+  tPlanDefaults: structuredClone(DEFAULT_T_PLAN_SETTINGS),
   tradingCalendar: { ...DEFAULT_TRADING_CALENDAR_SETTINGS }
 }
 
@@ -481,6 +504,31 @@ function normalizeTTradingFeeSettings(
     stampDutyRatePerTenThousand: Math.max(0,
       settings?.stampDutyRatePerTenThousand
         ?? DEFAULT_T_TRADING_FEE_SETTINGS.stampDutyRatePerTenThousand
+    )
+  }
+}
+
+function normalizeTPlanDefaultLevels(
+  levels: readonly Partial<TPlanDefaultLevel>[] | undefined,
+  fallbacks: readonly TPlanDefaultLevel[]
+): TPlanDefaultLevel[] {
+  return fallbacks.map((fallback, index) => ({
+    targetPercent: Math.max(0, levels?.[index]?.targetPercent ?? fallback.targetPercent),
+    quantity: Math.max(0, levels?.[index]?.quantity ?? fallback.quantity)
+  }))
+}
+
+function normalizeTPlanDefaultSettings(
+  settings: Partial<TPlanDefaultSettings> | undefined
+): TPlanDefaultSettings {
+  return {
+    buyLevels: normalizeTPlanDefaultLevels(
+      settings?.buyLevels,
+      DEFAULT_T_PLAN_SETTINGS.buyLevels
+    ),
+    sellLevels: normalizeTPlanDefaultLevels(
+      settings?.sellLevels,
+      DEFAULT_T_PLAN_SETTINGS.sellLevels
     )
   }
 }
@@ -528,6 +576,7 @@ export function normalizeAppSettings(
       settings?.taskbarPositionPercent ?? DEFAULT_APP_SETTINGS.taskbarPositionPercent
     )),
     tTradingFees: normalizeTTradingFeeSettings(settings?.tTradingFees),
+    tPlanDefaults: normalizeTPlanDefaultSettings(settings?.tPlanDefaults),
     tradingCalendar: normalizeTradingCalendarSettings(settings?.tradingCalendar)
   }
 }

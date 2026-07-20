@@ -395,6 +395,7 @@ export default function App() {
                 selectedQuoteId={selectedQuoteId}
                 tTradingAccounts={state.tTradingAccounts}
                 tTradingFees={state.settings.tTradingFees}
+                tPlanDefaults={state.settings.tPlanDefaults}
                 tradingCalendarClosedDates={state.settings.tradingCalendar.closedDates}
                 onSelect={(quoteId) => setSelectedQuoteId((current) => current === quoteId ? null : quoteId)}
                 onToggleTaskbar={toggleTaskbar}

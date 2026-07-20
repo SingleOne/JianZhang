@@ -1,4 +1,4 @@
-import { formatCost, formatPrice, formatProfit, formatShares } from '../lib/format'
+import { formatCost, formatProfit, formatShares } from '../lib/format'
 import type { TAlertSide, TPlanRow } from '../lib/t-alerts'
 
 interface TPlanTableProps {
@@ -15,6 +15,10 @@ interface TPlanTableProps {
 function valueClass(value: number | null): string {
   if (value === null || value === 0) return 'is-flat'
   return value > 0 ? 'is-up' : 'is-down'
+}
+
+function formatTargetPrice(value: number | null): string {
+  return value === null ? '--' : value.toFixed(2)
 }
 
 export function TPlanTable({
@@ -93,7 +97,7 @@ export function TPlanTable({
                 />
                 <span>%</span>
               </label>
-              <span>{formatPrice(level.targetPrice)}</span>
+              <span>{formatTargetPrice(level.targetPrice)}</span>
               <label>
                 <input
                   type="number"

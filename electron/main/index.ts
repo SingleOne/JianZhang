@@ -176,7 +176,7 @@ function updateAppTrayMenu(): void {
         state.tTradingAccounts[stock.quoteId]
       ).todayProfit
       return {
-        label: `${stock.name}  ${formatPrice(quote?.latest ?? null)}  ${formatPercent(quote?.changePercent ?? null)}  今日盈利 ${formatProfit(todayProfit)}`,
+        label: `${stock.name}  ${formatPrice(quote?.latest ?? null)}  ${formatPercent(quote?.changePercent ?? null)}  ${formatProfit(todayProfit)}`,
         click: () => showMainWindow(stock.quoteId)
       }
     })

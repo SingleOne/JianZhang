@@ -6,6 +6,8 @@ import type {
   TTradeFees,
   TTradeSide,
   TTradingDirection,
+  TPlanDefaultLevel,
+  TPlanDefaultSettings,
   TPlanLevel,
   TSellPlanLevel
 } from '../shared/types'
@@ -174,12 +176,20 @@ export function createDefaultSellLevels(quantity: number): TSellPlanLevel[] {
   return createDefaultTPlanLevels(quantity)
 }
 
+export function createTPlanLevelsFromDefaults(
+  defaults: readonly TPlanDefaultLevel[]
+): TPlanLevel[] {
+  return defaults.map((level) => ({
+    ...level,
+    alertStatus: 'armed'
+  }))
+}
+
 export function rebalanceTPlanLevels(
   levels: readonly TPlanLevel[] | undefined,
-  quantity: number
+  defaults: readonly TPlanDefaultLevel[]
 ): TPlanLevel[] {
-  const defaults = createDefaultTPlanLevels(quantity)
-  return defaults.map((fallback, index) => {
+  return createTPlanLevelsFromDefaults(defaults).map((fallback, index) => {
     const level = levels?.[index]
     return level ? { ...level, quantity: fallback.quantity } : fallback
   })
@@ -187,22 +197,25 @@ export function rebalanceTPlanLevels(
 
 export function rebalanceTBatchPlans(
   batch: TTradingBatch,
-  quantity: number
+  defaults: TPlanDefaultSettings
 ): TTradingBatch {
   const normalized = normalizeActiveTTradingBatch(batch)
   return {
     ...normalized,
-    buyLevels: rebalanceTPlanLevels(normalized.buyLevels, quantity),
-    sellLevels: rebalanceTPlanLevels(normalized.sellLevels, quantity)
+    buyLevels: rebalanceTPlanLevels(normalized.buyLevels, defaults.buyLevels),
+    sellLevels: rebalanceTPlanLevels(normalized.sellLevels, defaults.sellLevels)
   }
 }
 
-export function resetTBatchPlans(batch: TTradingBatch, quantity: number): TTradingBatch {
+export function resetTBatchPlans(
+  batch: TTradingBatch,
+  defaults: TPlanDefaultSettings
+): TTradingBatch {
   const normalized = normalizeActiveTTradingBatch(batch)
   return {
     ...normalized,
-    buyLevels: createDefaultTPlanLevels(quantity),
-    sellLevels: createDefaultTPlanLevels(quantity)
+    buyLevels: createTPlanLevelsFromDefaults(defaults.buyLevels),
+    sellLevels: createTPlanLevelsFromDefaults(defaults.sellLevels)
   }
 }
 

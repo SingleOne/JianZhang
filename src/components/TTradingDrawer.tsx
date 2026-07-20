@@ -25,6 +25,7 @@ import {
   calculateCostAdjustedProfit,
   calculateTBatchMetrics,
   calculateTradeFees,
+  createTPlanLevelsFromDefaults,
   getTBatchDirection,
   recalculatePositionFromBatch,
   rebalanceTBatchPlans,
@@ -37,6 +38,7 @@ import { TPlanTable } from './TPlanTable'
 import type {
   StockPosition,
   StockQuote,
+  TPlanDefaultSettings,
   TTradingAccount,
   TTradingBatch,
   TTradingFeeSettings,
@@ -52,6 +54,7 @@ interface TTradingDrawerProps {
   quote: StockQuote | undefined
   account: TTradingAccount | undefined
   feeSettings: TTradingFeeSettings
+  planDefaults: TPlanDefaultSettings
   onApply: (account: TTradingAccount, position: StockPosition | undefined) => void
   onClose: () => void
 }
@@ -101,6 +104,7 @@ export function TTradingDrawer({
   quote,
   account,
   feeSettings,
+  planDefaults,
   onApply,
   onClose
 }: TTradingDrawerProps) {
@@ -292,8 +296,8 @@ export function TTradingDrawer({
         direction: side === 'buy' ? 'forward' : 'reverse',
         openingPosition: positionSnapshot(stock.position),
         trades: [],
-        buyLevels: [],
-        sellLevels: [],
+        buyLevels: createTPlanLevelsFromDefaults(planDefaults.buyLevels),
+        sellLevels: createTPlanLevelsFromDefaults(planDefaults.sellLevels),
         alertEnabled: false
       }
     }
@@ -315,8 +319,7 @@ export function TTradingDrawer({
       setError(validationError)
       return
     }
-    const nextMetrics = calculateTBatchMetrics(nextBatch)
-    let plannedBatch = rebalanceTBatchPlans(nextBatch, nextMetrics.remainingQuantity)
+    let plannedBatch = rebalanceTBatchPlans(nextBatch, planDefaults)
     if (purpose === 't') {
       plannedBatch = handleTriggeredTPlanAlertsForTrade(plannedBatch, side)
     }
@@ -353,8 +356,7 @@ export function TTradingDrawer({
       setError(validationError)
       return
     }
-    const nextMetrics = calculateTBatchMetrics(nextBatch)
-    const plannedBatch = rebalanceTBatchPlans(nextBatch, nextMetrics.remainingQuantity)
+    const plannedBatch = rebalanceTBatchPlans(nextBatch, planDefaults)
     const hasTTrades = nextBatch.trades.some((trade) => trade.purpose === 't')
     applyAccount(
       { ...currentAccount, activeBatch: hasTTrades ? plannedBatch : undefined },
@@ -383,7 +385,7 @@ export function TTradingDrawer({
   const resetPlanLevels = () => {
     const batch = currentAccount.activeBatch
     if (!batch) return
-    const nextBatch = resetTBatchPlans(batch, activeMetrics.remainingQuantity)
+    const nextBatch = resetTBatchPlans(batch, planDefaults)
     applyAccount({
       ...currentAccount,
       activeBatch: nextBatch.alertEnabled
