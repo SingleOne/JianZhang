@@ -403,6 +403,7 @@ const demoApi: StockDesktopApi = {
   onQuotesUpdated: noSubscribe,
   onStateUpdated: noSubscribe,
   onTaskbarLayout: noSubscribe,
+  onTaskbarHoverChanged: noSubscribe,
   onSelectStock: noSubscribe,
   onDataError: noSubscribe
 }

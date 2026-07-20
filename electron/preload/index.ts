@@ -29,6 +29,7 @@ const api: StockDesktopApi = {
   onQuotesUpdated: (callback) => subscribe<StockQuote[]>('quotes:updated', callback),
   onStateUpdated: (callback) => subscribe<AppState>('state:updated', callback),
   onTaskbarLayout: (callback) => subscribe<TaskbarLayout>('taskbar:layout', callback),
+  onTaskbarHoverChanged: (callback) => subscribe<boolean>('taskbar:hover-changed', callback),
   onSelectStock: (callback) => subscribe<string>('stock:selected', callback),
   onDataError: (callback) => subscribe<string>('data:error', callback)
 }

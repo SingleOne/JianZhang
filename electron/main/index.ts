@@ -72,7 +72,10 @@ let latestQuotes: StockQuote[] = []
 let priorityRefreshTimer: NodeJS.Timeout | null = null
 let regularRefreshTimer: NodeJS.Timeout | null = null
 let tradingCalendarCheckTimer: NodeJS.Timeout | null = null
+let taskbarHoverTrackingTimer: NodeJS.Timeout | null = null
 let tradingCalendarRefresh: Promise<TradingCalendarSettings> | null = null
+let taskbarTickerHeight = 48
+let taskbarHovered = false
 const refreshesInFlight = new Set<'all' | 'priority' | 'regular'>()
 let isQuitting = false
 
@@ -150,9 +153,11 @@ function cleanupBeforeQuit(): void {
   if (priorityRefreshTimer) clearInterval(priorityRefreshTimer)
   if (regularRefreshTimer) clearInterval(regularRefreshTimer)
   if (tradingCalendarCheckTimer) clearInterval(tradingCalendarCheckTimer)
+  if (taskbarHoverTrackingTimer) clearInterval(taskbarHoverTrackingTimer)
   priorityRefreshTimer = null
   regularRefreshTimer = null
   tradingCalendarCheckTimer = null
+  taskbarHoverTrackingTimer = null
   appTray?.destroy()
   appTray = null
   taskbarWindow?.destroy()
@@ -205,6 +210,36 @@ function hasActiveTaskbarAlert(): boolean {
   ))
 }
 
+function setTaskbarHovered(hovered: boolean): void {
+  if (taskbarHovered === hovered) return
+  taskbarHovered = hovered
+  if (taskbarWindow && !taskbarWindow.isDestroyed()) {
+    taskbarWindow.webContents.send('taskbar:hover-changed', hovered)
+  }
+}
+
+function updateTaskbarHoverState(): void {
+  if (!taskbarWindow || taskbarWindow.isDestroyed() || !taskbarWindow.isVisible()) {
+    setTaskbarHovered(false)
+    return
+  }
+
+  const cursor = screen.getCursorScreenPoint()
+  const bounds = taskbarWindow.getBounds()
+  const tickerTop = bounds.y + bounds.height - taskbarTickerHeight
+  setTaskbarHovered(
+    cursor.x >= bounds.x
+    && cursor.x < bounds.x + bounds.width
+    && cursor.y >= tickerTop
+    && cursor.y < bounds.y + bounds.height
+  )
+}
+
+function startTaskbarHoverTracking(): void {
+  if (taskbarHoverTrackingTimer) clearInterval(taskbarHoverTrackingTimer)
+  taskbarHoverTrackingTimer = setInterval(updateTaskbarHoverState, 80)
+}
+
 function positionTaskbarWindow(): void {
   if (!taskbarWindow || taskbarWindow.isDestroyed()) return
 
@@ -215,6 +250,7 @@ function positionTaskbarWindow(): void {
   const selectedCount = taskbarVisibleStocks().length
 
   if ((!state.settings.showTaskbarTicker && !hasActiveTaskbarAlert()) || selectedCount === 0 || taskbarHeight < 24) {
+    setTaskbarHovered(false)
     taskbarWindow.hide()
     return
   }
@@ -228,6 +264,7 @@ function positionTaskbarWindow(): void {
   const horizontalMargin = 24
   const travelWidth = Math.max(0, display.bounds.width - width - horizontalMargin * 2)
   const positionPercent = Math.min(100, Math.max(0, state.settings.taskbarPositionPercent))
+  taskbarTickerHeight = taskbarHeight
 
   taskbarWindow.setBounds({
     x: display.bounds.x + horizontalMargin + Math.round(travelWidth * positionPercent / 100),
@@ -273,11 +310,15 @@ function createTaskbarWindow(): void {
   window.setIgnoreMouseEvents(true, { forward: true })
   window.setMenuBarVisibility(false)
   window.on('closed', () => {
+    if (taskbarHoverTrackingTimer) clearInterval(taskbarHoverTrackingTimer)
+    taskbarHoverTrackingTimer = null
+    taskbarHovered = false
     if (taskbarWindow === window) taskbarWindow = null
   })
   window.webContents.on('did-finish-load', () => {
     syncTaskbarWindow()
     setTimeout(positionTaskbarWindow, 100)
+    startTaskbarHoverTracking()
   })
 
   if (process.env.ELECTRON_RENDERER_URL) {
@@ -292,6 +333,7 @@ function syncTaskbarWindow(): void {
     && (state.settings.showTaskbarTicker || hasActiveTaskbarAlert())
 
   if (!shouldShow) {
+    setTaskbarHovered(false)
     if (taskbarWindow && !taskbarWindow.isDestroyed()) taskbarWindow.hide()
     return
   }

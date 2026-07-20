@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { initialState, stockApi } from '../lib/api'
 import {
   formatCost,
@@ -30,6 +30,16 @@ export function TaskbarTicker() {
   const [showDetails, setShowDetails] = useState(false)
   const hoverTimerRef = useRef<number | undefined>(undefined)
 
+  const startDetailTimer = useCallback(() => {
+    window.clearTimeout(hoverTimerRef.current)
+    hoverTimerRef.current = window.setTimeout(() => setShowDetails(true), 1000)
+  }, [])
+
+  const hideDetails = useCallback(() => {
+    window.clearTimeout(hoverTimerRef.current)
+    setShowDetails(false)
+  }, [])
+
   useEffect(() => {
     void stockApi.getBootstrap().then((bootstrap) => {
       setState(bootstrap.state)
@@ -39,13 +49,18 @@ export function TaskbarTicker() {
     const unsubscribeQuotes = stockApi.onQuotesUpdated(setQuotes)
     const unsubscribeState = stockApi.onStateUpdated(setState)
     const unsubscribeLayout = stockApi.onTaskbarLayout(setLayout)
+    const unsubscribeHover = stockApi.onTaskbarHoverChanged((hovered) => {
+      if (hovered) startDetailTimer()
+      else hideDetails()
+    })
     return () => {
       unsubscribeQuotes()
       unsubscribeState()
       unsubscribeLayout()
+      unsubscribeHover()
       window.clearTimeout(hoverTimerRef.current)
     }
-  }, [])
+  }, [hideDetails, startDetailTimer])
 
   const selectedStocks = useMemo(() => {
     const quoteMap = new Map(quotes.map((quote) => [quote.quoteId, quote]))
@@ -65,16 +80,6 @@ export function TaskbarTicker() {
       })
       .filter(({ stock, alertBadges }) => stock.showInTaskbar || alertBadges.length > 0)
   }, [quotes, state.tTradingAccounts, state.watchlist])
-
-  const startDetailTimer = () => {
-    window.clearTimeout(hoverTimerRef.current)
-    hoverTimerRef.current = window.setTimeout(() => setShowDetails(true), 1000)
-  }
-
-  const hideDetails = () => {
-    window.clearTimeout(hoverTimerRef.current)
-    setShowDetails(false)
-  }
 
   return (
     <div className="taskbar-ticker-shell">
