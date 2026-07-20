@@ -1,0 +1,177 @@
+# 功能地图
+
+[Wiki 首页](README.md) · [系统架构](01-architecture.md) · [界面与组件](06-ui-components.md)
+
+本页按用户可见功能反查代码。查问题时先找到功能入口，再沿“组件 → 业务函数 → IPC → 主进程数据源”向下追。
+
+## 功能到代码
+
+| 功能 | 界面入口 | 核心逻辑 | 主进程/数据 |
+| --- | --- | --- | --- |
+| 搜索并添加自选 | `SearchBar.tsx`、`App.tsx` | `stockApi.searchStocks`、`App.addStock` | `market.ts#searchStocks` |
+| 删除、拖拽、置顶、排序、调整列 | `WatchlistTable.tsx` | `normalizeWatchlistColumnOrder`、`migrateWatchlistColumnOrder` | `state:save` |
+| 重点关注 | `WatchlistTable.tsx` | 有持仓时自动锁定重点；`App.togglePriority` | 两组刷新定时器 |
+| 大盘指数卡片 | `App.tsx`、`SettingsMenu.tsx` | `MARKET_INDEX_OPTIONS`、`getMarketIndexStocks` | 和普通报价一起刷新 |
+| 最新价、涨跌、成交等主表行情 | `WatchlistTable.tsx` | `StockQuote`、格式化函数 | `fetchQuotes` |
+| 持仓编辑和快照对比 | `PositionEditor.tsx` | `StockPosition`、`StockPositionSnapshot` | 随 `AppState` 保存 |
+| 持仓天数 | `WatchlistTable.tsx` | `getPositionHoldingDays` | 内置/在线交易日历 |
+| 今日收益和持仓收益 | `App.tsx`、`WatchlistTable.tsx` | `calculatePositionMetrics`、`calculatePortfolioSummary` | 报价 + 持仓 + 当日交易 |
+| 分时、五日、日/周/月 K | `ExpandedStockDetails.tsx` | `CandlestickChart`、`PeriodKlineChart` | `fetchKline` |
+| 五档盘口 | `OrderBookPanel.tsx` | 买卖盘显示与定时刷新 | `fetchOrderBook` |
+| 资金流向 | `FundsFlowPanel.tsx`、`FundsFlowChart.tsx` | 当日累计净额展示 | `fetchFundsFlow` |
+| 所属行业板块 | `SectorIndexPanel.tsx` | 板块概览和分时 | `fetchSectorBinding/Index` |
+| 盘口异动提示 | `WatchlistTable.tsx` | 当日提示和近 5 日弹层 | `market.ts` 雷达缓存与抓取 |
+| 正 T / 反 T 账本 | `TTradingDrawer.tsx` | `t-trading.ts` | 随 `AppState` 保存 |
+| 买卖双五档计划 | `TTradingDrawer.tsx`、`TPlanTable.tsx` | `getTPlanRows`、计划重排/重置 | 当前活动批次 |
+| T 价格提醒 | `TAlertBadges.tsx` | `t-alerts.ts` 状态机 | 行情刷新后在主进程判断 |
+| 任务栏行情条 | `TaskbarTicker.tsx` | 订阅报价、状态和布局 | 主进程定位透明窗口 |
+| 托盘悬浮摘要 | `TrayHoverSummary.tsx` | 今日收益和 T 仓摘要 | 主进程控制悬停窗口 |
+| 设置 | `SettingsMenu.tsx` | 行情、做 T、系统与数据三页 | `state:save` |
+| 配置导入导出 | `App.tsx` | `shared/config.ts` | 原生文件对话框 |
+| 交易日历 | `SettingsMenu.tsx` | `countAStockTradingDays` | `fetchSseTradingCalendar` |
+| 浏览器演示模式 | 全部 React 组件 | `src/lib/api.ts` | 演示数据 + `localStorage` |
+
+## 自选股
+
+### 数据结构
+
+`WatchStock` 保存：
+
+- 股票代码、名称、东方财富 `quoteId`、市场标签。
+- 是否显示在任务栏。
+- 是否重点关注。
+- 是否抓取异动。
+- 当前持仓和持仓快照。
+
+### 调用链
+
+```text
+SearchBar
+  → stockApi.searchStocks
+  → IPC stocks:search
+  → market.searchStocks
+  → App.addStock
+  → App.persist
+  → IPC state:save
+```
+
+### 排序和列顺序
+
+- 手动顺序就是 `AppState.watchlist` 数组顺序。
+- 临时列头排序只存在于 `WatchlistTable` 组件状态，不持久化。
+- 拖拽或置顶会修改 `watchlist` 并保存。
+- 可调整列顺序保存在 `AppState.columnOrder`。
+- 新增主表列时必须升级 `WATCHLIST_COLUMN_ORDER_VERSION` 并补迁移，不能直接重置用户顺序。
+- “排序”“设置”是左侧固定区，删除按钮在末列；`operation` 始终被 normalize 到最后。
+
+## 持仓与收益
+
+持仓入口在主表每行的铅笔按钮。
+
+`PositionEditor` 支持：
+
+- 数量、成本、建仓日期。
+- 是否显示异动。
+- 保存多个持仓版本快照并对比当前市值、收益和收益差。
+
+收益统一由 `src/lib/portfolio.ts` 计算：
+
+- 今日收益会结合昨收、当前市值、当日买卖、费用和当日建仓状态。
+- 持仓收益按当前价格与持仓成本计算。
+- 组合汇总按成本基数加权，而不是简单平均单只股票收益率。
+- 当日买入数量会从可用数量中扣除，体现 A 股 T+1 可卖限制。
+
+详细口径见[持仓与做 T](04-position-and-t-trading.md)。
+
+## 行情详情
+
+点击主表股票行后，`ExpandedStockDetails` 展开：
+
+1. 分时
+2. 五日
+3. 日 K
+4. 周 K
+5. 月 K
+6. 资金流向
+7. 板块
+
+分时页同时展示五档盘口。标签页首次打开时按需请求，历史 K 线缩放到左端时按倍数补取更早数据。
+
+详细链路见[行情数据链路](03-market-data.md)。
+
+## 盘口异动
+
+当前支持的信号定义位于 `electron/main/market.ts` 的 `RADAR_LABELS`，包括：
+
+- 涨跌停封板/开板。
+- 大买盘、大卖盘、大笔买卖。
+- 火箭发射、快速反弹、高台跳水、加速下跌。
+- 竞价涨跌、相对 5 日线高低开、缺口。
+- 60 日新高/新低和大幅涨跌。
+
+主表只在“今日有异动”时显示提示；点击后查看近 5 日归一化信号。同一天同一信号类型只保留时间较新的记录。
+
+## 做 T
+
+每只股票拥有独立 `TTradingAccount`：
+
+- 最多一个活动批次。
+- 多个已结算历史批次。
+- 不属于 T 批次的底仓交易记录。
+
+活动批次可为正 T 或反 T，保存交易后会同时更新账本和股票持仓。T 仓归零后进入结算，最终收益可按券商持仓成本校准。
+
+价格提醒在 Electron 主进程执行，因此主窗口隐藏后仍然有效。触发股票会临时进入任务栏窗口。
+
+详细流程见[持仓与做 T](04-position-and-t-trading.md)。
+
+## 设置
+
+`SettingsMenu` 分为三个标签：
+
+| 标签 | 内容 |
+| --- | --- |
+| 行情 | 重点/普通刷新间隔、大盘指数选择 |
+| 做 T | 佣金和各项费用、买入/卖出五档默认值 |
+| 系统与数据 | 任务栏开关和位置、开机启动、关闭驻留、交易日历、配置导入导出 |
+
+设置在界面修改后立即调用 `App.persist`。主进程会根据变化选择是否重启定时器、刷新大盘指数、更新开机启动或同步窗口。
+
+## 任务栏和托盘
+
+任务栏展示股票集合是：
+
+```text
+用户勾选 showInTaskbar 的股票
+∪
+当前存在 triggered T 提醒的股票
+```
+
+托盘右键菜单展示同一集合，并附最新价、涨跌幅和今日收益。鼠标悬停托盘后显示更详细的今日收益、正/反 T 剩余数量、均价和浮动收益。
+
+## 按修改场景查找
+
+### 新增一列
+
+1. `src/shared/types.ts`：列 ID、默认顺序、版本和迁移。
+2. `WatchlistTable.tsx`：列元信息、排序值、表头和单元格。
+3. `src/styles.css`：宽度、固定列和响应布局。
+4. 如数据缺失，再扩展 `StockQuote` 和行情接口。
+
+### 新增详情标签页
+
+1. `ExpandedStockDetails.tsx`：标签、懒加载、缓存和错误态。
+2. `src/shared/types.ts`：数据类型和 `StockDesktopApi`。
+3. `electron/main/index.ts`：IPC。
+4. `electron/preload/index.ts`：桥接。
+5. `electron/main/market.ts`：真实数据。
+6. `src/lib/api.ts`：浏览器演示数据。
+
+### 新增持久化设置
+
+1. `AppSettings` 和默认值。
+2. `normalizeAppSettings`。
+3. `SettingsMenu`。
+4. `App.updateSettings`。
+5. `state:save` 中需要响应设置变化的主进程副作用。
+

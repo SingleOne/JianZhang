@@ -1,0 +1,234 @@
+# 状态、存储与 IPC
+
+[Wiki 首页](README.md) · [系统架构](01-architecture.md) · [持仓与做 T](04-position-and-t-trading.md)
+
+## `AppState`
+
+当前持久化根结构定义在 `src/shared/types.ts`：
+
+```ts
+interface AppState {
+  watchlist: WatchStock[]
+  settings: AppSettings
+  columnOrder: WatchlistColumnId[]
+  columnOrderVersion?: number
+  tTradingAccounts: TTradingAccounts
+}
+```
+
+包含：
+
+- 自选顺序、任务栏选择、重点关注。
+- 持仓和持仓快照。
+- 刷新、指数、做 T、系统、交易日历设置。
+- 表格列顺序及迁移版本。
+- 全部做 T 活动批次、历史和底仓交易。
+
+不包含：
+
+- 最新行情。
+- 行情/K 线/盘口缓存。
+- 当前展开股票。
+- 弹窗、加载和错误提示状态。
+
+## 本地存储
+
+桌面版路径：
+
+```text
+%APPDATA%\见涨\settings.json
+```
+
+实际路径由：
+
+```ts
+join(app.getPath('userData'), 'settings.json')
+```
+
+生成。
+
+### 加载
+
+`loadState` 读取 JSON 后依次执行：
+
+1. `normalizeWatchlist`
+2. `normalizeAppSettings`
+3. `migrateWatchlistColumnOrder`
+4. `normalizeTTradingAccounts`
+
+列版本落后时，会立即把迁移后的状态写回。
+
+文件不存在、JSON 解析失败或读取异常时，当前实现回退到 `DEFAULT_STATE`。
+
+### 保存
+
+主进程 `persistState` 直接格式化写入完整 `state`。常规保存入口是 IPC `state:save`：
+
+1. 接收渲染层的完整 `AppState`。
+2. 再次 normalize。
+3. 比较新旧状态中会触发主进程副作用的字段。
+4. 更新内存并写入文件。
+5. 广播 `state:updated`。
+6. 更新托盘菜单和任务栏窗口。
+
+可能触发的额外动作：
+
+| 变化 | 副作用 |
+| --- | --- |
+| 刷新秒数 | 重启重点/普通定时器 |
+| 大盘指数选择 | 立即刷新全部报价 |
+| 开机启动 | `app.setLoginItemSettings` |
+| 自选集合或重点状态 | 交易时段内刷新 |
+| 任务栏相关设置 | 重新计算窗口显示和位置 |
+
+## 状态规范化和迁移
+
+`src/shared/types.ts` 中的 normalize/migrate 是当前兼容核心：
+
+| 函数 | 作用 |
+| --- | --- |
+| `normalizeWatchlist` | 持仓股票强制重点关注、补异动开关、过滤无效快照 |
+| `normalizeMarketIndexIds` | 过滤并按内置顺序返回指数 |
+| `normalizeActiveTTradingBatch` | 兼容旧双五档、提醒开关和反 T 语义 |
+| `normalizeTTradingAccounts` | 规范化所有活动批次 |
+| `normalizeWatchlistColumnOrder` | 去重、补缺失列、保证操作列在末尾 |
+| `migrateWatchlistColumnOrder` | 按版本插入今日收益、T 提醒、板块、成交等新列 |
+| `normalizeAppSettings` | 兼容旧刷新字段、限制秒数/位置、补费用和日历 |
+| `normalizeTradingCalendarSettings` | 校验日期、去重、排序并保证内置覆盖年份 |
+
+新增持久化字段时，不能只改 interface；至少要补默认值和 normalize。
+
+## 配置导入导出
+
+配置文档定义在 `src/shared/config.ts`：
+
+```text
+JianzhangConfigDocument
+├─ format = "jianzhang-config"
+├─ formatVersion = 2
+├─ applicationVersion
+├─ exportedAt
+├─ state
+└─ source?
+```
+
+当前导入接受格式版本 1 和 2。
+
+### 导出
+
+1. React 把当前 `AppState` 传给 `config:export`。
+2. 主进程显示保存对话框。
+3. `createConfigDocument` 加入应用版本和导出时间。
+4. 写入用户选择的 JSON 文件。
+
+### 导入
+
+1. 主进程显示打开对话框。
+2. `parseConfigDocument` 验证格式、版本、自选和设置基本结构。
+3. 运行共享 normalize/migrate。
+4. 返回给 React，但暂不覆盖现有状态。
+5. React 显示确认提示。
+6. 用户确认后再走普通 `state:save`。
+
+`scripts/convert-stock-helper-config.mjs` 可将“股票基金助手”的旧配置转换成见涨格式 1，再由当前导入逻辑完成后续迁移。
+
+## 浏览器演示存储
+
+没有 Electron preload 时：
+
+```ts
+stockApi = demoApi
+```
+
+演示状态保存在：
+
+```text
+localStorage["jianzhang-demo-state-v1"]
+```
+
+浏览器导入导出使用文件输入框和下载链接，不使用 Electron 对话框。
+
+## IPC 请求
+
+类型契约统一定义在 `StockDesktopApi`。
+
+| preload 方法 | IPC channel | 主进程处理 |
+| --- | --- | --- |
+| `getBootstrap` | `app:bootstrap` | 返回状态、内存报价和数据源 |
+| `getTaskbarLayout` | `taskbar:layout:get` | 返回任务栏高度 |
+| `searchStocks` | `stocks:search` | 股票联想 |
+| `refreshQuotes` | `quotes:refresh` | 手动刷新全部 |
+| `getKline` | `kline:get` | 分时/五日/周期 K |
+| `getOrderBook` | `order-book:get` | 五档盘口 |
+| `getFundsFlow` | `funds-flow:get` | 当日资金流 |
+| `getSectorIndex` | `sector-index:get` | 所属板块详情 |
+| `refreshTradingCalendar` | `trading-calendar:refresh` | 在线刷新当年休市日 |
+| `saveState` | `state:save` | 规范化并持久化状态 |
+| `exportConfig` | `config:export` | 保存 JSON |
+| `importConfig` | `config:import` | 读取并解析 JSON |
+| `hideWindow` | `app:hide` | 隐藏主窗口 |
+| `quitApp` | `app:quit` | 清理并退出 |
+
+## IPC 事件
+
+主进程通过 `sendToWindows` 同时发送给主窗口、任务栏窗口和托盘悬浮窗口。
+
+| preload 订阅 | 事件 channel | 数据 |
+| --- | --- | --- |
+| `onQuotesUpdated` | `quotes:updated` | `StockQuote[]` |
+| `onStateUpdated` | `state:updated` | `AppState` |
+| `onTaskbarLayout` | `taskbar:layout` | `TaskbarLayout` |
+| `onSelectStock` | `stock:selected` | `quoteId` |
+| `onDataError` | `data:error` | 错误文本 |
+
+`stock:selected` 用于从托盘菜单点选股票后，让主窗口定位/展开对应股票。
+
+## 主窗口保存流程
+
+```mermaid
+sequenceDiagram
+    participant C as React 组件
+    participant A as App.persist
+    participant P as preload
+    participant E as Electron
+    participant F as settings.json
+
+    C->>A: nextState
+    A->>A: 乐观 setState
+    A->>P: saveState(nextState)
+    P->>E: state:save
+    E->>E: normalize + compare
+    E->>F: persistState
+    E-->>P: normalized AppState
+    E-->>C: state:updated
+    P-->>A: normalized AppState
+```
+
+## 敏感数据边界
+
+当前 `AppState` 会：
+
+- 明文写入 `settings.json`。
+- 随配置完整导出。
+- 广播给三个渲染窗口。
+
+因此未来加入 AI API Key、登录令牌或券商凭证时，不能直接放进 `AppState` / `AppSettings`。建议：
+
+1. 仅在 Electron 主进程读写秘密。
+2. 使用独立、不可导出的秘密存储。
+3. Windows 下用 Electron `safeStorage` 加密后再落盘。
+4. 渲染层只拿“是否已配置、提供商、显示名称”等非敏感状态。
+5. IPC 只提供设置/清除/测试连接动作，不提供读取明文接口。
+
+详见 [AI 扩展入口（未实现）](08-ai-extension-points.md)。
+
+## 新增 IPC 的固定步骤
+
+1. 在 `src/shared/types.ts` 添加输入、输出类型。
+2. 扩展 `StockDesktopApi`。
+3. 在 `electron/preload/index.ts` 添加 `invoke` 或订阅桥接。
+4. 在 `electron/main/index.ts` 注册 handler 或广播事件。
+5. 在 `src/lib/api.ts` 给 `demoApi` 补等价实现。
+6. 在 React 中调用。
+7. 如果结果持久化，再补默认值、normalize 和配置兼容。
+
