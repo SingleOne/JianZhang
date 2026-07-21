@@ -98,6 +98,8 @@
 | [`scripts/convert-stock-helper-config.mjs`](../../scripts/convert-stock-helper-config.mjs) | 转换“股票基金助手”配置 |
 | [`scripts/generate-icon.mjs`](../../scripts/generate-icon.mjs) | 生成打包图标 |
 | [`docs/non-ai-market-insight-implementation-plan.md`](../non-ai-market-insight-implementation-plan.md) | 非 AI 指标、要闻与智能盯盘的当前实施计划 |
+| [`docs/ai-module-implementation-plan.md`](../ai-module-implementation-plan.md) | AI 基础模块、对话记录和独立做 T 参考模块的当前实施计划 |
+| [`docs/wiki/08-ai-extension-points.md`](08-ai-extension-points.md) | 可移除 AI 的早期架构边界，具体实施以当前 AI 计划为准 |
 | [`docs/t-trading-alert-implementation-plan.md`](../t-trading-alert-implementation-plan.md) | 双五档提醒的历史设计记录，状态说明已过时 |
 
 ## 高频符号反查

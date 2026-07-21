@@ -1,14 +1,23 @@
-import { AlertCircle, Eye, EyeOff, Power, RefreshCw, Radar, Radio } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { AlertCircle, Eye, EyeOff, RefreshCw, Radar, Radio } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { StockQuote, WatchStock } from '../../../shared/types'
 import { formatUpdateTime } from '../../../lib/format'
 import { marketInsightApi } from './api'
 import { IndicatorGrid } from './IndicatorGrid'
+import {
+  MOMENTUM_INDICATOR_EXPLANATIONS,
+  TREND_INDICATOR_EXPLANATIONS,
+  VOLATILITY_INDICATOR_EXPLANATIONS
+} from './indicator-explanations'
 import { NewsTimeline } from './NewsTimeline'
 import { TPlanDistanceCard } from './TPlanDistanceCard'
 import { WatchEventList } from './WatchEventList'
 import type { MarketInsightSettings, MarketInsightSnapshot, MarketInsightStatus } from '../shared/types'
-import { normalizeMarketInsightSettings } from '../shared/normalize'
+import {
+  getMarketInsightSettings,
+  saveMarketInsightSettings,
+  subscribeMarketInsightSettings
+} from './settings-store'
 
 interface MarketInsightPanelProps {
   stock: WatchStock
@@ -29,6 +38,7 @@ export default function MarketInsightPanel({
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
+  const enabledRef = useRef<boolean | null>(null)
 
   const isWatching = settings?.watchedQuoteIds.includes(stock.quoteId) ?? false
 
@@ -62,14 +72,15 @@ export default function MarketInsightPanel({
     let active = true
     Promise.all([
       marketInsightApi.getStatus(),
-      marketInsightApi.getSettings(),
+      getMarketInsightSettings(),
       marketInsightApi.getSnapshot(stock.quoteId)
     ])
       .then(([nextStatus, nextSettings, initialSnapshot]) => {
         if (!active) return
         setStatus(nextStatus)
         setSettings(nextSettings)
-        onChartOverlayEnabledChange(nextSettings.showChartOverlay)
+        enabledRef.current = nextSettings.enabled
+        onChartOverlayEnabledChange(nextSettings.enabled && nextSettings.showChartOverlay)
         updateSnapshot(initialSnapshot)
         if (!initialSnapshot && nextStatus.enabled) void loadSnapshot(true)
         else setLoading(false)
@@ -90,16 +101,29 @@ export default function MarketInsightPanel({
         updateSnapshot(nextSnapshot)
       })
     })
+    const unsubscribeSettings = subscribeMarketInsightSettings((nextSettings) => {
+      if (!active) return
+      const wasEnabled = enabledRef.current
+      enabledRef.current = nextSettings.enabled
+      setSettings(nextSettings)
+      setStatus((current) => current ? {
+        ...current,
+        enabled: nextSettings.enabled,
+        watchedQuoteIds: nextSettings.watchedQuoteIds
+      } : current)
+      onChartOverlayEnabledChange(nextSettings.enabled && nextSettings.showChartOverlay)
+      if (wasEnabled === false && nextSettings.enabled) void loadSnapshot(true)
+      if (!nextSettings.enabled) setLoading(false)
+    })
     return () => {
       active = false
       unsubscribe()
+      unsubscribeSettings()
     }
   }, [loadSnapshot, onChartOverlayEnabledChange, stock.quoteId, updateSnapshot])
 
   const saveSettings = useCallback(async (nextSettings: MarketInsightSettings) => {
-    const normalized = normalizeMarketInsightSettings(nextSettings)
-    setSettings(normalized)
-    await marketInsightApi.saveSettings(normalized)
+    const normalized = await saveMarketInsightSettings(nextSettings)
     setStatus((current) => current ? { ...current, enabled: normalized.enabled, watchedQuoteIds: normalized.watchedQuoteIds } : current)
   }, [])
 
@@ -114,17 +138,6 @@ export default function MarketInsightPanel({
       if (!isWatching) await loadSnapshot(true)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '盯盘设置保存失败')
-    }
-  }
-
-  const toggleModule = async () => {
-    if (!settings) return
-    const nextSettings = { ...settings, enabled: !settings.enabled }
-    try {
-      await saveSettings(nextSettings)
-      if (nextSettings.enabled) await loadSnapshot(true)
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '模块开关保存失败')
     }
   }
 
@@ -187,6 +200,20 @@ export default function MarketInsightPanel({
 
   const refreshedLabel = useMemo(() => snapshot ? formatUpdateTime(snapshot.generatedAt) : '--:--:--', [snapshot])
 
+  if (settings && !settings.enabled) {
+    return (
+      <div className="market-insight-panel" role="tabpanel">
+        <div className="insight-disabled-state" role="status">
+          <Radar size={26} />
+          <span>
+            <strong>市场观察尚未开启</strong>
+            <small>请在“设置 → 行情”中开启“市场观察”后使用。</small>
+          </span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="market-insight-panel" role="tabpanel">
       <header className="insight-header">
@@ -198,10 +225,6 @@ export default function MarketInsightPanel({
           </span>
         </div>
         <div className="insight-actions">
-          <button className="secondary-button" type="button" onClick={toggleModule} disabled={!settings}>
-            <Power size={14} />
-            {settings?.enabled ? '关闭市场洞察' : '开启市场洞察'}
-          </button>
           <button className="secondary-button" type="button" onClick={toggleOverlay} disabled={!settings}>
             {settings?.showChartOverlay ? <EyeOff size={14} /> : <Eye size={14} />}
             {settings?.showChartOverlay ? '隐藏图表叠加' : '显示图表叠加'}
@@ -220,7 +243,7 @@ export default function MarketInsightPanel({
       <div className={`insight-data-state is-${snapshot?.dataState ?? 'cached'}`}>
         {snapshot?.dataState === 'stale' ? <AlertCircle size={14} /> : <Radio size={14} />}
         <span>{snapshot?.dataState === 'stale' ? '部分数据可能已过期，当前显示最近一次缓存。' : snapshot?.dataState === 'cached' ? '当前显示缓存数据。' : '当前快照由现有行情和分层数据源计算。'}</span>
-        <span>{!status?.enabled ? '市场洞察模块当前已关闭。' : isWatching ? '该股票已开启后台盯盘。' : '该股票未开启后台盯盘；详情页打开时仍可手动刷新。'}</span>
+        <span>{isWatching ? '该股票已开启后台盯盘。' : '该股票未开启后台盯盘；详情页打开时仍可手动刷新。'}</span>
         <span>{stock.isPriority ? '重点关注股票的新闻每 15 分钟自动查询。' : '非重点股票的新闻在交易日收盘后每天查询一次。'}</span>
       </div>
 
@@ -263,10 +286,22 @@ export default function MarketInsightPanel({
             values={snapshot.indicators.intraday}
             headingValueId="price-volume-state"
           />
-          <IndicatorGrid title="趋势" values={snapshot.indicators.trend} />
+          <IndicatorGrid
+            title="趋势"
+            values={snapshot.indicators.trend}
+            explanations={TREND_INDICATOR_EXPLANATIONS}
+          />
           <div className="insight-indicator-split">
-            <IndicatorGrid title="动量" values={snapshot.indicators.momentum} />
-            <IndicatorGrid title="波动" values={snapshot.indicators.volatility} />
+            <IndicatorGrid
+              title="动量"
+              values={snapshot.indicators.momentum}
+              explanations={MOMENTUM_INDICATOR_EXPLANATIONS}
+            />
+            <IndicatorGrid
+              title="波动"
+              values={snapshot.indicators.volatility}
+              explanations={VOLATILITY_INDICATOR_EXPLANATIONS}
+            />
           </div>
           <IndicatorGrid title="盘口与相对强弱" values={[...snapshot.indicators.orderBook, ...snapshot.indicators.relativeStrength]} />
           <WatchEventList

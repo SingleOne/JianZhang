@@ -1,5 +1,5 @@
-import { CircleCheck, RefreshCw, Signal, WifiOff } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Bot, CircleCheck, RefreshCw, Signal, WifiOff } from 'lucide-react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { AppTitlebar } from './components/AppTitlebar'
 import { SearchBar } from './components/SearchBar'
 import { SettingsMenu } from './components/SettingsMenu'
@@ -19,6 +19,10 @@ import type {
   TTradingAccount,
   WatchlistColumnId
 } from './shared/types'
+
+const AiAssistantDrawer = __JIANZHANG_AI_MODULE_ENABLED__
+  ? lazy(() => import('./modules/ai/renderer/register').then((module) => ({ default: module.AiAssistantDrawer })))
+  : null
 
 function directionClass(value: number | null | undefined): string {
   if (value === null || value === undefined || value === 0) return 'is-flat'
@@ -41,6 +45,9 @@ export default function App() {
   const [configBusy, setConfigBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [aiAssistantOpen, setAiAssistantOpen] = useState(false)
+  const [aiAssistantContext, setAiAssistantContext] = useState<{ quoteId: string; quoteName?: string } | null>(null)
+  const [aiRuntimeEnabled, setAiRuntimeEnabled] = useState(false)
 
   const reportError = useCallback((message: string) => {
     setNotice('')
@@ -88,6 +95,33 @@ export default function App() {
     const timer = window.setTimeout(() => setNotice(''), 4200)
     return () => window.clearTimeout(timer)
   }, [notice])
+
+  useEffect(() => {
+    const openWithStockContext = (event: Event) => {
+      const detail = (event as CustomEvent<{ quoteId: string; quoteName?: string }>).detail
+      if (!detail?.quoteId) return
+      setAiAssistantContext(detail)
+      setAiAssistantOpen(true)
+    }
+    window.addEventListener('ai:open-assistant', openWithStockContext)
+    return () => window.removeEventListener('ai:open-assistant', openWithStockContext)
+  }, [])
+
+  useEffect(() => {
+    if (!AiAssistantDrawer || !window.aiApi) return
+    let active = true
+    void window.aiApi.getStatus().then((status) => {
+      if (active) setAiRuntimeEnabled(status.enabled)
+    }).catch(() => {
+      if (active) setAiRuntimeEnabled(false)
+    })
+    const handleEnabledChange = (event: Event) => setAiRuntimeEnabled(Boolean((event as CustomEvent<boolean>).detail))
+    window.addEventListener('ai:enabled-changed', handleEnabledChange)
+    return () => {
+      active = false
+      window.removeEventListener('ai:enabled-changed', handleEnabledChange)
+    }
+  }, [])
 
   const quoteIds = useMemo(() => new Set(state.watchlist.map((stock) => stock.quoteId)), [state.watchlist])
   const portfolioSummary = useMemo(
@@ -322,6 +356,12 @@ export default function App() {
                 <RefreshCw size={17} className={refreshing ? 'is-spinning' : ''} />
                 立即刷新
               </button>
+              {AiAssistantDrawer && aiRuntimeEnabled ? (
+                <button className="secondary-button ai-assistant-trigger" type="button" onClick={() => { setAiAssistantContext(null); setAiAssistantOpen(true) }}>
+                  <Bot size={17} />
+                  AI 助手
+                </button>
+              ) : null}
               <SettingsMenu
                 settings={state.settings}
                 onChange={updateSettings}
@@ -427,6 +467,15 @@ export default function App() {
 
       {error ? <div className="error-toast"><WifiOff size={17} />{error}</div> : null}
       {notice ? <div className="success-toast"><CircleCheck size={17} />{notice}</div> : null}
+      {AiAssistantDrawer ? (
+        <Suspense fallback={null}>
+          <AiAssistantDrawer
+            open={aiAssistantOpen}
+            context={aiAssistantContext}
+            onClose={() => setAiAssistantOpen(false)}
+          />
+        </Suspense>
+      ) : null}
     </div>
   )
 }

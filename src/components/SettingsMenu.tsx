@@ -1,6 +1,10 @@
 import { Download, RefreshCw, Settings2, Upload } from 'lucide-react'
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { MARKET_INDEX_OPTIONS, type AppSettings, type MarketIndexId } from '../shared/types'
+
+const MarketInsightSettingsToggle = __JIANZHANG_MARKET_INSIGHT_ENABLED__
+  ? lazy(() => import('../modules/market-insight/renderer/MarketInsightSettingsToggle').then((module) => ({ default: module.MarketInsightSettingsToggle })))
+  : null
 
 interface SettingsMenuProps {
   settings: AppSettings
@@ -166,6 +170,19 @@ export function SettingsMenu({
                   <span>秒</span>
                 </span>
               </label>
+              {MarketInsightSettingsToggle ? (
+                <Suspense fallback={(
+                  <div className="setting-row market-insight-setting-row">
+                    <span>
+                      <strong>市场观察</strong>
+                      <small>正在读取功能设置…</small>
+                    </span>
+                    <input className="switch-input" type="checkbox" disabled aria-label="市场观察设置读取中" />
+                  </div>
+                )}>
+                  <MarketInsightSettingsToggle />
+                </Suspense>
+              ) : null}
               <fieldset className="market-index-setting">
                 <legend>大盘指数</legend>
                 <small>选择显示在总收益左侧的指数，按其余股票间隔刷新</small>

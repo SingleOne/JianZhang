@@ -1,4 +1,4 @@
-import { AlertCircle, BarChart3, Layers, Radar, RefreshCw, TrendingUp } from 'lucide-react'
+import { AlertCircle, BarChart3, Bot, Layers, Radar, RefreshCw, TrendingUp } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { stockApi } from '../lib/api'
 import { formatAmount, formatPercent, formatPrice, formatVolume } from '../lib/format'
@@ -14,9 +14,12 @@ const SectorIndexPanel = lazy(() => import('./SectorIndexPanel'))
 const MarketInsightPanel = __JIANZHANG_MARKET_INSIGHT_ENABLED__
   ? lazy(() => import('../modules/market-insight/renderer/register').then((module) => ({ default: module.MarketInsightPanel })))
   : null
+const AiAnalysisPanel = __JIANZHANG_AI_MODULE_ENABLED__
+  ? lazy(() => import('../modules/ai/renderer/register').then((module) => ({ default: module.AiAnalysisPanel })))
+  : null
 
 type PriceTab = Exclude<KlinePeriod, 'intraday'> | 'trend'
-type DetailTab = PriceTab | 'funds' | 'sector' | 'insight'
+type DetailTab = PriceTab | 'funds' | 'sector' | 'insight' | 'ai'
 type HistoricalPeriod = Extract<KlinePeriod, 'daily' | 'weekly' | 'monthly'>
 
 interface KlineCacheEntry {
@@ -77,9 +80,11 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
   })
   const [marketInsightSnapshot, setMarketInsightSnapshot] = useState<MarketInsightSnapshot | null>(null)
   const [showInsightOverlay, setShowInsightOverlay] = useState(true)
+  const [aiEnabled, setAiEnabled] = useState(false)
   const activeHistoricalLimit = activeTab !== 'funds'
     && activeTab !== 'sector'
     && activeTab !== 'insight'
+    && activeTab !== 'ai'
     && isHistoricalTab(activeTab)
     ? historyLimits[activeTab]
     : undefined
@@ -93,7 +98,31 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
   }, [stock.quoteId])
 
   useEffect(() => {
-    if (activeTab === 'funds' || activeTab === 'sector' || activeTab === 'insight') return
+    if (!AiAnalysisPanel || !window.aiApi) {
+      setAiEnabled(false)
+      return
+    }
+    let active = true
+    void window.aiApi.getStatus().then((status) => {
+      if (active) setAiEnabled(status.enabled)
+    }).catch(() => {
+      if (active) setAiEnabled(false)
+    })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    const handleEnabledChange = (event: Event) => setAiEnabled(Boolean((event as CustomEvent<boolean>).detail))
+    window.addEventListener('ai:enabled-changed', handleEnabledChange)
+    return () => window.removeEventListener('ai:enabled-changed', handleEnabledChange)
+  }, [])
+
+  useEffect(() => {
+    if (!aiEnabled && activeTab === 'ai') setActiveTab('trend')
+  }, [activeTab, aiEnabled])
+
+  useEffect(() => {
+    if (activeTab === 'funds' || activeTab === 'sector' || activeTab === 'insight' || activeTab === 'ai') return
 
     const tab = activeTab
     const key = cacheKey(stock.quoteId, tab)
@@ -152,7 +181,7 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
     }
   }, [activeHistoricalLimit, activeTab, refreshSeconds, refreshVersion, stock.quoteId])
 
-  const priceTab = activeTab === 'funds' || activeTab === 'sector' || activeTab === 'insight' ? null : activeTab
+  const priceTab = activeTab === 'funds' || activeTab === 'sector' || activeTab === 'insight' || activeTab === 'ai' ? null : activeTab
   const data = priceTab ? dataByTab[priceTab] ?? null : null
   const error = priceTab ? errors[priceTab] ?? '' : ''
   const tabMeta = priceTab ? PRICE_TABS.find((item) => item.id === priceTab) : undefined
@@ -253,6 +282,18 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
             市场观察
           </button>
         ) : null}
+        {AiAnalysisPanel && aiEnabled ? (
+          <button
+            className={activeTab === 'ai' ? 'is-active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'ai'}
+            onClick={() => setActiveTab('ai')}
+          >
+            <Bot size={15} />
+            AI 分析
+          </button>
+        ) : null}
       </div>
 
       {priceTab ? (
@@ -342,6 +383,10 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
             <SectorIndexPanel stock={stock} refreshSeconds={refreshSeconds} />
           </Suspense>
         </div>
+      ) : activeTab === 'ai' && AiAnalysisPanel ? (
+        <Suspense fallback={<div className="chart-loading">正在初始化 AI 分析…</div>}>
+          <AiAnalysisPanel stock={stock} quote={quote} />
+        </Suspense>
       ) : MarketInsightPanel ? (
         <Suspense fallback={<div className="chart-loading">正在初始化市场观察…</div>}>
           <MarketInsightPanel

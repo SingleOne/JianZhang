@@ -212,7 +212,7 @@ export class MarketInsightService {
 
   private async buildSnapshot(quoteId: string, force: boolean): Promise<MarketInsightSnapshot> {
     const buildStartedAt = Date.now()
-    if (!this.settings.enabled) throw new Error('市场洞察模块已关闭')
+    if (!this.settings.enabled) throw new Error('市场观察功能已关闭')
     const quote = this.quotes.get(quoteId)
     if (!quote) throw new Error('当前没有该股票的行情快照，请先刷新行情')
     const stock = this.dependencies.getState().watchlist.find((item) => item.quoteId === quoteId)

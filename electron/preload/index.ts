@@ -5,7 +5,6 @@ import type {
   StockQuote,
   TaskbarLayout
 } from '../../src/shared/types'
-import { installMarketInsightPreload } from '../../src/modules/market-insight/preload/register'
 
 function subscribe<T>(channel: string, callback: (payload: T) => void): () => void {
   const listener = (_event: Electron.IpcRendererEvent, payload: T): void => callback(payload)
@@ -37,6 +36,19 @@ const api: StockDesktopApi = {
 
 contextBridge.exposeInMainWorld('stockApi', api)
 
-if (__JIANZHANG_MARKET_INSIGHT_ENABLED__) {
-  installMarketInsightPreload()
-}
+void (async () => {
+  if (__JIANZHANG_MARKET_INSIGHT_ENABLED__) {
+    const { installMarketInsightPreload } = await import('../../src/modules/market-insight/preload/register')
+    installMarketInsightPreload()
+  }
+
+  if (__JIANZHANG_AI_MODULE_ENABLED__) {
+    const { installAiPreload } = await import('../../src/modules/ai/preload/register')
+    installAiPreload()
+
+    if (__JIANZHANG_AI_T_ADVICE_MODULE_ENABLED__) {
+      const { installAiTAdvicePreload } = await import('../../src/modules/ai-t-advice/preload/register')
+      installAiTAdvicePreload()
+    }
+  }
+})()

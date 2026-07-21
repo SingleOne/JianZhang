@@ -80,7 +80,9 @@ let taskbarLayout: TaskbarLayout = { taskbarHeight: 48 }
 let trayHovered = false
 const refreshesInFlight = new Set<'all' | 'priority' | 'regular'>()
 let isQuitting = false
-let marketInsightRuntime: { dispose: () => void } | null = null
+let marketInsightRuntime: { dispose: () => void; getSnapshot: (quoteId: string) => Promise<any> } | null = null
+let aiRuntime: { dispose: () => void } | null = null
+let aiTAdviceRuntime: { dispose: () => void } | null = null
 
 class MarketDataHub {
   private readonly listeners = new Set<(quotes: readonly StockQuote[]) => void>()
@@ -168,6 +170,10 @@ function showMainWindow(quoteId?: string): void {
 
 function cleanupBeforeQuit(): void {
   isQuitting = true
+  aiTAdviceRuntime?.dispose()
+  aiTAdviceRuntime = null
+  aiRuntime?.dispose()
+  aiRuntime = null
   marketInsightRuntime?.dispose()
   marketInsightRuntime = null
   if (priorityRefreshTimer) clearInterval(priorityRefreshTimer)
@@ -740,6 +746,17 @@ if (!hasSingleInstanceLock) {
         getFundsFlow: (quoteId) => fetchFundsFlow(quoteId),
         notifyUpdated: (quoteId) => sendToWindows('insight:updated', quoteId)
       })
+    }
+    if (__JIANZHANG_AI_MODULE_ENABLED__) {
+      const { installAi } = await import('../../src/modules/ai/main/register')
+      aiRuntime = installAi({
+        getMarketInsightSnapshot: (quoteId) => marketInsightRuntime?.getSnapshot(quoteId) ?? null
+      })
+
+      if (__JIANZHANG_AI_T_ADVICE_MODULE_ENABLED__) {
+        const { installAiTAdvice } = await import('../../src/modules/ai-t-advice/main/register')
+        aiTAdviceRuntime = installAiTAdvice()
+      }
     }
     createWindow()
     syncTaskbarWindow()

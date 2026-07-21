@@ -1,6 +1,6 @@
 # 见涨开发者 Wiki
 
-> 代码基线：`main` 分支，应用版本 `3.7.1`
+> 代码基线：`main` 分支，应用版本 `4.0.1`
 >
 > 整理日期：2026-07-20
 >
@@ -24,7 +24,8 @@
 | React 组件层级和各组件职责 | [界面与组件](06-ui-components.md) |
 | 本地开发、构建、版本和打包约束 | [开发与发布](07-development-and-release.md) |
 | 不使用模型的指标、要闻和智能盯盘实施步骤 | [非 AI 市场洞察实现计划](../non-ai-market-insight-implementation-plan.md) |
-| 可随时剔除的指标、新闻和 AI 分析模块 | [AI 可移除模块设计（未实现）](08-ai-extension-points.md) |
+| AI 聊天、指标/要闻解读和独立做 T 参考的实施步骤 | [AI 模块与可选做 T 参考实现计划](../ai-module-implementation-plan.md) |
+| AI 模块的早期架构边界 | [AI 可移除模块设计（规划参考）](08-ai-extension-points.md) |
 | 按目录查看每个源码文件的职责 | [源码索引](09-source-index.md) |
 
 ## 一句话架构
@@ -52,6 +53,7 @@ JianZhang/
 │  ├─ App.tsx                   # 主窗口状态编排
 │  ├─ main.tsx                  # 主窗口/任务栏/托盘悬浮三种渲染入口
 │  ├─ components/               # 表格、图表、设置、持仓、做 T 等 UI
+│  ├─ modules/market-insight/   # 指标、要闻和客观市场观察
 │  ├─ lib/                      # API 适配和业务计算
 │  ├─ shared/                   # 共享类型、配置、交易时段和日历
 │  └─ styles.css                # 全局样式与窗口模式样式
@@ -84,7 +86,7 @@ JianZhang/
 - 行情来自东方财富公开接口，主进程内没有本地行情数据库，最新报价只保存在内存。
 - 用户状态保存在 `%APPDATA%\见涨\settings.json`，并可完整导出为 JSON。
 - 浏览器模式使用 `src/lib/api.ts` 的演示数据和 `localStorage`，与桌面版网络链路不同。
-- 当前没有自动下单、券商连接、新闻抓取、技术指标引擎或 AI 模块。
+- 当前没有自动下单或券商连接；可选的 `ai` 模块提供 API Key 驱动的聊天和市场快照解读，`ai-t-advice` 尚未进入发行范围。指标、要闻和客观观察由可选的 `market-insight` 模块提供。
 - 当前没有自动化测试目录；改动应至少按调用链检查共享类型、主进程、preload、浏览器演示实现和 UI 是否同步。
 - 股票数量输入统一以 100 股为步长；收益/收益率正红、负绿、零值中性。
 
