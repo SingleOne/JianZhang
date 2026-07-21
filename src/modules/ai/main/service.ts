@@ -1,10 +1,16 @@
 import { randomUUID } from 'node:crypto'
 import type { WebContents } from 'electron'
 import type { MarketInsightSnapshot } from '../../market-insight/shared/types'
-import { AI_PROMPT_VERSION } from '../shared/constants'
+import {
+  AI_PROMPT_VERSION,
+  normalizeOpenAiCodexModelId,
+  OPENAI_CODEX_DEFAULT_MODEL
+} from '../shared/constants'
 import type {
   AiChatSendInput,
   AiChatStartResult,
+  AiApiKeyProviderId,
+  AiCodexAccountStatus,
   AiConnectionResult,
   AiConversation,
   AiCreateConversationInput,
@@ -14,8 +20,11 @@ import type {
   AiModuleDependencies,
   AiProvider,
   AiProviderDescriptor,
+  AiProviderId,
   AiSettings,
-  AiStatus
+  AiStatus,
+  AiStructuredTaskRequest,
+  AiStructuredTaskResult
 } from '../shared/types'
 import { compactMarketSnapshot, toProviderMessages, type CompactMarketSnapshot } from './conversations/context-builder'
 import { createConversationTitle } from './conversations/title-generator'
@@ -27,6 +36,7 @@ import {
 import { MARKET_INTERPRETATION_PROMPT } from '../prompts/market-interpretation'
 import { DeepSeekProvider } from './providers/deepseek'
 import { OpenAiApiProvider } from './providers/openai-api'
+import { OpenAiCodexProvider } from './providers/openai-codex'
 import { AiSecrets } from './secrets'
 import { AiStorage } from './storage'
 
@@ -36,6 +46,15 @@ const PROVIDERS: AiProviderDescriptor[] = [
     label: 'OpenAI API Key',
     billingHint: '使用 OpenAI Platform API 余额，与 ChatGPT/Codex 订阅分开计费。',
     defaultModel: 'gpt-5.6',
+    authMode: 'apiKey',
+    capabilities: { streaming: true, marketInterpretation: true }
+  },
+  {
+    id: 'openai-codex',
+    label: 'OpenAI Codex 账号登录',
+    billingHint: '通过官方 Codex 运行时登录 ChatGPT，使用当前账号的 Codex 权限与额度。',
+    defaultModel: OPENAI_CODEX_DEFAULT_MODEL,
+    authMode: 'codexAccount',
     capabilities: { streaming: true, marketInterpretation: true }
   },
   {
@@ -43,6 +62,7 @@ const PROVIDERS: AiProviderDescriptor[] = [
     label: 'DeepSeek API Key',
     billingHint: '使用 DeepSeek Platform API Key 和对应平台额度。',
     defaultModel: 'deepseek-v4-flash',
+    authMode: 'apiKey',
     capabilities: { streaming: true, marketInterpretation: true }
   }
 ]
@@ -106,10 +126,8 @@ function parseInterpretation(content: string, generatedAt: string, snapshot: Com
 
 export class AiService {
   private readonly secrets: AiSecrets
-  private readonly providers = new Map<string, AiProvider>([
-    ['openai', new OpenAiApiProvider()],
-    ['deepseek', new DeepSeekProvider()]
-  ])
+  private readonly codexProvider: OpenAiCodexProvider
+  private readonly providers: Map<string, AiProvider>
   private readonly activeChats = new Map<string, AbortController>()
 
   constructor(
@@ -118,9 +136,15 @@ export class AiService {
     private readonly send: (webContents: WebContents, channel: string, payload: unknown) => void
   ) {
     this.secrets = new AiSecrets(storage.rootDirectory)
+    this.codexProvider = new OpenAiCodexProvider(storage.rootDirectory)
+    this.providers = new Map<string, AiProvider>([
+      ['openai', new OpenAiApiProvider()],
+      ['openai-codex', this.codexProvider],
+      ['deepseek', new DeepSeekProvider()]
+    ])
   }
 
-  getStatus(): AiStatus {
+  async getStatus(): Promise<AiStatus> {
     const settings = this.storage.getSettings()
     return {
       enabled: settings.enabled,
@@ -128,7 +152,8 @@ export class AiService {
       credentials: {
         openai: this.secrets.getStatus('openai'),
         deepseek: this.secrets.getStatus('deepseek')
-      }
+      },
+      codexAccount: await this.codexProvider.getAccountStatus()
     }
   }
 
@@ -142,7 +167,9 @@ export class AiService {
     const settings: AiSettings = {
       enabled: input.enabled,
       providerId: input.providerId,
-      model: input.model.trim() || provider.defaultModel,
+      model: input.providerId === 'openai-codex'
+        ? normalizeOpenAiCodexModelId(input.model.trim() || provider.defaultModel)
+        : input.model.trim() || provider.defaultModel,
       maxContextMessages: Math.max(4, Math.min(40, Math.round(input.maxContextMessages)))
     }
     const saved = this.storage.saveSettings(settings)
@@ -152,20 +179,26 @@ export class AiService {
     return saved
   }
 
-  setCredential(providerId: 'openai' | 'deepseek', apiKey: string) {
+  setCredential(providerId: AiApiKeyProviderId, apiKey: string) {
     this.requireProvider(providerId)
     return this.secrets.set(providerId, apiKey)
   }
 
-  clearCredential(providerId: 'openai' | 'deepseek'): void {
+  clearCredential(providerId: AiApiKeyProviderId): void {
     this.requireProvider(providerId)
     this.secrets.clear(providerId)
   }
 
-  async testConnection(providerId: 'openai' | 'deepseek'): Promise<AiConnectionResult> {
-    const apiKey = this.secrets.get(providerId)
-    if (!apiKey) return { ok: false, kind: 'authentication', message: '请先保存 API Key' }
-    return this.requireProvider(providerId).testConnection(apiKey)
+  loginCodexAccount(): Promise<AiCodexAccountStatus> {
+    return this.codexProvider.login()
+  }
+
+  logoutCodexAccount(): Promise<AiCodexAccountStatus> {
+    return this.codexProvider.logout()
+  }
+
+  async testConnection(providerId: AiProviderId): Promise<AiConnectionResult> {
+    return this.requireProvider(providerId).testConnection(this.getCredential(providerId))
   }
 
   listConversations(query?: string): AiConversation[] {
@@ -293,8 +326,7 @@ export class AiService {
   async interpret(quoteId: string): Promise<AiInterpretationResult> {
     const settings = this.storage.getSettings()
     if (!settings.enabled) throw new Error('AI 助手当前已关闭')
-    const apiKey = this.secrets.get(settings.providerId)
-    if (!apiKey) throw new Error('请先在 AI 助手的服务设置中保存 API Key')
+    const credential = this.getCredential(settings.providerId)
     const snapshot = await this.dependencies.getMarketInsightSnapshot(quoteId)
     if (!snapshot) throw new Error('当前还没有可解读的市场观察快照，请先打开市场观察并刷新')
     const compact = this.persistCompactSnapshot(snapshot)
@@ -307,10 +339,16 @@ export class AiService {
       publishedAt: item.publishedAt,
       url: item.url
     }))
-    if (cached) return { snapshotId: compact.snapshotId, interpretation: cached, cached: true, sources }
+    if (cached) return {
+      snapshotId: compact.snapshotId,
+      snapshotGeneratedAt: compact.generatedAt,
+      interpretation: cached,
+      cached: true,
+      sources
+    }
     const provider = this.requireProvider(settings.providerId)
     const controller = new AbortController()
-    const result = await provider.streamChat(apiKey, {
+    const result = await provider.streamChat(credential, {
       model: settings.model,
       messages: [
         { role: 'system', content: MARKET_INTERPRETATION_PROMPT },
@@ -319,12 +357,44 @@ export class AiService {
     }, () => undefined, controller.signal)
     const interpretation = parseInterpretation(result.content, now(), compact)
     this.storage.saveInterpretation(cacheKey, interpretation)
-    return { snapshotId: compact.snapshotId, interpretation, cached: false, sources }
+    return {
+      snapshotId: compact.snapshotId,
+      snapshotGeneratedAt: compact.generatedAt,
+      interpretation,
+      cached: false,
+      sources
+    }
+  }
+
+  async runStructuredTask(
+    request: AiStructuredTaskRequest,
+    signal: AbortSignal
+  ): Promise<AiStructuredTaskResult> {
+    const settings = this.storage.getSettings()
+    if (!settings.enabled) throw new Error('AI 助手当前已关闭')
+    const result = await this.requireProvider(settings.providerId).streamChat(
+      this.getCredential(settings.providerId),
+      {
+        model: settings.model,
+        messages: [
+          { role: 'system', content: request.systemPrompt },
+          { role: 'user', content: request.userContent }
+        ]
+      },
+      () => undefined,
+      signal
+    )
+    return {
+      ...result,
+      providerId: settings.providerId,
+      model: settings.model
+    }
   }
 
   dispose(): void {
     for (const controller of this.activeChats.values()) controller.abort()
     this.activeChats.clear()
+    this.codexProvider.dispose()
   }
 
   private async runChat(
@@ -338,10 +408,9 @@ export class AiService {
     let streamedContent = ''
     let blockedOutput = false
     try {
-      const apiKey = this.secrets.get(settings.providerId)
-      if (!apiKey) throw new Error('请先在 AI 助手的服务设置中保存 API Key')
+      const credential = this.getCredential(settings.providerId)
       const messages = this.storage.getMessages(pendingMessage.conversationId).slice(-settings.maxContextMessages)
-      const result = await this.requireProvider(settings.providerId).streamChat(apiKey, {
+      const result = await this.requireProvider(settings.providerId).streamChat(credential, {
         model: settings.model,
         messages: toProviderMessages(messages, context)
       }, (delta) => {
@@ -434,5 +503,9 @@ export class AiService {
     const provider = this.providers.get(providerId)
     if (!provider) throw new Error('不支持的 AI Provider')
     return provider
+  }
+
+  private getCredential(providerId: AiProviderId): string | undefined {
+    return providerId === 'openai-codex' ? undefined : this.secrets.get(providerId) ?? undefined
   }
 }

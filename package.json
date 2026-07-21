@@ -1,17 +1,19 @@
 {
   "name": "jianzhang-stock-desktop",
-  "version": "4.0.2",
+  "version": "4.1.0",
   "description": "见涨 - Windows 11 实时股票自选桌面应用",
   "main": "out/main/index.js",
   "author": "Codex",
   "license": "MIT",
   "scripts": {
     "dev": "electron-vite dev",
+    "dev:ai-t": "set JIANZHANG_AI_T_ADVICE_MODULE=1&& electron-vite dev",
     "dev:web": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && electron-vite build",
+    "build:ai-t": "set JIANZHANG_AI_T_ADVICE_MODULE=1&& tsc --noEmit && electron-vite build",
     "generate:icon": "node scripts/generate-icon.mjs",
-    "package:win": "npm run build && npm run generate:icon && electron-builder --win nsis",
-    "package:portable": "npm run build && npm run generate:icon && electron-builder --win portable"
+    "package:win": "npm run build && npm run generate:icon && electron-builder --config electron-builder.config.cjs --win nsis",
+    "package:portable": "npm run build && npm run generate:icon && electron-builder --config electron-builder.config.cjs --win portable"
   },
   "dependencies": {
     "lightweight-charts": "^5.2.0",
@@ -21,6 +23,7 @@
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
+    "@openai/codex": "0.144.6",
     "@types/node": "^24.0.0",
     "@types/pngjs": "^6.0.5",
     "@types/react": "^19.2.0",
@@ -31,35 +34,5 @@
     "electron-vite": "^5.0.0",
     "typescript": "^5.9.0",
     "vite": "^7.3.6"
-  },
-  "build": {
-    "appId": "com.jianzhang.stock",
-    "productName": "见涨",
-    "asar": true,
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "out/**/*",
-      "package.json"
-    ],
-    "win": {
-      "icon": "build/icon.png",
-      "target": [
-        {
-          "target": "nsis",
-          "arch": ["x64"]
-        }
-      ],
-      "artifactName": "见涨-Setup-${version}-${arch}.${ext}"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "见涨",
-      "uninstallDisplayName": "见涨股票行情"
-    }
   }
 }

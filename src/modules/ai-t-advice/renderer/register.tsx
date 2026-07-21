@@ -1,3 +1,1 @@
-export function AiTAdvicePlaceholder() {
-  return null
-}
+export { TAdvicePanel } from './TAdvicePanel'

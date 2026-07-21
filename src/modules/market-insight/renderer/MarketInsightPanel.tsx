@@ -26,6 +26,9 @@ interface MarketInsightPanelProps {
   onChartOverlayEnabledChange: (enabled: boolean) => void
 }
 
+const INTRADAY_SECTION_HINT = '基于已完成的分时柱，汇总 VWAP、短窗收益、当日价格位置、开盘区间和近 5 分钟量价状态。'
+const ORDER_BOOK_SECTION_HINT = '汇总买卖五档可见委托量及其变化，并对比个股相对行业、大盘的强弱、换手率与主力资金短窗变化。盘口仅反映当前可见委托。'
+
 export default function MarketInsightPanel({
   stock,
   quote,
@@ -283,6 +286,7 @@ export default function MarketInsightPanel({
         <div className="insight-content">
           <IndicatorGrid
             title="分时观察"
+            titleHint={INTRADAY_SECTION_HINT}
             values={snapshot.indicators.intraday}
             headingValueId="price-volume-state"
           />
@@ -303,7 +307,11 @@ export default function MarketInsightPanel({
               explanations={VOLATILITY_INDICATOR_EXPLANATIONS}
             />
           </div>
-          <IndicatorGrid title="盘口与相对强弱" values={[...snapshot.indicators.orderBook, ...snapshot.indicators.relativeStrength]} />
+          <IndicatorGrid
+            title="盘口与相对强弱"
+            titleHint={ORDER_BOOK_SECTION_HINT}
+            values={[...snapshot.indicators.orderBook, ...snapshot.indicators.relativeStrength]}
+          />
           <WatchEventList
             events={snapshot.events}
             onAcknowledge={(eventId) => void acknowledge(eventId)}

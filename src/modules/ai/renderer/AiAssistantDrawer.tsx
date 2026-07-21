@@ -5,6 +5,8 @@ import {
   Download,
   KeyRound,
   LoaderCircle,
+  LogIn,
+  LogOut,
   MessageSquare,
   Pencil,
   Plus,
@@ -14,10 +16,12 @@ import {
   Settings2,
   Square,
   Trash2,
+  UserRound,
   X
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
+  AiApiKeyProviderId,
   AiConnectionResult,
   AiConversation,
   AiMessage,
@@ -175,8 +179,10 @@ interface AiSettingsPanelProps {
   status: AiStatus
   settings: AiSettings
   onSave: (settings: AiSettings) => void
-  onSaveCredential: (providerId: AiProviderId, key: string) => void
-  onClearCredential: (providerId: AiProviderId) => void
+  onSaveCredential: (providerId: AiApiKeyProviderId, key: string) => void
+  onClearCredential: (providerId: AiApiKeyProviderId) => void
+  onCodexLogin: () => void
+  onCodexLogout: () => void
   onTestConnection: (providerId: AiProviderId) => void
   busy: boolean
   connectionResult: AiConnectionResult | null
@@ -188,6 +194,8 @@ function AiSettingsPanel({
   onSave,
   onSaveCredential,
   onClearCredential,
+  onCodexLogin,
+  onCodexLogout,
   onTestConnection,
   busy,
   connectionResult
@@ -195,7 +203,11 @@ function AiSettingsPanel({
   const [draft, setDraft] = useState(settings)
   const [apiKey, setApiKey] = useState('')
   const activeProvider = status.providers.find((item) => item.id === draft.providerId) ?? status.providers[0]
-  const credential = status.credentials[draft.providerId]
+  const usesCodexAccount = activeProvider?.authMode === 'codexAccount'
+  const credential = usesCodexAccount
+    ? null
+    : status.credentials[draft.providerId as AiApiKeyProviderId]
+  const codexAccount = status.codexAccount
 
   useEffect(() => setDraft(settings), [settings])
 
@@ -207,42 +219,62 @@ function AiSettingsPanel({
 
   return (
     <section className="ai-settings-panel">
-      <header><Settings2 size={17} /><div><h2>服务设置</h2><p>密钥只在主进程安全存储，界面不会读取明文。</p></div></header>
-      <label className="ai-settings-toggle">
-        <span><strong>启用 AI 助手</strong><small>关闭后不显示入口，也不会发送 Provider 请求。</small></span>
-        <input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft((current) => ({ ...current, enabled: event.target.checked }))} />
-      </label>
-      <div className="ai-settings-fields">
-        <label>
-          <span>Provider</span>
-          <select value={draft.providerId} onChange={(event) => selectProvider(event.target.value as AiProviderId)}>
-            {status.providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
-          </select>
-          <small>{activeProvider?.billingHint}</small>
-        </label>
-        <label>
-          <span>模型 ID</span>
-          <input value={draft.model} onChange={(event) => setDraft((current) => ({ ...current, model: event.target.value }))} placeholder={activeProvider?.defaultModel} />
-        </label>
-        <label>
-          <span>本地上下文消息数</span>
-          <input type="number" min="4" max="40" value={draft.maxContextMessages} onChange={(event) => setDraft((current) => ({ ...current, maxContextMessages: Number(event.target.value) || 4 }))} />
-        </label>
-      </div>
-      <div className="ai-credential-card">
-        <div><KeyRound size={16} /><span><strong>API Key</strong><small>{credential.configured ? `已配置 · 尾号 ${credential.maskedSuffix}` : '尚未配置'}</small></span></div>
-        <div className="ai-credential-actions">
-          <input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="粘贴新的 API Key" autoComplete="off" />
-          <button className="secondary-button" type="button" disabled={!apiKey.trim() || busy} onClick={() => onSaveCredential(draft.providerId, apiKey)}>保存 Key</button>
-          {credential.configured ? <button className="ai-text-button danger" type="button" disabled={busy} onClick={() => onClearCredential(draft.providerId)}>清除</button> : null}
+      <header><Settings2 size={17} /><div><h2>服务设置</h2><p>API Key 由主进程加密保存；Codex 登录凭证由官方运行时管理。</p></div></header>
+      <div className="ai-settings-content">
+        <div className="ai-settings-column">
+          <label className="ai-settings-toggle">
+            <span><strong>启用 AI 助手</strong><small>关闭后停止发送 Provider 请求，仍可通过 AI 助手入口重新开启。</small></span>
+            <input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft((current) => ({ ...current, enabled: event.target.checked }))} />
+          </label>
+          <div className="ai-settings-fields">
+            <label>
+              <span>Provider</span>
+              <select value={draft.providerId} onChange={(event) => selectProvider(event.target.value as AiProviderId)}>
+                {status.providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
+              </select>
+              <small>{activeProvider?.billingHint}</small>
+            </label>
+            <label>
+              <span>模型 ID</span>
+              <input value={draft.model} onChange={(event) => setDraft((current) => ({ ...current, model: event.target.value }))} placeholder={activeProvider?.defaultModel} />
+            </label>
+            <label>
+              <span>本地上下文消息数</span>
+              <input type="number" min="4" max="40" value={draft.maxContextMessages} onChange={(event) => setDraft((current) => ({ ...current, maxContextMessages: Number(event.target.value) || 4 }))} />
+            </label>
+          </div>
+        </div>
+        <div className="ai-settings-column">
+          {usesCodexAccount ? (
+            <div className="ai-credential-card ai-codex-account-card">
+              <div><UserRound size={16} /><span><strong>Codex 账号</strong><small>{codexAccount.loggedIn ? `${codexAccount.email ?? '已登录'}${codexAccount.planType ? ` · ${codexAccount.planType}` : ''}` : codexAccount.message ?? '尚未登录'}</small></span></div>
+              <div className="ai-account-actions">
+                {codexAccount.loggedIn ? (
+                  <button className="secondary-button" type="button" disabled={busy} onClick={onCodexLogout}><LogOut size={14} />退出登录</button>
+                ) : (
+                  <button className="primary-button" type="button" disabled={busy || !codexAccount.runtimeAvailable} onClick={onCodexLogin}><LogIn size={14} />登录 Codex 账号</button>
+                )}
+                <small>登录页面由 OpenAI 在系统浏览器中打开，见涨不会读取或复制登录令牌。</small>
+              </div>
+            </div>
+          ) : (
+            <div className="ai-credential-card">
+              <div><KeyRound size={16} /><span><strong>API Key</strong><small>{credential?.configured ? `已配置 · 尾号 ${credential.maskedSuffix}` : '尚未配置'}</small></span></div>
+              <div className="ai-credential-actions">
+                <input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="粘贴新的 API Key" autoComplete="off" />
+                <button className="secondary-button" type="button" disabled={!apiKey.trim() || busy} onClick={() => onSaveCredential(draft.providerId as AiApiKeyProviderId, apiKey)}>保存 Key</button>
+                {credential?.configured ? <button className="ai-text-button danger" type="button" disabled={busy} onClick={() => onClearCredential(draft.providerId as AiApiKeyProviderId)}>清除</button> : null}
+              </div>
+            </div>
+          )}
+          <div className="ai-settings-footer">
+            <button className="secondary-button" type="button" disabled={busy || (usesCodexAccount ? !codexAccount.loggedIn : !credential?.configured)} onClick={() => onTestConnection(draft.providerId)}>{busy ? <LoaderCircle size={14} className="is-spinning" /> : <Check size={14} />}测试连接</button>
+            <button className="primary-button" type="button" disabled={busy} onClick={() => onSave(draft)}>保存设置</button>
+          </div>
+          {connectionResult ? <p className={`ai-connection-result is-${connectionResult.kind}`}><span>{connectionResult.ok ? <Check size={14} /> : <AlertCircle size={14} />}</span>{connectionResult.message}</p> : null}
         </div>
       </div>
-      <div className="ai-settings-footer">
-        <button className="secondary-button" type="button" disabled={!credential.configured || busy} onClick={() => onTestConnection(draft.providerId)}>{busy ? <LoaderCircle size={14} className="is-spinning" /> : <Check size={14} />}测试连接</button>
-        <button className="primary-button" type="button" disabled={busy} onClick={() => onSave(draft)}>保存设置</button>
-      </div>
-      {connectionResult ? <p className={`ai-connection-result is-${connectionResult.kind}`}><span>{connectionResult.ok ? <Check size={14} /> : <AlertCircle size={14} />}</span>{connectionResult.message}</p> : null}
-      <p className="ai-settings-note">OpenAI Codex 登录仍需官方运行时的发行可用性验证，本期只提供独立的 API Key 接入。</p>
+      <p className="ai-settings-note">Codex 账号模式使用 ChatGPT 订阅权限；OpenAI API Key 模式使用 Platform API 额度，两种计费与账号状态相互独立。</p>
     </section>
   )
 }
@@ -280,6 +312,7 @@ export function AiAssistantDrawer({ open, onClose, context }: AiAssistantDrawerP
         setStatus(nextStatus)
         setSettings(nextSettings)
         setConversations(nextConversations)
+        if (!nextStatus.enabled) setActiveTab('settings')
         setActiveConversationId((current) => current && nextConversations.some((conversation) => conversation.id === current) ? current : nextConversations[0]?.id ?? null)
       })
       .catch((reason: unknown) => alive && setError(reason instanceof Error ? reason.message : '无法加载 AI 助手'))
@@ -436,7 +469,7 @@ export function AiAssistantDrawer({ open, onClose, context }: AiAssistantDrawerP
     }
   }
 
-  const saveCredential = async (providerId: AiProviderId, key: string) => {
+  const saveCredential = async (providerId: AiApiKeyProviderId, key: string) => {
     if (!api) return
     setBusy(true)
     try {
@@ -450,7 +483,7 @@ export function AiAssistantDrawer({ open, onClose, context }: AiAssistantDrawerP
     }
   }
 
-  const clearCredential = async (providerId: AiProviderId) => {
+  const clearCredential = async (providerId: AiApiKeyProviderId) => {
     if (!api || !window.confirm('清除当前 Provider 的 API Key？')) return
     setBusy(true)
     try {
@@ -471,6 +504,39 @@ export function AiAssistantDrawer({ open, onClose, context }: AiAssistantDrawerP
       setConnectionResult(await api.testConnection(providerId))
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '连接测试失败')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const loginCodexAccount = async () => {
+    if (!api) return
+    setBusy(true)
+    setConnectionResult(null)
+    try {
+      const account = await api.loginCodexAccount()
+      setStatus(await api.getStatus())
+      setConnectionResult({
+        ok: account.loggedIn,
+        kind: account.loggedIn ? 'success' : 'authentication',
+        message: account.loggedIn ? 'Codex 账号登录成功' : account.message ?? 'Codex 账号登录失败'
+      })
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Codex 账号登录失败')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const logoutCodexAccount = async () => {
+    if (!api || !window.confirm('退出见涨使用的 Codex 账号？这不会退出浏览器中的 ChatGPT。')) return
+    setBusy(true)
+    try {
+      await api.logoutCodexAccount()
+      setStatus(await api.getStatus())
+      setConnectionResult({ ok: true, kind: 'success', message: '已退出 Codex 账号' })
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '无法退出 Codex 账号')
     } finally {
       setBusy(false)
     }
@@ -499,7 +565,7 @@ export function AiAssistantDrawer({ open, onClose, context }: AiAssistantDrawerP
   if (!open || !api) return null
   return (
     <div className="ai-drawer-backdrop" role="presentation" onMouseDown={onClose}>
-      <section className="ai-assistant-drawer" role="dialog" aria-modal="true" aria-label="AI 助手" onMouseDown={(event) => event.stopPropagation()}>
+      <section className={`ai-assistant-drawer${error ? ' has-error' : ''}`} role="dialog" aria-modal="true" aria-label="AI 助手" onMouseDown={(event) => event.stopPropagation()}>
         <header className="ai-drawer-header">
           <div><Bot size={19} /><span><strong>AI 助手</strong><small>指标解读、要闻参考与本地对话</small></span></div>
           <nav aria-label="AI 助手页面"><button className={activeTab === 'chat' ? 'is-active' : ''} type="button" onClick={() => setActiveTab('chat')}><MessageSquare size={15} />对话</button><button className={activeTab === 'settings' ? 'is-active' : ''} type="button" onClick={() => setActiveTab('settings')}><Settings2 size={15} />服务设置</button></nav>
@@ -522,7 +588,7 @@ export function AiAssistantDrawer({ open, onClose, context }: AiAssistantDrawerP
               ) : null}
             </div>
           </div>
-        ) : status && settings ? <AiSettingsPanel status={status} settings={settings} onSave={(nextSettings) => void saveSettings(nextSettings)} onSaveCredential={(providerId, key) => void saveCredential(providerId, key)} onClearCredential={(providerId) => void clearCredential(providerId)} onTestConnection={(providerId) => void testConnection(providerId)} busy={busy} connectionResult={connectionResult} /> : <div className="ai-loading-panel"><LoaderCircle size={20} className="is-spinning" />正在读取服务设置…</div>}
+        ) : status && settings ? <AiSettingsPanel status={status} settings={settings} onSave={(nextSettings) => void saveSettings(nextSettings)} onSaveCredential={(providerId, key) => void saveCredential(providerId, key)} onClearCredential={(providerId) => void clearCredential(providerId)} onCodexLogin={() => void loginCodexAccount()} onCodexLogout={() => void logoutCodexAccount()} onTestConnection={(providerId) => void testConnection(providerId)} busy={busy} connectionResult={connectionResult} /> : <div className="ai-loading-panel"><LoaderCircle size={20} className="is-spinning" />正在读取服务设置…</div>}
       </section>
     </div>
   )

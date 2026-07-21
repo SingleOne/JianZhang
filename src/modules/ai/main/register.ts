@@ -1,12 +1,22 @@
 import { app, ipcMain } from 'electron'
 import { join } from 'node:path'
 import { AI_IPC } from '../shared/constants'
-import type { AiModuleDependencies, AiSettings } from '../shared/types'
+import type {
+  AiApiKeyProviderId,
+  AiModuleDependencies,
+  AiSettings,
+  AiStructuredTaskRequest,
+  AiStructuredTaskResult
+} from '../shared/types'
 import { AiService } from './service'
 import { AiStorage } from './storage'
 
 export interface AiRuntime {
   dispose: () => void
+  runStructuredTask: (
+    request: AiStructuredTaskRequest,
+    signal: AbortSignal
+  ) => Promise<AiStructuredTaskResult>
 }
 
 export function installAi(dependencies: AiModuleDependencies): AiRuntime {
@@ -18,9 +28,11 @@ export function installAi(dependencies: AiModuleDependencies): AiRuntime {
   ipcMain.handle(AI_IPC.statusGet, () => service.getStatus())
   ipcMain.handle(AI_IPC.settingsGet, () => service.getSettings())
   ipcMain.handle(AI_IPC.settingsSave, (_event, settings: AiSettings) => service.saveSettings(settings))
-  ipcMain.handle(AI_IPC.credentialSet, (_event, providerId: 'openai' | 'deepseek', apiKey: string) => service.setCredential(providerId, apiKey))
-  ipcMain.handle(AI_IPC.credentialClear, (_event, providerId: 'openai' | 'deepseek') => service.clearCredential(providerId))
-  ipcMain.handle(AI_IPC.connectionTest, (_event, providerId: 'openai' | 'deepseek') => service.testConnection(providerId))
+  ipcMain.handle(AI_IPC.credentialSet, (_event, providerId: AiApiKeyProviderId, apiKey: string) => service.setCredential(providerId, apiKey))
+  ipcMain.handle(AI_IPC.credentialClear, (_event, providerId: AiApiKeyProviderId) => service.clearCredential(providerId))
+  ipcMain.handle(AI_IPC.codexLogin, () => service.loginCodexAccount())
+  ipcMain.handle(AI_IPC.codexLogout, () => service.logoutCodexAccount())
+  ipcMain.handle(AI_IPC.connectionTest, (_event, providerId) => service.testConnection(providerId))
   ipcMain.handle(AI_IPC.conversationsList, (_event, query?: string) => service.listConversations(query))
   ipcMain.handle(AI_IPC.conversationGet, (_event, conversationId: string) => service.getConversation(conversationId))
   ipcMain.handle(AI_IPC.conversationCreate, (_event, input) => service.createConversation(input))
@@ -35,6 +47,7 @@ export function installAi(dependencies: AiModuleDependencies): AiRuntime {
   ipcMain.handle(AI_IPC.analysisInterpret, (_event, quoteId: string) => service.interpret(quoteId))
 
   return {
+    runStructuredTask: (request, signal) => service.runStructuredTask(request, signal),
     dispose: () => {
       service.dispose()
       for (const channel of Object.values(AI_IPC)) {

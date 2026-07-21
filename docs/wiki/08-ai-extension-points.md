@@ -193,11 +193,11 @@ interface AiProvider {
 | --- | --- | --- |
 | OpenAI API Key | OpenAI Responses API | 可选内置 web search，也可使用应用新闻工具 |
 | DeepSeek API Key | DeepSeek Chat Completions / 兼容接口 | 调用应用自有新闻工具 |
-| OpenAI 账号登录 | 本机官方 Codex CLI / Runtime 适配器（规划，需验证） | 调用应用自有新闻工具 |
+| OpenAI 账号登录 | 随应用携带的官方 Codex App Server（已实现） | 调用应用自有新闻工具 |
 
 OpenAI 的普通 API 使用 Bearer 凭证，且官方明确不应把 API Key 暴露在客户端代码中：[API Authentication](https://developers.openai.com/api/reference/overview#authentication)。“Sign in with ChatGPT”是 Codex 产品的认证方式，普通平台 API 调用仍使用平台 API Key，两者应作为不同接入路线处理：[Codex Authentication](https://learn.chatgpt.com/docs/auth)。
 
-账号登录通道不复制 Hermes 的 OAuth Client ID，不自行请求 ChatGPT 内部 Codex 接口，也不读取或复制 `~/.codex/auth.json`。规划方案是让用户通过官方 `codex login` 完成浏览器登录，由 AI 模块启动并连接本机 Codex Runtime；模块只观察“已登录/未登录”和运行结果。开发该适配器前还需单独核对届时的官方接口、适用场景和使用条款，不满足条件就只保留 OpenAI API Key 通道。
+账号登录通道不复制 OAuth Client ID，不自行请求 ChatGPT 内部接口，也不读取或复制凭证文件。当前实现通过官方 App Server 的 `account/login/start` 打开浏览器授权，并使用 `account/read`、`account/logout` 与线程事件完成状态管理和对话；见涨只观察脱敏账号状态和运行结果。
 
 DeepSeek 提供 Chat Completions、JSON Output 和工具调用能力，可通过适配器转换成相同业务结果：[DeepSeek Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/)。
 

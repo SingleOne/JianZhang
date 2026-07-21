@@ -17,6 +17,9 @@ const MarketInsightPanel = __JIANZHANG_MARKET_INSIGHT_ENABLED__
 const AiAnalysisPanel = __JIANZHANG_AI_MODULE_ENABLED__
   ? lazy(() => import('../modules/ai/renderer/register').then((module) => ({ default: module.AiAnalysisPanel })))
   : null
+const AiTAdvicePanel = __JIANZHANG_AI_T_ADVICE_MODULE_ENABLED__
+  ? lazy(() => import('../modules/ai-t-advice/renderer/register').then((module) => ({ default: module.TAdvicePanel })))
+  : null
 
 type PriceTab = Exclude<KlinePeriod, 'intraday'> | 'trend'
 type DetailTab = PriceTab | 'funds' | 'sector' | 'insight' | 'ai'
@@ -99,25 +102,16 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
 
   useEffect(() => {
     let active = true
-    let waitTimer: number | undefined
-    const syncAiStatus = () => {
-      const api = window.aiApi
-      if (!AiAnalysisPanel || !api) return false
+    const api = window.aiApi
+    if (AiAnalysisPanel && api) {
       void api.getStatus().then((status) => {
         if (active) setAiEnabled(status.enabled)
       }).catch(() => {
         if (active) setAiEnabled(false)
       })
-      return true
-    }
-    if (!syncAiStatus()) {
-      waitTimer = window.setInterval(() => {
-        if (syncAiStatus() && waitTimer !== undefined) window.clearInterval(waitTimer)
-      }, 25)
     }
     return () => {
       active = false
-      if (waitTimer !== undefined) window.clearInterval(waitTimer)
     }
   }, [])
 
@@ -395,7 +389,10 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
         </div>
       ) : activeTab === 'ai' && AiAnalysisPanel ? (
         <Suspense fallback={<div className="chart-loading">正在初始化 AI 分析…</div>}>
-          <AiAnalysisPanel stock={stock} quote={quote} />
+          <div className="ai-analysis-stack">
+            <AiAnalysisPanel stock={stock} quote={quote} />
+            {AiTAdvicePanel ? <AiTAdvicePanel stock={stock} quote={quote} /> : null}
+          </div>
         </Suspense>
       ) : MarketInsightPanel ? (
         <Suspense fallback={<div className="chart-loading">正在初始化市场观察…</div>}>

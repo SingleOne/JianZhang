@@ -10,7 +10,8 @@ export class OpenAiApiProvider implements AiProvider {
     return { streaming: true, marketInterpretation: true }
   }
 
-  async testConnection(apiKey: string): Promise<AiConnectionResult> {
+  async testConnection(apiKey?: string): Promise<AiConnectionResult> {
+    if (!apiKey) return { ok: false, kind: 'authentication', message: '请先保存 API Key' }
     try {
       const response = await fetch(`${OPENAI_API_BASE}/models`, {
         headers: { Authorization: `Bearer ${apiKey}` }
@@ -23,11 +24,12 @@ export class OpenAiApiProvider implements AiProvider {
   }
 
   async streamChat(
-    apiKey: string,
+    apiKey: string | undefined,
     request: AiProviderRequest,
     emit: (delta: string) => void,
     signal: AbortSignal
   ): Promise<AiProviderTurnResult> {
+    if (!apiKey) throw new Error('请先在 AI 助手的服务设置中保存 API Key')
     const response = await fetch(`${OPENAI_API_BASE}/responses`, {
       method: 'POST',
       signal,

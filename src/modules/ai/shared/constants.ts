@@ -4,6 +4,8 @@ export const AI_IPC = {
   settingsSave: 'ai:settings:update',
   credentialSet: 'ai:credential:set',
   credentialClear: 'ai:credential:clear',
+  codexLogin: 'ai:codex:login',
+  codexLogout: 'ai:codex:logout',
   connectionTest: 'ai:connection:test',
   conversationsList: 'ai:conversation:list',
   conversationGet: 'ai:conversation:get',
@@ -23,3 +25,9 @@ export const AI_IPC = {
 } as const
 
 export const AI_PROMPT_VERSION = '2026-07-21.1'
+
+export const OPENAI_CODEX_DEFAULT_MODEL = 'gpt-5.6-sol'
+
+export function normalizeOpenAiCodexModelId(model: string): string {
+  return model.trim().toLowerCase().replace(/[\s_]+/g, '-')
+}

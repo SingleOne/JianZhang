@@ -1,6 +1,7 @@
 import type { MarketInsightSnapshot } from '../../market-insight/shared/types'
 
-export type AiProviderId = 'openai' | 'deepseek'
+export type AiProviderId = 'openai' | 'openai-codex' | 'deepseek'
+export type AiApiKeyProviderId = Exclude<AiProviderId, 'openai-codex'>
 export type AiMessageRole = 'user' | 'assistant' | 'system'
 export type AiMessageStatus = 'pending' | 'streaming' | 'completed' | 'stopped' | 'error'
 
@@ -14,12 +15,21 @@ export interface AiProviderDescriptor {
   label: string
   billingHint: string
   defaultModel: string
+  authMode: 'apiKey' | 'codexAccount'
   capabilities: AiProviderCapabilities
 }
 
 export interface AiCredentialStatus {
   configured: boolean
   maskedSuffix?: string
+}
+
+export interface AiCodexAccountStatus {
+  runtimeAvailable: boolean
+  loggedIn: boolean
+  email?: string
+  planType?: string
+  message?: string
 }
 
 export interface AiSettings {
@@ -32,7 +42,8 @@ export interface AiSettings {
 export interface AiStatus {
   enabled: boolean
   providers: AiProviderDescriptor[]
-  credentials: Record<AiProviderId, AiCredentialStatus>
+  credentials: Record<AiApiKeyProviderId, AiCredentialStatus>
+  codexAccount: AiCodexAccountStatus
 }
 
 export interface AiConnectionResult {
@@ -131,6 +142,7 @@ export interface AiInterpretation {
 
 export interface AiInterpretationResult {
   snapshotId: string
+  snapshotGeneratedAt: string
   interpretation: AiInterpretation
   cached: boolean
   sources: Array<{
@@ -146,8 +158,10 @@ export interface AiApi {
   getStatus: () => Promise<AiStatus>
   getSettings: () => Promise<AiSettings>
   saveSettings: (settings: AiSettings) => Promise<AiSettings>
-  setCredential: (providerId: AiProviderId, apiKey: string) => Promise<AiCredentialStatus>
-  clearCredential: (providerId: AiProviderId) => Promise<void>
+  setCredential: (providerId: AiApiKeyProviderId, apiKey: string) => Promise<AiCredentialStatus>
+  clearCredential: (providerId: AiApiKeyProviderId) => Promise<void>
+  loginCodexAccount: () => Promise<AiCodexAccountStatus>
+  logoutCodexAccount: () => Promise<AiCodexAccountStatus>
   testConnection: (providerId: AiProviderId) => Promise<AiConnectionResult>
   listConversations: (query?: string) => Promise<AiConversation[]>
   getConversation: (conversationId: string) => Promise<{ conversation: AiConversation; messages: AiMessage[] } | null>
@@ -181,12 +195,22 @@ export interface AiProviderTurnResult {
   content: string
 }
 
+export interface AiStructuredTaskRequest {
+  systemPrompt: string
+  userContent: string
+}
+
+export interface AiStructuredTaskResult extends AiProviderTurnResult {
+  providerId: AiProviderId
+  model: string
+}
+
 export interface AiProvider {
   readonly id: AiProviderId
   getCapabilities: () => AiProviderCapabilities
-  testConnection: (apiKey: string) => Promise<AiConnectionResult>
+  testConnection: (credential?: string) => Promise<AiConnectionResult>
   streamChat: (
-    apiKey: string,
+    credential: string | undefined,
     request: AiProviderRequest,
     emit: (delta: string) => void,
     signal: AbortSignal

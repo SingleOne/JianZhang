@@ -20,6 +20,7 @@ import type {
   WatchlistColumnId
 } from './shared/types'
 
+// AI UI remains behind build-time boundaries so share builds can omit it completely.
 const AiAssistantDrawer = __JIANZHANG_AI_MODULE_ENABLED__
   ? lazy(() => import('./modules/ai/renderer/register').then((module) => ({ default: module.AiAssistantDrawer })))
   : null
@@ -47,7 +48,7 @@ export default function App() {
   const [notice, setNotice] = useState('')
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false)
   const [aiAssistantContext, setAiAssistantContext] = useState<{ quoteId: string; quoteName?: string } | null>(null)
-  const [aiRuntimeEnabled, setAiRuntimeEnabled] = useState(false)
+  const aiRuntimeAvailable = Boolean(AiAssistantDrawer && window.aiApi)
 
   const reportError = useCallback((message: string) => {
     setNotice('')
@@ -105,33 +106,6 @@ export default function App() {
     }
     window.addEventListener('ai:open-assistant', openWithStockContext)
     return () => window.removeEventListener('ai:open-assistant', openWithStockContext)
-  }, [])
-
-  useEffect(() => {
-    let active = true
-    let waitTimer: number | undefined
-    const syncAiRuntime = () => {
-      const api = window.aiApi
-      if (!AiAssistantDrawer || !api) return false
-      void api.getStatus().then((status) => {
-        if (active) setAiRuntimeEnabled(status.enabled)
-      }).catch(() => {
-        if (active) setAiRuntimeEnabled(false)
-      })
-      return true
-    }
-    if (!syncAiRuntime()) {
-      waitTimer = window.setInterval(() => {
-        if (syncAiRuntime() && waitTimer !== undefined) window.clearInterval(waitTimer)
-      }, 25)
-    }
-    const handleEnabledChange = (event: Event) => setAiRuntimeEnabled(Boolean((event as CustomEvent<boolean>).detail))
-    window.addEventListener('ai:enabled-changed', handleEnabledChange)
-    return () => {
-      active = false
-      if (waitTimer !== undefined) window.clearInterval(waitTimer)
-      window.removeEventListener('ai:enabled-changed', handleEnabledChange)
-    }
   }, [])
 
   const quoteIds = useMemo(() => new Set(state.watchlist.map((stock) => stock.quoteId)), [state.watchlist])
@@ -367,7 +341,7 @@ export default function App() {
                 <RefreshCw size={17} className={refreshing ? 'is-spinning' : ''} />
                 立即刷新
               </button>
-              {AiAssistantDrawer && aiRuntimeEnabled ? (
+              {aiRuntimeAvailable ? (
                 <button className="secondary-button ai-assistant-trigger" type="button" onClick={() => { setAiAssistantContext(null); setAiAssistantOpen(true) }}>
                   <Bot size={17} />
                   AI 助手

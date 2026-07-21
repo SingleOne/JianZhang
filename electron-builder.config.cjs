@@ -1,0 +1,33 @@
+const aiModuleEnabled = process.env.JIANZHANG_AI_MODULE !== '0'
+
+module.exports = {
+  appId: 'com.jianzhang.stock',
+  productName: '见涨',
+  asar: true,
+  directories: {
+    output: 'release'
+  },
+  files: [
+    'out/**/*',
+    'package.json'
+  ],
+  extraResources: aiModuleEnabled
+    ? [{
+      from: 'node_modules/@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc',
+      to: 'codex-runtime'
+    }]
+    : [],
+  win: {
+    icon: 'build/icon.png',
+    target: [{ target: 'nsis', arch: ['x64'] }],
+    artifactName: '见涨-Setup-${version}-${arch}.${ext}'
+  },
+  nsis: {
+    oneClick: false,
+    allowToChangeInstallationDirectory: true,
+    createDesktopShortcut: true,
+    createStartMenuShortcut: true,
+    shortcutName: '见涨',
+    uninstallDisplayName: '见涨股票行情'
+  }
+}

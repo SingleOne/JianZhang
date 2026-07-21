@@ -7,6 +7,7 @@ import type { IndicatorExplanation } from './indicator-explanations'
 
 interface IndicatorGridProps {
   title: string
+  titleHint?: string
   values: readonly IndicatorValue[]
   headingValueId?: string
   explanations?: Readonly<Record<string, IndicatorExplanation>>
@@ -87,7 +88,7 @@ function IndicatorExplanationPopover({
   )
 }
 
-export function IndicatorGrid({ title, values, headingValueId, explanations }: IndicatorGridProps) {
+export function IndicatorGrid({ title, titleHint, values, headingValueId, explanations }: IndicatorGridProps) {
   const [explainedIndicatorId, setExplainedIndicatorId] = useState<string | null>(null)
   if (values.length === 0) return null
   const headingValue = headingValueId
@@ -103,7 +104,14 @@ export function IndicatorGrid({ title, values, headingValueId, explanations }: I
   return (
     <section className="insight-indicator-section">
       <div className="insight-indicator-heading">
-        <h3>{title}</h3>
+        <div
+          className={`insight-indicator-title${titleHint ? ' has-hint' : ''}`}
+          tabIndex={titleHint ? 0 : undefined}
+          aria-label={titleHint ? `${title}：${titleHint}` : undefined}
+        >
+          <h3>{title}</h3>
+          {titleHint ? <><CircleHelp size={13} /><span className="insight-group-tooltip" role="tooltip">{titleHint}</span></> : null}
+        </div>
         {headingValue ? (
           <span className="insight-heading-value" title={`数据周期：${headingValue.sourcePeriod}`}>
             <span>{headingValue.label}</span>

@@ -114,7 +114,7 @@ interface RadarPopoverState {
 type ColumnMove = -1 | 1 | 'start' | 'end'
 
 const COLUMN_META: Record<WatchlistColumnId, ColumnMeta> = {
-  stock: { label: '名称 / 代码', width: 77, sortable: true, className: 'stock-column' },
+  stock: { label: '名称 / 代码', width: 85, sortable: true, className: 'stock-column' },
   latest: { label: '最新价', width: 72, sortable: true },
   changePercent: { label: '涨跌幅', width: 76, sortable: true },
   sectorChangePercent: { label: '板块涨跌幅', width: 94, sortable: true },

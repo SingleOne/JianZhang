@@ -37,6 +37,7 @@ import {
   applyTAlertTriggersToAccounts
 } from '../../src/lib/t-alerts'
 import { calculatePositionMetrics } from '../../src/lib/portfolio'
+import type { AiRuntime } from '../../src/modules/ai/main/register'
 import {
   fetchFundsFlow,
   fetchKline,
@@ -81,7 +82,7 @@ let trayHovered = false
 const refreshesInFlight = new Set<'all' | 'priority' | 'regular'>()
 let isQuitting = false
 let marketInsightRuntime: { dispose: () => void; getSnapshot: (quoteId: string) => Promise<any> } | null = null
-let aiRuntime: { dispose: () => void } | null = null
+let aiRuntime: AiRuntime | null = null
 let aiTAdviceRuntime: { dispose: () => void } | null = null
 
 class MarketDataHub {
@@ -755,7 +756,33 @@ if (!hasSingleInstanceLock) {
 
       if (__JIANZHANG_AI_T_ADVICE_MODULE_ENABLED__) {
         const { installAiTAdvice } = await import('../../src/modules/ai-t-advice/main/register')
-        aiTAdviceRuntime = installAiTAdvice()
+        aiTAdviceRuntime = installAiTAdvice({
+          getMarketInsightSnapshot: (quoteId) => marketInsightRuntime?.getSnapshot(quoteId) ?? null,
+          getTradingContext: (quoteId) => {
+            const stock = state.watchlist.find((item) => item.quoteId === quoteId)
+            if (!stock) return null
+            return {
+              stock,
+              quote: latestQuotes.find((item) => item.quoteId === quoteId),
+              position: stock.position,
+              account: state.tTradingAccounts[quoteId]
+            }
+          },
+          saveTradingAccount: (quoteId, account) => {
+            state = {
+              ...state,
+              tTradingAccounts: {
+                ...state.tTradingAccounts,
+                [quoteId]: account
+              }
+            }
+            persistState()
+            sendToWindows('state:updated', state)
+            updateAppTrayMenu()
+            syncTaskbarWindow()
+          },
+          runStructuredTask: (request, signal) => aiRuntime!.runStructuredTask(request, signal)
+        })
       }
     }
     createWindow()

@@ -1,10 +1,10 @@
 # AI 模块与可选做 T 参考实现计划
 
-> 文档状态：第一期已实施，待验收
+> 文档状态：基础 AI 已实施；独立做 T 参考已进入个人构建实现，默认分享构建仍不包含
 >
 > 编写日期：2026-07-21
 >
-> 当前应用版本：`4.0.2`
+> 当前应用版本：`4.1.0`
 >
 > 本文是 AI 接入的当前实施依据；如与早期 [AI 可移除模块设计](wiki/08-ai-extension-points.md) 冲突，以本文为准。2026-07-21 已完成阶段 0–4 的代码实现：基础模块可构建剔除、OpenAI/DeepSeek API Key 设置、本地聊天与手动快照解读；仍需在实际发行前完成构建剔除、Provider 联调和隐私验收。`ai-t-advice` 只保留独立构建/删除骨架，尚未进入发行范围。
 
@@ -316,7 +316,7 @@ interface AiProvider {
 
 指标解读和做 T 参考都通过统一消息接口调用；结构化任务额外提供 Schema 和输出校验，不在 Provider 中复制业务逻辑。
 
-第一版优先直接使用 `fetch`，避免 SDK 类型和依赖散落到核心代码，也便于整个模块删除。
+API Key Provider 直接使用 `fetch`；Codex 账号 Provider 仅在 AI 模块内部依赖官方 Codex 运行时，依赖与解包配置随模块一起删除。
 
 ### 7.2 OpenAI
 
@@ -327,11 +327,10 @@ interface AiProvider {
    - 消耗 OpenAI Platform API 余额，与 ChatGPT/Codex 订阅分开。
    - 官方认证说明：[API authentication](https://developers.openai.com/api/reference/overview#authentication)。
 2. **OpenAI Codex 登录**
-   - 目标是复用官方 Codex 登录/运行时，由官方组件打开登录并持有凭证。
-   - 见涨只通过稳定的本地进程协议提交请求和接收事件。
+   - 已接入官方 `codex app-server`，由官方组件打开登录并持有、刷新凭证。
+   - 见涨只通过本地 JSON-RPC 进程协议提交请求和接收事件。
    - 不复刻 Hermes 的网页授权实现，不调用 OpenAI 内部接口，不直接读取 Codex 凭证文件。
-   - 开发前先做发行可用性验证：登录入口、运行时分发、协议稳定性、订阅权益和商业分发条款均确认后再启用。
-   - 如果官方运行时不能随应用合法、稳定地分发，则该适配器仅支持“检测并连接用户已安装的官方 Codex”，API Key 模式仍可独立使用。
+   - 官方 Windows 运行时作为 AI 模块资源随启用 AI 的构建携带；无 AI 构建不复制该资源。登录状态与 API Key 模式相互独立。
 
 两种认证在设置页中明确标注计费来源，不能只显示为同一个“OpenAI”。
 
@@ -422,7 +421,8 @@ src/modules/ai/
 │  └─ providers/
 │     ├─ provider.ts
 │     ├─ openai-api.ts
-│     ├─ openai-codex-runtime.ts
+│     ├─ codex-app-server.ts
+│     ├─ openai-codex.ts
 │     └─ deepseek.ts
 ├─ prompts/
 │  ├─ general-chat.ts
@@ -583,7 +583,7 @@ flowchart LR
 - 实现 Provider 统一接口。
 - 实现 OpenAI API Key、DeepSeek API Key 和连接测试。
 - 实现 `safeStorage` 凭证存储。
-- 设计并验证 OpenAI 官方 Codex 登录运行时适配器。
+- 实现 OpenAI 官方 Codex App Server 登录运行时适配器。
 - 完成 AI 服务设置页和计费来源提示。
 
 完成标准：渲染层不可读取明文密钥；连接测试能区分认证失败、限流和网络失败。
@@ -700,6 +700,6 @@ AI 基础模块和 `ai-t-advice` 都属于新功能模块。当前只输出计�
 2. OpenAI API Key、DeepSeek API Key、Provider 设置和连接测试。
 3. 本地多会话聊天、历史记录、流式输出、停止与删除。
 4. 手动触发的指标解读和要闻参考。
-5. OpenAI Codex 登录适配器的可行性验证；验证通过后再纳入发行版。
+5. OpenAI Codex 账号登录、退出、状态检测、连接测试和只读对话适配器。
 
 `ai-t-advice` 先完成接口和删除边界设计，不随第一期默认发行；待合规评估通过后从阶段 5 开始实现。这样即使做 T 参考最终不发布，前四项仍是完整、可独立使用的 AI 助手功能。
