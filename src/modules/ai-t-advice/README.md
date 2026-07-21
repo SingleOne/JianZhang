@@ -1,6 +1,6 @@
 # AI 做 T 参考模块
 
-仅供个人构建使用的独立模块。默认构建不会包含它；只有基础 AI 已启用且显式设置 `JIANZHANG_AI_T_ADVICE_MODULE=1` 时才安装。
+独立的 AI 做 T 参考模块。基础 AI 启用时默认编译进应用；显式设置 `JIANZHANG_AI_T_ADVICE_MODULE=0` 可将它从产物中剔除。构建进应用不代表运行时自动开启，用户仍需在模块界面主动启用。
 
 ## 功能
 
@@ -29,12 +29,13 @@
 ## 开发与构建
 
 ```powershell
-npm run dev:ai-t
-npm run build:ai-t
+npm run dev
+npm run build
+npm run build:unpacked
 ```
 
-普通的 `npm run dev`、`npm run build` 和默认分享构建不包含本模块。
+以上默认构建均包含本模块。原有 `npm run dev:ai-t` 和 `npm run build:ai-t` 作为兼容脚本继续可用。
 
 ## 单独移除
 
-分享构建不设置 `JIANZHANG_AI_T_ADVICE_MODULE=1` 即可从 main、preload 和 renderer 产物中剔除。源码级删除时，删除本目录及上述四个薄安装点和构建常量即可；基础 AI 对话、快照解读、市场观察、持仓和手工做 T 均不依赖本模块。
+构建前设置 `JIANZHANG_AI_T_ADVICE_MODULE=0`，即可从 main、preload 和 renderer 产物中剔除。源码级删除时，删除本目录及上述四个薄安装点和构建常量即可；基础 AI 对话、快照解读、市场观察、持仓和手工做 T 均不依赖本模块。

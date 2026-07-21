@@ -5,7 +5,9 @@ import { formatUpdateTime } from '../../../lib/format'
 import { marketInsightApi } from './api'
 import { IndicatorGrid } from './IndicatorGrid'
 import {
+  INTRADAY_INDICATOR_EXPLANATIONS,
   MOMENTUM_INDICATOR_EXPLANATIONS,
+  ORDER_BOOK_AND_RELATIVE_STRENGTH_INDICATOR_EXPLANATIONS,
   TREND_INDICATOR_EXPLANATIONS,
   VOLATILITY_INDICATOR_EXPLANATIONS
 } from './indicator-explanations'
@@ -289,6 +291,7 @@ export default function MarketInsightPanel({
             titleHint={INTRADAY_SECTION_HINT}
             values={snapshot.indicators.intraday}
             headingValueId="price-volume-state"
+            explanations={INTRADAY_INDICATOR_EXPLANATIONS}
           />
           <IndicatorGrid
             title="趋势"
@@ -311,6 +314,7 @@ export default function MarketInsightPanel({
             title="盘口与相对强弱"
             titleHint={ORDER_BOOK_SECTION_HINT}
             values={[...snapshot.indicators.orderBook, ...snapshot.indicators.relativeStrength]}
+            explanations={ORDER_BOOK_AND_RELATIVE_STRENGTH_INDICATOR_EXPLANATIONS}
           />
           <WatchEventList
             events={snapshot.events}

@@ -1,6 +1,6 @@
 {
   "name": "jianzhang-stock-desktop",
-  "version": "4.2.0",
+  "version": "4.3.0",
   "description": "见涨 - Windows 11 实时股票自选桌面应用",
   "main": "out/main/index.js",
   "author": "Codex",
@@ -11,6 +11,7 @@
     "dev:web": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && electron-vite build",
     "build:ai-t": "set JIANZHANG_AI_T_ADVICE_MODULE=1&& tsc --noEmit && electron-vite build",
+    "build:unpacked": "npm run build && npm run generate:icon && electron-builder --config electron-builder.config.cjs --win --dir",
     "generate:icon": "node scripts/generate-icon.mjs",
     "package:win": "npm run build && npm run generate:icon && electron-builder --config electron-builder.config.cjs --win nsis",
     "package:portable": "npm run build && npm run generate:icon && electron-builder --config electron-builder.config.cjs --win portable"

@@ -267,16 +267,6 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
           <TrendingUp size={15} />
           资金流向
         </button>
-        <button
-          className={activeTab === 'sector' ? 'is-active' : ''}
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'sector'}
-          onClick={() => setActiveTab('sector')}
-        >
-          <Layers size={15} />
-          板块
-        </button>
         {MarketInsightPanel ? (
           <button
             className={activeTab === 'insight' ? 'is-active' : ''}
@@ -326,6 +316,16 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
             {tab.label}
           </button>
         ))}
+        <button
+          className={activeTab === 'sector' ? 'is-active' : ''}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'sector'}
+          onClick={() => setActiveTab('sector')}
+        >
+          <Layers size={15} />
+          板块
+        </button>
       </div>
 
       {priceTab ? (

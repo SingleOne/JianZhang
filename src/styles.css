@@ -3745,7 +3745,7 @@ tr:focus-visible {
 .insight-indicator > span {
   overflow: hidden;
   color: #7a8698;
-  font-size: 10px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -3761,7 +3761,7 @@ tr:focus-visible {
   color: #65758b;
   background: transparent;
   border: 0;
-  font-size: 10px;
+  font-size: 12px;
   text-align: left;
   cursor: pointer;
 }

@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 
 const marketInsightModuleEnabled = process.env.JIANZHANG_MARKET_INSIGHT_MODULE !== '0'
 const aiModuleEnabled = process.env.JIANZHANG_AI_MODULE !== '0'
-const aiTAdviceModuleEnabled = aiModuleEnabled && process.env.JIANZHANG_AI_T_ADVICE_MODULE === '1'
+const aiTAdviceModuleEnabled = aiModuleEnabled && process.env.JIANZHANG_AI_T_ADVICE_MODULE !== '0'
 const buildConstants = {
   __JIANZHANG_MARKET_INSIGHT_ENABLED__: JSON.stringify(marketInsightModuleEnabled),
   __JIANZHANG_AI_MODULE_ENABLED__: JSON.stringify(aiModuleEnabled),

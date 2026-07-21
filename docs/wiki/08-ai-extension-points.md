@@ -2,9 +2,9 @@
 
 [Wiki 首页](README.md) · [系统架构](01-architecture.md) · [行情数据链路](03-market-data.md)
 
-> 状态：早期规划参考。当前仓库已经实现 `market-insight` 和第一期 `ai`；`ai-t-advice` 仍只保留独立删除骨架。
+> 状态：早期规划参考。当前仓库已经实现 `market-insight`、第一期 `ai` 和独立的 `ai-t-advice`；做 T 参考默认编译、运行时默认关闭。
 >
-> 2026-07-21 更新：AI 基础模块已完成通用聊天、本地对话记录、Provider 设置和市场快照解读；做 T 参考已拆成可单独删除的 `ai-t-advice` 模块，但尚未进入发行范围。详细目录、入口、存储、IPC 和实施阶段以 [AI 模块与可选做 T 参考实现计划](../ai-module-implementation-plan.md) 为准；本页与其冲突处均以新计划为准。
+> 2026-07-21 更新：AI 基础模块已完成通用聊天、本地对话记录、Provider 设置和市场快照解读；做 T 参考已拆成可单独构建剔除或删除的 `ai-t-advice` 模块，并默认进入构建产物。详细目录、入口、存储、IPC 和实施阶段以 [AI 模块与可选做 T 参考实现计划](../ai-module-implementation-plan.md) 为准；本页与其冲突处均以新计划为准。
 >
 > 目标方向：基础 AI 提供指标解读、要闻参考和聊天，同时支持 OpenAI 与 DeepSeek；结构化做 T 参考由独立模块提供。
 >
