@@ -18,6 +18,8 @@ import {
 import type {
   MarketInsightSettings,
   MarketInsightSnapshot,
+  MarketInsightSourceId,
+  MarketInsightSourceState,
   MarketNewsItem,
   MarketInsightStatus,
   TPlanDistance,
@@ -268,6 +270,12 @@ export class MarketInsightService {
       fundsFlow: fundsFlow?.value ?? null
     }, calculatedAt)
     const distances = this.calculateTPlanDistances(stock, quote.latest)
+    const sourceStates = [
+      this.sourceState('intraday', '分时', intraday, MARKET_INSIGHT_REFRESH_INTERVALS.intraday),
+      this.sourceState('daily', '日线', daily, MARKET_INSIGHT_REFRESH_INTERVALS.daily),
+      this.sourceState('orderBook', '盘口', orderBook, MARKET_INSIGHT_REFRESH_INTERVALS.orderBook),
+      this.sourceState('fundsFlow', '资金流', fundsFlow, MARKET_INSIGHT_REFRESH_INTERVALS.fundsFlow)
+    ]
     let news = previous?.news ?? this.storage.loadNews(quoteId)
     if (this.news.state === 'ready' && force) {
       try {
@@ -284,12 +292,8 @@ export class MarketInsightService {
       quoteId,
       generatedAt: calculatedAt,
       dataCutoffAt: latestQuoteTime(quote, intraday.value),
-      dataState: this.dataState([
-        { source: intraday, interval: MARKET_INSIGHT_REFRESH_INTERVALS.intraday },
-        { source: daily, interval: MARKET_INSIGHT_REFRESH_INTERVALS.daily },
-        { source: orderBook, interval: MARKET_INSIGHT_REFRESH_INTERVALS.orderBook },
-        { source: fundsFlow, interval: MARKET_INSIGHT_REFRESH_INTERVALS.fundsFlow }
-      ]),
+      dataState: this.dataState(sourceStates),
+      sourceStates,
       indicators: {
         quoteId,
         quoteTime: quote.updatedAt,
@@ -387,15 +391,30 @@ export class MarketInsightService {
     }
   }
 
-  private dataState(
-    entries: Array<{ source: CachedSource<unknown> | null; interval: number }>
-  ): 'live' | 'cached' | 'stale' {
-    if (entries.some(({ source, interval }) => (
-      source !== null
-      && (new Date(source.expiresAt).getTime() <= Date.now() || isExpired(source.savedAt, interval))
-    ))) return 'stale'
-    const timestamps = entries.flatMap(({ source }) => source ? [source.savedAt] : [])
-    return timestamps.some((timestamp) => new Date(timestamp).getTime() + 2_000 < Date.now()) ? 'cached' : 'live'
+  private sourceState(
+    id: MarketInsightSourceId,
+    label: string,
+    source: CachedSource<unknown> | null,
+    interval: number
+  ): MarketInsightSourceState {
+    if (!source) return { id, label, state: 'unavailable' }
+    const state = new Date(source.expiresAt).getTime() <= Date.now() || isExpired(source.savedAt, interval)
+      ? 'stale'
+      : new Date(source.savedAt).getTime() + 2_000 < Date.now()
+        ? 'cached'
+        : 'live'
+    return {
+      id,
+      label,
+      state,
+      savedAt: source.savedAt,
+      dataCutoffAt: source.dataCutoffAt
+    }
+  }
+
+  private dataState(sourceStates: readonly MarketInsightSourceState[]): 'live' | 'cached' | 'stale' {
+    if (sourceStates.some((source) => source.state === 'stale')) return 'stale'
+    return sourceStates.some((source) => source.state === 'cached') ? 'cached' : 'live'
   }
 
   private currentSnapshotState(snapshot: MarketInsightSnapshot): MarketInsightSnapshot {

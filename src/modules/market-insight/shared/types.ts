@@ -3,6 +3,15 @@ import type { KlineBar, TTradingAccount } from '../../../shared/types'
 export type IndicatorUnit = 'price' | 'percent' | 'amount' | 'ratio' | 'none'
 export type IndicatorState = 'up' | 'down' | 'flat' | 'unknown'
 export type MarketInsightDataState = 'live' | 'cached' | 'stale'
+export type MarketInsightSourceId = 'intraday' | 'daily' | 'orderBook' | 'fundsFlow'
+
+export interface MarketInsightSourceState {
+  id: MarketInsightSourceId
+  label: string
+  state: MarketInsightDataState | 'unavailable'
+  savedAt?: string
+  dataCutoffAt?: string
+}
 
 export interface IndicatorValue {
   id: string
@@ -88,6 +97,7 @@ export interface MarketInsightSnapshot {
   generatedAt: string
   dataCutoffAt: string
   dataState: MarketInsightDataState
+  sourceStates?: MarketInsightSourceState[]
   indicators: IndicatorSnapshot
   news: MarketNewsItem[]
   events: WatchEvent[]

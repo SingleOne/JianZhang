@@ -10,6 +10,8 @@ export interface AiTAdviceValidationContext {
   quoteName: string
   snapshotId: string
   snapshotGeneratedAt: string
+  snapshotDataState: 'live' | 'cached' | 'stale'
+  snapshotStaleSources: string[]
   maxTradableQuantity: number
   providerId: string
   model: string
@@ -62,6 +64,8 @@ export function parseAiTAdvice(content: string, context: AiTAdviceValidationCont
     confidence,
     sourceSnapshotId: context.snapshotId,
     snapshotGeneratedAt: context.snapshotGeneratedAt,
+    snapshotDataState: context.snapshotDataState,
+    snapshotStaleSources: context.snapshotStaleSources,
     generatedAt: context.generatedAt,
     providerId: context.providerId,
     model: context.model,

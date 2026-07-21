@@ -38,6 +38,7 @@ import {
 } from '../../src/lib/t-alerts'
 import { calculatePositionMetrics } from '../../src/lib/portfolio'
 import type { AiRuntime } from '../../src/modules/ai/main/register'
+import type { MarketInsightRuntime } from '../../src/modules/market-insight/main/register'
 import {
   fetchFundsFlow,
   fetchKline,
@@ -81,7 +82,7 @@ let taskbarLayout: TaskbarLayout = { taskbarHeight: 48 }
 let trayHovered = false
 const refreshesInFlight = new Set<'all' | 'priority' | 'regular'>()
 let isQuitting = false
-let marketInsightRuntime: { dispose: () => void; getSnapshot: (quoteId: string) => Promise<any> } | null = null
+let marketInsightRuntime: MarketInsightRuntime | null = null
 let aiRuntime: AiRuntime | null = null
 let aiTAdviceRuntime: { dispose: () => void } | null = null
 
@@ -757,7 +758,7 @@ if (!hasSingleInstanceLock) {
       if (__JIANZHANG_AI_T_ADVICE_MODULE_ENABLED__) {
         const { installAiTAdvice } = await import('../../src/modules/ai-t-advice/main/register')
         aiTAdviceRuntime = installAiTAdvice({
-          getMarketInsightSnapshot: (quoteId) => marketInsightRuntime?.getSnapshot(quoteId) ?? null,
+          refreshMarketInsightSnapshot: (quoteId) => marketInsightRuntime?.refreshSnapshot(quoteId) ?? null,
           getTradingContext: (quoteId) => {
             const stock = state.watchlist.find((item) => item.quoteId === quoteId)
             if (!stock) return null

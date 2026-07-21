@@ -31,6 +31,7 @@ export interface MarketInsightDependencies {
 export interface MarketInsightRuntime {
   dispose: () => void
   getSnapshot: (quoteId: string) => ReturnType<MarketInsightService['getSnapshot']>
+  refreshSnapshot: (quoteId: string) => ReturnType<MarketInsightService['refresh']>
 }
 
 export function installMarketInsight(dependencies: MarketInsightDependencies): MarketInsightRuntime {
@@ -68,6 +69,7 @@ export function installMarketInsight(dependencies: MarketInsightDependencies): M
 
   return {
     getSnapshot: (quoteId) => service.getSnapshot(quoteId),
+    refreshSnapshot: (quoteId) => service.refresh(quoteId, true),
     dispose: () => {
       unsubscribe()
       service.dispose()

@@ -25,7 +25,7 @@ interface StoredPreview extends AiTAdviceApplyPreview {
 }
 
 export interface AiTAdviceDependencies {
-  getMarketInsightSnapshot: (quoteId: string) => Promise<MarketInsightSnapshot | null> | null
+  refreshMarketInsightSnapshot: (quoteId: string) => Promise<MarketInsightSnapshot | null> | null
   getTradingContext: (quoteId: string) => AiTAdviceTradingContext | null
   saveTradingAccount: (quoteId: string, account: TTradingAccount) => void
   runStructuredTask: (
@@ -51,6 +51,10 @@ function buildPromptContext(snapshot: MarketInsightSnapshot, context: AiTAdviceT
   const batch = context.account?.activeBatch
   const metrics = batch ? calculateTBatchMetrics(batch, context.quote?.latest) : null
   const positionQuantity = context.position?.quantity ?? 0
+  const sourceStates = snapshot.sourceStates ?? []
+  const staleSources = sourceStates
+    .filter((source) => source.state === 'stale')
+    .map((source) => source.label)
   return {
     promptVersion: AI_T_ADVICE_PROMPT_VERSION,
     snapshot: {
@@ -58,6 +62,9 @@ function buildPromptContext(snapshot: MarketInsightSnapshot, context: AiTAdviceT
       generatedAt: snapshot.generatedAt,
       dataCutoffAt: snapshot.dataCutoffAt,
       dataState: snapshot.dataState,
+      ageSeconds: Math.max(0, Math.round((Date.now() - new Date(snapshot.generatedAt).getTime()) / 1000)),
+      sourceStates,
+      staleSources,
       indicators: snapshot.indicators,
       events: snapshot.events,
       news: snapshot.news.slice(0, 8).map((item) => ({
@@ -140,7 +147,7 @@ export class AiTAdviceService {
     if (this.activeGenerations.has(quoteId)) throw new Error('当前股票正在生成做 T 参考')
     const tradingContext = this.dependencies.getTradingContext(quoteId)
     if (!tradingContext) throw new Error('未找到当前股票或持仓上下文')
-    const snapshot = await this.dependencies.getMarketInsightSnapshot(quoteId)
+    const snapshot = await this.dependencies.refreshMarketInsightSnapshot(quoteId)
     if (!snapshot) throw new Error('当前还没有市场观察快照，请先打开市场观察并刷新')
     if (tradingContext.quote?.latest === null || tradingContext.quote?.latest === undefined) {
       throw new Error('当前最新价不可用，暂时不能生成做 T 参考')
@@ -160,6 +167,8 @@ export class AiTAdviceService {
         quoteName: tradingContext.stock.name,
         snapshotId: snapshotId(snapshot),
         snapshotGeneratedAt: snapshot.generatedAt,
+        snapshotDataState: snapshot.dataState,
+        snapshotStaleSources: promptContext.snapshot.staleSources,
         maxTradableQuantity: promptContext.maxTradableQuantity,
         providerId: result.providerId,
         model: result.model,

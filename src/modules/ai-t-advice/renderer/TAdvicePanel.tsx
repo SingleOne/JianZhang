@@ -35,6 +35,12 @@ const CONFIDENCE_LABELS = {
   high: '高置信度'
 } as const
 
+const SNAPSHOT_STATE_LABELS = {
+  live: '实时',
+  cached: '有效缓存',
+  stale: '陈旧'
+} as const
+
 function formatPrice(value: number | null | undefined): string {
   if (value === null || value === undefined) return '--'
   return value >= 100 ? value.toFixed(2) : value.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')
@@ -70,6 +76,14 @@ function AdviceSummary({ advice }: { advice: AiTAdvice }) {
         <section><h4>判断依据</h4><ul>{advice.rationale.map((item) => <li key={item}>{item}</li>)}</ul></section>
         <section className="is-risk"><h4>风险与限制</h4><ul>{advice.risks.map((item) => <li key={item}>{item}</li>)}</ul></section>
       </div>
+      {advice.snapshotDataState ? (
+        <div className={`ai-t-snapshot-state is-${advice.snapshotDataState}`}>
+          <strong>快照状态：{SNAPSHOT_STATE_LABELS[advice.snapshotDataState]}</strong>
+          {advice.snapshotDataState === 'stale' ? (
+            <span>陈旧来源：{advice.snapshotStaleSources?.join('、') || '整体快照'}</span>
+          ) : null}
+        </div>
+      ) : null}
       <p className="ai-t-snapshot-time">生成于 {formatTime(advice.generatedAt)} · 快照时间 {formatTime(advice.snapshotGeneratedAt)}</p>
     </div>
   )
@@ -196,7 +210,7 @@ export function TAdvicePanel({ stock, quote }: TAdvicePanelProps) {
       {!settings.enabled ? (
         <div className="ai-t-disabled"><Ban size={24} /><strong>做 T 参考当前已关闭</strong><span>开启后也只会在你主动点击“生成参考”时调用模型。</span></div>
       ) : loading ? (
-        <div className="ai-t-loading"><LoaderCircle size={22} className="is-spinning" /><strong>正在结合快照、持仓与 T 计划生成参考…</strong><span>模型结果还会经过本地价格、数量和持仓约束校验。</span></div>
+        <div className="ai-t-loading"><LoaderCircle size={22} className="is-spinning" /><strong>正在刷新快照并生成参考…</strong><span>刷新完成后会结合持仓与 T 计划，并经过本地价格、数量和持仓约束校验。</span></div>
       ) : latest ? (
         <article className={`ai-t-advice-card is-${latest.status}`}>
           <AdviceSummary advice={latest} />

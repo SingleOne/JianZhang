@@ -30,6 +30,8 @@ export interface AiTAdvice {
   confidence: AiTAdviceConfidence
   sourceSnapshotId: string
   snapshotGeneratedAt: string
+  snapshotDataState?: 'live' | 'cached' | 'stale'
+  snapshotStaleSources?: string[]
   generatedAt: string
   providerId: string
   model: string

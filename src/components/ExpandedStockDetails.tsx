@@ -1,4 +1,4 @@
-import { AlertCircle, BarChart3, Bot, Layers, Radar, RefreshCw, TrendingUp } from 'lucide-react'
+import { AlertCircle, BarChart3, Bot, Layers, Radar, RefreshCw, Sparkles, TrendingUp } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { stockApi } from '../lib/api'
 import { formatAmount, formatPercent, formatPrice, formatVolume } from '../lib/format'
@@ -22,7 +22,7 @@ const AiTAdvicePanel = __JIANZHANG_AI_T_ADVICE_MODULE_ENABLED__
   : null
 
 type PriceTab = Exclude<KlinePeriod, 'intraday'> | 'trend'
-type DetailTab = PriceTab | 'funds' | 'sector' | 'insight' | 'ai'
+type DetailTab = PriceTab | 'funds' | 'sector' | 'insight' | 'ai' | 't-advice'
 type HistoricalPeriod = Extract<KlinePeriod, 'daily' | 'weekly' | 'monthly'>
 
 interface KlineCacheEntry {
@@ -39,6 +39,9 @@ const PRICE_TABS: Array<{ id: PriceTab; label: string; description: string }> = 
   { id: 'weekly', label: '周K', description: '周 K 线' },
   { id: 'monthly', label: '月K', description: '月 K 线' }
 ]
+const LEADING_PRICE_TABS = PRICE_TABS.filter((tab) => tab.id === 'trend')
+const TRAILING_PRICE_TABS = PRICE_TABS.filter((tab) => tab.id !== 'trend')
+const PRICE_TAB_IDS = new Set<PriceTab>(PRICE_TABS.map((tab) => tab.id))
 const INITIAL_HISTORY_LIMITS: Record<HistoricalPeriod, number> = {
   daily: 120,
   weekly: 104,
@@ -52,6 +55,10 @@ const MAX_HISTORY_LIMITS: Record<HistoricalPeriod, number> = {
 
 function isHistoricalTab(tab: PriceTab): tab is HistoricalPeriod {
   return tab === 'daily' || tab === 'weekly' || tab === 'monthly'
+}
+
+function isPriceTab(tab: DetailTab): tab is PriceTab {
+  return PRICE_TAB_IDS.has(tab as PriceTab)
 }
 
 function apiPeriod(tab: PriceTab): KlinePeriod {
@@ -84,11 +91,7 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
   const [marketInsightSnapshot, setMarketInsightSnapshot] = useState<MarketInsightSnapshot | null>(null)
   const [showInsightOverlay, setShowInsightOverlay] = useState(true)
   const [aiEnabled, setAiEnabled] = useState(false)
-  const activeHistoricalLimit = activeTab !== 'funds'
-    && activeTab !== 'sector'
-    && activeTab !== 'insight'
-    && activeTab !== 'ai'
-    && isHistoricalTab(activeTab)
+  const activeHistoricalLimit = isPriceTab(activeTab) && isHistoricalTab(activeTab)
     ? historyLimits[activeTab]
     : undefined
 
@@ -122,11 +125,11 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
   }, [])
 
   useEffect(() => {
-    if (!aiEnabled && activeTab === 'ai') setActiveTab('trend')
+    if (!aiEnabled && (activeTab === 'ai' || activeTab === 't-advice')) setActiveTab('trend')
   }, [activeTab, aiEnabled])
 
   useEffect(() => {
-    if (activeTab === 'funds' || activeTab === 'sector' || activeTab === 'insight' || activeTab === 'ai') return
+    if (!isPriceTab(activeTab)) return
 
     const tab = activeTab
     const key = cacheKey(stock.quoteId, tab)
@@ -185,7 +188,7 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
     }
   }, [activeHistoricalLimit, activeTab, refreshSeconds, refreshVersion, stock.quoteId])
 
-  const priceTab = activeTab === 'funds' || activeTab === 'sector' || activeTab === 'insight' || activeTab === 'ai' ? null : activeTab
+  const priceTab = isPriceTab(activeTab) ? activeTab : null
   const data = priceTab ? dataByTab[priceTab] ?? null : null
   const error = priceTab ? errors[priceTab] ?? '' : ''
   const tabMeta = priceTab ? PRICE_TABS.find((item) => item.id === priceTab) : undefined
@@ -241,7 +244,7 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
   return (
     <section className="stock-details" aria-label={`${stock.name} 行情详情`}>
       <div className="detail-tabs" role="tablist" aria-label="行情详情类型">
-        {PRICE_TABS.map((tab) => (
+        {LEADING_PRICE_TABS.map((tab) => (
           <button
             className={activeTab === tab.id ? 'is-active' : ''}
             type="button"
@@ -298,6 +301,31 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
             AI 分析
           </button>
         ) : null}
+        {AiTAdvicePanel && aiEnabled ? (
+          <button
+            className={activeTab === 't-advice' ? 'is-active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 't-advice'}
+            onClick={() => setActiveTab('t-advice')}
+          >
+            <Sparkles size={15} />
+            做 T 参考
+          </button>
+        ) : null}
+        {TRAILING_PRICE_TABS.map((tab) => (
+          <button
+            className={activeTab === tab.id ? 'is-active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            key={tab.id}
+          >
+            <BarChart3 size={15} />
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {priceTab ? (
@@ -389,10 +417,11 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
         </div>
       ) : activeTab === 'ai' && AiAnalysisPanel ? (
         <Suspense fallback={<div className="chart-loading">正在初始化 AI 分析…</div>}>
-          <div className="ai-analysis-stack">
-            <AiAnalysisPanel stock={stock} quote={quote} />
-            {AiTAdvicePanel ? <AiTAdvicePanel stock={stock} quote={quote} /> : null}
-          </div>
+          <AiAnalysisPanel stock={stock} quote={quote} />
+        </Suspense>
+      ) : activeTab === 't-advice' && AiTAdvicePanel ? (
+        <Suspense fallback={<div className="chart-loading">正在初始化做 T 参考…</div>}>
+          <AiTAdvicePanel stock={stock} quote={quote} />
         </Suspense>
       ) : MarketInsightPanel ? (
         <Suspense fallback={<div className="chart-loading">正在初始化市场观察…</div>}>

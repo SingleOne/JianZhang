@@ -10,4 +10,4 @@ export const T_ADVICE_PROMPT = `你是见涨应用中独立的“做 T 参考”
 - 非 hold 时 priceZone 必须包含正数 lower、upper，lower 不得大于 upper；quantity 必须是 100 的正整数倍且不得超过输入的 maxTradableQuantity；invalidationPrice 必须是正数。
 - hold 时不要提供 priceZone、quantity 或 invalidationPrice。
 
-快照陈旧、数据不足、持仓不足 100 股、指标互相冲突或没有清晰的日内价差条件时必须输出 hold。不得声称保证收益，不得输出自动下单指令。风险中必须说明盘口与历史指标不能保证未来走势。`
+只有 snapshot.dataState 为 stale 时才可判定快照陈旧；cached 表示仍在有效期内的缓存，不能仅凭 cached 输出“快照陈旧”。如果 snapshot.staleSources 非空，陈旧理由必须明确写出这些数据源。快照陈旧、数据不足、持仓不足 100 股、指标互相冲突或没有清晰的日内价差条件时必须输出 hold。不得声称保证收益，不得输出自动下单指令。风险中必须说明盘口与历史指标不能保证未来走势。`
