@@ -108,17 +108,28 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (!AiAssistantDrawer || !window.aiApi) return
     let active = true
-    void window.aiApi.getStatus().then((status) => {
-      if (active) setAiRuntimeEnabled(status.enabled)
-    }).catch(() => {
-      if (active) setAiRuntimeEnabled(false)
-    })
+    let waitTimer: number | undefined
+    const syncAiRuntime = () => {
+      const api = window.aiApi
+      if (!AiAssistantDrawer || !api) return false
+      void api.getStatus().then((status) => {
+        if (active) setAiRuntimeEnabled(status.enabled)
+      }).catch(() => {
+        if (active) setAiRuntimeEnabled(false)
+      })
+      return true
+    }
+    if (!syncAiRuntime()) {
+      waitTimer = window.setInterval(() => {
+        if (syncAiRuntime() && waitTimer !== undefined) window.clearInterval(waitTimer)
+      }, 25)
+    }
     const handleEnabledChange = (event: Event) => setAiRuntimeEnabled(Boolean((event as CustomEvent<boolean>).detail))
     window.addEventListener('ai:enabled-changed', handleEnabledChange)
     return () => {
       active = false
+      if (waitTimer !== undefined) window.clearInterval(waitTimer)
       window.removeEventListener('ai:enabled-changed', handleEnabledChange)
     }
   }, [])

@@ -98,17 +98,27 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
   }, [stock.quoteId])
 
   useEffect(() => {
-    if (!AiAnalysisPanel || !window.aiApi) {
-      setAiEnabled(false)
-      return
-    }
     let active = true
-    void window.aiApi.getStatus().then((status) => {
-      if (active) setAiEnabled(status.enabled)
-    }).catch(() => {
-      if (active) setAiEnabled(false)
-    })
-    return () => { active = false }
+    let waitTimer: number | undefined
+    const syncAiStatus = () => {
+      const api = window.aiApi
+      if (!AiAnalysisPanel || !api) return false
+      void api.getStatus().then((status) => {
+        if (active) setAiEnabled(status.enabled)
+      }).catch(() => {
+        if (active) setAiEnabled(false)
+      })
+      return true
+    }
+    if (!syncAiStatus()) {
+      waitTimer = window.setInterval(() => {
+        if (syncAiStatus() && waitTimer !== undefined) window.clearInterval(waitTimer)
+      }, 25)
+    }
+    return () => {
+      active = false
+      if (waitTimer !== undefined) window.clearInterval(waitTimer)
+    }
   }, [])
 
   useEffect(() => {
