@@ -31,7 +31,7 @@ export const MARKET_INSIGHT_REFRESH_INTERVALS = {
   orderBook: 30_000,
   fundsFlow: 2 * 60_000,
   sector: 2 * 60_000,
-  news: 10 * 60_000
+  news: 15 * 60_000
 } as const
 
 export const MARKET_INSIGHT_RESOURCE_LIMITS = {

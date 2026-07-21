@@ -221,7 +221,7 @@ export default function MarketInsightPanel({
         {snapshot?.dataState === 'stale' ? <AlertCircle size={14} /> : <Radio size={14} />}
         <span>{snapshot?.dataState === 'stale' ? '部分数据可能已过期，当前显示最近一次缓存。' : snapshot?.dataState === 'cached' ? '当前显示缓存数据。' : '当前快照由现有行情和分层数据源计算。'}</span>
         <span>{!status?.enabled ? '市场洞察模块当前已关闭。' : isWatching ? '该股票已开启后台盯盘。' : '该股票未开启后台盯盘；详情页打开时仍可手动刷新。'}</span>
-        <span>{stock.isPriority ? '重点关注股票的新闻每 10 分钟自动查询。' : '非重点股票的新闻在交易日收盘后每天查询一次。'}</span>
+        <span>{stock.isPriority ? '重点关注股票的新闻每 15 分钟自动查询。' : '非重点股票的新闻在交易日收盘后每天查询一次。'}</span>
       </div>
 
       {settings ? (

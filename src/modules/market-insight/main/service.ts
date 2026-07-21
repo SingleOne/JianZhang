@@ -7,7 +7,6 @@ import type {
   TPlanLevel,
   WatchStock
 } from '../../../shared/types'
-import { getAvailablePositionQuantity } from '../../../lib/portfolio'
 import { tPlanTargetPrice } from '../../../lib/t-alerts'
 import { calculateTBatchMetrics } from '../../../lib/t-trading'
 import { getMarketIndexStocks } from '../../../shared/types'
@@ -412,16 +411,16 @@ export class MarketInsightService {
   private calculateTPlanDistances(stock: WatchStock, latest: number | null): TPlanDistance[] {
     const account = this.dependencies.getState().tTradingAccounts[stock.quoteId]
     const batch = account?.activeBatch
-    const cost = batch ? calculateTBatchMetrics(batch).averageCost : stock.position?.cost
+    const batchMetrics = batch ? calculateTBatchMetrics(batch) : null
+    const cost = batchMetrics ? batchMetrics.averageCost : stock.position?.cost
     if (latest === null || cost === null || cost === undefined) return []
-    const availableQuantity = getAvailablePositionQuantity(stock.position, account)
     const position: TPlanDistance = {
       id: 'position-cost',
       label: 'T 仓均价',
       side: 'position',
       price: cost,
       distancePercent: cost === 0 ? null : (latest / cost - 1) * 100,
-      quantity: availableQuantity,
+      quantity: batchMetrics?.remainingQuantity ?? null,
       isNearest: false
     }
     if (!batch) return [position]
