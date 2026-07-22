@@ -1,6 +1,7 @@
 import { net } from 'electron'
 import type {
   FundsFlowResult,
+  KlineBar,
   KlinePeriod,
   KlineResult,
   OrderBookLevel,
@@ -19,6 +20,15 @@ const EASTMONEY_HEADERS = {
   Referer: 'https://quote.eastmoney.com/',
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 }
+const TENCENT_HEADERS = {
+  Accept: 'application/json, text/plain, */*',
+  Referer: 'https://gu.qq.com/',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+}
+const MARKET_INDEX_QUOTE_IDS = new Set([
+  '1.000001', '0.399001', '0.399006', '1.000016', '1.000300',
+  '1.000688', '1.000905', '1.000852', '0.899050'
+])
 const RADAR_TOKEN = '7eea3edcaed734bea9cbfc24409ed989'
 const RADAR_TYPES = [
   8201, 8202, 8193, 4, 32, 64, 8207, 8209, 8211, 8213, 8215,
@@ -129,13 +139,17 @@ interface SectorBinding {
 
 const sectorBindingCache = new Map<string, SectorBinding>()
 
-async function requestJson<T>(url: string, maxAttempts = 2): Promise<T> {
+async function requestJson<T>(
+  url: string,
+  maxAttempts = 2,
+  headers: Record<string, string> = EASTMONEY_HEADERS
+): Promise<T> {
   let lastError: unknown
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
       const response = await net.fetch(url, {
-        headers: EASTMONEY_HEADERS,
+        headers,
         signal: AbortSignal.timeout(12_000)
       })
 
@@ -482,6 +496,115 @@ function toHistoricalKlineResult(quoteId: string, name: string | undefined, line
   }
 }
 
+type TencentKlineRow = [string, string, string, string, string, string, ...unknown[]]
+
+interface TencentKlineData {
+  qt?: Record<string, string[]>
+  qfqday?: TencentKlineRow[]
+  qfqweek?: TencentKlineRow[]
+  qfqmonth?: TencentKlineRow[]
+  day?: TencentKlineRow[]
+  week?: TencentKlineRow[]
+  month?: TencentKlineRow[]
+  m5?: TencentKlineRow[]
+}
+
+function toTencentSymbol(quoteId: string): string {
+  const [market, code] = quoteId.split('.')
+  if (market === '1') return `sh${code}`
+  if (/^(4|8|92)/.test(code)) return `bj${code}`
+  return `sz${code}`
+}
+
+function normalizeTencentKlineTime(time: string): string {
+  if (!/^\d{12}$/.test(time)) return time
+  return `${time.slice(0, 4)}-${time.slice(4, 6)}-${time.slice(6, 8)} ${time.slice(8, 10)}:${time.slice(10, 12)}`
+}
+
+function toTencentKlineResult(
+  quoteId: string,
+  name: string | undefined,
+  rows: TencentKlineRow[]
+): KlineResult {
+  if (rows.length === 0) throw new Error('腾讯行情未返回 K 线数据')
+
+  const amountUnit = MARKET_INDEX_QUOTE_IDS.has(quoteId) ? 1 : 100
+  const bars: KlineBar[] = rows.map((row) => {
+    const [time, openText, closeText, highText, lowText, volumeText] = row
+    const open = Number(openText)
+    const close = Number(closeText)
+    const high = Number(highText)
+    const low = Number(lowText)
+    const volume = Number(volumeText)
+    return {
+      time: normalizeTencentKlineTime(time),
+      open,
+      close,
+      high,
+      low,
+      volume,
+      amount: (open + close + high + low) / 4 * volume * amountUnit,
+      turnoverRate: typeof row[7] === 'string' ? Number(row[7]) : undefined
+    }
+  })
+  const firstDate = bars[0]?.time.slice(0, 10) ?? ''
+  const lastDate = bars.at(-1)?.time.slice(0, 10) ?? ''
+  return {
+    quoteId,
+    name: name ?? '',
+    tradingDate: firstDate === lastDate ? lastDate : `${firstDate} 至 ${lastDate}`,
+    bars
+  }
+}
+
+async function fetchTencentKline(
+  quoteId: string,
+  period: KlinePeriod,
+  limit: number
+): Promise<KlineResult> {
+  const symbol = toTencentSymbol(quoteId)
+  const url = period === 'fiveDay' || period === 'intraday'
+    ? new URL('https://ifzq.gtimg.cn/appstock/app/kline/mkline')
+    : new URL('https://ifzq.gtimg.cn/appstock/app/fqkline/get')
+
+  if (period === 'fiveDay' || period === 'intraday') {
+    url.searchParams.set('param', `${symbol},m5,,${period === 'fiveDay' ? 240 : 120}`)
+  } else {
+    const tencentPeriod = period === 'daily' ? 'day' : period === 'weekly' ? 'week' : 'month'
+    url.searchParams.set('param', `${symbol},${tencentPeriod},,,${limit},qfq`)
+  }
+
+  const payload = await requestJson<{
+    code?: number
+    msg?: string
+    data?: Record<string, TencentKlineData>
+  }>(url.toString(), 2, TENCENT_HEADERS)
+  if (payload.code !== 0) throw new Error(payload.msg || '腾讯行情 K 线请求失败')
+
+  const source = payload.data?.[symbol]
+  const quote = source?.qt?.[symbol]
+  let rows: TencentKlineRow[] = []
+  if (period === 'fiveDay' || period === 'intraday') {
+    rows = source?.m5 ?? []
+  } else if (period === 'daily') {
+    rows = source?.qfqday ?? source?.day ?? []
+  } else if (period === 'weekly') {
+    rows = source?.qfqweek ?? source?.week ?? []
+  } else {
+    rows = source?.qfqmonth ?? source?.month ?? []
+  }
+
+  const result = toTencentKlineResult(quoteId, quote?.[1], rows)
+  if (period !== 'intraday') return result
+
+  const tradingDate = result.bars.at(-1)?.time.slice(0, 10) ?? ''
+  return {
+    ...result,
+    tradingDate,
+    bars: result.bars.filter((bar) => bar.time.startsWith(tradingDate))
+  }
+}
+
 async function fetchIntradayTrend(quoteId: string): Promise<KlineResult> {
   const url = new URL('https://push2.eastmoney.com/api/qt/stock/trends2/get')
   url.searchParams.set('secid', quoteId)
@@ -519,12 +642,12 @@ async function fetchHistoricalKline(
   return toHistoricalKlineResult(quoteId, payload.data?.name, payload.data?.klines ?? [])
 }
 
-export async function fetchKline(
+async function fetchEastmoneyKline(
   quoteId: string,
   period: KlinePeriod = 'intraday',
   limit?: number
 ): Promise<KlineResult> {
-  const requestedLimit = Math.max(1, Math.round(limit ?? 0))
+  const requestedLimit = limit === undefined ? 0 : Math.max(1, Math.round(limit))
   switch (period) {
     case 'fiveDay': return fetchHistoricalKline(quoteId, '5', 240)
     case 'daily': return fetchHistoricalKline(quoteId, '101', requestedLimit || 120)
@@ -542,6 +665,37 @@ export async function fetchKline(
           bars: fallback.bars.filter((bar) => bar.time.startsWith(tradingDate))
         }
       }
+  }
+}
+
+export async function fetchKline(
+  quoteId: string,
+  period: KlinePeriod = 'intraday',
+  limit?: number
+): Promise<KlineResult> {
+  const requestedLimit = limit === undefined
+    ? period === 'weekly'
+      ? 104
+      : period === 'monthly'
+        ? 60
+        : 120
+    : Math.max(1, Math.round(limit))
+  let primaryError: unknown
+
+  try {
+    const result = await fetchEastmoneyKline(quoteId, period, limit)
+    return result
+  } catch (error) {
+    primaryError = error
+  }
+
+  try {
+    const result = await fetchTencentKline(quoteId, period, requestedLimit)
+    return result
+  } catch (backupError) {
+    const primaryMessage = primaryError instanceof Error ? primaryError.message : '请求失败'
+    const backupMessage = backupError instanceof Error ? backupError.message : '请求失败'
+    throw new Error(`K 线主备数据源均不可用（东方财富：${primaryMessage}；腾讯行情：${backupMessage}）`)
   }
 }
 

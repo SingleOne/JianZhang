@@ -13,12 +13,12 @@
 | 五档盘口 | `OrderBookHub` → `fetchOrderBook` | 东方财富个股行情 |
 | 当日异动 | `fetchTodayRadarSignals` | 东方财富异动 |
 | 近 5 日异动 | `fetchHistoricalRadarSignals` | 东方财富异动统计与明细 |
-| 分时/五日/周期 K | `fetchKline` | 东方财富趋势/K 线 |
+| 分时/五日/周期 K | `fetchKline` | 东方财富主源、腾讯行情备用源 |
 | 所属板块和板块报价 | `fetchSectorBinding/Quotes/Index` | 东方财富个股页与板块行情 |
 | 资金流向 | `fetchFundsFlow` | 东方财富分钟资金流 |
 | 休市日历 | `fetchSseTradingCalendar` | 上交所休市安排 |
 
-所有行情请求通过 Electron `net.fetch` 发出。`requestJson` 使用 12 秒超时并最多尝试两次；板块页面文本请求使用同样的 12 秒超时，但不重试。
+所有行情请求通过 Electron `net.fetch` 发出。`requestJson` 使用 12 秒超时并最多尝试两次；板块页面文本请求使用同样的 12 秒超时，但不重试。K 线请求在东方财富失败后自动切换到腾讯行情。
 
 ## 报价标识
 
