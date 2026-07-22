@@ -253,18 +253,18 @@ function taskbarVisibleStocks(): WatchStock[] {
   return state.watchlist.filter((stock) => (
     stock.showInTaskbar
     || accountHasTriggeredTAlerts(state.tTradingAccounts[stock.quoteId])
-    || latestQuotes.some((quote) => (
+    || (stock.isPriority && latestQuotes.some((quote) => (
       quote.quoteId === stock.quoteId && Boolean(quote.fiveLevelLargeOrders?.length)
-    ))
+    )))
   ))
 }
 
 function hasActiveTaskbarAlert(): boolean {
   return state.watchlist.some((stock) => (
     accountHasTriggeredTAlerts(state.tTradingAccounts[stock.quoteId])
-    || latestQuotes.some((quote) => (
+    || (stock.isPriority && latestQuotes.some((quote) => (
       quote.quoteId === stock.quoteId && Boolean(quote.fiveLevelLargeOrders?.length)
-    ))
+    )))
   ))
 }
 
@@ -495,6 +495,20 @@ function mergeQuotes(refreshedQuotes: StockQuote[]): void {
     const quote = quoteMap.get(stock.quoteId)
     return quote ? [quote] : []
   })
+  clearFiveLevelLargeOrdersFromNonPriorityStocks()
+}
+
+function clearFiveLevelLargeOrdersFromNonPriorityStocks(): boolean {
+  const priorityQuoteIds = new Set(
+    state.watchlist.filter((stock) => stock.isPriority).map((stock) => stock.quoteId)
+  )
+  let changed = false
+  latestQuotes = latestQuotes.map((quote) => {
+    if (priorityQuoteIds.has(quote.quoteId) || quote.fiveLevelLargeOrders === undefined) return quote
+    changed = true
+    return { ...quote, fiveLevelLargeOrders: undefined }
+  })
+  return changed
 }
 
 async function fetchFiveLevelLargeOrderAlerts(
@@ -514,15 +528,20 @@ async function fetchFiveLevelLargeOrderAlerts(
 }
 
 async function refreshFiveLevelLargeOrders(stocks: WatchStock[]): Promise<void> {
-  const pendingStocks = stocks.filter((stock) => !fiveLevelRefreshesInFlight.has(stock.quoteId))
+  const pendingStocks = stocks.filter((stock) => (
+    stock.isPriority && !fiveLevelRefreshesInFlight.has(stock.quoteId)
+  ))
   if (pendingStocks.length === 0) return
   pendingStocks.forEach((stock) => fiveLevelRefreshesInFlight.add(stock.quoteId))
 
   try {
     const alertsByQuoteId = await fetchFiveLevelLargeOrderAlerts(pendingStocks)
     if (alertsByQuoteId.size === 0) return
+    const priorityQuoteIds = new Set(
+      state.watchlist.filter((stock) => stock.isPriority).map((stock) => stock.quoteId)
+    )
     latestQuotes = latestQuotes.map((quote) => (
-      alertsByQuoteId.has(quote.quoteId)
+      priorityQuoteIds.has(quote.quoteId) && alertsByQuoteId.has(quote.quoteId)
         ? { ...quote, fiveLevelLargeOrders: alertsByQuoteId.get(quote.quoteId)! }
         : quote
     ))
@@ -578,7 +597,7 @@ async function refreshStocks(
     sendToWindows('quotes:updated', latestQuotes)
     updateAppTrayMenu()
     syncTaskbarWindow()
-    void refreshFiveLevelLargeOrders(stocks)
+    void refreshFiveLevelLargeOrders(stocks.filter((stock) => stock.isPriority))
     return latestQuotes
   } catch (error) {
     const message = error instanceof Error ? error.message : '行情刷新失败'
@@ -758,12 +777,14 @@ function registerIpc(): void {
       normalizedState.tTradingAccounts
     )
     state = { ...normalizedState, watchlist: stockAlertUpdate.watchlist }
+    const fiveLevelAlertsCleared = clearFiveLevelLargeOrdersFromNonPriorityStocks()
     persistState()
     if (startWithWindowsChanged) {
       app.setLoginItemSettings({ openAtLogin: state.settings.startWithWindows })
     }
     if (refreshSettingsChanged) restartRefreshTimers()
     sendToWindows('state:updated', state)
+    if (fiveLevelAlertsCleared) sendToWindows('quotes:updated', latestQuotes)
     updateAppTrayMenu()
     syncTaskbarWindow()
     if (trayPopupWindow?.isVisible()) positionTrayPopupWindow()

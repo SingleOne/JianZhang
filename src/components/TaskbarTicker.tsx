@@ -55,7 +55,7 @@ export function TaskbarTicker() {
           stock,
           quote,
           alertBadges: getTriggeredTAlertBadges(account?.activeBatch),
-          fiveLevelAlerts: quote?.fiveLevelLargeOrders,
+          fiveLevelAlerts: stock.isPriority ? quote?.fiveLevelLargeOrders : undefined,
           hasTriggeredStockAlert: stock.alertRules?.some((rule) => (
             rule.enabled && rule.status === 'triggered'
           )) ?? false

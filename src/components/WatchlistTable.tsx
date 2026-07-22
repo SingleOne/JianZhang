@@ -790,7 +790,10 @@ export function WatchlistTable({
                                 <span>
                                   <span className="stock-name-line">
                                     <strong>{stock.name}</strong>
-                                    <FiveLevelAlertBadges alerts={quote?.fiveLevelLargeOrders} compact />
+                                    <FiveLevelAlertBadges
+                                      alerts={stock.isPriority ? quote?.fiveLevelLargeOrders : undefined}
+                                      compact
+                                    />
                                   </span>
                                   <small>{stock.code} · {stock.marketLabel}</small>
                                 </span>
