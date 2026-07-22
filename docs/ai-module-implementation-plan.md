@@ -557,7 +557,8 @@ flowchart LR
 ```mermaid
 flowchart LR
     START["用户主动点击做T参考"] --> CONTEXT["快照+只读持仓/T计划"]
-    CONTEXT --> GENERATE["ai-t-advice 生成"]
+    CONTEXT --> EVENTS["确定性提取显著客观事件"]
+    EVENTS --> GENERATE["ai-t-advice 生成"]
     GENERATE --> VALIDATE["Schema+价格+数量+持仓校验"]
     VALIDATE --> DISPLAY["独立建议卡片"]
     DISPLAY --> PREVIEW["预览与现有T计划差异"]
@@ -565,7 +566,7 @@ flowchart LR
     CONFIRM --> COMMAND["调用核心已有写命令"]
 ```
 
-模型输出不是写命令。校验失败时只显示错误，不进行“智能修正后自动应用”。
+客观事件与原始指标同时进入模型上下文。事件只描述布林带、VWAP、开盘区间、趋势、动量、量能、波动、盘口、资金流、相对强弱和 T 档位等可复算事实，不直接表达买卖方向；提示词要求逐项检查，并明确覆盖所有强显著事件。模型输出不是写命令。校验失败时只显示错误，不进行“智能修正后自动应用”。
 
 ## 12. 分阶段实施
 

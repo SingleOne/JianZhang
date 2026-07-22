@@ -595,18 +595,22 @@ function refreshAll(): Promise<StockQuote[]> {
   return refreshStocks(state.watchlist, 'all', true)
 }
 
+function isMainMarketAutoRefreshTime(): boolean {
+  return isBeijingAutoRefreshTime(new Date(), state.settings.tradingCalendar.closedDates)
+}
+
 function refreshPriorityStocks(): Promise<StockQuote[]> {
-  if (!isBeijingAutoRefreshTime()) return Promise.resolve(latestQuotes)
+  if (!isMainMarketAutoRefreshTime()) return Promise.resolve(latestQuotes)
   return refreshStocks(state.watchlist.filter((stock) => stock.isPriority), 'priority')
 }
 
 function refreshRegularStocks(): Promise<StockQuote[]> {
-  if (!isBeijingAutoRefreshTime()) return Promise.resolve(latestQuotes)
+  if (!isMainMarketAutoRefreshTime()) return Promise.resolve(latestQuotes)
   return refreshStocks(state.watchlist.filter((stock) => !stock.isPriority), 'regular', true)
 }
 
 function refreshAllAutomatically(): Promise<StockQuote[]> {
-  return isBeijingAutoRefreshTime() ? refreshAll() : Promise.resolve(latestQuotes)
+  return isMainMarketAutoRefreshTime() ? refreshAll() : Promise.resolve(latestQuotes)
 }
 
 function saveTradingCalendar(calendar: TradingCalendarSettings): TradingCalendarSettings {

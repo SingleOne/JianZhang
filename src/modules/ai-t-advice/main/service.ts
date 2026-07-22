@@ -14,6 +14,7 @@ import type {
   AiTAdviceStatus,
   AiTAdviceTradingContext
 } from '../shared/types'
+import { buildAiTAdviceObjectiveEvents } from './objective-events'
 import { AiTAdviceStorage } from './storage'
 import { parseAiTAdvice } from './validator'
 
@@ -65,6 +66,7 @@ function buildPromptContext(snapshot: MarketInsightSnapshot, context: AiTAdviceT
       ageSeconds: Math.max(0, Math.round((Date.now() - new Date(snapshot.generatedAt).getTime()) / 1000)),
       sourceStates,
       staleSources,
+      objectiveEvents: buildAiTAdviceObjectiveEvents(snapshot, context),
       indicators: snapshot.indicators,
       events: snapshot.events,
       news: snapshot.news.slice(0, 8).map((item) => ({

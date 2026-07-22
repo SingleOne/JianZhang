@@ -1,3 +1,5 @@
+import { isAStockTradingDay } from './trading-calendar'
+
 const BEIJING_OFFSET_MILLISECONDS = 8 * 60 * 60 * 1000
 const DAY_MILLISECONDS = 24 * 60 * 60 * 1000
 
@@ -14,7 +16,12 @@ function beijingMillisecondsOfDay(date: Date): number {
     + beijingTime.getUTCMilliseconds()
 }
 
-export function isBeijingAutoRefreshTime(date = new Date()): boolean {
+export function isBeijingAutoRefreshTime(
+  date = new Date(),
+  additionalClosedDates: readonly string[] = []
+): boolean {
+  const beijingDateKey = new Date(date.getTime() + BEIJING_OFFSET_MILLISECONDS).toISOString().slice(0, 10)
+  if (!isAStockTradingDay(beijingDateKey, additionalClosedDates)) return false
   const current = beijingMillisecondsOfDay(date)
   return AUTO_REFRESH_WINDOWS.some(([start, end]) => (
     current >= start * 1000 && current < (end + 1) * 1000
