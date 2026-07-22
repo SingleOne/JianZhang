@@ -15,6 +15,7 @@ import type {
   SearchResult,
   StockPosition,
   StockPositionSnapshot,
+  StockAlertRule,
   StockQuote,
   TTradingAccount,
   WatchlistColumnId
@@ -218,6 +219,13 @@ export default function App() {
         [quoteId]: account
       }
     })
+  }, [persist, state])
+
+  const updateStockAlerts = useCallback((quoteId: string, alertRules: StockAlertRule[]) => {
+    const nextWatchlist = state.watchlist.map((stock) => (
+      stock.quoteId === quoteId ? { ...stock, alertRules } : stock
+    ))
+    void persist({ ...state, watchlist: nextWatchlist })
   }, [persist, state])
 
   const reorderWatchlist = useCallback((sourceQuoteId: string, targetQuoteId: string) => {
@@ -427,6 +435,7 @@ export default function App() {
                 onTogglePriority={togglePriority}
                 onEditPosition={updatePosition}
                 onUpdateTTrading={updateTTrading}
+                onUpdateStockAlerts={updateStockAlerts}
                 onReorder={reorderWatchlist}
                 onPin={pinStock}
                 onColumnOrderChange={updateColumnOrder}

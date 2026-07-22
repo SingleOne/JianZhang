@@ -1478,6 +1478,22 @@ tr:focus-visible {
   text-align: center;
 }
 
+.stock-name-line {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.stock-name-line > strong {
+  min-width: 0;
+}
+
+.stock-name-line .five-level-alert-badges {
+  flex: 0 0 auto;
+}
+
 .stock-identity strong {
   overflow: hidden;
   color: #172033;
@@ -1492,6 +1508,15 @@ tr:focus-visible {
   font-size: 11px;
   font-weight: 500;
   text-overflow: ellipsis;
+}
+
+.stock-row td.stock-column.is-alert-triggered {
+  animation: stock-alert-name-flash 900ms ease-in-out infinite;
+}
+
+.stock-column.is-alert-triggered .stock-identity strong,
+.stock-column.is-alert-triggered .stock-identity small {
+  animation: stock-alert-name-text-flash 900ms ease-in-out infinite;
 }
 
 .row-drag-handle {
@@ -1654,6 +1679,17 @@ tr:focus-visible {
   border-color: #b9d0fb;
 }
 
+.row-action-button.is-alert-triggered {
+  color: var(--red);
+  background: var(--red-soft);
+  border-color: rgba(220, 55, 66, 0.35);
+}
+
+.row-action-button.is-alert-triggered svg {
+  transform-origin: 50% 16%;
+  animation: stock-alert-bell-shake 720ms ease-in-out infinite;
+}
+
 .row-action-button.is-t-profit-up {
   color: var(--red);
   background: var(--red-soft);
@@ -1715,7 +1751,7 @@ tr:focus-visible {
 
 .row-actions {
   display: inline-grid;
-  grid-template-columns: repeat(2, 25px);
+  grid-template-columns: repeat(3, 25px);
   place-content: center;
   gap: 3px;
 }
@@ -2248,6 +2284,221 @@ tr:focus-visible {
 .position-dialog-actions > span:last-child {
   display: flex;
   gap: 8px;
+}
+
+.stock-alert-dialog {
+  width: min(860px, 100%);
+}
+
+.stock-alert-form {
+  min-height: 0;
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  overflow-y: auto;
+}
+
+.stock-alert-current-values {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.stock-alert-current-values > span {
+  display: grid;
+  gap: 5px;
+  padding: 12px 14px;
+  background: #f7f9fc;
+  border: 1px solid #e6ebf1;
+  border-radius: 9px;
+}
+
+.stock-alert-current-values small,
+.stock-alert-list-heading small,
+.stock-alert-actions > small {
+  color: #7b8798;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.stock-alert-current-values strong {
+  color: #334155;
+  font-size: 16px;
+}
+
+.stock-alert-current-values strong.is-up,
+.stock-alert-rule .is-up {
+  color: var(--red);
+}
+
+.stock-alert-current-values strong.is-down,
+.stock-alert-rule .is-down {
+  color: var(--green);
+}
+
+.stock-alert-current-values strong.is-flat,
+.stock-alert-rule .is-flat {
+  color: #64748b;
+}
+
+.stock-alert-list-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.stock-alert-list-heading > span {
+  display: grid;
+  gap: 4px;
+}
+
+.stock-alert-list-heading strong {
+  color: #334155;
+  font-size: 13px;
+}
+
+.stock-alert-add {
+  height: 34px;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.stock-alert-list {
+  display: grid;
+  gap: 8px;
+}
+
+.stock-alert-rule {
+  display: grid;
+  grid-template-columns: 28px 128px 126px minmax(120px, 1fr) 112px 64px 32px;
+  align-items: center;
+  gap: 8px;
+  padding: 9px;
+  background: #fbfcfe;
+  border: 1px solid #e4e9ef;
+  border-radius: 9px;
+  opacity: 0.68;
+}
+
+.stock-alert-rule.is-enabled {
+  opacity: 1;
+}
+
+.stock-alert-rule-index {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  color: #627086;
+  background: #edf1f6;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.stock-alert-rule select,
+.stock-alert-target input {
+  width: 100%;
+  height: 34px;
+  padding: 0 9px;
+  color: #39485e;
+  background: #ffffff;
+  border: 1px solid #d8e0e9;
+  border-radius: 7px;
+  outline: 0;
+  font: inherit;
+  font-size: 12px;
+}
+
+.stock-alert-rule select:focus,
+.stock-alert-target input:focus {
+  border-color: #7aa8f8;
+  box-shadow: 0 0 0 3px rgba(75, 126, 232, 0.1);
+}
+
+.stock-alert-target {
+  position: relative;
+  display: block;
+}
+
+.stock-alert-target input {
+  padding-right: 31px;
+  font-weight: 700;
+}
+
+.stock-alert-target > span {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  color: #8a96a7;
+  font-size: 12px;
+  transform: translateY(-50%);
+}
+
+.stock-alert-status {
+  display: grid;
+  gap: 2px;
+  color: #59677a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.stock-alert-status small {
+  color: #8793a4;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.stock-alert-status.is-triggered {
+  color: var(--red);
+}
+
+.stock-alert-enable {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #5e6b7d;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.stock-alert-enable input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--blue);
+}
+
+.stock-alert-delete {
+  width: 30px;
+  height: 30px;
+  color: #9a6470;
+  border-radius: 7px;
+}
+
+.stock-alert-delete:hover {
+  color: var(--red);
+  background: var(--red-soft);
+}
+
+.stock-alert-empty {
+  padding: 30px 18px;
+  color: #7f8b9c;
+  background: #fafbfd;
+  border: 1px dashed #d6dee8;
+  border-radius: 9px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.stock-alert-actions {
+  padding-top: 4px;
+  border-top: 1px solid #edf0f4;
 }
 
 .compact-button {
@@ -3062,6 +3313,14 @@ tr:focus-visible {
   height: 16px;
   padding: 0 3px;
   font-size: 9px;
+}
+
+.t-alert-badges.five-level-alert-badges .five-level-alert-badge,
+.t-alert-badges.five-level-alert-badges.is-compact .five-level-alert-badge {
+  min-width: 21px;
+  height: 18px;
+  padding: 1px 4px;
+  font-size: 12px;
 }
 
 .t-alert-column {
@@ -4969,6 +5228,35 @@ tr:focus-visible {
   }
 }
 
+@keyframes stock-alert-name-flash {
+  0%, 100% {
+    background: #fff1f2;
+    box-shadow: inset 0 0 0 1px rgba(220, 55, 66, 0.2);
+  }
+  50% {
+    background: #d93744;
+    box-shadow: inset 0 0 0 1px #b91f2d, 0 0 12px rgba(217, 55, 68, 0.26);
+  }
+}
+
+@keyframes stock-alert-name-text-flash {
+  0%, 100% {
+    color: #b4232f;
+  }
+  50% {
+    color: #ffffff;
+  }
+}
+
+@keyframes stock-alert-bell-shake {
+  0%, 100% { transform: rotate(0deg); }
+  16% { transform: rotate(-18deg); }
+  32% { transform: rotate(15deg); }
+  48% { transform: rotate(-12deg); }
+  64% { transform: rotate(8deg); }
+  80% { transform: rotate(-4deg); }
+}
+
 @keyframes stock-details-open {
   from {
     grid-template-rows: 0fr;
@@ -5313,6 +5601,22 @@ html.tray-mode #root {
 
 .taskbar-quote.is-flat {
   color: #344054;
+}
+
+.taskbar-quote.is-stock-alert-triggered .taskbar-stock-name {
+  font-weight: 800;
+  animation: taskbar-stock-alert-text-flash 820ms ease-in-out infinite;
+}
+
+@keyframes taskbar-stock-alert-text-flash {
+  0%, 100% {
+    color: #d51f2d;
+    text-shadow: 0 0 2px rgba(213, 31, 45, 0.28);
+  }
+  50% {
+    color: #ff8a00;
+    text-shadow: 0 0 8px rgba(255, 138, 0, 0.72);
+  }
 }
 
 @media (prefers-color-scheme: dark) {

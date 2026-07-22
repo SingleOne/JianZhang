@@ -4,6 +4,7 @@ import {
   ArrowRight,
   ArrowUp,
   ArrowUpDown,
+  BellRing,
   ChevronsLeft,
   ChevronsRight,
   Columns3,
@@ -39,6 +40,7 @@ import { calculateTBatchMetrics } from '../lib/t-trading'
 import type {
   StockPosition,
   StockPositionSnapshot,
+  StockAlertRule,
   StockQuote,
   StockRadarSignal,
   TPlanDefaultSettings,
@@ -50,7 +52,9 @@ import type {
 } from '../shared/types'
 import { normalizeWatchlistColumnOrder } from '../shared/types'
 import { ExpandedStockDetails } from './ExpandedStockDetails'
+import { FiveLevelAlertBadges } from './FiveLevelAlertBadges'
 import { PositionEditor } from './PositionEditor'
+import { StockAlertDialog } from './StockAlertDialog'
 import { TAlertBadges } from './TAlertBadges'
 import { TTradingDrawer } from './TTradingDrawer'
 
@@ -79,6 +83,7 @@ interface WatchlistTableProps {
     account: TTradingAccount,
     position: StockPosition | undefined
   ) => void
+  onUpdateStockAlerts: (quoteId: string, rules: StockAlertRule[]) => void
   onReorder: (sourceQuoteId: string, targetQuoteId: string) => void
   onPin: (quoteId: string) => void
   onColumnOrderChange: (columnOrder: WatchlistColumnId[]) => void
@@ -114,7 +119,7 @@ interface RadarPopoverState {
 type ColumnMove = -1 | 1 | 'start' | 'end'
 
 const COLUMN_META: Record<WatchlistColumnId, ColumnMeta> = {
-  stock: { label: '名称 / 代码', width: 85, sortable: true, className: 'stock-column' },
+  stock: { label: '名称 / 代码', width: 116, sortable: true, className: 'stock-column' },
   latest: { label: '最新价', width: 72, sortable: true },
   changePercent: { label: '涨跌幅', width: 76, sortable: true },
   sectorChangePercent: { label: '板块涨跌幅', width: 94, sortable: true },
@@ -128,7 +133,7 @@ const COLUMN_META: Record<WatchlistColumnId, ColumnMeta> = {
   marketValue: { label: '持仓市值', width: 88, sortable: true },
   todayProfit: { label: '今日收益', width: 108, sortable: true },
   totalProfit: { label: '持仓收益', width: 108, sortable: true },
-  operation: { label: '设置', width: 64, sortable: false, className: 'settings-column' }
+  operation: { label: '设置', width: 90, sortable: false, className: 'settings-column' }
 }
 
 const RADAR_SIGNAL_DESCRIPTIONS: Record<string, string> = {
@@ -326,6 +331,7 @@ export function WatchlistTable({
   onTogglePriority,
   onEditPosition,
   onUpdateTTrading,
+  onUpdateStockAlerts,
   onReorder,
   onPin,
   onColumnOrderChange,
@@ -336,6 +342,7 @@ export function WatchlistTable({
   const [dragOverQuoteId, setDragOverQuoteId] = useState<string | null>(null)
   const [editingStock, setEditingStock] = useState<WatchStock | null>(null)
   const [tTradingStock, setTTradingStock] = useState<WatchStock | null>(null)
+  const [stockAlertStock, setStockAlertStock] = useState<WatchStock | null>(null)
   const [closingQuoteIds, setClosingQuoteIds] = useState<Set<string>>(() => new Set())
   const [radarPopover, setRadarPopover] = useState<RadarPopoverState | null>(null)
   const [locatedQuoteId, setLocatedQuoteId] = useState<string | null>(null)
@@ -636,6 +643,10 @@ export function WatchlistTable({
               const activeTBatch = tradingAccount?.activeBatch
               const tFloatingProfit = calculateTBatchMetrics(activeTBatch, quote?.latest).floatingProfit
               const tAlertBadges = getTriggeredTAlertBadges(activeTBatch)
+              const enabledStockAlertCount = stock.alertRules?.filter((rule) => rule.enabled).length ?? 0
+              const hasTriggeredStockAlert = stock.alertRules?.some((rule) => (
+                rule.enabled && rule.status === 'triggered'
+              )) ?? false
               const holdingDays = getPositionHoldingDays(
                 stock.position,
                 tradingCalendarClosedDates
@@ -737,6 +748,17 @@ export function WatchlistTable({
                           <MonitorUp size={15} />
                         </button>
                         <button
+                          className={`row-action-button ${hasTriggeredStockAlert ? 'is-alert-triggered' : enabledStockAlertCount > 0 ? 'is-active' : ''}`}
+                          type="button"
+                          onClick={(event) => { event.stopPropagation(); setStockAlertStock(stock) }}
+                          aria-label={`设置 ${stock.name} 的股价提醒`}
+                          title={enabledStockAlertCount > 0
+                            ? `已启用 ${enabledStockAlertCount} 条股价提醒`
+                            : '设置股价、涨幅或收益率提醒'}
+                        >
+                          <BellRing size={15} />
+                        </button>
+                        <button
                           className={`row-action-button ${stock.position ? 'has-position' : ''}`}
                           type="button"
                           onClick={(event) => { event.stopPropagation(); setEditingStock(stock) }}
@@ -760,10 +782,16 @@ export function WatchlistTable({
                       switch (columnId) {
                         case 'stock':
                           return (
-                            <td className="stock-column" key={columnId}>
+                            <td
+                              className={`stock-column ${hasTriggeredStockAlert ? 'is-alert-triggered' : ''}`}
+                              key={columnId}
+                            >
                               <div className="stock-identity">
                                 <span>
-                                  <strong>{stock.name}</strong>
+                                  <span className="stock-name-line">
+                                    <strong>{stock.name}</strong>
+                                    <FiveLevelAlertBadges alerts={quote?.fiveLevelLargeOrders} compact />
+                                  </span>
                                   <small>{stock.code} · {stock.marketLabel}</small>
                                 </span>
                               </div>
@@ -1009,6 +1037,20 @@ export function WatchlistTable({
           onClose={() => setTTradingStock(null)}
           onApply={(account, position) => {
             onUpdateTTrading(tTradingStock.quoteId, account, position)
+          }}
+        />
+      ) : null}
+
+      {stockAlertStock ? (
+        <StockAlertDialog
+          key={stockAlertStock.quoteId}
+          stock={watchlist.find((stock) => stock.quoteId === stockAlertStock.quoteId) ?? stockAlertStock}
+          quote={quotes.find((quote) => quote.quoteId === stockAlertStock.quoteId)}
+          account={tTradingAccounts[stockAlertStock.quoteId]}
+          onClose={() => setStockAlertStock(null)}
+          onSave={(rules) => {
+            onUpdateStockAlerts(stockAlertStock.quoteId, rules)
+            setStockAlertStock(null)
           }}
         />
       ) : null}

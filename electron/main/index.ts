@@ -4,6 +4,7 @@ import {
   dialog,
   ipcMain,
   Menu,
+  Notification,
   screen,
   Tray,
   type OpenDialogOptions,
@@ -23,6 +24,7 @@ import {
   normalizeWatchlist,
   normalizeWatchlistColumnOrder,
   type AppState,
+  type FiveLevelLargeOrderAlert,
   type KlinePeriod,
   type StockSectorQuote,
   type StockQuote,
@@ -37,6 +39,12 @@ import {
   applyTAlertTriggersToAccounts
 } from '../../src/lib/t-alerts'
 import { calculatePositionMetrics } from '../../src/lib/portfolio'
+import { detectFiveLevelLargeOrders } from '../../src/lib/order-book-alerts'
+import {
+  applyStockAlertTriggers,
+  formatStockAlertNotification,
+  type TriggeredStockAlert
+} from '../../src/lib/stock-alerts'
 import type { AiRuntime } from '../../src/modules/ai/main/register'
 import type { MarketInsightRuntime } from '../../src/modules/market-insight/main/register'
 import {
@@ -81,6 +89,7 @@ let tradingCalendarRefresh: Promise<TradingCalendarSettings> | null = null
 let taskbarLayout: TaskbarLayout = { taskbarHeight: 48 }
 let trayHovered = false
 const refreshesInFlight = new Set<'all' | 'priority' | 'regular'>()
+const fiveLevelRefreshesInFlight = new Set<string>()
 let isQuitting = false
 let marketInsightRuntime: MarketInsightRuntime | null = null
 let aiRuntime: AiRuntime | null = null
@@ -143,6 +152,18 @@ function sendToWindows(channel: string, payload: unknown): void {
   for (const window of [mainWindow, taskbarWindow, trayPopupWindow]) {
     if (window && !window.isDestroyed()) window.webContents.send(channel, payload)
   }
+}
+
+function showStockAlertNotification(alert: TriggeredStockAlert): void {
+  if (!Notification.isSupported()) return
+  const content = formatStockAlertNotification(alert)
+  const notification = new Notification({
+    ...content,
+    icon: createAppIcon(),
+    timeoutType: 'default'
+  })
+  notification.on('click', () => showMainWindow(alert.stock.quoteId))
+  notification.show()
 }
 
 function formatPrice(value: number | null): string {
@@ -230,13 +251,20 @@ function updateAppTrayMenu(): void {
 
 function taskbarVisibleStocks(): WatchStock[] {
   return state.watchlist.filter((stock) => (
-    stock.showInTaskbar || accountHasTriggeredTAlerts(state.tTradingAccounts[stock.quoteId])
+    stock.showInTaskbar
+    || accountHasTriggeredTAlerts(state.tTradingAccounts[stock.quoteId])
+    || latestQuotes.some((quote) => (
+      quote.quoteId === stock.quoteId && Boolean(quote.fiveLevelLargeOrders?.length)
+    ))
   ))
 }
 
 function hasActiveTaskbarAlert(): boolean {
   return state.watchlist.some((stock) => (
     accountHasTriggeredTAlerts(state.tTradingAccounts[stock.quoteId])
+    || latestQuotes.some((quote) => (
+      quote.quoteId === stock.quoteId && Boolean(quote.fiveLevelLargeOrders?.length)
+    ))
   ))
 }
 
@@ -455,17 +483,55 @@ function syncTaskbarWindow(): void {
 function mergeQuotes(refreshedQuotes: StockQuote[]): void {
   const quoteMap = new Map(latestQuotes.map((quote) => [quote.quoteId, quote]))
   for (const quote of refreshedQuotes) {
-    const previousSector = quoteMap.get(quote.quoteId)?.sector
-    quoteMap.set(
-      quote.quoteId,
-      quote.sector || !previousSector ? quote : { ...quote, sector: previousSector }
-    )
+    const previous = quoteMap.get(quote.quoteId)
+    quoteMap.set(quote.quoteId, {
+      ...quote,
+      sector: quote.sector ?? previous?.sector,
+      fiveLevelLargeOrders: quote.fiveLevelLargeOrders ?? previous?.fiveLevelLargeOrders
+    })
   }
   const displayedStocks = [...state.watchlist, ...getMarketIndexStocks(state.settings.marketIndexIds)]
   latestQuotes = displayedStocks.flatMap((stock) => {
     const quote = quoteMap.get(stock.quoteId)
     return quote ? [quote] : []
   })
+}
+
+async function fetchFiveLevelLargeOrderAlerts(
+  stocks: WatchStock[]
+): Promise<Map<string, FiveLevelLargeOrderAlert[]>> {
+  const entries = await Promise.all(stocks.map(async (stock) => {
+    try {
+      const orderBook = await fetchOrderBook(stock.quoteId)
+      return [stock.quoteId, detectFiveLevelLargeOrders(orderBook)] as const
+    } catch {
+      return null
+    }
+  }))
+  return new Map(entries.filter(
+    (entry): entry is readonly [string, FiveLevelLargeOrderAlert[]] => entry !== null
+  ))
+}
+
+async function refreshFiveLevelLargeOrders(stocks: WatchStock[]): Promise<void> {
+  const pendingStocks = stocks.filter((stock) => !fiveLevelRefreshesInFlight.has(stock.quoteId))
+  if (pendingStocks.length === 0) return
+  pendingStocks.forEach((stock) => fiveLevelRefreshesInFlight.add(stock.quoteId))
+
+  try {
+    const alertsByQuoteId = await fetchFiveLevelLargeOrderAlerts(pendingStocks)
+    if (alertsByQuoteId.size === 0) return
+    latestQuotes = latestQuotes.map((quote) => (
+      alertsByQuoteId.has(quote.quoteId)
+        ? { ...quote, fiveLevelLargeOrders: alertsByQuoteId.get(quote.quoteId)! }
+        : quote
+    ))
+    sendToWindows('quotes:updated', latestQuotes)
+    updateAppTrayMenu()
+    syncTaskbarWindow()
+  } finally {
+    pendingStocks.forEach((stock) => fiveLevelRefreshesInFlight.delete(stock.quoteId))
+  }
 }
 
 async function refreshStocks(
@@ -493,15 +559,26 @@ async function refreshStocks(
     })
     mergeQuotes([...enrichedStockQuotes, ...marketIndexQuotes])
     marketDataHub.publish(latestQuotes)
-    const alertUpdate = applyTAlertTriggersToAccounts(state.tTradingAccounts, latestQuotes)
-    if (alertUpdate.changed) {
-      state = { ...state, tTradingAccounts: alertUpdate.accounts }
+    const tAlertUpdate = applyTAlertTriggersToAccounts(state.tTradingAccounts, latestQuotes)
+    const stockAlertUpdate = applyStockAlertTriggers(
+      state.watchlist,
+      latestQuotes,
+      tAlertUpdate.accounts
+    )
+    if (tAlertUpdate.changed || stockAlertUpdate.changed) {
+      state = {
+        ...state,
+        watchlist: stockAlertUpdate.watchlist,
+        tTradingAccounts: tAlertUpdate.accounts
+      }
       persistState()
       sendToWindows('state:updated', state)
     }
+    stockAlertUpdate.triggered.forEach(showStockAlertNotification)
     sendToWindows('quotes:updated', latestQuotes)
     updateAppTrayMenu()
     syncTaskbarWindow()
+    void refreshFiveLevelLargeOrders(stocks)
     return latestQuotes
   } catch (error) {
     const message = error instanceof Error ? error.message : '行情刷新失败'
@@ -675,7 +752,12 @@ function registerIpc(): void {
     const priorityChanged = state.watchlist.some((stock) => (
       normalizedState.watchlist.find((nextStock) => nextStock.quoteId === stock.quoteId)?.isPriority !== stock.isPriority
     ))
-    state = normalizedState
+    const stockAlertUpdate = applyStockAlertTriggers(
+      normalizedState.watchlist,
+      latestQuotes,
+      normalizedState.tTradingAccounts
+    )
+    state = { ...normalizedState, watchlist: stockAlertUpdate.watchlist }
     persistState()
     if (startWithWindowsChanged) {
       app.setLoginItemSettings({ openAtLogin: state.settings.startWithWindows })
@@ -687,6 +769,7 @@ function registerIpc(): void {
     if (trayPopupWindow?.isVisible()) positionTrayPopupWindow()
     if (marketIndicesChanged) void refreshAll()
     else if (watchedStocksChanged || priorityChanged) void refreshAllAutomatically()
+    stockAlertUpdate.triggered.forEach(showStockAlertNotification)
     return state
   })
   ipcMain.handle('config:export', async (_event, stateToExport: AppState) => {

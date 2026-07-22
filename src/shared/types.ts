@@ -6,6 +6,20 @@ export interface StockPositionSnapshot {
   cost: number
 }
 
+export type StockAlertMetric = 'price' | 'changePercent' | 'profitPercent'
+export type StockAlertOperator = 'gte' | 'lte'
+export type StockAlertStatus = 'armed' | 'triggered'
+
+export interface StockAlertRule {
+  id: string
+  metric: StockAlertMetric
+  operator: StockAlertOperator
+  target: number
+  enabled: boolean
+  status?: StockAlertStatus
+  triggeredAt?: string
+}
+
 export interface WatchStock {
   code: string
   name: string
@@ -16,6 +30,7 @@ export interface WatchStock {
   showRadarSignals: boolean
   position?: StockPosition
   positionSnapshots?: StockPositionSnapshot[]
+  alertRules?: StockAlertRule[]
 }
 
 export function normalizeWatchlist(stocks: readonly WatchStock[]): WatchStock[] {
@@ -34,6 +49,19 @@ export function normalizeWatchlist(stocks: readonly WatchStock[]): WatchStock[] 
           && Number.isFinite(snapshot.cost)
           && snapshot.cost > 0
         ))
+      : [],
+    alertRules: Array.isArray(stock.alertRules)
+      ? stock.alertRules
+          .filter((rule) => Number.isFinite(rule.target))
+          .map((rule) => ({
+            id: rule.id,
+            metric: rule.metric,
+            operator: rule.operator,
+            target: rule.target,
+            enabled: rule.enabled ?? true,
+            status: rule.status === 'triggered' ? 'triggered' : 'armed',
+            triggeredAt: rule.triggeredAt
+          }))
       : []
   }))
 }
@@ -334,6 +362,16 @@ export interface StockSectorQuote {
   changePercent: number | null
 }
 
+export type FiveLevelLargeOrderSide = 'buy' | 'sell'
+
+export interface FiveLevelLargeOrderAlert {
+  side: FiveLevelLargeOrderSide
+  level: number
+  price: number | null
+  volume: number
+  otherLevelsVolume: number
+}
+
 export interface StockQuote {
   code: string
   name: string
@@ -350,6 +388,7 @@ export interface StockQuote {
   turnoverRate: number | null
   sector?: StockSectorQuote
   radarSignals?: StockRadarSignal[]
+  fiveLevelLargeOrders?: FiveLevelLargeOrderAlert[]
   updatedAt: string
 }
 

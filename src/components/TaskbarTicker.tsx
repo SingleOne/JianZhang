@@ -3,6 +3,7 @@ import { initialState, stockApi } from '../lib/api'
 import { formatPercent, formatPrice } from '../lib/format'
 import { getTriggeredTAlertBadges } from '../lib/t-alerts'
 import type { AppState, StockQuote, TaskbarLayout } from '../shared/types'
+import { FiveLevelAlertBadges } from './FiveLevelAlertBadges'
 import { TAlertBadges } from './TAlertBadges'
 
 function directionClass(changePercent: number | null | undefined): string {
@@ -53,10 +54,16 @@ export function TaskbarTicker() {
         return {
           stock,
           quote,
-          alertBadges: getTriggeredTAlertBadges(account?.activeBatch)
+          alertBadges: getTriggeredTAlertBadges(account?.activeBatch),
+          fiveLevelAlerts: quote?.fiveLevelLargeOrders,
+          hasTriggeredStockAlert: stock.alertRules?.some((rule) => (
+            rule.enabled && rule.status === 'triggered'
+          )) ?? false
         }
       })
-      .filter(({ stock, alertBadges }) => stock.showInTaskbar || alertBadges.length > 0)
+      .filter(({ stock, alertBadges, fiveLevelAlerts }) => (
+        stock.showInTaskbar || alertBadges.length > 0 || Boolean(fiveLevelAlerts?.length)
+      ))
   }, [quotes, state.tTradingAccounts, state.watchlist])
 
   return (
@@ -65,12 +72,22 @@ export function TaskbarTicker() {
         className={`taskbar-ticker ${selectedStocks.length === 1 ? 'is-single' : ''}`}
         style={{ height: layout.taskbarHeight }}
       >
-        {selectedStocks.map(({ stock, quote, alertBadges }) => {
+        {selectedStocks.map(({
+          stock,
+          quote,
+          alertBadges,
+          fiveLevelAlerts,
+          hasTriggeredStockAlert
+        }) => {
           const direction = directionClass(quote?.changePercent)
           const arrow = direction === 'is-up' ? '↑' : direction === 'is-down' ? '↓' : '·'
           return (
-            <div className={`taskbar-quote ${direction}`} key={stock.quoteId}>
+            <div
+              className={`taskbar-quote ${direction} ${hasTriggeredStockAlert ? 'is-stock-alert-triggered' : ''}`}
+              key={stock.quoteId}
+            >
               <span className="taskbar-stock-name">{stock.name}</span>
+              <FiveLevelAlertBadges alerts={fiveLevelAlerts} compact />
               <span className="taskbar-stock-arrow">{arrow}</span>
               <strong>{formatPrice(quote?.latest)}</strong>
               <span className="taskbar-stock-change">{formatPercent(quote?.changePercent)}</span>

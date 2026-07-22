@@ -48,13 +48,16 @@ export function TrayHoverSummary() {
         return {
           stock,
           alertBadges,
+          hasFiveLevelAlert: Boolean(quote?.fiveLevelLargeOrders?.length),
           positionMetrics: calculatePositionMetrics(stock.position, quote, account),
           tMetrics: account?.activeBatch
             ? calculateTBatchMetrics(account.activeBatch, quote?.latest)
             : null
         }
       })
-      .filter(({ stock, alertBadges }) => stock.showInTaskbar || alertBadges.length > 0)
+      .filter(({ stock, alertBadges, hasFiveLevelAlert }) => (
+        stock.showInTaskbar || alertBadges.length > 0 || hasFiveLevelAlert
+      ))
   }, [quotes, state.tTradingAccounts, state.watchlist])
 
   return (
