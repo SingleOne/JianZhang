@@ -129,10 +129,10 @@ interface SectorBinding {
 
 const sectorBindingCache = new Map<string, SectorBinding>()
 
-async function requestJson<T>(url: string): Promise<T> {
+async function requestJson<T>(url: string, maxAttempts = 2): Promise<T> {
   let lastError: unknown
 
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
       const response = await net.fetch(url, {
         headers: EASTMONEY_HEADERS,
@@ -238,7 +238,7 @@ export async function fetchOrderBook(quoteId: string): Promise<StockOrderBook> {
     'f43,f58,f60,f531,f11,f12,f13,f14,f15,f16,f17,f18,f19,f20,f31,f32,f33,f34,f35,f36,f37,f38,f39,f40'
   )
 
-  const payload = await requestJson<{ data?: EastmoneyOrderBookData }>(url.toString())
+  const payload = await requestJson<{ data?: EastmoneyOrderBookData }>(url.toString(), 1)
   const data = payload.data
   if (!data) throw new Error('行情服务未返回五档数据')
 

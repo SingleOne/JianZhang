@@ -159,7 +159,7 @@ localStorage["jianzhang-demo-state-v1"]
 | `searchStocks` | `stocks:search` | 股票联想 |
 | `refreshQuotes` | `quotes:refresh` | 手动刷新全部 |
 | `getKline` | `kline:get` | 分时/五日/周期 K |
-| `getOrderBook` | `order-book:get` | 五档盘口 |
+| `getOrderBook` | `order-book:get` | 从主进程 `OrderBookHub` 获取五档盘口、缓存状态和刷新错误 |
 | `getFundsFlow` | `funds-flow:get` | 当日资金流 |
 | `getSectorIndex` | `sector-index:get` | 所属板块详情 |
 | `refreshTradingCalendar` | `trading-calendar:refresh` | 在线刷新当年休市日 |

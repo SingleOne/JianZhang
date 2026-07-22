@@ -24,7 +24,6 @@ import {
   normalizeWatchlist,
   normalizeWatchlistColumnOrder,
   type AppState,
-  type FiveLevelLargeOrderAlert,
   type KlinePeriod,
   type StockSectorQuote,
   type StockQuote,
@@ -56,6 +55,7 @@ import {
   fetchSectorQuotes,
   searchStocks
 } from './market'
+import { OrderBookHub } from './order-book-hub'
 import { fetchSseTradingCalendar } from './trading-calendar'
 import { createAppIcon } from './tray-icons'
 
@@ -89,7 +89,7 @@ let tradingCalendarRefresh: Promise<TradingCalendarSettings> | null = null
 let taskbarLayout: TaskbarLayout = { taskbarHeight: 48 }
 let trayHovered = false
 const refreshesInFlight = new Set<'all' | 'priority' | 'regular'>()
-const fiveLevelRefreshesInFlight = new Set<string>()
+let fiveLevelRefreshCursor = 0
 let isQuitting = false
 let marketInsightRuntime: MarketInsightRuntime | null = null
 let aiRuntime: AiRuntime | null = null
@@ -109,6 +109,7 @@ class MarketDataHub {
 }
 
 const marketDataHub = new MarketDataHub()
+const orderBookHub = new OrderBookHub(fetchOrderBook)
 
 function statePath(): string {
   return join(app.getPath('userData'), 'settings.json')
@@ -511,46 +512,26 @@ function clearFiveLevelLargeOrdersFromNonPriorityStocks(): boolean {
   return changed
 }
 
-async function fetchFiveLevelLargeOrderAlerts(
-  stocks: WatchStock[]
-): Promise<Map<string, FiveLevelLargeOrderAlert[]>> {
-  const entries = await Promise.all(stocks.map(async (stock) => {
-    try {
-      const orderBook = await fetchOrderBook(stock.quoteId)
-      return [stock.quoteId, detectFiveLevelLargeOrders(orderBook)] as const
-    } catch {
-      return null
-    }
-  }))
-  return new Map(entries.filter(
-    (entry): entry is readonly [string, FiveLevelLargeOrderAlert[]] => entry !== null
-  ))
-}
-
 async function refreshFiveLevelLargeOrders(stocks: WatchStock[]): Promise<void> {
-  const pendingStocks = stocks.filter((stock) => (
-    stock.isPriority && !fiveLevelRefreshesInFlight.has(stock.quoteId)
-  ))
-  if (pendingStocks.length === 0) return
-  pendingStocks.forEach((stock) => fiveLevelRefreshesInFlight.add(stock.quoteId))
-
+  const priorityStocks = stocks.filter((stock) => stock.isPriority)
+  if (priorityStocks.length === 0) return
+  const stock = priorityStocks[fiveLevelRefreshCursor % priorityStocks.length]
+  fiveLevelRefreshCursor = (fiveLevelRefreshCursor + 1) % priorityStocks.length
   try {
-    const alertsByQuoteId = await fetchFiveLevelLargeOrderAlerts(pendingStocks)
-    if (alertsByQuoteId.size === 0) return
-    const priorityQuoteIds = new Set(
-      state.watchlist.filter((stock) => stock.isPriority).map((stock) => stock.quoteId)
-    )
+    const orderBook = await orderBookHub.get(stock.quoteId, {
+      maxAgeMilliseconds: 3_000,
+      allowStaleOnError: false
+    })
+    const alerts = detectFiveLevelLargeOrders(orderBook)
     latestQuotes = latestQuotes.map((quote) => (
-      priorityQuoteIds.has(quote.quoteId) && alertsByQuoteId.has(quote.quoteId)
-        ? { ...quote, fiveLevelLargeOrders: alertsByQuoteId.get(quote.quoteId)! }
+      quote.quoteId === stock.quoteId
+        ? { ...quote, fiveLevelLargeOrders: alerts }
         : quote
     ))
     sendToWindows('quotes:updated', latestQuotes)
     updateAppTrayMenu()
     syncTaskbarWindow()
-  } finally {
-    pendingStocks.forEach((stock) => fiveLevelRefreshesInFlight.delete(stock.quoteId))
-  }
+  } catch {}
 }
 
 async function refreshStocks(
@@ -749,7 +730,10 @@ function registerIpc(): void {
   ipcMain.handle('kline:get', (_event, quoteId: string, period: KlinePeriod, limit?: number) => (
     fetchKline(quoteId, period, limit)
   ))
-  ipcMain.handle('order-book:get', (_event, quoteId: string) => fetchOrderBook(quoteId))
+  ipcMain.handle('order-book:get', (_event, quoteId: string) => orderBookHub.get(quoteId, {
+    maxAgeMilliseconds: 3_000,
+    allowStaleOnError: true
+  }))
   ipcMain.handle('funds-flow:get', (_event, quoteId: string) => fetchFundsFlow(quoteId))
   ipcMain.handle('sector-index:get', (_event, quoteId: string) => fetchSectorIndex(quoteId))
   ipcMain.handle('trading-calendar:refresh', () => refreshTradingCalendar())
@@ -848,7 +832,10 @@ if (!hasSingleInstanceLock) {
         marketDataHub,
         getState: () => state,
         getKline: (quoteId, period, limit) => fetchKline(quoteId, period, limit),
-        getOrderBook: (quoteId) => fetchOrderBook(quoteId),
+        getOrderBook: (quoteId) => orderBookHub.get(quoteId, {
+          maxAgeMilliseconds: 3_000,
+          allowStaleOnError: false
+        }),
         getFundsFlow: (quoteId) => fetchFundsFlow(quoteId),
         notifyUpdated: (quoteId) => sendToWindows('insight:updated', quoteId)
       })

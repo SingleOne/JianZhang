@@ -405,6 +405,9 @@ export interface StockOrderBook {
   bids: OrderBookLevel[]
   asks: OrderBookLevel[]
   updatedAt: string
+  dataState?: 'live' | 'cached' | 'stale'
+  refreshError?: string
+  retryAt?: string
 }
 
 export interface StockRadarSignal {

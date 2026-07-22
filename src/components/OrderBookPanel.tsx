@@ -5,13 +5,6 @@ import { formatPrice, formatUpdateTime } from '../lib/format'
 import { isBeijingAutoRefreshTime, millisecondsUntilNextAutoRefreshWindow } from '../shared/market-hours'
 import type { OrderBookLevel, StockOrderBook, WatchStock } from '../shared/types'
 
-interface OrderBookCacheEntry {
-  data: StockOrderBook
-  cachedAt: number
-}
-
-const orderBookCache = new Map<string, OrderBookCacheEntry>()
-
 interface OrderBookPanelProps {
   stock: WatchStock
   refreshSeconds: number
@@ -47,14 +40,12 @@ function OrderBookRow({
 }
 
 export function OrderBookPanel({ stock, refreshSeconds }: OrderBookPanelProps) {
-  const initialData = orderBookCache.get(stock.quoteId)?.data ?? null
-  const [data, setData] = useState<StockOrderBook | null>(initialData)
-  const [loading, setLoading] = useState(!initialData)
+  const [data, setData] = useState<StockOrderBook | null>(null)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [refreshVersion, setRefreshVersion] = useState(0)
 
   useEffect(() => {
-    const cached = orderBookCache.get(stock.quoteId)
     const refreshMilliseconds = Math.max(3, refreshSeconds) * 1000
     let refreshTimer: number | undefined
     let active = true
@@ -69,21 +60,13 @@ export function OrderBookPanel({ stock, refreshSeconds }: OrderBookPanelProps) {
       }, isBeijingAutoRefreshTime() ? refreshMilliseconds : millisecondsUntilNextAutoRefreshWindow())
     }
 
-    if (refreshVersion === 0 && cached && Date.now() - cached.cachedAt < refreshMilliseconds) {
-      setData(cached.data)
-      setError('')
-      setLoading(false)
-      scheduleRefresh()
-      return () => window.clearTimeout(refreshTimer)
-    }
-
     setLoading(true)
     setError('')
     stockApi.getOrderBook(stock.quoteId)
       .then((result) => {
         if (!active) return
-        orderBookCache.set(stock.quoteId, { data: result, cachedAt: Date.now() })
         setData(result)
+        setError(result.refreshError ?? '')
       })
       .catch((reason: unknown) => {
         if (active) setError(reason instanceof Error ? reason.message : '五档盘口加载失败')
@@ -157,7 +140,12 @@ export function OrderBookPanel({ stock, refreshSeconds }: OrderBookPanelProps) {
             ))}
           </div>
           {!hasOrders ? <div className="order-book-empty">收盘后暂无挂单</div> : null}
-          {error ? <div className="order-book-warning">刷新失败，当前为上次数据</div> : null}
+          {error ? (
+            <div className="order-book-warning">
+              <AlertCircle size={14} />
+              <span>盘口刷新失败，当前显示 {formatUpdateTime(data?.updatedAt)} 的缓存</span>
+            </div>
+          ) : null}
         </>
       )}
     </aside>
