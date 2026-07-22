@@ -22,7 +22,7 @@
 | --- | --- | --- |
 | [`electron/main/index.ts`](../../electron/main/index.ts) | `loadState`、`refreshStocks`、`registerIpc`、`createWindow` | 生命周期、窗口、托盘、状态、定时刷新、T 提醒和 IPC |
 | [`electron/main/market.ts`](../../electron/main/market.ts) | `searchStocks`、`fetchQuotes`、`fetchKline`、`fetchFundsFlow`、`fetchSectorIndex` | 东方财富全部行情访问和转换 |
-| [`electron/main/order-book-hub.ts`](../../electron/main/order-book-hub.ts) | `OrderBookHub` | 统一盘口请求、进行中请求复用、短时缓存和失败退避 |
+| [`electron/main/order-book-hub.ts`](../../electron/main/order-book-hub.ts) | `OrderBookHub` | 统一盘口请求、进行中请求复用、短时缓存和串行错峰 |
 | [`electron/main/trading-calendar.ts`](../../electron/main/trading-calendar.ts) | `fetchSseTradingCalendar` | 解析上交所当年休市安排 |
 | [`electron/main/tray-icons.ts`](../../electron/main/tray-icons.ts) | `createAppIcon` | 生成 Electron 托盘/窗口原生图标 |
 | [`electron/preload/index.ts`](../../electron/preload/index.ts) | `api`、`subscribe` | 把类型化 `stockApi` 安全暴露给 renderer |

@@ -73,9 +73,15 @@ interface ExpandedStockDetailsProps {
   stock: WatchStock
   quote?: StockQuote
   refreshSeconds: number
+  autoRefreshOrderBook: boolean
 }
 
-export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedStockDetailsProps) {
+export function ExpandedStockDetails({
+  stock,
+  quote,
+  refreshSeconds,
+  autoRefreshOrderBook
+}: ExpandedStockDetailsProps) {
   const initialTrend = klineCache.get(cacheKey(stock.quoteId, 'trend'))?.data
   const [activeTab, setActiveTab] = useState<DetailTab>('trend')
   const [dataByTab, setDataByTab] = useState<Partial<Record<PriceTab, KlineResult>>>(() => (
@@ -401,7 +407,11 @@ export function ExpandedStockDetails({ stock, quote, refreshSeconds }: ExpandedS
               )}
             </div>
             {priceTab === 'trend' ? (
-              <OrderBookPanel stock={stock} refreshSeconds={refreshSeconds} />
+              <OrderBookPanel
+                stock={stock}
+                refreshSeconds={refreshSeconds}
+                autoRefresh={autoRefreshOrderBook}
+              />
             ) : null}
           </div>
         </div>

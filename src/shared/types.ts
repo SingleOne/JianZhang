@@ -407,7 +407,6 @@ export interface StockOrderBook {
   updatedAt: string
   dataState?: 'live' | 'cached' | 'stale'
   refreshError?: string
-  retryAt?: string
 }
 
 export interface StockRadarSignal {

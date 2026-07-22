@@ -219,6 +219,8 @@ export class MarketInsightService {
     if (!quote) throw new Error('当前没有该股票的行情快照，请先刷新行情')
     const stock = this.dependencies.getState().watchlist.find((item) => item.quoteId === quoteId)
     if (!stock) throw new Error('该股票不在自选列表中')
+    const shouldRefreshOrderBook = force
+      || Boolean(this.dependencies.getState().tTradingAccounts[quoteId]?.activeBatch)
     const [intraday, daily, orderBook, fundsFlow] = await Promise.all([
       this.source(
         quoteId,
@@ -238,15 +240,17 @@ export class MarketInsightService {
         () => this.dependencies.getKline(quoteId, 'daily', 120),
         (value) => value.bars.at(-1)?.time ?? value.tradingDate
       ),
-      this.source(
-        quoteId,
-        'order-book',
-        'five-level',
-        MARKET_INSIGHT_REFRESH_INTERVALS.orderBook,
-        force,
-        () => this.dependencies.getOrderBook(quoteId),
-        (value) => value.updatedAt
-      ).catch(() => null),
+      shouldRefreshOrderBook
+        ? this.source(
+            quoteId,
+            'order-book',
+            'five-level',
+            MARKET_INSIGHT_REFRESH_INTERVALS.orderBook,
+            force,
+            () => this.dependencies.getOrderBook(quoteId),
+            (value) => value.updatedAt
+          ).catch(() => null)
+        : Promise.resolve(this.storage.loadCache<StockOrderBook>(quoteId, 'order-book', 'five-level')),
       this.source(
         quoteId,
         'funds-flow',

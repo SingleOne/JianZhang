@@ -254,7 +254,7 @@ function taskbarVisibleStocks(): WatchStock[] {
   return state.watchlist.filter((stock) => (
     stock.showInTaskbar
     || accountHasTriggeredTAlerts(state.tTradingAccounts[stock.quoteId])
-    || (stock.isPriority && latestQuotes.some((quote) => (
+    || (state.tTradingAccounts[stock.quoteId]?.activeBatch && latestQuotes.some((quote) => (
       quote.quoteId === stock.quoteId && Boolean(quote.fiveLevelLargeOrders?.length)
     )))
   ))
@@ -263,7 +263,7 @@ function taskbarVisibleStocks(): WatchStock[] {
 function hasActiveTaskbarAlert(): boolean {
   return state.watchlist.some((stock) => (
     accountHasTriggeredTAlerts(state.tTradingAccounts[stock.quoteId])
-    || (stock.isPriority && latestQuotes.some((quote) => (
+    || (state.tTradingAccounts[stock.quoteId]?.activeBatch && latestQuotes.some((quote) => (
       quote.quoteId === stock.quoteId && Boolean(quote.fiveLevelLargeOrders?.length)
     )))
   ))
@@ -496,16 +496,18 @@ function mergeQuotes(refreshedQuotes: StockQuote[]): void {
     const quote = quoteMap.get(stock.quoteId)
     return quote ? [quote] : []
   })
-  clearFiveLevelLargeOrdersFromNonPriorityStocks()
+  clearFiveLevelLargeOrdersFromInactiveTStocks()
 }
 
-function clearFiveLevelLargeOrdersFromNonPriorityStocks(): boolean {
-  const priorityQuoteIds = new Set(
-    state.watchlist.filter((stock) => stock.isPriority).map((stock) => stock.quoteId)
+function clearFiveLevelLargeOrdersFromInactiveTStocks(): boolean {
+  const activeTQuoteIds = new Set(
+    Object.values(state.tTradingAccounts)
+      .filter((account) => Boolean(account.activeBatch))
+      .map((account) => account.quoteId)
   )
   let changed = false
   latestQuotes = latestQuotes.map((quote) => {
-    if (priorityQuoteIds.has(quote.quoteId) || quote.fiveLevelLargeOrders === undefined) return quote
+    if (activeTQuoteIds.has(quote.quoteId) || quote.fiveLevelLargeOrders === undefined) return quote
     changed = true
     return { ...quote, fiveLevelLargeOrders: undefined }
   })
@@ -513,10 +515,10 @@ function clearFiveLevelLargeOrdersFromNonPriorityStocks(): boolean {
 }
 
 async function refreshFiveLevelLargeOrders(stocks: WatchStock[]): Promise<void> {
-  const priorityStocks = stocks.filter((stock) => stock.isPriority)
-  if (priorityStocks.length === 0) return
-  const stock = priorityStocks[fiveLevelRefreshCursor % priorityStocks.length]
-  fiveLevelRefreshCursor = (fiveLevelRefreshCursor + 1) % priorityStocks.length
+  const tTradingStocks = stocks.filter((stock) => Boolean(state.tTradingAccounts[stock.quoteId]?.activeBatch))
+  if (tTradingStocks.length === 0) return
+  const stock = tTradingStocks[fiveLevelRefreshCursor % tTradingStocks.length]
+  fiveLevelRefreshCursor = (fiveLevelRefreshCursor + 1) % tTradingStocks.length
   try {
     const orderBook = await orderBookHub.get(stock.quoteId, {
       maxAgeMilliseconds: 3_000,
@@ -578,7 +580,7 @@ async function refreshStocks(
     sendToWindows('quotes:updated', latestQuotes)
     updateAppTrayMenu()
     syncTaskbarWindow()
-    void refreshFiveLevelLargeOrders(stocks.filter((stock) => stock.isPriority))
+    void refreshFiveLevelLargeOrders(stocks)
     return latestQuotes
   } catch (error) {
     const message = error instanceof Error ? error.message : '行情刷新失败'
@@ -761,7 +763,7 @@ function registerIpc(): void {
       normalizedState.tTradingAccounts
     )
     state = { ...normalizedState, watchlist: stockAlertUpdate.watchlist }
-    const fiveLevelAlertsCleared = clearFiveLevelLargeOrdersFromNonPriorityStocks()
+    const fiveLevelAlertsCleared = clearFiveLevelLargeOrdersFromInactiveTStocks()
     persistState()
     if (startWithWindowsChanged) {
       app.setLoginItemSettings({ openAtLogin: state.settings.startWithWindows })

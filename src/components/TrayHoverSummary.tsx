@@ -48,7 +48,7 @@ export function TrayHoverSummary() {
         return {
           stock,
           alertBadges,
-          hasFiveLevelAlert: stock.isPriority && Boolean(quote?.fiveLevelLargeOrders?.length),
+          hasFiveLevelAlert: Boolean(account?.activeBatch) && Boolean(quote?.fiveLevelLargeOrders?.length),
           positionMetrics: calculatePositionMetrics(stock.position, quote, account),
           tMetrics: account?.activeBatch
             ? calculateTBatchMetrics(account.activeBatch, quote?.latest)

@@ -791,7 +791,7 @@ export function WatchlistTable({
                                   <span className="stock-name-line">
                                     <strong>{stock.name}</strong>
                                     <FiveLevelAlertBadges
-                                      alerts={stock.isPriority ? quote?.fiveLevelLargeOrders : undefined}
+                                      alerts={tradingAccount?.activeBatch ? quote?.fiveLevelLargeOrders : undefined}
                                       compact
                                     />
                                   </span>
@@ -967,6 +967,7 @@ export function WatchlistTable({
                               stock={stock}
                               quote={quote}
                               refreshSeconds={stock.isPriority ? priorityRefreshSeconds : regularRefreshSeconds}
+                              autoRefreshOrderBook={Boolean(tradingAccount?.activeBatch)}
                             />
                           </div>
                         </div>

@@ -8,6 +8,7 @@ import type { OrderBookLevel, StockOrderBook, WatchStock } from '../shared/types
 interface OrderBookPanelProps {
   stock: WatchStock
   refreshSeconds: number
+  autoRefresh: boolean
 }
 
 function priceClass(price: number | null, previousClose: number | null): string {
@@ -39,7 +40,7 @@ function OrderBookRow({
   )
 }
 
-export function OrderBookPanel({ stock, refreshSeconds }: OrderBookPanelProps) {
+export function OrderBookPanel({ stock, refreshSeconds, autoRefresh }: OrderBookPanelProps) {
   const [data, setData] = useState<StockOrderBook | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -51,6 +52,7 @@ export function OrderBookPanel({ stock, refreshSeconds }: OrderBookPanelProps) {
     let active = true
 
     const scheduleRefresh = () => {
+      if (!autoRefresh) return
       refreshTimer = window.setTimeout(() => {
         if (isBeijingAutoRefreshTime()) {
           setRefreshVersion((current) => current + 1)
@@ -81,7 +83,7 @@ export function OrderBookPanel({ stock, refreshSeconds }: OrderBookPanelProps) {
       active = false
       window.clearTimeout(refreshTimer)
     }
-  }, [refreshSeconds, refreshVersion, stock.quoteId])
+  }, [autoRefresh, refreshSeconds, refreshVersion, stock.quoteId])
 
   const previousClose = data?.previousClose ?? null
   const asks = data?.asks.slice().reverse() ?? []
