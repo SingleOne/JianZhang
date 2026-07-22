@@ -157,6 +157,17 @@ function createSnapshot(quoteId: string): MarketInsightSnapshot {
         fetchedAt: DEMO_TIME
       },
       {
+        id: `${quoteId}:demo-exchange-notice`,
+        title: '演示交易所通知：全市场通知独立于当前股票公告展示',
+        source: '上海证券交易所',
+        publishedAt: '2026-07-20T05:00:00.000Z',
+        url: 'https://example.com/jianzhang-demo/exchange-notice',
+        category: 'announcement',
+        scope: 'market',
+        relatedQuoteIds: [],
+        fetchedAt: DEMO_TIME
+      },
+      {
         id: `${quoteId}:demo-market`,
         title: '演示市场快讯：原始链接仅作固定 Fixture 展示',
         source: '见涨演示数据',

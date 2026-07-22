@@ -17,33 +17,41 @@ export function NewsTimeline({
   onToggleOlderNews,
   onOpenSource
 }: NewsTimelineProps) {
-  const [activeTab, setActiveTab] = useState<'news' | 'announcement'>('news')
-  const announcements = useMemo(
-    () => news.filter((item) => item.category === 'announcement'),
+  const [activeTab, setActiveTab] = useState<'news' | 'announcement' | 'exchange'>('news')
+  const companyAnnouncements = useMemo(
+    () => news.filter((item) => item.category === 'announcement' && item.scope === 'stock'),
+    [news]
+  )
+  const exchangeNotices = useMemo(
+    () => news.filter((item) => item.category === 'announcement' && item.scope === 'market'),
     [news]
   )
   const headlines = useMemo(
     () => news.filter((item) => item.category !== 'announcement'),
     [news]
   )
-  const visibleItems = activeTab === 'announcement' ? announcements : headlines
+  const visibleItems = activeTab === 'announcement'
+    ? companyAnnouncements
+    : activeTab === 'exchange'
+      ? exchangeNotices
+      : headlines
 
   return (
     <section className="insight-section">
       <div className="insight-section-heading">
-        <h3>要闻与公告</h3>
+        <h3>市场资讯</h3>
         <label className="insight-news-range-toggle">
           <input
             type="checkbox"
             checked={includeOlderNews}
             onChange={onToggleOlderNews}
           />
-          查询近 30 天要闻
+          查询近 30 天要闻及交易所通知
           <span>下次查询生效</span>
         </label>
       </div>
       {news.length > 0 && status ? <p className="insight-news-status">{status.newsMessage}</p> : null}
-      <div className="insight-news-tabs" role="tablist" aria-label="要闻与公告分类">
+      <div className="insight-news-tabs" role="tablist" aria-label="要闻、公告与交易所通知分类">
         <button
           className={activeTab === 'news' ? 'is-active' : ''}
           type="button"
@@ -60,14 +68,27 @@ export function NewsTimeline({
           aria-selected={activeTab === 'announcement'}
           onClick={() => setActiveTab('announcement')}
         >
-          公告 {announcements.length}
+          公告 {companyAnnouncements.length}
+        </button>
+        <button
+          className={activeTab === 'exchange' ? 'is-active' : ''}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'exchange'}
+          onClick={() => setActiveTab('exchange')}
+        >
+          交易所通知 {exchangeNotices.length}
         </button>
       </div>
       {visibleItems.length === 0 ? (
         <p className="insight-empty">
           {news.length === 0
             ? status?.newsMessage ?? '正在读取新闻状态…'
-            : activeTab === 'announcement' ? '当前没有公司公告。' : '当前查询范围内没有要闻。'}
+            : activeTab === 'announcement'
+              ? '当前没有公司公告。'
+              : activeTab === 'exchange'
+                ? '当前查询范围内没有交易所通知。'
+                : '当前查询范围内没有要闻。'}
         </p>
       ) : (
         <div className="insight-news-list">

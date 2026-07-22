@@ -3805,7 +3805,7 @@ tr:focus-visible {
   align-items: center;
   gap: 6px;
   color: #667085;
-  font-size: 10px;
+  font-size: 12px;
   cursor: pointer;
 }
 
@@ -4213,17 +4213,18 @@ tr:focus-visible {
   background: #f7f9fc;
   border: 1px dashed #dbe2eb;
   border-radius: 7px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .insight-news-status {
   margin: 0;
   color: #7a8698;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .insight-news-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 5px;
 }
 
@@ -4235,7 +4236,7 @@ tr:focus-visible {
   background: #f5f7fa;
   border: 1px solid #e2e7ee;
   border-radius: 6px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 650;
   cursor: pointer;
 }
@@ -4297,7 +4298,7 @@ tr:focus-visible {
 .insight-news-item strong {
   overflow: hidden;
   color: #344054;
-  font-size: 11px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -4307,7 +4308,7 @@ tr:focus-visible {
 .insight-event small {
   overflow: hidden;
   color: #8490a1;
-  font-size: 10px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -5477,11 +5478,23 @@ html.tray-mode #root {
 }
 
 .tray-summary-panel > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   padding: 8px 10px 6px;
   color: #657187;
   border-bottom: 1px solid #edf0f4;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tray-summary-total {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .tray-summary-list {
@@ -5496,7 +5509,7 @@ html.tray-mode #root {
   padding: 7px 10px;
   border-right: 1px solid #edf0f4;
   border-bottom: 1px solid #edf0f4;
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -5528,7 +5541,7 @@ html.tray-mode #root {
 .tray-summary-t {
   gap: 10px;
   overflow: hidden;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .tray-summary-t > span {

@@ -34,7 +34,8 @@ export class MarketNewsRegistry {
     if (successful.length === 0 && errors.length > 0) throw new Error(errors.join('；'))
     const cutoff = new Date(query.fetchedAt).getTime() - query.newsLookbackDays * 24 * 60 * 60_000
     return normalizeNews(successful.flat()).filter((item) => (
-      item.category === 'announcement' || new Date(item.publishedAt).getTime() >= cutoff
+      (item.category === 'announcement' && item.scope === 'stock')
+      || new Date(item.publishedAt).getTime() >= cutoff
     ))
   }
 }

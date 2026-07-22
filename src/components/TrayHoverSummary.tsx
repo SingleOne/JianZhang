@@ -59,10 +59,21 @@ export function TrayHoverSummary() {
         stock.showInTaskbar || alertBadges.length > 0 || hasFiveLevelAlert
       ))
   }, [quotes, state.tTradingAccounts, state.watchlist])
+  const todayProfitTotal = selectedStocks.reduce<number | null>((total, { positionMetrics }) => (
+    positionMetrics.todayProfit === null
+      ? total
+      : (total ?? 0) + positionMetrics.todayProfit
+  ), null)
 
   return (
     <aside className="tray-summary-panel">
-      <header>今日收益与 T 仓概览</header>
+      <header>
+        <span>今日收益与 T 仓概览</span>
+        <span className="tray-summary-total">
+          今日收益合计
+          <b className={valueClass(todayProfitTotal)}>{formatProfit(todayProfitTotal)}</b>
+        </span>
+      </header>
       <div className="tray-summary-list">
         {selectedStocks.map(({ stock, positionMetrics, tMetrics }) => (
           <section className="tray-summary-item" key={stock.quoteId}>
