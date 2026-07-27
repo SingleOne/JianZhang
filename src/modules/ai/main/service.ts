@@ -9,6 +9,7 @@ import {
 import type {
   AiChatSendInput,
   AiChatStartResult,
+  AiAnalysisProgressEvent,
   AiApiKeyProviderId,
   AiCodexAccountStatus,
   AiConnectionResult,
@@ -323,14 +324,23 @@ export class AiService {
     })
   }
 
-  async interpret(quoteId: string): Promise<AiInterpretationResult> {
+  async interpret(
+    quoteId: string,
+    onProgress: (progress: AiAnalysisProgressEvent) => void = () => undefined
+  ): Promise<AiInterpretationResult> {
+    const report = (phase: AiAnalysisProgressEvent['phase'], message: string, detail: string) => {
+      onProgress({ quoteId, phase, message, detail, updatedAt: now() })
+    }
+    report('preparing', '正在检查 AI 配置', '确认功能开关、模型与账号凭据。')
     const settings = this.storage.getSettings()
     if (!settings.enabled) throw new Error('AI 助手当前已关闭')
     const credential = this.getCredential(settings.providerId)
+    report('loading-snapshot', '正在读取市场观察快照', '加载当前股票的指标、新闻与客观观察事件。')
     const snapshot = await this.dependencies.getMarketInsightSnapshot(quoteId)
     if (!snapshot) throw new Error('当前还没有可解读的市场观察快照，请先打开市场观察并刷新')
     const compact = this.persistCompactSnapshot(snapshot)
     const cacheKey = `${compact.snapshotId}:${settings.providerId}:${settings.model}:${AI_PROMPT_VERSION}`
+    report('checking-cache', '正在检查已有分析', '相同快照和模型已有结果时将直接使用本地缓存。')
     const cached = this.storage.getInterpretation<AiInterpretation>(cacheKey)
     const sources = compact.news.map((item) => ({
       id: item.id,
@@ -348,6 +358,7 @@ export class AiService {
     }
     const provider = this.requireProvider(settings.providerId)
     const controller = new AbortController()
+    report('analyzing', 'AI 正在生成快照解读', `正在调用 ${settings.model} 分析指标、新闻与观察事件。`)
     const result = await provider.streamChat(credential, {
       model: settings.model,
       messages: [
@@ -355,6 +366,7 @@ export class AiService {
         { role: 'user', content: JSON.stringify(compact) }
       ]
     }, () => undefined, controller.signal)
+    report('validating', 'AI 已返回，正在校验结果', '检查解读结构、引用来源并保存本次结果。')
     const interpretation = parseInterpretation(result.content, now(), compact)
     this.storage.saveInterpretation(cacheKey, interpretation)
     return {

@@ -14,6 +14,7 @@ import type {
   AiTAdvice,
   AiTAdviceAction,
   AiTAdviceApplyPreview,
+  AiTAdviceProgressEvent,
   AiTAdviceSettings
 } from '../shared/types'
 import { ApplyToTPlanDialog } from './ApplyToTPlanDialog'
@@ -40,6 +41,15 @@ const SNAPSHOT_STATE_LABELS = {
   cached: '有效缓存',
   stale: '陈旧'
 } as const
+
+const GENERATION_STEPS = ['准备数据', '刷新盘口', 'AI 分析', '校验建议'] as const
+
+function generationStep(phase: AiTAdviceProgressEvent['phase']): number {
+  if (phase === 'preparing') return 0
+  if (phase === 'refreshing-snapshot' || phase === 'waiting-order-book') return 1
+  if (phase === 'analyzing') return 2
+  return 3
+}
 
 function formatPrice(value: number | null | undefined): string {
   if (value === null || value === undefined) return '--'
@@ -94,6 +104,7 @@ export function TAdvicePanel({ stock, quote }: TAdvicePanelProps) {
   const [settings, setSettings] = useState<AiTAdviceSettings | null>(null)
   const [history, setHistory] = useState<AiTAdvice[]>([])
   const [loading, setLoading] = useState(false)
+  const [progress, setProgress] = useState<AiTAdviceProgressEvent | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -115,8 +126,16 @@ export function TAdvicePanel({ stock, quote }: TAdvicePanelProps) {
     setError('')
     setNotice('')
     setPreview(null)
+    setProgress(null)
     void load().catch((reason) => setError(reason instanceof Error ? reason.message : '做 T 参考加载失败'))
   }, [load])
+
+  useEffect(() => {
+    if (!api) return
+    return api.onProgress((event) => {
+      if (event.quoteId === stock.quoteId) setProgress(event)
+    })
+  }, [api, stock.quoteId])
 
   const latest = history[0] ?? null
   const olderHistory = useMemo(() => history.slice(1, 6), [history])
@@ -137,6 +156,13 @@ export function TAdvicePanel({ stock, quote }: TAdvicePanelProps) {
 
   const generate = async () => {
     setLoading(true)
+    setProgress({
+      quoteId: stock.quoteId,
+      phase: 'preparing',
+      message: '正在准备做 T 分析',
+      detail: '检查当前股票、持仓与活动 T 计划。',
+      updatedAt: new Date().toISOString()
+    })
     setError('')
     setNotice('')
     try {
@@ -146,6 +172,7 @@ export function TAdvicePanel({ stock, quote }: TAdvicePanelProps) {
       setError(reason instanceof Error ? reason.message : '做 T 参考生成失败')
     } finally {
       setLoading(false)
+      setProgress(null)
     }
   }
 
@@ -210,7 +237,17 @@ export function TAdvicePanel({ stock, quote }: TAdvicePanelProps) {
       {!settings.enabled ? (
         <div className="ai-t-disabled"><Ban size={24} /><strong>做 T 参考当前已关闭</strong><span>开启后也只会在你主动点击“生成参考”时调用模型。</span></div>
       ) : loading ? (
-        <div className="ai-t-loading"><LoaderCircle size={22} className="is-spinning" /><strong>正在刷新快照并生成参考…</strong><span>刷新完成后会结合持仓与 T 计划，并经过本地价格、数量和持仓约束校验。</span></div>
+        <div className="ai-t-loading">
+          <LoaderCircle size={22} className="is-spinning" />
+          <strong>{progress?.message ?? '正在准备做 T 分析'}</strong>
+          <span>{progress?.detail ?? '检查当前股票、持仓与活动 T 计划。'}</span>
+          <div className="ai-process-steps" aria-label="做 T 参考生成进度">
+            {GENERATION_STEPS.map((step, index) => {
+              const currentStep = generationStep(progress?.phase ?? 'preparing')
+              return <span className={index < currentStep ? 'is-complete' : index === currentStep ? 'is-current' : ''} key={step}>{step}</span>
+            })}
+          </div>
+        </div>
       ) : latest ? (
         <article className={`ai-t-advice-card is-${latest.status}`}>
           <AdviceSummary advice={latest} />

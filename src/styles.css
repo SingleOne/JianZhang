@@ -1575,20 +1575,20 @@ tr:focus-visible {
   letter-spacing: -0.01em;
 }
 
-.change-cell {
+.latest-cell {
   display: grid;
   justify-items: center;
   gap: 3px;
 }
 
-.change-cell strong {
-  font-size: 13px;
-  font-weight: 700;
+.latest-cell small {
+  opacity: 0.74;
+  font-size: 12px;
 }
 
-.change-cell small {
-  opacity: 0.74;
-  font-size: 11px;
+.change-percent {
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .is-up {
@@ -5608,6 +5608,10 @@ html.tray-mode #root {
   flex: 0 0 auto;
 }
 
+.taskbar-quote .five-level-alert-badge {
+  text-shadow: none;
+}
+
 .taskbar-quote.is-up {
   color: #c92733;
 }
@@ -5957,6 +5961,8 @@ html.tray-mode #root {
 .ai-analysis-panel > header .secondary-button { height: 34px; min-width: 0; padding: 0 11px; font-size: 12px; }
 .ai-analysis-disclaimer { color: #8290a3; font-size: 12px; line-height: 1.6; }
 .ai-analysis-error { display: flex; align-items: center; gap: 7px; padding: 10px 11px; color: #b42331; background: #fff2f3; border-radius: 7px; font-size: 12px; }
+.ai-analysis-loading strong { color: #4c5d74; font-size: 13px; }
+.ai-analysis-loading > span { max-width: 520px; font-size: 12px; line-height: 1.6; }
 .ai-analysis-result { display: grid; gap: 15px; }
 .ai-analysis-result > section { display: grid; gap: 8px; }
 .ai-analysis-result h4 { margin: 0; color: #425169; font-size: 12px; }
@@ -6002,6 +6008,12 @@ html.tray-mode #root {
 .ai-t-empty span,
 .ai-t-disabled span,
 .ai-t-loading span { font-size: 12px; line-height: 1.6; }
+.ai-t-loading > span { max-width: 520px; }
+.ai-process-steps { width: min(520px, 100%); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; margin-top: 8px; }
+.ai-process-steps.is-five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.ai-process-steps span { padding: 6px 7px; color: #8d98a8; background: #edf1f5; border-radius: 5px; font-size: 12px; line-height: 1.3; }
+.ai-process-steps span.is-current { color: #8b5a09; background: #ffe9ba; font-weight: 700; }
+.ai-process-steps span.is-complete { color: #087a55; background: #e8f7ef; }
 .ai-t-advice-card { display: grid; gap: 12px; padding: 14px; background: #ffffff; border: 1px solid #eadbc1; border-radius: 9px; }
 .ai-t-advice-card.is-dismissed { opacity: 0.76; }
 .ai-t-advice-content { display: grid; gap: 12px; }

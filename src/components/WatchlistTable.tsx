@@ -801,16 +801,16 @@ export function WatchlistTable({
                             </td>
                           )
                         case 'latest':
-                          return <td key={columnId}><strong className={`latest-price ${quoteDirection}`}>{formatPrice(quote?.latest)}</strong></td>
-                        case 'changePercent':
                           return (
                             <td key={columnId}>
-                              <div className={`change-cell ${quoteDirection}`}>
-                                <strong>{formatPercent(quote?.changePercent)}</strong>
+                              <div className={`latest-cell ${quoteDirection}`}>
+                                <strong className="latest-price">{formatPrice(quote?.latest)}</strong>
                                 <small>{quote?.change === null || quote?.change === undefined ? '--' : `${quote.change >= 0 ? '+' : ''}${quote.change.toFixed(2)}`}</small>
                               </div>
                             </td>
                           )
+                        case 'changePercent':
+                          return <td key={columnId}><strong className={`change-percent ${quoteDirection}`}>{formatPercent(quote?.changePercent)}</strong></td>
                         case 'sectorChangePercent':
                           return (
                             <td

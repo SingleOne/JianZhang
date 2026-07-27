@@ -10,6 +10,7 @@ import type {
   AiTAdviceApplyPreview,
   AiTAdviceApplyResult,
   AiTAdviceGenerationResult,
+  AiTAdviceProgressEvent,
   AiTAdviceSettings,
   AiTAdviceStatus,
   AiTAdviceTradingContext
@@ -19,6 +20,7 @@ import { AiTAdviceStorage } from './storage'
 import { parseAiTAdvice } from './validator'
 
 const PREVIEW_TTL_MS = 10 * 60 * 1000
+const ORDER_BOOK_RETRY_DELAY_MS = 3_000
 
 interface StoredPreview extends AiTAdviceApplyPreview {
   targetPercent: number
@@ -46,6 +48,28 @@ function snapshotId(snapshot: MarketInsightSnapshot): string {
 function roundedPrice(value: number): number {
   const digits = value >= 100 ? 2 : 3
   return Number(value.toFixed(digits))
+}
+
+function waitForRetry(signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new Error('已停止生成做 T 参考'))
+      return
+    }
+    const onAbort = () => {
+      clearTimeout(timer)
+      reject(new Error('已停止生成做 T 参考'))
+    }
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, ORDER_BOOK_RETRY_DELAY_MS)
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
+function hasLiveOrderBook(snapshot: MarketInsightSnapshot): boolean {
+  return snapshot.sourceStates?.some((source) => source.id === 'orderBook' && source.state === 'live') ?? false
 }
 
 function buildPromptContext(snapshot: MarketInsightSnapshot, context: AiTAdviceTradingContext) {
@@ -144,25 +168,60 @@ export class AiTAdviceService {
     return saved
   }
 
-  async generate(quoteId: string): Promise<AiTAdviceGenerationResult> {
+  async generate(
+    quoteId: string,
+    onProgress: (progress: AiTAdviceProgressEvent) => void = () => undefined
+  ): Promise<AiTAdviceGenerationResult> {
     if (!this.storage.getSettings().enabled) throw new Error('做 T 参考当前已关闭')
     if (this.activeGenerations.has(quoteId)) throw new Error('当前股票正在生成做 T 参考')
-    const tradingContext = this.dependencies.getTradingContext(quoteId)
-    if (!tradingContext) throw new Error('未找到当前股票或持仓上下文')
-    const snapshot = await this.dependencies.refreshMarketInsightSnapshot(quoteId)
-    if (!snapshot) throw new Error('当前还没有市场观察快照，请先打开市场观察并刷新')
-    if (tradingContext.quote?.latest === null || tradingContext.quote?.latest === undefined) {
-      throw new Error('当前最新价不可用，暂时不能生成做 T 参考')
-    }
-
     const controller = new AbortController()
     this.activeGenerations.set(quoteId, controller)
+    const report = (
+      phase: AiTAdviceProgressEvent['phase'],
+      message: string,
+      detail: string,
+      attempt?: number
+    ) => onProgress({ quoteId, phase, message, detail, attempt, updatedAt: now() })
     try {
+      report('preparing', '正在准备做 T 分析', '检查当前股票、持仓与活动 T 计划。')
+      if (!this.dependencies.getTradingContext(quoteId)) throw new Error('未找到当前股票或持仓上下文')
+
+      let snapshot: MarketInsightSnapshot | null = null
+      let attempt = 0
+      while (!snapshot || !hasLiveOrderBook(snapshot)) {
+        attempt += 1
+        report(
+          'refreshing-snapshot',
+          attempt === 1 ? '正在刷新市场快照' : `正在第 ${attempt} 次刷新市场快照`,
+          '同步分时、日线、资金流与最新五档盘口。',
+          attempt
+        )
+        snapshot = await this.dependencies.refreshMarketInsightSnapshot(quoteId)
+        if (!snapshot) throw new Error('当前还没有市场观察快照，请先打开市场观察并刷新')
+        if (!hasLiveOrderBook(snapshot)) {
+          report(
+            'waiting-order-book',
+            '尚未取得最新盘口，正在等待重试',
+            `${Math.round(ORDER_BOOK_RETRY_DELAY_MS / 1_000)} 秒后自动重试；取得实时盘口前不会开始 AI 分析。`,
+            attempt
+          )
+          await waitForRetry(controller.signal)
+        }
+      }
+
+      const tradingContext = this.dependencies.getTradingContext(quoteId)
+      if (!tradingContext) throw new Error('未找到当前股票或持仓上下文')
+      if (tradingContext.quote?.latest === null || tradingContext.quote?.latest === undefined) {
+        throw new Error('当前最新价不可用，暂时不能生成做 T 参考')
+      }
+
       const promptContext = buildPromptContext(snapshot, tradingContext)
+      report('analyzing', '最新盘口已获取，AI 正在分析', '结合市场快照、持仓和 T 计划生成操作参考。', attempt)
       const result = await this.dependencies.runStructuredTask({
         systemPrompt: T_ADVICE_PROMPT,
         userContent: JSON.stringify(promptContext)
       }, controller.signal)
+      report('validating', 'AI 已返回，正在校验建议', '核对价格区间、股票数量、持仓约束与输出格式。', attempt)
       const generatedAt = now()
       const advice = parseAiTAdvice(result.content, {
         quoteId,

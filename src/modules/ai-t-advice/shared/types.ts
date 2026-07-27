@@ -14,6 +14,22 @@ export interface AiTAdviceStatus {
   message: string
 }
 
+export type AiTAdviceProgressPhase =
+  | 'preparing'
+  | 'refreshing-snapshot'
+  | 'waiting-order-book'
+  | 'analyzing'
+  | 'validating'
+
+export interface AiTAdviceProgressEvent {
+  quoteId: string
+  phase: AiTAdviceProgressPhase
+  message: string
+  detail: string
+  attempt?: number
+  updatedAt: string
+}
+
 export interface AiTAdvice {
   id: string
   quoteId: string
@@ -92,6 +108,7 @@ export interface AiTAdviceApi {
   dismiss: (adviceId: string) => Promise<AiTAdvice>
   previewApply: (adviceId: string) => Promise<AiTAdviceApplyPreview>
   confirmApply: (previewId: string) => Promise<AiTAdviceApplyResult>
+  onProgress: (listener: (event: AiTAdviceProgressEvent) => void) => () => void
 }
 
 declare global {

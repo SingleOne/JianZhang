@@ -21,7 +21,8 @@ export const AI_IPC = {
   chatDelta: 'ai:chat:delta',
   chatCompleted: 'ai:chat:completed',
   chatError: 'ai:chat:error',
-  analysisInterpret: 'ai:analysis:interpret'
+  analysisInterpret: 'ai:analysis:interpret',
+  analysisProgress: 'ai:analysis:progress'
 } as const
 
 export const AI_PROMPT_VERSION = '2026-07-21.1'

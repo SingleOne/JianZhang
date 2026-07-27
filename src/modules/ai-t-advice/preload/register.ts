@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AiTAdviceApi } from '../shared/types'
+import type { AiTAdviceApi, AiTAdviceProgressEvent } from '../shared/types'
+
+const PROGRESS_CHANNEL = 'ai-t:advice:progress'
 
 export function installAiTAdvicePreload(): void {
   const api: AiTAdviceApi = {
@@ -11,7 +13,12 @@ export function installAiTAdvicePreload(): void {
     listHistory: (quoteId) => ipcRenderer.invoke('ai-t:advice:history', quoteId),
     dismiss: (adviceId) => ipcRenderer.invoke('ai-t:advice:dismiss', adviceId),
     previewApply: (adviceId) => ipcRenderer.invoke('ai-t:advice:preview-apply', adviceId),
-    confirmApply: (previewId) => ipcRenderer.invoke('ai-t:advice:confirm-apply', previewId)
+    confirmApply: (previewId) => ipcRenderer.invoke('ai-t:advice:confirm-apply', previewId),
+    onProgress: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, payload: AiTAdviceProgressEvent): void => listener(payload)
+      ipcRenderer.on(PROGRESS_CHANNEL, handler)
+      return () => ipcRenderer.removeListener(PROGRESS_CHANNEL, handler)
+    }
   }
   contextBridge.exposeInMainWorld('aiTAdviceApi', api)
 }

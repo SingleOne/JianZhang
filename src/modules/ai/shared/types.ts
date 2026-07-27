@@ -154,6 +154,21 @@ export interface AiInterpretationResult {
   }>
 }
 
+export type AiAnalysisProgressPhase =
+  | 'preparing'
+  | 'loading-snapshot'
+  | 'checking-cache'
+  | 'analyzing'
+  | 'validating'
+
+export interface AiAnalysisProgressEvent {
+  quoteId: string
+  phase: AiAnalysisProgressPhase
+  message: string
+  detail: string
+  updatedAt: string
+}
+
 export interface AiApi {
   getStatus: () => Promise<AiStatus>
   getSettings: () => Promise<AiSettings>
@@ -175,6 +190,7 @@ export interface AiApi {
   cancelChat: (conversationId: string) => Promise<void>
   retryChat: (conversationId: string, messageId: string) => Promise<AiChatStartResult>
   interpret: (quoteId: string) => Promise<AiInterpretationResult>
+  onAnalysisProgress: (listener: (event: AiAnalysisProgressEvent) => void) => () => void
   onChatDelta: (listener: (event: AiChatDeltaEvent) => void) => () => void
   onChatCompleted: (listener: (event: AiChatCompletedEvent) => void) => () => void
   onChatError: (listener: (event: AiChatErrorEvent) => void) => () => void
