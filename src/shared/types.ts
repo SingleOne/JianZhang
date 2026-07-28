@@ -436,6 +436,8 @@ export interface KlineResult {
   name: string
   tradingDate: string
   bars: KlineBar[]
+  intervalMinutes?: 1 | 5
+  fallbackReason?: string
 }
 
 export interface FundsFlowPoint {

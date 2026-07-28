@@ -253,7 +253,8 @@ function makeDemoKline(quoteId: string, period: KlinePeriod, limit?: number): Kl
     quoteId,
     name: quote?.name ?? '',
     tradingDate: period === 'fiveDay' ? `${bars[0].time.slice(0, 10)} 至 ${date}` : date,
-    bars
+    bars,
+    intervalMinutes: period === 'intraday' ? 1 : period === 'fiveDay' ? 5 : undefined
   }
 }
 

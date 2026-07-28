@@ -29,11 +29,6 @@ import type {
 } from '../shared/types'
 import { compactMarketSnapshot, toProviderMessages, type CompactMarketSnapshot } from './conversations/context-builder'
 import { createConversationTitle } from './conversations/title-generator'
-import {
-  BLOCKED_T_ADVICE_REPLY,
-  containsPersonalizedTAdvice,
-  isPersonalizedTAdviceRequest
-} from './policy'
 import { MARKET_INTERPRETATION_PROMPT } from '../prompts/market-interpretation'
 import { DeepSeekProvider } from './providers/deepseek'
 import { OpenAiApiProvider } from './providers/openai-api'
@@ -120,8 +115,6 @@ function parseInterpretation(content: string, generatedAt: string, snapshot: Com
   const uncertainties = Array.isArray(record.uncertainties)
     ? record.uncertainties.flatMap((item) => asText(item) ? [asText(item) as string] : [])
     : []
-  const combined = [summary, ...indicatorFacts.map((item) => item.interpretation), ...newsReferences.map((item) => item.summary)].join('\n')
-  if (containsPersonalizedTAdvice(combined)) throw new Error('模型输出包含基础 AI 不允许提供的个性化交易建议')
   return { summary, indicatorFacts, newsReferences, uncertainties, generatedAt }
 }
 
@@ -299,11 +292,7 @@ export class AiService {
       messageCount: conversation.messageCount + 1
     })
 
-    if (isPersonalizedTAdviceRequest(content)) {
-      void Promise.resolve().then(() => this.completeStaticReply(webContents, assistantMessage, BLOCKED_T_ADVICE_REPLY))
-    } else {
-      void this.runChat(webContents, assistantMessage, context)
-    }
+    void this.runChat(webContents, assistantMessage, context)
     return { userMessage, assistantMessage }
   }
 
@@ -418,7 +407,6 @@ export class AiService {
     const controller = new AbortController()
     this.activeChats.set(pendingMessage.conversationId, controller)
     let streamedContent = ''
-    let blockedOutput = false
     try {
       const credential = this.getCredential(settings.providerId)
       const messages = this.storage.getMessages(pendingMessage.conversationId).slice(-settings.maxContextMessages)
@@ -426,12 +414,7 @@ export class AiService {
         model: settings.model,
         messages: toProviderMessages(messages, context)
       }, (delta) => {
-        const nextContent = `${streamedContent}${delta}`
-        if (containsPersonalizedTAdvice(nextContent)) {
-          blockedOutput = true
-          throw new Error('模型输出包含基础 AI 不允许提供的个性化交易建议')
-        }
-        streamedContent = nextContent
+        streamedContent = `${streamedContent}${delta}`
         this.send(webContents, 'ai:chat:delta', {
           conversationId: pendingMessage.conversationId,
           messageId: pendingMessage.id,
@@ -439,24 +422,13 @@ export class AiService {
         })
       }, controller.signal)
       const content = result.content.trim() || '模型未返回可显示的内容。'
-      const safeContent = containsPersonalizedTAdvice(content)
-        ? '此回答包含基础 AI 不允许提供的个性化交易建议，已被拦截。你可以继续询问指标与新闻事实。'
-        : content
       this.completeMessage(webContents, {
         ...pendingMessage,
-        content: safeContent,
+        content,
         status: 'completed',
         providerResponseId: result.responseId
       })
     } catch (error) {
-      if (blockedOutput) {
-        this.completeMessage(webContents, {
-          ...pendingMessage,
-          content: '此回答包含基础 AI 不允许提供的个性化交易建议，已被拦截。你可以继续询问指标与新闻事实。',
-          status: 'completed'
-        })
-        return
-      }
       const stopped = isAbortError(error, controller.signal)
       const message: AiMessage = {
         ...pendingMessage,
@@ -472,10 +444,6 @@ export class AiService {
         this.activeChats.delete(pendingMessage.conversationId)
       }
     }
-  }
-
-  private async completeStaticReply(webContents: WebContents, pendingMessage: AiMessage, content: string): Promise<void> {
-    this.completeMessage(webContents, { ...pendingMessage, content, status: 'completed' })
   }
 
   private completeMessage(webContents: WebContents, message: AiMessage): void {

@@ -795,7 +795,7 @@ export function WatchlistTable({
                                   <span className="stock-name-line">
                                     <strong>{stock.name}</strong>
                                     {isChiNextStock(stock.code) ? (
-                                      <span className="stock-board-badge">创业板</span>
+                                      <span className="stock-board-badge">创</span>
                                     ) : null}
                                     <FiveLevelAlertBadges
                                       alerts={tradingAccount?.activeBatch ? quote?.fiveLevelLargeOrders : undefined}

@@ -600,6 +600,7 @@ async function fetchTencentKline(
   const tradingDate = result.bars.at(-1)?.time.slice(0, 10) ?? ''
   return {
     ...result,
+    intervalMinutes: 5,
     tradingDate,
     bars: result.bars.filter((bar) => bar.time.startsWith(tradingDate))
   }
@@ -618,7 +619,10 @@ async function fetchIntradayTrend(quoteId: string): Promise<KlineResult> {
     data?: { name?: string; trends?: string[] }
   }>(url.toString())
 
-  return toIntradayKlineResult(quoteId, payload.data?.name, payload.data?.trends ?? [])
+  return {
+    ...toIntradayKlineResult(quoteId, payload.data?.name, payload.data?.trends ?? []),
+    intervalMinutes: 1
+  }
 }
 
 async function fetchHistoricalKline(
@@ -656,11 +660,13 @@ async function fetchEastmoneyKline(
     case 'intraday':
       try {
         return await fetchIntradayTrend(quoteId)
-      } catch {
+      } catch (reason) {
         const fallback = await fetchHistoricalKline(quoteId, '5', 120)
         const tradingDate = fallback.bars.at(-1)?.time.slice(0, 10) ?? ''
         return {
           ...fallback,
+          intervalMinutes: 5,
+          fallbackReason: reason instanceof Error ? reason.message : '1分钟分时数据加载失败',
           tradingDate,
           bars: fallback.bars.filter((bar) => bar.time.startsWith(tradingDate))
         }
@@ -691,7 +697,12 @@ export async function fetchKline(
 
   try {
     const result = await fetchTencentKline(quoteId, period, requestedLimit)
-    return result
+    return period === 'intraday'
+      ? {
+          ...result,
+          fallbackReason: primaryError instanceof Error ? primaryError.message : '1分钟分时数据加载失败'
+        }
+      : result
   } catch (backupError) {
     const primaryMessage = primaryError instanceof Error ? primaryError.message : '请求失败'
     const backupMessage = backupError instanceof Error ? backupError.message : '请求失败'

@@ -172,6 +172,15 @@ export function ExpandedStockDetails({
     stockApi.getKline(stock.quoteId, apiPeriod(tab), requestedLimit)
       .then((result) => {
         if (!active) return
+        const isFiveMinuteFallback = tab === 'trend' && result.intervalMinutes === 5
+        const hasOneMinuteCache = Boolean(cached && cached.data.intervalMinutes !== 5)
+        if (isFiveMinuteFallback && hasOneMinuteCache) {
+          setErrors((current) => ({
+            ...current,
+            [tab]: result.fallbackReason || '1分钟分时数据刷新失败'
+          }))
+          return
+        }
         klineCache.set(key, { data: result, cachedAt: Date.now(), requestedLimit })
         setDataByTab((current) => ({ ...current, [tab]: result }))
       })
@@ -201,6 +210,7 @@ export function ExpandedStockDetails({
   const isLoading = priceTab !== null && loadingTab === priceTab
   const historicalPeriod = priceTab && isHistoricalTab(priceTab) ? priceTab : null
   const isHistorical = historicalPeriod !== null
+  const isFiveMinuteFallback = priceTab === 'trend' && data?.intervalMinutes === 5
   const overviewBar = priceTab === 'trend' ? null : hoveredBar
   const changePercentByTime = useMemo(() => {
     const changes = new Map<string, number>()
@@ -340,6 +350,9 @@ export function ExpandedStockDetails({
             <div>
               <strong>今日概览</strong>
               <span>{overviewBar?.time || data?.tradingDate || '最近交易日'} · {tabMeta?.description}</span>
+              {isFiveMinuteFallback ? (
+                <em className="intraday-fallback-badge">5分钟备用行情</em>
+              ) : null}
             </div>
             <div className="chart-legend" aria-label="图表图例">
               <span className={isHistorical ? 'legend-candlestick' : 'legend-price'}>
@@ -360,10 +373,16 @@ export function ExpandedStockDetails({
           </div>
           <div className={`chart-panel ${priceTab === 'trend' ? 'has-order-book' : ''}`}>
             <div className="chart-content">
-              {error && data ? (
-                <div className="chart-refresh-warning">
+              {error && data || isFiveMinuteFallback ? (
+                <div className="chart-refresh-warning" title={isFiveMinuteFallback ? data?.fallbackReason : error}>
                   <AlertCircle size={14} />
-                  <span>{tabMeta?.label}数据刷新失败，当前显示最近一次数据</span>
+                  <span>
+                    {isFiveMinuteFallback
+                      ? '1分钟分时暂不可用，当前显示5分钟备用行情'
+                      : priceTab === 'trend'
+                        ? '1分钟分时刷新失败，当前显示最近一次1分钟数据'
+                        : `${tabMeta?.label}数据刷新失败，当前显示最近一次数据`}
+                  </span>
                   <button type="button" onClick={retryCurrentTab}>重试</button>
                 </div>
               ) : null}
