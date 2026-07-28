@@ -1490,6 +1490,19 @@ tr:focus-visible {
   min-width: 0;
 }
 
+.stock-board-badge {
+  flex: 0 0 auto;
+  padding: 1px 4px;
+  color: #b45309;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
 .stock-name-line .five-level-alert-badges {
   flex: 0 0 auto;
 }
@@ -1587,7 +1600,7 @@ tr:focus-visible {
 }
 
 .change-percent {
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 700;
 }
 

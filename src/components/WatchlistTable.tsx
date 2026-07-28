@@ -119,7 +119,7 @@ interface RadarPopoverState {
 type ColumnMove = -1 | 1 | 'start' | 'end'
 
 const COLUMN_META: Record<WatchlistColumnId, ColumnMeta> = {
-  stock: { label: '名称 / 代码', width: 116, sortable: true, className: 'stock-column' },
+  stock: { label: '名称 / 代码', width: 146, sortable: true, className: 'stock-column' },
   latest: { label: '最新价', width: 72, sortable: true },
   changePercent: { label: '涨跌幅', width: 76, sortable: true },
   sectorChangePercent: { label: '板块涨跌幅', width: 94, sortable: true },
@@ -178,6 +178,10 @@ function todayRadarSignals(signals: StockRadarSignal[] | undefined): StockRadarS
 function valueClass(value: number | null | undefined): string {
   if (value === null || value === undefined || value === 0) return 'is-flat'
   return value > 0 ? 'is-up' : 'is-down'
+}
+
+function isChiNextStock(code: string): boolean {
+  return code.startsWith('300') || code.startsWith('301')
 }
 
 function formatTurnoverRate(value: number | null | undefined): string {
@@ -790,6 +794,9 @@ export function WatchlistTable({
                                 <span>
                                   <span className="stock-name-line">
                                     <strong>{stock.name}</strong>
+                                    {isChiNextStock(stock.code) ? (
+                                      <span className="stock-board-badge">创业板</span>
+                                    ) : null}
                                     <FiveLevelAlertBadges
                                       alerts={tradingAccount?.activeBatch ? quote?.fiveLevelLargeOrders : undefined}
                                       compact
