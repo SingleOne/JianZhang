@@ -1503,6 +1503,12 @@ tr:focus-visible {
   white-space: nowrap;
 }
 
+.stock-board-badge.is-star {
+  color: #2563a6;
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
 .stock-name-line .five-level-alert-badges {
   flex: 0 0 auto;
 }

@@ -184,6 +184,10 @@ function isChiNextStock(code: string): boolean {
   return code.startsWith('300') || code.startsWith('301')
 }
 
+function isStarMarketStock(code: string): boolean {
+  return code.startsWith('688') || code.startsWith('689')
+}
+
 function formatTurnoverRate(value: number | null | undefined): string {
   return value === null || value === undefined ? '--' : `${value.toFixed(2)}%`
 }
@@ -795,7 +799,10 @@ export function WatchlistTable({
                                   <span className="stock-name-line">
                                     <strong>{stock.name}</strong>
                                     {isChiNextStock(stock.code) ? (
-                                      <span className="stock-board-badge">创</span>
+                                      <span className="stock-board-badge" title="创业板">创</span>
+                                    ) : null}
+                                    {isStarMarketStock(stock.code) ? (
+                                      <span className="stock-board-badge is-star" title="科创板">科</span>
                                     ) : null}
                                     <FiveLevelAlertBadges
                                       alerts={tradingAccount?.activeBatch ? quote?.fiveLevelLargeOrders : undefined}
