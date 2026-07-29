@@ -185,7 +185,8 @@ export default function App() {
     quoteId: string,
     position: StockPosition | undefined,
     showRadarSignals: boolean,
-    positionSnapshots: StockPositionSnapshot[]
+    positionSnapshots: StockPositionSnapshot[],
+    updatedAccount?: TTradingAccount
   ) => {
     const nextWatchlist = state.watchlist.map((stock) =>
       stock.quoteId === quoteId
@@ -198,7 +199,13 @@ export default function App() {
           }
         : stock
     )
-    void persist({ ...state, watchlist: nextWatchlist })
+    void persist({
+      ...state,
+      watchlist: nextWatchlist,
+      tTradingAccounts: updatedAccount
+        ? { ...state.tTradingAccounts, [quoteId]: updatedAccount }
+        : state.tTradingAccounts
+    })
   }, [persist, state])
 
   const updateTTrading = useCallback((

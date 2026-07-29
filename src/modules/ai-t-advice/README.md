@@ -18,6 +18,7 @@
 - 本模块单向调用基础 AI 的内部结构化任务能力；基础 AI 不导入本模块。
 - 不向 `AppState`、`AppSettings` 或核心配置文件增加 AI 专有字段。
 - 本地数据位于 `%APPDATA%\见涨\modules\ai-t-advice\`，包含 `settings.json` 和 `advice-history.jsonl`。
+- 界面始终从本地历史恢复每只股票最近一次结果，重新生成期间继续显示旧结果，并突出显示生成时间与快照时间。
 
 ## 安装点
 

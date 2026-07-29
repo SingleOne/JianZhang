@@ -40,6 +40,7 @@ export function AiAnalysisPanel({ stock, quote }: AiAnalysisPanelProps) {
   const api = window.aiApi
   const [result, setResult] = useState<AiInterpretationResult | null>(null)
   const [loading, setLoading] = useState(false)
+  const [restoring, setRestoring] = useState(false)
   const [progress, setProgress] = useState<AiAnalysisProgressEvent | null>(null)
   const [error, setError] = useState('')
 
@@ -47,7 +48,21 @@ export function AiAnalysisPanel({ stock, quote }: AiAnalysisPanelProps) {
     setResult(null)
     setProgress(null)
     setError('')
-  }, [stock.quoteId])
+    if (!api) return
+    let active = true
+    setRestoring(true)
+    void api.getLatestInterpretation(stock.quoteId)
+      .then((latest) => {
+        if (active) setResult(latest)
+      })
+      .catch((reason: unknown) => {
+        if (active) setError(reason instanceof Error ? reason.message : '无法读取上次 AI 分析')
+      })
+      .finally(() => {
+        if (active) setRestoring(false)
+      })
+    return () => { active = false }
+  }, [api, stock.quoteId])
 
   useEffect(() => {
     if (!api) return
@@ -94,10 +109,10 @@ export function AiAnalysisPanel({ stock, quote }: AiAnalysisPanelProps) {
       </header>
       {error ? <div className="ai-analysis-error"><AlertCircle size={16} />{error}</div> : null}
       {loading ? (
-        <div className="ai-analysis-loading">
+        <div className={`ai-analysis-loading${result ? ' has-previous' : ''}`}>
           <LoaderCircle size={22} className="is-spinning" />
           <strong>{progress?.message ?? '正在检查 AI 配置'}</strong>
-          <span>{progress?.detail ?? '确认功能开关、模型与账号凭据。'}</span>
+          <span>{result ? '上一次结果保留显示；完成后将自动替换。' : progress?.detail ?? '确认功能开关、模型与账号凭据。'}</span>
           <div className="ai-process-steps is-five" aria-label="AI 分析进度">
             {ANALYSIS_STEPS.map((step, index) => {
               const currentStep = analysisStep(progress?.phase ?? 'preparing')
@@ -105,14 +120,25 @@ export function AiAnalysisPanel({ stock, quote }: AiAnalysisPanelProps) {
             })}
           </div>
         </div>
-      ) : result ? (
+      ) : restoring && !result ? (
+        <div className="ai-analysis-loading is-restoring">
+          <LoaderCircle size={20} className="is-spinning" />
+          <strong>正在读取上次 AI 分析</strong>
+        </div>
+      ) : null}
+      {result ? (
         <div className="ai-analysis-result">
-          <section className="ai-analysis-summary"><div><strong>快照解读</strong><small>{result.cached ? '已使用相同快照的本地缓存' : '刚刚生成'} · 快照时间 <time dateTime={result.snapshotGeneratedAt}>{formatSnapshotTime(result.snapshotGeneratedAt)}</time></small></div><p>{result.interpretation.summary}</p></section>
+          <div className="ai-result-time-banner">
+            <span>最近生成时间</span>
+            <strong><time dateTime={result.interpretation.generatedAt}>{formatSnapshotTime(result.interpretation.generatedAt)}</time></strong>
+            <small>快照时间 <time dateTime={result.snapshotGeneratedAt}>{formatSnapshotTime(result.snapshotGeneratedAt)}</time></small>
+          </div>
+          <section className="ai-analysis-summary"><div><strong>快照解读</strong><small>{result.cached ? '相同快照缓存结果' : '最近一次生成结果'} · 快照时间 <time dateTime={result.snapshotGeneratedAt}>{formatSnapshotTime(result.snapshotGeneratedAt)}</time></small></div><p>{result.interpretation.summary}</p></section>
           {result.interpretation.indicatorFacts.length > 0 ? <section><h4>指标事实与解读</h4><div className="ai-analysis-facts">{result.interpretation.indicatorFacts.map((fact) => <article key={`${fact.name}-${fact.interpretation}`}><strong>{fact.name}</strong><p>{fact.interpretation}</p>{fact.evidence.length > 0 ? <small>{fact.evidence.join(' · ')}</small> : null}</article>)}</div></section> : null}
           {references.length > 0 ? <section><h4>要闻参考</h4><div className="ai-analysis-news">{references.map((reference) => <article key={reference.sourceId}><div><strong>{reference.source.title}</strong><small>{reference.source.source} · {new Date(reference.source.publishedAt).toLocaleString('zh-CN')}</small></div><p>{reference.summary}</p><span>{reference.relevance}</span><a href={reference.source.url} target="_blank" rel="noreferrer" onClick={(event) => { if (!window.marketInsightApi) return; event.preventDefault(); void window.marketInsightApi.openSource(reference.source.url) }}>查看原始来源</a></article>)}</div></section> : null}
           {result.interpretation.uncertainties.length > 0 ? <section><h4>不确定性</h4><ul className="ai-analysis-uncertainties">{result.interpretation.uncertainties.map((item) => <li key={item}>{item}</li>)}</ul></section> : null}
         </div>
-      ) : <div className="ai-analysis-empty"><Sparkles size={26} /><strong>按需解读，不自动调用模型</strong><span>点击“解读当前快照”后，AI 才会读取市场观察的最新快照。</span></div>}
+      ) : !loading && !restoring ? <div className="ai-analysis-empty"><Sparkles size={26} /><strong>按需解读，不自动调用模型</strong><span>点击“解读当前快照”后，AI 才会读取市场观察的最新快照。</span></div> : null}
     </section>
   )
 }

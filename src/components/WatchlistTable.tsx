@@ -76,7 +76,8 @@ interface WatchlistTableProps {
     quoteId: string,
     position: StockPosition | undefined,
     showRadarSignals: boolean,
-    positionSnapshots: StockPositionSnapshot[]
+    positionSnapshots: StockPositionSnapshot[],
+    updatedAccount?: TTradingAccount
   ) => void
   onUpdateTTrading: (
     quoteId: string,
@@ -119,7 +120,7 @@ interface RadarPopoverState {
 type ColumnMove = -1 | 1 | 'start' | 'end'
 
 const COLUMN_META: Record<WatchlistColumnId, ColumnMeta> = {
-  stock: { label: '名称 / 代码', width: 146, sortable: true, className: 'stock-column' },
+  stock: { label: '名称 / 代码', width: 220, sortable: true, className: 'stock-column' },
   latest: { label: '最新价', width: 72, sortable: true },
   changePercent: { label: '涨跌幅', width: 76, sortable: true },
   sectorChangePercent: { label: '板块涨跌幅', width: 94, sortable: true },
@@ -127,7 +128,6 @@ const COLUMN_META: Record<WatchlistColumnId, ColumnMeta> = {
   trading: { label: '成交', width: 112, sortable: true },
   amount: { label: '持仓天数', width: 80, sortable: true },
   radar: { label: '异动提示', width: 100, sortable: true, className: 'radar-column' },
-  tAlert: { label: 'T提醒', width: 118, sortable: false, className: 't-alert-column' },
   positionQuantity: { label: '持仓数量', width: 84, sortable: true },
   cost: { label: '成本价', width: 68, sortable: true },
   marketValue: { label: '持仓市值', width: 88, sortable: true },
@@ -210,7 +210,6 @@ function sortValue(
       const latestSignal = todayRadarSignals(row.quote?.radarSignals)[0]
       return latestSignal ? `${latestSignal.date} ${latestSignal.time}` : null
     }
-    case 'tAlert': return null
     case 'positionQuantity': return row.stock.position?.quantity
     case 'cost': return row.stock.position?.cost
     case 'marketValue': return row.metrics.marketValue
@@ -808,6 +807,19 @@ export function WatchlistTable({
                                       alerts={tradingAccount?.activeBatch ? quote?.fiveLevelLargeOrders : undefined}
                                       compact
                                     />
+                                    {tAlertBadges.length > 0 ? (
+                                      <button
+                                        type="button"
+                                        className="t-alert-cell-button"
+                                        onClick={(event) => {
+                                          event.stopPropagation()
+                                          setTTradingStock(stock)
+                                        }}
+                                        title="查看当前 T 仓价格提醒"
+                                      >
+                                        <TAlertBadges badges={tAlertBadges} compact />
+                                      </button>
+                                    ) : null}
                                   </span>
                                   <small>{stock.code} · {stock.marketLabel}</small>
                                 </span>
@@ -894,24 +906,6 @@ export function WatchlistTable({
                                 >
                                   <span>今日有异动</span>
                                   <b>{currentRadarSignals.length}</b>
-                                </button>
-                              ) : '--'}
-                            </td>
-                          )
-                        case 'tAlert':
-                          return (
-                            <td className="t-alert-column" key={columnId}>
-                              {tAlertBadges.length > 0 ? (
-                                <button
-                                  type="button"
-                                  className="t-alert-cell-button"
-                                  onClick={(event) => {
-                                    event.stopPropagation()
-                                    setTTradingStock(stock)
-                                  }}
-                                  title="查看当前 T 仓价格提醒"
-                                >
-                                  <TAlertBadges badges={tAlertBadges} />
                                 </button>
                               ) : '--'}
                             </td>
@@ -1036,9 +1030,16 @@ export function WatchlistTable({
           key={editingStock.quoteId}
           stock={watchlist.find((stock) => stock.quoteId === editingStock.quoteId) ?? editingStock}
           quote={quotes.find((quote) => quote.quoteId === editingStock.quoteId)}
+          account={tTradingAccounts[editingStock.quoteId]}
           onClose={() => setEditingStock(null)}
-          onSave={(position, showRadarSignals, positionSnapshots) => {
-            onEditPosition(editingStock.quoteId, position, showRadarSignals, positionSnapshots)
+          onSave={(position, showRadarSignals, positionSnapshots, updatedAccount) => {
+            onEditPosition(
+              editingStock.quoteId,
+              position,
+              showRadarSignals,
+              positionSnapshots,
+              updatedAccount
+            )
             setEditingStock(null)
           }}
         />

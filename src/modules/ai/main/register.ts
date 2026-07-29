@@ -44,6 +44,7 @@ export function installAi(dependencies: AiModuleDependencies): AiRuntime {
   ipcMain.handle(AI_IPC.chatSend, (event, input) => service.sendChat(event.sender, input))
   ipcMain.handle(AI_IPC.chatCancel, (_event, conversationId: string) => service.cancelChat(conversationId))
   ipcMain.handle(AI_IPC.chatRetry, (event, conversationId: string, messageId: string) => service.retryChat(event.sender, conversationId, messageId))
+  ipcMain.handle(AI_IPC.analysisLatestGet, (_event, quoteId: string) => service.getLatestInterpretation(quoteId))
   ipcMain.handle(AI_IPC.analysisInterpret, (event, quoteId: string) => service.interpret(quoteId, (progress) => {
     if (!event.sender.isDestroyed()) event.sender.send(AI_IPC.analysisProgress, progress)
   }))

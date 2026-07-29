@@ -8,6 +8,7 @@
 - `electron/preload/index.ts`：条件暴露 `window.aiApi`。
 - `src/App.tsx`：条件加载 AI 助手抽屉。
 - `src/components/ExpandedStockDetails.tsx`：条件加载 AI 分析标签。
+- AI 分析按股票将最近一次完整结果保存在 `cache/latest-interpretations.json`，切换标签或重启应用后自动恢复，重新生成期间仍保留旧结果。
 
 ## 存储与凭证
 

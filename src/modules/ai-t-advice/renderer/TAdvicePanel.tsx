@@ -58,6 +58,7 @@ function formatPrice(value: number | null | undefined): string {
 
 function formatTime(value: string): string {
   return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
@@ -70,6 +71,11 @@ function formatTime(value: string): string {
 function AdviceSummary({ advice }: { advice: AiTAdvice }) {
   return (
     <div className="ai-t-advice-content">
+      <div className="ai-result-time-banner is-t-advice">
+        <span>最近生成时间</span>
+        <strong><time dateTime={advice.generatedAt}>{formatTime(advice.generatedAt)}</time></strong>
+        <small>快照时间 <time dateTime={advice.snapshotGeneratedAt}>{formatTime(advice.snapshotGeneratedAt)}</time></small>
+      </div>
       <div className="ai-t-advice-overview">
         <span className={`ai-t-action is-${advice.action}`}>{ACTION_LABELS[advice.action]}</span>
         <span className={`ai-t-confidence is-${advice.confidence}`}>{CONFIDENCE_LABELS[advice.confidence]}</span>
@@ -94,7 +100,6 @@ function AdviceSummary({ advice }: { advice: AiTAdvice }) {
           ) : null}
         </div>
       ) : null}
-      <p className="ai-t-snapshot-time">生成于 {formatTime(advice.generatedAt)} · 快照时间 {formatTime(advice.snapshotGeneratedAt)}</p>
     </div>
   )
 }
@@ -236,11 +241,12 @@ export function TAdvicePanel({ stock, quote }: TAdvicePanelProps) {
 
       {!settings.enabled ? (
         <div className="ai-t-disabled"><Ban size={24} /><strong>做 T 参考当前已关闭</strong><span>开启后也只会在你主动点击“生成参考”时调用模型。</span></div>
-      ) : loading ? (
-        <div className="ai-t-loading">
+      ) : null}
+      {settings.enabled && loading ? (
+        <div className={`ai-t-loading${latest ? ' has-previous' : ''}`}>
           <LoaderCircle size={22} className="is-spinning" />
           <strong>{progress?.message ?? '正在准备做 T 分析'}</strong>
-          <span>{progress?.detail ?? '检查当前股票、持仓与活动 T 计划。'}</span>
+          <span>{latest ? '上一次参考保留显示；完成后将自动替换。' : progress?.detail ?? '检查当前股票、持仓与活动 T 计划。'}</span>
           <div className="ai-process-steps" aria-label="做 T 参考生成进度">
             {GENERATION_STEPS.map((step, index) => {
               const currentStep = generationStep(progress?.phase ?? 'preparing')
@@ -248,19 +254,20 @@ export function TAdvicePanel({ stock, quote }: TAdvicePanelProps) {
             })}
           </div>
         </div>
-      ) : latest ? (
+      ) : null}
+      {latest ? (
         <article className={`ai-t-advice-card is-${latest.status}`}>
           <AdviceSummary advice={latest} />
           {latest.status === 'active' ? (
             <footer>
-              <button type="button" className="ai-text-button" onClick={() => void dismiss(latest.id)}>忽略本次</button>
-              {latest.action !== 'hold' ? <button type="button" className="primary-button" onClick={() => void openPreview(latest.id)}>预览应用到 T 计划</button> : null}
+              <button type="button" className="ai-text-button" disabled={loading} onClick={() => void dismiss(latest.id)}>忽略本次</button>
+              {latest.action !== 'hold' ? <button type="button" className="primary-button" disabled={loading} onClick={() => void openPreview(latest.id)}>预览应用到 T 计划</button> : null}
             </footer>
           ) : <p className="ai-t-record-status">{latest.status === 'applied' ? '已应用到 T 计划' : '本次参考已忽略'}</p>}
         </article>
-      ) : (
+      ) : settings.enabled && !loading ? (
         <div className="ai-t-empty"><Sparkles size={26} /><strong>按需生成，不自动调用模型</strong><span>当前最新价：{formatPrice(quote?.latest)}。请先确保市场观察已有最新快照。</span></div>
-      )}
+      ) : null}
 
       {error ? <div className="ai-t-error"><AlertCircle size={16} />{error}</div> : null}
       {notice ? <div className="ai-t-notice">{notice}</div> : null}

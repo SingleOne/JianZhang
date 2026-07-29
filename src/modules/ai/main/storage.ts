@@ -158,4 +158,19 @@ export class AiStorage {
     cache[cacheKey] = value
     writeFileSync(cachePath, JSON.stringify(cache, null, 2), 'utf8')
   }
+
+  getLatestInterpretation<T>(quoteId: string): T | null {
+    const latest = readJson<Record<string, T>>(
+      join(this.cacheDirectory, 'latest-interpretations.json'),
+      {}
+    )
+    return latest[quoteId] ?? null
+  }
+
+  saveLatestInterpretation<T>(quoteId: string, value: T): void {
+    const latestPath = join(this.cacheDirectory, 'latest-interpretations.json')
+    const latest = readJson<Record<string, T>>(latestPath, {})
+    latest[quoteId] = value
+    writeFileSync(latestPath, JSON.stringify(latest, null, 2), 'utf8')
+  }
 }

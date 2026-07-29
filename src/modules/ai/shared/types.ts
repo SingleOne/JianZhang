@@ -189,6 +189,7 @@ export interface AiApi {
   sendChat: (input: AiChatSendInput) => Promise<AiChatStartResult>
   cancelChat: (conversationId: string) => Promise<void>
   retryChat: (conversationId: string, messageId: string) => Promise<AiChatStartResult>
+  getLatestInterpretation: (quoteId: string) => Promise<AiInterpretationResult | null>
   interpret: (quoteId: string) => Promise<AiInterpretationResult>
   onAnalysisProgress: (listener: (event: AiAnalysisProgressEvent) => void) => () => void
   onChatDelta: (listener: (event: AiChatDeltaEvent) => void) => () => void

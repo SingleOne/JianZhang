@@ -90,9 +90,9 @@ join(app.getPath('userData'), 'settings.json')
 | `normalizeWatchlist` | 持仓股票强制重点关注、补异动开关、过滤无效快照 |
 | `normalizeMarketIndexIds` | 过滤并按内置顺序返回指数 |
 | `normalizeActiveTTradingBatch` | 兼容旧双五档、提醒开关和反 T 语义 |
-| `normalizeTTradingAccounts` | 规范化所有活动批次 |
+| `normalizeTTradingAccounts` | 规范化所有活动批次，并把旧 T 历史和底仓流水回填到统一交易记录 |
 | `normalizeWatchlistColumnOrder` | 去重、补缺失列、保证操作列在末尾 |
-| `migrateWatchlistColumnOrder` | 按版本插入今日收益、T 提醒、板块、成交等新列 |
+| `migrateWatchlistColumnOrder` | 按版本插入今日收益、板块、成交等新列，并过滤已经移除的列 |
 | `normalizeAppSettings` | 兼容旧刷新字段、限制秒数/位置、补费用和日历 |
 | `normalizeTradingCalendarSettings` | 校验日期、去重、排序并保证内置覆盖年份 |
 

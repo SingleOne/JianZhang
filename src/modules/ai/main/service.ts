@@ -338,12 +338,16 @@ export class AiService {
       publishedAt: item.publishedAt,
       url: item.url
     }))
-    if (cached) return {
-      snapshotId: compact.snapshotId,
-      snapshotGeneratedAt: compact.generatedAt,
-      interpretation: cached,
-      cached: true,
-      sources
+    if (cached) {
+      const cachedResult: AiInterpretationResult = {
+        snapshotId: compact.snapshotId,
+        snapshotGeneratedAt: compact.generatedAt,
+        interpretation: cached,
+        cached: true,
+        sources
+      }
+      this.storage.saveLatestInterpretation(quoteId, cachedResult)
+      return cachedResult
     }
     const provider = this.requireProvider(settings.providerId)
     const controller = new AbortController()
@@ -358,13 +362,19 @@ export class AiService {
     report('validating', 'AI 已返回，正在校验结果', '检查解读结构、引用来源并保存本次结果。')
     const interpretation = parseInterpretation(result.content, now(), compact)
     this.storage.saveInterpretation(cacheKey, interpretation)
-    return {
+    const interpretationResult: AiInterpretationResult = {
       snapshotId: compact.snapshotId,
       snapshotGeneratedAt: compact.generatedAt,
       interpretation,
       cached: false,
       sources
     }
+    this.storage.saveLatestInterpretation(quoteId, interpretationResult)
+    return interpretationResult
+  }
+
+  getLatestInterpretation(quoteId: string): AiInterpretationResult | null {
+    return this.storage.getLatestInterpretation<AiInterpretationResult>(quoteId)
   }
 
   async runStructuredTask(

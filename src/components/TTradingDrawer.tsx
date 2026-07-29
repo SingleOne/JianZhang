@@ -45,6 +45,7 @@ import type {
   TTrade,
   TTradeFees,
   TTradePurpose,
+  TTradeRecord,
   TTradeSide,
   WatchStock
 } from '../shared/types'
@@ -97,6 +98,28 @@ function tradeLabel(trade: TTrade, batch: TTradingBatch | undefined): string {
     return trade.side === 'sell' ? '反T卖出' : '回补买入'
   }
   return trade.side === 'buy' ? 'T仓买入' : 'T仓卖出'
+}
+
+function toTradeRecord(trade: TTrade, batch?: TTradingBatch): TTradeRecord {
+  return batch
+    ? {
+        ...trade,
+        batchId: batch.id,
+        batchSequence: batch.sequence,
+        batchDirection: batch.direction ?? 'forward'
+      }
+    : { ...trade }
+}
+
+function upsertTradeRecord(
+  records: readonly TTradeRecord[] | undefined,
+  trade: TTrade,
+  batch?: TTradingBatch
+): TTradeRecord[] {
+  return [
+    ...(records ?? []).filter((record) => record.id !== trade.id),
+    toTradeRecord(trade, batch)
+  ].sort((left, right) => right.tradedAt.localeCompare(left.tradedAt))
 }
 
 export function TTradingDrawer({
@@ -274,7 +297,8 @@ export function TTradingDrawer({
       applyAccount(
         {
           ...currentAccount,
-          baseTrades: [...(currentAccount.baseTrades ?? []), trade]
+          baseTrades: [...(currentAccount.baseTrades ?? []), trade],
+          tradeRecords: upsertTradeRecord(currentAccount.tradeRecords, trade)
         },
         applyTradeToPosition(stock.position, trade)
       )
@@ -325,7 +349,11 @@ export function TTradingDrawer({
     }
     const hasTTrades = nextBatch.trades.some((trade) => trade.purpose === 't')
     applyAccount(
-      { ...currentAccount, activeBatch: hasTTrades ? plannedBatch : undefined },
+      {
+        ...currentAccount,
+        activeBatch: hasTTrades ? plannedBatch : undefined,
+        tradeRecords: upsertTradeRecord(currentAccount.tradeRecords, trade, plannedBatch)
+      },
       recalculatePositionFromBatch(plannedBatch)
     )
     resetTradeForm()
@@ -359,7 +387,11 @@ export function TTradingDrawer({
     const plannedBatch = rebalanceTBatchPlans(nextBatch, planDefaults)
     const hasTTrades = nextBatch.trades.some((trade) => trade.purpose === 't')
     applyAccount(
-      { ...currentAccount, activeBatch: hasTTrades ? plannedBatch : undefined },
+      {
+        ...currentAccount,
+        activeBatch: hasTTrades ? plannedBatch : undefined,
+        tradeRecords: currentAccount.tradeRecords?.filter((record) => record.id !== tradeId)
+      },
       recalculatePositionFromBatch(plannedBatch)
     )
     if (editingTradeId === tradeId) resetTradeForm()
@@ -523,7 +555,8 @@ export function TTradingDrawer({
 
     applyAccount({
       ...currentAccount,
-      history: currentAccount.history.filter((item) => item.id !== batch.id)
+      history: currentAccount.history.filter((item) => item.id !== batch.id),
+      tradeRecords: currentAccount.tradeRecords?.filter((record) => record.batchId !== batch.id)
     }, stock.position)
 
     if (editingHistoryBatchId === batch.id) cancelEditingHistoryProfit()
@@ -768,8 +801,8 @@ export function TTradingDrawer({
                       onClick={() => setShowAllActiveTrades((current) => !current)}
                     >
                       {showAllActiveTrades
-                        ? '收起交易记录'
-                        : `显示更多（其余 ${activeTradesDescending.length - 5} 条）`}
+                        ? '收起当前批次流水'
+                        : `显示更多当前批次流水（其余 ${activeTradesDescending.length - 5} 条）`}
                     </button>
                   ) : null}
                 </div>

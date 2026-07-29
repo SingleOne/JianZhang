@@ -29,6 +29,7 @@ export function installAiPreload(): void {
     sendChat: (input) => ipcRenderer.invoke(AI_IPC.chatSend, input),
     cancelChat: (conversationId) => ipcRenderer.invoke(AI_IPC.chatCancel, conversationId),
     retryChat: (conversationId, messageId) => ipcRenderer.invoke(AI_IPC.chatRetry, conversationId, messageId),
+    getLatestInterpretation: (quoteId) => ipcRenderer.invoke(AI_IPC.analysisLatestGet, quoteId),
     interpret: (quoteId) => ipcRenderer.invoke(AI_IPC.analysisInterpret, quoteId),
     onAnalysisProgress: (listener) => subscribe(AI_IPC.analysisProgress, listener),
     onChatDelta: (listener) => subscribe(AI_IPC.chatDelta, listener),

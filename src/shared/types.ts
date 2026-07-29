@@ -152,6 +152,13 @@ export interface TTrade {
   note: string
 }
 
+/** 统一交易记录；批次字段缺省时表示批次外的独立底仓交易。 */
+export interface TTradeRecord extends TTrade {
+  batchId?: string
+  batchSequence?: number
+  batchDirection?: TTradingDirection
+}
+
 export interface TPositionSnapshot {
   quantity: number
   cost: number
@@ -215,6 +222,7 @@ export interface TTradingAccount {
   activeBatch?: TTradingBatch
   history: TTradingBatch[]
   baseTrades?: TTrade[]
+  tradeRecords?: TTradeRecord[]
 }
 
 export type TTradingAccounts = Record<string, TTradingAccount>
@@ -279,12 +287,33 @@ export function normalizeActiveTTradingBatch(batch: TTradingBatch): TTradingBatc
 export function normalizeTTradingAccounts(
   accounts: TTradingAccounts | undefined
 ): TTradingAccounts {
-  return Object.fromEntries(Object.entries(accounts ?? {}).map(([quoteId, account]) => [
-    quoteId,
-    account.activeBatch
+  return Object.fromEntries(Object.entries(accounts ?? {}).map(([quoteId, account]) => {
+    const normalizedAccount: TTradingAccount = account.activeBatch
       ? { ...account, activeBatch: normalizeActiveTTradingBatch(account.activeBatch) }
       : account
-  ]))
+    const records = new Map(
+      (normalizedAccount.tradeRecords ?? []).map((record) => [record.id, record])
+    )
+    const addBatchTrades = (batch: TTradingBatch) => {
+      batch.trades.forEach((trade) => records.set(trade.id, {
+        ...trade,
+        batchId: batch.id,
+        batchSequence: batch.sequence,
+        batchDirection: batch.direction ?? 'forward'
+      }))
+    }
+
+    normalizedAccount.baseTrades?.forEach((trade) => records.set(trade.id, { ...trade }))
+    normalizedAccount.history.forEach(addBatchTrades)
+    if (normalizedAccount.activeBatch) addBatchTrades(normalizedAccount.activeBatch)
+
+    return [quoteId, {
+      ...normalizedAccount,
+      tradeRecords: [...records.values()].sort((left, right) => (
+        right.tradedAt.localeCompare(left.tradedAt)
+      ))
+    }]
+  }))
 }
 
 export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
@@ -296,7 +325,6 @@ export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
   'trading',
   'amount',
   'radar',
-  'tAlert',
   'positionQuantity',
   'cost',
   'marketValue',
@@ -306,7 +334,7 @@ export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
 ] as const
 
 export type WatchlistColumnId = typeof DEFAULT_WATCHLIST_COLUMN_ORDER[number]
-export const WATCHLIST_COLUMN_ORDER_VERSION = 5
+export const WATCHLIST_COLUMN_ORDER_VERSION = 6
 
 export function normalizeWatchlistColumnOrder(
   columnOrder: readonly string[] | undefined
@@ -331,13 +359,9 @@ export function migrateWatchlistColumnOrder(
   let migrated = normalizeWatchlistColumnOrder(columnOrder)
 
   if ((version ?? 0) < 2) {
-    migrated = migrated.filter((columnId) => (
-      columnId !== 'todayProfit' && columnId !== 'tAlert'
-    ))
+    migrated = migrated.filter((columnId) => columnId !== 'todayProfit')
     const totalProfitIndex = migrated.indexOf('totalProfit')
     migrated.splice(totalProfitIndex + 1, 0, 'todayProfit')
-    const radarIndex = migrated.indexOf('radar')
-    migrated.splice(radarIndex + 1, 0, 'tAlert')
   }
 
   if ((version ?? 0) < 4) {

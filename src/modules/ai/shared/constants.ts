@@ -21,6 +21,7 @@ export const AI_IPC = {
   chatDelta: 'ai:chat:delta',
   chatCompleted: 'ai:chat:completed',
   chatError: 'ai:chat:error',
+  analysisLatestGet: 'ai:analysis:latest:get',
   analysisInterpret: 'ai:analysis:interpret',
   analysisProgress: 'ai:analysis:progress'
 } as const
