@@ -80,18 +80,6 @@ export function TrayHoverSummary() {
           <section className="tray-summary-item" key={stock.quoteId}>
             <div className="tray-summary-heading">
               <strong>{stock.name}</strong>
-              <span>持仓市值 <b>{formatCurrency(positionMetrics.marketValue)}</b></span>
-            </div>
-            <div className="tray-summary-profit">
-              <span>
-                持仓收益
-                <b className={valueClass(positionMetrics.totalProfit)}>
-                  {formatProfit(positionMetrics.totalProfit)}
-                </b>
-                <b className={valueClass(positionMetrics.profitPercent)}>
-                  {formatPercent(positionMetrics.profitPercent)}
-                </b>
-              </span>
               <span>
                 今日收益
                 <b className={valueClass(positionMetrics.todayProfit)}>
@@ -99,6 +87,18 @@ export function TrayHoverSummary() {
                 </b>
                 <b className={valueClass(positionMetrics.todayProfitPercent)}>
                   {formatPercent(positionMetrics.todayProfitPercent)}
+                </b>
+              </span>
+            </div>
+            <div className="tray-summary-profit">
+              <span>持仓市值 <b>{formatCurrency(positionMetrics.marketValue)}</b></span>
+              <span>
+                持仓收益
+                <b className={valueClass(positionMetrics.totalProfit)}>
+                  {formatProfit(positionMetrics.totalProfit)}
+                </b>
+                <b className={valueClass(positionMetrics.profitPercent)}>
+                  {formatPercent(positionMetrics.profitPercent)}
                 </b>
               </span>
             </div>

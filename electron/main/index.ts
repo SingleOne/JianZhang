@@ -274,7 +274,7 @@ function trayPopupSize(): { width: number; height: number } {
   const columns = selectedCount > 1 ? 2 : 1
   const rows = Math.ceil(selectedCount / columns)
   return {
-    width: columns === 2 ? 658 : 380,
+    width: columns === 2 ? 638 : 369,
     height: 35 + rows * 78
   }
 }
@@ -341,7 +341,7 @@ function createTrayPopupWindow(): void {
   if (trayPopupWindow && !trayPopupWindow.isDestroyed()) return
 
   const window = new BrowserWindow({
-    width: 380,
+    width: 369,
     height: 113,
     show: false,
     frame: false,
