@@ -483,6 +483,36 @@ export interface KlineResult {
   fallbackReason?: string
 }
 
+export interface ChipDistributionBucket {
+  price: number
+  percent: number
+}
+
+export interface ChipDistributionCostRange {
+  low: number
+  high: number
+  concentration: number
+}
+
+export interface ChipDistributionData {
+  startDate: string
+  endDate: string
+  barCount: number
+  cumulativeTurnover: number
+  currentPrice: number
+  averageCost: number
+  profitPercent: number
+  cost70: ChipDistributionCostRange
+  cost90: ChipDistributionCostRange
+  buckets: ChipDistributionBucket[]
+}
+
+export interface ChipDistributionCacheEntry extends ChipDistributionData {
+  quoteId: string
+  name: string
+  calculatedAt: string
+}
+
 export interface FundsFlowPoint {
   time: string
   main: number
@@ -713,6 +743,7 @@ export interface StockDesktopApi {
   searchStocks: (query: string) => Promise<SearchResult[]>
   refreshQuotes: () => Promise<StockQuote[]>
   getKline: (quoteId: string, period: KlinePeriod, limit?: number) => Promise<KlineResult>
+  saveChipDistributionCache: (entry: ChipDistributionCacheEntry) => Promise<ChipDistributionCacheEntry>
   getOrderBook: (quoteId: string) => Promise<StockOrderBook>
   getFundsFlow: (quoteId: string) => Promise<FundsFlowResult>
   getSectorIndex: (quoteId: string) => Promise<SectorIndexResult>

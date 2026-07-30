@@ -1,31 +1,7 @@
-import type { KlineBar } from '../shared/types'
+import type { ChipDistributionData, KlineBar } from '../shared/types'
 
 export const CHIP_TURNOVER_THRESHOLD = 100
 export const CHIP_PRICE_BUCKET_COUNT = 150
-
-export interface ChipPriceBucket {
-  price: number
-  percent: number
-}
-
-export interface ChipCostRange {
-  low: number
-  high: number
-  concentration: number
-}
-
-export interface ChipDistributionResult {
-  startDate: string
-  endDate: string
-  barCount: number
-  cumulativeTurnover: number
-  currentPrice: number
-  averageCost: number
-  profitPercent: number
-  cost70: ChipCostRange
-  cost90: ChipCostRange
-  buckets: ChipPriceBucket[]
-}
 
 export interface ChipAutoRange {
   fromIndex: number
@@ -87,7 +63,7 @@ function costRange(
   minPrice: number,
   accuracy: number,
   percent: number
-): ChipCostRange {
+): ChipDistributionData['cost70'] {
   const edge = (1 - percent) / 2
   const low = quantilePrice(chips, minPrice, accuracy, edge)
   const high = quantilePrice(chips, minPrice, accuracy, 1 - edge)
@@ -100,7 +76,7 @@ function costRange(
 
 export function calculateChipDistribution(
   bars: readonly KlineBar[]
-): ChipDistributionResult | null {
+): ChipDistributionData | null {
   if (bars.length === 0 || bars.some((bar) => turnoverRate(bar) === null)) return null
 
   const minPrice = Math.min(...bars.map((bar) => bar.low))

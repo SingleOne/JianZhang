@@ -1,9 +1,12 @@
 import { RotateCcw } from 'lucide-react'
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
+import { stockApi } from '../lib/api'
 import { calculateChipDistribution } from '../lib/chip-distribution'
 import type { KlineBar } from '../shared/types'
 
 interface ChipDistributionPanelProps {
+  quoteId: string
+  quoteName: string
   bars: KlineBar[]
   isAutoRange: boolean
   onRestoreAutoRange: () => void
@@ -18,11 +21,26 @@ function formatChipPercent(value: number): string {
 }
 
 export function ChipDistributionPanel({
+  quoteId,
+  quoteName,
   bars,
   isAutoRange,
   onRestoreAutoRange
 }: ChipDistributionPanelProps) {
   const distribution = useMemo(() => calculateChipDistribution(bars), [bars])
+
+  useEffect(() => {
+    if (!distribution) return
+    const timer = window.setTimeout(() => {
+      void stockApi.saveChipDistributionCache({
+        ...distribution,
+        quoteId,
+        name: quoteName,
+        calculatedAt: new Date().toISOString()
+      }).catch(() => undefined)
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [distribution, quoteId, quoteName])
 
   return (
     <aside className="chip-distribution-panel" aria-label="筹码分布">

@@ -25,6 +25,7 @@ import {
   normalizeWatchlistGroups,
   normalizeWatchlistColumnOrder,
   type AppState,
+  type ChipDistributionCacheEntry,
   type KlinePeriod,
   type StockSectorQuote,
   type StockQuote,
@@ -57,6 +58,7 @@ import {
   searchStocks
 } from './market'
 import { OrderBookHub } from './order-book-hub'
+import { ChipDistributionCache } from './chip-distribution-cache'
 import { fetchSseTradingCalendar } from './trading-calendar'
 import { createAppIcon } from './tray-icons'
 
@@ -96,6 +98,7 @@ let isQuitting = false
 let marketInsightRuntime: MarketInsightRuntime | null = null
 let aiRuntime: AiRuntime | null = null
 let aiTAdviceRuntime: { dispose: () => void } | null = null
+let chipDistributionCache: ChipDistributionCache | null = null
 
 class MarketDataHub {
   private readonly listeners = new Set<(quotes: readonly StockQuote[]) => void>()
@@ -739,6 +742,10 @@ function registerIpc(): void {
   ipcMain.handle('kline:get', (_event, quoteId: string, period: KlinePeriod, limit?: number) => (
     fetchKline(quoteId, period, limit)
   ))
+  ipcMain.handle('chip-distribution:cache:save', (_event, entry: ChipDistributionCacheEntry) => {
+    if (!chipDistributionCache) throw new Error('筹码分布缓存尚未初始化')
+    return chipDistributionCache.save(entry)
+  })
   ipcMain.handle('order-book:get', (_event, quoteId: string) => orderBookHub.get(quoteId, {
     maxAgeMilliseconds: 3_000,
     allowStaleOnError: true
@@ -835,6 +842,7 @@ if (!hasSingleInstanceLock) {
   app.whenReady().then(async () => {
     app.setAppUserModelId('com.jianzhang.stock')
     state = loadState()
+    chipDistributionCache = new ChipDistributionCache(join(app.getPath('userData'), 'market-cache'))
     registerIpc()
     if (__JIANZHANG_MARKET_INSIGHT_ENABLED__) {
       const { installMarketInsight } = await import('../../src/modules/market-insight/main/register')
@@ -853,13 +861,15 @@ if (!hasSingleInstanceLock) {
     if (__JIANZHANG_AI_MODULE_ENABLED__) {
       const { installAi } = await import('../../src/modules/ai/main/register')
       aiRuntime = installAi({
-        getMarketInsightSnapshot: (quoteId) => marketInsightRuntime?.getSnapshot(quoteId) ?? null
+        getMarketInsightSnapshot: (quoteId) => marketInsightRuntime?.getSnapshot(quoteId) ?? null,
+        getChipDistributionCache: (quoteId) => chipDistributionCache?.get(quoteId) ?? null
       })
 
       if (__JIANZHANG_AI_T_ADVICE_MODULE_ENABLED__) {
         const { installAiTAdvice } = await import('../../src/modules/ai-t-advice/main/register')
         aiTAdviceRuntime = installAiTAdvice({
           refreshMarketInsightSnapshot: (quoteId) => marketInsightRuntime?.refreshSnapshot(quoteId) ?? null,
+          getChipDistributionCache: (quoteId) => chipDistributionCache?.get(quoteId) ?? null,
           getTradingContext: (quoteId) => {
             const stock = state.watchlist.find((item) => item.quoteId === quoteId)
             if (!stock) return null

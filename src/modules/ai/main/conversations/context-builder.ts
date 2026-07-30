@@ -1,4 +1,5 @@
 import type { MarketInsightSnapshot } from '../../../market-insight/shared/types'
+import type { ChipDistributionCacheEntry } from '../../../../shared/types'
 import type { AiMessage, AiProviderRequestMessage } from '../../shared/types'
 import { GENERAL_CHAT_POLICY } from '../policy'
 
@@ -8,16 +9,23 @@ export interface CompactMarketSnapshot {
   generatedAt: string
   dataCutoffAt: string
   dataState: MarketInsightSnapshot['dataState']
+  chipDistribution: ChipDistributionCacheEntry | null
   indicators: Array<{ group: string; name: string; value: number | null; unit: string; state: string; sourcePeriod: string }>
   news: Array<{ id: string; title: string; source: string; publishedAt: string; url: string; category: string }>
   events: Array<{ title: string; facts: string[]; occurredAt: string; severity: string }>
 }
 
-function snapshotId(snapshot: MarketInsightSnapshot): string {
-  return `${snapshot.quoteId}:${snapshot.generatedAt}`
+function snapshotId(
+  snapshot: MarketInsightSnapshot,
+  chipDistribution: ChipDistributionCacheEntry | null
+): string {
+  return `${snapshot.quoteId}:${snapshot.generatedAt}:${chipDistribution?.calculatedAt ?? 'no-chip'}`
 }
 
-export function compactMarketSnapshot(snapshot: MarketInsightSnapshot): CompactMarketSnapshot {
+export function compactMarketSnapshot(
+  snapshot: MarketInsightSnapshot,
+  chipDistribution: ChipDistributionCacheEntry | null
+): CompactMarketSnapshot {
   const groups = [
     ['intraday', snapshot.indicators.intraday],
     ['trend', snapshot.indicators.trend],
@@ -27,11 +35,12 @@ export function compactMarketSnapshot(snapshot: MarketInsightSnapshot): CompactM
     ['relativeStrength', snapshot.indicators.relativeStrength]
   ] as const
   return {
-    snapshotId: snapshotId(snapshot),
+    snapshotId: snapshotId(snapshot, chipDistribution),
     quoteId: snapshot.quoteId,
     generatedAt: snapshot.generatedAt,
     dataCutoffAt: snapshot.dataCutoffAt,
     dataState: snapshot.dataState,
+    chipDistribution,
     indicators: groups.flatMap(([group, values]) => values.map((value) => ({
       group,
       name: value.label,

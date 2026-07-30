@@ -3,7 +3,11 @@ import type { MarketInsightSnapshot } from '../../market-insight/shared/types'
 import type { AiStructuredTaskRequest, AiStructuredTaskResult } from '../../ai/shared/types'
 import { calculateTBatchMetrics } from '../../../lib/t-trading'
 import { tPlanTargetPrice, updateTPlanLevel } from '../../../lib/t-alerts'
-import { normalizeActiveTTradingBatch, type TTradingAccount } from '../../../shared/types'
+import {
+  normalizeActiveTTradingBatch,
+  type ChipDistributionCacheEntry,
+  type TTradingAccount
+} from '../../../shared/types'
 import { AI_T_ADVICE_PROMPT_VERSION, T_ADVICE_PROMPT } from '../prompts/t-advice'
 import type {
   AiTAdvice,
@@ -29,6 +33,7 @@ interface StoredPreview extends AiTAdviceApplyPreview {
 
 export interface AiTAdviceDependencies {
   refreshMarketInsightSnapshot: (quoteId: string) => Promise<MarketInsightSnapshot | null> | null
+  getChipDistributionCache: (quoteId: string) => ChipDistributionCacheEntry | null
   getTradingContext: (quoteId: string) => AiTAdviceTradingContext | null
   saveTradingAccount: (quoteId: string, account: TTradingAccount) => void
   runStructuredTask: (
@@ -72,7 +77,11 @@ function hasLiveOrderBook(snapshot: MarketInsightSnapshot): boolean {
   return snapshot.sourceStates?.some((source) => source.id === 'orderBook' && source.state === 'live') ?? false
 }
 
-function buildPromptContext(snapshot: MarketInsightSnapshot, context: AiTAdviceTradingContext) {
+function buildPromptContext(
+  snapshot: MarketInsightSnapshot,
+  context: AiTAdviceTradingContext,
+  chipDistribution: ChipDistributionCacheEntry | null
+) {
   const batch = context.account?.activeBatch
   const metrics = batch ? calculateTBatchMetrics(batch, context.quote?.latest) : null
   const positionQuantity = context.position?.quantity ?? 0
@@ -117,6 +126,7 @@ function buildPromptContext(snapshot: MarketInsightSnapshot, context: AiTAdviceT
       changePercent: context.quote.changePercent,
       updatedAt: context.quote.updatedAt
     } : null,
+    chipDistribution,
     position: context.position ? {
       quantity: context.position.quantity,
       cost: context.position.cost,
@@ -215,8 +225,12 @@ export class AiTAdviceService {
         throw new Error('当前最新价不可用，暂时不能生成做 T 参考')
       }
 
-      const promptContext = buildPromptContext(snapshot, tradingContext)
-      report('analyzing', '最新盘口已获取，AI 正在分析', '结合市场快照、持仓和 T 计划生成操作参考。', attempt)
+      const promptContext = buildPromptContext(
+        snapshot,
+        tradingContext,
+        this.dependencies.getChipDistributionCache(quoteId)
+      )
+      report('analyzing', '最新盘口已获取，AI 正在分析', '结合市场快照、筹码分布、持仓和 T 计划生成操作参考。', attempt)
       const result = await this.dependencies.runStructuredTask({
         systemPrompt: T_ADVICE_PROMPT,
         userContent: JSON.stringify(promptContext)

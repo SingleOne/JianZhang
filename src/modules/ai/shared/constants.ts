@@ -26,7 +26,7 @@ export const AI_IPC = {
   analysisProgress: 'ai:analysis:progress'
 } as const
 
-export const AI_PROMPT_VERSION = '2026-07-21.1'
+export const AI_PROMPT_VERSION = '2026-07-30.1'
 
 export const OPENAI_CODEX_DEFAULT_MODEL = 'gpt-5.6-sol'
 

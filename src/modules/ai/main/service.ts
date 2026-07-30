@@ -324,7 +324,7 @@ export class AiService {
     const settings = this.storage.getSettings()
     if (!settings.enabled) throw new Error('AI 助手当前已关闭')
     const credential = this.getCredential(settings.providerId)
-    report('loading-snapshot', '正在读取市场观察快照', '加载当前股票的指标、新闻与客观观察事件。')
+    report('loading-snapshot', '正在读取市场观察快照', '加载当前股票的指标、新闻、客观观察事件与最后一次筹码分布。')
     const snapshot = await this.dependencies.getMarketInsightSnapshot(quoteId)
     if (!snapshot) throw new Error('当前还没有可解读的市场观察快照，请先打开市场观察并刷新')
     const compact = this.persistCompactSnapshot(snapshot)
@@ -351,7 +351,7 @@ export class AiService {
     }
     const provider = this.requireProvider(settings.providerId)
     const controller = new AbortController()
-    report('analyzing', 'AI 正在生成快照解读', `正在调用 ${settings.model} 分析指标、新闻与观察事件。`)
+    report('analyzing', 'AI 正在生成快照解读', `正在调用 ${settings.model} 分析指标、新闻、观察事件与筹码分布。`)
     const result = await provider.streamChat(credential, {
       model: settings.model,
       messages: [
@@ -478,7 +478,10 @@ export class AiService {
   }
 
   private persistCompactSnapshot(snapshot: MarketInsightSnapshot): CompactMarketSnapshot {
-    const compact = compactMarketSnapshot(snapshot)
+    const compact = compactMarketSnapshot(
+      snapshot,
+      this.dependencies.getChipDistributionCache(snapshot.quoteId)
+    )
     this.storage.saveSnapshot(compact.snapshotId, compact)
     return compact
   }

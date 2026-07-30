@@ -226,9 +226,9 @@ export function ExpandedStockDetails({
   const dailyBars = dataByTab.daily?.bars ?? []
   const chipAutoRange = useMemo(() => findChipAutoRange(dailyBars), [dailyBars])
   const chipVisibleRange = chipAutoRangeMode ? chipAutoRange : dailyVisibleRange ?? chipAutoRange
-  const chipBars = chipVisibleRange
+  const chipBars = useMemo(() => chipVisibleRange
     ? dailyBars.slice(chipVisibleRange.fromIndex, chipVisibleRange.toIndex + 1)
-    : []
+    : [], [chipVisibleRange, dailyBars])
   const isFiveMinuteFallback = priceTab === 'trend' && data?.intervalMinutes === 5
   const overviewBar = priceTab === 'trend' ? null : hoveredBar
   const changePercentByTime = useMemo(() => {
@@ -500,6 +500,8 @@ export function ExpandedStockDetails({
               />
             ) : priceTab === 'daily' && chipDistributionEnabled ? (
               <ChipDistributionPanel
+                quoteId={stock.quoteId}
+                quoteName={stock.name}
                 bars={chipBars}
                 isAutoRange={chipAutoRangeMode}
                 onRestoreAutoRange={restoreChipAutoRange}

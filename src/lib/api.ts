@@ -357,6 +357,10 @@ const demoApi: StockDesktopApi = {
   async getKline(quoteId, period, limit) {
     return makeDemoKline(quoteId, period, limit)
   },
+  async saveChipDistributionCache(entry) {
+    localStorage.setItem(`jianzhang-chip-distribution-${entry.quoteId}`, JSON.stringify(entry))
+    return entry
+  },
   async getOrderBook(quoteId) {
     return makeDemoOrderBook(quoteId)
   },

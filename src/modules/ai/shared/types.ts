@@ -1,4 +1,5 @@
 import type { MarketInsightSnapshot } from '../../market-insight/shared/types'
+import type { ChipDistributionCacheEntry } from '../../../shared/types'
 
 export type AiProviderId = 'openai' | 'openai-codex' | 'deepseek'
 export type AiApiKeyProviderId = Exclude<AiProviderId, 'openai-codex'>
@@ -236,6 +237,7 @@ export interface AiProvider {
 
 export interface AiModuleDependencies {
   getMarketInsightSnapshot: (quoteId: string) => Promise<MarketInsightSnapshot | null> | null
+  getChipDistributionCache: (quoteId: string) => ChipDistributionCacheEntry | null
 }
 
 declare global {
