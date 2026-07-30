@@ -5852,6 +5852,7 @@ html.tray-mode #root {
 }
 
 .tray-summary-heading,
+.tray-summary-profit,
 .tray-summary-t {
   min-width: 0;
   display: flex;
@@ -5862,17 +5863,20 @@ html.tray-mode #root {
 }
 
 .tray-summary-heading > span,
+.tray-summary-profit,
 .tray-summary-t {
   color: #657187;
 }
 
-.tray-summary-heading > span {
+.tray-summary-heading > span,
+.tray-summary-profit > span {
   display: inline-flex;
   align-items: center;
   gap: 5px;
 }
 
-.tray-summary-heading b {
+.tray-summary-heading b,
+.tray-summary-profit b {
   font-weight: 700;
 }
 
