@@ -1,16 +1,36 @@
-import { BriefcaseBusiness, Camera, ReceiptText, Trash2, X } from 'lucide-react'
+import {
+  BriefcaseBusiness,
+  Camera,
+  Check,
+  PencilLine,
+  ReceiptText,
+  Trash2,
+  X
+} from 'lucide-react'
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { formatCost, formatCurrency, formatPercent, formatPrice, formatProfit, formatShares } from '../lib/format'
 import { currentDateKey } from '../lib/portfolio'
-import { totalTradeFees } from '../lib/t-trading'
+import {
+  calculateTBatchMetrics,
+  recalculatePositionFromBatch,
+  rebalanceTBatchPlans,
+  roundMoney,
+  totalTradeFees,
+  validateTBatchTrades
+} from '../lib/t-trading'
 import type {
   StockPosition,
   StockPositionSnapshot,
   StockQuote,
+  TPlanDefaultSettings,
   TTradingAccount,
+  TTradingBatch,
   TTrade,
+  TTradeFees,
+  TTradePurpose,
   TTradeRecord,
+  TTradeSide,
   WatchStock
 } from '../shared/types'
 
@@ -18,6 +38,7 @@ interface PositionEditorProps {
   stock: WatchStock
   quote: StockQuote | undefined
   account: TTradingAccount | undefined
+  planDefaults: TPlanDefaultSettings
   onSave: (
     position: StockPosition | undefined,
     showRadarSignals: boolean,
@@ -31,6 +52,23 @@ interface PositionVersionMetrics {
   marketValue: number | null
   totalProfit: number | null
   profitPercent: number | null
+}
+
+interface TradeRecordDraft {
+  side: TTradeSide
+  purpose: TTradePurpose
+  tradedAt: string
+  price: string
+  quantity: string
+  fees: string
+  note: string
+}
+
+interface TradeAccountUpdate {
+  account: TTradingAccount
+  position?: StockPosition
+  updatesPosition: boolean
+  error?: string
 }
 
 function calculateVersionMetrics(
@@ -130,15 +168,276 @@ function tradeRecordContext(record: TTradeRecord): string {
   return `${(record.batchDirection ?? 'forward') === 'reverse' ? '反T' : '正T'}批次 #${record.batchSequence}`
 }
 
-function TradeRecordList({ records }: { records: readonly TTradeRecord[] }) {
+function createTradeRecordDraft(record: TTradeRecord): TradeRecordDraft {
+  return {
+    side: record.side,
+    purpose: record.purpose,
+    tradedAt: record.tradedAt.slice(0, 16),
+    price: record.price.toString(),
+    quantity: record.quantity.toString(),
+    fees: totalTradeFees(record.fees).toString(),
+    note: record.note
+  }
+}
+
+function feesWithTotal(fees: TTradeFees, nextTotal: number): TTradeFees {
+  const currentTotal = totalTradeFees(fees)
+  if (currentTotal === nextTotal) return fees
+  return {
+    commission: nextTotal,
+    handling: 0,
+    regulatory: 0,
+    transfer: 0,
+    stampDuty: 0
+  }
+}
+
+function refreshBatchSettlement(batch: TTradingBatch): TTradingBatch {
+  if (!batch.settlement) return batch
+  const ledgerProfit = calculateTBatchMetrics(batch).realizedProfit
+  const settlement = {
+    ...batch.settlement,
+    ledgerProfit,
+    finalProfit: batch.settlement.source === 'ledger'
+      ? ledgerProfit
+      : batch.settlement.finalProfit
+  }
+  return { ...batch, settlement }
+}
+
+function updateTradeAccount(
+  account: TTradingAccount,
+  record: TTradeRecord,
+  nextTrade: TTrade | undefined,
+  planDefaults: TPlanDefaultSettings
+): TradeAccountUpdate {
+  const replaceTrade = (trades: readonly TTrade[]): TTrade[] => (
+    nextTrade
+      ? [...trades.filter((trade) => trade.id !== record.id), nextTrade]
+          .sort((left, right) => left.tradedAt.localeCompare(right.tradedAt))
+      : trades.filter((trade) => trade.id !== record.id)
+  )
+  const nextRecords = nextTrade
+    ? [
+        ...(account.tradeRecords ?? []).filter((item) => item.id !== record.id),
+        { ...record, ...nextTrade }
+      ].sort((left, right) => right.tradedAt.localeCompare(left.tradedAt))
+    : account.tradeRecords?.filter((item) => item.id !== record.id)
+
+  if (account.activeBatch?.trades.some((trade) => trade.id === record.id)) {
+    const nextBatch = {
+      ...account.activeBatch,
+      trades: replaceTrade(account.activeBatch.trades)
+    }
+    const validationError = validateTBatchTrades(nextBatch)
+    if (validationError) {
+      return { account, updatesPosition: false, error: validationError }
+    }
+    const plannedBatch = rebalanceTBatchPlans(nextBatch, planDefaults)
+    const hasTTrades = nextBatch.trades.some((trade) => trade.purpose === 't')
+    const migratedTradeIds = new Set(nextBatch.trades.map((trade) => trade.id))
+    return {
+      account: {
+        ...account,
+        activeBatch: hasTTrades ? plannedBatch : undefined,
+        baseTrades: hasTTrades
+          ? account.baseTrades
+          : [
+              ...(account.baseTrades ?? []).filter((trade) => !migratedTradeIds.has(trade.id)),
+              ...nextBatch.trades
+            ],
+        tradeRecords: hasTTrades
+          ? nextRecords
+          : nextRecords?.map((item) => {
+              const migratedTrade = nextBatch.trades.find((trade) => trade.id === item.id)
+              return migratedTrade ?? item
+            })
+      },
+      position: recalculatePositionFromBatch(plannedBatch),
+      updatesPosition: true
+    }
+  }
+
+  const historyIndex = account.history.findIndex((batch) => (
+    batch.trades.some((trade) => trade.id === record.id)
+  ))
+  if (historyIndex >= 0) {
+    const batch = account.history[historyIndex]
+    const nextBatch = { ...batch, trades: replaceTrade(batch.trades) }
+    const validationError = validateTBatchTrades(nextBatch)
+    if (validationError) {
+      return { account, updatesPosition: false, error: validationError }
+    }
+    const history = account.history.map((item, index) => (
+      index === historyIndex ? refreshBatchSettlement(nextBatch) : item
+    ))
+    return {
+      account: { ...account, history, tradeRecords: nextRecords },
+      updatesPosition: false
+    }
+  }
+
+  const baseTrades = account.baseTrades?.some((trade) => trade.id === record.id)
+    ? replaceTrade(account.baseTrades)
+    : account.baseTrades
+  return {
+    account: { ...account, baseTrades, tradeRecords: nextRecords },
+    updatesPosition: false
+  }
+}
+
+interface TradeRecordListProps {
+  records: readonly TTradeRecord[]
+  editingTradeId: string | null
+  draft: TradeRecordDraft | null
+  error: string
+  onStartEdit: (record: TTradeRecord) => void
+  onDraftChange: (changes: Partial<TradeRecordDraft>) => void
+  onSaveEdit: () => void
+  onCancelEdit: () => void
+  onDelete: (record: TTradeRecord) => void
+}
+
+function TradeRecordList({
+  records,
+  editingTradeId,
+  draft,
+  error,
+  onStartEdit,
+  onDraftChange,
+  onSaveEdit,
+  onCancelEdit,
+  onDelete
+}: TradeRecordListProps) {
   return (
     <div className="trade-record-scroll">
       <div className="trade-record-list">
+        <div className="trade-record-row trade-record-table-header">
+          <span>交易类型</span>
+          <span>批次 / 时间</span>
+          <span>数量 / 价格 / 费用</span>
+          <span>金额变动</span>
+          <span>备注</span>
+          <span>操作</span>
+        </div>
         {records.map((record) => {
           const fees = totalTradeFees(record.fees)
           const amountChange = record.side === 'buy'
             ? -(record.price * record.quantity + fees)
             : record.price * record.quantity - fees
+          const isEditing = editingTradeId === record.id && draft
+          if (isEditing) {
+            const tBuyLabel = (record.batchDirection ?? 'forward') === 'reverse'
+              ? '回补买入'
+              : 'T仓买入'
+            const tSellLabel = (record.batchDirection ?? 'forward') === 'reverse'
+              ? '反T卖出'
+              : 'T仓卖出'
+            return (
+              <div
+                className="trade-record-row is-editing"
+                key={record.id}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    event.stopPropagation()
+                    onCancelEdit()
+                  }
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    onSaveEdit()
+                  }
+                }}
+              >
+                <select
+                  value={`${draft.purpose}:${draft.side}`}
+                  onChange={(event) => {
+                    const [purpose, side] = event.target.value.split(':') as [TTradePurpose, TTradeSide]
+                    onDraftChange({ purpose, side })
+                  }}
+                  aria-label="交易类型"
+                >
+                  <option value="base:buy">底仓买入</option>
+                  <option value="base:sell">底仓卖出</option>
+                  {record.batchId ? <option value="t:buy">{tBuyLabel}</option> : null}
+                  {record.batchId ? <option value="t:sell">{tSellLabel}</option> : null}
+                </select>
+                <span className="trade-record-edit-context">
+                  <strong>{tradeRecordContext(record)}</strong>
+                  <input
+                    type="datetime-local"
+                    value={draft.tradedAt}
+                    onChange={(event) => onDraftChange({ tradedAt: event.target.value })}
+                    aria-label="成交时间"
+                  />
+                </span>
+                <span className="trade-record-edit-numbers">
+                  <label>
+                    <span>数量</span>
+                    <input
+                      type="number"
+                      min="100"
+                      step="100"
+                      value={draft.quantity}
+                      onChange={(event) => onDraftChange({ quantity: event.target.value })}
+                      aria-label="成交数量"
+                    />
+                  </label>
+                  <label>
+                    <span>价格</span>
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={draft.price}
+                      onChange={(event) => onDraftChange({ price: event.target.value })}
+                      aria-label="成交价格"
+                    />
+                  </label>
+                  <label>
+                    <span>费用</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={draft.fees}
+                      onChange={(event) => onDraftChange({ fees: event.target.value })}
+                      aria-label="交易费用合计"
+                    />
+                  </label>
+                </span>
+                <span className="trade-record-edit-hint">保存后重新计算</span>
+                <input
+                  className="trade-record-note-input"
+                  type="text"
+                  value={draft.note}
+                  maxLength={100}
+                  onChange={(event) => onDraftChange({ note: event.target.value })}
+                  aria-label="交易备注"
+                />
+                <span className="trade-record-actions">
+                  <button
+                    className="icon-button is-save"
+                    type="button"
+                    onClick={onSaveEdit}
+                    title="保存本行"
+                    aria-label="保存本行"
+                  >
+                    <Check size={15} />
+                  </button>
+                  <button
+                    className="icon-button"
+                    type="button"
+                    onClick={onCancelEdit}
+                    title="取消编辑"
+                    aria-label="取消编辑"
+                  >
+                    <X size={15} />
+                  </button>
+                </span>
+                {error ? <small className="trade-record-edit-error">{error}</small> : null}
+              </div>
+            )
+          }
           return (
             <div className="trade-record-row" key={record.id}>
               <span className={`trade-record-side is-${record.side}`}>
@@ -156,6 +455,26 @@ function TradeRecordList({ records }: { records: readonly TTradeRecord[] }) {
                 金额变动 {formatProfit(amountChange)}
               </strong>
               <small title={record.note || undefined}>{record.note || '--'}</small>
+              <span className="trade-record-actions">
+                <button
+                  className="icon-button"
+                  type="button"
+                  onClick={() => onStartEdit(record)}
+                  title="编辑本条交易"
+                  aria-label="编辑本条交易"
+                >
+                  <PencilLine size={14} />
+                </button>
+                <button
+                  className="icon-button is-delete"
+                  type="button"
+                  onClick={() => onDelete(record)}
+                  title="删除本条交易"
+                  aria-label="删除本条交易"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </span>
             </div>
           )
         })}
@@ -164,7 +483,14 @@ function TradeRecordList({ records }: { records: readonly TTradeRecord[] }) {
   )
 }
 
-export function PositionEditor({ stock, quote, account, onSave, onClose }: PositionEditorProps) {
+export function PositionEditor({
+  stock,
+  quote,
+  account,
+  planDefaults,
+  onSave,
+  onClose
+}: PositionEditorProps) {
   const [quantity, setQuantity] = useState(stock.position?.quantity.toString() ?? '')
   const [cost, setCost] = useState(stock.position?.cost.toString() ?? '')
   const [openedOn, setOpenedOn] = useState(
@@ -174,15 +500,23 @@ export function PositionEditor({ stock, quote, account, onSave, onClose }: Posit
   const [positionSnapshots, setPositionSnapshots] = useState<StockPositionSnapshot[]>(
     () => stock.positionSnapshots ?? []
   )
+  const [editedAccount, setEditedAccount] = useState<TTradingAccount | undefined>()
+  const [editingTradeId, setEditingTradeId] = useState<string | null>(null)
+  const [tradeRecordDraft, setTradeRecordDraft] = useState<TradeRecordDraft | null>(null)
+  const [tradeRecordError, setTradeRecordError] = useState('')
   const [showAllTradeRecords, setShowAllTradeRecords] = useState(false)
   const [tradeRecordPage, setTradeRecordPage] = useState(0)
   const hasPositionInput = quantity.trim() !== '' || cost.trim() !== ''
   const currentQuantity = Number(quantity) || 0
   const currentCost = Number(cost) || 0
   const currentMetrics = calculateVersionMetrics(currentQuantity, currentCost, quote?.latest)
-  const tradeRecords = account?.tradeRecords ?? []
+  const workingAccount = editedAccount ?? account
+  const tradeRecords = workingAccount?.tradeRecords ?? []
   const recentTradeRecords = tradeRecords.slice(0, 5)
-  const tradeRecordPageCount = Math.ceil(tradeRecords.length / TRADE_RECORD_PAGE_SIZE)
+  const tradeRecordPageCount = Math.max(
+    1,
+    Math.ceil(tradeRecords.length / TRADE_RECORD_PAGE_SIZE)
+  )
   const currentTradeRecordPage = Math.min(
     tradeRecordPage,
     Math.max(0, tradeRecordPageCount - 1)
@@ -211,6 +545,103 @@ export function PositionEditor({ stock, quote, account, onSave, onClose }: Posit
     setPositionSnapshots((current) => current.map((snapshot) => (
       snapshot.id === snapshotId ? { ...snapshot, ...changes } : snapshot
     )))
+  }
+
+  const startEditingTradeRecord = (record: TTradeRecord) => {
+    setEditingTradeId(record.id)
+    setTradeRecordDraft(createTradeRecordDraft(record))
+    setTradeRecordError('')
+  }
+
+  const cancelEditingTradeRecord = () => {
+    setEditingTradeId(null)
+    setTradeRecordDraft(null)
+    setTradeRecordError('')
+  }
+
+  const closeAllTradeRecords = () => {
+    setShowAllTradeRecords(false)
+    cancelEditingTradeRecord()
+  }
+
+  const saveTradeRecord = () => {
+    if (!workingAccount || !editingTradeId || !tradeRecordDraft) return
+    const record = tradeRecords.find((item) => item.id === editingTradeId)
+    if (!record) return
+
+    const price = Number(tradeRecordDraft.price)
+    const tradeQuantity = Number(tradeRecordDraft.quantity)
+    const fees = Number(tradeRecordDraft.fees)
+    if (
+      !tradeRecordDraft.tradedAt
+      || !Number.isFinite(price)
+      || price <= 0
+      || !Number.isFinite(fees)
+      || fees < 0
+    ) {
+      setTradeRecordError('请填写有效的成交时间、价格和费用')
+      return
+    }
+    if (tradeQuantity <= 0 || !Number.isInteger(tradeQuantity) || tradeQuantity % 100 !== 0) {
+      setTradeRecordError('成交数量必须是 100 股的整数倍')
+      return
+    }
+
+    const nextTrade: TTrade = {
+      id: record.id,
+      side: tradeRecordDraft.side,
+      purpose: tradeRecordDraft.purpose,
+      tradedAt: tradeRecordDraft.tradedAt,
+      price,
+      quantity: tradeQuantity,
+      fees: feesWithTotal(record.fees, roundMoney(fees)),
+      note: tradeRecordDraft.note.trim()
+    }
+    const result = updateTradeAccount(workingAccount, record, nextTrade, planDefaults)
+    if (result.error) {
+      setTradeRecordError(result.error)
+      return
+    }
+    setEditedAccount(result.account)
+    if (result.updatesPosition) {
+      setQuantity(result.position?.quantity.toString() ?? '')
+      setCost(result.position?.cost.toString() ?? '')
+    }
+    cancelEditingTradeRecord()
+  }
+
+  const deleteTradeRecord = (record: TTradeRecord) => {
+    if (!workingAccount) return
+    if (!window.confirm(`确定删除 ${formatTradeTime(record.tradedAt)} 的${tradeRecordLabel(record)}记录吗？`)) {
+      return
+    }
+    const result = updateTradeAccount(workingAccount, record, undefined, planDefaults)
+    if (result.error) {
+      setEditingTradeId(record.id)
+      setTradeRecordDraft(createTradeRecordDraft(record))
+      setTradeRecordError(result.error)
+      return
+    }
+    setEditedAccount(result.account)
+    if (result.updatesPosition) {
+      setQuantity(result.position?.quantity.toString() ?? '')
+      setCost(result.position?.cost.toString() ?? '')
+    }
+    if (editingTradeId === record.id) cancelEditingTradeRecord()
+  }
+
+  const tradeRecordListProps = {
+    editingTradeId,
+    draft: tradeRecordDraft,
+    error: tradeRecordError,
+    onStartEdit: startEditingTradeRecord,
+    onDraftChange: (changes: Partial<TradeRecordDraft>) => {
+      setTradeRecordDraft((current) => current ? { ...current, ...changes } : current)
+      setTradeRecordError('')
+    },
+    onSaveEdit: saveTradeRecord,
+    onCancelEdit: cancelEditingTradeRecord,
+    onDelete: deleteTradeRecord
   }
 
   return createPortal(
@@ -263,12 +694,12 @@ export function PositionEditor({ stock, quote, account, onSave, onClose }: Posit
             const updatedAccount = !stock.position && nextPosition
               ? createOpeningTradeAccount(
                   stock,
-                  account,
+                  workingAccount,
                   nextPosition.quantity,
                   nextPosition.cost,
                   nextPosition.openedOn
                 )
-              : undefined
+              : editedAccount
             onSave(nextPosition, showRadarSignals, positionSnapshots, updatedAccount)
           }}
         >
@@ -441,7 +872,7 @@ export function PositionEditor({ stock, quote, account, onSave, onClose }: Posit
                 <strong>交易记录</strong>
                 <small>
                   {tradeRecords.length > 0
-                    ? `显示最近 ${Math.min(5, tradeRecords.length)} 条，共 ${tradeRecords.length} 条`
+                    ? `显示最近 ${Math.min(5, tradeRecords.length)} 条，共 ${tradeRecords.length} 条；修改随“保存设置”保存`
                     : '做T交易和底仓增减会统一记录在这里'}
                 </small>
               </span>
@@ -459,7 +890,7 @@ export function PositionEditor({ stock, quote, account, onSave, onClose }: Posit
               ) : null}
             </header>
             {recentTradeRecords.length > 0 ? (
-              <TradeRecordList records={recentTradeRecords} />
+              <TradeRecordList records={recentTradeRecords} {...tradeRecordListProps} />
             ) : (
               <div className="trade-record-empty">暂无交易记录</div>
             )}
@@ -470,14 +901,27 @@ export function PositionEditor({ stock, quote, account, onSave, onClose }: Posit
               <button
                 className="clear-position-button"
                 type="button"
-                onClick={() => onSave(undefined, showRadarSignals, positionSnapshots)}
+                disabled={editingTradeId !== null}
+                onClick={() => onSave(
+                  undefined,
+                  showRadarSignals,
+                  positionSnapshots,
+                  editedAccount
+                )}
               >
                 清空持仓
               </button>
             ) : <span />}
             <span>
               <button className="secondary-button compact-button" type="button" onClick={onClose}>取消</button>
-              <button className="primary-button compact-button" type="submit">保存设置</button>
+              <button
+                className="primary-button compact-button"
+                type="submit"
+                disabled={editingTradeId !== null}
+                title={editingTradeId ? '请先保存或取消当前交易记录编辑' : undefined}
+              >
+                保存设置
+              </button>
             </span>
           </footer>
         </form>
@@ -488,7 +932,7 @@ export function PositionEditor({ stock, quote, account, onSave, onClose }: Posit
         <div
           className="trade-record-dialog-backdrop"
           role="presentation"
-          onMouseDown={() => setShowAllTradeRecords(false)}
+          onMouseDown={closeAllTradeRecords}
         >
           <section
             className="position-dialog trade-record-dialog"
@@ -497,7 +941,7 @@ export function PositionEditor({ stock, quote, account, onSave, onClose }: Posit
             aria-labelledby="trade-record-dialog-title"
             onMouseDown={(event) => event.stopPropagation()}
             onKeyDown={(event) => {
-              if (event.key === 'Escape') setShowAllTradeRecords(false)
+              if (event.key === 'Escape') closeAllTradeRecords()
             }}
           >
             <header className="position-dialog-header">
@@ -512,14 +956,14 @@ export function PositionEditor({ stock, quote, account, onSave, onClose }: Posit
                 className="icon-button dialog-close"
                 type="button"
                 autoFocus
-                onClick={() => setShowAllTradeRecords(false)}
+                onClick={closeAllTradeRecords}
                 aria-label="关闭全部交易记录"
               >
                 <X size={18} />
               </button>
             </header>
             <div className="trade-record-dialog-content">
-              <TradeRecordList records={visibleTradeRecords} />
+              <TradeRecordList records={visibleTradeRecords} {...tradeRecordListProps} />
             </div>
             <footer className="trade-record-dialog-footer">
               <span>每页 {TRADE_RECORD_PAGE_SIZE} 条</span>

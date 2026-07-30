@@ -1176,6 +1176,7 @@ export function WatchlistTable({
           stock={watchlist.find((stock) => stock.quoteId === editingStock.quoteId) ?? editingStock}
           quote={quotes.find((quote) => quote.quoteId === editingStock.quoteId)}
           account={tTradingAccounts[editingStock.quoteId]}
+          planDefaults={tPlanDefaults}
           onClose={() => setEditingStock(null)}
           onSave={(position, showRadarSignals, positionSnapshots, updatedAccount) => {
             onEditPosition(
