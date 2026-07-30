@@ -7057,12 +7057,31 @@ html.tray-mode #root {
 .ai-generation-controls button { padding: 5px 8px; color: #a63a45; background: #fff5f5; border: 1px solid #ffd6da; border-radius: 6px; cursor: pointer; font-size: 12px; }
 
 .ai-composer { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 14px 20px; background: #fbfcfe; border-top: 1px solid #e7edf4; }
+.ai-composer-contexts { grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.ai-composer-editor { position: relative; min-width: 0; }
 .ai-composer textarea { width: 100%; min-height: 58px; max-height: 130px; padding: 10px 11px; resize: vertical; color: #2d3e57; background: #ffffff; border: 1px solid #d9e2ed; border-radius: 8px; outline: 0; font: inherit; font-size: 12px; line-height: 1.5; }
 .ai-composer textarea:focus { border-color: #8bb3ff; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
 .ai-composer > .primary-button { align-self: end; height: 38px; min-width: 74px; }
-.ai-context-chip { grid-column: 1 / -1; width: fit-content; display: inline-flex; align-items: center; gap: 5px; padding: 4px 6px 4px 8px; color: #5272a2; background: #edf4ff; border: 1px solid #d6e5ff; border-radius: 6px; font-size: 12px; }
+.ai-context-chip { width: fit-content; display: inline-flex; align-items: center; gap: 5px; padding: 4px 6px 4px 8px; color: #5272a2; background: #edf4ff; border: 1px solid #d6e5ff; border-radius: 6px; font-size: 12px; }
+.ai-context-chip.is-disabled { color: #8794a6; background: #f1f3f6; border-color: #e0e5eb; text-decoration: line-through; }
+.ai-context-chip.is-mention { color: #176b5b; background: #eaf8f4; border-color: #c7eadf; }
+.ai-context-chip small { color: inherit; font-size: 12px; opacity: 0.72; }
 .ai-context-chip button { width: 18px; height: 18px; display: grid; place-items: center; padding: 0; color: inherit; background: transparent; border: 0; border-radius: 4px; cursor: pointer; }
 .ai-context-chip button:hover { background: #dceaff; }
+.ai-mention-open { height: 28px; display: inline-flex; align-items: center; gap: 4px; padding: 0 9px; color: #4e678d; background: #ffffff; border: 1px dashed #b9c9dd; border-radius: 6px; cursor: pointer; font-size: 12px; }
+.ai-mention-open:hover { color: var(--blue); border-color: #7da5e8; background: #f4f8ff; }
+.ai-mention-open:disabled { color: #a2acb9; background: #f2f4f7; border-color: #d7dde5; cursor: not-allowed; }
+.ai-mention-picker { position: absolute; z-index: 5; left: 0; bottom: calc(100% + 7px); width: min(430px, 100%); max-height: 296px; display: grid; align-content: start; padding: 6px; overflow-y: auto; background: #ffffff; border: 1px solid #d8e1ec; border-radius: 10px; box-shadow: 0 14px 34px rgba(25, 42, 65, 0.18); }
+.ai-mention-picker > header { display: flex; align-items: center; justify-content: space-between; padding: 5px 7px 8px; color: #7b899b; font-size: 12px; }
+.ai-mention-picker > header small { font-size: 12px; }
+.ai-mention-picker > button { min-height: 42px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 8px; color: #3e4e64; text-align: left; background: transparent; border: 0; border-radius: 7px; cursor: pointer; font-size: 12px; }
+.ai-mention-picker > button:hover,
+.ai-mention-picker > button.is-active { color: #2458b2; background: #edf4ff; }
+.ai-mention-picker > button > span { min-width: 0; display: flex; align-items: baseline; gap: 7px; }
+.ai-mention-picker strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.ai-mention-picker small,
+.ai-mention-picker em { color: #8491a3; font-size: 12px; font-style: normal; }
+.ai-mention-empty { padding: 18px 8px; color: #929ead; text-align: center; font-size: 12px; }
 
 .ai-settings-panel { min-height: 0; width: 100%; height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 20px; padding: 28px 30px; overflow-y: auto; }
 .ai-settings-panel > header { display: flex; align-items: flex-start; gap: 10px; color: var(--blue); }
@@ -7282,6 +7301,8 @@ html.tray-mode #root {
   .ai-settings-fields select,
   .ai-credential-actions input,
   .ai-composer textarea,
+  .ai-mention-picker,
+  .ai-mention-open,
   .ai-analysis-summary,
   .ai-analysis-facts article,
   .ai-analysis-news article,
@@ -7305,6 +7326,12 @@ html.tray-mode #root {
   .ai-analysis-summary p,
   .ai-analysis-facts p,
   .ai-analysis-news p { color: #c0cede; }
+  .ai-context-chip { color: #b9d2f5; background: #253b58; border-color: #3c587d; }
+  .ai-context-chip.is-disabled { color: #929dac; background: #293441; border-color: #3b4858; }
+  .ai-context-chip.is-mention { color: #8edcca; background: #203f3b; border-color: #34655c; }
+  .ai-mention-picker > button { color: #d5dfeb; }
+  .ai-mention-picker > button:hover,
+  .ai-mention-picker > button.is-active { color: #b9d2ff; background: #29466d; }
   .ai-chat-heading,
   .ai-composer,
   .ai-generation-controls { border-color: #344357; }

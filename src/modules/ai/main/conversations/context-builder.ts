@@ -15,6 +15,14 @@ export interface CompactMarketSnapshot {
   events: Array<{ title: string; facts: string[]; occurredAt: string; severity: string }>
 }
 
+export interface AiChatStockContext {
+  source: 'conversation' | 'mention'
+  quoteName?: string
+  code?: string
+  marketLabel?: string
+  snapshot: CompactMarketSnapshot
+}
+
 function snapshotId(
   snapshot: MarketInsightSnapshot,
   chipDistribution: ChipDistributionCacheEntry | null
@@ -68,10 +76,10 @@ export function compactMarketSnapshot(
 
 export function toProviderMessages(
   messages: AiMessage[],
-  context: CompactMarketSnapshot | null
+  contexts: AiChatStockContext[]
 ): AiProviderRequestMessage[] {
-  const policy = context
-    ? `${GENERAL_CHAT_POLICY}\n\n本次对话附带以下只读市场快照。它可能不是当前行情；回答时必须注明数据时间，且只能引用其中的事实：\n${JSON.stringify(context)}`
+  const policy = contexts.length > 0
+    ? `${GENERAL_CHAT_POLICY}\n\n本条消息附带以下只读股票上下文。source=mention 表示用户通过 @ 明确引用的股票，source=conversation 表示当前股票会话的默认上下文。每只股票的快照时间可能不同；回答时必须分别注明数据时间，且只能引用对应快照中的事实：\n${JSON.stringify(contexts)}`
     : GENERAL_CHAT_POLICY
   return [
     { role: 'system', content: policy },

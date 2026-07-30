@@ -862,6 +862,7 @@ if (!hasSingleInstanceLock) {
       const { installAi } = await import('../../src/modules/ai/main/register')
       aiRuntime = installAi({
         getMarketInsightSnapshot: (quoteId) => marketInsightRuntime?.getSnapshot(quoteId) ?? null,
+        refreshMarketInsightSnapshot: (quoteId) => marketInsightRuntime?.refreshSnapshot(quoteId) ?? null,
         getChipDistributionCache: (quoteId) => chipDistributionCache?.get(quoteId) ?? null
       })
 

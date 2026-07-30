@@ -68,7 +68,18 @@ export interface AiConversation {
 
 export interface AiContextRef {
   quoteId: string
+  quoteName?: string
+  code?: string
+  marketLabel?: string
   snapshotId: string
+  source?: 'conversation' | 'mention'
+}
+
+export interface AiStockMention {
+  quoteId: string
+  code: string
+  name: string
+  marketLabel: string
 }
 
 export interface AiMessage {
@@ -82,6 +93,7 @@ export interface AiMessage {
   model?: string
   providerResponseId?: string
   contextRef?: AiContextRef
+  contextRefs?: AiContextRef[]
   sourceIds?: string[]
   errorMessage?: string
 }
@@ -96,6 +108,7 @@ export interface AiChatSendInput {
   conversationId: string
   content: string
   includeStockContext?: boolean
+  mentionedStocks?: AiStockMention[]
 }
 
 export interface AiChatStartResult {
@@ -237,6 +250,7 @@ export interface AiProvider {
 
 export interface AiModuleDependencies {
   getMarketInsightSnapshot: (quoteId: string) => Promise<MarketInsightSnapshot | null> | null
+  refreshMarketInsightSnapshot: (quoteId: string) => Promise<MarketInsightSnapshot | null> | null
   getChipDistributionCache: (quoteId: string) => ChipDistributionCacheEntry | null
 }
 

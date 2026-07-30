@@ -24,6 +24,11 @@ function readJson<T>(filePath: string, fallback: T): T {
   }
 }
 
+function messageSnapshotIds(message: AiMessage): string[] {
+  if (message.contextRefs?.length) return message.contextRefs.map((item) => item.snapshotId)
+  return message.contextRef ? [message.contextRef.snapshotId] : []
+}
+
 export class AiStorage {
   readonly conversationsDirectory: string
   readonly snapshotsDirectory: string
@@ -116,13 +121,13 @@ export class AiStorage {
 
   deleteConversation(conversationId: string): void {
     const deletedSnapshotIds = new Set(this.getMessages(conversationId)
-      .flatMap((message) => message.contextRef ? [message.contextRef.snapshotId] : []))
+      .flatMap(messageSnapshotIds))
     const conversations = this.listConversations().filter((item) => item.id !== conversationId)
     this.saveConversations(conversations)
     const filePath = this.messagePath(conversationId)
     if (existsSync(filePath)) rmSync(filePath)
     const referencedSnapshotIds = new Set(conversations.flatMap((conversation) => this.getMessages(conversation.id)
-      .flatMap((message) => message.contextRef ? [message.contextRef.snapshotId] : [])))
+      .flatMap(messageSnapshotIds)))
     for (const snapshotId of deletedSnapshotIds) {
       const snapshotPath = this.snapshotPath(snapshotId)
       if (!referencedSnapshotIds.has(snapshotId) && existsSync(snapshotPath)) rmSync(snapshotPath)

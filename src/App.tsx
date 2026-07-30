@@ -492,6 +492,7 @@ export default function App() {
           <AiAssistantDrawer
             open={aiAssistantOpen}
             context={aiAssistantContext}
+            stocks={state.watchlist}
             onClose={() => setAiAssistantOpen(false)}
           />
         </Suspense>

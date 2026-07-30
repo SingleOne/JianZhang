@@ -1,5 +1,6 @@
 import {
   AlertCircle,
+  AtSign,
   Bot,
   Check,
   Download,
@@ -19,7 +20,7 @@ import {
   UserRound,
   X
 } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import type {
   AiApiKeyProviderId,
   AiConnectionResult,
@@ -27,6 +28,7 @@ import type {
   AiMessage,
   AiProviderId,
   AiSettings,
+  AiStockMention,
   AiStatus
 } from '../shared/types'
 
@@ -39,6 +41,30 @@ interface AiAssistantDrawerProps {
   open: boolean
   onClose: () => void
   context?: AiAssistantContext | null
+  stocks: AiStockMention[]
+}
+
+interface MentionTrigger {
+  start: number
+  end: number
+  query: string
+}
+
+function mentionToken(stock: AiStockMention): string {
+  return `@${stock.name}(${stock.code})`
+}
+
+function findMentionTrigger(value: string, cursor: number): MentionTrigger | null {
+  const beforeCursor = value.slice(0, cursor)
+  const match = beforeCursor.match(/(?:^|[\s，。！？；：、])@([^\s@()]*)$/)
+  if (!match) return null
+  const start = beforeCursor.lastIndexOf('@')
+  return { start, end: cursor, query: match[1] }
+}
+
+function messageContextRefs(message: AiMessage) {
+  if (message.contextRefs?.length) return message.contextRefs
+  return message.contextRef ? [message.contextRef] : []
 }
 
 function formatMessageTime(value: string): string {
@@ -148,7 +174,11 @@ function ChatThread({ conversation, messages, onCancel, onRetry, onExport }: Cha
               <div className="ai-message-meta">
                 <span>{message.role === 'assistant' ? 'AI 助手' : '你'}</span>
                 <time>{formatMessageTime(message.createdAt)}</time>
-                {message.contextRef ? <small>快照 {message.contextRef.snapshotId}</small> : null}
+                {messageContextRefs(message).map((context) => (
+                  <small key={`${context.source ?? 'legacy'}:${context.snapshotId}`}>
+                    {context.source === 'mention' ? '@' : '上下文：'}{context.quoteName ?? context.quoteId}
+                  </small>
+                ))}
               </div>
               <p>{message.content || (message.status === 'pending' || message.status === 'streaming' ? '正在生成…' : '')}</p>
               {message.status === 'error' ? (
@@ -279,7 +309,7 @@ function AiSettingsPanel({
   )
 }
 
-export function AiAssistantDrawer({ open, onClose, context }: AiAssistantDrawerProps) {
+export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistantDrawerProps) {
   const api = window.aiApi
   const [activeTab, setActiveTab] = useState<'chat' | 'settings'>('chat')
   const [status, setStatus] = useState<AiStatus | null>(null)
@@ -290,11 +320,32 @@ export function AiAssistantDrawer({ open, onClose, context }: AiAssistantDrawerP
   const [messages, setMessages] = useState<AiMessage[]>([])
   const [search, setSearch] = useState('')
   const [composer, setComposer] = useState('')
+  const [mentionedStocks, setMentionedStocks] = useState<AiStockMention[]>([])
+  const [mentionTrigger, setMentionTrigger] = useState<MentionTrigger | null>(null)
+  const [activeMentionIndex, setActiveMentionIndex] = useState(0)
   const [includeStockContext, setIncludeStockContext] = useState(true)
+  const [sendingMessage, setSendingMessage] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [connectionResult, setConnectionResult] = useState<AiConnectionResult | null>(null)
   const openedContextRef = useRef<string | null>(null)
+  const composerRef = useRef<HTMLTextAreaElement>(null)
+
+  const mentionResults = useMemo(() => {
+    if (!mentionTrigger) return []
+    const query = mentionTrigger.query.trim().toLocaleLowerCase()
+    return stocks
+      .filter((stock) => !mentionedStocks.some((item) => item.quoteId === stock.quoteId))
+      .filter((stock) => !query
+        || stock.name.toLocaleLowerCase().includes(query)
+        || stock.code.toLocaleLowerCase().includes(query))
+      .sort((left, right) => {
+        const leftStarts = left.name.toLocaleLowerCase().startsWith(query) || left.code.startsWith(query)
+        const rightStarts = right.name.toLocaleLowerCase().startsWith(query) || right.code.startsWith(query)
+        return Number(rightStarts) - Number(leftStarts)
+      })
+      .slice(0, 8)
+  }, [mentionTrigger, mentionedStocks, stocks])
 
   const loadConversations = useCallback(async (query = '') => {
     if (!api) return
@@ -355,6 +406,16 @@ export function AiAssistantDrawer({ open, onClose, context }: AiAssistantDrawerP
       .catch((reason: unknown) => alive && setError(reason instanceof Error ? reason.message : '无法加载对话'))
     return () => { alive = false }
   }, [activeConversationId, api])
+
+  useEffect(() => {
+    setComposer('')
+    setMentionedStocks([])
+    setMentionTrigger(null)
+  }, [activeConversationId])
+
+  useEffect(() => {
+    setActiveMentionIndex(0)
+  }, [mentionTrigger?.query])
 
   useEffect(() => {
     if (!api) return
@@ -425,20 +486,97 @@ export function AiAssistantDrawer({ open, onClose, context }: AiAssistantDrawerP
   }
 
   const sendMessage = async () => {
-    if (!api || !activeConversation || !composer.trim()) return
+    if (!api || !activeConversation || !composer.trim() || sendingMessage) return
     const content = composer.trim()
+    const messageMentions = mentionedStocks
     setComposer('')
+    setMentionedStocks([])
+    setMentionTrigger(null)
+    setSendingMessage(true)
     try {
       const result = await api.sendChat({
         conversationId: activeConversation.id,
         content,
-        includeStockContext
+        includeStockContext,
+        mentionedStocks: messageMentions
       })
       setMessages((current) => [...current, result.userMessage, result.assistantMessage])
       await loadConversations(search)
     } catch (reason) {
       setComposer(content)
+      setMentionedStocks(messageMentions)
       setError(reason instanceof Error ? reason.message : '消息发送失败')
+    } finally {
+      setSendingMessage(false)
+    }
+  }
+
+  const chooseMention = (stock: AiStockMention) => {
+    if (!mentionTrigger || mentionedStocks.length >= 5) return
+    const token = mentionToken(stock)
+    const nextComposer = `${composer.slice(0, mentionTrigger.start)}${token} ${composer.slice(mentionTrigger.end)}`
+    const nextCursor = mentionTrigger.start + token.length + 1
+    setComposer(nextComposer)
+    setMentionedStocks((current) => [...current, stock])
+    setMentionTrigger(null)
+    window.requestAnimationFrame(() => {
+      composerRef.current?.focus()
+      composerRef.current?.setSelectionRange(nextCursor, nextCursor)
+    })
+  }
+
+  const removeMention = (stock: AiStockMention) => {
+    setMentionedStocks((current) => current.filter((item) => item.quoteId !== stock.quoteId))
+    setComposer((current) => current.replace(mentionToken(stock), ''))
+  }
+
+  const openMentionPicker = () => {
+    if (mentionedStocks.length >= 5) return
+    const textarea = composerRef.current
+    const cursor = textarea?.selectionStart ?? composer.length
+    const needsSpace = cursor > 0 && !/[\s，。！？；：、]/.test(composer[cursor - 1])
+    const prefix = needsSpace ? ' @' : '@'
+    const nextComposer = `${composer.slice(0, cursor)}${prefix}${composer.slice(cursor)}`
+    const atIndex = cursor + prefix.length - 1
+    const nextCursor = cursor + prefix.length
+    setComposer(nextComposer)
+    setMentionTrigger({ start: atIndex, end: nextCursor, query: '' })
+    window.requestAnimationFrame(() => {
+      composerRef.current?.focus()
+      composerRef.current?.setSelectionRange(nextCursor, nextCursor)
+    })
+  }
+
+  const updateComposer = (value: string, cursor: number) => {
+    setComposer(value)
+    setMentionedStocks((current) => current.filter((stock) => value.includes(mentionToken(stock))))
+    setMentionTrigger(mentionedStocks.length >= 5 ? null : findMentionTrigger(value, cursor))
+  }
+
+  const handleComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mentionTrigger) {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault()
+        const direction = event.key === 'ArrowDown' ? 1 : -1
+        setActiveMentionIndex((current) => mentionResults.length > 0
+          ? (current + direction + mentionResults.length) % mentionResults.length
+          : 0)
+        return
+      }
+      if ((event.key === 'Enter' || event.key === 'Tab') && mentionResults[activeMentionIndex]) {
+        event.preventDefault()
+        chooseMention(mentionResults[activeMentionIndex])
+        return
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setMentionTrigger(null)
+        return
+      }
+    }
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      void sendMessage()
     }
   }
 
@@ -579,11 +717,46 @@ export function AiAssistantDrawer({ open, onClose, context }: AiAssistantDrawerP
               <ChatThread conversation={activeConversation} messages={messages} onCancel={() => activeConversation && void api.cancelChat(activeConversation.id)} onRetry={(messageId) => void retryMessage(messageId)} onExport={() => void exportConversation()} />
               {activeConversation ? (
                 <footer className="ai-composer">
-                  {activeConversation.scope === 'stock' ? (
-                    <span className="ai-context-chip">上下文：{activeConversation.quoteName ?? activeConversation.quoteId}<button type="button" title={includeStockContext ? '移除本次消息的股票上下文' : '恢复本次消息的股票上下文'} aria-label={includeStockContext ? '移除本次消息的股票上下文' : '恢复本次消息的股票上下文'} onClick={() => setIncludeStockContext((current) => !current)}>{includeStockContext ? <X size={13} /> : <Plus size={13} />}</button></span>
-                  ) : null}
-                  <textarea value={composer} onChange={(event) => setComposer(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void sendMessage() } }} placeholder={activeConversation.scope === 'stock' && includeStockContext ? '围绕当前股票快照提问…' : '输入问题，Enter 发送，Shift + Enter 换行'} />
-                  <button className="primary-button" type="button" disabled={!composer.trim()} onClick={() => void sendMessage()}><Send size={15} />发送</button>
+                  <div className="ai-composer-contexts">
+                    {activeConversation.scope === 'stock' ? (
+                      <span className={`ai-context-chip${includeStockContext ? '' : ' is-disabled'}`}>上下文：{activeConversation.quoteName ?? activeConversation.quoteId}<button type="button" title={includeStockContext ? '移除本次消息的股票上下文' : '恢复本次消息的股票上下文'} aria-label={includeStockContext ? '移除本次消息的股票上下文' : '恢复本次消息的股票上下文'} onClick={() => setIncludeStockContext((current) => !current)}>{includeStockContext ? <X size={13} /> : <Plus size={13} />}</button></span>
+                    ) : null}
+                    {mentionedStocks.map((stock) => (
+                      <span className="ai-context-chip is-mention" key={stock.quoteId}>@{stock.name}<small>{stock.code}</small><button type="button" title={`移除${stock.name}引用`} aria-label={`移除${stock.name}引用`} onClick={() => removeMention(stock)}><X size={13} /></button></span>
+                    ))}
+                    <button className="ai-mention-open" type="button" disabled={sendingMessage || mentionedStocks.length >= 5} onClick={openMentionPicker}><AtSign size={14} />股票</button>
+                  </div>
+                  <div className="ai-composer-editor">
+                    <textarea
+                      ref={composerRef}
+                      value={composer}
+                      disabled={sendingMessage}
+                      onChange={(event) => updateComposer(event.target.value, event.target.selectionStart)}
+                      onKeyDown={handleComposerKeyDown}
+                      onBlur={() => window.setTimeout(() => setMentionTrigger(null), 120)}
+                      placeholder={activeConversation.scope === 'stock' && includeStockContext ? '围绕当前股票提问，也可以输入 @ 引用其他自选股票…' : '输入问题，使用 @ 引用自选股票，Enter 发送'}
+                    />
+                    {mentionTrigger ? (
+                      <div className="ai-mention-picker" role="listbox" aria-label="选择要引用的股票">
+                        <header><span>引用自选股票</span><small>{mentionedStocks.length}/5</small></header>
+                        {mentionResults.length > 0 ? mentionResults.map((stock, index) => (
+                          <button
+                            className={index === activeMentionIndex ? 'is-active' : ''}
+                            type="button"
+                            role="option"
+                            aria-selected={index === activeMentionIndex}
+                            key={stock.quoteId}
+                            onMouseEnter={() => setActiveMentionIndex(index)}
+                            onMouseDown={(event) => { event.preventDefault(); chooseMention(stock) }}
+                          >
+                            <span><strong>{stock.name}</strong><small>{stock.code}</small></span>
+                            <em>{stock.marketLabel}</em>
+                          </button>
+                        )) : <div className="ai-mention-empty">没有匹配的自选股票</div>}
+                      </div>
+                    ) : null}
+                  </div>
+                  <button className="primary-button" type="button" disabled={sendingMessage || !composer.trim()} onClick={() => void sendMessage()}>{sendingMessage ? <LoaderCircle size={15} className="is-spinning" /> : <Send size={15} />}{sendingMessage ? '读取数据' : '发送'}</button>
                 </footer>
               ) : null}
             </div>

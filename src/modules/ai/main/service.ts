@@ -13,6 +13,7 @@ import type {
   AiApiKeyProviderId,
   AiCodexAccountStatus,
   AiConnectionResult,
+  AiContextRef,
   AiConversation,
   AiCreateConversationInput,
   AiInterpretation,
@@ -23,11 +24,17 @@ import type {
   AiProviderDescriptor,
   AiProviderId,
   AiSettings,
+  AiStockMention,
   AiStatus,
   AiStructuredTaskRequest,
   AiStructuredTaskResult
 } from '../shared/types'
-import { compactMarketSnapshot, toProviderMessages, type CompactMarketSnapshot } from './conversations/context-builder'
+import {
+  compactMarketSnapshot,
+  toProviderMessages,
+  type AiChatStockContext,
+  type CompactMarketSnapshot
+} from './conversations/context-builder'
 import { createConversationTitle } from './conversations/title-generator'
 import { MARKET_INTERPRETATION_PROMPT } from '../prompts/market-interpretation'
 import { DeepSeekProvider } from './providers/deepseek'
@@ -62,6 +69,22 @@ const PROVIDERS: AiProviderDescriptor[] = [
     capabilities: { streaming: true, marketInterpretation: true }
   }
 ]
+
+const MAX_MENTIONED_STOCKS = 5
+
+function messageContextRefs(message: AiMessage): AiContextRef[] {
+  if (message.contextRefs?.length) return message.contextRefs
+  return message.contextRef ? [message.contextRef] : []
+}
+
+function uniqueMentions(mentions: readonly AiStockMention[] = []): AiStockMention[] {
+  const unique = new Map<string, AiStockMention>()
+  for (const mention of mentions) {
+    if (!unique.has(mention.quoteId)) unique.set(mention.quoteId, mention)
+    if (unique.size === MAX_MENTIONED_STOCKS) break
+  }
+  return [...unique.values()]
+}
 
 function now(): string {
   return new Date().toISOString()
@@ -260,7 +283,19 @@ export class AiService {
     if (!content) throw new Error('请输入消息')
     if (this.activeChats.has(conversation.id)) throw new Error('当前会话正在生成，请先停止')
 
-    const context = await this.getConversationContext(conversation, input.includeStockContext !== false)
+    const contexts = await this.getConversationContexts(
+      conversation,
+      input.includeStockContext !== false,
+      uniqueMentions(input.mentionedStocks)
+    )
+    const contextRefs: AiContextRef[] = contexts.map((context) => ({
+      quoteId: context.snapshot.quoteId,
+      quoteName: context.quoteName,
+      code: context.code,
+      marketLabel: context.marketLabel,
+      snapshotId: context.snapshot.snapshotId,
+      source: context.source
+    }))
     const createdAt = now()
     const userMessage: AiMessage = {
       id: randomUUID(),
@@ -269,7 +304,7 @@ export class AiService {
       content,
       status: 'completed',
       createdAt,
-      contextRef: context ? { quoteId: context.quoteId, snapshotId: context.snapshotId } : undefined
+      contextRefs: contextRefs.length > 0 ? contextRefs : undefined
     }
     const assistantMessage: AiMessage = {
       id: randomUUID(),
@@ -280,7 +315,7 @@ export class AiService {
       createdAt,
       providerId: settings.providerId,
       model: settings.model,
-      contextRef: userMessage.contextRef
+      contextRefs: userMessage.contextRefs
     }
     this.storage.appendMessage(userMessage)
     this.storage.saveConversation({
@@ -292,7 +327,7 @@ export class AiService {
       messageCount: conversation.messageCount + 1
     })
 
-    void this.runChat(webContents, assistantMessage, context)
+    void this.runChat(webContents, assistantMessage, contexts)
     return { userMessage, assistantMessage }
   }
 
@@ -306,10 +341,23 @@ export class AiService {
     if (messageIndex === -1) throw new Error('未找到要重试的消息')
     const userMessage = [...messages.slice(0, messageIndex)].reverse().find((message) => message.role === 'user')
     if (!userMessage) throw new Error('未找到可重试的提问')
+    const conversation = this.requireConversation(conversationId)
+    const contextRefs = messageContextRefs(userMessage)
     return this.sendChat(webContents, {
       conversationId,
       content: userMessage.content,
-      includeStockContext: Boolean(userMessage.contextRef)
+      includeStockContext: contextRefs.some((context) => (
+        context.source === 'conversation'
+        || (!context.source && conversation.scope === 'stock' && context.quoteId === conversation.quoteId)
+      )),
+      mentionedStocks: contextRefs
+        .filter((context) => context.source === 'mention')
+        .map((context) => ({
+          quoteId: context.quoteId,
+          code: context.code ?? '',
+          name: context.quoteName ?? context.quoteId,
+          marketLabel: context.marketLabel ?? ''
+        }))
     })
   }
 
@@ -411,7 +459,7 @@ export class AiService {
   private async runChat(
     webContents: WebContents,
     pendingMessage: AiMessage,
-    context: CompactMarketSnapshot | null
+    contexts: AiChatStockContext[]
   ): Promise<void> {
     const settings = this.storage.getSettings()
     const controller = new AbortController()
@@ -422,7 +470,7 @@ export class AiService {
       const messages = this.storage.getMessages(pendingMessage.conversationId).slice(-settings.maxContextMessages)
       const result = await this.requireProvider(settings.providerId).streamChat(credential, {
         model: settings.model,
-        messages: toProviderMessages(messages, context)
+        messages: toProviderMessages(messages, contexts)
       }, (delta) => {
         streamedContent = `${streamedContent}${delta}`
         this.send(webContents, 'ai:chat:delta', {
@@ -468,13 +516,53 @@ export class AiService {
     this.storage.saveConversation({ ...conversation, updatedAt: now(), messageCount: conversation.messageCount + 1 })
   }
 
-  private async getConversationContext(
+  private async getConversationContexts(
     conversation: AiConversation,
-    includeStockContext: boolean
-  ): Promise<CompactMarketSnapshot | null> {
-    if (!includeStockContext || conversation.scope !== 'stock' || !conversation.quoteId) return null
-    const snapshot = await this.dependencies.getMarketInsightSnapshot(conversation.quoteId)
-    return snapshot ? this.persistCompactSnapshot(snapshot) : null
+    includeStockContext: boolean,
+    mentionedStocks: AiStockMention[]
+  ): Promise<AiChatStockContext[]> {
+    const requested = new Map<string, {
+      source: AiChatStockContext['source']
+      quoteId: string
+      quoteName?: string
+      code?: string
+      marketLabel?: string
+    }>()
+    if (includeStockContext && conversation.scope === 'stock' && conversation.quoteId) {
+      requested.set(conversation.quoteId, {
+        source: 'conversation',
+        quoteId: conversation.quoteId,
+        quoteName: conversation.quoteName
+      })
+    }
+    for (const stock of mentionedStocks) {
+      requested.set(stock.quoteId, {
+        source: 'mention',
+        quoteId: stock.quoteId,
+        quoteName: stock.name,
+        code: stock.code,
+        marketLabel: stock.marketLabel
+      })
+    }
+
+    const contexts = await Promise.all([...requested.values()].map(async (request): Promise<AiChatStockContext | null> => {
+      let snapshot = await this.dependencies.getMarketInsightSnapshot(request.quoteId)
+      if (!snapshot && request.source === 'mention') {
+        snapshot = await this.dependencies.refreshMarketInsightSnapshot(request.quoteId)
+      }
+      if (!snapshot) {
+        if (request.source === 'mention') throw new Error(`暂时无法取得 @${request.quoteName ?? request.quoteId} 的市场快照`)
+        return null
+      }
+      return {
+        source: request.source,
+        quoteName: request.quoteName,
+        code: request.code,
+        marketLabel: request.marketLabel,
+        snapshot: this.persistCompactSnapshot(snapshot)
+      }
+    }))
+    return contexts.filter((context): context is AiChatStockContext => context !== null)
   }
 
   private persistCompactSnapshot(snapshot: MarketInsightSnapshot): CompactMarketSnapshot {
