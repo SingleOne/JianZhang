@@ -13,6 +13,20 @@ export const STOCK_ALERT_METRIC_LABELS: Record<StockAlertMetric, string> = {
   profitPercent: '持仓收益率'
 }
 
+export type TriggeredStockAlertDirection = 'gte' | 'lte' | 'both'
+
+export function getTriggeredStockAlertDirection(
+  rules: readonly StockAlertRule[] | undefined
+): TriggeredStockAlertDirection | null {
+  const triggeredRules = rules?.filter((rule) => rule.enabled && rule.status === 'triggered') ?? []
+  const hasGte = triggeredRules.some((rule) => rule.operator === 'gte')
+  const hasLte = triggeredRules.some((rule) => rule.operator === 'lte')
+  if (hasGte && hasLte) return 'both'
+  if (hasGte) return 'gte'
+  if (hasLte) return 'lte'
+  return null
+}
+
 export interface TriggeredStockAlert {
   stock: WatchStock
   rule: StockAlertRule

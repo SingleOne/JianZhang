@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { initialState, stockApi } from '../lib/api'
 import { formatPercent, formatPrice } from '../lib/format'
 import { getTriggeredTAlertBadges } from '../lib/t-alerts'
+import { getTriggeredStockAlertDirection } from '../lib/stock-alerts'
 import type { AppState, StockQuote, TaskbarLayout } from '../shared/types'
 import { FiveLevelAlertBadges } from './FiveLevelAlertBadges'
 import { TAlertBadges } from './TAlertBadges'
@@ -56,9 +57,7 @@ export function TaskbarTicker() {
           quote,
           alertBadges: getTriggeredTAlertBadges(account?.activeBatch),
           fiveLevelAlerts: account?.activeBatch ? quote?.fiveLevelLargeOrders : undefined,
-          hasTriggeredStockAlert: stock.alertRules?.some((rule) => (
-            rule.enabled && rule.status === 'triggered'
-          )) ?? false
+          stockAlertDirection: getTriggeredStockAlertDirection(stock.alertRules)
         }
       })
       .filter(({ stock, alertBadges, fiveLevelAlerts }) => (
@@ -77,13 +76,13 @@ export function TaskbarTicker() {
           quote,
           alertBadges,
           fiveLevelAlerts,
-          hasTriggeredStockAlert
+          stockAlertDirection
         }) => {
           const direction = directionClass(quote?.changePercent)
           const arrow = direction === 'is-up' ? '↑' : direction === 'is-down' ? '↓' : '·'
           return (
             <div
-              className={`taskbar-quote ${direction} ${hasTriggeredStockAlert ? 'is-stock-alert-triggered' : ''}`}
+              className={`taskbar-quote ${direction} ${stockAlertDirection ? `is-stock-alert-triggered is-alert-${stockAlertDirection}` : ''}`}
               key={stock.quoteId}
             >
               <span className="taskbar-stock-name">{stock.name}</span>

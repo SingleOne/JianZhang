@@ -158,6 +158,7 @@ export function StockAlertDialog({
                     ))}
                   </select>
                   <select
+                    className={`stock-alert-operator is-${rule.operator}`}
                     value={rule.operator}
                     onChange={(event) => updateRule(rule.id, {
                       operator: event.target.value as StockAlertRule['operator']
@@ -180,7 +181,7 @@ export function StockAlertDialog({
                     />
                     <span>{rule.metric === 'price' ? '元' : '%'}</span>
                   </label>
-                  <span className={`stock-alert-status ${rule.status === 'triggered' && rule.enabled ? 'is-triggered' : ''}`}>
+                  <span className={`stock-alert-status ${rule.status === 'triggered' && rule.enabled ? `is-triggered is-triggered-${rule.operator}` : ''}`}>
                     {statusLabel}
                     {actualValue !== null ? (
                       <small className={percentageRule ? valueClass(actualValue) : ''}>

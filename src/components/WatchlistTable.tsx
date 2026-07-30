@@ -36,6 +36,7 @@ import {
   type PositionMetrics
 } from '../lib/portfolio'
 import { getTriggeredTAlertBadges } from '../lib/t-alerts'
+import { getTriggeredStockAlertDirection } from '../lib/stock-alerts'
 import { calculateTBatchMetrics } from '../lib/t-trading'
 import type {
   StockPosition,
@@ -651,9 +652,10 @@ export function WatchlistTable({
               const tFloatingProfit = calculateTBatchMetrics(activeTBatch, quote?.latest).floatingProfit
               const tAlertBadges = getTriggeredTAlertBadges(activeTBatch)
               const enabledStockAlertCount = stock.alertRules?.filter((rule) => rule.enabled).length ?? 0
-              const hasTriggeredStockAlert = stock.alertRules?.some((rule) => (
-                rule.enabled && rule.status === 'triggered'
-              )) ?? false
+              const stockAlertDirection = getTriggeredStockAlertDirection(stock.alertRules)
+              const stockAlertClass = stockAlertDirection
+                ? `is-alert-triggered is-alert-${stockAlertDirection}`
+                : ''
               const holdingDays = getPositionHoldingDays(
                 stock.position,
                 tradingCalendarClosedDates
@@ -755,7 +757,7 @@ export function WatchlistTable({
                           <MonitorUp size={15} />
                         </button>
                         <button
-                          className={`row-action-button ${hasTriggeredStockAlert ? 'is-alert-triggered' : enabledStockAlertCount > 0 ? 'is-active' : ''}`}
+                          className={`row-action-button ${stockAlertClass || (enabledStockAlertCount > 0 ? 'is-active' : '')}`}
                           type="button"
                           onClick={(event) => { event.stopPropagation(); setStockAlertStock(stock) }}
                           aria-label={`设置 ${stock.name} 的股价提醒`}
@@ -790,7 +792,7 @@ export function WatchlistTable({
                         case 'stock':
                           return (
                             <td
-                              className={`stock-column ${hasTriggeredStockAlert ? 'is-alert-triggered' : ''}`}
+                              className={`stock-column ${stockAlertClass}`}
                               key={columnId}
                             >
                               <div className="stock-identity">
