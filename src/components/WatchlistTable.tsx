@@ -8,6 +8,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Columns3,
+  Folders,
   GripVertical,
   MonitorUp,
   PencilLine,
@@ -49,6 +50,7 @@ import type {
   TTradingAccounts,
   TTradingFeeSettings,
   WatchlistColumnId,
+  WatchlistGroup,
   WatchStock
 } from '../shared/types'
 import { normalizeWatchlistColumnOrder } from '../shared/types'
@@ -58,9 +60,11 @@ import { PositionEditor } from './PositionEditor'
 import { StockAlertDialog } from './StockAlertDialog'
 import { TAlertBadges } from './TAlertBadges'
 import { TTradingDrawer } from './TTradingDrawer'
+import { WatchlistGroupDialog } from './WatchlistGroupDialog'
 
 interface WatchlistTableProps {
   watchlist: WatchStock[]
+  watchlistGroups: WatchlistGroup[]
   quotes: StockQuote[]
   columnOrder: WatchlistColumnId[]
   priorityRefreshSeconds: number
@@ -89,6 +93,10 @@ interface WatchlistTableProps {
   onReorder: (sourceQuoteId: string, targetQuoteId: string) => void
   onPin: (quoteId: string) => void
   onColumnOrderChange: (columnOrder: WatchlistColumnId[]) => void
+  onUpdateWatchlistGroups: (
+    groups: WatchlistGroup[],
+    groupIdsByQuoteId: Record<string, string[]>
+  ) => void
   onRemove: (quoteId: string) => void
 }
 
@@ -117,6 +125,16 @@ interface RadarPopoverState {
   top: number
   placement: 'above' | 'below'
 }
+
+interface SectorFilterOption {
+  quoteId: string
+  name: string
+  count: number
+}
+
+const ALL_FILTER = 'all'
+const UNGROUPED_FILTER = 'ungrouped'
+const NO_SECTOR_FILTER = 'no-sector'
 
 type ColumnMove = -1 | 1 | 'start' | 'end'
 
@@ -325,6 +343,7 @@ function TableStockSearch({ stocks, onChoose }: TableStockSearchProps) {
 
 export function WatchlistTable({
   watchlist,
+  watchlistGroups,
   quotes,
   columnOrder,
   priorityRefreshSeconds,
@@ -343,6 +362,7 @@ export function WatchlistTable({
   onReorder,
   onPin,
   onColumnOrderChange,
+  onUpdateWatchlistGroups,
   onRemove
 }: WatchlistTableProps) {
   const [sort, setSort] = useState<SortState | null>(null)
@@ -354,6 +374,9 @@ export function WatchlistTable({
   const [closingQuoteIds, setClosingQuoteIds] = useState<Set<string>>(() => new Set())
   const [radarPopover, setRadarPopover] = useState<RadarPopoverState | null>(null)
   const [locatedQuoteId, setLocatedQuoteId] = useState<string | null>(null)
+  const [customGroupFilter, setCustomGroupFilter] = useState(ALL_FILTER)
+  const [sectorFilter, setSectorFilter] = useState(ALL_FILTER)
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false)
   const tableScrollerRef = useRef<HTMLDivElement>(null)
   const radarAnchorRef = useRef<HTMLButtonElement | null>(null)
   const radarPopoverRef = useRef<HTMLDivElement>(null)
@@ -388,14 +411,65 @@ export function WatchlistTable({
     })
   }, [quotes, tTradingAccounts, watchlist])
 
+  const groupCounts = useMemo(() => new Map(watchlistGroups.map((group) => [
+    group.id,
+    rows.filter(({ stock }) => stock.groupIds?.includes(group.id)).length
+  ])), [rows, watchlistGroups])
+  const ungroupedCount = useMemo(() => rows.filter(({ stock }) => (
+    !watchlistGroups.some((group) => stock.groupIds?.includes(group.id))
+  )).length, [rows, watchlistGroups])
+  const sectorOptions = useMemo<SectorFilterOption[]>(() => {
+    const sectors = new Map<string, SectorFilterOption>()
+    for (const { quote } of rows) {
+      const sector = quote?.sector
+      if (!sector) continue
+      const current = sectors.get(sector.quoteId)
+      sectors.set(sector.quoteId, {
+        quoteId: sector.quoteId,
+        name: sector.name,
+        count: (current?.count ?? 0) + 1
+      })
+    }
+    return [...sectors.values()].sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'))
+  }, [rows])
+  const noSectorCount = useMemo(() => rows.filter(({ quote }) => !quote?.sector).length, [rows])
+  const filteredRows = useMemo(() => rows.filter(({ stock, quote }) => {
+    const matchesGroup = customGroupFilter === ALL_FILTER
+      || (customGroupFilter === UNGROUPED_FILTER
+        ? !watchlistGroups.some((group) => stock.groupIds?.includes(group.id))
+        : Boolean(stock.groupIds?.includes(customGroupFilter)))
+    const matchesSector = sectorFilter === ALL_FILTER
+      || (sectorFilter === NO_SECTOR_FILTER
+        ? !quote?.sector
+        : quote?.sector?.quoteId === sectorFilter)
+    return matchesGroup && matchesSector
+  }), [customGroupFilter, rows, sectorFilter, watchlistGroups])
   const displayedRows = useMemo(
-    () => sort ? sortRows(rows, sort, tradingCalendarClosedDates) : rows,
-    [rows, sort, tradingCalendarClosedDates]
+    () => sort ? sortRows(filteredRows, sort, tradingCalendarClosedDates) : filteredRows,
+    [filteredRows, sort, tradingCalendarClosedDates]
   )
   const displayedStocks = useMemo(() => displayedRows.map(({ stock }) => stock), [displayedRows])
+  const selectedGroupName = watchlistGroups.find((group) => group.id === customGroupFilter)?.name
+  const selectedSectorName = sectorOptions.find((sector) => sector.quoteId === sectorFilter)?.name
   const activeRadarRow = radarPopover
     ? rows.find(({ stock }) => stock.quoteId === radarPopover.quoteId)
     : undefined
+
+  useEffect(() => {
+    if (
+      customGroupFilter !== ALL_FILTER
+      && customGroupFilter !== UNGROUPED_FILTER
+      && !watchlistGroups.some((group) => group.id === customGroupFilter)
+    ) setCustomGroupFilter(ALL_FILTER)
+  }, [customGroupFilter, watchlistGroups])
+
+  useEffect(() => {
+    if (
+      sectorFilter !== ALL_FILTER
+      && sectorFilter !== NO_SECTOR_FILTER
+      && !sectorOptions.some((sector) => sector.quoteId === sectorFilter)
+    ) setSectorFilter(ALL_FILTER)
+  }, [sectorFilter, sectorOptions])
 
   useEffect(() => () => {
     window.clearTimeout(locateTimerRef.current)
@@ -510,8 +584,53 @@ export function WatchlistTable({
           {sort
             ? `当前按“${COLUMN_META[sort.column].label}”${sort.direction === 'asc' ? '升序' : '降序'}排列`
             : '当前为手动排序 · 使用最左侧的拖动手柄或置顶按钮调整顺序'}
+          {customGroupFilter === ALL_FILTER
+            ? ''
+            : ` · 分组：${customGroupFilter === UNGROUPED_FILTER ? '未分组' : selectedGroupName}`}
+          {sectorFilter === ALL_FILTER
+            ? ''
+            : ` · 板块：${sectorFilter === NO_SECTOR_FILTER ? '未获取板块' : selectedSectorName}`}
+          {customGroupFilter !== ALL_FILTER || sectorFilter !== ALL_FILTER
+            ? ` · 显示 ${displayedRows.length}/${rows.length} 只`
+            : ''}
         </span>
         <div className="table-toolbar-actions">
+          <label className="table-filter-select">
+            <span>自定义分组</span>
+            <select
+              value={customGroupFilter}
+              onChange={(event) => setCustomGroupFilter(event.target.value)}
+              aria-label="按自定义分组筛选"
+            >
+              <option value={ALL_FILTER}>全部分组（{rows.length}）</option>
+              {watchlistGroups.map((group) => (
+                <option value={group.id} key={group.id}>{group.name}（{groupCounts.get(group.id) ?? 0}）</option>
+              ))}
+              <option value={UNGROUPED_FILTER}>未分组（{ungroupedCount}）</option>
+            </select>
+          </label>
+          <label className="table-filter-select">
+            <span>板块筛选</span>
+            <select
+              value={sectorFilter}
+              onChange={(event) => setSectorFilter(event.target.value)}
+              aria-label="按板块筛选"
+            >
+              <option value={ALL_FILTER}>全部板块（{rows.length}）</option>
+              {sectorOptions.map((sector) => (
+                <option value={sector.quoteId} key={sector.quoteId}>{sector.name}（{sector.count}）</option>
+              ))}
+              {noSectorCount > 0 ? <option value={NO_SECTOR_FILTER}>未获取板块（{noSectorCount}）</option> : null}
+            </select>
+          </label>
+          <button
+            className="secondary-button table-tool-button"
+            type="button"
+            onClick={() => setGroupDialogOpen(true)}
+          >
+            <Folders size={15} />
+            管理分组
+          </button>
           <TableStockSearch stocks={displayedStocks} onChoose={scrollToStock} />
           <button
             className="secondary-button table-tool-button"
@@ -987,6 +1106,13 @@ export function WatchlistTable({
                 </Fragment>
               )
             })}
+            {displayedRows.length === 0 ? (
+              <tr>
+                <td className="table-filter-empty" colSpan={adjustableColumnOrder.length + 3}>
+                  当前自定义分组和板块筛选条件下没有股票。
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </div>
@@ -1072,6 +1198,19 @@ export function WatchlistTable({
           onSave={(rules) => {
             onUpdateStockAlerts(stockAlertStock.quoteId, rules)
             setStockAlertStock(null)
+          }}
+        />
+      ) : null}
+
+      {groupDialogOpen ? (
+        <WatchlistGroupDialog
+          groups={watchlistGroups}
+          stocks={watchlist}
+          quotes={quotes}
+          onClose={() => setGroupDialogOpen(false)}
+          onSave={(groups, groupIdsByQuoteId) => {
+            onUpdateWatchlistGroups(groups, groupIdsByQuoteId)
+            setGroupDialogOpen(false)
           }}
         />
       ) : null}

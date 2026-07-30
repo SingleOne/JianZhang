@@ -4,6 +4,7 @@ import {
   normalizeAppSettings,
   normalizeTTradingAccounts,
   normalizeWatchlist,
+  normalizeWatchlistGroups,
   type AppSettings,
   type AppState,
   type WatchStock
@@ -77,6 +78,7 @@ export function parseConfigDocument(value: unknown): AppState {
 
   return {
     watchlist: normalizeWatchlist(importedState.watchlist),
+    watchlistGroups: normalizeWatchlistGroups(importedState.watchlistGroups),
     settings: normalizeAppSettings(importedState.settings),
     columnOrder: migrateWatchlistColumnOrder(
       Array.isArray(importedState.columnOrder) ? importedState.columnOrder : undefined,

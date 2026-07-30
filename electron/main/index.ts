@@ -22,6 +22,7 @@ import {
   normalizeTradingCalendarSettings,
   normalizeTTradingAccounts,
   normalizeWatchlist,
+  normalizeWatchlistGroups,
   normalizeWatchlistColumnOrder,
   type AppState,
   type KlinePeriod,
@@ -69,6 +70,7 @@ const DEFAULT_WATCHLIST: WatchStock[] = [
 
 const DEFAULT_STATE: AppState = {
   watchlist: DEFAULT_WATCHLIST,
+  watchlistGroups: [],
   columnOrder: [...DEFAULT_WATCHLIST_COLUMN_ORDER],
   columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
   settings: { ...DEFAULT_APP_SETTINGS },
@@ -120,6 +122,7 @@ function loadState(): AppState {
     const saved = JSON.parse(readFileSync(statePath(), 'utf8')) as AppState
     const loadedState: AppState = {
       watchlist: normalizeWatchlist(saved.watchlist ?? DEFAULT_WATCHLIST),
+      watchlistGroups: normalizeWatchlistGroups(saved.watchlistGroups),
       settings: normalizeAppSettings(saved.settings),
       columnOrder: migrateWatchlistColumnOrder(saved.columnOrder, saved.columnOrderVersion),
       columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
@@ -747,6 +750,7 @@ function registerIpc(): void {
     const normalizedState: AppState = {
       ...nextState,
       watchlist: normalizeWatchlist(nextState.watchlist),
+      watchlistGroups: normalizeWatchlistGroups(nextState.watchlistGroups),
       settings: normalizeAppSettings(nextState.settings),
       columnOrder: normalizeWatchlistColumnOrder(nextState.columnOrder),
       columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,

@@ -31,6 +31,24 @@ export interface WatchStock {
   position?: StockPosition
   positionSnapshots?: StockPositionSnapshot[]
   alertRules?: StockAlertRule[]
+  groupIds?: string[]
+}
+
+export interface WatchlistGroup {
+  id: string
+  name: string
+}
+
+export function normalizeWatchlistGroups(groups: readonly WatchlistGroup[] | undefined): WatchlistGroup[] {
+  if (!Array.isArray(groups)) return []
+  const usedIds = new Set<string>()
+  return groups.flatMap((group) => {
+    const id = group?.id?.trim()
+    const name = group?.name?.trim()
+    if (!id || !name || usedIds.has(id)) return []
+    usedIds.add(id)
+    return [{ id, name }]
+  })
 }
 
 export function normalizeWatchlist(stocks: readonly WatchStock[]): WatchStock[] {
@@ -38,6 +56,7 @@ export function normalizeWatchlist(stocks: readonly WatchStock[]): WatchStock[] 
     ...stock,
     isPriority: Boolean(stock.position || stock.isPriority),
     showRadarSignals: stock.showRadarSignals ?? true,
+    groupIds: [...new Set((stock.groupIds ?? []).filter((groupId) => typeof groupId === 'string'))],
     positionSnapshots: Array.isArray(stock.positionSnapshots)
       ? stock.positionSnapshots.filter((snapshot) => (
           snapshot
@@ -659,6 +678,7 @@ export function normalizeAppSettings(
 
 export interface AppState {
   watchlist: WatchStock[]
+  watchlistGroups: WatchlistGroup[]
   settings: AppSettings
   columnOrder: WatchlistColumnId[]
   columnOrderVersion?: number

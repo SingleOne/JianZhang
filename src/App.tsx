@@ -18,6 +18,7 @@ import type {
   StockAlertRule,
   StockQuote,
   TTradingAccount,
+  WatchlistGroup,
   WatchlistColumnId
 } from './shared/types'
 
@@ -258,6 +259,17 @@ export default function App() {
     void persist({ ...state, columnOrder })
   }, [persist, state])
 
+  const updateWatchlistGroups = useCallback((
+    watchlistGroups: WatchlistGroup[],
+    groupIdsByQuoteId: Record<string, string[]>
+  ) => {
+    const nextWatchlist = state.watchlist.map((stock) => ({
+      ...stock,
+      groupIds: groupIdsByQuoteId[stock.quoteId] ?? stock.groupIds ?? []
+    }))
+    void persist({ ...state, watchlistGroups, watchlist: nextWatchlist })
+  }, [persist, state])
+
   const updateSettings = useCallback((settings: AppSettings) => {
     void persist({ ...state, settings })
   }, [persist, state])
@@ -428,6 +440,7 @@ export default function App() {
             ) : (
               <WatchlistTable
                 watchlist={state.watchlist}
+                watchlistGroups={state.watchlistGroups}
                 quotes={quotes}
                 columnOrder={state.columnOrder}
                 priorityRefreshSeconds={state.settings.priorityRefreshSeconds}
@@ -446,6 +459,7 @@ export default function App() {
                 onReorder={reorderWatchlist}
                 onPin={pinStock}
                 onColumnOrderChange={updateColumnOrder}
+                onUpdateWatchlistGroups={updateWatchlistGroups}
                 onRemove={removeStock}
               />
             )}
