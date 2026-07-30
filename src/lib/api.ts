@@ -215,7 +215,8 @@ function makeDemoKline(quoteId: string, period: KlinePeriod, limit?: number): Kl
         high: Math.max(open, close) + base * 0.008,
         low: Math.min(open, close) - base * 0.007,
         volume: 30_000 + ((index * 7123) % 90_000),
-        amount: (30_000 + ((index * 7123) % 90_000)) * close * 100
+        amount: (30_000 + ((index * 7123) % 90_000)) * close * 100,
+        turnoverRate: 0.8 + index % 10 * 0.15
       }
     })
     return {

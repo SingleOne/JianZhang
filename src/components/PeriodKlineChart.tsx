@@ -23,7 +23,18 @@ interface PeriodKlineChartProps {
   period: HistoricalPeriod
   onHoverBar?: (bar: KlineBar | null) => void
   onRequestMore?: (period: HistoricalPeriod) => void
+  requestedVisibleBars?: number
+  visibleRangeRequestKey?: number
+  onVisibleRangeChange?: (range: KlineVisibleRange, source: KlineVisibleRangeSource) => void
+  height?: number
 }
+
+export interface KlineVisibleRange {
+  fromIndex: number
+  toIndex: number
+}
+
+export type KlineVisibleRangeSource = 'programmatic' | 'user'
 
 function toTimestamp(value: string): UTCTimestamp {
   const [year, month, day] = value.slice(0, 10).split('-').map(Number)
@@ -49,7 +60,11 @@ export default function PeriodKlineChart({
   bars,
   period,
   onHoverBar,
-  onRequestMore
+  onRequestMore,
+  requestedVisibleBars,
+  visibleRangeRequestKey,
+  onVisibleRangeChange,
+  height = 320
 }: PeriodKlineChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
@@ -62,10 +77,16 @@ export default function PeriodKlineChart({
   const isAligningRangeRef = useRef(false)
   const onHoverBarRef = useRef(onHoverBar)
   const onRequestMoreRef = useRef(onRequestMore)
+  const onVisibleRangeChangeRef = useRef(onVisibleRangeChange)
+  const reportVisibleRangeRef = useRef<(
+    range: { from: number; to: number },
+    source: KlineVisibleRangeSource
+  ) => void>(() => {})
   const updateExtremaMarkersRef = useRef<(range: { from: number; to: number } | null) => void>(() => {})
   barsRef.current = bars
   onHoverBarRef.current = onHoverBar
   onRequestMoreRef.current = onRequestMore
+  onVisibleRangeChangeRef.current = onVisibleRangeChange
 
   useEffect(() => {
     const container = containerRef.current
@@ -73,12 +94,12 @@ export default function PeriodKlineChart({
 
     const chart = createChart(container, {
       width: container.clientWidth,
-      height: 320,
+      height,
       layout: {
         background: { type: ColorType.Solid, color: '#ffffff' },
         textColor: '#64748b',
         fontFamily: 'Segoe UI, Microsoft YaHei, sans-serif',
-        fontSize: 11
+        fontSize: 12
       },
       grid: {
         vertLines: { color: '#edf1f7' },
@@ -174,6 +195,18 @@ export default function PeriodKlineChart({
     }
     updateExtremaMarkersRef.current = updateExtremaMarkers
 
+    const reportVisibleRange = (
+      range: { from: number; to: number },
+      source: KlineVisibleRangeSource
+    ) => {
+      const lastBarIndex = dataLengthRef.current - 1
+      if (lastBarIndex < 0) return
+      const fromIndex = Math.max(0, Math.min(lastBarIndex, Math.ceil(range.from)))
+      const toIndex = Math.max(fromIndex, Math.min(lastBarIndex, Math.floor(range.to)))
+      onVisibleRangeChangeRef.current?.({ fromIndex, toIndex }, source)
+    }
+    reportVisibleRangeRef.current = reportVisibleRange
+
     const volume = chart.addSeries(HistogramSeries, {
       priceFormat: { type: 'volume' },
       priceScaleId: '',
@@ -198,6 +231,7 @@ export default function PeriodKlineChart({
       const alignedRange = { from: alignedFrom, to: latestEdge }
 
       updateExtremaMarkers(alignedRange)
+      reportVisibleRange(alignedRange, 'user')
 
       if (alignedFrom < 12 && lastRequestedLengthRef.current !== dataLengthRef.current) {
         lastRequestedLengthRef.current = dataLengthRef.current
@@ -226,9 +260,10 @@ export default function PeriodKlineChart({
       chartRef.current = null
       candlesRef.current = null
       volumeRef.current = null
+      reportVisibleRangeRef.current = () => {}
       updateExtremaMarkersRef.current = () => {}
     }
-  }, [period])
+  }, [height, period])
 
   useEffect(() => {
     const chart = chartRef.current
@@ -260,8 +295,23 @@ export default function PeriodKlineChart({
     isAligningRangeRef.current = true
     chart.timeScale().setVisibleLogicalRange(nextRange)
     updateExtremaMarkersRef.current(nextRange)
+    reportVisibleRangeRef.current(nextRange, 'programmatic')
     requestAnimationFrame(() => { isAligningRangeRef.current = false })
-  }, [bars, period])
+  }, [bars, height, period])
 
-  return <div className="period-kline-chart" ref={containerRef} />
+  useEffect(() => {
+    const chart = chartRef.current
+    if (!chart || requestedVisibleBars === undefined || dataLengthRef.current === 0) return
+
+    const visibleBars = Math.min(dataLengthRef.current, Math.max(1, requestedVisibleBars))
+    const latestEdge = dataLengthRef.current - 0.5
+    const range = { from: latestEdge - visibleBars, to: latestEdge }
+    isAligningRangeRef.current = true
+    chart.timeScale().setVisibleLogicalRange(range)
+    updateExtremaMarkersRef.current(range)
+    reportVisibleRangeRef.current(range, 'programmatic')
+    requestAnimationFrame(() => { isAligningRangeRef.current = false })
+  }, [bars.length, requestedVisibleBars, visibleRangeRequestKey])
+
+  return <div className="period-kline-chart" ref={containerRef} style={{ height }} />
 }

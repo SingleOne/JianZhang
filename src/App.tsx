@@ -445,6 +445,7 @@ export default function App() {
                 columnOrder={state.columnOrder}
                 priorityRefreshSeconds={state.settings.priorityRefreshSeconds}
                 regularRefreshSeconds={state.settings.regularRefreshSeconds}
+                chipDistributionEnabled={state.settings.showChipDistribution}
                 selectedQuoteId={selectedQuoteId}
                 tTradingAccounts={state.tTradingAccounts}
                 tTradingFees={state.settings.tTradingFees}
@@ -460,6 +461,10 @@ export default function App() {
                 onPin={pinStock}
                 onColumnOrderChange={updateColumnOrder}
                 onUpdateWatchlistGroups={updateWatchlistGroups}
+                onChipDistributionEnabledChange={(enabled) => updateSettings({
+                  ...state.settings,
+                  showChipDistribution: enabled
+                })}
                 onRemove={removeStock}
               />
             )}

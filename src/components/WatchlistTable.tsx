@@ -70,6 +70,7 @@ interface WatchlistTableProps {
   columnOrder: WatchlistColumnId[]
   priorityRefreshSeconds: number
   regularRefreshSeconds: number
+  chipDistributionEnabled: boolean
   selectedQuoteId: string | null
   tTradingAccounts: TTradingAccounts
   tTradingFees: TTradingFeeSettings
@@ -98,6 +99,7 @@ interface WatchlistTableProps {
     groups: WatchlistGroup[],
     groupIdsByQuoteId: Record<string, string[]>
   ) => void
+  onChipDistributionEnabledChange: (enabled: boolean) => void
   onRemove: (quoteId: string) => void
 }
 
@@ -349,6 +351,7 @@ export function WatchlistTable({
   columnOrder,
   priorityRefreshSeconds,
   regularRefreshSeconds,
+  chipDistributionEnabled,
   selectedQuoteId,
   tTradingAccounts,
   tTradingFees,
@@ -364,6 +367,7 @@ export function WatchlistTable({
   onPin,
   onColumnOrderChange,
   onUpdateWatchlistGroups,
+  onChipDistributionEnabledChange,
   onRemove
 }: WatchlistTableProps) {
   const [sort, setSort] = useState<SortState | null>(null)
@@ -1108,6 +1112,8 @@ export function WatchlistTable({
                               quote={quote}
                               refreshSeconds={stock.isPriority ? priorityRefreshSeconds : regularRefreshSeconds}
                               autoRefreshOrderBook={Boolean(tradingAccount?.activeBatch)}
+                              chipDistributionEnabled={chipDistributionEnabled}
+                              onChipDistributionEnabledChange={onChipDistributionEnabledChange}
                             />
                           </div>
                         </div>

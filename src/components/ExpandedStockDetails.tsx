@@ -1,11 +1,14 @@
 import { AlertCircle, BarChart3, Bot, Layers, Radar, RefreshCw, Sparkles, TrendingUp } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { stockApi } from '../lib/api'
+import { findChipAutoRange } from '../lib/chip-distribution'
 import { formatAmount, formatPercent, formatPrice, formatVolume } from '../lib/format'
 import { isBeijingAutoRefreshTime, millisecondsUntilNextAutoRefreshWindow } from '../shared/market-hours'
 import type { KlineBar, KlinePeriod, KlineResult, StockQuote, WatchStock } from '../shared/types'
 import { FundsFlowPanel } from './FundsFlowPanel'
+import { ChipDistributionPanel } from './ChipDistributionPanel'
 import { OrderBookPanel } from './OrderBookPanel'
+import type { KlineVisibleRange, KlineVisibleRangeSource } from './PeriodKlineChart'
 import type { MarketInsightSnapshot } from '../modules/market-insight/shared/types'
 
 const CandlestickChart = lazy(() => import('./CandlestickChart'))
@@ -74,13 +77,17 @@ interface ExpandedStockDetailsProps {
   quote?: StockQuote
   refreshSeconds: number
   autoRefreshOrderBook: boolean
+  chipDistributionEnabled: boolean
+  onChipDistributionEnabledChange: (enabled: boolean) => void
 }
 
 export function ExpandedStockDetails({
   stock,
   quote,
   refreshSeconds,
-  autoRefreshOrderBook
+  autoRefreshOrderBook,
+  chipDistributionEnabled,
+  onChipDistributionEnabledChange
 }: ExpandedStockDetailsProps) {
   const initialTrend = klineCache.get(cacheKey(stock.quoteId, 'trend'))?.data
   const [activeTab, setActiveTab] = useState<DetailTab>('trend')
@@ -94,6 +101,9 @@ export function ExpandedStockDetails({
   const [historyLimits, setHistoryLimits] = useState<Record<HistoricalPeriod, number>>({
     ...INITIAL_HISTORY_LIMITS
   })
+  const [dailyVisibleRange, setDailyVisibleRange] = useState<KlineVisibleRange | null>(null)
+  const [chipAutoRangeMode, setChipAutoRangeMode] = useState(true)
+  const [chipRangeRequestKey, setChipRangeRequestKey] = useState(0)
   const [marketInsightSnapshot, setMarketInsightSnapshot] = useState<MarketInsightSnapshot | null>(null)
   const [showInsightOverlay, setShowInsightOverlay] = useState(true)
   const [aiEnabled, setAiEnabled] = useState(false)
@@ -107,6 +117,9 @@ export function ExpandedStockDetails({
 
   useEffect(() => {
     setMarketInsightSnapshot(null)
+    setDailyVisibleRange(null)
+    setChipAutoRangeMode(true)
+    setChipRangeRequestKey((current) => current + 1)
   }, [stock.quoteId])
 
   useEffect(() => {
@@ -210,6 +223,12 @@ export function ExpandedStockDetails({
   const isLoading = priceTab !== null && loadingTab === priceTab
   const historicalPeriod = priceTab && isHistoricalTab(priceTab) ? priceTab : null
   const isHistorical = historicalPeriod !== null
+  const dailyBars = dataByTab.daily?.bars ?? []
+  const chipAutoRange = useMemo(() => findChipAutoRange(dailyBars), [dailyBars])
+  const chipVisibleRange = chipAutoRangeMode ? chipAutoRange : dailyVisibleRange ?? chipAutoRange
+  const chipBars = chipVisibleRange
+    ? dailyBars.slice(chipVisibleRange.fromIndex, chipVisibleRange.toIndex + 1)
+    : []
   const isFiveMinuteFallback = priceTab === 'trend' && data?.intervalMinutes === 5
   const overviewBar = priceTab === 'trend' ? null : hoveredBar
   const changePercentByTime = useMemo(() => {
@@ -245,12 +264,42 @@ export function ExpandedStockDetails({
     setHoveredBar(bar)
   }, [])
 
+  const handleDailyVisibleRangeChange = useCallback((
+    range: KlineVisibleRange,
+    source: KlineVisibleRangeSource
+  ) => {
+    setDailyVisibleRange(range)
+    if (source === 'user') setChipAutoRangeMode(false)
+  }, [])
+
   const requestMoreHistory = useCallback((period: HistoricalPeriod) => {
     setHistoryLimits((current) => {
       const nextLimit = Math.min(MAX_HISTORY_LIMITS[period], current[period] * 2)
       return nextLimit === current[period] ? current : { ...current, [period]: nextLimit }
     })
   }, [])
+
+  useEffect(() => {
+    if (!chipDistributionEnabled || activeTab !== 'daily' || !chipAutoRange) return
+    if (chipAutoRange.reachedThreshold || dailyBars.length < historyLimits.daily) return
+    requestMoreHistory('daily')
+  }, [activeTab, chipAutoRange, chipDistributionEnabled, dailyBars.length, historyLimits.daily, requestMoreHistory])
+
+  const toggleChipDistribution = () => {
+    const enabled = !chipDistributionEnabled
+    if (enabled) {
+      setDailyVisibleRange(null)
+      setChipAutoRangeMode(true)
+      setChipRangeRequestKey((current) => current + 1)
+    }
+    onChipDistributionEnabledChange(enabled)
+  }
+
+  const restoreChipAutoRange = () => {
+    setDailyVisibleRange(null)
+    setChipAutoRangeMode(true)
+    setChipRangeRequestKey((current) => current + 1)
+  }
 
   const retryCurrentTab = () => {
     if (priceTab) klineCache.delete(cacheKey(stock.quoteId, priceTab))
@@ -361,6 +410,18 @@ export function ExpandedStockDetails({
               {priceTab === 'trend' ? <span className="legend-auction-price">集合竞价</span> : null}
               {priceTab === 'trend' ? <span className="legend-average-price">VWAP</span> : null}
               <span className="legend-volume">成交量</span>
+              {priceTab === 'daily' ? (
+                <button
+                  className={`chip-distribution-toggle ${chipDistributionEnabled ? 'is-active' : ''}`}
+                  type="button"
+                  role="switch"
+                  aria-checked={chipDistributionEnabled}
+                  onClick={toggleChipDistribution}
+                >
+                  <span aria-hidden="true"><i /></span>
+                  筹码分布
+                </button>
+              ) : null}
             </div>
           </div>
           <div className="overview-grid">
@@ -371,7 +432,7 @@ export function ExpandedStockDetails({
               </div>
             ))}
           </div>
-          <div className={`chart-panel ${priceTab === 'trend' ? 'has-order-book' : ''}`}>
+          <div className={`chart-panel ${priceTab === 'trend' ? 'has-order-book' : ''} ${priceTab === 'daily' && chipDistributionEnabled ? 'has-chip-distribution' : ''}`}>
             <div className="chart-content">
               {error && data || isFiveMinuteFallback ? (
                 <div className="chart-refresh-warning" title={isFiveMinuteFallback ? data?.fallbackReason : error}>
@@ -411,6 +472,12 @@ export function ExpandedStockDetails({
                       period={historicalPeriod}
                       onHoverBar={handleHoverBar}
                       onRequestMore={requestMoreHistory}
+                      requestedVisibleBars={historicalPeriod === 'daily' && chipDistributionEnabled && chipAutoRangeMode
+                        ? chipAutoRange?.barCount
+                        : undefined}
+                      visibleRangeRequestKey={chipRangeRequestKey}
+                      onVisibleRangeChange={historicalPeriod === 'daily' ? handleDailyVisibleRangeChange : undefined}
+                      height={historicalPeriod === 'daily' && chipDistributionEnabled ? 360 : 320}
                     />
                   ) : (
                     <CandlestickChart
@@ -430,6 +497,12 @@ export function ExpandedStockDetails({
                 stock={stock}
                 refreshSeconds={refreshSeconds}
                 autoRefresh={autoRefreshOrderBook}
+              />
+            ) : priceTab === 'daily' && chipDistributionEnabled ? (
+              <ChipDistributionPanel
+                bars={chipBars}
+                isAutoRange={chipAutoRangeMode}
+                onRestoreAutoRange={restoreChipAutoRange}
               />
             ) : null}
           </div>

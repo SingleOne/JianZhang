@@ -5237,7 +5237,7 @@ tr:focus-visible {
   font-weight: 650;
 }
 
-.chart-legend span::before {
+.chart-legend > span::before {
   width: 13px;
   height: 2px;
   display: inline-block;
@@ -5251,6 +5251,62 @@ tr:focus-visible {
 .legend-average-price { color: #d89414; }
 .legend-candlestick { color: #6f62d9; }
 .legend-volume { color: #dc3742; }
+
+.chip-distribution-toggle {
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  color: #66758a;
+  background: #f6f8fb;
+  border: 1px solid #dde4ee;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.chip-distribution-toggle > span {
+  width: 26px;
+  height: 14px;
+  position: relative;
+  display: inline-block;
+  background: #bcc6d4;
+  border-radius: 999px;
+  transition: background 160ms ease;
+}
+
+.chip-distribution-toggle > span i {
+  width: 10px;
+  height: 10px;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  background: #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.2);
+  transition: transform 160ms ease;
+}
+
+.chip-distribution-toggle:hover {
+  color: var(--blue);
+  border-color: #bfd3ef;
+}
+
+.chip-distribution-toggle.is-active {
+  color: #315f9d;
+  background: #edf4ff;
+  border-color: #c8daf3;
+}
+
+.chip-distribution-toggle.is-active > span {
+  background: var(--blue);
+}
+
+.chip-distribution-toggle.is-active > span i {
+  transform: translateX(12px);
+}
 
 .overview-grid {
   display: grid;
@@ -5301,6 +5357,12 @@ tr:focus-visible {
   grid-template-columns: minmax(0, 1fr) 210px;
 }
 
+.chart-panel.has-chip-distribution {
+  min-height: 360px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 278px;
+}
+
 .chart-content {
   position: relative;
   min-width: 0;
@@ -5312,9 +5374,242 @@ tr:focus-visible {
   min-height: 360px;
 }
 
+.has-chip-distribution .chart-content {
+  min-height: 360px;
+}
+
 .has-order-book .chart-loading,
 .has-order-book .chart-error {
   height: 360px;
+}
+
+.has-chip-distribution .chart-loading,
+.has-chip-distribution .chart-error {
+  height: 360px;
+}
+
+.chip-distribution-panel {
+  min-width: 0;
+  height: 360px;
+  display: grid;
+  grid-template-rows: 43px 44px 80px minmax(0, 1fr) 29px;
+  color: #536074;
+  background: #fbfcfe;
+  border-left: 1px solid #e5eaf1;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chip-distribution-panel > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 9px 0 11px;
+  background: #f8fafc;
+  border-bottom: 1px solid #edf0f4;
+}
+
+.chip-distribution-panel > header > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.chip-distribution-panel > header strong {
+  color: #344054;
+  font-size: 12px;
+}
+
+.chip-distribution-panel > header span {
+  overflow: hidden;
+  color: #8b96a8;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip-distribution-panel > header button {
+  width: 27px;
+  height: 27px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 27px;
+  padding: 0;
+  color: #6f7d91;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.chip-distribution-panel > header button:hover:not(:disabled) {
+  color: var(--blue);
+  background: var(--blue-soft);
+}
+
+.chip-distribution-panel > header button:disabled {
+  color: #c1c9d4;
+  cursor: default;
+}
+
+.chip-range-meta {
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  padding: 0 11px;
+  border-bottom: 1px solid #edf0f4;
+}
+
+.chip-range-meta span {
+  color: #7b8799;
+  font-size: 12px;
+}
+
+.chip-range-meta strong {
+  color: #9a6700;
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.chip-range-meta strong.is-complete {
+  color: #3f6fad;
+}
+
+.chip-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-bottom: 1px solid #edf0f4;
+}
+
+.chip-summary-grid > span {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  padding: 4px 9px;
+  border-right: 1px solid #edf0f4;
+  border-bottom: 1px solid #edf0f4;
+}
+
+.chip-summary-grid > span:nth-child(2n) {
+  border-right: 0;
+}
+
+.chip-summary-grid > span:nth-child(n + 3) {
+  border-bottom: 0;
+}
+
+.chip-summary-grid small {
+  color: #8a95a6;
+  font-size: 12px;
+}
+
+.chip-summary-grid strong {
+  overflow: hidden;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip-summary-grid strong.is-up {
+  color: var(--red);
+}
+
+.chip-summary-grid strong.is-flat {
+  color: #667085;
+}
+
+.chip-distribution-chart {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) 24px;
+  padding: 4px 8px 0;
+}
+
+.chip-distribution-chart svg {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: visible;
+}
+
+.chip-distribution-chart svg text {
+  fill: #7c8798;
+  font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+  font-size: 12px;
+}
+
+.chip-price-axis {
+  stroke: #d9e0e9;
+  stroke-width: 1;
+}
+
+.chip-distribution-chart rect.is-profit-chip {
+  fill: rgba(220, 55, 66, 0.72);
+}
+
+.chip-distribution-chart rect.is-loss-chip {
+  fill: rgba(24, 146, 102, 0.68);
+}
+
+.chip-current-line {
+  stroke: #3f7fd3;
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
+.chip-average-line {
+  stroke: #d89414;
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.chip-chart-legend {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #7b8799;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.chip-chart-legend span::before {
+  width: 8px;
+  height: 8px;
+  display: inline-block;
+  margin-right: 3px;
+  content: "";
+  border-radius: 2px;
+}
+
+.chip-chart-legend .is-profit-chip::before { background: var(--red); }
+.chip-chart-legend .is-loss-chip::before { background: var(--green); }
+.chip-chart-legend .is-current-price::before { background: #3f7fd3; }
+.chip-chart-legend .is-average-cost::before { background: #d89414; }
+
+.chip-distribution-panel > footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8d98a8;
+  border-top: 1px solid #edf0f4;
+  font-size: 12px;
+}
+
+.chip-distribution-empty {
+  grid-row: 2 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  color: #8a5a00;
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: center;
 }
 
 .order-book-panel {
@@ -6143,6 +6438,16 @@ tr:focus-visible {
 }
 
 @media (max-width: 900px) {
+  .chart-panel.has-chip-distribution {
+    grid-template-columns: 1fr;
+  }
+
+  .chip-distribution-panel {
+    width: 100%;
+    border-top: 1px solid #e5eaf1;
+    border-left: 0;
+  }
+
   .t-trading-drawer {
     width: 100vw;
   }
