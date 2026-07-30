@@ -59,6 +59,7 @@ import { FiveLevelAlertBadges } from './FiveLevelAlertBadges'
 import { PositionEditor } from './PositionEditor'
 import { StockAlertDialog } from './StockAlertDialog'
 import { TAlertBadges } from './TAlertBadges'
+import { TableFilterDropdown } from './TableFilterDropdown'
 import { TTradingDrawer } from './TTradingDrawer'
 import { WatchlistGroupDialog } from './WatchlistGroupDialog'
 
@@ -449,6 +450,30 @@ export function WatchlistTable({
     [filteredRows, sort, tradingCalendarClosedDates]
   )
   const displayedStocks = useMemo(() => displayedRows.map(({ stock }) => stock), [displayedRows])
+  const customGroupFilterOptions = useMemo(() => [
+    { value: ALL_FILTER, label: '全部分组', count: rows.length },
+    ...watchlistGroups.map((group) => ({
+      value: group.id,
+      label: group.name,
+      count: groupCounts.get(group.id) ?? 0
+    })),
+    { value: UNGROUPED_FILTER, label: '未分组', count: ungroupedCount }
+  ], [groupCounts, rows.length, ungroupedCount, watchlistGroups])
+  const sectorFilterOptions = useMemo(() => [
+    { value: ALL_FILTER, label: '全部板块', count: rows.length, description: '全部自选股票' },
+    ...sectorOptions.map((sector) => ({
+      value: sector.quoteId,
+      label: sector.name,
+      count: sector.count,
+      description: '自动板块'
+    })),
+    ...(noSectorCount > 0 ? [{
+      value: NO_SECTOR_FILTER,
+      label: '未获取板块',
+      count: noSectorCount,
+      description: '暂无板块数据'
+    }] : [])
+  ], [noSectorCount, rows.length, sectorOptions])
   const selectedGroupName = watchlistGroups.find((group) => group.id === customGroupFilter)?.name
   const selectedSectorName = sectorOptions.find((sector) => sector.quoteId === sectorFilter)?.name
   const activeRadarRow = radarPopover
@@ -595,34 +620,20 @@ export function WatchlistTable({
             : ''}
         </span>
         <div className="table-toolbar-actions">
-          <label className="table-filter-select">
-            <span>自定义分组</span>
-            <select
-              value={customGroupFilter}
-              onChange={(event) => setCustomGroupFilter(event.target.value)}
-              aria-label="按自定义分组筛选"
-            >
-              <option value={ALL_FILTER}>全部分组（{rows.length}）</option>
-              {watchlistGroups.map((group) => (
-                <option value={group.id} key={group.id}>{group.name}（{groupCounts.get(group.id) ?? 0}）</option>
-              ))}
-              <option value={UNGROUPED_FILTER}>未分组（{ungroupedCount}）</option>
-            </select>
-          </label>
-          <label className="table-filter-select">
-            <span>板块筛选</span>
-            <select
-              value={sectorFilter}
-              onChange={(event) => setSectorFilter(event.target.value)}
-              aria-label="按板块筛选"
-            >
-              <option value={ALL_FILTER}>全部板块（{rows.length}）</option>
-              {sectorOptions.map((sector) => (
-                <option value={sector.quoteId} key={sector.quoteId}>{sector.name}（{sector.count}）</option>
-              ))}
-              {noSectorCount > 0 ? <option value={NO_SECTOR_FILTER}>未获取板块（{noSectorCount}）</option> : null}
-            </select>
-          </label>
+          <TableFilterDropdown
+            label="自定义分组"
+            value={customGroupFilter}
+            options={customGroupFilterOptions}
+            onChange={setCustomGroupFilter}
+          />
+          <TableFilterDropdown
+            label="板块筛选"
+            value={sectorFilter}
+            options={sectorFilterOptions}
+            searchable
+            searchPlaceholder="搜索板块"
+            onChange={setSectorFilter}
+          />
           <button
             className="secondary-button table-tool-button"
             type="button"
