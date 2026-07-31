@@ -792,6 +792,7 @@ export interface BootstrapResult {
   state: AppState
   quotes: StockQuote[]
   source: 'eastmoney' | 'demo'
+  warning?: string
 }
 
 export interface TaskbarLayout {

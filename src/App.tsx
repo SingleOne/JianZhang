@@ -68,6 +68,7 @@ export default function App() {
         setState(bootstrap.state)
         setQuotes(bootstrap.quotes)
         setSource(bootstrap.source)
+        if (bootstrap.warning) reportError(bootstrap.warning)
         setSelectedQuoteId((current) =>
           current && bootstrap.state.watchlist.some((stock) => stock.quoteId === current) ? current : null
         )

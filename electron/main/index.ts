@@ -10,21 +10,14 @@ import {
   type OpenDialogOptions,
   type SaveDialogOptions
 } from 'electron'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   DEFAULT_APP_SETTINGS,
   DEFAULT_WATCHLIST_COLUMN_ORDER,
   WATCHLIST_COLUMN_ORDER_VERSION,
   getMarketIndexStocks,
-  hasLegacyTTradingData,
-  migrateWatchlistColumnOrder,
-  normalizeAppSettings,
   normalizeTradingCalendarSettings,
-  normalizeTTradingAccounts,
-  normalizeWatchlist,
-  normalizeWatchlistGroups,
-  normalizeWatchlistColumnOrder,
   type AppState,
   type ChipDistributionCacheEntry,
   type KlinePeriod,
@@ -72,6 +65,7 @@ import {
   type QuoteRefreshBatch
 } from './quote-refresh-coordinator'
 import { SectorMarketCache } from './sector-market-cache'
+import { StateStore } from './state-store'
 import { fetchSseTradingCalendar } from './trading-calendar'
 import { createAppIcon } from './tray-icons'
 
@@ -97,6 +91,8 @@ let taskbarWindow: BrowserWindow | null = null
 let trayPopupWindow: BrowserWindow | null = null
 let appTray: Tray | null = null
 let state: AppState = DEFAULT_STATE
+let stateStore: StateStore | null = null
+let startupWarning: string | undefined
 let latestQuotes: StockQuote[] = []
 let tradingCalendarCheckTimer: NodeJS.Timeout | null = null
 let trayPopupShowTimer: NodeJS.Timeout | null = null
@@ -142,42 +138,9 @@ class MarketDataHub {
 const marketDataHub = new MarketDataHub()
 const orderBookHub = new OrderBookHub(fetchOrderBook)
 
-function statePath(): string {
-  return join(app.getPath('userData'), 'settings.json')
-}
-
-function legacyTradingBackupPath(): string {
-  return join(app.getPath('userData'), 'settings.pre-unified-trades.json')
-}
-
-function loadState(): AppState {
-  try {
-    const saved = JSON.parse(readFileSync(statePath(), 'utf8')) as AppState
-    const hasLegacyTrades = hasLegacyTTradingData(saved.tTradingAccounts)
-    const loadedState: AppState = {
-      watchlist: normalizeWatchlist(saved.watchlist ?? DEFAULT_WATCHLIST),
-      watchlistGroups: normalizeWatchlistGroups(saved.watchlistGroups),
-      settings: normalizeAppSettings(saved.settings),
-      columnOrder: migrateWatchlistColumnOrder(saved.columnOrder, saved.columnOrderVersion),
-      columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
-      tTradingAccounts: normalizeTTradingAccounts(saved.tTradingAccounts)
-    }
-    const tradingAccountsMigrated = JSON.stringify(saved.tTradingAccounts ?? {})
-      !== JSON.stringify(loadedState.tTradingAccounts)
-    if (hasLegacyTrades && !existsSync(legacyTradingBackupPath())) {
-      writeFileSync(legacyTradingBackupPath(), JSON.stringify(saved, null, 2), 'utf8')
-    }
-    if (saved.columnOrderVersion !== WATCHLIST_COLUMN_ORDER_VERSION || tradingAccountsMigrated) {
-      writeFileSync(statePath(), JSON.stringify(loadedState, null, 2), 'utf8')
-    }
-    return loadedState
-  } catch {
-    return structuredClone(DEFAULT_STATE)
-  }
-}
-
 function persistState(): void {
-  writeFileSync(statePath(), JSON.stringify(state, null, 2), 'utf8')
+  if (!stateStore) throw new Error('配置存储尚未初始化')
+  stateStore.save(state)
 }
 
 function configTimestamp(): string {
@@ -847,7 +810,12 @@ async function getSectorIndex(stockQuoteId: string) {
 }
 
 function registerIpc(): void {
-  ipcMain.handle('app:bootstrap', async () => ({ state, quotes: latestQuotes, source: 'eastmoney' as const }))
+  ipcMain.handle('app:bootstrap', async () => ({
+    state,
+    quotes: latestQuotes,
+    source: 'eastmoney' as const,
+    warning: startupWarning
+  }))
   ipcMain.handle('taskbar:layout:get', () => taskbarLayout)
   ipcMain.handle('stocks:search', (_event, query: string) => searchStocks(query))
   ipcMain.handle('quotes:refresh', () => refreshAll('manual'))
@@ -867,15 +835,8 @@ function registerIpc(): void {
   ipcMain.handle('sector-index:get', (_event, quoteId: string) => getSectorIndex(quoteId))
   ipcMain.handle('trading-calendar:refresh', () => refreshTradingCalendar())
   ipcMain.handle('state:save', async (_event, nextState: AppState) => {
-    const normalizedState: AppState = {
-      ...nextState,
-      watchlist: normalizeWatchlist(nextState.watchlist),
-      watchlistGroups: normalizeWatchlistGroups(nextState.watchlistGroups),
-      settings: normalizeAppSettings(nextState.settings),
-      columnOrder: normalizeWatchlistColumnOrder(nextState.columnOrder),
-      columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
-      tTradingAccounts: normalizeTTradingAccounts(nextState.tTradingAccounts)
-    }
+    if (!stateStore) throw new Error('配置存储尚未初始化')
+    const normalizedState = stateStore.normalize(nextState)
     const refreshSettingsChanged = state.settings.priorityRefreshSeconds !== normalizedState.settings.priorityRefreshSeconds
       || state.settings.regularRefreshSeconds !== normalizedState.settings.regularRefreshSeconds
     const marketIndicesChanged = state.settings.marketIndexIds.join(',') !== normalizedState.settings.marketIndexIds.join(',')
@@ -955,7 +916,19 @@ if (!hasSingleInstanceLock) {
 
   app.whenReady().then(async () => {
     app.setAppUserModelId('com.jianzhang.stock')
-    state = loadState()
+    stateStore = new StateStore(app.getPath('userData'), DEFAULT_STATE)
+    try {
+      const loaded = stateStore.load()
+      state = loaded.state
+      startupWarning = loaded.warning
+    } catch (reason) {
+      dialog.showErrorBox(
+        '见涨配置读取失败',
+        reason instanceof Error ? reason.message : '无法读取本地配置'
+      )
+      app.quit()
+      return
+    }
     const marketCacheDirectory = join(app.getPath('userData'), 'market-cache')
     marketRequestLogger = new MarketRequestLogger(join(app.getPath('userData'), 'logs'))
     setMarketRequestLogger(marketRequestLogger)
