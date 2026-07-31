@@ -1,0 +1,534 @@
+.settings-menu {
+  position: relative;
+  justify-self: end;
+}
+
+.settings-menu summary {
+  list-style: none;
+}
+
+.settings-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-menu[open] summary {
+  color: var(--blue);
+  border-color: #a9c3f8;
+  background: #f7faff;
+}
+
+.settings-popover {
+  position: fixed;
+  top: 109px;
+  right: 14px;
+  z-index: 60;
+  width: min(500px, calc(100vw - 28px));
+  height: min(620px, calc(100vh - 166px));
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  padding: 9px 14px 12px;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  box-shadow: var(--shadow-menu);
+}
+
+.settings-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 9px 3px 11px;
+  border-bottom: 1px solid #edf0f5;
+}
+
+.settings-heading strong {
+  font-size: 14px;
+}
+
+.settings-heading span {
+  color: var(--subtle);
+  font-size: 11px;
+}
+
+.settings-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  padding: 9px 2px;
+  border-bottom: 1px solid #edf0f5;
+}
+
+.settings-tabs button {
+  height: 34px;
+  color: #667085;
+  background: #f7f8fa;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.settings-tabs button:hover {
+  color: #344054;
+  background: #f1f4f8;
+}
+
+.settings-tabs button.is-active {
+  color: var(--blue);
+  background: var(--blue-soft);
+  border-color: #c9d9fa;
+}
+
+.settings-panel {
+  min-height: 0;
+  padding: 0 3px 4px 2px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.setting-row {
+  min-height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid #f0f2f6;
+  cursor: pointer;
+}
+
+.setting-row:last-child {
+  border-bottom: 1px solid #f0f2f6;
+}
+
+.setting-row > span:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.setting-row strong {
+  color: #344054;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.config-management {
+  display: grid;
+  gap: 10px;
+  padding: 13px 0 2px;
+}
+
+.trading-calendar-setting {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f2f6;
+}
+
+.trading-calendar-setting > span {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.trading-calendar-setting strong {
+  color: #344054;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.trading-calendar-setting small {
+  color: #8a94a6;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.trading-calendar-setting small.is-error {
+  color: var(--red);
+}
+
+.trading-calendar-setting button {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 9px;
+  color: var(--blue);
+  background: #f7faff;
+  border: 1px solid #b9cdf7;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.trading-calendar-setting button:hover:not(:disabled) {
+  border-color: #8eb0f4;
+  background: var(--blue-soft);
+}
+
+.trading-calendar-setting button:disabled {
+  color: #98a2b3;
+  border-color: var(--border);
+  background: #f8fafc;
+  cursor: default;
+}
+
+.config-management > span:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.config-management strong {
+  color: #586579;
+  font-weight: 600;
+}
+
+.config-management small {
+  color: var(--subtle);
+  font-size: 11px;
+}
+
+.config-management-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.config-management-actions button {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #445268;
+  background: #f8fafc;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.config-management-actions button:hover:not(:disabled) {
+  color: var(--blue);
+  border-color: #a9c3f8;
+  background: #f7faff;
+}
+
+.config-management-actions button:disabled {
+  color: #a1a9b8;
+  cursor: default;
+}
+
+.setting-row small {
+  color: #8a94a6;
+  font-size: 11px;
+}
+
+.market-insight-setting-row small {
+  font-size: 12px;
+}
+
+.market-index-setting {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 12px 0 13px;
+  border: 0;
+  border-bottom: 1px solid #f0f2f6;
+}
+
+.market-index-setting legend {
+  padding: 0;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.market-index-setting > small {
+  color: #8a94a6;
+  font-size: 12px;
+}
+
+.market-index-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.market-index-options label {
+  min-width: 0;
+  height: 29px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 6px;
+  color: #586579;
+  background: #f8fafc;
+  border: 1px solid #edf0f4;
+  border-radius: 6px;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.market-index-options input {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  accent-color: var(--blue);
+}
+
+.market-index-options span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trading-fee-setting {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 12px 0 13px;
+  border: 0;
+  border-bottom: 1px solid #f0f2f6;
+}
+
+.trading-fee-setting legend {
+  padding: 0;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.trading-fee-setting > small {
+  color: #8a94a6;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.trading-fee-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.trading-fee-grid label {
+  min-width: 0;
+  height: 32px;
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) 28px;
+  align-items: center;
+  overflow: hidden;
+  color: #586579;
+  background: #f8fafc;
+  border: 1px solid #e5e9f0;
+  border-radius: 6px;
+  font-size: 10px;
+}
+
+.trading-fee-grid label > span {
+  padding-left: 7px;
+}
+
+.trading-fee-grid input {
+  min-width: 0;
+  height: 100%;
+  padding: 0 4px;
+  color: #27364c;
+  background: #ffffff;
+  border: 0;
+  border-right: 1px solid #e5e9f0;
+  border-left: 1px solid #e5e9f0;
+  outline: 0;
+  text-align: right;
+}
+
+.trading-fee-grid em {
+  color: #8a94a6;
+  font-style: normal;
+  text-align: center;
+}
+
+.t-plan-default-setting {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 12px 0 13px;
+  border: 0;
+  border-bottom: 1px solid #f0f2f6;
+}
+
+.t-plan-default-setting legend {
+  padding: 0;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.t-plan-default-setting > small {
+  color: #8a94a6;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.t-plan-default-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.t-plan-default-group {
+  min-width: 0;
+  padding: 7px;
+  background: #f8fafc;
+  border: 1px solid #e5e9f0;
+  border-radius: 7px;
+}
+
+.t-plan-default-group > strong {
+  display: block;
+  margin-bottom: 5px;
+  color: #445268;
+  font-size: 10px;
+}
+
+.t-plan-default-level {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) minmax(0, 1.25fr);
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  margin-top: 4px;
+}
+
+.t-plan-default-level.is-head {
+  margin-top: 0;
+  color: #98a2b3;
+  font-size: 9px;
+  text-align: center;
+}
+
+.t-plan-default-level b {
+  color: #667085;
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.t-plan-default-level input {
+  min-width: 0;
+  width: 100%;
+  height: 27px;
+  padding: 0 3px;
+  color: #27364c;
+  background: #ffffff;
+  border: 1px solid #dfe4ec;
+  border-radius: 5px;
+  outline: 0;
+  text-align: right;
+}
+
+.t-plan-default-level input:focus {
+  border-color: #8eb0f4;
+  box-shadow: 0 0 0 2px rgba(46, 111, 234, 0.1);
+}
+
+.number-input-wrap {
+  height: 31px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+}
+
+.number-input-wrap input {
+  width: 53px;
+  height: 100%;
+  padding: 0 4px 0 9px;
+  color: #344054;
+  background: #ffffff;
+  border: 0;
+  outline: 0;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.number-input-wrap > span {
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  color: #7b8493;
+  background: #f7f8fa;
+  border-left: 1px solid var(--border);
+  font-size: 11px;
+}
+
+.setting-row-position {
+  min-height: 78px;
+}
+
+.position-slider-wrap {
+  width: 150px;
+  display: grid;
+  gap: 4px;
+}
+
+.position-slider-wrap input {
+  width: 100%;
+  accent-color: var(--blue);
+  cursor: pointer;
+}
+
+.position-slider-labels {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #8a94a6;
+  font-size: 10px;
+}
+
+.position-slider-labels output {
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.switch-input {
+  position: relative;
+  width: 34px;
+  height: 20px;
+  flex: 0 0 auto;
+  appearance: none;
+  background: #cbd2dc;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.switch-input::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  content: "";
+  background: #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.25);
+  transition: transform 150ms ease;
+}
+
+.switch-input:checked {
+  background: var(--blue);
+}
+
+.switch-input:checked::after {
+  transform: translateX(14px);
+}

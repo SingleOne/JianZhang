@@ -1,0 +1,14 @@
+.clear-position-button:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 700px) {
+  .position-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .position-snapshot-panel > header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
