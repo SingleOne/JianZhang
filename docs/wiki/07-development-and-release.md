@@ -23,6 +23,9 @@
 npm install
 npm run dev
 npm run dev:web
+npm test
+npm run lint
+npm run format:check
 npm run build
 npm run build:unpacked
 npm run package:win
@@ -33,6 +36,10 @@ npm run package:portable
 | --- | --- |
 | `dev` | 启动 electron-vite，运行真实 Electron/IPC/主进程行情 |
 | `dev:web` | 只启动 Vite，使用 `src/lib/api.ts` 的浏览器演示 API |
+| `test` | 使用 Vitest 运行单元测试 |
+| `test:watch` | 以监听模式运行 Vitest |
+| `lint` | 检查 Electron、renderer、共享代码和构建配置 |
+| `format:check` | 用 Prettier 检查代码格式；当前仍会列出尚未批量格式化的历史文件 |
 | `build` | 先 `tsc --noEmit`，再构建 main/preload/renderer |
 | `build:unpacked` | 完成类型检查、生产构建和图标生成，并更新 `release/win-unpacked` 开发预览，不生成安装包 |
 | `generate:icon` | 生成 `build/icon.png` |
@@ -170,20 +177,22 @@ flowchart LR
 
 ## 当前验证能力
 
-`package.json` 暂无独立的：
+当前已配置：
 
-- 单元测试。
-- 组件测试。
-- ESLint。
-- 端到端测试。
+- Vitest 单元测试，覆盖状态规范化/迁移、配置存储恢复、持仓与做 T 计算、提醒状态机、LRU/K 线缓存、主表列和格式化函数。
+- ESLint flat config、TypeScript ESLint 和 React Hooks 检查。
+- Prettier 配置与 `.editorconfig`；历史文件尚未一次性全量格式化，避免制造大规模无关差异。
+- `npm run build` 的 TypeScript 无输出检查和 main/preload/renderer 生产构建。
 
-现有静态验证入口是：
+常规完整检查：
 
 ```powershell
+npm test
+npm run lint
 npm run build
 ```
 
-它会先执行 TypeScript 无输出类型检查。需要同时更新可运行预览时使用：
+当前尚未配置 React 组件测试和端到端测试。需要同时更新可运行预览时使用：
 
 ```powershell
 npm run build:unpacked

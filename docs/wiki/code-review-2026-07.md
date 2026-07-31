@@ -6,6 +6,30 @@
 >
 > 审查范围：`electron/`、`src/` 全部 121 个 TypeScript/TSX 源文件
 
+> 下文的问题描述保留 2026-07-20 审查时的代码快照；当前处理结果以本节状态表和[优化执行路线图](code-review-optimization-roadmap-2026-07.md)为准。
+
+---
+
+## 处理状态（2026-07-31）
+
+| 问题 | 状态 | 当前结果 |
+| --- | --- | --- |
+| 3.1.1 无自动化测试 | 已完成 | 已引入 Vitest，并覆盖迁移、存储、持仓/做 T/提醒、缓存、列模型和格式化关键逻辑 |
+| 3.1.2 主进程入口过重 | 已完成 | 已拆出 `StateStore`、`WindowManager`、`registerIpcHandlers`、`QuoteRuntime` 和 `TradingCalendarRuntime` |
+| 3.1.3 全局样式过大 | 已完成 | 组件样式已拆到组件旁，`styles.css` 仅保留全局基础和共享规则 |
+| 3.2.1 API 搜索令牌硬编码 | 已完成 | 公开固定 token、请求头、接口参数和字段已集中到 `market-constants.ts`，便于统一维护 |
+| 3.2.2 K 线缓存无上限 | 已完成 | renderer/实时 K 线使用 100 条 LRU，历史 K 线内存 150 条，磁盘清理 90 天未访问文件 |
+| 3.2.3 格式化函数重复 | 已完成 | 主进程和 renderer 统一复用 `src/lib/format.ts` |
+| 3.2.4 缺少 ESLint / Prettier | 已完成 | 已加入 ESLint flat config、Prettier、EditorConfig 和对应脚本 |
+| 3.2.5 `window.confirm` | 已完成 | 8 处原生确认框已统一为 `ConfirmDialog` |
+| 3.2.6 `WatchlistTable` 过重 | 已完成 | 已拆出行、筛选、列模型和拖拽 hook，并对行使用 `React.memo` |
+| 3.3.1 `author` 字段 | 已完成 | 已改为实际开发者“陈星” |
+| 3.3.2 Demo 数据块过大 | 已完成 | 固定 Demo 数据已移至 `src/lib/demo-data.ts` |
+| 3.3.3 搜索无防抖 | 暂缓 | 当前使用 `useDeferredValue`；作为独立低优先级网络优化保留 |
+| 3.3.4 托盘悬浮窗口不可交互 | 不再适用 | 当前产品要求为纯展示悬浮窗，鼠标穿透属于预期行为 |
+
+本轮没有引入新的全局状态库或 CSS Modules；这两项在现有规模下暂无必要。
+
 ---
 
 ## 一、总体评价

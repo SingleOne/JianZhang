@@ -44,12 +44,20 @@
 JianZhang/
 ├─ electron/
 │  ├─ main/
-│  │  ├─ index.ts               # Electron 生命周期、窗口、定时刷新、IPC、状态持久化
-│  │  ├─ market.ts              # 东方财富行情、K 线、盘口、异动、资金流、板块
+│  │  ├─ index.ts               # Electron 生命周期、模块组装和可选模块注册
+│  │  ├─ state-store.ts         # 配置加载、迁移、原子保存、备份与损坏恢复
+│  │  ├─ window-manager.ts      # 主窗口、任务栏、托盘菜单与悬浮窗口
+│  │  ├─ ipc-handlers.ts        # 核心 StockDesktopApi IPC 注册
+│  │  ├─ quote-runtime.ts       # 行情刷新、提醒判断和窗口同步编排
+│  │  ├─ trading-calendar-runtime.ts # 交易日历定时刷新
+│  │  ├─ market.ts              # 行情请求、主备切换和字段转换
+│  │  ├─ market-constants.ts    # 行情 token、请求头、固定参数和字段列表
 │  │  ├─ quote-refresh-coordinator.ts # 主行情单队列与重点/普通请求合并
 │  │  ├─ sector-market-cache.ts # 板块绑定磁盘缓存与板块报价缓存
 │  │  ├─ market-request-logger.ts # 行情请求 JSONL 日志与 7 天清理
 │  │  ├─ order-book-hub.ts      # 五档盘口请求复用、缓存和串行错峰
+│  │  ├─ funds-flow-hub.ts      # 资金流请求复用、缓存和串行队列
+│  │  ├─ kline-hub.ts           # 全周期 K 线请求合并、缓存和串行队列
 │  │  ├─ chip-distribution-cache.ts # 筹码分布磁盘缓存
 │  │  ├─ historical-kline-cache.ts # 日/周/月 K 磁盘缓存
 │  │  ├─ trading-calendar.ts    # 上交所休市日抓取
@@ -62,9 +70,9 @@ JianZhang/
 │  ├─ modules/market-insight/   # 指标、要闻和客观市场观察
 │  ├─ modules/ai/               # AI 对话、股票上下文和行情解读
 │  ├─ modules/ai-t-advice/      # 可独立剔除的 AI 做 T 参考
-│  ├─ lib/                      # API 适配和业务计算
+│  ├─ lib/                      # API 适配、Demo 数据和业务计算
 │  ├─ shared/                   # 共享类型、配置、交易时段和日历
-│  └─ styles.css                # 全局样式与窗口模式样式
+│  └─ styles.css                # 设计变量、全局基础和共享样式；组件样式在组件旁
 ├─ scripts/
 │  ├─ convert-stock-helper-config.mjs
 │  └─ generate-icon.mjs
@@ -79,18 +87,18 @@ JianZhang/
 
 | 需求 | 首要文件 | 通常还会涉及 |
 | --- | --- | --- |
-| 增减自选、持仓、设置字段 | [`src/App.tsx`](../../src/App.tsx) | [`src/shared/types.ts`](../../src/shared/types.ts)、[`electron/main/index.ts`](../../electron/main/index.ts) |
-| 修改主表格列 | [`WatchlistTable.tsx`](../../src/components/WatchlistTable.tsx) | 共享列顺序与迁移、[`src/styles.css`](../../src/styles.css) |
+| 增减自选、持仓、设置字段 | [`src/App.tsx`](../../src/App.tsx) | [`src/shared/types.ts`](../../src/shared/types.ts)、[`state-store.ts`](../../electron/main/state-store.ts)、[`ipc-handlers.ts`](../../electron/main/ipc-handlers.ts) |
+| 修改主表格列 | [`WatchlistTable.tsx`](../../src/components/WatchlistTable.tsx) | `watchlist-table/columns.ts`、共享列顺序与迁移、`WatchlistTable.css` |
 | 修改自定义分组或板块筛选 | [`WatchlistTable.tsx`](../../src/components/WatchlistTable.tsx) | `WatchlistGroupDialog.tsx`、`TableFilterDropdown.tsx`、共享状态 |
 | 修改展开行情标签页 | [`ExpandedStockDetails.tsx`](../../src/components/ExpandedStockDetails.tsx) | 图表/面板组件、`StockDesktopApi`、IPC |
-| 增加一种行情接口 | [`electron/main/market.ts`](../../electron/main/market.ts) | 共享类型、preload、浏览器演示实现 |
+| 增加一种行情接口 | [`electron/main/market.ts`](../../electron/main/market.ts) | `market-constants.ts`、共享类型、preload、浏览器演示实现 |
 | 修改收益口径 | [`src/lib/portfolio.ts`](../../src/lib/portfolio.ts) | 主表、首页汇总、托盘摘要 |
 | 修改做 T 或交易流水 | [`TTradingDrawer.tsx`](../../src/components/TTradingDrawer.tsx) | `PositionEditor.tsx`、[`trade-records.ts`](../../src/lib/trade-records.ts)、[`t-trading.ts`](../../src/lib/t-trading.ts)、[`t-alerts.ts`](../../src/lib/t-alerts.ts) |
 | 修改后台提醒 | [`src/lib/t-alerts.ts`](../../src/lib/t-alerts.ts) | 主进程、`TAlertBadges.tsx` |
 | 修改筹码分布 | [`chip-distribution.ts`](../../src/lib/chip-distribution.ts) | `ChipDistributionPanel.tsx`、`PeriodKlineChart.tsx`、主进程磁盘缓存 |
 | 修改 BOLL 指标 | [`bollinger.ts`](../../src/shared/bollinger.ts) | `PeriodKlineChart.tsx`、市场观察波动指标 |
 | 修改 AI 对话或 `@股票` | [`AiAssistantDrawer.tsx`](../../src/modules/ai/renderer/AiAssistantDrawer.tsx) | AI service、context builder、独立存储和 IPC |
-| 修改任务栏/托盘行为 | [`electron/main/index.ts`](../../electron/main/index.ts) | `TaskbarTicker.tsx`、`TrayHoverSummary.tsx` |
+| 修改任务栏/托盘行为 | [`window-manager.ts`](../../electron/main/window-manager.ts) | `TaskbarTicker.tsx`、`TrayHoverSummary.tsx` |
 | 修改配置兼容 | [`src/shared/config.ts`](../../src/shared/config.ts) | 共享类型中的 normalize/migrate 函数 |
 
 ## 当前重要边界
@@ -101,7 +109,7 @@ JianZhang/
 - 筹码分布由当前日 K 可视范围内的数据在本地计算，向前取数直到累计换手率达到固定 100%；首批数据不足时按平均换手率估算目标根数后直接补取。最近一次结果单独缓存在 `userData/market-cache/chip-distributions.json`，并加入 AI 分析上下文。
 - 浏览器模式使用 `src/lib/api.ts` 的演示数据和 `localStorage`，与桌面版网络链路不同。
 - 当前没有自动下单或券商连接；`ai` 支持 OpenAI API、DeepSeek API 和 Codex 账号，聊天会按设置提交最近若干条消息，并允许一条消息快速 `@` 多只自选股。`ai-t-advice` 默认编译但需用户主动启用。
-- 当前没有自动化测试目录；改动应至少按调用链检查共享类型、主进程、preload、浏览器演示实现和 UI 是否同步。
+- 项目已使用 Vitest 覆盖状态迁移、存储恢复、持仓/做 T/提醒计算、K 线缓存、表格列和格式化等关键纯逻辑；提交前同时执行测试、ESLint 和生产构建。
 - 股票数量输入统一以 100 股为步长；收益/收益率正红、负绿、零值中性。
 
 ## 4.2.0–4.19.0 主要变化

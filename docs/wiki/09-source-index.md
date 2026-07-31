@@ -14,20 +14,31 @@
 | [`index.html`](../../index.html) | renderer HTML 入口 |
 | [`README.md`](../../README.md) | 用户功能、安装和使用说明 |
 | [`AGENTS.md`](../../AGENTS.md) | 项目协作、数量输入、收益配色和版本规则 |
+| [`vitest.config.ts`](../../vitest.config.ts) | Vitest 测试范围和环境配置 |
+| [`eslint.config.mjs`](../../eslint.config.mjs) | ESLint flat config、TypeScript 和 React Hooks 规则 |
+| [`.prettierrc.json`](../../.prettierrc.json) / [`.editorconfig`](../../.editorconfig) | 格式化和编辑器基础约定 |
 | [`.gitignore`](../../.gitignore) | 构建、打包和临时目录忽略规则 |
 
 ## Electron 主进程
 
 | 文件 | 重点符号 | 职责 |
 | --- | --- | --- |
-| [`electron/main/index.ts`](../../electron/main/index.ts) | `loadState`、`executeQuoteRefresh`、`registerIpc`、`createWindow` | 生命周期、窗口、托盘、状态/旧交易迁移、统一刷新执行、提醒、模块注册和 IPC |
+| [`electron/main/index.ts`](../../electron/main/index.ts) | `app.whenReady`、`persistState`、`cleanupBeforeQuit` | Electron 生命周期、核心模块组装、依赖注入和可选模块注册 |
+| [`electron/main/state-store.ts`](../../electron/main/state-store.ts) | `StateStore` | 状态规范化/迁移、原子保存、最近备份和损坏配置恢复 |
+| [`electron/main/window-manager.ts`](../../electron/main/window-manager.ts) | `WindowManager` | 主窗口、任务栏、托盘菜单与悬浮窗口生命周期 |
+| [`electron/main/ipc-handlers.ts`](../../electron/main/ipc-handlers.ts) | `registerIpcHandlers` | 核心 StockDesktopApi IPC 注册和清理 |
+| [`electron/main/quote-runtime.ts`](../../electron/main/quote-runtime.ts) | `QuoteRuntime` | 批量报价刷新、板块绑定、提醒判断、盘口大单和窗口广播 |
+| [`electron/main/trading-calendar-runtime.ts`](../../electron/main/trading-calendar-runtime.ts) | `TradingCalendarRuntime` | 交易日历启动检查和定时刷新 |
 | [`electron/main/market.ts`](../../electron/main/market.ts) | `searchStocks`、`fetchQuotes`、`fetchKline`、`fetchFundsFlow`、`fetchSectorBinding` | 行情请求、主备节点切换、字段转换和请求日志接入 |
+| [`electron/main/market-constants.ts`](../../electron/main/market-constants.ts) | `EASTMONEY_FIXED_PARAMS`、`EASTMONEY_FIELDS` | 行情 token、请求头、固定参数、字段列表和异动类型 |
 | [`electron/main/quote-refresh-coordinator.ts`](../../electron/main/quote-refresh-coordinator.ts) | `QuoteRefreshCoordinator` | 合并重点/普通/手动刷新范围并保证主行情单队列执行 |
 | [`electron/main/sector-market-cache.ts`](../../electron/main/sector-market-cache.ts) | `SectorMarketCache` | 板块绑定持久化、并发补取、失败冷却和 60 秒板块报价缓存 |
 | [`electron/main/market-request-logger.ts`](../../electron/main/market-request-logger.ts) | `MarketRequestLogger` | 行情请求/报价轮次 JSONL 日志和启动时 7 天清理 |
 | [`electron/main/order-book-hub.ts`](../../electron/main/order-book-hub.ts) | `OrderBookHub` | 统一盘口请求、进行中请求复用、短时缓存和串行错峰 |
+| [`electron/main/funds-flow-hub.ts`](../../electron/main/funds-flow-hub.ts) | `FundsFlowHub` | 资金流请求合并、2 分钟/收盘缓存和串行队列 |
+| [`electron/main/kline-hub.ts`](../../electron/main/kline-hub.ts) | `KlineHub` | 全周期 K 线请求合并、100 条实时 LRU 和全局串行队列 |
 | [`electron/main/chip-distribution-cache.ts`](../../electron/main/chip-distribution-cache.ts) | `ChipDistributionCache` | 按股票读写最后一次筹码分布磁盘缓存 |
-| [`electron/main/historical-kline-cache.ts`](../../electron/main/historical-kline-cache.ts) | `HistoricalKlineCache` | 日/周/月 K 持久化、长短范围合并和失效回退 |
+| [`electron/main/historical-kline-cache.ts`](../../electron/main/historical-kline-cache.ts) | `HistoricalKlineCache` | 日/周/月 K 持久化、150 条内存 LRU、长短范围合并、失效回退和 90 天清理 |
 | [`electron/main/trading-calendar.ts`](../../electron/main/trading-calendar.ts) | `fetchSseTradingCalendar` | 解析上交所当年休市安排 |
 | [`electron/main/tray-icons.ts`](../../electron/main/tray-icons.ts) | `createAppIcon` | 生成 Electron 托盘/窗口原生图标 |
 | [`electron/preload/index.ts`](../../electron/preload/index.ts) | `api`、`subscribe` | 把类型化 `stockApi` 安全暴露给 renderer |
@@ -38,7 +49,8 @@
 | --- | --- | --- |
 | [`src/main.tsx`](../../src/main.tsx) | `windowMode` | 分流主窗口、任务栏和托盘悬浮模式 |
 | [`src/App.tsx`](../../src/App.tsx) | `persist`、`addStock`、`updatePosition`、`updateTTrading` | 主窗口状态和用户操作编排 |
-| [`src/styles.css`](../../src/styles.css) | `:root`、`.is-up/.is-down/.is-flat` | 全局设计变量、全部组件和三种窗口样式 |
+| [`src/styles.css`](../../src/styles.css) | `:root`、`.is-up/.is-down/.is-flat` | 设计变量、reset、应用框架和跨组件共享样式 |
+| [`src/components/*.css`](../../src/components/) / [`src/styles/app-feedback.css`](../../src/styles/app-feedback.css) | 组件 class | 设置、主表、弹窗、做 T、详情、任务栏和反馈样式 |
 | [`src/vite-env.d.ts`](../../src/vite-env.d.ts) | `Window.stockApi` | renderer 全局 API 类型声明 |
 
 ## 共享领域模型
@@ -50,12 +62,14 @@
 | [`src/shared/config.ts`](../../src/shared/config.ts) | `createConfigDocument`、`parseConfigDocument` | 配置格式版本、导入验证和兼容 |
 | [`src/shared/market-hours.ts`](../../src/shared/market-hours.ts) | `isBeijingAutoRefreshTime` | 北京时间自动刷新窗口 |
 | [`src/shared/trading-calendar.ts`](../../src/shared/trading-calendar.ts) | `countAStockTradingDays` | 内置休市范围和交易日计数 |
+| [`src/shared/lru-cache.ts`](../../src/shared/lru-cache.ts) | `LruCache` | renderer 与主进程共享的有界最近最少使用缓存 |
 
 ## 业务计算与 API
 
 | 文件 | 重点符号 | 职责 |
 | --- | --- | --- |
 | [`src/lib/api.ts`](../../src/lib/api.ts) | `stockApi`、`demoApi` | 桌面 API 选择、浏览器演示行情和演示存储 |
+| [`src/lib/demo-data.ts`](../../src/lib/demo-data.ts) | `DEMO_STOCKS`、`DEMO_SECTORS`、`DEMO_VALUES` | 浏览器预览固定演示数据 |
 | [`src/lib/portfolio.ts`](../../src/lib/portfolio.ts) | `calculatePositionMetrics`、`calculatePortfolioSummary` | 持仓、可用数量、今日收益和组合汇总 |
 | [`src/lib/t-trading.ts`](../../src/lib/t-trading.ts) | `calculateTradeFees`、`calculateTBatchMetrics`、`validateTBatchTrades` | 费用、正反 T、交易重放、持仓和结算计算 |
 | [`src/lib/t-alerts.ts`](../../src/lib/t-alerts.ts) | `getTPlanRows`、`applyTAlertTriggersToAccounts` | 双五档计划、目标价和提醒状态 |
@@ -73,10 +87,15 @@
 | [`src/components/SearchBar.tsx`](../../src/components/SearchBar.tsx) | 股票代码/名称搜索和添加 |
 | [`src/components/SettingsMenu.tsx`](../../src/components/SettingsMenu.tsx) | 行情、做 T、系统与数据设置 |
 | [`src/components/WatchlistTable.tsx`](../../src/components/WatchlistTable.tsx) | 自选主表、排序、列、异动、展开详情和操作入口 |
+| [`src/components/watchlist-table/WatchlistRow.tsx`](../../src/components/watchlist-table/WatchlistRow.tsx) | 单股行指标、单元格、提醒、操作和展开详情 |
+| [`src/components/watchlist-table/WatchlistFilters.tsx`](../../src/components/watchlist-table/WatchlistFilters.tsx) | 表内搜索、分组/板块筛选和分组管理入口 |
+| [`src/components/watchlist-table/columns.ts`](../../src/components/watchlist-table/columns.ts) | 列定义、排序值和渲染模型 |
+| [`src/components/watchlist-table/useDragReorder.ts`](../../src/components/watchlist-table/useDragReorder.ts) | 行拖拽重排 hook |
 | [`src/components/PositionEditor.tsx`](../../src/components/PositionEditor.tsx) | 持仓编辑、版本快照、统一交易流水分页和行内编辑/删除 |
 | [`src/components/WatchlistGroupDialog.tsx`](../../src/components/WatchlistGroupDialog.tsx) | 自定义分组增删改和股票批量归属 |
 | [`src/components/TableFilterDropdown.tsx`](../../src/components/TableFilterDropdown.tsx) | 现代化主表分组/板块筛选下拉框 |
 | [`src/components/StockAlertDialog.tsx`](../../src/components/StockAlertDialog.tsx) | 单股多条件阈值提醒配置 |
+| [`src/components/ConfirmDialog.tsx`](../../src/components/ConfirmDialog.tsx) | 全局应用内确认弹窗 Provider 和 Promise API |
 
 ## 行情组件
 
@@ -87,7 +106,7 @@
 | [`src/components/PeriodKlineChart.tsx`](../../src/components/PeriodKlineChart.tsx) | 日/周/月蜡烛图、BOLL 三轨线/指标栏和增量补历史 |
 | [`src/components/ChipDistributionPanel.tsx`](../../src/components/ChipDistributionPanel.tsx) | 日 K 筹码分布统计、图形和缓存保存 |
 | [`src/components/OrderBookPanel.tsx`](../../src/components/OrderBookPanel.tsx) | 买卖五档盘口 |
-| [`src/components/FundsFlowPanel.tsx`](../../src/components/FundsFlowPanel.tsx) | 资金流请求、缓存、摘要和表格 |
+| [`src/components/FundsFlowPanel.tsx`](../../src/components/FundsFlowPanel.tsx) | 资金流刷新触发、renderer 最近结果、摘要和表格 |
 | [`src/components/FundsFlowChart.tsx`](../../src/components/FundsFlowChart.tsx) | 主力资金净额曲线 |
 | [`src/components/SectorIndexPanel.tsx`](../../src/components/SectorIndexPanel.tsx) | 所属行业板块概览和分时 |
 
@@ -129,13 +148,23 @@
 | [`docs/wiki/08-ai-extension-points.md`](08-ai-extension-points.md) | 当前市场观察、AI 对话/分析和 AI 做 T 参考模块说明 |
 | [`docs/plan/t-trading-alert-implementation-plan.md`](../plan/t-trading-alert-implementation-plan.md) | 双五档提醒的历史设计记录 |
 
+## 测试
+
+| 文件 | 覆盖范围 |
+| --- | --- |
+| `src/shared/types.test.ts` | 状态规范化、列顺序和历史交易迁移 |
+| `electron/main/state-store.test.ts` | 新建、正常读取、迁移、损坏恢复和写入失败 |
+| `src/lib/portfolio.test.ts` / `t-trading.test.ts` / `alerts.test.ts` | 持仓收益、做 T、费用和提醒边界 |
+| `src/shared/lru-cache.test.ts` / `electron/main/kline-hub.test.ts` / `historical-kline-cache.test.ts` | LRU 淘汰、K 线请求合并、回退和磁盘清理 |
+| `src/components/watchlist-table/columns.test.ts` / `src/lib/format.test.ts` | 表格列模型和统一数值格式化 |
+
 ## 高频符号反查
 
 | 要找的逻辑 | 搜索符号 |
 | --- | --- |
-| 主进程一次完整行情刷新 | `executeQuoteRefresh`、`QuoteRefreshCoordinator` |
-| 保存并广播整个应用状态 | `state:save`、`persistState`、`sendToWindows` |
-| 分时/K 线入口 | `getKline`、`fetchKline`、`HistoricalKlineCache` |
+| 主进程一次完整行情刷新 | `QuoteRuntime.executeRefresh`、`QuoteRefreshCoordinator` |
+| 保存并广播整个应用状态 | `state:save`、`StateStore.save`、`sendToWindows` |
+| 分时/K 线入口 | `getKline`、`KlineHub`、`fetchKline`、`HistoricalKlineCache` |
 | 当前持仓和今日收益 | `calculatePositionMetrics` |
 | 账户全部交易 / 某个批次交易 | `getAccountTrades` / `getBatchTrades` |
 | 组合收益 | `calculatePortfolioSummary` |

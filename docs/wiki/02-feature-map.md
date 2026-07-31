@@ -116,7 +116,7 @@ SearchBar
 
 ## 盘口异动
 
-当前支持的信号定义位于 `electron/main/market.ts` 的 `RADAR_LABELS`，包括：
+当前支持的信号定义位于 `electron/main/market-constants.ts` 的 `RADAR_LABELS`，包括：
 
 - 涨跌停封板/开板。
 - 大买盘、大卖盘、大笔买卖。
@@ -181,15 +181,15 @@ SearchBar
 ### 新增一列
 
 1. `src/shared/types.ts`：列 ID、默认顺序、版本和迁移。
-2. `WatchlistTable.tsx`：列元信息、排序值、表头和单元格。
-3. `src/styles.css`：宽度、固定列和响应布局。
+2. `watchlist-table/columns.ts`：列元信息和排序值；`WatchlistRow.tsx`：单元格。
+3. `WatchlistTable.css`：宽度、固定列和响应布局。
 4. 如数据缺失，再扩展 `StockQuote` 和行情接口。
 
 ### 新增详情标签页
 
 1. `ExpandedStockDetails.tsx`：标签、懒加载、缓存和错误态。
 2. `src/shared/types.ts`：数据类型和 `StockDesktopApi`。
-3. `electron/main/index.ts`：IPC。
+3. `electron/main/ipc-handlers.ts`：IPC。
 4. `electron/preload/index.ts`：桥接。
 5. `electron/main/market.ts`：真实数据。
 6. `src/lib/api.ts`：浏览器演示数据。

@@ -13,17 +13,17 @@
 | 五档盘口 | `OrderBookHub` → `fetchOrderBook` | 东方财富个股行情 |
 | 当日异动 | `fetchTodayRadarSignals` | 东方财富异动 |
 | 近 5 日异动 | `fetchHistoricalRadarSignals` | 东方财富异动统计与明细 |
-| 分时 | `fetchKline` | 东方财富主源、腾讯行情备用源 |
-| 五日/周期 K | `fetchKline` | 东方财富主节点、东方财富镜像节点、腾讯行情备用源 |
+| 分时 | `KlineHub` → `fetchKline` | 东方财富主源、腾讯行情备用源 |
+| 五日/周期 K | `KlineHub` → `fetchKline` | 东方财富主节点、东方财富镜像节点、腾讯行情备用源 |
 | BOLL 指标 | `calculateBollingerBands` | 本地使用日/周/月 K 收盘价计算，不调用独立指标接口 |
 | 筹码分布 | `calculateChipDistribution` | 本地使用日 K 与换手率计算，不调用独立筹码接口 |
 | 所属板块和板块报价 | `fetchSectorBinding` + `SectorMarketCache` + 统一报价调度 | 东方财富个股页与板块行情 |
-| 资金流向 | `fetchFundsFlow` | 东方财富分钟资金流 |
+| 资金流向 | `FundsFlowHub` → `fetchFundsFlow` | 东方财富主节点、东方财富镜像节点 |
 | 休市日历 | `fetchSseTradingCalendar` | 上交所休市安排 |
 
 常规行情请求通过 Electron `net.fetch` 发出。`requestJson` 使用 12 秒超时并最多尝试两次；板块页面文本请求使用同样的 12 秒超时，但不重试。主表批量行情每个刷新周期固定从 `push2.eastmoney.com` 开始，单次失败后依次请求 `push2delay.eastmoney.com`、腾讯行情和新浪行情，不记忆上一次使用的节点。东方财富镜像节点通过 Node HTTPS 保留主行情 Host 路由；新浪作为最后备用源时不提供换手率。
 
-历史 K 线同样先单次请求 `push2his.eastmoney.com`，失败后立即通过 Node HTTPS 请求 `push2delay.eastmoney.com`，并保留历史 K 线主机路由；两个东方财富节点都失败时才切换到腾讯行情。五档盘口和分时接口暂不使用镜像节点。
+历史 K 线同样先单次请求 `push2his.eastmoney.com`，失败后立即通过 Node HTTPS 请求 `push2delay.eastmoney.com`，并保留历史 K 线主机路由；两个东方财富节点都失败时才切换到腾讯行情。五档盘口和分时接口暂不使用镜像节点。东方财富搜索 token、请求头、固定参数和字段列表集中在 `market-constants.ts`，移动这些常量不会改变请求内容。
 
 ## 报价标识
 
@@ -58,7 +58,7 @@
 
 ### 主进程合并
 
-`executeQuoteRefresh` 先合并本轮范围：
+`QuoteRuntime.executeRefresh` 先合并本轮范围：
 
 1. 当前到期的重点和/或普通股票。
 2. 普通范围对应的大盘指数。
@@ -80,11 +80,13 @@
 | --- | --- | --- |
 | 重点股票 | 5 秒 | Electron 主进程 |
 | 普通股票和大盘指数 | 10 秒 | Electron 主进程 |
-| 分时、五日、资金流 | 跟随该股票重点/普通间隔 | React 面板 |
-| 板块报价和板块详情 | 60 秒 | 主进程 `SectorMarketCache` + React 面板 |
+| 分时、五日 | 30 秒 | renderer 定时触发，主进程 `KlineHub` 统一请求与缓存 |
+| 资金流 | 2 分钟；已取得当日 15:00 收盘数据后不再过期 | renderer 定时触发，主进程 `FundsFlowHub` 统一请求与缓存 |
+| 板块报价 | 60 秒 | 主进程 `SectorMarketCache` |
+| 板块分时 | 30 秒 | React 面板 + 主进程 `KlineHub` |
 | 可见股票盘口 | 打开时获取 1 次；活动做 T 股票继续按所属行情间隔刷新 | 主进程 `OrderBookHub` + React 面板 |
 | 活动做 T 股票大单盘口 | 每个所属行情刷新周期轮询 1 只 | 主进程 `OrderBookHub` |
-| 日/周/月 K | 盘中 5 分钟、休市时段 18 小时，失败时允许旧数据回退 | React 内存 + 主进程磁盘 |
+| 日/周/月 K | 盘中 5 分钟、休市时段 18 小时，失败时允许旧数据回退 | renderer 100 条 LRU + 主进程磁盘 |
 
 所有自动刷新统一受 `shared/market-hours.ts` 的北京时间窗口限制。手动刷新不受限制。
 
@@ -122,7 +124,9 @@ time, open, close, high, low, volume, amount, turnoverRate?
 - 周 K：最多 1664 条。
 - 月 K：最多 960 条。
 
-周期 K 由主进程 `HistoricalKlineCache` 按股票和周期持久化。较短的新请求会与已有长历史按时间合并，不会覆盖掉更早的数据；盘中缓存有效 5 分钟，休市时段有效 18 小时，网络失败时可以使用更早的磁盘结果。
+所有周期先进入主进程 `KlineHub`。相同“股票 + 周期 + 数量”的进行中请求只执行一次，不同参数请求通过全局串行队列访问上游。分时和五日结果使用最多 100 条的 LRU 内存缓存，统一有效期为 30 秒。
+
+日/周/月由 `HistoricalKlineCache` 按股票和周期持久化，内存最多保留 150 条。较短的新请求会与已有长历史按时间合并，不会覆盖掉更早的数据；盘中缓存有效 5 分钟，休市时段有效 18 小时，网络失败时可以使用更早的磁盘结果。磁盘文件每次命中会更新访问时间，启动时清理超过 90 天未访问的数据。
 
 ### 图表实现
 
@@ -196,6 +200,8 @@ userData/market-cache/chip-distributions.json
 
 其中超大单由“主力 - 大单”推算。面板展示最新汇总、曲线和最近 8 个时间点。
 
+所有调用先进入 `FundsFlowHub`：同一股票的进行中请求合并，不同股票请求进入全局串行队列，成功结果缓存 2 分钟；若已取得当天 15:00 的收盘数据，则该结果当日不再过期。底层每次仍优先请求东方财富主节点，失败后立即请求 Delay 备用节点。
+
 ## 所属行业板块
 
 板块绑定从个股页面中的 `quotedata` 读取 `bk_id` 和 `bk_name`，写入 `market-cache/sector-bindings.json`，有效期 24 小时。启动时优先复用磁盘缓存；缺失项最多 4 个并发后台补取，同一股票失败后等待 5 分钟再试。
@@ -222,13 +228,13 @@ userData/market-cache/chip-distributions.json
 
 ## React 面板缓存
 
-分时、K 线、资金流和板块仍使用组件文件内的模块级 `Map` 作为前端短时缓存。特点：
+renderer 的 K 线缓存使用最多 100 条的 `LruCache`；资金流仍保留模块级最近结果，盘口最新结果由组件 state 展示。特点：
 
 - 在展开/收起或切换股票后仍可复用。
 - 只存在于当前渲染进程内。
 - 应用重启后丢失。
 
-盘口缓存已经移到 Electron 主进程的 `OrderBookHub`，分时图、大单提醒、市场观察和做 T 参考共享同一份进行中请求和最近成功结果。只有存在 `activeBatch` 的活动做 T 股票会自动轮询盘口；其他股票只在打开盘口、手动刷新、主动刷新市场观察或生成做 T 参考时按需请求。
+K 线、资金流和盘口分别通过 Electron 主进程的 `KlineHub`、`FundsFlowHub` 和 `OrderBookHub` 统一请求。只有存在 `activeBatch` 的活动做 T 股票会自动轮询盘口；其他股票只在打开盘口、手动刷新、主动刷新市场观察或生成做 T 参考时按需请求。
 - 请求失败但存在旧数据时，继续展示旧数据并显示刷新警告。
 
 日/周/月 K 另由 `HistoricalKlineCache` 写入 `market-cache/klines/`；筹码分布最近一次计算结果则单独写入磁盘，供应用重启后的 AI 上下文复用。
@@ -239,7 +245,7 @@ userData/market-cache/chip-distributions.json
 
 ## 浏览器演示数据
 
-`src/lib/api.ts` 在没有 `window.stockApi` 时启用 `demoApi`：
+`src/lib/api.ts` 在没有 `window.stockApi` 时启用 `demoApi`；固定股票、板块和行情值集中在 `src/lib/demo-data.ts`：
 
 - 内置常用股票和指数。
 - 生成报价、K 线、盘口、资金流和板块数据。
@@ -254,5 +260,5 @@ userData/market-cache/chip-distributions.json
 - 上游是公开接口，没有稳定性承诺；字段、令牌或页面结构调整会直接影响 `market.ts`。
 - 没有行情落库、断点补偿或历史快照；应用只保留当前内存报价。
 - `AppTitlebar` 的“交易中/已休市”仍只按工作日和常规交易时间判断；主进程自动刷新已经同时检查内置休市日和设置中在线更新的额外休市日期。
-- 分时、五日、资金流和盘口详情仍独立刷新，展开多只股票或频繁切换时会增加对应接口请求量；板块详情已经固定为 60 秒并复用主进程报价缓存。
+- 分时、五日、资金流和盘口详情仍由各面板独立触发刷新，但同参数请求会在对应主进程 Hub 中合并并串行访问上游；展开更多股票仍会增加不同参数的请求量。
 - 筹码分布是基于日 K 高低价和换手率的近似模型，不等同于券商持有的真实逐笔账户分布。

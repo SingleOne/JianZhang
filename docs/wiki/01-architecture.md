@@ -22,26 +22,23 @@ flowchart LR
 
 ### Electron 主进程
 
-核心文件是 `electron/main/index.ts`。
+`electron/main/index.ts` 只负责 Electron 生命周期、核心模块组装和可选模块注册。具体职责分配如下：
 
-职责：
+| 模块 | 职责 |
+| --- | --- |
+| `StateStore` | 加载/规范化状态、历史迁移、原子保存、最近可用备份和损坏恢复 |
+| `WindowManager` | 主窗口、任务栏窗口、托盘菜单与托盘悬浮窗口的创建、定位和销毁 |
+| `registerIpcHandlers` | 注册和清理核心 `StockDesktopApi` IPC handler |
+| `QuoteRuntime` | 统一报价调度、板块绑定、股价/T 提醒判断、盘口大单轮询和窗口广播 |
+| `TradingCalendarRuntime` | 交易日历启动刷新和定时刷新 |
+| `KlineHub` / `FundsFlowHub` / `OrderBookHub` | 对应行情的缓存、同参数请求合并和串行错峰 |
 
-- 保证单实例运行。
-- 创建主窗口、任务栏透明窗口和托盘悬浮窗口。
-- 加载并持久化 `AppState`。
-- 注册 IPC。
-- 通过单一调度器按重点/普通间隔刷新，并合并同时到期、手动或状态变化请求。
-- 在一次批量请求中合并股票、指数、到期板块报价和异动信号。
-- 在每次行情合并后执行股价提醒和 T 价格提醒判断。
-- 统一调度五档盘口请求，并维护板块、历史 K 线和筹码分布缓存。
-- 记录行情请求来源、节点、耗时与返回数量，启动时清理超过 7 天的日志。
-- 同步所有窗口并更新托盘菜单。
-- 管理开机启动、关闭后驻留和交易日历刷新。
-- 通过薄安装点条件注册市场观察、AI 和 AI 做 T 参考模块。
+入口仍负责单实例、模块依赖注入、开机启动和退出清理；窗口细节、状态文件读写、IPC 实现和行情刷新过程不再堆叠在入口文件中。
 
 外部数据访问集中在：
 
 - `electron/main/market.ts`
+- `electron/main/market-constants.ts`
 - `electron/main/quote-refresh-coordinator.ts`
 - `electron/main/sector-market-cache.ts`
 - `electron/main/market-request-logger.ts`
@@ -81,9 +78,9 @@ sequenceDiagram
     participant M as 行情服务
 
     E->>E: requestSingleInstanceLock
-    E->>S: loadState + normalize/migrate
+    E->>S: StateStore.load + normalize/migrate/recover
     E->>S: 旧交易结构先备份再统一流水
-    E->>E: registerIpc + createWindow
+    E->>E: registerIpcHandlers + WindowManager
     E->>E: 条件注册可选模块
     E->>E: 创建托盘和统一行情调度器
     E->>M: refreshAllAutomatically
@@ -95,7 +92,7 @@ sequenceDiagram
 注意：
 
 - 非交易刷新时段启动时，`latestQuotes` 可能暂时为空，直到用户手动刷新或进入自动刷新窗口。
-- 当前状态读取失败会回退到内置默认自选列表。
+- 只有配置文件不存在时才创建内置默认状态。配置损坏时先保留原文件并尝试从 `settings.last-good.json` 恢复；没有可用备份时显示错误并停止启动，不会静默覆盖用户配置。
 - 浏览器开发预览不走这条 Electron 启动链路，而使用 `src/lib/api.ts` 中的演示实现。
 
 ## 行情刷新流程
@@ -123,7 +120,7 @@ flowchart TD
     SCOPE --> QUOTES["一次 fetchQuotes：股票 + 指数 + 到期板块"]
     QUOTES --> MERGE["mergeQuotes + 板块缓存映射"]
     MERGE --> ALERT["T 提醒 + 自定义股价提醒"]
-    ALERT -->|"提醒状态变化"| SAVE["persistState"]
+    ALERT -->|"提醒状态变化"| SAVE["StateStore.save"]
     ALERT --> BROADCAST["quotes:updated / state:updated"]
     BROADCAST --> WINDOWS["主窗口、任务栏、托盘悬浮"]
 ```
@@ -139,10 +136,11 @@ flowchart TD
 | 盘口最近成功结果 | 主进程 `OrderBookHub` | 否，进程内短时缓存 |
 | 股票所属板块绑定 | 主进程 `SectorMarketCache` | 是，`market-cache/sector-bindings.json` |
 | 板块最近报价 | 主进程 `SectorMarketCache` | 否，进程内缓存 60 秒 |
-| 日/周/月 K | 主进程 `HistoricalKlineCache` | 是，`market-cache/klines/*.json` |
+| 分时/五日 K | 主进程 `KlineHub` | 否，100 条 LRU 短时缓存 |
+| 日/周/月 K | 主进程 `KlineHub` + `HistoricalKlineCache` | 是，内存 150 条 LRU，磁盘 `market-cache/klines/*.json` |
 | 筹码分布最近一次结果 | 主进程 `ChipDistributionCache` | 是，`market-cache/chip-distributions.json` |
 | 市场观察、AI 设置/会话/结果、做 T 参考历史 | 各可选模块 | 是，`userData/modules/<module>/` |
-| 分时、K 线、资金流和板块面板短时缓存 | 各 React 模块级 `Map` | 否；周期 K 另有主进程磁盘缓存 |
+| renderer K 线最近结果 | `ExpandedStockDetails` 的 100 条 LRU | 否；桌面版同时复用主进程缓存 |
 | 行情请求记录 | 主进程 `MarketRequestLogger` | 是，`logs/market-requests-YYYY-MM-DD.jsonl`，保留 7 天 |
 | 主窗口当前展开股票、弹窗开关、加载状态 | React 组件 state | 否 |
 | 浏览器演示状态 | `localStorage` | 仅浏览器预览 |
@@ -200,9 +198,9 @@ flowchart TD
 增加一项跨进程能力通常要同时修改：
 
 1. `src/shared/types.ts` 中的输入、输出和 `StockDesktopApi`。
-2. `electron/main/index.ts` 中的 IPC handler。
+2. `electron/main/ipc-handlers.ts` 中的 IPC handler 依赖和注册。
 3. `electron/preload/index.ts` 中的桥接方法。
-4. `src/lib/api.ts` 中的浏览器演示实现。
+4. `src/lib/api.ts` 中的浏览器演示实现；固定演示行情数据放在 `src/lib/demo-data.ts`。
 5. React 调用方。
 
 可选模块新增 IPC 时，应保持在模块自己的 `shared/main/preload/renderer` 目录中，只在核心入口保留条件注册代码。

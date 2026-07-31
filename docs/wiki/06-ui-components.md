@@ -21,6 +21,8 @@ flowchart TD
 
 全局样式据此去掉普通页面背景和尺寸约束。
 
+三个入口都由 `ConfirmDialogProvider` 包裹，业务组件通过 `useConfirmDialog` 使用统一的应用内确认弹窗，不再调用浏览器原生 `window.confirm`。
+
 ## 主窗口组件树
 
 ```text
@@ -30,8 +32,10 @@ App
 ├─ SettingsMenu
 ├─ AiAssistantDrawer（按构建开关加载）
 └─ WatchlistTable
-   ├─ TableStockSearch（文件内组件）
-   ├─ TableFilterDropdown × 2
+   ├─ WatchlistFilters
+   │  ├─ TableStockSearch
+   │  └─ TableFilterDropdown × 2
+   ├─ WatchlistRow × N
    ├─ WatchlistGroupDialog
    ├─ ExpandedStockDetails
    │  ├─ CandlestickChart
@@ -89,19 +93,25 @@ App
 
 ### `WatchlistTable.tsx`
 
-这是主界面最大的组件，职责包括：
+该组件现在负责表格级状态和组件编排：
 
 - 根据自选和报价生成行模型。
-- 计算每行持仓指标、可用数量、持仓天数和 T 状态。
-- 手动拖拽、置顶和临时列排序。
+- 生成排序/筛选后的行模型并管理当前展开项。
+- 置顶、临时列排序和列顺序调整。
 - 自定义分组与板块两个组合筛选，以及分组管理弹窗。
-- 列顺序调整。
 - 表内股票定位。
-- 异动弹层。
 - 展开/收起行情详情动画。
 - 打开持仓编辑和做 T Drawer。
 - 打开股价提醒设置。
-- 渲染 T 价格提醒、自定义股价提醒状态和五档大单提示。
+
+已提取的子职责：
+
+| 文件 | 职责 |
+| --- | --- |
+| `watchlist-table/WatchlistRow.tsx` | 单只股票指标计算、单元格、提醒标识、操作按钮和展开详情；使用 `React.memo` |
+| `watchlist-table/WatchlistFilters.tsx` | 表内搜索、分组/板块筛选和分组管理入口 |
+| `watchlist-table/columns.ts` | 列元信息、排序值和列渲染模型 |
+| `watchlist-table/useDragReorder.ts` | 行拖拽状态和顺序更新 |
 
 固定列关系：
 
@@ -179,6 +189,12 @@ App
 - 自定义股价规则触发后，主表和任务栏使用上穿/下穿方向主题，系统通知由主进程发出。
 - `FiveLevelAlertBadges` 展示活动 T 仓盘口中买方或卖方的异常大单档位，并与 T 价格提醒并列。
 
+### `ConfirmDialog.tsx`
+
+- `ConfirmDialogProvider` 在渲染入口维护唯一确认弹窗和 Promise 结果。
+- `useConfirmDialog` 统一配置标题、正文、确认按钮文案和危险操作主题。
+- 配置导入、分组/交易/做 T 历史/AI 数据删除、API Key 清除和 Codex 退出均复用该组件。
+
 ### `WatchlistGroupDialog.tsx` / `TableFilterDropdown.tsx`
 
 - 分组弹窗负责新建、重命名、删除分组，以及批量调整股票归属；删除分组不会删除自选股票。
@@ -230,13 +246,13 @@ App
 ### `OrderBookPanel.tsx`
 
 - 分时图右侧五档盘口。
-- 自己管理缓存和刷新定时器。
+- 自己管理刷新定时器和当前展示结果，请求合并、3 秒缓存和串行错峰由主进程 `OrderBookHub` 负责。
 - 买卖价相对昨收着色。
 - 有旧数据时刷新失败不清空。
 
 ### `FundsFlowPanel.tsx` / `FundsFlowChart.tsx`
 
-- 面板负责请求、缓存、汇总和最近数据表。
+- 面板负责 2 分钟刷新触发、renderer 最近结果、汇总和最近数据表；主进程 `FundsFlowHub` 负责跨调用方请求合并、缓存和串行队列。
 - 图表只负责主力资金曲线。
 - 金额正红、负绿、零中性。
 
@@ -271,7 +287,20 @@ App
 
 ## 样式系统
 
-所有样式目前集中在 `src/styles.css`。
+`src/styles.css` 只保留设计变量、reset、应用框架和跨组件共享样式。组件样式按 `src/main.tsx` 中的固定顺序加载，保持拆分前的层叠关系：
+
+- `SettingsMenu.css`
+- `WatchlistTable.css`
+- `WatchlistDialogs.css`
+- `ConfirmDialog.css`
+- `TTradingDrawer.css`
+- `PositionDialogResponsive.css`
+- `ExpandedStockDetails.css`
+- `styles/app-feedback.css`
+- `TaskbarTicker.css`
+- `modules/ai/renderer/AiAssistantDrawer.css`
+
+当前未引入 CSS Modules，也未批量重命名现有 class。
 
 ### 基础变量
 
@@ -310,13 +339,13 @@ is-flat  空值或零，中性色
 
 ### 模块级缓存
 
-行情详情面板使用：
+K 线详情使用最多 100 条的共享 LRU：
 
 ```ts
-const cache = new Map<string, CacheEntry>()
+const klineCache = new LruCache<string, KlineCacheEntry>(100)
 ```
 
-缓存跨组件卸载保留，但不会跨页面刷新或应用重启。
+资金流等面板仍可使用模块级 `Map` 保留最近显示结果。renderer 缓存跨组件卸载保留，但不会跨页面刷新或应用重启；桌面版 K 线、资金流和盘口还会经过各自主进程 Hub。
 
 ### 旧数据优先
 
@@ -342,4 +371,4 @@ Lightweight Charts 实例保存在 ref 中，并在 effect cleanup 中：
 | 主/渲染共享类型 | `src/shared/types.ts` |
 | 行情请求面板 | 参考 `FundsFlowPanel` 的缓存、旧数据和定时刷新 |
 | 新图表 | 参考现有 chart ref + ResizeObserver 生命周期 |
-| 新窗口模式 | `src/main.tsx` 分流 + `electron/main/index.ts` 创建窗口 |
+| 新窗口模式 | `src/main.tsx` 分流 + `electron/main/window-manager.ts` 创建窗口 |

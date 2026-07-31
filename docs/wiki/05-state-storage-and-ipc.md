@@ -49,17 +49,17 @@ interface AppState {
 %APPDATA%\jianzhang-stock-desktop\settings.json
 ```
 
-实际路径由：
+状态文件由 `electron/main/state-store.ts` 的 `StateStore` 统一管理。除正式文件外，同目录还可能包含：
 
-```ts
-join(app.getPath('userData'), 'settings.json')
-```
-
-生成。
+| 文件 | 作用 |
+| --- | --- |
+| `settings.last-good.json` | 最近一次完整保存的可用备份 |
+| `settings.pre-unified-trades.json` | 统一交易流水迁移前的一次性原始备份 |
+| `settings.invalid-<时间>.json` | 配置损坏时保留的原文件副本 |
 
 ### 加载
 
-`loadState` 读取 JSON 后依次执行：
+`StateStore.load()` 读取 JSON 后依次执行：
 
 1. `normalizeWatchlist`
 2. `normalizeWatchlistGroups`
@@ -69,11 +69,16 @@ join(app.getPath('userData'), 'settings.json')
 
 列版本落后或交易账户规范化结果变化时，会立即把迁移后的状态写回。若检测到旧 `baseTrades` / `batch.trades`，写回前先把原始完整配置备份为 `settings.pre-unified-trades.json`；已有备份不会被覆盖。
 
-文件不存在、JSON 解析失败或读取异常时，当前实现回退到 `DEFAULT_STATE`。
+只有 `settings.json` 不存在时才复制 `DEFAULT_STATE` 并保存。文件读取、JSON 解析或迁移失败时：
+
+1. 把原文件保留为 `settings.invalid-<时间>.json`。
+2. 尝试加载并规范化 `settings.last-good.json`。
+3. 恢复成功后重写正式文件，并在主界面显示一次启动警告。
+4. 没有可用备份时抛出明确错误，主进程显示错误框后停止启动，不会用默认自选覆盖用户文件。
 
 ### 保存
 
-主进程 `persistState` 直接格式化写入完整 `state`。常规保存入口是 IPC `state:save`：
+主进程 `persistState` 调用 `StateStore.save()` 保存完整 `state`。保存先写同路径 `.tmp` 临时文件，再原子重命名替换目标文件；正式文件成功后同步更新 `settings.last-good.json`。常规保存入口是 IPC `state:save`：
 
 1. 接收渲染层的完整 `AppState`。
 2. 再次 normalize。
@@ -184,10 +189,10 @@ AI API Key 由主进程使用 Electron `safeStorage` 加密；renderer 只能读
 | `getTaskbarLayout` | `taskbar:layout:get` | 返回任务栏高度 |
 | `searchStocks` | `stocks:search` | 股票联想 |
 | `refreshQuotes` | `quotes:refresh` | 向统一调度器提交手动全量刷新 |
-| `getKline` | `kline:get` | 分时/五日/周期 K |
+| `getKline` | `kline:get` | 通过 `KlineHub` 获取分时/五日/周期 K，同参数合并并串行请求 |
 | `saveChipDistributionCache` | `chip-distribution:cache:save` | 保存股票最后一次筹码分布计算结果 |
 | `getOrderBook` | `order-book:get` | 从主进程 `OrderBookHub` 获取五档盘口、缓存状态和刷新错误 |
-| `getFundsFlow` | `funds-flow:get` | 当日资金流 |
+| `getFundsFlow` | `funds-flow:get` | 通过 `FundsFlowHub` 获取当日资金流 |
 | `getSectorIndex` | `sector-index:get` | 所属板块详情 |
 | `refreshTradingCalendar` | `trading-calendar:refresh` | 在线刷新当年休市日 |
 | `saveState` | `state:save` | 规范化并持久化状态 |
@@ -224,8 +229,8 @@ sequenceDiagram
     A->>A: 乐观 setState
     A->>P: saveState(nextState)
     P->>E: state:save
-    E->>E: normalize + compare
-    E->>F: persistState
+    E->>E: StateStore.normalize + compare
+    E->>F: StateStore.save（临时文件原子替换 + 最近备份）
     E-->>P: normalized AppState
     E-->>C: state:updated
     P-->>A: normalized AppState
@@ -254,7 +259,7 @@ sequenceDiagram
 1. 在 `src/shared/types.ts` 添加输入、输出类型。
 2. 扩展 `StockDesktopApi`。
 3. 在 `electron/preload/index.ts` 添加 `invoke` 或订阅桥接。
-4. 在 `electron/main/index.ts` 注册 handler 或广播事件。
+4. 在 `electron/main/ipc-handlers.ts` 扩展依赖并注册 handler；广播来源若属于行情或窗口职责，则修改对应 Runtime/Manager。
 5. 在 `src/lib/api.ts` 给 `demoApi` 补等价实现。
 6. 在 React 中调用。
 7. 如果结果持久化，再补默认值、normalize 和配置兼容。

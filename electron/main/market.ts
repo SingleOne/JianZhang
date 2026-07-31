@@ -14,56 +14,18 @@ import type {
 } from '../../src/shared/types'
 import type { MarketRequestLogger } from './market-request-logger'
 import type { SectorBinding } from './sector-market-cache'
-
-const SEARCH_TOKEN = 'D43BF722C8E33A67B1BDCC6FDED9C901'
-const EASTMONEY_HEADERS = {
-  Accept: 'application/json, text/plain, */*',
-  Referer: 'https://quote.eastmoney.com/',
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-}
-const TENCENT_HEADERS = {
-  Accept: 'application/json, text/plain, */*',
-  Referer: 'https://gu.qq.com/',
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-}
-const SINA_HEADERS = {
-  Accept: '*/*',
-  Referer: 'https://finance.sina.com.cn/',
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-}
-const MARKET_INDEX_QUOTE_IDS = new Set([
-  '1.000001', '0.399001', '0.399006', '1.000016', '1.000300',
-  '1.000688', '1.000905', '1.000852', '0.899050'
-])
-const RADAR_TOKEN = '7eea3edcaed734bea9cbfc24409ed989'
-const RADAR_TYPES = [
-  8201, 8202, 8193, 4, 32, 64, 8207, 8209, 8211, 8213, 8215,
-  8204, 8203, 8194, 8, 16, 128, 8208, 8210, 8212, 8214, 8216
-]
-const RADAR_LABELS: Record<number, { label: string; direction: 'up' | 'down' }> = {
-  4: { label: '封涨停板', direction: 'up' },
-  8: { label: '封跌停板', direction: 'down' },
-  16: { label: '打开涨停板', direction: 'down' },
-  32: { label: '打开跌停板', direction: 'up' },
-  64: { label: '有大买盘', direction: 'up' },
-  128: { label: '有大卖盘', direction: 'down' },
-  8193: { label: '大笔买入', direction: 'up' },
-  8194: { label: '大笔卖出', direction: 'down' },
-  8201: { label: '火箭发射', direction: 'up' },
-  8202: { label: '快速反弹', direction: 'up' },
-  8203: { label: '高台跳水', direction: 'down' },
-  8204: { label: '加速下跌', direction: 'down' },
-  8207: { label: '竞价上涨', direction: 'up' },
-  8208: { label: '竞价下跌', direction: 'down' },
-  8209: { label: '高开5日线', direction: 'up' },
-  8210: { label: '低开5日线', direction: 'down' },
-  8211: { label: '向上缺口', direction: 'up' },
-  8212: { label: '向下缺口', direction: 'down' },
-  8213: { label: '60日新高', direction: 'up' },
-  8214: { label: '60日新低', direction: 'down' },
-  8215: { label: '60日大幅上涨', direction: 'up' },
-  8216: { label: '60日大幅下跌', direction: 'down' }
-}
+import {
+  EASTMONEY_FIELDS,
+  EASTMONEY_FIXED_PARAMS,
+  EASTMONEY_HEADERS,
+  EASTMONEY_RADAR_TOKEN,
+  EASTMONEY_SEARCH_TOKEN,
+  MARKET_INDEX_QUOTE_IDS,
+  RADAR_LABELS,
+  RADAR_TYPES,
+  SINA_HEADERS,
+  TENCENT_HEADERS
+} from './market-constants'
 
 interface EastmoneySearchItem {
   Code?: string
@@ -273,9 +235,9 @@ export async function searchStocks(query: string): Promise<SearchResult[]> {
 
   const url = new URL('https://searchapi.eastmoney.com/api/suggest/get')
   url.searchParams.set('input', normalized)
-  url.searchParams.set('type', '14')
-  url.searchParams.set('token', SEARCH_TOKEN)
-  url.searchParams.set('count', '10')
+  url.searchParams.set('type', EASTMONEY_FIXED_PARAMS.search.type)
+  url.searchParams.set('token', EASTMONEY_SEARCH_TOKEN)
+  url.searchParams.set('count', EASTMONEY_FIXED_PARAMS.search.count)
 
   const payload = await requestJson<{
     QuotationCodeTable?: { Data?: EastmoneySearchItem[] }
@@ -306,7 +268,7 @@ function quoteNumber(value: string | undefined): number | null {
 function createEastmoneyQuotesUrl(origin: string, stocks: WatchStock[]): URL {
   const url = new URL('/api/qt/ulist.np/get', origin)
   url.searchParams.set('secids', stocks.map((stock) => stock.quoteId).join(','))
-  url.searchParams.set('fields', 'f2,f3,f4,f5,f6,f8,f12,f13,f14,f15,f16,f17,f18')
+  url.searchParams.set('fields', EASTMONEY_FIELDS.quotes)
   return url
 }
 
@@ -485,12 +447,9 @@ export async function fetchQuotes(
 export async function fetchOrderBook(quoteId: string, caller = 'order-book'): Promise<StockOrderBook> {
   const url = new URL('https://push2.eastmoney.com/api/qt/stock/get')
   url.searchParams.set('secid', quoteId)
-  url.searchParams.set('invt', '2')
-  url.searchParams.set('fltt', '2')
-  url.searchParams.set(
-    'fields',
-    'f43,f58,f60,f531,f11,f12,f13,f14,f15,f16,f17,f18,f19,f20,f31,f32,f33,f34,f35,f36,f37,f38,f39,f40'
-  )
+  url.searchParams.set('invt', EASTMONEY_FIXED_PARAMS.orderBook.invt)
+  url.searchParams.set('fltt', EASTMONEY_FIXED_PARAMS.orderBook.fltt)
+  url.searchParams.set('fields', EASTMONEY_FIELDS.orderBook)
 
   const payload = await requestJson<{ data?: EastmoneyOrderBookData }>(url.toString(), {
     dataType: 'order-book',
@@ -612,10 +571,10 @@ function currentRadarSignals(stocks: WatchStock[]): RadarSignalMap {
 async function fetchTodayRadarSignals(stocks: WatchStock[], date: string): Promise<RadarSignalMap> {
   const url = new URL('https://push2ex.eastmoney.com/getAllStockChanges')
   url.searchParams.set('type', RADAR_TYPES.join(','))
-  url.searchParams.set('pageindex', '0')
-  url.searchParams.set('pagesize', '3000')
-  url.searchParams.set('ut', RADAR_TOKEN)
-  url.searchParams.set('dpt', 'wzchanges')
+  url.searchParams.set('pageindex', EASTMONEY_FIXED_PARAMS.radar.pageIndex)
+  url.searchParams.set('pagesize', EASTMONEY_FIXED_PARAMS.radar.pageSize)
+  url.searchParams.set('ut', EASTMONEY_RADAR_TOKEN)
+  url.searchParams.set('dpt', EASTMONEY_FIXED_PARAMS.radar.dpt)
 
   const payload = await requestJson<{
     data?: { allstock?: EastmoneyRadarItem[] }
@@ -658,10 +617,10 @@ async function fetchStockRadarHistory(
 ): Promise<StockRadarSignal[]> {
   const market = Number(stock.quoteId.split('.')[0])
   const statisticsUrl = new URL('https://push2ex.eastmoney.com/getStockStatisticsChanges')
-  statisticsUrl.searchParams.set('ut', RADAR_TOKEN)
+  statisticsUrl.searchParams.set('ut', EASTMONEY_RADAR_TOKEN)
   statisticsUrl.searchParams.set('startdate', startDate)
   statisticsUrl.searchParams.set('enddate', endDate)
-  statisticsUrl.searchParams.set('dpt', 'wzchanges')
+  statisticsUrl.searchParams.set('dpt', EASTMONEY_FIXED_PARAMS.radar.dpt)
   statisticsUrl.searchParams.set('code', stock.code)
   statisticsUrl.searchParams.set('market', String(market))
 
@@ -677,9 +636,9 @@ async function fetchStockRadarHistory(
   const dates = (statistics.data?.data ?? []).map((item) => String(item.d))
   const dailySignals = await Promise.all(dates.map(async (date) => {
     const detailUrl = new URL('https://push2ex.eastmoney.com/getStockChanges')
-    detailUrl.searchParams.set('ut', RADAR_TOKEN)
+    detailUrl.searchParams.set('ut', EASTMONEY_RADAR_TOKEN)
     detailUrl.searchParams.set('date', date)
-    detailUrl.searchParams.set('dpt', 'wzchanges')
+    detailUrl.searchParams.set('dpt', EASTMONEY_FIXED_PARAMS.radar.dpt)
     detailUrl.searchParams.set('code', stock.code)
     detailUrl.searchParams.set('market', String(market))
     const detail = await requestJson<{
@@ -889,11 +848,11 @@ async function fetchTencentKline(
 async function fetchIntradayTrend(quoteId: string, caller: string): Promise<KlineResult> {
   const url = new URL('https://push2.eastmoney.com/api/qt/stock/trends2/get')
   url.searchParams.set('secid', quoteId)
-  url.searchParams.set('ndays', '1')
-  url.searchParams.set('iscr', '1')
-  url.searchParams.set('iscca', '0')
-  url.searchParams.set('fields1', 'f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13')
-  url.searchParams.set('fields2', 'f51,f52,f53,f54,f55,f56,f57,f58')
+  url.searchParams.set('ndays', EASTMONEY_FIXED_PARAMS.intraday.ndays)
+  url.searchParams.set('iscr', EASTMONEY_FIXED_PARAMS.intraday.iscr)
+  url.searchParams.set('iscca', EASTMONEY_FIXED_PARAMS.intraday.iscca)
+  url.searchParams.set('fields1', EASTMONEY_FIELDS.intradayPrimary)
+  url.searchParams.set('fields2', EASTMONEY_FIELDS.intradaySecondary)
 
   const payload = await requestJson<{
     data?: { name?: string; trends?: string[] }
@@ -921,11 +880,11 @@ async function fetchHistoricalKline(
     const url = new URL('/api/qt/stock/kline/get', origin)
     url.searchParams.set('secid', quoteId)
     url.searchParams.set('klt', klt)
-    url.searchParams.set('fqt', '1')
+    url.searchParams.set('fqt', EASTMONEY_FIXED_PARAMS.historicalKline.fqt)
     url.searchParams.set('lmt', String(limit))
-    url.searchParams.set('end', '20500101')
-    url.searchParams.set('fields1', 'f1,f2,f3,f4,f5,f6')
-    url.searchParams.set('fields2', 'f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61')
+    url.searchParams.set('end', EASTMONEY_FIXED_PARAMS.historicalKline.end)
+    url.searchParams.set('fields1', EASTMONEY_FIELDS.historicalKlinePrimary)
+    url.searchParams.set('fields2', EASTMONEY_FIELDS.historicalKlineSecondary)
     return url
   }
   const fetchFrom = async (
@@ -1075,10 +1034,10 @@ export async function fetchFundsFlow(quoteId: string, caller = 'funds-flow'): Pr
   const fetchFrom = async (origin: string, source: string, fallbackFrom?: string) => {
     const url = new URL('/api/qt/stock/fflow/kline/get', origin)
     url.searchParams.set('secid', quoteId)
-    url.searchParams.set('lmt', '0')
-    url.searchParams.set('klt', '1')
-    url.searchParams.set('fields1', 'f1,f2,f3,f7')
-    url.searchParams.set('fields2', 'f51,f52,f53,f54,f55')
+    url.searchParams.set('lmt', EASTMONEY_FIXED_PARAMS.fundsFlow.lmt)
+    url.searchParams.set('klt', EASTMONEY_FIXED_PARAMS.fundsFlow.klt)
+    url.searchParams.set('fields1', EASTMONEY_FIELDS.fundsFlowPrimary)
+    url.searchParams.set('fields2', EASTMONEY_FIELDS.fundsFlowSecondary)
 
     const payload = await requestJson<{
       data?: { name?: string; klines?: string[] }
