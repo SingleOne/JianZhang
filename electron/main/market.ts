@@ -26,6 +26,11 @@ const TENCENT_HEADERS = {
   Referer: 'https://gu.qq.com/',
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 }
+const SINA_HEADERS = {
+  Accept: '*/*',
+  Referer: 'https://finance.sina.com.cn/',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+}
 const MARKET_INDEX_QUOTE_IDS = new Set([
   '1.000001', '0.399001', '0.399006', '1.000016', '1.000300',
   '1.000688', '1.000905', '1.000852', '0.899050'
@@ -193,14 +198,18 @@ async function requestJsonWithHost<T>(url: string, host: string): Promise<T> {
   })
 }
 
-async function requestText(url: string): Promise<string> {
+async function requestText(
+  url: string,
+  headers: Record<string, string> = EASTMONEY_HEADERS,
+  encoding = 'utf-8'
+): Promise<string> {
   const response = await net.fetch(url, {
-    headers: EASTMONEY_HEADERS,
+    headers,
     signal: AbortSignal.timeout(12_000)
   })
 
   if (!response.ok) throw new Error(`行情服务返回 ${response.status}`)
-  return response.text()
+  return new TextDecoder(encoding).decode(await response.arrayBuffer())
 }
 
 function scaled(value: number | '-' | undefined): number | null {
@@ -235,18 +244,32 @@ export async function searchStocks(query: string): Promise<SearchResult[]> {
     }))
 }
 
-export async function fetchQuotes(
-  stocks: WatchStock[],
-  radarStocks: WatchStock[] = stocks
-): Promise<StockQuote[]> {
-  if (stocks.length === 0) return []
+function quoteNumber(value: string | undefined): number | null {
+  if (!value) return null
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
+}
 
-  const url = new URL('https://push2.eastmoney.com/api/qt/ulist.np/get')
+function createEastmoneyQuotesUrl(origin: string, stocks: WatchStock[]): URL {
+  const url = new URL('/api/qt/ulist.np/get', origin)
   url.searchParams.set('secids', stocks.map((stock) => stock.quoteId).join(','))
   url.searchParams.set('fields', 'f2,f3,f4,f5,f6,f8,f12,f14,f15,f16,f17,f18')
+  return url
+}
 
-  const radarSignals = currentRadarSignals(radarStocks)
-  const payload = await requestJson<{ data?: { diff?: EastmoneyQuoteItem[] } }>(url.toString())
+async function fetchEastmoneyQuotes(
+  stocks: WatchStock[],
+  useDelayNode: boolean
+): Promise<StockQuote[]> {
+  type EastmoneyQuotePayload = { data?: { diff?: EastmoneyQuoteItem[] } }
+  const primaryHost = 'push2.eastmoney.com'
+  const url = createEastmoneyQuotesUrl(
+    `https://${useDelayNode ? 'push2delay.eastmoney.com' : primaryHost}`,
+    stocks
+  )
+  const payload = useDelayNode
+    ? await requestJsonWithHost<EastmoneyQuotePayload>(url.toString(), primaryHost)
+    : await requestJson<EastmoneyQuotePayload>(url.toString(), 1)
   const quoteIdByCode = new Map(stocks.map((stock) => [stock.code, stock.quoteId]))
   const now = new Date().toISOString()
 
@@ -264,9 +287,115 @@ export async function fetchQuotes(
     volume: rawNumber(item.f5),
     amount: rawNumber(item.f6),
     turnoverRate: scaled(item.f8),
-    radarSignals: radarSignals.get(quoteIdByCode.get(item.f12 ?? '') ?? ''),
     updatedAt: now
   }))
+}
+
+async function fetchTencentQuotes(stocks: WatchStock[]): Promise<StockQuote[]> {
+  const stockBySymbol = new Map(stocks.map((stock) => [toTencentSymbol(stock.quoteId), stock]))
+  const symbols = [...stockBySymbol.keys()]
+  const text = await requestText(
+    `https://qt.gtimg.cn/q=${symbols.join(',')}`,
+    TENCENT_HEADERS,
+    'gbk'
+  )
+  const now = new Date().toISOString()
+
+  return [...text.matchAll(/v_([^=]+)="([^"]*)"/g)].flatMap((match) => {
+    const stock = stockBySymbol.get(match[1])
+    if (!stock) return []
+    const fields = match[2].split('~')
+    const summary = fields[35]?.split('/') ?? []
+    return [{
+      code: stock.code,
+      name: fields[1] || stock.name,
+      quoteId: stock.quoteId,
+      latest: quoteNumber(fields[3]),
+      changePercent: quoteNumber(fields[32]),
+      change: quoteNumber(fields[31]),
+      open: quoteNumber(fields[5]),
+      high: quoteNumber(fields[33]),
+      low: quoteNumber(fields[34]),
+      previousClose: quoteNumber(fields[4]),
+      volume: quoteNumber(fields[36] || fields[6]),
+      amount: quoteNumber(summary[2]),
+      turnoverRate: quoteNumber(fields[38]),
+      updatedAt: now
+    }]
+  })
+}
+
+async function fetchSinaQuotes(stocks: WatchStock[]): Promise<StockQuote[]> {
+  const stockBySymbol = new Map(stocks.map((stock) => [toTencentSymbol(stock.quoteId), stock]))
+  const symbols = [...stockBySymbol.keys()]
+  const text = await requestText(
+    `https://hq.sinajs.cn/list=${symbols.join(',')}`,
+    SINA_HEADERS,
+    'gbk'
+  )
+  const now = new Date().toISOString()
+
+  return [...text.matchAll(/var hq_str_([^=]+)="([^"]*)"/g)].flatMap((match) => {
+    const stock = stockBySymbol.get(match[1])
+    if (!stock || !match[2]) return []
+    const fields = match[2].split(',')
+    const latest = quoteNumber(fields[3])
+    const previousClose = quoteNumber(fields[2])
+    const change = latest !== null && previousClose !== null ? latest - previousClose : null
+    const rawVolume = quoteNumber(fields[8])
+    return [{
+      code: stock.code,
+      name: fields[0] || stock.name,
+      quoteId: stock.quoteId,
+      latest,
+      changePercent: change !== null && previousClose
+        ? change / previousClose * 100
+        : null,
+      change,
+      open: quoteNumber(fields[1]),
+      high: quoteNumber(fields[4]),
+      low: quoteNumber(fields[5]),
+      previousClose,
+      volume: rawVolume !== null && !MARKET_INDEX_QUOTE_IDS.has(stock.quoteId)
+        ? rawVolume / 100
+        : rawVolume,
+      amount: quoteNumber(fields[9]),
+      turnoverRate: null,
+      updatedAt: now
+    }]
+  })
+}
+
+export async function fetchQuotes(
+  stocks: WatchStock[],
+  radarStocks: WatchStock[] = stocks
+): Promise<StockQuote[]> {
+  if (stocks.length === 0) return []
+
+  const radarSignals = currentRadarSignals(radarStocks)
+  const withRadarSignals = (quotes: StockQuote[]) => quotes.map((quote) => ({
+    ...quote,
+    radarSignals: radarSignals.get(quote.quoteId)
+  }))
+  const sources: Array<[string, () => Promise<StockQuote[]>]> = [
+    ['东方财富主节点', () => fetchEastmoneyQuotes(stocks, false)],
+    ['东方财富镜像节点', () => fetchEastmoneyQuotes(stocks, true)],
+    ['腾讯行情', () => fetchTencentQuotes(stocks)],
+    ['新浪行情', () => fetchSinaQuotes(stocks)]
+  ]
+  const failures: string[] = []
+
+  for (const [name, fetchSource] of sources) {
+    try {
+      const quotes = await fetchSource()
+      if (quotes.length === 0) throw new Error('未返回行情数据')
+      return withRadarSignals(quotes)
+    } catch (error) {
+      failures.push(`${name}：${error instanceof Error ? error.message : '请求失败'}`)
+    }
+  }
+
+  throw new Error(`主行情数据源均不可用（${failures.join('；')}）`)
 }
 
 export async function fetchOrderBook(quoteId: string): Promise<StockOrderBook> {

@@ -9,7 +9,7 @@
 | 数据 | 主进程函数 | 上游 |
 | --- | --- | --- |
 | 股票搜索 | `searchStocks` | 东方财富搜索建议 |
-| 批量报价 | `fetchQuotes` | 东方财富批量行情 |
+| 批量报价 | `fetchQuotes` | 东方财富主节点、东方财富镜像节点、腾讯行情、新浪行情 |
 | 五档盘口 | `OrderBookHub` → `fetchOrderBook` | 东方财富个股行情 |
 | 当日异动 | `fetchTodayRadarSignals` | 东方财富异动 |
 | 近 5 日异动 | `fetchHistoricalRadarSignals` | 东方财富异动统计与明细 |
@@ -21,7 +21,9 @@
 | 资金流向 | `fetchFundsFlow` | 东方财富分钟资金流 |
 | 休市日历 | `fetchSseTradingCalendar` | 上交所休市安排 |
 
-常规行情请求通过 Electron `net.fetch` 发出。`requestJson` 使用 12 秒超时并最多尝试两次；板块页面文本请求使用同样的 12 秒超时，但不重试。历史 K 线先单次请求 `push2his.eastmoney.com`，失败后立即通过 Node HTTPS 请求 `push2delay.eastmoney.com`，并保留历史 K 线主机路由；两个东方财富节点都失败时才切换到腾讯行情。主表行情、五档盘口和分时接口不使用该镜像节点。
+常规行情请求通过 Electron `net.fetch` 发出。`requestJson` 使用 12 秒超时并最多尝试两次；板块页面文本请求使用同样的 12 秒超时，但不重试。主表批量行情每个刷新周期固定从 `push2.eastmoney.com` 开始，单次失败后依次请求 `push2delay.eastmoney.com`、腾讯行情和新浪行情，不记忆上一次使用的节点。东方财富镜像节点通过 Node HTTPS 保留主行情 Host 路由；新浪作为最后备用源时不提供换手率。
+
+历史 K 线同样先单次请求 `push2his.eastmoney.com`，失败后立即通过 Node HTTPS 请求 `push2delay.eastmoney.com`，并保留历史 K 线主机路由；两个东方财富节点都失败时才切换到腾讯行情。五档盘口和分时接口暂不使用镜像节点。
 
 ## 报价标识
 
