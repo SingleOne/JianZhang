@@ -548,7 +548,7 @@ export function ExpandedStockDetails({
       ) : activeTab === 'sector' ? (
         <div className="sector-tab-panel" role="tabpanel">
           <Suspense fallback={<div className="chart-loading">正在加载板块详情…</div>}>
-            <SectorIndexPanel stock={stock} refreshSeconds={refreshSeconds} />
+            <SectorIndexPanel stock={stock} />
           </Suspense>
         </div>
       ) : activeTab === 'ai' && AiAnalysisPanel ? (

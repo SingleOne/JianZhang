@@ -86,10 +86,10 @@ join(app.getPath('userData'), 'settings.json')
 
 | 变化 | 副作用 |
 | --- | --- |
-| 刷新秒数 | 重启重点/普通定时器 |
-| 大盘指数选择 | 立即刷新全部报价 |
+| 刷新秒数 | 重排统一行情调度器的重点/普通到期时间 |
+| 大盘指数选择 | 向统一调度器提交全量报价刷新 |
 | 开机启动 | `app.setLoginItemSettings` |
-| 自选集合或重点状态 | 交易时段内刷新 |
+| 自选集合或重点状态 | 交易时段内提交合并刷新；新增股票后台补取板块绑定 |
 | 任务栏相关设置 | 重新计算窗口显示和位置 |
 
 ## 状态规范化和迁移
@@ -183,7 +183,7 @@ AI API Key 由主进程使用 Electron `safeStorage` 加密；renderer 只能读
 | `getBootstrap` | `app:bootstrap` | 返回状态、内存报价和数据源 |
 | `getTaskbarLayout` | `taskbar:layout:get` | 返回任务栏高度 |
 | `searchStocks` | `stocks:search` | 股票联想 |
-| `refreshQuotes` | `quotes:refresh` | 手动刷新全部 |
+| `refreshQuotes` | `quotes:refresh` | 向统一调度器提交手动全量刷新 |
 | `getKline` | `kline:get` | 分时/五日/周期 K |
 | `saveChipDistributionCache` | `chip-distribution:cache:save` | 保存股票最后一次筹码分布计算结果 |
 | `getOrderBook` | `order-book:get` | 从主进程 `OrderBookHub` 获取五档盘口、缓存状态和刷新错误 |

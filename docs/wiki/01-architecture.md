@@ -10,7 +10,7 @@ flowchart LR
     SSE["上交所休市安排"] --> MAIN
     MAIN --> STATE["内存 AppState 与 latestQuotes"]
     STATE --> FILE["userData/settings.json"]
-    MAIN --> CACHE["盘口内存缓存、历史 K 线与筹码分布磁盘缓存"]
+    MAIN --> CACHE["盘口/板块内存缓存、板块绑定/历史 K 线/筹码分布磁盘缓存"]
     MAIN <-->|"IPC invoke / event"| PRELOAD["preload: window.stockApi"]
     PRELOAD <-->|"类型化调用"| UI["React 渲染层"]
     UI --> MAINWIN["主窗口"]
@@ -30,10 +30,11 @@ flowchart LR
 - 创建主窗口、任务栏透明窗口和托盘悬浮窗口。
 - 加载并持久化 `AppState`。
 - 注册 IPC。
-- 分别按重点股票和普通股票刷新。
-- 合并实时报价、板块数据和异动信号。
+- 通过单一调度器按重点/普通间隔刷新，并合并同时到期、手动或状态变化请求。
+- 在一次批量请求中合并股票、指数、到期板块报价和异动信号。
 - 在每次行情合并后执行股价提醒和 T 价格提醒判断。
-- 统一调度五档盘口请求，并维护历史 K 线和筹码分布磁盘缓存。
+- 统一调度五档盘口请求，并维护板块、历史 K 线和筹码分布缓存。
+- 记录行情请求来源、节点、耗时与返回数量，启动时清理超过 7 天的日志。
 - 同步所有窗口并更新托盘菜单。
 - 管理开机启动、关闭后驻留和交易日历刷新。
 - 通过薄安装点条件注册市场观察、AI 和 AI 做 T 参考模块。
@@ -41,6 +42,9 @@ flowchart LR
 外部数据访问集中在：
 
 - `electron/main/market.ts`
+- `electron/main/quote-refresh-coordinator.ts`
+- `electron/main/sector-market-cache.ts`
+- `electron/main/market-request-logger.ts`
 - `electron/main/trading-calendar.ts`
 
 ### preload
@@ -81,7 +85,7 @@ sequenceDiagram
     E->>S: 旧交易结构先备份再统一流水
     E->>E: registerIpc + createWindow
     E->>E: 条件注册可选模块
-    E->>E: 创建托盘和刷新定时器
+    E->>E: 创建托盘和统一行情调度器
     E->>M: refreshAllAutomatically
     W->>E: app:bootstrap
     E-->>W: state + latestQuotes
@@ -96,7 +100,7 @@ sequenceDiagram
 
 ## 行情刷新流程
 
-`electron/main/index.ts` 中有两组定时器：
+`electron/main/quote-refresh-coordinator.ts` 维护一个定时器和一个全局请求队列：
 
 - 重点关注：默认 5 秒。
 - 其余股票和大盘指数：默认 10 秒。
@@ -108,17 +112,16 @@ sequenceDiagram
 12:59:30–15:30:30
 ```
 
+重点和普通同时到期时合并为一轮；请求执行期间再次到期时只保留一份待刷新范围，不补跑错过的每个时间点。手动刷新和配置变化也进入同一队列，主行情最大并发数为 1。
+
 调用链：
 
 ```mermaid
 flowchart TD
-    TIMER["定时器或手动刷新"] --> REFRESH["refreshStocks"]
-    REFRESH --> QUOTES["fetchQuotes"]
-    REFRESH --> INDEX["大盘指数报价"]
-    REFRESH --> SECTOR["fetchSectorQuotes"]
-    QUOTES --> MERGE["mergeQuotes"]
-    INDEX --> MERGE
-    SECTOR --> MERGE
+    TIMER["统一定时器 / 手动 / 状态变化"] --> QUEUE["QuoteRefreshCoordinator"]
+    QUEUE --> SCOPE["合并重点、普通和板块范围"]
+    SCOPE --> QUOTES["一次 fetchQuotes：股票 + 指数 + 到期板块"]
+    QUOTES --> MERGE["mergeQuotes + 板块缓存映射"]
     MERGE --> ALERT["T 提醒 + 自定义股价提醒"]
     ALERT -->|"提醒状态变化"| SAVE["persistState"]
     ALERT --> BROADCAST["quotes:updated / state:updated"]
@@ -134,10 +137,13 @@ flowchart TD
 | 自选、分组、持仓、列顺序、设置、统一交易流水与做 T 批次 | Electron 主进程的 `state` | 是，`settings.json` |
 | 最新实时报价 | Electron 主进程的 `latestQuotes` | 否 |
 | 盘口最近成功结果 | 主进程 `OrderBookHub` | 否，进程内短时缓存 |
+| 股票所属板块绑定 | 主进程 `SectorMarketCache` | 是，`market-cache/sector-bindings.json` |
+| 板块最近报价 | 主进程 `SectorMarketCache` | 否，进程内缓存 60 秒 |
 | 日/周/月 K | 主进程 `HistoricalKlineCache` | 是，`market-cache/klines/*.json` |
 | 筹码分布最近一次结果 | 主进程 `ChipDistributionCache` | 是，`market-cache/chip-distributions.json` |
 | 市场观察、AI 设置/会话/结果、做 T 参考历史 | 各可选模块 | 是，`userData/modules/<module>/` |
 | 分时、K 线、资金流和板块面板短时缓存 | 各 React 模块级 `Map` | 否；周期 K 另有主进程磁盘缓存 |
+| 行情请求记录 | 主进程 `MarketRequestLogger` | 是，`logs/market-requests-YYYY-MM-DD.jsonl`，保留 7 天 |
 | 主窗口当前展开股票、弹窗开关、加载状态 | React 组件 state | 否 |
 | 浏览器演示状态 | `localStorage` | 仅浏览器预览 |
 

@@ -11,7 +11,7 @@
 | 搜索并添加自选 | `SearchBar.tsx`、`App.tsx` | `stockApi.searchStocks`、`App.addStock` | `market.ts#searchStocks` |
 | 删除、拖拽、置顶、排序、调整列 | `WatchlistTable.tsx` | `normalizeWatchlistColumnOrder`、`migrateWatchlistColumnOrder` | `state:save` |
 | 自定义分组与板块组合筛选 | `WatchlistTable.tsx`、`WatchlistGroupDialog.tsx`、`TableFilterDropdown.tsx` | `WatchlistGroup`、`WatchStock.groupIds` | 分组随 `AppState` 保存；板块筛选使用实时报价 |
-| 重点关注 | `WatchlistTable.tsx` | 有持仓时自动锁定重点；`App.togglePriority` | 两组刷新定时器 |
+| 重点关注 | `WatchlistTable.tsx` | 有持仓时自动锁定重点；`App.togglePriority` | `QuoteRefreshCoordinator` 统一调度重点/普通范围 |
 | 大盘指数卡片 | `App.tsx`、`SettingsMenu.tsx` | `MARKET_INDEX_OPTIONS`、`getMarketIndexStocks` | 和普通报价一起刷新 |
 | 最新价、涨跌、成交等主表行情 | `WatchlistTable.tsx` | `StockQuote`、格式化函数 | `fetchQuotes` |
 | 持仓编辑和快照对比 | `PositionEditor.tsx` | `StockPosition`、`StockPositionSnapshot` | 随 `AppState` 保存 |
@@ -21,7 +21,7 @@
 | 日 K 筹码分布 | `ChipDistributionPanel.tsx`、`PeriodKlineChart.tsx` | `calculateChipDistribution`、100% 累计换手范围 | 日 K 数据 + `HistoricalKlineCache` + `ChipDistributionCache` |
 | 五档盘口 | `OrderBookPanel.tsx` | 买卖盘显示与定时刷新 | `fetchOrderBook` |
 | 资金流向 | `FundsFlowPanel.tsx`、`FundsFlowChart.tsx` | 当日累计净额展示 | `fetchFundsFlow` |
-| 所属行业板块 | `SectorIndexPanel.tsx` | 板块概览和分时 | `fetchSectorBinding/Index` |
+| 所属行业板块 | `SectorIndexPanel.tsx` | 板块概览和分时、60 秒刷新 | `SectorMarketCache` + 统一报价调度 |
 | 盘口异动提示 | `WatchlistTable.tsx` | 当日提示和近 5 日弹层 | `market.ts` 雷达缓存与抓取 |
 | 股价/涨幅/持仓收益率提醒 | `StockAlertDialog.tsx`、`WatchlistTable.tsx` | `applyStockAlertTriggers` | 行情刷新后判断、系统通知 |
 | 活动 T 仓五档大单提示 | `FiveLevelAlertBadges.tsx` | `detectFiveLevelLargeOrders` | `OrderBookHub` 轮询活动 T 股票 |
@@ -160,7 +160,7 @@ SearchBar
 | 做 T | 佣金和各项费用、买入/卖出五档默认涨跌幅与数量 |
 | 系统与数据 | 任务栏开关和位置、开机启动、关闭驻留、交易日历、配置导入导出 |
 
-设置在界面修改后立即调用 `App.persist`。主进程会根据变化选择是否重启定时器、刷新大盘指数、更新开机启动或同步窗口。
+设置在界面修改后立即调用 `App.persist`。主进程会根据变化选择是否重排统一行情调度、提交全量刷新、更新开机启动或同步窗口。
 
 筹码分布开关位于日 K 图表标题区，不在设置弹窗中；其值仍写入 `AppSettings.showChipDistribution`，因此切换股票或重启应用后会保留。
 

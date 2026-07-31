@@ -20,8 +20,11 @@
 
 | 文件 | 重点符号 | 职责 |
 | --- | --- | --- |
-| [`electron/main/index.ts`](../../electron/main/index.ts) | `loadState`、`refreshStocks`、`registerIpc`、`createWindow` | 生命周期、窗口、托盘、状态/旧交易迁移、定时刷新、提醒、模块注册和 IPC |
-| [`electron/main/market.ts`](../../electron/main/market.ts) | `searchStocks`、`fetchQuotes`、`fetchKline`、`fetchFundsFlow`、`fetchSectorIndex` | 东方财富全部行情访问和转换 |
+| [`electron/main/index.ts`](../../electron/main/index.ts) | `loadState`、`executeQuoteRefresh`、`registerIpc`、`createWindow` | 生命周期、窗口、托盘、状态/旧交易迁移、统一刷新执行、提醒、模块注册和 IPC |
+| [`electron/main/market.ts`](../../electron/main/market.ts) | `searchStocks`、`fetchQuotes`、`fetchKline`、`fetchFundsFlow`、`fetchSectorBinding` | 行情请求、主备节点切换、字段转换和请求日志接入 |
+| [`electron/main/quote-refresh-coordinator.ts`](../../electron/main/quote-refresh-coordinator.ts) | `QuoteRefreshCoordinator` | 合并重点/普通/手动刷新范围并保证主行情单队列执行 |
+| [`electron/main/sector-market-cache.ts`](../../electron/main/sector-market-cache.ts) | `SectorMarketCache` | 板块绑定持久化、并发补取、失败冷却和 60 秒板块报价缓存 |
+| [`electron/main/market-request-logger.ts`](../../electron/main/market-request-logger.ts) | `MarketRequestLogger` | 行情请求/报价轮次 JSONL 日志和启动时 7 天清理 |
 | [`electron/main/order-book-hub.ts`](../../electron/main/order-book-hub.ts) | `OrderBookHub` | 统一盘口请求、进行中请求复用、短时缓存和串行错峰 |
 | [`electron/main/chip-distribution-cache.ts`](../../electron/main/chip-distribution-cache.ts) | `ChipDistributionCache` | 按股票读写最后一次筹码分布磁盘缓存 |
 | [`electron/main/historical-kline-cache.ts`](../../electron/main/historical-kline-cache.ts) | `HistoricalKlineCache` | 日/周/月 K 持久化、长短范围合并和失效回退 |
@@ -130,7 +133,7 @@
 
 | 要找的逻辑 | 搜索符号 |
 | --- | --- |
-| 主进程一次完整行情刷新 | `refreshStocks` |
+| 主进程一次完整行情刷新 | `executeQuoteRefresh`、`QuoteRefreshCoordinator` |
 | 保存并广播整个应用状态 | `state:save`、`persistState`、`sendToWindows` |
 | 分时/K 线入口 | `getKline`、`fetchKline`、`HistoricalKlineCache` |
 | 当前持仓和今日收益 | `calculatePositionMetrics` |

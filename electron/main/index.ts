@@ -28,7 +28,6 @@ import {
   type AppState,
   type ChipDistributionCacheEntry,
   type KlinePeriod,
-  type StockSectorQuote,
   type StockQuote,
   type TaskbarLayout,
   type TradingCalendarSettings,
@@ -54,13 +53,19 @@ import {
   fetchKline,
   fetchOrderBook,
   fetchQuotes,
-  fetchSectorIndex,
-  fetchSectorQuotes,
+  fetchSectorBinding,
+  setMarketRequestLogger,
   searchStocks
 } from './market'
 import { OrderBookHub } from './order-book-hub'
 import { ChipDistributionCache } from './chip-distribution-cache'
 import { HistoricalKlineCache } from './historical-kline-cache'
+import { MarketRequestLogger } from './market-request-logger'
+import {
+  QuoteRefreshCoordinator,
+  type QuoteRefreshBatch
+} from './quote-refresh-coordinator'
+import { SectorMarketCache } from './sector-market-cache'
 import { fetchSseTradingCalendar } from './trading-calendar'
 import { createAppIcon } from './tray-icons'
 
@@ -87,14 +92,11 @@ let trayPopupWindow: BrowserWindow | null = null
 let appTray: Tray | null = null
 let state: AppState = DEFAULT_STATE
 let latestQuotes: StockQuote[] = []
-let priorityRefreshTimer: NodeJS.Timeout | null = null
-let regularRefreshTimer: NodeJS.Timeout | null = null
 let tradingCalendarCheckTimer: NodeJS.Timeout | null = null
 let trayPopupShowTimer: NodeJS.Timeout | null = null
 let tradingCalendarRefresh: Promise<TradingCalendarSettings> | null = null
 let taskbarLayout: TaskbarLayout = { taskbarHeight: 48 }
 let trayHovered = false
-const refreshesInFlight = new Set<'all' | 'priority' | 'regular'>()
 let fiveLevelRefreshCursor = 0
 let isQuitting = false
 let marketInsightRuntime: MarketInsightRuntime | null = null
@@ -102,6 +104,11 @@ let aiRuntime: AiRuntime | null = null
 let aiTAdviceRuntime: { dispose: () => void } | null = null
 let chipDistributionCache: ChipDistributionCache | null = null
 let historicalKlineCache: HistoricalKlineCache | null = null
+let marketRequestLogger: MarketRequestLogger | null = null
+let sectorMarketCache: SectorMarketCache | null = null
+let quoteRefreshCoordinator: QuoteRefreshCoordinator<StockQuote[]> | null = null
+let sectorBindingPrime: Promise<void> | null = null
+let lastSectorBindingPrimeAt = 0
 
 type HistoricalKlinePeriod = Extract<KlinePeriod, 'daily' | 'weekly' | 'monthly'>
 
@@ -113,9 +120,9 @@ function defaultKlineLimit(period: KlinePeriod): number {
   return period === 'weekly' ? 104 : period === 'monthly' ? 60 : 120
 }
 
-async function getKline(quoteId: string, period: KlinePeriod, limit?: number) {
+async function getKline(quoteId: string, period: KlinePeriod, limit?: number, caller = 'kline') {
   if (!historicalKlineCache || !isHistoricalKlinePeriod(period)) {
-    return fetchKline(quoteId, period, limit)
+    return fetchKline(quoteId, period, limit, caller)
   }
 
   const requestedLimit = Math.max(1, Math.round(limit ?? defaultKlineLimit(period)))
@@ -129,7 +136,7 @@ async function getKline(quoteId: string, period: KlinePeriod, limit?: number) {
 
   const fallback = historicalKlineCache.getFallback(quoteId, period)
   try {
-    const result = await fetchKline(quoteId, period, requestedLimit)
+    const result = await fetchKline(quoteId, period, requestedLimit, caller)
     if (historicalKlineCache.shouldKeepFallback(period, result)) return fallback ?? result
     return historicalKlineCache.save(quoteId, period, requestedLimit, result)
   } catch (reason) {
@@ -254,12 +261,10 @@ function cleanupBeforeQuit(): void {
   aiRuntime = null
   marketInsightRuntime?.dispose()
   marketInsightRuntime = null
-  if (priorityRefreshTimer) clearInterval(priorityRefreshTimer)
-  if (regularRefreshTimer) clearInterval(regularRefreshTimer)
+  quoteRefreshCoordinator?.dispose()
+  quoteRefreshCoordinator = null
   if (tradingCalendarCheckTimer) clearInterval(tradingCalendarCheckTimer)
   if (trayPopupShowTimer) clearTimeout(trayPopupShowTimer)
-  priorityRefreshTimer = null
-  regularRefreshTimer = null
   tradingCalendarCheckTimer = null
   trayPopupShowTimer = null
   appTray?.destroy()
@@ -576,7 +581,8 @@ async function refreshFiveLevelLargeOrders(stocks: WatchStock[]): Promise<void> 
   try {
     const orderBook = await orderBookHub.get(stock.quoteId, {
       maxAgeMilliseconds: 3_000,
-      allowStaleOnError: false
+      allowStaleOnError: false,
+      caller: 't-position-large-orders'
     })
     const alerts = detectFiveLevelLargeOrders(orderBook)
     latestQuotes = latestQuotes.map((quote) => (
@@ -590,30 +596,52 @@ async function refreshFiveLevelLargeOrders(stocks: WatchStock[]): Promise<void> 
   } catch {}
 }
 
-async function refreshStocks(
-  stocks: WatchStock[],
-  group: 'all' | 'priority' | 'regular',
-  includeMarketIndices = false
-): Promise<StockQuote[]> {
-  const marketIndices = includeMarketIndices ? getMarketIndexStocks(state.settings.marketIndexIds) : []
-  if ((stocks.length === 0 && marketIndices.length === 0) || refreshesInFlight.has(group)) return latestQuotes
-  refreshesInFlight.add(group)
+function uniqueStocks(stocks: readonly WatchStock[]): WatchStock[] {
+  return [...new Map(stocks.map((stock) => [stock.quoteId, stock])).values()]
+}
 
+function applyCachedSectorQuotes(): void {
+  if (!sectorMarketCache) return
+  const stockQuoteIds = new Set(state.watchlist.map((stock) => stock.quoteId))
+  latestQuotes = latestQuotes.map((quote) => {
+    if (!stockQuoteIds.has(quote.quoteId)) return quote
+    const sector = sectorMarketCache!.sectorQuote(quote.quoteId)
+    return sector ? { ...quote, sector } : quote
+  })
+}
+
+async function executeQuoteRefresh(batch: QuoteRefreshBatch): Promise<StockQuote[]> {
+  const refreshAllStocks = batch.scopes.has('all')
+  const refreshPriority = refreshAllStocks || batch.scopes.has('priority')
+  const refreshRegular = refreshAllStocks || batch.scopes.has('regular')
+  const stocks = state.watchlist.filter((stock) => (
+    stock.isPriority ? refreshPriority : refreshRegular
+  ))
+  const marketIndices = refreshRegular
+    ? getMarketIndexStocks(state.settings.marketIndexIds)
+    : []
+  const dueSectorStocks = sectorMarketCache?.dueBoardStocks(stocks) ?? []
+  const requestedSectorStocks = [...batch.sectorQuoteIds].flatMap((quoteId) => {
+    const stock = sectorMarketCache?.boardStockByQuoteId(quoteId)
+    return stock ? [stock] : []
+  })
+  const sectorStocks = uniqueStocks([...dueSectorStocks, ...requestedSectorStocks])
+  const requestedStocks = uniqueStocks([...stocks, ...marketIndices, ...sectorStocks])
+  if (requestedStocks.length === 0) return latestQuotes
+
+  const startedAt = Date.now()
+  const reasons = [...batch.reasons]
   try {
-    const [stockQuotes, marketIndexQuotes, sectorQuotes] = await Promise.all([
-      stocks.length > 0
-        ? fetchQuotes(stocks, state.watchlist.filter((stock) => stock.showRadarSignals))
-        : Promise.resolve([]),
-      marketIndices.length > 0 ? fetchQuotes(marketIndices, []) : Promise.resolve([]),
-      stocks.length > 0
-        ? fetchSectorQuotes(stocks).catch(() => new Map<string, StockSectorQuote>())
-        : Promise.resolve(new Map<string, StockSectorQuote>())
-    ])
-    const enrichedStockQuotes = stockQuotes.map((quote) => {
-      const sector = sectorQuotes.get(quote.quoteId)
-      return sector ? { ...quote, sector } : quote
-    })
-    mergeQuotes([...enrichedStockQuotes, ...marketIndexQuotes])
+    const result = await fetchQuotes(
+      requestedStocks,
+      state.watchlist.filter((stock) => stock.showRadarSignals),
+      `quote-cycle:${reasons.join('+')}`
+    )
+    const sectorQuoteIds = new Set(sectorStocks.map((stock) => stock.quoteId))
+    sectorMarketCache?.saveQuotes(result.quotes.filter((quote) => sectorQuoteIds.has(quote.quoteId)))
+    const displayedQuoteIds = new Set([...stocks, ...marketIndices].map((stock) => stock.quoteId))
+    mergeQuotes(result.quotes.filter((quote) => displayedQuoteIds.has(quote.quoteId)))
+    applyCachedSectorQuotes()
     marketDataHub.publish(latestQuotes)
     const tAlertUpdate = applyTAlertTriggersToAccounts(state.tTradingAccounts, latestQuotes)
     const stockAlertUpdate = applyStockAlertTriggers(
@@ -634,37 +662,65 @@ async function refreshStocks(
     sendToWindows('quotes:updated', latestQuotes)
     updateAppTrayMenu()
     syncTaskbarWindow()
-    void refreshFiveLevelLargeOrders(stocks)
+    if (stocks.length > 0) void refreshFiveLevelLargeOrders(stocks)
+    marketRequestLogger?.logQuoteCycle({
+      reasons,
+      stockCount: stocks.length,
+      indexCount: marketIndices.length,
+      sectorCount: sectorStocks.length,
+      requestedCount: requestedStocks.length,
+      returnedCount: result.quotes.length,
+      durationMs: Date.now() - startedAt,
+      source: result.source,
+      fallbackUsed: result.source !== 'eastmoney-primary'
+    })
+    if (Date.now() - lastSectorBindingPrimeAt >= 60_000) void primeSectorBindings(true)
     return latestQuotes
   } catch (error) {
     const message = error instanceof Error ? error.message : '行情刷新失败'
+    marketRequestLogger?.logQuoteCycle({
+      reasons,
+      stockCount: stocks.length,
+      indexCount: marketIndices.length,
+      sectorCount: sectorStocks.length,
+      requestedCount: requestedStocks.length,
+      returnedCount: 0,
+      durationMs: Date.now() - startedAt,
+      error: message
+    })
     sendToWindows('data:error', message)
     return latestQuotes
-  } finally {
-    refreshesInFlight.delete(group)
   }
 }
 
-function refreshAll(): Promise<StockQuote[]> {
-  return refreshStocks(state.watchlist, 'all', true)
+function refreshAll(reason = 'manual'): Promise<StockQuote[]> {
+  return quoteRefreshCoordinator?.request({ scope: 'all', reason }) ?? Promise.resolve(latestQuotes)
 }
 
 function isMainMarketAutoRefreshTime(): boolean {
   return isBeijingAutoRefreshTime(new Date(), state.settings.tradingCalendar.closedDates)
 }
 
-function refreshPriorityStocks(): Promise<StockQuote[]> {
-  if (!isMainMarketAutoRefreshTime()) return Promise.resolve(latestQuotes)
-  return refreshStocks(state.watchlist.filter((stock) => stock.isPriority), 'priority')
+function refreshAllAutomatically(reason = 'automatic'): Promise<StockQuote[]> {
+  return isMainMarketAutoRefreshTime() ? refreshAll(reason) : Promise.resolve(latestQuotes)
 }
 
-function refreshRegularStocks(): Promise<StockQuote[]> {
-  if (!isMainMarketAutoRefreshTime()) return Promise.resolve(latestQuotes)
-  return refreshStocks(state.watchlist.filter((stock) => !stock.isPriority), 'regular', true)
-}
-
-function refreshAllAutomatically(): Promise<StockQuote[]> {
-  return isMainMarketAutoRefreshTime() ? refreshAll() : Promise.resolve(latestQuotes)
+function primeSectorBindings(refreshWhenReady: boolean): Promise<void> {
+  if (!sectorMarketCache) return Promise.resolve()
+  if (sectorBindingPrime) return sectorBindingPrime
+  lastSectorBindingPrimeAt = Date.now()
+  sectorBindingPrime = sectorMarketCache.prime(state.watchlist)
+    .then((changed) => {
+      if (!changed || !refreshWhenReady || !isMainMarketAutoRefreshTime()) return
+      const sectorQuoteIds = sectorMarketCache!.dueBoardStocks(state.watchlist).map((stock) => stock.quoteId)
+      if (sectorQuoteIds.length > 0) {
+        void quoteRefreshCoordinator?.request({ reason: 'sector-binding', sectorQuoteIds })
+      }
+    })
+    .finally(() => {
+      sectorBindingPrime = null
+    })
+  return sectorBindingPrime
 }
 
 function saveTradingCalendar(calendar: TradingCalendarSettings): TradingCalendarSettings {
@@ -685,7 +741,15 @@ function refreshTradingCalendar(): Promise<TradingCalendarSettings> {
 
   const year = new Date().getFullYear()
   const attemptedAt = new Date().toISOString()
-  tradingCalendarRefresh = fetchSseTradingCalendar(year)
+  const request = () => fetchSseTradingCalendar(year)
+  tradingCalendarRefresh = (marketRequestLogger
+    ? marketRequestLogger.track({
+        dataType: 'trading-calendar',
+        caller: 'trading-calendar',
+        source: 'sse',
+        requestedCount: 1
+      }, request, (result) => result.closedDates.length)
+    : request())
     .then((result) => {
       const current = state.settings.tradingCalendar
       const closedDates = [
@@ -727,16 +791,7 @@ function refreshTradingCalendarAutomatically(): Promise<TradingCalendarSettings>
 }
 
 function restartRefreshTimers(): void {
-  if (priorityRefreshTimer) clearInterval(priorityRefreshTimer)
-  if (regularRefreshTimer) clearInterval(regularRefreshTimer)
-  priorityRefreshTimer = setInterval(
-    () => void refreshPriorityStocks(),
-    state.settings.priorityRefreshSeconds * 1000
-  )
-  regularRefreshTimer = setInterval(
-    () => void refreshRegularStocks(),
-    state.settings.regularRefreshSeconds * 1000
-  )
+  quoteRefreshCoordinator?.restartSchedule()
 }
 
 function createWindow(): void {
@@ -782,13 +837,41 @@ function createWindow(): void {
   }
 }
 
+async function getSectorIndex(stockQuoteId: string) {
+  if (!sectorMarketCache || !quoteRefreshCoordinator) throw new Error('板块行情缓存尚未初始化')
+  const binding = await sectorMarketCache.ensureBinding(stockQuoteId)
+  const cachedQuote = sectorMarketCache.getFreshQuote(binding.boardQuoteId)
+  const quotePromise = cachedQuote
+    ? Promise.resolve(cachedQuote)
+    : quoteRefreshCoordinator.request({
+        reason: 'detail:sector',
+        sectorQuoteIds: [binding.boardQuoteId]
+      }).then(() => sectorMarketCache!.getFreshQuote(binding.boardQuoteId))
+  const trendPromise = getKline(
+    binding.boardQuoteId,
+    'intraday',
+    undefined,
+    'detail:sector'
+  )
+  const [quote, trend] = await Promise.all([quotePromise, trendPromise])
+  if (!quote) throw new Error('行情服务未返回板块指数数据')
+  return {
+    stockQuoteId,
+    boardCode: binding.boardCode,
+    boardName: binding.boardName,
+    boardQuoteId: binding.boardQuoteId,
+    quote,
+    trend
+  }
+}
+
 function registerIpc(): void {
   ipcMain.handle('app:bootstrap', async () => ({ state, quotes: latestQuotes, source: 'eastmoney' as const }))
   ipcMain.handle('taskbar:layout:get', () => taskbarLayout)
   ipcMain.handle('stocks:search', (_event, query: string) => searchStocks(query))
-  ipcMain.handle('quotes:refresh', () => refreshAll())
+  ipcMain.handle('quotes:refresh', () => refreshAll('manual'))
   ipcMain.handle('kline:get', (_event, quoteId: string, period: KlinePeriod, limit?: number) => (
-    getKline(quoteId, period, limit)
+    getKline(quoteId, period, limit, `detail:kline:${period}`)
   ))
   ipcMain.handle('chip-distribution:cache:save', (_event, entry: ChipDistributionCacheEntry) => {
     if (!chipDistributionCache) throw new Error('筹码分布缓存尚未初始化')
@@ -796,10 +879,11 @@ function registerIpc(): void {
   })
   ipcMain.handle('order-book:get', (_event, quoteId: string) => orderBookHub.get(quoteId, {
     maxAgeMilliseconds: 3_000,
-    allowStaleOnError: true
+    allowStaleOnError: true,
+    caller: 'detail:order-book'
   }))
-  ipcMain.handle('funds-flow:get', (_event, quoteId: string) => fetchFundsFlow(quoteId))
-  ipcMain.handle('sector-index:get', (_event, quoteId: string) => fetchSectorIndex(quoteId))
+  ipcMain.handle('funds-flow:get', (_event, quoteId: string) => fetchFundsFlow(quoteId, 'detail:funds-flow'))
+  ipcMain.handle('sector-index:get', (_event, quoteId: string) => getSectorIndex(quoteId))
   ipcMain.handle('trading-calendar:refresh', () => refreshTradingCalendar())
   ipcMain.handle('state:save', async (_event, nextState: AppState) => {
     const normalizedState: AppState = {
@@ -837,8 +921,9 @@ function registerIpc(): void {
     updateAppTrayMenu()
     syncTaskbarWindow()
     if (trayPopupWindow?.isVisible()) positionTrayPopupWindow()
-    if (marketIndicesChanged) void refreshAll()
-    else if (watchedStocksChanged || priorityChanged) void refreshAllAutomatically()
+    if (watchedStocksChanged) void primeSectorBindings(true)
+    if (marketIndicesChanged) void refreshAll('state-change:indices')
+    else if (watchedStocksChanged || priorityChanged) void refreshAllAutomatically('state-change:watchlist')
     stockAlertUpdate.triggered.forEach(showStockAlertNotification)
     return state
   })
@@ -884,27 +969,40 @@ if (!hasSingleInstanceLock) {
   app.on('second-instance', () => {
     showMainWindow()
     syncTaskbarWindow()
-    void refreshAllAutomatically()
+    void refreshAllAutomatically('second-instance')
   })
 
   app.whenReady().then(async () => {
     app.setAppUserModelId('com.jianzhang.stock')
     state = loadState()
     const marketCacheDirectory = join(app.getPath('userData'), 'market-cache')
+    marketRequestLogger = new MarketRequestLogger(join(app.getPath('userData'), 'logs'))
+    setMarketRequestLogger(marketRequestLogger)
     chipDistributionCache = new ChipDistributionCache(marketCacheDirectory)
     historicalKlineCache = new HistoricalKlineCache(marketCacheDirectory)
+    sectorMarketCache = new SectorMarketCache(
+      marketCacheDirectory,
+      (quoteId) => fetchSectorBinding(quoteId, 'sector-binding-cache')
+    )
+    quoteRefreshCoordinator = new QuoteRefreshCoordinator<StockQuote[]>({
+      getPriorityIntervalMilliseconds: () => state.settings.priorityRefreshSeconds * 1000,
+      getRegularIntervalMilliseconds: () => state.settings.regularRefreshSeconds * 1000,
+      canAutoRefresh: isMainMarketAutoRefreshTime,
+      run: executeQuoteRefresh
+    })
     registerIpc()
     if (__JIANZHANG_MARKET_INSIGHT_ENABLED__) {
       const { installMarketInsight } = await import('../../src/modules/market-insight/main/register')
       marketInsightRuntime = installMarketInsight({
         marketDataHub,
         getState: () => state,
-        getKline: (quoteId, period, limit) => getKline(quoteId, period, limit),
+        getKline: (quoteId, period, limit) => getKline(quoteId, period, limit, 'market-insight'),
         getOrderBook: (quoteId) => orderBookHub.get(quoteId, {
           maxAgeMilliseconds: 3_000,
-          allowStaleOnError: false
+          allowStaleOnError: false,
+          caller: 'market-insight'
         }),
-        getFundsFlow: (quoteId) => fetchFundsFlow(quoteId),
+        getFundsFlow: (quoteId) => fetchFundsFlow(quoteId, 'market-insight'),
         notifyUpdated: (quoteId) => sendToWindows('insight:updated', quoteId)
       })
     }
@@ -966,12 +1064,13 @@ if (!hasSingleInstanceLock) {
     })
     screen.on('display-added', syncTaskbarWindow)
     screen.on('display-removed', syncTaskbarWindow)
-    restartRefreshTimers()
+    quoteRefreshCoordinator.start()
     tradingCalendarCheckTimer = setInterval(
       () => void refreshTradingCalendarAutomatically().catch(() => undefined),
       6 * 60 * 60 * 1000
     )
-    void refreshAllAutomatically()
+    void refreshAllAutomatically('startup')
+    void primeSectorBindings(true)
     void refreshTradingCalendarAutomatically().catch(() => undefined)
   })
 }

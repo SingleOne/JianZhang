@@ -6,6 +6,7 @@ import { isBeijingAutoRefreshTime, millisecondsUntilNextAutoRefreshWindow } from
 import type { SectorIndexResult, WatchStock } from '../shared/types'
 
 const CandlestickChart = lazy(() => import('./CandlestickChart'))
+const SECTOR_INDEX_REFRESH_MILLISECONDS = 60_000
 
 interface SectorIndexCacheEntry {
   data: SectorIndexResult
@@ -16,7 +17,6 @@ const sectorIndexCache = new Map<string, SectorIndexCacheEntry>()
 
 interface SectorIndexPanelProps {
   stock: WatchStock
-  refreshSeconds: number
 }
 
 function valueClass(value: number | null | undefined): string {
@@ -24,7 +24,7 @@ function valueClass(value: number | null | undefined): string {
   return value > 0 ? 'is-up' : 'is-down'
 }
 
-export default function SectorIndexPanel({ stock, refreshSeconds }: SectorIndexPanelProps) {
+export default function SectorIndexPanel({ stock }: SectorIndexPanelProps) {
   const [data, setData] = useState<SectorIndexResult | null>(
     () => sectorIndexCache.get(stock.quoteId)?.data ?? null
   )
@@ -34,7 +34,6 @@ export default function SectorIndexPanel({ stock, refreshSeconds }: SectorIndexP
 
   useEffect(() => {
     const cached = sectorIndexCache.get(stock.quoteId)
-    const refreshMilliseconds = Math.max(3, refreshSeconds) * 1000
     let refreshTimer: number | undefined
     let active = true
 
@@ -45,10 +44,10 @@ export default function SectorIndexPanel({ stock, refreshSeconds }: SectorIndexP
         } else {
           scheduleRefresh()
         }
-      }, isBeijingAutoRefreshTime() ? refreshMilliseconds : millisecondsUntilNextAutoRefreshWindow())
+      }, isBeijingAutoRefreshTime() ? SECTOR_INDEX_REFRESH_MILLISECONDS : millisecondsUntilNextAutoRefreshWindow())
     }
 
-    if (refreshVersion === 0 && cached && Date.now() - cached.cachedAt < refreshMilliseconds) {
+    if (refreshVersion === 0 && cached && Date.now() - cached.cachedAt < SECTOR_INDEX_REFRESH_MILLISECONDS) {
       setData(cached.data)
       setError('')
       setLoading(false)
@@ -77,7 +76,7 @@ export default function SectorIndexPanel({ stock, refreshSeconds }: SectorIndexP
       active = false
       window.clearTimeout(refreshTimer)
     }
-  }, [refreshSeconds, refreshVersion, stock.quoteId])
+  }, [refreshVersion, stock.quoteId])
 
   if (loading && !data) {
     return <div className="chart-loading"><BarChart3 size={28} /><span>正在加载所属板块指数…</span></div>
