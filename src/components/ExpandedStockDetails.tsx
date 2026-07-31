@@ -8,6 +8,7 @@ import {
   isBeijingAutoRefreshTime,
   millisecondsUntilNextAutoRefreshWindow
 } from '../shared/market-hours'
+import { LruCache } from '../shared/lru-cache'
 import type { KlineBar, KlinePeriod, KlineResult, StockQuote, WatchStock } from '../shared/types'
 import { FundsFlowPanel } from './FundsFlowPanel'
 import { ChipDistributionPanel } from './ChipDistributionPanel'
@@ -38,7 +39,7 @@ interface KlineCacheEntry {
   requestedLimit?: number
 }
 
-const klineCache = new Map<string, KlineCacheEntry>()
+const klineCache = new LruCache<string, KlineCacheEntry>(100)
 const PRICE_TABS: Array<{ id: PriceTab; label: string; description: string }> = [
   { id: 'trend', label: '分时', description: '集合竞价与盘中分时线' },
   { id: 'fiveDay', label: '五日', description: '五日分时线' },

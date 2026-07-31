@@ -1,4 +1,5 @@
 import type { KlinePeriod, KlineResult } from '../../src/shared/types'
+import { LruCache } from '../../src/shared/lru-cache'
 import type { HistoricalKlineCache } from './historical-kline-cache'
 
 type HistoricalKlinePeriod = Extract<KlinePeriod, 'daily' | 'weekly' | 'monthly'>
@@ -27,7 +28,7 @@ function requestKey(quoteId: string, period: KlinePeriod, limit: number): string
 }
 
 export class KlineHub {
-  private readonly liveCache = new Map<string, LiveKlineCacheEntry>()
+  private readonly liveCache: LruCache<string, LiveKlineCacheEntry>
   private readonly requests = new Map<string, Promise<KlineResult>>()
   private requestQueue: Promise<void> = Promise.resolve()
 
@@ -40,8 +41,11 @@ export class KlineHub {
     ) => Promise<KlineResult>,
     private readonly historicalCache: HistoricalKlineCache,
     private readonly getClosedDates: () => readonly string[],
-    private readonly liveCacheMaxAgeMilliseconds: number
-  ) {}
+    private readonly liveCacheMaxAgeMilliseconds: number,
+    liveCacheMaxEntries = 100
+  ) {
+    this.liveCache = new LruCache(liveCacheMaxEntries)
+  }
 
   get(
     quoteId: string,
@@ -54,23 +58,21 @@ export class KlineHub {
     if (cached) return Promise.resolve(cached)
 
     const key = requestKey(quoteId, period, normalizedLimit)
-    return this.requests.get(key)
-      ?? this.startRequest(key, quoteId, period, normalizedLimit, caller)
+    return (
+      this.requests.get(key) ?? this.startRequest(key, quoteId, period, normalizedLimit, caller)
+    )
   }
 
-  private getCached(
-    quoteId: string,
-    period: KlinePeriod,
-    limit: number
-  ): KlineResult | null {
+  private getCached(quoteId: string, period: KlinePeriod, limit: number): KlineResult | null {
     if (isHistoricalPeriod(period)) {
       return this.historicalCache.get(quoteId, period, limit, this.getClosedDates())
     }
 
     const cached = this.liveCache.get(liveCacheKey(quoteId, period))
-    return cached && Date.now() - cached.cachedAt < this.liveCacheMaxAgeMilliseconds
-      ? cached.data
-      : null
+    if (!cached) return null
+    if (Date.now() - cached.cachedAt < this.liveCacheMaxAgeMilliseconds) return cached.data
+    this.liveCache.delete(liveCacheKey(quoteId, period))
+    return null
   }
 
   private startRequest(
@@ -117,7 +119,10 @@ export class KlineHub {
 
   private enqueue(load: () => Promise<KlineResult>): Promise<KlineResult> {
     const request = this.requestQueue.then(load)
-    this.requestQueue = request.then(() => undefined, () => undefined)
+    this.requestQueue = request.then(
+      () => undefined,
+      () => undefined
+    )
     return request
   }
 

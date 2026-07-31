@@ -1,6 +1,15 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  unlinkSync,
+  utimesSync,
+  writeFileSync
+} from 'node:fs'
 import { join } from 'node:path'
 import { isBeijingAutoRefreshTime } from '../../src/shared/market-hours'
+import { LruCache } from '../../src/shared/lru-cache'
 import type { KlinePeriod, KlineResult } from '../../src/shared/types'
 
 type HistoricalKlinePeriod = Extract<KlinePeriod, 'daily' | 'weekly' | 'monthly'>
@@ -16,6 +25,7 @@ interface HistoricalKlineCacheEntry {
 
 const TRADING_CACHE_MAX_AGE_MILLISECONDS = 5 * 60 * 1000
 const CLOSED_CACHE_MAX_AGE_MILLISECONDS = 18 * 60 * 60 * 1000
+const DEFAULT_DISK_RETENTION_MILLISECONDS = 90 * 24 * 60 * 60 * 1000
 
 function cacheKey(quoteId: string, period: HistoricalKlinePeriod): string {
   return `${quoteId}:${period}`
@@ -37,10 +47,10 @@ function isFresh(
   const currentTrading = isBeijingAutoRefreshTime(new Date(now), closedDates)
   const cachedDuringTrading = isBeijingAutoRefreshTime(new Date(entry.cachedAt), closedDates)
   if (
-    !currentTrading
-    && cachedDuringTrading
-    && beijingDateKey(entry.cachedAt) === beijingDateKey(now)
-    && new Date(now + 8 * 60 * 60 * 1000).getUTCHours() >= 15
+    !currentTrading &&
+    cachedDuringTrading &&
+    beijingDateKey(entry.cachedAt) === beijingDateKey(now) &&
+    new Date(now + 8 * 60 * 60 * 1000).getUTCHours() >= 15
   ) {
     return false
   }
@@ -51,9 +61,12 @@ function isFresh(
 }
 
 function hasCompleteTurnover(data: KlineResult): boolean {
-  return data.bars.length > 0 && data.bars.every((bar) => (
-    typeof bar.turnoverRate === 'number' && Number.isFinite(bar.turnoverRate)
-  ))
+  return (
+    data.bars.length > 0 &&
+    data.bars.every(
+      (bar) => typeof bar.turnoverRate === 'number' && Number.isFinite(bar.turnoverRate)
+    )
+  )
 }
 
 function mergeKlineData(previous: KlineResult | undefined, current: KlineResult): KlineResult {
@@ -72,11 +85,18 @@ function mergeKlineData(previous: KlineResult | undefined, current: KlineResult)
 
 export class HistoricalKlineCache {
   private readonly directory: string
-  private readonly entries = new Map<string, HistoricalKlineCacheEntry | null>()
+  private readonly entries: LruCache<string, HistoricalKlineCacheEntry | null>
 
-  constructor(rootDirectory: string) {
+  constructor(
+    rootDirectory: string,
+    maxMemoryEntries = 150,
+    private readonly diskRetentionMilliseconds = DEFAULT_DISK_RETENTION_MILLISECONDS,
+    private readonly now: () => number = Date.now
+  ) {
     this.directory = join(rootDirectory, 'klines')
+    this.entries = new LruCache(maxMemoryEntries)
     mkdirSync(this.directory, { recursive: true })
+    this.cleanupExpiredFiles()
   }
 
   get(
@@ -86,7 +106,11 @@ export class HistoricalKlineCache {
     closedDates: readonly string[]
   ): KlineResult | null {
     const entry = this.read(quoteId, period)
-    if (!entry || entry.requestedLimit < requestedLimit || !isFresh(entry, Date.now(), closedDates)) {
+    if (
+      !entry ||
+      entry.requestedLimit < requestedLimit ||
+      !isFresh(entry, this.now(), closedDates)
+    ) {
       return null
     }
     return entry.data
@@ -109,15 +133,13 @@ export class HistoricalKlineCache {
       quoteId,
       period,
       requestedLimit: Math.max(previous?.requestedLimit ?? 0, requestedLimit),
-      cachedAt: Date.now(),
+      cachedAt: this.now(),
       data: merged
     }
     this.entries.set(cacheKey(quoteId, period), entry)
-    writeFileSync(
-      join(this.directory, cacheFileName(quoteId, period)),
-      JSON.stringify(entry),
-      'utf8'
-    )
+    const path = join(this.directory, cacheFileName(quoteId, period))
+    writeFileSync(path, JSON.stringify(entry), 'utf8')
+    this.touch(path)
     return merged
   }
 
@@ -127,20 +149,39 @@ export class HistoricalKlineCache {
 
   private read(quoteId: string, period: HistoricalKlinePeriod): HistoricalKlineCacheEntry | null {
     const key = cacheKey(quoteId, period)
-    if (this.entries.has(key)) return this.entries.get(key) ?? null
+    const path = join(this.directory, cacheFileName(quoteId, period))
+    if (this.entries.has(key)) {
+      this.touch(path)
+      return this.entries.get(key) ?? null
+    }
     try {
-      const entry = JSON.parse(readFileSync(
-        join(this.directory, cacheFileName(quoteId, period)),
-        'utf8'
-      )) as HistoricalKlineCacheEntry
-      const normalized = entry.version === 1 && entry.quoteId === quoteId && entry.period === period
-        ? entry
-        : null
+      const entry = JSON.parse(readFileSync(path, 'utf8')) as HistoricalKlineCacheEntry
+      const normalized =
+        entry.version === 1 && entry.quoteId === quoteId && entry.period === period ? entry : null
       this.entries.set(key, normalized)
+      if (normalized) this.touch(path)
       return normalized
     } catch {
       this.entries.set(key, null)
       return null
     }
+  }
+
+  private cleanupExpiredFiles(): void {
+    const expiredBefore = this.now() - this.diskRetentionMilliseconds
+    for (const name of readdirSync(this.directory)) {
+      if (!name.endsWith('.json')) continue
+      const path = join(this.directory, name)
+      try {
+        if (statSync(path).mtimeMs < expiredBefore) unlinkSync(path)
+      } catch {}
+    }
+  }
+
+  private touch(path: string): void {
+    try {
+      const now = new Date(this.now())
+      utimesSync(path, now, now)
+    } catch {}
   }
 }
