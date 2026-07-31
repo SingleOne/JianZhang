@@ -1,5 +1,8 @@
 import type { MarketInsightSettings } from './types'
-import { INTRADAY_REFRESH_MILLISECONDS } from '../../../shared/market-hours'
+import {
+  FUNDS_FLOW_REFRESH_MILLISECONDS,
+  INTRADAY_REFRESH_MILLISECONDS
+} from '../../../shared/market-hours'
 
 export const MARKET_INSIGHT_MODULE_VERSION = 1
 
@@ -30,7 +33,7 @@ export const MARKET_INSIGHT_REFRESH_INTERVALS = {
   intraday: INTRADAY_REFRESH_MILLISECONDS,
   daily: 15 * 60_000,
   orderBook: 30_000,
-  fundsFlow: 2 * 60_000,
+  fundsFlow: FUNDS_FLOW_REFRESH_MILLISECONDS,
   sector: 2 * 60_000,
   news: 15 * 60_000
 } as const

@@ -2,7 +2,11 @@ import { AlertCircle, RefreshCw, TrendingUp } from 'lucide-react'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { stockApi } from '../lib/api'
 import { formatSignedAmount } from '../lib/format'
-import { isBeijingAutoRefreshTime, millisecondsUntilNextAutoRefreshWindow } from '../shared/market-hours'
+import {
+  FUNDS_FLOW_REFRESH_MILLISECONDS,
+  isBeijingAutoRefreshTime,
+  millisecondsUntilNextAutoRefreshWindow
+} from '../shared/market-hours'
 import type { FundsFlowResult, WatchStock } from '../shared/types'
 
 const FundsFlowChart = lazy(() => import('./FundsFlowChart'))
@@ -16,7 +20,6 @@ const fundsFlowCache = new Map<string, FundsFlowCacheEntry>()
 
 interface FundsFlowPanelProps {
   stock: WatchStock
-  refreshSeconds: number
 }
 
 function valueClass(value: number | null | undefined): string {
@@ -24,7 +27,7 @@ function valueClass(value: number | null | undefined): string {
   return value > 0 ? 'is-up' : 'is-down'
 }
 
-export function FundsFlowPanel({ stock, refreshSeconds }: FundsFlowPanelProps) {
+export function FundsFlowPanel({ stock }: FundsFlowPanelProps) {
   const [data, setData] = useState<FundsFlowResult | null>(
     () => fundsFlowCache.get(stock.quoteId)?.data ?? null
   )
@@ -34,7 +37,7 @@ export function FundsFlowPanel({ stock, refreshSeconds }: FundsFlowPanelProps) {
 
   useEffect(() => {
     const cached = fundsFlowCache.get(stock.quoteId)
-    const refreshMilliseconds = Math.max(3, refreshSeconds) * 1000
+    const refreshMilliseconds = FUNDS_FLOW_REFRESH_MILLISECONDS
     let refreshTimer: number | undefined
     let active = true
 
@@ -77,7 +80,7 @@ export function FundsFlowPanel({ stock, refreshSeconds }: FundsFlowPanelProps) {
       active = false
       window.clearTimeout(refreshTimer)
     }
-  }, [refreshSeconds, refreshVersion, stock.quoteId])
+  }, [refreshVersion, stock.quoteId])
 
   const latest = data?.points.at(-1)
   const summary = [

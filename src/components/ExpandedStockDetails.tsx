@@ -547,7 +547,7 @@ export function ExpandedStockDetails({
         </div>
       ) : activeTab === 'funds' ? (
         <div className="funds-tab-panel" role="tabpanel">
-          <FundsFlowPanel stock={stock} refreshSeconds={refreshSeconds} />
+          <FundsFlowPanel stock={stock} />
         </div>
       ) : activeTab === 'sector' ? (
         <div className="sector-tab-panel" role="tabpanel">

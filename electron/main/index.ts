@@ -35,6 +35,7 @@ import {
 } from '../../src/shared/types'
 import { createConfigDocument, parseConfigDocument } from '../../src/shared/config'
 import {
+  FUNDS_FLOW_REFRESH_MILLISECONDS,
   INTRADAY_REFRESH_MILLISECONDS,
   isBeijingAutoRefreshTime
 } from '../../src/shared/market-hours'
@@ -63,6 +64,7 @@ import {
 import { OrderBookHub } from './order-book-hub'
 import { ChipDistributionCache } from './chip-distribution-cache'
 import { HistoricalKlineCache } from './historical-kline-cache'
+import { FundsFlowHub } from './funds-flow-hub'
 import { IntradayKlineHub } from './intraday-kline-hub'
 import { MarketRequestLogger } from './market-request-logger'
 import {
@@ -107,6 +109,7 @@ let marketInsightRuntime: MarketInsightRuntime | null = null
 let aiRuntime: AiRuntime | null = null
 let aiTAdviceRuntime: { dispose: () => void } | null = null
 let chipDistributionCache: ChipDistributionCache | null = null
+let fundsFlowHub: FundsFlowHub | null = null
 let historicalKlineCache: HistoricalKlineCache | null = null
 let intradayKlineHub: IntradayKlineHub | null = null
 let marketRequestLogger: MarketRequestLogger | null = null
@@ -151,6 +154,10 @@ async function getKline(quoteId: string, period: KlinePeriod, limit?: number, ca
     if (fallback) return fallback
     throw reason
   }
+}
+
+function getFundsFlow(quoteId: string, caller = 'funds-flow') {
+  return fundsFlowHub?.get(quoteId, caller) ?? fetchFundsFlow(quoteId, caller)
 }
 
 class MarketDataHub {
@@ -890,7 +897,7 @@ function registerIpc(): void {
     allowStaleOnError: true,
     caller: 'detail:order-book'
   }))
-  ipcMain.handle('funds-flow:get', (_event, quoteId: string) => fetchFundsFlow(quoteId, 'detail:funds-flow'))
+  ipcMain.handle('funds-flow:get', (_event, quoteId: string) => getFundsFlow(quoteId, 'detail:funds-flow'))
   ipcMain.handle('sector-index:get', (_event, quoteId: string) => getSectorIndex(quoteId))
   ipcMain.handle('trading-calendar:refresh', () => refreshTradingCalendar())
   ipcMain.handle('state:save', async (_event, nextState: AppState) => {
@@ -987,6 +994,10 @@ if (!hasSingleInstanceLock) {
     marketRequestLogger = new MarketRequestLogger(join(app.getPath('userData'), 'logs'))
     setMarketRequestLogger(marketRequestLogger)
     chipDistributionCache = new ChipDistributionCache(marketCacheDirectory)
+    fundsFlowHub = new FundsFlowHub(
+      fetchFundsFlow,
+      FUNDS_FLOW_REFRESH_MILLISECONDS
+    )
     historicalKlineCache = new HistoricalKlineCache(marketCacheDirectory)
     intradayKlineHub = new IntradayKlineHub(
       (quoteId, caller) => fetchKline(quoteId, 'intraday', undefined, caller),
@@ -1014,7 +1025,7 @@ if (!hasSingleInstanceLock) {
           allowStaleOnError: false,
           caller: 'market-insight'
         }),
-        getFundsFlow: (quoteId) => fetchFundsFlow(quoteId, 'market-insight'),
+        getFundsFlow: (quoteId) => getFundsFlow(quoteId, 'market-insight'),
         notifyUpdated: (quoteId) => sendToWindows('insight:updated', quoteId)
       })
     }

@@ -1072,41 +1072,61 @@ export async function fetchSectorBinding(
 }
 
 export async function fetchFundsFlow(quoteId: string, caller = 'funds-flow'): Promise<FundsFlowResult> {
-  const url = new URL('https://push2.eastmoney.com/api/qt/stock/fflow/kline/get')
-  url.searchParams.set('secid', quoteId)
-  url.searchParams.set('lmt', '0')
-  url.searchParams.set('klt', '1')
-  url.searchParams.set('fields1', 'f1,f2,f3,f7')
-  url.searchParams.set('fields2', 'f51,f52,f53,f54,f55')
+  const fetchFrom = async (origin: string, source: string, fallbackFrom?: string) => {
+    const url = new URL('/api/qt/stock/fflow/kline/get', origin)
+    url.searchParams.set('secid', quoteId)
+    url.searchParams.set('lmt', '0')
+    url.searchParams.set('klt', '1')
+    url.searchParams.set('fields1', 'f1,f2,f3,f7')
+    url.searchParams.set('fields2', 'f51,f52,f53,f54,f55')
 
-  const payload = await requestJson<{
-    data?: { name?: string; klines?: string[] }
-  }>(url.toString(), {
-    dataType: 'funds-flow',
-    caller,
-    source: 'eastmoney-primary',
-    requestedCount: 1,
-    returnedCount: (value) => value.data?.klines?.length ?? 0
-  })
-  const lines = payload.data?.klines ?? []
-  if (lines.length === 0) throw new Error('行情服务未返回资金流向数据')
-
-  const tradingDate = lines.at(-1)?.slice(0, 10) ?? ''
-  const points = lines
-    .filter((line) => line.startsWith(tradingDate))
-    .map((line) => {
-      const [time, main, small, medium, large] = line.split(',')
-      const mainValue = Number(main)
-      const largeValue = Number(large)
-      return {
-        time,
-        main: mainValue,
-        superLarge: mainValue - largeValue,
-        large: largeValue,
-        medium: Number(medium),
-        small: Number(small)
-      }
+    const payload = await requestJson<{
+      data?: { name?: string; klines?: string[] }
+    }>(url.toString(), {
+      dataType: 'funds-flow',
+      caller,
+      source,
+      fallbackFrom,
+      requestedCount: 1,
+      maxAttempts: 1,
+      returnedCount: (value) => value.data?.klines?.length ?? 0
     })
+    const lines = payload.data?.klines ?? []
+    if (lines.length === 0) throw new Error('行情服务未返回资金流向数据')
 
-  return { quoteId, name: payload.data?.name ?? '', tradingDate, points }
+    const tradingDate = lines.at(-1)?.slice(0, 10) ?? ''
+    const points = lines
+      .filter((line) => line.startsWith(tradingDate))
+      .map((line) => {
+        const [time, main, small, medium, large] = line.split(',')
+        const mainValue = Number(main)
+        const largeValue = Number(large)
+        return {
+          time,
+          main: mainValue,
+          superLarge: mainValue - largeValue,
+          large: largeValue,
+          medium: Number(medium),
+          small: Number(small)
+        }
+      })
+
+    return { quoteId, name: payload.data?.name ?? '', tradingDate, points }
+  }
+
+  try {
+    return await fetchFrom('https://push2.eastmoney.com', 'eastmoney-primary')
+  } catch (primaryError) {
+    try {
+      return await fetchFrom(
+        'https://push2delay.eastmoney.com',
+        'eastmoney-delay',
+        'eastmoney-primary'
+      )
+    } catch (delayError) {
+      const primaryMessage = primaryError instanceof Error ? primaryError.message : '请求失败'
+      const delayMessage = delayError instanceof Error ? delayError.message : '请求失败'
+      throw new Error(`资金流向主备节点均不可用（主节点：${primaryMessage}；Delay节点：${delayMessage}）`)
+    }
+  }
 }

@@ -4,6 +4,11 @@ const BEIJING_OFFSET_MILLISECONDS = 8 * 60 * 60 * 1000
 const DAY_MILLISECONDS = 24 * 60 * 60 * 1000
 
 export const INTRADAY_REFRESH_MILLISECONDS = 30_000
+export const FUNDS_FLOW_REFRESH_MILLISECONDS = 2 * 60_000
+
+export function beijingDateKey(date = new Date()): string {
+  return new Date(date.getTime() + BEIJING_OFFSET_MILLISECONDS).toISOString().slice(0, 10)
+}
 
 const AUTO_REFRESH_WINDOWS = [
   [9 * 60 * 60 + 15 * 60, 11 * 60 * 60 + 30 * 60 + 30],
@@ -22,8 +27,7 @@ export function isBeijingAutoRefreshTime(
   date = new Date(),
   additionalClosedDates: readonly string[] = []
 ): boolean {
-  const beijingDateKey = new Date(date.getTime() + BEIJING_OFFSET_MILLISECONDS).toISOString().slice(0, 10)
-  if (!isAStockTradingDay(beijingDateKey, additionalClosedDates)) return false
+  if (!isAStockTradingDay(beijingDateKey(date), additionalClosedDates)) return false
   const current = beijingMillisecondsOfDay(date)
   return AUTO_REFRESH_WINDOWS.some(([start, end]) => (
     current >= start * 1000 && current < (end + 1) * 1000
