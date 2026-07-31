@@ -3,6 +3,8 @@ import { isAStockTradingDay } from './trading-calendar'
 const BEIJING_OFFSET_MILLISECONDS = 8 * 60 * 60 * 1000
 const DAY_MILLISECONDS = 24 * 60 * 60 * 1000
 
+export const INTRADAY_REFRESH_MILLISECONDS = 30_000
+
 const AUTO_REFRESH_WINDOWS = [
   [9 * 60 * 60 + 15 * 60, 11 * 60 * 60 + 30 * 60 + 30],
   [12 * 60 * 60 + 59 * 60 + 30, 15 * 60 * 60 + 30 * 60 + 30]

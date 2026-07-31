@@ -3,7 +3,11 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react
 import { stockApi } from '../lib/api'
 import { estimateChipHistoryLimit, findChipAutoRange } from '../lib/chip-distribution'
 import { formatAmount, formatPercent, formatPrice, formatVolume } from '../lib/format'
-import { isBeijingAutoRefreshTime, millisecondsUntilNextAutoRefreshWindow } from '../shared/market-hours'
+import {
+  INTRADAY_REFRESH_MILLISECONDS,
+  isBeijingAutoRefreshTime,
+  millisecondsUntilNextAutoRefreshWindow
+} from '../shared/market-hours'
 import type { KlineBar, KlinePeriod, KlineResult, StockQuote, WatchStock } from '../shared/types'
 import { FundsFlowPanel } from './FundsFlowPanel'
 import { ChipDistributionPanel } from './ChipDistributionPanel'
@@ -161,7 +165,7 @@ export function ExpandedStockDetails({
     const requestedLimit = isHistoricalTab(tab) ? activeHistoricalLimit : undefined
     const cacheHasRequestedRange = requestedLimit === undefined
       || (cached?.requestedLimit ?? 0) >= requestedLimit
-    const freshness = isLiveChart ? Math.max(3, refreshSeconds) * 1000 : 5 * 60 * 1000
+    const freshness = isLiveChart ? INTRADAY_REFRESH_MILLISECONDS : 5 * 60 * 1000
     let refreshTimer: number | undefined
     let active = true
 
@@ -218,7 +222,7 @@ export function ExpandedStockDetails({
       active = false
       window.clearTimeout(refreshTimer)
     }
-  }, [activeHistoricalLimit, activeTab, refreshSeconds, refreshVersion, stock.quoteId])
+  }, [activeHistoricalLimit, activeTab, refreshVersion, stock.quoteId])
 
   const priceTab = isPriceTab(activeTab) ? activeTab : null
   const data = priceTab ? dataByTab[priceTab] ?? null : null

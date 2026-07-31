@@ -2,11 +2,15 @@ import { AlertCircle, BarChart3, RefreshCw } from 'lucide-react'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { stockApi } from '../lib/api'
 import { formatAmount, formatPercent, formatPrice, formatSigned } from '../lib/format'
-import { isBeijingAutoRefreshTime, millisecondsUntilNextAutoRefreshWindow } from '../shared/market-hours'
+import {
+  INTRADAY_REFRESH_MILLISECONDS,
+  isBeijingAutoRefreshTime,
+  millisecondsUntilNextAutoRefreshWindow
+} from '../shared/market-hours'
 import type { SectorIndexResult, WatchStock } from '../shared/types'
 
 const CandlestickChart = lazy(() => import('./CandlestickChart'))
-const SECTOR_INDEX_REFRESH_MILLISECONDS = 60_000
+const SECTOR_INDEX_REFRESH_MILLISECONDS = INTRADAY_REFRESH_MILLISECONDS
 
 interface SectorIndexCacheEntry {
   data: SectorIndexResult

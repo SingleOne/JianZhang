@@ -34,7 +34,10 @@ import {
   type WatchStock
 } from '../../src/shared/types'
 import { createConfigDocument, parseConfigDocument } from '../../src/shared/config'
-import { isBeijingAutoRefreshTime } from '../../src/shared/market-hours'
+import {
+  INTRADAY_REFRESH_MILLISECONDS,
+  isBeijingAutoRefreshTime
+} from '../../src/shared/market-hours'
 import {
   accountHasTriggeredTAlerts,
   applyTAlertTriggersToAccounts
@@ -60,6 +63,7 @@ import {
 import { OrderBookHub } from './order-book-hub'
 import { ChipDistributionCache } from './chip-distribution-cache'
 import { HistoricalKlineCache } from './historical-kline-cache'
+import { IntradayKlineHub } from './intraday-kline-hub'
 import { MarketRequestLogger } from './market-request-logger'
 import {
   QuoteRefreshCoordinator,
@@ -104,6 +108,7 @@ let aiRuntime: AiRuntime | null = null
 let aiTAdviceRuntime: { dispose: () => void } | null = null
 let chipDistributionCache: ChipDistributionCache | null = null
 let historicalKlineCache: HistoricalKlineCache | null = null
+let intradayKlineHub: IntradayKlineHub | null = null
 let marketRequestLogger: MarketRequestLogger | null = null
 let sectorMarketCache: SectorMarketCache | null = null
 let quoteRefreshCoordinator: QuoteRefreshCoordinator<StockQuote[]> | null = null
@@ -121,6 +126,9 @@ function defaultKlineLimit(period: KlinePeriod): number {
 }
 
 async function getKline(quoteId: string, period: KlinePeriod, limit?: number, caller = 'kline') {
+  if (period === 'intraday' && intradayKlineHub) {
+    return intradayKlineHub.get(quoteId, caller)
+  }
   if (!historicalKlineCache || !isHistoricalKlinePeriod(period)) {
     return fetchKline(quoteId, period, limit, caller)
   }
@@ -980,6 +988,10 @@ if (!hasSingleInstanceLock) {
     setMarketRequestLogger(marketRequestLogger)
     chipDistributionCache = new ChipDistributionCache(marketCacheDirectory)
     historicalKlineCache = new HistoricalKlineCache(marketCacheDirectory)
+    intradayKlineHub = new IntradayKlineHub(
+      (quoteId, caller) => fetchKline(quoteId, 'intraday', undefined, caller),
+      INTRADAY_REFRESH_MILLISECONDS
+    )
     sectorMarketCache = new SectorMarketCache(
       marketCacheDirectory,
       (quoteId) => fetchSectorBinding(quoteId, 'sector-binding-cache')
