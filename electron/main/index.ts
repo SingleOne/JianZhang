@@ -1,12 +1,8 @@
 import {
   app,
-  BrowserWindow,
   dialog,
   ipcMain,
-  Menu,
   Notification,
-  screen,
-  Tray,
   type OpenDialogOptions,
   type SaveDialogOptions
 } from 'electron'
@@ -22,7 +18,6 @@ import {
   type ChipDistributionCacheEntry,
   type KlinePeriod,
   type StockQuote,
-  type TaskbarLayout,
   type TradingCalendarSettings,
   type WatchStock
 } from '../../src/shared/types'
@@ -32,11 +27,7 @@ import {
   INTRADAY_REFRESH_MILLISECONDS,
   isBeijingAutoRefreshTime
 } from '../../src/shared/market-hours'
-import {
-  accountHasTriggeredTAlerts,
-  applyTAlertTriggersToAccounts
-} from '../../src/lib/t-alerts'
-import { calculatePositionMetrics } from '../../src/lib/portfolio'
+import { applyTAlertTriggersToAccounts } from '../../src/lib/t-alerts'
 import { detectFiveLevelLargeOrders } from '../../src/lib/order-book-alerts'
 import {
   applyStockAlertTriggers,
@@ -68,6 +59,7 @@ import { SectorMarketCache } from './sector-market-cache'
 import { StateStore } from './state-store'
 import { fetchSseTradingCalendar } from './trading-calendar'
 import { createAppIcon } from './tray-icons'
+import { WindowManager } from './window-manager'
 
 const DEFAULT_WATCHLIST: WatchStock[] = [
   { code: '600519', name: '贵州茅台', quoteId: '1.600519', marketLabel: '沪A', showInTaskbar: true, isPriority: false, showRadarSignals: true },
@@ -86,19 +78,13 @@ const DEFAULT_STATE: AppState = {
   tTradingAccounts: {}
 }
 
-let mainWindow: BrowserWindow | null = null
-let taskbarWindow: BrowserWindow | null = null
-let trayPopupWindow: BrowserWindow | null = null
-let appTray: Tray | null = null
 let state: AppState = DEFAULT_STATE
 let stateStore: StateStore | null = null
+let windowManager: WindowManager | null = null
 let startupWarning: string | undefined
 let latestQuotes: StockQuote[] = []
 let tradingCalendarCheckTimer: NodeJS.Timeout | null = null
-let trayPopupShowTimer: NodeJS.Timeout | null = null
 let tradingCalendarRefresh: Promise<TradingCalendarSettings> | null = null
-let taskbarLayout: TaskbarLayout = { taskbarHeight: 48 }
-let trayHovered = false
 let fiveLevelRefreshCursor = 0
 let isQuitting = false
 let marketInsightRuntime: MarketInsightRuntime | null = null
@@ -155,9 +141,7 @@ function configTimestamp(): string {
 }
 
 function sendToWindows(channel: string, payload: unknown): void {
-  for (const window of [mainWindow, taskbarWindow, trayPopupWindow]) {
-    if (window && !window.isDestroyed()) window.webContents.send(channel, payload)
-  }
+  windowManager?.sendToWindows(channel, payload)
 }
 
 function showStockAlertNotification(alert: TriggeredStockAlert): void {
@@ -172,29 +156,8 @@ function showStockAlertNotification(alert: TriggeredStockAlert): void {
   notification.show()
 }
 
-function formatPrice(value: number | null): string {
-  if (value === null) return '--'
-  return value >= 100 ? value.toFixed(2) : value.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')
-}
-
-function formatPercent(value: number | null): string {
-  if (value === null) return '--'
-  return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
-}
-
-function formatProfit(value: number | null): string {
-  if (value === null) return '--'
-  return `${value >= 0 ? '+' : ''}${value.toFixed(2)}`
-}
-
 function showMainWindow(quoteId?: string): void {
-  if (!mainWindow || mainWindow.isDestroyed()) return
-  mainWindow.show()
-  if (mainWindow.isMinimized()) mainWindow.restore()
-  mainWindow.focus()
-  if (quoteId) {
-    mainWindow.webContents.send('stock:selected', quoteId)
-  }
+  windowManager?.showMainWindow(quoteId)
 }
 
 function cleanupBeforeQuit(): void {
@@ -208,15 +171,9 @@ function cleanupBeforeQuit(): void {
   quoteRefreshCoordinator?.dispose()
   quoteRefreshCoordinator = null
   if (tradingCalendarCheckTimer) clearInterval(tradingCalendarCheckTimer)
-  if (trayPopupShowTimer) clearTimeout(trayPopupShowTimer)
   tradingCalendarCheckTimer = null
-  trayPopupShowTimer = null
-  appTray?.destroy()
-  appTray = null
-  trayPopupWindow?.destroy()
-  trayPopupWindow = null
-  taskbarWindow?.destroy()
-  taskbarWindow = null
+  windowManager?.dispose()
+  windowManager = null
 }
 
 function quitApp(): void {
@@ -225,263 +182,11 @@ function quitApp(): void {
 }
 
 function updateAppTrayMenu(): void {
-  if (!appTray) return
-
-  const selectedItems = taskbarVisibleStocks()
-    .map((stock) => {
-      const quote = latestQuotes.find((item) => item.quoteId === stock.quoteId)
-      const todayProfit = calculatePositionMetrics(
-        stock.position,
-        quote,
-        state.tTradingAccounts[stock.quoteId]
-      ).todayProfit
-      return {
-        label: `${stock.name}  ${formatPrice(quote?.latest ?? null)}  ${formatPercent(quote?.changePercent ?? null)}  ${formatProfit(todayProfit)}`,
-        click: () => showMainWindow(stock.quoteId)
-      }
-    })
-
-  appTray.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: '打开见涨', click: () => showMainWindow() },
-      { label: '立即刷新', click: () => void refreshAll() },
-      { type: 'separator' },
-      ...(selectedItems.length > 0 ? selectedItems : [{ label: '尚未选择任务栏股票', enabled: false }]),
-      { type: 'separator' },
-      { label: '退出', click: quitApp }
-    ])
-  )
-}
-
-function taskbarVisibleStocks(): WatchStock[] {
-  return state.watchlist.filter((stock) => (
-    stock.showInTaskbar
-    || accountHasTriggeredTAlerts(state.tTradingAccounts[stock.quoteId])
-    || (state.tTradingAccounts[stock.quoteId]?.activeBatch && latestQuotes.some((quote) => (
-      quote.quoteId === stock.quoteId && Boolean(quote.fiveLevelLargeOrders?.length)
-    )))
-  ))
-}
-
-function hasActiveTaskbarAlert(): boolean {
-  return state.watchlist.some((stock) => (
-    accountHasTriggeredTAlerts(state.tTradingAccounts[stock.quoteId])
-    || (state.tTradingAccounts[stock.quoteId]?.activeBatch && latestQuotes.some((quote) => (
-      quote.quoteId === stock.quoteId && Boolean(quote.fiveLevelLargeOrders?.length)
-    )))
-  ))
-}
-
-function trayPopupSize(): { width: number; height: number } {
-  const selectedCount = taskbarVisibleStocks().length
-  const columns = selectedCount > 1 ? 2 : 1
-  const rows = Math.ceil(selectedCount / columns)
-  return {
-    width: columns === 2 ? 638 : 369,
-    height: 35 + rows * 78
-  }
-}
-
-function positionTrayPopupWindow(): void {
-  if (!trayPopupWindow || trayPopupWindow.isDestroyed() || !appTray) return
-
-  const trayBounds = appTray.getBounds()
-  const trayCenter = {
-    x: trayBounds.x + Math.floor(trayBounds.width / 2),
-    y: trayBounds.y + Math.floor(trayBounds.height / 2)
-  }
-  const display = screen.getDisplayNearestPoint(trayCenter)
-  const { width, height: contentHeight } = trayPopupSize()
-  const margin = 8
-  const height = Math.min(contentHeight, display.workArea.height - margin * 2)
-  const minX = display.workArea.x + margin
-  const maxX = display.workArea.x + display.workArea.width - width - margin
-  const x = Math.min(maxX, Math.max(minX, trayCenter.x - Math.floor(width / 2)))
-  const workAreaBottom = display.workArea.y + display.workArea.height
-  const trayIsBelowWorkArea = trayCenter.y >= workAreaBottom
-  const y = trayIsBelowWorkArea
-    ? workAreaBottom - height - margin
-    : Math.min(
-        workAreaBottom - height - margin,
-        Math.max(display.workArea.y + margin, trayBounds.y + trayBounds.height + margin)
-      )
-
-  trayPopupWindow.setBounds({ x, y, width, height })
-}
-
-function hideTrayPopup(): void {
-  if (trayPopupShowTimer) clearTimeout(trayPopupShowTimer)
-  trayPopupShowTimer = null
-  if (trayPopupWindow && !trayPopupWindow.isDestroyed()) trayPopupWindow.hide()
-}
-
-function showTrayPopup(): void {
-  if (!trayHovered || taskbarVisibleStocks().length === 0) return
-  if (!trayPopupWindow || trayPopupWindow.isDestroyed()) {
-    createTrayPopupWindow()
-    return
-  }
-  positionTrayPopupWindow()
-  trayPopupWindow.setAlwaysOnTop(true, 'pop-up-menu')
-  trayPopupWindow.showInactive()
-}
-
-function setTrayHovered(hovered: boolean): void {
-  if (trayHovered === hovered) return
-  trayHovered = hovered
-  if (!hovered) {
-    hideTrayPopup()
-    return
-  }
-
-  trayPopupShowTimer = setTimeout(() => {
-    trayPopupShowTimer = null
-    showTrayPopup()
-  }, 1000)
-}
-
-function createTrayPopupWindow(): void {
-  if (trayPopupWindow && !trayPopupWindow.isDestroyed()) return
-
-  const window = new BrowserWindow({
-    width: 369,
-    height: 113,
-    show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    resizable: false,
-    movable: false,
-    minimizable: false,
-    maximizable: false,
-    closable: false,
-    focusable: false,
-    skipTaskbar: true,
-    alwaysOnTop: true,
-    hasShadow: true,
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      contextIsolation: true,
-      sandbox: true,
-      nodeIntegration: false,
-      backgroundThrottling: false
-    }
-  })
-  trayPopupWindow = window
-
-  window.setAlwaysOnTop(true, 'pop-up-menu')
-  window.setIgnoreMouseEvents(true)
-  window.setMenuBarVisibility(false)
-  window.on('closed', () => {
-    if (trayPopupWindow === window) trayPopupWindow = null
-  })
-  window.webContents.on('did-finish-load', () => {
-    if (trayHovered) showTrayPopup()
-  })
-
-  if (process.env.ELECTRON_RENDERER_URL) {
-    void window.loadURL(`${process.env.ELECTRON_RENDERER_URL}?mode=tray`)
-  } else {
-    void window.loadFile(join(__dirname, '../renderer/index.html'), { query: { mode: 'tray' } })
-  }
-}
-
-function positionTaskbarWindow(): void {
-  if (!taskbarWindow || taskbarWindow.isDestroyed()) return
-
-  const display = screen.getPrimaryDisplay()
-  const taskbarTop = display.workArea.y + display.workArea.height
-  const displayBottom = display.bounds.y + display.bounds.height
-  const taskbarHeight = displayBottom - taskbarTop
-  const selectedCount = taskbarVisibleStocks().length
-
-  if ((!state.settings.showTaskbarTicker && !hasActiveTaskbarAlert()) || selectedCount === 0 || taskbarHeight < 24) {
-    taskbarWindow.hide()
-    return
-  }
-
-  const columns = Math.ceil(selectedCount / 2)
-  const availableWidth = Math.max(280, Math.floor(display.bounds.width / 2 - 110))
-  const width = Math.min(availableWidth, Math.max(280, columns * 260))
-  const horizontalMargin = 24
-  const travelWidth = Math.max(0, display.bounds.width - width - horizontalMargin * 2)
-  const positionPercent = Math.min(100, Math.max(0, state.settings.taskbarPositionPercent))
-  const x = display.bounds.x + horizontalMargin + Math.round(travelWidth * positionPercent / 100)
-  taskbarLayout = { taskbarHeight }
-
-  taskbarWindow.setBounds({
-    x,
-    y: taskbarTop,
-    width,
-    height: taskbarHeight
-  })
-  taskbarWindow.webContents.send('taskbar:layout', taskbarLayout)
-  taskbarWindow.setAlwaysOnTop(true, 'pop-up-menu')
-  taskbarWindow.showInactive()
-}
-
-function createTaskbarWindow(): void {
-  if (taskbarWindow && !taskbarWindow.isDestroyed()) return
-
-  const window = new BrowserWindow({
-    width: 280,
-    height: 158,
-    show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    resizable: false,
-    movable: false,
-    minimizable: false,
-    maximizable: false,
-    closable: false,
-    focusable: false,
-    skipTaskbar: true,
-    alwaysOnTop: true,
-    hasShadow: false,
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      contextIsolation: true,
-      sandbox: true,
-      nodeIntegration: false,
-      backgroundThrottling: false
-    }
-  })
-  taskbarWindow = window
-
-  window.setAlwaysOnTop(true, 'pop-up-menu')
-  window.setIgnoreMouseEvents(true)
-  window.setMenuBarVisibility(false)
-  window.on('closed', () => {
-    if (taskbarWindow === window) taskbarWindow = null
-  })
-  window.webContents.on('did-finish-load', () => {
-    syncTaskbarWindow()
-    setTimeout(positionTaskbarWindow, 100)
-  })
-
-  if (process.env.ELECTRON_RENDERER_URL) {
-    void window.loadURL(`${process.env.ELECTRON_RENDERER_URL}?mode=taskbar`)
-  } else {
-    void window.loadFile(join(__dirname, '../renderer/index.html'), { query: { mode: 'taskbar' } })
-  }
+  windowManager?.updateTrayMenu()
 }
 
 function syncTaskbarWindow(): void {
-  const shouldShow = taskbarVisibleStocks().length > 0
-    && (state.settings.showTaskbarTicker || hasActiveTaskbarAlert())
-
-  if (!shouldShow) {
-    if (taskbarWindow && !taskbarWindow.isDestroyed()) taskbarWindow.hide()
-    return
-  }
-
-  if (!taskbarWindow || taskbarWindow.isDestroyed()) {
-    createTaskbarWindow()
-    return
-  }
-
-  positionTaskbarWindow()
+  windowManager?.syncTaskbarWindow()
 }
 
 function mergeQuotes(refreshedQuotes: StockQuote[]): void {
@@ -738,49 +443,6 @@ function restartRefreshTimers(): void {
   quoteRefreshCoordinator?.restartSchedule()
 }
 
-function createWindow(): void {
-  mainWindow = new BrowserWindow({
-    width: 1380,
-    height: 860,
-    minWidth: 1080,
-    minHeight: 700,
-    show: false,
-    backgroundColor: '#ffffff',
-    backgroundMaterial: 'mica',
-    titleBarStyle: 'hidden',
-    titleBarOverlay: {
-      color: '#ffffff',
-      symbolColor: '#334155',
-      height: 44
-    },
-    icon: createAppIcon(),
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      contextIsolation: true,
-      sandbox: true,
-      nodeIntegration: false
-    }
-  })
-
-  mainWindow.setMenuBarVisibility(false)
-  mainWindow.on('ready-to-show', () => {
-    mainWindow?.maximize()
-    mainWindow?.show()
-  })
-  mainWindow.on('close', (event) => {
-    if (!isQuitting && state.settings.minimizeToTray) {
-      event.preventDefault()
-      mainWindow?.hide()
-    }
-  })
-
-  if (process.env.ELECTRON_RENDERER_URL) {
-    void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
-  } else {
-    void mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
-  }
-}
-
 async function getSectorIndex(stockQuoteId: string) {
   if (!sectorMarketCache || !quoteRefreshCoordinator) throw new Error('板块行情缓存尚未初始化')
   const binding = await sectorMarketCache.ensureBinding(stockQuoteId)
@@ -816,7 +478,7 @@ function registerIpc(): void {
     source: 'eastmoney' as const,
     warning: startupWarning
   }))
-  ipcMain.handle('taskbar:layout:get', () => taskbarLayout)
+  ipcMain.handle('taskbar:layout:get', () => windowManager?.getTaskbarLayout() ?? { taskbarHeight: 48 })
   ipcMain.handle('stocks:search', (_event, query: string) => searchStocks(query))
   ipcMain.handle('quotes:refresh', () => refreshAll('manual'))
   ipcMain.handle('kline:get', (_event, quoteId: string, period: KlinePeriod, limit?: number) => (
@@ -862,7 +524,7 @@ function registerIpc(): void {
     if (fiveLevelAlertsCleared) sendToWindows('quotes:updated', latestQuotes)
     updateAppTrayMenu()
     syncTaskbarWindow()
-    if (trayPopupWindow?.isVisible()) positionTrayPopupWindow()
+    windowManager?.positionTrayPopupIfVisible()
     if (watchedStocksChanged) void primeSectorBindings(true)
     if (marketIndicesChanged) void refreshAll('state-change:indices')
     else if (watchedStocksChanged || priorityChanged) void refreshAllAutomatically('state-change:watchlist')
@@ -875,6 +537,7 @@ function registerIpc(): void {
       defaultPath: join(app.getPath('documents'), `见涨-配置-${configTimestamp()}.json`),
       filters: [{ name: 'JSON 配置文件', extensions: ['json'] }]
     }
+    const mainWindow = windowManager?.getMainWindow()
     const result = mainWindow
       ? await dialog.showSaveDialog(mainWindow, options)
       : await dialog.showSaveDialog(options)
@@ -890,6 +553,7 @@ function registerIpc(): void {
       properties: ['openFile'],
       filters: [{ name: 'JSON 配置文件', extensions: ['json'] }]
     }
+    const mainWindow = windowManager?.getMainWindow()
     const result = mainWindow
       ? await dialog.showOpenDialog(mainWindow, options)
       : await dialog.showOpenDialog(options)
@@ -899,7 +563,7 @@ function registerIpc(): void {
     const importedState = parseConfigDocument(JSON.parse(readFileSync(filePath, 'utf8')))
     return { canceled: false, filePath, state: importedState }
   })
-  ipcMain.handle('app:hide', () => mainWindow?.hide())
+  ipcMain.handle('app:hide', () => windowManager?.hideMainWindow())
   ipcMain.handle('app:quit', quitApp)
 }
 
@@ -1009,24 +673,14 @@ if (!hasSingleInstanceLock) {
         })
       }
     }
-    createWindow()
-    syncTaskbarWindow()
-
-    appTray = new Tray(createAppIcon())
-    appTray.on('click', () => {
-      setTrayHovered(false)
-      showMainWindow()
+    windowManager = new WindowManager({
+      getState: () => state,
+      getQuotes: () => latestQuotes,
+      isQuitting: () => isQuitting,
+      refreshQuotes: () => refreshAll(),
+      quit: quitApp
     })
-    appTray.on('mouse-enter', () => setTrayHovered(true))
-    appTray.on('mouse-move', () => setTrayHovered(true))
-    appTray.on('mouse-leave', () => setTrayHovered(false))
-    updateAppTrayMenu()
-    screen.on('display-metrics-changed', () => {
-      syncTaskbarWindow()
-      if (trayPopupWindow?.isVisible()) positionTrayPopupWindow()
-    })
-    screen.on('display-added', syncTaskbarWindow)
-    screen.on('display-removed', syncTaskbarWindow)
+    windowManager.create()
     quoteRefreshCoordinator.start()
     tradingCalendarCheckTimer = setInterval(
       () => void refreshTradingCalendarAutomatically().catch(() => undefined),
