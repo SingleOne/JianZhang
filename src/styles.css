@@ -2227,7 +2227,7 @@ tr:focus-visible {
 }
 
 .position-dialog {
-  width: min(920px, 100%);
+  width: min(1120px, 100%);
   max-height: calc(100vh - 48px);
   display: flex;
   flex-direction: column;
