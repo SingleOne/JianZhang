@@ -1,6 +1,7 @@
 import { Bot, CircleCheck, RefreshCw, Signal, WifiOff } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { AppTitlebar } from './components/AppTitlebar'
+import { useConfirmDialog } from './components/ConfirmDialog'
 import { SearchBar } from './components/SearchBar'
 import { SettingsMenu } from './components/SettingsMenu'
 import { WatchlistTable } from './components/WatchlistTable'
@@ -39,6 +40,7 @@ function cardDirectionClass(value: number | null | undefined): string {
 }
 
 export default function App() {
+  const confirm = useConfirmDialog()
   const [state, setState] = useState<AppState>(initialState)
   const [quotes, setQuotes] = useState<StockQuote[]>([])
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null)
@@ -315,9 +317,12 @@ export default function App() {
     try {
       const result = await stockApi.importConfig()
       if (result.canceled || !result.state) return
-      const confirmed = window.confirm(
-        `导入后将用文件中的 ${result.state.watchlist.length} 只股票和全部设置覆盖当前配置，是否继续？`
-      )
+      const confirmed = await confirm({
+        title: '导入并覆盖当前配置',
+        message: `导入后将用文件中的 ${result.state.watchlist.length} 只股票和全部设置覆盖当前配置。`,
+        confirmLabel: '继续导入',
+        tone: 'danger'
+      })
       if (!confirmed) return
 
       const importedQuoteIds = new Set(result.state.watchlist.map((stock) => stock.quoteId))
@@ -330,7 +335,7 @@ export default function App() {
     } finally {
       setConfigBusy(false)
     }
-  }, [persist, reportError, reportSuccess])
+  }, [confirm, persist, reportError, reportSuccess])
 
   const refreshNow = async () => {
     setRefreshing(true)

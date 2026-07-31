@@ -38,6 +38,7 @@ import type {
   TTradeSide,
   WatchStock
 } from '../shared/types'
+import { useConfirmDialog } from './ConfirmDialog'
 
 interface PositionEditorProps {
   stock: WatchStock
@@ -483,6 +484,7 @@ export function PositionEditor({
   onSave,
   onClose
 }: PositionEditorProps) {
+  const confirm = useConfirmDialog()
   const [quantity, setQuantity] = useState(stock.position?.quantity.toString() ?? '')
   const [cost, setCost] = useState(stock.position?.cost.toString() ?? '')
   const [openedOn, setOpenedOn] = useState(
@@ -602,11 +604,15 @@ export function PositionEditor({
     cancelEditingTradeRecord()
   }
 
-  const deleteTradeRecord = (record: TTradeRecord) => {
+  const deleteTradeRecord = async (record: TTradeRecord) => {
     if (!workingAccount) return
-    if (!window.confirm(`确定删除 ${formatTradeTime(record.tradedAt)} 的${tradeRecordLabel(record)}记录吗？`)) {
-      return
-    }
+    const confirmed = await confirm({
+      title: '删除交易记录',
+      message: `确定删除 ${formatTradeTime(record.tradedAt)} 的${tradeRecordLabel(record)}记录吗？`,
+      confirmLabel: '删除记录',
+      tone: 'danger'
+    })
+    if (!confirmed) return
     const result = updateTradeAccount(workingAccount, record, undefined, planDefaults)
     if (result.error) {
       setEditingTradeId(record.id)

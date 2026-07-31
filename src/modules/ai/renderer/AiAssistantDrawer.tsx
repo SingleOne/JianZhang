@@ -21,6 +21,7 @@ import {
   X
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useConfirmDialog } from '../../../components/ConfirmDialog'
 import type {
   AiApiKeyProviderId,
   AiConnectionResult,
@@ -311,6 +312,7 @@ function AiSettingsPanel({
 
 export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistantDrawerProps) {
   const api = window.aiApi
+  const confirm = useConfirmDialog()
   const [activeTab, setActiveTab] = useState<'chat' | 'settings'>('chat')
   const [status, setStatus] = useState<AiStatus | null>(null)
   const [settings, setSettings] = useState<AiSettings | null>(null)
@@ -463,7 +465,14 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
   }
 
   const deleteConversation = async (conversation: AiConversation) => {
-    if (!api || !window.confirm(`删除“${conversation.title}”及其全部本地消息？`)) return
+    if (!api) return
+    const confirmed = await confirm({
+      title: '删除 AI 对话',
+      message: `确定删除“${conversation.title}”及其全部本地消息吗？`,
+      confirmLabel: '删除对话',
+      tone: 'danger'
+    })
+    if (!confirmed) return
     try {
       await api.deleteConversation(conversation.id)
       await loadConversations(search)
@@ -473,7 +482,14 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
   }
 
   const clearConversations = async () => {
-    if (!api || !window.confirm('清空全部 AI 本地对话及消息？此操作无法恢复。')) return
+    if (!api) return
+    const confirmed = await confirm({
+      title: '清空全部 AI 对话',
+      message: '确定清空全部 AI 本地对话及消息吗？此操作无法恢复。',
+      confirmLabel: '全部清空',
+      tone: 'danger'
+    })
+    if (!confirmed) return
     try {
       await api.clearConversations()
       setConversations([])
@@ -622,7 +638,14 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
   }
 
   const clearCredential = async (providerId: AiApiKeyProviderId) => {
-    if (!api || !window.confirm('清除当前 Provider 的 API Key？')) return
+    if (!api) return
+    const confirmed = await confirm({
+      title: '清除 API Key',
+      message: '确定清除当前 Provider 的 API Key 吗？',
+      confirmLabel: '清除 Key',
+      tone: 'danger'
+    })
+    if (!confirmed) return
     setBusy(true)
     try {
       await api.clearCredential(providerId)
@@ -667,7 +690,13 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
   }
 
   const logoutCodexAccount = async () => {
-    if (!api || !window.confirm('退出见涨使用的 Codex 账号？这不会退出浏览器中的 ChatGPT。')) return
+    if (!api) return
+    const confirmed = await confirm({
+      title: '退出 Codex 账号',
+      message: '确定退出见涨使用的 Codex 账号吗？这不会退出浏览器中的 ChatGPT。',
+      confirmLabel: '退出登录'
+    })
+    if (!confirmed) return
     setBusy(true)
     try {
       await api.logoutCodexAccount()

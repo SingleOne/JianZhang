@@ -53,6 +53,7 @@ import type {
   TTradeSide,
   WatchStock
 } from '../shared/types'
+import { useConfirmDialog } from './ConfirmDialog'
 
 interface TTradingDrawerProps {
   stock: WatchStock
@@ -113,6 +114,7 @@ export function TTradingDrawer({
   onApply,
   onClose
 }: TTradingDrawerProps) {
+  const confirm = useConfirmDialog()
   const currentAccount: TTradingAccount = account ?? {
     quoteId: stock.quoteId,
     code: stock.code,
@@ -534,10 +536,13 @@ export function TTradingDrawer({
     cancelEditingHistoryProfit()
   }
 
-  const deleteHistoryBatch = (batch: TTradingBatch) => {
-    const confirmed = window.confirm(
-      `确定删除做T历史批次 #${batch.sequence} 吗？删除后无法恢复。`
-    )
+  const deleteHistoryBatch = async (batch: TTradingBatch) => {
+    const confirmed = await confirm({
+      title: '删除做T历史批次',
+      message: `确定删除做T历史批次 #${batch.sequence} 吗？删除后无法恢复。`,
+      confirmLabel: '删除批次',
+      tone: 'danger'
+    })
     if (!confirmed) return
 
     applyAccount({

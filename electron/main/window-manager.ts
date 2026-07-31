@@ -2,6 +2,7 @@ import { BrowserWindow, Menu, screen, Tray, type MenuItemConstructorOptions } fr
 import { join } from 'node:path'
 import { accountHasTriggeredTAlerts } from '../../src/lib/t-alerts'
 import { calculatePositionMetrics } from '../../src/lib/portfolio'
+import { formatPercent, formatPrice, formatProfit } from '../../src/lib/format'
 import type { AppState, StockQuote, TaskbarLayout, WatchStock } from '../../src/shared/types'
 import { createAppIcon } from './tray-icons'
 
@@ -11,21 +12,6 @@ interface WindowManagerDependencies {
   isQuitting: () => boolean
   refreshQuotes: () => Promise<unknown>
   quit: () => void
-}
-
-function formatPrice(value: number | null): string {
-  if (value === null) return '--'
-  return value >= 100 ? value.toFixed(2) : value.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')
-}
-
-function formatPercent(value: number | null): string {
-  if (value === null) return '--'
-  return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
-}
-
-function formatProfit(value: number | null): string {
-  if (value === null) return '--'
-  return `${value >= 0 ? '+' : ''}${value.toFixed(2)}`
 }
 
 export class WindowManager {

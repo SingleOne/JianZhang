@@ -6,6 +6,7 @@ import type {
   WatchStock
 } from '../shared/types'
 import { calculatePositionMetrics } from './portfolio'
+import { formatPercent, formatPrice } from './format'
 
 export const STOCK_ALERT_METRIC_LABELS: Record<StockAlertMetric, string> = {
   price: '股价',
@@ -107,10 +108,7 @@ export function applyStockAlertTriggers(
 }
 
 export function formatStockAlertValue(metric: StockAlertMetric, value: number): string {
-  if (metric === 'price') {
-    return value >= 100 ? value.toFixed(2) : value.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')
-  }
-  return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
+  return metric === 'price' ? formatPrice(value) : formatPercent(value)
 }
 
 export function formatStockAlertNotification(alert: TriggeredStockAlert): {

@@ -1,4 +1,5 @@
 import type { IndicatorValue, MarketInsightSnapshot } from '../../market-insight/shared/types'
+import { formatPercent, formatPrice } from '../../../lib/format'
 import type { AiTAdviceTradingContext } from '../shared/types'
 
 export type AiTAdviceObjectiveEventCategory =
@@ -42,14 +43,6 @@ function value(indicators: Map<string, IndicatorValue>, id: string): number | nu
   return current !== null && current !== undefined && Number.isFinite(current) ? current : null
 }
 
-function priceText(value: number): string {
-  return value.toFixed(value >= 100 ? 2 : 3)
-}
-
-function percentText(value: number): string {
-  return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
-}
-
 function ratioText(value: number): string {
   return value.toFixed(2)
 }
@@ -80,11 +73,11 @@ function addQuoteEvents(events: AiTAdviceObjectiveEvent[], context: AiTAdviceTra
       significance: Math.abs(quote.changePercent) >= 5 ? 'strong' : 'notable',
       title: `当前价格较昨收${quote.changePercent > 0 ? '明显上涨' : '明显下跌'}`,
       facts: [
-        `最新价 ${priceText(latest)}`,
-        `涨跌幅 ${percentText(quote.changePercent)}`,
+        `最新价 ${formatPrice(latest)}`,
+        `涨跌幅 ${formatPercent(quote.changePercent)}`,
         ...(quote.low === null || quote.high === null
           ? []
-          : [`当日区间 ${priceText(quote.low)} 至 ${priceText(quote.high)}`])
+          : [`当日区间 ${formatPrice(quote.low)} 至 ${formatPrice(quote.high)}`])
       ],
       sourceIds: ['quote.latest', 'quote.changePercent', 'quote.high', 'quote.low']
     })
@@ -98,9 +91,9 @@ function addQuoteEvents(events: AiTAdviceObjectiveEvent[], context: AiTAdviceTra
         significance: Math.abs(gap) >= 3 ? 'strong' : 'notable',
         title: `开盘价较昨收${gap > 0 ? '高开' : '低开'}`,
         facts: [
-          `开盘价 ${priceText(quote.open)}`,
-          `昨收 ${priceText(quote.previousClose)}`,
-          `开盘缺口 ${percentText(gap)}`
+          `开盘价 ${formatPrice(quote.open)}`,
+          `昨收 ${formatPrice(quote.previousClose)}`,
+          `开盘缺口 ${formatPercent(gap)}`
         ],
         sourceIds: ['quote.open', 'quote.previousClose']
       })
@@ -121,10 +114,10 @@ function addBollingerEvents(
   const upperDeviation = deviationPercent(latest, upper)!
   const lowerDeviation = deviationPercent(latest, lower)!
   const facts = [
-    `最新价 ${priceText(latest)}`,
-    `布林上轨 ${priceText(upper)}，相对上轨 ${percentText(upperDeviation)}`,
-    ...(middle === null ? [] : [`布林中轨 ${priceText(middle)}，相对中轨 ${percentText(deviationPercent(latest, middle)!)}`]),
-    `布林下轨 ${priceText(lower)}，相对下轨 ${percentText(lowerDeviation)}`
+    `最新价 ${formatPrice(latest)}`,
+    `布林上轨 ${formatPrice(upper)}，相对上轨 ${formatPercent(upperDeviation)}`,
+    ...(middle === null ? [] : [`布林中轨 ${formatPrice(middle)}，相对中轨 ${formatPercent(deviationPercent(latest, middle)!)}`]),
+    `布林下轨 ${formatPrice(lower)}，相对下轨 ${formatPercent(lowerDeviation)}`
   ]
   if (latest > upper) {
     add(events, {
@@ -156,7 +149,7 @@ function addBollingerEvents(
       id: 'bollinger-high-exceeded-upper',
       category: 'volatility',
       title: '当日最高价越过布林上轨，但当前价已回到轨道内',
-      facts: [`当日最高价 ${priceText(high)}`, ...facts],
+      facts: [`当日最高价 ${formatPrice(high)}`, ...facts],
       sourceIds: ['quote.high', 'quote.latest', 'bollinger-upper']
     })
   }
@@ -165,7 +158,7 @@ function addBollingerEvents(
       id: 'bollinger-low-breached-lower',
       category: 'volatility',
       title: '当日最低价跌破布林下轨，但当前价已回到轨道内',
-      facts: [`当日最低价 ${priceText(low)}`, ...facts],
+      facts: [`当日最低价 ${formatPrice(low)}`, ...facts],
       sourceIds: ['quote.low', 'quote.latest', 'bollinger-lower']
     })
   }
@@ -205,8 +198,8 @@ function addIntradayEvents(
       significance: Math.abs(vwapDeviation) >= 1.5 ? 'strong' : 'notable',
       title: `当前价格明显位于 VWAP ${vwapDeviation > 0 ? '上方' : '下方'}`,
       facts: [
-        `相对 VWAP ${percentText(vwapDeviation)}`,
-        ...(vwap === null ? [] : [`VWAP ${priceText(vwap)}`])
+        `相对 VWAP ${formatPercent(vwapDeviation)}`,
+        ...(vwap === null ? [] : [`VWAP ${formatPrice(vwap)}`])
       ],
       sourceIds: ['vwap-deviation', 'vwap']
     })
@@ -225,7 +218,7 @@ function addIntradayEvents(
       category: 'intraday',
       significance: largestReturn >= 1.5 ? 'strong' : 'notable',
       title: `多个短周期收益一致为${allPositive ? '正' : '负'}`,
-      facts: returns.map((item) => `${item.minutes} 分钟收益 ${percentText(item.value)}`),
+      facts: returns.map((item) => `${item.minutes} 分钟收益 ${formatPercent(item.value)}`),
       sourceIds: returns.map((item) => `return-${item.minutes}m`)
     })
   } else if (largestReturn >= 1) {
@@ -233,7 +226,7 @@ function addIntradayEvents(
       id: 'short-return-divergence',
       category: 'intraday',
       title: '短周期收益出现明显波动或方向分化',
-      facts: returns.map((item) => `${item.minutes} 分钟收益 ${percentText(item.value)}`),
+      facts: returns.map((item) => `${item.minutes} 分钟收益 ${formatPercent(item.value)}`),
       sourceIds: returns.map((item) => `return-${item.minutes}m`)
     })
   }
@@ -255,8 +248,8 @@ function addIntradayEvents(
   for (const minutes of [15, 30] as const) {
     const high = value(indicators, `opening-range-${minutes}-high`)
     const low = value(indicators, `opening-range-${minutes}-low`)
-    if (high !== null && latest > high) aboveRanges.push(`高于开盘 ${minutes} 分钟高点 ${priceText(high)}`)
-    if (low !== null && latest < low) belowRanges.push(`低于开盘 ${minutes} 分钟低点 ${priceText(low)}`)
+    if (high !== null && latest > high) aboveRanges.push(`高于开盘 ${minutes} 分钟高点 ${formatPrice(high)}`)
+    if (low !== null && latest < low) belowRanges.push(`低于开盘 ${minutes} 分钟低点 ${formatPrice(low)}`)
   }
   if (aboveRanges.length > 0 || belowRanges.length > 0) {
     const facts = aboveRanges.length > 0 ? aboveRanges : belowRanges
@@ -265,7 +258,7 @@ function addIntradayEvents(
       category: 'intraday',
       significance: facts.length === 2 ? 'strong' : 'notable',
       title: `当前价格${aboveRanges.length > 0 ? '站在开盘区间上方' : '位于开盘区间下方'}`,
-      facts: [`最新价 ${priceText(latest)}`, ...facts],
+      facts: [`最新价 ${formatPrice(latest)}`, ...facts],
       sourceIds: [
         'quote.latest',
         ...(aboveRanges.length > 0
@@ -315,7 +308,7 @@ function addTrendEvents(
         ? `当前价格位于全部可用均线${above.length > 0 ? '上方' : '下方'}`
         : '当前价格相对长短期均线位置分化',
       facts: movingAverages.map((item) => (
-        `${item.label} ${priceText(item.value)}，当前价相对该均线 ${percentText(deviationPercent(latest, item.value)!)}`
+        `${item.label} ${formatPrice(item.value)}，当前价相对该均线 ${formatPercent(deviationPercent(latest, item.value)!)}`
       )),
       sourceIds: ['quote.latest', ...movingAverages.map((item) => item.id)]
     })
@@ -330,7 +323,7 @@ function addTrendEvents(
         id: ema12 > ema26 ? 'ema12-above-ema26' : 'ema12-below-ema26',
         category: 'trend',
         title: `EMA12 位于 EMA26 ${ema12 > ema26 ? '上方' : '下方'}`,
-        facts: [`EMA12 ${priceText(ema12)}`, `EMA26 ${priceText(ema26)}`, `两者偏离 ${percentText(gap)}`],
+        facts: [`EMA12 ${formatPrice(ema12)}`, `EMA26 ${formatPrice(ema26)}`, `两者偏离 ${formatPercent(gap)}`],
         sourceIds: ['ema12', 'ema26']
       })
     }
@@ -420,7 +413,7 @@ function addVolatilityEvents(
         category: 'volatility',
         significance: atrPercent >= 5 ? 'strong' : 'notable',
         title: 'ATR 占当前价格比例较高',
-        facts: [`ATR14 ${priceText(atr)}`, `ATR14 占最新价 ${atrPercent.toFixed(2)}%`],
+        facts: [`ATR14 ${formatPrice(atr)}`, `ATR14 占最新价 ${formatPercent(atrPercent)}`],
         sourceIds: ['atr14', 'quote.latest']
       })
     }
@@ -474,7 +467,7 @@ function addRelativeStrengthEvents(events: AiTAdviceObjectiveEvent[], indicators
   for (const [id, label] of [['relative-sector', '相对行业'], ['relative-index', '相对大盘']] as const) {
     const current = value(indicators, id)
     if (current === null || Math.abs(current) < 0.5) continue
-    relativeFacts.push(`${label} ${percentText(current)}`)
+    relativeFacts.push(`${label} ${formatPercent(current)}`)
     sourceIds.push(id)
     strongest = Math.max(strongest, Math.abs(current))
   }
@@ -522,7 +515,7 @@ function addPositionAndPlanEvents(
         category: 'position',
         significance: Math.abs(deviation) >= 5 ? 'strong' : 'notable',
         title: `当前价格位于持仓成本${deviation > 0 ? '上方' : '下方'}`,
-        facts: [`持仓成本 ${priceText(positionCost)}`, `最新价相对持仓成本 ${percentText(deviation)}`],
+        facts: [`持仓成本 ${formatPrice(positionCost)}`, `最新价相对持仓成本 ${formatPercent(deviation)}`],
         sourceIds: ['position.cost', 'quote.latest']
       })
     }
@@ -538,8 +531,8 @@ function addPositionAndPlanEvents(
       significance: Math.abs(nearest.distancePercent) <= 0.5 ? 'strong' : 'notable',
       title: '当前价格接近已有 T 计划档位',
       facts: [
-        `${nearest.label} ${priceText(nearest.price)}`,
-        `当前价相对该档位 ${percentText(nearest.distancePercent)}`,
+        `${nearest.label} ${formatPrice(nearest.price)}`,
+        `当前价相对该档位 ${formatPercent(nearest.distancePercent)}`,
         ...(nearest.quantity === null ? [] : [`档位数量 ${nearest.quantity} 股`])
       ],
       sourceIds: [`existingTPlanDistances.${nearest.id}`, 'quote.latest']

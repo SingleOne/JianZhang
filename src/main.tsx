@@ -3,10 +3,12 @@ import { createRoot } from 'react-dom/client'
 import App from './App'
 import { TaskbarTicker } from './components/TaskbarTicker'
 import { TrayHoverSummary } from './components/TrayHoverSummary'
+import { ConfirmDialogProvider } from './components/ConfirmDialog'
 import './styles.css'
 import './components/SettingsMenu.css'
 import './components/WatchlistTable.css'
 import './components/WatchlistDialogs.css'
+import './components/ConfirmDialog.css'
 import './components/TTradingDrawer.css'
 import './components/PositionDialogResponsive.css'
 import './components/ExpandedStockDetails.css'
@@ -22,6 +24,8 @@ document.documentElement.classList.toggle('tray-mode', trayMode)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {taskbarMode ? <TaskbarTicker /> : trayMode ? <TrayHoverSummary /> : <App />}
+    <ConfirmDialogProvider>
+      {taskbarMode ? <TaskbarTicker /> : trayMode ? <TrayHoverSummary /> : <App />}
+    </ConfirmDialogProvider>
   </StrictMode>
 )

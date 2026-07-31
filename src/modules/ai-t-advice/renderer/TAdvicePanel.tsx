@@ -9,6 +9,7 @@ import {
   Sparkles
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { formatPrice } from '../../../lib/format'
 import type { StockQuote, WatchStock } from '../../../shared/types'
 import type {
   AiTAdvice,
@@ -49,11 +50,6 @@ function generationStep(phase: AiTAdviceProgressEvent['phase']): number {
   if (phase === 'refreshing-snapshot' || phase === 'waiting-order-book') return 1
   if (phase === 'analyzing') return 2
   return 3
-}
-
-function formatPrice(value: number | null | undefined): string {
-  if (value === null || value === undefined) return '--'
-  return value >= 100 ? value.toFixed(2) : value.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')
 }
 
 function formatTime(value: string): string {

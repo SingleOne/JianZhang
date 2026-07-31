@@ -2,6 +2,7 @@ import { FolderPlus, Folders, Search, Trash2, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { StockQuote, WatchlistGroup, WatchStock } from '../shared/types'
+import { useConfirmDialog } from './ConfirmDialog'
 
 interface WatchlistGroupDialogProps {
   groups: WatchlistGroup[]
@@ -18,6 +19,7 @@ export function WatchlistGroupDialog({
   onSave,
   onClose
 }: WatchlistGroupDialogProps) {
+  const confirm = useConfirmDialog()
   const [groups, setGroups] = useState<WatchlistGroup[]>(() => initialGroups.map((group) => ({ ...group })))
   const [groupIdsByQuoteId, setGroupIdsByQuoteId] = useState<Record<string, string[]>>(() => (
     Object.fromEntries(stocks.map((stock) => [stock.quoteId, [...(stock.groupIds ?? [])]]))
@@ -57,8 +59,14 @@ export function WatchlistGroupDialog({
     setNewGroupName('')
   }
 
-  const deleteGroup = (group: WatchlistGroup) => {
-    if (!window.confirm(`删除分组“${group.name}”？股票不会从自选列表中删除。`)) return
+  const deleteGroup = async (group: WatchlistGroup) => {
+    const confirmed = await confirm({
+      title: '删除自定义分组',
+      message: `确定删除分组“${group.name}”吗？组内股票不会从自选列表中删除。`,
+      confirmLabel: '删除分组',
+      tone: 'danger'
+    })
+    if (!confirmed) return
     const nextGroups = groups.filter((item) => item.id !== group.id)
     setGroups(nextGroups)
     setGroupIdsByQuoteId((current) => Object.fromEntries(

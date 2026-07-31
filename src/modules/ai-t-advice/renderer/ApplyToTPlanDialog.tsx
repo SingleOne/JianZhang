@@ -1,5 +1,6 @@
 import { AlertTriangle, ArrowRight, X } from 'lucide-react'
 import { useState } from 'react'
+import { formatPrice } from '../../../lib/format'
 import type { AiTAdviceApplyPreview } from '../shared/types'
 
 interface ApplyToTPlanDialogProps {
@@ -8,11 +9,6 @@ interface ApplyToTPlanDialogProps {
   error: string
   onCancel: () => void
   onConfirm: () => void
-}
-
-function formatPrice(value: number | null): string {
-  if (value === null) return '--'
-  return value >= 100 ? value.toFixed(2) : value.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')
 }
 
 export function ApplyToTPlanDialog({
