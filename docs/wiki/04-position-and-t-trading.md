@@ -10,7 +10,8 @@
 | `src/lib/portfolio.ts` | 持仓指标、今日收益、可用数量、持仓天数、组合汇总 |
 | `src/lib/t-trading.ts` | 费用、正/反 T 账本、成本、批次和持仓重算 |
 | `src/lib/t-alerts.ts` | 五档目标价、预测数据、提醒状态机 |
-| `src/components/PositionEditor.tsx` | 持仓录入和版本快照 |
+| `src/lib/trade-records.ts` | 统一交易流水排序、批次筛选、写入和批次关联处理 |
+| `src/components/PositionEditor.tsx` | 持仓录入、版本快照、全部交易记录的查看与行内编辑 |
 | `src/components/TTradingDrawer.tsx` | 做 T 交易、计划、结算和历史交互 |
 | `src/components/TPlanTable.tsx` | 买入/卖出五档表格 |
 | `src/components/TAlertBadges.tsx` | 主表和任务栏共用提醒标识 |
@@ -43,13 +44,7 @@
 
 ### 今日收益
 
-`calculatePositionMetrics` 汇总该股票做 T 账户中的：
-
-- 独立底仓交易。
-- 当前活动批次交易。
-- 历史批次交易。
-
-只保留交易日期为今天的记录，然后反推开盘数量：
+`calculatePositionMetrics` 通过 `getAccountTrades` 读取该股票账户唯一的 `tradeRecords`，只保留交易日期为今天的记录，然后反推开盘数量：
 
 ```text
 开盘数量 = 当前数量 - 今日买入数量 + 今日卖出数量
@@ -87,6 +82,8 @@
 
 `PositionEditor` 可保存多个 `StockPositionSnapshot`。快照只记录名称、创建时间、数量和成本，用当前最新价计算版本市值和收益差，不影响真实持仓和做 T 账本。
 
+同一弹窗还展示最近 5 条统一交易记录；“查看更多”按每页 15 条查看全部记录。交易类型、时间、数量、价格、费用和备注都可行内编辑，也可直接删除。保存持仓设置前这些修改只存在于弹窗草稿中。
+
 ## 做 T 账户模型
 
 每只股票对应一个 `TTradingAccount`：
@@ -95,13 +92,24 @@
 TTradingAccount
 ├─ activeBatch?   当前活动批次
 ├─ history[]      已结算批次，新的在前
-├─ baseTrades[]   未进入 T 批次的底仓增减记录
-└─ tradeRecords[] 统一交易记录，包含全部 T 流水和底仓增减
+└─ tradeRecords[] 唯一交易数据源，包含全部 T 流水和底仓增减
 ```
 
-`normalizeTTradingAccounts` 会从活动批次、历史批次和独立底仓流水回填 `tradeRecords`。因此旧版配置首次加载后也会保留并展示之前的全部做 T 历史交易。
+`TTradeRecord` 在普通 `TTrade` 基础上增加可选的：
 
-统一交易记录位于“编辑持仓”弹窗的持仓快照下方，主弹窗只展示最近 5 条；“查看更多”打开独立弹窗，全部记录每页 15 条。
+```text
+batchId / batchSequence / batchDirection
+```
+
+缺少批次字段表示独立底仓交易；带 `batchId` 的记录由 `getBatchTrades` 按需投影给活动批次或历史批次。批次对象本身不再持有 `trades` 数组。
+
+`normalizeTTradingAccounts` 兼容 4.15.0 之前的 `baseTrades`、`activeBatch.trades` 和 `history[].trades`：按交易 ID 合并去重，补齐批次关联，然后从运行结构中移除旧字段。主进程首次检测到旧结构时会先备份完整旧配置：
+
+```text
+userData/settings.pre-unified-trades.json
+```
+
+迁移后的 `settings.json` 不再含旧字段，因此后续启动只做普通规范化；迁移函数本身重复执行也会得到稳定结果。
 
 活动批次 `TTradingBatch`：
 
@@ -109,7 +117,6 @@ TTradingAccount
 TTradingBatch
 ├─ direction      forward 正 T / reverse 反 T
 ├─ openingPosition
-├─ trades[]
 ├─ buyLevels[5]
 ├─ sellLevels[5]
 ├─ alertEnabled
@@ -127,8 +134,8 @@ TTradingBatch
 
 - 第一笔用途为 T 的买入创建正 T 批次。
 - 第一笔用途为 T 的卖出创建反 T 批次。
-- 用途为底仓的交易只进入 `baseTrades`，不会创建批次。
-- 每笔 T 交易和底仓增减都会同时写入 `tradeRecords`，用于统一按时间查看。
+- 用途为底仓的交易直接写入 `tradeRecords`，但不带批次关联，也不会创建批次。
+- 每笔 T 交易写入同一个 `tradeRecords`，并携带当前批次 ID、序号和方向。
 - 在“编辑持仓”中从无持仓首次保存为有效持仓时，会以填写的数量、成本价和建仓日期生成一笔零费用“底仓买入”记录；后续编辑持仓不会重复生成。
 
 ## 账本计算
@@ -174,6 +181,10 @@ TTradingBatch
 - 反 T 回补不能超过已卖出的待回补数量。
 
 保存、编辑、删除交易后都重新校验和重算持仓。
+
+- 修改当前活动批次的记录时，会重排双五档并重新判断批次是否仍存在有效 T 交易；若不存在，批次会被移除，剩余记录解除批次关联。
+- 修改已结算批次记录时，会刷新该批次的账本收益和结算元数据。
+- 删除历史批次会同时删除所有关联该 `batchId` 的统一交易记录。
 
 ## 交易费用
 
@@ -304,7 +315,7 @@ latestQuotes
 
 历史批次支持：
 
-- 查看完整流水和费用。
+- 通过统一交易表按 `batchId` 查看完整流水和费用。
 - 修改成本校准收益。
 - 删除批次，删除前确认。
 - 每页 10 条。
@@ -319,3 +330,5 @@ latestQuotes
 6. 主表、任务栏和托盘是否使用相同账户状态。
 7. 数量输入是否 `step="100"`。
 8. 所有收益和收益率是否正红、负绿、零中性。
+9. 是否只从 `tradeRecords` 读写成交，未重新向批次或账户增加第二份流水。
+10. 旧交易迁移是否保留批次关联、按 ID 去重并且重复启动稳定。

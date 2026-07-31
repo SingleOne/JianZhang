@@ -28,20 +28,26 @@ App
 ├─ AppTitlebar
 ├─ SearchBar
 ├─ SettingsMenu
+├─ AiAssistantDrawer（按构建开关加载）
 └─ WatchlistTable
    ├─ TableStockSearch（文件内组件）
+   ├─ TableFilterDropdown × 2
+   ├─ WatchlistGroupDialog
    ├─ ExpandedStockDetails
    │  ├─ CandlestickChart
    │  ├─ PeriodKlineChart
+   │  ├─ ChipDistributionPanel
    │  ├─ OrderBookPanel
    │  ├─ FundsFlowPanel
    │  │  └─ FundsFlowChart
    │  └─ SectorIndexPanel
    │     └─ CandlestickChart
    ├─ PositionEditor
+   ├─ StockAlertDialog
    ├─ TTradingDrawer
    │  └─ TPlanTable × 2
-   └─ TAlertBadges
+   ├─ TAlertBadges
+   └─ FiveLevelAlertBadges
 ```
 
 ## 主窗口编排
@@ -54,7 +60,9 @@ App
 - 订阅报价、状态、选股和错误事件。
 - 管理 `AppState`、`quotes`、当前展开股票和全局提示。
 - 自选增删、重点/任务栏切换、持仓和做 T 保存。
-- 表格顺序、列顺序和设置保存。
+- 自定义分组、表格顺序、列顺序和设置保存。
+- 持有筹码分布开关，并按日 K 页操作持久化到 `AppSettings`。
+- 条件加载全局 AI 助手抽屉。
 - 配置导入导出、手动刷新、交易日历刷新。
 - 计算组合收益和大盘指数摘要。
 
@@ -75,7 +83,7 @@ App
 
 ### `SettingsMenu.tsx`
 
-一个 `<details>` 弹层，内部有行情、做 T、系统与数据三个标签。所有变更立即调用 `onChange`，由 `App` 保存完整设置。
+一个 `<details>` 弹层，内部有行情、做 T、系统与数据三个标签。所有变更立即调用 `onChange`，由 `App` 保存完整设置。弹窗采用分类标签而不是单列长表单。
 
 ## 自选主表
 
@@ -86,12 +94,14 @@ App
 - 根据自选和报价生成行模型。
 - 计算每行持仓指标、可用数量、持仓天数和 T 状态。
 - 手动拖拽、置顶和临时列排序。
+- 自定义分组与板块两个组合筛选，以及分组管理弹窗。
 - 列顺序调整。
 - 表内股票定位。
 - 异动弹层。
 - 展开/收起行情详情动画。
 - 打开持仓编辑和做 T Drawer。
-- 渲染 T 提醒。
+- 打开股价提醒设置。
+- 渲染 T 价格提醒、自定义股价提醒状态和五档大单提示。
 
 固定列关系：
 
@@ -131,8 +141,9 @@ App
 - 对比当前与快照的市值、收益率和收益差。
 - 首次建立持仓时自动生成一笔底仓买入交易记录。
 - 在持仓快照下展示最近 5 条统一交易记录，并通过独立分页弹窗查看全部记录。
+- 在表格内行内编辑交易类型、时间、数量、价格、费用和备注，或删除记录；当前批次修改后重新校验持仓与五档，历史批次修改后刷新结算指标。
 
-数量输入 `step="100"`，成本支持 4 位小数。
+弹窗宽度当前为 1120px，减少交易表格横向滚动。数量输入 `step="100"`，成本支持 4 位小数。
 
 ### `TTradingDrawer.tsx`
 
@@ -162,17 +173,29 @@ App
 
 主表和任务栏复用的小组件。`compact` 模式用于任务栏。
 
+### `StockAlertDialog.tsx` / `FiveLevelAlertBadges.tsx`
+
+- `StockAlertDialog` 为单只股票管理股价、当日涨幅、持仓收益率的多条上下阈值规则。
+- 自定义股价规则触发后，主表和任务栏使用上穿/下穿方向主题，系统通知由主进程发出。
+- `FiveLevelAlertBadges` 展示活动 T 仓盘口中买方或卖方的异常大单档位，并与 T 价格提醒并列。
+
+### `WatchlistGroupDialog.tsx` / `TableFilterDropdown.tsx`
+
+- 分组弹窗负责新建、重命名、删除分组，以及批量调整股票归属；删除分组不会删除自选股票。
+- 自定义分组使用列表式下拉，板块筛选使用可搜索下拉；两者都展示数量，并同时作用于当前表格。
+
 ## 行情详情
 
 ### `ExpandedStockDetails.tsx`
 
 职责：
 
-- 管理 7 个标签页。
+- 管理分时、资金流、市场观察、AI 分析、AI 做 T 参考、五日、日/周/月 K 和板块标签；可选模块标签按构建开关出现。
 - 为各价格周期维护数据、错误和加载状态。
 - 模块级 K 线缓存。
 - 分时/五日按刷新间隔更新。
 - 日/周/月缓存 5 分钟并按需扩大请求条数。
+- 日 K 筹码分布开启时自动扩大历史范围到累计换手率 100%，并跟随可视范围重算。
 - 把十字光标所在 K 线传给顶部概览。
 
 图表和板块组件采用 `React.lazy`，避免主界面初始加载全部 Lightweight Charts 逻辑。
@@ -195,6 +218,13 @@ App
 - bars 变化时只更新 series 数据和可见范围。
 - 使用 refs 避免每次 hover 或补历史都重建图表。
 - 左边接近数据边界时触发 `onRequestMore`。
+- 把日 K 当前可视逻辑区间回传给筹码分布；自动范围模式可按请求条数重设视口。
+
+### `ChipDistributionPanel.tsx`
+
+- 接收当前日 K 选中范围，在 renderer 内计算价格筹码桶、平均成本、获利比例和 70%/90% 成本区间。
+- 每次得到有效结果后保存按股票区分的最后一次磁盘缓存。
+- 自动 100% 换手范围被用户缩放/拖动替代后，提供恢复入口。
 
 ### `OrderBookPanel.tsx`
 
@@ -227,9 +257,16 @@ App
 ### `TrayHoverSummary.tsx`
 
 - 订阅相同报价和状态。
-- 展示今日收益。
+- 展示今日收益合计，以及每只股票的今日收益、持仓市值和持仓收益。
 - 有活动 T 批次时展示方向、剩余数量、均价和浮动收益。
 - 同样使用任务栏股票与提醒股票的并集。
+
+## 可选模块界面
+
+- `market-insight/renderer`：市场观察指标、指标说明、客观事件、公告/要闻/交易所通知和分时覆盖层。
+- `ai/renderer/AiAnalysisPanel.tsx`：按股票恢复最近 AI 解读、展示分析进度并保留旧结果直到新结果完成。
+- `ai/renderer/AiAssistantDrawer.tsx`：会话列表、搜索/重命名/删除/导出、流式对话、最近消息上下文和 `@自选股` 快速选择。
+- `ai-t-advice/renderer/TAdvicePanel.tsx`：恢复每只股票最近做 T 参考、等待实时盘口、展示客观事件与结构化结果，并通过一次性预览确认应用 T1。
 
 ## 样式系统
 

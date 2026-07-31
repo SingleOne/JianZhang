@@ -9,6 +9,7 @@
 ```ts
 interface AppState {
   watchlist: WatchStock[]
+  watchlistGroups: WatchlistGroup[]
   settings: AppSettings
   columnOrder: WatchlistColumnId[]
   columnOrderVersion?: number
@@ -19,15 +20,18 @@ interface AppState {
 包含：
 
 - 自选顺序、任务栏选择、重点关注。
+- 自定义分组及股票的多分组归属。
 - 持仓和持仓快照。
-- 刷新、指数、做 T、系统、交易日历设置。
+- 自定义股价提醒规则与触发状态。
+- 刷新、指数、筹码分布开关、做 T、系统、交易日历设置。
 - 表格列顺序及迁移版本。
-- 全部做 T 活动批次、历史和底仓交易。
+- 全部做 T 活动批次、历史元数据和唯一交易流水。
 
 不包含：
 
 - 最新行情。
 - 行情/K 线/盘口缓存。
+- 筹码分布磁盘缓存和三个可选模块的设置、缓存及历史。
 - 当前展开股票。
 - 弹窗、加载和错误提示状态。
 
@@ -36,7 +40,13 @@ interface AppState {
 桌面版路径：
 
 ```text
-%APPDATA%\见涨\settings.json
+<Electron userData>\settings.json
+```
+
+当前已安装应用通常对应：
+
+```text
+%APPDATA%\jianzhang-stock-desktop\settings.json
 ```
 
 实际路径由：
@@ -52,11 +62,12 @@ join(app.getPath('userData'), 'settings.json')
 `loadState` 读取 JSON 后依次执行：
 
 1. `normalizeWatchlist`
-2. `normalizeAppSettings`
-3. `migrateWatchlistColumnOrder`
-4. `normalizeTTradingAccounts`
+2. `normalizeWatchlistGroups`
+3. `normalizeAppSettings`
+4. `migrateWatchlistColumnOrder`
+5. `normalizeTTradingAccounts`
 
-列版本落后时，会立即把迁移后的状态写回。
+列版本落后或交易账户规范化结果变化时，会立即把迁移后的状态写回。若检测到旧 `baseTrades` / `batch.trades`，写回前先把原始完整配置备份为 `settings.pre-unified-trades.json`；已有备份不会被覆盖。
 
 文件不存在、JSON 解析失败或读取异常时，当前实现回退到 `DEFAULT_STATE`。
 
@@ -88,9 +99,10 @@ join(app.getPath('userData'), 'settings.json')
 | 函数 | 作用 |
 | --- | --- |
 | `normalizeWatchlist` | 持仓股票强制重点关注、补异动开关、过滤无效快照 |
+| `normalizeWatchlistGroups` | 去除无 ID、无名称或重复 ID 的自定义分组 |
 | `normalizeMarketIndexIds` | 过滤并按内置顺序返回指数 |
 | `normalizeActiveTTradingBatch` | 兼容旧双五档、提醒开关和反 T 语义 |
-| `normalizeTTradingAccounts` | 规范化所有活动批次，并把旧 T 历史和底仓流水回填到统一交易记录 |
+| `normalizeTTradingAccounts` | 把旧活动/历史批次流水和 `baseTrades` 按 ID 合并到唯一 `tradeRecords`，再移除旧字段并规范化活动批次 |
 | `normalizeWatchlistColumnOrder` | 去重、补缺失列、保证操作列在末尾 |
 | `migrateWatchlistColumnOrder` | 按版本插入今日收益、板块、成交等新列，并过滤已经移除的列 |
 | `normalizeAppSettings` | 兼容旧刷新字段、限制秒数/位置、补费用和日历 |
@@ -148,6 +160,19 @@ localStorage["jianzhang-demo-state-v1"]
 
 浏览器导入导出使用文件输入框和下载链接，不使用 Electron 对话框。
 
+## 核心外的本地存储
+
+以下数据不会进入 `AppState`，也不会随核心配置导出：
+
+| 路径（相对 `userData`） | 内容 |
+| --- | --- |
+| `market-cache/chip-distributions.json` | 每只股票最后一次筹码分布结果 |
+| `modules/market-insight/` | 指标/事件快照、公告与要闻缓存、模块设置 |
+| `modules/ai/` | Provider 设置、加密凭证、对话 JSONL、股票快照、最近 AI 解读 |
+| `modules/ai-t-advice/` | 做 T 参考设置和历史 JSONL |
+
+AI API Key 由主进程使用 Electron `safeStorage` 加密；renderer 只能读取是否配置和脱敏尾号。Codex 账号凭证由随应用运行的官方 App Server 在模块运行目录管理，核心状态和配置导出均不接触明文。
+
 ## IPC 请求
 
 类型契约统一定义在 `StockDesktopApi`。
@@ -159,6 +184,7 @@ localStorage["jianzhang-demo-state-v1"]
 | `searchStocks` | `stocks:search` | 股票联想 |
 | `refreshQuotes` | `quotes:refresh` | 手动刷新全部 |
 | `getKline` | `kline:get` | 分时/五日/周期 K |
+| `saveChipDistributionCache` | `chip-distribution:cache:save` | 保存股票最后一次筹码分布计算结果 |
 | `getOrderBook` | `order-book:get` | 从主进程 `OrderBookHub` 获取五档盘口、缓存状态和刷新错误 |
 | `getFundsFlow` | `funds-flow:get` | 当日资金流 |
 | `getSectorIndex` | `sector-index:get` | 所属板块详情 |
@@ -206,21 +232,21 @@ sequenceDiagram
 
 ## 敏感数据边界
 
-当前 `AppState` 会：
+核心 `AppState` 会：
 
 - 明文写入 `settings.json`。
 - 随配置完整导出。
 - 广播给三个渲染窗口。
 
-因此未来加入 AI API Key、登录令牌或券商凭证时，不能直接放进 `AppState` / `AppSettings`。建议：
+因此 AI API Key 和账号凭证没有放进 `AppState` / `AppSettings`。当前实现遵循：
 
 1. 仅在 Electron 主进程读写秘密。
-2. 使用独立、不可导出的秘密存储。
-3. Windows 下用 Electron `safeStorage` 加密后再落盘。
-4. 渲染层只拿“是否已配置、提供商、显示名称”等非敏感状态。
-5. IPC 只提供设置/清除/测试连接动作，不提供读取明文接口。
+2. 使用独立、不可导出的模块存储。
+3. Windows 下用 Electron `safeStorage` 加密 API Key 后再落盘。
+4. 渲染层只拿“是否已配置、提供商、脱敏尾号/账号状态”等非敏感信息。
+5. IPC 只提供设置、清除、登录/退出和测试连接动作，不提供读取明文接口。
 
-详见 [AI 可移除模块设计（未实现）](08-ai-extension-points.md)。
+详见 [AI 与市场观察模块](08-ai-extension-points.md)。
 
 ## 新增 IPC 的固定步骤
 
@@ -231,3 +257,5 @@ sequenceDiagram
 5. 在 `src/lib/api.ts` 给 `demoApi` 补等价实现。
 6. 在 React 中调用。
 7. 如果结果持久化，再补默认值、normalize 和配置兼容。
+
+`market-insight`、`ai`、`ai-t-advice` 的 IPC 不扩展 `StockDesktopApi`；应分别修改模块自己的共享类型、注册函数、preload bridge、renderer API 和浏览器降级入口。

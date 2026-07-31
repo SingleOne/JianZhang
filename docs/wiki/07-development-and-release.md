@@ -24,6 +24,7 @@ npm install
 npm run dev
 npm run dev:web
 npm run build
+npm run build:unpacked
 npm run package:win
 npm run package:portable
 ```
@@ -33,6 +34,7 @@ npm run package:portable
 | `dev` | 启动 electron-vite，运行真实 Electron/IPC/主进程行情 |
 | `dev:web` | 只启动 Vite，使用 `src/lib/api.ts` 的浏览器演示 API |
 | `build` | 先 `tsc --noEmit`，再构建 main/preload/renderer |
+| `build:unpacked` | 完成类型检查、生产构建和图标生成，并更新 `release/win-unpacked` 开发预览，不生成安装包 |
 | `generate:icon` | 生成 `build/icon.png` |
 | `package:win` | build + icon + NSIS x64 安装包 |
 | `package:portable` | build + icon + Windows portable 包 |
@@ -43,7 +45,7 @@ npm run package:portable
 | --- | --- | --- |
 | `out/` | electron-vite 构建结果 | 忽略 |
 | `build/` | 动态生成图标等资源 | 忽略 |
-| `release/` | electron-builder 安装包 | 忽略 |
+| `release/` | electron-builder 安装包、portable 包和 `win-unpacked` 开发预览 | 忽略 |
 | `outputs/` | 其他交付输出 | 忽略 |
 
 主进程入口：
@@ -89,21 +91,24 @@ node scripts/convert-stock-helper-config.mjs <原配置.json> <见涨配置.json
 来自仓库根目录 `AGENTS.md`：
 
 1. 不要过度进行防御性编程。
-2. 所有股票数量数字输入框统一 `step="100"`。
-3. 收益/收益率：正数红色、负数绿色、零值中性色。
-4. 每次打包前先提交代码，提交信息按实际变更填写。
-5. 小修小改升级补丁版本；新增小功能升级次版本并把补丁归零。
-6. 检测到新功能模块时，打包前先提醒是否升级大版本。
+2. 所有界面文字不得低于 `12px`。
+3. 所有股票数量数字输入框统一 `step="100"`。
+4. 收益/收益率：正数红色、负数绿色、零值中性色。
+5. 功能完成后不主动做界面验证，除非用户直接要求；可以执行 `npm run build:unpacked` 作为完成检查和开发预览。
+6. `build:unpacked` 不属于正式打包，不触发版本号和打包前提交规则。
+7. 每次正式打包前先提交代码，提交信息按实际变更填写。
+8. 小修小改升级补丁版本；新增小功能升级次版本并把补丁归零。
+9. 检测到新功能模块时，正式打包前先提醒是否升级大版本。
 
 ## 版本规则
 
-以 `3.7.1` 为例：
+以当前 `4.15.1` 为例：
 
 | 变更 | 建议版本 |
 | --- | --- |
-| 小修复、样式微调、文档修正 | `3.7.2` |
-| 新增一个小功能 | `3.8.0` |
-| 新增独立功能模块 | 先确认是否升级 `4.0.0` |
+| 小修复、样式微调、文档修正 | `4.15.2` |
+| 新增一个小功能 | `4.16.0` |
+| 新增独立功能模块 | 先确认是否升级 `5.0.0` |
 
 版本至少同步：
 
@@ -123,6 +128,8 @@ flowchart LR
 ```
 
 仓库规则明确要求“每次打包前进行代码提交”。目标版本号也应在执行打包前进入提交历史。
+
+`npm run build:unpacked` 仅更新可直接运行的开发预览，不执行上述版本与提交步骤。
 
 
 ## 常见修改同步清单
@@ -176,11 +183,17 @@ flowchart LR
 npm run build
 ```
 
-它会先执行 TypeScript 无输出类型检查。涉及窗口和外部行情的行为仍需在 Electron 运行态检查。
+它会先执行 TypeScript 无输出类型检查。需要同时更新可运行预览时使用：
+
+```powershell
+npm run build:unpacked
+```
+
+涉及窗口和外部行情的行为仍需在 Electron 运行态检查，但除非用户直接要求，功能完成后不主动进行界面验证。
 
 ## 文档状态
 
-`docs/t-trading-alert-implementation-plan.md` 记录了双五档提醒的早期设计，代码已经实现其中大部分内容，且当前版本已高于文档基线。维护时：
+`docs/plan/` 保存 AI、市场观察和双五档提醒的历史设计过程。维护时：
 
 - 业务真相以 `types.ts`、`t-alerts.ts`、`TTradingDrawer.tsx` 和主进程刷新链路为准。
 - 历史计划可用于理解设计缘由，不应再按其中的“待实施”清单判断现状。

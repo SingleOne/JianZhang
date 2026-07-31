@@ -14,6 +14,7 @@
 | 当日异动 | `fetchTodayRadarSignals` | 东方财富异动 |
 | 近 5 日异动 | `fetchHistoricalRadarSignals` | 东方财富异动统计与明细 |
 | 分时/五日/周期 K | `fetchKline` | 东方财富主源、腾讯行情备用源 |
+| 筹码分布 | `calculateChipDistribution` | 本地使用日 K 与换手率计算，不调用独立筹码接口 |
 | 所属板块和板块报价 | `fetchSectorBinding/Quotes/Index` | 东方财富个股页与板块行情 |
 | 资金流向 | `fetchFundsFlow` | 东方财富分钟资金流 |
 | 休市日历 | `fetchSseTradingCalendar` | 上交所休市安排 |
@@ -95,7 +96,7 @@
 统一返回 `KlineResult`，每条 `KlineBar` 包含：
 
 ```text
-time, open, close, high, low, volume, amount
+time, open, close, high, low, volume, amount, turnoverRate?
 ```
 
 ### 请求策略
@@ -135,6 +136,23 @@ time, open, close, high, low, volume, amount
 - 只允许缩放，不允许横向滚动离开最新端。
 - 根据当前可见范围重新标记最高和最低。
 
+## 筹码分布
+
+筹码分布不是券商或行情接口直接返回的数据。打开日 K 页的“筹码分布”开关后：
+
+1. `findChipAutoRange` 从最新日 K 向前累计每根 K 线的换手率，固定以 100% 为自动范围阈值。
+2. 如果已加载数据尚未达到阈值，`ExpandedStockDetails` 会继续按现有历史补取机制请求更早日 K，直到达到阈值或 1920 条上限。
+3. `calculateChipDistribution` 将选中范围的价格区间划为 150 个桶，逐日按换手率淘汰旧筹码并按当日高低价区间分配新筹码。
+4. 面板展示平均成本、获利比例、70%/90% 成本区间和集中度；拖动或缩放日 K 后改用当前可视范围重新计算，可一键恢复 100% 换手自动范围。
+
+当前日 K 的东方财富主源包含换手率；备用 K 线若缺少换手率，筹码分布无法计算。最近一次有效结果由 renderer 调用 `saveChipDistributionCache` 写入：
+
+```text
+userData/market-cache/chip-distributions.json
+```
+
+缓存按 `quoteId` 保留最后一次结果，应用重启后仍可供 AI 对话、AI 行情解读和 AI 做 T 参考读取。筹码图本身仍以当前 K 线范围实时重算，磁盘缓存不是历史行情数据库。
+
 ## 五档盘口
 
 `OrderBookHub` 是所有盘口调用的统一入口，内部再调用 `fetchOrderBook`。它负责：
@@ -154,6 +172,8 @@ time, open, close, high, low, volume, amount
 上游字段顺序在 `market.ts` 中显式映射；`OrderBookPanel` 再将卖盘反转为界面常见的“卖五 → 卖一 → 最新 → 买一 → 买五”顺序。
 
 盘口在分时标签右侧展示，按股票刷新间隔更新。收盘后所有档位为空时显示“收盘后暂无挂单”；刷新失败但存在历史数据时，继续展示缓存并明确标注数据时间。
+
+活动 T 仓还会复用同一 `OrderBookHub` 做五档大单识别。每个所属行情刷新周期只轮询一只活动 T 股票；若买一至买五或卖一至卖五中最大一档的数量大于同侧其余四档之和，则把档位、价格和数量写入当前内存报价。该结果不写入 `settings.json`，股票不再有活动批次时会被清除。
 
 ## 资金流向
 
@@ -201,6 +221,8 @@ time, open, close, high, low, volume, amount
 盘口缓存已经移到 Electron 主进程的 `OrderBookHub`，分时图、大单提醒、市场观察和做 T 参考共享同一份进行中请求和最近成功结果。只有存在 `activeBatch` 的活动做 T 股票会自动轮询盘口；其他股票只在打开盘口、手动刷新、主动刷新市场观察或生成做 T 参考时按需请求。
 - 请求失败但存在旧数据时，继续展示旧数据并显示刷新警告。
 
+筹码分布是例外：最近一次计算结果通过主进程单独写入磁盘，供应用重启后的 AI 上下文复用。
+
 ## 浏览器演示数据
 
 `src/lib/api.ts` 在没有 `window.stockApi` 时启用 `demoApi`：
@@ -217,5 +239,6 @@ time, open, close, high, low, volume, amount
 
 - 上游是公开接口，没有稳定性承诺；字段、令牌或页面结构调整会直接影响 `market.ts`。
 - 没有行情落库、断点补偿或历史快照；应用只保留当前内存报价。
-- `AppTitlebar` 的“交易中/已休市”只按工作日和常规交易时间判断，不读取法定休市日历；自动刷新窗口也只判断时段。
+- `AppTitlebar` 的“交易中/已休市”仍只按工作日和常规交易时间判断；主进程自动刷新已经同时检查内置休市日和设置中在线更新的额外休市日期。
 - 各详情面板独立刷新，展开多只股票或频繁切换时会增加请求量。
+- 筹码分布是基于日 K 高低价和换手率的近似模型，不等同于券商持有的真实逐笔账户分布。

@@ -10,11 +10,14 @@ flowchart LR
     SSE["上交所休市安排"] --> MAIN
     MAIN --> STATE["内存 AppState 与 latestQuotes"]
     STATE --> FILE["userData/settings.json"]
+    MAIN --> CACHE["盘口内存缓存与筹码分布磁盘缓存"]
     MAIN <-->|"IPC invoke / event"| PRELOAD["preload: window.stockApi"]
     PRELOAD <-->|"类型化调用"| UI["React 渲染层"]
     UI --> MAINWIN["主窗口"]
     UI --> TASKBAR["任务栏透明窗口"]
     UI --> TRAYPOP["托盘悬浮摘要窗口"]
+    MAIN --> MODULES["market-insight / ai / ai-t-advice"]
+    MODULES --> MODULESTORE["userData/modules 独立存储"]
 ```
 
 ### Electron 主进程
@@ -29,9 +32,11 @@ flowchart LR
 - 注册 IPC。
 - 分别按重点股票和普通股票刷新。
 - 合并实时报价、板块数据和异动信号。
-- 在每次行情合并后执行 T 价格提醒判断。
+- 在每次行情合并后执行股价提醒和 T 价格提醒判断。
+- 统一调度五档盘口请求，并维护筹码分布的最近一次磁盘缓存。
 - 同步所有窗口并更新托盘菜单。
 - 管理开机启动、关闭后驻留和交易日历刷新。
+- 通过薄安装点条件注册市场观察、AI 和 AI 做 T 参考模块。
 
 外部数据访问集中在：
 
@@ -42,7 +47,7 @@ flowchart LR
 
 `electron/preload/index.ts` 使用 `contextBridge` 暴露 `window.stockApi`。
 
-渲染层不能直接访问 Node API，也不直接调用 Electron `ipcRenderer`。所有可调用方法和订阅事件都由 `StockDesktopApi` 类型约束，类型定义位于 `src/shared/types.ts`。
+渲染层不能直接访问 Node API，也不直接调用 Electron `ipcRenderer`。核心能力由 `StockDesktopApi` 类型约束；可选模块分别暴露 `window.marketInsightApi`、`window.aiApi` 和 `window.aiTAdviceApi`，避免把模块专有类型并入核心 API。
 
 当前窗口均启用：
 
@@ -73,7 +78,9 @@ sequenceDiagram
 
     E->>E: requestSingleInstanceLock
     E->>S: loadState + normalize/migrate
+    E->>S: 旧交易结构先备份再统一流水
     E->>E: registerIpc + createWindow
+    E->>E: 条件注册可选模块
     E->>E: 创建托盘和刷新定时器
     E->>M: refreshAllAutomatically
     W->>E: app:bootstrap
@@ -112,7 +119,7 @@ flowchart TD
     QUOTES --> MERGE["mergeQuotes"]
     INDEX --> MERGE
     SECTOR --> MERGE
-    MERGE --> ALERT["applyTAlertTriggersToAccounts"]
+    MERGE --> ALERT["T 提醒 + 自定义股价提醒"]
     ALERT -->|"提醒状态变化"| SAVE["persistState"]
     ALERT --> BROADCAST["quotes:updated / state:updated"]
     BROADCAST --> WINDOWS["主窗口、任务栏、托盘悬浮"]
@@ -124,9 +131,12 @@ flowchart TD
 
 | 状态 | 权威位置 | 是否持久化 |
 | --- | --- | --- |
-| 自选、持仓、列顺序、设置、做 T 账本 | Electron 主进程的 `state` | 是，`settings.json` |
+| 自选、分组、持仓、列顺序、设置、统一交易流水与做 T 批次 | Electron 主进程的 `state` | 是，`settings.json` |
 | 最新实时报价 | Electron 主进程的 `latestQuotes` | 否 |
-| 行情面板缓存 | 各 React 模块级 `Map` | 否 |
+| 盘口最近成功结果 | 主进程 `OrderBookHub` | 否，进程内短时缓存 |
+| 筹码分布最近一次结果 | 主进程 `ChipDistributionCache` | 是，`market-cache/chip-distributions.json` |
+| 市场观察、AI 设置/会话/结果、做 T 参考历史 | 各可选模块 | 是，`userData/modules/<module>/` |
+| 分时、K 线、资金流和板块面板缓存 | 各 React 模块级 `Map` | 否 |
 | 主窗口当前展开股票、弹窗开关、加载状态 | React 组件 state | 否 |
 | 浏览器演示状态 | `localStorage` | 仅浏览器预览 |
 
@@ -146,13 +156,14 @@ flowchart TD
 - 透明、无边框、不可聚焦、鼠标穿透。
 - 根据主屏任务栏高度和用户横向位置动态定位。
 - 展示用户选中的股票，以及存在已触发 T 提醒的临时股票。
-- 即使用户关闭普通任务栏行情，活动 T 提醒仍可让窗口显示。
+- 活动 T 提醒或活动 T 仓的五档大单提示可临时加入股票并让窗口显示。
+- 已选中的股票若触发自定义股价提醒，会按“达到或高于/低于”显示方向主题；股价提醒本身不会把未选择的股票临时加入任务栏。
 
 ### 托盘悬浮窗口
 
 - 鼠标进入托盘 1 秒后显示。
 - 根据托盘位置和工作区边界决定窗口位置。
-- 展示任务栏股票的今日收益和当前 T 仓摘要。
+- 展示任务栏可见股票的今日收益、持仓市值、持仓收益和当前 T 仓摘要，并汇总今日收益。
 
 ## 共享代码边界
 
@@ -170,6 +181,10 @@ flowchart TD
 - `portfolio.ts`：持仓、今日收益、组合汇总。
 - `t-trading.ts`：费用、正反 T 账本、批次和成本计算。
 - `t-alerts.ts`：双五档目标价、收益预测、提醒状态机。
+- `trade-records.ts`：统一交易流水排序、批次筛选、写入和解除批次关联。
+- `stock-alerts.ts`：股价、涨幅和持仓收益率提醒状态机。
+- `order-book-alerts.ts`：五档买卖盘大单识别。
+- `chip-distribution.ts`：基于日 K 与换手率的筹码分布计算。
 - `api.ts`：桌面 API 选择与浏览器演示实现。
 - `format.ts`：金额、价格、数量、百分比格式化。
 
@@ -183,6 +198,8 @@ flowchart TD
 4. `src/lib/api.ts` 中的浏览器演示实现。
 5. React 调用方。
 
+可选模块新增 IPC 时，应保持在模块自己的 `shared/main/preload/renderer` 目录中，只在核心入口保留条件注册代码。
+
 增加持久化字段还要同步：
 
 1. `AppState` 或 `AppSettings`。
@@ -191,3 +208,4 @@ flowchart TD
 4. 配置导入兼容。
 5. 设置界面或业务入口。
 
+交易数据结构迁移还要确认：旧结构备份、按交易 ID 去重、批次关联保留，以及重复启动后的幂等性。
