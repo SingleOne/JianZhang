@@ -5739,13 +5739,32 @@ tr:focus-visible {
 .chip-distribution-empty {
   grid-row: 2 / -1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   padding: 20px;
   color: #8a5a00;
   font-size: 12px;
   line-height: 1.6;
   text-align: center;
+}
+
+.chip-distribution-empty strong {
+  color: #744c00;
+  font-size: 13px;
+}
+
+.chip-distribution-empty span {
+  color: #7b8799;
+}
+
+.chip-distribution-empty.is-loading strong {
+  color: #55739b;
+}
+
+.chip-distribution-empty.is-failed strong {
+  color: #b33a45;
 }
 
 .order-book-panel {
@@ -6344,7 +6363,7 @@ tr:focus-visible {
   background: rgba(239, 246, 255, 0.94);
   border: 1px solid #cfe0f7;
   border-radius: 6px;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .chart-loading,

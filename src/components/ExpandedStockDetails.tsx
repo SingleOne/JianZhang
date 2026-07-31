@@ -229,6 +229,22 @@ export function ExpandedStockDetails({
   const isHistorical = historicalPeriod !== null
   const dailyBars = dataByTab.daily?.bars ?? []
   const chipAutoRange = useMemo(() => findChipAutoRange(dailyBars), [dailyBars])
+  const chipDataStatus = dailyBars.length > 0
+    ? chipAutoRange
+      ? 'ready' as const
+      : 'missing-turnover' as const
+    : loadingTab === 'daily' || activeTab === 'daily' && !dataByTab.daily && !errors.daily
+      ? 'loading' as const
+      : errors.daily
+        ? 'failed' as const
+        : 'empty' as const
+  const chipStatusDetail = chipDataStatus === 'failed'
+    ? errors.daily
+    : chipDataStatus === 'missing-turnover'
+      ? dataByTab.daily?.fallbackReason
+        ? `${dataByTab.daily.fallbackReason}；备用数据未提供完整换手率。`
+        : undefined
+      : undefined
   const chipVisibleRange = chipAutoRangeMode ? chipAutoRange : dailyVisibleRange ?? chipAutoRange
   const chipBars = useMemo(() => chipVisibleRange
     ? dailyBars.slice(chipVisibleRange.fromIndex, chipVisibleRange.toIndex + 1)
@@ -456,7 +472,11 @@ export function ExpandedStockDetails({
                 </div>
               ) : null}
               {isLoading && data && isHistorical ? (
-                <div className="chart-history-loading">正在加载更早数据…</div>
+                <div className="chart-history-loading">
+                  {priceTab === 'daily' && chipDistributionEnabled && chipAutoRangeMode && chipAutoRange && !chipAutoRange.reachedThreshold
+                    ? `正在补取更早日 K：累计换手 ${chipAutoRange.cumulativeTurnover.toFixed(2)}%，目标 100%`
+                    : '正在加载更早数据…'}
+                </div>
               ) : null}
               {isLoading && !data ? (
                 <div className="chart-loading">
@@ -513,6 +533,8 @@ export function ExpandedStockDetails({
                 quoteId={stock.quoteId}
                 quoteName={stock.name}
                 bars={chipBars}
+                dataStatus={chipDataStatus}
+                statusDetail={chipStatusDetail}
                 isAutoRange={chipAutoRangeMode}
                 onRestoreAutoRange={restoreChipAutoRange}
               />

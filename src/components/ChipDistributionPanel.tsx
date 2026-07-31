@@ -8,6 +8,8 @@ interface ChipDistributionPanelProps {
   quoteId: string
   quoteName: string
   bars: KlineBar[]
+  dataStatus: 'loading' | 'failed' | 'missing-turnover' | 'empty' | 'ready'
+  statusDetail?: string
   isAutoRange: boolean
   onRestoreAutoRange: () => void
 }
@@ -24,6 +26,8 @@ export function ChipDistributionPanel({
   quoteId,
   quoteName,
   bars,
+  dataStatus,
+  statusDetail,
   isAutoRange,
   onRestoreAutoRange
 }: ChipDistributionPanelProps) {
@@ -99,13 +103,48 @@ export function ChipDistributionPanel({
           <footer>基于可视日K价格与换手率估算</footer>
         </>
       ) : (
-        <div className="chip-distribution-empty">
-          {bars.length === 0
-            ? '正在读取日K与换手率…'
-            : '当前日K缺少换手率，无法计算筹码分布'}
-        </div>
+        <ChipDistributionStatus
+          status={dataStatus}
+          detail={statusDetail}
+          bars={bars}
+        />
       )}
     </aside>
+  )
+}
+
+interface ChipDistributionStatusProps {
+  status: ChipDistributionPanelProps['dataStatus']
+  detail?: string
+  bars: KlineBar[]
+}
+
+function ChipDistributionStatus({ status, detail, bars }: ChipDistributionStatusProps) {
+  let title = '暂时无法计算筹码分布'
+  let description = detail || '当前范围没有形成有效的筹码数据。'
+
+  if (status === 'loading') {
+    title = '正在获取日 K 数据…'
+    description = '正在检查本地缓存；无可用缓存时尝试东方财富，失败后切换腾讯备用行情。'
+  } else if (status === 'failed') {
+    title = '日 K 数据读取失败'
+    description = detail || '行情接口暂时不可用，请稍后重试。'
+  } else if (status === 'missing-turnover') {
+    title = '日 K 已读取，但换手率不完整'
+    description = detail || '部分交易日缺少换手率，无法确定累计换手 100% 的计算范围。'
+  } else if (status === 'empty') {
+    title = '没有可用的日 K 数据'
+    description = detail || '行情接口未返回可用于计算筹码分布的日 K。'
+  } else if (bars.length > 0 && bars.every((bar) => bar.turnoverRate === 0)) {
+    title = '当前范围的换手率均为 0'
+    description = '没有形成可用于估算的有效筹码数据。'
+  }
+
+  return (
+    <div className={`chip-distribution-empty is-${status}`} title={description}>
+      <strong>{title}</strong>
+      <span>{description}</span>
+    </div>
   )
 }
 

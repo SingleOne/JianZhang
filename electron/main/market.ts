@@ -697,12 +697,12 @@ export async function fetchKline(
 
   try {
     const result = await fetchTencentKline(quoteId, period, requestedLimit)
-    return period === 'intraday'
-      ? {
-          ...result,
-          fallbackReason: primaryError instanceof Error ? primaryError.message : '1分钟分时数据加载失败'
-        }
-      : result
+    return {
+      ...result,
+      fallbackReason: primaryError instanceof Error
+        ? `东方财富行情读取失败：${primaryError.message}`
+        : '东方财富行情读取失败，当前使用腾讯备用行情'
+    }
   } catch (backupError) {
     const primaryMessage = primaryError instanceof Error ? primaryError.message : '请求失败'
     const backupMessage = backupError instanceof Error ? backupError.message : '请求失败'
