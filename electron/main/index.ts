@@ -60,6 +60,7 @@ import {
 } from './market'
 import { OrderBookHub } from './order-book-hub'
 import { ChipDistributionCache } from './chip-distribution-cache'
+import { HistoricalKlineCache } from './historical-kline-cache'
 import { fetchSseTradingCalendar } from './trading-calendar'
 import { createAppIcon } from './tray-icons'
 
@@ -100,6 +101,42 @@ let marketInsightRuntime: MarketInsightRuntime | null = null
 let aiRuntime: AiRuntime | null = null
 let aiTAdviceRuntime: { dispose: () => void } | null = null
 let chipDistributionCache: ChipDistributionCache | null = null
+let historicalKlineCache: HistoricalKlineCache | null = null
+
+type HistoricalKlinePeriod = Extract<KlinePeriod, 'daily' | 'weekly' | 'monthly'>
+
+function isHistoricalKlinePeriod(period: KlinePeriod): period is HistoricalKlinePeriod {
+  return period === 'daily' || period === 'weekly' || period === 'monthly'
+}
+
+function defaultKlineLimit(period: KlinePeriod): number {
+  return period === 'weekly' ? 104 : period === 'monthly' ? 60 : 120
+}
+
+async function getKline(quoteId: string, period: KlinePeriod, limit?: number) {
+  if (!historicalKlineCache || !isHistoricalKlinePeriod(period)) {
+    return fetchKline(quoteId, period, limit)
+  }
+
+  const requestedLimit = Math.max(1, Math.round(limit ?? defaultKlineLimit(period)))
+  const cached = historicalKlineCache.get(
+    quoteId,
+    period,
+    requestedLimit,
+    state.settings.tradingCalendar.closedDates
+  )
+  if (cached) return cached
+
+  const fallback = historicalKlineCache.getFallback(quoteId, period)
+  try {
+    const result = await fetchKline(quoteId, period, requestedLimit)
+    if (historicalKlineCache.shouldKeepFallback(period, result)) return fallback ?? result
+    return historicalKlineCache.save(quoteId, period, requestedLimit, result)
+  } catch (reason) {
+    if (fallback) return fallback
+    throw reason
+  }
+}
 
 class MarketDataHub {
   private readonly listeners = new Set<(quotes: readonly StockQuote[]) => void>()
@@ -751,7 +788,7 @@ function registerIpc(): void {
   ipcMain.handle('stocks:search', (_event, query: string) => searchStocks(query))
   ipcMain.handle('quotes:refresh', () => refreshAll())
   ipcMain.handle('kline:get', (_event, quoteId: string, period: KlinePeriod, limit?: number) => (
-    fetchKline(quoteId, period, limit)
+    getKline(quoteId, period, limit)
   ))
   ipcMain.handle('chip-distribution:cache:save', (_event, entry: ChipDistributionCacheEntry) => {
     if (!chipDistributionCache) throw new Error('筹码分布缓存尚未初始化')
@@ -853,14 +890,16 @@ if (!hasSingleInstanceLock) {
   app.whenReady().then(async () => {
     app.setAppUserModelId('com.jianzhang.stock')
     state = loadState()
-    chipDistributionCache = new ChipDistributionCache(join(app.getPath('userData'), 'market-cache'))
+    const marketCacheDirectory = join(app.getPath('userData'), 'market-cache')
+    chipDistributionCache = new ChipDistributionCache(marketCacheDirectory)
+    historicalKlineCache = new HistoricalKlineCache(marketCacheDirectory)
     registerIpc()
     if (__JIANZHANG_MARKET_INSIGHT_ENABLED__) {
       const { installMarketInsight } = await import('../../src/modules/market-insight/main/register')
       marketInsightRuntime = installMarketInsight({
         marketDataHub,
         getState: () => state,
-        getKline: (quoteId, period, limit) => fetchKline(quoteId, period, limit),
+        getKline: (quoteId, period, limit) => getKline(quoteId, period, limit),
         getOrderBook: (quoteId) => orderBookHub.get(quoteId, {
           maxAgeMilliseconds: 3_000,
           allowStaleOnError: false

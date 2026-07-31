@@ -1,7 +1,7 @@
 import { AlertCircle, BarChart3, Bot, Layers, Radar, RefreshCw, Sparkles, TrendingUp } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { stockApi } from '../lib/api'
-import { findChipAutoRange } from '../lib/chip-distribution'
+import { estimateChipHistoryLimit, findChipAutoRange } from '../lib/chip-distribution'
 import { formatAmount, formatPercent, formatPrice, formatVolume } from '../lib/format'
 import { isBeijingAutoRefreshTime, millisecondsUntilNextAutoRefreshWindow } from '../shared/market-hours'
 import type { KlineBar, KlinePeriod, KlineResult, StockQuote, WatchStock } from '../shared/types'
@@ -282,8 +282,12 @@ export function ExpandedStockDetails({
   useEffect(() => {
     if (!chipDistributionEnabled || activeTab !== 'daily' || !chipAutoRange) return
     if (chipAutoRange.reachedThreshold || dailyBars.length < historyLimits.daily) return
-    requestMoreHistory('daily')
-  }, [activeTab, chipAutoRange, chipDistributionEnabled, dailyBars.length, historyLimits.daily, requestMoreHistory])
+    const estimatedLimit = estimateChipHistoryLimit(dailyBars, MAX_HISTORY_LIMITS.daily)
+    if (estimatedLimit === null) return
+    setHistoryLimits((current) => current.daily >= estimatedLimit
+      ? current
+      : { ...current, daily: estimatedLimit })
+  }, [activeTab, chipAutoRange, chipDistributionEnabled, dailyBars, historyLimits.daily])
 
   const toggleChipDistribution = () => {
     const enabled = !chipDistributionEnabled

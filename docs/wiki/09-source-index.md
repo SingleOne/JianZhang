@@ -24,6 +24,7 @@
 | [`electron/main/market.ts`](../../electron/main/market.ts) | `searchStocks`、`fetchQuotes`、`fetchKline`、`fetchFundsFlow`、`fetchSectorIndex` | 东方财富全部行情访问和转换 |
 | [`electron/main/order-book-hub.ts`](../../electron/main/order-book-hub.ts) | `OrderBookHub` | 统一盘口请求、进行中请求复用、短时缓存和串行错峰 |
 | [`electron/main/chip-distribution-cache.ts`](../../electron/main/chip-distribution-cache.ts) | `ChipDistributionCache` | 按股票读写最后一次筹码分布磁盘缓存 |
+| [`electron/main/historical-kline-cache.ts`](../../electron/main/historical-kline-cache.ts) | `HistoricalKlineCache` | 日/周/月 K 持久化、长短范围合并和失效回退 |
 | [`electron/main/trading-calendar.ts`](../../electron/main/trading-calendar.ts) | `fetchSseTradingCalendar` | 解析上交所当年休市安排 |
 | [`electron/main/tray-icons.ts`](../../electron/main/tray-icons.ts) | `createAppIcon` | 生成 Electron 托盘/窗口原生图标 |
 | [`electron/preload/index.ts`](../../electron/preload/index.ts) | `api`、`subscribe` | 把类型化 `stockApi` 安全暴露给 renderer |
@@ -57,7 +58,7 @@
 | [`src/lib/trade-records.ts`](../../src/lib/trade-records.ts) | `getAccountTrades`、`getBatchTrades`、`upsertTradeRecord` | 统一交易流水的查询、排序、写入与批次关联 |
 | [`src/lib/stock-alerts.ts`](../../src/lib/stock-alerts.ts) | `applyStockAlertTriggers` | 股价、当日涨幅和持仓收益率阈值提醒 |
 | [`src/lib/order-book-alerts.ts`](../../src/lib/order-book-alerts.ts) | `detectFiveLevelLargeOrders` | 活动 T 仓买卖五档异常大单识别 |
-| [`src/lib/chip-distribution.ts`](../../src/lib/chip-distribution.ts) | `findChipAutoRange`、`calculateChipDistribution` | 累计换手 100% 自动范围和筹码分布计算 |
+| [`src/lib/chip-distribution.ts`](../../src/lib/chip-distribution.ts) | `findChipAutoRange`、`estimateChipHistoryLimit`、`calculateChipDistribution` | 累计换手 100% 自动范围、历史根数估算和筹码分布计算 |
 | [`src/lib/format.ts`](../../src/lib/format.ts) | `formatPrice`、`formatProfit`、`formatAmount` | 展示格式化 |
 
 ## 主界面组件
@@ -130,7 +131,7 @@
 | --- | --- |
 | 主进程一次完整行情刷新 | `refreshStocks` |
 | 保存并广播整个应用状态 | `state:save`、`persistState`、`sendToWindows` |
-| 分时/K 线入口 | `fetchKline` |
+| 分时/K 线入口 | `getKline`、`fetchKline`、`HistoricalKlineCache` |
 | 当前持仓和今日收益 | `calculatePositionMetrics` |
 | 账户全部交易 / 某个批次交易 | `getAccountTrades` / `getBatchTrades` |
 | 组合收益 | `calculatePortfolioSummary` |
@@ -140,6 +141,6 @@
 | 后台触发 T 提醒 | `applyTAlertTriggersToAccounts` |
 | 后台触发自定义股价提醒 | `applyStockAlertTriggers` |
 | 五档异常大单判断 | `detectFiveLevelLargeOrders` |
-| 筹码分布范围和计算 | `findChipAutoRange`、`calculateChipDistribution` |
+| 筹码分布范围和计算 | `findChipAutoRange`、`estimateChipHistoryLimit`、`calculateChipDistribution` |
 | AI `@股票` 快照组装 | `getConversationContexts`、`compactMarketSnapshot`、`toProviderMessages` |
 | 旧配置兼容 | `parseConfigDocument`、全部 `normalize*` / `migrate*` |

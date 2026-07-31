@@ -30,7 +30,7 @@ interface AppState {
 不包含：
 
 - 最新行情。
-- 行情/K 线/盘口缓存。
+- 行情、周期 K 线和盘口缓存。
 - 筹码分布磁盘缓存和三个可选模块的设置、缓存及历史。
 - 当前展开股票。
 - 弹窗、加载和错误提示状态。
@@ -166,6 +166,7 @@ localStorage["jianzhang-demo-state-v1"]
 
 | 路径（相对 `userData`） | 内容 |
 | --- | --- |
+| `market-cache/klines/*.json` | 按股票和周期保存的日/周/月 K 线 |
 | `market-cache/chip-distributions.json` | 每只股票最后一次筹码分布结果 |
 | `modules/market-insight/` | 指标/事件快照、公告与要闻缓存、模块设置 |
 | `modules/ai/` | Provider 设置、加密凭证、对话 JSONL、股票快照、最近 AI 解读 |

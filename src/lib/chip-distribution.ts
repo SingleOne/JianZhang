@@ -2,6 +2,8 @@ import type { ChipDistributionData, KlineBar } from '../shared/types'
 
 export const CHIP_TURNOVER_THRESHOLD = 100
 export const CHIP_PRICE_BUCKET_COUNT = 150
+const CHIP_HISTORY_ESTIMATE_MARGIN = 1.15
+const CHIP_HISTORY_LIMIT_STEP = 60
 
 export interface ChipAutoRange {
   fromIndex: number
@@ -38,6 +40,20 @@ export function findChipAutoRange(bars: readonly KlineBar[]): ChipAutoRange | nu
     cumulativeTurnover,
     reachedThreshold: cumulativeTurnover >= CHIP_TURNOVER_THRESHOLD
   }
+}
+
+export function estimateChipHistoryLimit(
+  bars: readonly KlineBar[],
+  maximumLimit: number
+): number | null {
+  const range = findChipAutoRange(bars)
+  if (!range || range.reachedThreshold || bars.length >= maximumLimit) return null
+  if (range.cumulativeTurnover === 0) return maximumLimit
+
+  const averageTurnover = range.cumulativeTurnover / range.barCount
+  const estimatedBars = CHIP_TURNOVER_THRESHOLD / averageTurnover * CHIP_HISTORY_ESTIMATE_MARGIN
+  const roundedLimit = Math.ceil(estimatedBars / CHIP_HISTORY_LIMIT_STEP) * CHIP_HISTORY_LIMIT_STEP
+  return Math.min(maximumLimit, Math.max(bars.length + CHIP_HISTORY_LIMIT_STEP, roundedLimit))
 }
 
 function quantilePrice(

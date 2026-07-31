@@ -10,7 +10,7 @@ flowchart LR
     SSE["上交所休市安排"] --> MAIN
     MAIN --> STATE["内存 AppState 与 latestQuotes"]
     STATE --> FILE["userData/settings.json"]
-    MAIN --> CACHE["盘口内存缓存与筹码分布磁盘缓存"]
+    MAIN --> CACHE["盘口内存缓存、历史 K 线与筹码分布磁盘缓存"]
     MAIN <-->|"IPC invoke / event"| PRELOAD["preload: window.stockApi"]
     PRELOAD <-->|"类型化调用"| UI["React 渲染层"]
     UI --> MAINWIN["主窗口"]
@@ -33,7 +33,7 @@ flowchart LR
 - 分别按重点股票和普通股票刷新。
 - 合并实时报价、板块数据和异动信号。
 - 在每次行情合并后执行股价提醒和 T 价格提醒判断。
-- 统一调度五档盘口请求，并维护筹码分布的最近一次磁盘缓存。
+- 统一调度五档盘口请求，并维护历史 K 线和筹码分布磁盘缓存。
 - 同步所有窗口并更新托盘菜单。
 - 管理开机启动、关闭后驻留和交易日历刷新。
 - 通过薄安装点条件注册市场观察、AI 和 AI 做 T 参考模块。
@@ -134,9 +134,10 @@ flowchart TD
 | 自选、分组、持仓、列顺序、设置、统一交易流水与做 T 批次 | Electron 主进程的 `state` | 是，`settings.json` |
 | 最新实时报价 | Electron 主进程的 `latestQuotes` | 否 |
 | 盘口最近成功结果 | 主进程 `OrderBookHub` | 否，进程内短时缓存 |
+| 日/周/月 K | 主进程 `HistoricalKlineCache` | 是，`market-cache/klines/*.json` |
 | 筹码分布最近一次结果 | 主进程 `ChipDistributionCache` | 是，`market-cache/chip-distributions.json` |
 | 市场观察、AI 设置/会话/结果、做 T 参考历史 | 各可选模块 | 是，`userData/modules/<module>/` |
-| 分时、K 线、资金流和板块面板缓存 | 各 React 模块级 `Map` | 否 |
+| 分时、K 线、资金流和板块面板短时缓存 | 各 React 模块级 `Map` | 否；周期 K 另有主进程磁盘缓存 |
 | 主窗口当前展开股票、弹窗开关、加载状态 | React 组件 state | 否 |
 | 浏览器演示状态 | `localStorage` | 仅浏览器预览 |
 

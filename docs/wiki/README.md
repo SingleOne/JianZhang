@@ -1,6 +1,6 @@
 # 见涨开发者 Wiki
 
-> 代码基线：`main` 分支，应用版本 `4.15.1`
+> 代码基线：`main` 分支，应用版本 `4.16.0`
 >
 > 整理日期：2026-07-31
 >
@@ -48,6 +48,7 @@ JianZhang/
 │  │  ├─ market.ts              # 东方财富行情、K 线、盘口、异动、资金流、板块
 │  │  ├─ order-book-hub.ts      # 五档盘口请求复用、缓存和串行错峰
 │  │  ├─ chip-distribution-cache.ts # 筹码分布磁盘缓存
+│  │  ├─ historical-kline-cache.ts # 日/周/月 K 磁盘缓存
 │  │  ├─ trading-calendar.ts    # 上交所休市日抓取
 │  │  └─ tray-icons.ts          # 托盘图标
 │  └─ preload/index.ts          # window.stockApi 桥接
@@ -90,16 +91,16 @@ JianZhang/
 
 ## 当前重要边界
 
-- 行情来自东方财富公开接口，主进程内没有本地行情数据库，最新报价只保存在内存。
+- 行情来自东方财富公开接口，最新报价只保存在内存；日/周/月 K 会按股票和周期缓存在 `userData/market-cache/klines/`。
 - 用户核心状态保存在 Electron `userData/settings.json`（当前安装通常为 `%APPDATA%\jianzhang-stock-desktop\settings.json`），并可完整导出为 JSON。
 - `TTradingAccount.tradeRecords` 是底仓和做 T 成交的唯一数据源；活动批次与历史批次不再各自保存流水。首次读取旧结构时会先生成 `settings.pre-unified-trades.json` 备份，再按交易 ID 合并迁移。
-- 筹码分布由当前日 K 可视范围内的数据在本地计算，向前取数直到累计换手率达到固定 100%；最近一次结果单独缓存在 `userData/market-cache/chip-distributions.json`，并加入 AI 分析上下文。
+- 筹码分布由当前日 K 可视范围内的数据在本地计算，向前取数直到累计换手率达到固定 100%；首批数据不足时按平均换手率估算目标根数后直接补取。最近一次结果单独缓存在 `userData/market-cache/chip-distributions.json`，并加入 AI 分析上下文。
 - 浏览器模式使用 `src/lib/api.ts` 的演示数据和 `localStorage`，与桌面版网络链路不同。
 - 当前没有自动下单或券商连接；`ai` 支持 OpenAI API、DeepSeek API 和 Codex 账号，聊天会按设置提交最近若干条消息，并允许一条消息快速 `@` 多只自选股。`ai-t-advice` 默认编译但需用户主动启用。
 - 当前没有自动化测试目录；改动应至少按调用链检查共享类型、主进程、preload、浏览器演示实现和 UI 是否同步。
 - 股票数量输入统一以 100 股为步长；收益/收益率正红、负绿、零值中性。
 
-## 4.2.0–4.15.1 主要变化
+## 4.2.0–4.16.0 主要变化
 
 | 版本 | 主要变化 |
 | --- | --- |
@@ -111,6 +112,7 @@ JianZhang/
 | 4.13 | 筹码分布本地计算/缓存、AI 上下文接入和对话 `@股票` |
 | 4.14 | 交易记录行内编辑与删除 |
 | 4.15–4.15.1 | 交易流水统一为单一数据源、旧数据自动备份迁移、编辑持仓弹窗加宽 |
+| 4.16 | 历史 K 线磁盘缓存、筹码范围按换手率估算补取、主源异常时保留带换手率缓存 |
 
 ## Wiki 维护规则
 

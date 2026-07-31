@@ -18,7 +18,7 @@
 | 持仓天数 | `WatchlistTable.tsx` | `getPositionHoldingDays` | 内置/在线交易日历 |
 | 今日收益和持仓收益 | `App.tsx`、`WatchlistTable.tsx` | `calculatePositionMetrics`、`calculatePortfolioSummary` | 报价 + 持仓 + 当日交易 |
 | 分时、五日、日/周/月 K | `ExpandedStockDetails.tsx` | `CandlestickChart`、`PeriodKlineChart` | `fetchKline` |
-| 日 K 筹码分布 | `ChipDistributionPanel.tsx`、`PeriodKlineChart.tsx` | `calculateChipDistribution`、100% 累计换手范围 | 日 K 数据 + `ChipDistributionCache` |
+| 日 K 筹码分布 | `ChipDistributionPanel.tsx`、`PeriodKlineChart.tsx` | `calculateChipDistribution`、100% 累计换手范围 | 日 K 数据 + `HistoricalKlineCache` + `ChipDistributionCache` |
 | 五档盘口 | `OrderBookPanel.tsx` | 买卖盘显示与定时刷新 | `fetchOrderBook` |
 | 资金流向 | `FundsFlowPanel.tsx`、`FundsFlowChart.tsx` | 当日累计净额展示 | `fetchFundsFlow` |
 | 所属行业板块 | `SectorIndexPanel.tsx` | 板块概览和分时 | `fetchSectorBinding/Index` |
@@ -110,7 +110,7 @@ SearchBar
 6. 五日、日 K、周 K、月 K
 7. 板块
 
-分时页同时展示五档盘口。日 K 可通过设置开关显示筹码分布，计算范围从当前可视 K 线最右端向前累计换手率到 100%。标签页首次打开时按需请求，历史 K 线缩放到左端时按倍数补取更早数据。
+分时页同时展示五档盘口。日 K 可通过设置开关显示筹码分布，计算范围从当前可视 K 线最右端向前累计换手率到 100%。首批日 K 不足时根据现有平均换手率估算目标根数并直接补取；普通历史 K 线缩放到左端时仍按倍数补取更早数据。
 
 详细链路见[行情数据链路](03-market-data.md)。
 
