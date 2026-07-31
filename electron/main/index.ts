@@ -65,7 +65,7 @@ import { OrderBookHub } from './order-book-hub'
 import { ChipDistributionCache } from './chip-distribution-cache'
 import { HistoricalKlineCache } from './historical-kline-cache'
 import { FundsFlowHub } from './funds-flow-hub'
-import { IntradayKlineHub } from './intraday-kline-hub'
+import { KlineHub } from './kline-hub'
 import { MarketRequestLogger } from './market-request-logger'
 import {
   QuoteRefreshCoordinator,
@@ -110,50 +110,16 @@ let aiRuntime: AiRuntime | null = null
 let aiTAdviceRuntime: { dispose: () => void } | null = null
 let chipDistributionCache: ChipDistributionCache | null = null
 let fundsFlowHub: FundsFlowHub | null = null
-let historicalKlineCache: HistoricalKlineCache | null = null
-let intradayKlineHub: IntradayKlineHub | null = null
+let klineHub: KlineHub | null = null
 let marketRequestLogger: MarketRequestLogger | null = null
 let sectorMarketCache: SectorMarketCache | null = null
 let quoteRefreshCoordinator: QuoteRefreshCoordinator<StockQuote[]> | null = null
 let sectorBindingPrime: Promise<void> | null = null
 let lastSectorBindingPrimeAt = 0
 
-type HistoricalKlinePeriod = Extract<KlinePeriod, 'daily' | 'weekly' | 'monthly'>
-
-function isHistoricalKlinePeriod(period: KlinePeriod): period is HistoricalKlinePeriod {
-  return period === 'daily' || period === 'weekly' || period === 'monthly'
-}
-
-function defaultKlineLimit(period: KlinePeriod): number {
-  return period === 'weekly' ? 104 : period === 'monthly' ? 60 : 120
-}
-
 async function getKline(quoteId: string, period: KlinePeriod, limit?: number, caller = 'kline') {
-  if (period === 'intraday' && intradayKlineHub) {
-    return intradayKlineHub.get(quoteId, caller)
-  }
-  if (!historicalKlineCache || !isHistoricalKlinePeriod(period)) {
-    return fetchKline(quoteId, period, limit, caller)
-  }
-
-  const requestedLimit = Math.max(1, Math.round(limit ?? defaultKlineLimit(period)))
-  const cached = historicalKlineCache.get(
-    quoteId,
-    period,
-    requestedLimit,
-    state.settings.tradingCalendar.closedDates
-  )
-  if (cached) return cached
-
-  const fallback = historicalKlineCache.getFallback(quoteId, period)
-  try {
-    const result = await fetchKline(quoteId, period, requestedLimit, caller)
-    if (historicalKlineCache.shouldKeepFallback(period, result)) return fallback ?? result
-    return historicalKlineCache.save(quoteId, period, requestedLimit, result)
-  } catch (reason) {
-    if (fallback) return fallback
-    throw reason
-  }
+  return klineHub?.get(quoteId, period, limit, caller)
+    ?? fetchKline(quoteId, period, limit, caller)
 }
 
 function getFundsFlow(quoteId: string, caller = 'funds-flow') {
@@ -998,9 +964,10 @@ if (!hasSingleInstanceLock) {
       fetchFundsFlow,
       FUNDS_FLOW_REFRESH_MILLISECONDS
     )
-    historicalKlineCache = new HistoricalKlineCache(marketCacheDirectory)
-    intradayKlineHub = new IntradayKlineHub(
-      (quoteId, caller) => fetchKline(quoteId, 'intraday', undefined, caller),
+    klineHub = new KlineHub(
+      fetchKline,
+      new HistoricalKlineCache(marketCacheDirectory),
+      () => state.settings.tradingCalendar.closedDates,
       INTRADAY_REFRESH_MILLISECONDS
     )
     sectorMarketCache = new SectorMarketCache(
