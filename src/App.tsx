@@ -7,6 +7,7 @@ import { WatchlistTable } from './components/WatchlistTable'
 import { initialState, isDesktopRuntime, stockApi } from './lib/api'
 import { formatCurrency, formatPercent, formatPrice, formatProfit, formatUpdateTime } from './lib/format'
 import { calculatePortfolioSummary } from './lib/portfolio'
+import { reconcileStockQuotes } from './lib/quote-state'
 import { MARKET_INDEX_OPTIONS } from './shared/types'
 import packageInfo from '../package.json'
 import type {
@@ -52,6 +53,10 @@ export default function App() {
   const [aiAssistantContext, setAiAssistantContext] = useState<{ quoteId: string; quoteName?: string } | null>(null)
   const aiRuntimeAvailable = Boolean(AiAssistantDrawer && window.aiApi)
 
+  const updateQuotes = useCallback((incoming: StockQuote[]) => {
+    setQuotes((current) => reconcileStockQuotes(current, incoming))
+  }, [])
+
   const reportError = useCallback((message: string) => {
     setNotice('')
     setError(message)
@@ -76,7 +81,7 @@ export default function App() {
       .catch((reason: unknown) => reportError(reason instanceof Error ? reason.message : '应用初始化失败'))
       .finally(() => setInitializing(false))
 
-    const unsubscribeQuotes = stockApi.onQuotesUpdated(setQuotes)
+    const unsubscribeQuotes = stockApi.onQuotesUpdated(updateQuotes)
     const unsubscribeState = stockApi.onStateUpdated(setState)
     const unsubscribeSelection = stockApi.onSelectStock(setSelectedQuoteId)
     const unsubscribeError = stockApi.onDataError(reportError)
@@ -86,7 +91,7 @@ export default function App() {
       unsubscribeSelection()
       unsubscribeError()
     }
-  }, [reportError])
+  }, [reportError, updateQuotes])
 
   useEffect(() => {
     if (!error) return
@@ -133,13 +138,13 @@ export default function App() {
     try {
       const saved = await stockApi.saveState(nextState)
       setState(saved)
-      if (!isDesktopRuntime) setQuotes(await stockApi.refreshQuotes())
+      if (!isDesktopRuntime) updateQuotes(await stockApi.refreshQuotes())
       return saved
     } catch (reason) {
       reportError(reason instanceof Error ? reason.message : '设置保存失败')
       return null
     }
-  }, [reportError])
+  }, [reportError, updateQuotes])
 
   const addStock = useCallback((result: SearchResult) => {
     const existing = state.watchlist.find((stock) => stock.quoteId === result.quoteId)
@@ -162,10 +167,10 @@ export default function App() {
 
   const removeStock = useCallback((quoteId: string) => {
     const nextWatchlist = state.watchlist.filter((stock) => stock.quoteId !== quoteId)
-    if (selectedQuoteId === quoteId) setSelectedQuoteId(null)
+    setSelectedQuoteId((current) => current === quoteId ? null : current)
     setQuotes((current) => current.filter((quote) => quote.quoteId !== quoteId))
     void persist({ ...state, watchlist: nextWatchlist })
-  }, [persist, selectedQuoteId, state])
+  }, [persist, state])
 
   const toggleTaskbar = useCallback((quoteId: string) => {
     const nextWatchlist = state.watchlist.map((stock) =>
@@ -275,6 +280,24 @@ export default function App() {
     void persist({ ...state, settings })
   }, [persist, state])
 
+  const selectWatchlistStock = useCallback((quoteId: string) => {
+    setSelectedQuoteId((current) => current === quoteId ? null : quoteId)
+  }, [])
+
+  const updateChipDistributionEnabled = useCallback((enabled: boolean) => {
+    updateSettings({
+      ...state.settings,
+      showChipDistribution: enabled
+    })
+  }, [state.settings, updateSettings])
+
+  const updateBollingerBandsEnabled = useCallback((enabled: boolean) => {
+    updateSettings({
+      ...state.settings,
+      showBollingerBands: enabled
+    })
+  }, [state.settings, updateSettings])
+
   const exportConfig = useCallback(async () => {
     setConfigBusy(true)
     try {
@@ -312,7 +335,7 @@ export default function App() {
   const refreshNow = async () => {
     setRefreshing(true)
     try {
-      setQuotes(await stockApi.refreshQuotes())
+      updateQuotes(await stockApi.refreshQuotes())
     } catch (reason) {
       reportError(reason instanceof Error ? reason.message : '刷新失败')
     } finally {
@@ -453,7 +476,7 @@ export default function App() {
                 tTradingFees={state.settings.tTradingFees}
                 tPlanDefaults={state.settings.tPlanDefaults}
                 tradingCalendarClosedDates={state.settings.tradingCalendar.closedDates}
-                onSelect={(quoteId) => setSelectedQuoteId((current) => current === quoteId ? null : quoteId)}
+                onSelect={selectWatchlistStock}
                 onToggleTaskbar={toggleTaskbar}
                 onTogglePriority={togglePriority}
                 onEditPosition={updatePosition}
@@ -463,14 +486,8 @@ export default function App() {
                 onPin={pinStock}
                 onColumnOrderChange={updateColumnOrder}
                 onUpdateWatchlistGroups={updateWatchlistGroups}
-                onChipDistributionEnabledChange={(enabled) => updateSettings({
-                  ...state.settings,
-                  showChipDistribution: enabled
-                })}
-                onBollingerBandsEnabledChange={(enabled) => updateSettings({
-                  ...state.settings,
-                  showBollingerBands: enabled
-                })}
+                onChipDistributionEnabledChange={updateChipDistributionEnabled}
+                onBollingerBandsEnabledChange={updateBollingerBandsEnabled}
                 onRemove={removeStock}
               />
             )}

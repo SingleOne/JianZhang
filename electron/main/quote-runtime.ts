@@ -170,7 +170,16 @@ export class QuoteRuntime {
     this.latestQuotes = this.latestQuotes.map((quote) => {
       if (!stockQuoteIds.has(quote.quoteId)) return quote
       const sector = this.dependencies.sectorMarketCache.sectorQuote(quote.quoteId)
-      return sector ? { ...quote, sector } : quote
+      if (!sector) return quote
+      if (
+        quote.sector?.quoteId === sector.quoteId &&
+        quote.sector.code === sector.code &&
+        quote.sector.name === sector.name &&
+        quote.sector.changePercent === sector.changePercent
+      ) {
+        return quote
+      }
+      return { ...quote, sector }
     })
   }
 
