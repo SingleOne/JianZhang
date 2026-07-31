@@ -5472,6 +5472,14 @@ tr:focus-visible {
   grid-template-columns: minmax(0, 1fr) 278px;
 }
 
+.chart-panel.has-bollinger-toolbar {
+  min-height: 354px;
+}
+
+.chart-panel.has-bollinger-toolbar.has-chip-distribution {
+  min-height: 394px;
+}
+
 .chart-content {
   position: relative;
   min-width: 0;
@@ -5487,6 +5495,14 @@ tr:focus-visible {
   min-height: 360px;
 }
 
+.has-bollinger-toolbar .chart-content {
+  min-height: 354px;
+}
+
+.has-bollinger-toolbar.has-chip-distribution .chart-content {
+  min-height: 394px;
+}
+
 .has-order-book .chart-loading,
 .has-order-book .chart-error {
   height: 360px;
@@ -5495,6 +5511,17 @@ tr:focus-visible {
 .has-chip-distribution .chart-loading,
 .has-chip-distribution .chart-error {
   height: 360px;
+}
+
+.has-bollinger-toolbar .chart-loading,
+.has-bollinger-toolbar .chart-error {
+  height: 354px;
+}
+
+.has-bollinger-toolbar.has-chip-distribution .chart-loading,
+.has-bollinger-toolbar.has-chip-distribution .chart-error,
+.has-bollinger-toolbar.has-chip-distribution .chip-distribution-panel {
+  height: 394px;
 }
 
 .chip-distribution-panel {
@@ -6194,9 +6221,117 @@ tr:focus-visible {
   pointer-events: none;
 }
 
+.period-kline-shell,
 .period-kline-chart {
   width: 100%;
+}
+
+.period-kline-chart {
   height: 320px;
+}
+
+.bollinger-indicator-bar {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 10px;
+  overflow: hidden;
+  color: #66758a;
+  background: #fbfcfe;
+  border-top: 1px solid #edf1f7;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.bollinger-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  padding: 3px 6px;
+  color: #68768a;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.bollinger-toggle:hover {
+  color: var(--blue);
+  background: var(--blue-soft);
+}
+
+.bollinger-toggle > span {
+  width: 26px;
+  height: 14px;
+  position: relative;
+  display: inline-block;
+  background: #bcc6d4;
+  border-radius: 999px;
+  transition: background 160ms ease;
+}
+
+.bollinger-toggle > span i {
+  width: 10px;
+  height: 10px;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  background: #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.2);
+  transition: transform 160ms ease;
+}
+
+.bollinger-toggle.is-active > span {
+  background: var(--blue);
+}
+
+.bollinger-toggle.is-active > span i {
+  transform: translateX(12px);
+}
+
+.bollinger-toggle strong {
+  font-size: 12px;
+}
+
+.bollinger-toggle em {
+  color: #8a94a6;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.bollinger-values {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.bollinger-values span,
+.bollinger-values strong {
+  font-size: 12px;
+}
+
+.bollinger-values span {
+  font-weight: 650;
+}
+
+.bollinger-values strong {
+  margin-left: 3px;
+  color: inherit;
+}
+
+.bollinger-values .is-upper { color: #d97706; }
+.bollinger-values .is-middle { color: #3f7fd3; }
+.bollinger-values .is-lower { color: #7c3aed; }
+
+.bollinger-disabled-label {
+  color: #9aa5b4;
+  font-size: 12px;
 }
 
 .chart-history-loading {

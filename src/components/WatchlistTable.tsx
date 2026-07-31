@@ -72,6 +72,7 @@ interface WatchlistTableProps {
   priorityRefreshSeconds: number
   regularRefreshSeconds: number
   chipDistributionEnabled: boolean
+  bollingerBandsEnabled: boolean
   selectedQuoteId: string | null
   tTradingAccounts: TTradingAccounts
   tTradingFees: TTradingFeeSettings
@@ -101,6 +102,7 @@ interface WatchlistTableProps {
     groupIdsByQuoteId: Record<string, string[]>
   ) => void
   onChipDistributionEnabledChange: (enabled: boolean) => void
+  onBollingerBandsEnabledChange: (enabled: boolean) => void
   onRemove: (quoteId: string) => void
 }
 
@@ -353,6 +355,7 @@ export function WatchlistTable({
   priorityRefreshSeconds,
   regularRefreshSeconds,
   chipDistributionEnabled,
+  bollingerBandsEnabled,
   selectedQuoteId,
   tTradingAccounts,
   tTradingFees,
@@ -369,6 +372,7 @@ export function WatchlistTable({
   onColumnOrderChange,
   onUpdateWatchlistGroups,
   onChipDistributionEnabledChange,
+  onBollingerBandsEnabledChange,
   onRemove
 }: WatchlistTableProps) {
   const [sort, setSort] = useState<SortState | null>(null)
@@ -1119,7 +1123,9 @@ export function WatchlistTable({
                               refreshSeconds={stock.isPriority ? priorityRefreshSeconds : regularRefreshSeconds}
                               autoRefreshOrderBook={Boolean(tradingAccount?.activeBatch)}
                               chipDistributionEnabled={chipDistributionEnabled}
+                              bollingerBandsEnabled={bollingerBandsEnabled}
                               onChipDistributionEnabledChange={onChipDistributionEnabledChange}
+                              onBollingerBandsEnabledChange={onBollingerBandsEnabledChange}
                             />
                           </div>
                         </div>

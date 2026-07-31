@@ -78,7 +78,9 @@ interface ExpandedStockDetailsProps {
   refreshSeconds: number
   autoRefreshOrderBook: boolean
   chipDistributionEnabled: boolean
+  bollingerBandsEnabled: boolean
   onChipDistributionEnabledChange: (enabled: boolean) => void
+  onBollingerBandsEnabledChange: (enabled: boolean) => void
 }
 
 export function ExpandedStockDetails({
@@ -87,7 +89,9 @@ export function ExpandedStockDetails({
   refreshSeconds,
   autoRefreshOrderBook,
   chipDistributionEnabled,
-  onChipDistributionEnabledChange
+  bollingerBandsEnabled,
+  onChipDistributionEnabledChange,
+  onBollingerBandsEnabledChange
 }: ExpandedStockDetailsProps) {
   const initialTrend = klineCache.get(cacheKey(stock.quoteId, 'trend'))?.data
   const [activeTab, setActiveTab] = useState<DetailTab>('trend')
@@ -436,7 +440,7 @@ export function ExpandedStockDetails({
               </div>
             ))}
           </div>
-          <div className={`chart-panel ${priceTab === 'trend' ? 'has-order-book' : ''} ${priceTab === 'daily' && chipDistributionEnabled ? 'has-chip-distribution' : ''}`}>
+          <div className={`chart-panel ${priceTab === 'trend' ? 'has-order-book' : ''} ${historicalPeriod ? 'has-bollinger-toolbar' : ''} ${priceTab === 'daily' && chipDistributionEnabled ? 'has-chip-distribution' : ''}`}>
             <div className="chart-content">
               {error && data || isFiveMinuteFallback ? (
                 <div className="chart-refresh-warning" title={isFiveMinuteFallback ? data?.fallbackReason : error}>
@@ -481,6 +485,8 @@ export function ExpandedStockDetails({
                         : undefined}
                       visibleRangeRequestKey={chipRangeRequestKey}
                       onVisibleRangeChange={historicalPeriod === 'daily' ? handleDailyVisibleRangeChange : undefined}
+                      bollingerBandsEnabled={bollingerBandsEnabled}
+                      onBollingerBandsEnabledChange={onBollingerBandsEnabledChange}
                       height={historicalPeriod === 'daily' && chipDistributionEnabled ? 360 : 320}
                     />
                   ) : (

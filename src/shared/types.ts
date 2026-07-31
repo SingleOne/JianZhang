@@ -642,6 +642,7 @@ export interface AppSettings {
   minimizeToTray: boolean
   showTaskbarTicker: boolean
   showChipDistribution: boolean
+  showBollingerBands: boolean
   taskbarPositionPercent: number
   tTradingFees: TTradingFeeSettings
   tPlanDefaults: TPlanDefaultSettings
@@ -656,6 +657,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   minimizeToTray: true,
   showTaskbarTicker: true,
   showChipDistribution: false,
+  showBollingerBands: true,
   taskbarPositionPercent: 0,
   tTradingFees: { ...DEFAULT_T_TRADING_FEE_SETTINGS },
   tPlanDefaults: structuredClone(DEFAULT_T_PLAN_SETTINGS),
@@ -758,6 +760,7 @@ export function normalizeAppSettings(
     minimizeToTray: settings?.minimizeToTray ?? DEFAULT_APP_SETTINGS.minimizeToTray,
     showTaskbarTicker: settings?.showTaskbarTicker ?? DEFAULT_APP_SETTINGS.showTaskbarTicker,
     showChipDistribution: settings?.showChipDistribution ?? DEFAULT_APP_SETTINGS.showChipDistribution,
+    showBollingerBands: settings?.showBollingerBands ?? DEFAULT_APP_SETTINGS.showBollingerBands,
     taskbarPositionPercent: Math.min(100, Math.max(0,
       settings?.taskbarPositionPercent ?? DEFAULT_APP_SETTINGS.taskbarPositionPercent
     )),

@@ -14,6 +14,7 @@
 | 当日异动 | `fetchTodayRadarSignals` | 东方财富异动 |
 | 近 5 日异动 | `fetchHistoricalRadarSignals` | 东方财富异动统计与明细 |
 | 分时/五日/周期 K | `fetchKline` | 东方财富主源、腾讯行情备用源 |
+| BOLL 指标 | `calculateBollingerBands` | 本地使用日/周/月 K 收盘价计算，不调用独立指标接口 |
 | 筹码分布 | `calculateChipDistribution` | 本地使用日 K 与换手率计算，不调用独立筹码接口 |
 | 所属板块和板块报价 | `fetchSectorBinding/Quotes/Index` | 东方财富个股页与板块行情 |
 | 资金流向 | `fetchFundsFlow` | 东方财富分钟资金流 |
@@ -134,6 +135,8 @@ time, open, close, high, low, volume, amount, turnoverRate?
 
 - 红涨绿跌蜡烛。
 - 成交量叠加在底部。
+- 以 20 根 K 线收盘价均值为中轨、上下各 2 倍总体标准差，叠加 BOLL 上轨、中轨和下轨。
+- 图表下方指标栏显示最新或十字光标所在周期的三轨价格；开关状态保存在 `AppSettings.showBollingerBands`。
 - 最新周期固定在右侧。
 - 只允许缩放，不允许横向滚动离开最新端。
 - 根据当前可见范围重新标记最高和最低。

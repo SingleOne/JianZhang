@@ -1,15 +1,15 @@
 import type { KlineBar } from '../../../../shared/types'
+import { calculateBollingerBands } from '../../../../shared/bollinger'
 import type { IndicatorValue } from '../../shared/types'
-import { average, indicator, standardDeviation } from './shared'
+import { indicator, standardDeviation } from './shared'
 
 export function calculateVolatilityIndicators(inputBars: readonly KlineBar[], calculatedAt: string): IndicatorValue[] {
   const bars = inputBars.slice(0, -1)
   const closes = bars.map((bar) => bar.close)
-  const last20 = closes.slice(-20)
-  const middle = last20.length === 20 ? average(last20) : null
-  const deviation = last20.length === 20 ? standardDeviation(last20) : null
-  const upper = middle !== null && deviation !== null ? middle + deviation * 2 : null
-  const lower = middle !== null && deviation !== null ? middle - deviation * 2 : null
+  const bollinger = calculateBollingerBands(bars).at(-1)
+  const middle = bollinger?.middle ?? null
+  const upper = bollinger?.upper ?? null
+  const lower = bollinger?.lower ?? null
   const bandwidth = middle !== null && upper !== null && lower !== null && middle !== 0 ? (upper - lower) / middle * 100 : null
   const last15 = bars.slice(-15)
   const atr = last15.length === 15

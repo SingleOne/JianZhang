@@ -1,6 +1,6 @@
 # 见涨开发者 Wiki
 
-> 代码基线：`main` 分支，应用版本 `4.16.0`
+> 代码基线：`main` 分支，应用版本 `4.17.0`
 >
 > 整理日期：2026-07-31
 >
@@ -36,7 +36,7 @@
 - preload 只暴露类型化的 `window.stockApi`，隔离渲染层与 Node/Electron 能力。
 - React 渲染层展示自选、图表、持仓和做 T 界面，通过 IPC 读写状态。
 - `market-insight`、`ai`、`ai-t-advice` 通过独立 IPC、preload 和存储目录提供市场观察、AI 对话/解读与做 T 参考。
-- `src/shared` 保存跨进程数据结构、配置格式、交易时段和交易日历；`src/lib` 保存收益、统一交易流水、筹码分布和提醒纯函数。
+- `src/shared` 保存跨进程数据结构、配置格式、交易时段、交易日历和 BOLL 计算；`src/lib` 保存收益、统一交易流水、筹码分布和提醒纯函数。
 
 ## 仓库结构
 
@@ -85,6 +85,7 @@ JianZhang/
 | 修改做 T 或交易流水 | [`TTradingDrawer.tsx`](../../src/components/TTradingDrawer.tsx) | `PositionEditor.tsx`、[`trade-records.ts`](../../src/lib/trade-records.ts)、[`t-trading.ts`](../../src/lib/t-trading.ts)、[`t-alerts.ts`](../../src/lib/t-alerts.ts) |
 | 修改后台提醒 | [`src/lib/t-alerts.ts`](../../src/lib/t-alerts.ts) | 主进程、`TAlertBadges.tsx` |
 | 修改筹码分布 | [`chip-distribution.ts`](../../src/lib/chip-distribution.ts) | `ChipDistributionPanel.tsx`、`PeriodKlineChart.tsx`、主进程磁盘缓存 |
+| 修改 BOLL 指标 | [`bollinger.ts`](../../src/shared/bollinger.ts) | `PeriodKlineChart.tsx`、市场观察波动指标 |
 | 修改 AI 对话或 `@股票` | [`AiAssistantDrawer.tsx`](../../src/modules/ai/renderer/AiAssistantDrawer.tsx) | AI service、context builder、独立存储和 IPC |
 | 修改任务栏/托盘行为 | [`electron/main/index.ts`](../../electron/main/index.ts) | `TaskbarTicker.tsx`、`TrayHoverSummary.tsx` |
 | 修改配置兼容 | [`src/shared/config.ts`](../../src/shared/config.ts) | 共享类型中的 normalize/migrate 函数 |
@@ -100,7 +101,7 @@ JianZhang/
 - 当前没有自动化测试目录；改动应至少按调用链检查共享类型、主进程、preload、浏览器演示实现和 UI 是否同步。
 - 股票数量输入统一以 100 股为步长；收益/收益率正红、负绿、零值中性。
 
-## 4.2.0–4.16.0 主要变化
+## 4.2.0–4.17.0 主要变化
 
 | 版本 | 主要变化 |
 | --- | --- |
@@ -113,6 +114,7 @@ JianZhang/
 | 4.14 | 交易记录行内编辑与删除 |
 | 4.15–4.15.1 | 交易流水统一为单一数据源、旧数据自动备份迁移、编辑持仓弹窗加宽 |
 | 4.16 | 历史 K 线磁盘缓存、筹码范围按换手率估算补取、主源异常时保留带换手率缓存 |
+| 4.17 | 日/周/月 K 叠加 BOLL(20,2) 三轨线、下方指标栏和持久化显示开关 |
 
 ## Wiki 维护规则
 

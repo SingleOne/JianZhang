@@ -43,6 +43,7 @@
 | 文件 | 重点符号 | 职责 |
 | --- | --- | --- |
 | [`src/shared/types.ts`](../../src/shared/types.ts) | `AppState`、`StockQuote`、`TTradingAccount`、`TTradeRecord`、`StockDesktopApi` | 领域类型、分组/提醒/筹码结构、默认值、状态规范化和旧交易/列迁移 |
+| [`src/shared/bollinger.ts`](../../src/shared/bollinger.ts) | `calculateBollingerBands` | 日/周/月图表与市场观察共用的 BOLL(20,2) 滚动计算 |
 | [`src/shared/config.ts`](../../src/shared/config.ts) | `createConfigDocument`、`parseConfigDocument` | 配置格式版本、导入验证和兼容 |
 | [`src/shared/market-hours.ts`](../../src/shared/market-hours.ts) | `isBeijingAutoRefreshTime` | 北京时间自动刷新窗口 |
 | [`src/shared/trading-calendar.ts`](../../src/shared/trading-calendar.ts) | `countAStockTradingDays` | 内置休市范围和交易日计数 |
@@ -80,7 +81,7 @@
 | --- | --- |
 | [`src/components/ExpandedStockDetails.tsx`](../../src/components/ExpandedStockDetails.tsx) | 详情标签、K 线缓存、刷新和概览 |
 | [`src/components/CandlestickChart.tsx`](../../src/components/CandlestickChart.tsx) | 分时、五日、板块分时和成交量 |
-| [`src/components/PeriodKlineChart.tsx`](../../src/components/PeriodKlineChart.tsx) | 日/周/月蜡烛图和增量补历史 |
+| [`src/components/PeriodKlineChart.tsx`](../../src/components/PeriodKlineChart.tsx) | 日/周/月蜡烛图、BOLL 三轨线/指标栏和增量补历史 |
 | [`src/components/ChipDistributionPanel.tsx`](../../src/components/ChipDistributionPanel.tsx) | 日 K 筹码分布统计、图形和缓存保存 |
 | [`src/components/OrderBookPanel.tsx`](../../src/components/OrderBookPanel.tsx) | 买卖五档盘口 |
 | [`src/components/FundsFlowPanel.tsx`](../../src/components/FundsFlowPanel.tsx) | 资金流请求、缓存、摘要和表格 |

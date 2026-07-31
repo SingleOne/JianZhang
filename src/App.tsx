@@ -446,6 +446,7 @@ export default function App() {
                 priorityRefreshSeconds={state.settings.priorityRefreshSeconds}
                 regularRefreshSeconds={state.settings.regularRefreshSeconds}
                 chipDistributionEnabled={state.settings.showChipDistribution}
+                bollingerBandsEnabled={state.settings.showBollingerBands}
                 selectedQuoteId={selectedQuoteId}
                 tTradingAccounts={state.tTradingAccounts}
                 tTradingFees={state.settings.tTradingFees}
@@ -464,6 +465,10 @@ export default function App() {
                 onChipDistributionEnabledChange={(enabled) => updateSettings({
                   ...state.settings,
                   showChipDistribution: enabled
+                })}
+                onBollingerBandsEnabledChange={(enabled) => updateSettings({
+                  ...state.settings,
+                  showBollingerBands: enabled
                 })}
                 onRemove={removeStock}
               />
