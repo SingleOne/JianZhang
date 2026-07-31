@@ -224,7 +224,6 @@ export interface TTradingBatch {
   /** 缺省时视为旧版正T批次，保证原有配置兼容。 */
   direction?: TTradingDirection
   openingPosition?: TPositionSnapshot
-  trades: TTrade[]
   /** 低于当前 T 仓平均成本的五档买入计划。 */
   buyLevels?: TPlanLevel[]
   /** 高于当前 T 仓平均成本的五档卖出计划。 */
@@ -240,15 +239,30 @@ export interface TTradingAccount {
   name: string
   activeBatch?: TTradingBatch
   history: TTradingBatch[]
-  baseTrades?: TTrade[]
-  tradeRecords?: TTradeRecord[]
+  /** 账户内所有底仓及做T成交的唯一数据源。 */
+  tradeRecords: TTradeRecord[]
 }
 
 export type TTradingAccounts = Record<string, TTradingAccount>
 
-function activeTQuantity(batch: TTradingBatch): number {
+export function hasLegacyTTradingData(accounts: unknown): boolean {
+  if (!accounts || typeof accounts !== 'object') return false
+  return Object.values(accounts).some((value) => {
+    if (!value || typeof value !== 'object') return false
+    const account = value as {
+      baseTrades?: unknown
+      activeBatch?: { trades?: unknown }
+      history?: Array<{ trades?: unknown }>
+    }
+    return Array.isArray(account.baseTrades)
+      || Array.isArray(account.activeBatch?.trades)
+      || account.history?.some((batch) => Array.isArray(batch.trades)) === true
+  })
+}
+
+function activeTQuantity(batch: TTradingBatch, trades: readonly TTrade[]): number {
   const openingSide: TTradeSide = (batch.direction ?? 'forward') === 'reverse' ? 'sell' : 'buy'
-  return Math.max(0, batch.trades.reduce((total, trade) => (
+  return Math.max(0, trades.reduce((total, trade) => (
     trade.purpose !== 't'
       ? total
       : total + (trade.side === openingSide ? trade.quantity : -trade.quantity)
@@ -285,8 +299,11 @@ function normalizeTPlanLevels(
   })
 }
 
-export function normalizeActiveTTradingBatch(batch: TTradingBatch): TTradingBatch {
-  const quantity = activeTQuantity(batch)
+export function normalizeActiveTTradingBatch(
+  batch: TTradingBatch,
+  trades: readonly TTrade[] = []
+): TTradingBatch {
+  const quantity = activeTQuantity(batch, trades)
   const direction = batch.direction ?? 'forward'
   const legacyLevels = normalizeTPlanLevels(batch.sellLevels, quantity)
   const hasBuyLevels = Array.isArray(batch.buyLevels)
@@ -307,14 +324,25 @@ export function normalizeTTradingAccounts(
   accounts: TTradingAccounts | undefined
 ): TTradingAccounts {
   return Object.fromEntries(Object.entries(accounts ?? {}).map(([quoteId, account]) => {
-    const normalizedAccount: TTradingAccount = account.activeBatch
-      ? { ...account, activeBatch: normalizeActiveTTradingBatch(account.activeBatch) }
-      : account
+    type LegacyBatch = TTradingBatch & { trades?: TTrade[] }
+    type LegacyAccount = Omit<TTradingAccount, 'activeBatch' | 'history' | 'tradeRecords'> & {
+      activeBatch?: LegacyBatch
+      history?: LegacyBatch[]
+      baseTrades?: TTrade[]
+      tradeRecords?: TTradeRecord[]
+    }
+    const legacyAccount = account as LegacyAccount
+    const legacyHistory = legacyAccount.history ?? []
+    const stripLegacyTrades = (batch: LegacyBatch): TTradingBatch => {
+      const { trades: _legacyTrades, ...normalizedBatch } = batch
+      return normalizedBatch
+    }
     const records = new Map(
-      (normalizedAccount.tradeRecords ?? []).map((record) => [record.id, record])
+      (legacyAccount.tradeRecords ?? []).map((record) => [record.id, record])
     )
-    const addBatchTrades = (batch: TTradingBatch) => {
-      batch.trades.forEach((trade) => records.set(trade.id, {
+    const addLegacyBatchTrades = (batch: LegacyBatch) => {
+      const legacyTrades = batch.trades ?? []
+      legacyTrades.forEach((trade) => records.set(trade.id, {
         ...trade,
         batchId: batch.id,
         batchSequence: batch.sequence,
@@ -322,15 +350,45 @@ export function normalizeTTradingAccounts(
       }))
     }
 
-    normalizedAccount.baseTrades?.forEach((trade) => records.set(trade.id, { ...trade }))
-    normalizedAccount.history.forEach(addBatchTrades)
-    if (normalizedAccount.activeBatch) addBatchTrades(normalizedAccount.activeBatch)
+    legacyAccount.baseTrades?.forEach((trade) => records.set(trade.id, { ...trade }))
+    legacyHistory.forEach(addLegacyBatchTrades)
+    if (legacyAccount.activeBatch) addLegacyBatchTrades(legacyAccount.activeBatch)
+
+    const history = legacyHistory.map(stripLegacyTrades)
+    const activeBatch = legacyAccount.activeBatch
+      ? stripLegacyTrades(legacyAccount.activeBatch)
+      : undefined
+    const batchesById = new Map(
+      [...history, ...(activeBatch ? [activeBatch] : [])].map((batch) => [batch.id, batch])
+    )
+    const tradeRecords = [...records.values()].map((record) => {
+      const batch = record.batchId ? batchesById.get(record.batchId) : undefined
+      return batch
+        ? {
+            ...record,
+            batchSequence: batch.sequence,
+            batchDirection: batch.direction ?? 'forward'
+          }
+        : record
+    }).sort((left, right) => right.tradedAt.localeCompare(left.tradedAt))
+    const activeTrades = activeBatch
+      ? tradeRecords.filter((record) => record.batchId === activeBatch.id)
+      : []
+    const {
+      activeBatch: _legacyActiveBatch,
+      history: _legacyHistory,
+      baseTrades: _legacyBaseTrades,
+      tradeRecords: _legacyTradeRecords,
+      ...accountFields
+    } = legacyAccount
 
     return [quoteId, {
-      ...normalizedAccount,
-      tradeRecords: [...records.values()].sort((left, right) => (
-        right.tradedAt.localeCompare(left.tradedAt)
-      ))
+      ...accountFields,
+      history,
+      activeBatch: activeBatch
+        ? normalizeActiveTTradingBatch(activeBatch, activeTrades)
+        : undefined,
+      tradeRecords
     }]
   }))
 }

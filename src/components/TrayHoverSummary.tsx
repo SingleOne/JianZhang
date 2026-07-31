@@ -10,6 +10,7 @@ import {
 import { calculatePositionMetrics } from '../lib/portfolio'
 import { getTriggeredTAlertBadges } from '../lib/t-alerts'
 import { calculateTBatchMetrics } from '../lib/t-trading'
+import { getBatchTrades } from '../lib/trade-records'
 import type { AppState, StockQuote } from '../shared/types'
 
 function valueClass(value: number | null | undefined): string {
@@ -45,14 +46,15 @@ export function TrayHoverSummary() {
       .map((stock) => {
         const quote = quoteMap.get(stock.quoteId)
         const account = state.tTradingAccounts[stock.quoteId]
-        const alertBadges = getTriggeredTAlertBadges(account?.activeBatch)
+        const activeTrades = getBatchTrades(account, account?.activeBatch)
+        const alertBadges = getTriggeredTAlertBadges(account?.activeBatch, activeTrades)
         return {
           stock,
           alertBadges,
           hasFiveLevelAlert: Boolean(account?.activeBatch) && Boolean(quote?.fiveLevelLargeOrders?.length),
           positionMetrics: calculatePositionMetrics(stock.position, quote, account),
           tMetrics: account?.activeBatch
-            ? calculateTBatchMetrics(account.activeBatch, quote?.latest)
+            ? calculateTBatchMetrics(account.activeBatch, activeTrades, quote?.latest)
             : null
         }
       })

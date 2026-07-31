@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { initialState, stockApi } from '../lib/api'
 import { formatPercent, formatPrice } from '../lib/format'
 import { getTriggeredTAlertBadges } from '../lib/t-alerts'
+import { getBatchTrades } from '../lib/trade-records'
 import { getTriggeredStockAlertDirection } from '../lib/stock-alerts'
 import type { AppState, StockQuote, TaskbarLayout } from '../shared/types'
 import { FiveLevelAlertBadges } from './FiveLevelAlertBadges'
@@ -55,7 +56,10 @@ export function TaskbarTicker() {
         return {
           stock,
           quote,
-          alertBadges: getTriggeredTAlertBadges(account?.activeBatch),
+          alertBadges: getTriggeredTAlertBadges(
+            account?.activeBatch,
+            getBatchTrades(account, account?.activeBatch)
+          ),
           fiveLevelAlerts: account?.activeBatch ? quote?.fiveLevelLargeOrders : undefined,
           stockAlertDirection: getTriggeredStockAlertDirection(stock.alertRules)
         }

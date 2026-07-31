@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { MarketInsightSnapshot } from '../../market-insight/shared/types'
 import type { AiStructuredTaskRequest, AiStructuredTaskResult } from '../../ai/shared/types'
 import { calculateTBatchMetrics } from '../../../lib/t-trading'
+import { getBatchTrades } from '../../../lib/trade-records'
 import { tPlanTargetPrice, updateTPlanLevel } from '../../../lib/t-alerts'
 import {
   normalizeActiveTTradingBatch,
@@ -83,7 +84,10 @@ function buildPromptContext(
   chipDistribution: ChipDistributionCacheEntry | null
 ) {
   const batch = context.account?.activeBatch
-  const metrics = batch ? calculateTBatchMetrics(batch, context.quote?.latest) : null
+  const batchTrades = getBatchTrades(context.account, batch)
+  const metrics = batch
+    ? calculateTBatchMetrics(batch, batchTrades, context.quote?.latest)
+    : null
   const positionQuantity = context.position?.quantity ?? 0
   const sourceStates = snapshot.sourceStates ?? []
   const staleSources = sourceStates
@@ -280,11 +284,16 @@ export class AiTAdviceService {
     const account = context?.account
     const activeBatch = account?.activeBatch
     if (!context || !account || !activeBatch) throw new Error('当前没有可修改的活动 T 批次')
-    const batch = normalizeActiveTTradingBatch(activeBatch)
+    const batchTrades = getBatchTrades(account, activeBatch)
+    const batch = normalizeActiveTTradingBatch(activeBatch, batchTrades)
     const direction = batch.direction ?? 'forward'
     const expectedDirection = advice.action === 'forward-t' ? 'forward' : 'reverse'
     if (direction !== expectedDirection) throw new Error('参考方向与当前活动 T 批次方向不一致，不能直接应用')
-    const averageCost = calculateTBatchMetrics(batch, context.quote?.latest).averageCost
+    const averageCost = calculateTBatchMetrics(
+      batch,
+      batchTrades,
+      context.quote?.latest
+    ).averageCost
     if (averageCost === null || averageCost <= 0) throw new Error('当前 T 批次尚无可用于计算档位的 T 仓均价')
 
     const side = advice.action === 'forward-t' ? 'buy' : 'sell'
@@ -345,7 +354,10 @@ export class AiTAdviceService {
       throw new Error('活动 T 批次已经变化，请重新生成预览')
     }
 
-    let nextBatch = normalizeActiveTTradingBatch(activeBatch)
+    let nextBatch = normalizeActiveTTradingBatch(
+      activeBatch,
+      getBatchTrades(account, activeBatch)
+    )
     nextBatch = updateTPlanLevel(
       nextBatch,
       preview.change.side,

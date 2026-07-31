@@ -39,6 +39,7 @@ import {
 import { getTriggeredTAlertBadges } from '../lib/t-alerts'
 import { getTriggeredStockAlertDirection } from '../lib/stock-alerts'
 import { calculateTBatchMetrics } from '../lib/t-trading'
+import { getBatchTrades } from '../lib/trade-records'
 import type {
   StockPosition,
   StockPositionSnapshot,
@@ -783,8 +784,13 @@ export function WatchlistTable({
               const latestRadarSignal = currentRadarSignals[0]
               const tradingAccount = tTradingAccounts[stock.quoteId]
               const activeTBatch = tradingAccount?.activeBatch
-              const tFloatingProfit = calculateTBatchMetrics(activeTBatch, quote?.latest).floatingProfit
-              const tAlertBadges = getTriggeredTAlertBadges(activeTBatch)
+              const activeTTrades = getBatchTrades(tradingAccount, activeTBatch)
+              const tFloatingProfit = calculateTBatchMetrics(
+                activeTBatch,
+                activeTTrades,
+                quote?.latest
+              ).floatingProfit
+              const tAlertBadges = getTriggeredTAlertBadges(activeTBatch, activeTTrades)
               const enabledStockAlertCount = stock.alertRules?.filter((rule) => rule.enabled).length ?? 0
               const stockAlertDirection = getTriggeredStockAlertDirection(stock.alertRules)
               const stockAlertClass = stockAlertDirection

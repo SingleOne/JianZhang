@@ -86,6 +86,7 @@ export function calculateTradeFees(
 
 export function calculateTBatchMetrics(
   batch: TTradingBatch | undefined,
+  trades: readonly TTrade[],
   latestPrice?: number | null
 ): TBatchMetrics {
   const direction = getTBatchDirection(batch)
@@ -96,7 +97,7 @@ export function calculateTBatchMetrics(
   let buyAmount = 0
   let sellAmount = 0
 
-  for (const trade of batch?.trades ?? []) {
+  for (const trade of trades) {
     if (trade.purpose !== 't') continue
     const amount = trade.price * trade.quantity
     const fees = totalTradeFees(trade.fees)
@@ -149,13 +150,16 @@ export function calculateTBatchMetrics(
   }
 }
 
-export function validateTBatchTrades(batch: TTradingBatch): string | undefined {
+export function validateTBatchTrades(
+  batch: TTradingBatch,
+  trades: readonly TTrade[]
+): string | undefined {
   const direction = getTBatchDirection(batch)
   const openingSide: TTradeSide = direction === 'forward' ? 'buy' : 'sell'
   let runningTQuantity = 0
   let runningPositionQuantity = batch.openingPosition?.quantity ?? 0
 
-  for (const trade of batch.trades) {
+  for (const trade of trades) {
     runningPositionQuantity += trade.side === 'buy' ? trade.quantity : -trade.quantity
     if (runningPositionQuantity < 0) {
       return '卖出数量不能超过批次内可用持仓数量'
@@ -197,9 +201,10 @@ export function rebalanceTPlanLevels(
 
 export function rebalanceTBatchPlans(
   batch: TTradingBatch,
+  trades: readonly TTrade[],
   defaults: TPlanDefaultSettings
 ): TTradingBatch {
-  const normalized = normalizeActiveTTradingBatch(batch)
+  const normalized = normalizeActiveTTradingBatch(batch, trades)
   return {
     ...normalized,
     buyLevels: rebalanceTPlanLevels(normalized.buyLevels, defaults.buyLevels),
@@ -209,9 +214,10 @@ export function rebalanceTBatchPlans(
 
 export function resetTBatchPlans(
   batch: TTradingBatch,
+  trades: readonly TTrade[],
   defaults: TPlanDefaultSettings
 ): TTradingBatch {
-  const normalized = normalizeActiveTTradingBatch(batch)
+  const normalized = normalizeActiveTTradingBatch(batch, trades)
   return {
     ...normalized,
     buyLevels: createTPlanLevelsFromDefaults(defaults.buyLevels),
@@ -245,7 +251,10 @@ export function applyTradeToPosition(
   }
 }
 
-export function recalculatePositionFromBatch(batch: TTradingBatch): StockPosition | undefined {
+export function recalculatePositionFromBatch(
+  batch: TTradingBatch,
+  trades: readonly TTrade[]
+): StockPosition | undefined {
   let position = batch.openingPosition
     ? {
         ...batch.openingPosition,
@@ -253,7 +262,7 @@ export function recalculatePositionFromBatch(batch: TTradingBatch): StockPositio
       }
     : undefined
 
-  for (const trade of batch.trades) {
+  for (const trade of trades) {
     position = applyTradeToPosition(position, trade)
   }
   return position
@@ -261,13 +270,14 @@ export function recalculatePositionFromBatch(batch: TTradingBatch): StockPositio
 
 export function calculateCostAdjustedProfit(
   batch: TTradingBatch,
+  trades: readonly TTrade[],
   latestPositionQuantity: number,
   latestPositionCost: number
 ): number {
   let referenceCostBasis = (batch.openingPosition?.quantity ?? 0)
     * (batch.openingPosition?.cost ?? 0)
 
-  for (const trade of batch.trades) {
+  for (const trade of trades) {
     if (trade.purpose !== 'base') continue
     const amount = trade.price * trade.quantity
     const fees = totalTradeFees(trade.fees)

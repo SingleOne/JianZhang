@@ -3,13 +3,15 @@ import {
   calculateTradeFees,
   totalTradeFees
 } from './t-trading'
+import { getBatchTrades } from './trade-records'
 import type {
   StockQuote,
   TPlanLevel,
   TTradingAccount,
   TTradingAccounts,
   TTradingBatch,
-  TTradingFeeSettings
+  TTradingFeeSettings,
+  TTrade
 } from '../shared/types'
 
 export type TAlertSide = 'buy' | 'sell'
@@ -54,13 +56,14 @@ export function tPlanTargetPrice(
 
 export function getTPlanRows(
   batch: TTradingBatch | undefined,
+  trades: readonly TTrade[],
   side: TAlertSide,
   feeSettings: TTradingFeeSettings,
   marketLabel: string
 ): TPlanRow[] {
   if (!batch) return []
 
-  const metrics = calculateTBatchMetrics(batch)
+  const metrics = calculateTBatchMetrics(batch, trades)
   const averageCost = metrics.averageCost
   let cumulativeProfit = metrics.realizedProfit
   const isOpeningPlan = (
@@ -119,9 +122,12 @@ export function getTPlanRows(
   })
 }
 
-export function getTriggeredTAlertBadges(batch: TTradingBatch | undefined): TAlertBadge[] {
+export function getTriggeredTAlertBadges(
+  batch: TTradingBatch | undefined,
+  trades: readonly TTrade[]
+): TAlertBadge[] {
   if (!batch?.alertEnabled) return []
-  const averageCost = calculateTBatchMetrics(batch).averageCost
+  const averageCost = calculateTBatchMetrics(batch, trades).averageCost
   return (['buy', 'sell'] as const).flatMap((side) => {
     const levels = levelsForSide(batch, side)
     let index = levels.length - 1
@@ -138,8 +144,11 @@ export function getTriggeredTAlertBadges(batch: TTradingBatch | undefined): TAle
   })
 }
 
-export function hasTriggeredTAlerts(batch: TTradingBatch | undefined): boolean {
-  return getTriggeredTAlertBadges(batch).length > 0
+export function hasTriggeredTAlerts(
+  batch: TTradingBatch | undefined,
+  trades: readonly TTrade[]
+): boolean {
+  return getTriggeredTAlertBadges(batch, trades).length > 0
 }
 
 function priceTriggersLevel(
@@ -153,13 +162,14 @@ function priceTriggersLevel(
 
 export function applyTAlertTriggers(
   batch: TTradingBatch,
+  trades: readonly TTrade[],
   latest: number | null | undefined
 ): { batch: TTradingBatch; changed: boolean } {
   if (!batch.alertEnabled || latest === null || latest === undefined) {
     return { batch, changed: false }
   }
 
-  const averageCost = calculateTBatchMetrics(batch).averageCost
+  const averageCost = calculateTBatchMetrics(batch, trades).averageCost
   let changed = false
   let nextBatch = batch
 
@@ -198,8 +208,9 @@ export function applyTAlertTriggersToAccounts(
 
   for (const [quoteId, account] of Object.entries(accounts)) {
     const batch = account.activeBatch
+    const trades = getBatchTrades(account, batch)
     const result = batch
-      ? applyTAlertTriggers(batch, quotesById.get(quoteId)?.latest)
+      ? applyTAlertTriggers(batch, trades, quotesById.get(quoteId)?.latest)
       : { batch, changed: false }
     nextAccounts[quoteId] = result.changed
       ? { ...account, activeBatch: result.batch }
@@ -280,5 +291,5 @@ export function handleTriggeredTPlanAlertsForTrade(
 }
 
 export function accountHasTriggeredTAlerts(account: TTradingAccount | undefined): boolean {
-  return hasTriggeredTAlerts(account?.activeBatch)
+  return hasTriggeredTAlerts(account?.activeBatch, getBatchTrades(account, account?.activeBatch))
 }

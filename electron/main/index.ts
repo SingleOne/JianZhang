@@ -10,13 +10,14 @@ import {
   type OpenDialogOptions,
   type SaveDialogOptions
 } from 'electron'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   DEFAULT_APP_SETTINGS,
   DEFAULT_WATCHLIST_COLUMN_ORDER,
   WATCHLIST_COLUMN_ORDER_VERSION,
   getMarketIndexStocks,
+  hasLegacyTTradingData,
   migrateWatchlistColumnOrder,
   normalizeAppSettings,
   normalizeTradingCalendarSettings,
@@ -120,9 +121,14 @@ function statePath(): string {
   return join(app.getPath('userData'), 'settings.json')
 }
 
+function legacyTradingBackupPath(): string {
+  return join(app.getPath('userData'), 'settings.pre-unified-trades.json')
+}
+
 function loadState(): AppState {
   try {
     const saved = JSON.parse(readFileSync(statePath(), 'utf8')) as AppState
+    const hasLegacyTrades = hasLegacyTTradingData(saved.tTradingAccounts)
     const loadedState: AppState = {
       watchlist: normalizeWatchlist(saved.watchlist ?? DEFAULT_WATCHLIST),
       watchlistGroups: normalizeWatchlistGroups(saved.watchlistGroups),
@@ -131,7 +137,12 @@ function loadState(): AppState {
       columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
       tTradingAccounts: normalizeTTradingAccounts(saved.tTradingAccounts)
     }
-    if (saved.columnOrderVersion !== WATCHLIST_COLUMN_ORDER_VERSION) {
+    const tradingAccountsMigrated = JSON.stringify(saved.tTradingAccounts ?? {})
+      !== JSON.stringify(loadedState.tTradingAccounts)
+    if (hasLegacyTrades && !existsSync(legacyTradingBackupPath())) {
+      writeFileSync(legacyTradingBackupPath(), JSON.stringify(saved, null, 2), 'utf8')
+    }
+    if (saved.columnOrderVersion !== WATCHLIST_COLUMN_ORDER_VERSION || tradingAccountsMigrated) {
       writeFileSync(statePath(), JSON.stringify(loadedState, null, 2), 'utf8')
     }
     return loadedState

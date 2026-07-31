@@ -9,6 +9,7 @@ import type {
 } from '../../../shared/types'
 import { tPlanTargetPrice } from '../../../lib/t-alerts'
 import { calculateTBatchMetrics } from '../../../lib/t-trading'
+import { getBatchTrades } from '../../../lib/trade-records'
 import { getMarketIndexStocks } from '../../../shared/types'
 import {
   MARKET_INSIGHT_MODULE_VERSION,
@@ -434,7 +435,9 @@ export class MarketInsightService {
   private calculateTPlanDistances(stock: WatchStock, latest: number | null): TPlanDistance[] {
     const account = this.dependencies.getState().tTradingAccounts[stock.quoteId]
     const batch = account?.activeBatch
-    const batchMetrics = batch ? calculateTBatchMetrics(batch) : null
+    const batchMetrics = batch
+      ? calculateTBatchMetrics(batch, getBatchTrades(account, batch))
+      : null
     const cost = batchMetrics ? batchMetrics.averageCost : stock.position?.cost
     if (latest === null || cost === null || cost === undefined) return []
     const position: TPlanDistance = {

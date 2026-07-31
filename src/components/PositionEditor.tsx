@@ -12,6 +12,11 @@ import { createPortal } from 'react-dom'
 import { formatCost, formatCurrency, formatPercent, formatPrice, formatProfit, formatShares } from '../lib/format'
 import { currentDateKey } from '../lib/portfolio'
 import {
+  detachTradeRecordsFromBatch,
+  sortTradeRecords,
+  upsertTradeRecord
+} from '../lib/trade-records'
+import {
   calculateTBatchMetrics,
   recalculatePositionFromBatch,
   rebalanceTBatchPlans,
@@ -136,16 +141,13 @@ function createOpeningTradeAccount(
     quoteId: stock.quoteId,
     code: stock.code,
     name: stock.name,
-    history: []
+    history: [],
+    tradeRecords: []
   }
 
   return {
     ...currentAccount,
-    baseTrades: [...(currentAccount.baseTrades ?? []), trade],
-    tradeRecords: [
-      ...(currentAccount.tradeRecords ?? []).filter((record) => record.id !== trade.id),
-      trade
-    ].sort((left, right) => right.tradedAt.localeCompare(left.tradedAt))
+    tradeRecords: upsertTradeRecord(currentAccount.tradeRecords, trade)
   }
 }
 
@@ -192,9 +194,12 @@ function feesWithTotal(fees: TTradeFees, nextTotal: number): TTradeFees {
   }
 }
 
-function refreshBatchSettlement(batch: TTradingBatch): TTradingBatch {
+function refreshBatchSettlement(
+  batch: TTradingBatch,
+  trades: readonly TTrade[]
+): TTradingBatch {
   if (!batch.settlement) return batch
-  const ledgerProfit = calculateTBatchMetrics(batch).realizedProfit
+  const ledgerProfit = calculateTBatchMetrics(batch, trades).realizedProfit
   const settlement = {
     ...batch.settlement,
     ledgerProfit,
@@ -211,65 +216,55 @@ function updateTradeAccount(
   nextTrade: TTrade | undefined,
   planDefaults: TPlanDefaultSettings
 ): TradeAccountUpdate {
-  const replaceTrade = (trades: readonly TTrade[]): TTrade[] => (
-    nextTrade
-      ? [...trades.filter((trade) => trade.id !== record.id), nextTrade]
-          .sort((left, right) => left.tradedAt.localeCompare(right.tradedAt))
-      : trades.filter((trade) => trade.id !== record.id)
-  )
   const nextRecords = nextTrade
-    ? [
-        ...(account.tradeRecords ?? []).filter((item) => item.id !== record.id),
+    ? sortTradeRecords([
+        ...account.tradeRecords.filter((item) => item.id !== record.id),
         { ...record, ...nextTrade }
-      ].sort((left, right) => right.tradedAt.localeCompare(left.tradedAt))
-    : account.tradeRecords?.filter((item) => item.id !== record.id)
+      ])
+    : account.tradeRecords.filter((item) => item.id !== record.id)
 
-  if (account.activeBatch?.trades.some((trade) => trade.id === record.id)) {
-    const nextBatch = {
-      ...account.activeBatch,
-      trades: replaceTrade(account.activeBatch.trades)
-    }
-    const validationError = validateTBatchTrades(nextBatch)
+  const activeBatch = account.activeBatch
+  if (activeBatch && activeBatch.id === record.batchId) {
+    const nextBatch = activeBatch
+    const nextBatchTrades = sortTradeRecords(
+      nextRecords.filter((item) => item.batchId === nextBatch.id),
+      'ascending'
+    )
+    const validationError = validateTBatchTrades(nextBatch, nextBatchTrades)
     if (validationError) {
       return { account, updatesPosition: false, error: validationError }
     }
-    const plannedBatch = rebalanceTBatchPlans(nextBatch, planDefaults)
-    const hasTTrades = nextBatch.trades.some((trade) => trade.purpose === 't')
-    const migratedTradeIds = new Set(nextBatch.trades.map((trade) => trade.id))
+    const plannedBatch = rebalanceTBatchPlans(nextBatch, nextBatchTrades, planDefaults)
+    const hasTTrades = nextBatchTrades.some((trade) => trade.purpose === 't')
+    const finalRecords = hasTTrades
+      ? nextRecords
+      : detachTradeRecordsFromBatch(nextRecords, nextBatch.id)
     return {
       account: {
         ...account,
         activeBatch: hasTTrades ? plannedBatch : undefined,
-        baseTrades: hasTTrades
-          ? account.baseTrades
-          : [
-              ...(account.baseTrades ?? []).filter((trade) => !migratedTradeIds.has(trade.id)),
-              ...nextBatch.trades
-            ],
-        tradeRecords: hasTTrades
-          ? nextRecords
-          : nextRecords?.map((item) => {
-              const migratedTrade = nextBatch.trades.find((trade) => trade.id === item.id)
-              return migratedTrade ?? item
-            })
+        tradeRecords: finalRecords
       },
-      position: recalculatePositionFromBatch(plannedBatch),
+      position: recalculatePositionFromBatch(plannedBatch, nextBatchTrades),
       updatesPosition: true
     }
   }
 
   const historyIndex = account.history.findIndex((batch) => (
-    batch.trades.some((trade) => trade.id === record.id)
+    batch.id === record.batchId
   ))
   if (historyIndex >= 0) {
     const batch = account.history[historyIndex]
-    const nextBatch = { ...batch, trades: replaceTrade(batch.trades) }
-    const validationError = validateTBatchTrades(nextBatch)
+    const nextBatchTrades = sortTradeRecords(
+      nextRecords.filter((item) => item.batchId === batch.id),
+      'ascending'
+    )
+    const validationError = validateTBatchTrades(batch, nextBatchTrades)
     if (validationError) {
       return { account, updatesPosition: false, error: validationError }
     }
     const history = account.history.map((item, index) => (
-      index === historyIndex ? refreshBatchSettlement(nextBatch) : item
+      index === historyIndex ? refreshBatchSettlement(batch, nextBatchTrades) : item
     ))
     return {
       account: { ...account, history, tradeRecords: nextRecords },
@@ -277,11 +272,8 @@ function updateTradeAccount(
     }
   }
 
-  const baseTrades = account.baseTrades?.some((trade) => trade.id === record.id)
-    ? replaceTrade(account.baseTrades)
-    : account.baseTrades
   return {
-    account: { ...account, baseTrades, tradeRecords: nextRecords },
+    account: { ...account, tradeRecords: nextRecords },
     updatesPosition: false
   }
 }

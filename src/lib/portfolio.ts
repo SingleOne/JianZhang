@@ -7,6 +7,7 @@ import type {
   WatchStock
 } from '../shared/types'
 import { countAStockTradingDays } from '../shared/trading-calendar'
+import { getAccountTrades } from './trade-records'
 
 export interface PositionMetrics {
   marketValue: number | null
@@ -59,14 +60,6 @@ export function getPositionHoldingDays(
 
   const holdingDays = countAStockTradingDays(position.openedOn, currentDateKey(), additionalClosedDates)
   return holdingDays > 0 ? holdingDays : null
-}
-
-function getAccountTrades(account: TTradingAccount | undefined): TTrade[] {
-  return [
-    ...(account?.baseTrades ?? []),
-    ...(account?.activeBatch?.trades ?? []),
-    ...(account?.history.flatMap((batch) => batch.trades) ?? [])
-  ]
 }
 
 function getTradeFees(trade: TTrade): number {

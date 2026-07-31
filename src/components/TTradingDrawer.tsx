@@ -34,6 +34,11 @@ import {
   totalTradeFees,
   validateTBatchTrades
 } from '../lib/t-trading'
+import {
+  detachTradeRecordsFromBatch,
+  getBatchTrades,
+  upsertTradeRecord
+} from '../lib/trade-records'
 import { TPlanTable } from './TPlanTable'
 import type {
   StockPosition,
@@ -45,7 +50,6 @@ import type {
   TTrade,
   TTradeFees,
   TTradePurpose,
-  TTradeRecord,
   TTradeSide,
   WatchStock
 } from '../shared/types'
@@ -100,28 +104,6 @@ function tradeLabel(trade: TTrade, batch: TTradingBatch | undefined): string {
   return trade.side === 'buy' ? 'T仓买入' : 'T仓卖出'
 }
 
-function toTradeRecord(trade: TTrade, batch?: TTradingBatch): TTradeRecord {
-  return batch
-    ? {
-        ...trade,
-        batchId: batch.id,
-        batchSequence: batch.sequence,
-        batchDirection: batch.direction ?? 'forward'
-      }
-    : { ...trade }
-}
-
-function upsertTradeRecord(
-  records: readonly TTradeRecord[] | undefined,
-  trade: TTrade,
-  batch?: TTradingBatch
-): TTradeRecord[] {
-  return [
-    ...(records ?? []).filter((record) => record.id !== trade.id),
-    toTradeRecord(trade, batch)
-  ].sort((left, right) => right.tradedAt.localeCompare(left.tradedAt))
-}
-
 export function TTradingDrawer({
   stock,
   quote,
@@ -135,7 +117,8 @@ export function TTradingDrawer({
     quoteId: stock.quoteId,
     code: stock.code,
     name: stock.name,
-    history: []
+    history: [],
+    tradeRecords: []
   }
   const [side, setSide] = useState<TTradeSide>('buy')
   const [purpose, setPurpose] = useState<TTradePurpose>('t')
@@ -161,9 +144,13 @@ export function TTradingDrawer({
   const [showAllActiveTrades, setShowAllActiveTrades] = useState(false)
   const [historyPage, setHistoryPage] = useState(0)
 
+  const activeTrades = useMemo(
+    () => getBatchTrades(currentAccount, currentAccount.activeBatch),
+    [currentAccount.activeBatch, currentAccount.tradeRecords]
+  )
   const activeMetrics = useMemo(
-    () => calculateTBatchMetrics(currentAccount.activeBatch, quote?.latest),
-    [currentAccount.activeBatch, quote?.latest]
+    () => calculateTBatchMetrics(currentAccount.activeBatch, activeTrades, quote?.latest),
+    [activeTrades, currentAccount.activeBatch, quote?.latest]
   )
   const isReverseBatch = activeMetrics.direction === 'reverse'
   const tPurposeLabel = currentAccount.activeBatch
@@ -181,12 +168,12 @@ export function TTradingDrawer({
     (total, batch) => total + (batch.settlement?.finalProfit ?? 0),
     0
   )
-  const currentBatchFees = (currentAccount.activeBatch?.trades ?? []).reduce(
+  const currentBatchFees = activeTrades.reduce(
     (total, trade) => total + totalTradeFees(trade.fees),
     0
   )
   const totalHistoryFees = currentAccount.history.reduce(
-    (total, batch) => total + batch.trades.reduce(
+    (total, batch) => total + getBatchTrades(currentAccount, batch).reduce(
       (batchTotal, trade) => batchTotal + totalTradeFees(trade.fees),
       0
     ),
@@ -212,7 +199,7 @@ export function TTradingDrawer({
   const tradeFees = manualFees ? feeOverrides : calculatedFees
   const readyToSettle = Boolean(
     currentAccount.activeBatch
-    && currentAccount.activeBatch.trades.some((trade) => trade.purpose === 't')
+    && activeTrades.some((trade) => trade.purpose === 't')
     && activeMetrics.remainingQuantity === 0
   )
 
@@ -231,22 +218,22 @@ export function TTradingDrawer({
   ])
 
   const buyLevelRows = useMemo(
-    () => getTPlanRows(currentAccount.activeBatch, 'buy', feeSettings, stock.marketLabel),
-    [currentAccount.activeBatch, feeSettings, stock.marketLabel]
+    () => getTPlanRows(currentAccount.activeBatch, activeTrades, 'buy', feeSettings, stock.marketLabel),
+    [activeTrades, currentAccount.activeBatch, feeSettings, stock.marketLabel]
   )
   const sellLevelRows = useMemo(
-    () => getTPlanRows(currentAccount.activeBatch, 'sell', feeSettings, stock.marketLabel),
-    [currentAccount.activeBatch, feeSettings, stock.marketLabel]
+    () => getTPlanRows(currentAccount.activeBatch, activeTrades, 'sell', feeSettings, stock.marketLabel),
+    [activeTrades, currentAccount.activeBatch, feeSettings, stock.marketLabel]
   )
   const activeTradesDescending = useMemo(
-    () => (currentAccount.activeBatch?.trades ?? [])
+    () => activeTrades
       .map((trade, index) => ({ trade, index }))
       .sort((left, right) => (
         right.trade.tradedAt.localeCompare(left.trade.tradedAt)
         || right.index - left.index
       ))
       .map(({ trade }) => trade),
-    [currentAccount.activeBatch?.trades]
+    [activeTrades]
   )
   const visibleActiveTrades = showAllActiveTrades
     ? activeTradesDescending
@@ -297,7 +284,6 @@ export function TTradingDrawer({
       applyAccount(
         {
           ...currentAccount,
-          baseTrades: [...(currentAccount.baseTrades ?? []), trade],
           tradeRecords: upsertTradeRecord(currentAccount.tradeRecords, trade)
         },
         applyTradeToPosition(stock.position, trade)
@@ -307,11 +293,10 @@ export function TTradingDrawer({
     }
 
     let batch: TTradingBatch
+    let batchTrades: TTrade[]
     if (currentAccount.activeBatch) {
-      batch = {
-        ...currentAccount.activeBatch,
-        trades: currentAccount.activeBatch.trades.filter((item) => item.id !== editingTradeId)
-      }
+      batch = currentAccount.activeBatch
+      batchTrades = activeTrades.filter((item) => item.id !== editingTradeId)
     } else {
       batch = {
         id: crypto.randomUUID(),
@@ -319,42 +304,44 @@ export function TTradingDrawer({
         openedAt: tradedAt,
         direction: side === 'buy' ? 'forward' : 'reverse',
         openingPosition: positionSnapshot(stock.position),
-        trades: [],
         buyLevels: createTPlanLevelsFromDefaults(planDefaults.buyLevels),
         sellLevels: createTPlanLevelsFromDefaults(planDefaults.sellLevels),
         alertEnabled: false
       }
+      batchTrades = []
     }
 
     if (
       !editingTradeId
       && activeMetrics.remainingQuantity === 0
-      && batch.trades.some((item) => item.purpose === 't')
+      && batchTrades.some((item) => item.purpose === 't')
     ) {
       setError('当前批次已清空，请先完成结算')
       return
     }
 
-    const nextTrades = [...batch.trades, trade]
+    const nextTrades = [...batchTrades, trade]
       .sort((left, right) => left.tradedAt.localeCompare(right.tradedAt))
-    const nextBatch = { ...batch, trades: nextTrades }
-    const validationError = validateTBatchTrades(nextBatch)
+    const validationError = validateTBatchTrades(batch, nextTrades)
     if (validationError) {
       setError(validationError)
       return
     }
-    let plannedBatch = rebalanceTBatchPlans(nextBatch, planDefaults)
+    let plannedBatch = rebalanceTBatchPlans(batch, nextTrades, planDefaults)
     if (purpose === 't') {
       plannedBatch = handleTriggeredTPlanAlertsForTrade(plannedBatch, side)
     }
-    const hasTTrades = nextBatch.trades.some((trade) => trade.purpose === 't')
+    const hasTTrades = nextTrades.some((trade) => trade.purpose === 't')
+    const nextRecords = upsertTradeRecord(currentAccount.tradeRecords, trade, plannedBatch)
     applyAccount(
       {
         ...currentAccount,
         activeBatch: hasTTrades ? plannedBatch : undefined,
-        tradeRecords: upsertTradeRecord(currentAccount.tradeRecords, trade, plannedBatch)
+        tradeRecords: hasTTrades
+          ? nextRecords
+          : detachTradeRecordsFromBatch(nextRecords, plannedBatch.id)
       },
-      recalculatePositionFromBatch(plannedBatch)
+      recalculatePositionFromBatch(plannedBatch, nextTrades)
     )
     resetTradeForm()
   }
@@ -375,24 +362,24 @@ export function TTradingDrawer({
   const deleteTrade = (tradeId: string) => {
     const batch = currentAccount.activeBatch
     if (!batch) return
-    const nextBatch = {
-      ...batch,
-      trades: batch.trades.filter((trade) => trade.id !== tradeId)
-    }
-    const validationError = validateTBatchTrades(nextBatch)
+    const nextTrades = activeTrades.filter((trade) => trade.id !== tradeId)
+    const validationError = validateTBatchTrades(batch, nextTrades)
     if (validationError) {
       setError(validationError)
       return
     }
-    const plannedBatch = rebalanceTBatchPlans(nextBatch, planDefaults)
-    const hasTTrades = nextBatch.trades.some((trade) => trade.purpose === 't')
+    const plannedBatch = rebalanceTBatchPlans(batch, nextTrades, planDefaults)
+    const hasTTrades = nextTrades.some((trade) => trade.purpose === 't')
+    const nextRecords = currentAccount.tradeRecords.filter((record) => record.id !== tradeId)
     applyAccount(
       {
         ...currentAccount,
         activeBatch: hasTTrades ? plannedBatch : undefined,
-        tradeRecords: currentAccount.tradeRecords?.filter((record) => record.id !== tradeId)
+        tradeRecords: hasTTrades
+          ? nextRecords
+          : detachTradeRecordsFromBatch(nextRecords, plannedBatch.id)
       },
-      recalculatePositionFromBatch(plannedBatch)
+      recalculatePositionFromBatch(plannedBatch, nextTrades)
     )
     if (editingTradeId === tradeId) resetTradeForm()
   }
@@ -409,7 +396,7 @@ export function TTradingDrawer({
     applyAccount({
       ...currentAccount,
       activeBatch: nextBatch.alertEnabled
-        ? applyTAlertTriggers(nextBatch, quote?.latest).batch
+        ? applyTAlertTriggers(nextBatch, activeTrades, quote?.latest).batch
         : nextBatch
     }, stock.position)
   }
@@ -417,11 +404,11 @@ export function TTradingDrawer({
   const resetPlanLevels = () => {
     const batch = currentAccount.activeBatch
     if (!batch) return
-    const nextBatch = resetTBatchPlans(batch, planDefaults)
+    const nextBatch = resetTBatchPlans(batch, activeTrades, planDefaults)
     applyAccount({
       ...currentAccount,
       activeBatch: nextBatch.alertEnabled
-        ? applyTAlertTriggers(nextBatch, quote?.latest).batch
+        ? applyTAlertTriggers(nextBatch, activeTrades, quote?.latest).batch
         : nextBatch
     }, stock.position)
   }
@@ -433,7 +420,7 @@ export function TTradingDrawer({
     applyAccount({
       ...currentAccount,
       activeBatch: nextBatch.alertEnabled
-        ? applyTAlertTriggers(nextBatch, quote?.latest).batch
+        ? applyTAlertTriggers(nextBatch, activeTrades, quote?.latest).batch
         : nextBatch
     }, stock.position)
   }
@@ -454,7 +441,7 @@ export function TTradingDrawer({
     applyAccount({
       ...currentAccount,
       activeBatch: nextBatch.alertEnabled
-        ? applyTAlertTriggers(nextBatch, quote?.latest).batch
+        ? applyTAlertTriggers(nextBatch, activeTrades, quote?.latest).batch
         : nextBatch
     }, stock.position)
   }
@@ -473,7 +460,7 @@ export function TTradingDrawer({
 
     const costAdjustedProfit = finalCost === undefined
       ? undefined
-      : calculateCostAdjustedProfit(batch, finalQuantity, finalCost)
+      : calculateCostAdjustedProfit(batch, activeTrades, finalQuantity, finalCost)
     const settlement = {
       settledAt: new Date().toISOString(),
       latestPositionQuantity: finalQuantity,
@@ -556,7 +543,7 @@ export function TTradingDrawer({
     applyAccount({
       ...currentAccount,
       history: currentAccount.history.filter((item) => item.id !== batch.id),
-      tradeRecords: currentAccount.tradeRecords?.filter((record) => record.batchId !== batch.id)
+      tradeRecords: currentAccount.tradeRecords.filter((record) => record.batchId !== batch.id)
     }, stock.position)
 
     if (editingHistoryBatchId === batch.id) cancelEditingHistoryProfit()
@@ -760,7 +747,7 @@ export function TTradingDrawer({
                       <small>当前批次费用</small>
                       <strong>{formatCurrency(currentBatchFees)}</strong>
                     </span>
-                    <em>{currentAccount.activeBatch.trades.length} 笔流水</em>
+                    <em>{activeTrades.length} 笔流水</em>
                   </div>
                 </div>
                 <div className="t-trade-list">
@@ -918,11 +905,13 @@ export function TTradingDrawer({
                       按最新成本推算：
                       <strong className={valueClass(calculateCostAdjustedProfit(
                         currentAccount.activeBatch,
+                        activeTrades,
                         Math.max(0, Number(latestPositionQuantity) || 0),
                         Number(latestPositionCost) || 0
                       ))}>
                         {formatProfit(calculateCostAdjustedProfit(
                           currentAccount.activeBatch,
+                          activeTrades,
                           Math.max(0, Number(latestPositionQuantity) || 0),
                           Number(latestPositionCost) || 0
                         ))}
@@ -974,14 +963,17 @@ export function TTradingDrawer({
                 ) : null}
               </div>
               <div className="t-history-list">
-                {visibleHistoryBatches.map((batch) => (
+                {visibleHistoryBatches.map((batch) => {
+                  const batchTrades = getBatchTrades(currentAccount, batch)
+                  const lastTrade = batchTrades.at(-1)
+                  return (
                   <details key={batch.id}>
                     <summary>
                       <span>
                         <strong>{batchDirectionLabel(batch)}批次 #{batch.sequence}</strong>
                         <small>
-                          {formatTradeTime(batch.openedAt)} 至 {batch.trades.length > 0
-                            ? formatTradeTime(batch.trades[batch.trades.length - 1].tradedAt)
+                          {formatTradeTime(batch.openedAt)} 至 {lastTrade
+                            ? formatTradeTime(lastTrade.tradedAt)
                             : '--'}
                         </small>
                       </span>
@@ -993,7 +985,7 @@ export function TTradingDrawer({
                       </span>
                     </summary>
                     <div>
-                      {batch.trades.map((trade) => {
+                      {batchTrades.map((trade) => {
                         const totalFees = totalTradeFees(trade.fees)
                         const amountChange = trade.side === 'buy'
                           ? -(trade.price * trade.quantity + totalFees)
@@ -1083,7 +1075,8 @@ export function TTradingDrawer({
                       ) : null}
                     </div>
                   </details>
-                ))}
+                  )
+                })}
               </div>
             </section>
           ) : null}
