@@ -13,14 +13,15 @@
 | 五档盘口 | `OrderBookHub` → `fetchOrderBook` | 东方财富个股行情 |
 | 当日异动 | `fetchTodayRadarSignals` | 东方财富异动 |
 | 近 5 日异动 | `fetchHistoricalRadarSignals` | 东方财富异动统计与明细 |
-| 分时/五日/周期 K | `fetchKline` | 东方财富主源、腾讯行情备用源 |
+| 分时 | `fetchKline` | 东方财富主源、腾讯行情备用源 |
+| 五日/周期 K | `fetchKline` | 东方财富主节点、东方财富镜像节点、腾讯行情备用源 |
 | BOLL 指标 | `calculateBollingerBands` | 本地使用日/周/月 K 收盘价计算，不调用独立指标接口 |
 | 筹码分布 | `calculateChipDistribution` | 本地使用日 K 与换手率计算，不调用独立筹码接口 |
 | 所属板块和板块报价 | `fetchSectorBinding/Quotes/Index` | 东方财富个股页与板块行情 |
 | 资金流向 | `fetchFundsFlow` | 东方财富分钟资金流 |
 | 休市日历 | `fetchSseTradingCalendar` | 上交所休市安排 |
 
-所有行情请求通过 Electron `net.fetch` 发出。`requestJson` 使用 12 秒超时并最多尝试两次；板块页面文本请求使用同样的 12 秒超时，但不重试。K 线请求在东方财富失败后自动切换到腾讯行情。
+常规行情请求通过 Electron `net.fetch` 发出。`requestJson` 使用 12 秒超时并最多尝试两次；板块页面文本请求使用同样的 12 秒超时，但不重试。历史 K 线先单次请求 `push2his.eastmoney.com`，失败后立即通过 Node HTTPS 请求 `push2delay.eastmoney.com`，并保留历史 K 线主机路由；两个东方财富节点都失败时才切换到腾讯行情。主表行情、五档盘口和分时接口不使用该镜像节点。
 
 ## 报价标识
 
@@ -150,7 +151,7 @@ time, open, close, high, low, volume, amount, turnoverRate?
 3. `calculateChipDistribution` 将选中范围的价格区间划为 150 个桶，逐日按换手率淘汰旧筹码并按当日高低价区间分配新筹码。
 4. 面板展示平均成本、获利比例、70%/90% 成本区间和集中度；拖动或缩放日 K 后改用当前可视范围重新计算，可一键恢复 100% 换手自动范围。
 
-当前日 K 的东方财富主源包含换手率；腾讯备用 K 线通常不含换手率。主源成功时，带换手率的日 K 会写入历史 K 线缓存；主源异常时优先保留这份缓存，不允许无换手率的备用数据覆盖。首次使用且没有有效缓存时，筹码分布仍会提示缺少换手率。最近一次有效筹码结果由 renderer 调用 `saveChipDistributionCache` 写入：
+当前日 K 的东方财富主节点和镜像节点均包含换手率；腾讯备用 K 线通常不含换手率。任一东方财富节点成功时，带换手率的日 K 会写入历史 K 线缓存；两个节点都异常时优先保留这份缓存，不允许无换手率的腾讯备用数据覆盖。首次使用且没有有效缓存时，筹码分布仍会提示缺少换手率。最近一次有效筹码结果由 renderer 调用 `saveChipDistributionCache` 写入：
 
 ```text
 userData/market-cache/chip-distributions.json

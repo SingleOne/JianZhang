@@ -1,4 +1,5 @@
 import { net } from 'electron'
+import { get as httpsGet } from 'node:https'
 import type {
   FundsFlowResult,
   KlineBar,
@@ -164,6 +165,32 @@ async function requestJson<T>(
   }
 
   throw lastError instanceof Error ? lastError : new Error('行情服务暂时不可用')
+}
+
+async function requestJsonWithHost<T>(url: string, host: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const request = httpsGet(url, {
+      headers: { ...EASTMONEY_HEADERS, Host: host },
+      timeout: 12_000
+    }, (response) => {
+      const chunks: Buffer[] = []
+      response.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
+      response.on('end', () => {
+        const status = response.statusCode ?? 0
+        if (status < 200 || status >= 300) {
+          reject(new Error(`行情服务返回 ${status}`))
+          return
+        }
+        try {
+          resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')) as T)
+        } catch (error) {
+          reject(error)
+        }
+      })
+    })
+    request.on('timeout', () => request.destroy(new Error('行情服务请求超时')))
+    request.on('error', reject)
+  })
 }
 
 async function requestText(url: string): Promise<string> {
@@ -630,20 +657,50 @@ async function fetchHistoricalKline(
   klt: '5' | '101' | '102' | '103',
   limit: number
 ): Promise<KlineResult> {
-  const url = new URL('https://push2his.eastmoney.com/api/qt/stock/kline/get')
-  url.searchParams.set('secid', quoteId)
-  url.searchParams.set('klt', klt)
-  url.searchParams.set('fqt', '1')
-  url.searchParams.set('lmt', String(limit))
-  url.searchParams.set('end', '20500101')
-  url.searchParams.set('fields1', 'f1,f2,f3,f4,f5,f6')
-  url.searchParams.set('fields2', 'f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61')
+  const createUrl = (origin: string) => {
+    const url = new URL('/api/qt/stock/kline/get', origin)
+    url.searchParams.set('secid', quoteId)
+    url.searchParams.set('klt', klt)
+    url.searchParams.set('fqt', '1')
+    url.searchParams.set('lmt', String(limit))
+    url.searchParams.set('end', '20500101')
+    url.searchParams.set('fields1', 'f1,f2,f3,f4,f5,f6')
+    url.searchParams.set('fields2', 'f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61')
+    return url
+  }
+  const fetchFrom = async (
+    url: URL,
+    host?: string
+  ) => {
+    type HistoricalKlinePayload = {
+      data?: { name?: string; klines?: string[] }
+    }
+    const payload = host
+      ? await requestJsonWithHost<HistoricalKlinePayload>(url.toString(), host)
+      : await requestJson<HistoricalKlinePayload>(url.toString(), 1)
 
-  const payload = await requestJson<{
-    data?: { name?: string; klines?: string[] }
-  }>(url.toString())
+    return toHistoricalKlineResult(quoteId, payload.data?.name, payload.data?.klines ?? [])
+  }
+  const primaryUrl = createUrl('https://push2his.eastmoney.com')
 
-  return toHistoricalKlineResult(quoteId, payload.data?.name, payload.data?.klines ?? [])
+  try {
+    return await fetchFrom(primaryUrl)
+  } catch (primaryError) {
+    const delayUrl = createUrl('https://push2delay.eastmoney.com')
+    try {
+      const result = await fetchFrom(delayUrl, primaryUrl.host)
+      return {
+        ...result,
+        fallbackReason: primaryError instanceof Error
+          ? `东方财富历史 K 线主节点读取失败，当前使用镜像节点：${primaryError.message}`
+          : '东方财富历史 K 线主节点读取失败，当前使用镜像节点'
+      }
+    } catch (delayError) {
+      const primaryMessage = primaryError instanceof Error ? primaryError.message : '请求失败'
+      const delayMessage = delayError instanceof Error ? delayError.message : '请求失败'
+      throw new Error(`东方财富历史 K 线主节点和镜像节点均不可用（主节点：${primaryMessage}；镜像节点：${delayMessage}）`)
+    }
+  }
 }
 
 async function fetchEastmoneyKline(
