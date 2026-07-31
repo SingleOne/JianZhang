@@ -1001,9 +1001,10 @@ export function WatchlistTable({
                             <td key={columnId}>
                               <span
                                 className="today-market-cell"
-                                title={`今开 ${formatPrice(quote?.open)}，最低 ${formatPrice(quote?.low)}，最高 ${formatPrice(quote?.high)}`}
+                                title={`今开 ${formatPrice(quote?.open)}，昨收 ${formatPrice(quote?.previousClose)}，最低 ${formatPrice(quote?.low)}，最高 ${formatPrice(quote?.high)}`}
                               >
-                                <span className="today-market-open">今开：{formatPrice(quote?.open)}</span>
+                                <span>今开：{formatPrice(quote?.open)}</span>
+                                <span>昨收：{formatPrice(quote?.previousClose)}</span>
                                 <span>最低：{formatPrice(quote?.low)}</span>
                                 <span>最高：{formatPrice(quote?.high)}</span>
                               </span>

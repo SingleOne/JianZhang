@@ -83,7 +83,6 @@ export function TaskbarTicker() {
           stockAlertDirection
         }) => {
           const direction = directionClass(quote?.changePercent)
-          const arrow = direction === 'is-up' ? '↑' : direction === 'is-down' ? '↓' : '·'
           return (
             <div
               className={`taskbar-quote ${direction} ${stockAlertDirection ? `is-stock-alert-triggered is-alert-${stockAlertDirection}` : ''}`}
@@ -91,7 +90,6 @@ export function TaskbarTicker() {
             >
               <span className="taskbar-stock-name">{stock.name}</span>
               <FiveLevelAlertBadges alerts={fiveLevelAlerts} compact />
-              <span className="taskbar-stock-arrow">{arrow}</span>
               <strong>{formatPrice(quote?.latest)}</strong>
               <span className="taskbar-stock-change">{formatPercent(quote?.changePercent)}</span>
               <TAlertBadges badges={alertBadges} compact />

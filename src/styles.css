@@ -1874,10 +1874,6 @@ tr:focus-visible {
   line-height: 1.2;
 }
 
-.today-market-open {
-  grid-column: 1 / -1;
-}
-
 .trading-market-cell {
   display: inline-grid;
   justify-items: center;
@@ -6845,7 +6841,7 @@ html.tray-mode #root {
   grid-auto-flow: column;
   grid-auto-columns: max-content;
   align-items: center;
-  column-gap: 22px;
+  column-gap: 11px;
   overflow: hidden;
   padding: 3px 0;
   font-size: 13px;
@@ -6983,7 +6979,6 @@ html.tray-mode #root {
   text-overflow: ellipsis;
 }
 
-.taskbar-stock-arrow,
 .taskbar-stock-change,
 .taskbar-quote strong {
   color: inherit;
