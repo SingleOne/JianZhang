@@ -23,7 +23,7 @@ interface AppState {
 - 自定义分组及股票的多分组归属。
 - 持仓和持仓快照。
 - 自定义股价提醒规则与触发状态。
-- 刷新、指数、筹码分布开关、做 T、系统、交易日历设置。
+- 刷新、指数、筹码分布开关、做 T、浮动盈亏提醒默认值、系统、交易日历设置。
 - 表格列顺序及迁移版本。
 - 全部做 T 活动批次、历史元数据和唯一交易流水。
 
@@ -106,11 +106,11 @@ interface AppState {
 | `normalizeWatchlist` | 持仓股票强制重点关注、补异动开关、过滤无效快照 |
 | `normalizeWatchlistGroups` | 去除无 ID、无名称或重复 ID 的自定义分组 |
 | `normalizeMarketIndexIds` | 过滤并按内置顺序返回指数 |
-| `normalizeActiveTTradingBatch` | 兼容旧双五档、提醒开关和反 T 语义 |
+| `normalizeActiveTTradingBatch` | 兼容旧双五档、价格/浮动盈亏提醒开关和反 T 语义 |
 | `normalizeTTradingAccounts` | 把旧活动/历史批次流水和 `baseTrades` 按 ID 合并到唯一 `tradeRecords`，再移除旧字段并规范化活动批次 |
 | `normalizeWatchlistColumnOrder` | 去重、补缺失列、保证操作列在末尾 |
 | `migrateWatchlistColumnOrder` | 按版本插入今日收益、板块、成交等新列，并过滤已经移除的列 |
-| `normalizeAppSettings` | 兼容旧刷新字段、限制秒数/位置、补费用和日历 |
+| `normalizeAppSettings` | 兼容旧刷新字段、限制秒数/位置、补费用、浮动盈亏提醒默认值和日历 |
 | `normalizeTradingCalendarSettings` | 校验日期、去重、排序并保证内置覆盖年份 |
 
 新增持久化字段时，不能只改 interface；至少要补默认值和 normalize。

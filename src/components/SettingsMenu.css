@@ -469,6 +469,18 @@
   font-size: 11px;
 }
 
+.t-floating-profit-alert-default-setting small {
+  font-size: 12px;
+}
+
+.t-floating-profit-alert-default-setting .number-input-wrap input {
+  width: 72px;
+}
+
+.t-floating-profit-alert-default-setting .number-input-wrap > span {
+  font-size: 12px;
+}
+
 .setting-row-position {
   min-height: 78px;
 }

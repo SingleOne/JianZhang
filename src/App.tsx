@@ -480,6 +480,7 @@ export default function App() {
                 tTradingAccounts={state.tTradingAccounts}
                 tTradingFees={state.settings.tTradingFees}
                 tPlanDefaults={state.settings.tPlanDefaults}
+                tFloatingProfitAlertDefaultThreshold={state.settings.tFloatingProfitAlertDefaultThreshold}
                 tradingCalendarClosedDates={state.settings.tradingCalendar.closedDates}
                 onSelect={selectWatchlistStock}
                 onToggleTaskbar={toggleTaskbar}

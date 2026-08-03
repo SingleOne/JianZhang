@@ -51,6 +51,7 @@ App
    ├─ TTradingDrawer
    │  └─ TPlanTable × 2
    ├─ TAlertBadges
+   ├─ TFloatingProfitAlertBadge
    └─ FiveLevelAlertBadges
 ```
 
@@ -164,7 +165,7 @@ App
 - 自动费用或手工费用。
 - 当前批次概览和最近流水。
 - 买入/卖出双五档。
-- 提醒开启、处理和恢复。
+- 双五档价格提醒、浮动盈亏提醒开启和恢复。
 - 批次结算。
 - 历史分页、收益校准和删除。
 
@@ -181,7 +182,11 @@ App
 
 ### `TAlertBadges.tsx`
 
-主表和任务栏复用的小组件。`compact` 模式用于任务栏。
+双五档价格提醒标识。`compact` 模式用于任务栏。
+
+### `TFloatingProfitAlertBadge.tsx`
+
+主表、任务栏和托盘悬停摘要复用的 T 仓金额提醒标识。浮盈显示红色“盈”，浮亏显示绿色“亏”，只显示当前已触发的一种方向。
 
 ### `StockAlertDialog.tsx` / `FiveLevelAlertBadges.tsx`
 

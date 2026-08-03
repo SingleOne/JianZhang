@@ -14,7 +14,8 @@
 | `src/components/PositionEditor.tsx` | 持仓录入、版本快照、全部交易记录的查看与行内编辑 |
 | `src/components/TTradingDrawer.tsx` | 做 T 交易、计划、结算和历史交互 |
 | `src/components/TPlanTable.tsx` | 买入/卖出五档表格 |
-| `src/components/TAlertBadges.tsx` | 主表和任务栏共用提醒标识 |
+| `src/components/TAlertBadges.tsx` | 双五档价格提醒标识 |
+| `src/components/TFloatingProfitAlertBadge.tsx` | T仓浮盈/浮亏金额提醒标识 |
 | `electron/main/index.ts` | 行情刷新后执行提醒并广播状态 |
 
 ## 普通持仓
@@ -120,6 +121,7 @@ TTradingBatch
 ├─ buyLevels[5]
 ├─ sellLevels[5]
 ├─ alertEnabled
+├─ floatingProfitAlert?  双向浮动盈亏金额提醒
 └─ settlement?
 ```
 
@@ -287,6 +289,19 @@ latestQuotes
 - 提醒股票即使未勾选任务栏展示，也会临时进入任务栏窗口。
 - 记录同方向 T 交易会把该方向当前触发档标记为 `handled`。
 - 价格离开触发区域后，`triggered` 和 `handled` 都恢复为 `armed`。
+
+## T仓浮动盈亏提醒
+
+在“设置 → 做T”中配置“浮动盈亏提醒默认值”，默认金额为 100 元。新建批次会复制该值；活动批次在“交易管理”窗口中可以单独修改阈值和开关。
+
+提醒是双向金额阈值：
+
+- 浮动收益达到或超过 `+阈值` 时提醒浮盈。
+- 浮动收益达到或低于 `-阈值` 时提醒浮亏。
+
+状态只在跨越阈值时变化，持续停留在阈值外不会重复通知；回到 `-阈值～+阈值` 区间后恢复待命。批次没有剩余 T 仓、关闭提醒或完成结算后，标识会移除。
+
+后台沿用 `applyTAlertTriggersToAccounts`，在每次统一行情刷新后计算。触发时由主进程发出 Windows 系统通知，并通过 `state:updated` 同步主表、任务栏和托盘悬停摘要。浮盈标识为红色“盈”，浮亏标识为绿色“亏”，两者持续闪烁。
 
 ## 批次结算
 

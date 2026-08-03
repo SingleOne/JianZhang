@@ -186,6 +186,17 @@ export interface TPositionSnapshot {
 
 export type TAlertStatus = 'armed' | 'triggered' | 'handled'
 
+export const DEFAULT_T_FLOATING_PROFIT_ALERT_THRESHOLD = 100
+
+export type TFloatingProfitAlertStatus = 'armed' | 'profit-triggered' | 'loss-triggered'
+
+export interface TFloatingProfitAlert {
+  enabled: boolean
+  threshold: number
+  status: TFloatingProfitAlertStatus
+  triggeredAt?: string
+}
+
 export interface TPlanLevel {
   targetPercent: number
   quantity: number
@@ -230,6 +241,8 @@ export interface TTradingBatch {
   sellLevels: TPlanLevel[]
   /** 当前批次的买卖十档价格提醒总开关。 */
   alertEnabled?: boolean
+  /** 当前批次的双向浮动盈亏金额提醒。 */
+  floatingProfitAlert?: TFloatingProfitAlert
   settlement?: TBatchSettlement
 }
 
@@ -299,6 +312,23 @@ function normalizeTPlanLevels(
   })
 }
 
+function normalizeTFloatingProfitAlert(
+  alert: Partial<TFloatingProfitAlert> | undefined
+): TFloatingProfitAlert {
+  const enabled = alert?.enabled ?? false
+  const status = enabled && (
+    alert?.status === 'profit-triggered' || alert?.status === 'loss-triggered'
+  )
+    ? alert.status
+    : 'armed'
+  return {
+    enabled,
+    threshold: Math.max(1, alert?.threshold ?? DEFAULT_T_FLOATING_PROFIT_ALERT_THRESHOLD),
+    status,
+    triggeredAt: status === 'armed' ? undefined : alert?.triggeredAt
+  }
+}
+
 export function normalizeActiveTTradingBatch(
   batch: TTradingBatch,
   trades: readonly TTrade[] = []
@@ -316,7 +346,8 @@ export function normalizeActiveTTradingBatch(
     sellLevels: direction === 'reverse' && !hasBuyLevels
       ? createDefaultTPlanLevels(quantity)
       : legacyLevels,
-    alertEnabled: batch.alertEnabled ?? false
+    alertEnabled: batch.alertEnabled ?? false,
+    floatingProfitAlert: normalizeTFloatingProfitAlert(batch.floatingProfitAlert)
   }
 }
 
@@ -646,6 +677,7 @@ export interface AppSettings {
   taskbarPositionPercent: number
   tTradingFees: TTradingFeeSettings
   tPlanDefaults: TPlanDefaultSettings
+  tFloatingProfitAlertDefaultThreshold: number
   tradingCalendar: TradingCalendarSettings
 }
 
@@ -661,6 +693,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   taskbarPositionPercent: 0,
   tTradingFees: { ...DEFAULT_T_TRADING_FEE_SETTINGS },
   tPlanDefaults: structuredClone(DEFAULT_T_PLAN_SETTINGS),
+  tFloatingProfitAlertDefaultThreshold: DEFAULT_T_FLOATING_PROFIT_ALERT_THRESHOLD,
   tradingCalendar: { ...DEFAULT_TRADING_CALENDAR_SETTINGS }
 }
 
@@ -766,6 +799,11 @@ export function normalizeAppSettings(
     )),
     tTradingFees: normalizeTTradingFeeSettings(settings?.tTradingFees),
     tPlanDefaults: normalizeTPlanDefaultSettings(settings?.tPlanDefaults),
+    tFloatingProfitAlertDefaultThreshold: Math.max(
+      1,
+      settings?.tFloatingProfitAlertDefaultThreshold
+        ?? DEFAULT_T_FLOATING_PROFIT_ALERT_THRESHOLD
+    ),
     tradingCalendar: normalizeTradingCalendarSettings(settings?.tradingCalendar)
   }
 }

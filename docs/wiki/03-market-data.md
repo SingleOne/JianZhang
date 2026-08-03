@@ -17,13 +17,14 @@
 | 五日/周期 K | `KlineHub` → `fetchKline` | 东方财富主节点、东方财富镜像节点、腾讯行情备用源 |
 | BOLL 指标 | `calculateBollingerBands` | 本地使用日/周/月 K 收盘价计算，不调用独立指标接口 |
 | 筹码分布 | `calculateChipDistribution` | 本地使用日 K 与换手率计算，不调用独立筹码接口 |
+| 五档盘口 | `OrderBookHub` → `fetchOrderBook` | 东方财富主节点、东方财富镜像节点、腾讯盘口备用源 |
 | 所属板块和板块报价 | `fetchSectorBinding` + `SectorMarketCache` + 统一报价调度 | 东方财富个股页与板块行情 |
 | 资金流向 | `FundsFlowHub` → `fetchFundsFlow` | 东方财富主节点、东方财富镜像节点 |
 | 休市日历 | `fetchSseTradingCalendar` | 上交所休市安排 |
 
 常规行情请求通过 Electron `net.fetch` 发出。`requestJson` 使用 12 秒超时并最多尝试两次；板块页面文本请求使用同样的 12 秒超时，但不重试。主表批量行情每个刷新周期固定从 `push2.eastmoney.com` 开始，单次失败后依次请求 `push2delay.eastmoney.com`、腾讯行情和新浪行情，不记忆上一次使用的节点。东方财富镜像节点通过 Node HTTPS 保留主行情 Host 路由；新浪作为最后备用源时不提供换手率。
 
-历史 K 线同样先单次请求 `push2his.eastmoney.com`，失败后立即通过 Node HTTPS 请求 `push2delay.eastmoney.com`，并保留历史 K 线主机路由；两个东方财富节点都失败时才切换到腾讯行情。五档盘口和分时接口暂不使用镜像节点。东方财富搜索 token、请求头、固定参数和字段列表集中在 `market-constants.ts`，移动这些常量不会改变请求内容。
+历史 K 线同样先单次请求 `push2his.eastmoney.com`，失败后立即通过 Node HTTPS 请求 `push2delay.eastmoney.com`，并保留历史 K 线主机路由；两个东方财富节点都失败时才切换到腾讯行情。五档盘口依次请求东方财富主节点、东方财富镜像节点和腾讯盘口，下一次刷新仍从主节点开始；分时接口暂不使用镜像节点。东方财富搜索 token、请求头、固定参数和字段列表集中在 `market-constants.ts`，移动这些常量不会改变请求内容。
 
 ## 报价标识
 
@@ -181,6 +182,8 @@ userData/market-cache/chip-distributions.json
 - 卖一到卖五。
 - 买一到买五。
 - 最新价、昨收和更新时间。
+
+每个盘口来源只请求一次。东方财富节点未返回数据或买卖五档字段全部缺失时立即尝试下一个来源；腾讯盘口将协议中的买一至买五、卖一至卖五价格和委托手数归一化为同一结构。所有来源都失败后才向 `OrderBookHub` 抛出汇总错误，请求日志会记录实际来源和 `fallbackFrom`。
 
 上游字段顺序在 `market.ts` 中显式映射；`OrderBookPanel` 再将卖盘反转为界面常见的“卖五 → 卖一 → 最新 → 买一 → 买五”顺序。
 

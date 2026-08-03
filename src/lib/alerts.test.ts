@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StockQuote, TPlanLevel, TTrade, TTradingBatch, WatchStock } from '../shared/types'
-import { applyTAlertTriggers, getTriggeredTAlertBadges } from './t-alerts'
+import {
+  applyTFloatingProfitAlert,
+  applyTAlertTriggers,
+  getTriggeredTAlertBadges,
+  getTriggeredTFloatingProfitAlert
+} from './t-alerts'
 import { applyStockAlertTriggers } from './stock-alerts'
 
 const EMPTY_FEES = {
@@ -130,6 +135,56 @@ describe('T plan alerts', () => {
     const result = applyTAlertTriggers(batch, [tTrade()], 11)
     expect(result.changed).toBe(false)
     expect(result.batch).toBe(batch)
+  })
+})
+
+describe('T floating profit alerts', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-31T08:00:00+08:00'))
+  })
+
+  afterEach(() => vi.useRealTimers())
+
+  it('triggers profit at the positive boundary and rearms after returning to the range', () => {
+    const batch = {
+      ...tBatch(),
+      floatingProfitAlert: {
+        enabled: true,
+        threshold: 100,
+        status: 'armed' as const
+      }
+    }
+    const triggered = applyTFloatingProfitAlert(batch, [tTrade()], 10.1)
+    expect(triggered.triggered?.direction).toBe('profit')
+    expect(triggered.batch.floatingProfitAlert?.status).toBe('profit-triggered')
+    expect(getTriggeredTFloatingProfitAlert(triggered.batch)).toBe('profit')
+
+    const repeated = applyTFloatingProfitAlert(triggered.batch, [tTrade()], 10.2)
+    expect(repeated.changed).toBe(false)
+    expect(repeated.triggered).toBeUndefined()
+
+    const rearmed = applyTFloatingProfitAlert(triggered.batch, [tTrade()], 10)
+    expect(rearmed.batch.floatingProfitAlert?.status).toBe('armed')
+    expect(getTriggeredTFloatingProfitAlert(rearmed.batch)).toBeNull()
+  })
+
+  it('triggers loss at the negative boundary and can switch direction after crossing over', () => {
+    const batch = {
+      ...tBatch(),
+      floatingProfitAlert: {
+        enabled: true,
+        threshold: 100,
+        status: 'armed' as const
+      }
+    }
+    const loss = applyTFloatingProfitAlert(batch, [tTrade()], 9.9)
+    expect(loss.triggered?.direction).toBe('loss')
+    expect(loss.batch.floatingProfitAlert?.status).toBe('loss-triggered')
+
+    const profit = applyTFloatingProfitAlert(loss.batch, [tTrade()], 10.1)
+    expect(profit.triggered?.direction).toBe('profit')
+    expect(profit.batch.floatingProfitAlert?.status).toBe('profit-triggered')
   })
 })
 

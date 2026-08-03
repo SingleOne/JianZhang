@@ -445,47 +445,102 @@ export async function fetchQuotes(
 }
 
 export async function fetchOrderBook(quoteId: string, caller = 'order-book'): Promise<StockOrderBook> {
-  const url = new URL('https://push2.eastmoney.com/api/qt/stock/get')
-  url.searchParams.set('secid', quoteId)
-  url.searchParams.set('invt', EASTMONEY_FIXED_PARAMS.orderBook.invt)
-  url.searchParams.set('fltt', EASTMONEY_FIXED_PARAMS.orderBook.fltt)
-  url.searchParams.set('fields', EASTMONEY_FIELDS.orderBook)
+  const fetchEastmoney = async (origin: string, source: string, fallbackFrom?: string) => {
+    const url = new URL('/api/qt/stock/get', origin)
+    url.searchParams.set('secid', quoteId)
+    url.searchParams.set('invt', EASTMONEY_FIXED_PARAMS.orderBook.invt)
+    url.searchParams.set('fltt', EASTMONEY_FIXED_PARAMS.orderBook.fltt)
+    url.searchParams.set('fields', EASTMONEY_FIELDS.orderBook)
 
-  const payload = await requestJson<{ data?: EastmoneyOrderBookData }>(url.toString(), {
-    dataType: 'order-book',
-    caller,
-    source: 'eastmoney-primary',
-    requestedCount: 1,
-    maxAttempts: 1,
-    returnedCount: (value) => value.data ? 1 : 0
-  })
-  const data = payload.data
-  if (!data) throw new Error('行情服务未返回五档数据')
-
-  const bids: OrderBookLevel[] = [
-    { price: rawNumber(data.f19), volume: rawNumber(data.f20) },
-    { price: rawNumber(data.f17), volume: rawNumber(data.f18) },
-    { price: rawNumber(data.f15), volume: rawNumber(data.f16) },
-    { price: rawNumber(data.f13), volume: rawNumber(data.f14) },
-    { price: rawNumber(data.f11), volume: rawNumber(data.f12) }
-  ]
-  const asks: OrderBookLevel[] = [
-    { price: rawNumber(data.f39), volume: rawNumber(data.f40) },
-    { price: rawNumber(data.f37), volume: rawNumber(data.f38) },
-    { price: rawNumber(data.f35), volume: rawNumber(data.f36) },
-    { price: rawNumber(data.f33), volume: rawNumber(data.f34) },
-    { price: rawNumber(data.f31), volume: rawNumber(data.f32) }
-  ]
-
-  return {
-    quoteId,
-    name: data.f58 ?? '',
-    latest: rawNumber(data.f43),
-    previousClose: rawNumber(data.f60),
-    bids,
-    asks,
-    updatedAt: new Date().toISOString()
+    const payload = await requestJson<{ data?: EastmoneyOrderBookData }>(url.toString(), {
+      dataType: 'order-book',
+      caller,
+      source,
+      fallbackFrom,
+      requestedCount: 1,
+      maxAttempts: 1,
+      returnedCount: (value) => value.data ? 1 : 0
+    })
+    if (!payload.data) throw new Error('行情服务未返回五档数据')
+    const data = payload.data
+    const result: StockOrderBook = {
+      quoteId,
+      name: data.f58 ?? '',
+      latest: rawNumber(data.f43),
+      previousClose: rawNumber(data.f60),
+      bids: [
+        { price: rawNumber(data.f19), volume: rawNumber(data.f20) },
+        { price: rawNumber(data.f17), volume: rawNumber(data.f18) },
+        { price: rawNumber(data.f15), volume: rawNumber(data.f16) },
+        { price: rawNumber(data.f13), volume: rawNumber(data.f14) },
+        { price: rawNumber(data.f11), volume: rawNumber(data.f12) }
+      ],
+      asks: [
+        { price: rawNumber(data.f39), volume: rawNumber(data.f40) },
+        { price: rawNumber(data.f37), volume: rawNumber(data.f38) },
+        { price: rawNumber(data.f35), volume: rawNumber(data.f36) },
+        { price: rawNumber(data.f33), volume: rawNumber(data.f34) },
+        { price: rawNumber(data.f31), volume: rawNumber(data.f32) }
+      ],
+      updatedAt: new Date().toISOString()
+    }
+    if (![...result.bids, ...result.asks].some((level) => level.price !== null)) {
+      throw new Error('行情服务未返回买卖五档数据')
+    }
+    return result
   }
+
+  const fetchTencent = async () => {
+    const symbol = toTencentSymbol(quoteId)
+    const text = await requestText(`https://qt.gtimg.cn/q=${symbol}`, {
+      dataType: 'order-book',
+      caller,
+      source: 'tencent',
+      fallbackFrom: 'eastmoney-delay',
+      requestedCount: 1,
+      headers: TENCENT_HEADERS,
+      encoding: 'gbk',
+      returnedCount: (value) => [...value.matchAll(/v_([^=]+)="([^"]*)"/g)].length
+    })
+    const match = [...text.matchAll(/v_([^=]+)="([^"]*)"/g)]
+      .find((item) => item[1] === symbol)
+    if (!match?.[2]) throw new Error('腾讯行情未返回五档数据')
+    const fields = match[2].split('~')
+    if (fields.length <= 28) throw new Error('腾讯行情返回的五档字段不完整')
+
+    const levels = (start: number): OrderBookLevel[] => Array.from({ length: 5 }, (_, index) => ({
+      price: quoteNumber(fields[start + index * 2]),
+      volume: quoteNumber(fields[start + index * 2 + 1])
+    }))
+    return {
+      quoteId,
+      name: fields[1] ?? '',
+      latest: quoteNumber(fields[3]),
+      previousClose: quoteNumber(fields[4]),
+      bids: levels(9),
+      asks: levels(19),
+      updatedAt: new Date().toISOString()
+    }
+  }
+
+  const sources: Array<[string, () => Promise<StockOrderBook>]> = [
+    ['东方财富主节点', () => fetchEastmoney('https://push2.eastmoney.com', 'eastmoney-primary')],
+    ['东方财富Delay节点', () => fetchEastmoney(
+      'https://push2delay.eastmoney.com',
+      'eastmoney-delay',
+      'eastmoney-primary'
+    )],
+    ['腾讯盘口', fetchTencent]
+  ]
+  const failures: string[] = []
+  for (const [name, fetchSource] of sources) {
+    try {
+      return await fetchSource()
+    } catch (error) {
+      failures.push(`${name}：${error instanceof Error ? error.message : '请求失败'}`)
+    }
+  }
+  throw new Error(`盘口数据源均不可用（${failures.join('；')}）`)
 }
 
 function compactDate(date: Date): string {

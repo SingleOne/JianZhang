@@ -16,7 +16,10 @@ import {
   getPositionHoldingDays
 } from '../../lib/portfolio'
 import { getTriggeredStockAlertDirection } from '../../lib/stock-alerts'
-import { getTriggeredTAlertBadges } from '../../lib/t-alerts'
+import {
+  getTriggeredTAlertBadges,
+  getTriggeredTFloatingProfitAlert
+} from '../../lib/t-alerts'
 import { calculateTBatchMetrics } from '../../lib/t-trading'
 import { getBatchTrades } from '../../lib/trade-records'
 import type {
@@ -29,6 +32,7 @@ import type {
 import { ExpandedStockDetails } from '../ExpandedStockDetails'
 import { FiveLevelAlertBadges } from '../FiveLevelAlertBadges'
 import { TAlertBadges } from '../TAlertBadges'
+import { TFloatingProfitAlertBadge } from '../TFloatingProfitAlertBadge'
 
 function valueClass(value: number | null | undefined): string {
   if (value === null || value === undefined || value === 0) return 'is-flat'
@@ -136,6 +140,7 @@ export const WatchlistRow = memo(function WatchlistRow({
     quote?.latest
   ).floatingProfit
   const tAlertBadges = getTriggeredTAlertBadges(activeTBatch, activeTTrades)
+  const tFloatingProfitAlert = getTriggeredTFloatingProfitAlert(activeTBatch)
   const enabledStockAlertCount = stock.alertRules?.filter((rule) => rule.enabled).length ?? 0
   const stockAlertDirection = getTriggeredStockAlertDirection(stock.alertRules)
   const stockAlertClass = stockAlertDirection
@@ -268,8 +273,8 @@ export const WatchlistRow = memo(function WatchlistRow({
                 event.stopPropagation()
                 onOpenTTrading(stock)
               }}
-              aria-label={`管理 ${stock.name} 的T仓交易`}
-              title={activeTBatch ? '继续记录当前T批次' : 'T仓管理'}
+              aria-label={`打开 ${stock.name} 的交易管理`}
+              title={activeTBatch ? '继续记录当前交易批次' : '交易管理'}
             >
               <span className="t-letter-icon" aria-hidden="true">
                 T
@@ -300,7 +305,7 @@ export const WatchlistRow = memo(function WatchlistRow({
                           alerts={activeTBatch ? quote?.fiveLevelLargeOrders : undefined}
                           compact
                         />
-                        {tAlertBadges.length > 0 ? (
+                        {tAlertBadges.length > 0 || tFloatingProfitAlert ? (
                           <button
                             type="button"
                             className="t-alert-cell-button"
@@ -308,9 +313,14 @@ export const WatchlistRow = memo(function WatchlistRow({
                               event.stopPropagation()
                               onOpenTTrading(stock)
                             }}
-                            title="查看当前 T 仓价格提醒"
+                            title="查看当前 T 仓提醒"
                           >
                             <TAlertBadges badges={tAlertBadges} compact />
+                            <TFloatingProfitAlertBadge
+                              batch={activeTBatch}
+                              floatingProfit={tFloatingProfit}
+                              compact
+                            />
                           </button>
                         ) : null}
                       </span>

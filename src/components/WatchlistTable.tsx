@@ -58,6 +58,7 @@ interface WatchlistTableProps {
   tTradingAccounts: TTradingAccounts
   tTradingFees: TTradingFeeSettings
   tPlanDefaults: TPlanDefaultSettings
+  tFloatingProfitAlertDefaultThreshold: number
   tradingCalendarClosedDates: string[]
   onSelect: (quoteId: string) => void
   onToggleTaskbar: (quoteId: string) => void
@@ -138,6 +139,7 @@ export function WatchlistTable({
   tTradingAccounts,
   tTradingFees,
   tPlanDefaults,
+  tFloatingProfitAlertDefaultThreshold,
   tradingCalendarClosedDates,
   onSelect,
   onToggleTaskbar,
@@ -755,6 +757,7 @@ export function WatchlistTable({
           account={tTradingAccounts[tTradingStock.quoteId]}
           feeSettings={tTradingFees}
           planDefaults={tPlanDefaults}
+          floatingProfitAlertDefaultThreshold={tFloatingProfitAlertDefaultThreshold}
           onClose={() => setTTradingStock(null)}
           onApply={(account, position) => {
             onUpdateTTrading(tTradingStock.quoteId, account, position)

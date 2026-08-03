@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { initialState, stockApi } from '../lib/api'
 import { formatPercent, formatPrice } from '../lib/format'
-import { getTriggeredTAlertBadges } from '../lib/t-alerts'
+import {
+  getTriggeredTAlertBadges,
+  getTriggeredTFloatingProfitAlert
+} from '../lib/t-alerts'
+import { calculateTBatchMetrics } from '../lib/t-trading'
 import { getBatchTrades } from '../lib/trade-records'
 import { getTriggeredStockAlertDirection } from '../lib/stock-alerts'
 import type { AppState, StockQuote, TaskbarLayout } from '../shared/types'
 import { FiveLevelAlertBadges } from './FiveLevelAlertBadges'
 import { TAlertBadges } from './TAlertBadges'
+import { TFloatingProfitAlertBadge } from './TFloatingProfitAlertBadge'
 
 function directionClass(changePercent: number | null | undefined): string {
   if (changePercent === null || changePercent === undefined || changePercent === 0) return 'is-flat'
@@ -60,12 +65,20 @@ export function TaskbarTicker() {
             account?.activeBatch,
             getBatchTrades(account, account?.activeBatch)
           ),
+          tMetrics: account?.activeBatch
+            ? calculateTBatchMetrics(
+                account.activeBatch,
+                getBatchTrades(account, account.activeBatch),
+                quote?.latest
+              )
+            : null,
+          floatingProfitAlert: getTriggeredTFloatingProfitAlert(account?.activeBatch),
           fiveLevelAlerts: account?.activeBatch ? quote?.fiveLevelLargeOrders : undefined,
           stockAlertDirection: getTriggeredStockAlertDirection(stock.alertRules)
         }
       })
-      .filter(({ stock, alertBadges, fiveLevelAlerts }) => (
-        stock.showInTaskbar || alertBadges.length > 0 || Boolean(fiveLevelAlerts?.length)
+      .filter(({ stock, alertBadges, floatingProfitAlert, fiveLevelAlerts }) => (
+        stock.showInTaskbar || alertBadges.length > 0 || Boolean(floatingProfitAlert) || Boolean(fiveLevelAlerts?.length)
       ))
   }, [quotes, state.tTradingAccounts, state.watchlist])
 
@@ -79,6 +92,8 @@ export function TaskbarTicker() {
           stock,
           quote,
           alertBadges,
+          tMetrics,
+          floatingProfitAlert,
           fiveLevelAlerts,
           stockAlertDirection
         }) => {
@@ -93,6 +108,13 @@ export function TaskbarTicker() {
               <strong>{formatPrice(quote?.latest)}</strong>
               <span className="taskbar-stock-change">{formatPercent(quote?.changePercent)}</span>
               <TAlertBadges badges={alertBadges} compact />
+              {floatingProfitAlert ? (
+                <TFloatingProfitAlertBadge
+                  batch={state.tTradingAccounts[stock.quoteId]?.activeBatch}
+                  floatingProfit={tMetrics?.floatingProfit}
+                  compact
+                />
+              ) : null}
             </div>
           )
         })}

@@ -29,6 +29,7 @@
 | 统一交易流水、行内编辑和删除 | `PositionEditor.tsx` | `trade-records.ts`、交易重放校验 | `TTradingAccount.tradeRecords` |
 | 买卖双五档计划 | `TTradingDrawer.tsx`、`TPlanTable.tsx` | `getTPlanRows`、计划重排/重置 | 当前活动批次 |
 | T 价格提醒 | `TAlertBadges.tsx` | `t-alerts.ts` 状态机 | 行情刷新后在主进程判断 |
+| T仓浮动盈亏提醒 | `TFloatingProfitAlertBadge.tsx`、交易管理 | `applyTFloatingProfitAlert` | 达到 ±金额阈值后系统通知并同步窗口 |
 | 任务栏行情条 | `TaskbarTicker.tsx` | 订阅报价、状态和布局 | 主进程定位透明窗口 |
 | 托盘悬浮摘要 | `TrayHoverSummary.tsx` | 今日收益和 T 仓摘要 | 主进程控制悬停窗口 |
 | 设置 | `SettingsMenu.tsx` | 行情、做 T、系统与数据三页 | `state:save` |

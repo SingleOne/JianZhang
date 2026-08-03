@@ -96,6 +96,22 @@
   gap: 5px;
 }
 
+.tray-summary-stock {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.tray-summary-stock > strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tray-summary-stock > b {
+  flex: none;
+}
+
 .tray-summary-heading b,
 .tray-summary-profit b {
   font-weight: 700;

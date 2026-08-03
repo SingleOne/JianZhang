@@ -327,6 +327,26 @@ export function SettingsMenu({
                   ))}
                 </div>
               </fieldset>
+              <label className="setting-row setting-row-input t-floating-profit-alert-default-setting">
+                <span>
+                  <strong>浮动盈亏提醒默认值</strong>
+                  <small>新建交易批次默认提醒 ±该金额，当前批次可单独修改</small>
+                </span>
+                <span className="number-input-wrap">
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={settings.tFloatingProfitAlertDefaultThreshold}
+                    onChange={(event) => {
+                      const value = Math.max(1, Number(event.target.value) || 1)
+                      onChange({ ...settings, tFloatingProfitAlertDefaultThreshold: value })
+                    }}
+                    aria-label="T仓浮动盈亏提醒默认金额"
+                  />
+                  <span>元</span>
+                </span>
+              </label>
             </>
           ) : null}
 

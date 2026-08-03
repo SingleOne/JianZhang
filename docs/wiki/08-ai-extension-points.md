@@ -2,7 +2,7 @@
 
 [Wiki 首页](README.md) · [系统架构](01-architecture.md) · [状态与 IPC](05-state-storage-and-ipc.md)
 
-> 代码基线：4.19.1。当前仓库已经实现 `market-insight`、`ai` 和 `ai-t-advice` 三个可独立剔除的模块。本页描述当前代码，不再作为待实施计划；历史设计过程见 [`docs/plan`](../plan/)。
+> 代码基线：4.20.0。当前仓库已经实现 `market-insight`、`ai` 和 `ai-t-advice` 三个可独立剔除的模块。本页描述当前代码，不再作为待实施计划；历史设计过程见 [`docs/plan`](../plan/)。
 
 ## 模块边界
 

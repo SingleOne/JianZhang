@@ -8,6 +8,10 @@ import {
 } from 'electron'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import {
+  applyTAlertTriggersToAccounts,
+  type TriggeredTFloatingProfitAlert
+} from '../../src/lib/t-alerts'
 import { applyStockAlertTriggers, type TriggeredStockAlert } from '../../src/lib/stock-alerts'
 import { createConfigDocument, parseConfigDocument } from '../../src/shared/config'
 import type {
@@ -48,6 +52,7 @@ interface IpcHandlerDependencies {
   sendToWindows: (channel: string, payload: unknown) => void
   syncWindowSurfaces: () => void
   showStockAlertNotification: (alert: TriggeredStockAlert) => void
+  showTFloatingProfitAlertNotification: (alert: TriggeredTFloatingProfitAlert) => void
   hideMainWindow: () => void
   quit: () => void
 }
@@ -126,12 +131,20 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
         normalizedState.watchlist.find((nextStock) => nextStock.quoteId === stock.quoteId)
           ?.isPriority !== stock.isPriority
     )
+    const tAlertUpdate = applyTAlertTriggersToAccounts(
+      normalizedState.tTradingAccounts,
+      dependencies.getQuotes()
+    )
     const stockAlertUpdate = applyStockAlertTriggers(
       normalizedState.watchlist,
       dependencies.getQuotes(),
-      normalizedState.tTradingAccounts
+      tAlertUpdate.accounts
     )
-    const savedState = { ...normalizedState, watchlist: stockAlertUpdate.watchlist }
+    const savedState = {
+      ...normalizedState,
+      watchlist: stockAlertUpdate.watchlist,
+      tTradingAccounts: tAlertUpdate.accounts
+    }
     dependencies.setState(savedState)
     const fiveLevelAlertsCleared = dependencies.clearInactiveFiveLevelAlerts()
     dependencies.persistState()
@@ -150,6 +163,7 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
       void dependencies.refreshQuotesAutomatically('state-change:watchlist')
     }
     stockAlertUpdate.triggered.forEach(dependencies.showStockAlertNotification)
+    tAlertUpdate.triggered.forEach(dependencies.showTFloatingProfitAlertNotification)
     return savedState
   })
   ipcMain.handle('config:export', async (_event, stateToExport: AppState) => {

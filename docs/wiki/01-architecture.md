@@ -185,7 +185,7 @@ flowchart TD
 
 - `portfolio.ts`：持仓、今日收益、组合汇总。
 - `t-trading.ts`：费用、正反 T 账本、批次和成本计算。
-- `t-alerts.ts`：双五档目标价、收益预测、提醒状态机。
+- `t-alerts.ts`：双五档目标价、收益预测、价格和浮动盈亏提醒状态机。
 - `trade-records.ts`：统一交易流水排序、批次筛选、写入和解除批次关联。
 - `stock-alerts.ts`：股价、涨幅和持仓收益率提醒状态机。
 - `order-book-alerts.ts`：五档买卖盘大单识别。

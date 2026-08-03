@@ -1,11 +1,14 @@
 import {
   calculateTBatchMetrics,
   calculateTradeFees,
+  roundMoney,
   totalTradeFees
 } from './t-trading'
 import { getBatchTrades } from './trade-records'
+import { formatProfit } from './format'
 import type {
   StockQuote,
+  TFloatingProfitAlertStatus,
   TPlanLevel,
   TTradingAccount,
   TTradingAccounts,
@@ -15,6 +18,15 @@ import type {
 } from '../shared/types'
 
 export type TAlertSide = 'buy' | 'sell'
+export type TFloatingProfitAlertDirection = 'profit' | 'loss'
+
+export interface TriggeredTFloatingProfitAlert {
+  quoteId: string
+  name: string
+  direction: TFloatingProfitAlertDirection
+  actualValue: number
+  threshold: number
+}
 
 export interface TPlanRow extends TPlanLevel {
   index: number
@@ -198,27 +210,107 @@ export function applyTAlertTriggers(
   return { batch: changed ? nextBatch : batch, changed }
 }
 
+export function getTriggeredTFloatingProfitAlert(
+  batch: TTradingBatch | undefined
+): TFloatingProfitAlertDirection | null {
+  if (!batch?.floatingProfitAlert?.enabled) return null
+  if (batch.floatingProfitAlert.status === 'profit-triggered') return 'profit'
+  if (batch.floatingProfitAlert.status === 'loss-triggered') return 'loss'
+  return null
+}
+
+export function applyTFloatingProfitAlert(
+  batch: TTradingBatch,
+  trades: readonly TTrade[],
+  latest: number | null | undefined
+): {
+  batch: TTradingBatch
+  changed: boolean
+  triggered?: Omit<TriggeredTFloatingProfitAlert, 'quoteId' | 'name'>
+} {
+  const alert = batch.floatingProfitAlert
+  if (!alert?.enabled) return { batch, changed: false }
+
+  const metrics = calculateTBatchMetrics(batch, trades, latest)
+  if (metrics.remainingQuantity <= 0) {
+    if (alert.status === 'armed') return { batch, changed: false }
+    return {
+      batch: {
+        ...batch,
+        floatingProfitAlert: { ...alert, status: 'armed', triggeredAt: undefined }
+      },
+      changed: true
+    }
+  }
+  if (metrics.floatingProfit === null) return { batch, changed: false }
+
+  const floatingProfit = roundMoney(metrics.floatingProfit)
+  const direction: TFloatingProfitAlertDirection | null =
+    floatingProfit >= alert.threshold
+      ? 'profit'
+      : floatingProfit <= -alert.threshold
+        ? 'loss'
+        : null
+  const status: TFloatingProfitAlertStatus = direction
+    ? `${direction}-triggered`
+    : 'armed'
+  if (status === alert.status) return { batch, changed: false }
+
+  const triggeredAt = direction ? new Date().toISOString() : undefined
+  return {
+    batch: {
+      ...batch,
+      floatingProfitAlert: { ...alert, status, triggeredAt }
+    },
+    changed: true,
+    triggered: direction
+      ? {
+          direction,
+          actualValue: floatingProfit,
+          threshold: alert.threshold
+        }
+      : undefined
+  }
+}
+
 export function applyTAlertTriggersToAccounts(
   accounts: TTradingAccounts,
   quotes: readonly StockQuote[]
-): { accounts: TTradingAccounts; changed: boolean } {
+): {
+  accounts: TTradingAccounts
+  changed: boolean
+  triggered: TriggeredTFloatingProfitAlert[]
+} {
   const quotesById = new Map(quotes.map((quote) => [quote.quoteId, quote]))
   let changed = false
+  const triggered: TriggeredTFloatingProfitAlert[] = []
   const nextAccounts: TTradingAccounts = {}
 
   for (const [quoteId, account] of Object.entries(accounts)) {
     const batch = account.activeBatch
     const trades = getBatchTrades(account, batch)
-    const result = batch
-      ? applyTAlertTriggers(batch, trades, quotesById.get(quoteId)?.latest)
+    const latest = quotesById.get(quoteId)?.latest
+    const priceResult = batch
+      ? applyTAlertTriggers(batch, trades, latest)
       : { batch, changed: false }
-    nextAccounts[quoteId] = result.changed
-      ? { ...account, activeBatch: result.batch }
+    const floatingResult = priceResult.batch
+      ? applyTFloatingProfitAlert(priceResult.batch, trades, latest)
+      : { batch: priceResult.batch, changed: false, triggered: undefined }
+    if (floatingResult.triggered) {
+      triggered.push({
+        quoteId,
+        name: account.name,
+        ...floatingResult.triggered
+      })
+    }
+    const accountChanged = priceResult.changed || floatingResult.changed
+    nextAccounts[quoteId] = accountChanged
+      ? { ...account, activeBatch: floatingResult.batch }
       : account
-    changed ||= result.changed
+    changed ||= accountChanged
   }
 
-  return { accounts: changed ? nextAccounts : accounts, changed }
+  return { accounts: changed ? nextAccounts : accounts, changed, triggered }
 }
 
 export function setTAlertEnabled(batch: TTradingBatch, enabled: boolean): TTradingBatch {
@@ -234,6 +326,51 @@ export function setTAlertEnabled(batch: TTradingBatch, enabled: boolean): TTradi
     alertEnabled: true,
     buyLevels: rearm(batch.buyLevels ?? []),
     sellLevels: rearm(batch.sellLevels)
+  }
+}
+
+export function setTFloatingProfitAlertEnabled(
+  batch: TTradingBatch,
+  enabled: boolean
+): TTradingBatch {
+  const current = batch.floatingProfitAlert
+  if (!current) return batch
+  return {
+    ...batch,
+    floatingProfitAlert: {
+      ...current,
+      enabled,
+      status: 'armed',
+      triggeredAt: undefined
+    }
+  }
+}
+
+export function setTFloatingProfitAlertThreshold(
+  batch: TTradingBatch,
+  threshold: number
+): TTradingBatch {
+  const current = batch.floatingProfitAlert
+  if (!current) return batch
+  return {
+    ...batch,
+    floatingProfitAlert: {
+      ...current,
+      threshold: Math.max(1, threshold || 1),
+      status: 'armed',
+      triggeredAt: undefined
+    }
+  }
+}
+
+export function formatTFloatingProfitAlertNotification(
+  alert: TriggeredTFloatingProfitAlert
+): { title: string; body: string } {
+  const label = alert.direction === 'profit' ? '浮盈' : '浮亏'
+  const target = alert.direction === 'profit' ? alert.threshold : -alert.threshold
+  return {
+    title: `${alert.name} T仓${label}提醒`,
+    body: `当前浮动收益 ${formatProfit(alert.actualValue)} 元，已达到 ${formatProfit(target)} 元提醒值`
   }
 }
 
@@ -292,4 +429,5 @@ export function handleTriggeredTPlanAlertsForTrade(
 
 export function accountHasTriggeredTAlerts(account: TTradingAccount | undefined): boolean {
   return hasTriggeredTAlerts(account?.activeBatch, getBatchTrades(account, account?.activeBatch))
+    || getTriggeredTFloatingProfitAlert(account?.activeBatch) !== null
 }

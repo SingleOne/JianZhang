@@ -527,6 +527,80 @@
   gap: 10px;
 }
 
+.t-floating-profit-alert-settings {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -2px 0 12px;
+  padding: 8px 10px;
+  background: #f8fafc;
+  border: 1px solid #e4e9f1;
+  border-radius: 8px;
+}
+
+.t-floating-profit-alert-settings > span:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.t-floating-profit-alert-settings strong {
+  color: #344054;
+  font-size: 12px;
+}
+
+.t-floating-profit-alert-settings small {
+  overflow: hidden;
+  color: #8993a3;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.t-floating-profit-alert-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.t-floating-profit-alert-threshold {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  color: #657187;
+  background: #ffffff;
+  border: 1px solid #d5dce7;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.t-floating-profit-alert-threshold > span {
+  padding: 0 5px 0 7px;
+}
+
+.t-floating-profit-alert-threshold input {
+  width: 62px;
+  height: 100%;
+  padding: 0 4px;
+  color: #344054;
+  background: transparent;
+  border: 0;
+  border-left: 1px solid #e4e9f1;
+  outline: 0;
+  font-size: 12px;
+  font-weight: 650;
+  text-align: right;
+}
+
+.t-floating-profit-alert-threshold em {
+  padding: 0 7px 0 3px;
+  color: #8993a3;
+  font-style: normal;
+}
+
 .t-alert-toggle {
   display: inline-flex;
   align-items: center;
@@ -534,6 +608,10 @@
   color: #657187;
   font-size: 11px;
   cursor: pointer;
+}
+
+.t-floating-profit-alert-settings .t-alert-toggle {
+  font-size: 12px;
 }
 
 .t-alert-toggle input {
@@ -783,6 +861,16 @@
   background: #c92733;
 }
 
+.t-alert-badge.is-profit {
+  --t-alert-ring: rgba(201, 39, 51, 0.42);
+  background: #c92733;
+}
+
+.t-alert-badge.is-loss {
+  --t-alert-ring: rgba(8, 124, 87, 0.42);
+  background: #087c57;
+}
+
 .t-alert-badges.is-compact {
   flex-wrap: nowrap;
   gap: 2px;
@@ -805,6 +893,8 @@
 
 .t-alert-cell-button {
   display: inline-flex;
+  align-items: center;
+  gap: 3px;
   max-width: 100%;
   padding: 0;
   background: transparent;

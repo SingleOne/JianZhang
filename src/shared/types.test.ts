@@ -88,6 +88,7 @@ describe('settings and column migration', () => {
     expect(settings.tPlanDefaults.buyLevels[0]).toEqual({ targetPercent: 0, quantity: 0 })
     expect(settings.tPlanDefaults.sellLevels[0]).toEqual({ targetPercent: 2, quantity: 300 })
     expect(settings.tPlanDefaults.buyLevels).toHaveLength(5)
+    expect(settings.tFloatingProfitAlertDefaultThreshold).toBe(100)
   })
 
   it('inserts historical columns in their intended positions', () => {
@@ -101,6 +102,30 @@ describe('settings and column migration', () => {
     expect(migrated.indexOf('todayProfit')).toBe(migrated.indexOf('totalProfit') + 1)
     expect(migrated.at(-1)).toBe('operation')
     expect(WATCHLIST_COLUMN_ORDER_VERSION).toBe(6)
+  })
+
+  it('adds the default disabled floating profit alert to old active batches', () => {
+    const accounts = normalizeTTradingAccounts({
+      '1.600000': {
+        quoteId: '1.600000',
+        code: '600000',
+        name: '浦发银行',
+        activeBatch: {
+          id: 'batch-1',
+          sequence: 1,
+          openedAt: '2026-07-03T09:30:00.000Z',
+          sellLevels: []
+        },
+        history: [],
+        tradeRecords: []
+      }
+    })
+
+    expect(accounts['1.600000'].activeBatch?.floatingProfitAlert).toEqual({
+      enabled: false,
+      threshold: 100,
+      status: 'armed'
+    })
   })
 })
 

@@ -4,14 +4,20 @@ import {
   formatCost,
   formatCurrency,
   formatPercent,
+  formatPrice,
   formatProfit,
+  formatSigned,
   formatShares
 } from '../lib/format'
 import { calculatePositionMetrics } from '../lib/portfolio'
-import { getTriggeredTAlertBadges } from '../lib/t-alerts'
+import {
+  getTriggeredTAlertBadges,
+  getTriggeredTFloatingProfitAlert
+} from '../lib/t-alerts'
 import { calculateTBatchMetrics } from '../lib/t-trading'
 import { getBatchTrades } from '../lib/trade-records'
 import type { AppState, StockQuote } from '../shared/types'
+import { TFloatingProfitAlertBadge } from './TFloatingProfitAlertBadge'
 
 function valueClass(value: number | null | undefined): string {
   if (value === null || value === undefined || value === 0) return 'is-flat'
@@ -50,16 +56,18 @@ export function TrayHoverSummary() {
         const alertBadges = getTriggeredTAlertBadges(account?.activeBatch, activeTrades)
         return {
           stock,
+          quote,
           alertBadges,
           hasFiveLevelAlert: Boolean(account?.activeBatch) && Boolean(quote?.fiveLevelLargeOrders?.length),
           positionMetrics: calculatePositionMetrics(stock.position, quote, account),
           tMetrics: account?.activeBatch
             ? calculateTBatchMetrics(account.activeBatch, activeTrades, quote?.latest)
-            : null
+            : null,
+          floatingProfitAlert: getTriggeredTFloatingProfitAlert(account?.activeBatch)
         }
       })
-      .filter(({ stock, alertBadges, hasFiveLevelAlert }) => (
-        stock.showInTaskbar || alertBadges.length > 0 || hasFiveLevelAlert
+      .filter(({ stock, alertBadges, hasFiveLevelAlert, floatingProfitAlert }) => (
+        stock.showInTaskbar || alertBadges.length > 0 || hasFiveLevelAlert || Boolean(floatingProfitAlert)
       ))
   }, [quotes, state.tTradingAccounts, state.watchlist])
   const todayProfitTotal = selectedStocks.reduce<number | null>((total, { positionMetrics }) => (
@@ -78,10 +86,15 @@ export function TrayHoverSummary() {
         </span>
       </header>
       <div className="tray-summary-list">
-        {selectedStocks.map(({ stock, positionMetrics, tMetrics }) => (
+        {selectedStocks.map(({ stock, quote, positionMetrics, tMetrics, floatingProfitAlert }) => (
           <section className="tray-summary-item" key={stock.quoteId}>
             <div className="tray-summary-heading">
-              <strong>{stock.name}</strong>
+              <div className="tray-summary-stock">
+                <strong>{stock.name}</strong>
+                <b className={valueClass(quote?.change)}>
+                  {formatPrice(quote?.latest)}（{formatSigned(quote?.change)}）
+                </b>
+              </div>
               <span>
                 今日收益
                 <b className={valueClass(positionMetrics.todayProfit)}>
@@ -108,7 +121,16 @@ export function TrayHoverSummary() {
               <div className="tray-summary-t">
                 <span>{tMetrics.direction === 'reverse' ? '反T待回补' : '正T持有'} {formatShares(tMetrics.remainingQuantity)}</span>
                 <span>{tMetrics.direction === 'reverse' ? '基准价' : '成本'} {formatCost(tMetrics.averageCost)}</span>
-                <span className={valueClass(tMetrics.floatingProfit)}>浮动 {formatProfit(tMetrics.floatingProfit)}</span>
+                <span className={valueClass(tMetrics.floatingProfit)}>
+                  浮动 {formatProfit(tMetrics.floatingProfit)}
+                  {floatingProfitAlert ? (
+                    <TFloatingProfitAlertBadge
+                      batch={state.tTradingAccounts[stock.quoteId]?.activeBatch}
+                      floatingProfit={tMetrics.floatingProfit}
+                      compact
+                    />
+                  ) : null}
+                </span>
               </div>
             ) : (
               <div className="tray-summary-t is-empty">暂无进行中的 T 仓</div>

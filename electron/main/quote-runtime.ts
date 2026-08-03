@@ -1,4 +1,7 @@
-import { applyTAlertTriggersToAccounts } from '../../src/lib/t-alerts'
+import {
+  applyTAlertTriggersToAccounts,
+  type TriggeredTFloatingProfitAlert
+} from '../../src/lib/t-alerts'
 import { detectFiveLevelLargeOrders } from '../../src/lib/order-book-alerts'
 import { applyStockAlertTriggers, type TriggeredStockAlert } from '../../src/lib/stock-alerts'
 import { isBeijingAutoRefreshTime } from '../../src/shared/market-hours'
@@ -24,6 +27,7 @@ interface QuoteRuntimeDependencies {
   updateWindowSurfaces: () => void
   publishQuotes: (quotes: readonly StockQuote[]) => void
   showStockAlertNotification: (alert: TriggeredStockAlert) => void
+  showTFloatingProfitAlertNotification: (alert: TriggeredTFloatingProfitAlert) => void
   orderBookHub: OrderBookHub
   sectorMarketCache: SectorMarketCache
   marketRequestLogger: MarketRequestLogger
@@ -264,6 +268,7 @@ export class QuoteRuntime {
         this.dependencies.persistState()
         this.dependencies.sendToWindows('state:updated', nextState)
       }
+      tAlertUpdate.triggered.forEach(this.dependencies.showTFloatingProfitAlertNotification)
       stockAlertUpdate.triggered.forEach(this.dependencies.showStockAlertNotification)
       this.dependencies.sendToWindows('quotes:updated', this.latestQuotes)
       this.dependencies.updateWindowSurfaces()

@@ -14,6 +14,10 @@ import {
   INTRADAY_REFRESH_MILLISECONDS
 } from '../../src/shared/market-hours'
 import { formatStockAlertNotification, type TriggeredStockAlert } from '../../src/lib/stock-alerts'
+import {
+  formatTFloatingProfitAlertNotification,
+  type TriggeredTFloatingProfitAlert
+} from '../../src/lib/t-alerts'
 import type { AiRuntime } from '../../src/modules/ai/main/register'
 import type { MarketInsightRuntime } from '../../src/modules/market-insight/main/register'
 import {
@@ -156,6 +160,17 @@ function showStockAlertNotification(alert: TriggeredStockAlert): void {
   notification.show()
 }
 
+function showTFloatingProfitAlertNotification(alert: TriggeredTFloatingProfitAlert): void {
+  if (!Notification.isSupported()) return
+  const notification = new Notification({
+    ...formatTFloatingProfitAlertNotification(alert),
+    icon: createAppIcon(),
+    timeoutType: 'default'
+  })
+  notification.on('click', () => windowManager?.showMainWindow(alert.quoteId))
+  notification.show()
+}
+
 function syncWindowSurfaces(): void {
   windowManager?.sync()
 }
@@ -238,6 +253,7 @@ if (!hasSingleInstanceLock) {
       },
       publishQuotes: (quotes) => marketDataHub.publish(quotes),
       showStockAlertNotification,
+      showTFloatingProfitAlertNotification,
       orderBookHub,
       sectorMarketCache,
       marketRequestLogger
@@ -293,6 +309,7 @@ if (!hasSingleInstanceLock) {
       sendToWindows,
       syncWindowSurfaces,
       showStockAlertNotification,
+      showTFloatingProfitAlertNotification,
       hideMainWindow: () => windowManager?.hideMainWindow(),
       quit: quitApp
     })

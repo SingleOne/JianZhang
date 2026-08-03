@@ -17,6 +17,8 @@ import {
   handleTriggeredTPlanAlertsForTrade,
   restoreTPlanAlert,
   setTAlertEnabled,
+  setTFloatingProfitAlertEnabled,
+  setTFloatingProfitAlertThreshold,
   updateTPlanLevel,
   type TAlertSide
 } from '../lib/t-alerts'
@@ -40,6 +42,7 @@ import {
   upsertTradeRecord
 } from '../lib/trade-records'
 import { TPlanTable } from './TPlanTable'
+import { TFloatingProfitAlertBadge } from './TFloatingProfitAlertBadge'
 import type {
   StockPosition,
   StockQuote,
@@ -61,6 +64,7 @@ interface TTradingDrawerProps {
   account: TTradingAccount | undefined
   feeSettings: TTradingFeeSettings
   planDefaults: TPlanDefaultSettings
+  floatingProfitAlertDefaultThreshold: number
   onApply: (account: TTradingAccount, position: StockPosition | undefined) => void
   onClose: () => void
 }
@@ -111,6 +115,7 @@ export function TTradingDrawer({
   account,
   feeSettings,
   planDefaults,
+  floatingProfitAlertDefaultThreshold,
   onApply,
   onClose
 }: TTradingDrawerProps) {
@@ -308,7 +313,12 @@ export function TTradingDrawer({
         openingPosition: positionSnapshot(stock.position),
         buyLevels: createTPlanLevelsFromDefaults(planDefaults.buyLevels),
         sellLevels: createTPlanLevelsFromDefaults(planDefaults.sellLevels),
-        alertEnabled: false
+        alertEnabled: false,
+        floatingProfitAlert: {
+          enabled: false,
+          threshold: floatingProfitAlertDefaultThreshold,
+          status: 'armed'
+        }
       }
       batchTrades = []
     }
@@ -424,6 +434,47 @@ export function TTradingDrawer({
       activeBatch: nextBatch.alertEnabled
         ? applyTAlertTriggers(nextBatch, activeTrades, quote?.latest).batch
         : nextBatch
+    }, stock.position)
+  }
+
+  const toggleFloatingProfitAlerts = () => {
+    const batch = currentAccount.activeBatch
+    if (!batch) return
+    const normalizedBatch = batch.floatingProfitAlert
+      ? batch
+      : {
+          ...batch,
+          floatingProfitAlert: {
+            enabled: false,
+            threshold: floatingProfitAlertDefaultThreshold,
+            status: 'armed' as const
+          }
+        }
+    const floatingAlert = normalizedBatch.floatingProfitAlert
+    if (!floatingAlert) return
+    const nextBatch = setTFloatingProfitAlertEnabled(
+      normalizedBatch,
+      !floatingAlert.enabled
+    )
+    applyAccount({ ...currentAccount, activeBatch: nextBatch }, stock.position)
+  }
+
+  const updateFloatingProfitAlertThreshold = (value: number) => {
+    const batch = currentAccount.activeBatch
+    if (!batch) return
+    const normalizedBatch = batch.floatingProfitAlert
+      ? batch
+      : {
+          ...batch,
+          floatingProfitAlert: {
+            enabled: false,
+            threshold: floatingProfitAlertDefaultThreshold,
+            status: 'armed' as const
+          }
+        }
+    applyAccount({
+      ...currentAccount,
+      activeBatch: setTFloatingProfitAlertThreshold(normalizedBatch, value)
     }, stock.position)
   }
 
@@ -586,8 +637,8 @@ export function TTradingDrawer({
           <div>
             <span className="t-trading-icon"><Repeat2 size={20} /></span>
             <span>
-              <strong id="t-trading-title">T仓管理 · {stock.name}</strong>
-              <small>{stock.code} · 记录T仓买卖、目标价格与批次收益</small>
+              <strong id="t-trading-title">交易管理 · {stock.name}</strong>
+              <small>{stock.code} · 记录交易、目标价格与批次收益</small>
             </span>
           </div>
           <button className="icon-button dialog-close" type="button" onClick={onClose} aria-label="关闭">
@@ -755,6 +806,42 @@ export function TTradingDrawer({
                     <em>{activeTrades.length} 笔流水</em>
                   </div>
                 </div>
+                {currentAccount.activeBatch.floatingProfitAlert ? (
+                  <div className="t-floating-profit-alert-settings">
+                    <span>
+                      <strong>浮动盈亏提醒</strong>
+                      <small>达到 +阈值或 -阈值时提醒，回到区间后自动恢复</small>
+                    </span>
+                    <span className="t-floating-profit-alert-actions">
+                      <label className="t-alert-toggle">
+                        <span>启用</span>
+                        <input
+                          type="checkbox"
+                          checked={currentAccount.activeBatch.floatingProfitAlert.enabled}
+                          onChange={toggleFloatingProfitAlerts}
+                          aria-label="启用浮动盈亏提醒"
+                        />
+                        <i aria-hidden="true" />
+                      </label>
+                      <label className="t-floating-profit-alert-threshold">
+                        <span>阈值</span>
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={currentAccount.activeBatch.floatingProfitAlert.threshold}
+                          onChange={(event) => updateFloatingProfitAlertThreshold(Number(event.target.value))}
+                          aria-label="浮动盈亏提醒阈值"
+                        />
+                        <em>元</em>
+                      </label>
+                      <TFloatingProfitAlertBadge
+                        batch={currentAccount.activeBatch}
+                        floatingProfit={activeMetrics.floatingProfit}
+                      />
+                    </span>
+                  </div>
+                ) : null}
                 <div className="t-trade-list">
                   {visibleActiveTrades.map((trade) => (
                     <div className="t-trade-row" key={trade.id}>

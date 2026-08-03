@@ -72,7 +72,7 @@
 | [`src/lib/demo-data.ts`](../../src/lib/demo-data.ts) | `DEMO_STOCKS`、`DEMO_SECTORS`、`DEMO_VALUES` | 浏览器预览固定演示数据 |
 | [`src/lib/portfolio.ts`](../../src/lib/portfolio.ts) | `calculatePositionMetrics`、`calculatePortfolioSummary` | 持仓、可用数量、今日收益和组合汇总 |
 | [`src/lib/t-trading.ts`](../../src/lib/t-trading.ts) | `calculateTradeFees`、`calculateTBatchMetrics`、`validateTBatchTrades` | 费用、正反 T、交易重放、持仓和结算计算 |
-| [`src/lib/t-alerts.ts`](../../src/lib/t-alerts.ts) | `getTPlanRows`、`applyTAlertTriggersToAccounts` | 双五档计划、目标价和提醒状态 |
+| [`src/lib/t-alerts.ts`](../../src/lib/t-alerts.ts) | `getTPlanRows`、`applyTAlertTriggersToAccounts`、`applyTFloatingProfitAlert` | 双五档计划、目标价、价格提醒和浮动盈亏提醒状态 |
 | [`src/lib/trade-records.ts`](../../src/lib/trade-records.ts) | `getAccountTrades`、`getBatchTrades`、`upsertTradeRecord` | 统一交易流水的查询、排序、写入与批次关联 |
 | [`src/lib/stock-alerts.ts`](../../src/lib/stock-alerts.ts) | `applyStockAlertTriggers` | 股价、当日涨幅和持仓收益率阈值提醒 |
 | [`src/lib/order-book-alerts.ts`](../../src/lib/order-book-alerts.ts) | `detectFiveLevelLargeOrders` | 活动 T 仓买卖五档异常大单识别 |
@@ -117,6 +117,7 @@
 | [`src/components/TTradingDrawer.tsx`](../../src/components/TTradingDrawer.tsx) | 做 T 交易、费用、双五档、提醒、结算和历史 |
 | [`src/components/TPlanTable.tsx`](../../src/components/TPlanTable.tsx) | 买入/卖出共用五档表 |
 | [`src/components/TAlertBadges.tsx`](../../src/components/TAlertBadges.tsx) | 主表和任务栏提醒标识 |
+| [`src/components/TFloatingProfitAlertBadge.tsx`](../../src/components/TFloatingProfitAlertBadge.tsx) | T仓浮盈/浮亏金额提醒标识 |
 | [`src/components/FiveLevelAlertBadges.tsx`](../../src/components/FiveLevelAlertBadges.tsx) | 活动 T 仓五档异常大单标识 |
 
 ## 桌面辅助窗口组件
