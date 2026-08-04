@@ -119,8 +119,8 @@ export function TrayHoverSummary() {
             </div>
             {tMetrics ? (
               <div className="tray-summary-t">
-                <span>{tMetrics.direction === 'reverse' ? '反T待回补' : '正T持有'} {formatShares(tMetrics.remainingQuantity)}</span>
-                <span>{tMetrics.direction === 'reverse' ? '基准价' : '成本'} {formatCost(tMetrics.averageCost)}</span>
+                <span>{tMetrics.direction === 'reverse' ? '反T' : '正T'} {formatShares(tMetrics.remainingQuantity)}</span>
+                <span>{tMetrics.direction === 'reverse' ? '基准' : '成本'} {formatCost(tMetrics.averageCost)}</span>
                 <span className={valueClass(tMetrics.floatingProfit)}>
                   浮动 {formatProfit(tMetrics.floatingProfit)}
                   {tMetrics.floatingProfitRate === null ? null : (
