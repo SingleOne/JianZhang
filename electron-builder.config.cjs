@@ -13,6 +13,10 @@ module.exports = {
       from: 'scripts/generate_dividend_financing_report.py',
       to: 'scripts/generate_dividend_financing_report.py'
     },
+    {
+      from: 'scripts/generate_fundamental_snapshot.py',
+      to: 'scripts/generate_fundamental_snapshot.py'
+    },
     ...(aiModuleEnabled
       ? [
           {

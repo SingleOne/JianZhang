@@ -246,6 +246,18 @@ K 线、资金流和盘口分别通过 Electron 主进程的 `KlineHub`、`Funds
 
 `MarketRequestLogger` 将外部行情请求和主报价轮次写入 `userData/logs/market-requests-YYYY-MM-DD.jsonl`。记录调用来源、数据类型、节点、开始/完成时间、耗时、请求/返回数量、重试次数、降级来源和错误；不保存完整响应、持仓或接口令牌。应用每次启动都会检查该目录，并删除修改时间超过 7 天的行情日志。
 
+## 基本面财务快照
+
+基本面数据不进入实时行情调度。`scripts/generate_fundamental_snapshot.py` 按三个阶段读取东方财富数据中心公开接口：
+
+1. `RPT_F10_FINANCE_MAINFINADATA`：最近五个完整财年的加权 ROE、扣非加权 ROE。
+2. `RPT_DMSK_FN_INCOME` + `RPT_DMSK_FN_CASHFLOW`：同期合并净利润、归母/扣非归母净利润和经营现金流净额。
+3. `RPT_DMSK_FN_BALANCE`：最新完整财年的总资产、总负债和资产负债率；按接口行业代码分组，以线性插值计算行业 P60，以经验分布计算公司行业百分位。
+
+生成结果使用 schema v1，内置于 `src/data/fundamental-snapshot.json`。`FundamentalDataService` 启动时按需读取并缓存同一对象；用户手动更新的 `userData/fundamentals/snapshot.json` 只有在完整财年或快照日期更新时才覆盖内置数据。当前版本仅提供数据读取和更新 IPC，不包含筛选、评分或展示入口。
+
+金融公司保留 `bank`、`securities`、`insurance` 组织类型，行业分位仍如实计算；是否参与普通企业筛选留给后续使用规则决定。源数据缺少行业归属时保留公司及资产负债率，行业百分位为 `null`。
+
 ## 浏览器演示数据
 
 `src/lib/api.ts` 在没有 `window.stockApi` 时启用 `demoApi`；固定股票、板块和行情值集中在 `src/lib/demo-data.ts`：

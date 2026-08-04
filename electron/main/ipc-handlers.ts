@@ -20,6 +20,8 @@ import type {
   DividendFinancingChangeReport,
   DividendFinancingSnapshot,
   DividendFinancingUpdateResult,
+  FundamentalSnapshot,
+  FundamentalUpdateResult,
   FundsFlowResult,
   KlinePeriod,
   KlineResult,
@@ -44,6 +46,8 @@ interface IpcHandlerDependencies {
   getDividendFinancingSnapshot: () => DividendFinancingSnapshot
   getDividendFinancingChangeReport: () => DividendFinancingChangeReport | null
   runDividendFinancingUpdate: () => Promise<DividendFinancingUpdateResult>
+  getFundamentalSnapshot: () => FundamentalSnapshot
+  runFundamentalUpdate: () => Promise<FundamentalUpdateResult>
   refreshQuotes: (reason?: string) => Promise<StockQuote[]>
   refreshQuotesAutomatically: (reason: string) => Promise<StockQuote[]>
   restartQuoteSchedule: () => void
@@ -70,6 +74,8 @@ const CHANNELS = [
   'dividend-financing:get',
   'dividend-financing:changes:get',
   'dividend-financing:update',
+  'fundamentals:get',
+  'fundamentals:update',
   'quotes:refresh',
   'kline:get',
   'chip-distribution:cache:save',
@@ -107,6 +113,8 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
   ipcMain.handle('dividend-financing:get', () => dependencies.getDividendFinancingSnapshot())
   ipcMain.handle('dividend-financing:changes:get', () => dependencies.getDividendFinancingChangeReport())
   ipcMain.handle('dividend-financing:update', () => dependencies.runDividendFinancingUpdate())
+  ipcMain.handle('fundamentals:get', () => dependencies.getFundamentalSnapshot())
+  ipcMain.handle('fundamentals:update', () => dependencies.runFundamentalUpdate())
   ipcMain.handle('quotes:refresh', () => dependencies.refreshQuotes())
   ipcMain.handle('kline:get', (_event, quoteId: string, period: KlinePeriod, limit?: number) =>
     dependencies.getKline(quoteId, period, limit)

@@ -34,6 +34,7 @@
 | [`electron/main/quote-refresh-coordinator.ts`](../../electron/main/quote-refresh-coordinator.ts) | `QuoteRefreshCoordinator` | 合并重点/普通/手动刷新范围并保证主行情单队列执行 |
 | [`electron/main/sector-market-cache.ts`](../../electron/main/sector-market-cache.ts) | `SectorMarketCache` | 板块绑定持久化、并发补取、失败冷却和 60 秒板块报价缓存 |
 | [`electron/main/market-request-logger.ts`](../../electron/main/market-request-logger.ts) | `MarketRequestLogger` | 行情请求/报价轮次 JSONL 日志和启动时 7 天清理 |
+| [`electron/main/fundamental-data-service.ts`](../../electron/main/fundamental-data-service.ts) | `FundamentalDataService` | 基本面内置/用户快照选择、进程内缓存和三阶段更新脚本调度 |
 | [`electron/main/order-book-hub.ts`](../../electron/main/order-book-hub.ts) | `OrderBookHub` | 统一盘口请求、进行中请求复用、短时缓存和串行错峰 |
 | [`electron/main/funds-flow-hub.ts`](../../electron/main/funds-flow-hub.ts) | `FundsFlowHub` | 资金流请求合并、2 分钟/收盘缓存和串行队列 |
 | [`electron/main/kline-hub.ts`](../../electron/main/kline-hub.ts) | `KlineHub` | 全周期 K 线请求合并、100 条实时 LRU 和全局串行队列 |
@@ -69,6 +70,7 @@
 | 文件 | 重点符号 | 职责 |
 | --- | --- | --- |
 | [`src/lib/api.ts`](../../src/lib/api.ts) | `stockApi`、`demoApi` | 桌面 API 选择、浏览器演示行情和演示存储 |
+| [`src/lib/fundamentals.ts`](../../src/lib/fundamentals.ts) | `parseFundamentalSnapshot`、`selectFundamentalSnapshot` | 基本面快照格式解析和内置/用户快照选择 |
 | [`src/lib/demo-data.ts`](../../src/lib/demo-data.ts) | `DEMO_STOCKS`、`DEMO_SECTORS`、`DEMO_VALUES` | 浏览器预览固定演示数据 |
 | [`src/lib/portfolio.ts`](../../src/lib/portfolio.ts) | `calculatePositionMetrics`、`calculatePortfolioSummary` | 持仓、可用数量、今日收益和组合汇总 |
 | [`src/lib/t-trading.ts`](../../src/lib/t-trading.ts) | `calculateTradeFees`、`calculateTBatchMetrics`、`validateTBatchTrades` | 费用、正反 T、交易重放、持仓和结算计算 |
@@ -144,6 +146,7 @@
 | [`scripts/convert-stock-helper-config.mjs`](../../scripts/convert-stock-helper-config.mjs) | 转换“股票基金助手”配置 |
 | [`scripts/generate-icon.mjs`](../../scripts/generate-icon.mjs) | 生成打包图标 |
 | [`scripts/generate_dividend_financing_report.py`](../../scripts/generate_dividend_financing_report.py) | 生成 A 股分红融资比研究报告 |
+| [`scripts/generate_fundamental_snapshot.py`](../../scripts/generate_fundamental_snapshot.py) | 分三阶段生成五年基本面财务数据与行业负债分位快照 |
 | [`docs/plan/non-ai-market-insight-implementation-plan.md`](../plan/non-ai-market-insight-implementation-plan.md) | 非 AI 指标、要闻与智能盯盘的历史实施计划 |
 | [`docs/plan/ai-module-implementation-plan.md`](../plan/ai-module-implementation-plan.md) | AI 基础模块和独立做 T 参考的历史实施计划 |
 | [`docs/wiki/08-ai-extension-points.md`](08-ai-extension-points.md) | 当前市场观察、AI 对话/分析和 AI 做 T 参考模块说明 |

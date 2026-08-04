@@ -12,6 +12,7 @@ import {
   type BootstrapResult,
   type ConfigImportResult,
   type DividendFinancingSnapshot,
+  type FundamentalSnapshot,
   type FundsFlowResult,
   type KlinePeriod,
   type KlineResult,
@@ -240,6 +241,26 @@ function makeDemoSectorIndex(stockQuoteId: string): SectorIndexResult {
 
 const noSubscribe = (): (() => void) => () => undefined
 
+const DEMO_FUNDAMENTAL_SNAPSHOT: FundamentalSnapshot = {
+  schemaVersion: 1,
+  snapshotDate: '2026-08-04',
+  generatedAt: '2026-08-04T12:00:00+08:00',
+  currency: 'CNY',
+  fiscalYears: [2021, 2022, 2023, 2024, 2025],
+  latestAnnualReportDate: '2025-12-31',
+  sources: [],
+  coverage: {
+    companyCount: 0,
+    completeFiveYearRoeCount: 0,
+    completeFiveYearCashProfitCount: 0,
+    latestDebtAssetRatioCount: 0,
+    latestIndustryPercentileCount: 0,
+    industryCount: 0
+  },
+  industries: [],
+  rows: []
+}
+
 function demoConfigFileName(): string {
   return `见涨-配置-${new Date().toISOString().slice(0, 19).replaceAll(':', '-')}.json`
 }
@@ -267,6 +288,12 @@ const demoApi: StockDesktopApi = {
   },
   async runDividendFinancingUpdate() {
     throw new Error('分红融资榜更新脚本仅能在 Windows 桌面版中运行')
+  },
+  async getFundamentalSnapshot() {
+    return DEMO_FUNDAMENTAL_SNAPSHOT
+  },
+  async runFundamentalUpdate() {
+    throw new Error('基本面财务数据更新脚本仅能在 Windows 桌面版中运行')
   },
   async refreshQuotes() {
     const state = loadDemoState()
@@ -336,7 +363,8 @@ const demoApi: StockDesktopApi = {
   onTaskbarLayout: noSubscribe,
   onSelectStock: noSubscribe,
   onDataError: noSubscribe,
-  onDividendFinancingUpdateProgress: noSubscribe
+  onDividendFinancingUpdateProgress: noSubscribe,
+  onFundamentalUpdateProgress: noSubscribe
 }
 
 export const stockApi = window.stockApi ?? demoApi

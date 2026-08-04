@@ -31,6 +31,7 @@ import {
 import { ChipDistributionCache } from './chip-distribution-cache'
 import { DividendFinancingService } from './dividend-financing-service'
 import { FundsFlowHub } from './funds-flow-hub'
+import { FundamentalDataService } from './fundamental-data-service'
 import { HistoricalKlineCache } from './historical-kline-cache'
 import { registerIpcHandlers } from './ipc-handlers'
 import { KlineHub } from './kline-hub'
@@ -115,6 +116,7 @@ let fundsFlowHub: FundsFlowHub | null = null
 let klineHub: KlineHub | null = null
 let disposeIpcHandlers: (() => void) | null = null
 let dividendFinancingService: DividendFinancingService | null = null
+let fundamentalDataService: FundamentalDataService | null = null
 
 const marketDataHub = new (class MarketDataHub {
   private readonly listeners = new Set<(quotes: readonly StockQuote[]) => void>()
@@ -233,6 +235,10 @@ if (!hasSingleInstanceLock) {
       app.getPath('userData'),
       (progress) => sendToWindows('dividend-financing:update-progress', progress)
     )
+    fundamentalDataService = new FundamentalDataService(
+      app.getPath('userData'),
+      (progress) => sendToWindows('fundamentals:update-progress', progress)
+    )
     const marketRequestLogger = new MarketRequestLogger(join(app.getPath('userData'), 'logs'))
     setMarketRequestLogger(marketRequestLogger)
     chipDistributionCache = new ChipDistributionCache(marketCacheDirectory)
@@ -291,6 +297,8 @@ if (!hasSingleInstanceLock) {
       getDividendFinancingSnapshot: () => dividendFinancingService!.getSnapshot(),
       getDividendFinancingChangeReport: () => dividendFinancingService!.getChangeReport(),
       runDividendFinancingUpdate: () => dividendFinancingService!.runUpdate(),
+      getFundamentalSnapshot: () => fundamentalDataService!.getSnapshot(),
+      runFundamentalUpdate: () => fundamentalDataService!.runUpdate(),
       refreshQuotes: (reason) => quoteRuntime!.refreshAll(reason),
       refreshQuotesAutomatically: (reason) => quoteRuntime!.refreshAutomatically(reason),
       restartQuoteSchedule: () => quoteRuntime!.restartSchedule(),

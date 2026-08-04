@@ -761,6 +761,88 @@ export interface DividendFinancingUpdateResult {
   diagnosticsPath: string
 }
 
+export type FundamentalOrganizationType =
+  | 'general'
+  | 'bank'
+  | 'securities'
+  | 'insurance'
+  | 'other'
+
+export interface FundamentalAnnualReport {
+  year: number
+  reportDate: string
+  noticeDate: string | null
+  weightedAverageRoe: number | null
+  deductedWeightedAverageRoe: number | null
+  netProfit: number | null
+  parentNetProfit: number | null
+  deductedParentNetProfit: number | null
+  operatingCashFlow: number | null
+}
+
+export interface FundamentalBalanceSheet {
+  reportDate: string
+  noticeDate: string | null
+  totalAssets: number | null
+  totalLiabilities: number | null
+  debtAssetRatio: number | null
+  industryPercentile: number | null
+}
+
+export interface FundamentalCompany {
+  code: string
+  name: string
+  market: DividendFinancingMarket
+  quoteId: string
+  organizationType: FundamentalOrganizationType
+  industryCode: string
+  industryName: string
+  annualReports: FundamentalAnnualReport[]
+  latestBalanceSheet: FundamentalBalanceSheet
+}
+
+export interface FundamentalIndustryBenchmark {
+  code: string
+  name: string
+  sampleSize: number
+  debtAssetRatioP60: number
+}
+
+export interface FundamentalSnapshot {
+  schemaVersion: 1
+  snapshotDate: string
+  generatedAt: string
+  currency: 'CNY'
+  fiscalYears: number[]
+  latestAnnualReportDate: string
+  sources: Array<{
+    name: string
+    reportName: string
+    url: string
+  }>
+  coverage: {
+    companyCount: number
+    completeFiveYearRoeCount: number
+    completeFiveYearCashProfitCount: number
+    latestDebtAssetRatioCount: number
+    latestIndustryPercentileCount: number
+    industryCount: number
+  }
+  industries: FundamentalIndustryBenchmark[]
+  rows: FundamentalCompany[]
+}
+
+export interface FundamentalUpdateProgress {
+  stage: 'running' | 'completed' | 'failed'
+  message: string
+}
+
+export interface FundamentalUpdateResult {
+  snapshot: FundamentalSnapshot
+  snapshotPath: string
+  diagnosticsPath: string
+}
+
 export const BUILT_IN_TRADING_CALENDAR_END_YEAR = 2026
 
 export interface TradingCalendarSettings {
@@ -971,6 +1053,8 @@ export interface StockDesktopApi {
   getDividendFinancingSnapshot: () => Promise<DividendFinancingSnapshot>
   getDividendFinancingChangeReport: () => Promise<DividendFinancingChangeReport | null>
   runDividendFinancingUpdate: () => Promise<DividendFinancingUpdateResult>
+  getFundamentalSnapshot: () => Promise<FundamentalSnapshot>
+  runFundamentalUpdate: () => Promise<FundamentalUpdateResult>
   refreshQuotes: () => Promise<StockQuote[]>
   getKline: (quoteId: string, period: KlinePeriod, limit?: number) => Promise<KlineResult>
   saveChipDistributionCache: (entry: ChipDistributionCacheEntry) => Promise<ChipDistributionCacheEntry>
@@ -990,5 +1074,8 @@ export interface StockDesktopApi {
   onDataError: (callback: (message: string) => void) => () => void
   onDividendFinancingUpdateProgress: (
     callback: (progress: DividendFinancingUpdateProgress) => void
+  ) => () => void
+  onFundamentalUpdateProgress: (
+    callback: (progress: FundamentalUpdateProgress) => void
   ) => () => void
 }
