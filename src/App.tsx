@@ -15,6 +15,7 @@ import packageInfo from '../package.json'
 import type {
   AppSettings,
   AppState,
+  DividendFinancingChangeReport,
   DividendFinancingSnapshot,
   SearchResult,
   StockPosition,
@@ -56,6 +57,7 @@ export default function App() {
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false)
   const [dividendRankingOpen, setDividendRankingOpen] = useState(false)
   const [dividendFinancingSnapshot, setDividendFinancingSnapshot] = useState<DividendFinancingSnapshot | null>(null)
+  const [dividendFinancingChangeReport, setDividendFinancingChangeReport] = useState<DividendFinancingChangeReport | null>(null)
   const [aiAssistantContext, setAiAssistantContext] = useState<{ quoteId: string; quoteName?: string } | null>(null)
   const aiRuntimeAvailable = Boolean(AiAssistantDrawer && window.aiApi)
 
@@ -101,9 +103,15 @@ export default function App() {
 
   useEffect(() => {
     let active = true
-    stockApi.getDividendFinancingSnapshot()
-      .then((snapshot) => {
-        if (active) setDividendFinancingSnapshot(snapshot)
+    Promise.all([
+      stockApi.getDividendFinancingSnapshot(),
+      stockApi.getDividendFinancingChangeReport()
+    ])
+      .then(([snapshot, changeReport]) => {
+        if (active) {
+          setDividendFinancingSnapshot(snapshot)
+          setDividendFinancingChangeReport(changeReport)
+        }
       })
       .catch(() => undefined)
     return () => {
@@ -553,10 +561,13 @@ export default function App() {
       {notice ? <div className="success-toast"><CircleCheck size={17} />{notice}</div> : null}
       <DividendFinancingRankingDialog
         open={dividendRankingOpen}
+        cachedSnapshot={dividendFinancingSnapshot}
+        cachedChangeReport={dividendFinancingChangeReport}
         watchlist={state.watchlist}
         onAddStock={addStock}
         onViewStock={viewWatchlistStockFromRanking}
         onSnapshotChange={setDividendFinancingSnapshot}
+        onChangeReportChange={setDividendFinancingChangeReport}
         onClose={() => setDividendRankingOpen(false)}
       />
       {AiAssistantDrawer ? (

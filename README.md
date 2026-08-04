@@ -78,7 +78,7 @@
 
 行情请求日志位于同目录下的 `logs/market-requests-YYYY-MM-DD.jsonl`，仅保留最近 7 天。
 
-手动更新的分红融资榜位于同目录下的 `dividend-financing/`，其中包含当前/更新前快照、变化报告、Markdown 报告和诊断数据。软件优先读取 schema v2 用户快照，不存在、无法读取或仍是旧 schema v1 时使用安装包内置快照。
+手动更新的分红融资榜位于同目录下的 `dividend-financing/`，其中包含当前/更新前快照、变化报告、Markdown 报告和诊断数据。软件启动时读取一次 schema v2 快照并在主进程和界面内存中复用；不存在、无法读取或仍是旧 schema v1 时使用安装包内置快照。
 
 ## 源码开发
 

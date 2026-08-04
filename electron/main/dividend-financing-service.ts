@@ -24,6 +24,9 @@ export class DividendFinancingService {
   private readonly diagnosticsPath: string
   private readonly previousSnapshotPath: string
   private readonly changeReportPath: string
+  // 快照更新频率很低；进程内复用同一对象，打开榜单不会重复读盘或解析 JSON。
+  private snapshotCache: DividendFinancingSnapshot | null = null
+  private changeReportCache: DividendFinancingChangeReport | null | undefined
   private updating = false
 
   constructor(
@@ -39,26 +42,35 @@ export class DividendFinancingService {
   }
 
   getSnapshot(): DividendFinancingSnapshot {
+    if (this.snapshotCache) return this.snapshotCache
     const bundled = builtInSnapshot as DividendFinancingSnapshot
     if (existsSync(this.snapshotPath)) {
       try {
-        return selectDividendFinancingSnapshot(
+        this.snapshotCache = selectDividendFinancingSnapshot(
           bundled,
           parseDividendFinancingSnapshot(readFileSync(this.snapshotPath, 'utf8'))
         )
+        return this.snapshotCache
       } catch {
         // Keep the bundled snapshot available if a previous manual update was interrupted.
       }
     }
-    return bundled
+    this.snapshotCache = bundled
+    return this.snapshotCache
   }
 
   getChangeReport(): DividendFinancingChangeReport | null {
-    if (!existsSync(this.changeReportPath)) return null
+    if (this.changeReportCache !== undefined) return this.changeReportCache
+    if (!existsSync(this.changeReportPath)) {
+      this.changeReportCache = null
+      return null
+    }
     try {
       const report = JSON.parse(readFileSync(this.changeReportPath, 'utf8')) as DividendFinancingChangeReport
-      return report.schemaVersion === 1 && Array.isArray(report.rows) ? report : null
+      this.changeReportCache = report.schemaVersion === 1 && Array.isArray(report.rows) ? report : null
+      return this.changeReportCache
     } catch {
+      this.changeReportCache = null
       return null
     }
   }
@@ -95,6 +107,8 @@ export class DividendFinancingService {
       const changeReport = createDividendFinancingChangeReport(previousSnapshot, snapshot)
       writeFileSync(this.previousSnapshotPath, JSON.stringify(previousSnapshot, null, 2), 'utf8')
       writeFileSync(this.changeReportPath, JSON.stringify(changeReport, null, 2), 'utf8')
+      this.snapshotCache = snapshot
+      this.changeReportCache = changeReport
       this.notifyProgress({
         stage: 'completed',
         message: `更新完成：${snapshot.snapshotDate}，共 ${snapshot.rows.length} 只股票`

@@ -189,7 +189,7 @@ AI API Key 由主进程使用 Electron `safeStorage` 加密；renderer 只能读
 | `getBootstrap` | `app:bootstrap` | 返回状态、内存报价和数据源 |
 | `getTaskbarLayout` | `taskbar:layout:get` | 返回任务栏高度 |
 | `searchStocks` | `stocks:search` | 股票联想 |
-| `getDividendFinancingSnapshot` | `dividend-financing:get` | 优先读取 schema v2 用户快照；旧 schema v1 缓存不覆盖内置 schema v2 快照 |
+| `getDividendFinancingSnapshot` | `dividend-financing:get` | 优先读取 schema v2 用户快照；进程内缓存已解析对象；旧 schema v1 缓存不覆盖内置 schema v2 快照 |
 | `getDividendFinancingChangeReport` | `dividend-financing:changes:get` | 返回最近一次手动更新前后的新入榜、移出、排名、比例、分红与融资变化 |
 | `runDividendFinancingUpdate` | `dividend-financing:update` | 调用随应用附带的 Python 脚本，保存更新前快照并生成变化报告 |
 | `refreshQuotes` | `quotes:refresh` | 向统一调度器提交手动全量刷新 |

@@ -46,10 +46,13 @@ type SortKey =
 
 interface DividendFinancingRankingDialogProps {
   open: boolean
+  cachedSnapshot: DividendFinancingSnapshot | null
+  cachedChangeReport: DividendFinancingChangeReport | null
   watchlist: WatchStock[]
   onAddStock: (stock: SearchResult) => void
   onViewStock: (quoteId: string) => void
   onSnapshotChange: (snapshot: DividendFinancingSnapshot) => void
+  onChangeReportChange: (report: DividendFinancingChangeReport | null) => void
   onClose: () => void
 }
 
@@ -362,10 +365,13 @@ function VisualizationPanel({
 
 export function DividendFinancingRankingDialog({
   open,
+  cachedSnapshot,
+  cachedChangeReport,
   watchlist,
   onAddStock,
   onViewStock,
   onSnapshotChange,
+  onChangeReportChange,
   onClose
 }: DividendFinancingRankingDialogProps) {
   const confirm = useConfirmDialog()
@@ -395,6 +401,13 @@ export function DividendFinancingRankingDialog({
 
   useEffect(() => {
     if (!open) return
+    if (cachedSnapshot) {
+      setSnapshot(cachedSnapshot)
+      setChangeReport(cachedChangeReport)
+      setLoadError('')
+      setLoading(false)
+      return
+    }
     let active = true
     setLoading(true)
     setLoadError('')
@@ -407,6 +420,7 @@ export function DividendFinancingRankingDialog({
         setSnapshot(data)
         setChangeReport(changes)
         onSnapshotChange(data)
+        onChangeReportChange(changes)
       })
       .catch((reason: unknown) => {
         if (active) setLoadError(reason instanceof Error ? reason.message : '分红融资榜读取失败')
@@ -417,7 +431,7 @@ export function DividendFinancingRankingDialog({
     return () => {
       active = false
     }
-  }, [onSnapshotChange, open])
+  }, [cachedChangeReport, cachedSnapshot, onChangeReportChange, onSnapshotChange, open])
 
   useEffect(() => {
     if (!open) return
@@ -543,6 +557,7 @@ export function DividendFinancingRankingDialog({
       setSnapshot(result.snapshot)
       setChangeReport(result.changeReport)
       onSnapshotChange(result.snapshot)
+      onChangeReportChange(result.changeReport)
       setActionMessage(`数据已更新，报告保存于 ${result.reportPath}`)
     } catch (reason) {
       setActionMessage(reason instanceof Error ? reason.message : '更新脚本运行失败')
