@@ -148,7 +148,7 @@ export function calculateTBatchMetrics(
     realizedProfit,
     floatingProfit,
     floatingProfitRate: floatingProfit !== null && remainingCostBasis > 0
-      ? floatingProfit / remainingCostBasis
+      ? floatingProfit / remainingCostBasis * 100
       : null,
     buyAmount,
     sellAmount
