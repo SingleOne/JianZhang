@@ -279,6 +279,40 @@
   font-size: 12px;
 }
 
+.dividend-financing-tab-content {
+  min-height: 260px;
+}
+
+.dividend-financing-tab-panel {
+  min-width: 0;
+}
+
+.dividend-financing-tab-empty {
+  min-height: 260px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #7b899c;
+  background: #f8fafc;
+  border: 1px dashed #d7dfe9;
+  border-radius: 9px;
+}
+
+.dividend-financing-tab-empty > svg {
+  color: #9aa7b8;
+}
+
+.dividend-financing-tab-empty strong {
+  color: #526176;
+  font-size: 13px;
+}
+
+.dividend-financing-tab-empty span {
+  font-size: 12px;
+}
+
 .detail-tabs {
   display: flex;
   flex-wrap: wrap;

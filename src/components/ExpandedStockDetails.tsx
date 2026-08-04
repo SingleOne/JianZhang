@@ -37,7 +37,7 @@ const AiTAdvicePanel = __JIANZHANG_AI_T_ADVICE_MODULE_ENABLED__
   : null
 
 type PriceTab = Exclude<KlinePeriod, 'intraday'> | 'trend'
-type DetailTab = PriceTab | 'funds' | 'sector' | 'insight' | 'ai' | 't-advice'
+type DetailTab = PriceTab | 'dividendFinancing' | 'funds' | 'sector' | 'insight' | 'ai' | 't-advice'
 type HistoricalPeriod = Extract<KlinePeriod, 'daily' | 'weekly' | 'monthly'>
 
 interface KlineCacheEntry {
@@ -179,6 +179,65 @@ function DividendFinancingDeepDetails({ item }: { item: DividendFinancingRanking
         </section>
       </div>
     </details>
+  )
+}
+
+function DividendFinancingPanel({
+  item,
+  snapshotDate
+}: {
+  item?: DividendFinancingRankingItem
+  snapshotDate?: string
+}) {
+  if (!item) {
+    return (
+      <div className="dividend-financing-tab-empty" role="status">
+        <Trophy size={24} />
+        <strong>当前股票暂无分红融资榜数据</strong>
+        <span>可能未进入分红融资比大于100%榜单，或当前快照没有完整数据。</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="dividend-financing-tab-panel">
+      <div className="dividend-financing-detail-summary">
+        <div className="dividend-financing-detail-title">
+          <Trophy size={18} />
+          <span>
+            <strong>分红融资榜</strong>
+            <small>{snapshotDate ?? '--'} 快照</small>
+          </span>
+        </div>
+        <div>
+          <span>分红融资比</span>
+          <strong className="dividend-financing-detail-ratio">{item.ratio.toFixed(2)}%</strong>
+        </div>
+        <div>
+          <span>榜单排名</span>
+          <strong>第 {item.rank} 名</strong>
+        </div>
+        <div>
+          <span>累计A股分红</span>
+          <strong>{item.dividendYi.toLocaleString('zh-CN')} 亿元</strong>
+        </div>
+        <div>
+          <span>累计A股融资</span>
+          <strong>{item.financingYi.toLocaleString('zh-CN')} 亿元</strong>
+        </div>
+        <div>
+          <span>净回报额</span>
+          <strong className={signedValueClass(item.netReturnYi ?? item.dividendYi - item.financingYi)}>
+            {dividendAmount(item.netReturnYi ?? item.dividendYi - item.financingYi)}
+          </strong>
+        </div>
+        <div>
+          <span>回报质量评分</span>
+          <strong>{item.qualityScore?.toFixed(1) ?? '--'} 分 · 第 {item.scoreRank ?? '--'} 名</strong>
+        </div>
+        <DividendFinancingDeepDetails item={item} />
+      </div>
+    </div>
   )
 }
 
@@ -446,50 +505,6 @@ export function ExpandedStockDetails({
 
   return (
     <section className="stock-details" aria-label={`${stock.name} 行情详情`}>
-      <div className={`dividend-financing-detail-summary ${dividendFinancing ? '' : 'is-empty'}`}>
-        <div className="dividend-financing-detail-title">
-          <Trophy size={18} />
-          <span>
-            <strong>分红融资榜</strong>
-            <small>{dividendFinancingSnapshotDate ?? '--'} 快照</small>
-          </span>
-        </div>
-        {dividendFinancing ? (
-          <>
-            <div>
-              <span>分红融资比</span>
-              <strong className="dividend-financing-detail-ratio">
-                {dividendFinancing.ratio.toFixed(2)}%
-              </strong>
-            </div>
-            <div>
-              <span>榜单排名</span>
-              <strong>第 {dividendFinancing.rank} 名</strong>
-            </div>
-            <div>
-              <span>累计A股分红</span>
-              <strong>{dividendFinancing.dividendYi.toLocaleString('zh-CN')} 亿元</strong>
-            </div>
-            <div>
-              <span>累计A股融资</span>
-              <strong>{dividendFinancing.financingYi.toLocaleString('zh-CN')} 亿元</strong>
-            </div>
-            <div>
-              <span>净回报额</span>
-              <strong className={signedValueClass(dividendFinancing.netReturnYi ?? dividendFinancing.dividendYi - dividendFinancing.financingYi)}>
-                {dividendAmount(dividendFinancing.netReturnYi ?? dividendFinancing.dividendYi - dividendFinancing.financingYi)}
-              </strong>
-            </div>
-            <div>
-              <span>回报质量评分</span>
-              <strong>{dividendFinancing.qualityScore?.toFixed(1) ?? '--'} 分 · 第 {dividendFinancing.scoreRank ?? '--'} 名</strong>
-            </div>
-            <DividendFinancingDeepDetails item={dividendFinancing} />
-          </>
-        ) : (
-          <p>当前快照未进入分红融资比大于100%榜单或暂无完整数据</p>
-        )}
-      </div>
       <div className="detail-tabs" role="tablist" aria-label="行情详情类型">
         {LEADING_PRICE_TABS.map((tab) => (
           <button
@@ -504,6 +519,16 @@ export function ExpandedStockDetails({
             {tab.label}
           </button>
         ))}
+        <button
+          className={activeTab === 'dividendFinancing' ? 'is-active' : ''}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'dividendFinancing'}
+          onClick={() => setActiveTab('dividendFinancing')}
+        >
+          <Trophy size={15} />
+          分红融资
+        </button>
         <button
           className={activeTab === 'funds' ? 'is-active' : ''}
           type="button"
@@ -575,7 +600,11 @@ export function ExpandedStockDetails({
         </button>
       </div>
 
-      {priceTab ? (
+      {activeTab === 'dividendFinancing' ? (
+        <div className="dividend-financing-tab-content" role="tabpanel">
+          <DividendFinancingPanel item={dividendFinancing} snapshotDate={dividendFinancingSnapshotDate} />
+        </div>
+      ) : priceTab ? (
         <div className="trend-tab-panel" role="tabpanel">
           <div className="overview-header">
             <div>
