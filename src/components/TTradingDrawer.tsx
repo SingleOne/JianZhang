@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { formatCost, formatCurrency, formatPrice, formatProfit, formatShares } from '../lib/format'
+import { formatCost, formatCurrency, formatPercent, formatPrice, formatProfit, formatShares } from '../lib/format'
 import {
   applyTAlertTriggers,
   getTPlanRows,
@@ -791,6 +791,9 @@ export function TTradingDrawer({
                       <small>浮动收益</small>
                       <strong className={valueClass(activeMetrics.floatingProfit)}>
                         {formatProfit(activeMetrics.floatingProfit)}
+                        <small className={`t-floating-profit-rate ${valueClass(activeMetrics.floatingProfitRate)}`}>
+                          ({formatPercent(activeMetrics.floatingProfitRate)})
+                        </small>
                       </strong>
                     </span>
                     <span>

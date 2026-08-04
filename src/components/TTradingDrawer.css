@@ -185,6 +185,13 @@
   color: var(--green);
 }
 
+.t-batch-summary strong .t-floating-profit-rate {
+  margin-left: 4px;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .t-batch-summary em {
   align-self: center;
   white-space: nowrap;

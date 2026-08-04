@@ -123,6 +123,11 @@ export function TrayHoverSummary() {
                 <span>{tMetrics.direction === 'reverse' ? '基准价' : '成本'} {formatCost(tMetrics.averageCost)}</span>
                 <span className={valueClass(tMetrics.floatingProfit)}>
                   浮动 {formatProfit(tMetrics.floatingProfit)}
+                  {tMetrics.floatingProfitRate === null ? null : (
+                    <small className="tray-summary-floating-rate">
+                      ({formatPercent(tMetrics.floatingProfitRate)})
+                    </small>
+                  )}
                   {floatingProfitAlert ? (
                     <TFloatingProfitAlertBadge
                       batch={state.tTradingAccounts[stock.quoteId]?.activeBatch}

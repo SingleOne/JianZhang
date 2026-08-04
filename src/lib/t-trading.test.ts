@@ -83,6 +83,7 @@ describe('T batch metrics', () => {
     expect(metrics.averageCost).toBeCloseTo(10.01)
     expect(metrics.realizedProfit).toBeCloseTo(78.6)
     expect(metrics.floatingProfit).toBeCloseTo(59.4)
+    expect(metrics.floatingProfitRate).toBeCloseTo(59.4 / 600.6)
   })
 
   it('calculates reverse-T realized and floating profit', () => {
@@ -96,6 +97,7 @@ describe('T batch metrics', () => {
     expect(metrics.averageCost).toBeCloseTo(11.99)
     expect(metrics.realizedProfit).toBeCloseTo(78.6)
     expect(metrics.floatingProfit).toBeCloseTo(59.4)
+    expect(metrics.floatingProfitRate).toBeCloseTo(59.4 / metrics.remainingCostBasis)
   })
 })
 

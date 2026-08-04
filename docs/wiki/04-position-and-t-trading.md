@@ -174,6 +174,14 @@ TTradingBatch
 浮动收益 = (基准价 - 最新价) × 待回补数量
 ```
 
+正 T 与反 T 的浮动收益率使用同一口径：
+
+```text
+浮动收益率 = 浮动收益 / 当前 T 仓剩余成本基数
+```
+
+界面中的当前批次摘要和托盘悬浮窗口都复用 `calculateTBatchMetrics` 的计算结果。
+
 ### 交易校验
 
 `validateTBatchTrades` 按时间顺序重放交易：

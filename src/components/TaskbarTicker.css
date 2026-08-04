@@ -128,6 +128,12 @@
   text-overflow: ellipsis;
 }
 
+.tray-summary-floating-rate {
+  margin-left: 3px;
+  color: inherit;
+  font-size: 12px;
+}
+
 .tray-summary-t.is-empty {
   justify-content: flex-start;
   color: #98a2b3;

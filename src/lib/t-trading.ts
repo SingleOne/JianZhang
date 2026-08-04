@@ -24,6 +24,7 @@ export interface TBatchMetrics {
   averageCost: number | null
   realizedProfit: number
   floatingProfit: number | null
+  floatingProfitRate: number | null
   buyAmount: number
   sellAmount: number
 }
@@ -133,6 +134,11 @@ export function calculateTBatchMetrics(
   const averageCost = remainingQuantity > 0
     ? remainingCostBasis / remainingQuantity
     : null
+  const floatingProfit = averageCost !== null && latestPrice !== null && latestPrice !== undefined
+    ? (direction === 'forward'
+      ? latestPrice - averageCost
+      : averageCost - latestPrice) * remainingQuantity
+    : null
 
   return {
     direction,
@@ -140,10 +146,9 @@ export function calculateTBatchMetrics(
     remainingCostBasis,
     averageCost,
     realizedProfit,
-    floatingProfit: averageCost !== null && latestPrice !== null && latestPrice !== undefined
-      ? (direction === 'forward'
-        ? latestPrice - averageCost
-        : averageCost - latestPrice) * remainingQuantity
+    floatingProfit,
+    floatingProfitRate: floatingProfit !== null && remainingCostBasis > 0
+      ? floatingProfit / remainingCostBasis
       : null,
     buyAmount,
     sellAmount
