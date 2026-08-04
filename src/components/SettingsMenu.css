@@ -178,6 +178,67 @@
   cursor: default;
 }
 
+.fundamental-data-setting {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f2f6;
+}
+
+.fundamental-data-setting > span {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.fundamental-data-setting strong,
+.fundamental-data-setting small,
+.fundamental-data-setting button {
+  font-size: 12px;
+}
+
+.fundamental-data-setting strong {
+  color: #344054;
+  font-weight: 650;
+}
+
+.fundamental-data-setting small {
+  color: #8a94a6;
+  line-height: 1.4;
+}
+
+.fundamental-data-setting small.is-warning {
+  color: #9a6700;
+}
+
+.fundamental-data-setting small.is-error {
+  color: var(--red);
+}
+
+.fundamental-data-setting button {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 9px;
+  color: var(--blue);
+  background: #f7faff;
+  border: 1px solid #b9cdf7;
+  border-radius: 7px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.fundamental-data-setting button:disabled {
+  color: #98a2b3;
+  border-color: var(--border);
+  background: #f8fafc;
+  cursor: default;
+}
+
 .config-management > span:first-child {
   display: grid;
   gap: 3px;

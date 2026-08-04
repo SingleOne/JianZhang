@@ -1,21 +1,37 @@
 import { app } from 'electron'
-import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import builtInSnapshot from '../../src/data/dividend-financing-ranking.json'
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync
+} from 'node:fs'
+import { join } from 'node:path'
+import { dividendFinancingStaleReason } from '../../src/lib/data-snapshot-status'
 import {
   createDividendFinancingChangeReport,
-  parseDividendFinancingSnapshot,
-  selectDividendFinancingSnapshot
+  parseDividendFinancingSnapshot
 } from '../../src/lib/dividend-financing'
 import type {
+  DataSnapshotRuntimeState,
   DividendFinancingChangeReport,
   DividendFinancingSnapshot,
   DividendFinancingUpdateProgress,
   DividendFinancingUpdateResult
 } from '../../src/shared/types'
+import type { PythonTaskQueue } from './python-task-queue'
 
-class PythonCommandNotFoundError extends Error {}
+const EMPTY_STATE: DataSnapshotRuntimeState = {
+  status: 'missing',
+  progressMessage: '尚无分红融资榜数据，正在等待首次获取。',
+  error: null,
+  snapshotDate: null,
+  generatedAt: null,
+  recordCount: 0,
+  periodLabel: null,
+  staleReason: null
+}
 
 export class DividendFinancingService {
   private readonly dataDirectory: string
@@ -24,14 +40,16 @@ export class DividendFinancingService {
   private readonly diagnosticsPath: string
   private readonly previousSnapshotPath: string
   private readonly changeReportPath: string
-  // 快照更新频率很低；进程内复用同一对象，打开榜单不会重复读盘或解析 JSON。
   private snapshotCache: DividendFinancingSnapshot | null = null
   private changeReportCache: DividendFinancingChangeReport | null | undefined
+  private runtimeState: DataSnapshotRuntimeState = EMPTY_STATE
   private updating = false
 
   constructor(
     userDataDirectory: string,
-    private readonly notifyProgress: (progress: DividendFinancingUpdateProgress) => void
+    private readonly pythonQueue: PythonTaskQueue,
+    private readonly notifyProgress: (progress: DividendFinancingUpdateProgress) => void,
+    private readonly notifyState: (state: DataSnapshotRuntimeState) => void
   ) {
     this.dataDirectory = join(userDataDirectory, 'dividend-financing')
     this.snapshotPath = join(this.dataDirectory, 'ranking.json')
@@ -39,35 +57,31 @@ export class DividendFinancingService {
     this.diagnosticsPath = join(this.dataDirectory, 'diagnostics.json')
     this.previousSnapshotPath = join(this.dataDirectory, 'previous-ranking.json')
     this.changeReportPath = join(this.dataDirectory, 'change-report.json')
+    this.loadSnapshot()
   }
 
-  getSnapshot(): DividendFinancingSnapshot {
-    if (this.snapshotCache) return this.snapshotCache
-    const bundled = builtInSnapshot as DividendFinancingSnapshot
-    if (existsSync(this.snapshotPath)) {
-      try {
-        this.snapshotCache = selectDividendFinancingSnapshot(
-          bundled,
-          parseDividendFinancingSnapshot(readFileSync(this.snapshotPath, 'utf8'))
-        )
-        return this.snapshotCache
-      } catch {
-        // Keep the bundled snapshot available if a previous manual update was interrupted.
-      }
-    }
-    this.snapshotCache = bundled
+  getSnapshot(): DividendFinancingSnapshot | null {
     return this.snapshotCache
   }
 
+  getState(): DataSnapshotRuntimeState {
+    return { ...this.runtimeState }
+  }
+
   getChangeReport(): DividendFinancingChangeReport | null {
+    if (!this.snapshotCache) return null
     if (this.changeReportCache !== undefined) return this.changeReportCache
     if (!existsSync(this.changeReportPath)) {
       this.changeReportCache = null
       return null
     }
     try {
-      const report = JSON.parse(readFileSync(this.changeReportPath, 'utf8')) as DividendFinancingChangeReport
-      this.changeReportCache = report.schemaVersion === 1 && Array.isArray(report.rows) ? report : null
+      const report = JSON.parse(
+        readFileSync(this.changeReportPath, 'utf8')
+      ) as DividendFinancingChangeReport
+      this.changeReportCache = report.schemaVersion === 1 && Array.isArray(report.rows)
+        ? report
+        : null
       return this.changeReportCache
     } catch {
       this.changeReportCache = null
@@ -75,40 +89,75 @@ export class DividendFinancingService {
     }
   }
 
+  initializeIfMissing(): void {
+    if (this.runtimeState.status === 'missing') void this.runUpdate().catch(() => undefined)
+  }
+
   async runUpdate(): Promise<DividendFinancingUpdateResult> {
     if (this.updating) throw new Error('分红融资榜更新脚本正在运行')
     this.updating = true
     mkdirSync(this.dataDirectory, { recursive: true })
-    const previousSnapshot = this.getSnapshot()
-    this.notifyProgress({ stage: 'running', message: '正在启动 Python 更新脚本…' })
+    const previousSnapshot = this.snapshotCache
+    const nextSnapshotPath = join(this.dataDirectory, 'ranking.next.json')
+    const nextReportPath = join(this.dataDirectory, 'report.next.md')
+    const nextDiagnosticsPath = join(this.dataDirectory, 'diagnostics.next.json')
+    const nextChangeReportPath = join(this.dataDirectory, 'change-report.next.json')
+    this.setState({
+      ...this.snapshotState(previousSnapshot),
+      status: 'queued',
+      progressMessage: '分红融资榜更新已加入队列。',
+      error: null
+    })
 
     try {
       const scriptPath = app.isPackaged
         ? join(process.resourcesPath, 'scripts', 'generate_dividend_financing_report.py')
         : join(app.getAppPath(), 'scripts', 'generate_dividend_financing_report.py')
-      const scriptArguments = [
+      await this.pythonQueue.run(
         scriptPath,
-        '--output',
-        this.reportPath,
-        '--json-output',
-        this.snapshotPath,
-        '--diagnostics',
-        this.diagnosticsPath
-      ]
+        [
+          '--output',
+          nextReportPath,
+          '--json-output',
+          nextSnapshotPath,
+          '--diagnostics',
+          nextDiagnosticsPath
+        ],
+        (content) => this.reportOutput(content),
+        () => {
+          this.setState({
+            ...this.snapshotState(previousSnapshot),
+            status: 'updating',
+            progressMessage: '正在运行分红融资榜更新脚本…',
+            error: null
+          })
+          this.notifyProgress({ stage: 'running', message: '正在运行分红融资榜更新脚本…' })
+        }
+      )
 
-      try {
-        await this.runPython('py', ['-3', ...scriptArguments])
-      } catch (reason) {
-        if (!(reason instanceof PythonCommandNotFoundError)) throw reason
-        await this.runPython('python', scriptArguments)
+      const snapshot = parseDividendFinancingSnapshot(readFileSync(nextSnapshotPath, 'utf8'))
+      const changeReport = previousSnapshot
+        ? createDividendFinancingChangeReport(previousSnapshot, snapshot)
+        : null
+      if (previousSnapshot) {
+        writeFileSync(
+          this.previousSnapshotPath,
+          JSON.stringify(previousSnapshot, null, 2),
+          'utf8'
+        )
       }
-
-      const snapshot = parseDividendFinancingSnapshot(readFileSync(this.snapshotPath, 'utf8'))
-      const changeReport = createDividendFinancingChangeReport(previousSnapshot, snapshot)
-      writeFileSync(this.previousSnapshotPath, JSON.stringify(previousSnapshot, null, 2), 'utf8')
-      writeFileSync(this.changeReportPath, JSON.stringify(changeReport, null, 2), 'utf8')
+      if (changeReport) {
+        writeFileSync(nextChangeReportPath, JSON.stringify(changeReport, null, 2), 'utf8')
+        renameSync(nextChangeReportPath, this.changeReportPath)
+      } else if (existsSync(this.changeReportPath)) {
+        unlinkSync(this.changeReportPath)
+      }
+      renameSync(nextReportPath, this.reportPath)
+      renameSync(nextDiagnosticsPath, this.diagnosticsPath)
+      renameSync(nextSnapshotPath, this.snapshotPath)
       this.snapshotCache = snapshot
       this.changeReportCache = changeReport
+      this.setState(this.snapshotState(snapshot))
       this.notifyProgress({
         stage: 'completed',
         message: `更新完成：${snapshot.snapshotDate}，共 ${snapshot.rows.length} 只股票`
@@ -120,12 +169,13 @@ export class DividendFinancingService {
         diagnosticsPath: this.diagnosticsPath
       }
     } catch (reason) {
-      const message =
-        reason instanceof PythonCommandNotFoundError
-          ? '未找到 Python 3，请先安装 Python 3 和 requests。'
-          : reason instanceof Error
-            ? reason.message
-            : '分红融资榜更新失败'
+      const message = reason instanceof Error ? reason.message : '分红融资榜更新失败'
+      this.setState({
+        ...this.snapshotState(this.snapshotCache),
+        status: 'failed',
+        progressMessage: null,
+        error: message
+      })
       this.notifyProgress({ stage: 'failed', message })
       throw new Error(message)
     } finally {
@@ -133,43 +183,43 @@ export class DividendFinancingService {
     }
   }
 
-  private runPython(command: string, args: string[]): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const child = spawn(command, args, {
-        cwd: dirname(args.includes('-3') ? args[1] : args[0]),
-        windowsHide: true,
-        env: {
-          ...process.env,
-          PYTHONIOENCODING: 'utf-8',
-          PYTHONUTF8: '1'
-        }
-      })
-      let stderr = ''
-      let settled = false
-
-      const reportOutput = (content: string) => {
-        const line = content.trim().split(/\r?\n/).at(-1)
-        if (line) this.notifyProgress({ stage: 'running', message: line })
+  private loadSnapshot(): void {
+    if (!existsSync(this.snapshotPath)) return
+    try {
+      this.snapshotCache = parseDividendFinancingSnapshot(readFileSync(this.snapshotPath, 'utf8'))
+      this.runtimeState = this.snapshotState(this.snapshotCache)
+    } catch (reason) {
+      this.runtimeState = {
+        ...EMPTY_STATE,
+        error: reason instanceof Error ? reason.message : '分红融资榜快照无法读取'
       }
+    }
+  }
 
-      child.stdout.on('data', (chunk: Buffer) => reportOutput(chunk.toString('utf8')))
-      child.stderr.on('data', (chunk: Buffer) => {
-        const content = chunk.toString('utf8')
-        stderr += content
-        reportOutput(content)
-      })
-      child.on('error', (reason: NodeJS.ErrnoException) => {
-        if (settled) return
-        settled = true
-        if (reason.code === 'ENOENT') reject(new PythonCommandNotFoundError())
-        else reject(reason)
-      })
-      child.on('close', (code) => {
-        if (settled) return
-        settled = true
-        if (code === 0) resolve()
-        else reject(new Error(stderr.trim() || `Python 更新脚本退出，代码 ${code}`))
-      })
-    })
+  private snapshotState(snapshot: DividendFinancingSnapshot | null): DataSnapshotRuntimeState {
+    if (!snapshot) return { ...EMPTY_STATE }
+    const staleReason = dividendFinancingStaleReason(snapshot)
+    return {
+      status: staleReason ? 'stale' : 'ready',
+      progressMessage: null,
+      error: null,
+      snapshotDate: snapshot.snapshotDate,
+      generatedAt: snapshot.generatedAt,
+      recordCount: snapshot.rows.length,
+      periodLabel: `快照 ${snapshot.snapshotDate}`,
+      staleReason
+    }
+  }
+
+  private reportOutput(content: string): void {
+    const line = content.trim().split(/\r?\n/).at(-1)
+    if (!line) return
+    this.notifyProgress({ stage: 'running', message: line })
+    this.setState({ ...this.runtimeState, status: 'updating', progressMessage: line, error: null })
+  }
+
+  private setState(state: DataSnapshotRuntimeState): void {
+    this.runtimeState = state
+    this.notifyState({ ...state })
   }
 }

@@ -756,9 +756,28 @@ export interface DividendFinancingUpdateProgress {
 
 export interface DividendFinancingUpdateResult {
   snapshot: DividendFinancingSnapshot
-  changeReport: DividendFinancingChangeReport
+  changeReport: DividendFinancingChangeReport | null
   reportPath: string
   diagnosticsPath: string
+}
+
+export type DataSnapshotStatus =
+  | 'missing'
+  | 'queued'
+  | 'updating'
+  | 'ready'
+  | 'stale'
+  | 'failed'
+
+export interface DataSnapshotRuntimeState {
+  status: DataSnapshotStatus
+  progressMessage: string | null
+  error: string | null
+  snapshotDate: string | null
+  generatedAt: string | null
+  recordCount: number
+  periodLabel: string | null
+  staleReason: string | null
 }
 
 export type FundamentalOrganizationType =
@@ -1050,10 +1069,12 @@ export interface StockDesktopApi {
   getBootstrap: () => Promise<BootstrapResult>
   getTaskbarLayout: () => Promise<TaskbarLayout>
   searchStocks: (query: string) => Promise<SearchResult[]>
-  getDividendFinancingSnapshot: () => Promise<DividendFinancingSnapshot>
+  getDividendFinancingSnapshot: () => Promise<DividendFinancingSnapshot | null>
+  getDividendFinancingState: () => Promise<DataSnapshotRuntimeState>
   getDividendFinancingChangeReport: () => Promise<DividendFinancingChangeReport | null>
   runDividendFinancingUpdate: () => Promise<DividendFinancingUpdateResult>
-  getFundamentalSnapshot: () => Promise<FundamentalSnapshot>
+  getFundamentalSnapshot: () => Promise<FundamentalSnapshot | null>
+  getFundamentalState: () => Promise<DataSnapshotRuntimeState>
   runFundamentalUpdate: () => Promise<FundamentalUpdateResult>
   refreshQuotes: () => Promise<StockQuote[]>
   getKline: (quoteId: string, period: KlinePeriod, limit?: number) => Promise<KlineResult>
@@ -1075,7 +1096,13 @@ export interface StockDesktopApi {
   onDividendFinancingUpdateProgress: (
     callback: (progress: DividendFinancingUpdateProgress) => void
   ) => () => void
+  onDividendFinancingStateUpdated: (
+    callback: (state: DataSnapshotRuntimeState) => void
+  ) => () => void
   onFundamentalUpdateProgress: (
     callback: (progress: FundamentalUpdateProgress) => void
+  ) => () => void
+  onFundamentalStateUpdated: (
+    callback: (state: DataSnapshotRuntimeState) => void
   ) => () => void
 }

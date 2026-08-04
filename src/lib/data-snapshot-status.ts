@@ -1,0 +1,36 @@
+import type { DividendFinancingSnapshot, FundamentalSnapshot } from '../shared/types'
+
+const DAY_MILLISECONDS = 24 * 60 * 60 * 1000
+
+function olderThanDays(generatedAt: string, days: number, now: Date): boolean {
+  const generatedTime = new Date(generatedAt).getTime()
+  return Number.isFinite(generatedTime) && now.getTime() - generatedTime > days * DAY_MILLISECONDS
+}
+
+export function dividendFinancingStaleReason(
+  snapshot: DividendFinancingSnapshot,
+  now = new Date()
+): string | null {
+  return olderThanDays(snapshot.generatedAt, 7, now)
+    ? '数据生成时间已超过7天，建议手动更新后再进行比较。'
+    : null
+}
+
+export function expectedCompletedFiscalYear(now = new Date()): number {
+  const annualReportsComplete = now.getMonth() > 3
+  return now.getFullYear() - (annualReportsComplete ? 1 : 2)
+}
+
+export function fundamentalStaleReason(
+  snapshot: FundamentalSnapshot,
+  now = new Date()
+): string | null {
+  const latestYear = snapshot.fiscalYears.at(-1) ?? 0
+  const expectedYear = expectedCompletedFiscalYear(now)
+  if (latestYear < expectedYear) {
+    return `最新完整财年应为${expectedYear}年，当前快照仅到${latestYear}年。`
+  }
+  return olderThanDays(snapshot.generatedAt, 90, now)
+    ? '数据生成时间已超过90天，建议手动更新。'
+    : null
+}

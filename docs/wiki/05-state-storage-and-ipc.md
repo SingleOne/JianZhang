@@ -176,8 +176,8 @@ localStorage["jianzhang-demo-state-v1"]
 | `modules/market-insight/` | 指标/事件快照、公告与要闻缓存、模块设置 |
 | `modules/ai/` | Provider 设置、加密凭证、对话 JSONL、股票快照、最近 AI 解读 |
 | `modules/ai-t-advice/` | 做 T 参考设置和历史 JSONL |
-| `dividend-financing/` | 用户手动更新的 `ranking.json`、`previous-ranking.json`、`change-report.json`、Markdown 报告和诊断 JSON |
-| `fundamentals/` | 用户手动更新的五年基本面 `snapshot.json` 和覆盖率诊断 `diagnostics.json` |
+| `dividend-financing/` | 运行时获取的 `ranking.json`、`previous-ranking.json`、`change-report.json`、Markdown 报告和诊断 JSON |
+| `fundamentals/` | 运行时获取的五年基本面 `snapshot.json` 和覆盖率诊断 `diagnostics.json` |
 
 AI API Key 由主进程使用 Electron `safeStorage` 加密；renderer 只能读取是否配置和脱敏尾号。Codex 账号凭证由随应用运行的官方 App Server 在模块运行目录管理，核心状态和配置导出均不接触明文。
 
@@ -190,10 +190,12 @@ AI API Key 由主进程使用 Electron `safeStorage` 加密；renderer 只能读
 | `getBootstrap` | `app:bootstrap` | 返回状态、内存报价和数据源 |
 | `getTaskbarLayout` | `taskbar:layout:get` | 返回任务栏高度 |
 | `searchStocks` | `stocks:search` | 股票联想 |
-| `getDividendFinancingSnapshot` | `dividend-financing:get` | 优先读取 schema v2 用户快照；进程内缓存已解析对象；旧 schema v1 缓存不覆盖内置 schema v2 快照 |
+| `getDividendFinancingSnapshot` | `dividend-financing:get` | 返回进程内缓存的 schema v2 用户快照；本地不存在时返回 `null` |
+| `getDividendFinancingState` | `dividend-financing:state:get` | 返回缺失、排队、更新中、有效、过期或失败状态 |
 | `getDividendFinancingChangeReport` | `dividend-financing:changes:get` | 返回最近一次手动更新前后的新入榜、移出、排名、比例、分红与融资变化 |
 | `runDividendFinancingUpdate` | `dividend-financing:update` | 调用随应用附带的 Python 脚本，保存更新前快照并生成变化报告 |
-| `getFundamentalSnapshot` | `fundamentals:get` | 返回报告期/快照日期最新的 schema v1 内置或用户基本面快照 |
+| `getFundamentalSnapshot` | `fundamentals:get` | 返回进程内缓存的 schema v1 用户快照；本地不存在时返回 `null` |
+| `getFundamentalState` | `fundamentals:state:get` | 返回基本面快照状态、报告期、生成时间和过期原因 |
 | `runFundamentalUpdate` | `fundamentals:update` | 调用三阶段 Python 脚本，更新五年 ROE、现金利润和行业资产负债分位数据 |
 | `refreshQuotes` | `quotes:refresh` | 向统一调度器提交手动全量刷新 |
 | `getKline` | `kline:get` | 通过 `KlineHub` 获取分时/五日/周期 K，同参数合并并串行请求 |
@@ -220,7 +222,9 @@ AI API Key 由主进程使用 Electron `safeStorage` 加密；renderer 只能读
 | `onSelectStock` | `stock:selected` | `quoteId` |
 | `onDataError` | `data:error` | 错误文本 |
 | `onDividendFinancingUpdateProgress` | `dividend-financing:update-progress` | Python 脚本当前日志或完成/失败状态 |
+| `onDividendFinancingStateUpdated` | `dividend-financing:state-updated` | 分红融资榜快照状态变化 |
 | `onFundamentalUpdateProgress` | `fundamentals:update-progress` | 基本面三阶段脚本当前日志或完成/失败状态 |
+| `onFundamentalStateUpdated` | `fundamentals:state-updated` | 基本面快照状态变化 |
 
 `stock:selected` 用于从托盘菜单点选股票后，让主窗口定位/展开对应股票。
 

@@ -7,19 +7,10 @@ import type {
 
 export function parseDividendFinancingSnapshot(content: string): DividendFinancingSnapshot {
   const snapshot = JSON.parse(content) as DividendFinancingSnapshot
-  if (![1, 2].includes(snapshot.schemaVersion) || !snapshot.snapshotDate || !Array.isArray(snapshot.rows)) {
-    throw new Error('分红融资榜数据格式不正确')
+  if (snapshot.schemaVersion !== 2 || !snapshot.snapshotDate || !Array.isArray(snapshot.rows)) {
+    throw new Error('分红融资榜快照不是受支持的 schema v2 格式')
   }
   return snapshot
-}
-
-export function selectDividendFinancingSnapshot(
-  bundled: DividendFinancingSnapshot,
-  cached: DividendFinancingSnapshot | null
-): DividendFinancingSnapshot {
-  if (!cached) return bundled
-  if (bundled.schemaVersion === 2 && cached.schemaVersion === 1) return bundled
-  return cached
 }
 
 function roundedDelta(current: number, previous: number, digits: number): number {

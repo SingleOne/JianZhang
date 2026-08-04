@@ -15,6 +15,7 @@ import packageInfo from '../package.json'
 import type {
   AppSettings,
   AppState,
+  DataSnapshotRuntimeState,
   DividendFinancingChangeReport,
   DividendFinancingSnapshot,
   SearchResult,
@@ -26,6 +27,17 @@ import type {
   WatchlistGroup,
   WatchlistColumnId
 } from './shared/types'
+
+const EMPTY_DATA_SNAPSHOT_STATE: DataSnapshotRuntimeState = {
+  status: 'missing',
+  progressMessage: null,
+  error: null,
+  snapshotDate: null,
+  generatedAt: null,
+  recordCount: 0,
+  periodLabel: null,
+  staleReason: null
+}
 
 // AI UI remains behind build-time boundaries so share builds can omit it completely.
 const AiAssistantDrawer = __JIANZHANG_AI_MODULE_ENABLED__
@@ -58,6 +70,8 @@ export default function App() {
   const [dividendRankingOpen, setDividendRankingOpen] = useState(false)
   const [dividendFinancingSnapshot, setDividendFinancingSnapshot] = useState<DividendFinancingSnapshot | null>(null)
   const [dividendFinancingChangeReport, setDividendFinancingChangeReport] = useState<DividendFinancingChangeReport | null>(null)
+  const [dividendFinancingState, setDividendFinancingState] = useState<DataSnapshotRuntimeState>(EMPTY_DATA_SNAPSHOT_STATE)
+  const [fundamentalDataState, setFundamentalDataState] = useState<DataSnapshotRuntimeState>(EMPTY_DATA_SNAPSHOT_STATE)
   const [aiAssistantContext, setAiAssistantContext] = useState<{ quoteId: string; quoteName?: string } | null>(null)
   const aiRuntimeAvailable = Boolean(AiAssistantDrawer && window.aiApi)
 
@@ -103,19 +117,45 @@ export default function App() {
 
   useEffect(() => {
     let active = true
+    const syncDividendSnapshot = () => {
+      Promise.all([
+        stockApi.getDividendFinancingSnapshot(),
+        stockApi.getDividendFinancingChangeReport()
+      ]).then(([snapshot, changeReport]) => {
+        if (!active) return
+        setDividendFinancingSnapshot(snapshot)
+        setDividendFinancingChangeReport(changeReport)
+      }).catch(() => undefined)
+    }
+    const unsubscribeDividendState = stockApi.onDividendFinancingStateUpdated((snapshotState) => {
+      if (!active) return
+      setDividendFinancingState(snapshotState)
+      if (snapshotState.status === 'ready' || snapshotState.status === 'stale') {
+        syncDividendSnapshot()
+      }
+    })
+    const unsubscribeFundamentalState = stockApi.onFundamentalStateUpdated((snapshotState) => {
+      if (active) setFundamentalDataState(snapshotState)
+    })
     Promise.all([
       stockApi.getDividendFinancingSnapshot(),
-      stockApi.getDividendFinancingChangeReport()
+      stockApi.getDividendFinancingChangeReport(),
+      stockApi.getDividendFinancingState(),
+      stockApi.getFundamentalState()
     ])
-      .then(([snapshot, changeReport]) => {
+      .then(([snapshot, changeReport, dividendState, fundamentalState]) => {
         if (active) {
           setDividendFinancingSnapshot(snapshot)
           setDividendFinancingChangeReport(changeReport)
+          setDividendFinancingState(dividendState)
+          setFundamentalDataState(fundamentalState)
         }
       })
       .catch(() => undefined)
     return () => {
       active = false
+      unsubscribeDividendState()
+      unsubscribeFundamentalState()
     }
   }, [])
 
@@ -397,6 +437,15 @@ export default function App() {
     }
   }
 
+  const updateFundamentalData = async () => {
+    try {
+      const result = await stockApi.runFundamentalUpdate()
+      reportSuccess(`基本面数据已更新，共 ${result.snapshot.rows.length} 家公司`)
+    } catch (reason) {
+      reportError(reason instanceof Error ? reason.message : '基本面数据更新失败')
+    }
+  }
+
   return (
     <div className="app-shell">
       <AppTitlebar />
@@ -452,6 +501,8 @@ export default function App() {
                 configBusy={configBusy}
                 onRefreshTradingCalendar={refreshTradingCalendar}
                 calendarRefreshing={calendarRefreshing}
+                fundamentalDataState={fundamentalDataState}
+                onUpdateFundamentalData={updateFundamentalData}
               />
             </div>
           </section>
@@ -563,6 +614,7 @@ export default function App() {
         open={dividendRankingOpen}
         cachedSnapshot={dividendFinancingSnapshot}
         cachedChangeReport={dividendFinancingChangeReport}
+        dataState={dividendFinancingState}
         watchlist={state.watchlist}
         onAddStock={addStock}
         onViewStock={viewWatchlistStockFromRanking}

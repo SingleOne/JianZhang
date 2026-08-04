@@ -34,7 +34,9 @@
 | [`electron/main/quote-refresh-coordinator.ts`](../../electron/main/quote-refresh-coordinator.ts) | `QuoteRefreshCoordinator` | 合并重点/普通/手动刷新范围并保证主行情单队列执行 |
 | [`electron/main/sector-market-cache.ts`](../../electron/main/sector-market-cache.ts) | `SectorMarketCache` | 板块绑定持久化、并发补取、失败冷却和 60 秒板块报价缓存 |
 | [`electron/main/market-request-logger.ts`](../../electron/main/market-request-logger.ts) | `MarketRequestLogger` | 行情请求/报价轮次 JSONL 日志和启动时 7 天清理 |
-| [`electron/main/fundamental-data-service.ts`](../../electron/main/fundamental-data-service.ts) | `FundamentalDataService` | 基本面内置/用户快照选择、进程内缓存和三阶段更新脚本调度 |
+| [`electron/main/dividend-financing-service.ts`](../../electron/main/dividend-financing-service.ts) | `DividendFinancingService` | 分红融资用户快照、首次缺失更新、变化报告和过期状态 |
+| [`electron/main/fundamental-data-service.ts`](../../electron/main/fundamental-data-service.ts) | `FundamentalDataService` | 基本面用户快照、首次缺失更新、过期状态和三阶段脚本调度 |
+| [`electron/main/python-task-queue.ts`](../../electron/main/python-task-queue.ts) | `PythonTaskQueue` | 财务抓取脚本串行、Python/requests 环境检查和进程输出转发 |
 | [`electron/main/order-book-hub.ts`](../../electron/main/order-book-hub.ts) | `OrderBookHub` | 统一盘口请求、进行中请求复用、短时缓存和串行错峰 |
 | [`electron/main/funds-flow-hub.ts`](../../electron/main/funds-flow-hub.ts) | `FundsFlowHub` | 资金流请求合并、2 分钟/收盘缓存和串行队列 |
 | [`electron/main/kline-hub.ts`](../../electron/main/kline-hub.ts) | `KlineHub` | 全周期 K 线请求合并、100 条实时 LRU 和全局串行队列 |
@@ -70,7 +72,8 @@
 | 文件 | 重点符号 | 职责 |
 | --- | --- | --- |
 | [`src/lib/api.ts`](../../src/lib/api.ts) | `stockApi`、`demoApi` | 桌面 API 选择、浏览器演示行情和演示存储 |
-| [`src/lib/fundamentals.ts`](../../src/lib/fundamentals.ts) | `parseFundamentalSnapshot`、`selectFundamentalSnapshot` | 基本面快照格式解析和内置/用户快照选择 |
+| [`src/lib/fundamentals.ts`](../../src/lib/fundamentals.ts) | `parseFundamentalSnapshot` | 基本面快照格式解析 |
+| [`src/lib/data-snapshot-status.ts`](../../src/lib/data-snapshot-status.ts) | `dividendFinancingStaleReason`、`fundamentalStaleReason` | 两类财务快照的过期判断和完整财年边界 |
 | [`src/lib/demo-data.ts`](../../src/lib/demo-data.ts) | `DEMO_STOCKS`、`DEMO_SECTORS`、`DEMO_VALUES` | 浏览器预览固定演示数据 |
 | [`src/lib/portfolio.ts`](../../src/lib/portfolio.ts) | `calculatePositionMetrics`、`calculatePortfolioSummary` | 持仓、可用数量、今日收益和组合汇总 |
 | [`src/lib/t-trading.ts`](../../src/lib/t-trading.ts) | `calculateTradeFees`、`calculateTBatchMetrics`、`validateTBatchTrades` | 费用、正反 T、交易重放、持仓和结算计算 |

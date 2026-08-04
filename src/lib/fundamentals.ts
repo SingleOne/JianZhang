@@ -13,14 +13,3 @@ export function parseFundamentalSnapshot(content: string): FundamentalSnapshot {
   }
   return snapshot
 }
-
-export function selectFundamentalSnapshot(
-  bundled: FundamentalSnapshot,
-  cached: FundamentalSnapshot | null
-): FundamentalSnapshot {
-  if (!cached) return bundled
-  if (cached.latestAnnualReportDate !== bundled.latestAnnualReportDate) {
-    return cached.latestAnnualReportDate > bundled.latestAnnualReportDate ? cached : bundled
-  }
-  return cached.snapshotDate >= bundled.snapshotDate ? cached : bundled
-}

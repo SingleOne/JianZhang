@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { FundamentalSnapshot } from '../shared/types'
-import { parseFundamentalSnapshot, selectFundamentalSnapshot } from './fundamentals'
+import { parseFundamentalSnapshot } from './fundamentals'
 
 function snapshot(
   snapshotDate: string,
@@ -31,15 +31,5 @@ describe('fundamental snapshots', () => {
   it('parses schema v1 snapshots', () => {
     const value = snapshot('2026-08-04')
     expect(parseFundamentalSnapshot(JSON.stringify(value))).toEqual(value)
-  })
-
-  it('selects the newest annual report and then the newest snapshot', () => {
-    const bundled = snapshot('2026-08-04')
-    expect(selectFundamentalSnapshot(bundled, snapshot('2026-08-05'))).toEqual(
-      snapshot('2026-08-05')
-    )
-    expect(selectFundamentalSnapshot(bundled, snapshot('2026-07-01', '2026-12-31'))).toEqual(
-      snapshot('2026-07-01', '2026-12-31')
-    )
   })
 })

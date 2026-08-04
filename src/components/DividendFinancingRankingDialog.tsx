@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { isDesktopRuntime, stockApi } from '../lib/api'
 import type {
+  DataSnapshotRuntimeState,
   DividendFinancingChangeItem,
   DividendFinancingChangeReport,
   DividendFinancingMarket,
@@ -48,6 +49,7 @@ interface DividendFinancingRankingDialogProps {
   open: boolean
   cachedSnapshot: DividendFinancingSnapshot | null
   cachedChangeReport: DividendFinancingChangeReport | null
+  dataState: DataSnapshotRuntimeState
   watchlist: WatchStock[]
   onAddStock: (stock: SearchResult) => void
   onViewStock: (quoteId: string) => void
@@ -367,6 +369,7 @@ export function DividendFinancingRankingDialog({
   open,
   cachedSnapshot,
   cachedChangeReport,
+  dataState,
   watchlist,
   onAddStock,
   onViewStock,
@@ -419,7 +422,7 @@ export function DividendFinancingRankingDialog({
         if (!active) return
         setSnapshot(data)
         setChangeReport(changes)
-        onSnapshotChange(data)
+        if (data) onSnapshotChange(data)
         onChangeReportChange(changes)
       })
       .catch((reason: unknown) => {
@@ -512,6 +515,7 @@ export function DividendFinancingRankingDialog({
       count: rows.filter((item) => item.ratio >= value).length
     }))
   }, [snapshot])
+  const updateRunning = updating || dataState.status === 'queued' || dataState.status === 'updating'
 
   const changeSort = (nextKey: SortKey) => {
     if (sortKey === nextKey) {
@@ -545,7 +549,7 @@ export function DividendFinancingRankingDialog({
     const confirmed = await confirm({
       title: '运行分红融资榜更新脚本',
       message:
-        '脚本将访问东方财富、同花顺和新浪公开数据，处理全部A股通常耗时较长。请确认本机已经安装 Python 3 和 requests。',
+        '脚本将访问东方财富、同花顺和新浪公开数据，处理全部A股通常耗时较长。运行前会检查 Python 3 和 requests 环境。',
       confirmLabel: '开始运行'
     })
     if (!confirmed) return
@@ -584,7 +588,7 @@ export function DividendFinancingRankingDialog({
             <span>
               {snapshot
                 ? `数据快照 ${snapshot.snapshotDate} · ${snapshot.rows.length} 只股票`
-                : '正在读取数据快照…'}
+                : dataState.progressMessage || '尚无分红融资榜快照'}
             </span>
           </div>
           <button className="icon-button dividend-ranking-close" type="button" onClick={onClose} aria-label="关闭分红融资榜" title="关闭">
@@ -594,10 +598,41 @@ export function DividendFinancingRankingDialog({
 
         {loading ? (
           <div className="dividend-ranking-loading"><span className="search-loader" />正在读取榜单数据…</div>
-        ) : loadError ? (
-          <div className="dividend-ranking-error">{loadError}</div>
-        ) : snapshot ? (
+        ) : !snapshot ? (
+          <div className={`dividend-ranking-no-data is-${dataState.status}`}>
+            {updateRunning ? <span className="search-loader" /> : <Database size={28} />}
+            <strong>
+              {updateRunning
+                ? '正在首次获取分红融资榜数据'
+                : dataState.status === 'failed' || loadError
+                  ? '分红融资榜获取失败'
+                  : '尚无分红融资榜数据'}
+            </strong>
+            <p>{loadError || dataState.error || dataState.progressMessage || '点击下方按钮获取最新数据。'}</p>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={runUpdate}
+              disabled={!isDesktopRuntime || updateRunning}
+            >
+              <RefreshCw size={15} className={updateRunning ? 'is-spinning' : ''} />
+              {updateRunning ? '获取中' : '重新获取'}
+            </button>
+          </div>
+        ) : (
           <>
+            {dataState.status === 'stale' || dataState.status === 'failed' ? (
+              <div className={`dividend-ranking-data-notice is-${dataState.status}`}>
+                <span>
+                  <strong>{dataState.status === 'stale' ? '当前数据已过期' : '最近一次更新失败'}</strong>
+                  <small>{dataState.staleReason || dataState.error}</small>
+                </span>
+                <button type="button" onClick={runUpdate} disabled={updateRunning}>
+                  <RefreshCw size={14} className={updateRunning ? 'is-spinning' : ''} />
+                  {updateRunning ? '更新中' : '立即更新'}
+                </button>
+              </div>
+            ) : null}
             <div className="dividend-ranking-summary">
               <div><span>入选股票</span><strong>{snapshot.rows.length}</strong></div>
               {tierCounts.map((item) => (
@@ -625,18 +660,18 @@ export function DividendFinancingRankingDialog({
                 className="secondary-button dividend-ranking-update"
                 type="button"
                 onClick={runUpdate}
-                disabled={!isDesktopRuntime || updating}
+                disabled={!isDesktopRuntime || updateRunning}
                 title={isDesktopRuntime ? '手动运行 Python 数据更新脚本' : '仅桌面版支持运行更新脚本'}
               >
-                <RefreshCw size={15} className={updating ? 'is-spinning' : ''} />
-                {updating ? '脚本运行中' : '运行更新脚本'}
+                <RefreshCw size={15} className={updateRunning ? 'is-spinning' : ''} />
+                {updateRunning ? '脚本运行中' : '运行更新脚本'}
               </button>
             </div>
 
             {updateProgress || actionMessage ? (
               <div className={`dividend-ranking-progress ${updateProgress?.stage ? `is-${updateProgress.stage}` : ''}`}>
-                <span>{updating ? <span className="search-loader" /> : null}</span>
-                <p>{updating ? updateProgress?.message || '更新脚本正在运行…' : actionMessage || updateProgress?.message}</p>
+                <span>{updateRunning ? <span className="search-loader" /> : null}</span>
+                <p>{updateRunning ? updateProgress?.message || dataState.progressMessage || '更新脚本正在运行…' : actionMessage || updateProgress?.message}</p>
               </div>
             ) : null}
 
@@ -726,7 +761,7 @@ export function DividendFinancingRankingDialog({
               </>
             ) : null}
           </>
-        ) : null}
+        )}
       </section>
     </div>,
     document.body

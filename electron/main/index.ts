@@ -37,6 +37,7 @@ import { registerIpcHandlers } from './ipc-handlers'
 import { KlineHub } from './kline-hub'
 import { MarketRequestLogger } from './market-request-logger'
 import { OrderBookHub } from './order-book-hub'
+import { PythonTaskQueue } from './python-task-queue'
 import { QuoteRuntime } from './quote-runtime'
 import { SectorMarketCache } from './sector-market-cache'
 import { StateStore } from './state-store'
@@ -231,13 +232,25 @@ if (!hasSingleInstanceLock) {
     }
 
     const marketCacheDirectory = join(app.getPath('userData'), 'market-cache')
+    const pythonTaskQueue = new PythonTaskQueue((message) => {
+      void dialog.showMessageBox({
+        type: 'warning',
+        title: 'Python 环境不可用',
+        message,
+        buttons: ['知道了']
+      })
+    })
     dividendFinancingService = new DividendFinancingService(
       app.getPath('userData'),
-      (progress) => sendToWindows('dividend-financing:update-progress', progress)
+      pythonTaskQueue,
+      (progress) => sendToWindows('dividend-financing:update-progress', progress),
+      (snapshotState) => sendToWindows('dividend-financing:state-updated', snapshotState)
     )
     fundamentalDataService = new FundamentalDataService(
       app.getPath('userData'),
-      (progress) => sendToWindows('fundamentals:update-progress', progress)
+      pythonTaskQueue,
+      (progress) => sendToWindows('fundamentals:update-progress', progress),
+      (snapshotState) => sendToWindows('fundamentals:state-updated', snapshotState)
     )
     const marketRequestLogger = new MarketRequestLogger(join(app.getPath('userData'), 'logs'))
     setMarketRequestLogger(marketRequestLogger)
@@ -295,9 +308,11 @@ if (!hasSingleInstanceLock) {
       getMainWindow: () => windowManager?.getMainWindow() ?? null,
       searchStocks,
       getDividendFinancingSnapshot: () => dividendFinancingService!.getSnapshot(),
+      getDividendFinancingState: () => dividendFinancingService!.getState(),
       getDividendFinancingChangeReport: () => dividendFinancingService!.getChangeReport(),
       runDividendFinancingUpdate: () => dividendFinancingService!.runUpdate(),
       getFundamentalSnapshot: () => fundamentalDataService!.getSnapshot(),
+      getFundamentalState: () => fundamentalDataService!.getState(),
       runFundamentalUpdate: () => fundamentalDataService!.runUpdate(),
       refreshQuotes: (reason) => quoteRuntime!.refreshAll(reason),
       refreshQuotesAutomatically: (reason) => quoteRuntime!.refreshAutomatically(reason),
@@ -399,6 +414,8 @@ if (!hasSingleInstanceLock) {
       quit: quitApp
     })
     windowManager.create()
+    dividendFinancingService.initializeIfMissing()
+    fundamentalDataService.initializeIfMissing()
     quoteRuntime.start()
     tradingCalendarRuntime.start()
     void quoteRuntime.refreshAutomatically('startup')

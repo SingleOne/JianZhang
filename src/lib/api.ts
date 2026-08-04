@@ -11,6 +11,7 @@ import {
   type AppState,
   type BootstrapResult,
   type ConfigImportResult,
+  type DataSnapshotRuntimeState,
   type DividendFinancingSnapshot,
   type FundamentalSnapshot,
   type FundsFlowResult,
@@ -23,7 +24,6 @@ import {
   type StockSectorQuote,
   type WatchStock
 } from '../shared/types'
-import builtInDividendFinancingSnapshot from '../data/dividend-financing-ranking.json'
 import { createConfigDocument, parseConfigDocument } from '../shared/config'
 import { DEMO_SECTORS, DEMO_STOCKS, DEMO_VALUES } from './demo-data'
 
@@ -241,6 +241,41 @@ function makeDemoSectorIndex(stockQuoteId: string): SectorIndexResult {
 
 const noSubscribe = (): (() => void) => () => undefined
 
+const DEMO_DIVIDEND_FINANCING_SNAPSHOT: DividendFinancingSnapshot = {
+  schemaVersion: 2,
+  scoreMethodologyVersion: 1,
+  snapshotDate: '2026-08-04',
+  generatedAt: '2026-08-04T12:00:00+08:00',
+  thresholdPercent: 100,
+  activeStockCount: 1,
+  exactCandidateCount: 1,
+  dualListedCount: 0,
+  financingErrorCount: 0,
+  dividendErrorCount: 0,
+  rows: [{
+    rank: 1,
+    code: '600519',
+    name: '贵州茅台',
+    market: 'SH',
+    dividendYi: 3200,
+    financingYi: 22.44,
+    ratio: 14260.25,
+    netReturnYi: 3177.56,
+    annualDividends: [],
+    financingEvents: [],
+    financingCount: 0,
+    qualityScore: 96,
+    scoreRank: 1,
+    qualityScoreBreakdown: {
+      ratio: 29,
+      netReturn: 24,
+      continuity: 24,
+      growth: 9,
+      financingDiscipline: 10
+    }
+  }]
+}
+
 const DEMO_FUNDAMENTAL_SNAPSHOT: FundamentalSnapshot = {
   schemaVersion: 1,
   snapshotDate: '2026-08-04',
@@ -259,6 +294,22 @@ const DEMO_FUNDAMENTAL_SNAPSHOT: FundamentalSnapshot = {
   },
   industries: [],
   rows: []
+}
+
+function demoSnapshotState(
+  snapshot: DividendFinancingSnapshot | FundamentalSnapshot,
+  periodLabel: string
+): DataSnapshotRuntimeState {
+  return {
+    status: 'ready',
+    progressMessage: null,
+    error: null,
+    snapshotDate: snapshot.snapshotDate,
+    generatedAt: snapshot.generatedAt,
+    recordCount: snapshot.rows.length,
+    periodLabel,
+    staleReason: null
+  }
 }
 
 function demoConfigFileName(): string {
@@ -281,7 +332,10 @@ const demoApi: StockDesktopApi = {
     )
   },
   async getDividendFinancingSnapshot() {
-    return builtInDividendFinancingSnapshot as DividendFinancingSnapshot
+    return DEMO_DIVIDEND_FINANCING_SNAPSHOT
+  },
+  async getDividendFinancingState() {
+    return demoSnapshotState(DEMO_DIVIDEND_FINANCING_SNAPSHOT, '浏览器演示快照')
   },
   async getDividendFinancingChangeReport() {
     return null
@@ -291,6 +345,9 @@ const demoApi: StockDesktopApi = {
   },
   async getFundamentalSnapshot() {
     return DEMO_FUNDAMENTAL_SNAPSHOT
+  },
+  async getFundamentalState() {
+    return demoSnapshotState(DEMO_FUNDAMENTAL_SNAPSHOT, '2021—2025 年')
   },
   async runFundamentalUpdate() {
     throw new Error('基本面财务数据更新脚本仅能在 Windows 桌面版中运行')
@@ -364,7 +421,9 @@ const demoApi: StockDesktopApi = {
   onSelectStock: noSubscribe,
   onDataError: noSubscribe,
   onDividendFinancingUpdateProgress: noSubscribe,
-  onFundamentalUpdateProgress: noSubscribe
+  onDividendFinancingStateUpdated: noSubscribe,
+  onFundamentalUpdateProgress: noSubscribe,
+  onFundamentalStateUpdated: noSubscribe
 }
 
 export const stockApi = window.stockApi ?? demoApi

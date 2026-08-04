@@ -17,6 +17,7 @@ import { createConfigDocument, parseConfigDocument } from '../../src/shared/conf
 import type {
   AppState,
   ChipDistributionCacheEntry,
+  DataSnapshotRuntimeState,
   DividendFinancingChangeReport,
   DividendFinancingSnapshot,
   DividendFinancingUpdateResult,
@@ -43,10 +44,12 @@ interface IpcHandlerDependencies {
   getTaskbarLayout: () => TaskbarLayout
   getMainWindow: () => BrowserWindow | null
   searchStocks: (query: string) => Promise<SearchResult[]>
-  getDividendFinancingSnapshot: () => DividendFinancingSnapshot
+  getDividendFinancingSnapshot: () => DividendFinancingSnapshot | null
+  getDividendFinancingState: () => DataSnapshotRuntimeState
   getDividendFinancingChangeReport: () => DividendFinancingChangeReport | null
   runDividendFinancingUpdate: () => Promise<DividendFinancingUpdateResult>
-  getFundamentalSnapshot: () => FundamentalSnapshot
+  getFundamentalSnapshot: () => FundamentalSnapshot | null
+  getFundamentalState: () => DataSnapshotRuntimeState
   runFundamentalUpdate: () => Promise<FundamentalUpdateResult>
   refreshQuotes: (reason?: string) => Promise<StockQuote[]>
   refreshQuotesAutomatically: (reason: string) => Promise<StockQuote[]>
@@ -72,9 +75,11 @@ const CHANNELS = [
   'taskbar:layout:get',
   'stocks:search',
   'dividend-financing:get',
+  'dividend-financing:state:get',
   'dividend-financing:changes:get',
   'dividend-financing:update',
   'fundamentals:get',
+  'fundamentals:state:get',
   'fundamentals:update',
   'quotes:refresh',
   'kline:get',
@@ -111,9 +116,11 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
   ipcMain.handle('taskbar:layout:get', () => dependencies.getTaskbarLayout())
   ipcMain.handle('stocks:search', (_event, query: string) => dependencies.searchStocks(query))
   ipcMain.handle('dividend-financing:get', () => dependencies.getDividendFinancingSnapshot())
+  ipcMain.handle('dividend-financing:state:get', () => dependencies.getDividendFinancingState())
   ipcMain.handle('dividend-financing:changes:get', () => dependencies.getDividendFinancingChangeReport())
   ipcMain.handle('dividend-financing:update', () => dependencies.runDividendFinancingUpdate())
   ipcMain.handle('fundamentals:get', () => dependencies.getFundamentalSnapshot())
+  ipcMain.handle('fundamentals:state:get', () => dependencies.getFundamentalState())
   ipcMain.handle('fundamentals:update', () => dependencies.runFundamentalUpdate())
   ipcMain.handle('quotes:refresh', () => dependencies.refreshQuotes())
   ipcMain.handle('kline:get', (_event, quoteId: string, period: KlinePeriod, limit?: number) =>

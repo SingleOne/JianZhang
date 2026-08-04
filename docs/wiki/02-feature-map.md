@@ -9,8 +9,8 @@
 | 功能 | 界面入口 | 核心逻辑 | 主进程/数据 |
 | --- | --- | --- | --- |
 | 搜索并添加自选 | `SearchBar.tsx`、`App.tsx` | `stockApi.searchStocks`、`App.addStock` | `market.ts#searchStocks` |
-| 分红融资回报分析 | `DividendFinancingRankingDialog.tsx`、`WatchlistRow.tsx`、`ExpandedStockDetails.tsx` | 净回报/规模/连续性/评分筛选，评分拆解，年度分红和融资时间线，快照变化报告，对数散点选股，自选联动 | `DividendFinancingService` + schema v2 内置/用户快照 + `createDividendFinancingChangeReport` |
-| 基本面财务数据底座（暂未开放筛选界面） | `StockDesktopApi` | 五年 ROE、利润和经营现金流规范化；最新资产负债率行业 P60/百分位 | `FundamentalDataService` + schema v1 内置/用户快照 + 三阶段 Python 更新脚本 |
+| 分红融资回报分析 | `DividendFinancingRankingDialog.tsx`、`WatchlistRow.tsx`、`ExpandedStockDetails.tsx` | 净回报/规模/连续性/评分筛选，评分拆解，年度分红和融资时间线，快照变化报告，对数散点选股，自选联动；缺失自动获取、过期提示 | `DividendFinancingService` + schema v2 用户快照 + `createDividendFinancingChangeReport` |
+| 基本面财务数据底座（暂未开放筛选界面） | `SettingsMenu.tsx`、`StockDesktopApi` | 五年 ROE、利润和经营现金流规范化；最新资产负债率行业 P60/百分位；快照状态与手动更新 | `FundamentalDataService` + schema v1 用户快照 + 三阶段 Python 更新脚本 |
 | 删除、拖拽、置顶、排序、调整列 | `WatchlistTable.tsx` | `normalizeWatchlistColumnOrder`、`migrateWatchlistColumnOrder` | `state:save` |
 | 自定义分组与板块组合筛选 | `WatchlistTable.tsx`、`WatchlistGroupDialog.tsx`、`TableFilterDropdown.tsx` | `WatchlistGroup`、`WatchStock.groupIds` | 分组随 `AppState` 保存；板块筛选使用实时报价 |
 | 重点关注 | `WatchlistTable.tsx` | 有持仓时自动锁定重点；`App.togglePriority` | `QuoteRefreshCoordinator` 统一调度重点/普通范围 |

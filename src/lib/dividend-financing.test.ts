@@ -2,8 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { DividendFinancingRankingItem, DividendFinancingSnapshot } from '../shared/types'
 import {
   createDividendFinancingChangeReport,
-  parseDividendFinancingSnapshot,
-  selectDividendFinancingSnapshot
+  parseDividendFinancingSnapshot
 } from './dividend-financing'
 
 function item(overrides: Partial<DividendFinancingRankingItem>): DividendFinancingRankingItem {
@@ -72,12 +71,11 @@ describe('createDividendFinancingChangeReport', () => {
 })
 
 describe('snapshot compatibility', () => {
-  it('accepts legacy snapshots but prefers richer bundled data', () => {
-    const bundled = snapshot('2026-08-03', [])
+  it('accepts schema v2 snapshots and rejects legacy snapshots', () => {
+    const current = snapshot('2026-08-03', [])
     const legacy = { ...snapshot('2026-07-22', []), schemaVersion: 1 as const }
 
-    expect(parseDividendFinancingSnapshot(JSON.stringify(legacy))).toEqual(legacy)
-    expect(selectDividendFinancingSnapshot(bundled, legacy)).toBe(bundled)
-    expect(selectDividendFinancingSnapshot(legacy, legacy)).toBe(legacy)
+    expect(parseDividendFinancingSnapshot(JSON.stringify(current))).toEqual(current)
+    expect(() => parseDividendFinancingSnapshot(JSON.stringify(legacy))).toThrow('schema v2')
   })
 })

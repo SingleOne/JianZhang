@@ -1,6 +1,11 @@
 import { Download, RefreshCw, Settings2, Upload } from 'lucide-react'
 import { lazy, Suspense, useState } from 'react'
-import { MARKET_INDEX_OPTIONS, type AppSettings, type MarketIndexId } from '../shared/types'
+import {
+  MARKET_INDEX_OPTIONS,
+  type AppSettings,
+  type DataSnapshotRuntimeState,
+  type MarketIndexId
+} from '../shared/types'
 
 const MarketInsightSettingsToggle = __JIANZHANG_MARKET_INSIGHT_ENABLED__
   ? lazy(() => import('../modules/market-insight/renderer/MarketInsightSettingsToggle').then((module) => ({ default: module.MarketInsightSettingsToggle })))
@@ -14,6 +19,8 @@ interface SettingsMenuProps {
   configBusy: boolean
   onRefreshTradingCalendar: () => void
   calendarRefreshing: boolean
+  fundamentalDataState: DataSnapshotRuntimeState
+  onUpdateFundamentalData: () => void
 }
 
 const T_PLAN_DEFAULT_GROUPS = [
@@ -42,6 +49,15 @@ function formatCalendarRefreshTime(value: string | null): string {
   })
 }
 
+function dataStatusLabel(state: DataSnapshotRuntimeState): string {
+  if (state.status === 'ready') return '数据有效'
+  if (state.status === 'stale') return '已过期'
+  if (state.status === 'queued') return '等待更新'
+  if (state.status === 'updating') return '正在更新'
+  if (state.status === 'failed') return '更新失败'
+  return '尚无数据'
+}
+
 export function SettingsMenu({
   settings,
   onChange,
@@ -49,7 +65,9 @@ export function SettingsMenu({
   onExportConfig,
   configBusy,
   onRefreshTradingCalendar,
-  calendarRefreshing
+  calendarRefreshing,
+  fundamentalDataState,
+  onUpdateFundamentalData
 }: SettingsMenuProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('market')
 
@@ -434,6 +452,45 @@ export function SettingsMenu({
                 >
                   <RefreshCw size={14} className={calendarRefreshing ? 'is-spinning' : ''} />
                   {calendarRefreshing ? '刷新中' : '手动刷新'}
+                </button>
+              </div>
+              <div className={`fundamental-data-setting is-${fundamentalDataState.status}`}>
+                <span>
+                  <strong>基本面财务数据</strong>
+                  <small>
+                    {fundamentalDataState.periodLabel ?? '等待首次获取'} ·
+                    {fundamentalDataState.recordCount > 0
+                      ? ` ${fundamentalDataState.recordCount.toLocaleString('zh-CN')} 家公司`
+                      : ' 暂无公司数据'}
+                  </small>
+                  <small>
+                    状态：{dataStatusLabel(fundamentalDataState)} ·
+                    最近生成：{formatCalendarRefreshTime(fundamentalDataState.generatedAt)}
+                  </small>
+                  {fundamentalDataState.staleReason ? (
+                    <small className="is-warning">{fundamentalDataState.staleReason}</small>
+                  ) : null}
+                  {fundamentalDataState.progressMessage ? (
+                    <small>{fundamentalDataState.progressMessage}</small>
+                  ) : null}
+                  {fundamentalDataState.error ? (
+                    <small className="is-error">{fundamentalDataState.error}</small>
+                  ) : null}
+                </span>
+                <button
+                  type="button"
+                  onClick={onUpdateFundamentalData}
+                  disabled={fundamentalDataState.status === 'queued' || fundamentalDataState.status === 'updating'}
+                >
+                  <RefreshCw
+                    size={14}
+                    className={fundamentalDataState.status === 'updating' ? 'is-spinning' : ''}
+                  />
+                  {fundamentalDataState.status === 'queued'
+                    ? '等待中'
+                    : fundamentalDataState.status === 'updating'
+                      ? '更新中'
+                      : '立即更新'}
                 </button>
               </div>
               <div className="config-management">

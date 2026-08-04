@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AppState,
+  DataSnapshotRuntimeState,
   DividendFinancingUpdateProgress,
   FundamentalUpdateProgress,
   StockDesktopApi,
@@ -22,9 +23,11 @@ const api: StockDesktopApi = {
   getTaskbarLayout: () => ipcRenderer.invoke('taskbar:layout:get'),
   searchStocks: (query) => ipcRenderer.invoke('stocks:search', query),
   getDividendFinancingSnapshot: () => ipcRenderer.invoke('dividend-financing:get'),
+  getDividendFinancingState: () => ipcRenderer.invoke('dividend-financing:state:get'),
   getDividendFinancingChangeReport: () => ipcRenderer.invoke('dividend-financing:changes:get'),
   runDividendFinancingUpdate: () => ipcRenderer.invoke('dividend-financing:update'),
   getFundamentalSnapshot: () => ipcRenderer.invoke('fundamentals:get'),
+  getFundamentalState: () => ipcRenderer.invoke('fundamentals:state:get'),
   runFundamentalUpdate: () => ipcRenderer.invoke('fundamentals:update'),
   refreshQuotes: () => ipcRenderer.invoke('quotes:refresh'),
   getKline: (quoteId, period, limit) => ipcRenderer.invoke('kline:get', quoteId, period, limit),
@@ -45,8 +48,12 @@ const api: StockDesktopApi = {
   onDataError: (callback) => subscribe<string>('data:error', callback),
   onDividendFinancingUpdateProgress: (callback) =>
     subscribe<DividendFinancingUpdateProgress>('dividend-financing:update-progress', callback),
+  onDividendFinancingStateUpdated: (callback) =>
+    subscribe<DataSnapshotRuntimeState>('dividend-financing:state-updated', callback),
   onFundamentalUpdateProgress: (callback) =>
-    subscribe<FundamentalUpdateProgress>('fundamentals:update-progress', callback)
+    subscribe<FundamentalUpdateProgress>('fundamentals:update-progress', callback),
+  onFundamentalStateUpdated: (callback) =>
+    subscribe<DataSnapshotRuntimeState>('fundamentals:state-updated', callback)
 }
 
 contextBridge.exposeInMainWorld('stockApi', api)

@@ -254,7 +254,9 @@ K 线、资金流和盘口分别通过 Electron 主进程的 `KlineHub`、`Funds
 2. `RPT_DMSK_FN_INCOME` + `RPT_DMSK_FN_CASHFLOW`：同期合并净利润、归母/扣非归母净利润和经营现金流净额。
 3. `RPT_DMSK_FN_BALANCE`：最新完整财年的总资产、总负债和资产负债率；按接口行业代码分组，以线性插值计算行业 P60，以经验分布计算公司行业百分位。
 
-生成结果使用 schema v1，内置于 `src/data/fundamental-snapshot.json`。`FundamentalDataService` 启动时按需读取并缓存同一对象；用户手动更新的 `userData/fundamentals/snapshot.json` 只有在完整财年或快照日期更新时才覆盖内置数据。当前版本仅提供数据读取和更新 IPC，不包含筛选、评分或展示入口。
+生成结果使用 schema v1。生产安装包不内置完整快照；`FundamentalDataService` 启动时读取并缓存 `userData/fundamentals/snapshot.json`，文件不存在时自动把首次获取任务加入共享 Python 队列。快照超过 90 天或完整财年落后时，只在“设置 → 系统与数据”提示并提供手动更新，不会自动刷新。当前版本不包含筛选或评分入口。
+
+分红融资榜采用相同的用户快照架构，过期阈值为 7 天，并在榜单界面提示。两个抓取脚本随安装包附带，运行前按 `py -3`、`python` 顺序检查 Python 3 和 `requests`；任务串行执行。脚本在源码中的默认输出仍为 `src/data/`，应用调用时显式写入 `userData` 下的临时文件，解析通过后再替换正式快照。
 
 金融公司保留 `bank`、`securities`、`insurance` 组织类型，行业分位仍如实计算；是否参与普通企业筛选留给后续使用规则决定。源数据缺少行业归属时保留公司及资产负债率，行业百分位为 `null`。
 
