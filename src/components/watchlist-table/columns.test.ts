@@ -53,6 +53,7 @@ function row(
   return {
     stock: stock(quoteId, name),
     quote: quote(quoteId, latest),
+    dividendFinancing: undefined,
     metrics: { ...EMPTY_METRICS, ...metrics },
     manualIndex
   }
@@ -100,6 +101,36 @@ describe('watchlist column sorting', () => {
 
     expect(sorted.map(({ stock }) => stock.quoteId)).toEqual(['profit', 'loss'])
     expect(rows.map(({ stock }) => stock.quoteId)).toEqual(['loss', 'profit'])
+  })
+
+  it('sorts the dividend financing ratio and leaves stocks outside the snapshot last', () => {
+    const missing = row('missing', 'Missing', 10, 0)
+    const lower = row('lower', 'Lower', 10, 1)
+    lower.dividendFinancing = {
+      rank: 20,
+      code: 'lower',
+      name: 'Lower',
+      market: 'SH',
+      dividendYi: 20,
+      financingYi: 10,
+      ratio: 200
+    }
+    const higher = row('higher', 'Higher', 10, 2)
+    higher.dividendFinancing = {
+      ...lower.dividendFinancing,
+      rank: 10,
+      code: 'higher',
+      name: 'Higher',
+      ratio: 500
+    }
+
+    expect(
+      sortRows(
+        [missing, lower, higher],
+        { column: 'dividendFinancingRatio', direction: 'desc' },
+        []
+      ).map(({ stock }) => stock.quoteId)
+    ).toEqual(['higher', 'lower', 'missing'])
   })
 
   it('uses only current-day radar signals as the radar sort value', () => {

@@ -29,6 +29,7 @@ import {
   setMarketRequestLogger
 } from './market'
 import { ChipDistributionCache } from './chip-distribution-cache'
+import { DividendFinancingService } from './dividend-financing-service'
 import { FundsFlowHub } from './funds-flow-hub'
 import { HistoricalKlineCache } from './historical-kline-cache'
 import { registerIpcHandlers } from './ipc-handlers'
@@ -113,6 +114,7 @@ let chipDistributionCache: ChipDistributionCache | null = null
 let fundsFlowHub: FundsFlowHub | null = null
 let klineHub: KlineHub | null = null
 let disposeIpcHandlers: (() => void) | null = null
+let dividendFinancingService: DividendFinancingService | null = null
 
 const marketDataHub = new (class MarketDataHub {
   private readonly listeners = new Set<(quotes: readonly StockQuote[]) => void>()
@@ -227,6 +229,10 @@ if (!hasSingleInstanceLock) {
     }
 
     const marketCacheDirectory = join(app.getPath('userData'), 'market-cache')
+    dividendFinancingService = new DividendFinancingService(
+      app.getPath('userData'),
+      (progress) => sendToWindows('dividend-financing:update-progress', progress)
+    )
     const marketRequestLogger = new MarketRequestLogger(join(app.getPath('userData'), 'logs'))
     setMarketRequestLogger(marketRequestLogger)
     chipDistributionCache = new ChipDistributionCache(marketCacheDirectory)
@@ -282,6 +288,9 @@ if (!hasSingleInstanceLock) {
       getTaskbarLayout: () => windowManager?.getTaskbarLayout() ?? { taskbarHeight: 48 },
       getMainWindow: () => windowManager?.getMainWindow() ?? null,
       searchStocks,
+      getDividendFinancingSnapshot: () => dividendFinancingService!.getSnapshot(),
+      getDividendFinancingChangeReport: () => dividendFinancingService!.getChangeReport(),
+      runDividendFinancingUpdate: () => dividendFinancingService!.runUpdate(),
       refreshQuotes: (reason) => quoteRuntime!.refreshAll(reason),
       refreshQuotesAutomatically: (reason) => quoteRuntime!.refreshAutomatically(reason),
       restartQuoteSchedule: () => quoteRuntime!.restartSchedule(),

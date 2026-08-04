@@ -98,10 +98,13 @@ describe('settings and column migration', () => {
     )
 
     expect(migrated.indexOf('sectorChangePercent')).toBe(migrated.indexOf('changePercent') + 1)
+    expect(migrated.indexOf('dividendFinancingRatio')).toBe(
+      migrated.indexOf('sectorChangePercent') + 1
+    )
     expect(migrated.indexOf('trading')).toBe(migrated.indexOf('open') + 1)
     expect(migrated.indexOf('todayProfit')).toBe(migrated.indexOf('totalProfit') + 1)
     expect(migrated.at(-1)).toBe('operation')
-    expect(WATCHLIST_COLUMN_ORDER_VERSION).toBe(6)
+    expect(WATCHLIST_COLUMN_ORDER_VERSION).toBe(7)
   })
 
   it('adds the default disabled floating profit alert to old active batches', () => {

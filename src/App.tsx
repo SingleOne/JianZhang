@@ -1,7 +1,8 @@
-import { Bot, CircleCheck, RefreshCw, Signal, WifiOff } from 'lucide-react'
+import { Bot, CircleCheck, RefreshCw, Signal, Trophy, WifiOff } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { AppTitlebar } from './components/AppTitlebar'
 import { useConfirmDialog } from './components/ConfirmDialog'
+import { DividendFinancingRankingDialog } from './components/DividendFinancingRankingDialog'
 import { SearchBar } from './components/SearchBar'
 import { SettingsMenu } from './components/SettingsMenu'
 import { WatchlistTable } from './components/WatchlistTable'
@@ -14,6 +15,7 @@ import packageInfo from '../package.json'
 import type {
   AppSettings,
   AppState,
+  DividendFinancingSnapshot,
   SearchResult,
   StockPosition,
   StockPositionSnapshot,
@@ -52,6 +54,8 @@ export default function App() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false)
+  const [dividendRankingOpen, setDividendRankingOpen] = useState(false)
+  const [dividendFinancingSnapshot, setDividendFinancingSnapshot] = useState<DividendFinancingSnapshot | null>(null)
   const [aiAssistantContext, setAiAssistantContext] = useState<{ quoteId: string; quoteName?: string } | null>(null)
   const aiRuntimeAvailable = Boolean(AiAssistantDrawer && window.aiApi)
 
@@ -96,6 +100,18 @@ export default function App() {
   }, [reportError, updateQuotes])
 
   useEffect(() => {
+    let active = true
+    stockApi.getDividendFinancingSnapshot()
+      .then((snapshot) => {
+        if (active) setDividendFinancingSnapshot(snapshot)
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
     if (!error) return
     const timer = window.setTimeout(() => setError(''), 4200)
     return () => window.clearTimeout(timer)
@@ -119,6 +135,10 @@ export default function App() {
   }, [])
 
   const quoteIds = useMemo(() => new Set(state.watchlist.map((stock) => stock.quoteId)), [state.watchlist])
+  const dividendFinancingByCode = useMemo(
+    () => new Map(dividendFinancingSnapshot?.rows.map((item) => [item.code, item]) ?? []),
+    [dividendFinancingSnapshot]
+  )
   const portfolioSummary = useMemo(
     () => calculatePortfolioSummary(state.watchlist, quotes, state.tTradingAccounts),
     [quotes, state.tTradingAccounts, state.watchlist]
@@ -286,6 +306,11 @@ export default function App() {
     setSelectedQuoteId((current) => current === quoteId ? null : quoteId)
   }, [])
 
+  const viewWatchlistStockFromRanking = useCallback((quoteId: string) => {
+    setSelectedQuoteId(quoteId)
+    setDividendRankingOpen(false)
+  }, [])
+
   const updateChipDistributionEnabled = useCallback((enabled: boolean) => {
     updateSettings({
       ...state.settings,
@@ -397,6 +422,14 @@ export default function App() {
                 <RefreshCw size={17} className={refreshing ? 'is-spinning' : ''} />
                 立即刷新
               </button>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => setDividendRankingOpen(true)}
+              >
+                <Trophy size={17} />
+                分红融资榜
+              </button>
               {aiRuntimeAvailable ? (
                 <button className="secondary-button ai-assistant-trigger" type="button" onClick={() => { setAiAssistantContext(null); setAiAssistantOpen(true) }}>
                   <Bot size={17} />
@@ -471,6 +504,8 @@ export default function App() {
                 watchlist={state.watchlist}
                 watchlistGroups={state.watchlistGroups}
                 quotes={quotes}
+                dividendFinancingByCode={dividendFinancingByCode}
+                dividendFinancingSnapshotDate={dividendFinancingSnapshot?.snapshotDate}
                 columnOrder={state.columnOrder}
                 priorityRefreshSeconds={state.settings.priorityRefreshSeconds}
                 regularRefreshSeconds={state.settings.regularRefreshSeconds}
@@ -516,6 +551,14 @@ export default function App() {
 
       {error ? <div className="error-toast"><WifiOff size={17} />{error}</div> : null}
       {notice ? <div className="success-toast"><CircleCheck size={17} />{notice}</div> : null}
+      <DividendFinancingRankingDialog
+        open={dividendRankingOpen}
+        watchlist={state.watchlist}
+        onAddStock={addStock}
+        onViewStock={viewWatchlistStockFromRanking}
+        onSnapshotChange={setDividendFinancingSnapshot}
+        onClose={() => setDividendRankingOpen(false)}
+      />
       {AiAssistantDrawer ? (
         <Suspense fallback={null}>
           <AiAssistantDrawer

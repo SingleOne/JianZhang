@@ -1,4 +1,4 @@
-import { AlertCircle, BarChart3, Bot, Layers, Radar, RefreshCw, Sparkles, TrendingUp } from 'lucide-react'
+import { AlertCircle, BarChart3, Bot, Layers, Radar, RefreshCw, Sparkles, TrendingUp, Trophy } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { stockApi } from '../lib/api'
 import { estimateChipHistoryLimit, findChipAutoRange } from '../lib/chip-distribution'
@@ -9,7 +9,14 @@ import {
   millisecondsUntilNextAutoRefreshWindow
 } from '../shared/market-hours'
 import { LruCache } from '../shared/lru-cache'
-import type { KlineBar, KlinePeriod, KlineResult, StockQuote, WatchStock } from '../shared/types'
+import type {
+  DividendFinancingRankingItem,
+  KlineBar,
+  KlinePeriod,
+  KlineResult,
+  StockQuote,
+  WatchStock
+} from '../shared/types'
 import { FundsFlowPanel } from './FundsFlowPanel'
 import { ChipDistributionPanel } from './ChipDistributionPanel'
 import { OrderBookPanel } from './OrderBookPanel'
@@ -77,9 +84,109 @@ function cacheKey(quoteId: string, tab: PriceTab): string {
   return `${quoteId}:${tab}`
 }
 
+function signedValueClass(value: number): string {
+  return value > 0 ? 'is-positive' : value < 0 ? 'is-negative' : 'is-zero'
+}
+
+function dividendAmount(value: number): string {
+  return `${value.toLocaleString('zh-CN', {
+    minimumFractionDigits: Math.abs(value) < 1 ? 4 : 2,
+    maximumFractionDigits: Math.abs(value) < 1 ? 4 : 2
+  })} 亿元`
+}
+
+function DividendFinancingDeepDetails({ item }: { item: DividendFinancingRankingItem }) {
+  const annualDividends = (item.annualDividends ?? []).slice(-12)
+  const maxAnnualDividend = Math.max(...annualDividends.map((point) => point.amountYi), 0.0001)
+  const scoreParts = item.qualityScoreBreakdown
+    ? [
+        ['分红融资比分位', item.qualityScoreBreakdown.ratio, 30],
+        ['净回报额分位', item.qualityScoreBreakdown.netReturn, 25],
+        ['分红连续性', item.qualityScoreBreakdown.continuity, 25],
+        ['近期增长', item.qualityScoreBreakdown.growth, 10],
+        ['融资纪律', item.qualityScoreBreakdown.financingDiscipline, 10]
+      ] as const
+    : []
+  const trendLabels = {
+    growing: '增长',
+    stable: '稳定',
+    declining: '下降',
+    insufficient: '数据不足'
+  }
+
+  return (
+    <details className="dividend-financing-history">
+      <summary>展开年度分红、融资事件与评分明细</summary>
+      <div className="dividend-financing-deep-metrics">
+        <div><span>近3年分红</span><strong>{item.recent3YearDividendYi === undefined ? '--' : dividendAmount(item.recent3YearDividendYi)}</strong></div>
+        <div><span>近5年分红</span><strong>{item.recent5YearDividendYi === undefined ? '--' : dividendAmount(item.recent5YearDividendYi)}</strong></div>
+        <div><span>连续分红</span><strong>{item.consecutiveDividendYears ?? '--'} 年</strong></div>
+        <div><span>累计分红年份</span><strong>{item.dividendYears ?? '--'} / {item.listedYears ?? '--'} 年</strong></div>
+        <div>
+          <span>近期分红趋势</span>
+          <strong className={signedValueClass(item.recentDividendTrendPercent ?? 0)}>
+            {item.dividendTrend ? trendLabels[item.dividendTrend] : '--'}
+            {item.recentDividendTrendPercent === null || item.recentDividendTrendPercent === undefined
+              ? ''
+              : ` ${item.recentDividendTrendPercent > 0 ? '+' : ''}${item.recentDividendTrendPercent.toFixed(2)}%`}
+          </strong>
+        </div>
+        <div><span>股权融资事件</span><strong>{item.financingCount ?? '--'} 次 · 最近 {item.lastFinancingDate ?? '--'}</strong></div>
+      </div>
+      <div className="dividend-financing-history-content">
+        <section>
+          <h4>近12个有分红年度</h4>
+          {annualDividends.length > 0 ? (
+            <div className="annual-dividend-chart">
+              {annualDividends.map((point) => (
+                <div key={point.year} title={`${point.year}年 · ${dividendAmount(point.amountYi)} · ${point.eventCount}次`}>
+                  <span>{point.amountYi.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}</span>
+                  <i style={{ height: `${Math.max(4, point.amountYi / maxAnnualDividend * 100)}%` }} />
+                  <strong>{point.year}</strong>
+                </div>
+              ))}
+            </div>
+          ) : <p className="dividend-financing-no-history">当前快照没有年度拆分数据</p>}
+        </section>
+        <section>
+          <h4>股权融资时间线</h4>
+          {(item.financingEvents ?? []).length > 0 ? (
+            <ol className="financing-event-timeline">
+              {[...(item.financingEvents ?? [])].reverse().map((event, index) => (
+                <li key={`${event.date}-${event.type}-${index}`}>
+                  <span>{event.date || '日期未知'}</span>
+                  <strong>{event.type}</strong>
+                  <em>{dividendAmount(event.amountYi)}</em>
+                </li>
+              ))}
+            </ol>
+          ) : <p className="dividend-financing-no-history">当前快照没有融资事件明细</p>}
+        </section>
+        <section>
+          <h4>回报质量评分 · {item.qualityScore?.toFixed(1) ?? '--'} 分 · 第 {item.scoreRank ?? '--'} 名</h4>
+          {scoreParts.length > 0 ? (
+            <div className="dividend-score-breakdown">
+              {scoreParts.map(([label, value, maximum]) => (
+                <div key={label}>
+                  <span>{label}</span>
+                  <i><b style={{ width: `${value / maximum * 100}%` }} /></i>
+                  <strong>{value.toFixed(1)} / {maximum}</strong>
+                </div>
+              ))}
+            </div>
+          ) : <p className="dividend-financing-no-history">当前快照没有评分拆解数据</p>}
+          <p className="dividend-score-note">评分只比较本期分红融资比超过100%的股票，用于解释历史股东回报质量，不代表未来收益。</p>
+        </section>
+      </div>
+    </details>
+  )
+}
+
 interface ExpandedStockDetailsProps {
   stock: WatchStock
   quote?: StockQuote
+  dividendFinancing?: DividendFinancingRankingItem
+  dividendFinancingSnapshotDate?: string
   refreshSeconds: number
   autoRefreshOrderBook: boolean
   chipDistributionEnabled: boolean
@@ -91,6 +198,8 @@ interface ExpandedStockDetailsProps {
 export function ExpandedStockDetails({
   stock,
   quote,
+  dividendFinancing,
+  dividendFinancingSnapshotDate,
   refreshSeconds,
   autoRefreshOrderBook,
   chipDistributionEnabled,
@@ -337,6 +446,50 @@ export function ExpandedStockDetails({
 
   return (
     <section className="stock-details" aria-label={`${stock.name} 行情详情`}>
+      <div className={`dividend-financing-detail-summary ${dividendFinancing ? '' : 'is-empty'}`}>
+        <div className="dividend-financing-detail-title">
+          <Trophy size={18} />
+          <span>
+            <strong>分红融资榜</strong>
+            <small>{dividendFinancingSnapshotDate ?? '--'} 快照</small>
+          </span>
+        </div>
+        {dividendFinancing ? (
+          <>
+            <div>
+              <span>分红融资比</span>
+              <strong className="dividend-financing-detail-ratio">
+                {dividendFinancing.ratio.toFixed(2)}%
+              </strong>
+            </div>
+            <div>
+              <span>榜单排名</span>
+              <strong>第 {dividendFinancing.rank} 名</strong>
+            </div>
+            <div>
+              <span>累计A股分红</span>
+              <strong>{dividendFinancing.dividendYi.toLocaleString('zh-CN')} 亿元</strong>
+            </div>
+            <div>
+              <span>累计A股融资</span>
+              <strong>{dividendFinancing.financingYi.toLocaleString('zh-CN')} 亿元</strong>
+            </div>
+            <div>
+              <span>净回报额</span>
+              <strong className={signedValueClass(dividendFinancing.netReturnYi ?? dividendFinancing.dividendYi - dividendFinancing.financingYi)}>
+                {dividendAmount(dividendFinancing.netReturnYi ?? dividendFinancing.dividendYi - dividendFinancing.financingYi)}
+              </strong>
+            </div>
+            <div>
+              <span>回报质量评分</span>
+              <strong>{dividendFinancing.qualityScore?.toFixed(1) ?? '--'} 分 · 第 {dividendFinancing.scoreRank ?? '--'} 名</strong>
+            </div>
+            <DividendFinancingDeepDetails item={dividendFinancing} />
+          </>
+        ) : (
+          <p>当前快照未进入分红融资比大于100%榜单或暂无完整数据</p>
+        )}
+      </div>
       <div className="detail-tabs" role="tablist" aria-label="行情详情类型">
         {LEADING_PRICE_TABS.map((tab) => (
           <button

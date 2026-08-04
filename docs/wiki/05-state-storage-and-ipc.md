@@ -176,6 +176,7 @@ localStorage["jianzhang-demo-state-v1"]
 | `modules/market-insight/` | 指标/事件快照、公告与要闻缓存、模块设置 |
 | `modules/ai/` | Provider 设置、加密凭证、对话 JSONL、股票快照、最近 AI 解读 |
 | `modules/ai-t-advice/` | 做 T 参考设置和历史 JSONL |
+| `dividend-financing/` | 用户手动更新的 `ranking.json`、`previous-ranking.json`、`change-report.json`、Markdown 报告和诊断 JSON |
 
 AI API Key 由主进程使用 Electron `safeStorage` 加密；renderer 只能读取是否配置和脱敏尾号。Codex 账号凭证由随应用运行的官方 App Server 在模块运行目录管理，核心状态和配置导出均不接触明文。
 
@@ -188,6 +189,9 @@ AI API Key 由主进程使用 Electron `safeStorage` 加密；renderer 只能读
 | `getBootstrap` | `app:bootstrap` | 返回状态、内存报价和数据源 |
 | `getTaskbarLayout` | `taskbar:layout:get` | 返回任务栏高度 |
 | `searchStocks` | `stocks:search` | 股票联想 |
+| `getDividendFinancingSnapshot` | `dividend-financing:get` | 优先读取 schema v2 用户快照；旧 schema v1 缓存不覆盖内置 schema v2 快照 |
+| `getDividendFinancingChangeReport` | `dividend-financing:changes:get` | 返回最近一次手动更新前后的新入榜、移出、排名、比例、分红与融资变化 |
+| `runDividendFinancingUpdate` | `dividend-financing:update` | 调用随应用附带的 Python 脚本，保存更新前快照并生成变化报告 |
 | `refreshQuotes` | `quotes:refresh` | 向统一调度器提交手动全量刷新 |
 | `getKline` | `kline:get` | 通过 `KlineHub` 获取分时/五日/周期 K，同参数合并并串行请求 |
 | `saveChipDistributionCache` | `chip-distribution:cache:save` | 保存股票最后一次筹码分布计算结果 |
@@ -212,6 +216,7 @@ AI API Key 由主进程使用 Electron `safeStorage` 加密；renderer 只能读
 | `onTaskbarLayout` | `taskbar:layout` | `TaskbarLayout` |
 | `onSelectStock` | `stock:selected` | `quoteId` |
 | `onDataError` | `data:error` | 错误文本 |
+| `onDividendFinancingUpdateProgress` | `dividend-financing:update-progress` | Python 脚本当前日志或完成/失败状态 |
 
 `stock:selected` 用于从托盘菜单点选股票后，让主窗口定位/展开对应股票。
 

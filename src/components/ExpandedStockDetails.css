@@ -3,6 +3,282 @@
   text-align: left;
 }
 
+.dividend-financing-detail-summary {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.15fr) repeat(6, minmax(115px, 1fr));
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px;
+  background: linear-gradient(135deg, #f8fbff 0%, #f7f9fc 100%);
+  border: 1px solid #dfe7f1;
+  border-radius: 10px;
+}
+
+.dividend-financing-detail-title,
+.dividend-financing-detail-summary > div:not(.dividend-financing-detail-title) {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  padding: 7px 11px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid #e6ebf2;
+  border-radius: 8px;
+}
+
+.dividend-financing-detail-title {
+  gap: 9px;
+  color: #8a6100;
+}
+
+.dividend-financing-detail-title > span,
+.dividend-financing-detail-summary > div:not(.dividend-financing-detail-title) {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 3px;
+}
+
+.dividend-financing-detail-title strong,
+.dividend-financing-detail-summary > div strong {
+  color: #2d405a;
+  font-size: 13px;
+}
+
+.dividend-financing-detail-title small,
+.dividend-financing-detail-summary > div span {
+  color: #7b899c;
+  font-size: 12px;
+}
+
+.dividend-financing-detail-summary > div .dividend-financing-detail-ratio {
+  color: #315f9b;
+  font-size: 15px;
+}
+
+.dividend-financing-detail-summary .is-positive {
+  color: #c43c45;
+}
+
+.dividend-financing-detail-summary .is-negative {
+  color: #16845b;
+}
+
+.dividend-financing-detail-summary .is-zero {
+  color: #7b8798;
+}
+
+.dividend-financing-history {
+  grid-column: 1 / -1;
+  color: #526176;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid #e3e9f1;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.dividend-financing-history > summary {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  padding: 0 11px;
+  color: #526176;
+  font-size: 12px;
+  font-weight: 700;
+  list-style-position: inside;
+  cursor: pointer;
+}
+
+.dividend-financing-deep-metrics {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(125px, 1fr));
+  gap: 7px;
+  padding: 0 10px 10px;
+}
+
+.dividend-financing-deep-metrics > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  background: #f8fafc;
+  border: 1px solid #e7ebf1;
+  border-radius: 7px;
+}
+
+.dividend-financing-deep-metrics span {
+  color: #7b899c;
+  font-size: 12px;
+}
+
+.dividend-financing-deep-metrics strong {
+  overflow: hidden;
+  color: #334155;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dividend-financing-deep-metrics strong.is-positive {
+  color: #c43c45;
+}
+
+.dividend-financing-deep-metrics strong.is-negative {
+  color: #16845b;
+}
+
+.dividend-financing-history-content {
+  display: grid;
+  grid-template-columns: minmax(420px, 1.45fr) minmax(260px, 0.8fr) minmax(320px, 1fr);
+  gap: 9px;
+  padding: 0 10px 10px;
+}
+
+.dividend-financing-history-content > section {
+  min-width: 0;
+  min-height: 195px;
+  padding: 10px;
+  background: #ffffff;
+  border: 1px solid #e7ebf1;
+  border-radius: 7px;
+}
+
+.dividend-financing-history-content h4 {
+  margin: 0 0 10px;
+  color: #3f4d60;
+  font-size: 12px;
+}
+
+.annual-dividend-chart {
+  height: 145px;
+  display: flex;
+  align-items: stretch;
+  gap: 5px;
+  padding-top: 22px;
+}
+
+.annual-dividend-chart > div {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.annual-dividend-chart span,
+.annual-dividend-chart strong {
+  color: #7b899c;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.annual-dividend-chart i {
+  width: min(22px, 72%);
+  min-height: 4px;
+  background: linear-gradient(180deg, #7aa8e8 0%, #4778bc 100%);
+  border-radius: 4px 4px 1px 1px;
+}
+
+.financing-event-timeline {
+  max-height: 155px;
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0 2px;
+  overflow: auto;
+  list-style: none;
+}
+
+.financing-event-timeline li {
+  display: grid;
+  grid-template-columns: 82px 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  background: #f8fafc;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.financing-event-timeline span {
+  color: #7b899c;
+}
+
+.financing-event-timeline strong {
+  color: #526176;
+}
+
+.financing-event-timeline em {
+  overflow: hidden;
+  color: #334155;
+  font-style: normal;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dividend-score-breakdown {
+  display: grid;
+  gap: 8px;
+}
+
+.dividend-score-breakdown > div {
+  display: grid;
+  grid-template-columns: 92px minmax(50px, 1fr) 62px;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+}
+
+.dividend-score-breakdown span {
+  color: #718096;
+}
+
+.dividend-score-breakdown i {
+  height: 6px;
+  overflow: hidden;
+  background: #e8edf3;
+  border-radius: 4px;
+}
+
+.dividend-score-breakdown b {
+  height: 100%;
+  display: block;
+  background: #5b88c7;
+  border-radius: inherit;
+}
+
+.dividend-score-breakdown strong {
+  color: #3f4d60;
+  font-size: 12px;
+  text-align: right;
+}
+
+.dividend-score-note,
+.dividend-financing-no-history {
+  margin: 10px 0 0;
+  color: #8793a4;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.dividend-financing-detail-summary.is-empty {
+  grid-template-columns: minmax(190px, 240px) minmax(0, 1fr);
+}
+
+.dividend-financing-detail-summary > p {
+  align-self: center;
+  margin: 0;
+  padding: 0 10px;
+  color: #7b899c;
+  font-size: 12px;
+}
+
 .detail-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -23,7 +299,7 @@
   background: transparent;
   border: 0;
   border-radius: 7px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 650;
   cursor: pointer;
 }

@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AppState,
+  DividendFinancingUpdateProgress,
   StockDesktopApi,
   StockQuote,
   TaskbarLayout
@@ -19,6 +20,9 @@ const api: StockDesktopApi = {
   getBootstrap: () => ipcRenderer.invoke('app:bootstrap'),
   getTaskbarLayout: () => ipcRenderer.invoke('taskbar:layout:get'),
   searchStocks: (query) => ipcRenderer.invoke('stocks:search', query),
+  getDividendFinancingSnapshot: () => ipcRenderer.invoke('dividend-financing:get'),
+  getDividendFinancingChangeReport: () => ipcRenderer.invoke('dividend-financing:changes:get'),
+  runDividendFinancingUpdate: () => ipcRenderer.invoke('dividend-financing:update'),
   refreshQuotes: () => ipcRenderer.invoke('quotes:refresh'),
   getKline: (quoteId, period, limit) => ipcRenderer.invoke('kline:get', quoteId, period, limit),
   saveChipDistributionCache: (entry) => ipcRenderer.invoke('chip-distribution:cache:save', entry),
@@ -35,7 +39,9 @@ const api: StockDesktopApi = {
   onStateUpdated: (callback) => subscribe<AppState>('state:updated', callback),
   onTaskbarLayout: (callback) => subscribe<TaskbarLayout>('taskbar:layout', callback),
   onSelectStock: (callback) => subscribe<string>('stock:selected', callback),
-  onDataError: (callback) => subscribe<string>('data:error', callback)
+  onDataError: (callback) => subscribe<string>('data:error', callback),
+  onDividendFinancingUpdateProgress: (callback) =>
+    subscribe<DividendFinancingUpdateProgress>('dividend-financing:update-progress', callback)
 }
 
 contextBridge.exposeInMainWorld('stockApi', api)

@@ -23,6 +23,7 @@ import {
 import { calculateTBatchMetrics } from '../../lib/t-trading'
 import { getBatchTrades } from '../../lib/trade-records'
 import type {
+  DividendFinancingRankingItem,
   StockQuote,
   StockRadarSignal,
   TTradingAccount,
@@ -59,6 +60,8 @@ export function todayRadarSignals(signals: StockRadarSignal[] | undefined): Stoc
 interface WatchlistRowProps {
   stock: WatchStock
   quote: StockQuote | undefined
+  dividendFinancing: DividendFinancingRankingItem | undefined
+  dividendFinancingSnapshotDate: string | undefined
   tradingAccount: TTradingAccount | undefined
   manualIndex: number
   columnOrder: WatchlistColumnId[]
@@ -95,6 +98,8 @@ interface WatchlistRowProps {
 export const WatchlistRow = memo(function WatchlistRow({
   stock,
   quote,
+  dividendFinancing,
+  dividendFinancingSnapshotDate,
   tradingAccount,
   manualIndex,
   columnOrder,
@@ -367,6 +372,29 @@ export const WatchlistRow = memo(function WatchlistRow({
                   </strong>
                 </td>
               )
+            case 'dividendFinancingRatio':
+              return (
+                <td
+                  key={columnId}
+                  title={
+                    dividendFinancing
+                      ? `榜单第 ${dividendFinancing.rank} 名；累计A股分红 ${dividendFinancing.dividendYi.toLocaleString('zh-CN')} 亿元，累计A股融资 ${dividendFinancing.financingYi.toLocaleString('zh-CN')} 亿元；净回报 ${(dividendFinancing.netReturnYi ?? dividendFinancing.dividendYi - dividendFinancing.financingYi).toLocaleString('zh-CN')} 亿元；连续分红 ${dividendFinancing.consecutiveDividendYears ?? '--'} 年；质量评分 ${dividendFinancing.qualityScore?.toFixed(1) ?? '--'}；快照 ${dividendFinancingSnapshotDate ?? '--'}`
+                      : `未进入分红融资比大于100%榜单或暂无完整数据；快照 ${dividendFinancingSnapshotDate ?? '--'}`
+                  }
+                >
+                  {dividendFinancing ? (
+                    <span className="dividend-financing-cell">
+                      <strong>{dividendFinancing.ratio.toFixed(2)}%</strong>
+                      <small>第 {dividendFinancing.rank} 名</small>
+                    </span>
+                  ) : (
+                    <span className="dividend-financing-cell is-empty">
+                      <strong>--</strong>
+                      <small>未入榜</small>
+                    </span>
+                  )}
+                </td>
+              )
             case 'open':
               return (
                 <td key={columnId}>
@@ -502,6 +530,8 @@ export const WatchlistRow = memo(function WatchlistRow({
                 <ExpandedStockDetails
                   stock={stock}
                   quote={quote}
+                  dividendFinancing={dividendFinancing}
+                  dividendFinancingSnapshotDate={dividendFinancingSnapshotDate}
                   refreshSeconds={stock.isPriority ? priorityRefreshSeconds : regularRefreshSeconds}
                   autoRefreshOrderBook={Boolean(activeTBatch)}
                   chipDistributionEnabled={chipDistributionEnabled}

@@ -17,6 +17,9 @@ import { createConfigDocument, parseConfigDocument } from '../../src/shared/conf
 import type {
   AppState,
   ChipDistributionCacheEntry,
+  DividendFinancingChangeReport,
+  DividendFinancingSnapshot,
+  DividendFinancingUpdateResult,
   FundsFlowResult,
   KlinePeriod,
   KlineResult,
@@ -38,6 +41,9 @@ interface IpcHandlerDependencies {
   getTaskbarLayout: () => TaskbarLayout
   getMainWindow: () => BrowserWindow | null
   searchStocks: (query: string) => Promise<SearchResult[]>
+  getDividendFinancingSnapshot: () => DividendFinancingSnapshot
+  getDividendFinancingChangeReport: () => DividendFinancingChangeReport | null
+  runDividendFinancingUpdate: () => Promise<DividendFinancingUpdateResult>
   refreshQuotes: (reason?: string) => Promise<StockQuote[]>
   refreshQuotesAutomatically: (reason: string) => Promise<StockQuote[]>
   restartQuoteSchedule: () => void
@@ -61,6 +67,9 @@ const CHANNELS = [
   'app:bootstrap',
   'taskbar:layout:get',
   'stocks:search',
+  'dividend-financing:get',
+  'dividend-financing:changes:get',
+  'dividend-financing:update',
   'quotes:refresh',
   'kline:get',
   'chip-distribution:cache:save',
@@ -95,6 +104,9 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
   }))
   ipcMain.handle('taskbar:layout:get', () => dependencies.getTaskbarLayout())
   ipcMain.handle('stocks:search', (_event, query: string) => dependencies.searchStocks(query))
+  ipcMain.handle('dividend-financing:get', () => dependencies.getDividendFinancingSnapshot())
+  ipcMain.handle('dividend-financing:changes:get', () => dependencies.getDividendFinancingChangeReport())
+  ipcMain.handle('dividend-financing:update', () => dependencies.runDividendFinancingUpdate())
   ipcMain.handle('quotes:refresh', () => dependencies.refreshQuotes())
   ipcMain.handle('kline:get', (_event, quoteId: string, period: KlinePeriod, limit?: number) =>
     dependencies.getKline(quoteId, period, limit)

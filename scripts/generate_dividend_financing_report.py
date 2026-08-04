@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import argparse
+import bisect
 import concurrent.futures
 import datetime as dt
 import html
@@ -30,8 +31,9 @@ EASTMONEY_CAPITAL_API = "https://emweb.eastmoney.com/PC_HSF10/CapitalOperation/P
 SINA_QUOTE_API = "https://hq.sinajs.cn/list="
 THS_BONUS_URL = "https://basic.10jqka.com.cn/{code}/bonus.html"
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_OUTPUT = PROJECT_ROOT / "docs" / "A股分红融资比大于100%排名_2026-07-22.md"
+DEFAULT_REPORT_DIRECTORY = PROJECT_ROOT / "docs"
 DEFAULT_DIAGNOSTICS = PROJECT_ROOT / "outputs" / "分红融资比统计诊断.json"
+DEFAULT_JSON_OUTPUT = PROJECT_ROOT / "src" / "data" / "dividend-financing-ranking.json"
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0 Safari/537.36"
@@ -185,13 +187,16 @@ def filter_active_stocks(
 
 def fetch_financing(
     active_secucodes: dict[str, str], active_names: dict[str, str]
-) -> tuple[dict[str, float], Counter, Counter, list[str]]:
+) -> tuple[dict[str, float], dict[str, list[dict]], Counter, Counter, list[str]]:
     financing: dict[str, float] = {}
+    financing_events: dict[str, list[dict]] = {}
     finance_types: Counter = Counter()
     security_types: Counter = Counter()
     errors: list[str] = []
 
-    def fetch_one(item: tuple[str, str]) -> tuple[str, float, list[tuple[str, str]]]:
+    def fetch_one(
+        item: tuple[str, str]
+    ) -> tuple[str, float, list[dict], list[tuple[str, str]]]:
         code, secucode = item
         market = secucode.rsplit(".", 1)[1]
         request_code = market + code
@@ -204,6 +209,7 @@ def fetch_financing(
             attempts=5,
         ).json()
         total = 0.0
+        events: list[dict] = []
         labels: list[tuple[str, str]] = []
         for row in payload.get("mjzjly") or []:
             finance_type = str(row.get("FINANCE_TYPEE") or "")
@@ -222,7 +228,23 @@ def fetch_financing(
             )
             if amount > 0 and is_common_a and is_equity_financing:
                 total += amount
-        return code, total, labels
+                event_date = str(row.get("START_DATE") or row.get("NOTICE_DATE") or "")[:10]
+                normalized_type = (
+                    "IPO"
+                    if "首发" in finance_type
+                    else "增发"
+                    if "增发" in finance_type
+                    else "配股"
+                )
+                events.append(
+                    {
+                        "date": event_date,
+                        "type": normalized_type,
+                        "amount_yi": amount / 100_000_000.0,
+                    }
+                )
+        events.sort(key=lambda event: (event["date"], event["type"]))
+        return code, total, events, labels
 
     items = list(active_secucodes.items())
     completed = 0
@@ -231,8 +253,9 @@ def fetch_financing(
         for future in concurrent.futures.as_completed(future_map):
             code = future_map[future]
             try:
-                result_code, total, labels = future.result()
+                result_code, total, events, labels = future.result()
                 financing[result_code] = total
+                financing_events[result_code] = events
                 for finance_type, security_type in labels:
                     finance_types[finance_type] += 1
                     security_types[security_type] += 1
@@ -242,13 +265,19 @@ def fetch_financing(
             if completed % 500 == 0:
                 log(f"Capital records fetched: {completed:,}/{len(items):,}; errors: {len(errors)}")
     log(f"Capital records complete: {len(financing):,}; errors: {len(errors)}")
-    return financing, finance_types, security_types, errors
+    return financing, financing_events, finance_types, security_types, errors
 
 
 def aggregate_approx_dividends(
     events: list[dict], active_names: dict[str, str]
-) -> tuple[dict[str, float], set[str]]:
+) -> tuple[dict[str, float], dict[str, dict[int, float]], dict[str, dict[int, int]], set[str]]:
     totals: defaultdict[str, float] = defaultdict(float)
+    annual_totals: defaultdict[str, defaultdict[int, float]] = defaultdict(
+        lambda: defaultdict(float)
+    )
+    annual_event_counts: defaultdict[str, defaultdict[int, int]] = defaultdict(
+        lambda: defaultdict(int)
+    )
     incomplete: set[str] = set()
     for row in events:
         code = str(row["SECURITY_CODE"])
@@ -269,8 +298,19 @@ def aggregate_approx_dividends(
                 incomplete.add(code)
             continue
         if cash_per_ten > 0 and total_shares > 0:
-            totals[code] += cash_per_ten / 10.0 * total_shares
-    return dict(totals), incomplete
+            amount = cash_per_ten / 10.0 * total_shares
+            totals[code] += amount
+            report_date = str(row.get("REPORT_DATE") or "")
+            if re.match(r"\d{4}", report_date):
+                year = int(report_date[:4])
+                annual_totals[code][year] += amount
+                annual_event_counts[code][year] += 1
+    return (
+        dict(totals),
+        {code: dict(values) for code, values in annual_totals.items()},
+        {code: dict(values) for code, values in annual_event_counts.items()},
+        incomplete,
+    )
 
 
 def parse_ths_cumulative_dividend(page: str) -> tuple[float | None, bool]:
@@ -329,6 +369,156 @@ def fetch_exact_dividends(
     return exact, dual_listed, errors
 
 
+def percentile(values: list[float], value: float) -> float:
+    if len(values) <= 1:
+        return 1.0
+    return (bisect.bisect_right(values, value) - 1) / (len(values) - 1)
+
+
+def enrich_ranked_items(
+    ranked: list[dict],
+    *,
+    snapshot_date: str,
+    approx_dividends: dict[str, float],
+    annual_dividends: dict[str, dict[int, float]],
+    annual_event_counts: dict[str, dict[int, int]],
+    financing_events: dict[str, list[dict]],
+) -> None:
+    snapshot_day = dt.date.fromisoformat(snapshot_date)
+    completed_year = snapshot_day.year - 1
+
+    for item in ranked:
+        code = item["code"]
+        exact_total = item["dividend_yi"] * 100_000_000.0
+        approx_total = approx_dividends.get(code, 0.0)
+        scale = exact_total / approx_total if approx_total > 0 else 1.0
+        annual_yi = {
+            year: amount * scale / 100_000_000.0
+            for year, amount in annual_dividends.get(code, {}).items()
+            if amount > 0
+        }
+        annual_points = [
+            {
+                "year": year,
+                "amount_yi": round(amount, 4),
+                "event_count": annual_event_counts.get(code, {}).get(year, 0),
+            }
+            for year, amount in sorted(annual_yi.items())
+        ]
+        events = financing_events.get(code, [])
+        normalized_events = [
+            {
+                "date": event["date"],
+                "type": event["type"],
+                "amount_yi": round(event["amount_yi"], 4),
+            }
+            for event in events
+        ]
+        listing_year_candidates = [
+            int(event["date"][:4])
+            for event in events
+            if event["type"] == "IPO" and re.match(r"\d{4}", event["date"])
+        ]
+        if not listing_year_candidates:
+            listing_year_candidates = [
+                int(event["date"][:4])
+                for event in events
+                if re.match(r"\d{4}", event["date"])
+            ]
+        if not listing_year_candidates and annual_yi:
+            listing_year_candidates = [min(annual_yi)]
+        listing_year = min(listing_year_candidates) if listing_year_candidates else completed_year
+        listed_years = max(1, completed_year - listing_year + 1)
+        dividend_years = len(annual_yi)
+        consecutive_years = 0
+        for year in range(completed_year, listing_year - 1, -1):
+            if annual_yi.get(year, 0.0) <= 0:
+                break
+            consecutive_years += 1
+
+        recent_3 = sum(annual_yi.get(year, 0.0) for year in range(completed_year - 2, completed_year + 1))
+        recent_5 = sum(annual_yi.get(year, 0.0) for year in range(completed_year - 4, completed_year + 1))
+        recent_average = sum(
+            annual_yi.get(year, 0.0) for year in (completed_year - 1, completed_year)
+        ) / 2.0
+        previous_average = sum(
+            annual_yi.get(year, 0.0) for year in (completed_year - 3, completed_year - 2)
+        ) / 2.0
+        if previous_average > 0:
+            trend_percent = (recent_average - previous_average) / previous_average * 100.0
+        elif recent_average > 0:
+            trend_percent = 100.0
+        else:
+            trend_percent = None
+        trend = (
+            "insufficient"
+            if trend_percent is None
+            else "growing"
+            if trend_percent >= 10
+            else "declining"
+            if trend_percent <= -10
+            else "stable"
+        )
+        dated_events = [event for event in normalized_events if event["date"]]
+        last_financing_date = dated_events[-1]["date"] if dated_events else None
+        years_since_last_financing = (
+            round((snapshot_day - dt.date.fromisoformat(last_financing_date)).days / 365.25, 1)
+            if last_financing_date
+            else None
+        )
+
+        item.update(
+            {
+                "net_return_yi": item["dividend_yi"] - item["financing_yi"],
+                "listing_year": listing_year,
+                "listed_years": listed_years,
+                "dividend_years": dividend_years,
+                "consecutive_dividend_years": consecutive_years,
+                "last_dividend_year": max(annual_yi) if annual_yi else None,
+                "recent_3_year_dividend_yi": recent_3,
+                "recent_5_year_dividend_yi": recent_5,
+                "recent_dividend_trend_percent": trend_percent,
+                "dividend_trend": trend,
+                "annual_dividends": annual_points,
+                "financing_events": normalized_events,
+                "financing_count": len(normalized_events),
+                "last_financing_date": last_financing_date,
+                "years_since_last_financing": years_since_last_financing,
+            }
+        )
+
+    ratio_values = sorted(item["ratio"] for item in ranked)
+    net_return_values = sorted(item["net_return_yi"] for item in ranked)
+    growth_scores = {
+        "growing": 10.0,
+        "stable": 7.0,
+        "declining": 2.0,
+        "insufficient": 4.0,
+    }
+    for item in ranked:
+        ratio_score = percentile(ratio_values, item["ratio"]) * 30.0
+        net_return_score = percentile(net_return_values, item["net_return_yi"]) * 25.0
+        continuity_score = min(item["consecutive_dividend_years"] / 10.0, 1.0) * 15.0
+        continuity_score += min(item["dividend_years"] / item["listed_years"], 1.0) * 10.0
+        growth_score = growth_scores[item["dividend_trend"]]
+        financing_count_score = max(0.0, 5.0 - max(0, item["financing_count"] - 1) * 1.25)
+        financing_recency_score = min((item["years_since_last_financing"] or 0.0) / 10.0, 1.0) * 5.0
+        financing_discipline_score = financing_count_score + financing_recency_score
+        breakdown = {
+            "ratio": round(ratio_score, 1),
+            "net_return": round(net_return_score, 1),
+            "continuity": round(continuity_score, 1),
+            "growth": round(growth_score, 1),
+            "financing_discipline": round(financing_discipline_score, 1),
+        }
+        item["quality_score_breakdown"] = breakdown
+        item["quality_score"] = round(sum(breakdown.values()), 1)
+
+    score_order = sorted(ranked, key=lambda item: (-item["quality_score"], item["code"]))
+    for score_rank, item in enumerate(score_order, start=1):
+        item["score_rank"] = score_rank
+
+
 def format_amount_yi(value_yi: float) -> str:
     if value_yi >= 1000:
         return f"{value_yi:,.2f}"
@@ -361,12 +551,13 @@ def write_report(
         "- A+H、A+B公司只使用A股累计分红和A股融资，避免跨市场混算。",
         "- 股票范围为统计日仍可取得实时行情、且有历史现金分红记录的沪深北A股；退市股票不纳入。",
         "- 分红累计值来自同花顺F10，融资明细与募集净额来自东方财富F10。金额单位均为人民币亿元。",
+        "- 年度分红根据东方财富已实施分红事件拆分，并按同花顺精确累计分红总额等比例校准；质量评分只在本榜单内比较。",
         "- 该指标只反映历史现金回报与股权融资的比例，不代表未来收益或投资建议。",
         "",
         "## 排名",
         "",
-        "| 排名 | 股票代码 | 股票简称 | 累计A股分红（亿元） | 累计A股融资（亿元） | 分红融资比 |",
-        "|---:|:---:|:---|---:|---:|---:|",
+        "| 排名 | 股票代码 | 股票简称 | 累计A股分红（亿元） | 累计A股融资（亿元） | 净回报额（亿元） | 分红融资比 | 回报质量评分 |",
+        "|---:|:---:|:---|---:|---:|---:|---:|---:|",
     ]
     for index, item in enumerate(ranked, start=1):
         name = str(item["name"]).replace("|", "\\|")
@@ -374,7 +565,9 @@ def write_report(
             f"| {index} | {item['code']} | {name} | "
             f"{format_amount_yi(item['dividend_yi'])} | "
             f"{format_amount_yi(item['financing_yi'])} | "
-            f"{item['ratio']:.2f}% |"
+            f"{format_amount_yi(item['net_return_yi'])} | "
+            f"{item['ratio']:.2f}% | "
+            f"{item['quality_score']:.1f} |"
         )
 
     lines.extend(
@@ -399,12 +592,96 @@ def write_report(
     output.write_text("\n".join(lines), encoding="utf-8")
 
 
+def write_json_snapshot(
+    output: Path,
+    ranked: list[dict],
+    *,
+    snapshot_date: str,
+    active_count: int,
+    exact_candidate_count: int,
+    financing_errors: list[str],
+    dividend_errors: list[str],
+    dual_listed: set[str],
+) -> None:
+    payload = {
+        "schemaVersion": 2,
+        "scoreMethodologyVersion": 1,
+        "snapshotDate": snapshot_date,
+        "generatedAt": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "thresholdPercent": 100,
+        "activeStockCount": active_count,
+        "exactCandidateCount": exact_candidate_count,
+        "dualListedCount": sum(1 for item in ranked if item["code"] in dual_listed),
+        "financingErrorCount": len(financing_errors),
+        "dividendErrorCount": len(dividend_errors),
+        "rows": [
+            {
+                "rank": index,
+                "code": item["code"],
+                "name": item["name"],
+                "market": item["market"],
+                "dividendYi": round(item["dividend_yi"], 4),
+                "financingYi": round(item["financing_yi"], 4),
+                "netReturnYi": round(item["net_return_yi"], 4),
+                "ratio": round(item["ratio"], 2),
+                "listingYear": item["listing_year"],
+                "listedYears": item["listed_years"],
+                "dividendYears": item["dividend_years"],
+                "consecutiveDividendYears": item["consecutive_dividend_years"],
+                "lastDividendYear": item["last_dividend_year"],
+                "recent3YearDividendYi": round(item["recent_3_year_dividend_yi"], 4),
+                "recent5YearDividendYi": round(item["recent_5_year_dividend_yi"], 4),
+                "recentDividendTrendPercent": (
+                    round(item["recent_dividend_trend_percent"], 2)
+                    if item["recent_dividend_trend_percent"] is not None
+                    else None
+                ),
+                "dividendTrend": item["dividend_trend"],
+                "annualDividends": [
+                    {
+                        "year": point["year"],
+                        "amountYi": point["amount_yi"],
+                        "eventCount": point["event_count"],
+                    }
+                    for point in item["annual_dividends"]
+                ],
+                "financingEvents": [
+                    {
+                        "date": event["date"],
+                        "type": event["type"],
+                        "amountYi": event["amount_yi"],
+                    }
+                    for event in item["financing_events"]
+                ],
+                "financingCount": item["financing_count"],
+                "lastFinancingDate": item["last_financing_date"],
+                "yearsSinceLastFinancing": item["years_since_last_financing"],
+                "qualityScore": item["quality_score"],
+                "scoreRank": item["score_rank"],
+                "qualityScoreBreakdown": {
+                    "ratio": item["quality_score_breakdown"]["ratio"],
+                    "netReturn": item["quality_score_breakdown"]["net_return"],
+                    "continuity": item["quality_score_breakdown"]["continuity"],
+                    "growth": item["quality_score_breakdown"]["growth"],
+                    "financingDiscipline": item["quality_score_breakdown"]["financing_discipline"],
+                },
+            }
+            for index, item in enumerate(ranked, start=1)
+        ],
+    }
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="更新A股分红融资比大于100%的排名文档")
     parser.add_argument(
         "--output",
-        default=str(DEFAULT_OUTPUT),
-        help="Markdown输出路径（默认：现有排名文档）",
+        default="",
+        help="Markdown输出路径（默认：docs下带快照日期的排名文档）",
     )
     parser.add_argument(
         "--snapshot-date",
@@ -416,17 +693,36 @@ def main() -> int:
         default=str(DEFAULT_DIAGNOSTICS),
         help=f"诊断JSON输出路径（默认：{DEFAULT_DIAGNOSTICS}）",
     )
+    parser.add_argument(
+        "--json-output",
+        default=str(DEFAULT_JSON_OUTPUT),
+        help=f"软件排名JSON输出路径（默认：{DEFAULT_JSON_OUTPUT}）",
+    )
     args = parser.parse_args()
 
-    output = Path(args.output).resolve()
+    output = (
+        Path(args.output).resolve()
+        if args.output
+        else DEFAULT_REPORT_DIRECTORY / f"A股分红融资比大于100%排名_{args.snapshot_date}.md"
+    )
     diagnostics = Path(args.diagnostics).resolve()
+    json_output = Path(args.json_output).resolve()
 
     events, fallback_names, progress_values = fetch_dividend_events()
     active_names, active_secucodes = filter_active_stocks(events, fallback_names)
-    financing, finance_types, security_types, financing_errors = fetch_financing(
-        active_secucodes, active_names
-    )
-    approx_dividends, incomplete_dividends = aggregate_approx_dividends(events, active_names)
+    (
+        financing,
+        financing_events,
+        finance_types,
+        security_types,
+        financing_errors,
+    ) = fetch_financing(active_secucodes, active_names)
+    (
+        approx_dividends,
+        annual_dividends,
+        annual_event_counts,
+        incomplete_dividends,
+    ) = aggregate_approx_dividends(events, active_names)
 
     prefilter_codes = [code for code in active_names if financing.get(code, 0.0) > 0]
     prefilter_codes.sort()
@@ -447,15 +743,34 @@ def main() -> int:
                 {
                     "code": code,
                     "name": active_names[code],
+                    "market": active_secucodes[code].rsplit(".", 1)[1],
                     "dividend_yi": dividend / 100_000_000.0,
                     "financing_yi": funds / 100_000_000.0,
                     "ratio": ratio,
                 }
             )
     ranked.sort(key=lambda item: (-item["ratio"], item["code"]))
+    enrich_ranked_items(
+        ranked,
+        snapshot_date=args.snapshot_date,
+        approx_dividends=approx_dividends,
+        annual_dividends=annual_dividends,
+        annual_event_counts=annual_event_counts,
+        financing_events=financing_events,
+    )
 
     write_report(
         output,
+        ranked,
+        snapshot_date=args.snapshot_date,
+        active_count=len(active_names),
+        exact_candidate_count=len(prefilter_codes),
+        financing_errors=financing_errors,
+        dividend_errors=dividend_errors,
+        dual_listed=dual_listed,
+    )
+    write_json_snapshot(
+        json_output,
         ranked,
         snapshot_date=args.snapshot_date,
         active_count=len(active_names),
@@ -496,6 +811,7 @@ def main() -> int:
     diagnostics.parent.mkdir(parents=True, exist_ok=True)
     diagnostics.write_text(json.dumps(diagnostics_payload, ensure_ascii=False, indent=2), encoding="utf-8")
     log(f"Report written: {output}")
+    log(f"Software snapshot written: {json_output}")
     log(f"Ranked count: {len(ranked)}")
     return 0
 

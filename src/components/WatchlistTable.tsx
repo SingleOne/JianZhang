@@ -14,6 +14,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { calculatePositionMetrics } from '../lib/portfolio'
 import type {
+  DividendFinancingRankingItem,
   StockAlertRule,
   StockPosition,
   StockPositionSnapshot,
@@ -49,6 +50,8 @@ interface WatchlistTableProps {
   watchlist: WatchStock[]
   watchlistGroups: WatchlistGroup[]
   quotes: StockQuote[]
+  dividendFinancingByCode: ReadonlyMap<string, DividendFinancingRankingItem>
+  dividendFinancingSnapshotDate?: string
   columnOrder: WatchlistColumnId[]
   priorityRefreshSeconds: number
   regularRefreshSeconds: number
@@ -130,6 +133,8 @@ export function WatchlistTable({
   watchlist,
   watchlistGroups,
   quotes,
+  dividendFinancingByCode,
+  dividendFinancingSnapshotDate,
   columnOrder,
   priorityRefreshSeconds,
   regularRefreshSeconds,
@@ -200,11 +205,12 @@ export function WatchlistTable({
       return {
         stock,
         quote,
+        dividendFinancing: dividendFinancingByCode.get(stock.code),
         metrics: calculatePositionMetrics(stock.position, quote, tTradingAccounts[stock.quoteId]),
         manualIndex
       }
     })
-  }, [quotes, tTradingAccounts, watchlist])
+  }, [dividendFinancingByCode, quotes, tTradingAccounts, watchlist])
 
   const groupCounts = useMemo(
     () =>
@@ -636,11 +642,13 @@ export function WatchlistTable({
             </tr>
           </thead>
           <tbody>
-            {displayedRows.map(({ stock, quote, manualIndex }) => (
+            {displayedRows.map(({ stock, quote, dividendFinancing, manualIndex }) => (
               <WatchlistRow
                 key={stock.quoteId}
                 stock={stock}
                 quote={quote}
+                dividendFinancing={dividendFinancing}
+                dividendFinancingSnapshotDate={dividendFinancingSnapshotDate}
                 tradingAccount={tTradingAccounts[stock.quoteId]}
                 manualIndex={manualIndex}
                 columnOrder={adjustableColumnOrder}

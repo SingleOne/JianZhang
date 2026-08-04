@@ -429,6 +429,7 @@ export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
   'latest',
   'changePercent',
   'sectorChangePercent',
+  'dividendFinancingRatio',
   'open',
   'trading',
   'amount',
@@ -442,7 +443,7 @@ export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
 ] as const
 
 export type WatchlistColumnId = typeof DEFAULT_WATCHLIST_COLUMN_ORDER[number]
-export const WATCHLIST_COLUMN_ORDER_VERSION = 6
+export const WATCHLIST_COLUMN_ORDER_VERSION = 7
 
 export function normalizeWatchlistColumnOrder(
   columnOrder: readonly string[] | undefined
@@ -482,6 +483,12 @@ export function migrateWatchlistColumnOrder(
     migrated = migrated.filter((columnId) => columnId !== 'trading')
     const openIndex = migrated.indexOf('open')
     migrated.splice(openIndex + 1, 0, 'trading')
+  }
+
+  if ((version ?? 0) < 7) {
+    migrated = migrated.filter((columnId) => columnId !== 'dividendFinancingRatio')
+    const sectorChangePercentIndex = migrated.indexOf('sectorChangePercent')
+    migrated.splice(sectorChangePercentIndex + 1, 0, 'dividendFinancingRatio')
   }
 
   return migrated
@@ -632,6 +639,126 @@ export interface SearchResult {
   name: string
   quoteId: string
   marketLabel: string
+}
+
+export type DividendFinancingMarket = 'SH' | 'SZ' | 'BJ'
+
+export type DividendTrend = 'growing' | 'stable' | 'declining' | 'insufficient'
+
+export interface AnnualDividendPoint {
+  year: number
+  amountYi: number
+  eventCount: number
+}
+
+export interface DividendFinancingEvent {
+  date: string
+  type: 'IPO' | '增发' | '配股'
+  amountYi: number
+}
+
+export interface DividendFinancingQualityScoreBreakdown {
+  ratio: number
+  netReturn: number
+  continuity: number
+  growth: number
+  financingDiscipline: number
+}
+
+export interface DividendFinancingRankingItem {
+  rank: number
+  code: string
+  name: string
+  market: DividendFinancingMarket
+  dividendYi: number
+  financingYi: number
+  ratio: number
+  netReturnYi?: number
+  listingYear?: number
+  listedYears?: number
+  dividendYears?: number
+  consecutiveDividendYears?: number
+  lastDividendYear?: number | null
+  recent3YearDividendYi?: number
+  recent5YearDividendYi?: number
+  recentDividendTrendPercent?: number | null
+  dividendTrend?: DividendTrend
+  annualDividends?: AnnualDividendPoint[]
+  financingEvents?: DividendFinancingEvent[]
+  financingCount?: number
+  lastFinancingDate?: string | null
+  yearsSinceLastFinancing?: number | null
+  qualityScore?: number
+  scoreRank?: number
+  qualityScoreBreakdown?: DividendFinancingQualityScoreBreakdown
+}
+
+export interface DividendFinancingSnapshot {
+  schemaVersion: 1 | 2
+  scoreMethodologyVersion?: 1
+  snapshotDate: string
+  generatedAt: string
+  thresholdPercent: number
+  activeStockCount: number
+  exactCandidateCount: number
+  dualListedCount: number
+  financingErrorCount: number
+  dividendErrorCount: number
+  rows: DividendFinancingRankingItem[]
+}
+
+export type DividendFinancingChangeType =
+  | 'added'
+  | 'removed'
+  | 'rank'
+  | 'ratio'
+  | 'dividend'
+  | 'financing'
+
+export interface DividendFinancingChangeItem {
+  code: string
+  name: string
+  market: DividendFinancingMarket
+  changeTypes: DividendFinancingChangeType[]
+  previousRank: number | null
+  currentRank: number | null
+  rankChange: number | null
+  previousRatio: number | null
+  currentRatio: number | null
+  ratioChange: number | null
+  dividendIncreaseYi: number
+  financingIncreaseYi: number
+  previousQualityScore: number | null
+  currentQualityScore: number | null
+  qualityScoreChange: number | null
+}
+
+export interface DividendFinancingChangeReport {
+  schemaVersion: 1
+  previousSnapshotDate: string
+  currentSnapshotDate: string
+  generatedAt: string
+  summary: {
+    addedCount: number
+    removedCount: number
+    rankChangedCount: number
+    ratioChangedCount: number
+    dividendIncreasedCount: number
+    financingIncreasedCount: number
+  }
+  rows: DividendFinancingChangeItem[]
+}
+
+export interface DividendFinancingUpdateProgress {
+  stage: 'running' | 'completed' | 'failed'
+  message: string
+}
+
+export interface DividendFinancingUpdateResult {
+  snapshot: DividendFinancingSnapshot
+  changeReport: DividendFinancingChangeReport
+  reportPath: string
+  diagnosticsPath: string
 }
 
 export const BUILT_IN_TRADING_CALENDAR_END_YEAR = 2026
@@ -841,6 +968,9 @@ export interface StockDesktopApi {
   getBootstrap: () => Promise<BootstrapResult>
   getTaskbarLayout: () => Promise<TaskbarLayout>
   searchStocks: (query: string) => Promise<SearchResult[]>
+  getDividendFinancingSnapshot: () => Promise<DividendFinancingSnapshot>
+  getDividendFinancingChangeReport: () => Promise<DividendFinancingChangeReport | null>
+  runDividendFinancingUpdate: () => Promise<DividendFinancingUpdateResult>
   refreshQuotes: () => Promise<StockQuote[]>
   getKline: (quoteId: string, period: KlinePeriod, limit?: number) => Promise<KlineResult>
   saveChipDistributionCache: (entry: ChipDistributionCacheEntry) => Promise<ChipDistributionCacheEntry>
@@ -858,4 +988,7 @@ export interface StockDesktopApi {
   onTaskbarLayout: (callback: (layout: TaskbarLayout) => void) => () => void
   onSelectStock: (callback: (quoteId: string) => void) => () => void
   onDataError: (callback: (message: string) => void) => () => void
+  onDividendFinancingUpdateProgress: (
+    callback: (progress: DividendFinancingUpdateProgress) => void
+  ) => () => void
 }

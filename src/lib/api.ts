@@ -11,6 +11,7 @@ import {
   type AppState,
   type BootstrapResult,
   type ConfigImportResult,
+  type DividendFinancingSnapshot,
   type FundsFlowResult,
   type KlinePeriod,
   type KlineResult,
@@ -21,6 +22,7 @@ import {
   type StockSectorQuote,
   type WatchStock
 } from '../shared/types'
+import builtInDividendFinancingSnapshot from '../data/dividend-financing-ranking.json'
 import { createConfigDocument, parseConfigDocument } from '../shared/config'
 import { DEMO_SECTORS, DEMO_STOCKS, DEMO_VALUES } from './demo-data'
 
@@ -257,6 +259,15 @@ const demoApi: StockDesktopApi = {
       (stock) => stock.code.includes(normalized) || stock.name.toLowerCase().includes(normalized)
     )
   },
+  async getDividendFinancingSnapshot() {
+    return builtInDividendFinancingSnapshot as DividendFinancingSnapshot
+  },
+  async getDividendFinancingChangeReport() {
+    return null
+  },
+  async runDividendFinancingUpdate() {
+    throw new Error('分红融资榜更新脚本仅能在 Windows 桌面版中运行')
+  },
   async refreshQuotes() {
     const state = loadDemoState()
     return makeDemoQuotes([...state.watchlist, ...getMarketIndexStocks(state.settings.marketIndexIds)])
@@ -324,7 +335,8 @@ const demoApi: StockDesktopApi = {
   onStateUpdated: noSubscribe,
   onTaskbarLayout: noSubscribe,
   onSelectStock: noSubscribe,
-  onDataError: noSubscribe
+  onDataError: noSubscribe,
+  onDividendFinancingUpdateProgress: noSubscribe
 }
 
 export const stockApi = window.stockApi ?? demoApi

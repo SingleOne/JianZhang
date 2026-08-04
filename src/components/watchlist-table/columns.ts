@@ -1,5 +1,10 @@
 import { currentDateKey, getPositionHoldingDays, type PositionMetrics } from '../../lib/portfolio'
-import type { StockQuote, WatchlistColumnId, WatchStock } from '../../shared/types'
+import type {
+  DividendFinancingRankingItem,
+  StockQuote,
+  WatchlistColumnId,
+  WatchStock
+} from '../../shared/types'
 
 export interface ColumnMeta {
   label: string
@@ -11,6 +16,7 @@ export interface ColumnMeta {
 export interface StockRowData {
   stock: WatchStock
   quote: StockQuote | undefined
+  dividendFinancing: DividendFinancingRankingItem | undefined
   metrics: PositionMetrics
   manualIndex: number
 }
@@ -31,6 +37,7 @@ export const COLUMN_META: Record<WatchlistColumnId, ColumnMeta> = {
   latest: { label: '最新价', width: 72, sortable: true },
   changePercent: { label: '涨跌幅', width: 76, sortable: true },
   sectorChangePercent: { label: '板块涨跌幅', width: 94, sortable: true },
+  dividendFinancingRatio: { label: '分红融资比', width: 108, sortable: true },
   open: { label: '今日概览', width: 190, sortable: true },
   trading: { label: '成交', width: 112, sortable: true },
   amount: { label: '持仓天数', width: 80, sortable: true },
@@ -64,6 +71,8 @@ export function sortValue(
       return row.quote?.changePercent
     case 'sectorChangePercent':
       return row.quote?.sector?.changePercent
+    case 'dividendFinancingRatio':
+      return row.dividendFinancing?.ratio
     case 'open':
       return row.quote?.open
     case 'trading':

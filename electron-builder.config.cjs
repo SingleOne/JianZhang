@@ -7,16 +7,21 @@ module.exports = {
   directories: {
     output: 'release'
   },
-  files: [
-    'out/**/*',
-    'package.json'
+  files: ['out/**/*', 'package.json'],
+  extraResources: [
+    {
+      from: 'scripts/generate_dividend_financing_report.py',
+      to: 'scripts/generate_dividend_financing_report.py'
+    },
+    ...(aiModuleEnabled
+      ? [
+          {
+            from: 'node_modules/@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc',
+            to: 'codex-runtime'
+          }
+        ]
+      : [])
   ],
-  extraResources: aiModuleEnabled
-    ? [{
-      from: 'node_modules/@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc',
-      to: 'codex-runtime'
-    }]
-    : [],
   win: {
     icon: 'build/icon.png',
     target: [{ target: 'nsis', arch: ['x64'] }],

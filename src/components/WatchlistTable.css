@@ -898,6 +898,30 @@
   font-size: 12px;
 }
 
+.dividend-financing-cell {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  color: #3d5f8f;
+  font-variant-numeric: tabular-nums;
+}
+
+.dividend-financing-cell strong {
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.dividend-financing-cell small {
+  color: #7a899d;
+  font-size: 12px;
+}
+
+.dividend-financing-cell.is-empty strong,
+.dividend-financing-cell.is-empty small {
+  color: #98a2b3;
+  font-weight: 500;
+}
+
 .change-percent {
   font-size: 16px;
   font-weight: 700;
