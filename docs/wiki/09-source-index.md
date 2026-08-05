@@ -35,7 +35,7 @@
 | [`electron/main/sector-market-cache.ts`](../../electron/main/sector-market-cache.ts) | `SectorMarketCache` | 板块绑定持久化、并发补取、失败冷却和 60 秒板块报价缓存 |
 | [`electron/main/market-request-logger.ts`](../../electron/main/market-request-logger.ts) | `MarketRequestLogger` | 行情请求/报价轮次 JSONL 日志和启动时 7 天清理 |
 | [`electron/main/dividend-financing-service.ts`](../../electron/main/dividend-financing-service.ts) | `DividendFinancingService` | 分红融资用户快照、首次缺失更新、变化报告和过期状态 |
-| [`electron/main/fundamental-data-service.ts`](../../electron/main/fundamental-data-service.ts) | `FundamentalDataService` | 基本面用户快照、首次缺失更新、过期状态和三阶段脚本调度 |
+| [`electron/main/fundamental-data-service.ts`](../../electron/main/fundamental-data-service.ts) | `FundamentalDataService` | 基本面用户快照、首次缺失更新、最近一次变化报告、过期状态和三阶段脚本调度 |
 | [`electron/main/python-task-queue.ts`](../../electron/main/python-task-queue.ts) | `PythonTaskQueue` | 财务抓取脚本串行、Python/requests 环境检查和进程输出转发 |
 | [`electron/main/order-book-hub.ts`](../../electron/main/order-book-hub.ts) | `OrderBookHub` | 统一盘口请求、进行中请求复用、短时缓存和串行错峰 |
 | [`electron/main/funds-flow-hub.ts`](../../electron/main/funds-flow-hub.ts) | `FundsFlowHub` | 资金流请求合并、2 分钟/收盘缓存和串行队列 |
@@ -73,9 +73,11 @@
 | --- | --- | --- |
 | [`src/lib/api.ts`](../../src/lib/api.ts) | `stockApi`、`demoApi` | 桌面 API 选择、浏览器演示行情和演示存储 |
 | [`src/lib/fundamentals.ts`](../../src/lib/fundamentals.ts) | `parseFundamentalSnapshot` | 基本面快照格式解析 |
+| [`src/lib/fundamental-screening.ts`](../../src/lib/fundamental-screening.ts) | `evaluateFundamentalCompany`、`evaluateFundamentalQuality`、`evaluateFundamentalRisk`、`classifyFundamentalDividendCategory`、`summarizeFundamentalDividendWatchlist`、`createFundamentalPeerComparisonMap`、`createFundamentalChangeReport` | 三项透明硬筛选、六类固定质量标签、六类风险提示、基本面与分红融资互斥分类、主表概览、同行指标排名和默认规则快照变化 |
 | [`src/lib/data-snapshot-status.ts`](../../src/lib/data-snapshot-status.ts) | `dividendFinancingStaleReason`、`fundamentalStaleReason` | 两类财务快照的过期判断和完整财年边界 |
 | [`src/lib/demo-data.ts`](../../src/lib/demo-data.ts) | `DEMO_STOCKS`、`DEMO_SECTORS`、`DEMO_VALUES` | 浏览器预览固定演示数据 |
 | [`src/lib/portfolio.ts`](../../src/lib/portfolio.ts) | `calculatePositionMetrics`、`calculatePortfolioSummary` | 持仓、可用数量、今日收益和组合汇总 |
+| [`src/lib/portfolio-quality.ts`](../../src/lib/portfolio-quality.ts) | `calculatePortfolioQualitySummary` | 按持仓市值汇总价值标签、具体风险、行业集中度、未评估与未计价项目 |
 | [`src/lib/t-trading.ts`](../../src/lib/t-trading.ts) | `calculateTradeFees`、`calculateTBatchMetrics`、`validateTBatchTrades` | 费用、正反 T、交易重放、持仓和结算计算 |
 | [`src/lib/t-alerts.ts`](../../src/lib/t-alerts.ts) | `getTPlanRows`、`applyTAlertTriggersToAccounts`、`applyTFloatingProfitAlert` | 双五档计划、目标价、价格提醒和浮动盈亏提醒状态 |
 | [`src/lib/trade-records.ts`](../../src/lib/trade-records.ts) | `getAccountTrades`、`getBatchTrades`、`upsertTradeRecord` | 统一交易流水的查询、排序、写入与批次关联 |
@@ -91,9 +93,12 @@
 | [`src/components/AppTitlebar.tsx`](../../src/components/AppTitlebar.tsx) | 品牌标题栏和简易交易状态 |
 | [`src/components/SearchBar.tsx`](../../src/components/SearchBar.tsx) | 股票代码/名称搜索和添加 |
 | [`src/components/SettingsMenu.tsx`](../../src/components/SettingsMenu.tsx) | 行情、做 T、系统与数据设置 |
+| [`src/components/FundamentalScreeningDialog.tsx`](../../src/components/FundamentalScreeningDialog.tsx) | 基本面筛选条件、质量与风险高级筛选、候选公司、五年财务证据和自选联动 |
+| [`src/components/PortfolioQualityDialog.tsx`](../../src/components/PortfolioQualityDialog.tsx) | 全部持仓价值类型、具体风险、行业结构、组合筛选、未计价说明和主表定位 |
 | [`src/components/WatchlistTable.tsx`](../../src/components/WatchlistTable.tsx) | 自选主表、排序、列、异动、展开详情和操作入口 |
 | [`src/components/watchlist-table/WatchlistRow.tsx`](../../src/components/watchlist-table/WatchlistRow.tsx) | 单股行指标、单元格、提醒、操作和展开详情 |
 | [`src/components/watchlist-table/WatchlistFilters.tsx`](../../src/components/watchlist-table/WatchlistFilters.tsx) | 表内搜索、分组/板块筛选和分组管理入口 |
+| [`src/components/watchlist-table/FundamentalWatchlistOverview.tsx`](../../src/components/watchlist-table/FundamentalWatchlistOverview.tsx) | 当前列表价值组合、基本面状态、待核构成、风险公司、组合筛选与标签数排序 |
 | [`src/components/watchlist-table/columns.ts`](../../src/components/watchlist-table/columns.ts) | 列定义、排序值和渲染模型 |
 | [`src/components/watchlist-table/useDragReorder.ts`](../../src/components/watchlist-table/useDragReorder.ts) | 行拖拽重排 hook |
 | [`src/components/PositionEditor.tsx`](../../src/components/PositionEditor.tsx) | 持仓编辑、版本快照、统一交易流水分页和行内编辑/删除 |
@@ -106,7 +111,7 @@
 
 | 文件 | 职责 |
 | --- | --- |
-| [`src/components/ExpandedStockDetails.tsx`](../../src/components/ExpandedStockDetails.tsx) | 详情标签、K 线缓存、刷新和概览 |
+| [`src/components/ExpandedStockDetails.tsx`](../../src/components/ExpandedStockDetails.tsx) | 详情标签、K 线缓存、刷新和概览，以及分红融资、基本面质量与风险证据详情 |
 | [`src/components/CandlestickChart.tsx`](../../src/components/CandlestickChart.tsx) | 分时、五日、板块分时和成交量 |
 | [`src/components/PeriodKlineChart.tsx`](../../src/components/PeriodKlineChart.tsx) | 日/周/月蜡烛图、BOLL 三轨线/指标栏和增量补历史 |
 | [`src/components/ChipDistributionPanel.tsx`](../../src/components/ChipDistributionPanel.tsx) | 日 K 筹码分布统计、图形和缓存保存 |
@@ -140,6 +145,7 @@
 | [`src/modules/ai`](../../src/modules/ai/) | Provider、加密凭证、会话、`@股票` 上下文、行情解读和独立 IPC/UI |
 | [`src/modules/ai/main/conversations/context-builder.ts`](../../src/modules/ai/main/conversations/context-builder.ts) | 最近消息与多股票快照组装，加入筹码分布缓存 |
 | [`src/modules/ai/renderer/AiAssistantDrawer.tsx`](../../src/modules/ai/renderer/AiAssistantDrawer.tsx) | 会话管理、流式聊天和 `@自选股` 选择 |
+| [`src/modules/market-insight/renderer/InvestmentValueMetrics.tsx`](../../src/modules/market-insight/renderer/InvestmentValueMetrics.tsx) | 市场观察中的实时 PE/PB、自由现金流、ROIC和净负债展示 |
 | [`src/modules/ai-t-advice`](../../src/modules/ai-t-advice/) | 结构化做 T 参考、确定性事件、校验、应用预览和独立历史 |
 
 ## 脚本和历史文档
@@ -149,7 +155,7 @@
 | [`scripts/convert-stock-helper-config.mjs`](../../scripts/convert-stock-helper-config.mjs) | 转换“股票基金助手”配置 |
 | [`scripts/generate-icon.mjs`](../../scripts/generate-icon.mjs) | 生成打包图标 |
 | [`scripts/generate_dividend_financing_report.py`](../../scripts/generate_dividend_financing_report.py) | 生成 A 股分红融资比研究报告 |
-| [`scripts/generate_fundamental_snapshot.py`](../../scripts/generate_fundamental_snapshot.py) | 分三阶段生成五年基本面财务数据与行业负债分位快照 |
+| [`scripts/generate_fundamental_snapshot.py`](../../scripts/generate_fundamental_snapshot.py) | 分三阶段生成五年 ROE/ROIC、利润现金、自由现金流、行业负债分位与净负债快照 |
 | [`docs/plan/non-ai-market-insight-implementation-plan.md`](../plan/non-ai-market-insight-implementation-plan.md) | 非 AI 指标、要闻与智能盯盘的历史实施计划 |
 | [`docs/plan/ai-module-implementation-plan.md`](../plan/ai-module-implementation-plan.md) | AI 基础模块和独立做 T 参考的历史实施计划 |
 | [`docs/wiki/08-ai-extension-points.md`](08-ai-extension-points.md) | 当前市场观察、AI 对话/分析和 AI 做 T 参考模块说明 |
@@ -161,7 +167,7 @@
 | --- | --- |
 | `src/shared/types.test.ts` | 状态规范化、列顺序和历史交易迁移 |
 | `electron/main/state-store.test.ts` | 新建、正常读取、迁移、损坏恢复和写入失败 |
-| `src/lib/portfolio.test.ts` / `t-trading.test.ts` / `alerts.test.ts` | 持仓收益、做 T、费用和提醒边界 |
+| `src/lib/portfolio.test.ts` / `portfolio-quality.test.ts` / `t-trading.test.ts` / `alerts.test.ts` | 持仓收益、质量市值分布、做 T、费用和提醒边界 |
 | `src/shared/lru-cache.test.ts` / `electron/main/kline-hub.test.ts` / `historical-kline-cache.test.ts` | LRU 淘汰、K 线请求合并、回退和磁盘清理 |
 | `src/components/watchlist-table/columns.test.ts` / `src/lib/format.test.ts` | 表格列模型和统一数值格式化 |
 
@@ -175,6 +181,7 @@
 | 当前持仓和今日收益 | `calculatePositionMetrics` |
 | 账户全部交易 / 某个批次交易 | `getAccountTrades` / `getBatchTrades` |
 | 组合收益 | `calculatePortfolioSummary` |
+| 持仓质量与风险市值分布 | `calculatePortfolioQualitySummary` |
 | 做 T 剩余数量、均价和收益 | `calculateTBatchMetrics` |
 | 做 T 交易合法性 | `validateTBatchTrades` |
 | 双五档表数据 | `getTPlanRows` |

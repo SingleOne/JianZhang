@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { FundamentalScreeningEvaluation } from '../../lib/fundamental-screening'
 import type { PositionMetrics } from '../../lib/portfolio'
 import type { StockQuote, WatchStock } from '../../shared/types'
 import { sortRows, sortValue, type StockRowData } from './columns'
@@ -54,9 +55,39 @@ function row(
     stock: stock(quoteId, name),
     quote: quote(quoteId, latest),
     dividendFinancing: undefined,
+    fundamentalScreening: undefined,
+    fundamentalPeerComparison: undefined,
     metrics: { ...EMPTY_METRICS, ...metrics },
     manualIndex
   }
+}
+
+function screeningEvaluation({
+  roe = true,
+  cash = true,
+  debt = true,
+  missingRoe = false,
+  financial = false
+}: {
+  roe?: boolean
+  cash?: boolean
+  debt?: boolean
+  missingRoe?: boolean
+  financial?: boolean
+} = {}): FundamentalScreeningEvaluation {
+  const checks = { roe, cash, debt }
+  return {
+    eligibleOrganization: !financial,
+    roeValues: missingRoe ? [18, 18, null, 18, 18] : [18, 18, 18, 18, 18],
+    cumulativeNetProfit: 500,
+    cumulativeOperatingCashFlow: 600,
+    checks,
+    passed: !financial && !missingRoe && Object.values(checks).every(Boolean),
+    company: {
+      organizationType: financial ? 'bank' : 'general',
+      latestBalanceSheet: { industryPercentile: debt ? 40 : 70 }
+    }
+  } as FundamentalScreeningEvaluation
 }
 
 describe('watchlist column sorting', () => {
@@ -131,6 +162,55 @@ describe('watchlist column sorting', () => {
         []
       ).map(({ stock }) => stock.quoteId)
     ).toEqual(['higher', 'lower', 'missing'])
+  })
+
+  it('sorts value tags by the number of passed screening badges', () => {
+    const none = row('none', 'None', 10, 0)
+    const dividend = row('dividend', 'Dividend', 10, 1)
+    dividend.dividendFinancing = {
+      rank: 1,
+      code: 'dividend',
+      name: 'Dividend',
+      market: 'SH',
+      dividendYi: 20,
+      financingYi: 10,
+      ratio: 200
+    }
+    const both = row('both', 'Both', 10, 2)
+    both.dividendFinancing = dividend.dividendFinancing
+    both.fundamentalScreening = screeningEvaluation()
+
+    expect(
+      sortRows([none, dividend, both], { column: 'valueTags', direction: 'desc' }, [])
+        .map(({ stock }) => stock.quoteId)
+    ).toEqual(['both', 'dividend', 'none'])
+  })
+
+  it('keeps manual order among stocks with the same positive value-label count', () => {
+    const passed = row('passed', 'Passed', 10, 0)
+    passed.fundamentalScreening = screeningEvaluation()
+    const oneReview = row('one-review', 'One review', 10, 1)
+    oneReview.fundamentalScreening = screeningEvaluation({ debt: false })
+    const twoReviews = row('two-reviews', 'Two reviews', 10, 2)
+    twoReviews.fundamentalScreening = screeningEvaluation({ roe: false, cash: false })
+    const financial = row('financial', 'Financial', 10, 3)
+    financial.fundamentalScreening = screeningEvaluation({ financial: true })
+    const missing = row('missing', 'Missing', 10, 4)
+    missing.fundamentalScreening = screeningEvaluation({ roe: false, missingRoe: true })
+    const unavailable = row('unavailable', 'Unavailable', 10, 5)
+
+    expect(sortRows(
+      [missing, twoReviews, unavailable, passed, financial, oneReview],
+      { column: 'valueTags', direction: 'desc' },
+      []
+    ).map(({ stock }) => stock.quoteId)).toEqual([
+      'passed',
+      'one-review',
+      'two-reviews',
+      'financial',
+      'missing',
+      'unavailable'
+    ])
   })
 
   it('uses only current-day radar signals as the radar sort value', () => {

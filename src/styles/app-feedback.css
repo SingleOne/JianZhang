@@ -261,6 +261,10 @@
     min-width: 92px;
   }
 
+  .investment-value-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
 }
 
 @media (max-width: 900px) {
@@ -317,6 +321,10 @@
 
   .insight-indicator-split {
     grid-template-columns: 1fr;
+  }
+
+  .investment-value-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .insight-data-state {

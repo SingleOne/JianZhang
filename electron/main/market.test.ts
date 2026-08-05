@@ -8,7 +8,7 @@ vi.mock('electron', () => ({
   net: { fetch: netFetch }
 }))
 
-import { fetchOrderBook } from './market'
+import { fetchOrderBook, fetchQuotes } from './market'
 
 function jsonResponse(value: unknown): Response {
   return {
@@ -135,5 +135,51 @@ describe('fetchOrderBook', () => {
     await expect(fetchOrderBook('1.600000', 'test')).rejects.toThrow(
       '盘口数据源均不可用（东方财富主节点：行情服务未返回五档数据；东方财富Delay节点：Delay 节点连接失败；腾讯盘口：腾讯节点连接失败）'
     )
+  })
+})
+
+describe('fetchQuotes investment valuation fields', () => {
+  beforeEach(() => {
+    netFetch.mockReset()
+  })
+
+  it('maps Eastmoney PE TTM and PB using the quote field scale', async () => {
+    netFetch.mockResolvedValueOnce(jsonResponse({
+      data: {
+        diff: [{
+          f2: 130580,
+          f3: -125,
+          f4: -1650,
+          f5: 33375,
+          f6: 4382903655,
+          f8: 27,
+          f12: '600519',
+          f13: 1,
+          f14: '贵州茅台',
+          f15: 133380,
+          f16: 130350,
+          f17: 132700,
+          f18: 132230,
+          f23: 692,
+          f115: 1973
+        }]
+      }
+    }))
+
+    const result = await fetchQuotes([{
+      code: '600519',
+      name: '贵州茅台',
+      quoteId: '1.600519',
+      marketLabel: '沪A',
+      showInTaskbar: false,
+      isPriority: false,
+      showRadarSignals: false
+    }], [], 'test')
+
+    expect(new URL(netFetch.mock.calls[0][0]).searchParams.get('fields')).toContain('f115')
+    expect(result.quotes[0]).toMatchObject({
+      priceEarningsRatioTtm: 19.73,
+      priceBookRatio: 6.92
+    })
   })
 })

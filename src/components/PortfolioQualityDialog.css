@@ -1,0 +1,611 @@
+.portfolio-quality-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 420;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.44);
+  backdrop-filter: blur(2px);
+}
+
+.portfolio-quality-dialog {
+  width: min(1180px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--text);
+  background: #ffffff;
+  border: 1px solid #dfe6ef;
+  border-radius: 14px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24);
+  animation: dialog-in 160ms ease-out;
+}
+
+.portfolio-quality-header {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.portfolio-quality-title-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  color: #6941c6;
+  background: #f2edff;
+  border-radius: 11px;
+}
+
+.portfolio-quality-header > span:nth-child(2) {
+  display: grid;
+  gap: 4px;
+}
+
+.portfolio-quality-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.portfolio-quality-header small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.portfolio-quality-close {
+  width: 34px;
+  height: 34px;
+  color: #7b8798;
+  border-radius: 8px;
+}
+
+.portfolio-quality-close:hover {
+  color: #334155;
+  background: #f0f3f7;
+}
+
+.portfolio-quality-body {
+  min-height: 0;
+  display: grid;
+  gap: 16px;
+  padding: 18px 20px 20px;
+  overflow-y: auto;
+}
+
+.portfolio-quality-stale-notice {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  color: #7a5200;
+  background: #fff9e8;
+  border: 1px solid #f1d58a;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.portfolio-quality-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.portfolio-quality-summary > span {
+  display: grid;
+  gap: 3px;
+  padding: 11px 12px;
+  background: #f8fafc;
+  border: 1px solid #e3e8ef;
+  border-radius: 9px;
+}
+
+.portfolio-quality-summary > span.is-warning {
+  background: #fff9eb;
+  border-color: #ead18f;
+}
+
+.portfolio-quality-summary small,
+.portfolio-quality-summary em {
+  color: #7b8798;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.portfolio-quality-summary strong {
+  color: #253247;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.portfolio-quality-section,
+.portfolio-quality-holdings {
+  display: grid;
+  gap: 11px;
+  padding: 14px;
+  background: #ffffff;
+  border: 1px solid #e1e7ef;
+  border-radius: 10px;
+}
+
+.portfolio-quality-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.portfolio-quality-section-heading > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #344054;
+}
+
+.portfolio-quality-section-heading strong {
+  font-size: 14px;
+}
+
+.portfolio-quality-section-heading small {
+  color: #7b8798;
+  font-size: 12px;
+}
+
+.portfolio-quality-bar {
+  height: 12px;
+  display: flex;
+  overflow: hidden;
+  background: #eef1f5;
+  border-radius: 999px;
+}
+
+.portfolio-quality-bar > span {
+  min-width: 2px;
+}
+
+.portfolio-quality-bar .is-dual {
+  background: #7f56d9;
+}
+
+.portfolio-quality-bar .is-fundamental {
+  background: #3b82f6;
+}
+
+.portfolio-quality-bar .is-dividend {
+  background: #d59b18;
+}
+
+.portfolio-quality-bar .is-unlabeled {
+  background: #98a2b3;
+}
+
+.portfolio-quality-no-price {
+  padding: 10px 12px;
+  color: #667085;
+  background: #f7f8fa;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.portfolio-quality-buckets,
+.portfolio-risk-buckets {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.portfolio-quality-bucket,
+.portfolio-risk-bucket {
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+  background: #fafbfc;
+  border: 1px solid #e3e8ef;
+  border-top: 3px solid #98a2b3;
+  border-radius: 8px;
+  color: #344054;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.portfolio-quality-bucket:hover,
+.portfolio-risk-bucket:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+.portfolio-quality-bucket.is-active,
+.portfolio-risk-bucket.is-active {
+  border-color: currentColor;
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 15%, transparent);
+}
+
+.portfolio-quality-bucket > span,
+.portfolio-risk-bucket > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.portfolio-quality-bucket strong,
+.portfolio-risk-bucket strong,
+.portfolio-quality-bucket b,
+.portfolio-risk-bucket b {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.portfolio-quality-bucket small,
+.portfolio-risk-bucket small,
+.portfolio-quality-bucket p,
+.portfolio-risk-bucket p {
+  margin: 0;
+  color: #748094;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.portfolio-quality-bucket.is-dual {
+  border-top-color: #7f56d9;
+}
+
+.portfolio-quality-bucket.is-fundamental {
+  border-top-color: #3b82f6;
+}
+
+.portfolio-quality-bucket.is-dividend {
+  border-top-color: #d59b18;
+}
+
+.portfolio-risk-bucket.is-critical {
+  color: #a32431;
+  background: #fff4f5;
+  border-color: #efc4c8;
+  border-top-color: #c93645;
+}
+
+.portfolio-risk-bucket.is-warning {
+  color: #8a5900;
+  background: #fff9eb;
+  border-color: #ead18f;
+  border-top-color: #d39416;
+}
+
+.portfolio-risk-bucket.is-clear {
+  color: #187258;
+  background: #f1faf6;
+  border-color: #bfe4d6;
+  border-top-color: #23936f;
+}
+
+.portfolio-risk-tag-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 3px;
+}
+
+.portfolio-risk-tag-heading strong {
+  color: #475467;
+  font-size: 13px;
+}
+
+.portfolio-risk-tag-heading small {
+  color: #7b8798;
+  font-size: 12px;
+}
+
+.portfolio-risk-tags {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.portfolio-risk-tags button {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 8px;
+  color: #8a5900;
+  background: #fff9eb;
+  border: 1px solid #ead18f;
+  border-radius: 7px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.portfolio-risk-tags button.is-critical {
+  color: #a32431;
+  background: #fff4f5;
+  border-color: #efc4c8;
+}
+
+.portfolio-risk-tags button.is-active {
+  border-color: currentColor;
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 16%, transparent);
+}
+
+.portfolio-risk-tags button:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.portfolio-risk-tags button > span,
+.portfolio-risk-tags button strong,
+.portfolio-risk-tags button small {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portfolio-risk-tags button small {
+  color: #7b8798;
+}
+
+.portfolio-industry-list {
+  max-height: 300px;
+  display: grid;
+  gap: 6px;
+  overflow-y: auto;
+}
+
+.portfolio-industry-row {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: minmax(130px, 1.2fr) 64px minmax(180px, 2fr) 86px;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 10px;
+  color: #344054;
+  background: #fafbfc;
+  border: 1px solid #e3e8ef;
+  border-radius: 8px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.portfolio-industry-row:hover,
+.portfolio-industry-row.is-active {
+  background: #f6f3ff;
+  border-color: #bda9ed;
+}
+
+.portfolio-industry-row.is-active {
+  box-shadow: 0 0 0 2px rgba(105, 65, 198, 0.12);
+}
+
+.portfolio-industry-name {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.portfolio-industry-name strong,
+.portfolio-industry-name small {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portfolio-industry-name small {
+  color: #7b8798;
+}
+
+.portfolio-industry-percent {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.portfolio-industry-value-bar {
+  height: 10px;
+  display: flex;
+  overflow: hidden;
+  background: #e9edf2;
+  border-radius: 999px;
+}
+
+.portfolio-industry-value-bar > i {
+  min-width: 2px;
+}
+
+.portfolio-industry-value-bar .is-dual {
+  background: #7f56d9;
+}
+
+.portfolio-industry-value-bar .is-fundamental {
+  background: #3b82f6;
+}
+
+.portfolio-industry-value-bar .is-dividend {
+  background: #d59b18;
+}
+
+.portfolio-industry-value-bar .is-unlabeled {
+  background: #98a2b3;
+}
+
+.portfolio-industry-risk {
+  color: #667085;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.portfolio-industry-risk.has-risk {
+  color: #a33a43;
+}
+
+.portfolio-industry-note {
+  color: #7b8798;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.portfolio-holding-filter-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.portfolio-holding-filter-summary button {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  color: #6941c6;
+  background: #f5f1ff;
+  border: 1px solid #d7c8fa;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.portfolio-quality-table-scroller {
+  max-height: 330px;
+  overflow: auto;
+  border: 1px solid #e4e8ef;
+  border-radius: 8px;
+}
+
+.portfolio-quality-table-scroller table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.portfolio-quality-table-scroller th {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  padding: 9px 10px;
+  color: #667085;
+  background: #f7f8fa;
+  border-bottom: 1px solid #dfe4eb;
+  font-weight: 650;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.portfolio-quality-table-scroller td {
+  padding: 9px 10px;
+  border-bottom: 1px solid #edf0f4;
+  font-variant-numeric: tabular-nums;
+  vertical-align: middle;
+}
+
+.portfolio-quality-table-scroller tr:last-child td {
+  border-bottom: 0;
+}
+
+.portfolio-quality-filter-empty {
+  height: 80px;
+  color: #7b8798;
+  font-size: 12px;
+  text-align: center;
+}
+
+.portfolio-quality-table-scroller td:first-child,
+.portfolio-unpriced-value,
+.portfolio-risk-state {
+  display: grid;
+  gap: 2px;
+}
+
+.portfolio-quality-table-scroller td:first-child small,
+.portfolio-unpriced-value small,
+.portfolio-risk-state small {
+  color: #7b8798;
+  font-size: 12px;
+}
+
+.portfolio-value-tag {
+  display: inline-flex;
+  padding: 4px 8px;
+  color: #667085;
+  background: #f2f4f7;
+  border: 1px solid #d8dee7;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.portfolio-value-tag.is-dual {
+  color: #6941c6;
+  background: #f4f0ff;
+  border-color: #d7c8fa;
+}
+
+.portfolio-value-tag.is-fundamental {
+  color: #175cd3;
+  background: #eff5ff;
+  border-color: #c7d8f5;
+}
+
+.portfolio-value-tag.is-dividend {
+  color: #8a5a00;
+  background: #fff7df;
+  border-color: #ead18f;
+}
+
+.portfolio-risk-state.is-critical strong {
+  color: #b42331;
+}
+
+.portfolio-risk-state.is-warning strong {
+  color: #9a6700;
+}
+
+.portfolio-risk-state.is-clear strong {
+  color: #187258;
+}
+
+.portfolio-risk-state.is-unassessed strong {
+  color: #667085;
+}
+
+.portfolio-locate-button {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  font-size: 12px;
+}
+
+.portfolio-quality-methodology {
+  margin: 0;
+  color: #7b8798;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+@media (max-width: 900px) {
+  .portfolio-quality-summary,
+  .portfolio-quality-buckets,
+  .portfolio-risk-buckets {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .portfolio-risk-tags {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .portfolio-industry-row {
+    grid-template-columns: minmax(120px, 1fr) 64px minmax(140px, 1.5fr) 82px;
+  }
+}

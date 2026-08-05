@@ -1,9 +1,10 @@
 import { AlertCircle, Eye, EyeOff, RefreshCw, Radar, Radio } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { StockQuote, WatchStock } from '../../../shared/types'
+import type { FundamentalCompany, StockQuote, WatchStock } from '../../../shared/types'
 import { formatUpdateTime } from '../../../lib/format'
 import { marketInsightApi } from './api'
 import { IndicatorGrid } from './IndicatorGrid'
+import { InvestmentValueMetrics } from './InvestmentValueMetrics'
 import {
   INTRADAY_INDICATOR_EXPLANATIONS,
   MOMENTUM_INDICATOR_EXPLANATIONS,
@@ -24,6 +25,9 @@ import {
 interface MarketInsightPanelProps {
   stock: WatchStock
   quote?: StockQuote
+  fundamentalCompany?: FundamentalCompany
+  fundamentalSnapshotDate?: string
+  fundamentalStaleReason?: string | null
   onSnapshotChanged: (snapshot: MarketInsightSnapshot | null) => void
   onChartOverlayEnabledChange: (enabled: boolean) => void
 }
@@ -34,6 +38,9 @@ const ORDER_BOOK_SECTION_HINT = '汇总买卖五档可见委托量及其变化�
 export default function MarketInsightPanel({
   stock,
   quote,
+  fundamentalCompany,
+  fundamentalSnapshotDate,
+  fundamentalStaleReason,
   onSnapshotChanged,
   onChartOverlayEnabledChange
 }: MarketInsightPanelProps) {
@@ -208,6 +215,12 @@ export default function MarketInsightPanel({
   if (settings && !settings.enabled) {
     return (
       <div className="market-insight-panel" role="tabpanel">
+        <InvestmentValueMetrics
+          quote={quote}
+          company={fundamentalCompany}
+          snapshotDate={fundamentalSnapshotDate}
+          staleReason={fundamentalStaleReason}
+        />
         <div className="insight-disabled-state" role="status">
           <Radar size={26} />
           <span>
@@ -286,6 +299,12 @@ export default function MarketInsightPanel({
       {loading && !snapshot ? <div className="chart-loading">正在计算确定性市场指标…</div> : null}
       {snapshot ? (
         <div className="insight-content">
+          <InvestmentValueMetrics
+            quote={quote}
+            company={fundamentalCompany}
+            snapshotDate={fundamentalSnapshotDate}
+            staleReason={fundamentalStaleReason}
+          />
           <IndicatorGrid
             title="分时观察"
             titleHint={INTRADAY_SECTION_HINT}

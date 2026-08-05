@@ -313,6 +313,7 @@ if (!hasSingleInstanceLock) {
       runDividendFinancingUpdate: () => dividendFinancingService!.runUpdate(),
       getFundamentalSnapshot: () => fundamentalDataService!.getSnapshot(),
       getFundamentalState: () => fundamentalDataService!.getState(),
+      getFundamentalChangeReport: () => fundamentalDataService!.getChangeReport(),
       runFundamentalUpdate: () => fundamentalDataService!.runUpdate(),
       refreshQuotes: (reason) => quoteRuntime!.refreshAll(reason),
       refreshQuotesAutomatically: (reason) => quoteRuntime!.refreshAutomatically(reason),

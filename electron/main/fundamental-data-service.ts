@@ -1,10 +1,19 @@
 import { app } from 'electron'
-import { existsSync, mkdirSync, readFileSync, renameSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync
+} from 'node:fs'
 import { join } from 'node:path'
 import { fundamentalStaleReason } from '../../src/lib/data-snapshot-status'
+import { createFundamentalChangeReport } from '../../src/lib/fundamental-screening'
 import { parseFundamentalSnapshot } from '../../src/lib/fundamentals'
 import type {
   DataSnapshotRuntimeState,
+  FundamentalChangeReport,
   FundamentalSnapshot,
   FundamentalUpdateProgress,
   FundamentalUpdateResult
@@ -26,7 +35,9 @@ export class FundamentalDataService {
   private readonly dataDirectory: string
   private readonly snapshotPath: string
   private readonly diagnosticsPath: string
+  private readonly changeReportPath: string
   private snapshotCache: FundamentalSnapshot | null = null
+  private changeReportCache: FundamentalChangeReport | null | undefined
   private runtimeState: DataSnapshotRuntimeState = EMPTY_STATE
   private updating = false
 
@@ -39,6 +50,7 @@ export class FundamentalDataService {
     this.dataDirectory = join(userDataDirectory, 'fundamentals')
     this.snapshotPath = join(this.dataDirectory, 'snapshot.json')
     this.diagnosticsPath = join(this.dataDirectory, 'diagnostics.json')
+    this.changeReportPath = join(this.dataDirectory, 'change-report.json')
     this.loadSnapshot()
   }
 
@@ -48,6 +60,25 @@ export class FundamentalDataService {
 
   getState(): DataSnapshotRuntimeState {
     return { ...this.runtimeState }
+  }
+
+  getChangeReport(): FundamentalChangeReport | null {
+    if (!this.snapshotCache) return null
+    if (this.changeReportCache !== undefined) return this.changeReportCache
+    if (!existsSync(this.changeReportPath)) {
+      this.changeReportCache = null
+      return null
+    }
+    try {
+      const report = JSON.parse(readFileSync(this.changeReportPath, 'utf8')) as FundamentalChangeReport
+      this.changeReportCache = report.schemaVersion === 1 && Array.isArray(report.rows)
+        ? report
+        : null
+      return this.changeReportCache
+    } catch {
+      this.changeReportCache = null
+      return null
+    }
   }
 
   initializeIfMissing(): void {
@@ -61,6 +92,7 @@ export class FundamentalDataService {
     const previousSnapshot = this.snapshotCache
     const nextSnapshotPath = join(this.dataDirectory, 'snapshot.next.json')
     const nextDiagnosticsPath = join(this.dataDirectory, 'diagnostics.next.json')
+    const nextChangeReportPath = join(this.dataDirectory, 'change-report.next.json')
     this.setState({
       ...this.snapshotState(previousSnapshot),
       status: 'queued',
@@ -96,15 +128,30 @@ export class FundamentalDataService {
       )
 
       const snapshot = parseFundamentalSnapshot(readFileSync(nextSnapshotPath, 'utf8'))
+      const changeReport = previousSnapshot
+        ? createFundamentalChangeReport(previousSnapshot, snapshot)
+        : null
+      if (changeReport) {
+        writeFileSync(nextChangeReportPath, JSON.stringify(changeReport, null, 2), 'utf8')
+        renameSync(nextChangeReportPath, this.changeReportPath)
+      } else if (existsSync(this.changeReportPath)) {
+        unlinkSync(this.changeReportPath)
+      }
       renameSync(nextDiagnosticsPath, this.diagnosticsPath)
       renameSync(nextSnapshotPath, this.snapshotPath)
       this.snapshotCache = snapshot
+      this.changeReportCache = changeReport
       this.setState(this.snapshotState(snapshot))
       this.notifyProgress({
         stage: 'completed',
         message: `基本面数据更新完成：${snapshot.rows.length} 家公司，${snapshot.fiscalYears[0]}—${snapshot.fiscalYears.at(-1)} 年`
       })
-      return { snapshot, snapshotPath: this.snapshotPath, diagnosticsPath: this.diagnosticsPath }
+      return {
+        snapshot,
+        changeReport,
+        snapshotPath: this.snapshotPath,
+        diagnosticsPath: this.diagnosticsPath
+      }
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : '基本面财务数据更新失败'
       this.setState({

@@ -430,6 +430,7 @@ export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
   'changePercent',
   'sectorChangePercent',
   'dividendFinancingRatio',
+  'valueTags',
   'open',
   'trading',
   'amount',
@@ -443,7 +444,7 @@ export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
 ] as const
 
 export type WatchlistColumnId = typeof DEFAULT_WATCHLIST_COLUMN_ORDER[number]
-export const WATCHLIST_COLUMN_ORDER_VERSION = 7
+export const WATCHLIST_COLUMN_ORDER_VERSION = 8
 
 export function normalizeWatchlistColumnOrder(
   columnOrder: readonly string[] | undefined
@@ -491,6 +492,12 @@ export function migrateWatchlistColumnOrder(
     migrated.splice(sectorChangePercentIndex + 1, 0, 'dividendFinancingRatio')
   }
 
+  if ((version ?? 0) < 8) {
+    migrated = migrated.filter((columnId) => columnId !== 'valueTags')
+    const dividendFinancingIndex = migrated.indexOf('dividendFinancingRatio')
+    migrated.splice(dividendFinancingIndex + 1, 0, 'valueTags')
+  }
+
   return migrated
 }
 
@@ -525,6 +532,8 @@ export interface StockQuote {
   volume: number | null
   amount: number | null
   turnoverRate: number | null
+  priceEarningsRatioTtm?: number | null
+  priceBookRatio?: number | null
   sector?: StockSectorQuote
   radarSignals?: StockRadarSignal[]
   fiveLevelLargeOrders?: FiveLevelLargeOrderAlert[]
@@ -793,10 +802,13 @@ export interface FundamentalAnnualReport {
   noticeDate: string | null
   weightedAverageRoe: number | null
   deductedWeightedAverageRoe: number | null
+  roic?: number | null
   netProfit: number | null
   parentNetProfit: number | null
   deductedParentNetProfit: number | null
   operatingCashFlow: number | null
+  capitalExpenditure?: number | null
+  freeCashFlow?: number | null
 }
 
 export interface FundamentalBalanceSheet {
@@ -806,6 +818,9 @@ export interface FundamentalBalanceSheet {
   totalLiabilities: number | null
   debtAssetRatio: number | null
   industryPercentile: number | null
+  monetaryFunds?: number | null
+  interestBearingDebt?: number | null
+  netDebt?: number | null
 }
 
 export interface FundamentalCompany {
@@ -828,7 +843,7 @@ export interface FundamentalIndustryBenchmark {
 }
 
 export interface FundamentalSnapshot {
-  schemaVersion: 1
+  schemaVersion: 1 | 2
   snapshotDate: string
   generatedAt: string
   currency: 'CNY'
@@ -843,12 +858,86 @@ export interface FundamentalSnapshot {
     companyCount: number
     completeFiveYearRoeCount: number
     completeFiveYearCashProfitCount: number
+    completeFiveYearFreeCashFlowCount?: number
+    completeFiveYearRoicCount?: number
     latestDebtAssetRatioCount: number
     latestIndustryPercentileCount: number
+    latestNetDebtCount?: number
     industryCount: number
   }
   industries: FundamentalIndustryBenchmark[]
   rows: FundamentalCompany[]
+}
+
+export type FundamentalChangeRuleStatus =
+  | 'passed'
+  | 'failed'
+  | 'missing'
+  | 'not-applicable'
+
+export type FundamentalChangeScreeningStatus =
+  | 'passed'
+  | 'review'
+  | 'missing'
+  | 'financial'
+  | 'unavailable'
+
+export type FundamentalChangeType =
+  | 'addedCoverage'
+  | 'removedCoverage'
+  | 'entered'
+  | 'exited'
+  | 'reviewAdded'
+  | 'reviewResolved'
+  | 'dataCompleted'
+  | 'dataMissing'
+  | 'organizationChanged'
+
+export interface FundamentalChangeMetrics {
+  minimumRoe: number | null
+  cumulativeCashConversion: number | null
+  debtIndustryPercentile: number | null
+}
+
+export interface FundamentalRuleChange {
+  rule: 'roe' | 'cash' | 'debt'
+  previousStatus: FundamentalChangeRuleStatus
+  currentStatus: FundamentalChangeRuleStatus
+}
+
+export interface FundamentalChangeItem {
+  code: string
+  name: string
+  market: DividendFinancingMarket
+  industryName: string
+  changeTypes: FundamentalChangeType[]
+  previousStatus: FundamentalChangeScreeningStatus
+  currentStatus: FundamentalChangeScreeningStatus
+  previousOrganizationType: FundamentalOrganizationType | null
+  currentOrganizationType: FundamentalOrganizationType | null
+  previousMetrics: FundamentalChangeMetrics | null
+  currentMetrics: FundamentalChangeMetrics | null
+  ruleChanges: FundamentalRuleChange[]
+}
+
+export interface FundamentalChangeReport {
+  schemaVersion: 1
+  previousSnapshotDate: string
+  currentSnapshotDate: string
+  previousFiscalYears: number[]
+  currentFiscalYears: number[]
+  generatedAt: string
+  summary: {
+    enteredCount: number
+    exitedCount: number
+    reviewAddedCount: number
+    reviewResolvedCount: number
+    dataChangedCount: number
+    addedCoverageCount: number
+    removedCoverageCount: number
+    organizationChangedCount: number
+  }
+  rows: FundamentalChangeItem[]
 }
 
 export interface FundamentalUpdateProgress {
@@ -858,6 +947,7 @@ export interface FundamentalUpdateProgress {
 
 export interface FundamentalUpdateResult {
   snapshot: FundamentalSnapshot
+  changeReport: FundamentalChangeReport | null
   snapshotPath: string
   diagnosticsPath: string
 }
@@ -1075,6 +1165,7 @@ export interface StockDesktopApi {
   runDividendFinancingUpdate: () => Promise<DividendFinancingUpdateResult>
   getFundamentalSnapshot: () => Promise<FundamentalSnapshot | null>
   getFundamentalState: () => Promise<DataSnapshotRuntimeState>
+  getFundamentalChangeReport: () => Promise<FundamentalChangeReport | null>
   runFundamentalUpdate: () => Promise<FundamentalUpdateResult>
   refreshQuotes: () => Promise<StockQuote[]>
   getKline: (quoteId: string, period: KlinePeriod, limit?: number) => Promise<KlineResult>

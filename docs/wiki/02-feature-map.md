@@ -10,7 +10,7 @@
 | --- | --- | --- | --- |
 | 搜索并添加自选 | `SearchBar.tsx`、`App.tsx` | `stockApi.searchStocks`、`App.addStock` | `market.ts#searchStocks` |
 | 分红融资回报分析 | `DividendFinancingRankingDialog.tsx`、`WatchlistRow.tsx`、`ExpandedStockDetails.tsx` | 净回报/规模/连续性/评分筛选，评分拆解，年度分红和融资时间线，快照变化报告，对数散点选股，自选联动；缺失自动获取、过期提示 | `DividendFinancingService` + schema v2 用户快照 + `createDividendFinancingChangeReport` |
-| 基本面财务数据底座（暂未开放筛选界面） | `SettingsMenu.tsx`、`StockDesktopApi` | 五年 ROE、利润和经营现金流规范化；最新资产负债率行业 P60/百分位；快照状态与手动更新 | `FundamentalDataService` + schema v1 用户快照 + 三阶段 Python 更新脚本 |
+| 基本面初筛 | `FundamentalScreeningDialog.tsx`、`FundamentalWatchlistOverview.tsx`、`WatchlistRow.tsx`、`ExpandedStockDetails.tsx`、`SettingsMenu.tsx` | 普通企业三项硬筛选、六类固定质量标签、六类风险提示、同行 ROE/现金质量/低负债排名与五年明细；默认规则更新变化；主表以两字标签区分结果和风险，当前分组/板块直接统计四类价值组合、基本面状态、待核构成及风险公司，支持条件叠加和标签数排序 | `fundamental-screening.ts` + `FundamentalDataService` + schema v1/v2 用户快照和最近一次变化报告 + 三阶段 Python 更新脚本 |
 | 删除、拖拽、置顶、排序、调整列 | `WatchlistTable.tsx` | `normalizeWatchlistColumnOrder`、`migrateWatchlistColumnOrder` | `state:save` |
 | 自定义分组与板块组合筛选 | `WatchlistTable.tsx`、`WatchlistGroupDialog.tsx`、`TableFilterDropdown.tsx` | `WatchlistGroup`、`WatchStock.groupIds` | 分组随 `AppState` 保存；板块筛选使用实时报价 |
 | 重点关注 | `WatchlistTable.tsx` | 有持仓时自动锁定重点；`App.togglePriority` | `QuoteRefreshCoordinator` 统一调度重点/普通范围 |
@@ -19,6 +19,7 @@
 | 持仓编辑和快照对比 | `PositionEditor.tsx` | `StockPosition`、`StockPositionSnapshot` | 随 `AppState` 保存 |
 | 持仓天数 | `WatchlistTable.tsx` | `getPositionHoldingDays` | 内置/在线交易日历 |
 | 今日收益和持仓收益 | `App.tsx`、`WatchlistTable.tsx` | `calculatePositionMetrics`、`calculatePortfolioSummary` | 报价 + 持仓 + 当日交易 |
+| 持仓质量概览 | `PortfolioQualityDialog.tsx`、`FundamentalWatchlistOverview.tsx` | 四类价值标签、四类风险状态、六个具体风险项、行业集中度与行业内质量结构；组合筛选、未计价持仓和主表定位 | `calculatePortfolioQualitySummary` + 持仓/报价 + 基本面/分红融资当前快照 |
 | 分时、五日、日/周/月 K | `ExpandedStockDetails.tsx` | `CandlestickChart`、`PeriodKlineChart` | `fetchKline` |
 | 日 K 筹码分布 | `ChipDistributionPanel.tsx`、`PeriodKlineChart.tsx` | `calculateChipDistribution`、100% 累计换手范围 | 日 K 数据 + `HistoricalKlineCache` + `ChipDistributionCache` |
 | 五档盘口 | `OrderBookPanel.tsx` | 买卖盘显示与定时刷新 | `fetchOrderBook` |
@@ -37,7 +38,7 @@
 | 设置 | `SettingsMenu.tsx` | 行情、做 T、系统与数据三页 | `state:save` |
 | 配置导入导出 | `App.tsx` | `shared/config.ts` | 原生文件对话框 |
 | 交易日历 | `SettingsMenu.tsx` | `countAStockTradingDays` | `fetchSseTradingCalendar` |
-| 市场观察 | `MarketInsightPanel.tsx` | 确定性指标、公告/要闻、客观事件 | 独立 `market-insight` 模块 |
+| 市场观察 | `MarketInsightPanel.tsx`、`InvestmentValueMetrics.tsx` | 确定性指标、公告/要闻、客观事件，以及 PE TTM、PB、自由现金流、ROIC和净负债 | 实时行情 + schema v2 基本面快照 + 独立 `market-insight` 模块 |
 | AI 对话与 `@股票` | `AiAssistantDrawer.tsx` | 最近消息上下文、按股票快照引用 | 独立 `ai` 模块和存储 |
 | AI 行情解读与做 T 参考 | `AiAnalysisPanel.tsx`、`TAdvicePanel.tsx` | Provider、结构化校验、应用预览 | `ai` / `ai-t-advice` 模块 |
 | 浏览器演示模式 | 全部 React 组件 | `src/lib/api.ts` | 演示数据 + `localStorage` |
@@ -76,6 +77,9 @@ SearchBar
 - 可调整列顺序保存在 `AppState.columnOrder`。
 - 自定义分组与板块筛选只影响当前主表展示，不改变自选顺序、行情刷新范围或持仓数据；两个条件按“且”组合。
 - 自定义分组保存在 `AppState.watchlistGroups`，板块筛选来自 `StockQuote.sector`，不会额外写入状态。
+- 主表价值组合计数以当前分组和板块范围为基数，不受价值组合、基本面状态和风险条件自身影响；“双优、仅基、仅分、暂无”互斥，三组条件之间按“且”组合。
+- 价值组合与标签数排序只在基本面、分红融资两份快照均存在时启用；任一缺失时显示“价值待数”并自动撤销相关条件，快照过期仍按现有数据计算并显示提示。
+- “标签数”依次切换降序、升序和恢复手动排序；双优计 2 个正面标签，仅基/仅分计 1 个，暂无计 0 个，同标签数保持原手动顺序。
 - 新增主表列时必须升级 `WATCHLIST_COLUMN_ORDER_VERSION` 并补迁移，不能直接重置用户顺序。
 - “排序”“设置”是左侧固定区，删除按钮在末列；`operation` 始终被 normalize 到最后。
 
@@ -97,6 +101,9 @@ SearchBar
 - 今日收益会结合昨收、当前市值、当日买卖、费用和当日建仓状态。
 - 持仓收益按当前价格与持仓成本计算。
 - 组合汇总按成本基数加权，而不是简单平均单只股票收益率。
+- 持仓质量按当前可计价持仓市值加权：双重通过、仅基本面、仅分红回报、暂无标签四类互斥；严重风险、关注项、暂未发现风险、未评估四类风险状态也互斥。
+- 没有最新价格的持仓不进入市值百分比，单独显示数量和持仓成本；基本面缺失、字段不完整或金融企业归入“未评估”，不会被当作无风险。
+- 六个具体风险项允许重叠，分别统计持仓数量和组合市值占比；行业集中度展示第一大、前三大行业占比，以及每个行业内部的四类价值结构和风险比例，不设置主观集中度阈值。
 - 当日买入数量会从可用数量中扣除，体现 A 股 T+1 可卖限制。
 
 详细口径见[持仓与做 T](04-position-and-t-trading.md)。
@@ -106,14 +113,16 @@ SearchBar
 点击主表股票行后，`ExpandedStockDetails` 展开以下标签；可选模块被构建剔除时，对应标签不会出现：
 
 1. 分时
-2. 资金流向
-3. 市场观察
-4. AI 分析
-5. AI 做 T 参考
-6. 五日、日 K、周 K、月 K
-7. 板块
+2. 分红融资
+3. 基本面
+4. 资金流向
+5. 市场观察
+6. AI 分析
+7. AI 做 T 参考
+8. 五日、日 K、周 K、月 K
+9. 板块
 
-分时页同时展示五档盘口。日/周/月 K 在主图叠加本地计算的 BOLL(20,2) 上轨、中轨和下轨，下方指标栏显示十字光标所在周期的三轨价格并提供持久化开关。日 K 可通过设置开关显示筹码分布，计算范围从当前可视 K 线最右端向前累计换手率到 100%。首批日 K 不足时根据现有平均换手率估算目标根数并直接补取；普通历史 K 线缩放到左端时仍按倍数补取更早数据。
+基本面页使用默认规则展示三项通过状态与证据，并列出五年的加权/扣非 ROE、利润、经营现金流和现金转换率；质量特征与风险关注分区展示，风险项保留完整名称、红色/橙色级别及具体触发证据，不改变三项硬筛选结论。同行位置按同一行业普通企业分别计算五年最低 ROE、五年累计现金转换率和低负债名次，有效样本少于 10 家时不发布排名；金融企业的规则显示为“不适用”，且不参与质量、风险和同行排名。分时页同时展示五档盘口。日/周/月 K 在主图叠加本地计算的 BOLL(20,2) 上轨、中轨和下轨，下方指标栏显示十字光标所在周期的三轨价格并提供持久化开关。日 K 可通过设置开关显示筹码分布，计算范围从当前可视 K 线最右端向前累计换手率到 100%。首批日 K 不足时根据现有平均换手率估算目标根数并直接补取；普通历史 K 线缩放到左端时仍按倍数补取更早数据。
 
 详细链路见[行情数据链路](03-market-data.md)。
 

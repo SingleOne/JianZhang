@@ -349,6 +349,9 @@ const demoApi: StockDesktopApi = {
   async getFundamentalState() {
     return demoSnapshotState(DEMO_FUNDAMENTAL_SNAPSHOT, '2021—2025 年')
   },
+  async getFundamentalChangeReport() {
+    return null
+  },
   async runFundamentalUpdate() {
     throw new Error('基本面财务数据更新脚本仅能在 Windows 桌面版中运行')
   },

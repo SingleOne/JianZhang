@@ -1,8 +1,8 @@
 """分三阶段生成 A 股基本面财务数据快照。
 
-阶段一：最近五个完整财年的加权 ROE、扣非加权 ROE。
-阶段二：同期净利润、归母净利润、扣非归母净利润和经营现金流净额。
-阶段三：最近完整财年的资产负债率、行业 P60 和公司行业百分位。
+阶段一：最近五个完整财年的加权 ROE、扣非加权 ROE 和 ROIC。
+阶段二：同期净利润、经营现金流、资本开支和自由现金流。
+阶段三：最近完整财年的资产负债率、行业分位和净负债。
 """
 
 from __future__ import annotations
@@ -34,7 +34,8 @@ USER_AGENT = (
 
 MAIN_COLUMNS = (
     "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,ORG_TYPE,REPORT_DATE,NOTICE_DATE,"
-    "UPDATE_DATE,CURRENCY,ROEJQ,ROEKCJQ,PARENTNETPROFIT,KCFJCXSYJLR,SECURITY_TYPE_CODE"
+    "UPDATE_DATE,CURRENCY,ROEJQ,ROEKCJQ,ROIC,PARENTNETPROFIT,KCFJCXSYJLR,"
+    "SECURITY_TYPE_CODE"
 )
 INCOME_COLUMNS = (
     "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,INDUSTRY_CODE,INDUSTRY_NAME,"
@@ -43,12 +44,17 @@ INCOME_COLUMNS = (
 )
 CASHFLOW_COLUMNS = (
     "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,INDUSTRY_CODE,INDUSTRY_NAME,"
-    "SECURITY_TYPE_CODE,REPORT_DATE,NOTICE_DATE,NETCASH_OPERATE"
+    "SECURITY_TYPE_CODE,REPORT_DATE,NOTICE_DATE,NETCASH_OPERATE,CONSTRUCT_LONG_ASSET"
 )
 BALANCE_COLUMNS = (
     "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,INDUSTRY_CODE,INDUSTRY_NAME,"
     "SECURITY_TYPE_CODE,REPORT_DATE,NOTICE_DATE,TOTAL_ASSETS,TOTAL_LIABILITIES,"
     "DEBT_ASSET_RATIO"
+)
+DETAILED_BALANCE_COLUMNS = (
+    "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,ORG_TYPE,SECURITY_TYPE_CODE,"
+    "REPORT_DATE,NOTICE_DATE,MONETARYFUNDS,SHORT_LOAN,SHORT_BOND_PAYABLE,"
+    "NONCURRENT_LIAB_1YEAR,LONG_LOAN,BOND_PAYABLE,LEASE_LIAB"
 )
 ORGANIZATION_TYPES = {
     "通用": "general",
@@ -138,6 +144,11 @@ def rounded(value: float | None, digits: int = 2) -> float | None:
     return round(value, digits) if value is not None else None
 
 
+def sum_nullable_fields(row: dict, fields: tuple[str, ...]) -> float | None:
+    values = [number(row.get(field)) for field in fields]
+    return sum(value or 0 for value in values) if any(value is not None for value in values) else None
+
+
 def date_part(value: object) -> str | None:
     text = str(value or "")[:10]
     return text if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text) else None
@@ -168,14 +179,14 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
     fiscal_years = list(range(latest_year - years + 1, latest_year + 1))
     annual_dates = {year: f"{year}-12-31" for year in fiscal_years}
 
-    log(f"阶段一/三：获取 {fiscal_years[0]}—{fiscal_years[-1]} 年 ROE")
+    log(f"阶段一/三：获取 {fiscal_years[0]}—{fiscal_years[-1]} 年 ROE 与 ROIC")
     main_by_year: dict[int, dict[str, dict]] = {}
     for year in fiscal_years:
         rows = fetch_report("RPT_F10_FINANCE_MAINFINADATA", MAIN_COLUMNS, annual_dates[year])
         main_by_year[year] = a_share_rows(rows)
         log(f"阶段一/三：{year} 年 ROE 已获取 {len(main_by_year[year]):,} 家")
 
-    log(f"阶段二/三：获取 {fiscal_years[0]}—{fiscal_years[-1]} 年利润与经营现金流")
+    log(f"阶段二/三：获取 {fiscal_years[0]}—{fiscal_years[-1]} 年利润与现金流")
     income_by_year: dict[int, dict[str, dict]] = {}
     cashflow_by_year: dict[int, dict[str, dict]] = {}
     for year in fiscal_years:
@@ -193,10 +204,19 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
             f"现金流 {len(cashflow_by_year[year]):,} 家"
         )
 
-    log(f"阶段三/三：获取 {latest_year} 年资产负债率并计算行业分位")
-    latest_balance = a_share_rows(
-        fetch_report("RPT_DMSK_FN_BALANCE", BALANCE_COLUMNS, annual_dates[latest_year])
-    )
+    log(f"阶段三/三：获取 {latest_year} 年资产负债率、净负债并计算行业分位")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        balance_future = pool.submit(
+            fetch_report, "RPT_DMSK_FN_BALANCE", BALANCE_COLUMNS, annual_dates[latest_year]
+        )
+        detailed_balance_future = pool.submit(
+            fetch_report,
+            "RPT_F10_FINANCE_GBALANCE",
+            DETAILED_BALANCE_COLUMNS,
+            annual_dates[latest_year],
+        )
+        latest_balance = a_share_rows(balance_future.result())
+        latest_detailed_balance = a_share_rows(detailed_balance_future.result())
     latest_balance = {
         code: row
         for code, row in latest_balance.items()
@@ -231,6 +251,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         debt_asset_ratio = number(balance.get("DEBT_ASSET_RATIO"))
         peer_values = industry_values.get((industry_code, industry_name), [])
         latest_main = main_by_year[latest_year].get(code, {})
+        detailed_balance = latest_detailed_balance.get(code, {})
         annual_reports: list[dict] = []
 
         for year in fiscal_years:
@@ -244,6 +265,13 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
                 if total_profit is not None and income_tax is not None
                 else None
             )
+            operating_cash_flow = number(cashflow.get("NETCASH_OPERATE"))
+            capital_expenditure = number(cashflow.get("CONSTRUCT_LONG_ASSET"))
+            free_cash_flow = (
+                operating_cash_flow - capital_expenditure
+                if operating_cash_flow is not None and capital_expenditure is not None
+                else None
+            )
             annual_reports.append(
                 {
                     "year": year,
@@ -255,12 +283,15 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
                     ),
                     "weightedAverageRoe": rounded(number(main.get("ROEJQ")), 4),
                     "deductedWeightedAverageRoe": rounded(number(main.get("ROEKCJQ")), 4),
+                    "roic": rounded(number(main.get("ROIC")), 4),
                     "netProfit": rounded(net_profit),
                     "parentNetProfit": rounded(number(income.get("PARENT_NETPROFIT"))),
                     "deductedParentNetProfit": rounded(
                         number(income.get("DEDUCT_PARENT_NETPROFIT"))
                     ),
-                    "operatingCashFlow": rounded(number(cashflow.get("NETCASH_OPERATE"))),
+                    "operatingCashFlow": rounded(operating_cash_flow),
+                    "capitalExpenditure": rounded(capital_expenditure),
+                    "freeCashFlow": rounded(free_cash_flow),
                 }
             )
 
@@ -269,6 +300,24 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
             industry_percentile = 100 * bisect.bisect_right(peer_values, debt_asset_ratio) / len(
                 peer_values
             )
+
+        interest_bearing_debt = sum_nullable_fields(
+            detailed_balance,
+            (
+                "SHORT_LOAN",
+                "SHORT_BOND_PAYABLE",
+                "NONCURRENT_LIAB_1YEAR",
+                "LONG_LOAN",
+                "BOND_PAYABLE",
+                "LEASE_LIAB",
+            ),
+        )
+        monetary_funds = number(detailed_balance.get("MONETARYFUNDS"))
+        net_debt = (
+            interest_bearing_debt - monetary_funds
+            if interest_bearing_debt is not None and monetary_funds is not None
+            else None
+        )
 
         rows.append(
             {
@@ -289,6 +338,9 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
                     "totalLiabilities": rounded(number(balance.get("TOTAL_LIABILITIES"))),
                     "debtAssetRatio": rounded(debt_asset_ratio, 4),
                     "industryPercentile": rounded(industry_percentile, 4),
+                    "monetaryFunds": rounded(monetary_funds),
+                    "interestBearingDebt": rounded(interest_bearing_debt),
+                    "netDebt": rounded(net_debt),
                 },
             }
         )
@@ -304,16 +356,25 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         )
         for row in rows
     )
+    complete_free_cash_flow = sum(
+        all(report["freeCashFlow"] is not None for report in row["annualReports"])
+        for row in rows
+    )
+    complete_roic = sum(
+        all(report["roic"] is not None for report in row["annualReports"])
+        for row in rows
+    )
     debt_asset_count = sum(
         row["latestBalanceSheet"]["debtAssetRatio"] is not None for row in rows
     )
     industry_percentile_count = sum(
         row["latestBalanceSheet"]["industryPercentile"] is not None for row in rows
     )
+    net_debt_count = sum(row["latestBalanceSheet"]["netDebt"] is not None for row in rows)
 
     generated_at = dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).isoformat(timespec="seconds")
     snapshot = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "snapshotDate": snapshot_date,
         "generatedAt": generated_at,
         "currency": "CNY",
@@ -340,20 +401,28 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
                 "reportName": "RPT_DMSK_FN_BALANCE",
                 "url": EASTMONEY_DATA_API,
             },
+            {
+                "name": "东方财富详细资产负债表",
+                "reportName": "RPT_F10_FINANCE_GBALANCE",
+                "url": EASTMONEY_DATA_API,
+            },
         ],
         "coverage": {
             "companyCount": len(rows),
             "completeFiveYearRoeCount": complete_roe,
             "completeFiveYearCashProfitCount": complete_cash_profit,
+            "completeFiveYearFreeCashFlowCount": complete_free_cash_flow,
+            "completeFiveYearRoicCount": complete_roic,
             "latestDebtAssetRatioCount": debt_asset_count,
             "latestIndustryPercentileCount": industry_percentile_count,
+            "latestNetDebtCount": net_debt_count,
             "industryCount": len(industries),
         },
         "industries": industries,
         "rows": rows,
     }
     diagnostics = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "snapshotDate": snapshot_date,
         "generatedAt": generated_at,
         "fiscalYears": fiscal_years,
@@ -366,6 +435,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
             for year in fiscal_years
         },
         "latestBalanceRows": len(latest_balance),
+        "latestDetailedBalanceRows": len(latest_detailed_balance),
         "coverage": snapshot["coverage"],
     }
     log(

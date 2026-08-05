@@ -1,4 +1,9 @@
 import { currentDateKey, getPositionHoldingDays, type PositionMetrics } from '../../lib/portfolio'
+import {
+  classifyFundamentalDividendCategory,
+  type FundamentalPeerComparison,
+  type FundamentalScreeningEvaluation
+} from '../../lib/fundamental-screening'
 import type {
   DividendFinancingRankingItem,
   StockQuote,
@@ -17,6 +22,8 @@ export interface StockRowData {
   stock: WatchStock
   quote: StockQuote | undefined
   dividendFinancing: DividendFinancingRankingItem | undefined
+  fundamentalScreening: FundamentalScreeningEvaluation | undefined
+  fundamentalPeerComparison: FundamentalPeerComparison | undefined
   metrics: PositionMetrics
   manualIndex: number
 }
@@ -38,6 +45,7 @@ export const COLUMN_META: Record<WatchlistColumnId, ColumnMeta> = {
   changePercent: { label: '涨跌幅', width: 76, sortable: true },
   sectorChangePercent: { label: '板块涨跌幅', width: 94, sortable: true },
   dividendFinancingRatio: { label: '分红融资比', width: 108, sortable: true },
+  valueTags: { label: '价值标签', width: 112, sortable: true },
   open: { label: '今日概览', width: 190, sortable: true },
   trading: { label: '成交', width: 112, sortable: true },
   amount: { label: '持仓天数', width: 80, sortable: true },
@@ -73,6 +81,17 @@ export function sortValue(
       return row.quote?.sector?.changePercent
     case 'dividendFinancingRatio':
       return row.dividendFinancing?.ratio
+    case 'valueTags': {
+      const category = classifyFundamentalDividendCategory(
+        row.fundamentalScreening,
+        Boolean(row.dividendFinancing)
+      )
+      return category === 'dual'
+        ? 2
+        : category === 'fundamental' || category === 'dividend'
+          ? 1
+          : 0
+    }
     case 'open':
       return row.quote?.open
     case 'trading':
@@ -119,6 +138,7 @@ export function sortRows(
       typeof leftValue === 'string' && typeof rightValue === 'string'
         ? leftValue.localeCompare(rightValue, 'zh-CN', { numeric: true })
         : Number(leftValue) - Number(rightValue)
+    if (compared === 0) return left.manualIndex - right.manualIndex
     return sort.direction === 'asc' ? compared : -compared
   })
 }

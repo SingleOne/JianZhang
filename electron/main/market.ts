@@ -49,6 +49,8 @@ interface EastmoneyQuoteItem {
   f16?: number | '-'
   f17?: number | '-'
   f18?: number | '-'
+  f23?: number | '-'
+  f115?: number | '-'
 }
 
 interface EastmoneyOrderBookData {
@@ -316,6 +318,8 @@ async function fetchEastmoneyQuotes(
     volume: rawNumber(item.f5),
     amount: rawNumber(item.f6),
     turnoverRate: scaled(item.f8),
+    priceEarningsRatioTtm: scaled(item.f115),
+    priceBookRatio: scaled(item.f23),
     updatedAt: now
   }))
 }
@@ -357,6 +361,8 @@ async function fetchTencentQuotes(stocks: WatchStock[], caller: string): Promise
       volume: quoteNumber(fields[36] || fields[6]),
       amount: quoteNumber(summary[2]),
       turnoverRate: quoteNumber(fields[38]),
+      priceEarningsRatioTtm: quoteNumber(fields[39]),
+      priceBookRatio: quoteNumber(fields[46]),
       updatedAt: now
     }]
   })

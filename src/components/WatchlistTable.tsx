@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { calculatePositionMetrics } from '../lib/portfolio'
+import { calculatePortfolioQualitySummary } from '../lib/portfolio-quality'
 import type {
   DividendFinancingRankingItem,
   StockAlertRule,
@@ -27,8 +28,20 @@ import type {
   WatchlistGroup,
   WatchStock
 } from '../shared/types'
+import {
+  hasFundamentalRisk,
+  matchesFundamentalDividendFilter,
+  matchesFundamentalWatchlistFilter,
+  summarizeFundamentalDividendWatchlist,
+  summarizeFundamentalWatchlist,
+  type FundamentalDividendFilter,
+  type FundamentalPeerComparison,
+  type FundamentalScreeningEvaluation,
+  type FundamentalWatchlistFilter
+} from '../lib/fundamental-screening'
 import { normalizeWatchlistColumnOrder } from '../shared/types'
 import { PositionEditor } from './PositionEditor'
+import { PortfolioQualityDialog } from './PortfolioQualityDialog'
 import { StockAlertDialog } from './StockAlertDialog'
 import { TTradingDrawer } from './TTradingDrawer'
 import { WatchlistGroupDialog } from './WatchlistGroupDialog'
@@ -43,6 +56,7 @@ import {
   type StockRowData
 } from './watchlist-table/columns'
 import { WatchlistFilters } from './watchlist-table/WatchlistFilters'
+import { FundamentalWatchlistOverview } from './watchlist-table/FundamentalWatchlistOverview'
 import { todayRadarSignals, WatchlistRow } from './watchlist-table/WatchlistRow'
 import { useDragReorder } from './watchlist-table/useDragReorder'
 
@@ -52,6 +66,12 @@ interface WatchlistTableProps {
   quotes: StockQuote[]
   dividendFinancingByCode: ReadonlyMap<string, DividendFinancingRankingItem>
   dividendFinancingSnapshotDate?: string
+  dividendFinancingStaleReason?: string | null
+  fundamentalScreeningByCode: ReadonlyMap<string, FundamentalScreeningEvaluation>
+  fundamentalPeerComparisonsByCode: ReadonlyMap<string, FundamentalPeerComparison>
+  fundamentalSnapshotDate?: string
+  fundamentalGeneratedAt?: string
+  fundamentalStaleReason?: string | null
   columnOrder: WatchlistColumnId[]
   priorityRefreshSeconds: number
   regularRefreshSeconds: number
@@ -102,6 +122,26 @@ const ALL_FILTER = 'all'
 const UNGROUPED_FILTER = 'ungrouped'
 const NO_SECTOR_FILTER = 'no-sector'
 
+const FUNDAMENTAL_FILTER_LABELS: Record<FundamentalWatchlistFilter, string> = {
+  all: '全部',
+  passed: '基本',
+  review: '待核',
+  missing: '缺数',
+  financial: '金融',
+  unavailable: '无数据',
+  roe: 'ROE待核',
+  cash: '现金待核',
+  debt: '杠杆待核',
+}
+
+const VALUE_FILTER_LABELS: Record<FundamentalDividendFilter, string> = {
+  all: '全部',
+  dual: '双优',
+  fundamental: '仅基',
+  dividend: '仅分',
+  unlabeled: '暂无'
+}
+
 type ColumnMove = -1 | 1 | 'start' | 'end'
 
 const RADAR_SIGNAL_DESCRIPTIONS: Record<string, string> = {
@@ -135,6 +175,12 @@ export function WatchlistTable({
   quotes,
   dividendFinancingByCode,
   dividendFinancingSnapshotDate,
+  dividendFinancingStaleReason,
+  fundamentalScreeningByCode,
+  fundamentalPeerComparisonsByCode,
+  fundamentalSnapshotDate,
+  fundamentalGeneratedAt,
+  fundamentalStaleReason,
   columnOrder,
   priorityRefreshSeconds,
   regularRefreshSeconds,
@@ -169,7 +215,11 @@ export function WatchlistTable({
   const [locatedQuoteId, setLocatedQuoteId] = useState<string | null>(null)
   const [customGroupFilter, setCustomGroupFilter] = useState(ALL_FILTER)
   const [sectorFilter, setSectorFilter] = useState(ALL_FILTER)
+  const [fundamentalFilter, setFundamentalFilter] = useState<FundamentalWatchlistFilter>('all')
+  const [valueFilter, setValueFilter] = useState<FundamentalDividendFilter>('all')
+  const [riskOnly, setRiskOnly] = useState(false)
   const [groupDialogOpen, setGroupDialogOpen] = useState(false)
+  const [portfolioQualityOpen, setPortfolioQualityOpen] = useState(false)
   const tableScrollerRef = useRef<HTMLDivElement>(null)
   const radarAnchorRef = useRef<HTMLButtonElement | null>(null)
   const radarPopoverRef = useRef<HTMLDivElement>(null)
@@ -206,11 +256,20 @@ export function WatchlistTable({
         stock,
         quote,
         dividendFinancing: dividendFinancingByCode.get(stock.code),
+        fundamentalScreening: fundamentalScreeningByCode.get(stock.code),
+        fundamentalPeerComparison: fundamentalPeerComparisonsByCode.get(stock.code),
         metrics: calculatePositionMetrics(stock.position, quote, tTradingAccounts[stock.quoteId]),
         manualIndex
       }
     })
-  }, [dividendFinancingByCode, quotes, tTradingAccounts, watchlist])
+  }, [
+    dividendFinancingByCode,
+    fundamentalPeerComparisonsByCode,
+    fundamentalScreeningByCode,
+    quotes,
+    tTradingAccounts,
+    watchlist
+  ])
 
   const groupCounts = useMemo(
     () =>
@@ -244,7 +303,7 @@ export function WatchlistTable({
     return [...sectors.values()].sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'))
   }, [rows])
   const noSectorCount = useMemo(() => rows.filter(({ quote }) => !quote?.sector).length, [rows])
-  const filteredRows = useMemo(
+  const scopeRows = useMemo(
     () =>
       rows.filter(({ stock, quote }) => {
         const matchesGroup =
@@ -260,6 +319,67 @@ export function WatchlistTable({
         return matchesGroup && matchesSector
       }),
     [customGroupFilter, rows, sectorFilter, watchlistGroups]
+  )
+  const fundamentalSummary = useMemo(
+    () => summarizeFundamentalWatchlist(
+      scopeRows.map(({ fundamentalScreening }) => fundamentalScreening)
+    ),
+    [scopeRows]
+  )
+  const valueDataReady = Boolean(fundamentalSnapshotDate && dividendFinancingSnapshotDate)
+  const valueDataStaleReason = [fundamentalStaleReason, dividendFinancingStaleReason]
+    .filter((reason): reason is string => Boolean(reason))
+    .join('；')
+  const valueSummary = useMemo(
+    () => valueDataReady
+      ? summarizeFundamentalDividendWatchlist(
+          scopeRows.map(({ fundamentalScreening, dividendFinancing }) => ({
+            evaluation: fundamentalScreening,
+            hasDividendLabel: Boolean(dividendFinancing)
+          }))
+        )
+      : null,
+    [scopeRows, valueDataReady]
+  )
+  useEffect(() => {
+    if (valueDataReady) return
+    setValueFilter('all')
+    setSort((current) => current?.column === 'valueTags' ? null : current)
+  }, [valueDataReady])
+  const portfolioQualitySummary = useMemo(
+    () => calculatePortfolioQualitySummary(
+      rows.flatMap(({ stock, quote, metrics, fundamentalScreening, dividendFinancing }) => (
+        stock.position
+          ? [{
+              quoteId: stock.quoteId,
+              code: stock.code,
+              name: stock.name,
+              industryName: quote?.sector?.name
+                ?? fundamentalScreening?.company.industryName
+                ?? '行业待核',
+              marketValue: metrics.marketValue,
+              costValue: stock.position.cost * stock.position.quantity,
+              fundamentalEvaluation: fundamentalScreening,
+              hasDividendLabel: Boolean(dividendFinancing)
+            }]
+          : []
+      ))
+    ),
+    [rows]
+  )
+  const filteredRows = useMemo(
+    () => scopeRows.filter(({ fundamentalScreening, dividendFinancing }) => (
+      matchesFundamentalWatchlistFilter(fundamentalScreening, fundamentalFilter)
+      && (valueFilter === 'all' || (
+        valueDataReady
+        && matchesFundamentalDividendFilter({
+          evaluation: fundamentalScreening,
+          hasDividendLabel: Boolean(dividendFinancing)
+        }, valueFilter)
+      ))
+      && (!riskOnly || hasFundamentalRisk(fundamentalScreening))
+    )),
+    [fundamentalFilter, riskOnly, scopeRows, valueDataReady, valueFilter]
   )
   const displayedRows = useMemo(
     () => (sort ? sortRows(filteredRows, sort, tradingCalendarClosedDates) : filteredRows),
@@ -463,6 +583,25 @@ export function WatchlistTable({
   const openStockAlert = useCallback((stock: WatchStock) => setStockAlertStock(stock), [])
   const openTTrading = useCallback((stock: WatchStock) => setTTradingStock(stock), [])
   const openGroupDialog = useCallback(() => setGroupDialogOpen(true), [])
+  const resetFilters = useCallback(() => {
+    setCustomGroupFilter(ALL_FILTER)
+    setSectorFilter(ALL_FILTER)
+    setFundamentalFilter('all')
+    setValueFilter('all')
+    setRiskOnly(false)
+  }, [])
+  const toggleValueTagSort = useCallback(() => {
+    setSort((current) => {
+      if (current?.column !== 'valueTags') return { column: 'valueTags', direction: 'desc' }
+      if (current.direction === 'desc') return { column: 'valueTags', direction: 'asc' }
+      return null
+    })
+  }, [])
+  const locatePortfolioHolding = useCallback((quoteId: string) => {
+    setPortfolioQualityOpen(false)
+    resetFilters()
+    window.requestAnimationFrame(() => scrollToStock(quoteId))
+  }, [resetFilters, scrollToStock])
 
   if (watchlist.length === 0) {
     return (
@@ -489,7 +628,16 @@ export function WatchlistTable({
           {sectorFilter === ALL_FILTER
             ? ''
             : ` · 板块：${sectorFilter === NO_SECTOR_FILTER ? '未获取板块' : selectedSectorName}`}
-          {customGroupFilter !== ALL_FILTER || sectorFilter !== ALL_FILTER
+          {fundamentalFilter === 'all'
+            ? ''
+            : ` · 基本面：${FUNDAMENTAL_FILTER_LABELS[fundamentalFilter]}`}
+          {valueFilter === 'all' ? '' : ` · 价值组合：${VALUE_FILTER_LABELS[valueFilter]}`}
+          {riskOnly ? ' · 基本面：有风险' : ''}
+          {customGroupFilter !== ALL_FILTER
+          || sectorFilter !== ALL_FILTER
+          || fundamentalFilter !== 'all'
+          || valueFilter !== 'all'
+          || riskOnly
             ? ` · 显示 ${displayedRows.length}/${rows.length} 只`
             : ''}
         </span>
@@ -587,6 +735,31 @@ export function WatchlistTable({
         </div>
       </div>
 
+      <FundamentalWatchlistOverview
+        summary={fundamentalSummary}
+        valueSummary={valueSummary}
+        portfolioQuality={portfolioQualitySummary}
+        activeFilter={fundamentalFilter}
+        activeValueFilter={valueFilter}
+        riskOnly={riskOnly}
+        valueDataReady={valueDataReady}
+        valueDataStaleReason={valueDataStaleReason || null}
+        valueTagSortDirection={sort?.column === 'valueTags' ? sort.direction : null}
+        filtersActive={
+          customGroupFilter !== ALL_FILTER
+          || sectorFilter !== ALL_FILTER
+          || fundamentalFilter !== 'all'
+          || valueFilter !== 'all'
+          || riskOnly
+        }
+        onOpenPortfolioQuality={() => setPortfolioQualityOpen(true)}
+        onFilterChange={setFundamentalFilter}
+        onValueFilterChange={setValueFilter}
+        onRiskOnlyChange={setRiskOnly}
+        onValueTagSortToggle={toggleValueTagSort}
+        onResetFilters={resetFilters}
+      />
+
       <div className="table-scroller" ref={tableScrollerRef}>
         <table className="watchlist-table" style={{ minWidth: TABLE_MIN_WIDTH }}>
           <colgroup>
@@ -642,13 +815,25 @@ export function WatchlistTable({
             </tr>
           </thead>
           <tbody>
-            {displayedRows.map(({ stock, quote, dividendFinancing, manualIndex }) => (
+            {displayedRows.map(({
+              stock,
+              quote,
+              dividendFinancing,
+              fundamentalScreening,
+              fundamentalPeerComparison,
+              manualIndex
+            }) => (
               <WatchlistRow
                 key={stock.quoteId}
                 stock={stock}
                 quote={quote}
                 dividendFinancing={dividendFinancing}
                 dividendFinancingSnapshotDate={dividendFinancingSnapshotDate}
+                fundamentalScreening={fundamentalScreening}
+                fundamentalPeerComparison={fundamentalPeerComparison}
+                fundamentalSnapshotDate={fundamentalSnapshotDate}
+                fundamentalGeneratedAt={fundamentalGeneratedAt}
+                fundamentalStaleReason={fundamentalStaleReason}
                 tradingAccount={tTradingAccounts[stock.quoteId]}
                 manualIndex={manualIndex}
                 columnOrder={adjustableColumnOrder}
@@ -685,7 +870,7 @@ export function WatchlistTable({
             {displayedRows.length === 0 ? (
               <tr>
                 <td className="table-filter-empty" colSpan={adjustableColumnOrder.length + 3}>
-                  当前自定义分组和板块筛选条件下没有股票。
+                  当前筛选条件下没有股票。
                 </td>
               </tr>
             ) : null}
@@ -799,6 +984,17 @@ export function WatchlistTable({
             onUpdateWatchlistGroups(groups, groupIdsByQuoteId)
             setGroupDialogOpen(false)
           }}
+        />
+      ) : null}
+      {portfolioQualityOpen ? (
+        <PortfolioQualityDialog
+          summary={portfolioQualitySummary}
+          fundamentalSnapshotDate={fundamentalSnapshotDate}
+          dividendSnapshotDate={dividendFinancingSnapshotDate}
+          fundamentalStaleReason={fundamentalStaleReason}
+          dividendStaleReason={dividendFinancingStaleReason}
+          onLocateStock={locatePortfolioHolding}
+          onClose={() => setPortfolioQualityOpen(false)}
         />
       ) : null}
     </div>

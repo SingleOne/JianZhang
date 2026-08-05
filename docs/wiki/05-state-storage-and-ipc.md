@@ -177,7 +177,7 @@ localStorage["jianzhang-demo-state-v1"]
 | `modules/ai/` | Provider 设置、加密凭证、对话 JSONL、股票快照、最近 AI 解读 |
 | `modules/ai-t-advice/` | 做 T 参考设置和历史 JSONL |
 | `dividend-financing/` | 运行时获取的 `ranking.json`、`previous-ranking.json`、`change-report.json`、Markdown 报告和诊断 JSON |
-| `fundamentals/` | 运行时获取的五年基本面 `snapshot.json` 和覆盖率诊断 `diagnostics.json` |
+| `fundamentals/` | 运行时获取的五年基本面 `snapshot.json`、覆盖率诊断 `diagnostics.json` 和最近一次默认规则筛选变化 `change-report.json` |
 
 AI API Key 由主进程使用 Electron `safeStorage` 加密；renderer 只能读取是否配置和脱敏尾号。Codex 账号凭证由随应用运行的官方 App Server 在模块运行目录管理，核心状态和配置导出均不接触明文。
 
@@ -194,9 +194,10 @@ AI API Key 由主进程使用 Electron `safeStorage` 加密；renderer 只能读
 | `getDividendFinancingState` | `dividend-financing:state:get` | 返回缺失、排队、更新中、有效、过期或失败状态 |
 | `getDividendFinancingChangeReport` | `dividend-financing:changes:get` | 返回最近一次手动更新前后的新入榜、移出、排名、比例、分红与融资变化 |
 | `runDividendFinancingUpdate` | `dividend-financing:update` | 调用随应用附带的 Python 脚本，保存更新前快照并生成变化报告 |
-| `getFundamentalSnapshot` | `fundamentals:get` | 返回进程内缓存的 schema v1 用户快照；本地不存在时返回 `null` |
+| `getFundamentalSnapshot` | `fundamentals:get` | 返回进程内缓存的 schema v1/v2 用户快照；本地不存在时返回 `null` |
 | `getFundamentalState` | `fundamentals:state:get` | 返回基本面快照状态、报告期、生成时间和过期原因 |
-| `runFundamentalUpdate` | `fundamentals:update` | 调用三阶段 Python 脚本，更新五年 ROE、现金利润和行业资产负债分位数据 |
+| `getFundamentalChangeReport` | `fundamentals:changes:get` | 返回最近两次快照按默认规则比较的新入选、移出、待核、数据完整性、覆盖和企业口径变化；首次快照返回 `null` |
+| `runFundamentalUpdate` | `fundamentals:update` | 调用三阶段 Python 脚本，更新五年 ROE/ROIC、现金利润、自由现金流、行业资产负债分位和净负债数据 |
 | `refreshQuotes` | `quotes:refresh` | 向统一调度器提交手动全量刷新 |
 | `getKline` | `kline:get` | 通过 `KlineHub` 获取分时/五日/周期 K，同参数合并并串行请求 |
 | `saveChipDistributionCache` | `chip-distribution:cache:save` | 保存股票最后一次筹码分布计算结果 |

@@ -1,13 +1,19 @@
-import { Bot, CircleCheck, RefreshCw, Signal, Trophy, WifiOff } from 'lucide-react'
+import { Bot, CircleCheck, Filter, RefreshCw, Signal, Trophy, WifiOff } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { AppTitlebar } from './components/AppTitlebar'
 import { useConfirmDialog } from './components/ConfirmDialog'
 import { DividendFinancingRankingDialog } from './components/DividendFinancingRankingDialog'
+import { FundamentalScreeningDialog } from './components/FundamentalScreeningDialog'
 import { SearchBar } from './components/SearchBar'
 import { SettingsMenu } from './components/SettingsMenu'
 import { WatchlistTable } from './components/WatchlistTable'
 import { initialState, isDesktopRuntime, stockApi } from './lib/api'
 import { formatCurrency, formatPercent, formatPrice, formatProfit, formatUpdateTime } from './lib/format'
+import {
+  createFundamentalPeerComparisonMap,
+  DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA,
+  screenFundamentalCompanies
+} from './lib/fundamental-screening'
 import { calculatePortfolioSummary } from './lib/portfolio'
 import { reconcileStockQuotes } from './lib/quote-state'
 import { MARKET_INDEX_OPTIONS } from './shared/types'
@@ -18,6 +24,8 @@ import type {
   DataSnapshotRuntimeState,
   DividendFinancingChangeReport,
   DividendFinancingSnapshot,
+  FundamentalChangeReport,
+  FundamentalSnapshot,
   SearchResult,
   StockPosition,
   StockPositionSnapshot,
@@ -68,8 +76,11 @@ export default function App() {
   const [notice, setNotice] = useState('')
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false)
   const [dividendRankingOpen, setDividendRankingOpen] = useState(false)
+  const [fundamentalScreeningOpen, setFundamentalScreeningOpen] = useState(false)
   const [dividendFinancingSnapshot, setDividendFinancingSnapshot] = useState<DividendFinancingSnapshot | null>(null)
   const [dividendFinancingChangeReport, setDividendFinancingChangeReport] = useState<DividendFinancingChangeReport | null>(null)
+  const [fundamentalSnapshot, setFundamentalSnapshot] = useState<FundamentalSnapshot | null>(null)
+  const [fundamentalChangeReport, setFundamentalChangeReport] = useState<FundamentalChangeReport | null>(null)
   const [dividendFinancingState, setDividendFinancingState] = useState<DataSnapshotRuntimeState>(EMPTY_DATA_SNAPSHOT_STATE)
   const [fundamentalDataState, setFundamentalDataState] = useState<DataSnapshotRuntimeState>(EMPTY_DATA_SNAPSHOT_STATE)
   const [aiAssistantContext, setAiAssistantContext] = useState<{ quoteId: string; quoteName?: string } | null>(null)
@@ -127,6 +138,16 @@ export default function App() {
         setDividendFinancingChangeReport(changeReport)
       }).catch(() => undefined)
     }
+    const syncFundamentalSnapshot = () => {
+      Promise.all([
+        stockApi.getFundamentalSnapshot(),
+        stockApi.getFundamentalChangeReport()
+      ]).then(([snapshot, changeReport]) => {
+        if (!active) return
+        setFundamentalSnapshot(snapshot)
+        setFundamentalChangeReport(changeReport)
+      }).catch(() => undefined)
+    }
     const unsubscribeDividendState = stockApi.onDividendFinancingStateUpdated((snapshotState) => {
       if (!active) return
       setDividendFinancingState(snapshotState)
@@ -135,20 +156,35 @@ export default function App() {
       }
     })
     const unsubscribeFundamentalState = stockApi.onFundamentalStateUpdated((snapshotState) => {
-      if (active) setFundamentalDataState(snapshotState)
+      if (!active) return
+      setFundamentalDataState(snapshotState)
+      if (snapshotState.status === 'ready' || snapshotState.status === 'stale') {
+        syncFundamentalSnapshot()
+      }
     })
     Promise.all([
       stockApi.getDividendFinancingSnapshot(),
       stockApi.getDividendFinancingChangeReport(),
       stockApi.getDividendFinancingState(),
-      stockApi.getFundamentalState()
+      stockApi.getFundamentalState(),
+      stockApi.getFundamentalSnapshot(),
+      stockApi.getFundamentalChangeReport()
     ])
-      .then(([snapshot, changeReport, dividendState, fundamentalState]) => {
+      .then(([
+        snapshot,
+        changeReport,
+        dividendState,
+        fundamentalState,
+        fundamentalData,
+        fundamentalChanges
+      ]) => {
         if (active) {
           setDividendFinancingSnapshot(snapshot)
           setDividendFinancingChangeReport(changeReport)
           setDividendFinancingState(dividendState)
           setFundamentalDataState(fundamentalState)
+          setFundamentalSnapshot(fundamentalData)
+          setFundamentalChangeReport(fundamentalChanges)
         }
       })
       .catch(() => undefined)
@@ -186,6 +222,27 @@ export default function App() {
   const dividendFinancingByCode = useMemo(
     () => new Map(dividendFinancingSnapshot?.rows.map((item) => [item.code, item]) ?? []),
     [dividendFinancingSnapshot]
+  )
+  const fundamentalEvaluations = useMemo(
+    () => fundamentalSnapshot
+      ? screenFundamentalCompanies(
+          fundamentalSnapshot,
+          DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA
+        )
+      : [],
+    [fundamentalSnapshot]
+  )
+  const fundamentalScreeningByCode = useMemo(() => {
+    const watchlistCodes = new Set(state.watchlist.map((stock) => stock.code))
+    return new Map(
+      fundamentalEvaluations
+        .filter((evaluation) => watchlistCodes.has(evaluation.company.code))
+        .map((evaluation) => [evaluation.company.code, evaluation])
+    )
+  }, [fundamentalEvaluations, state.watchlist])
+  const fundamentalPeerComparisonsByCode = useMemo(
+    () => createFundamentalPeerComparisonMap(fundamentalEvaluations),
+    [fundamentalEvaluations]
   )
   const portfolioSummary = useMemo(
     () => calculatePortfolioSummary(state.watchlist, quotes, state.tTradingAccounts),
@@ -359,6 +416,11 @@ export default function App() {
     setDividendRankingOpen(false)
   }, [])
 
+  const viewWatchlistStockFromFundamentals = useCallback((quoteId: string) => {
+    setSelectedQuoteId(quoteId)
+    setFundamentalScreeningOpen(false)
+  }, [])
+
   const updateChipDistributionEnabled = useCallback((enabled: boolean) => {
     updateSettings({
       ...state.settings,
@@ -440,6 +502,8 @@ export default function App() {
   const updateFundamentalData = async () => {
     try {
       const result = await stockApi.runFundamentalUpdate()
+      setFundamentalSnapshot(result.snapshot)
+      setFundamentalChangeReport(result.changeReport)
       reportSuccess(`基本面数据已更新，共 ${result.snapshot.rows.length} 家公司`)
     } catch (reason) {
       reportError(reason instanceof Error ? reason.message : '基本面数据更新失败')
@@ -486,6 +550,14 @@ export default function App() {
               >
                 <Trophy size={17} />
                 分红融资榜
+              </button>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => setFundamentalScreeningOpen(true)}
+              >
+                <Filter size={17} />
+                基本面初筛
               </button>
               {aiRuntimeAvailable ? (
                 <button className="secondary-button ai-assistant-trigger" type="button" onClick={() => { setAiAssistantContext(null); setAiAssistantOpen(true) }}>
@@ -565,6 +637,20 @@ export default function App() {
                 quotes={quotes}
                 dividendFinancingByCode={dividendFinancingByCode}
                 dividendFinancingSnapshotDate={dividendFinancingSnapshot?.snapshotDate}
+                dividendFinancingStaleReason={
+                  dividendFinancingState.status === 'stale'
+                    ? dividendFinancingState.staleReason
+                    : null
+                }
+                fundamentalScreeningByCode={fundamentalScreeningByCode}
+                fundamentalPeerComparisonsByCode={fundamentalPeerComparisonsByCode}
+                fundamentalSnapshotDate={fundamentalSnapshot?.snapshotDate}
+                fundamentalGeneratedAt={fundamentalSnapshot?.generatedAt}
+                fundamentalStaleReason={
+                  fundamentalDataState.status === 'stale'
+                    ? fundamentalDataState.staleReason
+                    : null
+                }
                 columnOrder={state.columnOrder}
                 priorityRefreshSeconds={state.settings.priorityRefreshSeconds}
                 regularRefreshSeconds={state.settings.regularRefreshSeconds}
@@ -621,6 +707,18 @@ export default function App() {
         onSnapshotChange={setDividendFinancingSnapshot}
         onChangeReportChange={setDividendFinancingChangeReport}
         onClose={() => setDividendRankingOpen(false)}
+      />
+      <FundamentalScreeningDialog
+        open={fundamentalScreeningOpen}
+        cachedSnapshot={fundamentalSnapshot}
+        cachedChangeReport={fundamentalChangeReport}
+        dataState={fundamentalDataState}
+        watchlist={state.watchlist}
+        onAddStock={addStock}
+        onViewStock={viewWatchlistStockFromFundamentals}
+        onSnapshotChange={setFundamentalSnapshot}
+        onChangeReportChange={setFundamentalChangeReport}
+        onClose={() => setFundamentalScreeningOpen(false)}
       />
       {AiAssistantDrawer ? (
         <Suspense fallback={null}>

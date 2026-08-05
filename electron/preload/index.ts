@@ -28,6 +28,7 @@ const api: StockDesktopApi = {
   runDividendFinancingUpdate: () => ipcRenderer.invoke('dividend-financing:update'),
   getFundamentalSnapshot: () => ipcRenderer.invoke('fundamentals:get'),
   getFundamentalState: () => ipcRenderer.invoke('fundamentals:state:get'),
+  getFundamentalChangeReport: () => ipcRenderer.invoke('fundamentals:changes:get'),
   runFundamentalUpdate: () => ipcRenderer.invoke('fundamentals:update'),
   refreshQuotes: () => ipcRenderer.invoke('quotes:refresh'),
   getKline: (quoteId, period, limit) => ipcRenderer.invoke('kline:get', quoteId, period, limit),

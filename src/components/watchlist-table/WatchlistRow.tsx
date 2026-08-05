@@ -1,5 +1,5 @@
 import { BellRing, GripVertical, MonitorUp, PencilLine, Pin, Star, Trash2 } from 'lucide-react'
-import { Fragment, memo, type DragEvent } from 'react'
+import { Fragment, memo, type DragEvent, useCallback, useState } from 'react'
 import {
   formatAmount,
   formatCost,
@@ -22,6 +22,14 @@ import {
 } from '../../lib/t-alerts'
 import { calculateTBatchMetrics } from '../../lib/t-trading'
 import { getBatchTrades } from '../../lib/trade-records'
+import {
+  FUNDAMENTAL_RISK_TAG_LABELS,
+  evaluateFundamentalRisk,
+  summarizeFundamentalScreening,
+  type FundamentalPeerComparison,
+  type FundamentalScreeningEvaluation,
+  type FundamentalScreeningSummary
+} from '../../lib/fundamental-screening'
 import type {
   DividendFinancingRankingItem,
   StockQuote,
@@ -52,6 +60,28 @@ function formatTurnoverRate(value: number | null | undefined): string {
   return value === null || value === undefined ? '--' : `${value.toFixed(2)}%`
 }
 
+const FUNDAMENTAL_BADGE_META = {
+  passed: { label: '基本', className: 'is-fundamental' },
+  review: { label: '待核', className: 'is-review' },
+  missing: { label: '缺数', className: 'is-missing' },
+  financial: { label: '金融', className: 'is-financial' }
+} as const
+
+function fundamentalBadgeTitle(
+  evaluation: FundamentalScreeningEvaluation,
+  summary: FundamentalScreeningSummary,
+  snapshotDate?: string
+): string {
+  const message = summary.status === 'passed'
+    ? `满足推荐基本面三项条件；五年最低加权ROE ${evaluation.minimumRoe?.toFixed(2) ?? '--'}%；五年累计现金转换率 ${evaluation.cumulativeCashConversion?.toFixed(2) ?? '--'}%；行业负债分位 ${evaluation.company.latestBalanceSheet.industryPercentile?.toFixed(1) ?? '--'}%`
+    : summary.status === 'review'
+      ? `${summary.reviewCount}项待核：${summary.reviewReasons.join('、')}`
+      : summary.status === 'missing'
+        ? `数据不足：${summary.missingReasons.join('、')}${summary.reviewReasons.length > 0 ? `；已识别待核：${summary.reviewReasons.join('、')}` : ''}`
+        : '金融企业不参与普通企业三项基本面筛选'
+  return `${message}；快照 ${snapshotDate ?? '--'}；点击查看详情`
+}
+
 export function todayRadarSignals(signals: StockRadarSignal[] | undefined): StockRadarSignal[] {
   const today = currentDateKey().replaceAll('-', '')
   return signals?.filter((signal) => signal.date === today) ?? []
@@ -62,6 +92,11 @@ interface WatchlistRowProps {
   quote: StockQuote | undefined
   dividendFinancing: DividendFinancingRankingItem | undefined
   dividendFinancingSnapshotDate: string | undefined
+  fundamentalScreening: FundamentalScreeningEvaluation | undefined
+  fundamentalPeerComparison: FundamentalPeerComparison | undefined
+  fundamentalSnapshotDate: string | undefined
+  fundamentalGeneratedAt: string | undefined
+  fundamentalStaleReason: string | null | undefined
   tradingAccount: TTradingAccount | undefined
   manualIndex: number
   columnOrder: WatchlistColumnId[]
@@ -100,6 +135,11 @@ export const WatchlistRow = memo(function WatchlistRow({
   quote,
   dividendFinancing,
   dividendFinancingSnapshotDate,
+  fundamentalScreening,
+  fundamentalPeerComparison,
+  fundamentalSnapshotDate,
+  fundamentalGeneratedAt,
+  fundamentalStaleReason,
   tradingAccount,
   manualIndex,
   columnOrder,
@@ -132,6 +172,11 @@ export const WatchlistRow = memo(function WatchlistRow({
   onBollingerBandsEnabledChange,
   onRemove
 }: WatchlistRowProps) {
+  const [fundamentalTabRequested, setFundamentalTabRequested] = useState(false)
+  const fundamentalSummary = summarizeFundamentalScreening(fundamentalScreening)
+  const fundamentalRisk = fundamentalScreening
+    ? evaluateFundamentalRisk(fundamentalScreening.company)
+    : null
   const metrics = calculatePositionMetrics(stock.position, quote, tradingAccount)
   const quoteDirection = valueClass(quote?.changePercent)
   const sectorDirection = valueClass(quote?.sector?.changePercent)
@@ -160,6 +205,10 @@ export const WatchlistRow = memo(function WatchlistRow({
       : tFloatingProfit !== null && tFloatingProfit < 0
         ? 'is-t-profit-down'
         : 'is-active'
+  const handleFundamentalBadgeClick = useCallback(() => {
+    setFundamentalTabRequested(true)
+    if (!selected) onToggleDetails(stock.quoteId)
+  }, [onToggleDetails, selected, stock.quoteId])
 
   return (
     <Fragment>
@@ -395,6 +444,65 @@ export const WatchlistRow = memo(function WatchlistRow({
                   )}
                 </td>
               )
+            case 'valueTags': {
+              const fundamentalBadge = fundamentalScreening
+                && fundamentalSummary.status !== 'unavailable'
+                ? FUNDAMENTAL_BADGE_META[fundamentalSummary.status]
+                : null
+              const hasDividendBadge = Boolean(dividendFinancing)
+              const hasRiskBadge = Boolean(fundamentalRisk?.tags.length)
+              return (
+                <td key={columnId}>
+                  <span className="value-tag-cell">
+                    {fundamentalBadge && fundamentalScreening ? (
+                      <button
+                        className={`value-screening-badge ${fundamentalBadge.className}`}
+                        type="button"
+                        title={fundamentalBadgeTitle(
+                          fundamentalScreening,
+                          fundamentalSummary,
+                          fundamentalSnapshotDate
+                        )}
+                        aria-label={`打开${stock.name}基本面详情`}
+                        onKeyDown={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          handleFundamentalBadgeClick()
+                        }}
+                      >
+                        {fundamentalBadge.label}
+                      </button>
+                    ) : null}
+                    {hasRiskBadge && fundamentalRisk ? (
+                      <button
+                        className={`value-screening-badge is-risk-${fundamentalRisk.severity}`}
+                        type="button"
+                        title={`基本面${fundamentalRisk.severity === 'critical' ? '风险' : '关注'}：${fundamentalRisk.tags.map((tag) => FUNDAMENTAL_RISK_TAG_LABELS[tag]).join('、')}；点击查看详情`}
+                        aria-label={`打开${stock.name}基本面风险详情`}
+                        onKeyDown={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          handleFundamentalBadgeClick()
+                        }}
+                      >
+                        {fundamentalRisk.severity === 'critical' ? '风险' : '关注'}
+                      </button>
+                    ) : null}
+                    {hasDividendBadge ? (
+                      <span
+                        className="value-screening-badge is-dividend"
+                        title={`进入分红融资榜；分红融资比 ${dividendFinancing?.ratio.toFixed(2) ?? '--'}%，第 ${dividendFinancing?.rank ?? '--'} 名；快照 ${dividendFinancingSnapshotDate ?? '--'}`}
+                      >
+                        分红
+                      </span>
+                    ) : null}
+                    {!fundamentalBadge && !hasRiskBadge && !hasDividendBadge ? (
+                      <span className="value-tag-empty">--</span>
+                    ) : null}
+                  </span>
+                </td>
+              )
+            }
             case 'open':
               return (
                 <td key={columnId}>
@@ -532,6 +640,13 @@ export const WatchlistRow = memo(function WatchlistRow({
                   quote={quote}
                   dividendFinancing={dividendFinancing}
                   dividendFinancingSnapshotDate={dividendFinancingSnapshotDate}
+                  fundamentalScreening={fundamentalScreening}
+                  fundamentalPeerComparison={fundamentalPeerComparison}
+                  fundamentalSnapshotDate={fundamentalSnapshotDate}
+                  fundamentalGeneratedAt={fundamentalGeneratedAt}
+                  fundamentalStaleReason={fundamentalStaleReason}
+                  fundamentalTabRequested={fundamentalTabRequested}
+                  onFundamentalTabRequestHandled={() => setFundamentalTabRequested(false)}
                   refreshSeconds={stock.isPriority ? priorityRefreshSeconds : regularRefreshSeconds}
                   autoRefreshOrderBook={Boolean(activeTBatch)}
                   chipDistributionEnabled={chipDistributionEnabled}

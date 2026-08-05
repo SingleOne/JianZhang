@@ -1,8 +1,42 @@
-import { AlertCircle, BarChart3, Bot, Layers, Radar, RefreshCw, Sparkles, TrendingUp, Trophy } from 'lucide-react'
+import {
+  AlertCircle,
+  BarChart3,
+  Bot,
+  Building2,
+  CircleCheck,
+  CircleMinus,
+  CircleX,
+  Database,
+  Layers,
+  Radar,
+  RefreshCw,
+  Sparkles,
+  TrendingUp,
+  Trophy,
+  UsersRound
+} from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { stockApi } from '../lib/api'
 import { estimateChipHistoryLimit, findChipAutoRange } from '../lib/chip-distribution'
 import { formatAmount, formatPercent, formatPrice, formatVolume } from '../lib/format'
+import {
+  DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA,
+  FUNDAMENTAL_QUALITY_TAG_LABELS,
+  FUNDAMENTAL_RISK_TAG_LABELS,
+  FUNDAMENTAL_RISK_TAG_SEVERITY,
+  MIN_FUNDAMENTAL_PEER_SAMPLE_SIZE,
+  evaluateFundamentalQuality,
+  evaluateFundamentalRisk,
+  summarizeFundamentalScreening,
+  type FundamentalPeerComparison,
+  type FundamentalPeerMetricComparison,
+  type FundamentalQualityProfile,
+  type FundamentalQualityTag,
+  type FundamentalRiskProfile,
+  type FundamentalRiskTag,
+  type FundamentalRuleAssessmentStatus,
+  type FundamentalScreeningEvaluation
+} from '../lib/fundamental-screening'
 import {
   INTRADAY_REFRESH_MILLISECONDS,
   isBeijingAutoRefreshTime,
@@ -37,7 +71,7 @@ const AiTAdvicePanel = __JIANZHANG_AI_T_ADVICE_MODULE_ENABLED__
   : null
 
 type PriceTab = Exclude<KlinePeriod, 'intraday'> | 'trend'
-type DetailTab = PriceTab | 'dividendFinancing' | 'funds' | 'sector' | 'insight' | 'ai' | 't-advice'
+type DetailTab = PriceTab | 'dividendFinancing' | 'fundamental' | 'funds' | 'sector' | 'insight' | 'ai' | 't-advice'
 type HistoricalPeriod = Extract<KlinePeriod, 'daily' | 'weekly' | 'monthly'>
 
 interface KlineCacheEntry {
@@ -93,6 +127,43 @@ function dividendAmount(value: number): string {
     minimumFractionDigits: Math.abs(value) < 1 ? 4 : 2,
     maximumFractionDigits: Math.abs(value) < 1 ? 4 : 2
   })} 亿元`
+}
+
+function fundamentalPercent(value: number | null | undefined, digits = 2): string {
+  return value === null || value === undefined
+    ? '--'
+    : `${value.toLocaleString('zh-CN', {
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits
+      })}%`
+}
+
+function fundamentalAmount(value: number | null): string {
+  return value === null
+    ? '--'
+    : `${(value / 100_000_000).toLocaleString('zh-CN', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      })} 亿`
+}
+
+function fundamentalGeneratedTime(value?: string): string {
+  if (!value) return '--'
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return value
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).format(date)
+}
+
+function annualCashConversion(netProfit: number | null, operatingCashFlow: number | null): number | null {
+  if (netProfit === null || netProfit <= 0 || operatingCashFlow === null) return null
+  return operatingCashFlow / netProfit * 100
 }
 
 function DividendFinancingDeepDetails({ item }: { item: DividendFinancingRankingItem }) {
@@ -241,11 +312,581 @@ function DividendFinancingPanel({
   )
 }
 
+const FUNDAMENTAL_ORGANIZATION_LABELS = {
+  general: '普通企业',
+  bank: '银行',
+  securities: '证券公司',
+  insurance: '保险公司',
+  other: '其他金融企业'
+} as const
+
+function FundamentalRuleBadge({
+  status
+}: {
+  status: FundamentalRuleAssessmentStatus
+}) {
+  return (
+    <span className={`fundamental-rule-badge is-${status}`}>
+      {status === 'passed'
+        ? <CircleCheck size={14} />
+        : status === 'failed'
+          ? <CircleX size={14} />
+          : <CircleMinus size={14} />}
+      {status === 'passed'
+        ? '通过'
+        : status === 'failed'
+          ? '待核'
+          : status === 'missing'
+            ? '缺数'
+            : '免筛'}
+    </span>
+  )
+}
+
+function FundamentalPeerMetricCard({
+  title,
+  description,
+  comparison,
+  direction
+}: {
+  title: string
+  description: string
+  comparison: FundamentalPeerMetricComparison
+  direction: 'higher' | 'lower'
+}) {
+  const ranked = comparison.rank !== null
+  return (
+    <div className="fundamental-peer-metric">
+      <span>
+        <small>{title}</small>
+        <strong className={direction === 'higher'
+          ? signedValueClass(comparison.value ?? 0)
+          : undefined}
+        >
+          {fundamentalPercent(comparison.value)}
+        </strong>
+      </span>
+      <div>
+        {comparison.value === null ? (
+          <strong>当前指标缺失</strong>
+        ) : ranked ? (
+          <>
+            <strong>行业第 {comparison.rank} / {comparison.sampleSize}</strong>
+            <em>
+              {direction === 'higher'
+                ? `行业前 ${comparison.topPercent}%`
+                : `低于 ${comparison.betterThanPercent}% 同行`}
+            </em>
+          </>
+        ) : (
+          <>
+            <strong>样本不足</strong>
+            <em>当前有效样本 {comparison.sampleSize} 家</em>
+          </>
+        )}
+      </div>
+      <p>{description}</p>
+    </div>
+  )
+}
+
+function FundamentalPeerPanel({
+  evaluation,
+  comparison
+}: {
+  evaluation: FundamentalScreeningEvaluation
+  comparison?: FundamentalPeerComparison
+}) {
+  return (
+    <section className="fundamental-peer-section">
+      <header>
+        <span>
+          <i><UsersRound size={17} /></i>
+          <span>
+            <strong>同行位置</strong>
+            <small>{evaluation.company.industryName || '行业未知'}</small>
+          </span>
+        </span>
+        <small>只比较同一行业的普通企业，排名不改变三项筛选结论</small>
+      </header>
+      {!evaluation.eligibleOrganization ? (
+        <div className="fundamental-peer-unavailable">
+          <strong>金融企业暂不提供同行排名</strong>
+          <span>银行、券商和保险公司的现金流与负债结构不适合套用普通企业口径。</span>
+        </div>
+      ) : comparison ? (
+        <>
+          <div className="fundamental-peer-grid">
+            <FundamentalPeerMetricCard
+              title="持续 ROE"
+              description="按五年最低加权 ROE 从高到低排名"
+              comparison={comparison.roe}
+              direction="higher"
+            />
+            <FundamentalPeerMetricCard
+              title="现金质量"
+              description="按五年累计现金转换率从高到低排名"
+              comparison={comparison.cash}
+              direction="higher"
+            />
+            <FundamentalPeerMetricCard
+              title="负债水平"
+              description="按最新资产负债率从低到高排名"
+              comparison={comparison.debt}
+              direction="lower"
+            />
+          </div>
+          <p className="fundamental-peer-note">
+            每项仅统计数据完整的企业；有效样本少于 {MIN_FUNDAMENTAL_PEER_SAMPLE_SIZE} 家时不发布名次。
+            现金转换率可能受累计净利润较小影响，需结合五年明细判断。
+          </p>
+        </>
+      ) : (
+        <div className="fundamental-peer-unavailable">
+          <strong>当前行业暂无可比样本</strong>
+          <span>快照中没有足够的同口径普通企业数据。</span>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function FundamentalQualityEvidence({
+  tag,
+  profile,
+  evaluation
+}: {
+  tag: FundamentalQualityTag
+  profile: FundamentalQualityProfile
+  evaluation: FundamentalScreeningEvaluation
+}) {
+  const { metrics } = profile
+  const reports = evaluation.company.annualReports
+  const firstYear = reports[0]?.year ?? '--'
+  const lastYear = reports.at(-1)?.year ?? '--'
+  const recentFirstYear = reports.at(-3)?.year ?? '--'
+
+  if (tag === 'strictFundamental') {
+    return (
+      <>
+        <strong className={signedValueClass(metrics.minimumDeductedRoe ?? 0)}>
+          五年最低扣非 ROE {fundamentalPercent(metrics.minimumDeductedRoe)}
+        </strong>
+        <p>五个完整财年扣非加权 ROE 每年均严格高于 15%</p>
+      </>
+    )
+  }
+  if (tag === 'cashSustained') {
+    return (
+      <>
+        <strong>{metrics.sustainedCashYears} / 5 个财年</strong>
+        <p>每年经营现金流净额均严格大于当年合并净利润</p>
+      </>
+    )
+  }
+  if (tag === 'profitGrowth') {
+    return (
+      <>
+        <strong className={signedValueClass(metrics.netProfitCagr ?? 0)}>
+          净利润复合增速 {fundamentalPercent(metrics.netProfitCagr)}
+        </strong>
+        <p>{firstYear}—{lastYear} 共四个年度间隔，要求严格高于 10%</p>
+      </>
+    )
+  }
+  if (tag === 'roeStable') {
+    return (
+      <>
+        <strong>
+          五年波动范围 {metrics.roeRange?.toLocaleString('zh-CN', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          }) ?? '--'} 个百分点
+        </strong>
+        <p>五年加权 ROE 最大值与最小值之差严格小于 8 个百分点</p>
+      </>
+    )
+  }
+  if (tag === 'deductedSolid') {
+    return (
+      <>
+        <strong className={signedValueClass(metrics.deductedProfitRatio ?? 0)}>
+          累计扣非利润占比 {fundamentalPercent(metrics.deductedProfitRatio)}
+        </strong>
+        <p>五年累计扣非归母净利润占累计归母净利润严格高于 90%</p>
+      </>
+    )
+  }
+  return (
+    <>
+      <strong className={signedValueClass(metrics.latestCashConversion ?? 0)}>
+        最新现金转换率 {fundamentalPercent(metrics.latestCashConversion)}
+      </strong>
+      <p>{recentFirstYear}—{lastYear} 加权 ROE 与净利润均连续增长</p>
+    </>
+  )
+}
+
+function FundamentalQualityPanel({
+  evaluation
+}: {
+  evaluation: FundamentalScreeningEvaluation
+}) {
+  const profile = evaluateFundamentalQuality(evaluation.company)
+  return (
+    <section className="fundamental-quality-section">
+      <header>
+        <span>
+          <i><Sparkles size={17} /></i>
+          <span>
+            <strong>质量特征</strong>
+            <small>固定按软件推荐口径计算</small>
+          </span>
+        </span>
+        <small>标签可以重叠，数量多少不代表综合评分</small>
+      </header>
+      {!evaluation.eligibleOrganization ? (
+        <div className="fundamental-quality-empty">
+          <strong>金融企业暂不参与质量标签</strong>
+          <span>银行、券商和保险公司的财务结构需要使用独立评价口径。</span>
+        </div>
+      ) : profile.tags.length > 0 ? (
+        <div className="fundamental-quality-grid">
+          {profile.tags.map((tag) => (
+            <article className={tag === 'improving' ? 'is-improving' : ''} key={tag}>
+              <span>{FUNDAMENTAL_QUALITY_TAG_LABELS[tag]}</span>
+              <FundamentalQualityEvidence
+                tag={tag}
+                profile={profile}
+                evaluation={evaluation}
+              />
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="fundamental-quality-empty">
+          <strong>暂无质量细分标签</strong>
+          <span>没有标签不代表公司较差，也可能是指标未达到固定口径或数据不完整。</span>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function FundamentalRiskEvidence({
+  tag,
+  profile,
+  evaluation
+}: {
+  tag: FundamentalRiskTag
+  profile: FundamentalRiskProfile
+  evaluation: FundamentalScreeningEvaluation
+}) {
+  const { metrics } = profile
+  const reports = evaluation.company.annualReports
+  const firstYear = reports[0]?.year ?? '--'
+  const lastYear = reports.at(-1)?.year ?? '--'
+  const recentFirstYear = reports.at(-3)?.year ?? '--'
+
+  if (tag === 'cashDivergence') {
+    return (
+      <>
+        <strong className={signedValueClass(metrics.cumulativeCashConversion ?? 0)}>
+          五年累计现金转换率 {fundamentalPercent(metrics.cumulativeCashConversion)}
+        </strong>
+        <p>五年加权 ROE 每年高于 15%，但累计现金转换率低于 80%</p>
+      </>
+    )
+  }
+  if (tag === 'highLeverageRoe') {
+    return (
+      <>
+        <strong>行业负债分位 {fundamentalPercent(metrics.debtIndustryPercentile, 1)}</strong>
+        <p>高 ROE 与同行业高负债同时出现，需要核查杠杆贡献，不能直接判断因果</p>
+      </>
+    )
+  }
+  if (tag === 'deductedWeak') {
+    return (
+      <>
+        <strong className={signedValueClass(metrics.minimumDeductedRoe ?? 0)}>
+          五年最低扣非 ROE {fundamentalPercent(metrics.minimumDeductedRoe)}
+        </strong>
+        <p>加权 ROE 五年达标，但扣非加权 ROE 至少一年不高于 15%</p>
+      </>
+    )
+  }
+  if (tag === 'profitCashDivergence') {
+    return (
+      <>
+        <strong className={signedValueClass(metrics.latestCashConversion ?? 0)}>
+          最新现金转换率 {fundamentalPercent(metrics.latestCashConversion)}
+        </strong>
+        <p>{recentFirstYear}—{lastYear} 净利润连续增长，但经营现金流连续下降</p>
+      </>
+    )
+  }
+  if (tag === 'roeDecline') {
+    return (
+      <>
+        <strong className={signedValueClass(-(metrics.roeDeclinePoints ?? 0))}>
+          较 {firstYear} 年下降 {metrics.roeDeclinePoints?.toLocaleString('zh-CN', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          }) ?? '--'} 个百分点
+        </strong>
+        <p>五年 ROE 仍每年高于 15%，但最新值较五年前下降至少 5 个百分点</p>
+      </>
+    )
+  }
+  return (
+    <>
+      <strong className={signedValueClass(metrics.latestCashConversion ?? 0)}>
+        最新现金转换率 {fundamentalPercent(metrics.latestCashConversion)}
+      </strong>
+      <p>五年累计现金转换率高于 100%，但 {lastYear} 年单年现金转换率低于 100%</p>
+    </>
+  )
+}
+
+function FundamentalRiskPanel({
+  evaluation
+}: {
+  evaluation: FundamentalScreeningEvaluation
+}) {
+  const profile = evaluateFundamentalRisk(evaluation.company)
+  return (
+    <section className="fundamental-risk-section">
+      <header>
+        <span>
+          <i><AlertCircle size={17} /></i>
+          <span>
+            <strong>风险关注</strong>
+            <small>固定按软件推荐口径识别</small>
+          </span>
+        </span>
+        <small>提示只用于定位需核查项目，不直接改变三项硬筛选结论</small>
+      </header>
+      {!evaluation.eligibleOrganization ? (
+        <div className="fundamental-risk-empty">
+          <strong>金融企业暂不参与风险提示</strong>
+          <span>银行、券商和保险公司需要使用独立的现金流与杠杆评价口径。</span>
+        </div>
+      ) : profile.tags.length > 0 ? (
+        <div className="fundamental-risk-grid">
+          {profile.tags.map((tag) => (
+            <article className={`is-${FUNDAMENTAL_RISK_TAG_SEVERITY[tag]}`} key={tag}>
+              <span>{FUNDAMENTAL_RISK_TAG_LABELS[tag]}</span>
+              <FundamentalRiskEvidence
+                tag={tag}
+                profile={profile}
+                evaluation={evaluation}
+              />
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="fundamental-risk-empty">
+          <strong>当前字段范围内未识别到风险提示</strong>
+          <span>这不代表公司没有其他财务或经营风险，仍需结合更多信息研究。</span>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function FundamentalPanel({
+  evaluation,
+  peerComparison,
+  snapshotDate,
+  generatedAt,
+  staleReason
+}: {
+  evaluation?: FundamentalScreeningEvaluation
+  peerComparison?: FundamentalPeerComparison
+  snapshotDate?: string
+  generatedAt?: string
+  staleReason?: string | null
+}) {
+  if (!evaluation) {
+    return (
+      <div className="fundamental-tab-empty" role="status">
+        <Database size={26} />
+        <strong>当前股票暂无基本面财务数据</strong>
+        <span>当前快照可能尚未覆盖这只股票，可在“基本面初筛”中查看或更新数据。</span>
+      </div>
+    )
+  }
+
+  const { company, eligibleOrganization } = evaluation
+  const screeningSummary = summarizeFundamentalScreening(evaluation)
+  const organizationLabel = FUNDAMENTAL_ORGANIZATION_LABELS[company.organizationType]
+  const debtAssetRatio = company.latestBalanceSheet.debtAssetRatio
+  const debtPercentile = company.latestBalanceSheet.industryPercentile
+  const debtP60 = evaluation.industryBenchmark?.debtAssetRatioP60 ?? null
+  const roeThreshold = DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA.roeThreshold
+  const debtThreshold = DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA.debtIndustryPercentile
+
+  return (
+    <div className="fundamental-tab-panel">
+      {staleReason ? (
+        <div className="fundamental-stale-notice" role="status">
+          <AlertCircle size={15} />
+          <span><strong>当前基本面数据已过期</strong>{staleReason}</span>
+        </div>
+      ) : null}
+
+      <div className="fundamental-detail-conclusion-card">
+        <span className="fundamental-detail-icon"><Building2 size={20} /></span>
+        <span>
+          <small>{organizationLabel} · {company.industryName || '行业未知'}</small>
+          <strong>
+            {eligibleOrganization
+              ? screeningSummary.status === 'passed'
+                ? '3/3 项通过，可进入下一步研究'
+                : screeningSummary.status === 'missing'
+                  ? '基本面数据不足，暂不能完成三项筛选'
+                  : `有 ${screeningSummary.reviewCount} 项待核，需要进一步研究`
+              : `${organizationLabel}不参与普通企业三项筛选`}
+          </strong>
+          <em>
+            {eligibleOrganization
+              ? '筛选结果只用于缩小研究范围，不代表买入建议。'
+              : '以下财务数据仍然展示，但资产负债结构不与普通企业直接比较。'}
+          </em>
+        </span>
+      </div>
+
+      <div className="fundamental-evidence-grid">
+        <section>
+          <header>
+            <span>01</span>
+            <strong>连续五年 ROE</strong>
+            <FundamentalRuleBadge status={screeningSummary.ruleStatuses.roe} />
+          </header>
+          <div>
+            <span>五年最低加权 ROE</span>
+            <strong className={signedValueClass(evaluation.minimumRoe ?? 0)}>
+              {fundamentalPercent(evaluation.minimumRoe)}
+            </strong>
+          </div>
+          <p>要求五个完整财年每年严格高于 {roeThreshold}%</p>
+        </section>
+
+        <section>
+          <header>
+            <span>02</span>
+            <strong>现金利润质量</strong>
+            <FundamentalRuleBadge status={screeningSummary.ruleStatuses.cash} />
+          </header>
+          <div>
+            <span>五年累计现金转换率</span>
+            <strong className={signedValueClass(evaluation.cumulativeCashConversion ?? 0)}>
+              {fundamentalPercent(evaluation.cumulativeCashConversion)}
+            </strong>
+          </div>
+          <p>
+            经营现金流 {fundamentalAmount(evaluation.cumulativeOperatingCashFlow)} / 净利润{' '}
+            {fundamentalAmount(evaluation.cumulativeNetProfit)}，要求严格高于 100%
+          </p>
+        </section>
+
+        <section>
+          <header>
+            <span>03</span>
+            <strong>行业杠杆水平</strong>
+            <FundamentalRuleBadge status={screeningSummary.ruleStatuses.debt} />
+          </header>
+          <div>
+            <span>资产负债率 / 行业 P60</span>
+            <strong>{fundamentalPercent(debtAssetRatio)} / {fundamentalPercent(debtP60)}</strong>
+          </div>
+          <p>
+            当前位于行业 {fundamentalPercent(debtPercentile, 1)} 分位，要求严格低于 {debtThreshold}% 分位
+          </p>
+        </section>
+      </div>
+
+      <FundamentalQualityPanel evaluation={evaluation} />
+
+      <FundamentalRiskPanel evaluation={evaluation} />
+
+      <FundamentalPeerPanel evaluation={evaluation} comparison={peerComparison} />
+
+      <div className="fundamental-annual-section">
+        <div className="fundamental-annual-heading">
+          <span>
+            <strong>五年财务明细</strong>
+            <small>金额单位：亿元</small>
+          </span>
+          <small>利润与收益率按正红负绿显示</small>
+        </div>
+        <div className="fundamental-annual-table-wrap">
+          <table className="fundamental-detail-annual-table">
+            <thead>
+              <tr>
+                <th>财年</th>
+                <th>加权 ROE</th>
+                <th>扣非 ROE</th>
+                <th>净利润</th>
+                <th>扣非归母净利润</th>
+                <th>经营现金流</th>
+                <th>现金转换率</th>
+              </tr>
+            </thead>
+            <tbody>
+              {company.annualReports.map((report) => {
+                const conversion = annualCashConversion(report.netProfit, report.operatingCashFlow)
+                return (
+                  <tr key={report.year}>
+                    <td>{report.year}</td>
+                    <td className={signedValueClass(report.weightedAverageRoe ?? 0)}>
+                      {fundamentalPercent(report.weightedAverageRoe)}
+                    </td>
+                    <td className={signedValueClass(report.deductedWeightedAverageRoe ?? 0)}>
+                      {fundamentalPercent(report.deductedWeightedAverageRoe)}
+                    </td>
+                    <td className={signedValueClass(report.netProfit ?? 0)}>
+                      {fundamentalAmount(report.netProfit)}
+                    </td>
+                    <td className={signedValueClass(report.deductedParentNetProfit ?? 0)}>
+                      {fundamentalAmount(report.deductedParentNetProfit)}
+                    </td>
+                    <td className={signedValueClass(report.operatingCashFlow ?? 0)}>
+                      {fundamentalAmount(report.operatingCashFlow)}
+                    </td>
+                    <td className={signedValueClass(conversion ?? 0)}>
+                      {fundamentalPercent(conversion)}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="fundamental-detail-source">
+        <span>快照年度：{snapshotDate ?? '--'}</span>
+        <span>生成时间：{fundamentalGeneratedTime(generatedAt)}</span>
+        <span>负债报告期：{company.latestBalanceSheet.reportDate || '--'}</span>
+      </div>
+    </div>
+  )
+}
+
 interface ExpandedStockDetailsProps {
   stock: WatchStock
   quote?: StockQuote
   dividendFinancing?: DividendFinancingRankingItem
   dividendFinancingSnapshotDate?: string
+  fundamentalScreening?: FundamentalScreeningEvaluation
+  fundamentalPeerComparison?: FundamentalPeerComparison
+  fundamentalSnapshotDate?: string
+  fundamentalGeneratedAt?: string
+  fundamentalStaleReason?: string | null
+  fundamentalTabRequested?: boolean
+  onFundamentalTabRequestHandled?: () => void
   refreshSeconds: number
   autoRefreshOrderBook: boolean
   chipDistributionEnabled: boolean
@@ -259,6 +900,13 @@ export function ExpandedStockDetails({
   quote,
   dividendFinancing,
   dividendFinancingSnapshotDate,
+  fundamentalScreening,
+  fundamentalPeerComparison,
+  fundamentalSnapshotDate,
+  fundamentalGeneratedAt,
+  fundamentalStaleReason,
+  fundamentalTabRequested,
+  onFundamentalTabRequestHandled,
   refreshSeconds,
   autoRefreshOrderBook,
   chipDistributionEnabled,
@@ -287,6 +935,12 @@ export function ExpandedStockDetails({
   const activeHistoricalLimit = isPriceTab(activeTab) && isHistoricalTab(activeTab)
     ? historyLimits[activeTab]
     : undefined
+
+  useEffect(() => {
+    if (!fundamentalTabRequested) return
+    setActiveTab('fundamental')
+    onFundamentalTabRequestHandled?.()
+  }, [fundamentalTabRequested, onFundamentalTabRequestHandled])
 
   useEffect(() => {
     setHoveredBar(null)
@@ -530,6 +1184,16 @@ export function ExpandedStockDetails({
           分红融资
         </button>
         <button
+          className={activeTab === 'fundamental' ? 'is-active' : ''}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'fundamental'}
+          onClick={() => setActiveTab('fundamental')}
+        >
+          <Building2 size={15} />
+          基本面
+        </button>
+        <button
           className={activeTab === 'funds' ? 'is-active' : ''}
           type="button"
           role="tab"
@@ -603,6 +1267,16 @@ export function ExpandedStockDetails({
       {activeTab === 'dividendFinancing' ? (
         <div className="dividend-financing-tab-content" role="tabpanel">
           <DividendFinancingPanel item={dividendFinancing} snapshotDate={dividendFinancingSnapshotDate} />
+        </div>
+      ) : activeTab === 'fundamental' ? (
+        <div className="fundamental-tab-content" role="tabpanel">
+          <FundamentalPanel
+            evaluation={fundamentalScreening}
+            peerComparison={fundamentalPeerComparison}
+            snapshotDate={fundamentalSnapshotDate}
+            generatedAt={fundamentalGeneratedAt}
+            staleReason={fundamentalStaleReason}
+          />
         </div>
       ) : priceTab ? (
         <div className="trend-tab-panel" role="tabpanel">
@@ -751,6 +1425,9 @@ export function ExpandedStockDetails({
           <MarketInsightPanel
             stock={stock}
             quote={quote}
+            fundamentalCompany={fundamentalScreening?.company}
+            fundamentalSnapshotDate={fundamentalSnapshotDate}
+            fundamentalStaleReason={fundamentalStaleReason}
             onSnapshotChanged={setMarketInsightSnapshot}
             onChartOverlayEnabledChange={setShowInsightOverlay}
           />

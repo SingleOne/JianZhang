@@ -204,6 +204,338 @@
   gap: 8px;
 }
 
+.fundamental-watchlist-overview {
+  min-height: 102px;
+  flex: 0 0 auto;
+  display: grid;
+  overflow: hidden;
+  background: linear-gradient(90deg, #f8fbff 0%, #ffffff 46%);
+  border-bottom: 1px solid var(--border);
+}
+
+.fundamental-overview-primary-row,
+.fundamental-overview-secondary-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 14px 7px 20px;
+  overflow-x: auto;
+}
+
+.fundamental-overview-primary-row {
+  border-bottom: 1px solid #e9edf3;
+}
+
+.portfolio-quality-trigger {
+  min-width: 190px;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  color: #6941c6;
+  background: #f5f1ff;
+  border: 1px solid #d7c8fa;
+  border-radius: 8px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.portfolio-quality-trigger > span {
+  display: grid;
+  gap: 2px;
+}
+
+.portfolio-quality-trigger strong {
+  color: #4c2f8f;
+  font-size: 13px;
+}
+
+.portfolio-quality-trigger small {
+  color: #76619e;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.portfolio-quality-trigger:hover:not(:disabled) {
+  border-color: #aa8ee8;
+  box-shadow: 0 3px 10px rgba(105, 65, 198, 0.12);
+  transform: translateY(-1px);
+}
+
+.portfolio-quality-trigger:disabled {
+  color: #98a2b3;
+  background: #f7f8fa;
+  border-color: #d8dee7;
+  cursor: default;
+}
+
+.portfolio-quality-trigger:disabled strong,
+.portfolio-quality-trigger:disabled small {
+  color: #8490a3;
+}
+
+.fundamental-overview-heading {
+  min-width: 134px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #416eaa;
+}
+
+.fundamental-overview-values,
+.fundamental-overview-statuses,
+.fundamental-overview-rules,
+.fundamental-overview-risk {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.fundamental-overview-values {
+  padding-left: 12px;
+  border-left: 1px solid #dce2ea;
+}
+
+.fundamental-overview-group-label {
+  min-width: 64px;
+  display: grid;
+  gap: 1px;
+  color: #657387;
+  white-space: nowrap;
+}
+
+.fundamental-overview-group-label strong {
+  font-size: 12px;
+}
+
+.fundamental-overview-group-label small {
+  color: #8a94a6;
+  font-size: 12px;
+}
+
+.fundamental-overview-values.is-pending .fundamental-overview-group-label strong {
+  color: #8a5900;
+}
+
+.fundamental-overview-heading > span {
+  display: grid;
+  gap: 2px;
+}
+
+.fundamental-overview-heading strong {
+  color: #34445a;
+  font-size: 13px;
+}
+
+.fundamental-overview-heading small {
+  color: #7b899c;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.fundamental-overview-values button,
+.fundamental-overview-statuses button,
+.fundamental-overview-rules button,
+.fundamental-overview-risk button {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  color: #647287;
+  background: #ffffff;
+  border: 1px solid #dce2ea;
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.fundamental-overview-values button strong,
+.fundamental-overview-statuses button strong,
+.fundamental-overview-rules button strong,
+.fundamental-overview-risk button strong {
+  min-width: 17px;
+  height: 19px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  color: inherit;
+  background: rgba(100, 116, 139, 0.09);
+  border-radius: 999px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.fundamental-overview-values button:hover:not(:disabled),
+.fundamental-overview-statuses button:hover:not(:disabled),
+.fundamental-overview-rules button:hover:not(:disabled),
+.fundamental-overview-risk button:hover:not(:disabled) {
+  border-color: #aebccc;
+  transform: translateY(-1px);
+}
+
+.fundamental-overview-values button.is-dual {
+  color: #6941c6;
+  background: #f5f1ff;
+  border-color: #d7c8fa;
+}
+
+.fundamental-overview-values button.is-fundamental {
+  color: #175cd3;
+  background: #f3f7ff;
+  border-color: #c7d8f5;
+}
+
+.fundamental-overview-values button.is-dividend {
+  color: #8a5a00;
+  background: #fff7df;
+  border-color: #ead18f;
+}
+
+.fundamental-overview-values button.is-unlabeled {
+  color: #657387;
+  background: #f7f8fa;
+  border-color: #d8dee7;
+}
+
+.fundamental-overview-statuses button.is-passed {
+  color: #175cd3;
+  background: #f3f7ff;
+  border-color: #c7d8f5;
+}
+
+.fundamental-overview-statuses button.is-review {
+  color: #8a5900;
+  background: #fff9eb;
+  border-color: #ead18f;
+}
+
+.fundamental-overview-statuses button.is-missing,
+.fundamental-overview-statuses button.is-financial,
+.fundamental-overview-statuses button.is-unavailable {
+  color: #657387;
+  background: #f7f8fa;
+  border-color: #d8dee7;
+}
+
+.fundamental-overview-values button.is-active,
+.fundamental-overview-statuses button.is-active,
+.fundamental-overview-rules button.is-active,
+.fundamental-overview-risk button.is-active {
+  border-color: currentColor;
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 15%, transparent);
+}
+
+.fundamental-overview-values button:disabled,
+.fundamental-overview-statuses button:disabled,
+.fundamental-overview-rules button:disabled,
+.fundamental-overview-risk button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.fundamental-overview-rules {
+  padding-left: 12px;
+  border-left: 1px solid #dce2ea;
+}
+
+.fundamental-overview-rules > span {
+  color: #7b899c;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.fundamental-overview-rules button.is-active {
+  color: #8a5900;
+  background: #fff9eb;
+}
+
+.fundamental-overview-risk {
+  padding-left: 10px;
+  border-left: 1px solid #dce2ea;
+}
+
+.fundamental-overview-risk > span {
+  color: #7b899c;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.fundamental-overview-risk button {
+  color: #a33a43;
+  background: #fff3f4;
+  border-color: #edc5c9;
+}
+
+.fundamental-overview-risk button.is-active {
+  color: #a32431;
+  background: #ffeaec;
+}
+
+.fundamental-value-sort {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  color: #607086;
+  background: #ffffff;
+  border: 1px solid #dce2ea;
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.fundamental-value-sort:hover,
+.fundamental-value-sort.is-active {
+  color: #6941c6;
+  background: #f5f1ff;
+  border-color: #bda9ed;
+}
+
+.fundamental-value-sort:disabled {
+  color: #98a2b3;
+  background: #f7f8fa;
+  border-color: #d8dee7;
+  cursor: default;
+}
+
+.fundamental-overview-reset {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  padding: 0 8px;
+  color: #607086;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.fundamental-overview-reset:hover:not(:disabled) {
+  color: #315f9b;
+  background: #edf4fd;
+}
+
+.fundamental-overview-reset:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
 .table-filter-dropdown {
   position: relative;
   flex: 0 0 auto;
@@ -920,6 +1252,112 @@
 .dividend-financing-cell.is-empty small {
   color: #98a2b3;
   font-weight: 500;
+}
+
+.value-tag-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.value-screening-badge {
+  min-height: 25px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 7px;
+  border: 1px solid;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  line-height: 1;
+  cursor: default;
+  white-space: nowrap;
+}
+
+.value-screening-badge.is-fundamental {
+  color: #175cd3;
+  background: #eff5ff;
+  border-color: #bfd3f7;
+}
+
+.value-screening-badge.is-fundamental:hover {
+  color: #0d4fb5;
+  background: #e3eeff;
+  border-color: #8fb2eb;
+}
+
+.value-screening-badge.is-review {
+  color: #965d00;
+  background: #fff7e6;
+  border-color: #e9c778;
+}
+
+.value-screening-badge.is-review:hover {
+  color: #7a4900;
+  background: #ffefca;
+  border-color: #d9ad4f;
+}
+
+.value-screening-badge.is-missing,
+.value-screening-badge.is-financial {
+  color: #657387;
+  background: #f3f5f8;
+  border-color: #d3dae4;
+}
+
+.value-screening-badge.is-missing:hover,
+.value-screening-badge.is-financial:hover {
+  color: #455468;
+  background: #e9edf2;
+  border-color: #bac4d1;
+}
+
+button.value-screening-badge {
+  cursor: pointer;
+}
+
+button.value-screening-badge:focus-visible {
+  outline: 2px solid rgba(47, 105, 179, 0.3);
+  outline-offset: 2px;
+}
+
+.value-screening-badge.is-dividend {
+  color: #8a5a00;
+  background: #fff7df;
+  border-color: #edcf78;
+}
+
+.value-screening-badge.is-risk-warning {
+  color: #965d00;
+  background: #fff5df;
+  border-color: #e7c36d;
+}
+
+.value-screening-badge.is-risk-warning:hover {
+  color: #7a4900;
+  background: #ffebbf;
+  border-color: #d7a842;
+}
+
+.value-screening-badge.is-risk-critical {
+  color: #a32431;
+  background: #fff0f1;
+  border-color: #eab9be;
+}
+
+.value-screening-badge.is-risk-critical:hover {
+  color: #861b26;
+  background: #ffe3e6;
+  border-color: #da8e96;
+}
+
+.value-tag-empty {
+  color: #98a2b3;
+  font-size: 12px;
 }
 
 .change-percent {
