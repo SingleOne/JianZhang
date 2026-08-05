@@ -31,6 +31,7 @@ import type {
   SectorIndexResult,
   StockOrderBook,
   StockQuote,
+  StockValuationHistory,
   TaskbarLayout,
   TradingCalendarSettings
 } from '../../src/shared/types'
@@ -53,6 +54,7 @@ interface IpcHandlerDependencies {
   getFundamentalState: () => DataSnapshotRuntimeState
   getFundamentalChangeReport: () => FundamentalChangeReport | null
   runFundamentalUpdate: () => Promise<FundamentalUpdateResult>
+  getValuationHistory: (quoteId: string) => Promise<StockValuationHistory>
   refreshQuotes: (reason?: string) => Promise<StockQuote[]>
   refreshQuotesAutomatically: (reason: string) => Promise<StockQuote[]>
   restartQuoteSchedule: () => void
@@ -84,6 +86,7 @@ const CHANNELS = [
   'fundamentals:state:get',
   'fundamentals:changes:get',
   'fundamentals:update',
+  'valuation-history:get',
   'quotes:refresh',
   'kline:get',
   'chip-distribution:cache:save',
@@ -126,6 +129,9 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
   ipcMain.handle('fundamentals:state:get', () => dependencies.getFundamentalState())
   ipcMain.handle('fundamentals:changes:get', () => dependencies.getFundamentalChangeReport())
   ipcMain.handle('fundamentals:update', () => dependencies.runFundamentalUpdate())
+  ipcMain.handle('valuation-history:get', (_event, quoteId: string) =>
+    dependencies.getValuationHistory(quoteId)
+  )
   ipcMain.handle('quotes:refresh', () => dependencies.refreshQuotes())
   ipcMain.handle('kline:get', (_event, quoteId: string, period: KlinePeriod, limit?: number) =>
     dependencies.getKline(quoteId, period, limit)

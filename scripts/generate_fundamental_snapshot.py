@@ -1,8 +1,9 @@
-"""分三阶段生成 A 股基本面财务数据快照。
+"""分四阶段生成 A 股基本面财务数据快照。
 
 阶段一：最近五个完整财年的加权 ROE、扣非加权 ROE 和 ROIC。
 阶段二：同期净利润、经营现金流、资本开支和自由现金流。
 阶段三：最近完整财年的资产负债率、行业分位和净负债。
+阶段四：同一交易日的 PE TTM、PB 及行业分位。
 """
 
 from __future__ import annotations
@@ -56,6 +57,9 @@ DETAILED_BALANCE_COLUMNS = (
     "REPORT_DATE,NOTICE_DATE,MONETARYFUNDS,SHORT_LOAN,SHORT_BOND_PAYABLE,"
     "NONCURRENT_LIAB_1YEAR,LONG_LOAN,BOND_PAYABLE,LEASE_LIAB"
 )
+VALUATION_COLUMNS = (
+    "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,TRADE_DATE,PE_TTM,PB_MRQ"
+)
 ORGANIZATION_TYPES = {
     "通用": "general",
     "银行": "bank",
@@ -91,13 +95,27 @@ def request_page(params: dict) -> dict:
 
 
 def fetch_report(report_name: str, columns: str, report_date: str) -> list[dict]:
+    return fetch_filtered_report(
+        report_name,
+        columns,
+        f"(REPORT_DATE='{report_date}')",
+        "SECURITY_CODE",
+    )
+
+
+def fetch_filtered_report(
+    report_name: str,
+    columns: str,
+    filter_expression: str,
+    sort_columns: str,
+) -> list[dict]:
     base_params = {
         "reportName": report_name,
         "columns": columns,
         "pageSize": PAGE_SIZE,
-        "sortColumns": "SECURITY_CODE",
+        "sortColumns": sort_columns,
         "sortTypes": "1",
-        "filter": f"(REPORT_DATE='{report_date}')",
+        "filter": filter_expression,
         "source": "WEB",
         "client": "WEB",
     }
@@ -118,6 +136,27 @@ def fetch_report(report_name: str, columns: str, report_date: str) -> list[dict]
     return [row for page in range(1, pages + 1) for row in rows_by_page[page]]
 
 
+def latest_valuation_date(snapshot_date: str) -> str:
+    result = request_page(
+        {
+            "reportName": "RPT_VALUEANALYSIS_DET",
+            "columns": "TRADE_DATE",
+            "pageSize": 1,
+            "pageNumber": 1,
+            "sortColumns": "TRADE_DATE",
+            "sortTypes": "-1",
+            "filter": f"(TRADE_DATE<='{snapshot_date}')",
+            "source": "WEB",
+            "client": "WEB",
+        }
+    )
+    data = result.get("data") or []
+    value = date_part(data[0].get("TRADE_DATE")) if data else None
+    if not value:
+        raise RuntimeError("未找到估值数据对应的最近交易日")
+    return value
+
+
 def a_share_rows(rows: list[dict]) -> dict[str, dict]:
     result: dict[str, dict] = {}
     for row in rows:
@@ -128,6 +167,16 @@ def a_share_rows(rows: list[dict]) -> dict[str, dict]:
         if not re.fullmatch(r"\d{6}\.(?:SH|SZ|BJ)", secucode):
             continue
         if re.fullmatch(r"\d{6}", code):
+            result[code] = row
+    return result
+
+
+def valuation_rows(rows: list[dict]) -> dict[str, dict]:
+    result: dict[str, dict] = {}
+    for row in rows:
+        code = str(row.get("SECURITY_CODE") or "")
+        secucode = str(row.get("SECUCODE") or "")
+        if re.fullmatch(r"\d{6}\.(?:SH|SZ|BJ)", secucode) and re.fullmatch(r"\d{6}", code):
             result[code] = row
     return result
 
@@ -179,14 +228,14 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
     fiscal_years = list(range(latest_year - years + 1, latest_year + 1))
     annual_dates = {year: f"{year}-12-31" for year in fiscal_years}
 
-    log(f"阶段一/三：获取 {fiscal_years[0]}—{fiscal_years[-1]} 年 ROE 与 ROIC")
+    log(f"阶段一/四：获取 {fiscal_years[0]}—{fiscal_years[-1]} 年 ROE 与 ROIC")
     main_by_year: dict[int, dict[str, dict]] = {}
     for year in fiscal_years:
         rows = fetch_report("RPT_F10_FINANCE_MAINFINADATA", MAIN_COLUMNS, annual_dates[year])
         main_by_year[year] = a_share_rows(rows)
-        log(f"阶段一/三：{year} 年 ROE 已获取 {len(main_by_year[year]):,} 家")
+        log(f"阶段一/四：{year} 年 ROE 已获取 {len(main_by_year[year]):,} 家")
 
-    log(f"阶段二/三：获取 {fiscal_years[0]}—{fiscal_years[-1]} 年利润与现金流")
+    log(f"阶段二/四：获取 {fiscal_years[0]}—{fiscal_years[-1]} 年利润与现金流")
     income_by_year: dict[int, dict[str, dict]] = {}
     cashflow_by_year: dict[int, dict[str, dict]] = {}
     for year in fiscal_years:
@@ -200,11 +249,11 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
             income_by_year[year] = a_share_rows(income_future.result())
             cashflow_by_year[year] = a_share_rows(cashflow_future.result())
         log(
-            f"阶段二/三：{year} 年利润 {len(income_by_year[year]):,} 家，"
+            f"阶段二/四：{year} 年利润 {len(income_by_year[year]):,} 家，"
             f"现金流 {len(cashflow_by_year[year]):,} 家"
         )
 
-    log(f"阶段三/三：获取 {latest_year} 年资产负债率、净负债并计算行业分位")
+    log(f"阶段三/四：获取 {latest_year} 年资产负债率、净负债并计算行业分位")
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
         balance_future = pool.submit(
             fetch_report, "RPT_DMSK_FN_BALANCE", BALANCE_COLUMNS, annual_dates[latest_year]
@@ -223,6 +272,17 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         if is_active_company_name(str(row.get("SECURITY_NAME_ABBR") or ""))
     }
 
+    valuation_date = latest_valuation_date(snapshot_date)
+    log(f"阶段四/四：获取 {valuation_date} 的 PE TTM、PB 并计算行业分位")
+    latest_valuation = valuation_rows(
+        fetch_filtered_report(
+            "RPT_VALUEANALYSIS_DET",
+            VALUATION_COLUMNS,
+            f"(TRADE_DATE='{valuation_date}')",
+            "SECURITY_CODE",
+        )
+    )
+
     industry_values: dict[tuple[str, str], list[float]] = defaultdict(list)
     for row in latest_balance.values():
         industry_code = str(row.get("INDUSTRY_CODE") or "")
@@ -232,6 +292,25 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
             industry_values[(industry_code, industry_name)].append(debt_asset_ratio)
     for values in industry_values.values():
         values.sort()
+
+    valuation_industry_values: dict[tuple[str, str], dict[str, list[float]]] = defaultdict(
+        lambda: {"pe": [], "pb": []}
+    )
+    for code, balance in latest_balance.items():
+        valuation = latest_valuation.get(code, {})
+        key = (
+            str(balance.get("INDUSTRY_CODE") or ""),
+            str(balance.get("INDUSTRY_NAME") or ""),
+        )
+        pe_ttm = number(valuation.get("PE_TTM"))
+        price_book = number(valuation.get("PB_MRQ"))
+        if key[0] and key[1] and pe_ttm is not None and pe_ttm > 0:
+            valuation_industry_values[key]["pe"].append(pe_ttm)
+        if key[0] and key[1] and price_book is not None and price_book > 0:
+            valuation_industry_values[key]["pb"].append(price_book)
+    for metrics in valuation_industry_values.values():
+        metrics["pe"].sort()
+        metrics["pb"].sort()
 
     industries = [
         {
@@ -252,6 +331,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         peer_values = industry_values.get((industry_code, industry_name), [])
         latest_main = main_by_year[latest_year].get(code, {})
         detailed_balance = latest_detailed_balance.get(code, {})
+        valuation = latest_valuation.get(code, {})
         annual_reports: list[dict] = []
 
         for year in fiscal_years:
@@ -318,6 +398,21 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
             if interest_bearing_debt is not None and monetary_funds is not None
             else None
         )
+        pe_ttm = number(valuation.get("PE_TTM"))
+        price_book = number(valuation.get("PB_MRQ"))
+        valuation_peers = valuation_industry_values.get(
+            (industry_code, industry_name), {"pe": [], "pb": []}
+        )
+        pe_percentile = (
+            100 * bisect.bisect_right(valuation_peers["pe"], pe_ttm) / len(valuation_peers["pe"])
+            if pe_ttm is not None and pe_ttm > 0 and valuation_peers["pe"]
+            else None
+        )
+        pb_percentile = (
+            100 * bisect.bisect_right(valuation_peers["pb"], price_book) / len(valuation_peers["pb"])
+            if price_book is not None and price_book > 0 and valuation_peers["pb"]
+            else None
+        )
 
         rows.append(
             {
@@ -341,6 +436,15 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
                     "monetaryFunds": rounded(monetary_funds),
                     "interestBearingDebt": rounded(interest_bearing_debt),
                     "netDebt": rounded(net_debt),
+                },
+                "valuation": {
+                    "dataDate": valuation_date,
+                    "priceEarningsRatioTtm": rounded(pe_ttm, 4),
+                    "priceBookRatio": rounded(price_book, 4),
+                    "priceEarningsIndustryPercentile": rounded(pe_percentile, 4),
+                    "priceBookIndustryPercentile": rounded(pb_percentile, 4),
+                    "priceEarningsIndustrySampleSize": len(valuation_peers["pe"]),
+                    "priceBookIndustrySampleSize": len(valuation_peers["pb"]),
                 },
             }
         )
@@ -371,10 +475,21 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         row["latestBalanceSheet"]["industryPercentile"] is not None for row in rows
     )
     net_debt_count = sum(row["latestBalanceSheet"]["netDebt"] is not None for row in rows)
+    valuation_count = sum(
+        row["valuation"]["priceEarningsRatioTtm"] is not None
+        or row["valuation"]["priceBookRatio"] is not None
+        for row in rows
+    )
+    pe_industry_percentile_count = sum(
+        row["valuation"]["priceEarningsIndustryPercentile"] is not None for row in rows
+    )
+    pb_industry_percentile_count = sum(
+        row["valuation"]["priceBookIndustryPercentile"] is not None for row in rows
+    )
 
     generated_at = dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).isoformat(timespec="seconds")
     snapshot = {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "snapshotDate": snapshot_date,
         "generatedAt": generated_at,
         "currency": "CNY",
@@ -406,6 +521,11 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
                 "reportName": "RPT_F10_FINANCE_GBALANCE",
                 "url": EASTMONEY_DATA_API,
             },
+            {
+                "name": "东方财富估值分析",
+                "reportName": "RPT_VALUEANALYSIS_DET",
+                "url": EASTMONEY_DATA_API,
+            },
         ],
         "coverage": {
             "companyCount": len(rows),
@@ -416,13 +536,16 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
             "latestDebtAssetRatioCount": debt_asset_count,
             "latestIndustryPercentileCount": industry_percentile_count,
             "latestNetDebtCount": net_debt_count,
+            "latestValuationCount": valuation_count,
+            "latestPriceEarningsIndustryPercentileCount": pe_industry_percentile_count,
+            "latestPriceBookIndustryPercentileCount": pb_industry_percentile_count,
             "industryCount": len(industries),
         },
         "industries": industries,
         "rows": rows,
     }
     diagnostics = {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "snapshotDate": snapshot_date,
         "generatedAt": generated_at,
         "fiscalYears": fiscal_years,
@@ -436,10 +559,12 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         },
         "latestBalanceRows": len(latest_balance),
         "latestDetailedBalanceRows": len(latest_detailed_balance),
+        "latestValuationDate": valuation_date,
+        "latestValuationRows": len(latest_valuation),
         "coverage": snapshot["coverage"],
     }
     log(
-        f"阶段三/三：完成 {len(rows):,} 家公司、{len(industries):,} 个行业的资产负债率分位"
+        f"阶段四/四：完成 {len(rows):,} 家公司、{len(industries):,} 个行业的财务与估值分位"
     )
     return snapshot, diagnostics
 

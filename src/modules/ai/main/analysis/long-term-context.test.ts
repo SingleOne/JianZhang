@@ -4,7 +4,8 @@ import type {
   DividendFinancingSnapshot,
   FundamentalSnapshot,
   KlineResult,
-  StockQuote
+  StockQuote,
+  StockValuationHistory
 } from '../../../../shared/types'
 import { buildLongTermContext, calculateLongTermPriceStrength } from './long-term-context'
 
@@ -59,7 +60,7 @@ function dailyKline(): KlineResult {
 
 function fundamentalSnapshot(): FundamentalSnapshot {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     snapshotDate: '2026-08-05',
     generatedAt: '2026-08-05T12:00:00+08:00',
     currency: 'CNY',
@@ -110,8 +111,28 @@ function fundamentalSnapshot(): FundamentalSnapshot {
         monetaryFunds: 200,
         interestBearingDebt: 120,
         netDebt: -80
+      },
+      valuation: {
+        dataDate: '2026-08-04',
+        priceEarningsRatioTtm: 12.3,
+        priceBookRatio: 1.75,
+        priceEarningsIndustryPercentile: 42,
+        priceBookIndustryPercentile: 36,
+        priceEarningsIndustrySampleSize: 20,
+        priceBookIndustrySampleSize: 21
       }
     }]
+  }
+}
+
+function valuationHistory(): StockValuationHistory {
+  return {
+    quoteId: '1.600000',
+    fetchedAt: '2026-08-05T14:30:30+08:00',
+    periodStart: '2021-08-05',
+    periodEnd: '2026-08-05',
+    priceEarningsRatioTtmValues: [8, 10, 12, 15],
+    priceBookRatioValues: [1, 1.5, 2, 2.5]
   }
 }
 
@@ -156,6 +177,7 @@ describe('long-term AI context', () => {
       quoteId: '1.600000',
       quote: quote(),
       dailyKline: dailyKline(),
+      valuationHistory: valuationHistory(),
       fundamentalSnapshot: fundamentalSnapshot(),
       fundamentalState: readyState,
       dividendSnapshot: dividendSnapshot(),
@@ -165,8 +187,16 @@ describe('long-term AI context', () => {
 
     expect(context.valueCategory).toBe('dual')
     expect(context.valuation).toMatchObject({
-      priceEarningsRatioTtm: 12.5,
-      priceBookRatio: 1.8
+      priceEarningsRatioTtm: {
+        currentValue: 12.5,
+        historicalPercentile: 75,
+        industryPercentile: 42
+      },
+      priceBookRatio: {
+        currentValue: 1.8,
+        historicalPercentile: 50,
+        industryPercentile: 36
+      }
     })
     expect(context.fundamental.company?.annualReports.at(-1)).toMatchObject({
       roic: 14,
@@ -180,6 +210,7 @@ describe('long-term AI context', () => {
     const base = {
       quoteId: '1.600000',
       dailyKline: dailyKline(),
+      valuationHistory: valuationHistory(),
       fundamentalSnapshot: fundamentalSnapshot(),
       fundamentalState: readyState,
       dividendSnapshot: dividendSnapshot(),
@@ -194,10 +225,33 @@ describe('long-term AI context', () => {
     expect(weak.snapshotId).not.toBe(strong.snapshotId)
   })
 
+  it('excludes ordinary corporate cash flow, ROIC and net debt for financial companies', () => {
+    const financialSnapshot = fundamentalSnapshot()
+    financialSnapshot.rows[0].organizationType = 'bank'
+    const context = buildLongTermContext({
+      quoteId: '1.600000',
+      quote: quote(),
+      dailyKline: dailyKline(),
+      valuationHistory: valuationHistory(),
+      fundamentalSnapshot: financialSnapshot,
+      fundamentalState: readyState,
+      dividendSnapshot: dividendSnapshot(),
+      dividendState: readyState,
+      generatedAt: '2026-08-05T14:31:00+08:00'
+    })
+
+    expect(context.fundamental.company?.ordinaryCorporateMetricsApplicable).toBe(false)
+    expect(context.fundamental.company?.annualReports.at(-1)?.roic).toBeNull()
+    expect(context.fundamental.company?.annualReports.at(-1)?.freeCashFlow).toBeNull()
+    expect(context.fundamental.company?.latestBalanceSheet.netDebt).toBeNull()
+    expect(context.valuation.priceBookRatio.industryPercentile).toBe(36)
+  })
+
   it('reuses the fingerprint when only the quote refresh timestamp changes', () => {
     const base = {
       quoteId: '1.600000',
       dailyKline: dailyKline(),
+      valuationHistory: valuationHistory(),
       fundamentalSnapshot: fundamentalSnapshot(),
       fundamentalState: readyState,
       dividendSnapshot: dividendSnapshot(),

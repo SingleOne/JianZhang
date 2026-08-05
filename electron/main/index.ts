@@ -42,6 +42,7 @@ import { QuoteRuntime } from './quote-runtime'
 import { SectorMarketCache } from './sector-market-cache'
 import { StateStore } from './state-store'
 import { TradingCalendarRuntime } from './trading-calendar-runtime'
+import { ValuationHistoryService } from './valuation-history-service'
 import { createAppIcon } from './tray-icons'
 import { WindowManager } from './window-manager'
 
@@ -118,6 +119,7 @@ let klineHub: KlineHub | null = null
 let disposeIpcHandlers: (() => void) | null = null
 let dividendFinancingService: DividendFinancingService | null = null
 let fundamentalDataService: FundamentalDataService | null = null
+let valuationHistoryService: ValuationHistoryService | null = null
 
 const marketDataHub = new (class MarketDataHub {
   private readonly listeners = new Set<(quotes: readonly StockQuote[]) => void>()
@@ -232,6 +234,7 @@ if (!hasSingleInstanceLock) {
     }
 
     const marketCacheDirectory = join(app.getPath('userData'), 'market-cache')
+    valuationHistoryService = new ValuationHistoryService(marketCacheDirectory)
     const pythonTaskQueue = new PythonTaskQueue((message) => {
       void dialog.showMessageBox({
         type: 'warning',
@@ -315,6 +318,7 @@ if (!hasSingleInstanceLock) {
       getFundamentalState: () => fundamentalDataService!.getState(),
       getFundamentalChangeReport: () => fundamentalDataService!.getChangeReport(),
       runFundamentalUpdate: () => fundamentalDataService!.runUpdate(),
+      getValuationHistory: (quoteId) => valuationHistoryService!.get(quoteId),
       refreshQuotes: (reason) => quoteRuntime!.refreshAll(reason),
       refreshQuotesAutomatically: (reason) => quoteRuntime!.refreshAutomatically(reason),
       restartQuoteSchedule: () => quoteRuntime!.restartSchedule(),
@@ -373,6 +377,7 @@ if (!hasSingleInstanceLock) {
         getChipDistributionCache: (quoteId) => chipDistributionCache?.get(quoteId) ?? null,
         getLatestQuote: (quoteId) => getLatestQuotes().find((quote) => quote.quoteId === quoteId) ?? null,
         getDailyKline: (quoteId, limit) => getKline(quoteId, 'daily', limit, 'ai:long-term'),
+        getValuationHistory: (quoteId) => valuationHistoryService!.get(quoteId),
         getFundamentalSnapshot: () => fundamentalDataService?.getSnapshot() ?? null,
         getFundamentalState: () => fundamentalDataService!.getState(),
         getDividendFinancingSnapshot: () => dividendFinancingService?.getSnapshot() ?? null,

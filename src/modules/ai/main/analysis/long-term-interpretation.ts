@@ -1,20 +1,31 @@
 import type {
-  AiLongTermDimensionId,
-  AiLongTermInterpretation
+  AiLongTermInterpretation,
+  AiLongTermPriceTimingLevel,
+  AiLongTermSectionId,
+  AiLongTermValueLevel
 } from '../../shared/types'
 
-const LONG_TERM_DIMENSIONS = new Set<AiLongTermDimensionId>([
-  'businessQuality',
-  'cashFlow',
-  'capitalEfficiency',
-  'balanceSheet',
-  'valuation',
-  'shareholderReturn',
-  'priceTiming'
+const LONG_TERM_SECTIONS = new Set<AiLongTermSectionId>([
+  'enterpriseQuality',
+  'financialSafety',
+  'currentPrice'
+])
+const VALUE_LEVELS = new Set<AiLongTermValueLevel>(['high', 'medium', 'low', 'insufficient'])
+const PRICE_LEVELS = new Set<AiLongTermPriceTimingLevel>([
+  'favorable',
+  'neutral',
+  'unfavorable',
+  'insufficient'
 ])
 
 function asText(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+function textList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.flatMap((item) => asText(item) ? [asText(item) as string] : [])
+    : []
 }
 
 export function parseLongTermInterpretation(
@@ -34,27 +45,50 @@ export function parseLongTermInterpretation(
   const record = raw as Record<string, unknown>
   const summary = asText(record.summary)
   if (!summary) throw new Error('模型长期价值分析缺少摘要，请重试')
-  const dimensions = Array.isArray(record.dimensions)
-    ? record.dimensions.flatMap((item) => {
+
+  const sections = Array.isArray(record.sections)
+    ? record.sections.flatMap((item) => {
       if (!item || typeof item !== 'object' || Array.isArray(item)) return []
-      const dimension = item as Record<string, unknown>
-      const id = asText(dimension.id) as AiLongTermDimensionId | null
-      const conclusion = asText(dimension.conclusion)
-      const evidence = Array.isArray(dimension.evidence)
-        ? dimension.evidence.flatMap((entry) => asText(entry) ? [asText(entry) as string] : [])
-        : []
-      return id && LONG_TERM_DIMENSIONS.has(id) && conclusion
-        ? [{ id, conclusion, evidence }]
+      const section = item as Record<string, unknown>
+      const id = asText(section.id) as AiLongTermSectionId | null
+      const conclusion = asText(section.conclusion)
+      return id && LONG_TERM_SECTIONS.has(id) && conclusion
+        ? [{ id, conclusion, evidence: textList(section.evidence) }]
         : []
     })
     : []
-  if (dimensions.length === 0) throw new Error('模型长期价值分析缺少有效维度，请重试')
-  const textList = (value: unknown) => Array.isArray(value)
-    ? value.flatMap((item) => asText(item) ? [asText(item) as string] : [])
-    : []
+  const sectionIds = new Set(sections.map((section) => section.id))
+  if (sectionIds.size !== LONG_TERM_SECTIONS.size || sections.length !== LONG_TERM_SECTIONS.size) {
+    throw new Error('模型长期价值分析缺少企业质量、财务安全或当前价格，请重试')
+  }
+
+  const conclusion = record.conclusion && typeof record.conclusion === 'object'
+    ? record.conclusion as Record<string, unknown>
+    : null
+  const longTermValue = conclusion?.longTermValue && typeof conclusion.longTermValue === 'object'
+    ? conclusion.longTermValue as Record<string, unknown>
+    : null
+  const priceTiming = conclusion?.priceTiming && typeof conclusion.priceTiming === 'object'
+    ? conclusion.priceTiming as Record<string, unknown>
+    : null
+  const longTermValueLevel = asText(longTermValue?.level) as AiLongTermValueLevel | null
+  const priceTimingLevel = asText(priceTiming?.level) as AiLongTermPriceTimingLevel | null
+  const longTermValueReason = asText(longTermValue?.reason)
+  const priceTimingReason = asText(priceTiming?.reason)
+  if (
+    !longTermValueLevel || !VALUE_LEVELS.has(longTermValueLevel) || !longTermValueReason
+    || !priceTimingLevel || !PRICE_LEVELS.has(priceTimingLevel) || !priceTimingReason
+  ) {
+    throw new Error('模型长期价值分析缺少长期价值或当前时机结论，请重试')
+  }
+
   return {
     summary,
-    dimensions,
+    sections,
+    conclusion: {
+      longTermValue: { level: longTermValueLevel, reason: longTermValueReason },
+      priceTiming: { level: priceTimingLevel, reason: priceTimingReason }
+    },
     risks: textList(record.risks),
     uncertainties: textList(record.uncertainties),
     generatedAt

@@ -3,7 +3,7 @@ import type { FundamentalSnapshot } from '../shared/types'
 export function parseFundamentalSnapshot(content: string): FundamentalSnapshot {
   const snapshot = JSON.parse(content) as FundamentalSnapshot
   if (
-    (snapshot.schemaVersion !== 1 && snapshot.schemaVersion !== 2) ||
+    (snapshot.schemaVersion !== 1 && snapshot.schemaVersion !== 2 && snapshot.schemaVersion !== 3) ||
     !snapshot.snapshotDate ||
     !Array.isArray(snapshot.fiscalYears) ||
     !Array.isArray(snapshot.industries) ||

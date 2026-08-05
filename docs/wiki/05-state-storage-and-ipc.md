@@ -194,10 +194,11 @@ AI API Key 由主进程使用 Electron `safeStorage` 加密；renderer 只能读
 | `getDividendFinancingState` | `dividend-financing:state:get` | 返回缺失、排队、更新中、有效、过期或失败状态 |
 | `getDividendFinancingChangeReport` | `dividend-financing:changes:get` | 返回最近一次手动更新前后的新入榜、移出、排名、比例、分红与融资变化 |
 | `runDividendFinancingUpdate` | `dividend-financing:update` | 调用随应用附带的 Python 脚本，保存更新前快照并生成变化报告 |
-| `getFundamentalSnapshot` | `fundamentals:get` | 返回进程内缓存的 schema v1/v2 用户快照；本地不存在时返回 `null` |
+| `getFundamentalSnapshot` | `fundamentals:get` | 返回进程内缓存的 schema v1/v2/v3 用户快照；本地不存在时返回 `null` |
 | `getFundamentalState` | `fundamentals:state:get` | 返回基本面快照状态、报告期、生成时间和过期原因 |
 | `getFundamentalChangeReport` | `fundamentals:changes:get` | 返回最近两次快照按默认规则比较的新入选、移出、待核、数据完整性、覆盖和企业口径变化；首次快照返回 `null` |
-| `runFundamentalUpdate` | `fundamentals:update` | 调用三阶段 Python 脚本，更新五年 ROE/ROIC、现金利润、自由现金流、行业资产负债分位和净负债数据 |
+| `runFundamentalUpdate` | `fundamentals:update` | 调用四阶段 Python 脚本，更新五年财务、行业资产负债分位、净负债和快照日 PE/PB行业分位 |
+| `getValuationHistory` | `valuation-history:get` | 按股票返回近五年 PE TTM/PB正值序列，主进程按日缓存供市场观察和长期 AI 计算历史分位 |
 | `refreshQuotes` | `quotes:refresh` | 向统一调度器提交手动全量刷新 |
 | `getKline` | `kline:get` | 通过 `KlineHub` 获取分时/五日/周期 K，同参数合并并串行请求 |
 | `saveChipDistributionCache` | `chip-distribution:cache:save` | 保存股票最后一次筹码分布计算结果 |

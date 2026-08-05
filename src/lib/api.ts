@@ -355,6 +355,16 @@ const demoApi: StockDesktopApi = {
   async runFundamentalUpdate() {
     throw new Error('基本面财务数据更新脚本仅能在 Windows 桌面版中运行')
   },
+  async getValuationHistory(quoteId) {
+    return {
+      quoteId,
+      fetchedAt: new Date().toISOString(),
+      periodStart: '2021-08-05',
+      periodEnd: '2026-08-05',
+      priceEarningsRatioTtmValues: [8, 10, 12, 15, 18, 20, 24],
+      priceBookRatioValues: [1, 1.2, 1.5, 1.8, 2.2, 2.8]
+    }
+  },
   async refreshQuotes() {
     const state = loadDemoState()
     return makeDemoQuotes([...state.watchlist, ...getMarketIndexStocks(state.settings.marketIndexIds)])

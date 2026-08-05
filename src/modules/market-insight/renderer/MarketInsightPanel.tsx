@@ -1,7 +1,14 @@
 import { AlertCircle, Eye, EyeOff, RefreshCw, Radar, Radio } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { FundamentalCompany, StockQuote, WatchStock } from '../../../shared/types'
+import type {
+  FundamentalCompany,
+  StockQuote,
+  StockValuationHistory,
+  WatchStock
+} from '../../../shared/types'
 import { formatUpdateTime } from '../../../lib/format'
+import { stockApi } from '../../../lib/api'
+import { createStockValuationAnalysis } from '../../../lib/valuation-analysis'
 import { marketInsightApi } from './api'
 import { IndicatorGrid } from './IndicatorGrid'
 import { InvestmentValueMetrics } from './InvestmentValueMetrics'
@@ -50,9 +57,31 @@ export default function MarketInsightPanel({
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
+  const [valuationHistory, setValuationHistory] = useState<StockValuationHistory | null>(null)
+  const [valuationError, setValuationError] = useState('')
   const enabledRef = useRef<boolean | null>(null)
 
   const isWatching = settings?.watchedQuoteIds.includes(stock.quoteId) ?? false
+  const valuationAnalysis = useMemo(() => createStockValuationAnalysis(
+    stock.quoteId,
+    quote,
+    fundamentalCompany,
+    valuationHistory
+  ), [fundamentalCompany, quote, stock.quoteId, valuationHistory])
+
+  useEffect(() => {
+    let active = true
+    setValuationHistory(null)
+    setValuationError('')
+    void stockApi.getValuationHistory(stock.quoteId)
+      .then((history) => {
+        if (active) setValuationHistory(history)
+      })
+      .catch((reason: unknown) => {
+        if (active) setValuationError(reason instanceof Error ? reason.message : '历史估值数据暂不可用')
+      })
+    return () => { active = false }
+  }, [stock.quoteId])
 
   const updateSnapshot = useCallback((nextSnapshot: MarketInsightSnapshot | null) => {
     setSnapshot(nextSnapshot)
@@ -218,6 +247,8 @@ export default function MarketInsightPanel({
         <InvestmentValueMetrics
           quote={quote}
           company={fundamentalCompany}
+          valuationAnalysis={valuationAnalysis}
+          valuationError={valuationError}
           snapshotDate={fundamentalSnapshotDate}
           staleReason={fundamentalStaleReason}
         />
@@ -302,6 +333,8 @@ export default function MarketInsightPanel({
           <InvestmentValueMetrics
             quote={quote}
             company={fundamentalCompany}
+            valuationAnalysis={valuationAnalysis}
+            valuationError={valuationError}
             snapshotDate={fundamentalSnapshotDate}
             staleReason={fundamentalStaleReason}
           />

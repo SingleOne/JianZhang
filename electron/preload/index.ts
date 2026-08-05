@@ -30,6 +30,7 @@ const api: StockDesktopApi = {
   getFundamentalState: () => ipcRenderer.invoke('fundamentals:state:get'),
   getFundamentalChangeReport: () => ipcRenderer.invoke('fundamentals:changes:get'),
   runFundamentalUpdate: () => ipcRenderer.invoke('fundamentals:update'),
+  getValuationHistory: (quoteId) => ipcRenderer.invoke('valuation-history:get', quoteId),
   refreshQuotes: () => ipcRenderer.invoke('quotes:refresh'),
   getKline: (quoteId, period, limit) => ipcRenderer.invoke('kline:get', quoteId, period, limit),
   saveChipDistributionCache: (entry) => ipcRenderer.invoke('chip-distribution:cache:save', entry),

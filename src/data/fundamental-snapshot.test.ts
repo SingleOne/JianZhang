@@ -3,7 +3,7 @@ import snapshot from './fundamental-snapshot.json'
 
 describe('fundamental data snapshot', () => {
   it('contains five aligned annual reports and industry debt benchmarks', () => {
-    expect(snapshot.schemaVersion).toBe(2)
+    expect(snapshot.schemaVersion).toBe(3)
     expect(snapshot.snapshotDate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     expect(snapshot.fiscalYears).toHaveLength(5)
     expect(snapshot.fiscalYears).toEqual(
@@ -18,6 +18,9 @@ describe('fundamental data snapshot', () => {
     expect(snapshot.coverage.latestDebtAssetRatioCount).toBe(snapshot.rows.length)
     expect(snapshot.coverage.latestIndustryPercentileCount).toBeGreaterThan(5000)
     expect(snapshot.coverage.latestNetDebtCount).toBeGreaterThan(5000)
+    expect(snapshot.coverage.latestValuationCount).toBeGreaterThan(5500)
+    expect(snapshot.coverage.latestPriceEarningsIndustryPercentileCount).toBeGreaterThan(3900)
+    expect(snapshot.coverage.latestPriceBookIndustryPercentileCount).toBeGreaterThan(5400)
     expect(snapshot.coverage.industryCount).toBe(snapshot.industries.length)
     expect(new Set(snapshot.rows.map((item) => item.code)).size).toBe(snapshot.rows.length)
     expect(new Set(snapshot.industries.map((item) => item.code)).size).toBe(
@@ -38,9 +41,20 @@ describe('fundamental data snapshot', () => {
       expect(item.latestBalanceSheet).toHaveProperty('monetaryFunds')
       expect(item.latestBalanceSheet).toHaveProperty('interestBearingDebt')
       expect(item.latestBalanceSheet).toHaveProperty('netDebt')
+      expect(item.valuation.dataDate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+      expect(item.valuation.priceEarningsIndustrySampleSize).toBeGreaterThanOrEqual(0)
+      expect(item.valuation.priceBookIndustrySampleSize).toBeGreaterThanOrEqual(0)
       if (item.latestBalanceSheet.industryPercentile !== null) {
         expect(item.latestBalanceSheet.industryPercentile).toBeGreaterThan(0)
         expect(item.latestBalanceSheet.industryPercentile).toBeLessThanOrEqual(100)
+      }
+      if (item.valuation.priceEarningsIndustryPercentile !== null) {
+        expect(item.valuation.priceEarningsIndustryPercentile).toBeGreaterThan(0)
+        expect(item.valuation.priceEarningsIndustryPercentile).toBeLessThanOrEqual(100)
+      }
+      if (item.valuation.priceBookIndustryPercentile !== null) {
+        expect(item.valuation.priceBookIndustryPercentile).toBeGreaterThan(0)
+        expect(item.valuation.priceBookIndustryPercentile).toBeLessThanOrEqual(100)
       }
     })
   })

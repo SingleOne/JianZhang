@@ -16,13 +16,19 @@ import type {
   DividendFinancingSnapshot,
   FundamentalSnapshot,
   KlineResult,
-  StockQuote
+  StockQuote,
+  StockValuationHistory
 } from '../../../../shared/types'
+import {
+  createStockValuationAnalysis,
+  usesOrdinaryCorporateInvestmentMetrics
+} from '../../../../lib/valuation-analysis'
 
 interface LongTermContextInput {
   quoteId: string
   quote: StockQuote | null
   dailyKline: KlineResult | null
+  valuationHistory: StockValuationHistory | null
   fundamentalSnapshot: FundamentalSnapshot | null
   fundamentalState: DataSnapshotRuntimeState
   dividendSnapshot: DividendFinancingSnapshot | null
@@ -114,6 +120,15 @@ export function buildLongTermContext(input: LongTermContextInput) {
     ? classifyFundamentalDividendCategory(evaluation ?? undefined, Boolean(dividendItem))
     : null
   const priceStrength = calculateLongTermPriceStrength(input.quote, input.dailyKline)
+  const ordinaryCorporateMetricsApplicable = usesOrdinaryCorporateInvestmentMetrics(
+    fundamentalCompany?.organizationType
+  )
+  const valuation = createStockValuationAnalysis(
+    input.quoteId,
+    input.quote,
+    fundamentalCompany,
+    input.valuationHistory
+  )
 
   const fundamental = {
     available: Boolean(input.fundamentalSnapshot),
@@ -130,17 +145,23 @@ export function buildLongTermContext(input: LongTermContextInput) {
       organizationType: fundamentalCompany.organizationType,
       industryCode: fundamentalCompany.industryCode,
       industryName: fundamentalCompany.industryName,
+      ordinaryCorporateMetricsApplicable,
+      ordinaryCorporateMetricsReason: ordinaryCorporateMetricsApplicable
+        ? null
+        : '银行、保险和券商的普通企业 ROIC、自由现金流和净负债不适用，应使用金融行业专用指标。',
       annualReports: fundamentalCompany.annualReports.map((report) => ({
         year: report.year,
+        reportDate: report.reportDate,
+        noticeDate: report.noticeDate,
         weightedAverageRoe: report.weightedAverageRoe,
         deductedWeightedAverageRoe: report.deductedWeightedAverageRoe,
-        roic: report.roic ?? null,
+        roic: ordinaryCorporateMetricsApplicable ? report.roic ?? null : null,
         netProfit: report.netProfit,
         parentNetProfit: report.parentNetProfit,
         deductedParentNetProfit: report.deductedParentNetProfit,
         operatingCashFlow: report.operatingCashFlow,
         capitalExpenditure: report.capitalExpenditure ?? null,
-        freeCashFlow: report.freeCashFlow ?? null
+        freeCashFlow: ordinaryCorporateMetricsApplicable ? report.freeCashFlow ?? null : null
       })),
       latestBalanceSheet: {
         reportDate: fundamentalCompany.latestBalanceSheet.reportDate,
@@ -149,7 +170,9 @@ export function buildLongTermContext(input: LongTermContextInput) {
         industryDebtP60: industryBenchmark?.debtAssetRatioP60 ?? null,
         monetaryFunds: fundamentalCompany.latestBalanceSheet.monetaryFunds ?? null,
         interestBearingDebt: fundamentalCompany.latestBalanceSheet.interestBearingDebt ?? null,
-        netDebt: fundamentalCompany.latestBalanceSheet.netDebt ?? null
+        netDebt: ordinaryCorporateMetricsApplicable
+          ? fundamentalCompany.latestBalanceSheet.netDebt ?? null
+          : null
       },
       screening: evaluation && screening ? {
         status: screening.status,
@@ -198,19 +221,14 @@ export function buildLongTermContext(input: LongTermContextInput) {
     } : null
   }
 
-  const valuation = {
-    dataAt: input.quote?.updatedAt ?? null,
-    priceEarningsRatioTtm: input.quote?.priceEarningsRatioTtm ?? null,
-    priceBookRatio: input.quote?.priceBookRatio ?? null
-  }
-
   const snapshotBasis = JSON.stringify({
     quoteId: input.quoteId,
     fundamentalGeneratedAt: fundamental.generatedAt,
     dividendGeneratedAt: dividendFinancing.generatedAt,
     valuation: {
-      priceEarningsRatioTtm: valuation.priceEarningsRatioTtm,
-      priceBookRatio: valuation.priceBookRatio
+      ...valuation,
+      quoteDataAt: undefined,
+      historyFetchedAt: undefined
     },
     priceStrength: {
       ...priceStrength,

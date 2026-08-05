@@ -448,16 +448,15 @@ export class AiService {
     if (!fundamentalSnapshot && !dividendSnapshot) {
       throw new Error('当前还没有基本面或分红融资快照，长期价值分析暂不可用')
     }
-    let dailyKline = null
-    try {
-      dailyKline = await this.dependencies.getDailyKline(quoteId, 270)
-    } catch {
-      dailyKline = null
-    }
+    const [dailyKline, valuationHistory] = await Promise.all([
+      this.dependencies.getDailyKline(quoteId, 270).catch(() => null),
+      this.dependencies.getValuationHistory(quoteId).catch(() => null)
+    ])
     const context: CompactLongTermContext = buildLongTermContext({
       quoteId,
       quote: this.dependencies.getLatestQuote(quoteId),
       dailyKline,
+      valuationHistory,
       fundamentalSnapshot,
       fundamentalState: this.dependencies.getFundamentalState(),
       dividendSnapshot,
@@ -473,8 +472,14 @@ export class AiService {
         snapshotId: context.snapshotId,
         generatedAt: context.generatedAt,
         fundamentalSnapshotDate: context.fundamental.snapshotDate,
+        fundamentalReportDate: context.fundamental.company?.latestBalanceSheet.reportDate ?? null,
+        fundamentalGeneratedAt: context.fundamental.generatedAt,
+        fundamentalFiscalYears: context.fundamental.fiscalYears,
         dividendSnapshotDate: context.dividendFinancing.snapshotDate,
         priceDataAt: context.priceStrength.dataAt,
+        valuationHistoryPeriodStart: context.valuation.historyPeriodStart,
+        valuationHistoryPeriodEnd: context.valuation.historyPeriodEnd,
+        valuationIndustryDataAt: context.valuation.industryDataAt,
         interpretation: cached,
         cached: true
       }
@@ -498,8 +503,14 @@ export class AiService {
       snapshotId: context.snapshotId,
       generatedAt: context.generatedAt,
       fundamentalSnapshotDate: context.fundamental.snapshotDate,
+      fundamentalReportDate: context.fundamental.company?.latestBalanceSheet.reportDate ?? null,
+      fundamentalGeneratedAt: context.fundamental.generatedAt,
+      fundamentalFiscalYears: context.fundamental.fiscalYears,
       dividendSnapshotDate: context.dividendFinancing.snapshotDate,
       priceDataAt: context.priceStrength.dataAt,
+      valuationHistoryPeriodStart: context.valuation.historyPeriodStart,
+      valuationHistoryPeriodEnd: context.valuation.historyPeriodEnd,
+      valuationIndustryDataAt: context.valuation.industryDataAt,
       interpretation,
       cached: false
     }

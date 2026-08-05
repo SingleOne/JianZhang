@@ -10,7 +10,7 @@
 | --- | --- | --- | --- |
 | 搜索并添加自选 | `SearchBar.tsx`、`App.tsx` | `stockApi.searchStocks`、`App.addStock` | `market.ts#searchStocks` |
 | 分红融资回报分析 | `DividendFinancingRankingDialog.tsx`、`WatchlistRow.tsx`、`ExpandedStockDetails.tsx` | 净回报/规模/连续性/评分筛选，评分拆解，年度分红和融资时间线，快照变化报告，对数散点选股，自选联动；缺失自动获取、过期提示 | `DividendFinancingService` + schema v2 用户快照 + `createDividendFinancingChangeReport` |
-| 基本面初筛 | `FundamentalScreeningDialog.tsx`、`FundamentalWatchlistOverview.tsx`、`WatchlistRow.tsx`、`ExpandedStockDetails.tsx`、`SettingsMenu.tsx` | 普通企业三项硬筛选、六类固定质量标签、六类风险提示、同行 ROE/现金质量/低负债排名与五年明细；默认规则更新变化；主表以两字标签区分结果和风险，当前分组/板块直接统计四类价值组合、基本面状态、待核构成及风险公司，支持条件叠加和标签数排序 | `fundamental-screening.ts` + `FundamentalDataService` + schema v1/v2 用户快照和最近一次变化报告 + 三阶段 Python 更新脚本 |
+| 基本面初筛 | `FundamentalScreeningDialog.tsx`、`FundamentalWatchlistOverview.tsx`、`WatchlistRow.tsx`、`ExpandedStockDetails.tsx`、`SettingsMenu.tsx` | 普通企业三项硬筛选、六类固定质量标签、六类风险提示、同行 ROE/现金质量/低负债排名与五年明细；默认规则更新变化；主表以两字标签区分结果和风险，当前分组/板块直接统计四类价值组合、基本面状态、待核构成及风险公司，支持条件叠加和标签数排序 | `fundamental-screening.ts` + `FundamentalDataService` + schema v1/v2/v3 用户快照和最近一次变化报告 + 四阶段 Python 更新脚本 |
 | 删除、拖拽、置顶、排序、调整列 | `WatchlistTable.tsx` | `normalizeWatchlistColumnOrder`、`migrateWatchlistColumnOrder` | `state:save` |
 | 自定义分组与板块组合筛选 | `WatchlistTable.tsx`、`WatchlistGroupDialog.tsx`、`TableFilterDropdown.tsx` | `WatchlistGroup`、`WatchStock.groupIds` | 分组随 `AppState` 保存；板块筛选使用实时报价 |
 | 重点关注 | `WatchlistTable.tsx` | 有持仓时自动锁定重点；`App.togglePriority` | `QuoteRefreshCoordinator` 统一调度重点/普通范围 |
@@ -38,9 +38,9 @@
 | 设置 | `SettingsMenu.tsx` | 行情、做 T、系统与数据三页 | `state:save` |
 | 配置导入导出 | `App.tsx` | `shared/config.ts` | 原生文件对话框 |
 | 交易日历 | `SettingsMenu.tsx` | `countAStockTradingDays` | `fetchSseTradingCalendar` |
-| 市场观察 | `MarketInsightPanel.tsx`、`InvestmentValueMetrics.tsx` | 确定性指标、公告/要闻、客观事件，以及 PE TTM、PB、自由现金流、ROIC和净负债 | 实时行情 + schema v2 基本面快照 + 独立 `market-insight` 模块 |
+| 市场观察 | `MarketInsightPanel.tsx`、`InvestmentValueMetrics.tsx` | 确定性指标、公告/要闻、客观事件，以及 PE TTM/PB历史与行业分位、自由现金流、ROIC和净负债；金融企业显示不适用 | 实时行情 + schema v3 基本面快照 + 按需估值历史 + 独立 `market-insight` 模块 |
 | AI 对话与 `@股票` | `AiAssistantDrawer.tsx` | 最近消息上下文、按股票快照引用 | 独立 `ai` 模块和存储 |
-| AI 短期行情、长期价值与做 T 参考 | `AiAnalysisPanel.tsx`、`long-term-context.ts`、`TAdvicePanel.tsx` | 短期市场快照与长期财务/估值上下文隔离，独立提示词、校验、缓存和应用预览 | `ai` / `ai-t-advice` 模块 |
+| AI 短期行情、长期价值与做 T 参考 | `AiAnalysisPanel.tsx`、`long-term-context.ts`、`TAdvicePanel.tsx` | 短期市场快照与长期上下文隔离；长期固定输出企业质量、财务安全、当前价格，并分别评价长期价值与当前时机 | `ai` / `ai-t-advice` 模块 |
 | 浏览器演示模式 | 全部 React 组件 | `src/lib/api.ts` | 演示数据 + `localStorage` |
 
 ## 自选股

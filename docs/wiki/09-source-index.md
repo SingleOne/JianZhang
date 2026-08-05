@@ -144,11 +144,13 @@
 | [`src/modules/market-insight`](../../src/modules/market-insight/) | 确定性指标、客观事件、公告/要闻、快照和独立调度/存储 |
 | [`src/modules/ai`](../../src/modules/ai/) | Provider、加密凭证、会话、`@股票` 上下文、短期行情/长期价值分析和独立 IPC/UI |
 | [`src/modules/ai/main/conversations/context-builder.ts`](../../src/modules/ai/main/conversations/context-builder.ts) | 最近消息与多股票快照组装，加入筹码分布缓存 |
-| [`src/modules/ai/main/analysis/long-term-context.ts`](../../src/modules/ai/main/analysis/long-term-context.ts) | 组合五年财务、分红融资、PE/PB及长期价格强弱，生成长期价值快照指纹 |
-| [`src/modules/ai/main/analysis/long-term-interpretation.ts`](../../src/modules/ai/main/analysis/long-term-interpretation.ts) | 校验长期价值七个固定维度、风险和不确定性输出 |
+| [`src/modules/ai/main/analysis/long-term-context.ts`](../../src/modules/ai/main/analysis/long-term-context.ts) | 组合五年财务、分红融资、PE/PB历史/行业分位及长期价格强弱，生成长期价值快照指纹 |
+| [`src/modules/ai/main/analysis/long-term-interpretation.ts`](../../src/modules/ai/main/analysis/long-term-interpretation.ts) | 校验企业质量、财务安全、当前价格和双结论固定结构 |
 | [`src/modules/ai/prompts/long-term-value.ts`](../../src/modules/ai/prompts/long-term-value.ts) | 隔离经营质量、估值与价格时机的长期价值提示词 |
 | [`src/modules/ai/renderer/AiAssistantDrawer.tsx`](../../src/modules/ai/renderer/AiAssistantDrawer.tsx) | 会话管理、流式聊天和 `@自选股` 选择 |
-| [`src/modules/market-insight/renderer/InvestmentValueMetrics.tsx`](../../src/modules/market-insight/renderer/InvestmentValueMetrics.tsx) | 市场观察中的实时 PE/PB、自由现金流、ROIC和净负债展示 |
+| [`src/modules/market-insight/renderer/InvestmentValueMetrics.tsx`](../../src/modules/market-insight/renderer/InvestmentValueMetrics.tsx) | 市场观察中的 PE/PB历史/行业分位、财务时点和金融行业适用性展示 |
+| [`electron/main/valuation-history-service.ts`](../../electron/main/valuation-history-service.ts) | 按股票获取并缓存近五年日度 PE TTM/PB历史序列 |
+| [`src/lib/valuation-analysis.ts`](../../src/lib/valuation-analysis.ts) | 计算历史估值分位并组合快照日同行分位 |
 | [`src/modules/ai-t-advice`](../../src/modules/ai-t-advice/) | 结构化做 T 参考、确定性事件、校验、应用预览和独立历史 |
 
 ## 脚本和历史文档
@@ -158,7 +160,7 @@
 | [`scripts/convert-stock-helper-config.mjs`](../../scripts/convert-stock-helper-config.mjs) | 转换“股票基金助手”配置 |
 | [`scripts/generate-icon.mjs`](../../scripts/generate-icon.mjs) | 生成打包图标 |
 | [`scripts/generate_dividend_financing_report.py`](../../scripts/generate_dividend_financing_report.py) | 生成 A 股分红融资比研究报告 |
-| [`scripts/generate_fundamental_snapshot.py`](../../scripts/generate_fundamental_snapshot.py) | 分三阶段生成五年 ROE/ROIC、利润现金、自由现金流、行业负债分位与净负债快照 |
+| [`scripts/generate_fundamental_snapshot.py`](../../scripts/generate_fundamental_snapshot.py) | 分四阶段生成五年财务、行业负债分位、净负债及快照日 PE/PB同行分位 |
 | [`docs/plan/non-ai-market-insight-implementation-plan.md`](../plan/non-ai-market-insight-implementation-plan.md) | 非 AI 指标、要闻与智能盯盘的历史实施计划 |
 | [`docs/plan/ai-module-implementation-plan.md`](../plan/ai-module-implementation-plan.md) | AI 基础模块和独立做 T 参考的历史实施计划 |
 | [`docs/wiki/08-ai-extension-points.md`](08-ai-extension-points.md) | 当前市场观察、AI 对话/分析和 AI 做 T 参考模块说明 |

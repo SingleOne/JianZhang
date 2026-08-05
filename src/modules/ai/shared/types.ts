@@ -5,7 +5,8 @@ import type {
   DividendFinancingSnapshot,
   FundamentalSnapshot,
   KlineResult,
-  StockQuote
+  StockQuote,
+  StockValuationHistory
 } from '../../../shared/types'
 
 export type AiProviderId = 'openai' | 'openai-codex' | 'deepseek'
@@ -184,9 +185,32 @@ export type AiLongTermDimensionId =
   | 'shareholderReturn'
   | 'priceTiming'
 
+export type AiLongTermSectionId =
+  | 'enterpriseQuality'
+  | 'financialSafety'
+  | 'currentPrice'
+
+export type AiLongTermValueLevel = 'high' | 'medium' | 'low' | 'insufficient'
+export type AiLongTermPriceTimingLevel = 'favorable' | 'neutral' | 'unfavorable' | 'insufficient'
+
 export interface AiLongTermInterpretation {
   summary: string
-  dimensions: Array<{
+  sections: Array<{
+    id: AiLongTermSectionId
+    conclusion: string
+    evidence: string[]
+  }>
+  conclusion: {
+    longTermValue: {
+      level: AiLongTermValueLevel
+      reason: string
+    }
+    priceTiming: {
+      level: AiLongTermPriceTimingLevel
+      reason: string
+    }
+  }
+  dimensions?: Array<{
     id: AiLongTermDimensionId
     conclusion: string
     evidence: string[]
@@ -200,8 +224,14 @@ export interface AiLongTermInterpretationResult {
   snapshotId: string
   generatedAt: string
   fundamentalSnapshotDate: string | null
+  fundamentalReportDate: string | null
+  fundamentalGeneratedAt: string | null
+  fundamentalFiscalYears: number[]
   dividendSnapshotDate: string | null
   priceDataAt: string | null
+  valuationHistoryPeriodStart: string | null
+  valuationHistoryPeriodEnd: string | null
+  valuationIndustryDataAt: string | null
   interpretation: AiLongTermInterpretation
   cached: boolean
 }
@@ -297,6 +327,7 @@ export interface AiModuleDependencies {
   getChipDistributionCache: (quoteId: string) => ChipDistributionCacheEntry | null
   getLatestQuote: (quoteId: string) => StockQuote | null
   getDailyKline: (quoteId: string, limit: number) => Promise<KlineResult>
+  getValuationHistory: (quoteId: string) => Promise<StockValuationHistory>
   getFundamentalSnapshot: () => FundamentalSnapshot | null
   getFundamentalState: () => DataSnapshotRuntimeState
   getDividendFinancingSnapshot: () => DividendFinancingSnapshot | null

@@ -823,6 +823,16 @@ export interface FundamentalBalanceSheet {
   netDebt?: number | null
 }
 
+export interface FundamentalValuationSnapshot {
+  dataDate: string
+  priceEarningsRatioTtm: number | null
+  priceBookRatio: number | null
+  priceEarningsIndustryPercentile: number | null
+  priceBookIndustryPercentile: number | null
+  priceEarningsIndustrySampleSize: number
+  priceBookIndustrySampleSize: number
+}
+
 export interface FundamentalCompany {
   code: string
   name: string
@@ -833,6 +843,7 @@ export interface FundamentalCompany {
   industryName: string
   annualReports: FundamentalAnnualReport[]
   latestBalanceSheet: FundamentalBalanceSheet
+  valuation?: FundamentalValuationSnapshot
 }
 
 export interface FundamentalIndustryBenchmark {
@@ -843,7 +854,7 @@ export interface FundamentalIndustryBenchmark {
 }
 
 export interface FundamentalSnapshot {
-  schemaVersion: 1 | 2
+  schemaVersion: 1 | 2 | 3
   snapshotDate: string
   generatedAt: string
   currency: 'CNY'
@@ -863,10 +874,42 @@ export interface FundamentalSnapshot {
     latestDebtAssetRatioCount: number
     latestIndustryPercentileCount: number
     latestNetDebtCount?: number
+    latestValuationCount?: number
+    latestPriceEarningsIndustryPercentileCount?: number
+    latestPriceBookIndustryPercentileCount?: number
     industryCount: number
   }
   industries: FundamentalIndustryBenchmark[]
   rows: FundamentalCompany[]
+}
+
+export interface StockValuationHistory {
+  quoteId: string
+  fetchedAt: string
+  periodStart: string | null
+  periodEnd: string | null
+  priceEarningsRatioTtmValues: number[]
+  priceBookRatioValues: number[]
+}
+
+export interface StockValuationMetricAnalysis {
+  currentValue: number | null
+  historicalPercentile: number | null
+  historicalSampleSize: number
+  industryPercentile: number | null
+  industrySampleSize: number
+  industryBasisValue: number | null
+}
+
+export interface StockValuationAnalysis {
+  quoteId: string
+  quoteDataAt: string | null
+  historyFetchedAt: string | null
+  historyPeriodStart: string | null
+  historyPeriodEnd: string | null
+  industryDataAt: string | null
+  priceEarningsRatioTtm: StockValuationMetricAnalysis
+  priceBookRatio: StockValuationMetricAnalysis
 }
 
 export type FundamentalChangeRuleStatus =
@@ -1167,6 +1210,7 @@ export interface StockDesktopApi {
   getFundamentalState: () => Promise<DataSnapshotRuntimeState>
   getFundamentalChangeReport: () => Promise<FundamentalChangeReport | null>
   runFundamentalUpdate: () => Promise<FundamentalUpdateResult>
+  getValuationHistory: (quoteId: string) => Promise<StockValuationHistory>
   refreshQuotes: () => Promise<StockQuote[]>
   getKline: (quoteId: string, period: KlinePeriod, limit?: number) => Promise<KlineResult>
   saveChipDistributionCache: (entry: ChipDistributionCacheEntry) => Promise<ChipDistributionCacheEntry>

@@ -140,7 +140,7 @@ flowchart TD
 | 日/周/月 K | 主进程 `KlineHub` + `HistoricalKlineCache` | 是，内存 150 条 LRU，磁盘 `market-cache/klines/*.json` |
 | 筹码分布最近一次结果 | 主进程 `ChipDistributionCache` | 是，`market-cache/chip-distributions.json` |
 | 分红融资回报分析 | `DividendFinancingService` 读取 schema v2 用户快照并生成快照差异；缺失时首次自动获取，过期只提示 | 是，`dividend-financing/ranking.json`、`previous-ranking.json`、`change-report.json` |
-| 基本面财务数据 | `FundamentalDataService` 读取 schema v1/v2 用户快照；v2增加五年 ROIC、自由现金流与最新净负债；缺失时首次自动获取，过期或完整财年落后只提示 | 是，`fundamentals/snapshot.json`、`diagnostics.json` |
+| 基本面财务数据 | `FundamentalDataService` 读取 schema v1/v2/v3 用户快照；v3增加快照日 PE/PB同行分位，缺失时首次自动获取，过期或完整财年落后只提示 | 是，`fundamentals/snapshot.json`、`diagnostics.json` |
 | 市场观察、AI 设置/会话/结果、做 T 参考历史 | 各可选模块 | 是，`userData/modules/<module>/` |
 | renderer K 线最近结果 | `ExpandedStockDetails` 的 100 条 LRU | 否；桌面版同时复用主进程缓存 |
 | 行情请求记录 | 主进程 `MarketRequestLogger` | 是，`logs/market-requests-YYYY-MM-DD.jsonl`，保留 7 天 |

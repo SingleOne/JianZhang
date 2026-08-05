@@ -6,7 +6,10 @@ import type {
   AiAnalysisType,
   AiInterpretationResult,
   AiLongTermDimensionId,
-  AiLongTermInterpretationResult
+  AiLongTermInterpretationResult,
+  AiLongTermPriceTimingLevel,
+  AiLongTermSectionId,
+  AiLongTermValueLevel
 } from '../shared/types'
 
 interface AiAnalysisPanelProps {
@@ -24,6 +27,26 @@ const LONG_TERM_DIMENSION_LABELS: Record<AiLongTermDimensionId, string> = {
   valuation: '当前估值',
   shareholderReturn: '股东回报',
   priceTiming: '价格时机'
+}
+
+const LONG_TERM_SECTION_LABELS: Record<AiLongTermSectionId, string> = {
+  enterpriseQuality: '企业质量',
+  financialSafety: '财务安全',
+  currentPrice: '当前价格'
+}
+
+const LONG_TERM_VALUE_LABELS: Record<AiLongTermValueLevel, string> = {
+  high: '较高',
+  medium: '中性',
+  low: '较低',
+  insufficient: '数据不足'
+}
+
+const PRICE_TIMING_LABELS: Record<AiLongTermPriceTimingLevel, string> = {
+  favorable: '较好',
+  neutral: '中性',
+  unfavorable: '偏差',
+  insufficient: '数据不足'
 }
 
 function analysisStep(phase: AiAnalysisProgressEvent['phase']): number {
@@ -77,27 +100,66 @@ function ShortTermResult({ result }: { result: AiInterpretationResult }) {
 }
 
 function LongTermResult({ result }: { result: AiLongTermInterpretationResult }) {
+  const interpretation = result.interpretation
+  const sections = interpretation.sections ?? ([
+    {
+      id: 'enterpriseQuality' as const,
+      dimensions: ['businessQuality', 'cashFlow', 'capitalEfficiency', 'shareholderReturn'] as AiLongTermDimensionId[]
+    },
+    { id: 'financialSafety' as const, dimensions: ['balanceSheet'] as AiLongTermDimensionId[] },
+    { id: 'currentPrice' as const, dimensions: ['valuation', 'priceTiming'] as AiLongTermDimensionId[] }
+  ].map(({ id, dimensions }) => {
+    const legacy = (interpretation.dimensions ?? []).filter((item) => dimensions.includes(item.id))
+    return {
+      id,
+      conclusion: legacy.map((item) => `${LONG_TERM_DIMENSION_LABELS[item.id]}：${item.conclusion}`).join('；') || '旧版结果未提供该部分',
+      evidence: legacy.flatMap((item) => item.evidence)
+    }
+  }))
+  const conclusion = interpretation.conclusion
+
   return (
     <div className="ai-analysis-result is-long-term">
       <div className="ai-result-time-banner is-long-term">
         <span>最近生成时间</span>
         <strong><time dateTime={result.interpretation.generatedAt}>{formatSnapshotTime(result.interpretation.generatedAt)}</time></strong>
         <small>
-          基本面 {result.fundamentalSnapshotDate ?? '--'} · 分红融资 {result.dividendSnapshotDate ?? '--'}
+          财报截止 {result.fundamentalReportDate ?? '--'} · 基本面快照生成 {result.fundamentalGeneratedAt ? formatSnapshotTime(result.fundamentalGeneratedAt) : '--'}
+          {' · '}五年财务 {result.fundamentalFiscalYears?.length ? `${result.fundamentalFiscalYears[0]}—${result.fundamentalFiscalYears.at(-1)}` : '--'}
+          {' · '}分红融资 {result.dividendSnapshotDate ?? '--'}
+          {' · '}历史估值 {result.valuationHistoryPeriodStart && result.valuationHistoryPeriodEnd ? `${result.valuationHistoryPeriodStart}—${result.valuationHistoryPeriodEnd}` : '--'}
+          {' · '}行业估值 {result.valuationIndustryDataAt ?? '--'}
         </small>
       </div>
       <section className="ai-analysis-summary"><div><strong>长期价值结论</strong><small>{result.cached ? '相同数据缓存结果' : '最近一次生成结果'} · 价格数据 {result.priceDataAt ? formatSnapshotTime(result.priceDataAt) : '--'}</small></div><p>{result.interpretation.summary}</p></section>
       <section>
-        <h4>长期价值维度</h4>
+        <h4>企业、财务与价格</h4>
         <div className="ai-long-term-dimensions">
-          {result.interpretation.dimensions.map((dimension) => (
-            <article className={`is-${dimension.id}`} key={dimension.id}>
-              <strong>{LONG_TERM_DIMENSION_LABELS[dimension.id]}</strong>
-              <p>{dimension.conclusion}</p>
-              {dimension.evidence.length > 0 ? <small>{dimension.evidence.join(' · ')}</small> : null}
+          {sections.map((section) => (
+            <article className={`is-${section.id}`} key={section.id}>
+              <strong>{LONG_TERM_SECTION_LABELS[section.id]}</strong>
+              <p>{section.conclusion}</p>
+              {section.evidence.length > 0 ? <small>{section.evidence.join(' · ')}</small> : null}
             </article>
           ))}
         </div>
+      </section>
+      <section>
+        <h4>结论</h4>
+        {conclusion ? (
+          <div className="ai-long-term-conclusions">
+            <article className={`is-${conclusion.longTermValue.level}`}>
+              <span>长期价值</span>
+              <strong>{LONG_TERM_VALUE_LABELS[conclusion.longTermValue.level]}</strong>
+              <p>{conclusion.longTermValue.reason}</p>
+            </article>
+            <article className={`is-${conclusion.priceTiming.level}`}>
+              <span>当前时机</span>
+              <strong>{PRICE_TIMING_LABELS[conclusion.priceTiming.level]}</strong>
+              <p>{conclusion.priceTiming.reason}</p>
+            </article>
+          </div>
+        ) : <p>{interpretation.summary}</p>}
       </section>
       {result.interpretation.risks.length > 0 ? <section><h4>长期风险</h4><ul className="ai-analysis-risks">{result.interpretation.risks.map((item) => <li key={item}>{item}</li>)}</ul></section> : null}
       {result.interpretation.uncertainties.length > 0 ? <section><h4>数据边界与不确定性</h4><ul className="ai-analysis-uncertainties">{result.interpretation.uncertainties.map((item) => <li key={item}>{item}</li>)}</ul></section> : null}
