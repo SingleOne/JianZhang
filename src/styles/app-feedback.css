@@ -249,12 +249,18 @@
     padding-left: 0;
   }
 
-  .command-bar {
-    grid-template-columns: minmax(380px, 1fr) auto;
+  .titlebar-command-main {
+    min-width: 300px;
   }
 
-  .command-bar-main .search-composer {
-    min-width: 380px;
+  .titlebar-command-actions .secondary-button {
+    width: 34px;
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  .titlebar-command-actions .secondary-button > span {
+    display: none;
   }
 
   .portfolio-summary > span {
@@ -298,12 +304,33 @@
     grid-template-columns: 32px 80px 75px 95px 1fr 1fr 1fr;
   }
 
-  .command-bar {
-    grid-template-columns: 1fr auto;
+  .titlebar {
+    gap: 7px;
+    padding-left: 10px;
   }
 
-  .primary-button span {
+  .brand-name,
+  .market-state > span {
     display: none;
+  }
+
+  .market-state {
+    width: 28px;
+    justify-content: center;
+    margin-left: 0;
+    padding: 0;
+  }
+
+  .titlebar-command-main {
+    min-width: 260px;
+  }
+
+  .titlebar-command-main .search-composer {
+    grid-template-columns: minmax(160px, 1fr) auto;
+  }
+
+  .titlebar-command-actions {
+    gap: 4px;
   }
 
   .overview-grid {

@@ -1,5 +1,9 @@
 import { Activity } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+
+interface AppTitlebarProps {
+  children?: ReactNode
+}
 
 function marketState(date: Date): { open: boolean; label: string } {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -14,7 +18,7 @@ function marketState(date: Date): { open: boolean; label: string } {
   return { open, label: open ? 'A股交易中' : 'A股已休市' }
 }
 
-export function AppTitlebar() {
+export function AppTitlebar({ children }: AppTitlebarProps) {
   const [now, setNow] = useState(() => new Date())
   const market = marketState(now)
 
@@ -36,6 +40,7 @@ export function AppTitlebar() {
         <Activity size={13} />
         <span>{market.label}</span>
       </div>
+      {children ? <div className="titlebar-command-slot">{children}</div> : null}
     </header>
   )
 }

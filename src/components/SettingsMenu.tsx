@@ -117,9 +117,9 @@ export function SettingsMenu({
 
   return (
     <details className="settings-menu">
-      <summary className="secondary-button">
+      <summary className="secondary-button" title="设置">
         <Settings2 size={17} />
-        设置
+        <span>设置</span>
       </summary>
       <div className="settings-popover">
         <div className="settings-heading">

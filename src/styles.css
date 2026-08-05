@@ -68,6 +68,8 @@ tr:focus-visible {
 }
 
 .titlebar {
+  position: relative;
+  z-index: 100;
   height: 44px;
   flex: 0 0 44px;
   display: flex;
@@ -107,6 +109,7 @@ tr:focus-visible {
 }
 
 .market-state {
+  flex: 0 0 auto;
   height: 24px;
   display: inline-flex;
   align-items: center;
@@ -117,7 +120,7 @@ tr:focus-visible {
   background: #f2f4f7;
   border: 1px solid #e6e9ee;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -129,6 +132,64 @@ tr:focus-visible {
 
 .market-state.is-open svg {
   animation: live-pulse 1.8s ease-in-out infinite;
+}
+
+.titlebar-command-slot {
+  min-width: 0;
+  flex: 1 1 auto;
+  -webkit-app-region: no-drag;
+  user-select: auto;
+}
+
+.titlebar-command-slot * {
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-command-bar {
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.titlebar-command-main {
+  min-width: 300px;
+  flex: 0 1 600px;
+}
+
+.titlebar-command-main .search-composer {
+  width: 100%;
+  grid-template-columns: minmax(200px, 1fr) auto;
+}
+
+.titlebar-command-actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+}
+
+.titlebar-command-bar .search-field,
+.titlebar-command-bar .primary-button,
+.titlebar-command-bar .secondary-button {
+  height: 34px;
+}
+
+.titlebar-command-bar .primary-button,
+.titlebar-command-bar .secondary-button {
+  padding-right: 11px;
+  padding-left: 11px;
+}
+
+.titlebar-command-bar .primary-button {
+  min-width: 92px;
+}
+
+.titlebar-command-bar .search-results {
+  top: 38px;
+  right: 101px;
 }
 
 .status-spacer {
@@ -151,36 +212,6 @@ tr:focus-visible {
   flex-direction: column;
   margin: 0;
   padding: 16px 0 24px;
-}
-
-.command-bar {
-  position: relative;
-  z-index: 20;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 16px;
-  padding: 0 14px;
-}
-
-.command-bar-main {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.command-bar-main .search-composer {
-  min-width: 400px;
-  flex: 0 1 680px;
-}
-
-.command-actions {
-  display: flex;
-  align-items: center;
-  justify-self: end;
-  gap: 8px;
 }
 
 .search-composer {

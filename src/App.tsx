@@ -512,78 +512,92 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <AppTitlebar />
+      <AppTitlebar>
+        <section className="titlebar-command-bar" aria-label="自选股操作">
+          <div className="titlebar-command-main">
+            <SearchBar onAdd={addStock} existingQuoteIds={quoteIds} onError={reportError} />
+          </div>
+          <div className="titlebar-command-actions">
+            <button
+              className="secondary-button refresh-button"
+              onClick={refreshNow}
+              disabled={refreshing}
+              title="立即刷新"
+            >
+              <RefreshCw size={17} className={refreshing ? 'is-spinning' : ''} />
+              <span>立即刷新</span>
+            </button>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => setDividendRankingOpen(true)}
+              title="分红融资榜"
+            >
+              <Trophy size={17} />
+              <span>分红融资榜</span>
+            </button>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => setFundamentalScreeningOpen(true)}
+              title="基本面初筛"
+            >
+              <Filter size={17} />
+              <span>基本面初筛</span>
+            </button>
+            {aiRuntimeAvailable ? (
+              <button
+                className="secondary-button ai-assistant-trigger"
+                type="button"
+                onClick={() => { setAiAssistantContext(null); setAiAssistantOpen(true) }}
+                title="AI 助手"
+              >
+                <Bot size={17} />
+                <span>AI 助手</span>
+              </button>
+            ) : null}
+            <SettingsMenu
+              settings={state.settings}
+              onChange={updateSettings}
+              onImportConfig={importConfig}
+              onExportConfig={exportConfig}
+              configBusy={configBusy}
+              onRefreshTradingCalendar={refreshTradingCalendar}
+              calendarRefreshing={calendarRefreshing}
+              fundamentalDataState={fundamentalDataState}
+              onUpdateFundamentalData={updateFundamentalData}
+            />
+          </div>
+        </section>
+      </AppTitlebar>
       <main className="app-main">
         <div className="workspace">
-          <section className="command-bar" aria-label="自选股操作">
-            <div className="command-bar-main">
-              <SearchBar onAdd={addStock} existingQuoteIds={quoteIds} onError={reportError} />
-              {marketIndexQuotes.length > 0 ? (
-                <div className="market-index-summary command-market-index-summary" aria-label="大盘指数行情">
-                  {marketIndexQuotes.map(({ index, quote }) => (
-                    <span
-                      className={`market-index-card ${cardDirectionClass(quote?.changePercent)}`}
-                      title={`${index.name} ${formatPrice(quote?.latest)} ${formatPercent(quote?.changePercent)}`}
-                      key={index.id}
-                    >
-                      <small>{index.name}</small>
-                      <span>
-                        <strong>{formatPrice(quote?.latest)}</strong>
-                        <em className={directionClass(quote?.changePercent)}>
-                          {formatPercent(quote?.changePercent)}
-                        </em>
-                      </span>
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-            <div className="command-actions">
-              <button className="secondary-button refresh-button" onClick={refreshNow} disabled={refreshing}>
-                <RefreshCw size={17} className={refreshing ? 'is-spinning' : ''} />
-                立即刷新
-              </button>
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={() => setDividendRankingOpen(true)}
-              >
-                <Trophy size={17} />
-                分红融资榜
-              </button>
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={() => setFundamentalScreeningOpen(true)}
-              >
-                <Filter size={17} />
-                基本面初筛
-              </button>
-              {aiRuntimeAvailable ? (
-                <button className="secondary-button ai-assistant-trigger" type="button" onClick={() => { setAiAssistantContext(null); setAiAssistantOpen(true) }}>
-                  <Bot size={17} />
-                  AI 助手
-                </button>
-              ) : null}
-              <SettingsMenu
-                settings={state.settings}
-                onChange={updateSettings}
-                onImportConfig={importConfig}
-                onExportConfig={exportConfig}
-                configBusy={configBusy}
-                onRefreshTradingCalendar={refreshTradingCalendar}
-                calendarRefreshing={calendarRefreshing}
-                fundamentalDataState={fundamentalDataState}
-                onUpdateFundamentalData={updateFundamentalData}
-              />
-            </div>
-          </section>
-
           <section className="watchlist-panel" aria-label="我的自选">
             <div className="panel-heading">
-              <div className="panel-title">
-                <h1>我的自选</h1>
-                <span>{state.watchlist.length} 只股票 · {state.watchlist.filter((stock) => stock.isPriority).length} 只重点 · {portfolioSummary.positionCount} 只有持仓 · 点击股票行展开行情详情</span>
+              <div className="panel-heading-primary">
+                <div className="panel-title">
+                  <h1>我的自选</h1>
+                  <span>{state.watchlist.length} 只股票 · {state.watchlist.filter((stock) => stock.isPriority).length} 只重点 · {portfolioSummary.positionCount} 只有持仓 · 点击股票行展开行情详情</span>
+                </div>
+                {marketIndexQuotes.length > 0 ? (
+                  <div className="market-index-summary panel-market-index-summary" aria-label="大盘指数行情">
+                    {marketIndexQuotes.map(({ index, quote }) => (
+                      <span
+                        className={`market-index-card ${cardDirectionClass(quote?.changePercent)}`}
+                        title={`${index.name} ${formatPrice(quote?.latest)} ${formatPercent(quote?.changePercent)}`}
+                        key={index.id}
+                      >
+                        <small>{index.name}</small>
+                        <span>
+                          <strong>{formatPrice(quote?.latest)}</strong>
+                          <em className={directionClass(quote?.changePercent)}>
+                            {formatPercent(quote?.changePercent)}
+                          </em>
+                        </span>
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
               </div>
               <div className="panel-heading-side">
                 <div className="portfolio-summary" aria-label="全部持仓收益汇总">
