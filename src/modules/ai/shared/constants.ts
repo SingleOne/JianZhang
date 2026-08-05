@@ -23,10 +23,13 @@ export const AI_IPC = {
   chatError: 'ai:chat:error',
   analysisLatestGet: 'ai:analysis:latest:get',
   analysisInterpret: 'ai:analysis:interpret',
+  analysisLongTermLatestGet: 'ai:analysis:long-term:latest:get',
+  analysisLongTermInterpret: 'ai:analysis:long-term:interpret',
   analysisProgress: 'ai:analysis:progress'
 } as const
 
 export const AI_PROMPT_VERSION = '2026-07-30.1'
+export const AI_LONG_TERM_PROMPT_VERSION = '2026-08-05.1'
 
 export const OPENAI_CODEX_DEFAULT_MODEL = 'gpt-5.6-sol'
 

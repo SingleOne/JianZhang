@@ -48,6 +48,10 @@ export function installAi(dependencies: AiModuleDependencies): AiRuntime {
   ipcMain.handle(AI_IPC.analysisInterpret, (event, quoteId: string) => service.interpret(quoteId, (progress) => {
     if (!event.sender.isDestroyed()) event.sender.send(AI_IPC.analysisProgress, progress)
   }))
+  ipcMain.handle(AI_IPC.analysisLongTermLatestGet, (_event, quoteId: string) => service.getLatestLongTermInterpretation(quoteId))
+  ipcMain.handle(AI_IPC.analysisLongTermInterpret, (event, quoteId: string) => service.interpretLongTerm(quoteId, (progress) => {
+    if (!event.sender.isDestroyed()) event.sender.send(AI_IPC.analysisProgress, progress)
+  }))
 
   return {
     runStructuredTask: (request, signal) => service.runStructuredTask(request, signal),

@@ -370,7 +370,13 @@ if (!hasSingleInstanceLock) {
         getMarketInsightSnapshot: (quoteId) => marketInsightRuntime?.getSnapshot(quoteId) ?? null,
         refreshMarketInsightSnapshot: (quoteId) =>
           marketInsightRuntime?.refreshSnapshot(quoteId) ?? null,
-        getChipDistributionCache: (quoteId) => chipDistributionCache?.get(quoteId) ?? null
+        getChipDistributionCache: (quoteId) => chipDistributionCache?.get(quoteId) ?? null,
+        getLatestQuote: (quoteId) => getLatestQuotes().find((quote) => quote.quoteId === quoteId) ?? null,
+        getDailyKline: (quoteId, limit) => getKline(quoteId, 'daily', limit, 'ai:long-term'),
+        getFundamentalSnapshot: () => fundamentalDataService?.getSnapshot() ?? null,
+        getFundamentalState: () => fundamentalDataService!.getState(),
+        getDividendFinancingSnapshot: () => dividendFinancingService?.getSnapshot() ?? null,
+        getDividendFinancingState: () => dividendFinancingService!.getState()
       })
 
       if (__JIANZHANG_AI_T_ADVICE_MODULE_ENABLED__) {

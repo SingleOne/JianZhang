@@ -40,7 +40,7 @@
 | 交易日历 | `SettingsMenu.tsx` | `countAStockTradingDays` | `fetchSseTradingCalendar` |
 | 市场观察 | `MarketInsightPanel.tsx`、`InvestmentValueMetrics.tsx` | 确定性指标、公告/要闻、客观事件，以及 PE TTM、PB、自由现金流、ROIC和净负债 | 实时行情 + schema v2 基本面快照 + 独立 `market-insight` 模块 |
 | AI 对话与 `@股票` | `AiAssistantDrawer.tsx` | 最近消息上下文、按股票快照引用 | 独立 `ai` 模块和存储 |
-| AI 行情解读与做 T 参考 | `AiAnalysisPanel.tsx`、`TAdvicePanel.tsx` | Provider、结构化校验、应用预览 | `ai` / `ai-t-advice` 模块 |
+| AI 短期行情、长期价值与做 T 参考 | `AiAnalysisPanel.tsx`、`long-term-context.ts`、`TAdvicePanel.tsx` | 短期市场快照与长期财务/估值上下文隔离，独立提示词、校验、缓存和应用预览 | `ai` / `ai-t-advice` 模块 |
 | 浏览器演示模式 | 全部 React 组件 | `src/lib/api.ts` | 演示数据 + `localStorage` |
 
 ## 自选股

@@ -142,8 +142,11 @@
 | 目录/文件 | 职责 |
 | --- | --- |
 | [`src/modules/market-insight`](../../src/modules/market-insight/) | 确定性指标、客观事件、公告/要闻、快照和独立调度/存储 |
-| [`src/modules/ai`](../../src/modules/ai/) | Provider、加密凭证、会话、`@股票` 上下文、行情解读和独立 IPC/UI |
+| [`src/modules/ai`](../../src/modules/ai/) | Provider、加密凭证、会话、`@股票` 上下文、短期行情/长期价值分析和独立 IPC/UI |
 | [`src/modules/ai/main/conversations/context-builder.ts`](../../src/modules/ai/main/conversations/context-builder.ts) | 最近消息与多股票快照组装，加入筹码分布缓存 |
+| [`src/modules/ai/main/analysis/long-term-context.ts`](../../src/modules/ai/main/analysis/long-term-context.ts) | 组合五年财务、分红融资、PE/PB及长期价格强弱，生成长期价值快照指纹 |
+| [`src/modules/ai/main/analysis/long-term-interpretation.ts`](../../src/modules/ai/main/analysis/long-term-interpretation.ts) | 校验长期价值七个固定维度、风险和不确定性输出 |
+| [`src/modules/ai/prompts/long-term-value.ts`](../../src/modules/ai/prompts/long-term-value.ts) | 隔离经营质量、估值与价格时机的长期价值提示词 |
 | [`src/modules/ai/renderer/AiAssistantDrawer.tsx`](../../src/modules/ai/renderer/AiAssistantDrawer.tsx) | 会话管理、流式聊天和 `@自选股` 选择 |
 | [`src/modules/market-insight/renderer/InvestmentValueMetrics.tsx`](../../src/modules/market-insight/renderer/InvestmentValueMetrics.tsx) | 市场观察中的实时 PE/PB、自由现金流、ROIC和净负债展示 |
 | [`src/modules/ai-t-advice`](../../src/modules/ai-t-advice/) | 结构化做 T 参考、确定性事件、校验、应用预览和独立历史 |

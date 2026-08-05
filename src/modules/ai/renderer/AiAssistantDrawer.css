@@ -275,6 +275,13 @@
 .ai-analysis-panel > header .primary-button,
 .ai-analysis-panel > header .secondary-button { height: 34px; min-width: 0; padding: 0 11px; font-size: 12px; }
 .ai-analysis-disclaimer { color: #8290a3; font-size: 12px; line-height: 1.6; }
+.ai-analysis-mode-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ai-analysis-mode-tabs button { display: flex; align-items: center; gap: 9px; min-height: 52px; padding: 9px 12px; color: #6e7c90; background: #ffffff; border: 1px solid #dfe6ee; border-radius: 8px; cursor: pointer; text-align: left; }
+.ai-analysis-mode-tabs button:hover { color: #3e638f; border-color: #b9cbe0; }
+.ai-analysis-mode-tabs button.is-active { color: #285f9f; background: #eef5ff; border-color: #a9c7ec; box-shadow: inset 0 0 0 1px #d6e6fa; }
+.ai-analysis-mode-tabs button > span { display: grid; gap: 3px; }
+.ai-analysis-mode-tabs button strong { font-size: 13px; }
+.ai-analysis-mode-tabs button small { color: inherit; font-size: 12px; opacity: 0.78; }
 .ai-analysis-error { display: flex; align-items: center; gap: 7px; padding: 10px 11px; color: #b42331; background: #fff2f3; border-radius: 7px; font-size: 12px; }
 .ai-analysis-loading strong { color: #4c5d74; font-size: 13px; }
 .ai-analysis-loading > span { max-width: 520px; font-size: 12px; line-height: 1.6; }
@@ -292,6 +299,9 @@
 .ai-result-time-banner.is-t-advice { color: #8a5a0b; background: linear-gradient(90deg, #fff0c9, #fff9ec); border-color: #e8ca88; }
 .ai-result-time-banner.is-t-advice > strong { color: #a66000; }
 .ai-result-time-banner.is-t-advice > small { color: #806c4b; }
+.ai-result-time-banner.is-long-term { color: #466338; background: linear-gradient(90deg, #eef7e9, #f9fcf6); border-color: #cfe1c5; }
+.ai-result-time-banner.is-long-term > strong { color: #356126; }
+.ai-result-time-banner.is-long-term > small { color: #667a5d; }
 .ai-analysis-result > section { display: grid; gap: 8px; }
 .ai-analysis-result h4 { margin: 0; color: #425169; font-size: 12px; }
 .ai-analysis-summary { padding: 13px; background: #ffffff; border: 1px solid #e0e7ef; border-radius: 8px; }
@@ -306,6 +316,16 @@
 .ai-analysis-facts p,
 .ai-analysis-news p { margin: 0; color: #58687e; font-size: 12px; line-height: 1.65; }
 .ai-analysis-facts small { color: #8090a4; font-size: 12px; }
+.ai-long-term-dimensions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ai-long-term-dimensions article { display: grid; gap: 7px; padding: 12px; background: #ffffff; border: 1px solid #dfe8dc; border-radius: 8px; }
+.ai-long-term-dimensions article.is-valuation,
+.ai-long-term-dimensions article.is-priceTiming { background: #fffaf0; border-color: #eee0ba; }
+.ai-long-term-dimensions strong { color: #416039; font-size: 13px; }
+.ai-long-term-dimensions article.is-valuation strong,
+.ai-long-term-dimensions article.is-priceTiming strong { color: #83631c; }
+.ai-long-term-dimensions p { margin: 0; color: #52634e; font-size: 12px; line-height: 1.7; }
+.ai-long-term-dimensions small { color: #7c8b78; font-size: 12px; line-height: 1.55; }
+.ai-analysis-risks { display: grid; gap: 5px; margin: 0; padding: 10px 12px 10px 28px; color: #8f3d49; background: #fff5f5; border: 1px solid #f1cfd3; border-radius: 8px; font-size: 12px; line-height: 1.6; }
 .ai-analysis-news { display: grid; gap: 8px; }
 .ai-analysis-news article > div { display: grid; gap: 3px; }
 .ai-analysis-news strong { color: #42536b; font-size: 12px; }
@@ -407,7 +427,8 @@
   .ai-settings-content { grid-template-columns: 1fr; }
   .ai-t-panel > header { align-items: flex-start; }
   .ai-t-metrics,
-  .ai-t-reason-grid { grid-template-columns: 1fr; }
+  .ai-t-reason-grid,
+  .ai-long-term-dimensions { grid-template-columns: 1fr; }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -443,9 +464,11 @@
   .ai-composer textarea,
   .ai-mention-picker,
   .ai-mention-open,
+  .ai-analysis-mode-tabs button,
   .ai-analysis-summary,
   .ai-analysis-facts article,
   .ai-analysis-news article,
+  .ai-long-term-dimensions article,
   .ai-t-advice-card,
   .ai-t-dialog { color: #dbe5f0; background: #202d3d; border-color: #4a4b49; }
   .ai-result-time-banner { color: #b9d1f5; background: linear-gradient(90deg, #243a5a, #223044); border-color: #3d5f8d; }
@@ -454,6 +477,17 @@
   .ai-result-time-banner.is-t-advice { color: #f0d39a; background: linear-gradient(90deg, #46391f, #302d27); border-color: #6f5930; }
   .ai-result-time-banner.is-t-advice > strong { color: #ffc45c; }
   .ai-result-time-banner.is-t-advice > small { color: #d5c19d; }
+  .ai-result-time-banner.is-long-term { color: #c2dcb9; background: linear-gradient(90deg, #2b422b, #263528); border-color: #49684a; }
+  .ai-result-time-banner.is-long-term > strong { color: #9bd58d; }
+  .ai-result-time-banner.is-long-term > small { color: #b1c5aa; }
+  .ai-analysis-mode-tabs button.is-active { color: #b8d5f7; background: #294261; border-color: #486b96; box-shadow: inset 0 0 0 1px #355579; }
+  .ai-long-term-dimensions article.is-valuation,
+  .ai-long-term-dimensions article.is-priceTiming { background: #3a3324; border-color: #655633; }
+  .ai-long-term-dimensions strong { color: #c2deb9; }
+  .ai-long-term-dimensions article.is-valuation strong,
+  .ai-long-term-dimensions article.is-priceTiming strong { color: #efd083; }
+  .ai-long-term-dimensions p { color: #c4d0c0; }
+  .ai-long-term-dimensions small { color: #aab8a6; }
   .ai-t-metrics > div,
   .ai-t-plan-diff article { color: #dbe5f0; background: #253348; border-color: #4a4b49; }
   .ai-t-reason-grid section { background: #253348; border-color: #3b4b60; }

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { WebContents } from 'electron'
 import type { MarketInsightSnapshot } from '../../market-insight/shared/types'
 import {
+  AI_LONG_TERM_PROMPT_VERSION,
   AI_PROMPT_VERSION,
   normalizeOpenAiCodexModelId,
   OPENAI_CODEX_DEFAULT_MODEL
@@ -18,6 +19,8 @@ import type {
   AiCreateConversationInput,
   AiInterpretation,
   AiInterpretationResult,
+  AiLongTermInterpretation,
+  AiLongTermInterpretationResult,
   AiMessage,
   AiModuleDependencies,
   AiProvider,
@@ -37,6 +40,9 @@ import {
 } from './conversations/context-builder'
 import { createConversationTitle } from './conversations/title-generator'
 import { MARKET_INTERPRETATION_PROMPT } from '../prompts/market-interpretation'
+import { LONG_TERM_VALUE_PROMPT } from '../prompts/long-term-value'
+import { buildLongTermContext, type CompactLongTermContext } from './analysis/long-term-context'
+import { parseLongTermInterpretation } from './analysis/long-term-interpretation'
 import { DeepSeekProvider } from './providers/deepseek'
 import { OpenAiApiProvider } from './providers/openai-api'
 import { OpenAiCodexProvider } from './providers/openai-codex'
@@ -366,7 +372,7 @@ export class AiService {
     onProgress: (progress: AiAnalysisProgressEvent) => void = () => undefined
   ): Promise<AiInterpretationResult> {
     const report = (phase: AiAnalysisProgressEvent['phase'], message: string, detail: string) => {
-      onProgress({ quoteId, phase, message, detail, updatedAt: now() })
+      onProgress({ quoteId, analysisType: 'short-term', phase, message, detail, updatedAt: now() })
     }
     report('preparing', '正在检查 AI 配置', '确认功能开关、模型与账号凭据。')
     const settings = this.storage.getSettings()
@@ -423,6 +429,86 @@ export class AiService {
 
   getLatestInterpretation(quoteId: string): AiInterpretationResult | null {
     return this.storage.getLatestInterpretation<AiInterpretationResult>(quoteId)
+  }
+
+  async interpretLongTerm(
+    quoteId: string,
+    onProgress: (progress: AiAnalysisProgressEvent) => void = () => undefined
+  ): Promise<AiLongTermInterpretationResult> {
+    const report = (phase: AiAnalysisProgressEvent['phase'], message: string, detail: string) => {
+      onProgress({ quoteId, analysisType: 'long-term', phase, message, detail, updatedAt: now() })
+    }
+    report('preparing', '正在检查 AI 配置', '确认功能开关、模型与账号凭据。')
+    const settings = this.storage.getSettings()
+    if (!settings.enabled) throw new Error('AI 助手当前已关闭')
+    const credential = this.getCredential(settings.providerId)
+    report('loading-snapshot', '正在读取长期价值数据', '加载五年财务、分红融资、当前估值和长期价格强弱。')
+    const fundamentalSnapshot = this.dependencies.getFundamentalSnapshot()
+    const dividendSnapshot = this.dependencies.getDividendFinancingSnapshot()
+    if (!fundamentalSnapshot && !dividendSnapshot) {
+      throw new Error('当前还没有基本面或分红融资快照，长期价值分析暂不可用')
+    }
+    let dailyKline = null
+    try {
+      dailyKline = await this.dependencies.getDailyKline(quoteId, 270)
+    } catch {
+      dailyKline = null
+    }
+    const context: CompactLongTermContext = buildLongTermContext({
+      quoteId,
+      quote: this.dependencies.getLatestQuote(quoteId),
+      dailyKline,
+      fundamentalSnapshot,
+      fundamentalState: this.dependencies.getFundamentalState(),
+      dividendSnapshot,
+      dividendState: this.dependencies.getDividendFinancingState(),
+      generatedAt: now()
+    })
+    this.storage.saveSnapshot(context.snapshotId, context)
+    const cacheKey = `${context.snapshotId}:${settings.providerId}:${settings.model}:${AI_LONG_TERM_PROMPT_VERSION}`
+    report('checking-cache', '正在检查长期分析缓存', '财务、估值和价格强弱均相同时直接使用本地结果。')
+    const cached = this.storage.getInterpretation<AiLongTermInterpretation>(cacheKey)
+    if (cached) {
+      const cachedResult: AiLongTermInterpretationResult = {
+        snapshotId: context.snapshotId,
+        generatedAt: context.generatedAt,
+        fundamentalSnapshotDate: context.fundamental.snapshotDate,
+        dividendSnapshotDate: context.dividendFinancing.snapshotDate,
+        priceDataAt: context.priceStrength.dataAt,
+        interpretation: cached,
+        cached: true
+      }
+      this.storage.saveLatestInterpretation(`${quoteId}:long-term`, cachedResult)
+      return cachedResult
+    }
+    const provider = this.requireProvider(settings.providerId)
+    const controller = new AbortController()
+    report('analyzing', 'AI 正在分析长期价值', `正在调用 ${settings.model} 分析经营质量、估值与价格时机。`)
+    const result = await provider.streamChat(credential, {
+      model: settings.model,
+      messages: [
+        { role: 'system', content: LONG_TERM_VALUE_PROMPT },
+        { role: 'user', content: JSON.stringify(context) }
+      ]
+    }, () => undefined, controller.signal)
+    report('validating', 'AI 已返回，正在校验结果', '检查长期价值维度、证据和风险边界并保存结果。')
+    const interpretation = parseLongTermInterpretation(result.content, now())
+    this.storage.saveInterpretation(cacheKey, interpretation)
+    const interpretationResult: AiLongTermInterpretationResult = {
+      snapshotId: context.snapshotId,
+      generatedAt: context.generatedAt,
+      fundamentalSnapshotDate: context.fundamental.snapshotDate,
+      dividendSnapshotDate: context.dividendFinancing.snapshotDate,
+      priceDataAt: context.priceStrength.dataAt,
+      interpretation,
+      cached: false
+    }
+    this.storage.saveLatestInterpretation(`${quoteId}:long-term`, interpretationResult)
+    return interpretationResult
+  }
+
+  getLatestLongTermInterpretation(quoteId: string): AiLongTermInterpretationResult | null {
+    return this.storage.getLatestInterpretation<AiLongTermInterpretationResult>(`${quoteId}:long-term`)
   }
 
   async runStructuredTask(

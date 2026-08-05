@@ -1,5 +1,12 @@
 import type { MarketInsightSnapshot } from '../../market-insight/shared/types'
-import type { ChipDistributionCacheEntry } from '../../../shared/types'
+import type {
+  ChipDistributionCacheEntry,
+  DataSnapshotRuntimeState,
+  DividendFinancingSnapshot,
+  FundamentalSnapshot,
+  KlineResult,
+  StockQuote
+} from '../../../shared/types'
 
 export type AiProviderId = 'openai' | 'openai-codex' | 'deepseek'
 export type AiApiKeyProviderId = Exclude<AiProviderId, 'openai-codex'>
@@ -168,6 +175,39 @@ export interface AiInterpretationResult {
   }>
 }
 
+export type AiLongTermDimensionId =
+  | 'businessQuality'
+  | 'cashFlow'
+  | 'capitalEfficiency'
+  | 'balanceSheet'
+  | 'valuation'
+  | 'shareholderReturn'
+  | 'priceTiming'
+
+export interface AiLongTermInterpretation {
+  summary: string
+  dimensions: Array<{
+    id: AiLongTermDimensionId
+    conclusion: string
+    evidence: string[]
+  }>
+  risks: string[]
+  uncertainties: string[]
+  generatedAt: string
+}
+
+export interface AiLongTermInterpretationResult {
+  snapshotId: string
+  generatedAt: string
+  fundamentalSnapshotDate: string | null
+  dividendSnapshotDate: string | null
+  priceDataAt: string | null
+  interpretation: AiLongTermInterpretation
+  cached: boolean
+}
+
+export type AiAnalysisType = 'short-term' | 'long-term'
+
 export type AiAnalysisProgressPhase =
   | 'preparing'
   | 'loading-snapshot'
@@ -177,6 +217,7 @@ export type AiAnalysisProgressPhase =
 
 export interface AiAnalysisProgressEvent {
   quoteId: string
+  analysisType: AiAnalysisType
   phase: AiAnalysisProgressPhase
   message: string
   detail: string
@@ -205,6 +246,8 @@ export interface AiApi {
   retryChat: (conversationId: string, messageId: string) => Promise<AiChatStartResult>
   getLatestInterpretation: (quoteId: string) => Promise<AiInterpretationResult | null>
   interpret: (quoteId: string) => Promise<AiInterpretationResult>
+  getLatestLongTermInterpretation: (quoteId: string) => Promise<AiLongTermInterpretationResult | null>
+  interpretLongTerm: (quoteId: string) => Promise<AiLongTermInterpretationResult>
   onAnalysisProgress: (listener: (event: AiAnalysisProgressEvent) => void) => () => void
   onChatDelta: (listener: (event: AiChatDeltaEvent) => void) => () => void
   onChatCompleted: (listener: (event: AiChatCompletedEvent) => void) => () => void
@@ -252,6 +295,12 @@ export interface AiModuleDependencies {
   getMarketInsightSnapshot: (quoteId: string) => Promise<MarketInsightSnapshot | null> | null
   refreshMarketInsightSnapshot: (quoteId: string) => Promise<MarketInsightSnapshot | null> | null
   getChipDistributionCache: (quoteId: string) => ChipDistributionCacheEntry | null
+  getLatestQuote: (quoteId: string) => StockQuote | null
+  getDailyKline: (quoteId: string, limit: number) => Promise<KlineResult>
+  getFundamentalSnapshot: () => FundamentalSnapshot | null
+  getFundamentalState: () => DataSnapshotRuntimeState
+  getDividendFinancingSnapshot: () => DividendFinancingSnapshot | null
+  getDividendFinancingState: () => DataSnapshotRuntimeState
 }
 
 declare global {
