@@ -2355,7 +2355,7 @@
   min-width: 0;
   height: 360px;
   display: grid;
-  grid-template-rows: 43px 40px 72px minmax(0, 1fr) 25px;
+  grid-template-rows: 43px 44px 80px minmax(0, 1fr) 29px;
   color: #536074;
   background: #fbfcfe;
   border-left: 1px solid #e5eaf1;
@@ -2488,83 +2488,8 @@
 .chip-distribution-chart {
   min-height: 0;
   display: grid;
-  grid-template-rows: 34px minmax(0, 1fr) 24px;
+  grid-template-rows: minmax(0, 1fr) 24px;
   padding: 4px 8px 0;
-}
-
-.chip-peak-list {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
-  padding-bottom: 4px;
-}
-
-.chip-peak-list button {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 2px 5px;
-  color: #64748b;
-  background: #f5f7fa;
-  border: 1px solid #e4e9f0;
-  border-radius: 5px;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  cursor: pointer;
-}
-
-.chip-peak-list button:hover,
-.chip-peak-list button:focus-visible,
-.chip-peak-list button.is-active {
-  color: #245f9e;
-  background: #eef5ff;
-  border-color: #b8d2f0;
-  outline: none;
-}
-
-.chip-peak-list button b {
-  width: 17px;
-  height: 17px;
-  display: grid;
-  place-items: center;
-  flex: 0 0 17px;
-  color: #ffffff;
-  background: #7186a3;
-  border-radius: 50%;
-  font-size: 12px;
-  line-height: 1;
-}
-
-.chip-peak-list button.is-active b,
-.chip-peak-list button:hover b,
-.chip-peak-list button:focus-visible b {
-  background: #3f7fd3;
-}
-
-.chip-peak-list button span {
-  min-width: 0;
-  display: grid;
-  justify-items: start;
-  line-height: 1.05;
-}
-
-.chip-peak-list button strong,
-.chip-peak-list button small {
-  max-width: 100%;
-  overflow: hidden;
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.chip-peak-list button strong {
-  color: #344054;
-}
-
-.chip-peak-list button small {
-  color: #8793a5;
 }
 
 .chip-distribution-chart svg {
@@ -2595,15 +2520,16 @@
 
 .chip-distribution-chart rect.is-peak {
   opacity: 1;
-  stroke: #657b99;
-  stroke-width: 0.7;
+  stroke: #245f9e;
+  stroke-width: 1.2;
+  filter: drop-shadow(0 0 1.5px rgba(36, 95, 158, 0.6));
 }
 
 .chip-distribution-chart rect.is-active {
   opacity: 1;
-  stroke: #245f9e;
-  stroke-width: 1.2;
-  filter: drop-shadow(0 0 1.5px rgba(36, 95, 158, 0.6));
+  stroke: #164c83;
+  stroke-width: 1.4;
+  filter: drop-shadow(0 0 2px rgba(22, 76, 131, 0.7));
 }
 
 .chip-current-line {
