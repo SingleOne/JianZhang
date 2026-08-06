@@ -260,13 +260,14 @@ function ChipDistributionChart({
           const y = bottom - (index / Math.max(1, buckets.length - 1)) * chartHeight
           const barWidth = maxPercent === 0 ? 0 : (bucket.percent / maxPercent) * (right - left)
           const isActive = index === highlightedBucketIndex
+          const renderedWidth = isActive ? Math.min(right - left, barWidth + 5) : barWidth
           const renderedHeight = isActive ? Math.max(4, bucketHeight) : bucketHeight
           return (
             <rect
               className={`${bucket.price <= currentPrice ? 'is-profit-chip' : 'is-loss-chip'}${isActive ? ' is-active' : ''}`}
               x={left}
               y={y - renderedHeight / 2}
-              width={barWidth}
+              width={renderedWidth}
               height={renderedHeight}
               key={index}
             />

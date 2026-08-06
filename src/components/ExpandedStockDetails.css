@@ -2541,9 +2541,27 @@
 
 .chip-distribution-chart rect.is-active {
   opacity: 1;
-  stroke: #164c83;
-  stroke-width: 1.4;
-  filter: drop-shadow(0 0 2px rgba(22, 76, 131, 0.7));
+  stroke: none;
+  animation: chip-bar-pulse 1.1s ease-in-out infinite;
+}
+
+.chip-distribution-chart rect.is-profit-chip.is-active {
+  --chip-active-color: var(--red);
+  fill: var(--red);
+}
+
+.chip-distribution-chart rect.is-loss-chip.is-active {
+  --chip-active-color: var(--green);
+  fill: var(--green);
+}
+
+@keyframes chip-bar-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 1px var(--chip-active-color));
+  }
+  50% {
+    filter: drop-shadow(0 0 5px var(--chip-active-color));
+  }
 }
 
 .chip-current-line {
