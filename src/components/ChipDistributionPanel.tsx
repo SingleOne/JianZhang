@@ -174,9 +174,8 @@ function ChipDistributionChart({
   const bucketHeight = Math.max(0.7, chartHeight / buckets.length * 0.74)
   const currentY = yForPrice(currentPrice)
   const averageY = yForPrice(averageCost)
-  const peakIndex = buckets.findIndex((bucket) => bucket.percent === maxPercent)
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
-  const activeIndex = hoveredIndex ?? peakIndex
+  const activeIndex = hoveredIndex ?? 0
   const activeBucket = buckets[activeIndex]
   const activeY = bottom - (activeIndex / Math.max(1, buckets.length - 1)) * chartHeight
   const tooltipWidth = 84
@@ -211,15 +210,10 @@ function ChipDistributionChart({
           const y = bottom - (index / Math.max(1, buckets.length - 1)) * chartHeight
           const barWidth = maxPercent === 0 ? 0 : (bucket.percent / maxPercent) * (right - left)
           const isActive = index === hoveredIndex
-          const isPeak = index === peakIndex
-          const renderedHeight = isActive
-            ? Math.max(4, bucketHeight)
-            : isPeak
-              ? Math.max(3.2, bucketHeight)
-              : bucketHeight
+          const renderedHeight = isActive ? Math.max(4, bucketHeight) : bucketHeight
           return (
             <rect
-              className={`${bucket.price <= currentPrice ? 'is-profit-chip' : 'is-loss-chip'}${isPeak ? ' is-peak' : ''}${isActive ? ' is-active' : ''}`}
+              className={`${bucket.price <= currentPrice ? 'is-profit-chip' : 'is-loss-chip'}${isActive ? ' is-active' : ''}`}
               x={left}
               y={y - renderedHeight / 2}
               width={barWidth}

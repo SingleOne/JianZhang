@@ -2518,13 +2518,6 @@
   fill: rgba(24, 146, 102, 0.68);
 }
 
-.chip-distribution-chart rect.is-peak {
-  opacity: 1;
-  stroke: #245f9e;
-  stroke-width: 1.2;
-  filter: drop-shadow(0 0 1.5px rgba(36, 95, 158, 0.6));
-}
-
 .chip-distribution-chart rect.is-active {
   opacity: 1;
   stroke: #164c83;
