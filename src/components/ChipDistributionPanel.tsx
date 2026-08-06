@@ -1,5 +1,5 @@
 import { RotateCcw } from 'lucide-react'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState, type PointerEvent } from 'react'
 import { stockApi } from '../lib/api'
 import { calculateChipDistribution } from '../lib/chip-distribution'
 import type { KlineBar } from '../shared/types'
@@ -174,31 +174,109 @@ function ChipDistributionChart({
   const bucketHeight = Math.max(0.7, chartHeight / buckets.length * 0.74)
   const currentY = yForPrice(currentPrice)
   const averageY = yForPrice(averageCost)
+  const peakIndexes = useMemo(
+    () =>
+      buckets
+        .map((bucket, index) => ({ index, percent: bucket.percent }))
+        .sort((leftBucket, rightBucket) => rightBucket.percent - leftBucket.percent)
+        .slice(0, 3)
+        .map((bucket) => bucket.index),
+    [buckets]
+  )
+  const peakRanks = useMemo(
+    () => new Map(peakIndexes.map((index, rank) => [index, rank + 1])),
+    [peakIndexes]
+  )
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+  const activeIndex = hoveredIndex ?? peakIndexes[0] ?? 0
+  const activeBucket = buckets[activeIndex]
+  const activeY = bottom - (activeIndex / Math.max(1, buckets.length - 1)) * chartHeight
+  const activeRank = peakRanks.get(activeIndex)
+  const tooltipWidth = 126
+  const tooltipHeight = 38
+  const tooltipX = right - tooltipWidth
+  const tooltipY = Math.max(top, Math.min(bottom - tooltipHeight, activeY - tooltipHeight / 2))
+
+  const handlePointerMove = (event: PointerEvent<SVGSVGElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect()
+    const pointerY = ((event.clientY - bounds.top) / bounds.height) * height
+    const index = Math.round(((bottom - pointerY) / chartHeight) * (buckets.length - 1))
+    setHoveredIndex(Math.max(0, Math.min(buckets.length - 1, index)))
+  }
 
   return (
     <div className="chip-distribution-chart">
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="价格筹码分布图">
-        <text x="0" y={top + 4}>{formatChipPrice(maxPrice)}</text>
-        <text x="0" y={bottom + 4}>{formatChipPrice(minPrice)}</text>
+      <div className="chip-peak-list" aria-label="筹码占比最高的三个价位">
+        {peakIndexes.map((index, rank) => {
+          const bucket = buckets[index]
+          return (
+            <button
+              className={index === activeIndex ? 'is-active' : ''}
+              type="button"
+              key={index}
+              onPointerEnter={() => setHoveredIndex(index)}
+              onPointerLeave={() => setHoveredIndex(null)}
+              onFocus={() => setHoveredIndex(index)}
+              onBlur={() => setHoveredIndex(null)}
+              aria-label={`第${rank + 1}高峰，价位 ${formatChipPrice(bucket.price)}，筹码占比 ${formatChipPercent(bucket.percent)}`}
+            >
+              <b>{rank + 1}</b>
+              <span>
+                <strong>{formatChipPrice(bucket.price)}</strong>
+                <small>{formatChipPercent(bucket.percent)}</small>
+              </span>
+            </button>
+          )
+        })}
+      </div>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label="价格筹码分布图，移动鼠标可查看对应价位"
+        onPointerMove={handlePointerMove}
+        onPointerLeave={() => setHoveredIndex(null)}
+      >
+        <text x="0" y={top + 4}>
+          {formatChipPrice(maxPrice)}
+        </text>
+        <text x="0" y={bottom + 4}>
+          {formatChipPrice(minPrice)}
+        </text>
         <line className="chip-price-axis" x1={left} y1={top} x2={left} y2={bottom} />
         {buckets.map((bucket, index) => {
-          const y = bottom - index / Math.max(1, buckets.length - 1) * chartHeight
-          const barWidth = maxPercent === 0 ? 0 : bucket.percent / maxPercent * (right - left)
+          const y = bottom - (index / Math.max(1, buckets.length - 1)) * chartHeight
+          const barWidth = maxPercent === 0 ? 0 : (bucket.percent / maxPercent) * (right - left)
+          const isActive = index === activeIndex
+          const isPeak = peakRanks.has(index)
+          const renderedHeight = isActive
+            ? Math.max(4, bucketHeight)
+            : isPeak
+              ? Math.max(2.4, bucketHeight)
+              : bucketHeight
           return (
             <rect
-              className={bucket.price <= currentPrice ? 'is-profit-chip' : 'is-loss-chip'}
+              className={`${bucket.price <= currentPrice ? 'is-profit-chip' : 'is-loss-chip'}${isPeak ? ' is-peak' : ''}${isActive ? ' is-active' : ''}`}
               x={left}
-              y={y - bucketHeight / 2}
+              y={y - renderedHeight / 2}
               width={barWidth}
-              height={bucketHeight}
+              height={renderedHeight}
               key={index}
-            >
-              <title>价格 {formatChipPrice(bucket.price)} · 筹码 {formatChipPercent(bucket.percent)}</title>
-            </rect>
+            />
           )
         })}
         <line className="chip-current-line" x1={left} y1={currentY} x2={right} y2={currentY} />
         <line className="chip-average-line" x1={left} y1={averageY} x2={right} y2={averageY} />
+        <line className="chip-hover-line" x1={0} y1={activeY} x2={right} y2={activeY} />
+        <g className="chip-hover-tooltip" transform={`translate(${tooltipX} ${tooltipY})`}>
+          <rect width={tooltipWidth} height={tooltipHeight} rx="5" />
+          <text x="7" y="14">
+            价位 {formatChipPrice(activeBucket.price)}
+          </text>
+          <text x="7" y="30">
+            筹码 {formatChipPercent(activeBucket.percent)}
+            {activeRank ? ` · 第${activeRank}高峰` : ''}
+          </text>
+        </g>
       </svg>
       <div className="chip-chart-legend" aria-label="筹码图图例">
         <span className="is-profit-chip">获利</span>
