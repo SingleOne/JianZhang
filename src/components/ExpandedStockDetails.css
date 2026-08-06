@@ -2441,26 +2441,47 @@
 
 .chip-summary-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   border-bottom: 1px solid #edf0f4;
 }
 
-.chip-summary-grid > span {
+.chip-summary-grid > span,
+.chip-summary-grid > button {
   min-width: 0;
   display: grid;
   align-content: center;
   gap: 2px;
   padding: 4px 9px;
+  background: transparent;
+  border: 0;
   border-right: 1px solid #edf0f4;
   border-bottom: 1px solid #edf0f4;
+  font: inherit;
+  text-align: left;
 }
 
-.chip-summary-grid > span:nth-child(2n) {
+.chip-summary-grid > :nth-child(3n) {
   border-right: 0;
 }
 
-.chip-summary-grid > span:nth-child(n + 3) {
+.chip-summary-grid > :nth-child(n + 4) {
   border-bottom: 0;
+}
+
+.chip-summary-grid > button {
+  cursor: pointer;
+}
+
+.chip-summary-grid > button:hover,
+.chip-summary-grid > button:focus-visible,
+.chip-summary-grid > button.is-active {
+  background: #eef5ff;
+  outline: none;
+}
+
+.chip-summary-grid > button:disabled {
+  background: transparent;
+  cursor: default;
 }
 
 .chip-summary-grid small {
