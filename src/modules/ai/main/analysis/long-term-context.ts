@@ -161,6 +161,7 @@ export function buildLongTermContext(input: LongTermContextInput) {
     currentPrice: dcfResult.analysis.currentPrice,
     differencePercent: dcfResult.analysis.differencePercent,
     fairValueToPricePercent: dcfResult.analysis.fairValueToPricePercent,
+    priceToFairValuePercent: dcfResult.analysis.priceToFairValuePercent,
     lowValueThresholdPercent: DCF_LOW_VALUE_THRESHOLD_PERCENT,
     belowLowValueThreshold: dcfResult.analysis.belowLowValueThreshold
   } : {

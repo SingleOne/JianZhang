@@ -25,6 +25,7 @@ export interface DcfAnalysis {
   currentPrice: number | null
   differencePercent: number | null
   fairValueToPricePercent: number | null
+  priceToFairValuePercent: number | null
   belowLowValueThreshold: boolean
 }
 
@@ -125,6 +126,9 @@ export function createDcfAnalysis(
   const differencePercent = fairValueToPricePercent === null
     ? null
     : fairValueToPricePercent - 100
+  const priceToFairValuePercent = comparableCurrentPrice === null || fairValuePerShare <= 0
+    ? null
+    : comparableCurrentPrice / fairValuePerShare * 100
 
   return {
     analysis: {
@@ -138,6 +142,7 @@ export function createDcfAnalysis(
       currentPrice: comparableCurrentPrice,
       differencePercent,
       fairValueToPricePercent,
+      priceToFairValuePercent,
       belowLowValueThreshold: fairValueToPricePercent !== null
         && fairValueToPricePercent < DCF_LOW_VALUE_THRESHOLD_PERCENT
     },

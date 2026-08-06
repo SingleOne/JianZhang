@@ -218,6 +218,8 @@ describe('long-term AI context', () => {
       .toBeGreaterThan(0)
     expect(context.valuation.dcf.available && context.valuation.dcf.fairValueToPricePercent)
       .toBeLessThan(70)
+    expect(context.valuation.dcf.available && context.valuation.dcf.priceToFairValuePercent)
+      .toBeGreaterThan(100)
     expect(context.fundamental.company?.annualReports.at(-1)).toMatchObject({
       roic: 14,
       freeCashFlow: 100

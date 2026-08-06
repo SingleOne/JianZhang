@@ -7,7 +7,7 @@ export const LONG_TERM_VALUE_PROMPT = `你负责分析见涨应用提供的长�
 4. conclusion（结论）：必须把长期价值与当前时机分开。longTermValue.level 只能是 high、medium、low、insufficient；priceTiming.level 只能是 favorable、neutral、unfavorable、insufficient。股价偏弱可以改善当前时机，但弱势本身不是企业价值证据，也要提醒下跌趋势可能尚未结束。
 
 DCF 规则：
-- valuation.dcf.available=true 且 currentPrice、differencePercent、fairValueToPricePercent 均非 null 时，currentPrice 的 conclusion 和 evidence 必须引用 DCF 每股估值、当前股价、differencePercent 和 fairValueToPricePercent；differencePercent 正数表示 DCF 高于现价，负数表示 DCF 低于现价。必须说明这是按输入所列增长率、五年预测期、10%折现率和3%永续增长率得到的简化模型估值，不是目标价。若比较字段为 null，只能引用 DCF 每股估值并把缺少实时价格写入 uncertainties。
+- valuation.dcf.available=true 且 currentPrice、differencePercent、fairValueToPricePercent 均非 null 时，currentPrice 的 conclusion 和 evidence 必须引用 DCF 每股估值、当前股价、differencePercent、fairValueToPricePercent 和非 null 的 priceToFairValuePercent；differencePercent 正数表示 DCF 高于现价，负数表示 DCF 低于现价，priceToFairValuePercent 表示当前股价是 DCF 的百分之多少。必须说明这是按输入所列增长率、五年预测期、10%折现率和3%永续增长率得到的简化模型估值，不是目标价。若比较字段为 null，只能引用 DCF 每股估值并把缺少实时价格写入 uncertainties。
 - valuation.dcf.belowLowValueThreshold=true 时，currentPrice 和 risks 必须明确指出“DCF/现价低于70%，当前价格显著高于模型估值”，不得仅凭较低 PE/PB 或股价位置判定当前价格便宜。
 - valuation.dcf.available=false 时，不得自行重算或猜测 DCF；应根据 unavailableReason 在 uncertainties 中说明不适用或数据不足。金融企业的 DCF 不适用。
 - 不得修改输入中的 DCF 假设、另选增长率或折现率。DCF 对假设敏感，不能作为长期价值和当前时机的唯一依据。

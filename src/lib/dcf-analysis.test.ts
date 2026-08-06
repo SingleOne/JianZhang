@@ -62,6 +62,7 @@ describe('DCF analysis', () => {
     expect(result.analysis?.forecastGrowthRate).toBeCloseTo(8.78, 2)
     expect(result.analysis?.fairValuePerShare).toBeCloseTo(23.87, 1)
     expect(result.analysis?.differencePercent).toBeCloseTo(98.95, 0)
+    expect(result.analysis?.priceToFairValuePercent).toBeCloseTo(50.26, 1)
     expect(result.analysis?.belowLowValueThreshold).toBe(false)
   })
 
@@ -69,6 +70,7 @@ describe('DCF analysis', () => {
     const result = createDcfAnalysis(company(), 40)
 
     expect(result.analysis?.fairValueToPricePercent).toBeLessThan(DCF_LOW_VALUE_THRESHOLD_PERCENT)
+    expect(result.analysis?.priceToFairValuePercent).toBeGreaterThan(100)
     expect(result.analysis?.belowLowValueThreshold).toBe(true)
   })
 

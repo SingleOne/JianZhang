@@ -243,6 +243,12 @@ function DcfPanel({
                 {fundamentalPercent(analysis.fairValueToPricePercent, 1)}
               </strong>
             </article>
+            <article>
+              <small>当前股价 / DCF</small>
+              <strong className={signedValueClass((analysis.priceToFairValuePercent ?? 100) - 100)}>
+                {fundamentalPercent(analysis.priceToFairValuePercent, 1)}
+              </strong>
+            </article>
           </div>
 
           {analysis.belowLowValueThreshold ? (
