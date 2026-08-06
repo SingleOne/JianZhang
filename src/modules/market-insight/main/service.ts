@@ -31,6 +31,7 @@ import { calculateIntradayIndicators } from './indicators/intraday'
 import { calculateMomentumIndicators } from './indicators/momentum'
 import { calculateOrderBookIndicators } from './indicators/order-book'
 import { calculateRelativeStrengthIndicators } from './indicators/relative-strength'
+import { calculateShortTermTechnicalIndicators } from './indicators/technical'
 import { calculateTrendIndicators } from './indicators/trend'
 import { calculateVolatilityIndicators } from './indicators/volatility'
 import { detectNewAnnouncementEvents, detectWatchEvents } from './events/detect'
@@ -303,6 +304,7 @@ export class MarketInsightService {
         quoteId,
         quoteTime: quote.updatedAt,
         calculatedAt,
+        technical: calculateShortTermTechnicalIndicators(daily.value.bars, calculatedAt),
         intraday: intradayIndicators.values,
         trend: calculateTrendIndicators(daily.value.bars, calculatedAt),
         momentum: calculateMomentumIndicators(daily.value.bars, calculatedAt),

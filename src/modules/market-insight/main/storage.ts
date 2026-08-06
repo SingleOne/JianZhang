@@ -36,12 +36,12 @@ export class MarketInsightStorage {
   }
 
   loadSnapshot(quoteId: string): MarketInsightSnapshot | null {
-    const stored = this.read<StoredValue<MarketInsightSnapshot> | null>(`cache/${this.fileName(quoteId, 'snapshot', 'v1')}`, null)
+    const stored = this.read<StoredValue<MarketInsightSnapshot> | null>(`cache/${this.fileName(quoteId, 'snapshot', 'v2')}`, null)
     return stored?.value ?? null
   }
 
   saveSnapshot(snapshot: MarketInsightSnapshot): void {
-    this.write(`cache/${this.fileName(snapshot.quoteId, 'snapshot', 'v1')}`, {
+    this.write(`cache/${this.fileName(snapshot.quoteId, 'snapshot', 'v2')}`, {
       savedAt: new Date().toISOString(),
       dataCutoffAt: snapshot.dataCutoffAt,
       expiresAt: new Date(Date.now() + 60_000).toISOString(),

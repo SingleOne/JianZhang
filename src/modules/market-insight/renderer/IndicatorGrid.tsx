@@ -11,11 +11,16 @@ interface IndicatorGridProps {
   values: readonly IndicatorValue[]
   headingValueId?: string
   explanations?: Readonly<Record<string, IndicatorExplanation>>
+  variant?: 'default' | 'summary'
 }
 
 function formatIndicator(value: IndicatorValue): string {
   if (value.value === null) return '--'
   if (value.id === 'price-volume-state') return value.state === 'up' ? '量价同向走强' : value.state === 'down' ? '量价同向走弱' : '量价平衡'
+  if (value.id === 'momentum-strength' || value.id === 'reversal-strength') {
+    return `${value.value > 0 ? '+' : ''}${Math.round(value.value)} / 100`
+  }
+  if (value.id === 'short-term-volatility-20') return `${value.value.toFixed(2)}%`
   if (value.unit === 'price') return formatPrice(value.value)
   if (value.unit === 'percent') return formatPercent(value.value)
   if (value.unit === 'amount') return formatAmount(value.value)
@@ -88,7 +93,7 @@ function IndicatorExplanationPopover({
   )
 }
 
-export function IndicatorGrid({ title, titleHint, values, headingValueId, explanations }: IndicatorGridProps) {
+export function IndicatorGrid({ title, titleHint, values, headingValueId, explanations, variant = 'default' }: IndicatorGridProps) {
   const [explainedIndicatorId, setExplainedIndicatorId] = useState<string | null>(null)
   if (values.length === 0) return null
   const headingValue = headingValueId
@@ -102,7 +107,7 @@ export function IndicatorGrid({ title, titleHint, values, headingValueId, explan
     : undefined
   const explanation = explainedValue ? explanations?.[explainedValue.id] : undefined
   return (
-    <section className="insight-indicator-section">
+    <section className={`insight-indicator-section${variant === 'summary' ? ' is-summary' : ''}`}>
       <div className="insight-indicator-heading">
         <div
           className={`insight-indicator-title${titleHint ? ' has-hint' : ''}`}
@@ -137,6 +142,7 @@ export function IndicatorGrid({ title, titleHint, values, headingValueId, explan
                 </button>
               ) : <span>{value.label}</span>}
               <strong className={`is-${value.state}`}>{formatIndicator(value)}</strong>
+              {value.status ? <small className={`insight-indicator-status is-${value.state}`}>{value.status}</small> : null}
             </div>
           ))}
         </div>

@@ -25,6 +25,9 @@ export function fundamentalStaleReason(
   snapshot: FundamentalSnapshot,
   now = new Date()
 ): string | null {
+  if (snapshot.schemaVersion < 5) {
+    return '当前快照缺少 DCF 股本换算数据，建议手动更新。'
+  }
   const latestYear = snapshot.fiscalYears.at(-1) ?? 0
   const expectedYear = expectedCompletedFiscalYear(now)
   if (latestYear < expectedYear) {

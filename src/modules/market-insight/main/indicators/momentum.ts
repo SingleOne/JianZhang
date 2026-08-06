@@ -2,7 +2,7 @@ import type { KlineBar } from '../../../../shared/types'
 import type { IndicatorValue } from '../../shared/types'
 import { indicator } from './shared'
 
-function rsi(closes: readonly number[], period: number): number | null {
+export function calculateRsi(closes: readonly number[], period: number): number | null {
   if (closes.length <= period) return null
   let gains = 0
   let losses = 0
@@ -34,8 +34,8 @@ export function calculateMomentumIndicators(inputBars: readonly KlineBar[], calc
   const k = hasKdj ? kValue : null
   const d = hasKdj ? dValue : null
   const j = k === null || d === null ? null : 3 * k - 2 * d
-  const rsi6 = rsi(closes, 6)
-  const rsi14 = rsi(closes, 14)
+  const rsi6 = calculateRsi(closes, 6)
+  const rsi14 = calculateRsi(closes, 14)
   return [
     indicator('rsi6', 'RSI6', rsi6, 'none', calculatedAt, '日K', rsi6 === null ? 'unknown' : rsi6 > 50 ? 'up' : rsi6 < 50 ? 'down' : 'flat'),
     indicator('rsi14', 'RSI14', rsi14, 'none', calculatedAt, '日K', rsi14 === null ? 'unknown' : rsi14 > 50 ? 'up' : rsi14 < 50 ? 'down' : 'flat'),

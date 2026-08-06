@@ -4,7 +4,7 @@ import {
   INTRADAY_REFRESH_MILLISECONDS
 } from '../../../shared/market-hours'
 
-export const MARKET_INSIGHT_MODULE_VERSION = 1
+export const MARKET_INSIGHT_MODULE_VERSION = 2
 
 export const MARKET_INSIGHT_IPC = {
   statusGet: 'insight:status:get',

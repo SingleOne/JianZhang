@@ -60,7 +60,7 @@ function dailyKline(): KlineResult {
 
 function fundamentalSnapshot(): FundamentalSnapshot {
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     snapshotDate: '2026-08-05',
     generatedAt: '2026-08-05T12:00:00+08:00',
     currency: 'CNY',
@@ -116,6 +116,7 @@ function fundamentalSnapshot(): FundamentalSnapshot {
       },
       valuation: {
         dataDate: '2026-08-04',
+        closePrice: 120,
         priceEarningsRatioTtm: 12.3,
         priceBookRatio: 1.75,
         totalMarketValue: 120_000_000_000,
@@ -202,8 +203,21 @@ describe('long-term AI context', () => {
         currentValue: 1.8,
         historicalPercentile: 50,
         industryPercentile: 36
+      },
+      dcf: {
+        available: true,
+        forecastYears: 5,
+        discountRate: 10,
+        terminalGrowthRate: 3,
+        currentPrice: 120,
+        lowValueThresholdPercent: 70,
+        belowLowValueThreshold: true
       }
     })
+    expect(context.valuation.dcf.available && context.valuation.dcf.fairValuePerShare)
+      .toBeGreaterThan(0)
+    expect(context.valuation.dcf.available && context.valuation.dcf.fairValueToPricePercent)
+      .toBeLessThan(70)
     expect(context.fundamental.company?.annualReports.at(-1)).toMatchObject({
       roic: 14,
       freeCashFlow: 100
@@ -251,6 +265,10 @@ describe('long-term AI context', () => {
     expect(context.fundamental.company?.annualReports.at(-1)?.freeCashFlow).toBeNull()
     expect(context.fundamental.company?.latestBalanceSheet.netDebt).toBeNull()
     expect(context.valuation.priceBookRatio.industryPercentile).toBe(36)
+    expect(context.valuation.dcf).toEqual({
+      available: false,
+      unavailableReason: 'not-applicable'
+    })
   })
 
   it('reuses the fingerprint when only the quote refresh timestamp changes', () => {

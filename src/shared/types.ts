@@ -825,6 +825,7 @@ export interface FundamentalBalanceSheet {
 
 export interface FundamentalValuationSnapshot {
   dataDate: string
+  closePrice?: number | null
   priceEarningsRatioTtm: number | null
   priceBookRatio: number | null
   totalMarketValue?: number | null
@@ -856,7 +857,7 @@ export interface FundamentalIndustryBenchmark {
 }
 
 export interface FundamentalSnapshot {
-  schemaVersion: 1 | 2 | 3 | 4
+  schemaVersion: 1 | 2 | 3 | 4 | 5
   snapshotDate: string
   generatedAt: string
   currency: 'CNY'

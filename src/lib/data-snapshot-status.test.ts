@@ -24,9 +24,21 @@ describe('data snapshot status', () => {
 
   it('marks fundamental data stale by fiscal year before age', () => {
     const snapshot = {
+      schemaVersion: 5,
       generatedAt: '2027-04-30T12:00:00+08:00',
       fiscalYears: [2021, 2022, 2023, 2024, 2025]
     } as FundamentalSnapshot
     expect(fundamentalStaleReason(snapshot, new Date(2027, 4, 1))).toContain('2026年')
+  })
+
+  it('marks legacy fundamental data stale when DCF share data is missing', () => {
+    const snapshot = {
+      schemaVersion: 4,
+      generatedAt: '2026-08-05T12:00:00+08:00',
+      fiscalYears: [2021, 2022, 2023, 2024, 2025]
+    } as FundamentalSnapshot
+
+    expect(fundamentalStaleReason(snapshot, new Date('2026-08-06T12:00:00+08:00')))
+      .toContain('DCF')
   })
 })

@@ -20,6 +20,15 @@ import type {
   StockValuationHistory
 } from '../../../../shared/types'
 import {
+  DCF_DISCOUNT_RATE,
+  DCF_FORECAST_YEARS,
+  DCF_LOW_VALUE_THRESHOLD_PERCENT,
+  DCF_MAX_FORECAST_GROWTH_RATE,
+  DCF_MIN_FORECAST_GROWTH_RATE,
+  DCF_TERMINAL_GROWTH_RATE,
+  createDcfAnalysis
+} from '../../../../lib/dcf-analysis'
+import {
   createStockValuationAnalysis,
   usesOrdinaryCorporateInvestmentMetrics
 } from '../../../../lib/valuation-analysis'
@@ -123,12 +132,45 @@ export function buildLongTermContext(input: LongTermContextInput) {
   const ordinaryCorporateMetricsApplicable = usesOrdinaryCorporateInvestmentMetrics(
     fundamentalCompany?.organizationType
   )
-  const valuation = createStockValuationAnalysis(
+  const marketValuation = createStockValuationAnalysis(
     input.quoteId,
     input.quote,
     fundamentalCompany,
     input.valuationHistory
   )
+  const dcfResult = fundamentalCompany
+    ? createDcfAnalysis(fundamentalCompany, input.quote?.latest)
+    : null
+  const dcf = dcfResult?.analysis ? {
+    available: true as const,
+    unavailableReason: null,
+    normalizedFreeCashFlow: dcfResult.analysis.normalizedFreeCashFlow,
+    historicalGrowthRate: dcfResult.analysis.historicalGrowthRate,
+    forecastGrowthRate: dcfResult.analysis.forecastGrowthRate,
+    forecastYears: DCF_FORECAST_YEARS,
+    discountRate: DCF_DISCOUNT_RATE,
+    terminalGrowthRate: DCF_TERMINAL_GROWTH_RATE,
+    forecastGrowthRateRange: {
+      minimum: DCF_MIN_FORECAST_GROWTH_RATE,
+      maximum: DCF_MAX_FORECAST_GROWTH_RATE
+    },
+    enterpriseValue: dcfResult.analysis.enterpriseValue,
+    equityValue: dcfResult.analysis.equityValue,
+    sharesOutstanding: dcfResult.analysis.sharesOutstanding,
+    fairValuePerShare: dcfResult.analysis.fairValuePerShare,
+    currentPrice: dcfResult.analysis.currentPrice,
+    differencePercent: dcfResult.analysis.differencePercent,
+    fairValueToPricePercent: dcfResult.analysis.fairValueToPricePercent,
+    lowValueThresholdPercent: DCF_LOW_VALUE_THRESHOLD_PERCENT,
+    belowLowValueThreshold: dcfResult.analysis.belowLowValueThreshold
+  } : {
+    available: false as const,
+    unavailableReason: dcfResult?.unavailableReason ?? 'company-not-covered'
+  }
+  const valuation = {
+    ...marketValuation,
+    dcf
+  }
 
   const fundamental = {
     available: Boolean(input.fundamentalSnapshot),

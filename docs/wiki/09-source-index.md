@@ -73,6 +73,7 @@
 | --- | --- | --- |
 | [`src/lib/api.ts`](../../src/lib/api.ts) | `stockApi`、`demoApi` | 桌面 API 选择、浏览器演示行情和演示存储 |
 | [`src/lib/fundamentals.ts`](../../src/lib/fundamentals.ts) | `parseFundamentalSnapshot` | 基本面快照格式解析 |
+| [`src/lib/dcf-analysis.ts`](../../src/lib/dcf-analysis.ts) | `createDcfAnalysis` | 普通企业简化 DCF、每股估值、现价差异和70%警戒线判断 |
 | [`src/lib/fundamental-screening.ts`](../../src/lib/fundamental-screening.ts) | `evaluateFundamentalCompany`、`evaluateFundamentalQuality`、`evaluateFundamentalRisk`、`classifyFundamentalDividendCategory`、`summarizeFundamentalDividendWatchlist`、`createFundamentalPeerComparisonMap`、`createFundamentalChangeReport` | 三项透明硬筛选、六类固定质量标签、六类风险提示、基本面与分红融资互斥分类、主表概览、同行指标排名和默认规则快照变化 |
 | [`src/lib/data-snapshot-status.ts`](../../src/lib/data-snapshot-status.ts) | `dividendFinancingStaleReason`、`fundamentalStaleReason` | 两类财务快照的过期判断和完整财年边界 |
 | [`src/lib/demo-data.ts`](../../src/lib/demo-data.ts) | `DEMO_STOCKS`、`DEMO_SECTORS`、`DEMO_VALUES` | 浏览器预览固定演示数据 |
@@ -144,9 +145,9 @@
 | [`src/modules/market-insight`](../../src/modules/market-insight/) | 确定性指标、客观事件、公告/要闻、快照和独立调度/存储 |
 | [`src/modules/ai`](../../src/modules/ai/) | Provider、加密凭证、会话、`@股票` 上下文、短期行情/长期价值分析和独立 IPC/UI |
 | [`src/modules/ai/main/conversations/context-builder.ts`](../../src/modules/ai/main/conversations/context-builder.ts) | 最近消息与多股票快照组装，加入筹码分布缓存 |
-| [`src/modules/ai/main/analysis/long-term-context.ts`](../../src/modules/ai/main/analysis/long-term-context.ts) | 组合五年财务、分红融资、PE/PB历史/行业分位及长期价格强弱，生成长期价值快照指纹 |
+| [`src/modules/ai/main/analysis/long-term-context.ts`](../../src/modules/ai/main/analysis/long-term-context.ts) | 组合五年财务、简化 DCF、分红融资、PE/PB历史/行业分位及长期价格强弱，生成长期价值快照指纹 |
 | [`src/modules/ai/main/analysis/long-term-interpretation.ts`](../../src/modules/ai/main/analysis/long-term-interpretation.ts) | 校验企业质量、财务安全、当前价格和双结论固定结构 |
-| [`src/modules/ai/prompts/long-term-value.ts`](../../src/modules/ai/prompts/long-term-value.ts) | 隔离经营质量、估值与价格时机的长期价值提示词 |
+| [`src/modules/ai/prompts/long-term-value.ts`](../../src/modules/ai/prompts/long-term-value.ts) | 隔离经营质量、估值与价格时机，并约束 DCF 判读和70%警戒规则的长期价值提示词 |
 | [`src/modules/ai/renderer/AiAssistantDrawer.tsx`](../../src/modules/ai/renderer/AiAssistantDrawer.tsx) | 会话管理、流式聊天和 `@自选股` 选择 |
 | [`src/modules/market-insight/renderer/InvestmentValueMetrics.tsx`](../../src/modules/market-insight/renderer/InvestmentValueMetrics.tsx) | 市场观察中的 PE/PB历史/行业分位、总市值、流通市值、财务时点和金融行业适用性展示 |
 | [`electron/main/valuation-history-service.ts`](../../electron/main/valuation-history-service.ts) | 按股票获取并缓存近五年日度 PE TTM/PB历史序列 |

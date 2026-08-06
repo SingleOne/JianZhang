@@ -442,7 +442,7 @@ export class AiService {
     const settings = this.storage.getSettings()
     if (!settings.enabled) throw new Error('AI 助手当前已关闭')
     const credential = this.getCredential(settings.providerId)
-    report('loading-snapshot', '正在读取长期价值数据', '加载五年财务、分红融资、当前估值和长期价格强弱。')
+    report('loading-snapshot', '正在读取长期价值数据', '加载五年财务、DCF、分红融资、当前估值和长期价格强弱。')
     const fundamentalSnapshot = this.dependencies.getFundamentalSnapshot()
     const dividendSnapshot = this.dependencies.getDividendFinancingSnapshot()
     if (!fundamentalSnapshot && !dividendSnapshot) {
@@ -465,7 +465,7 @@ export class AiService {
     })
     this.storage.saveSnapshot(context.snapshotId, context)
     const cacheKey = `${context.snapshotId}:${settings.providerId}:${settings.model}:${AI_LONG_TERM_PROMPT_VERSION}`
-    report('checking-cache', '正在检查长期分析缓存', '财务、估值和价格强弱均相同时直接使用本地结果。')
+    report('checking-cache', '正在检查长期分析缓存', '财务、DCF、估值和价格强弱均相同时直接使用本地结果。')
     const cached = this.storage.getInterpretation<AiLongTermInterpretation>(cacheKey)
     if (cached) {
       const cachedResult: AiLongTermInterpretationResult = {

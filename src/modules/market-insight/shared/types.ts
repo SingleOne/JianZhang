@@ -19,6 +19,7 @@ export interface IndicatorValue {
   value: number | null
   unit: IndicatorUnit
   state: IndicatorState
+  status?: string
   calculatedAt: string
   sourcePeriod: string
 }
@@ -27,6 +28,7 @@ export interface IndicatorSnapshot {
   quoteId: string
   quoteTime: string
   calculatedAt: string
+  technical: IndicatorValue[]
   intraday: IndicatorValue[]
   trend: IndicatorValue[]
   momentum: IndicatorValue[]
@@ -92,7 +94,7 @@ export interface MarketInsightChartOverlay {
 }
 
 export interface MarketInsightSnapshot {
-  version: 1
+  version: 2
   quoteId: string
   generatedAt: string
   dataCutoffAt: string

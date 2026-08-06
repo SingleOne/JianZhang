@@ -3,7 +3,7 @@
 阶段一：最近五个完整财年的加权 ROE、扣非加权 ROE 和 ROIC。
 阶段二：同期净利润、经营现金流、资本开支和自由现金流。
 阶段三：最近完整财年的资产负债率、行业分位和净负债。
-阶段四：同一交易日的 PE TTM、PB、总市值、流通市值及行业分位。
+阶段四：同一交易日的收盘价、PE TTM、PB、总市值、流通市值及行业分位。
 """
 
 from __future__ import annotations
@@ -58,7 +58,7 @@ DETAILED_BALANCE_COLUMNS = (
     "NONCURRENT_LIAB_1YEAR,LONG_LOAN,BOND_PAYABLE,LEASE_LIAB"
 )
 VALUATION_COLUMNS = (
-    "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,TRADE_DATE,PE_TTM,PB_MRQ,"
+    "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,TRADE_DATE,CLOSE_PRICE,PE_TTM,PB_MRQ,"
     "TOTAL_MARKET_CAP,NOTLIMITED_MARKETCAP_A"
 )
 ORGANIZATION_TYPES = {
@@ -401,6 +401,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         )
         pe_ttm = number(valuation.get("PE_TTM"))
         price_book = number(valuation.get("PB_MRQ"))
+        close_price = number(valuation.get("CLOSE_PRICE"))
         total_market_value = number(valuation.get("TOTAL_MARKET_CAP"))
         circulating_market_value = number(valuation.get("NOTLIMITED_MARKETCAP_A"))
         valuation_peers = valuation_industry_values.get(
@@ -442,6 +443,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
                 },
                 "valuation": {
                     "dataDate": valuation_date,
+                    "closePrice": rounded(close_price, 4),
                     "priceEarningsRatioTtm": rounded(pe_ttm, 4),
                     "priceBookRatio": rounded(price_book, 4),
                     "totalMarketValue": rounded(total_market_value),
@@ -500,7 +502,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
 
     generated_at = dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).isoformat(timespec="seconds")
     snapshot = {
-        "schemaVersion": 4,
+        "schemaVersion": 5,
         "snapshotDate": snapshot_date,
         "generatedAt": generated_at,
         "currency": "CNY",
@@ -558,7 +560,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         "rows": rows,
     }
     diagnostics = {
-        "schemaVersion": 4,
+        "schemaVersion": 5,
         "snapshotDate": snapshot_date,
         "generatedAt": generated_at,
         "fiscalYears": fiscal_years,

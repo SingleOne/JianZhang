@@ -35,6 +35,7 @@ export function compactMarketSnapshot(
   chipDistribution: ChipDistributionCacheEntry | null
 ): CompactMarketSnapshot {
   const groups = [
+    ['technical', snapshot.indicators.technical],
     ['intraday', snapshot.indicators.intraday],
     ['trend', snapshot.indicators.trend],
     ['momentum', snapshot.indicators.momentum],

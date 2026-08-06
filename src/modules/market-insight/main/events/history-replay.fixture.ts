@@ -23,7 +23,7 @@ function snapshot(generatedAt: string, vwapDeviation: number): MarketInsightSnap
     indicator('opening-range-15-low', 9.8, generatedAt)
   ]
   return {
-    version: 1,
+    version: 2,
     quoteId: '1.600000',
     generatedAt,
     dataCutoffAt: generatedAt,
@@ -32,6 +32,7 @@ function snapshot(generatedAt: string, vwapDeviation: number): MarketInsightSnap
       quoteId: '1.600000',
       quoteTime: generatedAt,
       calculatedAt: generatedAt,
+      technical: [],
       intraday: values,
       trend: [],
       momentum: [],

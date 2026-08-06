@@ -3,6 +3,7 @@ import {
   BarChart3,
   Bot,
   Building2,
+  Calculator,
   CircleCheck,
   CircleMinus,
   CircleX,
@@ -18,6 +19,16 @@ import {
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { stockApi } from '../lib/api'
 import { estimateChipHistoryLimit, findChipAutoRange } from '../lib/chip-distribution'
+import {
+  DCF_DISCOUNT_RATE,
+  DCF_FORECAST_YEARS,
+  DCF_LOW_VALUE_THRESHOLD_PERCENT,
+  DCF_MAX_FORECAST_GROWTH_RATE,
+  DCF_MIN_FORECAST_GROWTH_RATE,
+  DCF_TERMINAL_GROWTH_RATE,
+  createDcfAnalysis,
+  type DcfUnavailableReason
+} from '../lib/dcf-analysis'
 import { formatAmount, formatPercent, formatPrice, formatVolume } from '../lib/format'
 import {
   DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA,
@@ -164,6 +175,107 @@ function fundamentalGeneratedTime(value?: string): string {
 function annualCashConversion(netProfit: number | null, operatingCashFlow: number | null): number | null {
   if (netProfit === null || netProfit <= 0 || operatingCashFlow === null) return null
   return operatingCashFlow / netProfit * 100
+}
+
+const DCF_UNAVAILABLE_MESSAGES: Record<DcfUnavailableReason, string> = {
+  'not-applicable': '银行、证券和保险不适用普通企业自由现金流 DCF 口径。',
+  'free-cash-flow': '近三年自由现金流不完整或平均值不为正，暂不生成 DCF 估值。',
+  'net-debt': '缺少最新净负债，暂不能从企业价值换算为股东价值。',
+  'share-count': '快照缺少收盘价或总市值，请更新基本面数据后查看 DCF。'
+}
+
+function DcfPanel({
+  evaluation,
+  currentPrice
+}: {
+  evaluation: FundamentalScreeningEvaluation
+  currentPrice: number | null | undefined
+}) {
+  const result = createDcfAnalysis(evaluation.company, currentPrice)
+  const analysis = result.analysis
+
+  return (
+    <section className="fundamental-dcf-section">
+      <header>
+        <span>
+          <i><Calculator size={17} /></i>
+          <span>
+            <strong>DCF 现金流折现估值</strong>
+            <small>用未来自由现金流估算每股内在价值</small>
+          </span>
+        </span>
+        <small>模型估值，不代表买入建议</small>
+      </header>
+
+      {!analysis ? (
+        <div className="fundamental-dcf-empty">
+          <strong>当前无法计算 DCF</strong>
+          <span>{DCF_UNAVAILABLE_MESSAGES[result.unavailableReason]}</span>
+        </div>
+      ) : (
+        <>
+          <div className="fundamental-dcf-metrics">
+            <article>
+              <small>DCF 每股估值</small>
+              <strong className={signedValueClass(analysis.fairValuePerShare)}>
+                ¥{formatPrice(analysis.fairValuePerShare)}
+              </strong>
+            </article>
+            <article>
+              <small>当前股价</small>
+              <strong>{analysis.currentPrice === null ? '--' : `¥${formatPrice(analysis.currentPrice)}`}</strong>
+            </article>
+            <article>
+              <small>相对当前股价</small>
+              <strong className={signedValueClass(analysis.differencePercent ?? 0)}>
+                {analysis.differencePercent === null
+                  ? '--'
+                  : analysis.differencePercent > 0
+                    ? `高于 ${fundamentalPercent(analysis.differencePercent, 1)}`
+                    : analysis.differencePercent < 0
+                      ? `低于 ${fundamentalPercent(Math.abs(analysis.differencePercent), 1)}`
+                      : '持平 0.0%'}
+              </strong>
+            </article>
+            <article>
+              <small>DCF / 当前股价</small>
+              <strong className={signedValueClass(analysis.differencePercent ?? 0)}>
+                {fundamentalPercent(analysis.fairValueToPricePercent, 1)}
+              </strong>
+            </article>
+          </div>
+
+          {analysis.belowLowValueThreshold ? (
+            <div className="fundamental-dcf-alert" role="alert">
+              <AlertCircle size={16} />
+              <span>
+                <strong>DCF 低于现价提醒</strong>
+                DCF 仅为当前股价的 {fundamentalPercent(analysis.fairValueToPricePercent, 1)}，
+                低于 {DCF_LOW_VALUE_THRESHOLD_PERCENT}% 警戒线；当前股价高于 DCF 估值{' '}
+                {fundamentalPercent(Math.abs(analysis.differencePercent ?? 0), 1)}。
+              </span>
+            </div>
+          ) : analysis.differencePercent !== null ? (
+            <p className="fundamental-dcf-comparison">
+              {analysis.differencePercent >= 0
+                ? `DCF 估值高于当前股价 ${fundamentalPercent(analysis.differencePercent, 1)}。`
+                : `DCF 估值低于当前股价 ${fundamentalPercent(Math.abs(analysis.differencePercent), 1)}，尚未触发 ${DCF_LOW_VALUE_THRESHOLD_PERCENT}% 警戒线。`}
+            </p>
+          ) : (
+            <p className="fundamental-dcf-comparison">暂无实时股价，暂不能判断 DCF 高于或低于当前股价多少。</p>
+          )}
+
+          <p className="fundamental-dcf-method">
+            口径：以近三年平均自由现金流 {fundamentalAmount(analysis.normalizedFreeCashFlow)} 为基础，
+            预测 {DCF_FORECAST_YEARS} 年增长 {fundamentalPercent(analysis.forecastGrowthRate, 1)}
+            （历史复合增长 {fundamentalPercent(analysis.historicalGrowthRate, 1)}，限制在{' '}
+            {DCF_MIN_FORECAST_GROWTH_RATE}%—{DCF_MAX_FORECAST_GROWTH_RATE}%），折现率{' '}
+            {DCF_DISCOUNT_RATE}%，永续增长率 {DCF_TERMINAL_GROWTH_RATE}%；企业价值扣除净负债后按总股本折算。
+          </p>
+        </>
+      )}
+    </section>
+  )
 }
 
 function DividendFinancingDeepDetails({ item }: { item: DividendFinancingRankingItem }) {
@@ -697,12 +809,14 @@ function FundamentalRiskPanel({
 
 function FundamentalPanel({
   evaluation,
+  currentPrice,
   peerComparison,
   snapshotDate,
   generatedAt,
   staleReason
 }: {
   evaluation?: FundamentalScreeningEvaluation
+  currentPrice?: number | null
   peerComparison?: FundamentalPeerComparison
   snapshotDate?: string
   generatedAt?: string
@@ -806,6 +920,8 @@ function FundamentalPanel({
           </p>
         </section>
       </div>
+
+      <DcfPanel evaluation={evaluation} currentPrice={currentPrice} />
 
       <FundamentalQualityPanel evaluation={evaluation} />
 
@@ -1272,6 +1388,7 @@ export function ExpandedStockDetails({
         <div className="fundamental-tab-content" role="tabpanel">
           <FundamentalPanel
             evaluation={fundamentalScreening}
+            currentPrice={quote?.latest}
             peerComparison={fundamentalPeerComparison}
             snapshotDate={fundamentalSnapshotDate}
             generatedAt={fundamentalGeneratedAt}

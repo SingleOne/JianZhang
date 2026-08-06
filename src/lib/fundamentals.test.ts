@@ -76,4 +76,13 @@ describe('fundamental snapshots', () => {
 
     expect(parseFundamentalSnapshot(JSON.stringify(value))).toEqual(value)
   })
+
+  it('parses schema v5 snapshots with the valuation-date close price', () => {
+    const value: FundamentalSnapshot = {
+      ...snapshot('2026-08-06'),
+      schemaVersion: 5
+    }
+
+    expect(parseFundamentalSnapshot(JSON.stringify(value))).toEqual(value)
+  })
 })

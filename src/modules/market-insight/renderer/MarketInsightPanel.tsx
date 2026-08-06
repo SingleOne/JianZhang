@@ -16,6 +16,7 @@ import {
   INTRADAY_INDICATOR_EXPLANATIONS,
   MOMENTUM_INDICATOR_EXPLANATIONS,
   ORDER_BOOK_AND_RELATIVE_STRENGTH_INDICATOR_EXPLANATIONS,
+  SHORT_TERM_TECHNICAL_INDICATOR_EXPLANATIONS,
   TREND_INDICATOR_EXPLANATIONS,
   VOLATILITY_INDICATOR_EXPLANATIONS
 } from './indicator-explanations'
@@ -330,6 +331,13 @@ export default function MarketInsightPanel({
       {loading && !snapshot ? <div className="chart-loading">正在计算确定性市场指标…</div> : null}
       {snapshot ? (
         <div className="insight-content">
+          <IndicatorGrid
+            title="短期技术面"
+            titleHint="基于单只股票自身近期已完成日K，概括当前动量方向、反转迹象、波动水平和成交活跃度。"
+            values={snapshot.indicators.technical}
+            explanations={SHORT_TERM_TECHNICAL_INDICATOR_EXPLANATIONS}
+            variant="summary"
+          />
           <InvestmentValueMetrics
             quote={quote}
             company={fundamentalCompany}

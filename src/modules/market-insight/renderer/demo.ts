@@ -3,6 +3,7 @@ import { calculateIntradayIndicators } from '../main/indicators/intraday'
 import { calculateMomentumIndicators } from '../main/indicators/momentum'
 import { calculateOrderBookIndicators } from '../main/indicators/order-book'
 import { calculateRelativeStrengthIndicators } from '../main/indicators/relative-strength'
+import { calculateShortTermTechnicalIndicators } from '../main/indicators/technical'
 import { calculateTrendIndicators } from '../main/indicators/trend'
 import { calculateVolatilityIndicators } from '../main/indicators/volatility'
 import { detectWatchEvents } from '../main/events/detect'
@@ -137,6 +138,7 @@ function createSnapshot(quoteId: string): MarketInsightSnapshot {
       quoteId,
       quoteTime: DEMO_TIME,
       calculatedAt: DEMO_TIME,
+      technical: calculateShortTermTechnicalIndicators(dailyBars, DEMO_TIME),
       intraday: intraday.values,
       trend: calculateTrendIndicators(dailyBars, DEMO_TIME),
       momentum: calculateMomentumIndicators(dailyBars, DEMO_TIME),
