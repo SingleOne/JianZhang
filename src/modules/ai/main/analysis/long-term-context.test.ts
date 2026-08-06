@@ -60,7 +60,7 @@ function dailyKline(): KlineResult {
 
 function fundamentalSnapshot(): FundamentalSnapshot {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     snapshotDate: '2026-08-05',
     generatedAt: '2026-08-05T12:00:00+08:00',
     currency: 'CNY',
@@ -76,6 +76,8 @@ function fundamentalSnapshot(): FundamentalSnapshot {
       latestDebtAssetRatioCount: 1,
       latestIndustryPercentileCount: 1,
       latestNetDebtCount: 1,
+      latestTotalMarketValueCount: 1,
+      latestCirculatingMarketValueCount: 1,
       industryCount: 1
     },
     industries: [{ code: '10', name: '测试行业', sampleSize: 20, debtAssetRatioP60: 50 }],
@@ -116,6 +118,8 @@ function fundamentalSnapshot(): FundamentalSnapshot {
         dataDate: '2026-08-04',
         priceEarningsRatioTtm: 12.3,
         priceBookRatio: 1.75,
+        totalMarketValue: 120_000_000_000,
+        circulatingMarketValue: 96_000_000_000,
         priceEarningsIndustryPercentile: 42,
         priceBookIndustryPercentile: 36,
         priceEarningsIndustrySampleSize: 20,
@@ -187,6 +191,8 @@ describe('long-term AI context', () => {
 
     expect(context.valueCategory).toBe('dual')
     expect(context.valuation).toMatchObject({
+      totalMarketValue: 120_000_000_000,
+      circulatingMarketValue: 96_000_000_000,
       priceEarningsRatioTtm: {
         currentValue: 12.5,
         historicalPercentile: 75,

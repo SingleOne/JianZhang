@@ -827,6 +827,8 @@ export interface FundamentalValuationSnapshot {
   dataDate: string
   priceEarningsRatioTtm: number | null
   priceBookRatio: number | null
+  totalMarketValue?: number | null
+  circulatingMarketValue?: number | null
   priceEarningsIndustryPercentile: number | null
   priceBookIndustryPercentile: number | null
   priceEarningsIndustrySampleSize: number
@@ -854,7 +856,7 @@ export interface FundamentalIndustryBenchmark {
 }
 
 export interface FundamentalSnapshot {
-  schemaVersion: 1 | 2 | 3
+  schemaVersion: 1 | 2 | 3 | 4
   snapshotDate: string
   generatedAt: string
   currency: 'CNY'
@@ -875,6 +877,8 @@ export interface FundamentalSnapshot {
     latestIndustryPercentileCount: number
     latestNetDebtCount?: number
     latestValuationCount?: number
+    latestTotalMarketValueCount?: number
+    latestCirculatingMarketValueCount?: number
     latestPriceEarningsIndustryPercentileCount?: number
     latestPriceBookIndustryPercentileCount?: number
     industryCount: number
@@ -908,6 +912,8 @@ export interface StockValuationAnalysis {
   historyPeriodStart: string | null
   historyPeriodEnd: string | null
   industryDataAt: string | null
+  totalMarketValue: number | null
+  circulatingMarketValue: number | null
   priceEarningsRatioTtm: StockValuationMetricAnalysis
   priceBookRatio: StockValuationMetricAnalysis
 }

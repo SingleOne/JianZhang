@@ -1,5 +1,5 @@
 import { Landmark } from 'lucide-react'
-import { formatSignedAmount } from '../../../lib/format'
+import { formatAmount, formatSignedAmount } from '../../../lib/format'
 import { usesOrdinaryCorporateInvestmentMetrics } from '../../../lib/valuation-analysis'
 import type {
   FundamentalCompany,
@@ -102,6 +102,20 @@ export function InvestmentValueMetrics({
           <small title={`历史样本 ${valuationAnalysis.priceBookRatio.historicalSampleSize} 个，行业样本 ${valuationAnalysis.priceBookRatio.industrySampleSize} 家`}>
             {valuationComparison(valuationAnalysis.priceBookRatio, valuationError, false)}
           </small>
+        </article>
+        <article title="快照估值日收盘价乘以公司总股本">
+          <span>总市值</span>
+          <strong>{formatAmount(valuationAnalysis.totalMarketValue)}</strong>
+          <small>{valuationAnalysis.totalMarketValue === null
+            ? '更新基本面快照后提供'
+            : `${valuationAnalysis.industryDataAt ?? '--'} 收盘`}</small>
+        </article>
+        <article title="快照估值日收盘价乘以公司流通 A 股股本">
+          <span>流通市值</span>
+          <strong>{formatAmount(valuationAnalysis.circulatingMarketValue)}</strong>
+          <small>{valuationAnalysis.circulatingMarketValue === null
+            ? '更新基本面快照后提供'
+            : `${valuationAnalysis.industryDataAt ?? '--'} 收盘`}</small>
         </article>
         <article title="自由现金流 = 经营现金流净额 - 购建固定资产、无形资产和其他长期资产支付的现金">
           <span>自由现金流</span>

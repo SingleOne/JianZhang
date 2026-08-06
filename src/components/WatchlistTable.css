@@ -44,6 +44,28 @@
   flex: 0 1 auto;
 }
 
+.panel-title-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.panel-title-heading h1 {
+  margin-bottom: 0;
+}
+
+.panel-title-refresh {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.portfolio-quality-slot {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+
 .panel-title > span {
   display: block;
   overflow: hidden;
@@ -221,26 +243,22 @@
 }
 
 .fundamental-watchlist-overview {
-  min-height: 102px;
+  min-height: 54px;
   flex: 0 0 auto;
-  display: grid;
+  display: block;
   overflow: hidden;
   background: linear-gradient(90deg, #f8fbff 0%, #ffffff 46%);
   border-bottom: 1px solid var(--border);
 }
 
-.fundamental-overview-primary-row,
-.fundamental-overview-secondary-row {
+.fundamental-overview-row {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   padding: 7px 14px 7px 20px;
   overflow-x: auto;
-}
-
-.fundamental-overview-primary-row {
-  border-bottom: 1px solid #e9edf3;
+  white-space: nowrap;
 }
 
 .portfolio-quality-trigger {

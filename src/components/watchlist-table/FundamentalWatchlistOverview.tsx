@@ -1,4 +1,6 @@
 import { ArrowDown, ArrowUp, ChartPie, RotateCcw, ScanSearch } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type {
   FundamentalDividendFilter,
   FundamentalDividendWatchlistSummary,
@@ -98,30 +100,35 @@ export function FundamentalWatchlistOverview({
     : (portfolioQuality.riskBuckets.critical.percent ?? 0)
       + (portfolioQuality.riskBuckets.warning.percent ?? 0)
   const shareText = (value: number | null) => value === null ? '--' : `${value.toFixed(1)}%`
-
+  const [portfolioQualitySlot, setPortfolioQualitySlot] = useState<HTMLElement | null>(null)
+  useEffect(() => {
+    setPortfolioQualitySlot(document.getElementById('portfolio-quality-slot'))
+  }, [])
+  const portfolioQualityTrigger = (
+    <button
+      className="portfolio-quality-trigger"
+      type="button"
+      disabled={portfolioQuality.positionCount === 0}
+      onClick={onOpenPortfolioQuality}
+      title={portfolioQuality.positionCount > 0 ? '查看全部持仓的质量与风险市值分布' : '当前没有持仓'}
+    >
+      <ChartPie size={18} />
+      <span>
+        <strong>持仓质量</strong>
+        <small>
+          {portfolioQuality.positionCount === 0
+            ? '暂无持仓'
+            : portfolioQuality.totalMarketValue === null
+              ? `${portfolioQuality.positionCount} 只 · 暂无计价`
+              : `双优 ${shareText(dualPercent)} · 风险 ${shareText(riskPercent)}`}
+        </small>
+      </span>
+    </button>
+  )
   return (
     <section className="fundamental-watchlist-overview" aria-label="当前列表价值与基本面概览">
-      <div className="fundamental-overview-primary-row">
-        <button
-          className="portfolio-quality-trigger"
-          type="button"
-          disabled={portfolioQuality.positionCount === 0}
-          onClick={onOpenPortfolioQuality}
-          title={portfolioQuality.positionCount > 0 ? '查看全部持仓的质量与风险市值分布' : '当前没有持仓'}
-        >
-          <ChartPie size={18} />
-          <span>
-            <strong>持仓质量</strong>
-            <small>
-              {portfolioQuality.positionCount === 0
-                ? '暂无持仓'
-                : portfolioQuality.totalMarketValue === null
-                  ? `${portfolioQuality.positionCount} 只 · 暂无计价`
-                  : `双优 ${shareText(dualPercent)} · 风险 ${shareText(riskPercent)}`}
-            </small>
-          </span>
-        </button>
-
+      {portfolioQualitySlot ? createPortal(portfolioQualityTrigger, portfolioQualitySlot) : portfolioQualityTrigger}
+      <div className="fundamental-overview-row">
         <div
           className={`fundamental-overview-values ${valueDataReady ? '' : 'is-pending'}`}
           title={valueDataReady
@@ -152,46 +159,6 @@ export function FundamentalWatchlistOverview({
           })}
         </div>
 
-        <div className="fundamental-overview-risk">
-          <span>风险提示</span>
-          <button
-            className={riskOnly ? 'is-active' : ''}
-            type="button"
-            aria-pressed={riskOnly}
-            disabled={summary.risk === 0 && !riskOnly}
-            title="与价值组合和基本面状态组合，只看存在基本面风险提示的股票"
-            onClick={() => onRiskOnlyChange(!riskOnly)}
-          >
-            <span>风险</span>
-            <strong>{summary.risk}</strong>
-          </button>
-        </div>
-
-        <button
-          className={`fundamental-value-sort ${valueTagSortDirection ? 'is-active' : ''}`}
-          type="button"
-          disabled={!valueDataReady}
-          onClick={onValueTagSortToggle}
-          title={valueDataReady
-            ? '依次切换：正面标签数量降序、升序、恢复手动排序'
-            : '价值组合数据尚未就绪'}
-        >
-          {valueTagSortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
-          标签数{valueTagSortDirection === 'desc' ? '↓' : valueTagSortDirection === 'asc' ? '↑' : ''}
-        </button>
-
-        <button
-          className="fundamental-overview-reset"
-          type="button"
-          disabled={!filtersActive}
-          onClick={onResetFilters}
-        >
-          <RotateCcw size={14} />
-          重置筛选
-        </button>
-      </div>
-
-      <div className="fundamental-overview-secondary-row">
         <div className="fundamental-overview-heading">
           <ScanSearch size={17} />
           <span>
@@ -240,6 +207,41 @@ export function FundamentalWatchlistOverview({
             )
           })}
         </div>
+        <div className="fundamental-overview-risk">
+          <span>风险提示</span>
+          <button
+            className={riskOnly ? 'is-active' : ''}
+            type="button"
+            aria-pressed={riskOnly}
+            disabled={summary.risk === 0 && !riskOnly}
+            title="与价值组合和基本面状态组合，只看存在基本面风险提示的股票"
+            onClick={() => onRiskOnlyChange(!riskOnly)}
+          >
+            <span>风险</span>
+            <strong>{summary.risk}</strong>
+          </button>
+        </div>
+        <button
+          className={`fundamental-value-sort ${valueTagSortDirection ? 'is-active' : ''}`}
+          type="button"
+          disabled={!valueDataReady}
+          onClick={onValueTagSortToggle}
+          title={valueDataReady
+            ? '依次切换：正面标签数量降序、升序、恢复手动排序'
+            : '价值组合数据尚未就绪'}
+        >
+          {valueTagSortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+          标签数{valueTagSortDirection === 'desc' ? '↓' : valueTagSortDirection === 'asc' ? '↑' : ''}
+        </button>
+        <button
+          className="fundamental-overview-reset"
+          type="button"
+          disabled={!filtersActive}
+          onClick={onResetFilters}
+        >
+          <RotateCcw size={14} />
+          重置筛选
+        </button>
       </div>
     </section>
   )

@@ -248,16 +248,16 @@ K 线、资金流和盘口分别通过 Electron 主进程的 `KlineHub`、`Funds
 
 ## 基本面财务快照
 
-基本面数据不进入实时行情调度。`scripts/generate_fundamental_snapshot.py` 按三个阶段读取东方财富数据中心公开接口：
+基本面数据不进入实时行情调度。`scripts/generate_fundamental_snapshot.py` 按四个阶段读取东方财富数据中心公开接口：
 
 1. `RPT_F10_FINANCE_MAINFINADATA`：最近五个完整财年的加权 ROE、扣非加权 ROE和 ROIC。
 2. `RPT_DMSK_FN_INCOME` + `RPT_DMSK_FN_CASHFLOW`：同期合并净利润、归母/扣非归母净利润、经营现金流净额和购建长期资产现金支出；自由现金流按经营现金流减该项资本开支计算。
 3. `RPT_DMSK_FN_BALANCE` + `RPT_F10_FINANCE_GBALANCE`：最新完整财年的总资产、总负债、资产负债率、货币资金和有息债务；按接口行业代码计算行业 P60与公司行业百分位，净负债按短期借款、短期债券、一年内到期非流动负债、长期借款、应付债券和租赁负债合计减货币资金估算。
-4. `RPT_VALUEANALYSIS_DET`：选取快照日期之前最近交易日的全市场 PE TTM与 PB，按同行正值样本分别计算公司行业百分位；PE为负时不计算 PE分位。
+4. `RPT_VALUEANALYSIS_DET`：选取快照日期之前最近交易日的全市场 PE TTM、PB、总市值和流通 A 股市值，按同行正值样本分别计算公司行业百分位；PE为负时不计算 PE分位。
 
-新生成结果使用 schema v3，并继续兼容读取 schema v1/v2。生产安装包不内置完整快照；`FundamentalDataService` 启动时读取并缓存 `userData/fundamentals/snapshot.json`，文件不存在时自动把首次获取任务加入共享 Python 队列。快照超过 90 天或完整财年落后时，只在“基本面初筛”和“设置 → 系统与数据”提示并提供手动更新，不会自动刷新。
+新生成结果使用 schema v4，并继续兼容读取 schema v1/v2/v3。生产安装包不内置完整快照；`FundamentalDataService` 启动时读取并缓存 `userData/fundamentals/snapshot.json`，文件不存在时自动把首次获取任务加入共享 Python 队列。快照超过 90 天或完整财年落后时，只在“基本面初筛”和“设置 → 系统与数据”提示并提供手动更新，不会自动刷新。
 
-市盈率 TTM使用东方财富主行情字段，市净率使用同一行情链路；切换到腾讯备用行情时读取腾讯对应字段，新浪备用源不提供这两项估值。个股“市场观察”展示实时 PE/PB、schema v3快照日行业分位及 `RPT_VALUEANALYSIS_DET` 近五年日度历史分位，历史序列按股票缓存于 `market-cache/valuations/`。行情时间、财报截止期、五年财务年度、历史区间和行业估值日期分别标注。
+市盈率 TTM使用东方财富主行情字段，市净率使用同一行情链路；切换到腾讯备用行情时读取腾讯对应字段，新浪备用源不提供这两项估值。个股“市场观察”展示实时 PE/PB、schema v4快照日行业分位、总市值、流通市值及 `RPT_VALUEANALYSIS_DET` 近五年日度历史分位，历史序列按股票缓存于 `market-cache/valuations/`。行情时间、财报截止期、五年财务年度、历史区间和行业估值日期分别标注。
 
 `fundamental-screening.ts` 对普通企业执行透明的三项硬筛选，默认规则为：最近五个完整财年加权平均 ROE 每年严格大于 15%；五年累计经营现金流净额除以累计合并净利润严格大于 100%，且累计净利润为正；最新资产负债率的行业百分位严格低于 60%。界面可切换扣非 ROE、最新一年现金转换率并调整 ROE 和行业分位门槛。银行、证券和保险展示原始财务数据，但不参与普通企业入选。
 

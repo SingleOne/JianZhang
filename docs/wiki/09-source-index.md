@@ -35,7 +35,7 @@
 | [`electron/main/sector-market-cache.ts`](../../electron/main/sector-market-cache.ts) | `SectorMarketCache` | 板块绑定持久化、并发补取、失败冷却和 60 秒板块报价缓存 |
 | [`electron/main/market-request-logger.ts`](../../electron/main/market-request-logger.ts) | `MarketRequestLogger` | 行情请求/报价轮次 JSONL 日志和启动时 7 天清理 |
 | [`electron/main/dividend-financing-service.ts`](../../electron/main/dividend-financing-service.ts) | `DividendFinancingService` | 分红融资用户快照、首次缺失更新、变化报告和过期状态 |
-| [`electron/main/fundamental-data-service.ts`](../../electron/main/fundamental-data-service.ts) | `FundamentalDataService` | 基本面用户快照、首次缺失更新、最近一次变化报告、过期状态和三阶段脚本调度 |
+| [`electron/main/fundamental-data-service.ts`](../../electron/main/fundamental-data-service.ts) | `FundamentalDataService` | 基本面用户快照、首次缺失更新、最近一次变化报告、过期状态和四阶段脚本调度 |
 | [`electron/main/python-task-queue.ts`](../../electron/main/python-task-queue.ts) | `PythonTaskQueue` | 财务抓取脚本串行、Python/requests 环境检查和进程输出转发 |
 | [`electron/main/order-book-hub.ts`](../../electron/main/order-book-hub.ts) | `OrderBookHub` | 统一盘口请求、进行中请求复用、短时缓存和串行错峰 |
 | [`electron/main/funds-flow-hub.ts`](../../electron/main/funds-flow-hub.ts) | `FundsFlowHub` | 资金流请求合并、2 分钟/收盘缓存和串行队列 |
@@ -148,7 +148,7 @@
 | [`src/modules/ai/main/analysis/long-term-interpretation.ts`](../../src/modules/ai/main/analysis/long-term-interpretation.ts) | 校验企业质量、财务安全、当前价格和双结论固定结构 |
 | [`src/modules/ai/prompts/long-term-value.ts`](../../src/modules/ai/prompts/long-term-value.ts) | 隔离经营质量、估值与价格时机的长期价值提示词 |
 | [`src/modules/ai/renderer/AiAssistantDrawer.tsx`](../../src/modules/ai/renderer/AiAssistantDrawer.tsx) | 会话管理、流式聊天和 `@自选股` 选择 |
-| [`src/modules/market-insight/renderer/InvestmentValueMetrics.tsx`](../../src/modules/market-insight/renderer/InvestmentValueMetrics.tsx) | 市场观察中的 PE/PB历史/行业分位、财务时点和金融行业适用性展示 |
+| [`src/modules/market-insight/renderer/InvestmentValueMetrics.tsx`](../../src/modules/market-insight/renderer/InvestmentValueMetrics.tsx) | 市场观察中的 PE/PB历史/行业分位、总市值、流通市值、财务时点和金融行业适用性展示 |
 | [`electron/main/valuation-history-service.ts`](../../electron/main/valuation-history-service.ts) | 按股票获取并缓存近五年日度 PE TTM/PB历史序列 |
 | [`src/lib/valuation-analysis.ts`](../../src/lib/valuation-analysis.ts) | 计算历史估值分位并组合快照日同行分位 |
 | [`src/modules/ai-t-advice`](../../src/modules/ai-t-advice/) | 结构化做 T 参考、确定性事件、校验、应用预览和独立历史 |

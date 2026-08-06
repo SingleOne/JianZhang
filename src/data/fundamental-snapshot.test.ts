@@ -3,7 +3,7 @@ import snapshot from './fundamental-snapshot.json'
 
 describe('fundamental data snapshot', () => {
   it('contains five aligned annual reports and industry debt benchmarks', () => {
-    expect(snapshot.schemaVersion).toBe(3)
+    expect(snapshot.schemaVersion).toBe(4)
     expect(snapshot.snapshotDate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     expect(snapshot.fiscalYears).toHaveLength(5)
     expect(snapshot.fiscalYears).toEqual(
@@ -19,6 +19,14 @@ describe('fundamental data snapshot', () => {
     expect(snapshot.coverage.latestIndustryPercentileCount).toBeGreaterThan(5000)
     expect(snapshot.coverage.latestNetDebtCount).toBeGreaterThan(5000)
     expect(snapshot.coverage.latestValuationCount).toBeGreaterThan(5500)
+    expect(snapshot.coverage.latestTotalMarketValueCount).toBeGreaterThan(5500)
+    expect(snapshot.coverage.latestCirculatingMarketValueCount).toBeGreaterThan(5500)
+    expect(snapshot.coverage.latestTotalMarketValueCount).toBe(
+      snapshot.rows.filter((item) => item.valuation.totalMarketValue !== null).length
+    )
+    expect(snapshot.coverage.latestCirculatingMarketValueCount).toBe(
+      snapshot.rows.filter((item) => item.valuation.circulatingMarketValue !== null).length
+    )
     expect(snapshot.coverage.latestPriceEarningsIndustryPercentileCount).toBeGreaterThan(3900)
     expect(snapshot.coverage.latestPriceBookIndustryPercentileCount).toBeGreaterThan(5400)
     expect(snapshot.coverage.industryCount).toBe(snapshot.industries.length)
@@ -44,6 +52,14 @@ describe('fundamental data snapshot', () => {
       expect(item.valuation.dataDate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
       expect(item.valuation.priceEarningsIndustrySampleSize).toBeGreaterThanOrEqual(0)
       expect(item.valuation.priceBookIndustrySampleSize).toBeGreaterThanOrEqual(0)
+      expect(item.valuation).toHaveProperty('totalMarketValue')
+      expect(item.valuation).toHaveProperty('circulatingMarketValue')
+      if (item.valuation.totalMarketValue !== null) {
+        expect(item.valuation.totalMarketValue).toBeGreaterThan(0)
+      }
+      if (item.valuation.circulatingMarketValue !== null) {
+        expect(item.valuation.circulatingMarketValue).toBeGreaterThan(0)
+      }
       if (item.latestBalanceSheet.industryPercentile !== null) {
         expect(item.latestBalanceSheet.industryPercentile).toBeGreaterThan(0)
         expect(item.latestBalanceSheet.industryPercentile).toBeLessThanOrEqual(100)

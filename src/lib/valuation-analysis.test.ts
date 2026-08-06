@@ -24,6 +24,8 @@ describe('valuation analysis', () => {
         dataDate: '2026-08-04',
         priceEarningsRatioTtm: 11.8,
         priceBookRatio: 1.48,
+        totalMarketValue: 120_000_000_000,
+        circulatingMarketValue: 96_000_000_000,
         priceEarningsIndustryPercentile: 40,
         priceBookIndustryPercentile: 35,
         priceEarningsIndustrySampleSize: 20,
@@ -43,6 +45,8 @@ describe('valuation analysis', () => {
 
     expect(result.quoteDataAt).toBe('2026-08-05T14:30:00+08:00')
     expect(result.industryDataAt).toBe('2026-08-04')
+    expect(result.totalMarketValue).toBe(120_000_000_000)
+    expect(result.circulatingMarketValue).toBe(96_000_000_000)
     expect(result.priceEarningsRatioTtm.historicalPercentile).toBe(75)
     expect(result.priceBookRatio.industryPercentile).toBe(35)
   })

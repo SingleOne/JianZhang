@@ -242,6 +242,7 @@
   align-items: center;
   gap: 7px;
   color: #204b89;
+  white-space: nowrap;
 }
 
 .fundamental-rule-heading strong,
@@ -251,6 +252,7 @@
 
 .fundamental-rule-heading small {
   color: #667085;
+  white-space: nowrap;
 }
 
 .fundamental-rule-controls {
@@ -328,9 +330,12 @@
 }
 
 .fundamental-quality-filter-heading {
-  min-width: 245px;
-  display: grid;
-  gap: 3px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 8px;
+  white-space: nowrap;
 }
 
 .fundamental-quality-filter-heading > span {
@@ -347,6 +352,7 @@
 
 .fundamental-quality-filter-heading small {
   color: #7b899c;
+  white-space: nowrap;
 }
 
 .fundamental-quality-filter-options {
@@ -413,9 +419,12 @@
 }
 
 .fundamental-risk-filter-heading {
-  min-width: 245px;
-  display: grid;
-  gap: 3px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 8px;
+  white-space: nowrap;
 }
 
 .fundamental-risk-filter-heading > span {
@@ -432,6 +441,7 @@
 
 .fundamental-risk-filter-heading small {
   color: #84767b;
+  white-space: nowrap;
 }
 
 .fundamental-risk-filter-options {

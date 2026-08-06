@@ -971,8 +971,8 @@ export function FundamentalScreeningDialog({
                 <span>
                   <Building2 size={17} />
                   <strong>普通企业三项硬筛选</strong>
+                  <small>（金融企业展示数据但不参与入选；筛选结果仅用于缩小研究范围。）</small>
                 </span>
-                <small>金融企业展示数据但不参与入选；筛选结果仅用于缩小研究范围。</small>
               </div>
               <div className="fundamental-rule-controls">
                 <label>

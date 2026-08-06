@@ -35,6 +35,8 @@ export function createStockValuationAnalysis(
     historyPeriodStart: history?.periodStart ?? null,
     historyPeriodEnd: history?.periodEnd ?? null,
     industryDataAt: valuation?.dataDate ?? null,
+    totalMarketValue: valuation?.totalMarketValue ?? null,
+    circulatingMarketValue: valuation?.circulatingMarketValue ?? null,
     priceEarningsRatioTtm: {
       currentValue: currentPe,
       historicalPercentile: valuationPercentile(

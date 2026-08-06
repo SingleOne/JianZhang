@@ -576,9 +576,19 @@ export default function App() {
             <div className="panel-heading">
               <div className="panel-heading-primary">
                 <div className="panel-title">
-                  <h1>我的自选</h1>
+                  <div className="panel-title-heading">
+                    <h1>我的自选</h1>
+                    <div
+                      className="auto-refresh-state panel-title-refresh"
+                      title="仅在北京时间 09:15:00–11:30:30、12:59:30–15:30:30 自动刷新"
+                    >
+                      <span className="live-dot" />
+                      重点 {state.settings.priorityRefreshSeconds} 秒 · 其余 {state.settings.regularRefreshSeconds} 秒刷新
+                    </div>
+                  </div>
                   <span>{state.watchlist.length} 只股票 · {state.watchlist.filter((stock) => stock.isPriority).length} 只重点 · {portfolioSummary.positionCount} 只有持仓 · 点击股票行展开行情详情</span>
                 </div>
+                <div id="portfolio-quality-slot" className="portfolio-quality-slot" />
                 {marketIndexQuotes.length > 0 ? (
                   <div className="market-index-summary panel-market-index-summary" aria-label="大盘指数行情">
                     {marketIndexQuotes.map(({ index, quote }) => (
@@ -629,13 +639,6 @@ export default function App() {
                       {formatPercent(portfolioSummary.profitPercent)}
                     </strong>
                   </span>
-                </div>
-                <div
-                  className="auto-refresh-state"
-                  title="仅在北京时间 09:15:00–11:30:30、12:59:30–15:30:30 自动刷新"
-                >
-                  <span className="live-dot" />
-                  重点 {state.settings.priorityRefreshSeconds} 秒 · 其余 {state.settings.regularRefreshSeconds} 秒刷新
                 </div>
               </div>
             </div>

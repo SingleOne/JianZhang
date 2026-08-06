@@ -3,7 +3,7 @@
 阶段一：最近五个完整财年的加权 ROE、扣非加权 ROE 和 ROIC。
 阶段二：同期净利润、经营现金流、资本开支和自由现金流。
 阶段三：最近完整财年的资产负债率、行业分位和净负债。
-阶段四：同一交易日的 PE TTM、PB 及行业分位。
+阶段四：同一交易日的 PE TTM、PB、总市值、流通市值及行业分位。
 """
 
 from __future__ import annotations
@@ -58,7 +58,8 @@ DETAILED_BALANCE_COLUMNS = (
     "NONCURRENT_LIAB_1YEAR,LONG_LOAN,BOND_PAYABLE,LEASE_LIAB"
 )
 VALUATION_COLUMNS = (
-    "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,TRADE_DATE,PE_TTM,PB_MRQ"
+    "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,TRADE_DATE,PE_TTM,PB_MRQ,"
+    "TOTAL_MARKET_CAP,NOTLIMITED_MARKETCAP_A"
 )
 ORGANIZATION_TYPES = {
     "通用": "general",
@@ -273,7 +274,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
     }
 
     valuation_date = latest_valuation_date(snapshot_date)
-    log(f"阶段四/四：获取 {valuation_date} 的 PE TTM、PB 并计算行业分位")
+    log(f"阶段四/四：获取 {valuation_date} 的 PE TTM、PB、总市值、流通市值并计算行业分位")
     latest_valuation = valuation_rows(
         fetch_filtered_report(
             "RPT_VALUEANALYSIS_DET",
@@ -400,6 +401,8 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         )
         pe_ttm = number(valuation.get("PE_TTM"))
         price_book = number(valuation.get("PB_MRQ"))
+        total_market_value = number(valuation.get("TOTAL_MARKET_CAP"))
+        circulating_market_value = number(valuation.get("NOTLIMITED_MARKETCAP_A"))
         valuation_peers = valuation_industry_values.get(
             (industry_code, industry_name), {"pe": [], "pb": []}
         )
@@ -441,6 +444,8 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
                     "dataDate": valuation_date,
                     "priceEarningsRatioTtm": rounded(pe_ttm, 4),
                     "priceBookRatio": rounded(price_book, 4),
+                    "totalMarketValue": rounded(total_market_value),
+                    "circulatingMarketValue": rounded(circulating_market_value),
                     "priceEarningsIndustryPercentile": rounded(pe_percentile, 4),
                     "priceBookIndustryPercentile": rounded(pb_percentile, 4),
                     "priceEarningsIndustrySampleSize": len(valuation_peers["pe"]),
@@ -480,6 +485,12 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         or row["valuation"]["priceBookRatio"] is not None
         for row in rows
     )
+    total_market_value_count = sum(
+        row["valuation"]["totalMarketValue"] is not None for row in rows
+    )
+    circulating_market_value_count = sum(
+        row["valuation"]["circulatingMarketValue"] is not None for row in rows
+    )
     pe_industry_percentile_count = sum(
         row["valuation"]["priceEarningsIndustryPercentile"] is not None for row in rows
     )
@@ -489,7 +500,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
 
     generated_at = dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).isoformat(timespec="seconds")
     snapshot = {
-        "schemaVersion": 3,
+        "schemaVersion": 4,
         "snapshotDate": snapshot_date,
         "generatedAt": generated_at,
         "currency": "CNY",
@@ -537,6 +548,8 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
             "latestIndustryPercentileCount": industry_percentile_count,
             "latestNetDebtCount": net_debt_count,
             "latestValuationCount": valuation_count,
+            "latestTotalMarketValueCount": total_market_value_count,
+            "latestCirculatingMarketValueCount": circulating_market_value_count,
             "latestPriceEarningsIndustryPercentileCount": pe_industry_percentile_count,
             "latestPriceBookIndustryPercentileCount": pb_industry_percentile_count,
             "industryCount": len(industries),
@@ -545,7 +558,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         "rows": rows,
     }
     diagnostics = {
-        "schemaVersion": 3,
+        "schemaVersion": 4,
         "snapshotDate": snapshot_date,
         "generatedAt": generated_at,
         "fiscalYears": fiscal_years,
