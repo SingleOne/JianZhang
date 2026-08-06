@@ -138,6 +138,7 @@ flowchart TD
 | 板块最近报价 | 主进程 `SectorMarketCache` | 否，进程内缓存 60 秒 |
 | 分时/五日 K | 主进程 `KlineHub` | 否，100 条 LRU 短时缓存 |
 | 日/周/月 K | 主进程 `KlineHub` + `HistoricalKlineCache` | 是，内存 150 条 LRU，磁盘 `market-cache/klines/*.json` |
+| 最近一次全市场收盘扫描 | 主进程 `DailyMarketScanService` | 是，`daily-market-scan/latest.json` |
 | 筹码分布最近一次结果 | 主进程 `ChipDistributionCache` | 是，`market-cache/chip-distributions.json` |
 | 分红融资回报分析 | `DividendFinancingService` 读取 schema v2 用户快照并生成快照差异；缺失时首次自动获取，过期只提示 | 是，`dividend-financing/ranking.json`、`previous-ranking.json`、`change-report.json` |
 | 基本面财务数据 | `FundamentalDataService` 读取 schema v1/v2/v3/v4/v5 用户快照；v5增加快照日收盘价，用于按总市值反推总股本并计算每股 DCF，缺失时首次自动获取，过期或完整财年落后只提示 | 是，`fundamentals/snapshot.json`、`diagnostics.json` |

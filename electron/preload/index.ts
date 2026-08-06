@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AppState,
   DataSnapshotRuntimeState,
+  DailyMarketScanState,
   DividendFinancingUpdateProgress,
   FundamentalUpdateProgress,
   StockDesktopApi,
@@ -33,6 +34,9 @@ const api: StockDesktopApi = {
   getValuationHistory: (quoteId) => ipcRenderer.invoke('valuation-history:get', quoteId),
   refreshQuotes: () => ipcRenderer.invoke('quotes:refresh'),
   getKline: (quoteId, period, limit) => ipcRenderer.invoke('kline:get', quoteId, period, limit),
+  getDailyMarketScanResult: () => ipcRenderer.invoke('daily-market-scan:get'),
+  getDailyMarketScanState: () => ipcRenderer.invoke('daily-market-scan:state:get'),
+  runDailyMarketScan: () => ipcRenderer.invoke('daily-market-scan:run'),
   saveChipDistributionCache: (entry) => ipcRenderer.invoke('chip-distribution:cache:save', entry),
   getOrderBook: (quoteId) => ipcRenderer.invoke('order-book:get', quoteId),
   getFundsFlow: (quoteId) => ipcRenderer.invoke('funds-flow:get', quoteId),
@@ -55,7 +59,9 @@ const api: StockDesktopApi = {
   onFundamentalUpdateProgress: (callback) =>
     subscribe<FundamentalUpdateProgress>('fundamentals:update-progress', callback),
   onFundamentalStateUpdated: (callback) =>
-    subscribe<DataSnapshotRuntimeState>('fundamentals:state-updated', callback)
+    subscribe<DataSnapshotRuntimeState>('fundamentals:state-updated', callback),
+  onDailyMarketScanProgress: (callback) =>
+    subscribe<DailyMarketScanState>('daily-market-scan:progress', callback)
 }
 
 contextBridge.exposeInMainWorld('stockApi', api)

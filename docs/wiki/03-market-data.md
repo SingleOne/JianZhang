@@ -10,6 +10,7 @@
 | --- | --- | --- |
 | 股票搜索 | `searchStocks` | 东方财富搜索建议 |
 | 批量报价 | `fetchQuotes` | 东方财富主节点、东方财富镜像节点、腾讯行情、新浪行情 |
+| 全市场收盘扫描 | `fetchDailyMarketActiveQuotes` + `DailyMarketScanService` | 东方财富沪深京 A 股列表 + 现有日 K 主备链路 |
 | 五档盘口 | `OrderBookHub` → `fetchOrderBook` | 东方财富个股行情 |
 | 当日异动 | `fetchTodayRadarSignals` | 东方财富异动 |
 | 近 5 日异动 | `fetchHistoricalRadarSignals` | 东方财富异动统计与明细 |
@@ -72,6 +73,21 @@
 - 最终只保留当前自选和已选择的大盘指数。
 
 网络失败时不会清空已有行情，而是广播 `data:error` 并返回最近一次 `latestQuotes`。
+
+## 全市场收盘扫描
+
+顶部“收盘扫描”由用户手动触发。`fetchDailyMarketActiveQuotes` 按成交额从高到低分页读取沪深京 A 股，低于 5000 万元后停止分页；首个主节点请求失败时切换到镜像节点，后续分页沿用当前可用节点。
+
+`DailyMarketScanService` 只为活跃标的获取 21 根前复权日 K，扫描队列固定最多 8 个并发，不进入详情页 `KlineHub` 的全局串行队列。两条链路共享 `HistoricalKlineCache`：扫描优先命中已有日 K，网络结果也写回同一缓存。单股失败只计入失败数量，不中断其余标的。
+
+本地计算口径：
+
+- 放量异动：当日成交量 ÷ 此前 20 个交易日均量严格大于 2.5。
+- 大涨放量：涨幅严格大于 5%、小于 9.5%，且量比严格大于 1.5。
+- 20 日新高：当日收盘价严格高于此前 20 个交易日最高价。
+- 连跌后翻红：此前 5 日至少 4 日下跌、简单收益率合计严格低于 -5%，当日涨幅严格大于 1%。
+
+结果允许一只股票命中多个分类，最新快照保存在 `daily-market-scan/latest.json`，再次打开弹窗直接读取。
 
 ## 自动刷新
 

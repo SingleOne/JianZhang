@@ -57,11 +57,16 @@ export const EASTMONEY_FIXED_PARAMS = {
     pageIndex: '0',
     pageSize: '3000',
     dpt: 'wzchanges'
+  },
+  dailyMarketScan: {
+    pageSize: '100',
+    universe: 'm:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:0+t:81+s:2048'
   }
 } as const
 
 export const EASTMONEY_FIELDS = {
   quotes: 'f2,f3,f4,f5,f6,f8,f12,f13,f14,f15,f16,f17,f18,f23,f115',
+  dailyMarketScanQuotes: 'f2,f3,f4,f5,f6,f8,f12,f13,f14,f15,f16,f17,f18,f124',
   orderBook:
     'f43,f58,f60,f531,f11,f12,f13,f14,f15,f16,f17,f18,f19,f20,f31,f32,f33,f34,f35,f36,f37,f38,f39,f40',
   intradayPrimary: 'f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13',

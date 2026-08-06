@@ -178,6 +178,7 @@ localStorage["jianzhang-demo-state-v1"]
 | `modules/ai-t-advice/` | 做 T 参考设置和历史 JSONL |
 | `dividend-financing/` | 运行时获取的 `ranking.json`、`previous-ranking.json`、`change-report.json`、Markdown 报告和诊断 JSON |
 | `fundamentals/` | 运行时获取的五年基本面 `snapshot.json`、覆盖率诊断 `diagnostics.json` 和最近一次默认规则筛选变化 `change-report.json` |
+| `daily-market-scan/` | 最近一次全市场收盘扫描结果 `latest.json` |
 
 AI API Key 由主进程使用 Electron `safeStorage` 加密；renderer 只能读取是否配置和脱敏尾号。Codex 账号凭证由随应用运行的官方 App Server 在模块运行目录管理，核心状态和配置导出均不接触明文。
 
@@ -201,6 +202,9 @@ AI API Key 由主进程使用 Electron `safeStorage` 加密；renderer 只能读
 | `getValuationHistory` | `valuation-history:get` | 按股票返回近五年 PE TTM/PB正值序列，主进程按日缓存供市场观察和长期 AI 计算历史分位 |
 | `refreshQuotes` | `quotes:refresh` | 向统一调度器提交手动全量刷新 |
 | `getKline` | `kline:get` | 通过 `KlineHub` 获取分时/五日/周期 K，同参数合并并串行请求 |
+| `getDailyMarketScanResult` | `daily-market-scan:get` | 返回最近一次落盘的收盘扫描结果；没有结果时返回 `null` |
+| `getDailyMarketScanState` | `daily-market-scan:state:get` | 返回扫描阶段、进度和错误状态 |
+| `runDailyMarketScan` | `daily-market-scan:run` | 启动全市场报价过滤、日 K 批处理和本地信号计算 |
 | `saveChipDistributionCache` | `chip-distribution:cache:save` | 保存股票最后一次筹码分布计算结果 |
 | `getOrderBook` | `order-book:get` | 从主进程 `OrderBookHub` 获取五档盘口、缓存状态和刷新错误 |
 | `getFundsFlow` | `funds-flow:get` | 通过 `FundsFlowHub` 获取当日资金流 |
@@ -219,6 +223,7 @@ AI API Key 由主进程使用 Electron `safeStorage` 加密；renderer 只能读
 | preload 订阅 | 事件 channel | 数据 |
 | --- | --- | --- |
 | `onQuotesUpdated` | `quotes:updated` | `StockQuote[]` |
+| `onDailyMarketScanProgress` | `daily-market-scan:progress` | `DailyMarketScanState` |
 | `onStateUpdated` | `state:updated` | `AppState` |
 | `onTaskbarLayout` | `taskbar:layout` | `TaskbarLayout` |
 | `onSelectStock` | `stock:selected` | `quoteId` |

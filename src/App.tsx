@@ -1,7 +1,8 @@
-import { Bot, CircleCheck, Filter, RefreshCw, Signal, Trophy, WifiOff } from 'lucide-react'
+import { Activity, Bot, CircleCheck, Filter, RefreshCw, Signal, Trophy, WifiOff } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { AppTitlebar } from './components/AppTitlebar'
 import { useConfirmDialog } from './components/ConfirmDialog'
+import { DailyMarketScanDialog } from './components/DailyMarketScanDialog'
 import { DividendFinancingRankingDialog } from './components/DividendFinancingRankingDialog'
 import { FundamentalScreeningDialog } from './components/FundamentalScreeningDialog'
 import { SearchBar } from './components/SearchBar'
@@ -77,6 +78,7 @@ export default function App() {
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false)
   const [dividendRankingOpen, setDividendRankingOpen] = useState(false)
   const [fundamentalScreeningOpen, setFundamentalScreeningOpen] = useState(false)
+  const [dailyMarketScanOpen, setDailyMarketScanOpen] = useState(false)
   const [dividendFinancingSnapshot, setDividendFinancingSnapshot] = useState<DividendFinancingSnapshot | null>(null)
   const [dividendFinancingChangeReport, setDividendFinancingChangeReport] = useState<DividendFinancingChangeReport | null>(null)
   const [fundamentalSnapshot, setFundamentalSnapshot] = useState<FundamentalSnapshot | null>(null)
@@ -421,6 +423,11 @@ export default function App() {
     setFundamentalScreeningOpen(false)
   }, [])
 
+  const viewWatchlistStockFromDailyScan = useCallback((quoteId: string) => {
+    setSelectedQuoteId(quoteId)
+    setDailyMarketScanOpen(false)
+  }, [])
+
   const updateChipDistributionEnabled = useCallback((enabled: boolean) => {
     updateSettings({
       ...state.settings,
@@ -544,6 +551,15 @@ export default function App() {
             >
               <Filter size={17} />
               <span>基本面初筛</span>
+            </button>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => setDailyMarketScanOpen(true)}
+              title="A 股收盘扫描"
+            >
+              <Activity size={17} />
+              <span>收盘扫描</span>
             </button>
             {aiRuntimeAvailable ? (
               <button
@@ -736,6 +752,13 @@ export default function App() {
         onSnapshotChange={setFundamentalSnapshot}
         onChangeReportChange={setFundamentalChangeReport}
         onClose={() => setFundamentalScreeningOpen(false)}
+      />
+      <DailyMarketScanDialog
+        open={dailyMarketScanOpen}
+        watchlist={state.watchlist}
+        onAddStock={addStock}
+        onViewStock={viewWatchlistStockFromDailyScan}
+        onClose={() => setDailyMarketScanOpen(false)}
       />
       {AiAssistantDrawer ? (
         <Suspense fallback={null}>

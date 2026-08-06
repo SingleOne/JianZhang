@@ -8,7 +8,7 @@ vi.mock('electron', () => ({
   net: { fetch: netFetch }
 }))
 
-import { fetchOrderBook, fetchQuotes } from './market'
+import { fetchDailyMarketActiveQuotes, fetchOrderBook, fetchQuotes } from './market'
 
 function jsonResponse(value: unknown): Response {
   return {
@@ -181,5 +181,58 @@ describe('fetchQuotes investment valuation fields', () => {
       priceEarningsRatioTtm: 19.73,
       priceBookRatio: 6.92
     })
+  })
+})
+
+describe('fetchDailyMarketActiveQuotes', () => {
+  beforeEach(() => {
+    netFetch.mockReset()
+  })
+
+  it('paginates by amount and stops after reaching the active cutoff', async () => {
+    const quoteItem = (index: number, amount: number) => ({
+      f2: 1050,
+      f3: 200,
+      f4: 21,
+      f5: 10_000 + index,
+      f6: amount,
+      f8: 120,
+      f12: String(600000 + index),
+      f13: 1,
+      f14: `测试${index}`,
+      f15: 1060,
+      f16: 1020,
+      f17: 1030,
+      f18: 1029
+    })
+    netFetch
+      .mockResolvedValueOnce(jsonResponse({
+        data: {
+          total: 5_891,
+          diff: Array.from({ length: 100 }, (_, index) => quoteItem(index, 60_000_000))
+        }
+      }))
+      .mockResolvedValueOnce(jsonResponse({
+        data: {
+          total: 5_891,
+          diff: [quoteItem(100, 55_000_000), quoteItem(101, 50_000_000)]
+        }
+      }))
+
+    const result = await fetchDailyMarketActiveQuotes(50_000_000)
+
+    expect(result).toMatchObject({
+      universeCount: 5_891,
+      source: 'eastmoney-primary'
+    })
+    expect(result.quotes).toHaveLength(101)
+    expect(result.quotes[0]).toMatchObject({
+      latest: 10.5,
+      changePercent: 2,
+      amount: 60_000_000
+    })
+    expect(netFetch).toHaveBeenCalledTimes(2)
+    expect(netFetch.mock.calls.map(([url]) => new URL(url).searchParams.get('pn'))).toEqual(['1', '2'])
+    expect(new URL(netFetch.mock.calls[0][0]).searchParams.get('fid')).toBe('f6')
   })
 })

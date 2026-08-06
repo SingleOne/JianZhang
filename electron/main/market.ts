@@ -51,6 +51,7 @@ interface EastmoneyQuoteItem {
   f18?: number | '-'
   f23?: number | '-'
   f115?: number | '-'
+  f124?: number | '-'
 }
 
 interface EastmoneyOrderBookData {
@@ -106,6 +107,16 @@ let marketRequestLogger: MarketRequestLogger | null = null
 export interface QuoteBatchResult {
   quotes: StockQuote[]
   source: string
+}
+
+export interface DailyMarketActiveQuote extends StockQuote {
+  tradingDate: string
+}
+
+export interface DailyMarketActiveQuotesResult {
+  quotes: DailyMarketActiveQuote[]
+  source: string
+  universeCount: number
 }
 
 interface MarketRequestOptions<T> {
@@ -231,6 +242,27 @@ function rawNumber(value: number | '-' | undefined): number | null {
   return typeof value === 'number' ? value : null
 }
 
+function toEastmoneyQuote(item: EastmoneyQuoteItem, updatedAt: string): StockQuote {
+  return {
+    code: item.f12 ?? '',
+    name: item.f14 ?? '',
+    quoteId: typeof item.f13 === 'number' && item.f12 ? `${item.f13}.${item.f12}` : '',
+    latest: scaled(item.f2),
+    changePercent: scaled(item.f3),
+    change: scaled(item.f4),
+    open: scaled(item.f17),
+    high: scaled(item.f15),
+    low: scaled(item.f16),
+    previousClose: scaled(item.f18),
+    volume: rawNumber(item.f5),
+    amount: rawNumber(item.f6),
+    turnoverRate: scaled(item.f8),
+    priceEarningsRatioTtm: scaled(item.f115),
+    priceBookRatio: scaled(item.f23),
+    updatedAt
+  }
+}
+
 export async function searchStocks(query: string): Promise<SearchResult[]> {
   const normalized = query.trim()
   if (!normalized) return []
@@ -304,24 +336,104 @@ async function fetchEastmoneyQuotes(
       })
   const now = new Date().toISOString()
 
-  return (payload.data?.diff ?? []).map((item) => ({
-    code: item.f12 ?? '',
-    name: item.f14 ?? '',
-    quoteId: typeof item.f13 === 'number' && item.f12 ? `${item.f13}.${item.f12}` : '',
-    latest: scaled(item.f2),
-    changePercent: scaled(item.f3),
-    change: scaled(item.f4),
-    open: scaled(item.f17),
-    high: scaled(item.f15),
-    low: scaled(item.f16),
-    previousClose: scaled(item.f18),
-    volume: rawNumber(item.f5),
-    amount: rawNumber(item.f6),
-    turnoverRate: scaled(item.f8),
-    priceEarningsRatioTtm: scaled(item.f115),
-    priceBookRatio: scaled(item.f23),
-    updatedAt: now
-  }))
+  return (payload.data?.diff ?? []).map((item) => toEastmoneyQuote(item, now))
+}
+
+interface EastmoneyMarketListPayload {
+  data?: {
+    total?: number
+    diff?: EastmoneyQuoteItem[]
+  }
+}
+
+function createDailyMarketScanQuotesUrl(origin: string, page: number): URL {
+  const url = new URL('/api/qt/clist/get', origin)
+  url.searchParams.set('pn', String(page))
+  url.searchParams.set('pz', EASTMONEY_FIXED_PARAMS.dailyMarketScan.pageSize)
+  url.searchParams.set('po', '1')
+  url.searchParams.set('np', '1')
+  url.searchParams.set('fid', 'f6')
+  url.searchParams.set('fs', EASTMONEY_FIXED_PARAMS.dailyMarketScan.universe)
+  url.searchParams.set('fields', EASTMONEY_FIELDS.dailyMarketScanQuotes)
+  return url
+}
+
+async function fetchDailyMarketScanQuotesPage(
+  page: number,
+  useDelayNode: boolean
+): Promise<EastmoneyMarketListPayload> {
+  const primaryHost = 'push2.eastmoney.com'
+  const source = useDelayNode ? 'eastmoney-delay' : 'eastmoney-primary'
+  const url = createDailyMarketScanQuotesUrl(
+    `https://${useDelayNode ? 'push2delay.eastmoney.com' : primaryHost}`,
+    page
+  )
+  const options = {
+    dataType: 'daily-market-scan:quotes',
+    caller: 'daily-market-scan',
+    source,
+    fallbackFrom: useDelayNode ? 'eastmoney-primary' : undefined,
+    requestedCount: Number(EASTMONEY_FIXED_PARAMS.dailyMarketScan.pageSize),
+    maxAttempts: 1,
+    returnedCount: (value: EastmoneyMarketListPayload) => value.data?.diff?.length ?? 0
+  }
+  return useDelayNode
+    ? requestJsonWithHost(url.toString(), primaryHost, options)
+    : requestJson(url.toString(), options)
+}
+
+export async function fetchDailyMarketActiveQuotes(
+  minimumAmount: number
+): Promise<DailyMarketActiveQuotesResult> {
+  let useDelayNode = false
+  let firstPage: EastmoneyMarketListPayload
+  try {
+    firstPage = await fetchDailyMarketScanQuotesPage(1, false)
+  } catch {
+    useDelayNode = true
+    firstPage = await fetchDailyMarketScanQuotesPage(1, true)
+  }
+
+  const quotes: DailyMarketActiveQuote[] = []
+  const updatedAt = new Date().toISOString()
+  let page = 1
+  let payload = firstPage
+  while (true) {
+    const items = payload.data?.diff
+    if (!items) throw new Error('行情服务未返回全市场行情')
+    quotes.push(...items
+      .filter((item) => typeof item.f6 === 'number' && item.f6 > minimumAmount)
+      .map((item) => ({
+        ...toEastmoneyQuote(item, updatedAt),
+        tradingDate: typeof item.f124 === 'number'
+          ? new Date((item.f124 + 8 * 60 * 60) * 1000).toISOString().slice(0, 10)
+          : ''
+      }))
+      .filter((quote) => Boolean(quote.quoteId && quote.code && quote.name)))
+
+    const lastAmount = rawNumber(items.at(-1)?.f6)
+    if (
+      items.length < Number(EASTMONEY_FIXED_PARAMS.dailyMarketScan.pageSize) ||
+      lastAmount === null ||
+      lastAmount <= minimumAmount
+    ) {
+      break
+    }
+    page += 1
+    try {
+      payload = await fetchDailyMarketScanQuotesPage(page, useDelayNode)
+    } catch (reason) {
+      if (useDelayNode) throw reason
+      useDelayNode = true
+      payload = await fetchDailyMarketScanQuotesPage(page, true)
+    }
+  }
+
+  return {
+    quotes,
+    universeCount: firstPage.data?.total ?? quotes.length,
+    source: useDelayNode ? 'eastmoney-delay' : 'eastmoney-primary'
+  }
 }
 
 async function fetchTencentQuotes(stocks: WatchStock[], caller: string): Promise<StockQuote[]> {

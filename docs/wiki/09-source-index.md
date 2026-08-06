@@ -42,6 +42,7 @@
 | [`electron/main/kline-hub.ts`](../../electron/main/kline-hub.ts) | `KlineHub` | 全周期 K 线请求合并、100 条实时 LRU 和全局串行队列 |
 | [`electron/main/chip-distribution-cache.ts`](../../electron/main/chip-distribution-cache.ts) | `ChipDistributionCache` | 按股票读写最后一次筹码分布磁盘缓存 |
 | [`electron/main/historical-kline-cache.ts`](../../electron/main/historical-kline-cache.ts) | `HistoricalKlineCache` | 日/周/月 K 持久化、150 条内存 LRU、长短范围合并、失效回退和 90 天清理 |
+| [`electron/main/daily-market-scan-service.ts`](../../electron/main/daily-market-scan-service.ts) | `DailyMarketScanService` | 全市场收盘扫描编排、受控并发、进度与最新结果落盘 |
 | [`electron/main/trading-calendar.ts`](../../electron/main/trading-calendar.ts) | `fetchSseTradingCalendar` | 解析上交所当年休市安排 |
 | [`electron/main/tray-icons.ts`](../../electron/main/tray-icons.ts) | `createAppIcon` | 生成 Electron 托盘/窗口原生图标 |
 | [`electron/preload/index.ts`](../../electron/preload/index.ts) | `api`、`subscribe` | 把类型化 `stockApi` 安全暴露给 renderer |
@@ -72,6 +73,7 @@
 | 文件 | 重点符号 | 职责 |
 | --- | --- | --- |
 | [`src/lib/api.ts`](../../src/lib/api.ts) | `stockApi`、`demoApi` | 桌面 API 选择、浏览器演示行情和演示存储 |
+| [`src/lib/daily-market-scan.ts`](../../src/lib/daily-market-scan.ts) | `createDailyMarketScanRow` | 20 日量价异动和反转信号计算 |
 | [`src/lib/fundamentals.ts`](../../src/lib/fundamentals.ts) | `parseFundamentalSnapshot` | 基本面快照格式解析 |
 | [`src/lib/dcf-analysis.ts`](../../src/lib/dcf-analysis.ts) | `createDcfAnalysis` | 普通企业简化 DCF、每股估值、现价差异和70%警戒线判断 |
 | [`src/lib/fundamental-screening.ts`](../../src/lib/fundamental-screening.ts) | `evaluateFundamentalCompany`、`evaluateFundamentalQuality`、`evaluateFundamentalRisk`、`classifyFundamentalDividendCategory`、`summarizeFundamentalDividendWatchlist`、`createFundamentalPeerComparisonMap`、`createFundamentalChangeReport` | 三项透明硬筛选、六类固定质量标签、六类风险提示、基本面与分红融资互斥分类、主表概览、同行指标排名和默认规则快照变化 |
@@ -95,6 +97,7 @@
 | [`src/components/SearchBar.tsx`](../../src/components/SearchBar.tsx) | 股票代码/名称搜索和添加 |
 | [`src/components/SettingsMenu.tsx`](../../src/components/SettingsMenu.tsx) | 行情、做 T、系统与数据设置 |
 | [`src/components/FundamentalScreeningDialog.tsx`](../../src/components/FundamentalScreeningDialog.tsx) | 基本面筛选条件、质量与风险高级筛选、候选公司、五年财务证据和自选联动 |
+| [`src/components/DailyMarketScanDialog.tsx`](../../src/components/DailyMarketScanDialog.tsx) | 收盘扫描汇总、信号分类、进度、分页和自选联动 |
 | [`src/components/PortfolioQualityDialog.tsx`](../../src/components/PortfolioQualityDialog.tsx) | 全部持仓价值类型、具体风险、行业结构、组合筛选、未计价说明和主表定位 |
 | [`src/components/WatchlistTable.tsx`](../../src/components/WatchlistTable.tsx) | 自选主表、排序、列、异动、展开详情和操作入口 |
 | [`src/components/watchlist-table/WatchlistRow.tsx`](../../src/components/watchlist-table/WatchlistRow.tsx) | 单股行指标、单元格、提醒、操作和展开详情 |

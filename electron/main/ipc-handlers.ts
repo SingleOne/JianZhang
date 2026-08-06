@@ -18,6 +18,8 @@ import type {
   AppState,
   ChipDistributionCacheEntry,
   DataSnapshotRuntimeState,
+  DailyMarketScanResult,
+  DailyMarketScanState,
   DividendFinancingChangeReport,
   DividendFinancingSnapshot,
   DividendFinancingUpdateResult,
@@ -60,6 +62,9 @@ interface IpcHandlerDependencies {
   restartQuoteSchedule: () => void
   primeSectorBindings: (refreshWhenReady: boolean) => Promise<void>
   getKline: (quoteId: string, period: KlinePeriod, limit?: number) => Promise<KlineResult>
+  getDailyMarketScanResult: () => DailyMarketScanResult | null
+  getDailyMarketScanState: () => DailyMarketScanState
+  runDailyMarketScan: () => Promise<DailyMarketScanResult>
   saveChipDistributionCache: (entry: ChipDistributionCacheEntry) => ChipDistributionCacheEntry
   getOrderBook: (quoteId: string) => Promise<StockOrderBook>
   getFundsFlow: (quoteId: string) => Promise<FundsFlowResult>
@@ -89,6 +94,9 @@ const CHANNELS = [
   'valuation-history:get',
   'quotes:refresh',
   'kline:get',
+  'daily-market-scan:get',
+  'daily-market-scan:state:get',
+  'daily-market-scan:run',
   'chip-distribution:cache:save',
   'order-book:get',
   'funds-flow:get',
@@ -136,6 +144,9 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
   ipcMain.handle('kline:get', (_event, quoteId: string, period: KlinePeriod, limit?: number) =>
     dependencies.getKline(quoteId, period, limit)
   )
+  ipcMain.handle('daily-market-scan:get', () => dependencies.getDailyMarketScanResult())
+  ipcMain.handle('daily-market-scan:state:get', () => dependencies.getDailyMarketScanState())
+  ipcMain.handle('daily-market-scan:run', () => dependencies.runDailyMarketScan())
   ipcMain.handle('chip-distribution:cache:save', (_event, entry: ChipDistributionCacheEntry) =>
     dependencies.saveChipDistributionCache(entry)
   )

@@ -21,6 +21,7 @@ import {
 import type { AiRuntime } from '../../src/modules/ai/main/register'
 import type { MarketInsightRuntime } from '../../src/modules/market-insight/main/register'
 import {
+  fetchDailyMarketActiveQuotes,
   fetchFundsFlow,
   fetchKline,
   fetchOrderBook,
@@ -29,6 +30,7 @@ import {
   setMarketRequestLogger
 } from './market'
 import { ChipDistributionCache } from './chip-distribution-cache'
+import { DailyMarketScanService } from './daily-market-scan-service'
 import { DividendFinancingService } from './dividend-financing-service'
 import { FundsFlowHub } from './funds-flow-hub'
 import { FundamentalDataService } from './fundamental-data-service'
@@ -120,6 +122,7 @@ let disposeIpcHandlers: (() => void) | null = null
 let dividendFinancingService: DividendFinancingService | null = null
 let fundamentalDataService: FundamentalDataService | null = null
 let valuationHistoryService: ValuationHistoryService | null = null
+let dailyMarketScanService: DailyMarketScanService | null = null
 
 const marketDataHub = new (class MarketDataHub {
   private readonly listeners = new Set<(quotes: readonly StockQuote[]) => void>()
@@ -259,12 +262,21 @@ if (!hasSingleInstanceLock) {
     setMarketRequestLogger(marketRequestLogger)
     chipDistributionCache = new ChipDistributionCache(marketCacheDirectory)
     fundsFlowHub = new FundsFlowHub(fetchFundsFlow, FUNDS_FLOW_REFRESH_MILLISECONDS)
+    const historicalKlineCache = new HistoricalKlineCache(marketCacheDirectory)
     klineHub = new KlineHub(
       fetchKline,
-      new HistoricalKlineCache(marketCacheDirectory),
+      historicalKlineCache,
       () => state.settings.tradingCalendar.closedDates,
       INTRADAY_REFRESH_MILLISECONDS
     )
+    dailyMarketScanService = new DailyMarketScanService({
+      userDataDirectory: app.getPath('userData'),
+      historicalKlineCache,
+      getClosedDates: () => state.settings.tradingCalendar.closedDates,
+      fetchActiveQuotes: fetchDailyMarketActiveQuotes,
+      fetchKline,
+      notifyState: (scanState) => sendToWindows('daily-market-scan:progress', scanState)
+    })
     const sectorMarketCache = new SectorMarketCache(marketCacheDirectory, (quoteId) =>
       fetchSectorBinding(quoteId, 'sector-binding-cache')
     )
@@ -326,6 +338,9 @@ if (!hasSingleInstanceLock) {
         quoteRuntime!.primeSectorBindings(refreshWhenReady),
       getKline: (quoteId, period, limit) =>
         getKline(quoteId, period, limit, `detail:kline:${period}`),
+      getDailyMarketScanResult: () => dailyMarketScanService!.getResult(),
+      getDailyMarketScanState: () => dailyMarketScanService!.getState(),
+      runDailyMarketScan: () => dailyMarketScanService!.run(),
       saveChipDistributionCache: (entry) => {
         if (!chipDistributionCache) throw new Error('筹码分布缓存尚未初始化')
         return chipDistributionCache.save(entry)

@@ -588,6 +588,64 @@ export interface KlineResult {
   fallbackReason?: string
 }
 
+export type DailyMarketScanSignalType =
+  | 'volumeSurge'
+  | 'strongGain'
+  | 'breakout20d'
+  | 'reversal'
+
+export interface DailyMarketScanRow {
+  code: string
+  name: string
+  quoteId: string
+  marketLabel: string
+  tradingDate: string
+  latest: number
+  changePercent: number
+  amount: number
+  volume: number
+  averageVolume20d: number
+  volumeRatio: number
+  breakoutPercent: number | null
+  previousFiveDayReturn: number
+  declineDays: number
+  signals: DailyMarketScanSignalType[]
+}
+
+export interface DailyMarketScanResult {
+  schemaVersion: 1
+  tradingDate: string
+  generatedAt: string
+  source: string
+  universeCount: number
+  activeCount: number
+  klineSuccessCount: number
+  klineFailureCount: number
+  signalCount: number
+  rows: DailyMarketScanRow[]
+}
+
+export type DailyMarketScanStage =
+  | 'idle'
+  | 'quotes'
+  | 'klines'
+  | 'calculating'
+  | 'completed'
+  | 'failed'
+
+export interface DailyMarketScanProgress {
+  stage: DailyMarketScanStage
+  message: string
+  completed: number
+  total: number
+}
+
+export interface DailyMarketScanState {
+  running: boolean
+  progress: DailyMarketScanProgress
+  error: string | null
+}
+
 export interface ChipDistributionBucket {
   price: number
   percent: number
@@ -1220,6 +1278,9 @@ export interface StockDesktopApi {
   getValuationHistory: (quoteId: string) => Promise<StockValuationHistory>
   refreshQuotes: () => Promise<StockQuote[]>
   getKline: (quoteId: string, period: KlinePeriod, limit?: number) => Promise<KlineResult>
+  getDailyMarketScanResult: () => Promise<DailyMarketScanResult | null>
+  getDailyMarketScanState: () => Promise<DailyMarketScanState>
+  runDailyMarketScan: () => Promise<DailyMarketScanResult>
   saveChipDistributionCache: (entry: ChipDistributionCacheEntry) => Promise<ChipDistributionCacheEntry>
   getOrderBook: (quoteId: string) => Promise<StockOrderBook>
   getFundsFlow: (quoteId: string) => Promise<FundsFlowResult>
@@ -1246,5 +1307,8 @@ export interface StockDesktopApi {
   ) => () => void
   onFundamentalStateUpdated: (
     callback: (state: DataSnapshotRuntimeState) => void
+  ) => () => void
+  onDailyMarketScanProgress: (
+    callback: (state: DailyMarketScanState) => void
   ) => () => void
 }

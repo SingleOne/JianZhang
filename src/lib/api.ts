@@ -12,6 +12,7 @@ import {
   type BootstrapResult,
   type ConfigImportResult,
   type DataSnapshotRuntimeState,
+  type DailyMarketScanResult,
   type DividendFinancingSnapshot,
   type FundamentalSnapshot,
   type FundsFlowResult,
@@ -52,6 +53,71 @@ const DEFAULT_STATE: AppState = {
   columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
   settings: { ...DEFAULT_APP_SETTINGS },
   tTradingAccounts: {}
+}
+
+const DEMO_DAILY_MARKET_SCAN_RESULT: DailyMarketScanResult = {
+  schemaVersion: 1,
+  tradingDate: '2026-08-05',
+  generatedAt: '2026-08-05T07:15:00.000Z',
+  source: 'demo',
+  universeCount: 5_482,
+  activeCount: 1_736,
+  klineSuccessCount: 1_728,
+  klineFailureCount: 8,
+  signalCount: 5,
+  rows: [
+    {
+      code: '600519',
+      name: '贵州茅台',
+      quoteId: '1.600519',
+      marketLabel: '沪A',
+      tradingDate: '2026-08-05',
+      latest: 1488.6,
+      changePercent: 5.82,
+      amount: 8_620_000_000,
+      volume: 584_200,
+      averageVolume20d: 205_000,
+      volumeRatio: 2.85,
+      breakoutPercent: 1.36,
+      previousFiveDayReturn: 1.2,
+      declineDays: 2,
+      signals: ['volumeSurge', 'strongGain', 'breakout20d']
+    },
+    {
+      code: '300750',
+      name: '宁德时代',
+      quoteId: '0.300750',
+      marketLabel: '深A',
+      tradingDate: '2026-08-05',
+      latest: 268.35,
+      changePercent: 2.14,
+      amount: 6_730_000_000,
+      volume: 312_600,
+      averageVolume20d: 180_000,
+      volumeRatio: 1.74,
+      breakoutPercent: null,
+      previousFiveDayReturn: -6.28,
+      declineDays: 4,
+      signals: ['reversal']
+    },
+    {
+      code: '002594',
+      name: '比亚迪',
+      quoteId: '0.002594',
+      marketLabel: '深A',
+      tradingDate: '2026-08-05',
+      latest: 118.72,
+      changePercent: 6.31,
+      amount: 5_860_000_000,
+      volume: 426_000,
+      averageVolume20d: 260_000,
+      volumeRatio: 1.64,
+      breakoutPercent: null,
+      previousFiveDayReturn: 0.86,
+      declineDays: 2,
+      signals: ['strongGain']
+    }
+  ]
 }
 
 function loadDemoState(): AppState {
@@ -372,6 +438,24 @@ const demoApi: StockDesktopApi = {
   async getKline(quoteId, period, limit) {
     return makeDemoKline(quoteId, period, limit)
   },
+  async getDailyMarketScanResult() {
+    return DEMO_DAILY_MARKET_SCAN_RESULT
+  },
+  async getDailyMarketScanState() {
+    return {
+      running: false,
+      progress: {
+        stage: 'completed' as const,
+        message: '已加载浏览器演示扫描结果。',
+        completed: DEMO_DAILY_MARKET_SCAN_RESULT.activeCount,
+        total: DEMO_DAILY_MARKET_SCAN_RESULT.activeCount
+      },
+      error: null
+    }
+  },
+  async runDailyMarketScan() {
+    return DEMO_DAILY_MARKET_SCAN_RESULT
+  },
   async saveChipDistributionCache(entry) {
     localStorage.setItem(`jianzhang-chip-distribution-${entry.quoteId}`, JSON.stringify(entry))
     return entry
@@ -436,7 +520,8 @@ const demoApi: StockDesktopApi = {
   onDividendFinancingUpdateProgress: noSubscribe,
   onDividendFinancingStateUpdated: noSubscribe,
   onFundamentalUpdateProgress: noSubscribe,
-  onFundamentalStateUpdated: noSubscribe
+  onFundamentalStateUpdated: noSubscribe,
+  onDailyMarketScanProgress: noSubscribe
 }
 
 export const stockApi = window.stockApi ?? demoApi
