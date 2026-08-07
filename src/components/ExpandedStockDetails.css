@@ -399,9 +399,11 @@
   border-radius: 9px;
 }
 
-.fundamental-detail-conclusion-card > span:last-child {
+.fundamental-detail-conclusion-copy {
   display: grid;
   gap: 3px;
+  min-width: 0;
+  flex: 1;
 }
 
 .fundamental-detail-conclusion-card small,
@@ -414,6 +416,29 @@
 .fundamental-detail-conclusion-card strong {
   color: #2d405a;
   font-size: 14px;
+}
+
+.fundamental-reading-guide-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  margin-left: auto;
+  padding: 0 11px;
+  border: 1px solid #c9d9ef;
+  border-radius: 8px;
+  color: #2864b5;
+  background: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.fundamental-reading-guide-button:hover {
+  border-color: #94b5df;
+  background: #f5f9ff;
 }
 
 .fundamental-evidence-grid {

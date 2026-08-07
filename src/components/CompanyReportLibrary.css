@@ -1,15 +1,15 @@
 .company-report-library {
   display: grid;
-  gap: 14px;
-  padding: 16px;
+  gap: 10px;
+  padding: 10px 12px 12px;
   color: var(--text-primary);
 }
 
 .company-report-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 16px;
+  gap: 9px;
+  padding: 9px 12px;
   border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
   border-radius: 12px;
   background: linear-gradient(
@@ -22,10 +22,10 @@
 .company-report-header-icon {
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  width: 34px;
+  height: 34px;
   flex: 0 0 auto;
-  border-radius: 12px;
+  border-radius: 9px;
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
@@ -37,15 +37,14 @@
   flex: 1;
 }
 
-.company-report-header small,
-.company-report-header em {
+.company-report-header small {
   font-size: 12px;
   color: var(--text-secondary);
   font-style: normal;
 }
 
 .company-report-header strong {
-  font-size: 18px;
+  font-size: 16px;
 }
 
 .company-report-header > button,
@@ -70,7 +69,6 @@
   cursor: wait;
 }
 
-.company-report-section-tabs,
 .company-report-type-tabs {
   display: flex;
   align-items: center;
@@ -78,7 +76,6 @@
   flex-wrap: wrap;
 }
 
-.company-report-section-tabs button,
 .company-report-type-tabs button {
   display: inline-flex;
   align-items: center;
@@ -93,7 +90,6 @@
   cursor: pointer;
 }
 
-.company-report-section-tabs button.is-active,
 .company-report-type-tabs button.is-active {
   border-color: color-mix(in srgb, var(--accent) 44%, var(--border));
   color: var(--accent);
@@ -224,15 +220,12 @@
 .company-report-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  padding: 11px 12px;
-  border: 0;
+  padding: 0 10px;
   border-bottom: 1px solid var(--border);
   color: var(--text-primary);
   background: transparent;
-  text-align: left;
-  cursor: pointer;
 }
 
 .company-report-row:last-child {
@@ -243,7 +236,21 @@
   background: color-mix(in srgb, var(--accent) 6%, var(--surface));
 }
 
-.company-report-row > svg {
+.company-report-open {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+  padding: 10px 2px;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.company-report-open > svg {
   flex: 0 0 auto;
   color: var(--text-secondary);
 }
@@ -287,11 +294,22 @@
 }
 
 .company-report-copy small {
-  overflow: hidden;
   color: var(--text-secondary);
   font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.45;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.company-report-copy small.has-summary {
+  color: var(--text-primary);
+}
+
+.company-report-copy > span {
+  color: var(--text-secondary);
+  font-size: 12px;
 }
 
 .company-report-badges {
@@ -313,6 +331,29 @@
 .company-report-badges em.is-amended {
   color: #d98b17;
   background: color-mix(in srgb, #d98b17 10%, var(--surface));
+}
+
+.company-report-summary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 86px;
+  min-height: 32px;
+  flex: 0 0 auto;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, #8c6bd8 34%, var(--border));
+  border-radius: 8px;
+  color: #7454bd;
+  background: color-mix(in srgb, #8c6bd8 8%, var(--surface));
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.company-report-summary-action:disabled {
+  opacity: 0.62;
+  cursor: wait;
 }
 
 .company-report-source {
@@ -461,13 +502,16 @@
   font-size: 17px;
 }
 
-.company-report-library .is-positive {
+.company-report-library .is-positive,
+.fundamental-reading-guide .is-positive {
   color: var(--red);
 }
-.company-report-library .is-negative {
+.company-report-library .is-negative,
+.fundamental-reading-guide .is-negative {
   color: var(--green);
 }
-.company-report-library .is-zero {
+.company-report-library .is-zero,
+.fundamental-reading-guide .is-zero {
   color: var(--text-secondary);
 }
 
@@ -563,18 +607,23 @@
   .company-report-row {
     align-items: flex-start;
     flex-wrap: wrap;
+    padding: 0 10px 10px;
   }
 
-  .company-report-copy {
-    min-width: calc(100% - 62px);
+  .company-report-open {
+    flex-wrap: wrap;
+    min-width: 100%;
   }
 
-  .company-report-copy strong,
-  .company-report-copy small {
+  .company-report-copy strong {
     white-space: normal;
   }
 
   .company-report-badges {
+    margin-left: 44px;
+  }
+
+  .company-report-summary-action {
     margin-left: 44px;
   }
 

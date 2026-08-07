@@ -32,6 +32,7 @@ const api: StockDesktopApi = {
   getFundamentalChangeReport: () => ipcRenderer.invoke('fundamentals:changes:get'),
   runFundamentalUpdate: () => ipcRenderer.invoke('fundamentals:update'),
   getCompanyReports: (code, forceRefresh) => ipcRenderer.invoke('company-reports:get', code, forceRefresh),
+  generateCompanyReportSummary: (report) => ipcRenderer.invoke('company-reports:summary:generate', report),
   openCompanyReport: (url) => ipcRenderer.invoke('company-reports:open', url),
   getValuationHistory: (quoteId) => ipcRenderer.invoke('valuation-history:get', quoteId),
   refreshQuotes: () => ipcRenderer.invoke('quotes:refresh'),

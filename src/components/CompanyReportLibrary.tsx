@@ -5,10 +5,11 @@ import {
   GraduationCap,
   RefreshCw,
   Search,
+  Sparkles,
   TriangleAlert
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { COMPANY_REPORT_READING_HINTS, COMPANY_REPORT_TYPE_LABELS } from '../lib/company-reports'
+import { COMPANY_REPORT_TYPE_LABELS } from '../lib/company-reports'
 import { stockApi } from '../lib/api'
 import type { FundamentalScreeningEvaluation } from '../lib/fundamental-screening'
 import type {
@@ -19,7 +20,6 @@ import type {
 } from '../shared/types'
 import './CompanyReportLibrary.css'
 
-type LibrarySection = 'reports' | 'guide'
 type ReportFilter = 'all' | CompanyReportType
 
 const REPORT_TYPES = Object.keys(COMPANY_REPORT_TYPE_LABELS) as CompanyReportType[]
@@ -56,7 +56,11 @@ function directionClass(value: number | null | undefined): string {
       : 'is-negative'
 }
 
-function FundamentalReadingGuide({ evaluation }: { evaluation?: FundamentalScreeningEvaluation }) {
+export function FundamentalReadingGuide({
+  evaluation
+}: {
+  evaluation?: FundamentalScreeningEvaluation
+}) {
   const company = evaluation?.company
   const reports = company?.annualReports ?? []
   const roeValues = reports.flatMap((report) =>
@@ -217,37 +221,52 @@ function FundamentalReadingGuide({ evaluation }: { evaluation?: FundamentalScree
   )
 }
 
-function ReportRow({ report, onOpen }: { report: CompanyReportItem; onOpen: () => void }) {
+function ReportRow({
+  report,
+  summarizing,
+  onOpen,
+  onSummarize
+}: {
+  report: CompanyReportItem
+  summarizing: boolean
+  onOpen: () => void
+  onSummarize: () => void
+}) {
   return (
-    <button className="company-report-row" type="button" onClick={onOpen}>
-      <span className={`company-report-file is-${report.reportType}`}>
-        <FileText size={19} />
-      </span>
-      <span className="company-report-copy">
-        <strong>{report.title}</strong>
-        <small>
-          公告日期 {formatDate(report.publishedAt)} ·{' '}
-          {COMPANY_REPORT_READING_HINTS[report.reportType]}
-        </small>
-      </span>
-      <span className="company-report-badges">
-        <em>{COMPANY_REPORT_TYPE_LABELS[report.reportType]}</em>
-        <em className={`is-${report.variant}`}>{REPORT_VARIANT_LABELS[report.variant]}</em>
-        {report.amended ? <em className="is-amended">修订</em> : null}
-      </span>
-      <ExternalLink size={16} />
-    </button>
+    <div className="company-report-row">
+      <button className="company-report-open" type="button" onClick={onOpen}>
+        <span className={`company-report-file is-${report.reportType}`}>
+          <FileText size={19} />
+        </span>
+        <span className="company-report-copy">
+          <strong>{report.title}</strong>
+          <small className={report.summary ? 'has-summary' : ''}>
+            {report.summary?.content ?? '尚未生成财报总结，可点击右侧“AI 总结”。'}
+          </small>
+          <span>公告日期 {formatDate(report.publishedAt)}</span>
+        </span>
+        <span className="company-report-badges">
+          <em>{COMPANY_REPORT_TYPE_LABELS[report.reportType]}</em>
+          <em className={`is-${report.variant}`}>{REPORT_VARIANT_LABELS[report.variant]}</em>
+          {report.amended ? <em className="is-amended">修订</em> : null}
+        </span>
+        <ExternalLink size={16} />
+      </button>
+      <button
+        className="company-report-summary-action"
+        type="button"
+        onClick={onSummarize}
+        disabled={summarizing}
+        title="下载巨潮财报原文，使用当前 AI 模型生成总结并保存到本地"
+      >
+        {summarizing ? <RefreshCw size={14} className="is-spinning" /> : <Sparkles size={14} />}
+        {summarizing ? '总结中' : report.summary ? '重新总结' : 'AI 总结'}
+      </button>
+    </div>
   )
 }
 
-export function CompanyReportLibrary({
-  stock,
-  fundamentalEvaluation
-}: {
-  stock: WatchStock
-  fundamentalEvaluation?: FundamentalScreeningEvaluation
-}) {
-  const [activeSection, setActiveSection] = useState<LibrarySection>('reports')
+export function CompanyReportLibrary({ stock }: { stock: WatchStock }) {
   const [snapshot, setSnapshot] = useState<CompanyReportLibraryResult | null>(
     () => reportLibraryCache.get(stock.code) ?? null
   )
@@ -257,6 +276,7 @@ export function CompanyReportLibrary({
   const [reportType, setReportType] = useState<ReportFilter>('all')
   const [year, setYear] = useState<number | 'all'>('all')
   const [includeVariants, setIncludeVariants] = useState(false)
+  const [summarizingId, setSummarizingId] = useState<string | null>(null)
 
   const loadReports = useCallback(
     async (forceRefresh = false) => {
@@ -329,6 +349,29 @@ export function CompanyReportLibrary({
     })
   }
 
+  const summarizeReport = async (report: CompanyReportItem) => {
+    setSummarizingId(report.id)
+    setError('')
+    try {
+      const summary = await stockApi.generateCompanyReportSummary(report)
+      setSnapshot((current) => {
+        if (!current) return current
+        const next = {
+          ...current,
+          reports: current.reports.map((item) =>
+            item.id === report.id ? { ...item, summary } : item
+          )
+        }
+        reportLibraryCache.set(stock.code, next)
+        return next
+      })
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'AI 财报总结生成失败')
+    } finally {
+      setSummarizingId(null)
+    }
+  }
+
   return (
     <div className="company-report-library" role="tabpanel">
       <header className="company-report-header">
@@ -338,160 +381,130 @@ export function CompanyReportLibrary({
         <span>
           <small>{stock.code} · 上市公司定期报告</small>
           <strong>{stock.name}财报库</strong>
-          <em>目录来自巨潮资讯，点击条目打开官方披露 PDF</em>
         </span>
-        {activeSection === 'reports' ? (
-          <button type="button" onClick={() => void loadReports(true)} disabled={loading}>
-            <RefreshCw size={15} className={loading ? 'is-spinning' : ''} />
-            {loading ? '查询中' : '更新目录'}
-          </button>
-        ) : null}
+        <button type="button" onClick={() => void loadReports(true)} disabled={loading}>
+          <RefreshCw size={15} className={loading ? 'is-spinning' : ''} />
+          {loading ? '查询中' : '更新目录'}
+        </button>
       </header>
 
-      <div className="company-report-section-tabs" role="tablist" aria-label="财报库内容">
-        <button
-          className={activeSection === 'reports' ? 'is-active' : ''}
-          type="button"
-          role="tab"
-          aria-selected={activeSection === 'reports'}
-          onClick={() => setActiveSection('reports')}
-        >
-          <FileText size={15} />
-          财报目录
-        </button>
-        <button
-          className={activeSection === 'guide' ? 'is-active' : ''}
-          type="button"
-          role="tab"
-          aria-selected={activeSection === 'guide'}
-          onClick={() => setActiveSection('guide')}
-        >
-          <GraduationCap size={16} />
-          基本面怎么看
-        </button>
+      {snapshot?.warning ? (
+        <div className="company-report-warning">
+          <TriangleAlert size={16} />
+          {snapshot.warning}
+        </div>
+      ) : null}
+      {error ? (
+        <div className="company-report-error">
+          <TriangleAlert size={16} />
+          {error}
+        </div>
+      ) : null}
+
+      <div className="company-report-toolbar">
+        <label className="company-report-search">
+          <Search size={16} />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="搜索报告标题"
+            aria-label="搜索财报标题"
+          />
+        </label>
+        <label>
+          <span>财年</span>
+          <select
+            value={year}
+            onChange={(event) =>
+              setYear(event.target.value === 'all' ? 'all' : Number(event.target.value))
+            }
+          >
+            <option value="all">全部</option>
+            {years.map((item) => (
+              <option value={item} key={item}>
+                {item} 年
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="company-report-variant-toggle">
+          <input
+            type="checkbox"
+            checked={includeVariants}
+            onChange={(event) => setIncludeVariants(event.target.checked)}
+          />
+          包含摘要和英文版
+        </label>
       </div>
 
-      {activeSection === 'guide' ? (
-        <FundamentalReadingGuide evaluation={fundamentalEvaluation} />
+      <div className="company-report-type-tabs" role="tablist" aria-label="财报类型">
+        {(['all', ...REPORT_TYPES] as ReportFilter[]).map((type) => (
+          <button
+            className={reportType === type ? 'is-active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={reportType === type}
+            onClick={() => setReportType(type)}
+            key={type}
+          >
+            {type === 'all' ? '全部' : COMPANY_REPORT_TYPE_LABELS[type]}
+            <small>{counts.get(type) ?? 0}</small>
+          </button>
+        ))}
+      </div>
+
+      {loading && !snapshot ? (
+        <div className="company-report-empty">
+          <RefreshCw size={22} className="is-spinning" />
+          <span>正在查询近五年财报目录…</span>
+        </div>
+      ) : !snapshot && error ? (
+        <div className="company-report-empty">
+          <button type="button" onClick={() => void loadReports()}>
+            重新查询
+          </button>
+        </div>
+      ) : groupedReports.length === 0 ? (
+        <div className="company-report-empty">
+          <FileText size={22} />
+          <span>当前筛选条件下没有财报</span>
+        </div>
       ) : (
-        <>
-          {snapshot?.warning ? (
-            <div className="company-report-warning">
-              <TriangleAlert size={16} />
-              {snapshot.warning}
-            </div>
-          ) : null}
-          {error ? (
-            <div className="company-report-error">
-              <TriangleAlert size={16} />
-              {error}
-            </div>
-          ) : null}
-
-          <div className="company-report-toolbar">
-            <label className="company-report-search">
-              <Search size={16} />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="搜索报告标题"
-                aria-label="搜索财报标题"
-              />
-            </label>
-            <label>
-              <span>财年</span>
-              <select
-                value={year}
-                onChange={(event) =>
-                  setYear(event.target.value === 'all' ? 'all' : Number(event.target.value))
-                }
-              >
-                <option value="all">全部</option>
-                {years.map((item) => (
-                  <option value={item} key={item}>
-                    {item} 年
-                  </option>
+        <div className="company-report-groups">
+          {groupedReports.map(([reportYear, reports]) => (
+            <section key={reportYear}>
+              <header>
+                <strong>{reportYear} 财年</strong>
+                <small>{reports.length} 份披露文件</small>
+              </header>
+              <div>
+                {reports.map((report) => (
+                  <ReportRow
+                    report={report}
+                    summarizing={summarizingId === report.id}
+                    onOpen={() => openReport(report)}
+                    onSummarize={() => void summarizeReport(report)}
+                    key={report.id}
+                  />
                 ))}
-              </select>
-            </label>
-            <label className="company-report-variant-toggle">
-              <input
-                type="checkbox"
-                checked={includeVariants}
-                onChange={(event) => setIncludeVariants(event.target.checked)}
-              />
-              包含摘要和英文版
-            </label>
-          </div>
-
-          <div className="company-report-type-tabs" role="tablist" aria-label="财报类型">
-            {(['all', ...REPORT_TYPES] as ReportFilter[]).map((type) => (
-              <button
-                className={reportType === type ? 'is-active' : ''}
-                type="button"
-                role="tab"
-                aria-selected={reportType === type}
-                onClick={() => setReportType(type)}
-                key={type}
-              >
-                {type === 'all' ? '全部' : COMPANY_REPORT_TYPE_LABELS[type]}
-                <small>{counts.get(type) ?? 0}</small>
-              </button>
-            ))}
-          </div>
-
-          {loading && !snapshot ? (
-            <div className="company-report-empty">
-              <RefreshCw size={22} className="is-spinning" />
-              <span>正在查询近十年财报目录…</span>
-            </div>
-          ) : !snapshot && error ? (
-            <div className="company-report-empty">
-              <button type="button" onClick={() => void loadReports()}>
-                重新查询
-              </button>
-            </div>
-          ) : groupedReports.length === 0 ? (
-            <div className="company-report-empty">
-              <FileText size={22} />
-              <span>当前筛选条件下没有财报</span>
-            </div>
-          ) : (
-            <div className="company-report-groups">
-              {groupedReports.map(([reportYear, reports]) => (
-                <section key={reportYear}>
-                  <header>
-                    <strong>{reportYear} 财年</strong>
-                    <small>{reports.length} 份披露文件</small>
-                  </header>
-                  <div>
-                    {reports.map((report) => (
-                      <ReportRow
-                        report={report}
-                        onOpen={() => openReport(report)}
-                        key={report.id}
-                      />
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </div>
-          )}
-
-          {snapshot ? (
-            <footer className="company-report-source">
-              <span>来源：{snapshot.source}</span>
-              <span>
-                范围：{snapshot.periodStart}—{snapshot.periodEnd}
-              </span>
-              <span>
-                目录更新：{formatDate(snapshot.fetchedAt)}
-                {snapshot.fromCache ? ' · 本地缓存' : ''}
-              </span>
-            </footer>
-          ) : null}
-        </>
+              </div>
+            </section>
+          ))}
+        </div>
       )}
+
+      {snapshot ? (
+        <footer className="company-report-source">
+          <span>来源：{snapshot.source}</span>
+          <span>
+            范围：{snapshot.periodStart}—{snapshot.periodEnd}
+          </span>
+          <span>
+            目录更新：{formatDate(snapshot.fetchedAt)}
+            {snapshot.fromCache ? ' · 本地缓存' : ''}
+          </span>
+        </footer>
+      ) : null}
     </div>
   )
 }

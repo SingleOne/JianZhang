@@ -462,6 +462,17 @@ const demoApi: StockDesktopApi = {
       reports: DEMO_COMPANY_REPORTS.reports.map((report) => ({ ...report, code }))
     }
   },
+  async generateCompanyReportSummary(report) {
+    return {
+      reportId: report.id,
+      code: report.code,
+      content:
+        '演示总结：公司主营业务保持稳定，请结合报告原文核对收入利润、经营现金流、资产负债变化及风险提示。',
+      generatedAt: new Date().toISOString(),
+      providerId: 'demo',
+      model: 'demo'
+    }
+  },
   async openCompanyReport(url) {
     window.open(url, '_blank', 'noopener,noreferrer')
   },

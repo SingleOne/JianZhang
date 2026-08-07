@@ -23,6 +23,7 @@
   "dependencies": {
     "lightweight-charts": "^5.2.0",
     "lucide-react": "^0.525.0",
+    "pdf-parse": "^1.1.1",
     "pngjs": "^7.0.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
@@ -31,6 +32,7 @@
     "@eslint/js": "^9.0.0",
     "@openai/codex": "0.144.6",
     "@types/node": "^24.0.0",
+    "@types/pdf-parse": "^1.1.5",
     "@types/pngjs": "^6.0.5",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

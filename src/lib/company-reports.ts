@@ -57,3 +57,36 @@ export function sortCompanyReports(reports: CompanyReportItem[]): CompanyReportI
       left.title.localeCompare(right.title, 'zh-CN')
   )
 }
+
+export function limitCompanyReportsToRecentYears(
+  reports: CompanyReportItem[],
+  yearCount = 5
+): CompanyReportItem[] {
+  if (reports.length === 0) return []
+  const latestYear = Math.max(...reports.map((report) => report.reportYear))
+  return reports.filter((report) => report.reportYear >= latestYear - yearCount + 1)
+}
+
+export function createCompanyReportSummaryExcerpt(text: string, maxCharacters = 70_000): string {
+  const normalized = text
+    .replace(/\r/g, '')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+  const headings = [
+    '公司业务概要',
+    '主要会计数据和财务指标',
+    '管理层讨论与分析',
+    '审计报告',
+    '合并资产负债表',
+    '合并利润表',
+    '合并现金流量表',
+    '财务报表附注'
+  ]
+  const sections = [normalized.slice(0, 12_000)]
+  for (const heading of headings) {
+    const index = normalized.indexOf(heading)
+    if (index >= 0) sections.push(normalized.slice(index, index + 12_000))
+  }
+  return sections.join('\n\n').slice(0, maxCharacters)
+}

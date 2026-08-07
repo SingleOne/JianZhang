@@ -898,6 +898,15 @@ export type CompanyReportType = 'annual' | 'semiannual' | 'firstQuarter' | 'thir
 
 export type CompanyReportVariant = 'full' | 'summary' | 'english'
 
+export interface CompanyReportSummary {
+  reportId: string
+  code: string
+  content: string
+  generatedAt: string
+  providerId: string
+  model: string
+}
+
 export interface CompanyReportItem {
   id: string
   code: string
@@ -908,6 +917,7 @@ export interface CompanyReportItem {
   amended: boolean
   publishedAt: string
   url: string
+  summary?: CompanyReportSummary
 }
 
 export interface CompanyReportLibraryResult {
@@ -1303,6 +1313,7 @@ export interface StockDesktopApi {
   getFundamentalChangeReport: () => Promise<FundamentalChangeReport | null>
   runFundamentalUpdate: () => Promise<FundamentalUpdateResult>
   getCompanyReports: (code: string, forceRefresh?: boolean) => Promise<CompanyReportLibraryResult>
+  generateCompanyReportSummary: (report: CompanyReportItem) => Promise<CompanyReportSummary>
   openCompanyReport: (url: string) => Promise<void>
   getValuationHistory: (quoteId: string) => Promise<StockValuationHistory>
   refreshQuotes: () => Promise<StockQuote[]>

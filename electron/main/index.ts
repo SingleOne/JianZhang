@@ -334,6 +334,12 @@ if (!hasSingleInstanceLock) {
       getFundamentalChangeReport: () => fundamentalDataService!.getChangeReport(),
       runFundamentalUpdate: () => fundamentalDataService!.runUpdate(),
       getCompanyReports: (code, forceRefresh) => companyReportService!.get(code, forceRefresh),
+      generateCompanyReportSummary: (report) => {
+        if (!aiRuntime) throw new Error('当前构建未启用 AI 功能')
+        return companyReportService!.generateSummary(report, (request, signal) =>
+          aiRuntime!.runStructuredTask(request, signal)
+        )
+      },
       openCompanyReport: (url) => companyReportService!.open(url),
       getValuationHistory: (quoteId) => valuationHistoryService!.get(quoteId),
       refreshQuotes: (reason) => quoteRuntime!.refreshAll(reason),

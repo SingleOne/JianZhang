@@ -178,7 +178,8 @@ localStorage["jianzhang-demo-state-v1"]
 | `modules/ai-t-advice/` | 做 T 参考设置和历史 JSONL |
 | `dividend-financing/` | 运行时获取的 `ranking.json`、`previous-ranking.json`、`change-report.json`、Markdown 报告和诊断 JSON |
 | `fundamentals/` | 运行时获取的五年基本面 `snapshot.json`、覆盖率诊断 `diagnostics.json` 和最近一次默认规则筛选变化 `change-report.json` |
-| `company-reports/*.json` | 按股票保存近十年巨潮定期报告目录和官方 PDF 链接，24 小时有效；不保存 PDF 文件 |
+| `company-reports/<股票代码>.json` | 按股票保存最近五个报告年度的巨潮定期报告目录和官方 PDF 链接，24 小时有效；不保存 PDF 文件 |
+| `company-reports/summaries.json` | 按报告 ID 保存用户主动生成的 AI 财报总结、生成时间、模型和服务商信息 |
 | `daily-market-scan/` | 最近一次全市场收盘扫描结果 `latest.json` |
 
 AI API Key 由主进程使用 Electron `safeStorage` 加密；renderer 只能读取是否配置和脱敏尾号。Codex 账号凭证由随应用运行的官方 App Server 在模块运行目录管理，核心状态和配置导出均不接触明文。
@@ -200,7 +201,8 @@ AI API Key 由主进程使用 Electron `safeStorage` 加密；renderer 只能读
 | `getFundamentalState` | `fundamentals:state:get` | 返回基本面快照状态、报告期、生成时间和过期原因 |
 | `getFundamentalChangeReport` | `fundamentals:changes:get` | 返回最近两次快照按默认规则比较的新入选、移出、待核、数据完整性、覆盖和企业口径变化；首次快照返回 `null` |
 | `runFundamentalUpdate` | `fundamentals:update` | 调用四阶段 Python 脚本，更新五年财务、行业资产负债分位、净负债、快照日 PE/PB行业分位、总市值和流通市值 |
-| `getCompanyReports` | `company-reports:get` | 按股票读取有效缓存或查询巨潮近十年年报、半年报、一季报和三季报目录；可强制更新 |
+| `getCompanyReports` | `company-reports:get` | 按股票读取有效缓存或查询巨潮最近五个报告年度的年报、半年报、一季报和三季报目录；可强制更新 |
+| `generateCompanyReportSummary` | `company-reports:summary:generate` | 下载巨潮官方 PDF、提取重点章节、调用当前 AI 模型生成总结并保存到本地 |
 | `openCompanyReport` | `company-reports:open` | 校验巨潮资讯 HTTPS 链接后用系统浏览器打开原始 PDF |
 | `getValuationHistory` | `valuation-history:get` | 按股票返回近五年 PE TTM/PB正值序列，主进程按日缓存供市场观察和长期 AI 计算历史分位 |
 | `refreshQuotes` | `quotes:refresh` | 向统一调度器提交手动全量刷新 |

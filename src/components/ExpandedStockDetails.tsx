@@ -9,6 +9,7 @@ import {
   CircleMinus,
   CircleX,
   Database,
+  GraduationCap,
   Layers,
   Radar,
   RefreshCw,
@@ -65,7 +66,7 @@ import type {
 } from '../shared/types'
 import { FundsFlowPanel } from './FundsFlowPanel'
 import { ChipDistributionPanel } from './ChipDistributionPanel'
-import { CompanyReportLibrary } from './CompanyReportLibrary'
+import { CompanyReportLibrary, FundamentalReadingGuide } from './CompanyReportLibrary'
 import { OrderBookPanel } from './OrderBookPanel'
 import type { KlineVisibleRange, KlineVisibleRangeSource } from './PeriodKlineChart'
 import type { MarketInsightSnapshot } from '../modules/market-insight/shared/types'
@@ -829,6 +830,8 @@ function FundamentalPanel({
   generatedAt?: string
   staleReason?: string | null
 }) {
+  const [showReadingGuide, setShowReadingGuide] = useState(false)
+
   if (!evaluation) {
     return (
       <div className="fundamental-tab-empty" role="status">
@@ -859,7 +862,7 @@ function FundamentalPanel({
 
       <div className="fundamental-detail-conclusion-card">
         <span className="fundamental-detail-icon"><Building2 size={20} /></span>
-        <span>
+        <span className="fundamental-detail-conclusion-copy">
           <small>{organizationLabel} · {company.industryName || '行业未知'}</small>
           <strong>
             {eligibleOrganization
@@ -876,7 +879,18 @@ function FundamentalPanel({
               : '以下财务数据仍然展示，但资产负债结构不与普通企业直接比较。'}
           </em>
         </span>
+        <button
+          className="fundamental-reading-guide-button"
+          type="button"
+          onClick={() => setShowReadingGuide((visible) => !visible)}
+          aria-expanded={showReadingGuide}
+        >
+          <GraduationCap size={16} />
+          {showReadingGuide ? '收起指南' : '基本面怎么看'}
+        </button>
       </div>
+
+      {showReadingGuide ? <FundamentalReadingGuide evaluation={evaluation} /> : null}
 
       <div className="fundamental-evidence-grid">
         <section>
@@ -1413,7 +1427,7 @@ export function ExpandedStockDetails({
           />
         </div>
       ) : activeTab === 'reports' ? (
-        <CompanyReportLibrary stock={stock} fundamentalEvaluation={fundamentalScreening} />
+        <CompanyReportLibrary stock={stock} />
       ) : priceTab ? (
         <div className="trend-tab-panel" role="tabpanel">
           <div className="overview-header">
