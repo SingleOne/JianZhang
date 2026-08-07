@@ -894,6 +894,33 @@ export interface FundamentalValuationSnapshot {
   priceBookIndustrySampleSize: number
 }
 
+export type CompanyReportType = 'annual' | 'semiannual' | 'firstQuarter' | 'thirdQuarter'
+
+export type CompanyReportVariant = 'full' | 'summary' | 'english'
+
+export interface CompanyReportItem {
+  id: string
+  code: string
+  title: string
+  reportType: CompanyReportType
+  reportYear: number
+  variant: CompanyReportVariant
+  amended: boolean
+  publishedAt: string
+  url: string
+}
+
+export interface CompanyReportLibraryResult {
+  code: string
+  source: '巨潮资讯'
+  periodStart: string
+  periodEnd: string
+  fetchedAt: string
+  fromCache: boolean
+  warning?: string
+  reports: CompanyReportItem[]
+}
+
 export interface FundamentalCompany {
   code: string
   name: string
@@ -1275,6 +1302,8 @@ export interface StockDesktopApi {
   getFundamentalState: () => Promise<DataSnapshotRuntimeState>
   getFundamentalChangeReport: () => Promise<FundamentalChangeReport | null>
   runFundamentalUpdate: () => Promise<FundamentalUpdateResult>
+  getCompanyReports: (code: string, forceRefresh?: boolean) => Promise<CompanyReportLibraryResult>
+  openCompanyReport: (url: string) => Promise<void>
   getValuationHistory: (quoteId: string) => Promise<StockValuationHistory>
   refreshQuotes: () => Promise<StockQuote[]>
   getKline: (quoteId: string, period: KlinePeriod, limit?: number) => Promise<KlineResult>

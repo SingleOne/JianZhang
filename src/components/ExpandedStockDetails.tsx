@@ -2,6 +2,7 @@ import {
   AlertCircle,
   BarChart3,
   Bot,
+  BookOpen,
   Building2,
   Calculator,
   CircleCheck,
@@ -64,6 +65,7 @@ import type {
 } from '../shared/types'
 import { FundsFlowPanel } from './FundsFlowPanel'
 import { ChipDistributionPanel } from './ChipDistributionPanel'
+import { CompanyReportLibrary } from './CompanyReportLibrary'
 import { OrderBookPanel } from './OrderBookPanel'
 import type { KlineVisibleRange, KlineVisibleRangeSource } from './PeriodKlineChart'
 import type { MarketInsightSnapshot } from '../modules/market-insight/shared/types'
@@ -82,7 +84,7 @@ const AiTAdvicePanel = __JIANZHANG_AI_T_ADVICE_MODULE_ENABLED__
   : null
 
 type PriceTab = Exclude<KlinePeriod, 'intraday'> | 'trend'
-type DetailTab = PriceTab | 'dividendFinancing' | 'fundamental' | 'funds' | 'sector' | 'insight' | 'ai' | 't-advice'
+type DetailTab = PriceTab | 'dividendFinancing' | 'fundamental' | 'reports' | 'funds' | 'sector' | 'insight' | 'ai' | 't-advice'
 type HistoricalPeriod = Extract<KlinePeriod, 'daily' | 'weekly' | 'monthly'>
 
 interface KlineCacheEntry {
@@ -1316,6 +1318,16 @@ export function ExpandedStockDetails({
           基本面
         </button>
         <button
+          className={activeTab === 'reports' ? 'is-active' : ''}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'reports'}
+          onClick={() => setActiveTab('reports')}
+        >
+          <BookOpen size={15} />
+          财报库
+        </button>
+        <button
           className={activeTab === 'funds' ? 'is-active' : ''}
           type="button"
           role="tab"
@@ -1401,6 +1413,8 @@ export function ExpandedStockDetails({
             staleReason={fundamentalStaleReason}
           />
         </div>
+      ) : activeTab === 'reports' ? (
+        <CompanyReportLibrary stock={stock} fundamentalEvaluation={fundamentalScreening} />
       ) : priceTab ? (
         <div className="trend-tab-panel" role="tabpanel">
           <div className="overview-header">

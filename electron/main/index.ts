@@ -30,6 +30,7 @@ import {
   setMarketRequestLogger
 } from './market'
 import { ChipDistributionCache } from './chip-distribution-cache'
+import { CompanyReportService } from './company-report-service'
 import { DailyMarketScanService } from './daily-market-scan-service'
 import { DividendFinancingService } from './dividend-financing-service'
 import { FundsFlowHub } from './funds-flow-hub'
@@ -121,6 +122,7 @@ let klineHub: KlineHub | null = null
 let disposeIpcHandlers: (() => void) | null = null
 let dividendFinancingService: DividendFinancingService | null = null
 let fundamentalDataService: FundamentalDataService | null = null
+let companyReportService: CompanyReportService | null = null
 let valuationHistoryService: ValuationHistoryService | null = null
 let dailyMarketScanService: DailyMarketScanService | null = null
 
@@ -258,6 +260,7 @@ if (!hasSingleInstanceLock) {
       (progress) => sendToWindows('fundamentals:update-progress', progress),
       (snapshotState) => sendToWindows('fundamentals:state-updated', snapshotState)
     )
+    companyReportService = new CompanyReportService(app.getPath('userData'))
     const marketRequestLogger = new MarketRequestLogger(join(app.getPath('userData'), 'logs'))
     setMarketRequestLogger(marketRequestLogger)
     chipDistributionCache = new ChipDistributionCache(marketCacheDirectory)
@@ -330,6 +333,8 @@ if (!hasSingleInstanceLock) {
       getFundamentalState: () => fundamentalDataService!.getState(),
       getFundamentalChangeReport: () => fundamentalDataService!.getChangeReport(),
       runFundamentalUpdate: () => fundamentalDataService!.runUpdate(),
+      getCompanyReports: (code, forceRefresh) => companyReportService!.get(code, forceRefresh),
+      openCompanyReport: (url) => companyReportService!.open(url),
       getValuationHistory: (quoteId) => valuationHistoryService!.get(quoteId),
       refreshQuotes: (reason) => quoteRuntime!.refreshAll(reason),
       refreshQuotesAutomatically: (reason) => quoteRuntime!.refreshAutomatically(reason),

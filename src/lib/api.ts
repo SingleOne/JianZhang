@@ -10,6 +10,7 @@ import {
   normalizeWatchlistGroups,
   type AppState,
   type BootstrapResult,
+  type CompanyReportLibraryResult,
   type ConfigImportResult,
   type DataSnapshotRuntimeState,
   type DailyMarketScanResult,
@@ -362,6 +363,39 @@ const DEMO_FUNDAMENTAL_SNAPSHOT: FundamentalSnapshot = {
   rows: []
 }
 
+const DEMO_COMPANY_REPORTS: CompanyReportLibraryResult = {
+  code: '600519',
+  source: '巨潮资讯',
+  periodStart: '2017-01-01',
+  periodEnd: '2026-08-07',
+  fetchedAt: '2026-08-07T08:00:00.000Z',
+  fromCache: false,
+  reports: [
+    {
+      id: 'demo-annual',
+      code: '600519',
+      title: '贵州茅台2025年年度报告',
+      reportType: 'annual',
+      reportYear: 2025,
+      variant: 'full',
+      amended: false,
+      publishedAt: '2026-04-03T00:00:00.000Z',
+      url: 'https://www.cninfo.com.cn/'
+    },
+    {
+      id: 'demo-semiannual',
+      code: '600519',
+      title: '贵州茅台2025年半年度报告',
+      reportType: 'semiannual',
+      reportYear: 2025,
+      variant: 'full',
+      amended: false,
+      publishedAt: '2025-08-13T00:00:00.000Z',
+      url: 'https://www.cninfo.com.cn/'
+    }
+  ]
+}
+
 function demoSnapshotState(
   snapshot: DividendFinancingSnapshot | FundamentalSnapshot,
   periodLabel: string
@@ -420,6 +454,16 @@ const demoApi: StockDesktopApi = {
   },
   async runFundamentalUpdate() {
     throw new Error('基本面财务数据更新脚本仅能在 Windows 桌面版中运行')
+  },
+  async getCompanyReports(code) {
+    return {
+      ...DEMO_COMPANY_REPORTS,
+      code,
+      reports: DEMO_COMPANY_REPORTS.reports.map((report) => ({ ...report, code }))
+    }
+  },
+  async openCompanyReport(url) {
+    window.open(url, '_blank', 'noopener,noreferrer')
   },
   async getValuationHistory(quoteId) {
     return {

@@ -36,6 +36,7 @@
 | [`electron/main/market-request-logger.ts`](../../electron/main/market-request-logger.ts) | `MarketRequestLogger` | 行情请求/报价轮次 JSONL 日志和启动时 7 天清理 |
 | [`electron/main/dividend-financing-service.ts`](../../electron/main/dividend-financing-service.ts) | `DividendFinancingService` | 分红融资用户快照、首次缺失更新、变化报告和过期状态 |
 | [`electron/main/fundamental-data-service.ts`](../../electron/main/fundamental-data-service.ts) | `FundamentalDataService` | 基本面用户快照、首次缺失更新、最近一次变化报告、过期状态和四阶段脚本调度 |
+| [`electron/main/company-report-service.ts`](../../electron/main/company-report-service.ts) | `CompanyReportService` | 巨潮近十年定期报告查询、按股目录缓存和官方 PDF 安全打开 |
 | [`electron/main/python-task-queue.ts`](../../electron/main/python-task-queue.ts) | `PythonTaskQueue` | 财务抓取脚本串行、Python/requests 环境检查和进程输出转发 |
 | [`electron/main/order-book-hub.ts`](../../electron/main/order-book-hub.ts) | `OrderBookHub` | 统一盘口请求、进行中请求复用、短时缓存和串行错峰 |
 | [`electron/main/funds-flow-hub.ts`](../../electron/main/funds-flow-hub.ts) | `FundsFlowHub` | 资金流请求合并、2 分钟/收盘缓存和串行队列 |
@@ -75,6 +76,7 @@
 | [`src/lib/api.ts`](../../src/lib/api.ts) | `stockApi`、`demoApi` | 桌面 API 选择、浏览器演示行情和演示存储 |
 | [`src/lib/daily-market-scan.ts`](../../src/lib/daily-market-scan.ts) | `createDailyMarketScanRow` | 20 日量价异动和反转信号计算 |
 | [`src/lib/fundamentals.ts`](../../src/lib/fundamentals.ts) | `parseFundamentalSnapshot` | 基本面快照格式解析 |
+| [`src/lib/company-reports.ts`](../../src/lib/company-reports.ts) | 财报类型标签、财年/版本识别和排序 | 巨潮披露元数据规范化 |
 | [`src/lib/dcf-analysis.ts`](../../src/lib/dcf-analysis.ts) | `createDcfAnalysis` | 普通企业简化 DCF、每股估值、现价差异和70%警戒线判断 |
 | [`src/lib/fundamental-screening.ts`](../../src/lib/fundamental-screening.ts) | `evaluateFundamentalCompany`、`evaluateFundamentalQuality`、`evaluateFundamentalRisk`、`classifyFundamentalDividendCategory`、`summarizeFundamentalDividendWatchlist`、`createFundamentalPeerComparisonMap`、`createFundamentalChangeReport` | 三项透明硬筛选、六类固定质量标签、六类风险提示、基本面与分红融资互斥分类、主表概览、同行指标排名和默认规则快照变化 |
 | [`src/lib/data-snapshot-status.ts`](../../src/lib/data-snapshot-status.ts) | `dividendFinancingStaleReason`、`fundamentalStaleReason` | 两类财务快照的过期判断和完整财年边界 |
@@ -97,6 +99,7 @@
 | [`src/components/SearchBar.tsx`](../../src/components/SearchBar.tsx) | 股票代码/名称搜索和添加 |
 | [`src/components/SettingsMenu.tsx`](../../src/components/SettingsMenu.tsx) | 行情、做 T、系统与数据设置 |
 | [`src/components/FundamentalScreeningDialog.tsx`](../../src/components/FundamentalScreeningDialog.tsx) | 基本面筛选条件、质量与风险高级筛选、候选公司、五年财务证据和自选联动 |
+| [`src/components/CompanyReportLibrary.tsx`](../../src/components/CompanyReportLibrary.tsx) | 个股近十年财报目录、筛选、官方原文入口和基本面阅读指南 |
 | [`src/components/DailyMarketScanDialog.tsx`](../../src/components/DailyMarketScanDialog.tsx) | 收盘扫描汇总、信号分类、进度、分页和自选联动 |
 | [`src/components/PortfolioQualityDialog.tsx`](../../src/components/PortfolioQualityDialog.tsx) | 全部持仓价值类型、具体风险、行业结构、组合筛选、未计价说明和主表定位 |
 | [`src/components/WatchlistTable.tsx`](../../src/components/WatchlistTable.tsx) | 自选主表、排序、列、异动、展开详情和操作入口 |

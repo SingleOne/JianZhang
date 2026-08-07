@@ -17,6 +17,7 @@ import { createConfigDocument, parseConfigDocument } from '../../src/shared/conf
 import type {
   AppState,
   ChipDistributionCacheEntry,
+  CompanyReportLibraryResult,
   DataSnapshotRuntimeState,
   DailyMarketScanResult,
   DailyMarketScanState,
@@ -56,6 +57,8 @@ interface IpcHandlerDependencies {
   getFundamentalState: () => DataSnapshotRuntimeState
   getFundamentalChangeReport: () => FundamentalChangeReport | null
   runFundamentalUpdate: () => Promise<FundamentalUpdateResult>
+  getCompanyReports: (code: string, forceRefresh?: boolean) => Promise<CompanyReportLibraryResult>
+  openCompanyReport: (url: string) => Promise<void>
   getValuationHistory: (quoteId: string) => Promise<StockValuationHistory>
   refreshQuotes: (reason?: string) => Promise<StockQuote[]>
   refreshQuotesAutomatically: (reason: string) => Promise<StockQuote[]>
@@ -91,6 +94,8 @@ const CHANNELS = [
   'fundamentals:state:get',
   'fundamentals:changes:get',
   'fundamentals:update',
+  'company-reports:get',
+  'company-reports:open',
   'valuation-history:get',
   'quotes:refresh',
   'kline:get',
@@ -137,6 +142,10 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
   ipcMain.handle('fundamentals:state:get', () => dependencies.getFundamentalState())
   ipcMain.handle('fundamentals:changes:get', () => dependencies.getFundamentalChangeReport())
   ipcMain.handle('fundamentals:update', () => dependencies.runFundamentalUpdate())
+  ipcMain.handle('company-reports:get', (_event, code: string, forceRefresh?: boolean) =>
+    dependencies.getCompanyReports(code, forceRefresh)
+  )
+  ipcMain.handle('company-reports:open', (_event, url: string) => dependencies.openCompanyReport(url))
   ipcMain.handle('valuation-history:get', (_event, quoteId: string) =>
     dependencies.getValuationHistory(quoteId)
   )
