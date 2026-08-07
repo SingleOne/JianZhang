@@ -210,6 +210,15 @@ export default function App() {
   }, [notice])
 
   useEffect(() => {
+    const showAppNotice = (event: Event) => {
+      const message = (event as CustomEvent<string>).detail
+      if (message) reportSuccess(message)
+    }
+    window.addEventListener('app:notice', showAppNotice)
+    return () => window.removeEventListener('app:notice', showAppNotice)
+  }, [reportSuccess])
+
+  useEffect(() => {
     const openWithStockContext = (event: Event) => {
       const detail = (event as CustomEvent<{ quoteId: string; quoteName?: string }>).detail
       if (!detail?.quoteId) return

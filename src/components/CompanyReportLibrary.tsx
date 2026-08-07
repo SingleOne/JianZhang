@@ -333,6 +333,11 @@ export function CompanyReportLibrary({ stock }: { stock: WatchStock }) {
         reportLibraryCache.set(stock.code, next)
         return next
       })
+      window.dispatchEvent(
+        new CustomEvent('app:notice', {
+          detail: `${stock.name} ${report.reportYear} 年${COMPANY_REPORT_TYPE_LABELS[report.reportType]} AI 总结已生成并保存`
+        })
+      )
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'AI 财报总结生成失败')
     } finally {
