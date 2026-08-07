@@ -306,8 +306,7 @@ function DividendFinancingDeepDetails({ item }: { item: DividendFinancingRanking
   }
 
   return (
-    <details className="dividend-financing-history">
-      <summary>展开年度分红、融资事件与评分明细</summary>
+    <section className="dividend-financing-history">
       <div className="dividend-financing-deep-metrics">
         <div><span>近3年分红</span><strong>{item.recent3YearDividendYi === undefined ? '--' : dividendAmount(item.recent3YearDividendYi)}</strong></div>
         <div><span>近5年分红</span><strong>{item.recent5YearDividendYi === undefined ? '--' : dividendAmount(item.recent5YearDividendYi)}</strong></div>
@@ -369,7 +368,7 @@ function DividendFinancingDeepDetails({ item }: { item: DividendFinancingRanking
           <p className="dividend-score-note">评分只比较本期分红融资比超过100%的股票，用于解释历史股东回报质量，不代表未来收益。</p>
         </section>
       </div>
-    </details>
+    </section>
   )
 }
 

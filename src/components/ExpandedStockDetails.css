@@ -88,23 +88,11 @@
   font-size: 12px;
 }
 
-.dividend-financing-history > summary {
-  min-height: 36px;
-  display: flex;
-  align-items: center;
-  padding: 0 11px;
-  color: #526176;
-  font-size: 12px;
-  font-weight: 700;
-  list-style-position: inside;
-  cursor: pointer;
-}
-
 .dividend-financing-deep-metrics {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 7px;
-  padding: 0 10px 10px;
+  padding: 10px;
 }
 
 .dividend-financing-deep-metrics > div {
