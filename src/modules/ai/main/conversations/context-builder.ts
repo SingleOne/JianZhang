@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type { MarketInsightSnapshot } from '../../../market-insight/shared/types'
 import type { ChipDistributionCacheEntry } from '../../../../shared/types'
 import type { AiMessage, AiProviderRequestMessage } from '../../shared/types'
@@ -30,6 +31,41 @@ function snapshotId(
   return `${snapshot.quoteId}:${snapshot.generatedAt}:${chipDistribution?.calculatedAt ?? 'no-chip'}`
 }
 
+function compactIndicators(
+  groups: ReadonlyArray<readonly [string, MarketInsightSnapshot['indicators']['technical']]>
+): CompactMarketSnapshot['indicators'] {
+  return groups.flatMap(([group, values]) => values.map((value) => ({
+    group,
+    name: value.label,
+    value: value.value,
+    unit: value.unit,
+    state: value.state,
+    sourcePeriod: value.sourcePeriod
+  })))
+}
+
+function compactNews(snapshot: MarketInsightSnapshot): CompactMarketSnapshot['news'] {
+  return snapshot.news.map((item) => ({
+    id: item.id,
+    title: item.title,
+    source: item.source,
+    publishedAt: item.publishedAt,
+    url: item.url,
+    category: item.category
+  }))
+}
+
+function compactEvents(
+  events: MarketInsightSnapshot['events']
+): CompactMarketSnapshot['events'] {
+  return events.map((item) => ({
+    title: item.title,
+    facts: item.facts,
+    occurredAt: item.occurredAt,
+    severity: item.severity
+  }))
+}
+
 export function compactMarketSnapshot(
   snapshot: MarketInsightSnapshot,
   chipDistribution: ChipDistributionCacheEntry | null
@@ -50,28 +86,48 @@ export function compactMarketSnapshot(
     dataCutoffAt: snapshot.dataCutoffAt,
     dataState: snapshot.dataState,
     chipDistribution,
-    indicators: groups.flatMap(([group, values]) => values.map((value) => ({
-      group,
-      name: value.label,
-      value: value.value,
-      unit: value.unit,
-      state: value.state,
-      sourcePeriod: value.sourcePeriod
-    }))),
-    news: snapshot.news.map((item) => ({
-      id: item.id,
-      title: item.title,
-      source: item.source,
-      publishedAt: item.publishedAt,
-      url: item.url,
-      category: item.category
-    })),
-    events: snapshot.events.map((item) => ({
-      title: item.title,
-      facts: item.facts,
-      occurredAt: item.occurredAt,
-      severity: item.severity
-    }))
+    indicators: compactIndicators(groups),
+    news: compactNews(snapshot),
+    events: compactEvents(snapshot.events)
+  }
+}
+
+export function compactShortTermSnapshot(
+  snapshot: MarketInsightSnapshot,
+  chipDistribution: ChipDistributionCacheEntry | null
+): CompactMarketSnapshot {
+  const indicators = compactIndicators([
+    ['technical', snapshot.indicators.technical],
+    ['trend', snapshot.indicators.trend],
+    ['momentum', snapshot.indicators.momentum],
+    ['volatility', snapshot.indicators.volatility]
+  ])
+  const news = compactNews(snapshot)
+  const events = compactEvents(snapshot.events.filter((event) => event.type === 'new_announcement'))
+  const dailySource = snapshot.sourceStates?.find((source) => source.id === 'daily')
+  const dataCutoffAt = dailySource?.dataCutoffAt ?? snapshot.dataCutoffAt
+  const dataState = dailySource && dailySource.state !== 'unavailable'
+    ? dailySource.state
+    : snapshot.dataState
+  const fingerprint = createHash('sha256').update(JSON.stringify({
+    quoteId: snapshot.quoteId,
+    dataCutoffAt,
+    dataState,
+    indicators,
+    news,
+    events,
+    chipDistribution
+  })).digest('hex').slice(0, 20)
+  return {
+    snapshotId: `${snapshot.quoteId}:short-term:${fingerprint}`,
+    quoteId: snapshot.quoteId,
+    generatedAt: snapshot.generatedAt,
+    dataCutoffAt,
+    dataState,
+    chipDistribution,
+    indicators,
+    news,
+    events
   }
 }
 

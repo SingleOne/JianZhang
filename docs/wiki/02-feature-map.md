@@ -42,7 +42,7 @@
 | 交易日历 | `SettingsMenu.tsx` | `countAStockTradingDays` | `fetchSseTradingCalendar` |
 | 市场观察 | `MarketInsightPanel.tsx`、`InvestmentValueMetrics.tsx` | 确定性指标、公告/要闻、客观事件，以及 PE TTM/PB历史与行业分位、总市值、流通市值、自由现金流、ROIC和净负债；金融企业显示不适用 | 实时行情 + schema v5 基本面快照 + 按需估值历史 + 独立 `market-insight` 模块 |
 | AI 对话与 `@股票` | `AiAssistantDrawer.tsx` | 最近消息上下文、按股票快照引用 | 独立 `ai` 模块和存储 |
-| AI 短期行情、长期价值与做 T 参考 | `AiAnalysisPanel.tsx`、`long-term-context.ts`、`TAdvicePanel.tsx` | 短期市场快照与长期上下文隔离；长期加入应用统一口径 DCF，固定输出企业质量、财务安全、当前价格，并分别评价长期价值与当前时机；DCF/现价低于70%时强制进入价格风险 | `ai` / `ai-t-advice` 模块 |
+| AI 短期行情、长期价值与做 T 参考 | `AiAnalysisPanel.tsx`、`context-builder.ts`、`long-term-context.ts`、`TAdvicePanel.tsx` | 短期只发送日 K 指标、新闻、公告事件和筹码，排除分时与盘口；长期上下文隔离并加入应用统一口径 DCF，固定输出企业质量、财务安全、当前价格，分别评价长期价值与当前时机 | `ai` / `ai-t-advice` 模块 |
 | 浏览器演示模式 | 全部 React 组件 | `src/lib/api.ts` | 演示数据 + `localStorage` |
 
 ## 自选股

@@ -149,7 +149,7 @@
 | 目录/文件 | 职责 |
 | --- | --- |
 | [`src/modules/market-insight`](../../src/modules/market-insight/) | 确定性指标、客观事件、公告/要闻、快照和独立调度/存储 |
-| [`src/modules/ai`](../../src/modules/ai/) | Provider、加密凭证、会话、`@股票` 上下文、短期行情/长期价值分析和独立 IPC/UI |
+| [`src/modules/ai`](../../src/modules/ai/) | Provider、加密凭证、会话、`@股票` 完整市场上下文、日 K 尺度短期行情/长期价值分析和独立 IPC/UI |
 | [`src/modules/ai/main/conversations/context-builder.ts`](../../src/modules/ai/main/conversations/context-builder.ts) | 最近消息与多股票快照组装，加入筹码分布缓存 |
 | [`src/modules/ai/main/analysis/long-term-context.ts`](../../src/modules/ai/main/analysis/long-term-context.ts) | 组合五年财务、简化 DCF、分红融资、PE/PB历史/行业分位及长期价格强弱，生成长期价值快照指纹 |
 | [`src/modules/ai/main/analysis/long-term-interpretation.ts`](../../src/modules/ai/main/analysis/long-term-interpretation.ts) | 校验企业质量、财务安全、当前价格和双结论固定结构 |

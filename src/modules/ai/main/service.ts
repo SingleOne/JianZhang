@@ -34,6 +34,7 @@ import type {
 } from '../shared/types'
 import {
   compactMarketSnapshot,
+  compactShortTermSnapshot,
   toProviderMessages,
   type AiChatStockContext,
   type CompactMarketSnapshot
@@ -378,10 +379,10 @@ export class AiService {
     const settings = this.storage.getSettings()
     if (!settings.enabled) throw new Error('AI 助手当前已关闭')
     const credential = this.getCredential(settings.providerId)
-    report('loading-snapshot', '正在读取市场观察快照', '加载当前股票的指标、新闻、客观观察事件与最后一次筹码分布。')
+    report('loading-snapshot', '正在读取日 K 行情快照', '加载当前股票的日 K 指标、新闻、公告事件与最后一次筹码分布。')
     const snapshot = await this.dependencies.getMarketInsightSnapshot(quoteId)
     if (!snapshot) throw new Error('当前还没有可解读的市场观察快照，请先打开市场观察并刷新')
-    const compact = this.persistCompactSnapshot(snapshot)
+    const compact = this.persistShortTermSnapshot(snapshot)
     const cacheKey = `${compact.snapshotId}:${settings.providerId}:${settings.model}:${AI_PROMPT_VERSION}`
     report('checking-cache', '正在检查已有分析', '相同快照和模型已有结果时将直接使用本地缓存。')
     const cached = this.storage.getInterpretation<AiInterpretation>(cacheKey)
@@ -405,7 +406,7 @@ export class AiService {
     }
     const provider = this.requireProvider(settings.providerId)
     const controller = new AbortController()
-    report('analyzing', 'AI 正在生成快照解读', `正在调用 ${settings.model} 分析指标、新闻、观察事件与筹码分布。`)
+    report('analyzing', 'AI 正在生成短期行情解读', `正在调用 ${settings.model} 按日 K 尺度分析技术指标、新闻、公告事件与筹码分布。`)
     const result = await provider.streamChat(credential, {
       model: settings.model,
       messages: [
@@ -668,6 +669,15 @@ export class AiService {
 
   private persistCompactSnapshot(snapshot: MarketInsightSnapshot): CompactMarketSnapshot {
     const compact = compactMarketSnapshot(
+      snapshot,
+      this.dependencies.getChipDistributionCache(snapshot.quoteId)
+    )
+    this.storage.saveSnapshot(compact.snapshotId, compact)
+    return compact
+  }
+
+  private persistShortTermSnapshot(snapshot: MarketInsightSnapshot): CompactMarketSnapshot {
+    const compact = compactShortTermSnapshot(
       snapshot,
       this.dependencies.getChipDistributionCache(snapshot.quoteId)
     )

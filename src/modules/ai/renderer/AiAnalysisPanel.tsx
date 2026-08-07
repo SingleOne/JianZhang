@@ -256,7 +256,7 @@ export function AiAnalysisPanel({ stock, quote }: AiAnalysisPanelProps) {
           <span><h3>AI 分析</h3></span>
           <span className="ai-analysis-disclaimer">
             {analysisType === 'short-term'
-              ? '短期行情只读取市场指标、新闻、事件和筹码，不使用基本面结论。'
+              ? '短期行情只读取日 K 指标、新闻、公告事件和筹码，不使用分时、盘口或基本面结论。'
               : '长期价值分别判断经营质量、估值和价格时机；股价强弱不会改变企业质量结论。'}
             {quote?.updatedAt ? ` 当前行情更新时间：${new Date(quote.updatedAt).toLocaleString('zh-CN')}` : ''}
           </span>
@@ -268,7 +268,7 @@ export function AiAnalysisPanel({ stock, quote }: AiAnalysisPanelProps) {
       </header>
 
       <div className="ai-analysis-mode-tabs" role="tablist" aria-label="AI 分析周期">
-        <button className={analysisType === 'short-term' ? 'is-active' : ''} type="button" role="tab" aria-selected={analysisType === 'short-term'} onClick={() => setAnalysisType('short-term')}><ChartNoAxesCombined size={16} /><span><strong>短期行情</strong><small>行情、技术、新闻与筹码</small></span></button>
+        <button className={analysisType === 'short-term' ? 'is-active' : ''} type="button" role="tab" aria-selected={analysisType === 'short-term'} onClick={() => setAnalysisType('short-term')}><ChartNoAxesCombined size={16} /><span><strong>短期行情</strong><small>日 K、新闻、公告与筹码</small></span></button>
         <button className={analysisType === 'long-term' ? 'is-active' : ''} type="button" role="tab" aria-selected={analysisType === 'long-term'} onClick={() => setAnalysisType('long-term')}><Landmark size={16} /><span><strong>长期价值</strong><small>财务、估值、股东回报与价格时机</small></span></button>
       </div>
 
@@ -297,7 +297,7 @@ export function AiAnalysisPanel({ stock, quote }: AiAnalysisPanelProps) {
           ? <ShortTermResult result={currentResult as AiInterpretationResult} />
           : <LongTermResult result={currentResult as AiLongTermInterpretationResult} />
         : !loading && !restoring
-          ? <div className="ai-analysis-empty"><Sparkles size={26} /><strong>按需分析，不自动调用模型</strong><span>{analysisType === 'short-term' ? '短期行情读取市场观察快照，不混入长期基本面判断。' : '长期价值读取财务、估值和长期价格位置，不使用分时、盘口或筹码。'}</span></div>
+          ? <div className="ai-analysis-empty"><Sparkles size={26} /><strong>按需分析，不自动调用模型</strong><span>{analysisType === 'short-term' ? '短期行情按日 K 尺度读取技术、新闻、公告和筹码，不使用分时或盘口。' : '长期价值读取财务、估值和长期价格位置，不使用分时、盘口或筹码。'}</span></div>
           : null}
     </section>
   )
