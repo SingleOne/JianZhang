@@ -898,10 +898,25 @@ export type CompanyReportType = 'annual' | 'semiannual' | 'firstQuarter' | 'thir
 
 export type CompanyReportVariant = 'full' | 'summary' | 'english'
 
+export interface CompanyReportSummarySections {
+  managementDiscussion: string | null
+  auditOpinion: string | null
+  financialStatementNotes: string | null
+  aiConclusion: string
+}
+
 export interface CompanyReportSummary {
   reportId: string
   code: string
   content: string
+  managementDiscussion?: string | null
+  auditOpinion?: string | null
+  financialStatementNotes?: string | null
+  aiConclusion?: string
+  reportTitle?: string
+  reportType?: CompanyReportType
+  reportYear?: number
+  publishedAt?: string
   generatedAt: string
   providerId: string
   model: string

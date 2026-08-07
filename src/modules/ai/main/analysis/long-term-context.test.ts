@@ -247,6 +247,45 @@ describe('long-term AI context', () => {
     expect(weak.snapshotId).not.toBe(strong.snapshotId)
   })
 
+  it('includes saved report summaries without report source text', () => {
+    const context = buildLongTermContext({
+      quoteId: '1.600000',
+      quote: quote(),
+      dailyKline: dailyKline(),
+      valuationHistory: valuationHistory(),
+      fundamentalSnapshot: fundamentalSnapshot(),
+      fundamentalState: readyState,
+      dividendSnapshot: dividendSnapshot(),
+      dividendState: readyState,
+      companyReportSummaries: [{
+        reportId: 'annual-2025',
+        code: '600000',
+        content: '经营稳定，但仍需关注现金流',
+        managementDiscussion: '主营业务保持增长',
+        auditOpinion: '标准无保留意见',
+        financialStatementNotes: '应收账款减值增加',
+        aiConclusion: '经营稳定，但仍需关注现金流',
+        reportTitle: '2025年年度报告',
+        reportType: 'annual',
+        reportYear: 2025,
+        publishedAt: '2026-03-30T00:00:00.000Z',
+        generatedAt: '2026-08-07T11:30:00+08:00',
+        providerId: 'deepseek',
+        model: 'deepseek-v4-flash'
+      }],
+      generatedAt: '2026-08-07T11:31:00+08:00'
+    })
+
+    expect(context.companyReportSummaries).toEqual([expect.objectContaining({
+      reportYear: 2025,
+      managementDiscussion: '主营业务保持增长',
+      auditOpinion: '标准无保留意见',
+      financialStatementNotes: '应收账款减值增加',
+      aiConclusion: '经营稳定，但仍需关注现金流'
+    })])
+    expect(JSON.stringify(context.companyReportSummaries)).not.toContain('excerpt')
+  })
+
   it('excludes ordinary corporate cash flow, ROIC and net debt for financial companies', () => {
     const financialSnapshot = fundamentalSnapshot()
     financialSnapshot.rows[0].organizationType = 'bank'

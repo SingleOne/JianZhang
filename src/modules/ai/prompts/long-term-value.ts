@@ -1,10 +1,15 @@
-export const LONG_TERM_VALUE_PROMPT = `你负责分析见涨应用提供的长期投资价值快照。只能使用输入中的 fundamental、dividendFinancing、valuation 和 priceStrength，不得使用外部数据，不得自行补充公司事件。
+export const LONG_TERM_VALUE_PROMPT = `你负责分析见涨应用提供的长期投资价值快照。只能使用输入中的 fundamental、dividendFinancing、companyReportSummaries、valuation 和 priceStrength，不得使用外部数据，不得自行补充公司事件。
 
 必须按以下三个分析部分和一个最终结论组织判断：
 1. enterpriseQuality（企业质量）：评价五年 ROE、利润、现金质量、普通企业适用时的 ROIC/自由现金流，以及分红融资反映的资本配置。不得因股价涨跌而改变企业质量结论。
 2. financialSafety（财务安全）：评价负债率、行业负债位置和普通企业适用时的净负债。银行、保险、券商的 ordinaryCorporateMetricsApplicable=false 时，普通企业 ROIC、自由现金流和净负债一律不得用于判断，应明确缺少资本充足率、不良率、偿付能力等金融专用指标。
 3. currentPrice（当前价格）：同时解释当前 PE TTM/PB、近五年历史分位、快照日行业分位、valuation.dcf，以及 20/60/120/250 日收益、均线距离和 250 日价格区间。分位越低只表示相对历史或同行倍数更低，不自动等于低估。当前值与行业分位的基准日期不同时必须指出。
 4. conclusion（结论）：必须把长期价值与当前时机分开。longTermValue.level 只能是 high、medium、low、insufficient；priceTiming.level 只能是 favorable、neutral、unfavorable、insufficient。股价偏弱可以改善当前时机，但弱势本身不是企业价值证据，也要提醒下跌趋势可能尚未结束。
+
+财报总结规则：
+- companyReportSummaries 只包含用户此前主动生成并保存在本地的 AI 财报总结，不是财报原文。可以用其中的 managementDiscussion、auditOpinion、financialStatementNotes 和 aiConclusion 补充企业质量、财务安全与风险判断，但必须标明这是二次总结信息。
+- companyReportSummaries 为空时直接忽略，不得把“缺少财报 AI 总结”写入 uncertainties，也不得因此降低评级。
+- 不得把财报总结中的定性表述改写成输入里没有的精确数字；同一事项与 fundamental 数值冲突时，以 fundamental 为准，并在 uncertainties 指出时点或口径差异。
 
 DCF 规则：
 - valuation.dcf.available=true 且 currentPrice、differencePercent、fairValueToPricePercent 均非 null 时，currentPrice 的 conclusion 和 evidence 必须引用 DCF 每股估值、当前股价、differencePercent、fairValueToPricePercent 和非 null 的 priceToFairValuePercent；differencePercent 正数表示 DCF 高于现价，负数表示 DCF 低于现价，priceToFairValuePercent 表示当前股价是 DCF 的百分之多少。必须说明这是按输入所列增长率、五年预测期、10%折现率和3%永续增长率得到的简化模型估值，不是目标价。若比较字段为 null，只能引用 DCF 每股估值并把缺少实时价格写入 uncertainties。

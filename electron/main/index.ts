@@ -407,7 +407,8 @@ if (!hasSingleInstanceLock) {
         getFundamentalSnapshot: () => fundamentalDataService?.getSnapshot() ?? null,
         getFundamentalState: () => fundamentalDataService!.getState(),
         getDividendFinancingSnapshot: () => dividendFinancingService?.getSnapshot() ?? null,
-        getDividendFinancingState: () => dividendFinancingService!.getState()
+        getDividendFinancingState: () => dividendFinancingService!.getState(),
+        getCompanyReportSummaries: (code) => companyReportService?.getSummaries(code) ?? []
       })
 
       if (__JIANZHANG_AI_T_ADVICE_MODULE_ENABLED__) {

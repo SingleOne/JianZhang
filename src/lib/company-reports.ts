@@ -1,4 +1,9 @@
-import type { CompanyReportItem, CompanyReportType, CompanyReportVariant } from '../shared/types'
+import type {
+  CompanyReportItem,
+  CompanyReportSummarySections,
+  CompanyReportType,
+  CompanyReportVariant
+} from '../shared/types'
 
 export const COMPANY_REPORT_TYPE_LABELS: Record<CompanyReportType, string> = {
   annual: '年报',
@@ -83,10 +88,43 @@ export function createCompanyReportSummaryExcerpt(text: string, maxCharacters = 
     '合并现金流量表',
     '财务报表附注'
   ]
-  const sections = [normalized.slice(0, 12_000)]
-  for (const heading of headings) {
+  const matchedSections = headings.flatMap((heading) => {
     const index = normalized.indexOf(heading)
-    if (index >= 0) sections.push(normalized.slice(index, index + 12_000))
-  }
+    return index >= 0 ? [index] : []
+  })
+  const openingCharacters = Math.min(8_000, Math.floor(maxCharacters / 2))
+  const sectionCharacters = matchedSections.length > 0
+    ? Math.max(1, Math.floor(
+      (maxCharacters - openingCharacters - matchedSections.length * 2) / matchedSections.length
+    ))
+    : 0
+  const sections = [
+    normalized.slice(0, openingCharacters),
+    ...matchedSections.map((index) => normalized.slice(index, index + sectionCharacters))
+  ]
   return sections.join('\n\n').slice(0, maxCharacters)
+}
+
+export function parseCompanyReportSummary(content: string): CompanyReportSummarySections {
+  const json = content.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
+  let raw: unknown
+  try {
+    raw = JSON.parse(json)
+  } catch {
+    throw new Error('AI 没有返回符合要求的财报总结格式')
+  }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error('AI 返回的财报总结格式无效')
+  }
+  const record = raw as Record<string, unknown>
+  const text = (value: unknown): string | null =>
+    typeof value === 'string' && value.trim() ? value.trim() : null
+  const aiConclusion = text(record.aiConclusion)
+  if (!aiConclusion) throw new Error('AI 财报总结缺少综合结论')
+  return {
+    managementDiscussion: text(record.managementDiscussion),
+    auditOpinion: text(record.auditOpinion),
+    financialStatementNotes: text(record.financialStatementNotes),
+    aiConclusion
+  }
 }

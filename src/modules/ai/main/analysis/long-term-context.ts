@@ -12,6 +12,7 @@ import {
   summarizeFundamentalScreening
 } from '../../../../lib/fundamental-screening'
 import type {
+  CompanyReportSummary,
   DataSnapshotRuntimeState,
   DividendFinancingSnapshot,
   FundamentalSnapshot,
@@ -42,6 +43,7 @@ interface LongTermContextInput {
   fundamentalState: DataSnapshotRuntimeState
   dividendSnapshot: DividendFinancingSnapshot | null
   dividendState: DataSnapshotRuntimeState
+  companyReportSummaries?: CompanyReportSummary[]
   generatedAt: string
 }
 
@@ -263,11 +265,25 @@ export function buildLongTermContext(input: LongTermContextInput) {
       lastFinancingDate: dividendItem.lastFinancingDate ?? null
     } : null
   }
+  const companyReportSummaries = (input.companyReportSummaries ?? []).map((summary) => ({
+    reportId: summary.reportId,
+    title: summary.reportTitle ?? null,
+    reportType: summary.reportType ?? null,
+    reportYear: summary.reportYear ?? null,
+    publishedAt: summary.publishedAt ?? null,
+    managementDiscussion: summary.managementDiscussion ?? null,
+    auditOpinion: summary.auditOpinion ?? null,
+    financialStatementNotes: summary.financialStatementNotes ?? null,
+    aiConclusion: summary.aiConclusion ?? summary.content,
+    summaryGeneratedAt: summary.generatedAt,
+    summaryModel: summary.model
+  }))
 
   const snapshotBasis = JSON.stringify({
     quoteId: input.quoteId,
     fundamentalGeneratedAt: fundamental.generatedAt,
     dividendGeneratedAt: dividendFinancing.generatedAt,
+    companyReportSummaries,
     valuation: {
       ...valuation,
       quoteDataAt: undefined,
@@ -288,7 +304,8 @@ export function buildLongTermContext(input: LongTermContextInput) {
     valuation,
     priceStrength,
     fundamental,
-    dividendFinancing
+    dividendFinancing,
+    companyReportSummaries
   }
 }
 

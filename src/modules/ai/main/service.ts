@@ -442,25 +442,29 @@ export class AiService {
     const settings = this.storage.getSettings()
     if (!settings.enabled) throw new Error('AI 助手当前已关闭')
     const credential = this.getCredential(settings.providerId)
-    report('loading-snapshot', '正在读取长期价值数据', '加载五年财务、DCF、分红融资、当前估值和长期价格强弱。')
+    report('loading-snapshot', '正在读取长期价值数据', '加载五年财务、财报 AI 总结、DCF、分红融资、当前估值和长期价格强弱。')
     const fundamentalSnapshot = this.dependencies.getFundamentalSnapshot()
     const dividendSnapshot = this.dependencies.getDividendFinancingSnapshot()
     if (!fundamentalSnapshot && !dividendSnapshot) {
       throw new Error('当前还没有基本面或分红融资快照，长期价值分析暂不可用')
     }
+    const quote = this.dependencies.getLatestQuote(quoteId)
     const [dailyKline, valuationHistory] = await Promise.all([
       this.dependencies.getDailyKline(quoteId, 270).catch(() => null),
       this.dependencies.getValuationHistory(quoteId).catch(() => null)
     ])
     const context: CompactLongTermContext = buildLongTermContext({
       quoteId,
-      quote: this.dependencies.getLatestQuote(quoteId),
+      quote,
       dailyKline,
       valuationHistory,
       fundamentalSnapshot,
       fundamentalState: this.dependencies.getFundamentalState(),
       dividendSnapshot,
       dividendState: this.dependencies.getDividendFinancingState(),
+      companyReportSummaries: quote
+        ? this.dependencies.getCompanyReportSummaries(quote.code)
+        : [],
       generatedAt: now()
     })
     this.storage.saveSnapshot(context.snapshotId, context)

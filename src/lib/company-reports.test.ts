@@ -6,6 +6,7 @@ import {
   isAmendedCompanyReport,
   limitCompanyReportsToRecentYears,
   normalizeCompanyReportTitle,
+  parseCompanyReportSummary,
   sortCompanyReports
 } from './company-reports'
 import type { CompanyReportItem } from '../shared/types'
@@ -63,9 +64,28 @@ describe('company report helpers', () => {
   })
 
   it('selects useful financial report sections for AI summary context', () => {
-    const text = `封面\n${'公司介绍'.repeat(100)}\n管理层讨论与分析\n${'经营保持稳定'.repeat(100)}\n审计报告\n标准无保留意见`
-    const excerpt = createCompanyReportSummaryExcerpt(text)
+    const text = `封面\n${'公司介绍'.repeat(2000)}\n管理层讨论与分析\n${'经营保持稳定'.repeat(2000)}\n审计报告\n标准无保留意见\n${'审计内容'.repeat(2000)}\n财务报表附注\n存在重要减值事项`
+    const excerpt = createCompanyReportSummaryExcerpt(text, 20_000)
     expect(excerpt).toContain('管理层讨论与分析')
     expect(excerpt).toContain('标准无保留意见')
+    expect(excerpt).toContain('存在重要减值事项')
+  })
+
+  it('parses structured report summaries for long-term analysis', () => {
+    const summary = parseCompanyReportSummary(`\`\`\`json
+      {
+        "managementDiscussion": "主营业务保持增长",
+        "auditOpinion": "标准无保留意见",
+        "financialStatementNotes": null,
+        "aiConclusion": "经营稳定，但仍需关注现金流"
+      }
+    \`\`\``)
+
+    expect(summary).toEqual({
+      managementDiscussion: '主营业务保持增长',
+      auditOpinion: '标准无保留意见',
+      financialStatementNotes: null,
+      aiConclusion: '经营稳定，但仍需关注现金流'
+    })
   })
 })

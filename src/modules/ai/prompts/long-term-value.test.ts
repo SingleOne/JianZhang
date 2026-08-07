@@ -9,5 +9,7 @@ describe('long-term value prompt', () => {
     expect(LONG_TERM_VALUE_PROMPT).toContain('不得自行重算或猜测 DCF')
     expect(LONG_TERM_VALUE_PROMPT).toContain('不得修改输入中的 DCF 假设')
     expect(LONG_TERM_VALUE_PROMPT).toContain('不是目标价')
+    expect(LONG_TERM_VALUE_PROMPT).toContain('companyReportSummaries 为空时直接忽略')
+    expect(LONG_TERM_VALUE_PROMPT).toContain('不是财报原文')
   })
 })

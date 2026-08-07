@@ -1,6 +1,7 @@
 import type { MarketInsightSnapshot } from '../../market-insight/shared/types'
 import type {
   ChipDistributionCacheEntry,
+  CompanyReportSummary,
   DataSnapshotRuntimeState,
   DividendFinancingSnapshot,
   FundamentalSnapshot,
@@ -332,6 +333,7 @@ export interface AiModuleDependencies {
   getFundamentalState: () => DataSnapshotRuntimeState
   getDividendFinancingSnapshot: () => DividendFinancingSnapshot | null
   getDividendFinancingState: () => DataSnapshotRuntimeState
+  getCompanyReportSummaries: (code: string) => CompanyReportSummary[]
 }
 
 declare global {

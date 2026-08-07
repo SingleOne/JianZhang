@@ -9,6 +9,7 @@ import {
   isAmendedCompanyReport,
   limitCompanyReportsToRecentYears,
   normalizeCompanyReportTitle,
+  parseCompanyReportSummary,
   sortCompanyReports
 } from '../../src/lib/company-reports'
 import type {
@@ -27,9 +28,16 @@ const ANNOUNCEMENT_URL = 'https://www.cninfo.com.cn/new/hisAnnouncement/query'
 const PDF_BASE_URL = 'https://static.cninfo.com.cn/'
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000
 const PAGE_SIZE = 30
-const SUMMARY_PROMPT = `你是上市公司定期报告摘要助手。请只依据用户提供的财报原文摘录，生成一段 120—220 字的中文总结。
-总结要优先覆盖主营业务变化、收入利润趋势、现金流、资产负债和报告中明确披露的风险；季度报告没有披露的内容不要推测。
-不要给出买卖建议，不要使用 Markdown、标题、列表或“根据摘录”等开场白，只返回一段可以直接显示在财报目录中的纯文本。`
+const SUMMARY_PROMPT = `你是上市公司定期报告摘要助手。只能依据用户提供的财报原文摘录，不得补充外部信息或猜测未披露内容。
+
+输出必须是 JSON 对象，且只包含 managementDiscussion、auditOpinion、financialStatementNotes、aiConclusion：
+- managementDiscussion：用 100—220 字总结管理层讨论中的主营业务变化、经营趋势、收入利润、现金流、资本开支和明确风险；摘录未包含时为 null。
+- auditOpinion：用 50—150 字总结审计意见类型、持续经营事项和关键审计事项；未经审计或摘录未包含时为 null。
+- financialStatementNotes：用 80—180 字总结附注中对长期判断重要的会计政策变化、减值、或有事项、关联交易、债务及其他异常；摘录未包含时为 null。
+- aiConclusion：用 100—220 字综合前三部分及报告中的资产负债信息，概括经营质量、财务安全和主要不确定性；不得给出买卖建议、目标价或收益承诺。
+
+格式必须为 {"managementDiscussion":"...","auditOpinion":"...","financialStatementNotes":"...","aiConclusion":"..."}，没有依据的前三项使用 null。
+所有非 null 字段必须是纯文本，不得使用 Markdown、标题、列表或“根据摘录”等开场白。`
 const REPORT_CATEGORIES: Record<CompanyReportType, string> = {
   annual: 'category_ndbg_szsh;',
   semiannual: 'category_bndbg_szsh;',
@@ -133,15 +141,19 @@ export class CompanyReportService {
       },
       AbortSignal.timeout(180_000)
     )
-    const content = result.content
-      .trim()
-      .replace(/^```(?:text)?\s*/i, '')
-      .replace(/\s*```$/, '')
-    if (!content) throw new Error('AI 没有返回财报总结')
+    const sections = parseCompanyReportSummary(result.content)
     const summary: CompanyReportSummary = {
       reportId: report.id,
       code: report.code,
-      content: content.slice(0, 1_000),
+      content: sections.aiConclusion.slice(0, 1_000),
+      managementDiscussion: sections.managementDiscussion?.slice(0, 1_000) ?? null,
+      auditOpinion: sections.auditOpinion?.slice(0, 1_000) ?? null,
+      financialStatementNotes: sections.financialStatementNotes?.slice(0, 1_000) ?? null,
+      aiConclusion: sections.aiConclusion.slice(0, 1_000),
+      reportTitle: report.title,
+      reportType: report.reportType,
+      reportYear: report.reportYear,
+      publishedAt: report.publishedAt,
       generatedAt: new Date().toISOString(),
       providerId: result.providerId,
       model: result.model
@@ -150,6 +162,30 @@ export class CompanyReportService {
     summaries[report.id] = summary
     this.writeSummaries(summaries)
     return summary
+  }
+
+  getSummaries(code: string): CompanyReportSummary[] {
+    const reports = new Map(
+      (this.readCache(code)?.reports ?? []).map((report) => [report.id, report])
+    )
+    return Object.values(this.readSummaries())
+      .filter((summary) => summary.code === code)
+      .map((summary) => {
+        const report = reports.get(summary.reportId)
+        return {
+          ...summary,
+          reportTitle: summary.reportTitle ?? report?.title,
+          reportType: summary.reportType ?? report?.reportType,
+          reportYear: summary.reportYear ?? report?.reportYear,
+          publishedAt: summary.publishedAt ?? report?.publishedAt
+        }
+      })
+      .sort((left, right) =>
+        (right.reportYear ?? 0) - (left.reportYear ?? 0)
+        || (right.publishedAt ?? right.generatedAt).localeCompare(
+          left.publishedAt ?? left.generatedAt
+        )
+      )
   }
 
   async open(url: string): Promise<void> {
