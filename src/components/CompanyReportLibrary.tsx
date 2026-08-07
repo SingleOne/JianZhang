@@ -234,24 +234,30 @@ function ReportRow({
 }) {
   return (
     <div className="company-report-row">
-      <button className="company-report-open" type="button" onClick={onOpen}>
-        <span className={`company-report-file is-${report.reportType}`}>
-          <FileText size={19} />
-        </span>
-        <span className="company-report-copy">
-          <strong>{report.title}</strong>
-          <small className={report.summary ? 'has-summary' : ''}>
-            {report.summary?.content ?? '尚未生成财报总结，可点击右侧“AI 总结”。'}
-          </small>
-          <span>公告日期 {formatDate(report.publishedAt)}</span>
-        </span>
-        <span className="company-report-badges">
-          <em>{COMPANY_REPORT_TYPE_LABELS[report.reportType]}</em>
-          <em className={`is-${report.variant}`}>{REPORT_VARIANT_LABELS[report.variant]}</em>
-          {report.amended ? <em className="is-amended">修订</em> : null}
-        </span>
-        <ExternalLink size={16} />
-      </button>
+      <span className={`company-report-file is-${report.reportType}`}>
+        <FileText size={19} />
+      </span>
+      <span className="company-report-copy">
+        <strong>{report.title}</strong>
+        <small className={report.summary ? 'has-summary' : ''}>
+          {report.summary?.content ?? '尚未生成财报总结，可点击右侧“AI 总结”。'}
+        </small>
+        <span>公告日期 {formatDate(report.publishedAt)}</span>
+      </span>
+      <span className="company-report-badges">
+        <em>{COMPANY_REPORT_TYPE_LABELS[report.reportType]}</em>
+        <em className={`is-${report.variant}`}>{REPORT_VARIANT_LABELS[report.variant]}</em>
+        <button
+          className="company-report-open"
+          type="button"
+          onClick={onOpen}
+          title={`打开${REPORT_VARIANT_LABELS[report.variant]}`}
+          aria-label={`打开${report.title}`}
+        >
+          <ExternalLink size={15} />
+        </button>
+        {report.amended ? <em className="is-amended">修订</em> : null}
+      </span>
       <button
         className="company-report-summary-action"
         type="button"

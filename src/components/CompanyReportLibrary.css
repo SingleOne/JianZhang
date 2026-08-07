@@ -222,7 +222,7 @@
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 0 10px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--border);
   color: var(--text-primary);
   background: transparent;
@@ -232,27 +232,23 @@
   border-bottom: 0;
 }
 
-.company-report-row:hover {
-  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
-}
-
 .company-report-open {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  flex: 1;
-  padding: 10px 2px;
-  border: 0;
-  color: inherit;
-  background: transparent;
-  text-align: left;
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 7px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
   cursor: pointer;
 }
 
-.company-report-open > svg {
-  flex: 0 0 auto;
-  color: var(--text-secondary);
+.company-report-open:hover {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
 }
 
 .company-report-file {
@@ -297,10 +293,7 @@
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.45;
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  white-space: normal;
 }
 
 .company-report-copy small.has-summary {
@@ -607,12 +600,11 @@
   .company-report-row {
     align-items: flex-start;
     flex-wrap: wrap;
-    padding: 0 10px 10px;
+    padding: 10px;
   }
 
-  .company-report-open {
-    flex-wrap: wrap;
-    min-width: 100%;
+  .company-report-copy {
+    min-width: calc(100% - 52px);
   }
 
   .company-report-copy strong {
