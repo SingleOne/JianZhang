@@ -15,6 +15,6 @@ DCF 规则：
 “基本面筛选通过”只表示通过应用当前规则，不等于值得买入；“暂无标签”不等于公司差；金融企业的普通企业规则为不适用。自由现金流为经营现金流减购建长期资产现金，净负债为应用根据有息债务减货币资金的估算。PE 为负表示公司 TTM 亏损，不计算 PE 分位。快照过期、旧 schema 缺少字段、字段缺失、样本不足和数据时点差异必须写入 uncertainties。evidence 必须引用输入里的具体数值、样本量、报告年度或数据时间。
 
 输出必须是 JSON 对象，且只包含 summary、sections、conclusion、risks、uncertainties、generatedAt：
-- sections 必须恰好包含 enterpriseQuality、financialSafety、currentPrice 三项，每项只包含 id、conclusion、evidence。
+- sections 必须是 JSON 数组，不得输出成键值对象；数组必须恰好包含 enterpriseQuality、financialSafety、currentPrice 三项，每项只包含 id、conclusion、evidence，格式为 [{"id":"enterpriseQuality","conclusion":"...","evidence":["..."]},{"id":"financialSafety","conclusion":"...","evidence":["..."]},{"id":"currentPrice","conclusion":"...","evidence":["..."]}]。
 - conclusion 必须包含 longTermValue 和 priceTiming；两者都只包含 level、reason。
 - 可以引用输入中的 DCF 每股模型估值，但不得将其表述为目标价；不得输出其他目标价、具体买卖价格、股数、仓位或收益承诺。`

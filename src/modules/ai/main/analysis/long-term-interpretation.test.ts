@@ -33,6 +33,23 @@ describe('long-term AI interpretation validator', () => {
     expect(result.generatedAt).toBe('2026-08-05T15:00:00+08:00')
   })
 
+  it('accepts sections keyed by the required ids', () => {
+    const payload = completeResult()
+    const sections = Object.fromEntries(payload.sections.map(({ id, ...section }) => [id, section]))
+
+    const result = parseLongTermInterpretation(
+      JSON.stringify({ ...payload, sections }),
+      '2026-08-05T15:00:00+08:00'
+    )
+
+    expect(result.sections.map((section) => section.id)).toEqual([
+      'enterpriseQuality',
+      'financialSafety',
+      'currentPrice'
+    ])
+    expect(result.sections[0].conclusion).toBe('ROE保持稳定')
+  })
+
   it('rejects output missing a fixed analysis section', () => {
     const payload = completeResult()
     payload.sections.pop()

@@ -28,6 +28,19 @@ function textList(value: unknown): string[] {
     : []
 }
 
+function parseSection(
+  value: unknown,
+  fallbackId?: string
+): AiLongTermInterpretation['sections'][number] | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const section = value as Record<string, unknown>
+  const id = asText(section.id) ?? fallbackId ?? null
+  const conclusion = asText(section.conclusion)
+  return id && LONG_TERM_SECTIONS.has(id as AiLongTermSectionId) && conclusion
+    ? { id: id as AiLongTermSectionId, conclusion, evidence: textList(section.evidence) }
+    : null
+}
+
 export function parseLongTermInterpretation(
   content: string,
   generatedAt: string
@@ -48,15 +61,15 @@ export function parseLongTermInterpretation(
 
   const sections = Array.isArray(record.sections)
     ? record.sections.flatMap((item) => {
-      if (!item || typeof item !== 'object' || Array.isArray(item)) return []
-      const section = item as Record<string, unknown>
-      const id = asText(section.id) as AiLongTermSectionId | null
-      const conclusion = asText(section.conclusion)
-      return id && LONG_TERM_SECTIONS.has(id) && conclusion
-        ? [{ id, conclusion, evidence: textList(section.evidence) }]
-        : []
+      const section = parseSection(item)
+      return section ? [section] : []
     })
-    : []
+    : record.sections && typeof record.sections === 'object'
+      ? Object.entries(record.sections).flatMap(([id, item]) => {
+        const section = parseSection(item, id)
+        return section ? [section] : []
+      })
+      : []
   const sectionIds = new Set(sections.map((section) => section.id))
   if (sectionIds.size !== LONG_TERM_SECTIONS.size || sections.length !== LONG_TERM_SECTIONS.size) {
     throw new Error('模型长期价值分析缺少企业质量、财务安全或当前价格，请重试')
