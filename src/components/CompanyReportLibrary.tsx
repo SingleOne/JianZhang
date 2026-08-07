@@ -4,7 +4,6 @@ import {
   FileText,
   GraduationCap,
   RefreshCw,
-  Search,
   Sparkles,
   TriangleAlert
 } from 'lucide-react'
@@ -15,14 +14,10 @@ import type { FundamentalScreeningEvaluation } from '../lib/fundamental-screenin
 import type {
   CompanyReportItem,
   CompanyReportLibraryResult,
-  CompanyReportType,
   WatchStock
 } from '../shared/types'
 import './CompanyReportLibrary.css'
 
-type ReportFilter = 'all' | CompanyReportType
-
-const REPORT_TYPES = Object.keys(COMPANY_REPORT_TYPE_LABELS) as CompanyReportType[]
 const reportLibraryCache = new Map<string, CompanyReportLibraryResult>()
 
 const REPORT_VARIANT_LABELS = {
@@ -278,9 +273,6 @@ export function CompanyReportLibrary({ stock }: { stock: WatchStock }) {
   )
   const [loading, setLoading] = useState(!snapshot)
   const [error, setError] = useState('')
-  const [query, setQuery] = useState('')
-  const [reportType, setReportType] = useState<ReportFilter>('all')
-  const [year, setYear] = useState<number | 'all'>('all')
   const [includeVariants, setIncludeVariants] = useState(false)
   const [summarizingId, setSummarizingId] = useState<string | null>(null)
 
@@ -304,9 +296,6 @@ export function CompanyReportLibrary({ stock }: { stock: WatchStock }) {
   useEffect(() => {
     const cached = reportLibraryCache.get(stock.code)
     setSnapshot(cached ?? null)
-    setQuery('')
-    setReportType('all')
-    setYear('all')
     if (!cached) void loadReports()
   }, [loadReports, stock.code])
 
@@ -314,40 +303,13 @@ export function CompanyReportLibrary({ stock }: { stock: WatchStock }) {
     () => snapshot?.reports.filter((report) => includeVariants || report.variant === 'full') ?? [],
     [includeVariants, snapshot]
   )
-  const years = useMemo(
-    () =>
-      [...new Set(baseReports.map((report) => report.reportYear))].sort(
-        (left, right) => right - left
-      ),
-    [baseReports]
-  )
-  const counts = useMemo(
-    () =>
-      new Map<ReportFilter, number>([
-        ['all', baseReports.length],
-        ...REPORT_TYPES.map((type): [CompanyReportType, number] => [
-          type,
-          baseReports.filter((report) => report.reportType === type).length
-        ])
-      ]),
-    [baseReports]
-  )
-  const visibleReports = useMemo(() => {
-    const keyword = query.trim().toLowerCase()
-    return baseReports.filter(
-      (report) =>
-        (reportType === 'all' || report.reportType === reportType) &&
-        (year === 'all' || report.reportYear === year) &&
-        (!keyword || report.title.toLowerCase().includes(keyword))
-    )
-  }, [baseReports, query, reportType, year])
   const groupedReports = useMemo(() => {
     const groups = new Map<number, CompanyReportItem[]>()
-    for (const report of visibleReports) {
+    for (const report of baseReports) {
       groups.set(report.reportYear, [...(groups.get(report.reportYear) ?? []), report])
     }
     return [...groups.entries()]
-  }, [visibleReports])
+  }, [baseReports])
 
   const openReport = (report: CompanyReportItem) => {
     void stockApi.openCompanyReport(report.url).catch((reason) => {
@@ -408,31 +370,6 @@ export function CompanyReportLibrary({ stock }: { stock: WatchStock }) {
       ) : null}
 
       <div className="company-report-toolbar">
-        <label className="company-report-search">
-          <Search size={16} />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="搜索报告标题"
-            aria-label="搜索财报标题"
-          />
-        </label>
-        <label>
-          <span>财年</span>
-          <select
-            value={year}
-            onChange={(event) =>
-              setYear(event.target.value === 'all' ? 'all' : Number(event.target.value))
-            }
-          >
-            <option value="all">全部</option>
-            {years.map((item) => (
-              <option value={item} key={item}>
-                {item} 年
-              </option>
-            ))}
-          </select>
-        </label>
         <label className="company-report-variant-toggle">
           <input
             type="checkbox"
@@ -441,22 +378,6 @@ export function CompanyReportLibrary({ stock }: { stock: WatchStock }) {
           />
           包含摘要和英文版
         </label>
-      </div>
-
-      <div className="company-report-type-tabs" role="tablist" aria-label="财报类型">
-        {(['all', ...REPORT_TYPES] as ReportFilter[]).map((type) => (
-          <button
-            className={reportType === type ? 'is-active' : ''}
-            type="button"
-            role="tab"
-            aria-selected={reportType === type}
-            onClick={() => setReportType(type)}
-            key={type}
-          >
-            {type === 'all' ? '全部' : COMPANY_REPORT_TYPE_LABELS[type]}
-            <small>{counts.get(type) ?? 0}</small>
-          </button>
-        ))}
       </div>
 
       {loading && !snapshot ? (
@@ -473,7 +394,7 @@ export function CompanyReportLibrary({ stock }: { stock: WatchStock }) {
       ) : groupedReports.length === 0 ? (
         <div className="company-report-empty">
           <FileText size={22} />
-          <span>当前筛选条件下没有财报</span>
+          <span>当前没有可显示的财报</span>
         </div>
       ) : (
         <div className="company-report-groups">

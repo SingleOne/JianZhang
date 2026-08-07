@@ -39,9 +39,15 @@ export function normalizeCompanyReportTitle(value: string): string {
     .trim()
 }
 
-export function companyReportYear(title: string, publishedAt: string): number {
+export function companyReportYear(
+  title: string,
+  reportType: CompanyReportType,
+  publishedAt: string
+): number {
   const matched = title.match(/((?:19|20)\d{2})\s*年/)
-  return matched ? Number(matched[1]) : new Date(publishedAt).getFullYear()
+  if (matched) return Number(matched[1])
+  const publishedYear = new Date(publishedAt).getFullYear()
+  return reportType === 'annual' ? publishedYear - 1 : publishedYear
 }
 
 export function companyReportVariant(title: string): CompanyReportVariant {

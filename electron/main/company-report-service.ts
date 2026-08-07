@@ -254,7 +254,7 @@ export class CompanyReportService {
             code,
             title,
             reportType,
-            reportYear: companyReportYear(title, publishedAt),
+            reportYear: companyReportYear(title, reportType, publishedAt),
             variant: companyReportVariant(title),
             amended: isAmendedCompanyReport(title),
             publishedAt,
@@ -344,7 +344,12 @@ export class CompanyReportService {
   }
 
   private limitToRecentYears(result: CompanyReportLibraryResult): CompanyReportLibraryResult {
-    const reports = limitCompanyReportsToRecentYears(result.reports)
+    const reports = limitCompanyReportsToRecentYears(
+      result.reports.map((report) => ({
+        ...report,
+        reportYear: companyReportYear(report.title, report.reportType, report.publishedAt)
+      }))
+    )
     const earliestYear =
       reports.length > 0 ? Math.min(...reports.map((report) => report.reportYear)) : null
     return {
