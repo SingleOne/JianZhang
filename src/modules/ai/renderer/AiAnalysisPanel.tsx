@@ -1,5 +1,6 @@
 import { AlertCircle, Bot, ChartNoAxesCombined, Landmark, LoaderCircle, MessageSquare, RefreshCw, Sparkles } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { emitCompletionNotification } from '../../../lib/completion-notifications'
 import type { StockQuote, WatchStock } from '../../../shared/types'
 import type {
   AiAnalysisProgressEvent,
@@ -15,6 +16,8 @@ import type {
 interface AiAnalysisPanelProps {
   stock: WatchStock
   quote?: StockQuote
+  analysisType: AiAnalysisType
+  onAnalysisTypeChange: (analysisType: AiAnalysisType) => void
 }
 
 const ANALYSIS_STEPS = ['检查配置', '读取快照', '检查缓存', 'AI 解读', '校验结果'] as const
@@ -167,9 +170,13 @@ function LongTermResult({ result }: { result: AiLongTermInterpretationResult }) 
   )
 }
 
-export function AiAnalysisPanel({ stock, quote }: AiAnalysisPanelProps) {
+export function AiAnalysisPanel({
+  stock,
+  quote,
+  analysisType,
+  onAnalysisTypeChange
+}: AiAnalysisPanelProps) {
   const api = window.aiApi
-  const [analysisType, setAnalysisType] = useState<AiAnalysisType>('short-term')
   const [shortTermResult, setShortTermResult] = useState<AiInterpretationResult | null>(null)
   const [longTermResult, setLongTermResult] = useState<AiLongTermInterpretationResult | null>(null)
   const [loadingType, setLoadingType] = useState<AiAnalysisType | null>(null)
@@ -221,26 +228,35 @@ export function AiAnalysisPanel({ stock, quote }: AiAnalysisPanelProps) {
 
   const interpret = async () => {
     if (!api || loadingType) return
-    setLoadingType(analysisType)
+    const requestedAnalysisType = analysisType
+    setLoadingType(requestedAnalysisType)
     setProgress({
       quoteId: stock.quoteId,
-      analysisType,
+      analysisType: requestedAnalysisType,
       phase: 'preparing',
       message: '正在检查 AI 配置',
       detail: '确认功能开关、模型与账号凭据。',
       updatedAt: new Date().toISOString()
     })
-    setErrors((current) => ({ ...current, [analysisType]: '' }))
+    setErrors((current) => ({ ...current, [requestedAnalysisType]: '' }))
     try {
-      if (analysisType === 'short-term') {
-        setShortTermResult(await api.interpret(stock.quoteId))
+      if (requestedAnalysisType === 'short-term') {
+        const result = await api.interpret(stock.quoteId)
+        setShortTermResult(result)
       } else {
-        setLongTermResult(await api.interpretLongTerm(stock.quoteId))
+        const result = await api.interpretLongTerm(stock.quoteId)
+        setLongTermResult(result)
       }
+      emitCompletionNotification({
+        quoteId: stock.quoteId,
+        target:
+          requestedAnalysisType === 'short-term' ? 'ai-short-term' : 'ai-long-term',
+        message: `${stock.name} ${requestedAnalysisType === 'short-term' ? '短期行情' : '长期价值'}已生成`
+      })
     } catch (reason) {
       setErrors((current) => ({
         ...current,
-        [analysisType]: reason instanceof Error ? reason.message : 'AI 分析失败'
+        [requestedAnalysisType]: reason instanceof Error ? reason.message : 'AI 分析失败'
       }))
     } finally {
       setLoadingType(null)
@@ -268,8 +284,8 @@ export function AiAnalysisPanel({ stock, quote }: AiAnalysisPanelProps) {
       </header>
 
       <div className="ai-analysis-mode-tabs" role="tablist" aria-label="AI 分析周期">
-        <button className={analysisType === 'short-term' ? 'is-active' : ''} type="button" role="tab" aria-selected={analysisType === 'short-term'} onClick={() => setAnalysisType('short-term')}><ChartNoAxesCombined size={16} /><span><strong>短期行情</strong><small>日 K、新闻、公告与筹码</small></span></button>
-        <button className={analysisType === 'long-term' ? 'is-active' : ''} type="button" role="tab" aria-selected={analysisType === 'long-term'} onClick={() => setAnalysisType('long-term')}><Landmark size={16} /><span><strong>长期价值</strong><small>财务、估值、股东回报与价格时机</small></span></button>
+        <button className={analysisType === 'short-term' ? 'is-active' : ''} type="button" role="tab" aria-selected={analysisType === 'short-term'} onClick={() => onAnalysisTypeChange('short-term')}><ChartNoAxesCombined size={16} /><span><strong>短期行情</strong><small>日 K、新闻、公告与筹码</small></span></button>
+        <button className={analysisType === 'long-term' ? 'is-active' : ''} type="button" role="tab" aria-selected={analysisType === 'long-term'} onClick={() => onAnalysisTypeChange('long-term')}><Landmark size={16} /><span><strong>长期价值</strong><small>财务、估值、股东回报与价格时机</small></span></button>
       </div>
 
       {errors[analysisType] ? <div className="ai-analysis-error"><AlertCircle size={16} />{errors[analysisType]}</div> : null}

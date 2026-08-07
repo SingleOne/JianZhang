@@ -15,6 +15,7 @@ import {
   getAvailablePositionQuantity,
   getPositionHoldingDays
 } from '../../lib/portfolio'
+import type { StockDetailNavigationRequest } from '../../lib/completion-notifications'
 import { getTriggeredStockAlertDirection } from '../../lib/stock-alerts'
 import {
   getTriggeredTAlertBadges,
@@ -106,6 +107,7 @@ interface WatchlistRowProps {
   chipDistributionEnabled: boolean
   bollingerBandsEnabled: boolean
   selected: boolean
+  detailNavigationRequest: StockDetailNavigationRequest | null
   closing: boolean
   located: boolean
   dragDisabled: boolean
@@ -113,6 +115,7 @@ interface WatchlistRowProps {
   dragOver: boolean
   radarExpanded: boolean
   onToggleDetails: (quoteId: string) => void
+  onDetailNavigationHandled: (requestId: string) => void
   onFinishClosing: (quoteId: string) => void
   onDragStart: (quoteId: string, event: DragEvent<HTMLElement>) => void
   onDragOver: (quoteId: string, event: DragEvent<HTMLTableRowElement>) => void
@@ -149,6 +152,7 @@ export const WatchlistRow = memo(function WatchlistRow({
   chipDistributionEnabled,
   bollingerBandsEnabled,
   selected,
+  detailNavigationRequest,
   closing,
   located,
   dragDisabled,
@@ -156,6 +160,7 @@ export const WatchlistRow = memo(function WatchlistRow({
   dragOver,
   radarExpanded,
   onToggleDetails,
+  onDetailNavigationHandled,
   onFinishClosing,
   onDragStart,
   onDragOver,
@@ -647,6 +652,8 @@ export const WatchlistRow = memo(function WatchlistRow({
                   fundamentalStaleReason={fundamentalStaleReason}
                   fundamentalTabRequested={fundamentalTabRequested}
                   onFundamentalTabRequestHandled={() => setFundamentalTabRequested(false)}
+                  detailNavigationRequest={detailNavigationRequest}
+                  onDetailNavigationHandled={onDetailNavigationHandled}
                   refreshSeconds={stock.isPriority ? priorityRefreshSeconds : regularRefreshSeconds}
                   autoRefreshOrderBook={Boolean(activeTBatch)}
                   chipDistributionEnabled={chipDistributionEnabled}

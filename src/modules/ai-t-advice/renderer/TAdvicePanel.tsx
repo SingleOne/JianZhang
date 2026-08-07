@@ -9,6 +9,7 @@ import {
   Sparkles
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { emitCompletionNotification } from '../../../lib/completion-notifications'
 import { formatPrice } from '../../../lib/format'
 import type { StockQuote, WatchStock } from '../../../shared/types'
 import type {
@@ -169,6 +170,11 @@ export function TAdvicePanel({ stock, quote }: TAdvicePanelProps) {
     try {
       const result = await api.generate(stock.quoteId)
       setHistory((current) => [result.advice, ...current.filter((item) => item.id !== result.advice.id)])
+      emitCompletionNotification({
+        quoteId: stock.quoteId,
+        target: 't-advice',
+        message: `${stock.name} 做 T 参考已生成`
+      })
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '做 T 参考生成失败')
     } finally {

@@ -21,6 +21,7 @@ import {
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { stockApi } from '../lib/api'
 import { estimateChipHistoryLimit, findChipAutoRange } from '../lib/chip-distribution'
+import type { StockDetailNavigationRequest } from '../lib/completion-notifications'
 import {
   DCF_DISCOUNT_RATE,
   DCF_FORECAST_YEARS,
@@ -70,6 +71,7 @@ import { CompanyReportLibrary, FundamentalReadingGuide } from './CompanyReportLi
 import { OrderBookPanel } from './OrderBookPanel'
 import type { KlineVisibleRange, KlineVisibleRangeSource } from './PeriodKlineChart'
 import type { MarketInsightSnapshot } from '../modules/market-insight/shared/types'
+import type { AiAnalysisType } from '../modules/ai/shared/types'
 
 const CandlestickChart = lazy(() => import('./CandlestickChart'))
 const PeriodKlineChart = lazy(() => import('./PeriodKlineChart'))
@@ -1024,6 +1026,8 @@ interface ExpandedStockDetailsProps {
   fundamentalStaleReason?: string | null
   fundamentalTabRequested?: boolean
   onFundamentalTabRequestHandled?: () => void
+  detailNavigationRequest: StockDetailNavigationRequest | null
+  onDetailNavigationHandled: (requestId: string) => void
   refreshSeconds: number
   autoRefreshOrderBook: boolean
   chipDistributionEnabled: boolean
@@ -1044,6 +1048,8 @@ export function ExpandedStockDetails({
   fundamentalStaleReason,
   fundamentalTabRequested,
   onFundamentalTabRequestHandled,
+  detailNavigationRequest,
+  onDetailNavigationHandled,
   refreshSeconds,
   autoRefreshOrderBook,
   chipDistributionEnabled,
@@ -1053,6 +1059,7 @@ export function ExpandedStockDetails({
 }: ExpandedStockDetailsProps) {
   const initialTrend = klineCache.get(cacheKey(stock.quoteId, 'trend'))?.data
   const [activeTab, setActiveTab] = useState<DetailTab>('trend')
+  const [aiAnalysisType, setAiAnalysisType] = useState<AiAnalysisType>('short-term')
   const [dataByTab, setDataByTab] = useState<Partial<Record<PriceTab, KlineResult>>>(() => (
     initialTrend ? { trend: initialTrend } : {}
   ))
@@ -1069,6 +1076,7 @@ export function ExpandedStockDetails({
   const [marketInsightSnapshot, setMarketInsightSnapshot] = useState<MarketInsightSnapshot | null>(null)
   const [showInsightOverlay, setShowInsightOverlay] = useState(true)
   const [aiEnabled, setAiEnabled] = useState(false)
+  const [aiStatusLoaded, setAiStatusLoaded] = useState(false)
   const activeHistoricalLimit = isPriceTab(activeTab) && isHistoricalTab(activeTab)
     ? historyLimits[activeTab]
     : undefined
@@ -1078,6 +1086,38 @@ export function ExpandedStockDetails({
     setActiveTab('fundamental')
     onFundamentalTabRequestHandled?.()
   }, [fundamentalTabRequested, onFundamentalTabRequestHandled])
+
+  const detailNavigationId = detailNavigationRequest?.id
+  const detailNavigationTarget = detailNavigationRequest?.target
+
+  useEffect(() => {
+    if (!detailNavigationId || !detailNavigationTarget) return
+    if (
+      (detailNavigationTarget === 'ai-short-term' ||
+        detailNavigationTarget === 'ai-long-term' ||
+        detailNavigationTarget === 't-advice') &&
+      (!aiStatusLoaded || !aiEnabled)
+    ) {
+      return
+    }
+    if (detailNavigationTarget === 'reports') {
+      setActiveTab('reports')
+    } else if (detailNavigationTarget === 't-advice') {
+      setActiveTab('t-advice')
+    } else {
+      setAiAnalysisType(
+        detailNavigationTarget === 'ai-long-term' ? 'long-term' : 'short-term'
+      )
+      setActiveTab('ai')
+    }
+    onDetailNavigationHandled(detailNavigationId)
+  }, [
+    aiEnabled,
+    aiStatusLoaded,
+    detailNavigationId,
+    detailNavigationTarget,
+    onDetailNavigationHandled
+  ])
 
   useEffect(() => {
     setHoveredBar(null)
@@ -1094,11 +1134,19 @@ export function ExpandedStockDetails({
     let active = true
     const api = window.aiApi
     if (AiAnalysisPanel && api) {
-      void api.getStatus().then((status) => {
-        if (active) setAiEnabled(status.enabled)
-      }).catch(() => {
-        if (active) setAiEnabled(false)
-      })
+      void api
+        .getStatus()
+        .then((status) => {
+          if (active) setAiEnabled(status.enabled)
+        })
+        .catch(() => {
+          if (active) setAiEnabled(false)
+        })
+        .finally(() => {
+          if (active) setAiStatusLoaded(true)
+        })
+    } else {
+      setAiStatusLoaded(true)
     }
     return () => {
       active = false
@@ -1106,14 +1154,19 @@ export function ExpandedStockDetails({
   }, [])
 
   useEffect(() => {
-    const handleEnabledChange = (event: Event) => setAiEnabled(Boolean((event as CustomEvent<boolean>).detail))
+    const handleEnabledChange = (event: Event) => {
+      setAiEnabled(Boolean((event as CustomEvent<boolean>).detail))
+      setAiStatusLoaded(true)
+    }
     window.addEventListener('ai:enabled-changed', handleEnabledChange)
     return () => window.removeEventListener('ai:enabled-changed', handleEnabledChange)
   }, [])
 
   useEffect(() => {
-    if (!aiEnabled && (activeTab === 'ai' || activeTab === 't-advice')) setActiveTab('trend')
-  }, [activeTab, aiEnabled])
+    if (aiStatusLoaded && !aiEnabled && (activeTab === 'ai' || activeTab === 't-advice')) {
+      setActiveTab('trend')
+    }
+  }, [activeTab, aiEnabled, aiStatusLoaded])
 
   useEffect(() => {
     if (!isPriceTab(activeTab)) return
@@ -1311,6 +1364,16 @@ export function ExpandedStockDetails({
           </button>
         ))}
         <button
+          className={activeTab === 'funds' ? 'is-active' : ''}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'funds'}
+          onClick={() => setActiveTab('funds')}
+        >
+          <TrendingUp size={15} />
+          资金流向
+        </button>
+        <button
           className={activeTab === 'dividendFinancing' ? 'is-active' : ''}
           type="button"
           role="tab"
@@ -1339,16 +1402,6 @@ export function ExpandedStockDetails({
         >
           <BookOpen size={15} />
           财报库
-        </button>
-        <button
-          className={activeTab === 'funds' ? 'is-active' : ''}
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'funds'}
-          onClick={() => setActiveTab('funds')}
-        >
-          <TrendingUp size={15} />
-          资金流向
         </button>
         {MarketInsightPanel ? (
           <button
@@ -1564,7 +1617,12 @@ export function ExpandedStockDetails({
         </div>
       ) : activeTab === 'ai' && AiAnalysisPanel ? (
         <Suspense fallback={<div className="chart-loading">正在初始化 AI 分析…</div>}>
-          <AiAnalysisPanel stock={stock} quote={quote} />
+          <AiAnalysisPanel
+            stock={stock}
+            quote={quote}
+            analysisType={aiAnalysisType}
+            onAnalysisTypeChange={setAiAnalysisType}
+          />
         </Suspense>
       ) : activeTab === 't-advice' && AiTAdvicePanel ? (
         <Suspense fallback={<div className="chart-loading">正在初始化做 T 参考…</div>}>

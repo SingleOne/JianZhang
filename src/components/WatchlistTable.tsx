@@ -14,6 +14,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { calculatePositionMetrics } from '../lib/portfolio'
 import { calculatePortfolioQualitySummary } from '../lib/portfolio-quality'
+import type { StockDetailNavigationRequest } from '../lib/completion-notifications'
 import type {
   DividendFinancingRankingItem,
   StockAlertRule,
@@ -78,12 +79,14 @@ interface WatchlistTableProps {
   chipDistributionEnabled: boolean
   bollingerBandsEnabled: boolean
   selectedQuoteId: string | null
+  detailNavigationRequest: StockDetailNavigationRequest | null
   tTradingAccounts: TTradingAccounts
   tTradingFees: TTradingFeeSettings
   tPlanDefaults: TPlanDefaultSettings
   tFloatingProfitAlertDefaultThreshold: number
   tradingCalendarClosedDates: string[]
   onSelect: (quoteId: string) => void
+  onDetailNavigationHandled: (requestId: string) => void
   onToggleTaskbar: (quoteId: string) => void
   onTogglePriority: (quoteId: string) => void
   onEditPosition: (
@@ -187,12 +190,14 @@ export function WatchlistTable({
   chipDistributionEnabled,
   bollingerBandsEnabled,
   selectedQuoteId,
+  detailNavigationRequest,
   tTradingAccounts,
   tTradingFees,
   tPlanDefaults,
   tFloatingProfitAlertDefaultThreshold,
   tradingCalendarClosedDates,
   onSelect,
+  onDetailNavigationHandled,
   onToggleTaskbar,
   onTogglePriority,
   onEditPosition,
@@ -603,6 +608,15 @@ export function WatchlistTable({
     window.requestAnimationFrame(() => scrollToStock(quoteId))
   }, [resetFilters, scrollToStock])
 
+  const detailNavigationRequestId = detailNavigationRequest?.id
+  const detailNavigationQuoteId = detailNavigationRequest?.quoteId
+
+  useEffect(() => {
+    if (!detailNavigationRequestId || !detailNavigationQuoteId) return
+    resetFilters()
+    window.requestAnimationFrame(() => scrollToStock(detailNavigationQuoteId))
+  }, [detailNavigationQuoteId, detailNavigationRequestId, resetFilters, scrollToStock])
+
   if (watchlist.length === 0) {
     return (
       <div className="empty-watchlist">
@@ -843,6 +857,11 @@ export function WatchlistTable({
                 chipDistributionEnabled={chipDistributionEnabled}
                 bollingerBandsEnabled={bollingerBandsEnabled}
                 selected={selectedQuoteId === stock.quoteId}
+                detailNavigationRequest={
+                  detailNavigationRequest?.quoteId === stock.quoteId
+                    ? detailNavigationRequest
+                    : null
+                }
                 closing={closingQuoteIds.has(stock.quoteId)}
                 located={locatedQuoteId === stock.quoteId}
                 dragDisabled={Boolean(sort)}
@@ -850,6 +869,7 @@ export function WatchlistTable({
                 dragOver={dragOverQuoteId === stock.quoteId}
                 radarExpanded={radarPopover?.quoteId === stock.quoteId}
                 onToggleDetails={toggleStockDetails}
+                onDetailNavigationHandled={onDetailNavigationHandled}
                 onFinishClosing={finishClosingStockDetails}
                 onDragStart={handleDragStart}
                 onDragOver={handleDragOver}

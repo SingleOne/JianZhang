@@ -9,6 +9,11 @@ import { SearchBar } from './components/SearchBar'
 import { SettingsMenu } from './components/SettingsMenu'
 import { WatchlistTable } from './components/WatchlistTable'
 import { initialState, isDesktopRuntime, stockApi } from './lib/api'
+import {
+  APP_COMPLETION_NOTIFICATION_EVENT,
+  type AppCompletionNotification,
+  type StockDetailNavigationRequest
+} from './lib/completion-notifications'
 import { formatCurrency, formatPercent, formatPrice, formatProfit, formatUpdateTime } from './lib/format'
 import {
   createFundamentalPeerComparisonMap,
@@ -68,6 +73,11 @@ export default function App() {
   const [state, setState] = useState<AppState>(initialState)
   const [quotes, setQuotes] = useState<StockQuote[]>([])
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null)
+  const [completionNotifications, setCompletionNotifications] = useState<
+    AppCompletionNotification[]
+  >([])
+  const [detailNavigationRequest, setDetailNavigationRequest] =
+    useState<StockDetailNavigationRequest | null>(null)
   const [source, setSource] = useState<'eastmoney' | 'demo'>('eastmoney')
   const [initializing, setInitializing] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -210,13 +220,15 @@ export default function App() {
   }, [notice])
 
   useEffect(() => {
-    const showAppNotice = (event: Event) => {
-      const message = (event as CustomEvent<string>).detail
-      if (message) reportSuccess(message)
+    const addCompletionNotification = (event: Event) => {
+      const notification = (event as CustomEvent<AppCompletionNotification>).detail
+      if (!notification) return
+      setCompletionNotifications((current) => [notification, ...current])
     }
-    window.addEventListener('app:notice', showAppNotice)
-    return () => window.removeEventListener('app:notice', showAppNotice)
-  }, [reportSuccess])
+    window.addEventListener(APP_COMPLETION_NOTIFICATION_EVENT, addCompletionNotification)
+    return () =>
+      window.removeEventListener(APP_COMPLETION_NOTIFICATION_EVENT, addCompletionNotification)
+  }, [])
 
   useEffect(() => {
     const openWithStockContext = (event: Event) => {
@@ -420,6 +432,25 @@ export default function App() {
 
   const selectWatchlistStock = useCallback((quoteId: string) => {
     setSelectedQuoteId((current) => current === quoteId ? null : quoteId)
+  }, [])
+
+  const openCompletionNotification = useCallback(
+    (notification: AppCompletionNotification) => {
+      setCompletionNotifications((current) =>
+        current.filter((item) => item.id !== notification.id)
+      )
+      setSelectedQuoteId(notification.quoteId)
+      setDetailNavigationRequest({
+        id: notification.id,
+        quoteId: notification.quoteId,
+        target: notification.target
+      })
+    },
+    []
+  )
+
+  const handleDetailNavigationHandled = useCallback((requestId: string) => {
+    setDetailNavigationRequest((current) => (current?.id === requestId ? null : current))
   }, [])
 
   const viewWatchlistStockFromRanking = useCallback((quoteId: string) => {
@@ -699,12 +730,14 @@ export default function App() {
                 chipDistributionEnabled={state.settings.showChipDistribution}
                 bollingerBandsEnabled={state.settings.showBollingerBands}
                 selectedQuoteId={selectedQuoteId}
+                detailNavigationRequest={detailNavigationRequest}
                 tTradingAccounts={state.tTradingAccounts}
                 tTradingFees={state.settings.tTradingFees}
                 tPlanDefaults={state.settings.tPlanDefaults}
                 tFloatingProfitAlertDefaultThreshold={state.settings.tFloatingProfitAlertDefaultThreshold}
                 tradingCalendarClosedDates={state.settings.tradingCalendar.closedDates}
                 onSelect={selectWatchlistStock}
+                onDetailNavigationHandled={handleDetailNavigationHandled}
                 onToggleTaskbar={toggleTaskbar}
                 onTogglePriority={togglePriority}
                 onEditPosition={updatePosition}
@@ -730,6 +763,23 @@ export default function App() {
         </div>
         <span className="status-separator" />
         <span>{error ? '行情连接异常，保留最近数据' : `最近更新 ${formatUpdateTime(lastUpdated)}`}</span>
+        {completionNotifications[0] ? (
+          <>
+            <span className="status-separator" />
+            <button
+              className="status-completion-notification"
+              type="button"
+              onClick={() => openCompletionNotification(completionNotifications[0])}
+              title={`${completionNotifications[0].message}，点击查看`}
+            >
+              <CircleCheck size={14} />
+              <span>{completionNotifications[0].message}</span>
+              {completionNotifications.length > 1 ? (
+                <em>+{completionNotifications.length - 1}</em>
+              ) : null}
+            </button>
+          </>
+        ) : null}
         <span className="status-spacer" />
         <span className="status-version">版本 v{packageInfo.version}</span>
         <span className="status-separator" />

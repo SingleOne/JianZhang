@@ -10,6 +10,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { COMPANY_REPORT_TYPE_LABELS } from '../lib/company-reports'
 import { stockApi } from '../lib/api'
+import { emitCompletionNotification } from '../lib/completion-notifications'
 import type { FundamentalScreeningEvaluation } from '../lib/fundamental-screening'
 import type {
   CompanyReportItem,
@@ -273,7 +274,6 @@ export function CompanyReportLibrary({ stock }: { stock: WatchStock }) {
   )
   const [loading, setLoading] = useState(!snapshot)
   const [error, setError] = useState('')
-  const [includeVariants, setIncludeVariants] = useState(false)
   const [summarizingId, setSummarizingId] = useState<string | null>(null)
 
   const loadReports = useCallback(
@@ -300,8 +300,8 @@ export function CompanyReportLibrary({ stock }: { stock: WatchStock }) {
   }, [loadReports, stock.code])
 
   const baseReports = useMemo(
-    () => snapshot?.reports.filter((report) => includeVariants || report.variant === 'full') ?? [],
-    [includeVariants, snapshot]
+    () => snapshot?.reports.filter((report) => report.variant === 'full') ?? [],
+    [snapshot]
   )
   const groupedReports = useMemo(() => {
     const groups = new Map<number, CompanyReportItem[]>()
@@ -333,11 +333,11 @@ export function CompanyReportLibrary({ stock }: { stock: WatchStock }) {
         reportLibraryCache.set(stock.code, next)
         return next
       })
-      window.dispatchEvent(
-        new CustomEvent('app:notice', {
-          detail: `${stock.name} ${report.reportYear} 年${COMPANY_REPORT_TYPE_LABELS[report.reportType]} AI 总结已生成并保存`
-        })
-      )
+      emitCompletionNotification({
+        quoteId: stock.quoteId,
+        target: 'reports',
+        message: `${stock.name} ${report.reportYear} 年${COMPANY_REPORT_TYPE_LABELS[report.reportType]} AI 总结已生成`
+      })
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'AI 财报总结生成失败')
     } finally {
@@ -373,17 +373,6 @@ export function CompanyReportLibrary({ stock }: { stock: WatchStock }) {
           {error}
         </div>
       ) : null}
-
-      <div className="company-report-toolbar">
-        <label className="company-report-variant-toggle">
-          <input
-            type="checkbox"
-            checked={includeVariants}
-            onChange={(event) => setIncludeVariants(event.target.checked)}
-          />
-          包含摘要和英文版
-        </label>
-      </div>
 
       {loading && !snapshot ? (
         <div className="company-report-empty">
