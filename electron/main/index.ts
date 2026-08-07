@@ -2,6 +2,7 @@ import { app, dialog, Notification } from 'electron'
 import { join } from 'node:path'
 import {
   DEFAULT_APP_SETTINGS,
+  DEFAULT_WATCHLIST_GROUPS,
   DEFAULT_WATCHLIST_COLUMN_ORDER,
   WATCHLIST_COLUMN_ORDER_VERSION,
   type AppState,
@@ -99,7 +100,7 @@ const DEFAULT_WATCHLIST: WatchStock[] = [
 
 const DEFAULT_STATE: AppState = {
   watchlist: DEFAULT_WATCHLIST,
-  watchlistGroups: [],
+  watchlistGroups: DEFAULT_WATCHLIST_GROUPS.map((group) => ({ ...group })),
   columnOrder: [...DEFAULT_WATCHLIST_COLUMN_ORDER],
   columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
   settings: { ...DEFAULT_APP_SETTINGS },
@@ -344,6 +345,7 @@ if (!hasSingleInstanceLock) {
       getValuationHistory: (quoteId) => valuationHistoryService!.get(quoteId),
       refreshQuotes: (reason) => quoteRuntime!.refreshAll(reason),
       refreshQuotesAutomatically: (reason) => quoteRuntime!.refreshAutomatically(reason),
+      refreshStock: (quoteId, reason) => quoteRuntime!.refreshStock(quoteId, reason),
       restartQuoteSchedule: () => quoteRuntime!.restartSchedule(),
       primeSectorBindings: (refreshWhenReady) =>
         quoteRuntime!.primeSectorBindings(refreshWhenReady),

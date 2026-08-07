@@ -12,6 +12,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   DEFAULT_APP_SETTINGS,
+  DEFAULT_WATCHLIST_GROUPS,
   DEFAULT_WATCHLIST_COLUMN_ORDER,
   WATCHLIST_COLUMN_ORDER_VERSION,
   type AppState,
@@ -103,6 +104,10 @@ describe('StateStore', () => {
       groupIds: [],
       positionSnapshots: []
     })
+    expect(loaded.state.watchlistGroups).toEqual(DEFAULT_WATCHLIST_GROUPS)
+    expect(readState(join(directory, STATE_FILE_NAME)).watchlistGroups).toEqual(
+      DEFAULT_WATCHLIST_GROUPS
+    )
   })
 
   it('normalizes legacy trades and keeps an untouched migration backup', () => {

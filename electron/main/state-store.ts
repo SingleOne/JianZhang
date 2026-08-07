@@ -70,6 +70,8 @@ export class StateStore {
 
     const tradingAccountsMigrated =
       JSON.stringify(saved.tTradingAccounts ?? {}) !== JSON.stringify(state.tTradingAccounts)
+    const watchlistGroupsMigrated =
+      JSON.stringify(saved.watchlistGroups ?? []) !== JSON.stringify(state.watchlistGroups)
 
     if (
       hasLegacyTTradingData(saved.tTradingAccounts) &&
@@ -78,7 +80,11 @@ export class StateStore {
       this.writeAtomically(this.legacyTradingBackupPath, JSON.stringify(saved, null, 2))
     }
 
-    if (saved.columnOrderVersion !== WATCHLIST_COLUMN_ORDER_VERSION || tradingAccountsMigrated) {
+    if (
+      saved.columnOrderVersion !== WATCHLIST_COLUMN_ORDER_VERSION
+      || tradingAccountsMigrated
+      || watchlistGroupsMigrated
+    ) {
       this.save(state)
     } else if (!existsSync(this.lastGoodPath)) {
       this.writeAtomically(this.lastGoodPath, JSON.stringify(state, null, 2))

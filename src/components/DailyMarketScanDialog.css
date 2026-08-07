@@ -288,8 +288,28 @@
 }
 
 .daily-scan-stock strong {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   color: #344054;
   font-size: 13px;
+}
+
+.daily-scan-board-badge {
+  padding: 1px 5px;
+  color: #b45309;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.daily-scan-board-badge.is-star {
+  color: #0369a1;
+  background: #f0f9ff;
+  border-color: #bae6fd;
 }
 
 .daily-scan-table .is-up {
@@ -326,6 +346,13 @@
   color: #b45309;
   background: #fff8e7;
   border-color: #f5d99c;
+}
+
+.daily-scan-tags em.is-strongLoss,
+.daily-scan-tags em.is-breakdown20d {
+  color: #047857;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
 }
 
 .daily-scan-row-action {

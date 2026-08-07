@@ -22,7 +22,7 @@ import {
 } from './lib/fundamental-screening'
 import { calculatePortfolioSummary } from './lib/portfolio'
 import { reconcileStockQuotes } from './lib/quote-state'
-import { MARKET_INDEX_OPTIONS } from './shared/types'
+import { getDailyScanWatchlistGroup, MARKET_INDEX_OPTIONS } from './shared/types'
 import packageInfo from '../package.json'
 import type {
   AppSettings,
@@ -283,12 +283,12 @@ export default function App() {
     return latest
   }, undefined)
 
-  const persist = useCallback(async (nextState: AppState) => {
+  const persist = useCallback(async (nextState: AppState, refreshDemoQuotes = true) => {
     setState(nextState)
     try {
       const saved = await stockApi.saveState(nextState)
       setState(saved)
-      if (!isDesktopRuntime) updateQuotes(await stockApi.refreshQuotes())
+      if (!isDesktopRuntime && refreshDemoQuotes) updateQuotes(await stockApi.refreshQuotes())
       return saved
     } catch (reason) {
       reportError(reason instanceof Error ? reason.message : '设置保存失败')
@@ -296,7 +296,7 @@ export default function App() {
     }
   }, [reportError, updateQuotes])
 
-  const addStock = useCallback((result: SearchResult) => {
+  const addStock = useCallback((result: SearchResult, targetGroup?: WatchlistGroup) => {
     const existing = state.watchlist.find((stock) => stock.quoteId === result.quoteId)
     if (existing) {
       setSelectedQuoteId(existing.quoteId)
@@ -304,16 +304,29 @@ export default function App() {
     }
     const nextState = {
       ...state,
+      watchlistGroups: targetGroup && !state.watchlistGroups.some((group) => group.id === targetGroup.id)
+        ? [...state.watchlistGroups, targetGroup]
+        : state.watchlistGroups,
       watchlist: [...state.watchlist, {
         ...result,
         showInTaskbar: false,
         isPriority: false,
-        showRadarSignals: true
+        showRadarSignals: true,
+        groupIds: targetGroup ? [targetGroup.id] : undefined
       }]
     }
     setSelectedQuoteId(result.quoteId)
-    void persist(nextState)
-  }, [persist, state])
+    void persist(nextState, false).then((saved) => {
+      if (saved) return stockApi.refreshQuote(result.quoteId).then(updateQuotes)
+      return undefined
+    }).catch((reason: unknown) => {
+      reportError(reason instanceof Error ? reason.message : '新股票行情获取失败')
+    })
+  }, [persist, reportError, state, updateQuotes])
+
+  const addDailyMarketScanStock = useCallback((result: SearchResult) => {
+    addStock(result, getDailyScanWatchlistGroup(state.watchlistGroups))
+  }, [addStock, state.watchlistGroups])
 
   const removeStock = useCallback((quoteId: string) => {
     const nextWatchlist = state.watchlist.filter((stock) => stock.quoteId !== quoteId)
@@ -815,7 +828,7 @@ export default function App() {
       <DailyMarketScanDialog
         open={dailyMarketScanOpen}
         watchlist={state.watchlist}
-        onAddStock={addStock}
+        onAddStock={addDailyMarketScanStock}
         onViewStock={viewWatchlistStockFromDailyScan}
         onClose={() => setDailyMarketScanOpen(false)}
       />

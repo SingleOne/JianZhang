@@ -65,6 +65,7 @@ interface IpcHandlerDependencies {
   getValuationHistory: (quoteId: string) => Promise<StockValuationHistory>
   refreshQuotes: (reason?: string) => Promise<StockQuote[]>
   refreshQuotesAutomatically: (reason: string) => Promise<StockQuote[]>
+  refreshStock: (quoteId: string, reason?: string) => Promise<StockQuote[]>
   restartQuoteSchedule: () => void
   primeSectorBindings: (refreshWhenReady: boolean) => Promise<void>
   getKline: (quoteId: string, period: KlinePeriod, limit?: number) => Promise<KlineResult>
@@ -102,6 +103,7 @@ const CHANNELS = [
   'company-reports:open',
   'valuation-history:get',
   'quotes:refresh',
+  'quotes:refresh-one',
   'kline:get',
   'daily-market-scan:get',
   'daily-market-scan:state:get',
@@ -157,6 +159,9 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
     dependencies.getValuationHistory(quoteId)
   )
   ipcMain.handle('quotes:refresh', () => dependencies.refreshQuotes())
+  ipcMain.handle('quotes:refresh-one', (_event, quoteId: string) =>
+    dependencies.refreshStock(quoteId)
+  )
   ipcMain.handle('kline:get', (_event, quoteId: string, period: KlinePeriod, limit?: number) =>
     dependencies.getKline(quoteId, period, limit)
   )
@@ -223,7 +228,7 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
     dependencies.syncWindowSurfaces()
     if (watchedStocksChanged) void dependencies.primeSectorBindings(true)
     if (marketIndicesChanged) void dependencies.refreshQuotes('state-change:indices')
-    else if (watchedStocksChanged || priorityChanged) {
+    else if (priorityChanged) {
       void dependencies.refreshQuotesAutomatically('state-change:watchlist')
     }
     stockAlertUpdate.triggered.forEach(dependencies.showStockAlertNotification)

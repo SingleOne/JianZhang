@@ -39,16 +39,37 @@ export interface WatchlistGroup {
   name: string
 }
 
+export const DAILY_SCAN_WATCHLIST_GROUP_ID = 'daily-market-scan-observation'
+export const DAILY_SCAN_WATCHLIST_GROUP_NAME = '异动观察'
+export const DEFAULT_WATCHLIST_GROUPS: readonly WatchlistGroup[] = [
+  { id: DAILY_SCAN_WATCHLIST_GROUP_ID, name: DAILY_SCAN_WATCHLIST_GROUP_NAME }
+]
+
+export function isDailyScanWatchlistGroup(group: WatchlistGroup): boolean {
+  return group.id === DAILY_SCAN_WATCHLIST_GROUP_ID
+    || group.name.trim() === DAILY_SCAN_WATCHLIST_GROUP_NAME
+}
+
+export function getDailyScanWatchlistGroup(groups: readonly WatchlistGroup[]): WatchlistGroup {
+  return groups.find(isDailyScanWatchlistGroup) ?? { ...DEFAULT_WATCHLIST_GROUPS[0] }
+}
+
 export function normalizeWatchlistGroups(groups: readonly WatchlistGroup[] | undefined): WatchlistGroup[] {
-  if (!Array.isArray(groups)) return []
   const usedIds = new Set<string>()
-  return groups.flatMap((group) => {
+  const normalized = (Array.isArray(groups) ? groups : []).flatMap((group) => {
     const id = group?.id?.trim()
     const name = group?.name?.trim()
     if (!id || !name || usedIds.has(id)) return []
     usedIds.add(id)
     return [{ id, name }]
   })
+  const dailyScanGroup = normalized.find(isDailyScanWatchlistGroup)
+  if (!dailyScanGroup) return [{ ...DEFAULT_WATCHLIST_GROUPS[0] }, ...normalized]
+  return normalized.map((group) => (
+    group.id === dailyScanGroup.id
+      ? { ...group, name: DAILY_SCAN_WATCHLIST_GROUP_NAME }
+      : group
+  ))
 }
 
 export function normalizeWatchlist(stocks: readonly WatchStock[]): WatchStock[] {
@@ -591,7 +612,9 @@ export interface KlineResult {
 export type DailyMarketScanSignalType =
   | 'volumeSurge'
   | 'strongGain'
+  | 'strongLoss'
   | 'breakout20d'
+  | 'breakdown20d'
   | 'reversal'
 
 export interface DailyMarketScanRow {
@@ -607,6 +630,7 @@ export interface DailyMarketScanRow {
   averageVolume20d: number
   volumeRatio: number
   breakoutPercent: number | null
+  breakdownPercent?: number | null
   previousFiveDayReturn: number
   declineDays: number
   signals: DailyMarketScanSignalType[]
@@ -1332,6 +1356,7 @@ export interface StockDesktopApi {
   openCompanyReport: (url: string) => Promise<void>
   getValuationHistory: (quoteId: string) => Promise<StockValuationHistory>
   refreshQuotes: () => Promise<StockQuote[]>
+  refreshQuote: (quoteId: string) => Promise<StockQuote[]>
   getKline: (quoteId: string, period: KlinePeriod, limit?: number) => Promise<KlineResult>
   getDailyMarketScanResult: () => Promise<DailyMarketScanResult | null>
   getDailyMarketScanState: () => Promise<DailyMarketScanState>

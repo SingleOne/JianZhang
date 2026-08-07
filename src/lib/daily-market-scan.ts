@@ -8,7 +8,15 @@ import type {
 export const DAILY_MARKET_SCAN_MINIMUM_AMOUNT = 50_000_000
 export const DAILY_MARKET_SCAN_KLINE_LIMIT = 21
 
+export function dailyMarketScanBoardLabel(code: string): '创业板' | '科创板' | null {
+  if (/^30[01]/.test(code)) return '创业板'
+  if (/^68[89]/.test(code)) return '科创板'
+  return null
+}
+
 function marketLabel(code: string, quoteId: string): string {
+  const boardLabel = dailyMarketScanBoardLabel(code)
+  if (boardLabel) return boardLabel
   if (quoteId.startsWith('1.')) return '沪A'
   if (/^(4|8|92)/.test(code)) return '北A'
   return '深A'
@@ -43,8 +51,11 @@ export function createDailyMarketScanRow(
 
   const volumeRatio = quote.volume / averageVolume20d
   const previousHigh = Math.max(...previous20Bars.map((bar) => bar.high))
+  const previousLow = Math.min(...previous20Bars.map((bar) => bar.low))
   const breakoutPercent =
     todayBar.close > previousHigh ? percentageReturn(todayBar.close, previousHigh) : null
+  const breakdownPercent =
+    todayBar.close < previousLow ? percentageReturn(todayBar.close, previousLow) : null
 
   const closes = recentBars.map((bar) => bar.close)
   const returns = closes.slice(1).map((close, index) => percentageReturn(close, closes[index]))
@@ -58,7 +69,11 @@ export function createDailyMarketScanRow(
   if (quote.changePercent > 5 && quote.changePercent < 9.5 && volumeRatio > 1.5) {
     signals.push('strongGain')
   }
+  if (quote.changePercent < -5 && quote.changePercent > -9.5 && volumeRatio > 1.5) {
+    signals.push('strongLoss')
+  }
   if (breakoutPercent !== null) signals.push('breakout20d')
+  if (breakdownPercent !== null) signals.push('breakdown20d')
   if (declineDays >= 4 && previousFiveDayReturn < -5 && todayReturn > 1) {
     signals.push('reversal')
   }
@@ -77,6 +92,7 @@ export function createDailyMarketScanRow(
     averageVolume20d,
     volumeRatio,
     breakoutPercent,
+    breakdownPercent,
     previousFiveDayReturn,
     declineDays,
     signals

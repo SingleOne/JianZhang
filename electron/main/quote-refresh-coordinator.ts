@@ -5,18 +5,21 @@ const TIMER_COALESCING_TOLERANCE_MILLISECONDS = 50
 export interface QuoteRefreshInput {
   scope?: QuoteRefreshScope
   reason: string
+  stockQuoteIds?: readonly string[]
   sectorQuoteIds?: readonly string[]
 }
 
 export interface QuoteRefreshBatch {
   scopes: ReadonlySet<QuoteRefreshScope>
   reasons: ReadonlySet<string>
+  stockQuoteIds: ReadonlySet<string>
   sectorQuoteIds: ReadonlySet<string>
 }
 
 interface PendingRefresh<T> {
   scopes: Set<QuoteRefreshScope>
   reasons: Set<string>
+  stockQuoteIds: Set<string>
   sectorQuoteIds: Set<string>
   waiters: Array<{ resolve: (value: T) => void; reject: (reason: unknown) => void }>
 }
@@ -54,11 +57,13 @@ export class QuoteRefreshCoordinator<T> {
       const pending = this.pending ?? {
         scopes: new Set<QuoteRefreshScope>(),
         reasons: new Set<string>(),
+        stockQuoteIds: new Set<string>(),
         sectorQuoteIds: new Set<string>(),
         waiters: []
       }
       if (input.scope) pending.scopes.add(input.scope)
       pending.reasons.add(input.reason)
+      for (const quoteId of input.stockQuoteIds ?? []) pending.stockQuoteIds.add(quoteId)
       for (const quoteId of input.sectorQuoteIds ?? []) pending.sectorQuoteIds.add(quoteId)
       pending.waiters.push({ resolve, reject })
       this.pending = pending
@@ -105,6 +110,7 @@ export class QuoteRefreshCoordinator<T> {
       const value = await this.options.run({
         scopes: current.scopes,
         reasons: current.reasons,
+        stockQuoteIds: current.stockQuoteIds,
         sectorQuoteIds: current.sectorQuoteIds
       })
       for (const waiter of current.waiters) waiter.resolve(value)

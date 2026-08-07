@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { KlineBar, StockQuote } from '../shared/types'
-import { createDailyMarketScanRow } from './daily-market-scan'
+import { createDailyMarketScanRow, dailyMarketScanBoardLabel } from './daily-market-scan'
 
 function bars(closes: number[], volumes: number[] = closes.map(() => 100)): KlineBar[] {
   return closes.map((close, index) => ({
@@ -59,6 +59,24 @@ describe('createDailyMarketScanRow', () => {
     expect(result?.declineDays).toBe(4)
     expect(result?.previousFiveDayReturn).toBeLessThan(-5)
     expect(result?.signals).toEqual(['reversal'])
+  })
+
+  it('detects a volume-backed large loss and a new 20-session low', () => {
+    const result = createDailyMarketScanRow(
+      quote({ latest: 9.3, changePercent: -6, volume: 200 }),
+      bars([...Array.from({ length: 20 }, () => 10), 9.3])
+    )
+
+    expect(result?.volumeRatio).toBe(2)
+    expect(result?.signals).toEqual(['strongLoss', 'breakdown20d'])
+    expect(result?.breakdownPercent).toBeCloseTo(-7)
+  })
+
+  it('identifies ChiNext and STAR Market stock codes', () => {
+    expect(dailyMarketScanBoardLabel('300750')).toBe('创业板')
+    expect(dailyMarketScanBoardLabel('301269')).toBe('创业板')
+    expect(dailyMarketScanBoardLabel('688981')).toBe('科创板')
+    expect(dailyMarketScanBoardLabel('600519')).toBeNull()
   })
 
   it('keeps threshold comparisons strict and ignores incomplete history', () => {

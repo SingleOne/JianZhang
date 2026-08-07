@@ -67,6 +67,10 @@ export class QuoteRuntime {
     return this.coordinator.request({ scope: 'all', reason })
   }
 
+  refreshStock(quoteId: string, reason = 'stock-added'): Promise<StockQuote[]> {
+    return this.coordinator.request({ reason, stockQuoteIds: [quoteId] })
+  }
+
   refreshAutomatically(reason = 'automatic'): Promise<StockQuote[]> {
     return this.isAutoRefreshTime() ? this.refreshAll(reason) : Promise.resolve(this.latestQuotes)
   }
@@ -219,11 +223,15 @@ export class QuoteRuntime {
     const refreshAllStocks = batch.scopes.has('all')
     const refreshPriority = refreshAllStocks || batch.scopes.has('priority')
     const refreshRegular = refreshAllStocks || batch.scopes.has('regular')
-    const stocks = state.watchlist.filter((stock) =>
+    const scopedStocks = state.watchlist.filter((stock) =>
       stock.isPriority ? refreshPriority : refreshRegular
     )
+    const explicitlyRequestedStocks = state.watchlist.filter((stock) =>
+      batch.stockQuoteIds.has(stock.quoteId)
+    )
+    const stocks = this.uniqueStocks([...scopedStocks, ...explicitlyRequestedStocks])
     const marketIndices = refreshRegular ? getMarketIndexStocks(state.settings.marketIndexIds) : []
-    const dueSectorStocks = this.dependencies.sectorMarketCache.dueBoardStocks(stocks)
+    const dueSectorStocks = this.dependencies.sectorMarketCache.dueBoardStocks(scopedStocks)
     const requestedSectorStocks = [...batch.sectorQuoteIds].flatMap((quoteId) => {
       const stock = this.dependencies.sectorMarketCache.boardStockByQuoteId(quoteId)
       return stock ? [stock] : []
@@ -237,7 +245,7 @@ export class QuoteRuntime {
     try {
       const result = await fetchQuotes(
         requestedStocks,
-        state.watchlist.filter((stock) => stock.showRadarSignals),
+        stocks.filter((stock) => stock.showRadarSignals),
         `quote-cycle:${reasons.join('+')}`
       )
       const sectorQuoteIds = new Set(sectorStocks.map((stock) => stock.quoteId))

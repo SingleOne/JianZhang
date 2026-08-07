@@ -1,5 +1,6 @@
 import {
   DEFAULT_APP_SETTINGS,
+  DEFAULT_WATCHLIST_GROUPS,
   DEFAULT_WATCHLIST_COLUMN_ORDER,
   WATCHLIST_COLUMN_ORDER_VERSION,
   getMarketIndexStocks,
@@ -49,7 +50,7 @@ const DEFAULT_WATCHLIST: WatchStock[] = DEMO_STOCKS.slice(0, 5).map((stock, inde
 
 const DEFAULT_STATE: AppState = {
   watchlist: DEFAULT_WATCHLIST,
-  watchlistGroups: [],
+  watchlistGroups: DEFAULT_WATCHLIST_GROUPS.map((group) => ({ ...group })),
   columnOrder: [...DEFAULT_WATCHLIST_COLUMN_ORDER],
   columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
   settings: { ...DEFAULT_APP_SETTINGS },
@@ -65,7 +66,7 @@ const DEMO_DAILY_MARKET_SCAN_RESULT: DailyMarketScanResult = {
   activeCount: 1_736,
   klineSuccessCount: 1_728,
   klineFailureCount: 8,
-  signalCount: 5,
+  signalCount: 7,
   rows: [
     {
       code: '600519',
@@ -80,6 +81,7 @@ const DEMO_DAILY_MARKET_SCAN_RESULT: DailyMarketScanResult = {
       averageVolume20d: 205_000,
       volumeRatio: 2.85,
       breakoutPercent: 1.36,
+      breakdownPercent: null,
       previousFiveDayReturn: 1.2,
       declineDays: 2,
       signals: ['volumeSurge', 'strongGain', 'breakout20d']
@@ -88,7 +90,7 @@ const DEMO_DAILY_MARKET_SCAN_RESULT: DailyMarketScanResult = {
       code: '300750',
       name: '宁德时代',
       quoteId: '0.300750',
-      marketLabel: '深A',
+      marketLabel: '创业板',
       tradingDate: '2026-08-05',
       latest: 268.35,
       changePercent: 2.14,
@@ -97,6 +99,7 @@ const DEMO_DAILY_MARKET_SCAN_RESULT: DailyMarketScanResult = {
       averageVolume20d: 180_000,
       volumeRatio: 1.74,
       breakoutPercent: null,
+      breakdownPercent: null,
       previousFiveDayReturn: -6.28,
       declineDays: 4,
       signals: ['reversal']
@@ -114,9 +117,28 @@ const DEMO_DAILY_MARKET_SCAN_RESULT: DailyMarketScanResult = {
       averageVolume20d: 260_000,
       volumeRatio: 1.64,
       breakoutPercent: null,
+      breakdownPercent: null,
       previousFiveDayReturn: 0.86,
       declineDays: 2,
       signals: ['strongGain']
+    },
+    {
+      code: '688981',
+      name: '中芯国际',
+      quoteId: '1.688981',
+      marketLabel: '科创板',
+      tradingDate: '2026-08-05',
+      latest: 82.36,
+      changePercent: -6.18,
+      amount: 7_240_000_000,
+      volume: 368_000,
+      averageVolume20d: 200_000,
+      volumeRatio: 1.84,
+      breakoutPercent: null,
+      breakdownPercent: -1.42,
+      previousFiveDayReturn: -2.36,
+      declineDays: 3,
+      signals: ['strongLoss', 'breakdown20d']
     }
   ]
 }
@@ -487,6 +509,10 @@ const demoApi: StockDesktopApi = {
     }
   },
   async refreshQuotes() {
+    const state = loadDemoState()
+    return makeDemoQuotes([...state.watchlist, ...getMarketIndexStocks(state.settings.marketIndexIds)])
+  },
+  async refreshQuote() {
     const state = loadDemoState()
     return makeDemoQuotes([...state.watchlist, ...getMarketIndexStocks(state.settings.marketIndexIds)])
   },

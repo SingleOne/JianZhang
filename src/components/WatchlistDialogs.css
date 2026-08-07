@@ -971,6 +971,20 @@
   background: var(--red-soft);
 }
 
+.watchlist-system-group-badge {
+  width: 30px;
+  color: #6d28d9;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.watchlist-group-content-heading input:disabled {
+  color: #667085;
+  background: #f2f4f7;
+  cursor: not-allowed;
+}
+
 .watchlist-group-list-empty {
   padding: 24px 10px;
   line-height: 1.6;

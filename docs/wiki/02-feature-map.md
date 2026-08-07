@@ -8,11 +8,11 @@
 
 | 功能 | 界面入口 | 核心逻辑 | 主进程/数据 |
 | --- | --- | --- | --- |
-| 搜索并添加自选 | `SearchBar.tsx`、`App.tsx` | `stockApi.searchStocks`、`App.addStock` | `market.ts#searchStocks` |
+| 搜索并添加自选 | `SearchBar.tsx`、`App.tsx` | `stockApi.searchStocks`、`App.addStock`；新增后立即定向刷新单股行情 | `market.ts#searchStocks` + `QuoteRuntime.refreshStock` |
 | 分红融资回报分析 | `DividendFinancingRankingDialog.tsx`、`WatchlistRow.tsx`、`ExpandedStockDetails.tsx` | 净回报/规模/连续性/评分筛选，评分拆解，年度分红和融资时间线，快照变化报告，对数散点选股，自选联动；缺失自动获取、过期提示 | `DividendFinancingService` + schema v2 用户快照 + `createDividendFinancingChangeReport` |
 | 基本面初筛 | `FundamentalScreeningDialog.tsx`、`FundamentalWatchlistOverview.tsx`、`WatchlistRow.tsx`、`ExpandedStockDetails.tsx`、`SettingsMenu.tsx` | 普通企业三项硬筛选、六类固定质量标签、六类风险提示、同行 ROE/现金质量/低负债排名、简化 DCF 与五年明细；默认规则更新变化；主表以两字标签区分结果和风险，当前分组/板块直接统计四类价值组合、基本面状态、待核构成及风险公司，支持条件叠加和标签数排序 | `fundamental-screening.ts` + `dcf-analysis.ts` + `FundamentalDataService` + schema v1/v2/v3/v4/v5 用户快照和最近一次变化报告 + 四阶段 Python 更新脚本 |
 | 公司财报库与阅读指南 | `CompanyReportLibrary.tsx`、`ExpandedStockDetails.tsx` | 最近五个报告年度按报告所属财年分组并只展示全文；打开官方 PDF；一键生成并保存 AI 总结；基本面页讲解 ROE、现金转换、负债、三张表和阅读顺序 | `CompanyReportService` + 巨潮资讯定期报告分类接口 + `pdf-parse` + AI Runtime + `company-reports/` 目录和总结缓存 |
-| A 股收盘扫描 | `DailyMarketScanDialog.tsx`、`App.tsx` | 成交额过滤、20 日均量、放量/大涨放量/20 日新高/连跌后翻红计算和自选联动 | `DailyMarketScanService` + `fetchDailyMarketActiveQuotes` + 扫描专用 8 并发日 K |
+| A 股收盘扫描 | `DailyMarketScanDialog.tsx`、`App.tsx` | 成交额过滤、20 日均量、放量/大涨放量/大跌放量/20 日新高/20 日新低/连跌后翻红计算，创业板/科创板标识和“异动观察”自选联动 | `DailyMarketScanService` + `fetchDailyMarketActiveQuotes` + 扫描专用 8 并发日 K |
 | 删除、拖拽、置顶、排序、调整列 | `WatchlistTable.tsx` | `normalizeWatchlistColumnOrder`、`migrateWatchlistColumnOrder` | `state:save` |
 | 自定义分组与板块组合筛选 | `WatchlistTable.tsx`、`WatchlistGroupDialog.tsx`、`TableFilterDropdown.tsx` | `WatchlistGroup`、`WatchStock.groupIds` | 分组随 `AppState` 保存；板块筛选使用实时报价 |
 | 重点关注 | `WatchlistTable.tsx` | 有持仓时自动锁定重点；`App.togglePriority` | `QuoteRefreshCoordinator` 统一调度重点/普通范围 |
@@ -78,7 +78,7 @@ SearchBar
 - 拖拽或置顶会修改 `watchlist` 并保存。
 - 可调整列顺序保存在 `AppState.columnOrder`。
 - 自定义分组与板块筛选只影响当前主表展示，不改变自选顺序、行情刷新范围或持仓数据；两个条件按“且”组合。
-- 自定义分组保存在 `AppState.watchlistGroups`，板块筛选来自 `StockQuote.sector`，不会额外写入状态。
+- 自选分组保存在 `AppState.watchlistGroups`；系统默认“异动观察”分组不可改名或删除，从收盘扫描新增的自选自动加入该组。板块筛选来自 `StockQuote.sector`，不会额外写入状态。
 - 主表价值组合计数以当前分组和板块范围为基数，不受价值组合、基本面状态和风险条件自身影响；“双优、仅基、仅分、暂无”互斥，三组条件之间按“且”组合。
 - 价值组合与标签数排序只在基本面、分红融资两份快照均存在时启用；任一缺失时显示“价值待数”并自动撤销相关条件，快照过期仍按现有数据计算并显示提示。
 - “标签数”依次切换降序、升序和恢复手动排序；双优计 2 个正面标签，仅基/仅分计 1 个，暂无计 0 个，同标签数保持原手动顺序。

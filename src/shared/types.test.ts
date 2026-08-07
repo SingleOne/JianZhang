@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_APP_SETTINGS,
+  DEFAULT_WATCHLIST_GROUPS,
   WATCHLIST_COLUMN_ORDER_VERSION,
   hasLegacyTTradingData,
   migrateWatchlistColumnOrder,
@@ -41,7 +42,17 @@ describe('watchlist normalization', () => {
         { id: 'group-1', name: '重复分组' },
         { id: '', name: '无效分组' }
       ])
-    ).toEqual([{ id: 'group-1', name: '银行' }])
+    ).toEqual([
+      ...DEFAULT_WATCHLIST_GROUPS,
+      { id: 'group-1', name: '银行' }
+    ])
+  })
+
+  it('adds the system scan group while preserving an existing group with the same name', () => {
+    expect(normalizeWatchlistGroups(undefined)).toEqual(DEFAULT_WATCHLIST_GROUPS)
+    expect(
+      normalizeWatchlistGroups([{ id: 'existing-scan-group', name: ' 异动观察 ' }])
+    ).toEqual([{ id: 'existing-scan-group', name: '异动观察' }])
   })
 
   it('keeps valid snapshots and makes positions priority stocks', () => {

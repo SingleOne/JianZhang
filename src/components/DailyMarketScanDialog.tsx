@@ -12,6 +12,7 @@ import {
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { stockApi } from '../lib/api'
+import { dailyMarketScanBoardLabel } from '../lib/daily-market-scan'
 import type {
   DailyMarketScanResult,
   DailyMarketScanSignalType,
@@ -26,7 +27,9 @@ const PAGE_SIZE = 100
 const SIGNAL_LABELS: Record<DailyMarketScanSignalType, string> = {
   volumeSurge: '放量异动',
   strongGain: '大涨放量',
+  strongLoss: '大跌放量',
   breakout20d: '20 日新高',
+  breakdown20d: '20 日新低',
   reversal: '连跌后翻红'
 }
 
@@ -36,7 +39,9 @@ const VIEW_OPTIONS: { id: ScanView; label: string }[] = [
   { id: 'all', label: '全部信号' },
   { id: 'volumeSurge', label: '放量异动' },
   { id: 'strongGain', label: '大涨放量' },
+  { id: 'strongLoss', label: '大跌放量' },
   { id: 'breakout20d', label: '20 日新高' },
+  { id: 'breakdown20d', label: '20 日新低' },
   { id: 'reversal', label: '连跌后翻红' }
 ]
 
@@ -59,13 +64,13 @@ interface DailyMarketScanDialogProps {
   onClose: () => void
 }
 
-function directionClass(value: number | null): string {
-  if (value === null || value === 0) return 'is-flat'
+function directionClass(value: number | null | undefined): string {
+  if (value === null || value === undefined || value === 0) return 'is-flat'
   return value > 0 ? 'is-up' : 'is-down'
 }
 
-function formatPercent(value: number | null): string {
-  if (value === null) return '--'
+function formatPercent(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '--'
   const prefix = value > 0 ? '+' : ''
   return `${prefix}${value.toFixed(2)}%`
 }
@@ -160,8 +165,12 @@ export function DailyMarketScanDialog({
       if (activeView === 'strongGain' || activeView === 'reversal') {
         return right.changePercent - left.changePercent
       }
+      if (activeView === 'strongLoss') return left.changePercent - right.changePercent
       if (activeView === 'breakout20d') {
         return (right.breakoutPercent ?? 0) - (left.breakoutPercent ?? 0)
+      }
+      if (activeView === 'breakdown20d') {
+        return (left.breakdownPercent ?? 0) - (right.breakdownPercent ?? 0)
       }
       return right.volumeRatio - left.volumeRatio
     })
@@ -194,9 +203,9 @@ export function DailyMarketScanDialog({
       code: row.code,
       name: row.name,
       quoteId: row.quoteId,
-      marketLabel: row.marketLabel
+      marketLabel: dailyMarketScanBoardLabel(row.code) ?? row.marketLabel
     })
-    setActionMessage(`${row.name}已加入自选`)
+    setActionMessage(`${row.name}已加入自选，并归入异动观察分组`)
   }
 
   if (!open) return null
@@ -348,7 +357,7 @@ export function DailyMarketScanDialog({
                     <th>成交量</th>
                     <th>20 日均量</th>
                     <th>量比</th>
-                    <th>突破幅度</th>
+                    <th>新高/新低幅度</th>
                     <th>前 5 日累计</th>
                     <th>信号</th>
                     <th>操作</th>
@@ -357,11 +366,22 @@ export function DailyMarketScanDialog({
                 <tbody>
                   {visibleRows.map((row) => {
                     const watched = watchlistQuoteIds.has(row.quoteId)
+                    const boardLabel = dailyMarketScanBoardLabel(row.code)
+                    const rangeBreakPercent = row.breakoutPercent ?? row.breakdownPercent ?? null
                     return (
                       <tr key={row.quoteId}>
                         <td>
                           <span className="daily-scan-stock">
-                            <strong>{row.name}</strong>
+                            <strong>
+                              {row.name}
+                              {boardLabel ? (
+                                <span
+                                  className={`daily-scan-board-badge ${boardLabel === '创业板' ? 'is-chinext' : 'is-star'}`}
+                                >
+                                  {boardLabel}
+                                </span>
+                              ) : null}
+                            </strong>
                             <small>
                               {row.code} · {row.marketLabel}
                             </small>
@@ -377,8 +397,8 @@ export function DailyMarketScanDialog({
                         <td>
                           <strong>{row.volumeRatio.toFixed(2)}x</strong>
                         </td>
-                        <td className={directionClass(row.breakoutPercent)}>
-                          {formatPercent(row.breakoutPercent)}
+                        <td className={directionClass(rangeBreakPercent)}>
+                          {formatPercent(rangeBreakPercent)}
                         </td>
                         <td className={directionClass(row.previousFiveDayReturn)}>
                           {formatPercent(row.previousFiveDayReturn)}

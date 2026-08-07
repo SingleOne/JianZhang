@@ -20,7 +20,7 @@ interface AppState {
 包含：
 
 - 自选顺序、任务栏选择、重点关注。
-- 自定义分组及股票的多分组归属。
+- 自选分组及股票的多分组归属；包含不可改名或删除的系统“异动观察”分组。
 - 持仓和持仓快照。
 - 自定义股价提醒规则与触发状态。
 - 刷新、指数、筹码分布开关、做 T、浮动盈亏提醒默认值、系统、交易日历设置。
@@ -104,7 +104,7 @@ interface AppState {
 | 函数 | 作用 |
 | --- | --- |
 | `normalizeWatchlist` | 持仓股票强制重点关注、补异动开关、过滤无效快照 |
-| `normalizeWatchlistGroups` | 去除无 ID、无名称或重复 ID 的自定义分组 |
+| `normalizeWatchlistGroups` | 去除无 ID、无名称或重复 ID 的自选分组，并补齐系统“异动观察”分组 |
 | `normalizeMarketIndexIds` | 过滤并按内置顺序返回指数 |
 | `normalizeActiveTTradingBatch` | 兼容旧双五档、价格/浮动盈亏提醒开关和反 T 语义 |
 | `normalizeTTradingAccounts` | 把旧活动/历史批次流水和 `baseTrades` 按 ID 合并到唯一 `tradeRecords`，再移除旧字段并规范化活动批次 |
@@ -206,6 +206,7 @@ AI API Key 由主进程使用 Electron `safeStorage` 加密；renderer 只能读
 | `openCompanyReport` | `company-reports:open` | 校验巨潮资讯 HTTPS 链接后用系统浏览器打开原始 PDF |
 | `getValuationHistory` | `valuation-history:get` | 按股票返回近五年 PE TTM/PB正值序列，主进程按日缓存供市场观察和长期 AI 计算历史分位 |
 | `refreshQuotes` | `quotes:refresh` | 向统一调度器提交手动全量刷新 |
+| `refreshQuote` | `quotes:refresh-one` | 新增自选后向统一调度器提交单股定向刷新，并返回合并后的当前报价 |
 | `getKline` | `kline:get` | 通过 `KlineHub` 获取分时/五日/周期 K，同参数合并并串行请求 |
 | `getDailyMarketScanResult` | `daily-market-scan:get` | 返回最近一次落盘的收盘扫描结果；没有结果时返回 `null` |
 | `getDailyMarketScanState` | `daily-market-scan:state:get` | 返回扫描阶段、进度和错误状态 |

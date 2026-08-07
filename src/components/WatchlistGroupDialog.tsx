@@ -1,6 +1,7 @@
 import { FolderPlus, Folders, Search, Trash2, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { isDailyScanWatchlistGroup } from '../shared/types'
 import type { StockQuote, WatchlistGroup, WatchStock } from '../shared/types'
 import { useConfirmDialog } from './ConfirmDialog'
 
@@ -60,6 +61,7 @@ export function WatchlistGroupDialog({
   }
 
   const deleteGroup = async (group: WatchlistGroup) => {
+    if (isDailyScanWatchlistGroup(group)) return
     const confirmed = await confirm({
       title: '删除自定义分组',
       message: `确定删除分组“${group.name}”吗？组内股票不会从自选列表中删除。`,
@@ -128,8 +130,8 @@ export function WatchlistGroupDialog({
           <div>
             <span className="position-dialog-icon"><Folders size={18} /></span>
             <span>
-              <strong id="watchlist-group-dialog-title">管理自定义分组</strong>
-              <small>一只股票可以加入多个分组，分组仅用于主表格筛选。</small>
+              <strong id="watchlist-group-dialog-title">管理自选分组</strong>
+              <small>一只股票可以加入多个分组；系统分组不可改名或删除。</small>
             </span>
           </div>
           <button className="icon-button dialog-close" type="button" onClick={onClose} aria-label="关闭">
@@ -177,15 +179,19 @@ export function WatchlistGroupDialog({
                     <strong>{group.name || '未命名分组'}</strong>
                     <small>{groupStockCount(group.id)} 只股票</small>
                   </button>
-                  <button
-                    className="icon-button"
-                    type="button"
-                    onClick={() => deleteGroup(group)}
-                    aria-label={`删除分组 ${group.name}`}
-                    title="删除分组"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  {isDailyScanWatchlistGroup(group) ? (
+                    <span className="watchlist-system-group-badge" title="系统默认分组">系统</span>
+                  ) : (
+                    <button
+                      className="icon-button"
+                      type="button"
+                      onClick={() => deleteGroup(group)}
+                      aria-label={`删除分组 ${group.name}`}
+                      title="删除分组"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 </div>
               ))}
               {groups.length === 0 ? (
@@ -203,6 +209,8 @@ export function WatchlistGroupDialog({
                     <input
                       type="text"
                       value={selectedGroup.name}
+                      disabled={isDailyScanWatchlistGroup(selectedGroup)}
+                      title={isDailyScanWatchlistGroup(selectedGroup) ? '系统默认分组不可改名' : undefined}
                       onChange={(event) => setGroups((current) => current.map((group) => (
                         group.id === selectedGroup.id ? { ...group, name: event.target.value } : group
                       )))}
