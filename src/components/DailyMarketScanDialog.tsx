@@ -7,9 +7,10 @@ import {
   Eye,
   Plus,
   RefreshCw,
+  Search,
   X
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { stockApi } from '../lib/api'
 import { dailyMarketScanBoardLabel } from '../lib/daily-market-scan'
@@ -115,6 +116,7 @@ export function DailyMarketScanDialog({
   const [scanState, setScanState] = useState<DailyMarketScanState>(EMPTY_STATE)
   const [activeView, setActiveView] = useState<ScanView>('all')
   const [page, setPage] = useState(1)
+  const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [actionMessage, setActionMessage] = useState('')
@@ -145,20 +147,36 @@ export function DailyMarketScanDialog({
     }
   }, [open])
 
+  const deferredQuery = useDeferredValue(query)
+  const normalizedQuery = deferredQuery.trim().toLocaleLowerCase('zh-CN')
+
+  const searchedRows = useMemo(() => {
+    const rows = result?.rows ?? []
+    if (!normalizedQuery) return rows
+    return rows.filter((row) => {
+      const boardLabel = dailyMarketScanBoardLabel(row.code) ?? ''
+      const signalLabels = row.signals.map((signal) => SIGNAL_LABELS[signal]).join(' ')
+      return [row.name, row.code, row.marketLabel, boardLabel, signalLabels]
+        .join(' ')
+        .toLocaleLowerCase('zh-CN')
+        .includes(normalizedQuery)
+    })
+  }, [normalizedQuery, result])
+
   useEffect(() => {
     setPage(1)
-  }, [activeView, result])
+  }, [activeView, normalizedQuery, result])
 
   const counts = useMemo(() => {
     const next = new Map<DailyMarketScanSignalType, number>()
-    for (const row of result?.rows ?? []) {
+    for (const row of searchedRows) {
       for (const signal of row.signals) next.set(signal, (next.get(signal) ?? 0) + 1)
     }
     return next
-  }, [result])
+  }, [searchedRows])
 
   const filteredRows = useMemo(() => {
-    const rows = (result?.rows ?? []).filter(
+    const rows = searchedRows.filter(
       (row) => activeView === 'all' || row.signals.includes(activeView)
     )
     return rows.sort((left, right) => {
@@ -174,7 +192,7 @@ export function DailyMarketScanDialog({
       }
       return right.volumeRatio - left.volumeRatio
     })
-  }, [activeView, result])
+  }, [activeView, searchedRows])
 
   const pageCount = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
   const visibleRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -311,21 +329,43 @@ export function DailyMarketScanDialog({
                   </strong>
                 </span>
               </div>
-              <button
-                className="secondary-button daily-scan-run"
-                type="button"
-                onClick={() => void runScan()}
-                disabled={scanState.running}
-              >
-                <RefreshCw size={15} className={scanState.running ? 'is-spinning' : ''} />
-                {scanState.running ? '扫描中' : '重新扫描'}
-              </button>
+              <div className="daily-scan-toolbar-actions">
+                <label className="daily-scan-filter">
+                  <Search size={15} aria-hidden="true" />
+                  <input
+                    type="search"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="筛选名称、代码、板块或信号"
+                    aria-label="筛选收盘扫描结果"
+                  />
+                  {query ? (
+                    <button
+                      type="button"
+                      onClick={() => setQuery('')}
+                      aria-label="清空筛选"
+                      title="清空筛选"
+                    >
+                      <X size={14} />
+                    </button>
+                  ) : null}
+                </label>
+                <button
+                  className="secondary-button daily-scan-run"
+                  type="button"
+                  onClick={() => void runScan()}
+                  disabled={scanState.running}
+                >
+                  <RefreshCw size={15} className={scanState.running ? 'is-spinning' : ''} />
+                  {scanState.running ? '扫描中' : '重新扫描'}
+                </button>
+              </div>
             </div>
 
             <div className="daily-scan-tabs" role="tablist" aria-label="收盘扫描信号分类">
               {VIEW_OPTIONS.map((option) => {
                 const count =
-                  option.id === 'all' ? result.rows.length : (counts.get(option.id) ?? 0)
+                  option.id === 'all' ? searchedRows.length : (counts.get(option.id) ?? 0)
                 return (
                   <button
                     className={activeView === option.id ? 'is-active' : ''}
@@ -428,7 +468,11 @@ export function DailyMarketScanDialog({
                 </tbody>
               </table>
               {visibleRows.length === 0 ? (
-                <div className="daily-scan-no-signals">该分类当前没有命中股票。</div>
+                <div className="daily-scan-no-signals">
+                  {normalizedQuery
+                    ? `没有找到与“${deferredQuery.trim()}”匹配的扫描结果。`
+                    : '该分类当前没有命中股票。'}
+                </div>
               ) : null}
             </div>
 

@@ -187,6 +187,65 @@
   font-size: 12px;
 }
 
+.daily-scan-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.daily-scan-filter {
+  width: 290px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 8px 0 10px;
+  color: #7f8b9c;
+  background: #ffffff;
+  border: 1px solid #d7dee8;
+  border-radius: 7px;
+}
+
+.daily-scan-filter:focus-within {
+  color: #6d28d9;
+  border-color: #a78bfa;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.08);
+}
+
+.daily-scan-filter input {
+  min-width: 0;
+  flex: 1;
+  padding: 0;
+  color: #344054;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font-size: 12px;
+}
+
+.daily-scan-filter input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.daily-scan-filter button {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 0;
+  color: #7f8b9c;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.daily-scan-filter button:hover {
+  color: #6d28d9;
+  background: #f4edff;
+}
+
 .daily-scan-tabs {
   display: flex;
   align-items: center;
@@ -422,6 +481,10 @@
   }
 
   .daily-scan-run {
+    flex: 0 0 auto;
+  }
+
+  .daily-scan-toolbar-actions {
     align-self: flex-end;
   }
 }
