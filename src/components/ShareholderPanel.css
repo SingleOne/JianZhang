@@ -1,0 +1,359 @@
+.shareholder-panel {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.shareholder-header {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 13px 15px;
+  background: linear-gradient(135deg, #f6f9fe 0%, #eef4fc 100%);
+  border: 1px solid #dce6f3;
+  border-radius: 10px;
+}
+
+.shareholder-header-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  color: #406fae;
+  background: #ffffff;
+  border: 1px solid #d8e3f1;
+  border-radius: 10px;
+}
+
+.shareholder-header > span:nth-child(2) {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.shareholder-header small {
+  color: #7b899c;
+  font-size: 12px;
+}
+
+.shareholder-header strong {
+  overflow: hidden;
+  color: #2f4058;
+  font-size: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shareholder-header > button,
+.shareholder-empty button {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 0 12px;
+  color: #3f6fad;
+  background: #ffffff;
+  border: 1px solid #cfdced;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.shareholder-header > button:disabled {
+  opacity: 0.62;
+  cursor: wait;
+}
+
+.shareholder-warning,
+.shareholder-error {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 11px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.shareholder-warning {
+  color: #8a6518;
+  background: #fff9e9;
+  border: 1px solid #f0dfaa;
+}
+
+.shareholder-error {
+  color: #a33d48;
+  background: #fff3f4;
+  border: 1px solid #efcfd3;
+}
+
+.shareholder-empty {
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: #7b899c;
+  background: #f8fafc;
+  border: 1px dashed #d7dfe9;
+  border-radius: 9px;
+  font-size: 12px;
+}
+
+.shareholder-empty button {
+  margin: 2px 0 0;
+}
+
+.shareholder-summary-grid {
+  display: grid;
+  grid-template-columns: minmax(230px, 1.45fr) repeat(4, minmax(132px, 1fr));
+  gap: 8px;
+}
+
+.shareholder-summary-grid article {
+  min-width: 0;
+  min-height: 105px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px;
+  background: #ffffff;
+  border: 1px solid #e1e7ef;
+  border-radius: 9px;
+}
+
+.shareholder-summary-grid article > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #77869a;
+  font-size: 12px;
+}
+
+.shareholder-summary-grid article > span svg {
+  color: #5680b8;
+}
+
+.shareholder-summary-grid article strong {
+  overflow: hidden;
+  color: #2f4058;
+  font-size: 17px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shareholder-summary-grid article small {
+  overflow: hidden;
+  color: #8a96a7;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shareholder-summary-grid .shareholder-controller-card strong {
+  font-size: 14px;
+  white-space: normal;
+}
+
+.shareholder-section {
+  min-width: 0;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid #e1e7ef;
+  border-radius: 9px;
+}
+
+.shareholder-section-title,
+.shareholder-holding-heading {
+  min-height: 43px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border-bottom: 1px solid #e8edf3;
+}
+
+.shareholder-section-title strong {
+  color: #3b4c62;
+  font-size: 13px;
+}
+
+.shareholder-section-title small,
+.shareholder-holding-heading > small {
+  color: #8793a4;
+  font-size: 12px;
+}
+
+.shareholder-count-chart {
+  min-width: 0;
+  padding: 10px 10px 4px;
+}
+
+.shareholder-count-chart-legend {
+  min-height: 27px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px 18px;
+  padding: 0 4px;
+  color: #6f7f93;
+  font-size: 12px;
+}
+
+.shareholder-count-chart-legend strong {
+  color: #34465e;
+  font-size: 12px;
+}
+
+.shareholder-chart-loading,
+.shareholder-holding-empty {
+  min-height: 120px;
+  display: grid;
+  place-items: center;
+  color: #8491a3;
+  font-size: 12px;
+}
+
+.shareholder-list-tabs {
+  display: flex;
+  gap: 5px;
+}
+
+.shareholder-list-tabs button {
+  min-height: 29px;
+  padding: 0 11px;
+  color: #718096;
+  background: #f5f7fa;
+  border: 1px solid #e1e6ed;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.shareholder-list-tabs button.is-active {
+  color: #3f6fad;
+  background: #eaf2ff;
+  border-color: #cadef6;
+}
+
+.shareholder-table-wrap {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.shareholder-table {
+  width: 100%;
+  min-width: 940px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.shareholder-table th,
+.shareholder-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid #edf1f5;
+  font-size: 12px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.shareholder-table th {
+  color: #78869a;
+  background: #f8fafc;
+  font-weight: 650;
+}
+
+.shareholder-table td {
+  color: #46566c;
+}
+
+.shareholder-table th:nth-child(1),
+.shareholder-table td:nth-child(1) {
+  width: 54px;
+  text-align: center;
+}
+
+.shareholder-table th:nth-child(2),
+.shareholder-table td:nth-child(2) {
+  width: 245px;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+}
+
+.shareholder-table th:nth-child(3),
+.shareholder-table td:nth-child(3),
+.shareholder-table th:nth-child(4),
+.shareholder-table td:nth-child(4) {
+  width: 96px;
+  text-align: left;
+}
+
+.shareholder-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.shareholder-table .is-positive {
+  color: var(--red);
+}
+
+.shareholder-table .is-negative {
+  color: var(--green);
+}
+
+.shareholder-table .is-zero {
+  color: #7b8798;
+}
+
+.shareholder-source {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 18px;
+  padding: 0 2px;
+  color: #8793a4;
+  font-size: 12px;
+}
+
+@media (max-width: 980px) {
+  .shareholder-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .shareholder-summary-grid .shareholder-controller-card {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 620px) {
+  .shareholder-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .shareholder-header > button {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .shareholder-summary-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .shareholder-summary-grid .shareholder-controller-card {
+    grid-column: auto;
+  }
+
+  .shareholder-holding-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

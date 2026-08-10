@@ -34,6 +34,7 @@ import type {
   KlineResult,
   SearchResult,
   SectorIndexResult,
+  ShareholderSnapshot,
   StockOrderBook,
   StockQuote,
   StockValuationHistory,
@@ -62,6 +63,7 @@ interface IpcHandlerDependencies {
   getCompanyReports: (code: string, forceRefresh?: boolean) => Promise<CompanyReportLibraryResult>
   generateCompanyReportSummary: (report: CompanyReportItem) => Promise<CompanyReportSummary>
   openCompanyReport: (url: string) => Promise<void>
+  getShareholderSnapshot: (quoteId: string, forceRefresh?: boolean) => Promise<ShareholderSnapshot>
   getValuationHistory: (quoteId: string) => Promise<StockValuationHistory>
   refreshQuotes: (reason?: string) => Promise<StockQuote[]>
   refreshQuotesAutomatically: (reason: string) => Promise<StockQuote[]>
@@ -102,6 +104,7 @@ const CHANNELS = [
   'company-reports:get',
   'company-reports:summary:generate',
   'company-reports:open',
+  'shareholders:get',
   'valuation-history:get',
   'quotes:refresh',
   'quotes:refresh-one',
@@ -143,7 +146,9 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
   ipcMain.handle('stocks:search', (_event, query: string) => dependencies.searchStocks(query))
   ipcMain.handle('dividend-financing:get', () => dependencies.getDividendFinancingSnapshot())
   ipcMain.handle('dividend-financing:state:get', () => dependencies.getDividendFinancingState())
-  ipcMain.handle('dividend-financing:changes:get', () => dependencies.getDividendFinancingChangeReport())
+  ipcMain.handle('dividend-financing:changes:get', () =>
+    dependencies.getDividendFinancingChangeReport()
+  )
   ipcMain.handle('dividend-financing:update', () => dependencies.runDividendFinancingUpdate())
   ipcMain.handle('fundamentals:get', () => dependencies.getFundamentalSnapshot())
   ipcMain.handle('fundamentals:state:get', () => dependencies.getFundamentalState())
@@ -155,7 +160,12 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
   ipcMain.handle('company-reports:summary:generate', (_event, report: CompanyReportItem) =>
     dependencies.generateCompanyReportSummary(report)
   )
-  ipcMain.handle('company-reports:open', (_event, url: string) => dependencies.openCompanyReport(url))
+  ipcMain.handle('company-reports:open', (_event, url: string) =>
+    dependencies.openCompanyReport(url)
+  )
+  ipcMain.handle('shareholders:get', (_event, quoteId: string, forceRefresh?: boolean) =>
+    dependencies.getShareholderSnapshot(quoteId, forceRefresh)
+  )
   ipcMain.handle('valuation-history:get', (_event, quoteId: string) =>
     dependencies.getValuationHistory(quoteId)
   )

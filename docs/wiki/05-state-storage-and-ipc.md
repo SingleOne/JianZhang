@@ -180,6 +180,7 @@ localStorage["jianzhang-demo-state-v1"]
 | --- | --- |
 | `market-cache/klines/*.json` | 按股票和周期保存的日/周/月 K 线 |
 | `market-cache/chip-distributions.json` | 每只股票最后一次筹码分布结果 |
+| `market-cache/shareholders/*.json` | 按股票保存股东概览、近十期股东户数、十大股东和十大流通股东，24 小时有效 |
 | `modules/market-insight/` | 指标/事件快照、公告与要闻缓存、模块设置 |
 | `modules/ai/` | Provider 设置、加密凭证、对话 JSONL、股票快照、最近 AI 解读 |
 | `modules/ai-t-advice/` | 做 T 参考设置和历史 JSONL |
@@ -211,6 +212,7 @@ AI API Key 由主进程使用 Electron `safeStorage` 加密；renderer 只能读
 | `getCompanyReports` | `company-reports:get` | 按股票读取有效缓存或查询巨潮最近五个报告年度的年报、半年报、一季报和三季报目录；可强制更新 |
 | `generateCompanyReportSummary` | `company-reports:summary:generate` | 下载巨潮官方 PDF、提取重点章节、调用当前 AI 模型生成总结并保存到本地 |
 | `openCompanyReport` | `company-reports:open` | 校验巨潮资讯 HTTPS 链接后用系统浏览器打开原始 PDF |
+| `getShareholderSnapshot` | `shareholders:get` | 按股票读取 24 小时持久化缓存或查询东方财富 F10 股东信息；可强制更新，失败时允许返回旧缓存并提示 |
 | `getValuationHistory` | `valuation-history:get` | 按股票返回近五年 PE TTM/PB正值序列，主进程按日缓存供市场观察和长期 AI 计算历史分位 |
 | `refreshQuotes` | `quotes:refresh` | 向统一调度器提交手动全量刷新 |
 | `refreshQuote` | `quotes:refresh-one` | 新增自选后向统一调度器提交单股定向刷新，并返回合并后的当前报价 |

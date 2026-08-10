@@ -72,6 +72,7 @@ import { FundsFlowPanel } from './FundsFlowPanel'
 import { ChipDistributionPanel } from './ChipDistributionPanel'
 import { CompanyReportLibrary, FundamentalReadingGuide } from './CompanyReportLibrary'
 import { OrderBookPanel } from './OrderBookPanel'
+import { ShareholderPanel } from './ShareholderPanel'
 import { StockTrackingPanel } from './StockTrackingPanel'
 import type { KlineVisibleRange, KlineVisibleRangeSource } from './PeriodKlineChart'
 import type { MarketInsightSnapshot } from '../modules/market-insight/shared/types'
@@ -107,6 +108,7 @@ type DetailTab =
   | PriceTab
   | 'dividendFinancing'
   | 'fundamental'
+  | 'shareholders'
   | 'reports'
   | 'tracking'
   | 'funds'
@@ -1540,6 +1542,16 @@ export function ExpandedStockDetails({
           基本面
         </button>
         <button
+          className={activeTab === 'shareholders' ? 'is-active' : ''}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'shareholders'}
+          onClick={() => setActiveTab('shareholders')}
+        >
+          <UsersRound size={15} />
+          股东
+        </button>
+        <button
           className={activeTab === 'reports' ? 'is-active' : ''}
           type="button"
           role="tab"
@@ -1637,6 +1649,8 @@ export function ExpandedStockDetails({
             staleReason={fundamentalStaleReason}
           />
         </div>
+      ) : activeTab === 'shareholders' ? (
+        <ShareholderPanel stock={stock} />
       ) : activeTab === 'reports' ? (
         <CompanyReportLibrary stock={stock} />
       ) : activeTab === 'tracking' ? (

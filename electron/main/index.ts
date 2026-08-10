@@ -49,6 +49,7 @@ import { OrderBookHub } from './order-book-hub'
 import { PythonTaskQueue } from './python-task-queue'
 import { QuoteRuntime } from './quote-runtime'
 import { SectorMarketCache } from './sector-market-cache'
+import { ShareholderService } from './shareholder-service'
 import { StateStore } from './state-store'
 import { StockTrackingMetricsRuntime } from './stock-tracking-metrics-runtime'
 import { TradingCalendarRuntime } from './trading-calendar-runtime'
@@ -133,6 +134,7 @@ let dividendFinancingService: DividendFinancingService | null = null
 let fundamentalDataService: FundamentalDataService | null = null
 let companyReportService: CompanyReportService | null = null
 let valuationHistoryService: ValuationHistoryService | null = null
+let shareholderService: ShareholderService | null = null
 let dailyMarketScanService: DailyMarketScanService | null = null
 
 const marketDataHub = new (class MarketDataHub {
@@ -267,6 +269,7 @@ if (!hasSingleInstanceLock) {
 
     const marketCacheDirectory = join(app.getPath('userData'), 'market-cache')
     valuationHistoryService = new ValuationHistoryService(marketCacheDirectory)
+    shareholderService = new ShareholderService(marketCacheDirectory)
     const pythonTaskQueue = new PythonTaskQueue((message) => {
       void dialog.showMessageBox({
         type: 'warning',
@@ -378,6 +381,8 @@ if (!hasSingleInstanceLock) {
         )
       },
       openCompanyReport: (url) => companyReportService!.open(url),
+      getShareholderSnapshot: (quoteId, forceRefresh) =>
+        shareholderService!.get(quoteId, forceRefresh),
       getValuationHistory: (quoteId) => valuationHistoryService!.get(quoteId),
       refreshQuotes: (reason) => quoteRuntime!.refreshAll(reason),
       refreshQuotesAutomatically: (reason) => quoteRuntime!.refreshAutomatically(reason),

@@ -938,6 +938,55 @@ export interface SearchResult {
   marketLabel: string
 }
 
+export type ShareholderMarket = 'SH' | 'SZ' | 'BJ'
+
+export interface ShareholderController {
+  name: string
+  holdingRatio: number | null
+}
+
+export interface ShareholderCountPoint {
+  reportDate: string
+  holderCount: number
+  changePercent: number | null
+  averageFreeShares: number | null
+  averageFreeSharesChangePercent: number | null
+  concentration: string | null
+  averageHoldingAmount: number | null
+  topTenHoldingRatio: number | null
+  topTenFreeHoldingRatio: number | null
+}
+
+export interface ShareholderHolding {
+  reportDate: string
+  rank: number
+  name: string
+  holderType: string | null
+  sharesType: string | null
+  holdingShares: number
+  holdingRatio: number | null
+  changeShares: number | null
+  changeLabel: string | null
+  changeRatio: number | null
+}
+
+export interface ShareholderSnapshot {
+  schemaVersion: 1
+  quoteId: string
+  code: string
+  market: ShareholderMarket
+  reportDate: string
+  fetchedAt: string
+  source: 'eastmoney-f10'
+  fromCache: boolean
+  warning?: string
+  controller: ShareholderController | null
+  latestSummary: ShareholderCountPoint | null
+  holderHistory: ShareholderCountPoint[]
+  topShareholders: ShareholderHolding[]
+  topFreeShareholders: ShareholderHolding[]
+}
+
 export type DividendFinancingMarket = 'SH' | 'SZ' | 'BJ'
 
 export type DividendTrend = 'growing' | 'stable' | 'declining' | 'insufficient'
@@ -1543,6 +1592,7 @@ export interface StockDesktopApi {
   getCompanyReports: (code: string, forceRefresh?: boolean) => Promise<CompanyReportLibraryResult>
   generateCompanyReportSummary: (report: CompanyReportItem) => Promise<CompanyReportSummary>
   openCompanyReport: (url: string) => Promise<void>
+  getShareholderSnapshot: (quoteId: string, forceRefresh?: boolean) => Promise<ShareholderSnapshot>
   getValuationHistory: (quoteId: string) => Promise<StockValuationHistory>
   refreshQuotes: () => Promise<StockQuote[]>
   refreshQuote: (quoteId: string) => Promise<StockQuote[]>

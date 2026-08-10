@@ -23,6 +23,7 @@ import {
   type KlinePeriod,
   type KlineResult,
   type SectorIndexResult,
+  type ShareholderSnapshot,
   type StockDesktopApi,
   type StockOrderBook,
   type StockQuote,
@@ -459,6 +460,67 @@ function demoConfigFileName(): string {
   return `见涨-配置-${new Date().toISOString().slice(0, 19).replaceAll(':', '-')}.json`
 }
 
+function makeDemoShareholderSnapshot(quoteId: string): ShareholderSnapshot {
+  const code = quoteId.split('.')[1] ?? quoteId
+  const market = quoteId.startsWith('1.') ? 'SH' : /^[89]/.test(code) ? 'BJ' : 'SZ'
+  const counts: Array<[string, number]> = [
+    ['2024-03-31', 169_500],
+    ['2024-06-30', 164_200],
+    ['2024-09-30', 158_900],
+    ['2024-12-31', 153_700],
+    ['2025-03-31', 149_800],
+    ['2025-06-30', 146_400],
+    ['2025-09-30', 142_600],
+    ['2025-12-31', 138_900],
+    ['2026-03-31', 135_200]
+  ]
+  const holderHistory = counts.map(([reportDate, holderCount], index) => ({
+    reportDate,
+    holderCount,
+    changePercent: index === 0 ? null : (holderCount / counts[index - 1][1] - 1) * 100,
+    averageFreeShares: 5_300 + index * 160,
+    averageFreeSharesChangePercent: index === 0 ? null : 2.3,
+    concentration: '较分散',
+    averageHoldingAmount: 680_000 + index * 45_000,
+    topTenHoldingRatio: 61.8,
+    topTenFreeHoldingRatio: 61.8
+  }))
+  const names = [
+    '示例控股集团有限公司',
+    '香港中央结算有限公司',
+    '全国社保基金一一三组合',
+    '中国证券金融股份有限公司',
+    '中央汇金资产管理有限责任公司'
+  ]
+  const holdings = names.map((name, index) => ({
+    reportDate: '2026-03-31',
+    rank: index + 1,
+    name,
+    holderType: index === 0 ? '其它' : '机构',
+    sharesType: '流通A股',
+    holdingShares: 580_000_000 / (index + 1),
+    holdingRatio: 48 / (index + 1),
+    changeShares: index === 1 ? 1_260_000 : null,
+    changeLabel: index === 0 ? '不变' : index > 1 ? '新进' : null,
+    changeRatio: index === 1 ? 1.25 : null
+  }))
+  return {
+    schemaVersion: 1,
+    quoteId,
+    code,
+    market,
+    reportDate: '2026-03-31',
+    fetchedAt: '2026-08-10T08:00:00.000Z',
+    source: 'eastmoney-f10',
+    fromCache: false,
+    controller: { name: '示例国有资产监督管理委员会', holdingRatio: null },
+    latestSummary: holderHistory.at(-1) ?? null,
+    holderHistory,
+    topShareholders: holdings,
+    topFreeShareholders: holdings
+  }
+}
+
 const demoApi: StockDesktopApi = {
   async getBootstrap(): Promise<BootstrapResult> {
     const state = loadDemoState()
@@ -518,6 +580,9 @@ const demoApi: StockDesktopApi = {
   },
   async openCompanyReport(url) {
     window.open(url, '_blank', 'noopener,noreferrer')
+  },
+  async getShareholderSnapshot(quoteId) {
+    return makeDemoShareholderSnapshot(quoteId)
   },
   async getValuationHistory(quoteId) {
     return {

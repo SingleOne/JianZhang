@@ -11,6 +11,7 @@
 | 搜索并添加自选 | `SearchBar.tsx`、`App.tsx` | `stockApi.searchStocks`、`App.addStock`；新增后立即定向刷新单股行情 | `market.ts#searchStocks` + `QuoteRuntime.refreshStock` |
 | 分红融资回报分析 | `DividendFinancingRankingDialog.tsx`、`WatchlistRow.tsx`、`ExpandedStockDetails.tsx` | 净回报/规模/连续性/评分筛选，评分拆解，年度分红和融资时间线，快照变化报告，对数散点选股，自选联动；缺失自动获取、过期提示 | `DividendFinancingService` + schema v2 用户快照 + `createDividendFinancingChangeReport` |
 | 基本面初筛 | `FundamentalScreeningDialog.tsx`、`FundamentalWatchlistOverview.tsx`、`WatchlistRow.tsx`、`ExpandedStockDetails.tsx`、`SettingsMenu.tsx` | 普通企业三项硬筛选、六类固定质量标签、六类风险提示、同行 ROE/现金质量/低负债排名、简化 DCF 与五年明细；默认规则更新变化；主表以两字标签区分结果和风险，当前分组/板块直接统计四类价值组合、基本面状态、待核构成及风险公司，支持条件叠加和标签数排序 | `fundamental-screening.ts` + `dcf-analysis.ts` + `FundamentalDataService` + schema v1/v2/v3/v4/v5 用户快照和最近一次变化报告 + 四阶段 Python 更新脚本 |
+| 股东信息 | `ShareholderPanel.tsx`、`ShareholderCountChart.tsx`、`ExpandedStockDetails.tsx` | 实际控制人、股东户数与户均持股概览、近十期户数趋势、十大股东和十大流通股东切换 | `ShareholderService` + 东方财富 F10 股东研究接口 + `market-cache/shareholders/` 按股票持久化缓存 |
 | 公司财报库与阅读指南 | `CompanyReportLibrary.tsx`、`ExpandedStockDetails.tsx` | 最近五个报告年度按报告所属财年分组并只展示全文；打开官方 PDF；一键生成并保存 AI 总结；基本面页讲解 ROE、现金转换、负债、三张表和阅读顺序 | `CompanyReportService` + 巨潮资讯定期报告分类接口 + `pdf-parse` + AI Runtime + `company-reports/` 目录和总结缓存 |
 | A 股收盘扫描 | `DailyMarketScanDialog.tsx`、`App.tsx` | 成交额过滤、20 日均量、放量/大涨放量/大跌放量/20 日新高/20 日新低/连跌后翻红计算，创业板/科创板标识和“异动观察”自选联动 | `DailyMarketScanService` + `fetchDailyMarketActiveQuotes` + 扫描专用 8 并发日 K |
 | 选股追踪与复盘 | `StockTrackingDialog.tsx`、`StockTrackingEditor.tsx`、`StockTrackingPanel.tsx`、`StockTrackingMetricsPanel.tsx`、`ExpandedStockDetails.tsx` | 多来源历史、标签、选股逻辑、带行情快照的时间线、停止/恢复追踪和跟踪区间表现；按交易日保存价格、成交量、均价/均量、周期涨幅和 5/10/20 日量比，绘制量价及量比趋势，标记四类量价状态并提醒连续三日背离；收盘扫描、分红融资榜、基本面筛选默认开始追踪 | `AppState.stockTrackingProfiles` + 现有实时行情和日 K |
@@ -119,15 +120,16 @@ SearchBar
 2. 资金流向
 3. 分红融资
 4. 基本面
-5. 财报库
-6. 选股追踪
-7. 市场观察
-8. 五日、日 K、周 K、月 K
-9. 板块
-10. AI 分析
-11. AI 做 T 参考
+5. 股东
+6. 财报库
+7. 选股追踪
+8. 市场观察
+9. 五日、日 K、周 K、月 K
+10. 板块
+11. AI 分析
+12. AI 做 T 参考
 
-基本面页使用默认规则展示三项通过状态与证据，并列出五年的加权/扣非 ROE、利润、经营现金流和现金转换率；质量特征与风险关注分区展示，风险项保留完整名称、红色/橙色级别及具体触发证据，不改变三项硬筛选结论。同行位置按同一行业普通企业分别计算五年最低 ROE、五年累计现金转换率和低负债名次，有效样本少于 10 家时不发布排名；金融企业的规则显示为“不适用”，且不参与质量、风险和同行排名。分时页同时展示五档盘口。日/周/月 K 在主图叠加本地计算的 BOLL(20,2) 上轨、中轨和下轨，下方指标栏显示十字光标所在周期的三轨价格并提供持久化开关。日 K 可通过设置开关显示筹码分布，计算范围从当前可视 K 线最右端向前累计换手率到 100%。首批日 K 不足时根据现有平均换手率估算目标根数并直接补取；普通历史 K 线缩放到左端时仍按倍数补取更早数据。
+基本面页使用默认规则展示三项通过状态与证据，并列出五年的加权/扣非 ROE、利润、经营现金流和现金转换率；质量特征与风险关注分区展示，风险项保留完整名称、红色/橙色级别及具体触发证据，不改变三项硬筛选结论。同行位置按同一行业普通企业分别计算五年最低 ROE、五年累计现金转换率和低负债名次，有效样本少于 10 家时不发布排名；金融企业的规则显示为“不适用”，且不参与质量、风险和同行排名。股东页按股票加载并持久化实际控制人、股东户数趋势、十大股东和十大流通股东，明确区分报告期与获取时间。分时页同时展示五档盘口。日/周/月 K 在主图叠加本地计算的 BOLL(20,2) 上轨、中轨和下轨，下方指标栏显示十字光标所在周期的三轨价格并提供持久化开关。日 K 可通过设置开关显示筹码分布，计算范围从当前可视 K 线最右端向前累计换手率到 100%。首批日 K 不足时根据现有平均换手率估算目标根数并直接补取；普通历史 K 线缩放到左端时仍按倍数补取更早数据。
 
 详细链路见[行情数据链路](03-market-data.md)。
 
