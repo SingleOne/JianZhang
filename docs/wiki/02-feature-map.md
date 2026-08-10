@@ -13,7 +13,7 @@
 | 基本面初筛 | `FundamentalScreeningDialog.tsx`、`FundamentalWatchlistOverview.tsx`、`WatchlistRow.tsx`、`ExpandedStockDetails.tsx`、`SettingsMenu.tsx` | 普通企业三项硬筛选、六类固定质量标签、六类风险提示、同行 ROE/现金质量/低负债排名、简化 DCF 与五年明细；默认规则更新变化；主表以两字标签区分结果和风险，当前分组/板块直接统计四类价值组合、基本面状态、待核构成及风险公司，支持条件叠加和标签数排序 | `fundamental-screening.ts` + `dcf-analysis.ts` + `FundamentalDataService` + schema v1/v2/v3/v4/v5 用户快照和最近一次变化报告 + 四阶段 Python 更新脚本 |
 | 公司财报库与阅读指南 | `CompanyReportLibrary.tsx`、`ExpandedStockDetails.tsx` | 最近五个报告年度按报告所属财年分组并只展示全文；打开官方 PDF；一键生成并保存 AI 总结；基本面页讲解 ROE、现金转换、负债、三张表和阅读顺序 | `CompanyReportService` + 巨潮资讯定期报告分类接口 + `pdf-parse` + AI Runtime + `company-reports/` 目录和总结缓存 |
 | A 股收盘扫描 | `DailyMarketScanDialog.tsx`、`App.tsx` | 成交额过滤、20 日均量、放量/大涨放量/大跌放量/20 日新高/20 日新低/连跌后翻红计算，创业板/科创板标识和“异动观察”自选联动 | `DailyMarketScanService` + `fetchDailyMarketActiveQuotes` + 扫描专用 8 并发日 K |
-| 选股追踪与复盘 | `StockTrackingDialog.tsx`、`StockTrackingEditor.tsx`、`StockTrackingPanel.tsx`、`ExpandedStockDetails.tsx` | 多来源历史、标签、选股逻辑、带行情快照的时间线、停止/恢复追踪和跟踪区间表现；收盘扫描、分红融资榜、基本面筛选默认开始追踪 | `AppState.stockTrackingProfiles` + 现有实时行情和日 K |
+| 选股追踪与复盘 | `StockTrackingDialog.tsx`、`StockTrackingEditor.tsx`、`StockTrackingPanel.tsx`、`StockTrackingMetricsPanel.tsx`、`ExpandedStockDetails.tsx` | 多来源历史、标签、选股逻辑、带行情快照的时间线、停止/恢复追踪和跟踪区间表现；按交易日保存 5/10/20 日量比并绘制趋势图；收盘扫描、分红融资榜、基本面筛选默认开始追踪 | `AppState.stockTrackingProfiles` + 现有实时行情和日 K |
 | 删除、拖拽、置顶、排序、调整列 | `WatchlistTable.tsx` | `normalizeWatchlistColumnOrder`、`migrateWatchlistColumnOrder` | `state:save` |
 | 自定义分组与板块组合筛选 | `WatchlistTable.tsx`、`WatchlistGroupDialog.tsx`、`TableFilterDropdown.tsx` | `WatchlistGroup`、`WatchStock.groupIds` | 分组随 `AppState` 保存；板块筛选使用实时报价 |
 | 重点关注 | `WatchlistTable.tsx` | 有持仓时自动锁定重点；`App.togglePriority` | `QuoteRefreshCoordinator` 统一调度重点/普通范围 |

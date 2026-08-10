@@ -45,6 +45,7 @@ import { PythonTaskQueue } from './python-task-queue'
 import { QuoteRuntime } from './quote-runtime'
 import { SectorMarketCache } from './sector-market-cache'
 import { StateStore } from './state-store'
+import { StockTrackingMetricsRuntime } from './stock-tracking-metrics-runtime'
 import { TradingCalendarRuntime } from './trading-calendar-runtime'
 import { ValuationHistoryService } from './valuation-history-service'
 import { createAppIcon } from './tray-icons'
@@ -112,6 +113,7 @@ let state: AppState = DEFAULT_STATE
 let stateStore: StateStore | null = null
 let windowManager: WindowManager | null = null
 let quoteRuntime: QuoteRuntime | null = null
+let stockTrackingMetricsRuntime: StockTrackingMetricsRuntime | null = null
 let tradingCalendarRuntime: TradingCalendarRuntime | null = null
 let startupWarning: string | undefined
 let isQuitting = false
@@ -202,6 +204,8 @@ function cleanupBeforeQuit(): void {
   tradingCalendarRuntime = null
   quoteRuntime?.dispose()
   quoteRuntime = null
+  stockTrackingMetricsRuntime?.dispose()
+  stockTrackingMetricsRuntime = null
   disposeIpcHandlers?.()
   disposeIpcHandlers = null
   windowManager?.dispose()
@@ -274,6 +278,16 @@ if (!hasSingleInstanceLock) {
       () => state.settings.tradingCalendar.closedDates,
       INTRADAY_REFRESH_MILLISECONDS
     )
+    stockTrackingMetricsRuntime = new StockTrackingMetricsRuntime({
+      getState: () => state,
+      setState: (nextState) => {
+        state = nextState
+      },
+      persistState,
+      sendStateUpdated: (nextState) => sendToWindows('state:updated', nextState),
+      getDailyKline: (quoteId, limit) =>
+        getKline(quoteId, 'daily', limit, 'tracking:volume-ratios')
+    })
     dailyMarketScanService = new DailyMarketScanService({
       userDataDirectory: app.getPath('userData'),
       historicalKlineCache,
@@ -347,6 +361,7 @@ if (!hasSingleInstanceLock) {
       refreshQuotes: (reason) => quoteRuntime!.refreshAll(reason),
       refreshQuotesAutomatically: (reason) => quoteRuntime!.refreshAutomatically(reason),
       refreshStock: (quoteId, reason) => quoteRuntime!.refreshStock(quoteId, reason),
+      captureStockTrackingMetrics: () => stockTrackingMetricsRuntime!.capture(),
       restartQuoteSchedule: () => quoteRuntime!.restartSchedule(),
       primeSectorBindings: (refreshWhenReady) =>
         quoteRuntime!.primeSectorBindings(refreshWhenReady),
@@ -460,6 +475,7 @@ if (!hasSingleInstanceLock) {
     dividendFinancingService.initializeIfMissing()
     fundamentalDataService.initializeIfMissing()
     quoteRuntime.start()
+    stockTrackingMetricsRuntime.start()
     tradingCalendarRuntime.start()
     void quoteRuntime.refreshAutomatically('startup')
     void quoteRuntime.primeSectorBindings(true)

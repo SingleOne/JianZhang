@@ -44,6 +44,7 @@
 | [`electron/main/chip-distribution-cache.ts`](../../electron/main/chip-distribution-cache.ts) | `ChipDistributionCache` | 按股票读写最后一次筹码分布磁盘缓存 |
 | [`electron/main/historical-kline-cache.ts`](../../electron/main/historical-kline-cache.ts) | `HistoricalKlineCache` | 日/周/月 K 持久化、150 条内存 LRU、长短范围合并、失效回退和 90 天清理 |
 | [`electron/main/daily-market-scan-service.ts`](../../electron/main/daily-market-scan-service.ts) | `DailyMarketScanService` | 全市场收盘扫描编排、受控并发、进度与最新结果落盘 |
+| [`electron/main/stock-tracking-metrics-runtime.ts`](../../electron/main/stock-tracking-metrics-runtime.ts) | `StockTrackingMetricsRuntime` | 活跃追踪股票的日 K 补取、30 分钟定时采集和每日指标快照落盘 |
 | [`electron/main/trading-calendar.ts`](../../electron/main/trading-calendar.ts) | `fetchSseTradingCalendar` | 解析上交所当年休市安排 |
 | [`electron/main/tray-icons.ts`](../../electron/main/tray-icons.ts) | `createAppIcon` | 生成 Electron 托盘/窗口原生图标 |
 | [`electron/preload/index.ts`](../../electron/preload/index.ts) | `api`、`subscribe` | 把类型化 `stockApi` 安全暴露给 renderer |
@@ -91,6 +92,7 @@
 | [`src/lib/chip-distribution.ts`](../../src/lib/chip-distribution.ts) | `findChipAutoRange`、`estimateChipHistoryLimit`、`calculateChipDistribution` | 累计换手 100% 自动范围、历史根数估算和筹码分布计算 |
 | [`src/lib/format.ts`](../../src/lib/format.ts) | `formatPrice`、`formatProfit`、`formatAmount` | 展示格式化 |
 | [`src/lib/stock-tracking.ts`](../../src/lib/stock-tracking.ts) | `startStockTracking`、`stopStockTracking`、`addStockTrackingEntry` | 追踪来源、停止/恢复和复盘时间线状态转换 |
+| [`src/lib/stock-tracking-metrics.ts`](../../src/lib/stock-tracking-metrics.ts) | `calculateStockTrackingVolumeRatios`、`mergeStockTrackingMetricSnapshots` | 5/10/20 日量比计算及可扩展每日指标快照合并 |
 
 ## 主界面组件
 
@@ -105,6 +107,7 @@
 | [`src/components/StockTrackingDialog.tsx`](../../src/components/StockTrackingDialog.tsx) | 全部追踪档案的状态、来源和关键词筛选以及集中复盘 |
 | [`src/components/StockTrackingEditor.tsx`](../../src/components/StockTrackingEditor.tsx) | 来源历史、标签、选股逻辑、时间线和停止结论编辑 |
 | [`src/components/StockTrackingPanel.tsx`](../../src/components/StockTrackingPanel.tsx) | 个股复盘入口及追踪以来涨跌、最大涨幅、最大回撤计算 |
+| [`src/components/StockTrackingMetricsPanel.tsx`](../../src/components/StockTrackingMetricsPanel.tsx) / [`StockTrackingMetricsChart.tsx`](../../src/components/StockTrackingMetricsChart.tsx) | 最新 5/10/20 日量比卡片、三周期趋势图和 1.00 倍基准线 |
 | [`src/components/PortfolioQualityDialog.tsx`](../../src/components/PortfolioQualityDialog.tsx) | 全部持仓价值类型、具体风险、行业结构、组合筛选、未计价说明和主表定位 |
 | [`src/components/WatchlistTable.tsx`](../../src/components/WatchlistTable.tsx) | 自选主表、排序、列、异动、展开详情和操作入口 |
 | [`src/components/watchlist-table/WatchlistRow.tsx`](../../src/components/watchlist-table/WatchlistRow.tsx) | 单股行指标、单元格、提醒、操作和展开详情 |

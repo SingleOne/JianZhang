@@ -54,7 +54,8 @@ describe('configuration tracking profiles', () => {
       updatedAt: '2026-08-10T00:00:00.000Z',
       stoppedAt: '2026-08-10T00:00:00.000Z',
       sources: [],
-      entries: []
+      entries: [],
+      metricSnapshots: []
     }
     const document = createConfigDocument(current, '7.10.0')
     const parsed = parseConfigDocument(document)

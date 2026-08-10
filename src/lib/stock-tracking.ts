@@ -114,7 +114,8 @@ export function startStockTracking(
       startedAt: now,
       updatedAt: now,
       sources: [source],
-      entries: []
+      entries: [],
+      metricSnapshots: []
     }
     return appendEntry(
       profile,

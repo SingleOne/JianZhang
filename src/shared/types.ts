@@ -80,6 +80,12 @@ export interface StockTrackingConclusion {
   stoppedAt: string
 }
 
+export interface StockTrackingMetricSnapshot {
+  tradingDate: string
+  capturedAt: string
+  metrics: Record<string, number>
+}
+
 export interface StockTrackingProfile {
   quoteId: string
   code: string
@@ -93,6 +99,7 @@ export interface StockTrackingProfile {
   stoppedAt?: string
   sources: StockTrackingSource[]
   entries: StockTrackingEntry[]
+  metricSnapshots: StockTrackingMetricSnapshot[]
   conclusion?: StockTrackingConclusion
 }
 
@@ -213,6 +220,27 @@ export function normalizeStockTrackingProfiles(
             ]
           })
         : []
+      const metricSnapshots = Array.isArray(profile.metricSnapshots)
+        ? profile.metricSnapshots
+            .flatMap((snapshot) => {
+              const tradingDate = snapshot?.tradingDate?.slice(0, 10)
+              if (!tradingDate) return []
+              const metrics = Object.fromEntries(
+                Object.entries(snapshot.metrics ?? {}).filter(
+                  ([metricId, value]) => metricId.trim() && Number.isFinite(value)
+                )
+              )
+              if (Object.keys(metrics).length === 0) return []
+              return [
+                {
+                  tradingDate,
+                  capturedAt: snapshot.capturedAt || profile.updatedAt,
+                  metrics
+                }
+              ]
+            })
+            .sort((left, right) => left.tradingDate.localeCompare(right.tradingDate))
+        : []
       return [
         [
           quoteId,
@@ -223,7 +251,8 @@ export function normalizeStockTrackingProfiles(
             tags: [...new Set((profile.tags ?? []).map((tag) => tag.trim()).filter(Boolean))],
             thesis: profile.thesis?.trim() ?? '',
             sources,
-            entries
+            entries,
+            metricSnapshots
           }
         ]
       ]

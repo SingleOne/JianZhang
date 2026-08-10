@@ -66,6 +66,7 @@ interface IpcHandlerDependencies {
   refreshQuotes: (reason?: string) => Promise<StockQuote[]>
   refreshQuotesAutomatically: (reason: string) => Promise<StockQuote[]>
   refreshStock: (quoteId: string, reason?: string) => Promise<StockQuote[]>
+  captureStockTrackingMetrics: () => Promise<void>
   restartQuoteSchedule: () => void
   primeSectorBindings: (refreshWhenReady: boolean) => Promise<void>
   getKline: (quoteId: string, period: KlinePeriod, limit?: number) => Promise<KlineResult>
@@ -226,6 +227,7 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
       dependencies.sendToWindows('quotes:updated', dependencies.getQuotes())
     }
     dependencies.syncWindowSurfaces()
+    void dependencies.captureStockTrackingMetrics()
     if (watchedStocksChanged) void dependencies.primeSectorBindings(true)
     if (marketIndicesChanged) void dependencies.refreshQuotes('state-change:indices')
     else if (priorityChanged) {

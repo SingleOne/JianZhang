@@ -22,7 +22,7 @@ interface AppState {
 
 - 自选顺序、任务栏选择、重点关注。
 - 自选分组及股票的多分组归属；包含不可改名或删除的系统“异动观察”和“追踪”分组。
-- 选股追踪档案、来源历史、标签、选股逻辑、时间线、停止状态和复盘结论。
+- 选股追踪档案、来源历史、标签、选股逻辑、时间线、停止状态、复盘结论和按交易日保存的通用指标快照。
 - 持仓和持仓快照。
 - 自定义股价提醒规则与触发状态。
 - 刷新、指数、筹码分布开关、做 T、浮动盈亏提醒默认值、系统、交易日历设置。
@@ -90,6 +90,7 @@ interface AppState {
 4. 更新内存并写入文件。
 5. 广播 `state:updated`。
 6. 更新托盘菜单和任务栏窗口。
+7. 通知追踪指标运行时检查是否有新开始追踪的股票需要立即采集。
 
 可能触发的额外动作：
 
@@ -109,7 +110,7 @@ interface AppState {
 | --- | --- |
 | `normalizeWatchlist` | 持仓股票强制重点关注、补异动开关、过滤无效快照 |
 | `normalizeWatchlistGroups` | 去除无 ID、无名称或重复 ID 的自选分组，并补齐系统“异动观察”和“追踪”分组 |
-| `normalizeStockTrackingProfiles` | 兼容缺失追踪数据的旧配置并规范化来源、标签和时间线 |
+| `normalizeStockTrackingProfiles` | 兼容缺失追踪数据的旧配置并规范化来源、标签、时间线和每日指标快照 |
 | `synchronizeTrackingGroupMembership` | 根据追踪中/已停止状态自动加入或移出系统“追踪”分组 |
 | `normalizeMarketIndexIds` | 过滤并按内置顺序返回指数 |
 | `normalizeActiveTTradingBatch` | 兼容旧双五档、价格/浮动盈亏提醒开关和反 T 语义 |

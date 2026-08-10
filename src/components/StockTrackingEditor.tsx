@@ -14,6 +14,7 @@ import type {
   StockTrackingEntryType,
   StockTrackingProfile
 } from '../shared/types'
+import { StockTrackingMetricsPanel } from './StockTrackingMetricsPanel'
 
 export interface StockTrackingPerformance {
   trackingReturn: number | null
@@ -212,6 +213,8 @@ export function StockTrackingEditor({
           </span>
         </section>
       ) : null}
+
+      <StockTrackingMetricsPanel snapshots={profile.metricSnapshots} />
 
       <section className="stock-tracking-section">
         <div className="stock-tracking-section-title">

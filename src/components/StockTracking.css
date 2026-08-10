@@ -160,6 +160,99 @@
   font-size: 16px;
 }
 
+.stock-tracking-metrics-section {
+  gap: 12px;
+}
+
+.stock-tracking-metric-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.stock-tracking-metric-cards article {
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 11px 12px;
+  background: var(--surface-muted);
+}
+
+.stock-tracking-metric-cards small,
+.stock-tracking-metric-cards span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.stock-tracking-metric-cards strong {
+  color: var(--text);
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-tracking-metrics-chart {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: #ffffff;
+}
+
+.stock-tracking-metrics-chart-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  border-bottom: 1px solid #edf1f7;
+  padding: 9px 12px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.stock-tracking-metrics-chart-legend strong,
+.stock-tracking-metrics-chart-legend span {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-tracking-metrics-chart-legend strong {
+  min-width: 78px;
+  color: #334155;
+}
+
+.stock-tracking-metrics-chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stock-tracking-metrics-chart-legend span::before {
+  width: 9px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--metric-color);
+  content: '';
+}
+
+.stock-tracking-metrics-loading,
+.stock-tracking-metrics-empty {
+  display: grid;
+  place-items: center;
+  min-height: 180px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.stock-tracking-metrics-note {
+  margin: -3px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .stock-tracking-section {
   display: grid;
   gap: 10px;
@@ -348,6 +441,10 @@
 
   .stock-tracking-entry-form select {
     width: 100%;
+  }
+
+  .stock-tracking-metric-cards {
+    grid-template-columns: 1fr;
   }
 }
 

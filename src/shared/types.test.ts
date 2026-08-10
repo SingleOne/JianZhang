@@ -69,7 +69,8 @@ describe('watchlist normalization', () => {
         startedAt: '2026-08-10T08:00:00.000Z',
         updatedAt: '2026-08-10T08:00:00.000Z',
         sources: [],
-        entries: []
+        entries: [],
+        metricSnapshots: []
       }
     })
     const [stock] = synchronizeTrackingGroupMembership(
