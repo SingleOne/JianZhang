@@ -11,7 +11,7 @@ import {
   RotateCcw,
   X
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { calculatePositionMetrics } from '../lib/portfolio'
 import { calculatePortfolioQualitySummary } from '../lib/portfolio-quality'
 import type { StockDetailNavigationRequest } from '../lib/completion-notifications'
@@ -243,6 +243,7 @@ export function WatchlistTable({
   const radarPopoverRef = useRef<HTMLDivElement>(null)
   const locateTimerRef = useRef<number | undefined>(undefined)
   const locateFrameRef = useRef<number | undefined>(undefined)
+  const pendingExpandedScrollRef = useRef<string | null>(null)
   const selectedQuoteIdRef = useRef(selectedQuoteId)
   selectedQuoteIdRef.current = selectedQuoteId
 
@@ -541,6 +542,7 @@ export function WatchlistTable({
   const toggleStockDetails = useCallback(
     (quoteId: string) => {
       const currentSelectedQuoteId = selectedQuoteIdRef.current
+      pendingExpandedScrollRef.current = currentSelectedQuoteId === quoteId ? null : quoteId
       setClosingQuoteIds((current) => {
         const next = new Set(current)
         if (currentSelectedQuoteId) next.add(currentSelectedQuoteId)
@@ -551,6 +553,24 @@ export function WatchlistTable({
     },
     [onSelect]
   )
+
+  useLayoutEffect(() => {
+    if (!selectedQuoteId || pendingExpandedScrollRef.current !== selectedQuoteId) return
+
+    const scroller = tableScrollerRef.current
+    const row = scroller?.querySelector<HTMLTableRowElement>(
+      `tr[data-quote-id="${selectedQuoteId}"]`
+    )
+    if (!scroller || !row) return
+
+    const scrollerRect = scroller.getBoundingClientRect()
+    const rowRect = row.getBoundingClientRect()
+    scroller.scrollTo({
+      top: Math.max(0, scroller.scrollTop + rowRect.top - scrollerRect.top),
+      behavior: 'auto'
+    })
+    pendingExpandedScrollRef.current = null
+  }, [selectedQuoteId])
 
   const finishClosingStockDetails = useCallback((quoteId: string) => {
     setClosingQuoteIds((current) => {
@@ -852,18 +872,22 @@ export function WatchlistTable({
               <th className="delete-column">删除</th>
             </tr>
           </thead>
-          <tbody>
-            {displayedRows.map(
-              ({
-                stock,
-                quote,
-                dividendFinancing,
-                fundamentalScreening,
-                fundamentalPeerComparison,
-                manualIndex
-              }) => (
+          {displayedRows.map(
+            ({
+              stock,
+              quote,
+              dividendFinancing,
+              fundamentalScreening,
+              fundamentalPeerComparison,
+              manualIndex
+            }) => (
+              <tbody
+                className={`watchlist-stock-group ${
+                  selectedQuoteId === stock.quoteId ? 'is-expanded' : ''
+                }`}
+                key={stock.quoteId}
+              >
                 <WatchlistRow
-                  key={stock.quoteId}
                   stock={stock}
                   quote={quote}
                   dividendFinancing={dividendFinancing}
@@ -916,16 +940,18 @@ export function WatchlistTable({
                   onRestartTracking={onRestartTracking}
                   onRemove={onRemove}
                 />
-              )
-            )}
-            {displayedRows.length === 0 ? (
+              </tbody>
+            )
+          )}
+          {displayedRows.length === 0 ? (
+            <tbody>
               <tr>
                 <td className="table-filter-empty" colSpan={adjustableColumnOrder.length + 3}>
                   当前筛选条件下没有股票。
                 </td>
               </tr>
-            ) : null}
-          </tbody>
+            </tbody>
+          ) : null}
         </table>
       </div>
 

@@ -299,32 +299,35 @@ export function StockTrackingEditor({
             <strong>新增跟踪记录</strong>
           </div>
           <div className="stock-tracking-entry-form">
-            <select
-              value={entryType}
-              onChange={(event) =>
-                setEntryType(event.target.value as Exclude<StockTrackingEntryType, 'system'>)
-              }
-            >
-              {(['note', 'thesis', 'review'] as const).map((type) => (
-                <option value={type} key={type}>
-                  {STOCK_TRACKING_ENTRY_LABELS[type]}
-                </option>
-              ))}
-            </select>
             <textarea
               value={entryContent}
               onChange={(event) => setEntryContent(event.target.value)}
               placeholder="记录今天观察到的变化、判断和后续计划"
             />
-            <button
-              className="primary-button"
-              type="button"
-              onClick={addEntry}
-              disabled={!entryContent.trim()}
-            >
-              <Plus size={14} />
-              添加记录
-            </button>
+            <div className="stock-tracking-save-row">
+              <select
+                value={entryType}
+                onChange={(event) =>
+                  setEntryType(event.target.value as Exclude<StockTrackingEntryType, 'system'>)
+                }
+                aria-label="跟踪记录类型"
+              >
+                {(['note', 'thesis', 'review'] as const).map((type) => (
+                  <option value={type} key={type}>
+                    {STOCK_TRACKING_ENTRY_LABELS[type]}
+                  </option>
+                ))}
+              </select>
+              <button
+                className="primary-button"
+                type="button"
+                onClick={addEntry}
+                disabled={!entryContent.trim()}
+              >
+                <Plus size={14} />
+                添加记录
+              </button>
+            </div>
           </div>
         </section>
       </div>

@@ -509,6 +509,7 @@
 }
 
 .stock-tracking-entry-form {
+  display: grid;
   align-items: stretch;
   gap: 8px;
 }
@@ -518,12 +519,9 @@
 }
 
 .stock-tracking-entry-form textarea {
-  flex: 1;
-  min-height: 70px;
-}
-
-.stock-tracking-entry-form button {
-  align-self: flex-end;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 112px;
 }
 
 .stock-tracking-timeline {
@@ -639,7 +637,8 @@
 }
 
 .stock-tracking-tab {
-  padding: 15px 4px 4px;
+  margin-top: 0;
+  padding: 0 4px 4px;
 }
 
 .stock-tracking-dialog-backdrop {
