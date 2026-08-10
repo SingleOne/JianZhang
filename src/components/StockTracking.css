@@ -166,7 +166,7 @@
 
 .stock-tracking-metric-cards {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 9px;
 }
 
@@ -189,6 +189,79 @@
   color: var(--text);
   font-size: 18px;
   font-variant-numeric: tabular-nums;
+}
+
+.stock-tracking-metric-cards span em {
+  margin-left: 4px;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.stock-tracking-metric-cards .is-up,
+.stock-tracking-price-volume-legend .is-up,
+.stock-tracking-price-average-legend .is-up {
+  color: var(--red);
+}
+
+.stock-tracking-metric-cards .is-down,
+.stock-tracking-price-volume-legend .is-down,
+.stock-tracking-price-average-legend .is-down {
+  color: var(--green);
+}
+
+.stock-tracking-metric-cards .is-flat,
+.stock-tracking-price-volume-legend .is-flat,
+.stock-tracking-price-average-legend .is-flat {
+  color: var(--muted);
+}
+
+.stock-tracking-metric-cards article.is-state-volumeRisePriceRise {
+  border-color: rgba(220, 55, 66, 0.32);
+  background: rgba(220, 55, 66, 0.06);
+}
+
+.stock-tracking-metric-cards article.is-state-volumeRisePriceFall {
+  border-color: rgba(24, 146, 102, 0.32);
+  background: rgba(24, 146, 102, 0.06);
+}
+
+.stock-tracking-metric-cards article.is-state-volumeFallPriceRise {
+  border-color: rgba(217, 119, 6, 0.3);
+  background: rgba(217, 119, 6, 0.06);
+}
+
+.stock-tracking-metric-cards article.is-state-volumeFallPriceFall {
+  border-color: rgba(63, 127, 211, 0.3);
+  background: rgba(63, 127, 211, 0.06);
+}
+
+.stock-tracking-chart-tabs {
+  display: flex;
+  gap: 6px;
+  width: fit-content;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 3px;
+  background: var(--surface-muted);
+}
+
+.stock-tracking-chart-tabs button {
+  min-height: 32px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 13px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.stock-tracking-chart-tabs button.is-active {
+  background: var(--surface);
+  color: var(--blue);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
 }
 
 .stock-tracking-metrics-chart {
@@ -232,6 +305,77 @@
   border-radius: 999px;
   background: var(--metric-color);
   content: '';
+}
+
+.stock-tracking-price-volume-legend,
+.stock-tracking-price-average-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px 15px;
+  padding: 8px 12px;
+  color: #64748b;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-tracking-price-volume-legend {
+  border-bottom: 1px solid #edf1f7;
+}
+
+.stock-tracking-price-volume-legend strong,
+.stock-tracking-price-volume-legend span,
+.stock-tracking-price-volume-legend em,
+.stock-tracking-price-average-legend span,
+.stock-tracking-price-average-legend em {
+  font-size: 12px;
+}
+
+.stock-tracking-price-volume-legend strong {
+  min-width: 78px;
+  color: #334155;
+}
+
+.stock-tracking-price-volume-legend span em,
+.stock-tracking-price-average-legend span em {
+  margin-left: 5px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.stock-tracking-price-volume-legend > em {
+  margin-left: auto;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.stock-tracking-price-volume-legend > em.is-volumeRisePriceRise {
+  background: rgba(220, 55, 66, 0.1);
+  color: #b4232e;
+}
+
+.stock-tracking-price-volume-legend > em.is-volumeRisePriceFall {
+  background: rgba(24, 146, 102, 0.1);
+  color: #11734f;
+}
+
+.stock-tracking-price-volume-legend > em.is-volumeFallPriceRise {
+  background: rgba(217, 119, 6, 0.1);
+  color: #a45d08;
+}
+
+.stock-tracking-price-volume-legend > em.is-volumeFallPriceFall {
+  background: rgba(63, 127, 211, 0.1);
+  color: #315f9d;
+}
+
+.stock-tracking-price-average-legend {
+  border-bottom: 1px solid #edf1f7;
+  background: #fafcff;
 }
 
 .stock-tracking-metrics-loading,
@@ -443,6 +587,12 @@
     width: 100%;
   }
 
+  .stock-tracking-metric-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
   .stock-tracking-metric-cards {
     grid-template-columns: 1fr;
   }

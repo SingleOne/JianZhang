@@ -56,6 +56,7 @@ describe('StockTrackingMetricsRuntime', () => {
     let currentState = state()
     const persistState = vi.fn()
     const sendStateUpdated = vi.fn()
+    const notifyPriceVolumeDivergence = vi.fn()
     const getDailyKline = vi.fn(async (quoteId: string) => ({
       quoteId,
       name: '浦发银行',
@@ -70,6 +71,7 @@ describe('StockTrackingMetricsRuntime', () => {
       persistState,
       sendStateUpdated,
       getDailyKline,
+      notifyPriceVolumeDivergence,
       now: () => new Date('2026-07-21T08:00:00.000Z')
     })
 
@@ -77,12 +79,57 @@ describe('StockTrackingMetricsRuntime', () => {
 
     expect(getDailyKline).toHaveBeenCalledWith('1.600000', 500)
     expect(currentState.stockTrackingProfiles['1.600000'].metricSnapshots).toHaveLength(1)
-    expect(currentState.stockTrackingProfiles['1.600000'].metricSnapshots[0].metrics).toEqual({
-      volumeRatio5d: 2,
-      volumeRatio10d: 2,
-      volumeRatio20d: 2
-    })
+    expect(currentState.stockTrackingProfiles['1.600000'].metricSnapshots[0].metrics).toMatchObject(
+      {
+        close: 10,
+        volume: 200,
+        volumeRatio5d: 2,
+        volumeRatio10d: 2,
+        volumeRatio20d: 2
+      }
+    )
     expect(persistState).toHaveBeenCalledOnce()
     expect(sendStateUpdated).toHaveBeenCalledWith(currentState)
+    expect(notifyPriceVolumeDivergence).not.toHaveBeenCalled()
+  })
+
+  it('records and notifies a new three-session divergence only once', async () => {
+    let currentState = state()
+    const divergentBars = bars()
+    divergentBars.splice(
+      17,
+      4,
+      { ...divergentBars[17], close: 10, volume: 140 },
+      { ...divergentBars[18], close: 11, volume: 130 },
+      { ...divergentBars[19], close: 12, volume: 120 },
+      { ...divergentBars[20], close: 13, volume: 110 }
+    )
+    const notifyPriceVolumeDivergence = vi.fn()
+    const runtime = new StockTrackingMetricsRuntime({
+      getState: () => currentState,
+      setState: (nextState) => {
+        currentState = nextState
+      },
+      persistState: vi.fn(),
+      sendStateUpdated: vi.fn(),
+      getDailyKline: async (quoteId) => ({
+        quoteId,
+        name: '浦发银行',
+        tradingDate: '2026-07-21',
+        bars: divergentBars
+      }),
+      notifyPriceVolumeDivergence,
+      now: () => new Date('2026-07-21T08:00:00.000Z')
+    })
+
+    await runtime.capture(true)
+    await runtime.capture(true)
+
+    expect(currentState.stockTrackingProfiles['1.600000'].entries[0]).toMatchObject({
+      id: 'tracking:price-volume-divergence:2026-07-21:priceRiseVolumeFall',
+      type: 'system',
+      content: '量价背离提醒：连续三日价升量减'
+    })
+    expect(notifyPriceVolumeDivergence).toHaveBeenCalledOnce()
   })
 })

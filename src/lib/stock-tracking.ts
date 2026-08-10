@@ -78,6 +78,28 @@ function appendEntry(
   }
 }
 
+export function addStockTrackingSystemEntry(
+  profile: StockTrackingProfile,
+  id: string,
+  content: string,
+  quoteSnapshot: StockTrackingQuoteSnapshot | undefined,
+  createdAt: string
+): StockTrackingProfile {
+  if (profile.entries.some((entry) => entry.id === id)) return profile
+  const entry: StockTrackingEntry = {
+    id,
+    type: 'system',
+    content,
+    createdAt,
+    quoteSnapshot
+  }
+  return {
+    ...profile,
+    updatedAt: createdAt,
+    entries: [entry, ...profile.entries]
+  }
+}
+
 function sameSource(left: StockTrackingSource, right: StockTrackingSource): boolean {
   if (left.type !== right.type) return false
   if (left.type === 'dailyScan') return left.detail?.tradingDate === right.detail?.tradingDate

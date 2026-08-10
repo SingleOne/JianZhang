@@ -1,22 +1,118 @@
 import type { KlineBar, StockTrackingMetricSnapshot, StockTrackingProfile } from '../shared/types'
 
+export const STOCK_TRACKING_BASE_METRICS = {
+  close: 'close',
+  changePercent: 'changePercent',
+  volume: 'volume',
+  amount: 'amount',
+  priceVolumeDivergence: 'priceVolumeDivergence'
+} as const
+
 export const STOCK_TRACKING_VOLUME_RATIO_METRICS = {
   5: 'volumeRatio5d',
   10: 'volumeRatio10d',
   20: 'volumeRatio20d'
 } as const
 
-export type StockTrackingVolumeRatioPeriod = keyof typeof STOCK_TRACKING_VOLUME_RATIO_METRICS
+export const STOCK_TRACKING_PRICE_RETURN_METRICS = {
+  5: 'priceReturn5d',
+  10: 'priceReturn10d',
+  20: 'priceReturn20d'
+} as const
 
-const VOLUME_RATIO_PERIODS = Object.keys(STOCK_TRACKING_VOLUME_RATIO_METRICS).map(
+export const STOCK_TRACKING_PRICE_AVERAGE_METRICS = {
+  5: 'priceAverage5d',
+  10: 'priceAverage10d',
+  20: 'priceAverage20d'
+} as const
+
+export const STOCK_TRACKING_VOLUME_AVERAGE_METRICS = {
+  5: 'volumeAverage5d',
+  10: 'volumeAverage10d',
+  20: 'volumeAverage20d'
+} as const
+
+export type StockTrackingMetricPeriod = keyof typeof STOCK_TRACKING_VOLUME_RATIO_METRICS
+export type StockTrackingPriceVolumeState =
+  | 'volumeRisePriceRise'
+  | 'volumeFallPriceRise'
+  | 'volumeRisePriceFall'
+  | 'volumeFallPriceFall'
+  | 'neutral'
+export type StockTrackingPriceVolumeDivergence = 'priceRiseVolumeFall' | 'priceFallVolumeRise'
+
+export const STOCK_TRACKING_PRICE_VOLUME_STATE_LABELS: Record<
+  StockTrackingPriceVolumeState,
+  string
+> = {
+  volumeRisePriceRise: '放量上涨',
+  volumeFallPriceRise: '缩量上涨',
+  volumeRisePriceFall: '放量下跌',
+  volumeFallPriceFall: '缩量下跌',
+  neutral: '量价平稳'
+}
+
+export const STOCK_TRACKING_PRICE_VOLUME_DIVERGENCE_LABELS: Record<
+  StockTrackingPriceVolumeDivergence,
+  string
+> = {
+  priceRiseVolumeFall: '连续三日价升量减',
+  priceFallVolumeRise: '连续三日价跌量增'
+}
+
+const METRIC_PERIODS = Object.keys(STOCK_TRACKING_VOLUME_RATIO_METRICS).map(
   Number
-) as StockTrackingVolumeRatioPeriod[]
+) as StockTrackingMetricPeriod[]
+const EXPANDED_VOLUME_RATIO = 1.2
+const CONTRACTED_VOLUME_RATIO = 0.8
 
 function dateKey(value: string): string {
   return value.slice(0, 10)
 }
 
-export function calculateStockTrackingVolumeRatios(
+function percentageChange(current: number, previous: number): number {
+  return previous === 0 ? 0 : (current / previous - 1) * 100
+}
+
+function average(values: readonly number[]): number {
+  return values.reduce((total, value) => total + value, 0) / values.length
+}
+
+function divergenceCode(bars: readonly KlineBar[], index: number): number | null {
+  if (index < 3) return null
+  let priceRisingVolumeFalling = true
+  let priceFallingVolumeRising = true
+  for (let currentIndex = index - 2; currentIndex <= index; currentIndex += 1) {
+    const previous = bars[currentIndex - 1]
+    const current = bars[currentIndex]
+    priceRisingVolumeFalling &&= current.close > previous.close && current.volume < previous.volume
+    priceFallingVolumeRising &&= current.close < previous.close && current.volume > previous.volume
+  }
+  const previousPair = index >= 4 ? [bars[index - 4], bars[index - 3]] : null
+  if (
+    priceRisingVolumeFalling &&
+    !(
+      previousPair &&
+      previousPair[1].close > previousPair[0].close &&
+      previousPair[1].volume < previousPair[0].volume
+    )
+  ) {
+    return 1
+  }
+  if (
+    priceFallingVolumeRising &&
+    !(
+      previousPair &&
+      previousPair[1].close < previousPair[0].close &&
+      previousPair[1].volume > previousPair[0].volume
+    )
+  ) {
+    return -1
+  }
+  return null
+}
+
+export function calculateStockTrackingDailyMetrics(
   bars: readonly KlineBar[],
   startedAt: string,
   stoppedAt?: string,
@@ -27,25 +123,73 @@ export function calculateStockTrackingVolumeRatios(
   const stoppedDate = stoppedAt ? dateKey(stoppedAt) : null
   const snapshots: StockTrackingMetricSnapshot[] = []
 
-  for (let index = 20; index < orderedBars.length; index += 1) {
+  for (let index = 1; index < orderedBars.length; index += 1) {
     const current = orderedBars[index]
+    const previous = orderedBars[index - 1]
     const tradingDate = dateKey(current.time)
     if (tradingDate < startedDate || (stoppedDate && tradingDate > stoppedDate)) continue
-    if (current.volume < 0) continue
 
-    const metrics: Record<string, number> = {}
-    for (const period of VOLUME_RATIO_PERIODS) {
-      const previousBars = orderedBars.slice(index - period, index)
-      const averageVolume =
-        previousBars.reduce((total, bar) => total + bar.volume, 0) / previousBars.length
-      if (averageVolume > 0) {
-        metrics[STOCK_TRACKING_VOLUME_RATIO_METRICS[period]] = current.volume / averageVolume
-      }
+    const metrics: Record<string, number> = {
+      [STOCK_TRACKING_BASE_METRICS.close]: current.close,
+      [STOCK_TRACKING_BASE_METRICS.changePercent]: percentageChange(current.close, previous.close),
+      [STOCK_TRACKING_BASE_METRICS.volume]: current.volume,
+      [STOCK_TRACKING_BASE_METRICS.amount]: current.amount
     }
-    if (Object.keys(metrics).length > 0) snapshots.push({ tradingDate, capturedAt, metrics })
+
+    for (const period of METRIC_PERIODS) {
+      if (index < period) continue
+      const previousBars = orderedBars.slice(index - period, index)
+      const currentWindow = orderedBars.slice(index - period + 1, index + 1)
+      const averagePreviousVolume = average(previousBars.map((bar) => bar.volume))
+      if (averagePreviousVolume > 0) {
+        metrics[STOCK_TRACKING_VOLUME_RATIO_METRICS[period]] =
+          current.volume / averagePreviousVolume
+      }
+      metrics[STOCK_TRACKING_PRICE_RETURN_METRICS[period]] = percentageChange(
+        current.close,
+        orderedBars[index - period].close
+      )
+      metrics[STOCK_TRACKING_PRICE_AVERAGE_METRICS[period]] = average(
+        currentWindow.map((bar) => bar.close)
+      )
+      metrics[STOCK_TRACKING_VOLUME_AVERAGE_METRICS[period]] = average(
+        currentWindow.map((bar) => bar.volume)
+      )
+    }
+
+    const currentDivergence = divergenceCode(orderedBars, index)
+    if (currentDivergence !== null) {
+      metrics[STOCK_TRACKING_BASE_METRICS.priceVolumeDivergence] = currentDivergence
+    }
+    snapshots.push({ tradingDate, capturedAt, metrics })
   }
 
   return snapshots
+}
+
+export function stockTrackingPriceVolumeState(
+  snapshot: StockTrackingMetricSnapshot | undefined
+): StockTrackingPriceVolumeState {
+  if (!snapshot) return 'neutral'
+  const changePercent = snapshot.metrics[STOCK_TRACKING_BASE_METRICS.changePercent]
+  const volumeRatio = snapshot.metrics[STOCK_TRACKING_VOLUME_RATIO_METRICS[5]]
+  if (changePercent === undefined || volumeRatio === undefined || changePercent === 0) {
+    return 'neutral'
+  }
+  if (changePercent > 0 && volumeRatio >= EXPANDED_VOLUME_RATIO) return 'volumeRisePriceRise'
+  if (changePercent > 0 && volumeRatio <= CONTRACTED_VOLUME_RATIO) return 'volumeFallPriceRise'
+  if (changePercent < 0 && volumeRatio >= EXPANDED_VOLUME_RATIO) return 'volumeRisePriceFall'
+  if (changePercent < 0 && volumeRatio <= CONTRACTED_VOLUME_RATIO) return 'volumeFallPriceFall'
+  return 'neutral'
+}
+
+export function stockTrackingPriceVolumeDivergence(
+  snapshot: StockTrackingMetricSnapshot | undefined
+): StockTrackingPriceVolumeDivergence | null {
+  const value = snapshot?.metrics[STOCK_TRACKING_BASE_METRICS.priceVolumeDivergence]
+  if (value === 1) return 'priceRiseVolumeFall'
+  if (value === -1) return 'priceFallVolumeRise'
+  return null
 }
 
 function sameMetrics(left: Record<string, number>, right: Record<string, number>): boolean {

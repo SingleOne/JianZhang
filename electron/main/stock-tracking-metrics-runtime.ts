@@ -1,8 +1,13 @@
 import {
-  calculateStockTrackingVolumeRatios,
-  mergeStockTrackingMetricSnapshots
+  STOCK_TRACKING_BASE_METRICS,
+  STOCK_TRACKING_PRICE_VOLUME_DIVERGENCE_LABELS,
+  calculateStockTrackingDailyMetrics,
+  mergeStockTrackingMetricSnapshots,
+  stockTrackingPriceVolumeDivergence,
+  type StockTrackingPriceVolumeDivergence
 } from '../../src/lib/stock-tracking-metrics'
-import type { AppState, KlineResult } from '../../src/shared/types'
+import { addStockTrackingSystemEntry } from '../../src/lib/stock-tracking'
+import type { AppState, KlineResult, StockTrackingProfile } from '../../src/shared/types'
 
 const TRACKING_METRICS_REFRESH_MILLISECONDS = 30 * 60 * 1000
 const TRACKING_METRICS_KLINE_LIMIT = 500
@@ -13,6 +18,11 @@ interface StockTrackingMetricsRuntimeDependencies {
   persistState: () => void
   sendStateUpdated: (state: AppState) => void
   getDailyKline: (quoteId: string, limit: number) => Promise<KlineResult>
+  notifyPriceVolumeDivergence: (
+    profile: StockTrackingProfile,
+    divergence: StockTrackingPriceVolumeDivergence,
+    tradingDate: string
+  ) => void
   now?: () => Date
 }
 
@@ -79,19 +89,49 @@ export class StockTrackingMetricsRuntime {
     const currentState = this.dependencies.getState()
     let profiles = currentState.stockTrackingProfiles
     let changed = false
+    const reminders: Array<{
+      profile: StockTrackingProfile
+      divergence: StockTrackingPriceVolumeDivergence
+      tradingDate: string
+    }> = []
 
     for (const result of results) {
       if (!result) continue
       this.capturedQuoteIds.add(result.quoteId)
       const profile = profiles[result.quoteId]
       if (!profile || profile.status !== 'tracking') continue
-      const snapshots = calculateStockTrackingVolumeRatios(
+      const snapshots = calculateStockTrackingDailyMetrics(
         result.bars,
         profile.startedAt,
         profile.stoppedAt,
         capturedAt
       )
-      const nextProfile = mergeStockTrackingMetricSnapshots(profile, snapshots)
+      let nextProfile = mergeStockTrackingMetricSnapshots(profile, snapshots)
+      const latestSnapshot = snapshots.at(-1)
+      const divergence = stockTrackingPriceVolumeDivergence(latestSnapshot)
+      if (latestSnapshot && divergence) {
+        const reminderId = `tracking:price-volume-divergence:${latestSnapshot.tradingDate}:${divergence}`
+        const withReminder = addStockTrackingSystemEntry(
+          nextProfile,
+          reminderId,
+          `量价背离提醒：${STOCK_TRACKING_PRICE_VOLUME_DIVERGENCE_LABELS[divergence]}`,
+          {
+            latest: latestSnapshot.metrics[STOCK_TRACKING_BASE_METRICS.close],
+            changePercent:
+              latestSnapshot.metrics[STOCK_TRACKING_BASE_METRICS.changePercent] ?? null,
+            capturedAt
+          },
+          capturedAt
+        )
+        if (withReminder !== nextProfile) {
+          nextProfile = withReminder
+          reminders.push({
+            profile: nextProfile,
+            divergence,
+            tradingDate: latestSnapshot.tradingDate
+          })
+        }
+      }
       if (nextProfile === profile) continue
       profiles = { ...profiles, [profile.quoteId]: nextProfile }
       changed = true
@@ -102,5 +142,8 @@ export class StockTrackingMetricsRuntime {
     this.dependencies.setState(nextState)
     this.dependencies.persistState()
     this.dependencies.sendStateUpdated(nextState)
+    reminders.forEach(({ profile, divergence, tradingDate }) =>
+      this.dependencies.notifyPriceVolumeDivergence(profile, divergence, tradingDate)
+    )
   }
 }

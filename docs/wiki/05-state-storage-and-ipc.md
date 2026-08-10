@@ -110,7 +110,7 @@ interface AppState {
 | --- | --- |
 | `normalizeWatchlist` | 持仓股票强制重点关注、补异动开关、过滤无效快照 |
 | `normalizeWatchlistGroups` | 去除无 ID、无名称或重复 ID 的自选分组，并补齐系统“异动观察”和“追踪”分组 |
-| `normalizeStockTrackingProfiles` | 兼容缺失追踪数据的旧配置并规范化来源、标签、时间线和每日指标快照 |
+| `normalizeStockTrackingProfiles` | 兼容缺失追踪数据的旧配置并规范化来源、标签、时间线和通用每日指标快照；快照中的数字指标按名称扩展 |
 | `synchronizeTrackingGroupMembership` | 根据追踪中/已停止状态自动加入或移出系统“追踪”分组 |
 | `normalizeMarketIndexIds` | 过滤并按内置顺序返回指数 |
 | `normalizeActiveTTradingBatch` | 兼容旧双五档、价格/浮动盈亏提醒开关和反 T 语义 |

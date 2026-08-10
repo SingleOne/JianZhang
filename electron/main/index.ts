@@ -8,6 +8,7 @@ import {
   type AppState,
   type KlinePeriod,
   type StockQuote,
+  type StockTrackingProfile,
   type WatchStock
 } from '../../src/shared/types'
 import {
@@ -19,6 +20,10 @@ import {
   formatTFloatingProfitAlertNotification,
   type TriggeredTFloatingProfitAlert
 } from '../../src/lib/t-alerts'
+import {
+  STOCK_TRACKING_PRICE_VOLUME_DIVERGENCE_LABELS,
+  type StockTrackingPriceVolumeDivergence
+} from '../../src/lib/stock-tracking-metrics'
 import type { AiRuntime } from '../../src/modules/ai/main/register'
 import type { MarketInsightRuntime } from '../../src/modules/market-insight/main/register'
 import {
@@ -187,6 +192,22 @@ function showTFloatingProfitAlertNotification(alert: TriggeredTFloatingProfitAle
   notification.show()
 }
 
+function showPriceVolumeDivergenceNotification(
+  profile: StockTrackingProfile,
+  divergence: StockTrackingPriceVolumeDivergence,
+  tradingDate: string
+): void {
+  if (!Notification.isSupported()) return
+  const notification = new Notification({
+    title: `量价背离提醒 · ${profile.name}`,
+    body: `${tradingDate} ${STOCK_TRACKING_PRICE_VOLUME_DIVERGENCE_LABELS[divergence]}，请打开追踪复盘查看量价趋势。`,
+    icon: createAppIcon(),
+    timeoutType: 'default'
+  })
+  notification.on('click', () => windowManager?.showMainWindow(profile.quoteId))
+  notification.show()
+}
+
 function syncWindowSurfaces(): void {
   windowManager?.sync()
 }
@@ -285,8 +306,8 @@ if (!hasSingleInstanceLock) {
       },
       persistState,
       sendStateUpdated: (nextState) => sendToWindows('state:updated', nextState),
-      getDailyKline: (quoteId, limit) =>
-        getKline(quoteId, 'daily', limit, 'tracking:volume-ratios')
+      getDailyKline: (quoteId, limit) => getKline(quoteId, 'daily', limit, 'tracking:price-volume'),
+      notifyPriceVolumeDivergence: showPriceVolumeDivergenceNotification
     })
     dailyMarketScanService = new DailyMarketScanService({
       userDataDirectory: app.getPath('userData'),

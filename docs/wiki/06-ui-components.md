@@ -45,7 +45,9 @@ App
    ├─ ExpandedStockDetails
    │  ├─ StockTrackingPanel
    │  │  └─ StockTrackingEditor
-   │  │     └─ StockTrackingMetricsPanel / StockTrackingMetricsChart
+   │  │     └─ StockTrackingMetricsPanel
+   │  │        ├─ StockTrackingPriceVolumeChart
+   │  │        └─ StockTrackingMetricsChart
    │  ├─ CandlestickChart
    │  ├─ PeriodKlineChart
    │  ├─ ChipDistributionPanel
@@ -111,7 +113,7 @@ App
 
 ### `StockTrackingDialog.tsx` / `StockTrackingEditor.tsx`
 
-顶部“追踪复盘”打开集中档案弹窗，可按状态、来源和关键词过滤，查看仍在自选或已经移除的历史股票。`StockTrackingEditor` 同时复用于个股详情“选股复盘”页，使用组件内草稿编辑标签、选股逻辑、时间线和停止结论，点击保存后才写入完整 `AppState`。其中 `StockTrackingMetricsPanel` 展示最新 5/10/20 日量比，按需加载 `StockTrackingMetricsChart` 绘制三周期趋势和 1.00 倍基准线。停止追踪只改变状态并移出“追踪”分组；重新追踪沿用原档案、指标快照并追加系统时间线。
+顶部“追踪复盘”打开集中档案弹窗，可按状态、来源和关键词过滤，查看仍在自选或已经移除的历史股票。`StockTrackingEditor` 同时复用于个股详情“选股复盘”页，使用组件内草稿编辑标签、选股逻辑、时间线和停止结论，点击保存后才写入完整 `AppState`。其中 `StockTrackingMetricsPanel` 展示当前量价状态和最新 5/10/20 日量比，可切换按需加载的 `StockTrackingPriceVolumeChart` 与 `StockTrackingMetricsChart`：前者绘制收盘价、MA5/10/20、成交量、均量和状态/背离标记，后者绘制三周期量比和 1.00 倍基准线。停止追踪只改变状态并移出“追踪”分组；重新追踪沿用原档案、指标快照并追加系统时间线。
 
 ## 自选主表
 
