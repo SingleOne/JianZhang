@@ -45,6 +45,7 @@ import type {
   FundamentalCompany,
   FundamentalSnapshot,
   SearchResult,
+  StockTrackingProfiles,
   WatchStock
 } from '../shared/types'
 import { useConfirmDialog } from './ConfirmDialog'
@@ -101,7 +102,12 @@ interface FundamentalScreeningDialogProps {
   cachedChangeReport: FundamentalChangeReport | null
   dataState: DataSnapshotRuntimeState
   watchlist: WatchStock[]
-  onAddStock: (stock: SearchResult) => void
+  trackingProfiles: StockTrackingProfiles
+  onAddStock: (
+    stock: SearchResult,
+    company: FundamentalCompany,
+    snapshotDate: string | undefined
+  ) => void
   onViewStock: (quoteId: string) => void
   onSnapshotChange: (snapshot: FundamentalSnapshot) => void
   onChangeReportChange: (report: FundamentalChangeReport | null) => void
@@ -195,15 +201,19 @@ function evaluationSortValue(
 function StockAction({
   company,
   watchedStock,
+  tracking,
+  sourceRecorded,
   onAdd,
   onView
 }: {
   company: FundamentalCompany
   watchedStock?: WatchStock
+  tracking: boolean
+  sourceRecorded: boolean
   onAdd: (company: FundamentalCompany) => void
   onView: (quoteId: string) => void
 }) {
-  return watchedStock ? (
+  return watchedStock && tracking && sourceRecorded ? (
     <button
       className="secondary-button fundamental-row-action"
       type="button"
@@ -225,7 +235,7 @@ function StockAction({
       }}
     >
       <Plus size={14} />
-      加入自选
+      {watchedStock && tracking ? '记录来源' : watchedStock ? '开始追踪' : '加入并追踪'}
     </button>
   )
 }
@@ -313,10 +323,12 @@ function CompanyDetails({
           </thead>
           <tbody>
             {company.annualReports.map((report) => {
-              const conversion = report.netProfit !== null && report.netProfit > 0
-                && report.operatingCashFlow !== null
-                ? report.operatingCashFlow / report.netProfit * 100
-                : null
+              const conversion =
+                report.netProfit !== null &&
+                report.netProfit > 0 &&
+                report.operatingCashFlow !== null
+                  ? (report.operatingCashFlow / report.netProfit) * 100
+                  : null
               return (
                 <tr key={report.year}>
                   <td>{report.year}</td>
@@ -356,9 +368,7 @@ function ChangeMetricTransition({
         {formatPercent(previous)}
       </span>
       <span aria-hidden="true">→</span>
-      <span className={signed ? directionClass(current) : undefined}>
-        {formatPercent(current)}
-      </span>
+      <span className={signed ? directionClass(current) : undefined}>{formatPercent(current)}</span>
     </span>
   )
 }
@@ -408,17 +418,34 @@ function FundamentalChangeReportPanel({
           <strong>{report.previousSnapshotDate}</strong>
           <span aria-hidden="true"> → </span>
           <strong>{report.currentSnapshotDate}</strong>
-          <small>财年窗口 {previousYears} → {currentYears}</small>
+          <small>
+            财年窗口 {previousYears} → {currentYears}
+          </small>
         </div>
         <span>固定按推荐规则比较，只列出改变筛选结论的股票</span>
       </div>
 
       <div className="fundamental-change-summary">
-        <div className="is-positive"><span>新入选</span><strong>{report.summary.enteredCount}</strong></div>
-        <div className="is-risk"><span>移出</span><strong>{report.summary.exitedCount}</strong></div>
-        <div className="is-risk"><span>新增待核</span><strong>{report.summary.reviewAddedCount}</strong></div>
-        <div className="is-positive"><span>已修复</span><strong>{report.summary.reviewResolvedCount}</strong></div>
-        <div><span>数据变化</span><strong>{report.summary.dataChangedCount}</strong></div>
+        <div className="is-positive">
+          <span>新入选</span>
+          <strong>{report.summary.enteredCount}</strong>
+        </div>
+        <div className="is-risk">
+          <span>移出</span>
+          <strong>{report.summary.exitedCount}</strong>
+        </div>
+        <div className="is-risk">
+          <span>新增待核</span>
+          <strong>{report.summary.reviewAddedCount}</strong>
+        </div>
+        <div className="is-positive">
+          <span>已修复</span>
+          <strong>{report.summary.reviewResolvedCount}</strong>
+        </div>
+        <div>
+          <span>数据变化</span>
+          <strong>{report.summary.dataChangedCount}</strong>
+        </div>
       </div>
 
       <div className="fundamental-change-toolbar">
@@ -456,90 +483,100 @@ function FundamentalChangeReportPanel({
             </tr>
           </thead>
           <tbody>
-            {rows.length > 0 ? rows.map((item) => {
-              const watchedStock = watchlistByCode.get(item.code)
-              const organizationChanged = item.changeTypes.includes('organizationChanged')
-                && item.previousOrganizationType
-                && item.currentOrganizationType
-              return (
-                <tr key={item.code}>
-                  <td>
-                    <span className="fundamental-stock-cell">
-                      <strong>{item.name}</strong>
-                      <small>{item.code} · {MARKET_LABELS[item.market]} · {item.industryName || '--'}</small>
-                    </span>
-                  </td>
-                  <td>
-                    <span className="fundamental-change-tags">
-                      {item.changeTypes.map((type) => (
-                        <span className={`is-${type}`} key={type}>{CHANGE_TYPE_LABELS[type]}</span>
-                      ))}
-                    </span>
-                  </td>
-                  <td>
-                    <span className="fundamental-change-status-flow">
-                      <span className={`is-${item.previousStatus}`}>
-                        {SCREENING_STATUS_LABELS[item.previousStatus]}
+            {rows.length > 0 ? (
+              rows.map((item) => {
+                const watchedStock = watchlistByCode.get(item.code)
+                const organizationChanged =
+                  item.changeTypes.includes('organizationChanged') &&
+                  item.previousOrganizationType &&
+                  item.currentOrganizationType
+                return (
+                  <tr key={item.code}>
+                    <td>
+                      <span className="fundamental-stock-cell">
+                        <strong>{item.name}</strong>
+                        <small>
+                          {item.code} · {MARKET_LABELS[item.market]} · {item.industryName || '--'}
+                        </small>
                       </span>
-                      <span aria-hidden="true">→</span>
-                      <span className={`is-${item.currentStatus}`}>
-                        {SCREENING_STATUS_LABELS[item.currentStatus]}
+                    </td>
+                    <td>
+                      <span className="fundamental-change-tags">
+                        {item.changeTypes.map((type) => (
+                          <span className={`is-${type}`} key={type}>
+                            {CHANGE_TYPE_LABELS[type]}
+                          </span>
+                        ))}
                       </span>
-                    </span>
-                  </td>
-                  <td>
-                    <span className="fundamental-rule-change-list">
-                      {item.ruleChanges.map((change) => (
-                        <span key={change.rule}>
-                          <strong>{RULE_LABELS[change.rule]}</strong>
-                          {RULE_STATUS_LABELS[change.previousStatus]} → {RULE_STATUS_LABELS[change.currentStatus]}
+                    </td>
+                    <td>
+                      <span className="fundamental-change-status-flow">
+                        <span className={`is-${item.previousStatus}`}>
+                          {SCREENING_STATUS_LABELS[item.previousStatus]}
                         </span>
-                      ))}
-                      {organizationChanged ? (
-                        <span>
-                          <strong>口径</strong>
-                          {organizationLabels[item.previousOrganizationType!]} →{' '}
-                          {organizationLabels[item.currentOrganizationType!]}
+                        <span aria-hidden="true">→</span>
+                        <span className={`is-${item.currentStatus}`}>
+                          {SCREENING_STATUS_LABELS[item.currentStatus]}
                         </span>
-                      ) : null}
-                      {item.ruleChanges.length === 0 && !organizationChanged ? '--' : null}
-                    </span>
-                  </td>
-                  <td>
-                    <ChangeMetricTransition
-                      previous={item.previousMetrics?.minimumRoe ?? null}
-                      current={item.currentMetrics?.minimumRoe ?? null}
-                      signed
-                    />
-                  </td>
-                  <td>
-                    <ChangeMetricTransition
-                      previous={item.previousMetrics?.cumulativeCashConversion ?? null}
-                      current={item.currentMetrics?.cumulativeCashConversion ?? null}
-                      signed
-                    />
-                  </td>
-                  <td>
-                    <ChangeMetricTransition
-                      previous={item.previousMetrics?.debtIndustryPercentile ?? null}
-                      current={item.currentMetrics?.debtIndustryPercentile ?? null}
-                    />
-                  </td>
-                  <td>
-                    {watchedStock ? (
-                      <button
-                        className="secondary-button fundamental-row-action"
-                        type="button"
-                        onClick={() => onViewStock(watchedStock.quoteId)}
-                      >
-                        <Eye size={14} />
-                        查看自选
-                      </button>
-                    ) : <span className="fundamental-change-no-action">--</span>}
-                  </td>
-                </tr>
-              )
-            }) : (
+                      </span>
+                    </td>
+                    <td>
+                      <span className="fundamental-rule-change-list">
+                        {item.ruleChanges.map((change) => (
+                          <span key={change.rule}>
+                            <strong>{RULE_LABELS[change.rule]}</strong>
+                            {RULE_STATUS_LABELS[change.previousStatus]} →{' '}
+                            {RULE_STATUS_LABELS[change.currentStatus]}
+                          </span>
+                        ))}
+                        {organizationChanged ? (
+                          <span>
+                            <strong>口径</strong>
+                            {organizationLabels[item.previousOrganizationType!]} →{' '}
+                            {organizationLabels[item.currentOrganizationType!]}
+                          </span>
+                        ) : null}
+                        {item.ruleChanges.length === 0 && !organizationChanged ? '--' : null}
+                      </span>
+                    </td>
+                    <td>
+                      <ChangeMetricTransition
+                        previous={item.previousMetrics?.minimumRoe ?? null}
+                        current={item.currentMetrics?.minimumRoe ?? null}
+                        signed
+                      />
+                    </td>
+                    <td>
+                      <ChangeMetricTransition
+                        previous={item.previousMetrics?.cumulativeCashConversion ?? null}
+                        current={item.currentMetrics?.cumulativeCashConversion ?? null}
+                        signed
+                      />
+                    </td>
+                    <td>
+                      <ChangeMetricTransition
+                        previous={item.previousMetrics?.debtIndustryPercentile ?? null}
+                        current={item.currentMetrics?.debtIndustryPercentile ?? null}
+                      />
+                    </td>
+                    <td>
+                      {watchedStock ? (
+                        <button
+                          className="secondary-button fundamental-row-action"
+                          type="button"
+                          onClick={() => onViewStock(watchedStock.quoteId)}
+                        >
+                          <Eye size={14} />
+                          查看自选
+                        </button>
+                      ) : (
+                        <span className="fundamental-change-no-action">--</span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })
+            ) : (
               <tr>
                 <td className="fundamental-empty-result" colSpan={8}>
                   {onlyWatchlist
@@ -561,6 +598,7 @@ export function FundamentalScreeningDialog({
   cachedChangeReport,
   dataState,
   watchlist,
+  trackingProfiles,
   onAddStock,
   onViewStock,
   onSnapshotChange,
@@ -602,10 +640,7 @@ export function FundamentalScreeningDialog({
     let active = true
     setLoading(true)
     setLoadError('')
-    Promise.all([
-      stockApi.getFundamentalSnapshot(),
-      stockApi.getFundamentalChangeReport()
-    ])
+    Promise.all([stockApi.getFundamentalSnapshot(), stockApi.getFundamentalChangeReport()])
       .then(([data, changes]) => {
         if (!active) return
         setSnapshot(data)
@@ -646,24 +681,27 @@ export function FundamentalScreeningDialog({
   }, [criteria, onlyPassed, qualityTags, query, riskTags, sortDirection, sortKey])
 
   const evaluations = useMemo(
-    () => snapshot ? screenFundamentalCompanies(snapshot, criteria) : [],
+    () => (snapshot ? screenFundamentalCompanies(snapshot, criteria) : []),
     [criteria, snapshot]
   )
   const generalEvaluations = useMemo(
     () => evaluations.filter((evaluation) => evaluation.eligibleOrganization),
     [evaluations]
   )
-  const summary = useMemo(() => ({
-    passed: generalEvaluations.filter((evaluation) => evaluation.passed).length,
-    roe: generalEvaluations.filter((evaluation) => evaluation.checks.roe).length,
-    cash: generalEvaluations.filter((evaluation) => evaluation.checks.cash).length,
-    debt: generalEvaluations.filter((evaluation) => evaluation.checks.debt).length
-  }), [generalEvaluations])
+  const summary = useMemo(
+    () => ({
+      passed: generalEvaluations.filter((evaluation) => evaluation.passed).length,
+      roe: generalEvaluations.filter((evaluation) => evaluation.checks.roe).length,
+      cash: generalEvaluations.filter((evaluation) => evaluation.checks.cash).length,
+      debt: generalEvaluations.filter((evaluation) => evaluation.checks.debt).length
+    }),
+    [generalEvaluations]
+  )
   const qualityProfilesByCode = useMemo(
-    () => new Map(snapshot?.rows.map((company) => [
-      company.code,
-      evaluateFundamentalQuality(company)
-    ]) ?? []),
+    () =>
+      new Map(
+        snapshot?.rows.map((company) => [company.code, evaluateFundamentalQuality(company)]) ?? []
+      ),
     [snapshot]
   )
   const qualityTagCounts = useMemo(() => {
@@ -683,10 +721,10 @@ export function FundamentalScreeningDialog({
     return counts
   }, [qualityProfilesByCode])
   const riskProfilesByCode = useMemo(
-    () => new Map(snapshot?.rows.map((company) => [
-      company.code,
-      evaluateFundamentalRisk(company)
-    ]) ?? []),
+    () =>
+      new Map(
+        snapshot?.rows.map((company) => [company.code, evaluateFundamentalRisk(company)]) ?? []
+      ),
     [snapshot]
   )
   const riskTagCounts = useMemo(() => {
@@ -723,9 +761,10 @@ export function FundamentalScreeningDialog({
     return [...rows].sort((left, right) => {
       const leftValue = evaluationSortValue(left, sortKey)
       const rightValue = evaluationSortValue(right, sortKey)
-      const compared = typeof leftValue === 'string' && typeof rightValue === 'string'
-        ? leftValue.localeCompare(rightValue, 'zh-CN')
-        : Number(leftValue) - Number(rightValue)
+      const compared =
+        typeof leftValue === 'string' && typeof rightValue === 'string'
+          ? leftValue.localeCompare(rightValue, 'zh-CN')
+          : Number(leftValue) - Number(rightValue)
       return sortDirection === 'asc' ? compared : -compared
     })
   }, [
@@ -741,10 +780,7 @@ export function FundamentalScreeningDialog({
   ])
   const totalPages = Math.max(1, Math.ceil(filteredEvaluations.length / PAGE_SIZE))
   const currentPage = Math.min(page, totalPages)
-  const pageRows = filteredEvaluations.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE
-  )
+  const pageRows = filteredEvaluations.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
   const watchlistByQuoteId = useMemo(
     () => new Map(watchlist.map((stock) => [stock.quoteId, stock])),
     [watchlist]
@@ -754,14 +790,13 @@ export function FundamentalScreeningDialog({
     [watchlist]
   )
   const visibleChangeRows = useMemo(
-    () => changeReport?.rows.filter((item) => (
-      !onlyWatchlistChanges || watchlistByCode.has(item.code)
-    )) ?? [],
+    () =>
+      changeReport?.rows.filter(
+        (item) => !onlyWatchlistChanges || watchlistByCode.has(item.code)
+      ) ?? [],
     [changeReport, onlyWatchlistChanges, watchlistByCode]
   )
-  const updateRunning = updating
-    || dataState.status === 'queued'
-    || dataState.status === 'updating'
+  const updateRunning = updating || dataState.status === 'queued' || dataState.status === 'updating'
 
   const changeCriteria = <Key extends keyof FundamentalScreeningCriteria>(
     key: Key,
@@ -769,20 +804,20 @@ export function FundamentalScreeningDialog({
   ) => setCriteria((current) => ({ ...current, [key]: value }))
 
   const toggleQualityTag = (tag: FundamentalQualityTag) => {
-    setQualityTags((current) => current.includes(tag)
-      ? current.filter((item) => item !== tag)
-      : [...current, tag])
+    setQualityTags((current) =>
+      current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]
+    )
   }
 
   const toggleRiskTag = (tag: FundamentalRiskTag) => {
-    setRiskTags((current) => current.includes(tag)
-      ? current.filter((item) => item !== tag)
-      : [...current, tag])
+    setRiskTags((current) =>
+      current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]
+    )
   }
 
   const changeSort = (nextKey: FundamentalSortKey) => {
     if (nextKey === sortKey) {
-      setSortDirection((current) => current === 'asc' ? 'desc' : 'asc')
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
       return
     }
     setSortKey(nextKey)
@@ -795,13 +830,17 @@ export function FundamentalScreeningDialog({
   }
 
   const addCompany = (company: FundamentalCompany) => {
-    onAddStock({
-      code: company.code,
-      name: company.name,
-      quoteId: company.quoteId,
-      marketLabel: MARKET_LABELS[company.market]
-    })
-    setActionMessage(`${company.name}已加入自选`)
+    onAddStock(
+      {
+        code: company.code,
+        name: company.name,
+        quoteId: company.quoteId,
+        marketLabel: MARKET_LABELS[company.market]
+      },
+      company,
+      snapshot?.snapshotDate
+    )
+    setActionMessage(`${company.name}已开始追踪，并加入追踪分组`)
   }
 
   const runUpdate = async () => {
@@ -878,7 +917,10 @@ export function FundamentalScreeningDialog({
                   : '尚无基本面财务数据'}
             </strong>
             <p>
-              {loadError || dataState.error || dataState.progressMessage || '首次没有快照时软件会自动获取，也可以在这里重新运行。'}
+              {loadError ||
+                dataState.error ||
+                dataState.progressMessage ||
+                '首次没有快照时软件会自动获取，也可以在这里重新运行。'}
             </p>
             <button
               className="secondary-button"
@@ -940,354 +982,389 @@ export function FundamentalScreeningDialog({
               </button>
             </div>
 
-            {actionMessage ? <div className="fundamental-action-message">{actionMessage}</div> : null}
+            {actionMessage ? (
+              <div className="fundamental-action-message">{actionMessage}</div>
+            ) : null}
 
-            {viewMode === 'screening' ? <>
-              <div className="fundamental-screening-summary">
-              <span>
-                <small>满足全部条件</small>
-                <strong>{summary.passed.toLocaleString('zh-CN')}</strong>
-              </span>
-              <span>
-                <small>五年 ROE 通过</small>
-                <strong>{summary.roe.toLocaleString('zh-CN')}</strong>
-              </span>
-              <span>
-                <small>现金质量通过</small>
-                <strong>{summary.cash.toLocaleString('zh-CN')}</strong>
-              </span>
-              <span>
-                <small>行业杠杆通过</small>
-                <strong>{summary.debt.toLocaleString('zh-CN')}</strong>
-              </span>
-              <span className="fundamental-screening-generated">
-                <small>数据生成时间</small>
-                <strong>{formatGeneratedAt(snapshot.generatedAt)}</strong>
-              </span>
-              </div>
-
-              <div className="fundamental-screening-rules">
-              <div className="fundamental-rule-heading">
-                <span>
-                  <Building2 size={17} />
-                  <strong>普通企业三项硬筛选</strong>
-                  <small>（金融企业展示数据但不参与入选；筛选结果仅用于缩小研究范围。）</small>
-                </span>
-              </div>
-              <div className="fundamental-rule-controls">
-                <label>
-                  <span>ROE 口径</span>
-                  <select
-                    value={criteria.roeMetric}
-                    onChange={(event) => changeCriteria(
-                      'roeMetric',
-                      event.target.value as FundamentalRoeMetric
-                    )}
-                  >
-                    <option value="weighted">加权平均 ROE</option>
-                    <option value="deducted">扣非加权 ROE</option>
-                  </select>
-                </label>
-                <label>
-                  <span>连续五年每年高于</span>
-                  <span className="fundamental-number-field">
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="1"
-                      value={criteria.roeThreshold}
-                      onChange={(event) => changeCriteria('roeThreshold', Number(event.target.value))}
-                    />
-                    <em>%</em>
-                  </span>
-                </label>
-                <label>
-                  <span>现金利润质量</span>
-                  <select
-                    value={criteria.cashFlowMode}
-                    onChange={(event) => changeCriteria(
-                      'cashFlowMode',
-                      event.target.value as FundamentalCashFlowMode
-                    )}
-                  >
-                    <option value="cumulative">五年累计现金转换率 &gt; 100%</option>
-                    <option value="latest">最新一年现金转换率 &gt; 100%</option>
-                  </select>
-                </label>
-                <label>
-                  <span>负债率低于行业分位</span>
-                  <span className="fundamental-number-field">
-                    <input
-                      type="number"
-                      min="1"
-                      max="99"
-                      step="5"
-                      value={criteria.debtIndustryPercentile}
-                      onChange={(event) => changeCriteria(
-                        'debtIndustryPercentile',
-                        Number(event.target.value)
-                      )}
-                    />
-                    <em>%</em>
-                  </span>
-                </label>
-                <button
-                  className="secondary-button fundamental-reset-rules"
-                  type="button"
-                  onClick={() => setCriteria(DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA)}
-                >
-                  <RotateCcw size={14} />
-                  恢复推荐条件
-                </button>
-              </div>
-              </div>
-
-              <div className="fundamental-quality-filters">
-                <div className="fundamental-quality-filter-heading">
+            {viewMode === 'screening' ? (
+              <>
+                <div className="fundamental-screening-summary">
                   <span>
-                    <Sparkles size={16} />
-                    <strong>质量标签</strong>
+                    <small>满足全部条件</small>
+                    <strong>{summary.passed.toLocaleString('zh-CN')}</strong>
                   </span>
-                  <small>数字为全市场固定口径；多选需同时满足，当前结果仍受其他条件约束。</small>
-                </div>
-                <div className="fundamental-quality-filter-options">
-                  {FUNDAMENTAL_QUALITY_TAGS.map((tag) => {
-                    const selected = qualityTags.includes(tag)
-                    return (
-                      <button
-                        className={`${selected ? 'is-active' : ''} ${tag === 'improving' ? 'is-improving' : ''}`}
-                        type="button"
-                        aria-pressed={selected}
-                        title={FUNDAMENTAL_QUALITY_TAG_DESCRIPTIONS[tag]}
-                        onClick={() => toggleQualityTag(tag)}
-                        key={tag}
-                      >
-                        <span>{FUNDAMENTAL_QUALITY_TAG_LABELS[tag]}</span>
-                        <strong>{qualityTagCounts[tag].toLocaleString('zh-CN')}</strong>
-                      </button>
-                    )
-                  })}
-                  {qualityTags.length > 0 ? (
-                    <button
-                      className="fundamental-quality-filter-clear"
-                      type="button"
-                      onClick={() => setQualityTags([])}
-                    >
-                      清除标签
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="fundamental-risk-filters">
-                <div className="fundamental-risk-filter-heading">
                   <span>
-                    <AlertCircle size={16} />
-                    <strong>风险提示</strong>
+                    <small>五年 ROE 通过</small>
+                    <strong>{summary.roe.toLocaleString('zh-CN')}</strong>
                   </span>
-                  <small>数字为全市场固定口径；多选需同时满足，红色风险优先核查。</small>
+                  <span>
+                    <small>现金质量通过</small>
+                    <strong>{summary.cash.toLocaleString('zh-CN')}</strong>
+                  </span>
+                  <span>
+                    <small>行业杠杆通过</small>
+                    <strong>{summary.debt.toLocaleString('zh-CN')}</strong>
+                  </span>
+                  <span className="fundamental-screening-generated">
+                    <small>数据生成时间</small>
+                    <strong>{formatGeneratedAt(snapshot.generatedAt)}</strong>
+                  </span>
                 </div>
-                <div className="fundamental-risk-filter-options">
-                  {FUNDAMENTAL_RISK_TAGS.map((tag) => {
-                    const selected = riskTags.includes(tag)
-                    return (
-                      <button
-                        className={`${selected ? 'is-active' : ''} is-${FUNDAMENTAL_RISK_TAG_SEVERITY[tag]}`}
-                        type="button"
-                        aria-pressed={selected}
-                        title={FUNDAMENTAL_RISK_TAG_DESCRIPTIONS[tag]}
-                        onClick={() => toggleRiskTag(tag)}
-                        key={tag}
+
+                <div className="fundamental-screening-rules">
+                  <div className="fundamental-rule-heading">
+                    <span>
+                      <Building2 size={17} />
+                      <strong>普通企业三项硬筛选</strong>
+                      <small>（金融企业展示数据但不参与入选；筛选结果仅用于缩小研究范围。）</small>
+                    </span>
+                  </div>
+                  <div className="fundamental-rule-controls">
+                    <label>
+                      <span>ROE 口径</span>
+                      <select
+                        value={criteria.roeMetric}
+                        onChange={(event) =>
+                          changeCriteria('roeMetric', event.target.value as FundamentalRoeMetric)
+                        }
                       >
-                        <span>{FUNDAMENTAL_RISK_TAG_LABELS[tag]}</span>
-                        <strong>{riskTagCounts[tag].toLocaleString('zh-CN')}</strong>
-                      </button>
-                    )
-                  })}
-                  {riskTags.length > 0 ? (
+                        <option value="weighted">加权平均 ROE</option>
+                        <option value="deducted">扣非加权 ROE</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>连续五年每年高于</span>
+                      <span className="fundamental-number-field">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="1"
+                          value={criteria.roeThreshold}
+                          onChange={(event) =>
+                            changeCriteria('roeThreshold', Number(event.target.value))
+                          }
+                        />
+                        <em>%</em>
+                      </span>
+                    </label>
+                    <label>
+                      <span>现金利润质量</span>
+                      <select
+                        value={criteria.cashFlowMode}
+                        onChange={(event) =>
+                          changeCriteria(
+                            'cashFlowMode',
+                            event.target.value as FundamentalCashFlowMode
+                          )
+                        }
+                      >
+                        <option value="cumulative">五年累计现金转换率 &gt; 100%</option>
+                        <option value="latest">最新一年现金转换率 &gt; 100%</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>负债率低于行业分位</span>
+                      <span className="fundamental-number-field">
+                        <input
+                          type="number"
+                          min="1"
+                          max="99"
+                          step="5"
+                          value={criteria.debtIndustryPercentile}
+                          onChange={(event) =>
+                            changeCriteria('debtIndustryPercentile', Number(event.target.value))
+                          }
+                        />
+                        <em>%</em>
+                      </span>
+                    </label>
                     <button
-                      className="fundamental-risk-filter-clear"
+                      className="secondary-button fundamental-reset-rules"
                       type="button"
-                      onClick={() => setRiskTags([])}
+                      onClick={() => setCriteria(DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA)}
                     >
-                      清除风险
+                      <RotateCcw size={14} />
+                      恢复推荐条件
                     </button>
-                  ) : null}
+                  </div>
                 </div>
-              </div>
 
-              <div className="fundamental-screening-toolbar">
-              <label className="fundamental-screening-search">
-                <Search size={16} />
-                <input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="搜索股票代码、名称或行业"
-                  aria-label="搜索基本面公司"
-                  autoFocus
-                />
-              </label>
-              <label className="fundamental-only-passed">
-                <input
-                  type="checkbox"
-                  checked={onlyPassed}
-                  onChange={(event) => setOnlyPassed(event.target.checked)}
-                />
-                仅显示全部通过
-              </label>
-              <span className="fundamental-result-count">
-                当前显示 {filteredEvaluations.length.toLocaleString('zh-CN')} 家
-              </span>
-              </div>
-
-              <div className="fundamental-screening-table-wrap">
-              <table className="fundamental-screening-table">
-                <thead>
-                  <tr>
-                    <th>
-                      <button type="button" onClick={() => changeSort('code')}>
-                        股票 {sortIndicator('code')}
-                      </button>
-                    </th>
-                    <th>行业</th>
-                    <th>
-                      <button type="button" onClick={() => changeSort('minimumRoe')}>
-                        五年最低 ROE {sortIndicator('minimumRoe')}
-                      </button>
-                    </th>
-                    <th>
-                      <button type="button" onClick={() => changeSort('cashConversion')}>
-                        {criteria.cashFlowMode === 'cumulative' ? '五年现金转换率' : '当年现金转换率'}
-                        {sortIndicator('cashConversion')}
-                      </button>
-                    </th>
-                    <th>资产负债率 / 行业 P60</th>
-                    <th>
-                      <button type="button" onClick={() => changeSort('debtPercentile')}>
-                        行业负债分位 {sortIndicator('debtPercentile')}
-                      </button>
-                    </th>
-                    <th>筛选结果</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pageRows.length > 0 ? pageRows.map((evaluation) => {
-                    const company = evaluation.company
-                    const expanded = expandedCode === company.code
-                    const watchedStock = watchlistByQuoteId.get(company.quoteId)
-                    return (
-                      <Fragment key={company.quoteId}>
-                        <tr
-                          className={`${evaluation.passed ? 'is-passed' : ''} ${expanded ? 'is-expanded' : ''}`}
-                          onClick={() => setExpandedCode((current) => current === company.code ? '' : company.code)}
-                          tabIndex={0}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                              event.preventDefault()
-                              setExpandedCode((current) => current === company.code ? '' : company.code)
-                            }
-                          }}
+                <div className="fundamental-quality-filters">
+                  <div className="fundamental-quality-filter-heading">
+                    <span>
+                      <Sparkles size={16} />
+                      <strong>质量标签</strong>
+                    </span>
+                    <small>数字为全市场固定口径；多选需同时满足，当前结果仍受其他条件约束。</small>
+                  </div>
+                  <div className="fundamental-quality-filter-options">
+                    {FUNDAMENTAL_QUALITY_TAGS.map((tag) => {
+                      const selected = qualityTags.includes(tag)
+                      return (
+                        <button
+                          className={`${selected ? 'is-active' : ''} ${tag === 'improving' ? 'is-improving' : ''}`}
+                          type="button"
+                          aria-pressed={selected}
+                          title={FUNDAMENTAL_QUALITY_TAG_DESCRIPTIONS[tag]}
+                          onClick={() => toggleQualityTag(tag)}
+                          key={tag}
                         >
-                          <td>
-                            <span className="fundamental-stock-cell">
-                              <strong>{company.name}</strong>
-                              <small>{company.code} · {MARKET_LABELS[company.market]}</small>
-                            </span>
-                          </td>
-                          <td>
-                            <span className="fundamental-industry-cell">
-                              <strong>{company.industryName || '--'}</strong>
-                              <small>
-                                {evaluation.eligibleOrganization
-                                  ? `${evaluation.industryBenchmark?.sampleSize ?? 0} 家样本`
-                                  : '金融企业不参与入选'}
-                              </small>
-                            </span>
-                          </td>
-                          <td className={directionClass(evaluation.minimumRoe)}>
-                            {formatPercent(evaluation.minimumRoe)}
-                          </td>
-                          <td className={directionClass(evaluation.selectedCashConversion)}>
-                            {formatPercent(evaluation.selectedCashConversion)}
-                          </td>
-                          <td>
-                            {formatPercent(company.latestBalanceSheet.debtAssetRatio)} /{' '}
-                            {formatPercent(evaluation.industryBenchmark?.debtAssetRatioP60 ?? null)}
-                          </td>
-                          <td>{formatPercent(company.latestBalanceSheet.industryPercentile, 1)}</td>
-                          <td>
-                            {evaluation.passed ? (
-                              <span className="fundamental-result is-passed">
-                                <CircleCheck size={14} />全部通过
-                              </span>
-                            ) : (
-                              <span className="fundamental-result">
-                                {evaluation.eligibleOrganization
-                                  ? `${evaluation.passedRuleCount}/3 项通过`
-                                  : '不参与入选'}
-                              </span>
-                            )}
-                          </td>
-                          <td>
-                            <span className="fundamental-row-actions">
-                              <StockAction
-                                company={company}
-                                watchedStock={watchedStock}
-                                onAdd={addCompany}
-                                onView={onViewStock}
-                              />
-                              {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-                            </span>
+                          <span>{FUNDAMENTAL_QUALITY_TAG_LABELS[tag]}</span>
+                          <strong>{qualityTagCounts[tag].toLocaleString('zh-CN')}</strong>
+                        </button>
+                      )
+                    })}
+                    {qualityTags.length > 0 ? (
+                      <button
+                        className="fundamental-quality-filter-clear"
+                        type="button"
+                        onClick={() => setQualityTags([])}
+                      >
+                        清除标签
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="fundamental-risk-filters">
+                  <div className="fundamental-risk-filter-heading">
+                    <span>
+                      <AlertCircle size={16} />
+                      <strong>风险提示</strong>
+                    </span>
+                    <small>数字为全市场固定口径；多选需同时满足，红色风险优先核查。</small>
+                  </div>
+                  <div className="fundamental-risk-filter-options">
+                    {FUNDAMENTAL_RISK_TAGS.map((tag) => {
+                      const selected = riskTags.includes(tag)
+                      return (
+                        <button
+                          className={`${selected ? 'is-active' : ''} is-${FUNDAMENTAL_RISK_TAG_SEVERITY[tag]}`}
+                          type="button"
+                          aria-pressed={selected}
+                          title={FUNDAMENTAL_RISK_TAG_DESCRIPTIONS[tag]}
+                          onClick={() => toggleRiskTag(tag)}
+                          key={tag}
+                        >
+                          <span>{FUNDAMENTAL_RISK_TAG_LABELS[tag]}</span>
+                          <strong>{riskTagCounts[tag].toLocaleString('zh-CN')}</strong>
+                        </button>
+                      )
+                    })}
+                    {riskTags.length > 0 ? (
+                      <button
+                        className="fundamental-risk-filter-clear"
+                        type="button"
+                        onClick={() => setRiskTags([])}
+                      >
+                        清除风险
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="fundamental-screening-toolbar">
+                  <label className="fundamental-screening-search">
+                    <Search size={16} />
+                    <input
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                      placeholder="搜索股票代码、名称或行业"
+                      aria-label="搜索基本面公司"
+                      autoFocus
+                    />
+                  </label>
+                  <label className="fundamental-only-passed">
+                    <input
+                      type="checkbox"
+                      checked={onlyPassed}
+                      onChange={(event) => setOnlyPassed(event.target.checked)}
+                    />
+                    仅显示全部通过
+                  </label>
+                  <span className="fundamental-result-count">
+                    当前显示 {filteredEvaluations.length.toLocaleString('zh-CN')} 家
+                  </span>
+                </div>
+
+                <div className="fundamental-screening-table-wrap">
+                  <table className="fundamental-screening-table">
+                    <thead>
+                      <tr>
+                        <th>
+                          <button type="button" onClick={() => changeSort('code')}>
+                            股票 {sortIndicator('code')}
+                          </button>
+                        </th>
+                        <th>行业</th>
+                        <th>
+                          <button type="button" onClick={() => changeSort('minimumRoe')}>
+                            五年最低 ROE {sortIndicator('minimumRoe')}
+                          </button>
+                        </th>
+                        <th>
+                          <button type="button" onClick={() => changeSort('cashConversion')}>
+                            {criteria.cashFlowMode === 'cumulative'
+                              ? '五年现金转换率'
+                              : '当年现金转换率'}
+                            {sortIndicator('cashConversion')}
+                          </button>
+                        </th>
+                        <th>资产负债率 / 行业 P60</th>
+                        <th>
+                          <button type="button" onClick={() => changeSort('debtPercentile')}>
+                            行业负债分位 {sortIndicator('debtPercentile')}
+                          </button>
+                        </th>
+                        <th>筛选结果</th>
+                        <th>操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pageRows.length > 0 ? (
+                        pageRows.map((evaluation) => {
+                          const company = evaluation.company
+                          const expanded = expandedCode === company.code
+                          const watchedStock = watchlistByQuoteId.get(company.quoteId)
+                          return (
+                            <Fragment key={company.quoteId}>
+                              <tr
+                                className={`${evaluation.passed ? 'is-passed' : ''} ${expanded ? 'is-expanded' : ''}`}
+                                onClick={() =>
+                                  setExpandedCode((current) =>
+                                    current === company.code ? '' : company.code
+                                  )
+                                }
+                                tabIndex={0}
+                                onKeyDown={(event) => {
+                                  if (event.key === 'Enter' || event.key === ' ') {
+                                    event.preventDefault()
+                                    setExpandedCode((current) =>
+                                      current === company.code ? '' : company.code
+                                    )
+                                  }
+                                }}
+                              >
+                                <td>
+                                  <span className="fundamental-stock-cell">
+                                    <strong>{company.name}</strong>
+                                    <small>
+                                      {company.code} · {MARKET_LABELS[company.market]}
+                                    </small>
+                                  </span>
+                                </td>
+                                <td>
+                                  <span className="fundamental-industry-cell">
+                                    <strong>{company.industryName || '--'}</strong>
+                                    <small>
+                                      {evaluation.eligibleOrganization
+                                        ? `${evaluation.industryBenchmark?.sampleSize ?? 0} 家样本`
+                                        : '金融企业不参与入选'}
+                                    </small>
+                                  </span>
+                                </td>
+                                <td className={directionClass(evaluation.minimumRoe)}>
+                                  {formatPercent(evaluation.minimumRoe)}
+                                </td>
+                                <td className={directionClass(evaluation.selectedCashConversion)}>
+                                  {formatPercent(evaluation.selectedCashConversion)}
+                                </td>
+                                <td>
+                                  {formatPercent(company.latestBalanceSheet.debtAssetRatio)} /{' '}
+                                  {formatPercent(
+                                    evaluation.industryBenchmark?.debtAssetRatioP60 ?? null
+                                  )}
+                                </td>
+                                <td>
+                                  {formatPercent(company.latestBalanceSheet.industryPercentile, 1)}
+                                </td>
+                                <td>
+                                  {evaluation.passed ? (
+                                    <span className="fundamental-result is-passed">
+                                      <CircleCheck size={14} />
+                                      全部通过
+                                    </span>
+                                  ) : (
+                                    <span className="fundamental-result">
+                                      {evaluation.eligibleOrganization
+                                        ? `${evaluation.passedRuleCount}/3 项通过`
+                                        : '不参与入选'}
+                                    </span>
+                                  )}
+                                </td>
+                                <td>
+                                  <span className="fundamental-row-actions">
+                                    <StockAction
+                                      company={company}
+                                      watchedStock={watchedStock}
+                                      tracking={
+                                        trackingProfiles[company.quoteId]?.status === 'tracking'
+                                      }
+                                      sourceRecorded={
+                                        trackingProfiles[company.quoteId]?.sources.some(
+                                          (source) =>
+                                            source.type === 'fundamentalScreening' &&
+                                            source.detail?.snapshotDate === snapshot?.snapshotDate
+                                        ) ?? false
+                                      }
+                                      onAdd={addCompany}
+                                      onView={onViewStock}
+                                    />
+                                    {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                                  </span>
+                                </td>
+                              </tr>
+                              {expanded ? (
+                                <tr className="fundamental-details-row">
+                                  <td colSpan={8}>
+                                    <CompanyDetails evaluation={evaluation} criteria={criteria} />
+                                  </td>
+                                </tr>
+                              ) : null}
+                            </Fragment>
+                          )
+                        })
+                      ) : (
+                        <tr>
+                          <td className="fundamental-empty-result" colSpan={8}>
+                            {qualityTags.length > 0 || riskTags.length > 0
+                              ? '当前质量与风险标签组合下没有匹配公司，可减少标签或调整其他筛选条件。'
+                              : '当前条件下没有匹配公司，可调整筛选规则或关闭“仅显示全部通过”。'}
                           </td>
                         </tr>
-                        {expanded ? (
-                          <tr className="fundamental-details-row">
-                            <td colSpan={8}>
-                              <CompanyDetails evaluation={evaluation} criteria={criteria} />
-                            </td>
-                          </tr>
-                        ) : null}
-                      </Fragment>
-                    )
-                  }) : (
-                    <tr>
-                      <td className="fundamental-empty-result" colSpan={8}>
-                        {qualityTags.length > 0 || riskTags.length > 0
-                          ? '当前质量与风险标签组合下没有匹配公司，可减少标签或调整其他筛选条件。'
-                          : '当前条件下没有匹配公司，可调整筛选规则或关闭“仅显示全部通过”。'}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-              </div>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
 
-              <footer className="fundamental-screening-footer">
-              <span>
-                第 {currentPage} / {totalPages} 页 · 每页 {PAGE_SIZE} 家
-              </span>
-              <div>
-                <button
-                  className="secondary-button"
-                  type="button"
-                  onClick={() => setPage((current) => Math.max(1, current - 1))}
-                  disabled={currentPage <= 1}
-                >
-                  <ChevronLeft size={15} />上一页
-                </button>
-                <button
-                  className="secondary-button"
-                  type="button"
-                  onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-                  disabled={currentPage >= totalPages}
-                >
-                  下一页<ChevronRight size={15} />
-                </button>
-              </div>
-              </footer>
-            </> : (
+                <footer className="fundamental-screening-footer">
+                  <span>
+                    第 {currentPage} / {totalPages} 页 · 每页 {PAGE_SIZE} 家
+                  </span>
+                  <div>
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={() => setPage((current) => Math.max(1, current - 1))}
+                      disabled={currentPage <= 1}
+                    >
+                      <ChevronLeft size={15} />
+                      上一页
+                    </button>
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                      disabled={currentPage >= totalPages}
+                    >
+                      下一页
+                      <ChevronRight size={15} />
+                    </button>
+                  </div>
+                </footer>
+              </>
+            ) : (
               <FundamentalChangeReportPanel
                 report={changeReport}
                 rows={visibleChangeRows}

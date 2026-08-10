@@ -101,6 +101,7 @@ const DEFAULT_WATCHLIST: WatchStock[] = [
 const DEFAULT_STATE: AppState = {
   watchlist: DEFAULT_WATCHLIST,
   watchlistGroups: DEFAULT_WATCHLIST_GROUPS.map((group) => ({ ...group })),
+  stockTrackingProfiles: {},
   columnOrder: [...DEFAULT_WATCHLIST_COLUMN_ORDER],
   columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
   settings: { ...DEFAULT_APP_SETTINGS },
@@ -403,7 +404,8 @@ if (!hasSingleInstanceLock) {
         refreshMarketInsightSnapshot: (quoteId) =>
           marketInsightRuntime?.refreshSnapshot(quoteId) ?? null,
         getChipDistributionCache: (quoteId) => chipDistributionCache?.get(quoteId) ?? null,
-        getLatestQuote: (quoteId) => getLatestQuotes().find((quote) => quote.quoteId === quoteId) ?? null,
+        getLatestQuote: (quoteId) =>
+          getLatestQuotes().find((quote) => quote.quoteId === quoteId) ?? null,
         getDailyKline: (quoteId, limit) => getKline(quoteId, 'daily', limit, 'ai:long-term'),
         getValuationHistory: (quoteId) => valuationHistoryService!.get(quoteId),
         getFundamentalSnapshot: () => fundamentalDataService?.getSnapshot() ?? null,

@@ -90,6 +90,7 @@
 | [`src/lib/order-book-alerts.ts`](../../src/lib/order-book-alerts.ts) | `detectFiveLevelLargeOrders` | 活动 T 仓买卖五档异常大单识别 |
 | [`src/lib/chip-distribution.ts`](../../src/lib/chip-distribution.ts) | `findChipAutoRange`、`estimateChipHistoryLimit`、`calculateChipDistribution` | 累计换手 100% 自动范围、历史根数估算和筹码分布计算 |
 | [`src/lib/format.ts`](../../src/lib/format.ts) | `formatPrice`、`formatProfit`、`formatAmount` | 展示格式化 |
+| [`src/lib/stock-tracking.ts`](../../src/lib/stock-tracking.ts) | `startStockTracking`、`stopStockTracking`、`addStockTrackingEntry` | 追踪来源、停止/恢复和复盘时间线状态转换 |
 
 ## 主界面组件
 
@@ -101,6 +102,9 @@
 | [`src/components/FundamentalScreeningDialog.tsx`](../../src/components/FundamentalScreeningDialog.tsx) | 基本面筛选条件、质量与风险高级筛选、候选公司、五年财务证据和自选联动 |
 | [`src/components/CompanyReportLibrary.tsx`](../../src/components/CompanyReportLibrary.tsx) | 个股近五年财报目录、筛选、官方原文入口、AI 总结操作和基本面阅读指南 |
 | [`src/components/DailyMarketScanDialog.tsx`](../../src/components/DailyMarketScanDialog.tsx) | 收盘扫描汇总、信号分类、进度、分页和自选联动 |
+| [`src/components/StockTrackingDialog.tsx`](../../src/components/StockTrackingDialog.tsx) | 全部追踪档案的状态、来源和关键词筛选以及集中复盘 |
+| [`src/components/StockTrackingEditor.tsx`](../../src/components/StockTrackingEditor.tsx) | 来源历史、标签、选股逻辑、时间线和停止结论编辑 |
+| [`src/components/StockTrackingPanel.tsx`](../../src/components/StockTrackingPanel.tsx) | 个股复盘入口及追踪以来涨跌、最大涨幅、最大回撤计算 |
 | [`src/components/PortfolioQualityDialog.tsx`](../../src/components/PortfolioQualityDialog.tsx) | 全部持仓价值类型、具体风险、行业结构、组合筛选、未计价说明和主表定位 |
 | [`src/components/WatchlistTable.tsx`](../../src/components/WatchlistTable.tsx) | 自选主表、排序、列、异动、展开详情和操作入口 |
 | [`src/components/watchlist-table/WatchlistRow.tsx`](../../src/components/watchlist-table/WatchlistRow.tsx) | 单股行指标、单元格、提醒、操作和展开详情 |

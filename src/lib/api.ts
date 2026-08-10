@@ -7,8 +7,10 @@ import {
   migrateWatchlistColumnOrder,
   normalizeAppSettings,
   normalizeTTradingAccounts,
+  normalizeStockTrackingProfiles,
   normalizeWatchlist,
   normalizeWatchlistGroups,
+  synchronizeTrackingGroupMembership,
   type AppState,
   type BootstrapResult,
   type CompanyReportLibraryResult,
@@ -51,6 +53,7 @@ const DEFAULT_WATCHLIST: WatchStock[] = DEMO_STOCKS.slice(0, 5).map((stock, inde
 const DEFAULT_STATE: AppState = {
   watchlist: DEFAULT_WATCHLIST,
   watchlistGroups: DEFAULT_WATCHLIST_GROUPS.map((group) => ({ ...group })),
+  stockTrackingProfiles: {},
   columnOrder: [...DEFAULT_WATCHLIST_COLUMN_ORDER],
   columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
   settings: { ...DEFAULT_APP_SETTINGS },
@@ -147,9 +150,16 @@ function loadDemoState(): AppState {
   const saved = localStorage.getItem('jianzhang-demo-state-v1')
   if (!saved) return structuredClone(DEFAULT_STATE)
   const parsed = JSON.parse(saved) as AppState
+  const watchlistGroups = normalizeWatchlistGroups(parsed.watchlistGroups)
+  const stockTrackingProfiles = normalizeStockTrackingProfiles(parsed.stockTrackingProfiles)
   return {
-    watchlist: normalizeWatchlist(parsed.watchlist),
-    watchlistGroups: normalizeWatchlistGroups(parsed.watchlistGroups),
+    watchlist: synchronizeTrackingGroupMembership(
+      normalizeWatchlist(parsed.watchlist),
+      watchlistGroups,
+      stockTrackingProfiles
+    ),
+    watchlistGroups,
+    stockTrackingProfiles,
     settings: normalizeAppSettings(parsed.settings),
     columnOrder: migrateWatchlistColumnOrder(parsed.columnOrder, parsed.columnOrderVersion),
     columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
@@ -162,14 +172,19 @@ function makeDemoQuotes(watchlist: WatchStock[]): StockQuote[] {
   return watchlist.map((stock, index) => {
     const known = DEMO_VALUES[stock.quoteId]
     const sector = makeDemoSectorQuote(stock.quoteId)
-    const radarSignals = index === 0 ? [{
-      type: '8201',
-      label: '火箭发射',
-      date: new Date().toISOString().slice(0, 10).replaceAll('-', ''),
-      time: '10:28:16',
-      info: '',
-      direction: 'up' as const
-    }] : undefined
+    const radarSignals =
+      index === 0
+        ? [
+            {
+              type: '8201',
+              label: '火箭发射',
+              date: new Date().toISOString().slice(0, 10).replaceAll('-', ''),
+              time: '10:28:16',
+              info: '',
+              direction: 'up' as const
+            }
+          ]
+        : undefined
     if (known) return { ...known, sector, radarSignals, updatedAt: now }
     const base = 24 + index * 7.31
     return {
@@ -215,7 +230,7 @@ function makeDemoKline(quoteId: string, period: KlinePeriod, limit?: number): Kl
         low: Math.min(open, close) - base * 0.007,
         volume: 30_000 + ((index * 7123) % 90_000),
         amount: (30_000 + ((index * 7123) % 90_000)) * close * 100,
-        turnoverRate: 0.8 + index % 10 * 0.15
+        turnoverRate: 0.8 + (index % 10) * 0.15
       }
     })
     return {
@@ -234,7 +249,11 @@ function makeDemoKline(quoteId: string, period: KlinePeriod, limit?: number): Kl
     const isAuction = period === 'intraday' && minuteIndex < 15
     const regularIndex = isAuction ? 0 : minuteIndex - (period === 'intraday' ? 15 : 0)
     const sessionMinutes = regularIndex < 24 ? 30 + regularIndex * 5 : (regularIndex - 24) * 5
-    const hour = isAuction ? 9 : regularIndex < 24 ? 9 + Math.floor(sessionMinutes / 60) : 13 + Math.floor(sessionMinutes / 60)
+    const hour = isAuction
+      ? 9
+      : regularIndex < 24
+        ? 9 + Math.floor(sessionMinutes / 60)
+        : 13 + Math.floor(sessionMinutes / 60)
     const minute = isAuction ? 15 + minuteIndex : sessionMinutes % 60
     const barDate = new Date()
     barDate.setDate(barDate.getDate() - (dayCount - dayIndex - 1))
@@ -341,28 +360,30 @@ const DEMO_DIVIDEND_FINANCING_SNAPSHOT: DividendFinancingSnapshot = {
   dualListedCount: 0,
   financingErrorCount: 0,
   dividendErrorCount: 0,
-  rows: [{
-    rank: 1,
-    code: '600519',
-    name: '贵州茅台',
-    market: 'SH',
-    dividendYi: 3200,
-    financingYi: 22.44,
-    ratio: 14260.25,
-    netReturnYi: 3177.56,
-    annualDividends: [],
-    financingEvents: [],
-    financingCount: 0,
-    qualityScore: 96,
-    scoreRank: 1,
-    qualityScoreBreakdown: {
-      ratio: 29,
-      netReturn: 24,
-      continuity: 24,
-      growth: 9,
-      financingDiscipline: 10
+  rows: [
+    {
+      rank: 1,
+      code: '600519',
+      name: '贵州茅台',
+      market: 'SH',
+      dividendYi: 3200,
+      financingYi: 22.44,
+      ratio: 14260.25,
+      netReturnYi: 3177.56,
+      annualDividends: [],
+      financingEvents: [],
+      financingCount: 0,
+      qualityScore: 96,
+      scoreRank: 1,
+      qualityScoreBreakdown: {
+        ratio: 29,
+        netReturn: 24,
+        continuity: 24,
+        growth: 9,
+        financingDiscipline: 10
+      }
     }
-  }]
+  ]
 }
 
 const DEMO_FUNDAMENTAL_SNAPSHOT: FundamentalSnapshot = {
@@ -510,11 +531,17 @@ const demoApi: StockDesktopApi = {
   },
   async refreshQuotes() {
     const state = loadDemoState()
-    return makeDemoQuotes([...state.watchlist, ...getMarketIndexStocks(state.settings.marketIndexIds)])
+    return makeDemoQuotes([
+      ...state.watchlist,
+      ...getMarketIndexStocks(state.settings.marketIndexIds)
+    ])
   },
   async refreshQuote() {
     const state = loadDemoState()
-    return makeDemoQuotes([...state.watchlist, ...getMarketIndexStocks(state.settings.marketIndexIds)])
+    return makeDemoQuotes([
+      ...state.watchlist,
+      ...getMarketIndexStocks(state.settings.marketIndexIds)
+    ])
   },
   async getKline(quoteId, period, limit) {
     return makeDemoKline(quoteId, period, limit)
@@ -559,9 +586,12 @@ const demoApi: StockDesktopApi = {
   },
   async exportConfig(state) {
     const fileName = demoConfigFileName()
-    const blob = new Blob([JSON.stringify(createConfigDocument(state, 'browser-preview'), null, 2)], {
-      type: 'application/json'
-    })
+    const blob = new Blob(
+      [JSON.stringify(createConfigDocument(state, 'browser-preview'), null, 2)],
+      {
+        type: 'application/json'
+      }
+    )
     const link = document.createElement('a')
     link.href = URL.createObjectURL(blob)
     link.download = fileName
@@ -580,12 +610,15 @@ const demoApi: StockDesktopApi = {
           resolve({ canceled: true })
           return
         }
-        file.text()
-          .then((content) => resolve({
-            canceled: false,
-            filePath: file.name,
-            state: parseConfigDocument(JSON.parse(content))
-          }))
+        file
+          .text()
+          .then((content) =>
+            resolve({
+              canceled: false,
+              filePath: file.name,
+              state: parseConfigDocument(JSON.parse(content))
+            })
+          )
           .catch(reject)
       }
       input.click()

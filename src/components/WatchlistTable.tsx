@@ -21,6 +21,9 @@ import type {
   StockPosition,
   StockPositionSnapshot,
   StockQuote,
+  StockTrackingConclusionResult,
+  StockTrackingProfile,
+  StockTrackingProfiles,
   TPlanDefaultSettings,
   TTradingAccount,
   TTradingAccounts,
@@ -102,6 +105,11 @@ interface WatchlistTableProps {
     position: StockPosition | undefined
   ) => void
   onUpdateStockAlerts: (quoteId: string, rules: StockAlertRule[]) => void
+  stockTrackingProfiles: StockTrackingProfiles
+  onStartTracking: (quoteId: string) => void
+  onUpdateTracking: (profile: StockTrackingProfile) => void
+  onStopTracking: (quoteId: string, result: StockTrackingConclusionResult, summary: string) => void
+  onRestartTracking: (quoteId: string) => void
   onReorder: (sourceQuoteId: string, targetQuoteId: string) => void
   onPin: (quoteId: string) => void
   onColumnOrderChange: (columnOrder: WatchlistColumnId[]) => void
@@ -134,7 +142,7 @@ const FUNDAMENTAL_FILTER_LABELS: Record<FundamentalWatchlistFilter, string> = {
   unavailable: '无数据',
   roe: 'ROE待核',
   cash: '现金待核',
-  debt: '杠杆待核',
+  debt: '杠杆待核'
 }
 
 const VALUE_FILTER_LABELS: Record<FundamentalDividendFilter, string> = {
@@ -203,6 +211,11 @@ export function WatchlistTable({
   onEditPosition,
   onUpdateTTrading,
   onUpdateStockAlerts,
+  stockTrackingProfiles,
+  onStartTracking,
+  onUpdateTracking,
+  onStopTracking,
+  onRestartTracking,
   onReorder,
   onPin,
   onColumnOrderChange,
@@ -326,9 +339,10 @@ export function WatchlistTable({
     [customGroupFilter, rows, sectorFilter, watchlistGroups]
   )
   const fundamentalSummary = useMemo(
-    () => summarizeFundamentalWatchlist(
-      scopeRows.map(({ fundamentalScreening }) => fundamentalScreening)
-    ),
+    () =>
+      summarizeFundamentalWatchlist(
+        scopeRows.map(({ fundamentalScreening }) => fundamentalScreening)
+      ),
     [scopeRows]
   )
   const valueDataReady = Boolean(fundamentalSnapshotDate && dividendFinancingSnapshotDate)
@@ -336,54 +350,61 @@ export function WatchlistTable({
     .filter((reason): reason is string => Boolean(reason))
     .join('；')
   const valueSummary = useMemo(
-    () => valueDataReady
-      ? summarizeFundamentalDividendWatchlist(
-          scopeRows.map(({ fundamentalScreening, dividendFinancing }) => ({
-            evaluation: fundamentalScreening,
-            hasDividendLabel: Boolean(dividendFinancing)
-          }))
-        )
-      : null,
+    () =>
+      valueDataReady
+        ? summarizeFundamentalDividendWatchlist(
+            scopeRows.map(({ fundamentalScreening, dividendFinancing }) => ({
+              evaluation: fundamentalScreening,
+              hasDividendLabel: Boolean(dividendFinancing)
+            }))
+          )
+        : null,
     [scopeRows, valueDataReady]
   )
   useEffect(() => {
     if (valueDataReady) return
     setValueFilter('all')
-    setSort((current) => current?.column === 'valueTags' ? null : current)
+    setSort((current) => (current?.column === 'valueTags' ? null : current))
   }, [valueDataReady])
   const portfolioQualitySummary = useMemo(
-    () => calculatePortfolioQualitySummary(
-      rows.flatMap(({ stock, quote, metrics, fundamentalScreening, dividendFinancing }) => (
-        stock.position
-          ? [{
-              quoteId: stock.quoteId,
-              code: stock.code,
-              name: stock.name,
-              industryName: quote?.sector?.name
-                ?? fundamentalScreening?.company.industryName
-                ?? '行业待核',
-              marketValue: metrics.marketValue,
-              costValue: stock.position.cost * stock.position.quantity,
-              fundamentalEvaluation: fundamentalScreening,
-              hasDividendLabel: Boolean(dividendFinancing)
-            }]
-          : []
-      ))
-    ),
+    () =>
+      calculatePortfolioQualitySummary(
+        rows.flatMap(({ stock, quote, metrics, fundamentalScreening, dividendFinancing }) =>
+          stock.position
+            ? [
+                {
+                  quoteId: stock.quoteId,
+                  code: stock.code,
+                  name: stock.name,
+                  industryName:
+                    quote?.sector?.name ?? fundamentalScreening?.company.industryName ?? '行业待核',
+                  marketValue: metrics.marketValue,
+                  costValue: stock.position.cost * stock.position.quantity,
+                  fundamentalEvaluation: fundamentalScreening,
+                  hasDividendLabel: Boolean(dividendFinancing)
+                }
+              ]
+            : []
+        )
+      ),
     [rows]
   )
   const filteredRows = useMemo(
-    () => scopeRows.filter(({ fundamentalScreening, dividendFinancing }) => (
-      matchesFundamentalWatchlistFilter(fundamentalScreening, fundamentalFilter)
-      && (valueFilter === 'all' || (
-        valueDataReady
-        && matchesFundamentalDividendFilter({
-          evaluation: fundamentalScreening,
-          hasDividendLabel: Boolean(dividendFinancing)
-        }, valueFilter)
-      ))
-      && (!riskOnly || hasFundamentalRisk(fundamentalScreening))
-    )),
+    () =>
+      scopeRows.filter(
+        ({ fundamentalScreening, dividendFinancing }) =>
+          matchesFundamentalWatchlistFilter(fundamentalScreening, fundamentalFilter) &&
+          (valueFilter === 'all' ||
+            (valueDataReady &&
+              matchesFundamentalDividendFilter(
+                {
+                  evaluation: fundamentalScreening,
+                  hasDividendLabel: Boolean(dividendFinancing)
+                },
+                valueFilter
+              ))) &&
+          (!riskOnly || hasFundamentalRisk(fundamentalScreening))
+      ),
     [fundamentalFilter, riskOnly, scopeRows, valueDataReady, valueFilter]
   )
   const displayedRows = useMemo(
@@ -602,11 +623,14 @@ export function WatchlistTable({
       return null
     })
   }, [])
-  const locatePortfolioHolding = useCallback((quoteId: string) => {
-    setPortfolioQualityOpen(false)
-    resetFilters()
-    window.requestAnimationFrame(() => scrollToStock(quoteId))
-  }, [resetFilters, scrollToStock])
+  const locatePortfolioHolding = useCallback(
+    (quoteId: string) => {
+      setPortfolioQualityOpen(false)
+      resetFilters()
+      window.requestAnimationFrame(() => scrollToStock(quoteId))
+    },
+    [resetFilters, scrollToStock]
+  )
 
   const detailNavigationRequestId = detailNavigationRequest?.id
   const detailNavigationQuoteId = detailNavigationRequest?.quoteId
@@ -647,11 +671,11 @@ export function WatchlistTable({
             : ` · 基本面：${FUNDAMENTAL_FILTER_LABELS[fundamentalFilter]}`}
           {valueFilter === 'all' ? '' : ` · 价值组合：${VALUE_FILTER_LABELS[valueFilter]}`}
           {riskOnly ? ' · 基本面：有风险' : ''}
-          {customGroupFilter !== ALL_FILTER
-          || sectorFilter !== ALL_FILTER
-          || fundamentalFilter !== 'all'
-          || valueFilter !== 'all'
-          || riskOnly
+          {customGroupFilter !== ALL_FILTER ||
+          sectorFilter !== ALL_FILTER ||
+          fundamentalFilter !== 'all' ||
+          valueFilter !== 'all' ||
+          riskOnly
             ? ` · 显示 ${displayedRows.length}/${rows.length} 只`
             : ''}
         </span>
@@ -760,11 +784,11 @@ export function WatchlistTable({
         valueDataStaleReason={valueDataStaleReason || null}
         valueTagSortDirection={sort?.column === 'valueTags' ? sort.direction : null}
         filtersActive={
-          customGroupFilter !== ALL_FILTER
-          || sectorFilter !== ALL_FILTER
-          || fundamentalFilter !== 'all'
-          || valueFilter !== 'all'
-          || riskOnly
+          customGroupFilter !== ALL_FILTER ||
+          sectorFilter !== ALL_FILTER ||
+          fundamentalFilter !== 'all' ||
+          valueFilter !== 'all' ||
+          riskOnly
         }
         onOpenPortfolioQuality={() => setPortfolioQualityOpen(true)}
         onFilterChange={setFundamentalFilter}
@@ -829,64 +853,71 @@ export function WatchlistTable({
             </tr>
           </thead>
           <tbody>
-            {displayedRows.map(({
-              stock,
-              quote,
-              dividendFinancing,
-              fundamentalScreening,
-              fundamentalPeerComparison,
-              manualIndex
-            }) => (
-              <WatchlistRow
-                key={stock.quoteId}
-                stock={stock}
-                quote={quote}
-                dividendFinancing={dividendFinancing}
-                dividendFinancingSnapshotDate={dividendFinancingSnapshotDate}
-                fundamentalScreening={fundamentalScreening}
-                fundamentalPeerComparison={fundamentalPeerComparison}
-                fundamentalSnapshotDate={fundamentalSnapshotDate}
-                fundamentalGeneratedAt={fundamentalGeneratedAt}
-                fundamentalStaleReason={fundamentalStaleReason}
-                tradingAccount={tTradingAccounts[stock.quoteId]}
-                manualIndex={manualIndex}
-                columnOrder={adjustableColumnOrder}
-                tradingCalendarClosedDates={tradingCalendarClosedDates}
-                priorityRefreshSeconds={priorityRefreshSeconds}
-                regularRefreshSeconds={regularRefreshSeconds}
-                chipDistributionEnabled={chipDistributionEnabled}
-                bollingerBandsEnabled={bollingerBandsEnabled}
-                selected={selectedQuoteId === stock.quoteId}
-                detailNavigationRequest={
-                  detailNavigationRequest?.quoteId === stock.quoteId
-                    ? detailNavigationRequest
-                    : null
-                }
-                closing={closingQuoteIds.has(stock.quoteId)}
-                located={locatedQuoteId === stock.quoteId}
-                dragDisabled={Boolean(sort)}
-                dragging={draggingQuoteId === stock.quoteId}
-                dragOver={dragOverQuoteId === stock.quoteId}
-                radarExpanded={radarPopover?.quoteId === stock.quoteId}
-                onToggleDetails={toggleStockDetails}
-                onDetailNavigationHandled={onDetailNavigationHandled}
-                onFinishClosing={finishClosingStockDetails}
-                onDragStart={handleDragStart}
-                onDragOver={handleDragOver}
-                onDrop={handleDrop}
-                onDragEnd={handleDragEnd}
-                onPin={handlePin}
-                onTogglePriority={onTogglePriority}
-                onToggleTaskbar={onToggleTaskbar}
-                onEditPosition={openPositionEditor}
-                onOpenStockAlert={openStockAlert}
-                onOpenTTrading={openTTrading}
-                onOpenRadar={openRadar}
-                onChipDistributionEnabledChange={onChipDistributionEnabledChange}
-                onBollingerBandsEnabledChange={onBollingerBandsEnabledChange}
-                onRemove={onRemove}
-              />
-            ))}
+            {displayedRows.map(
+              ({
+                stock,
+                quote,
+                dividendFinancing,
+                fundamentalScreening,
+                fundamentalPeerComparison,
+                manualIndex
+              }) => (
+                <WatchlistRow
+                  key={stock.quoteId}
+                  stock={stock}
+                  quote={quote}
+                  dividendFinancing={dividendFinancing}
+                  dividendFinancingSnapshotDate={dividendFinancingSnapshotDate}
+                  fundamentalScreening={fundamentalScreening}
+                  fundamentalPeerComparison={fundamentalPeerComparison}
+                  fundamentalSnapshotDate={fundamentalSnapshotDate}
+                  fundamentalGeneratedAt={fundamentalGeneratedAt}
+                  fundamentalStaleReason={fundamentalStaleReason}
+                  tradingAccount={tTradingAccounts[stock.quoteId]}
+                  manualIndex={manualIndex}
+                  columnOrder={adjustableColumnOrder}
+                  tradingCalendarClosedDates={tradingCalendarClosedDates}
+                  priorityRefreshSeconds={priorityRefreshSeconds}
+                  regularRefreshSeconds={regularRefreshSeconds}
+                  chipDistributionEnabled={chipDistributionEnabled}
+                  bollingerBandsEnabled={bollingerBandsEnabled}
+                  trackingProfile={stockTrackingProfiles[stock.quoteId]}
+                  selected={selectedQuoteId === stock.quoteId}
+                  detailNavigationRequest={
+                    detailNavigationRequest?.quoteId === stock.quoteId
+                      ? detailNavigationRequest
+                      : null
+                  }
+                  closing={closingQuoteIds.has(stock.quoteId)}
+                  located={locatedQuoteId === stock.quoteId}
+                  dragDisabled={Boolean(sort)}
+                  dragging={draggingQuoteId === stock.quoteId}
+                  dragOver={dragOverQuoteId === stock.quoteId}
+                  radarExpanded={radarPopover?.quoteId === stock.quoteId}
+                  onToggleDetails={toggleStockDetails}
+                  onDetailNavigationHandled={onDetailNavigationHandled}
+                  onFinishClosing={finishClosingStockDetails}
+                  onDragStart={handleDragStart}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                  onDragEnd={handleDragEnd}
+                  onPin={handlePin}
+                  onTogglePriority={onTogglePriority}
+                  onToggleTaskbar={onToggleTaskbar}
+                  onEditPosition={openPositionEditor}
+                  onOpenStockAlert={openStockAlert}
+                  onOpenTTrading={openTTrading}
+                  onOpenRadar={openRadar}
+                  onChipDistributionEnabledChange={onChipDistributionEnabledChange}
+                  onBollingerBandsEnabledChange={onBollingerBandsEnabledChange}
+                  onStartTracking={onStartTracking}
+                  onUpdateTracking={onUpdateTracking}
+                  onStopTracking={onStopTracking}
+                  onRestartTracking={onRestartTracking}
+                  onRemove={onRemove}
+                />
+              )
+            )}
             {displayedRows.length === 0 ? (
               <tr>
                 <td className="table-filter-empty" colSpan={adjustableColumnOrder.length + 3}>

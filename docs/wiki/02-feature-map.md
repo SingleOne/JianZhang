@@ -13,6 +13,7 @@
 | 基本面初筛 | `FundamentalScreeningDialog.tsx`、`FundamentalWatchlistOverview.tsx`、`WatchlistRow.tsx`、`ExpandedStockDetails.tsx`、`SettingsMenu.tsx` | 普通企业三项硬筛选、六类固定质量标签、六类风险提示、同行 ROE/现金质量/低负债排名、简化 DCF 与五年明细；默认规则更新变化；主表以两字标签区分结果和风险，当前分组/板块直接统计四类价值组合、基本面状态、待核构成及风险公司，支持条件叠加和标签数排序 | `fundamental-screening.ts` + `dcf-analysis.ts` + `FundamentalDataService` + schema v1/v2/v3/v4/v5 用户快照和最近一次变化报告 + 四阶段 Python 更新脚本 |
 | 公司财报库与阅读指南 | `CompanyReportLibrary.tsx`、`ExpandedStockDetails.tsx` | 最近五个报告年度按报告所属财年分组并只展示全文；打开官方 PDF；一键生成并保存 AI 总结；基本面页讲解 ROE、现金转换、负债、三张表和阅读顺序 | `CompanyReportService` + 巨潮资讯定期报告分类接口 + `pdf-parse` + AI Runtime + `company-reports/` 目录和总结缓存 |
 | A 股收盘扫描 | `DailyMarketScanDialog.tsx`、`App.tsx` | 成交额过滤、20 日均量、放量/大涨放量/大跌放量/20 日新高/20 日新低/连跌后翻红计算，创业板/科创板标识和“异动观察”自选联动 | `DailyMarketScanService` + `fetchDailyMarketActiveQuotes` + 扫描专用 8 并发日 K |
+| 选股追踪与复盘 | `StockTrackingDialog.tsx`、`StockTrackingEditor.tsx`、`StockTrackingPanel.tsx`、`ExpandedStockDetails.tsx` | 多来源历史、标签、选股逻辑、带行情快照的时间线、停止/恢复追踪和跟踪区间表现；收盘扫描、分红融资榜、基本面筛选默认开始追踪 | `AppState.stockTrackingProfiles` + 现有实时行情和日 K |
 | 删除、拖拽、置顶、排序、调整列 | `WatchlistTable.tsx` | `normalizeWatchlistColumnOrder`、`migrateWatchlistColumnOrder` | `state:save` |
 | 自定义分组与板块组合筛选 | `WatchlistTable.tsx`、`WatchlistGroupDialog.tsx`、`TableFilterDropdown.tsx` | `WatchlistGroup`、`WatchStock.groupIds` | 分组随 `AppState` 保存；板块筛选使用实时报价 |
 | 重点关注 | `WatchlistTable.tsx` | 有持仓时自动锁定重点；`App.togglePriority` | `QuoteRefreshCoordinator` 统一调度重点/普通范围 |
@@ -78,7 +79,7 @@ SearchBar
 - 拖拽或置顶会修改 `watchlist` 并保存。
 - 可调整列顺序保存在 `AppState.columnOrder`。
 - 自定义分组与板块筛选只影响当前主表展示，不改变自选顺序、行情刷新范围或持仓数据；两个条件按“且”组合。
-- 自选分组保存在 `AppState.watchlistGroups`；系统默认“异动观察”分组不可改名或删除，从收盘扫描新增的自选自动加入该组。板块筛选来自 `StockQuote.sector`，不会额外写入状态。
+- 自选分组保存在 `AppState.watchlistGroups`；系统默认“异动观察”和“追踪”分组不可改名或删除。“异动观察”保留收盘扫描归类；“追踪”由追踪状态自动维护，停止追踪后移出但不删除档案。板块筛选来自 `StockQuote.sector`，不会额外写入状态。
 - 主表价值组合计数以当前分组和板块范围为基数，不受价值组合、基本面状态和风险条件自身影响；“双优、仅基、仅分、暂无”互斥，三组条件之间按“且”组合。
 - 价值组合与标签数排序只在基本面、分红融资两份快照均存在时启用；任一缺失时显示“价值待数”并自动撤销相关条件，快照过期仍按现有数据计算并显示提示。
 - “标签数”依次切换降序、升序和恢复手动排序；双优计 2 个正面标签，仅基/仅分计 1 个，暂无计 0 个，同标签数保持原手动顺序。
@@ -119,11 +120,12 @@ SearchBar
 3. 分红融资
 4. 基本面
 5. 财报库
-6. 市场观察
-7. AI 分析
-8. AI 做 T 参考
-9. 五日、日 K、周 K、月 K
-10. 板块
+6. 选股复盘
+7. 市场观察
+8. AI 分析
+9. AI 做 T 参考
+10. 五日、日 K、周 K、月 K
+11. 板块
 
 基本面页使用默认规则展示三项通过状态与证据，并列出五年的加权/扣非 ROE、利润、经营现金流和现金转换率；质量特征与风险关注分区展示，风险项保留完整名称、红色/橙色级别及具体触发证据，不改变三项硬筛选结论。同行位置按同一行业普通企业分别计算五年最低 ROE、五年累计现金转换率和低负债名次，有效样本少于 10 家时不发布排名；金融企业的规则显示为“不适用”，且不参与质量、风险和同行排名。分时页同时展示五档盘口。日/周/月 K 在主图叠加本地计算的 BOLL(20,2) 上轨、中轨和下轨，下方指标栏显示十字光标所在周期的三轨价格并提供持久化开关。日 K 可通过设置开关显示筹码分布，计算范围从当前可视 K 线最右端向前累计换手率到 100%。首批日 K 不足时根据现有平均换手率估算目标根数并直接补取；普通历史 K 线缩放到左端时仍按倍数补取更早数据。
 

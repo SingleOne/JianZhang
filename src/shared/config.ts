@@ -2,16 +2,18 @@ import {
   WATCHLIST_COLUMN_ORDER_VERSION,
   migrateWatchlistColumnOrder,
   normalizeAppSettings,
+  normalizeStockTrackingProfiles,
   normalizeTTradingAccounts,
   normalizeWatchlist,
   normalizeWatchlistGroups,
+  synchronizeTrackingGroupMembership,
   type AppSettings,
   type AppState,
   type WatchStock
 } from './types'
 
 export const JIANZHANG_CONFIG_FORMAT = 'jianzhang-config'
-export const JIANZHANG_CONFIG_VERSION = 2
+export const JIANZHANG_CONFIG_VERSION = 3
 
 export interface JianzhangConfigDocument {
   format: typeof JIANZHANG_CONFIG_FORMAT
@@ -26,7 +28,10 @@ export interface JianzhangConfigDocument {
   }
 }
 
-export function createConfigDocument(state: AppState, applicationVersion: string): JianzhangConfigDocument {
+export function createConfigDocument(
+  state: AppState,
+  applicationVersion: string
+): JianzhangConfigDocument {
   return {
     format: JIANZHANG_CONFIG_FORMAT,
     formatVersion: JIANZHANG_CONFIG_VERSION,
@@ -39,46 +44,61 @@ export function createConfigDocument(state: AppState, applicationVersion: string
 function isWatchStock(value: unknown): value is WatchStock {
   if (!value || typeof value !== 'object') return false
   const stock = value as Partial<WatchStock>
-  return typeof stock.code === 'string'
-    && typeof stock.name === 'string'
-    && typeof stock.quoteId === 'string'
-    && typeof stock.marketLabel === 'string'
-    && typeof stock.showInTaskbar === 'boolean'
+  return (
+    typeof stock.code === 'string' &&
+    typeof stock.name === 'string' &&
+    typeof stock.quoteId === 'string' &&
+    typeof stock.marketLabel === 'string' &&
+    typeof stock.showInTaskbar === 'boolean'
+  )
 }
 
 function isCompatibleAppSettings(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false
   const settings = value as Partial<AppSettings> & { refreshSeconds?: number }
-  const hasRefreshSettings = (
-    typeof settings.priorityRefreshSeconds === 'number'
-    && typeof settings.regularRefreshSeconds === 'number'
-  ) || typeof settings.refreshSeconds === 'number'
-  return hasRefreshSettings
-    && typeof settings.startWithWindows === 'boolean'
-    && typeof settings.minimizeToTray === 'boolean'
-    && typeof settings.showTaskbarTicker === 'boolean'
-    && typeof settings.taskbarPositionPercent === 'number'
+  const hasRefreshSettings =
+    (typeof settings.priorityRefreshSeconds === 'number' &&
+      typeof settings.regularRefreshSeconds === 'number') ||
+    typeof settings.refreshSeconds === 'number'
+  return (
+    hasRefreshSettings &&
+    typeof settings.startWithWindows === 'boolean' &&
+    typeof settings.minimizeToTray === 'boolean' &&
+    typeof settings.showTaskbarTicker === 'boolean' &&
+    typeof settings.taskbarPositionPercent === 'number'
+  )
 }
 
 export function parseConfigDocument(value: unknown): AppState {
   if (!value || typeof value !== 'object') throw new Error('文件不是有效的见涨配置')
   const document = value as Partial<JianzhangConfigDocument>
   if (
-    document.format !== JIANZHANG_CONFIG_FORMAT
-    || (document.formatVersion !== 1 && document.formatVersion !== JIANZHANG_CONFIG_VERSION)
+    document.format !== JIANZHANG_CONFIG_FORMAT ||
+    ![1, 2, JIANZHANG_CONFIG_VERSION].includes(document.formatVersion ?? 0)
   ) {
     throw new Error('配置格式或版本不受支持')
   }
 
   const importedState = document.state
-  if (!importedState || !Array.isArray(importedState.watchlist) || !isCompatibleAppSettings(importedState.settings)) {
+  if (
+    !importedState ||
+    !Array.isArray(importedState.watchlist) ||
+    !isCompatibleAppSettings(importedState.settings)
+  ) {
     throw new Error('配置内容不完整')
   }
   if (!importedState.watchlist.every(isWatchStock)) throw new Error('配置中的股票信息无效')
 
+  const watchlistGroups = normalizeWatchlistGroups(importedState.watchlistGroups)
+  const stockTrackingProfiles = normalizeStockTrackingProfiles(importedState.stockTrackingProfiles)
   return {
-    watchlist: normalizeWatchlist(importedState.watchlist),
-    watchlistGroups: normalizeWatchlistGroups(importedState.watchlistGroups),
+    watchlist: synchronizeTrackingGroupMembership(
+      normalizeWatchlist(importedState.watchlist),
+      watchlistGroups,
+      stockTrackingProfiles
+    ),
+    watchlistGroups,
+    stockTrackingProfiles,
     settings: normalizeAppSettings(importedState.settings),
     columnOrder: migrateWatchlistColumnOrder(
       Array.isArray(importedState.columnOrder) ? importedState.columnOrder : undefined,

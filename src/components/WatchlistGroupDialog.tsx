@@ -1,7 +1,7 @@
 import { FolderPlus, Folders, Search, Trash2, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { isDailyScanWatchlistGroup } from '../shared/types'
+import { isSystemWatchlistGroup, isTrackingWatchlistGroup } from '../shared/types'
 import type { StockQuote, WatchlistGroup, WatchStock } from '../shared/types'
 import { useConfirmDialog } from './ConfirmDialog'
 
@@ -21,35 +21,42 @@ export function WatchlistGroupDialog({
   onClose
 }: WatchlistGroupDialogProps) {
   const confirm = useConfirmDialog()
-  const [groups, setGroups] = useState<WatchlistGroup[]>(() => initialGroups.map((group) => ({ ...group })))
-  const [groupIdsByQuoteId, setGroupIdsByQuoteId] = useState<Record<string, string[]>>(() => (
+  const [groups, setGroups] = useState<WatchlistGroup[]>(() =>
+    initialGroups.map((group) => ({ ...group }))
+  )
+  const [groupIdsByQuoteId, setGroupIdsByQuoteId] = useState<Record<string, string[]>>(() =>
     Object.fromEntries(stocks.map((stock) => [stock.quoteId, [...(stock.groupIds ?? [])]]))
-  ))
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(initialGroups[0]?.id ?? null)
+  )
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(
+    initialGroups[0]?.id ?? null
+  )
   const [newGroupName, setNewGroupName] = useState('')
   const [stockQuery, setStockQuery] = useState('')
   const quoteMap = useMemo(() => new Map(quotes.map((quote) => [quote.quoteId, quote])), [quotes])
   const selectedGroup = groups.find((group) => group.id === selectedGroupId)
+  const selectedTrackingGroup = Boolean(selectedGroup && isTrackingWatchlistGroup(selectedGroup))
   const normalizedNames = groups.map((group) => group.name.trim().toLocaleLowerCase('zh-CN'))
-  const namesInvalid = normalizedNames.some((name) => !name)
-    || new Set(normalizedNames).size !== normalizedNames.length
+  const namesInvalid =
+    normalizedNames.some((name) => !name) ||
+    new Set(normalizedNames).size !== normalizedNames.length
   const normalizedNewGroupName = newGroupName.trim().toLocaleLowerCase('zh-CN')
-  const canAddGroup = Boolean(normalizedNewGroupName)
-    && !normalizedNames.includes(normalizedNewGroupName)
+  const canAddGroup =
+    Boolean(normalizedNewGroupName) && !normalizedNames.includes(normalizedNewGroupName)
   const filteredStocks = useMemo(() => {
     const query = stockQuery.trim().toLocaleLowerCase('zh-CN')
     if (!query) return stocks
     return stocks.filter((stock) => {
       const sectorName = quoteMap.get(stock.quoteId)?.sector?.name ?? ''
-      return stock.name.toLocaleLowerCase('zh-CN').includes(query)
-        || stock.code.includes(query)
-        || sectorName.toLocaleLowerCase('zh-CN').includes(query)
+      return (
+        stock.name.toLocaleLowerCase('zh-CN').includes(query) ||
+        stock.code.includes(query) ||
+        sectorName.toLocaleLowerCase('zh-CN').includes(query)
+      )
     })
   }, [quoteMap, stockQuery, stocks])
 
-  const groupStockCount = (groupId: string) => stocks.filter((stock) => (
-    groupIdsByQuoteId[stock.quoteId]?.includes(groupId)
-  )).length
+  const groupStockCount = (groupId: string) =>
+    stocks.filter((stock) => groupIdsByQuoteId[stock.quoteId]?.includes(groupId)).length
 
   const addGroup = () => {
     const name = newGroupName.trim()
@@ -61,7 +68,7 @@ export function WatchlistGroupDialog({
   }
 
   const deleteGroup = async (group: WatchlistGroup) => {
-    if (isDailyScanWatchlistGroup(group)) return
+    if (isSystemWatchlistGroup(group)) return
     const confirmed = await confirm({
       title: '删除自定义分组',
       message: `确定删除分组“${group.name}”吗？组内股票不会从自选列表中删除。`,
@@ -71,17 +78,19 @@ export function WatchlistGroupDialog({
     if (!confirmed) return
     const nextGroups = groups.filter((item) => item.id !== group.id)
     setGroups(nextGroups)
-    setGroupIdsByQuoteId((current) => Object.fromEntries(
-      Object.entries(current).map(([quoteId, groupIds]) => [
-        quoteId,
-        groupIds.filter((groupId) => groupId !== group.id)
-      ])
-    ))
+    setGroupIdsByQuoteId((current) =>
+      Object.fromEntries(
+        Object.entries(current).map(([quoteId, groupIds]) => [
+          quoteId,
+          groupIds.filter((groupId) => groupId !== group.id)
+        ])
+      )
+    )
     if (selectedGroupId === group.id) setSelectedGroupId(nextGroups[0]?.id ?? null)
   }
 
   const toggleStock = (quoteId: string, checked: boolean) => {
-    if (!selectedGroupId) return
+    if (!selectedGroupId || selectedTrackingGroup) return
     setGroupIdsByQuoteId((current) => {
       const currentGroupIds = current[quoteId] ?? []
       return {
@@ -94,7 +103,7 @@ export function WatchlistGroupDialog({
   }
 
   const addFilteredStocks = () => {
-    if (!selectedGroupId) return
+    if (!selectedGroupId || selectedTrackingGroup) return
     setGroupIdsByQuoteId((current) => {
       const next = { ...current }
       for (const stock of filteredStocks) {
@@ -105,13 +114,15 @@ export function WatchlistGroupDialog({
   }
 
   const clearSelectedGroup = () => {
-    if (!selectedGroupId) return
-    setGroupIdsByQuoteId((current) => Object.fromEntries(
-      Object.entries(current).map(([quoteId, groupIds]) => [
-        quoteId,
-        groupIds.filter((groupId) => groupId !== selectedGroupId)
-      ])
-    ))
+    if (!selectedGroupId || selectedTrackingGroup) return
+    setGroupIdsByQuoteId((current) =>
+      Object.fromEntries(
+        Object.entries(current).map(([quoteId, groupIds]) => [
+          quoteId,
+          groupIds.filter((groupId) => groupId !== selectedGroupId)
+        ])
+      )
+    )
   }
 
   return createPortal(
@@ -128,13 +139,20 @@ export function WatchlistGroupDialog({
       >
         <header className="position-dialog-header">
           <div>
-            <span className="position-dialog-icon"><Folders size={18} /></span>
+            <span className="position-dialog-icon">
+              <Folders size={18} />
+            </span>
             <span>
               <strong id="watchlist-group-dialog-title">管理自选分组</strong>
               <small>一只股票可以加入多个分组；系统分组不可改名或删除。</small>
             </span>
           </div>
-          <button className="icon-button dialog-close" type="button" onClick={onClose} aria-label="关闭">
+          <button
+            className="icon-button dialog-close"
+            type="button"
+            onClick={onClose}
+            aria-label="关闭"
+          >
             <X size={18} />
           </button>
         </header>
@@ -144,7 +162,10 @@ export function WatchlistGroupDialog({
           onSubmit={(event) => {
             event.preventDefault()
             if (namesInvalid) return
-            onSave(groups.map((group) => ({ ...group, name: group.name.trim() })), groupIdsByQuoteId)
+            onSave(
+              groups.map((group) => ({ ...group, name: group.name.trim() })),
+              groupIdsByQuoteId
+            )
           }}
         >
           <aside className="watchlist-group-sidebar">
@@ -174,13 +195,18 @@ export function WatchlistGroupDialog({
             </div>
             <div className="watchlist-group-list">
               {groups.map((group) => (
-                <div className={`watchlist-group-list-item ${selectedGroupId === group.id ? 'is-active' : ''}`} key={group.id}>
+                <div
+                  className={`watchlist-group-list-item ${selectedGroupId === group.id ? 'is-active' : ''}`}
+                  key={group.id}
+                >
                   <button type="button" onClick={() => setSelectedGroupId(group.id)}>
                     <strong>{group.name || '未命名分组'}</strong>
                     <small>{groupStockCount(group.id)} 只股票</small>
                   </button>
-                  {isDailyScanWatchlistGroup(group) ? (
-                    <span className="watchlist-system-group-badge" title="系统默认分组">系统</span>
+                  {isSystemWatchlistGroup(group) ? (
+                    <span className="watchlist-system-group-badge" title="系统默认分组">
+                      系统
+                    </span>
                   ) : (
                     <button
                       className="icon-button"
@@ -209,11 +235,19 @@ export function WatchlistGroupDialog({
                     <input
                       type="text"
                       value={selectedGroup.name}
-                      disabled={isDailyScanWatchlistGroup(selectedGroup)}
-                      title={isDailyScanWatchlistGroup(selectedGroup) ? '系统默认分组不可改名' : undefined}
-                      onChange={(event) => setGroups((current) => current.map((group) => (
-                        group.id === selectedGroup.id ? { ...group, name: event.target.value } : group
-                      )))}
+                      disabled={isSystemWatchlistGroup(selectedGroup)}
+                      title={
+                        isSystemWatchlistGroup(selectedGroup) ? '系统默认分组不可改名' : undefined
+                      }
+                      onChange={(event) =>
+                        setGroups((current) =>
+                          current.map((group) =>
+                            group.id === selectedGroup.id
+                              ? { ...group, name: event.target.value }
+                              : group
+                          )
+                        )
+                      }
                     />
                   </label>
                   <div className="watchlist-group-stock-search">
@@ -228,10 +262,28 @@ export function WatchlistGroupDialog({
                   </div>
                 </div>
                 <div className="watchlist-group-batch-actions">
-                  <span>当前分组已包含 {groupStockCount(selectedGroup.id)} 只股票</span>
                   <span>
-                    <button className="secondary-button" type="button" onClick={addFilteredStocks}>加入当前搜索结果</button>
-                    <button className="secondary-button" type="button" onClick={clearSelectedGroup}>清空当前分组</button>
+                    {selectedTrackingGroup
+                      ? `追踪分组由开始/停止追踪自动维护，当前有 ${groupStockCount(selectedGroup.id)} 只股票`
+                      : `当前分组已包含 ${groupStockCount(selectedGroup.id)} 只股票`}
+                  </span>
+                  <span>
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={addFilteredStocks}
+                      disabled={selectedTrackingGroup}
+                    >
+                      加入当前搜索结果
+                    </button>
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={clearSelectedGroup}
+                      disabled={selectedTrackingGroup}
+                    >
+                      清空当前分组
+                    </button>
                   </span>
                 </div>
                 <div className="watchlist-group-stock-list">
@@ -241,7 +293,10 @@ export function WatchlistGroupDialog({
                       <label className="watchlist-group-stock-row" key={stock.quoteId}>
                         <input
                           type="checkbox"
-                          checked={Boolean(groupIdsByQuoteId[stock.quoteId]?.includes(selectedGroup.id))}
+                          checked={Boolean(
+                            groupIdsByQuoteId[stock.quoteId]?.includes(selectedGroup.id)
+                          )}
+                          disabled={selectedTrackingGroup}
                           onChange={(event) => toggleStock(stock.quoteId, event.target.checked)}
                         />
                         <strong>{stock.name}</strong>
@@ -266,11 +321,21 @@ export function WatchlistGroupDialog({
 
           <footer className="watchlist-group-actions">
             <span className={namesInvalid ? 'is-error' : ''}>
-              {namesInvalid ? '分组名称不能为空或重复。' : `共 ${groups.length} 个分组，保存后立即应用到筛选器。`}
+              {namesInvalid
+                ? '分组名称不能为空或重复。'
+                : `共 ${groups.length} 个分组，保存后立即应用到筛选器。`}
             </span>
             <span>
-              <button className="secondary-button compact-button" type="button" onClick={onClose}>取消</button>
-              <button className="primary-button compact-button" type="submit" disabled={namesInvalid}>保存分组</button>
+              <button className="secondary-button compact-button" type="button" onClick={onClose}>
+                取消
+              </button>
+              <button
+                className="primary-button compact-button"
+                type="submit"
+                disabled={namesInvalid}
+              >
+                保存分组
+              </button>
             </span>
           </footer>
         </form>

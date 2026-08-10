@@ -10,6 +10,7 @@
 interface AppState {
   watchlist: WatchStock[]
   watchlistGroups: WatchlistGroup[]
+  stockTrackingProfiles: StockTrackingProfiles
   settings: AppSettings
   columnOrder: WatchlistColumnId[]
   columnOrderVersion?: number
@@ -20,7 +21,8 @@ interface AppState {
 包含：
 
 - 自选顺序、任务栏选择、重点关注。
-- 自选分组及股票的多分组归属；包含不可改名或删除的系统“异动观察”分组。
+- 自选分组及股票的多分组归属；包含不可改名或删除的系统“异动观察”和“追踪”分组。
+- 选股追踪档案、来源历史、标签、选股逻辑、时间线、停止状态和复盘结论。
 - 持仓和持仓快照。
 - 自定义股价提醒规则与触发状态。
 - 刷新、指数、筹码分布开关、做 T、浮动盈亏提醒默认值、系统、交易日历设置。
@@ -63,9 +65,11 @@ interface AppState {
 
 1. `normalizeWatchlist`
 2. `normalizeWatchlistGroups`
-3. `normalizeAppSettings`
-4. `migrateWatchlistColumnOrder`
-5. `normalizeTTradingAccounts`
+3. `normalizeStockTrackingProfiles`
+4. `synchronizeTrackingGroupMembership`
+5. `normalizeAppSettings`
+6. `migrateWatchlistColumnOrder`
+7. `normalizeTTradingAccounts`
 
 列版本落后或交易账户规范化结果变化时，会立即把迁移后的状态写回。若检测到旧 `baseTrades` / `batch.trades`，写回前先把原始完整配置备份为 `settings.pre-unified-trades.json`；已有备份不会被覆盖。
 
@@ -104,7 +108,9 @@ interface AppState {
 | 函数 | 作用 |
 | --- | --- |
 | `normalizeWatchlist` | 持仓股票强制重点关注、补异动开关、过滤无效快照 |
-| `normalizeWatchlistGroups` | 去除无 ID、无名称或重复 ID 的自选分组，并补齐系统“异动观察”分组 |
+| `normalizeWatchlistGroups` | 去除无 ID、无名称或重复 ID 的自选分组，并补齐系统“异动观察”和“追踪”分组 |
+| `normalizeStockTrackingProfiles` | 兼容缺失追踪数据的旧配置并规范化来源、标签和时间线 |
+| `synchronizeTrackingGroupMembership` | 根据追踪中/已停止状态自动加入或移出系统“追踪”分组 |
 | `normalizeMarketIndexIds` | 过滤并按内置顺序返回指数 |
 | `normalizeActiveTTradingBatch` | 兼容旧双五档、价格/浮动盈亏提醒开关和反 T 语义 |
 | `normalizeTTradingAccounts` | 把旧活动/历史批次流水和 `baseTrades` 按 ID 合并到唯一 `tradeRecords`，再移除旧字段并规范化活动批次 |
@@ -122,14 +128,14 @@ interface AppState {
 ```text
 JianzhangConfigDocument
 ├─ format = "jianzhang-config"
-├─ formatVersion = 2
+├─ formatVersion = 3
 ├─ applicationVersion
 ├─ exportedAt
 ├─ state
 └─ source?
 ```
 
-当前导入接受格式版本 1 和 2。
+当前导入接受格式版本 1、2 和 3；旧配置没有追踪字段时自动补为空档案。
 
 ### 导出
 

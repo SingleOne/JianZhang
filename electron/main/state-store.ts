@@ -12,10 +12,12 @@ import {
   hasLegacyTTradingData,
   migrateWatchlistColumnOrder,
   normalizeAppSettings,
+  normalizeStockTrackingProfiles,
   normalizeTTradingAccounts,
   normalizeWatchlist,
   normalizeWatchlistColumnOrder,
   normalizeWatchlistGroups,
+  synchronizeTrackingGroupMembership,
   type AppState
 } from '../../src/shared/types'
 
@@ -72,6 +74,9 @@ export class StateStore {
       JSON.stringify(saved.tTradingAccounts ?? {}) !== JSON.stringify(state.tTradingAccounts)
     const watchlistGroupsMigrated =
       JSON.stringify(saved.watchlistGroups ?? []) !== JSON.stringify(state.watchlistGroups)
+    const stockTrackingProfilesMigrated =
+      JSON.stringify(saved.stockTrackingProfiles ?? {}) !==
+      JSON.stringify(state.stockTrackingProfiles)
 
     if (
       hasLegacyTTradingData(saved.tTradingAccounts) &&
@@ -81,9 +86,10 @@ export class StateStore {
     }
 
     if (
-      saved.columnOrderVersion !== WATCHLIST_COLUMN_ORDER_VERSION
-      || tradingAccountsMigrated
-      || watchlistGroupsMigrated
+      saved.columnOrderVersion !== WATCHLIST_COLUMN_ORDER_VERSION ||
+      tradingAccountsMigrated ||
+      watchlistGroupsMigrated ||
+      stockTrackingProfilesMigrated
     ) {
       this.save(state)
     } else if (!existsSync(this.lastGoodPath)) {
@@ -94,10 +100,17 @@ export class StateStore {
   }
 
   normalize(state: AppState): AppState {
+    const watchlistGroups = normalizeWatchlistGroups(state.watchlistGroups)
+    const stockTrackingProfiles = normalizeStockTrackingProfiles(state.stockTrackingProfiles)
     return {
       ...state,
-      watchlist: normalizeWatchlist(state.watchlist),
-      watchlistGroups: normalizeWatchlistGroups(state.watchlistGroups),
+      watchlist: synchronizeTrackingGroupMembership(
+        normalizeWatchlist(state.watchlist),
+        watchlistGroups,
+        stockTrackingProfiles
+      ),
+      watchlistGroups,
+      stockTrackingProfiles,
       settings: normalizeAppSettings(state.settings),
       columnOrder: normalizeWatchlistColumnOrder(state.columnOrder),
       columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
@@ -112,9 +125,16 @@ export class StateStore {
   }
 
   private normalizeLoadedState(saved: AppState): AppState {
+    const watchlistGroups = normalizeWatchlistGroups(saved.watchlistGroups)
+    const stockTrackingProfiles = normalizeStockTrackingProfiles(saved.stockTrackingProfiles)
     return {
-      watchlist: normalizeWatchlist(saved.watchlist ?? this.defaultState.watchlist),
-      watchlistGroups: normalizeWatchlistGroups(saved.watchlistGroups),
+      watchlist: synchronizeTrackingGroupMembership(
+        normalizeWatchlist(saved.watchlist ?? this.defaultState.watchlist),
+        watchlistGroups,
+        stockTrackingProfiles
+      ),
+      watchlistGroups,
+      stockTrackingProfiles,
       settings: normalizeAppSettings(saved.settings),
       columnOrder: migrateWatchlistColumnOrder(saved.columnOrder, saved.columnOrderVersion),
       columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,

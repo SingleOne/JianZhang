@@ -17,10 +17,7 @@ import {
 } from '../../lib/portfolio'
 import type { StockDetailNavigationRequest } from '../../lib/completion-notifications'
 import { getTriggeredStockAlertDirection } from '../../lib/stock-alerts'
-import {
-  getTriggeredTAlertBadges,
-  getTriggeredTFloatingProfitAlert
-} from '../../lib/t-alerts'
+import { getTriggeredTAlertBadges, getTriggeredTFloatingProfitAlert } from '../../lib/t-alerts'
 import { calculateTBatchMetrics } from '../../lib/t-trading'
 import { getBatchTrades } from '../../lib/trade-records'
 import {
@@ -34,6 +31,8 @@ import {
 import type {
   DividendFinancingRankingItem,
   StockQuote,
+  StockTrackingConclusionResult,
+  StockTrackingProfile,
   StockRadarSignal,
   TTradingAccount,
   WatchlistColumnId,
@@ -73,13 +72,14 @@ function fundamentalBadgeTitle(
   summary: FundamentalScreeningSummary,
   snapshotDate?: string
 ): string {
-  const message = summary.status === 'passed'
-    ? `满足推荐基本面三项条件；五年最低加权ROE ${evaluation.minimumRoe?.toFixed(2) ?? '--'}%；五年累计现金转换率 ${evaluation.cumulativeCashConversion?.toFixed(2) ?? '--'}%；行业负债分位 ${evaluation.company.latestBalanceSheet.industryPercentile?.toFixed(1) ?? '--'}%`
-    : summary.status === 'review'
-      ? `${summary.reviewCount}项待核：${summary.reviewReasons.join('、')}`
-      : summary.status === 'missing'
-        ? `数据不足：${summary.missingReasons.join('、')}${summary.reviewReasons.length > 0 ? `；已识别待核：${summary.reviewReasons.join('、')}` : ''}`
-        : '金融企业不参与普通企业三项基本面筛选'
+  const message =
+    summary.status === 'passed'
+      ? `满足推荐基本面三项条件；五年最低加权ROE ${evaluation.minimumRoe?.toFixed(2) ?? '--'}%；五年累计现金转换率 ${evaluation.cumulativeCashConversion?.toFixed(2) ?? '--'}%；行业负债分位 ${evaluation.company.latestBalanceSheet.industryPercentile?.toFixed(1) ?? '--'}%`
+      : summary.status === 'review'
+        ? `${summary.reviewCount}项待核：${summary.reviewReasons.join('、')}`
+        : summary.status === 'missing'
+          ? `数据不足：${summary.missingReasons.join('、')}${summary.reviewReasons.length > 0 ? `；已识别待核：${summary.reviewReasons.join('、')}` : ''}`
+          : '金融企业不参与普通企业三项基本面筛选'
   return `${message}；快照 ${snapshotDate ?? '--'}；点击查看详情`
 }
 
@@ -106,6 +106,7 @@ interface WatchlistRowProps {
   regularRefreshSeconds: number
   chipDistributionEnabled: boolean
   bollingerBandsEnabled: boolean
+  trackingProfile?: StockTrackingProfile
   selected: boolean
   detailNavigationRequest: StockDetailNavigationRequest | null
   closing: boolean
@@ -130,6 +131,10 @@ interface WatchlistRowProps {
   onOpenRadar: (quoteId: string, anchor: HTMLButtonElement) => void
   onChipDistributionEnabledChange: (enabled: boolean) => void
   onBollingerBandsEnabledChange: (enabled: boolean) => void
+  onStartTracking: (quoteId: string) => void
+  onUpdateTracking: (profile: StockTrackingProfile) => void
+  onStopTracking: (quoteId: string, result: StockTrackingConclusionResult, summary: string) => void
+  onRestartTracking: (quoteId: string) => void
   onRemove: (quoteId: string) => void
 }
 
@@ -151,6 +156,7 @@ export const WatchlistRow = memo(function WatchlistRow({
   regularRefreshSeconds,
   chipDistributionEnabled,
   bollingerBandsEnabled,
+  trackingProfile,
   selected,
   detailNavigationRequest,
   closing,
@@ -175,6 +181,10 @@ export const WatchlistRow = memo(function WatchlistRow({
   onOpenRadar,
   onChipDistributionEnabledChange,
   onBollingerBandsEnabledChange,
+  onStartTracking,
+  onUpdateTracking,
+  onStopTracking,
+  onRestartTracking,
   onRemove
 }: WatchlistRowProps) {
   const [fundamentalTabRequested, setFundamentalTabRequested] = useState(false)
@@ -360,6 +370,11 @@ export const WatchlistRow = memo(function WatchlistRow({
                             科
                           </span>
                         ) : null}
+                        {trackingProfile?.status === 'tracking' ? (
+                          <span className="stock-tracking-row-badge" title="正在追踪并保留复盘记录">
+                            追踪
+                          </span>
+                        ) : null}
                         <FiveLevelAlertBadges
                           alerts={activeTBatch ? quote?.fiveLevelLargeOrders : undefined}
                           compact
@@ -450,10 +465,10 @@ export const WatchlistRow = memo(function WatchlistRow({
                 </td>
               )
             case 'valueTags': {
-              const fundamentalBadge = fundamentalScreening
-                && fundamentalSummary.status !== 'unavailable'
-                ? FUNDAMENTAL_BADGE_META[fundamentalSummary.status]
-                : null
+              const fundamentalBadge =
+                fundamentalScreening && fundamentalSummary.status !== 'unavailable'
+                  ? FUNDAMENTAL_BADGE_META[fundamentalSummary.status]
+                  : null
               const hasDividendBadge = Boolean(dividendFinancing)
               const hasRiskBadge = Boolean(fundamentalRisk?.tags.length)
               return (
@@ -658,6 +673,11 @@ export const WatchlistRow = memo(function WatchlistRow({
                   autoRefreshOrderBook={Boolean(activeTBatch)}
                   chipDistributionEnabled={chipDistributionEnabled}
                   bollingerBandsEnabled={bollingerBandsEnabled}
+                  trackingProfile={trackingProfile}
+                  onStartTracking={onStartTracking}
+                  onUpdateTracking={onUpdateTracking}
+                  onStopTracking={onStopTracking}
+                  onRestartTracking={onRestartTracking}
                   onChipDistributionEnabledChange={onChipDistributionEnabledChange}
                   onBollingerBandsEnabledChange={onBollingerBandsEnabledChange}
                 />

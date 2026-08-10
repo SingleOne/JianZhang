@@ -32,6 +32,7 @@ App
 ├─ SettingsMenu
 ├─ FundamentalScreeningDialog
 ├─ DailyMarketScanDialog
+├─ StockTrackingDialog
 ├─ AiAssistantDrawer（按构建开关加载）
 └─ WatchlistTable
    ├─ WatchlistFilters
@@ -42,6 +43,8 @@ App
    ├─ WatchlistRow × N
    ├─ WatchlistGroupDialog
    ├─ ExpandedStockDetails
+   │  ├─ StockTrackingPanel
+   │  │  └─ StockTrackingEditor
    │  ├─ CandlestickChart
    │  ├─ PeriodKlineChart
    │  ├─ ChipDistributionPanel
@@ -70,6 +73,7 @@ App
 - 管理 `AppState`、`quotes`、当前展开股票、全局提示和仅在本次运行期保留的生成完成通知队列。
 - 自选增删、重点/任务栏切换、持仓和做 T 保存。
 - 自定义分组、表格顺序、列顺序和设置保存。
+- 选股来源接入、追踪档案、停止/恢复追踪和系统“追踪”分组同步。
 - 持有筹码分布和 BOLL 开关，并按图表内操作持久化到 `AppSettings`。
 - 条件加载全局 AI 助手抽屉。
 - 配置导入导出、手动刷新、交易日历刷新。
@@ -102,7 +106,11 @@ App
 
 ### `DailyMarketScanDialog.tsx`
 
-独立的全市场收盘扫描弹窗。显示全市场和活跃标的规模、日 K 成功/失败数量、命中股票与信号总数；结果按全部、放量、大涨放量、大跌放量、20 日新高、20 日新低和连跌后翻红分类，并在股票名旁标识创业板、科创板。搜索框可按名称、代码、板块标识或信号名称即时过滤当前结果，分类计数、分页和空结果提示同步联动。支持加入或定位自选；从弹窗新增的自选自动归入系统“异动观察”分组。扫描在主进程继续运行，弹窗通过进度事件同步阶段，重新打开时可恢复当前状态或最近一次落盘结果。
+独立的全市场收盘扫描弹窗。显示全市场和活跃标的规模、日 K 成功/失败数量、命中股票与信号总数；结果按全部、放量、大涨放量、大跌放量、20 日新高、20 日新低和连跌后翻红分类，并在股票名旁标识创业板、科创板。搜索框可按名称、代码、板块标识或信号名称即时过滤当前结果，分类计数、分页和空结果提示同步联动。支持加入或定位自选；从弹窗新增的自选自动归入系统“异动观察”和“追踪”分组，并记录本次扫描日期、信号、价格、涨跌幅和量比来源。扫描在主进程继续运行，弹窗通过进度事件同步阶段，重新打开时可恢复当前状态或最近一次落盘结果。
+
+### `StockTrackingDialog.tsx` / `StockTrackingEditor.tsx`
+
+顶部“追踪复盘”打开集中档案弹窗，可按状态、来源和关键词过滤，查看仍在自选或已经移除的历史股票。`StockTrackingEditor` 同时复用于个股详情“选股复盘”页，使用组件内草稿编辑标签、选股逻辑、时间线和停止结论，点击保存后才写入完整 `AppState`。停止追踪只改变状态并移出“追踪”分组；重新追踪沿用原档案并追加系统时间线。
 
 ## 自选主表
 

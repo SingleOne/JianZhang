@@ -7,8 +7,10 @@ import {
   migrateWatchlistColumnOrder,
   normalizeAppSettings,
   normalizeTTradingAccounts,
+  normalizeStockTrackingProfiles,
   normalizeWatchlist,
   normalizeWatchlistGroups,
+  synchronizeTrackingGroupMembership,
   type TTrade,
   type TTradingAccounts
 } from './types'
@@ -42,17 +44,53 @@ describe('watchlist normalization', () => {
         { id: 'group-1', name: '重复分组' },
         { id: '', name: '无效分组' }
       ])
-    ).toEqual([
-      ...DEFAULT_WATCHLIST_GROUPS,
-      { id: 'group-1', name: '银行' }
-    ])
+    ).toEqual([...DEFAULT_WATCHLIST_GROUPS, { id: 'group-1', name: '银行' }])
   })
 
   it('adds the system scan group while preserving an existing group with the same name', () => {
     expect(normalizeWatchlistGroups(undefined)).toEqual(DEFAULT_WATCHLIST_GROUPS)
-    expect(
-      normalizeWatchlistGroups([{ id: 'existing-scan-group', name: ' 异动观察 ' }])
-    ).toEqual([{ id: 'existing-scan-group', name: '异动观察' }])
+    expect(normalizeWatchlistGroups([{ id: 'existing-scan-group', name: ' 异动观察 ' }])).toEqual([
+      { id: 'existing-scan-group', name: '异动观察' },
+      DEFAULT_WATCHLIST_GROUPS[1]
+    ])
+  })
+
+  it('keeps the tracking system group aligned with active profiles', () => {
+    const groups = normalizeWatchlistGroups(undefined)
+    const profiles = normalizeStockTrackingProfiles({
+      '1.600000': {
+        quoteId: '1.600000',
+        code: '600000',
+        name: '浦发银行',
+        marketLabel: '沪A',
+        status: 'tracking',
+        tags: [' 银行 ', '银行'],
+        thesis: ' 低估值 ',
+        startedAt: '2026-08-10T08:00:00.000Z',
+        updatedAt: '2026-08-10T08:00:00.000Z',
+        sources: [],
+        entries: []
+      }
+    })
+    const [stock] = synchronizeTrackingGroupMembership(
+      [
+        {
+          code: '600000',
+          name: '浦发银行',
+          quoteId: '1.600000',
+          marketLabel: '沪A',
+          showInTaskbar: false,
+          isPriority: false,
+          showRadarSignals: true
+        }
+      ],
+      groups,
+      profiles
+    )
+
+    expect(profiles['1.600000'].tags).toEqual(['银行'])
+    expect(profiles['1.600000'].thesis).toBe('低估值')
+    expect(stock.groupIds).toContain(DEFAULT_WATCHLIST_GROUPS[1].id)
   })
 
   it('keeps valid snapshots and makes positions priority stocks', () => {
@@ -112,9 +150,7 @@ describe('settings and column migration', () => {
     expect(migrated.indexOf('dividendFinancingRatio')).toBe(
       migrated.indexOf('sectorChangePercent') + 1
     )
-    expect(migrated.indexOf('valueTags')).toBe(
-      migrated.indexOf('dividendFinancingRatio') + 1
-    )
+    expect(migrated.indexOf('valueTags')).toBe(migrated.indexOf('dividendFinancingRatio') + 1)
     expect(migrated.indexOf('trading')).toBe(migrated.indexOf('open') + 1)
     expect(migrated.indexOf('todayProfit')).toBe(migrated.indexOf('totalProfit') + 1)
     expect(migrated.at(-1)).toBe('operation')

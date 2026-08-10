@@ -1,4 +1,14 @@
-import { Activity, Bot, CircleCheck, Filter, RefreshCw, Signal, Trophy, WifiOff } from 'lucide-react'
+import {
+  Activity,
+  Binoculars,
+  Bot,
+  CircleCheck,
+  Filter,
+  RefreshCw,
+  Signal,
+  Trophy,
+  WifiOff
+} from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { AppTitlebar } from './components/AppTitlebar'
 import { useConfirmDialog } from './components/ConfirmDialog'
@@ -7,6 +17,7 @@ import { DividendFinancingRankingDialog } from './components/DividendFinancingRa
 import { FundamentalScreeningDialog } from './components/FundamentalScreeningDialog'
 import { SearchBar } from './components/SearchBar'
 import { SettingsMenu } from './components/SettingsMenu'
+import { StockTrackingDialog } from './components/StockTrackingDialog'
 import { WatchlistTable } from './components/WatchlistTable'
 import { initialState, isDesktopRuntime, stockApi } from './lib/api'
 import {
@@ -14,7 +25,13 @@ import {
   type AppCompletionNotification,
   type StockDetailNavigationRequest
 } from './lib/completion-notifications'
-import { formatCurrency, formatPercent, formatPrice, formatProfit, formatUpdateTime } from './lib/format'
+import {
+  formatCurrency,
+  formatPercent,
+  formatPrice,
+  formatProfit,
+  formatUpdateTime
+} from './lib/format'
 import {
   createFundamentalPeerComparisonMap,
   DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA,
@@ -22,25 +39,46 @@ import {
 } from './lib/fundamental-screening'
 import { calculatePortfolioSummary } from './lib/portfolio'
 import { reconcileStockQuotes } from './lib/quote-state'
-import { getDailyScanWatchlistGroup, MARKET_INDEX_OPTIONS } from './shared/types'
+import {
+  createStockTrackingSource,
+  startStockTracking,
+  stopStockTracking
+} from './lib/stock-tracking'
+import {
+  getDailyScanWatchlistGroup,
+  getTrackingWatchlistGroup,
+  MARKET_INDEX_OPTIONS
+} from './shared/types'
 import packageInfo from '../package.json'
 import type {
   AppSettings,
   AppState,
   DataSnapshotRuntimeState,
   DividendFinancingChangeReport,
+  DividendFinancingRankingItem,
   DividendFinancingSnapshot,
+  DailyMarketScanRow,
+  FundamentalCompany,
   FundamentalChangeReport,
   FundamentalSnapshot,
   SearchResult,
   StockPosition,
   StockPositionSnapshot,
   StockAlertRule,
+  StockTrackingConclusionResult,
+  StockTrackingProfile,
+  StockTrackingSource,
   StockQuote,
   TTradingAccount,
   WatchlistGroup,
   WatchlistColumnId
 } from './shared/types'
+
+interface StockAddOptions {
+  startTracking?: boolean
+  source?: StockTrackingSource
+  targetGroups?: WatchlistGroup[]
+}
 
 const EMPTY_DATA_SNAPSHOT_STATE: DataSnapshotRuntimeState = {
   status: 'missing',
@@ -55,7 +93,11 @@ const EMPTY_DATA_SNAPSHOT_STATE: DataSnapshotRuntimeState = {
 
 // AI UI remains behind build-time boundaries so share builds can omit it completely.
 const AiAssistantDrawer = __JIANZHANG_AI_MODULE_ENABLED__
-  ? lazy(() => import('./modules/ai/renderer/register').then((module) => ({ default: module.AiAssistantDrawer })))
+  ? lazy(() =>
+      import('./modules/ai/renderer/register').then((module) => ({
+        default: module.AiAssistantDrawer
+      }))
+    )
   : null
 
 function directionClass(value: number | null | undefined): string {
@@ -89,13 +131,22 @@ export default function App() {
   const [dividendRankingOpen, setDividendRankingOpen] = useState(false)
   const [fundamentalScreeningOpen, setFundamentalScreeningOpen] = useState(false)
   const [dailyMarketScanOpen, setDailyMarketScanOpen] = useState(false)
-  const [dividendFinancingSnapshot, setDividendFinancingSnapshot] = useState<DividendFinancingSnapshot | null>(null)
-  const [dividendFinancingChangeReport, setDividendFinancingChangeReport] = useState<DividendFinancingChangeReport | null>(null)
+  const [stockTrackingOpen, setStockTrackingOpen] = useState(false)
+  const [dividendFinancingSnapshot, setDividendFinancingSnapshot] =
+    useState<DividendFinancingSnapshot | null>(null)
+  const [dividendFinancingChangeReport, setDividendFinancingChangeReport] =
+    useState<DividendFinancingChangeReport | null>(null)
   const [fundamentalSnapshot, setFundamentalSnapshot] = useState<FundamentalSnapshot | null>(null)
-  const [fundamentalChangeReport, setFundamentalChangeReport] = useState<FundamentalChangeReport | null>(null)
-  const [dividendFinancingState, setDividendFinancingState] = useState<DataSnapshotRuntimeState>(EMPTY_DATA_SNAPSHOT_STATE)
-  const [fundamentalDataState, setFundamentalDataState] = useState<DataSnapshotRuntimeState>(EMPTY_DATA_SNAPSHOT_STATE)
-  const [aiAssistantContext, setAiAssistantContext] = useState<{ quoteId: string; quoteName?: string } | null>(null)
+  const [fundamentalChangeReport, setFundamentalChangeReport] =
+    useState<FundamentalChangeReport | null>(null)
+  const [dividendFinancingState, setDividendFinancingState] =
+    useState<DataSnapshotRuntimeState>(EMPTY_DATA_SNAPSHOT_STATE)
+  const [fundamentalDataState, setFundamentalDataState] =
+    useState<DataSnapshotRuntimeState>(EMPTY_DATA_SNAPSHOT_STATE)
+  const [aiAssistantContext, setAiAssistantContext] = useState<{
+    quoteId: string
+    quoteName?: string
+  } | null>(null)
   const aiRuntimeAvailable = Boolean(AiAssistantDrawer && window.aiApi)
 
   const updateQuotes = useCallback((incoming: StockQuote[]) => {
@@ -113,17 +164,22 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    stockApi.getBootstrap()
+    stockApi
+      .getBootstrap()
       .then((bootstrap) => {
         setState(bootstrap.state)
         setQuotes(bootstrap.quotes)
         setSource(bootstrap.source)
         if (bootstrap.warning) reportError(bootstrap.warning)
         setSelectedQuoteId((current) =>
-          current && bootstrap.state.watchlist.some((stock) => stock.quoteId === current) ? current : null
+          current && bootstrap.state.watchlist.some((stock) => stock.quoteId === current)
+            ? current
+            : null
         )
       })
-      .catch((reason: unknown) => reportError(reason instanceof Error ? reason.message : '应用初始化失败'))
+      .catch((reason: unknown) =>
+        reportError(reason instanceof Error ? reason.message : '应用初始化失败')
+      )
       .finally(() => setInitializing(false))
 
     const unsubscribeQuotes = stockApi.onQuotesUpdated(updateQuotes)
@@ -144,21 +200,22 @@ export default function App() {
       Promise.all([
         stockApi.getDividendFinancingSnapshot(),
         stockApi.getDividendFinancingChangeReport()
-      ]).then(([snapshot, changeReport]) => {
-        if (!active) return
-        setDividendFinancingSnapshot(snapshot)
-        setDividendFinancingChangeReport(changeReport)
-      }).catch(() => undefined)
+      ])
+        .then(([snapshot, changeReport]) => {
+          if (!active) return
+          setDividendFinancingSnapshot(snapshot)
+          setDividendFinancingChangeReport(changeReport)
+        })
+        .catch(() => undefined)
     }
     const syncFundamentalSnapshot = () => {
-      Promise.all([
-        stockApi.getFundamentalSnapshot(),
-        stockApi.getFundamentalChangeReport()
-      ]).then(([snapshot, changeReport]) => {
-        if (!active) return
-        setFundamentalSnapshot(snapshot)
-        setFundamentalChangeReport(changeReport)
-      }).catch(() => undefined)
+      Promise.all([stockApi.getFundamentalSnapshot(), stockApi.getFundamentalChangeReport()])
+        .then(([snapshot, changeReport]) => {
+          if (!active) return
+          setFundamentalSnapshot(snapshot)
+          setFundamentalChangeReport(changeReport)
+        })
+        .catch(() => undefined)
     }
     const unsubscribeDividendState = stockApi.onDividendFinancingStateUpdated((snapshotState) => {
       if (!active) return
@@ -182,23 +239,25 @@ export default function App() {
       stockApi.getFundamentalSnapshot(),
       stockApi.getFundamentalChangeReport()
     ])
-      .then(([
-        snapshot,
-        changeReport,
-        dividendState,
-        fundamentalState,
-        fundamentalData,
-        fundamentalChanges
-      ]) => {
-        if (active) {
-          setDividendFinancingSnapshot(snapshot)
-          setDividendFinancingChangeReport(changeReport)
-          setDividendFinancingState(dividendState)
-          setFundamentalDataState(fundamentalState)
-          setFundamentalSnapshot(fundamentalData)
-          setFundamentalChangeReport(fundamentalChanges)
+      .then(
+        ([
+          snapshot,
+          changeReport,
+          dividendState,
+          fundamentalState,
+          fundamentalData,
+          fundamentalChanges
+        ]) => {
+          if (active) {
+            setDividendFinancingSnapshot(snapshot)
+            setDividendFinancingChangeReport(changeReport)
+            setDividendFinancingState(dividendState)
+            setFundamentalDataState(fundamentalState)
+            setFundamentalSnapshot(fundamentalData)
+            setFundamentalChangeReport(fundamentalChanges)
+          }
         }
-      })
+      )
       .catch(() => undefined)
     return () => {
       active = false
@@ -241,18 +300,19 @@ export default function App() {
     return () => window.removeEventListener('ai:open-assistant', openWithStockContext)
   }, [])
 
-  const quoteIds = useMemo(() => new Set(state.watchlist.map((stock) => stock.quoteId)), [state.watchlist])
+  const quoteIds = useMemo(
+    () => new Set(state.watchlist.map((stock) => stock.quoteId)),
+    [state.watchlist]
+  )
   const dividendFinancingByCode = useMemo(
     () => new Map(dividendFinancingSnapshot?.rows.map((item) => [item.code, item]) ?? []),
     [dividendFinancingSnapshot]
   )
   const fundamentalEvaluations = useMemo(
-    () => fundamentalSnapshot
-      ? screenFundamentalCompanies(
-          fundamentalSnapshot,
-          DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA
-        )
-      : [],
+    () =>
+      fundamentalSnapshot
+        ? screenFundamentalCompanies(fundamentalSnapshot, DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA)
+        : [],
     [fundamentalSnapshot]
   )
   const fundamentalScreeningByCode = useMemo(() => {
@@ -274,193 +334,384 @@ export default function App() {
   const marketIndexQuotes = useMemo(() => {
     const selectedIds = new Set(state.settings.marketIndexIds)
     const quotesById = new Map(quotes.map((quote) => [quote.quoteId, quote]))
-    return MARKET_INDEX_OPTIONS
-      .filter((index) => selectedIds.has(index.id))
-      .map((index) => ({ index, quote: quotesById.get(index.quoteId) }))
+    return MARKET_INDEX_OPTIONS.filter((index) => selectedIds.has(index.id)).map((index) => ({
+      index,
+      quote: quotesById.get(index.quoteId)
+    }))
   }, [quotes, state.settings.marketIndexIds])
   const lastUpdated = quotes.reduce<string | undefined>((latest, quote) => {
     if (!latest || quote.updatedAt > latest) return quote.updatedAt
     return latest
   }, undefined)
 
-  const persist = useCallback(async (nextState: AppState, refreshDemoQuotes = true) => {
-    setState(nextState)
-    try {
-      const saved = await stockApi.saveState(nextState)
-      setState(saved)
-      if (!isDesktopRuntime && refreshDemoQuotes) updateQuotes(await stockApi.refreshQuotes())
-      return saved
-    } catch (reason) {
-      reportError(reason instanceof Error ? reason.message : '设置保存失败')
-      return null
-    }
-  }, [reportError, updateQuotes])
-
-  const addStock = useCallback((result: SearchResult, targetGroup?: WatchlistGroup) => {
-    const existing = state.watchlist.find((stock) => stock.quoteId === result.quoteId)
-    if (existing) {
-      setSelectedQuoteId(existing.quoteId)
-      return
-    }
-    const nextState = {
-      ...state,
-      watchlistGroups: targetGroup && !state.watchlistGroups.some((group) => group.id === targetGroup.id)
-        ? [...state.watchlistGroups, targetGroup]
-        : state.watchlistGroups,
-      watchlist: [...state.watchlist, {
-        ...result,
-        showInTaskbar: false,
-        isPriority: false,
-        showRadarSignals: true,
-        groupIds: targetGroup ? [targetGroup.id] : undefined
-      }]
-    }
-    setSelectedQuoteId(result.quoteId)
-    void persist(nextState, false).then((saved) => {
-      if (saved) return stockApi.refreshQuote(result.quoteId).then(updateQuotes)
-      return undefined
-    }).catch((reason: unknown) => {
-      reportError(reason instanceof Error ? reason.message : '新股票行情获取失败')
-    })
-  }, [persist, reportError, state, updateQuotes])
-
-  const addDailyMarketScanStock = useCallback((result: SearchResult) => {
-    addStock(result, getDailyScanWatchlistGroup(state.watchlistGroups))
-  }, [addStock, state.watchlistGroups])
-
-  const removeStock = useCallback((quoteId: string) => {
-    const nextWatchlist = state.watchlist.filter((stock) => stock.quoteId !== quoteId)
-    setSelectedQuoteId((current) => current === quoteId ? null : current)
-    setQuotes((current) => current.filter((quote) => quote.quoteId !== quoteId))
-    void persist({ ...state, watchlist: nextWatchlist })
-  }, [persist, state])
-
-  const toggleTaskbar = useCallback((quoteId: string) => {
-    const nextWatchlist = state.watchlist.map((stock) =>
-      stock.quoteId === quoteId ? { ...stock, showInTaskbar: !stock.showInTaskbar } : stock
-    )
-    void persist({ ...state, watchlist: nextWatchlist })
-  }, [persist, state])
-
-  const togglePriority = useCallback((quoteId: string) => {
-    const nextWatchlist = state.watchlist.map((stock) => (
-      stock.quoteId === quoteId && !stock.position
-        ? { ...stock, isPriority: !stock.isPriority }
-        : stock
-    ))
-    void persist({ ...state, watchlist: nextWatchlist })
-  }, [persist, state])
-
-  const updatePosition = useCallback((
-    quoteId: string,
-    position: StockPosition | undefined,
-    showRadarSignals: boolean,
-    positionSnapshots: StockPositionSnapshot[],
-    updatedAccount?: TTradingAccount
-  ) => {
-    const nextWatchlist = state.watchlist.map((stock) =>
-      stock.quoteId === quoteId
-        ? {
-            ...stock,
-            position,
-            positionSnapshots,
-            showRadarSignals,
-            isPriority: position ? true : stock.isPriority
-          }
-        : stock
-    )
-    void persist({
-      ...state,
-      watchlist: nextWatchlist,
-      tTradingAccounts: updatedAccount
-        ? { ...state.tTradingAccounts, [quoteId]: updatedAccount }
-        : state.tTradingAccounts
-    })
-  }, [persist, state])
-
-  const updateTTrading = useCallback((
-    quoteId: string,
-    account: TTradingAccount,
-    position: StockPosition | undefined
-  ) => {
-    const nextWatchlist = state.watchlist.map((stock) => (
-      stock.quoteId === quoteId
-        ? { ...stock, position, isPriority: position ? true : stock.isPriority }
-        : stock
-    ))
-    void persist({
-      ...state,
-      watchlist: nextWatchlist,
-      tTradingAccounts: {
-        ...state.tTradingAccounts,
-        [quoteId]: account
+  const persist = useCallback(
+    async (nextState: AppState, refreshDemoQuotes = true) => {
+      setState(nextState)
+      try {
+        const saved = await stockApi.saveState(nextState)
+        setState(saved)
+        if (!isDesktopRuntime && refreshDemoQuotes) updateQuotes(await stockApi.refreshQuotes())
+        return saved
+      } catch (reason) {
+        reportError(reason instanceof Error ? reason.message : '设置保存失败')
+        return null
       }
-    })
-  }, [persist, state])
+    },
+    [reportError, updateQuotes]
+  )
 
-  const updateStockAlerts = useCallback((quoteId: string, alertRules: StockAlertRule[]) => {
-    const nextWatchlist = state.watchlist.map((stock) => (
-      stock.quoteId === quoteId ? { ...stock, alertRules } : stock
-    ))
-    void persist({ ...state, watchlist: nextWatchlist })
-  }, [persist, state])
+  const addStock = useCallback(
+    (result: SearchResult, options: StockAddOptions = {}) => {
+      const existing = state.watchlist.find((stock) => stock.quoteId === result.quoteId)
+      if (existing && !options.startTracking && !options.targetGroups?.length) {
+        setSelectedQuoteId(existing.quoteId)
+        return
+      }
+      const targetGroups = options.targetGroups ?? []
+      const knownGroupIds = new Set(state.watchlistGroups.map((group) => group.id))
+      const nextGroups = [
+        ...state.watchlistGroups,
+        ...targetGroups.filter((group) => !knownGroupIds.has(group.id))
+      ]
+      const groupIds = new Set(existing?.groupIds ?? [])
+      targetGroups.forEach((group) => groupIds.add(group.id))
+      const nextStock = existing
+        ? { ...existing, groupIds: [...groupIds] }
+        : {
+            ...result,
+            showInTaskbar: false,
+            isPriority: false,
+            showRadarSignals: true,
+            groupIds: [...groupIds]
+          }
+      const nextTrackingProfiles = { ...state.stockTrackingProfiles }
+      if (options.startTracking && options.source) {
+        nextTrackingProfiles[result.quoteId] = startStockTracking(
+          nextTrackingProfiles[result.quoteId],
+          nextStock,
+          options.source,
+          quotes.find((quote) => quote.quoteId === result.quoteId)
+        )
+      }
+      const nextState = {
+        ...state,
+        watchlistGroups: nextGroups,
+        watchlist: existing
+          ? state.watchlist.map((stock) => (stock.quoteId === result.quoteId ? nextStock : stock))
+          : [...state.watchlist, nextStock],
+        stockTrackingProfiles: nextTrackingProfiles
+      }
+      setSelectedQuoteId(result.quoteId)
+      void persist(nextState, false)
+        .then(async (saved) => {
+          if (!saved || existing) return
+          const incoming = await stockApi.refreshQuote(result.quoteId)
+          updateQuotes(incoming)
+          const refreshedQuote = incoming.find((quote) => quote.quoteId === result.quoteId)
+          const refreshedPrice = refreshedQuote?.latest
+          const profile = saved.stockTrackingProfiles[result.quoteId]
+          if (
+            !options.source ||
+            !profile ||
+            refreshedPrice === null ||
+            refreshedPrice === undefined
+          )
+            return
+          const sources = profile.sources.map((source) =>
+            source.id === options.source?.id && !source.detail?.startPrice
+              ? { ...source, detail: { ...source.detail, startPrice: refreshedPrice } }
+              : source
+          )
+          await persist(
+            {
+              ...saved,
+              stockTrackingProfiles: {
+                ...saved.stockTrackingProfiles,
+                [result.quoteId]: { ...profile, sources }
+              }
+            },
+            false
+          )
+        })
+        .catch((reason: unknown) => {
+          reportError(reason instanceof Error ? reason.message : '新股票行情获取失败')
+        })
+    },
+    [persist, quotes, reportError, state, updateQuotes]
+  )
 
-  const reorderWatchlist = useCallback((sourceQuoteId: string, targetQuoteId: string) => {
-    const sourceIndex = state.watchlist.findIndex((stock) => stock.quoteId === sourceQuoteId)
-    const targetIndex = state.watchlist.findIndex((stock) => stock.quoteId === targetQuoteId)
-    if (sourceIndex === -1 || targetIndex === -1 || sourceIndex === targetIndex) return
-    const nextWatchlist = [...state.watchlist]
-    const [movedStock] = nextWatchlist.splice(sourceIndex, 1)
-    nextWatchlist.splice(targetIndex, 0, movedStock)
-    void persist({ ...state, watchlist: nextWatchlist })
-  }, [persist, state])
-
-  const pinStock = useCallback((quoteId: string) => {
-    const currentIndex = state.watchlist.findIndex((stock) => stock.quoteId === quoteId)
-    if (currentIndex <= 0) return
-    const nextWatchlist = [...state.watchlist]
-    const [pinnedStock] = nextWatchlist.splice(currentIndex, 1)
-    nextWatchlist.unshift(pinnedStock)
-    void persist({ ...state, watchlist: nextWatchlist })
-  }, [persist, state])
-
-  const updateColumnOrder = useCallback((columnOrder: WatchlistColumnId[]) => {
-    void persist({ ...state, columnOrder })
-  }, [persist, state])
-
-  const updateWatchlistGroups = useCallback((
-    watchlistGroups: WatchlistGroup[],
-    groupIdsByQuoteId: Record<string, string[]>
-  ) => {
-    const nextWatchlist = state.watchlist.map((stock) => ({
-      ...stock,
-      groupIds: groupIdsByQuoteId[stock.quoteId] ?? stock.groupIds ?? []
-    }))
-    void persist({ ...state, watchlistGroups, watchlist: nextWatchlist })
-  }, [persist, state])
-
-  const updateSettings = useCallback((settings: AppSettings) => {
-    void persist({ ...state, settings })
-  }, [persist, state])
-
-  const selectWatchlistStock = useCallback((quoteId: string) => {
-    setSelectedQuoteId((current) => current === quoteId ? null : quoteId)
-  }, [])
-
-  const openCompletionNotification = useCallback(
-    (notification: AppCompletionNotification) => {
-      setCompletionNotifications((current) =>
-        current.filter((item) => item.id !== notification.id)
-      )
-      setSelectedQuoteId(notification.quoteId)
-      setDetailNavigationRequest({
-        id: notification.id,
-        quoteId: notification.quoteId,
-        target: notification.target
+  const addDailyMarketScanStock = useCallback(
+    (result: SearchResult, row: DailyMarketScanRow) => {
+      const dailyScanGroup = getDailyScanWatchlistGroup(state.watchlistGroups)
+      const trackingGroup = getTrackingWatchlistGroup(state.watchlistGroups)
+      addStock(result, {
+        startTracking: true,
+        targetGroups: [dailyScanGroup, trackingGroup],
+        source: createStockTrackingSource('dailyScan', {
+          tradingDate: row.tradingDate,
+          signals: row.signals,
+          startPrice: row.latest,
+          changePercent: row.changePercent,
+          volumeRatio: row.volumeRatio
+        })
       })
     },
-    []
+    [addStock, state.watchlistGroups]
   )
+
+  const addDividendFinancingStock = useCallback(
+    (
+      result: SearchResult,
+      item: DividendFinancingRankingItem,
+      snapshotDate: string | undefined
+    ) => {
+      addStock(result, {
+        startTracking: true,
+        targetGroups: [getTrackingWatchlistGroup(state.watchlistGroups)],
+        source: createStockTrackingSource('dividendFinancing', {
+          snapshotDate,
+          dividendRatio: item.ratio,
+          dividendRank: item.rank
+        })
+      })
+    },
+    [addStock, state.watchlistGroups]
+  )
+
+  const addFundamentalScreeningStock = useCallback(
+    (result: SearchResult, company: FundamentalCompany, snapshotDate: string | undefined) => {
+      addStock(result, {
+        startTracking: true,
+        targetGroups: [getTrackingWatchlistGroup(state.watchlistGroups)],
+        source: createStockTrackingSource('fundamentalScreening', {
+          snapshotDate,
+          industryName: company.industryName
+        })
+      })
+    },
+    [addStock, state.watchlistGroups]
+  )
+
+  const saveTrackingProfile = useCallback(
+    (profile: StockTrackingProfile) => {
+      const trackingGroup = getTrackingWatchlistGroup(state.watchlistGroups)
+      const nextGroups = state.watchlistGroups.some((group) => group.id === trackingGroup.id)
+        ? state.watchlistGroups
+        : [...state.watchlistGroups, trackingGroup]
+      const nextWatchlist = state.watchlist.map((stock) => {
+        if (stock.quoteId !== profile.quoteId) return stock
+        const groupIds = new Set(stock.groupIds ?? [])
+        if (profile.status === 'tracking') groupIds.add(trackingGroup.id)
+        else groupIds.delete(trackingGroup.id)
+        return { ...stock, groupIds: [...groupIds] }
+      })
+      void persist({
+        ...state,
+        watchlist: nextWatchlist,
+        watchlistGroups: nextGroups,
+        stockTrackingProfiles: {
+          ...state.stockTrackingProfiles,
+          [profile.quoteId]: profile
+        }
+      })
+    },
+    [persist, state]
+  )
+
+  const startManualTracking = useCallback(
+    (quoteId: string) => {
+      const stock = state.watchlist.find((item) => item.quoteId === quoteId)
+      if (!stock) return
+      const nextProfile = startStockTracking(
+        state.stockTrackingProfiles[quoteId],
+        stock,
+        createStockTrackingSource('manual', {
+          startPrice: quotes.find((quote) => quote.quoteId === quoteId)?.latest ?? undefined
+        }),
+        quotes.find((quote) => quote.quoteId === quoteId)
+      )
+      saveTrackingProfile(nextProfile)
+    },
+    [quotes, saveTrackingProfile, state.stockTrackingProfiles, state.watchlist]
+  )
+
+  const stopTracking = useCallback(
+    (quoteId: string, result: StockTrackingConclusionResult, summary: string) => {
+      const profile = state.stockTrackingProfiles[quoteId]
+      if (!profile) return
+      saveTrackingProfile(
+        stopStockTracking(
+          profile,
+          result,
+          summary,
+          quotes.find((quote) => quote.quoteId === quoteId)
+        )
+      )
+    },
+    [quotes, saveTrackingProfile, state.stockTrackingProfiles]
+  )
+
+  const restartTracking = useCallback(
+    (quoteId: string) => {
+      startManualTracking(quoteId)
+    },
+    [startManualTracking]
+  )
+
+  const removeStock = useCallback(
+    (quoteId: string) => {
+      const nextWatchlist = state.watchlist.filter((stock) => stock.quoteId !== quoteId)
+      setSelectedQuoteId((current) => (current === quoteId ? null : current))
+      setQuotes((current) => current.filter((quote) => quote.quoteId !== quoteId))
+      void persist({ ...state, watchlist: nextWatchlist })
+    },
+    [persist, state]
+  )
+
+  const toggleTaskbar = useCallback(
+    (quoteId: string) => {
+      const nextWatchlist = state.watchlist.map((stock) =>
+        stock.quoteId === quoteId ? { ...stock, showInTaskbar: !stock.showInTaskbar } : stock
+      )
+      void persist({ ...state, watchlist: nextWatchlist })
+    },
+    [persist, state]
+  )
+
+  const togglePriority = useCallback(
+    (quoteId: string) => {
+      const nextWatchlist = state.watchlist.map((stock) =>
+        stock.quoteId === quoteId && !stock.position
+          ? { ...stock, isPriority: !stock.isPriority }
+          : stock
+      )
+      void persist({ ...state, watchlist: nextWatchlist })
+    },
+    [persist, state]
+  )
+
+  const updatePosition = useCallback(
+    (
+      quoteId: string,
+      position: StockPosition | undefined,
+      showRadarSignals: boolean,
+      positionSnapshots: StockPositionSnapshot[],
+      updatedAccount?: TTradingAccount
+    ) => {
+      const nextWatchlist = state.watchlist.map((stock) =>
+        stock.quoteId === quoteId
+          ? {
+              ...stock,
+              position,
+              positionSnapshots,
+              showRadarSignals,
+              isPriority: position ? true : stock.isPriority
+            }
+          : stock
+      )
+      void persist({
+        ...state,
+        watchlist: nextWatchlist,
+        tTradingAccounts: updatedAccount
+          ? { ...state.tTradingAccounts, [quoteId]: updatedAccount }
+          : state.tTradingAccounts
+      })
+    },
+    [persist, state]
+  )
+
+  const updateTTrading = useCallback(
+    (quoteId: string, account: TTradingAccount, position: StockPosition | undefined) => {
+      const nextWatchlist = state.watchlist.map((stock) =>
+        stock.quoteId === quoteId
+          ? { ...stock, position, isPriority: position ? true : stock.isPriority }
+          : stock
+      )
+      void persist({
+        ...state,
+        watchlist: nextWatchlist,
+        tTradingAccounts: {
+          ...state.tTradingAccounts,
+          [quoteId]: account
+        }
+      })
+    },
+    [persist, state]
+  )
+
+  const updateStockAlerts = useCallback(
+    (quoteId: string, alertRules: StockAlertRule[]) => {
+      const nextWatchlist = state.watchlist.map((stock) =>
+        stock.quoteId === quoteId ? { ...stock, alertRules } : stock
+      )
+      void persist({ ...state, watchlist: nextWatchlist })
+    },
+    [persist, state]
+  )
+
+  const reorderWatchlist = useCallback(
+    (sourceQuoteId: string, targetQuoteId: string) => {
+      const sourceIndex = state.watchlist.findIndex((stock) => stock.quoteId === sourceQuoteId)
+      const targetIndex = state.watchlist.findIndex((stock) => stock.quoteId === targetQuoteId)
+      if (sourceIndex === -1 || targetIndex === -1 || sourceIndex === targetIndex) return
+      const nextWatchlist = [...state.watchlist]
+      const [movedStock] = nextWatchlist.splice(sourceIndex, 1)
+      nextWatchlist.splice(targetIndex, 0, movedStock)
+      void persist({ ...state, watchlist: nextWatchlist })
+    },
+    [persist, state]
+  )
+
+  const pinStock = useCallback(
+    (quoteId: string) => {
+      const currentIndex = state.watchlist.findIndex((stock) => stock.quoteId === quoteId)
+      if (currentIndex <= 0) return
+      const nextWatchlist = [...state.watchlist]
+      const [pinnedStock] = nextWatchlist.splice(currentIndex, 1)
+      nextWatchlist.unshift(pinnedStock)
+      void persist({ ...state, watchlist: nextWatchlist })
+    },
+    [persist, state]
+  )
+
+  const updateColumnOrder = useCallback(
+    (columnOrder: WatchlistColumnId[]) => {
+      void persist({ ...state, columnOrder })
+    },
+    [persist, state]
+  )
+
+  const updateWatchlistGroups = useCallback(
+    (watchlistGroups: WatchlistGroup[], groupIdsByQuoteId: Record<string, string[]>) => {
+      const nextWatchlist = state.watchlist.map((stock) => ({
+        ...stock,
+        groupIds: groupIdsByQuoteId[stock.quoteId] ?? stock.groupIds ?? []
+      }))
+      void persist({ ...state, watchlistGroups, watchlist: nextWatchlist })
+    },
+    [persist, state]
+  )
+
+  const updateSettings = useCallback(
+    (settings: AppSettings) => {
+      void persist({ ...state, settings })
+    },
+    [persist, state]
+  )
+
+  const selectWatchlistStock = useCallback((quoteId: string) => {
+    setSelectedQuoteId((current) => (current === quoteId ? null : quoteId))
+  }, [])
+
+  const openCompletionNotification = useCallback((notification: AppCompletionNotification) => {
+    setCompletionNotifications((current) => current.filter((item) => item.id !== notification.id))
+    setSelectedQuoteId(notification.quoteId)
+    setDetailNavigationRequest({
+      id: notification.id,
+      quoteId: notification.quoteId,
+      target: notification.target
+    })
+  }, [])
 
   const handleDetailNavigationHandled = useCallback((requestId: string) => {
     setDetailNavigationRequest((current) => (current?.id === requestId ? null : current))
@@ -481,19 +732,25 @@ export default function App() {
     setDailyMarketScanOpen(false)
   }, [])
 
-  const updateChipDistributionEnabled = useCallback((enabled: boolean) => {
-    updateSettings({
-      ...state.settings,
-      showChipDistribution: enabled
-    })
-  }, [state.settings, updateSettings])
+  const updateChipDistributionEnabled = useCallback(
+    (enabled: boolean) => {
+      updateSettings({
+        ...state.settings,
+        showChipDistribution: enabled
+      })
+    },
+    [state.settings, updateSettings]
+  )
 
-  const updateBollingerBandsEnabled = useCallback((enabled: boolean) => {
-    updateSettings({
-      ...state.settings,
-      showBollingerBands: enabled
-    })
-  }, [state.settings, updateSettings])
+  const updateBollingerBandsEnabled = useCallback(
+    (enabled: boolean) => {
+      updateSettings({
+        ...state.settings,
+        showBollingerBands: enabled
+      })
+    },
+    [state.settings, updateSettings]
+  )
 
   const exportConfig = useCallback(async () => {
     setConfigBusy(true)
@@ -614,11 +871,23 @@ export default function App() {
               <Activity size={17} />
               <span>收盘扫描</span>
             </button>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => setStockTrackingOpen(true)}
+              title="追踪复盘"
+            >
+              <Binoculars size={17} />
+              <span>追踪复盘</span>
+            </button>
             {aiRuntimeAvailable ? (
               <button
                 className="secondary-button ai-assistant-trigger"
                 type="button"
-                onClick={() => { setAiAssistantContext(null); setAiAssistantOpen(true) }}
+                onClick={() => {
+                  setAiAssistantContext(null)
+                  setAiAssistantOpen(true)
+                }}
                 title="AI 助手"
               >
                 <Bot size={17} />
@@ -652,14 +921,22 @@ export default function App() {
                       title="仅在北京时间 09:15:00–11:30:30、12:59:30–15:30:30 自动刷新"
                     >
                       <span className="live-dot" />
-                      重点 {state.settings.priorityRefreshSeconds} 秒 · 其余 {state.settings.regularRefreshSeconds} 秒刷新
+                      重点 {state.settings.priorityRefreshSeconds} 秒 · 其余{' '}
+                      {state.settings.regularRefreshSeconds} 秒刷新
                     </div>
                   </div>
-                  <span>{state.watchlist.length} 只股票 · {state.watchlist.filter((stock) => stock.isPriority).length} 只重点 · {portfolioSummary.positionCount} 只有持仓 · 点击股票行展开行情详情</span>
+                  <span>
+                    {state.watchlist.length} 只股票 ·{' '}
+                    {state.watchlist.filter((stock) => stock.isPriority).length} 只重点 ·{' '}
+                    {portfolioSummary.positionCount} 只有持仓 · 点击股票行展开行情详情
+                  </span>
                 </div>
                 <div id="portfolio-quality-slot" className="portfolio-quality-slot" />
                 {marketIndexQuotes.length > 0 ? (
-                  <div className="market-index-summary panel-market-index-summary" aria-label="大盘指数行情">
+                  <div
+                    className="market-index-summary panel-market-index-summary"
+                    aria-label="大盘指数行情"
+                  >
                     {marketIndexQuotes.map(({ index, quote }) => (
                       <span
                         className={`market-index-card ${cardDirectionClass(quote?.changePercent)}`}
@@ -686,25 +963,57 @@ export default function App() {
                   </span>
                   <span className={cardDirectionClass(portfolioSummary.todayProfit)}>
                     <small>今日总收益</small>
-                    <strong className={portfolioSummary.todayProfit === null ? 'is-flat' : portfolioSummary.todayProfit >= 0 ? 'is-up' : 'is-down'}>
+                    <strong
+                      className={
+                        portfolioSummary.todayProfit === null
+                          ? 'is-flat'
+                          : portfolioSummary.todayProfit >= 0
+                            ? 'is-up'
+                            : 'is-down'
+                      }
+                    >
                       {formatProfit(portfolioSummary.todayProfit)}
                     </strong>
                   </span>
                   <span className={cardDirectionClass(portfolioSummary.todayProfitPercent)}>
                     <small>今日收益率</small>
-                    <strong className={portfolioSummary.todayProfitPercent === null ? 'is-flat' : portfolioSummary.todayProfitPercent >= 0 ? 'is-up' : 'is-down'}>
+                    <strong
+                      className={
+                        portfolioSummary.todayProfitPercent === null
+                          ? 'is-flat'
+                          : portfolioSummary.todayProfitPercent >= 0
+                            ? 'is-up'
+                            : 'is-down'
+                      }
+                    >
                       {formatPercent(portfolioSummary.todayProfitPercent)}
                     </strong>
                   </span>
                   <span className={cardDirectionClass(portfolioSummary.totalProfit)}>
                     <small>持仓总收益</small>
-                    <strong className={portfolioSummary.totalProfit === null ? 'is-flat' : portfolioSummary.totalProfit >= 0 ? 'is-up' : 'is-down'}>
+                    <strong
+                      className={
+                        portfolioSummary.totalProfit === null
+                          ? 'is-flat'
+                          : portfolioSummary.totalProfit >= 0
+                            ? 'is-up'
+                            : 'is-down'
+                      }
+                    >
                       {formatProfit(portfolioSummary.totalProfit)}
                     </strong>
                   </span>
                   <span className={cardDirectionClass(portfolioSummary.profitPercent)}>
                     <small>总收益率</small>
-                    <strong className={portfolioSummary.profitPercent === null ? 'is-flat' : portfolioSummary.profitPercent >= 0 ? 'is-up' : 'is-down'}>
+                    <strong
+                      className={
+                        portfolioSummary.profitPercent === null
+                          ? 'is-flat'
+                          : portfolioSummary.profitPercent >= 0
+                            ? 'is-up'
+                            : 'is-down'
+                      }
+                    >
                       {formatPercent(portfolioSummary.profitPercent)}
                     </strong>
                   </span>
@@ -733,9 +1042,7 @@ export default function App() {
                 fundamentalSnapshotDate={fundamentalSnapshot?.snapshotDate}
                 fundamentalGeneratedAt={fundamentalSnapshot?.generatedAt}
                 fundamentalStaleReason={
-                  fundamentalDataState.status === 'stale'
-                    ? fundamentalDataState.staleReason
-                    : null
+                  fundamentalDataState.status === 'stale' ? fundamentalDataState.staleReason : null
                 }
                 columnOrder={state.columnOrder}
                 priorityRefreshSeconds={state.settings.priorityRefreshSeconds}
@@ -747,7 +1054,9 @@ export default function App() {
                 tTradingAccounts={state.tTradingAccounts}
                 tTradingFees={state.settings.tTradingFees}
                 tPlanDefaults={state.settings.tPlanDefaults}
-                tFloatingProfitAlertDefaultThreshold={state.settings.tFloatingProfitAlertDefaultThreshold}
+                tFloatingProfitAlertDefaultThreshold={
+                  state.settings.tFloatingProfitAlertDefaultThreshold
+                }
                 tradingCalendarClosedDates={state.settings.tradingCalendar.closedDates}
                 onSelect={selectWatchlistStock}
                 onDetailNavigationHandled={handleDetailNavigationHandled}
@@ -756,6 +1065,11 @@ export default function App() {
                 onEditPosition={updatePosition}
                 onUpdateTTrading={updateTTrading}
                 onUpdateStockAlerts={updateStockAlerts}
+                stockTrackingProfiles={state.stockTrackingProfiles}
+                onStartTracking={startManualTracking}
+                onUpdateTracking={saveTrackingProfile}
+                onStopTracking={stopTracking}
+                onRestartTracking={restartTracking}
                 onReorder={reorderWatchlist}
                 onPin={pinStock}
                 onColumnOrderChange={updateColumnOrder}
@@ -775,7 +1089,9 @@ export default function App() {
           <span>{source === 'eastmoney' ? '东方财富公开行情' : '浏览器预览数据'}</span>
         </div>
         <span className="status-separator" />
-        <span>{error ? '行情连接异常，保留最近数据' : `最近更新 ${formatUpdateTime(lastUpdated)}`}</span>
+        <span>
+          {error ? '行情连接异常，保留最近数据' : `最近更新 ${formatUpdateTime(lastUpdated)}`}
+        </span>
         {completionNotifications[0] ? (
           <>
             <span className="status-separator" />
@@ -799,15 +1115,26 @@ export default function App() {
         <span>红涨绿跌 · 行情仅供参考</span>
       </footer>
 
-      {error ? <div className="error-toast"><WifiOff size={17} />{error}</div> : null}
-      {notice ? <div className="success-toast"><CircleCheck size={17} />{notice}</div> : null}
+      {error ? (
+        <div className="error-toast">
+          <WifiOff size={17} />
+          {error}
+        </div>
+      ) : null}
+      {notice ? (
+        <div className="success-toast">
+          <CircleCheck size={17} />
+          {notice}
+        </div>
+      ) : null}
       <DividendFinancingRankingDialog
         open={dividendRankingOpen}
         cachedSnapshot={dividendFinancingSnapshot}
         cachedChangeReport={dividendFinancingChangeReport}
         dataState={dividendFinancingState}
         watchlist={state.watchlist}
-        onAddStock={addStock}
+        trackingProfiles={state.stockTrackingProfiles}
+        onAddStock={addDividendFinancingStock}
         onViewStock={viewWatchlistStockFromRanking}
         onSnapshotChange={setDividendFinancingSnapshot}
         onChangeReportChange={setDividendFinancingChangeReport}
@@ -819,7 +1146,8 @@ export default function App() {
         cachedChangeReport={fundamentalChangeReport}
         dataState={fundamentalDataState}
         watchlist={state.watchlist}
-        onAddStock={addStock}
+        trackingProfiles={state.stockTrackingProfiles}
+        onAddStock={addFundamentalScreeningStock}
         onViewStock={viewWatchlistStockFromFundamentals}
         onSnapshotChange={setFundamentalSnapshot}
         onChangeReportChange={setFundamentalChangeReport}
@@ -828,9 +1156,21 @@ export default function App() {
       <DailyMarketScanDialog
         open={dailyMarketScanOpen}
         watchlist={state.watchlist}
+        trackingProfiles={state.stockTrackingProfiles}
         onAddStock={addDailyMarketScanStock}
         onViewStock={viewWatchlistStockFromDailyScan}
         onClose={() => setDailyMarketScanOpen(false)}
+      />
+      <StockTrackingDialog
+        open={stockTrackingOpen}
+        profiles={state.stockTrackingProfiles}
+        watchlist={state.watchlist}
+        quotes={quotes}
+        onUpdateProfile={saveTrackingProfile}
+        onStopTracking={stopTracking}
+        onRestartTracking={restartTracking}
+        onViewStock={viewWatchlistStockFromDailyScan}
+        onClose={() => setStockTrackingOpen(false)}
       />
       {AiAssistantDrawer ? (
         <Suspense fallback={null}>

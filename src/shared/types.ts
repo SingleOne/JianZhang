@@ -34,6 +34,70 @@ export interface WatchStock {
   groupIds?: string[]
 }
 
+export type StockTrackingSourceType =
+  'manual' | 'dailyScan' | 'dividendFinancing' | 'fundamentalScreening' | 'legacy'
+
+export interface StockTrackingSourceDetail {
+  tradingDate?: string
+  signals?: DailyMarketScanSignalType[]
+  startPrice?: number
+  changePercent?: number
+  volumeRatio?: number
+  dividendRatio?: number
+  dividendRank?: number
+  snapshotDate?: string
+  industryName?: string
+}
+
+export interface StockTrackingSource {
+  id: string
+  type: StockTrackingSourceType
+  recordedAt: string
+  detail?: StockTrackingSourceDetail
+}
+
+export type StockTrackingEntryType = 'note' | 'thesis' | 'review' | 'system'
+
+export interface StockTrackingQuoteSnapshot {
+  latest: number
+  changePercent: number | null
+  capturedAt: string
+}
+
+export interface StockTrackingEntry {
+  id: string
+  type: StockTrackingEntryType
+  content: string
+  createdAt: string
+  quoteSnapshot?: StockTrackingQuoteSnapshot
+}
+
+export type StockTrackingConclusionResult = 'expected' | 'unexpected' | 'unverified'
+
+export interface StockTrackingConclusion {
+  result: StockTrackingConclusionResult
+  summary: string
+  stoppedAt: string
+}
+
+export interface StockTrackingProfile {
+  quoteId: string
+  code: string
+  name: string
+  marketLabel: string
+  status: 'tracking' | 'stopped'
+  tags: string[]
+  thesis: string
+  startedAt: string
+  updatedAt: string
+  stoppedAt?: string
+  sources: StockTrackingSource[]
+  entries: StockTrackingEntry[]
+  conclusion?: StockTrackingConclusion
+}
+
+export type StockTrackingProfiles = Record<string, StockTrackingProfile>
+
 export interface WatchlistGroup {
   id: string
   name: string
@@ -41,20 +105,41 @@ export interface WatchlistGroup {
 
 export const DAILY_SCAN_WATCHLIST_GROUP_ID = 'daily-market-scan-observation'
 export const DAILY_SCAN_WATCHLIST_GROUP_NAME = '异动观察'
+export const TRACKING_WATCHLIST_GROUP_ID = 'stock-tracking'
+export const TRACKING_WATCHLIST_GROUP_NAME = '追踪'
 export const DEFAULT_WATCHLIST_GROUPS: readonly WatchlistGroup[] = [
-  { id: DAILY_SCAN_WATCHLIST_GROUP_ID, name: DAILY_SCAN_WATCHLIST_GROUP_NAME }
+  { id: DAILY_SCAN_WATCHLIST_GROUP_ID, name: DAILY_SCAN_WATCHLIST_GROUP_NAME },
+  { id: TRACKING_WATCHLIST_GROUP_ID, name: TRACKING_WATCHLIST_GROUP_NAME }
 ]
 
 export function isDailyScanWatchlistGroup(group: WatchlistGroup): boolean {
-  return group.id === DAILY_SCAN_WATCHLIST_GROUP_ID
-    || group.name.trim() === DAILY_SCAN_WATCHLIST_GROUP_NAME
+  return (
+    group.id === DAILY_SCAN_WATCHLIST_GROUP_ID ||
+    group.name.trim() === DAILY_SCAN_WATCHLIST_GROUP_NAME
+  )
 }
 
 export function getDailyScanWatchlistGroup(groups: readonly WatchlistGroup[]): WatchlistGroup {
   return groups.find(isDailyScanWatchlistGroup) ?? { ...DEFAULT_WATCHLIST_GROUPS[0] }
 }
 
-export function normalizeWatchlistGroups(groups: readonly WatchlistGroup[] | undefined): WatchlistGroup[] {
+export function isTrackingWatchlistGroup(group: WatchlistGroup): boolean {
+  return (
+    group.id === TRACKING_WATCHLIST_GROUP_ID || group.name.trim() === TRACKING_WATCHLIST_GROUP_NAME
+  )
+}
+
+export function isSystemWatchlistGroup(group: WatchlistGroup): boolean {
+  return isDailyScanWatchlistGroup(group) || isTrackingWatchlistGroup(group)
+}
+
+export function getTrackingWatchlistGroup(groups: readonly WatchlistGroup[]): WatchlistGroup {
+  return groups.find(isTrackingWatchlistGroup) ?? { ...DEFAULT_WATCHLIST_GROUPS[1] }
+}
+
+export function normalizeWatchlistGroups(
+  groups: readonly WatchlistGroup[] | undefined
+): WatchlistGroup[] {
   const usedIds = new Set<string>()
   const normalized = (Array.isArray(groups) ? groups : []).flatMap((group) => {
     const id = group?.id?.trim()
@@ -64,12 +149,100 @@ export function normalizeWatchlistGroups(groups: readonly WatchlistGroup[] | und
     return [{ id, name }]
   })
   const dailyScanGroup = normalized.find(isDailyScanWatchlistGroup)
-  if (!dailyScanGroup) return [{ ...DEFAULT_WATCHLIST_GROUPS[0] }, ...normalized]
-  return normalized.map((group) => (
-    group.id === dailyScanGroup.id
-      ? { ...group, name: DAILY_SCAN_WATCHLIST_GROUP_NAME }
-      : group
-  ))
+  const trackingGroup = normalized.find(isTrackingWatchlistGroup)
+  const systemGroups = [
+    dailyScanGroup ?? { ...DEFAULT_WATCHLIST_GROUPS[0] },
+    trackingGroup ?? { ...DEFAULT_WATCHLIST_GROUPS[1] }
+  ]
+  return [
+    ...systemGroups.map((group) => ({
+      ...group,
+      name: isDailyScanWatchlistGroup(group)
+        ? DAILY_SCAN_WATCHLIST_GROUP_NAME
+        : TRACKING_WATCHLIST_GROUP_NAME
+    })),
+    ...normalized.filter((group) => !isSystemWatchlistGroup(group))
+  ]
+}
+
+const STOCK_TRACKING_SOURCE_TYPES = new Set<StockTrackingSourceType>([
+  'manual',
+  'dailyScan',
+  'dividendFinancing',
+  'fundamentalScreening',
+  'legacy'
+])
+
+const STOCK_TRACKING_ENTRY_TYPES = new Set<StockTrackingEntryType>([
+  'note',
+  'thesis',
+  'review',
+  'system'
+])
+
+export function normalizeStockTrackingProfiles(
+  profiles: StockTrackingProfiles | undefined
+): StockTrackingProfiles {
+  if (!profiles || typeof profiles !== 'object') return {}
+  return Object.fromEntries(
+    Object.entries(profiles).flatMap(([quoteId, profile]) => {
+      if (!profile || typeof profile !== 'object' || !quoteId) return []
+      const sources = Array.isArray(profile.sources)
+        ? profile.sources.flatMap((source, index) => {
+            if (!source || !STOCK_TRACKING_SOURCE_TYPES.has(source.type)) return []
+            return [
+              {
+                ...source,
+                id: source.id || `${quoteId}:source:${index}`,
+                recordedAt: source.recordedAt || profile.startedAt
+              }
+            ]
+          })
+        : []
+      const entries = Array.isArray(profile.entries)
+        ? profile.entries.flatMap((entry, index) => {
+            if (!entry || !entry.content?.trim() || !STOCK_TRACKING_ENTRY_TYPES.has(entry.type))
+              return []
+            return [
+              {
+                ...entry,
+                id: entry.id || `${quoteId}:entry:${index}`,
+                content: entry.content.trim(),
+                createdAt: entry.createdAt || profile.updatedAt
+              }
+            ]
+          })
+        : []
+      return [
+        [
+          quoteId,
+          {
+            ...profile,
+            quoteId,
+            status: profile.status === 'stopped' ? 'stopped' : 'tracking',
+            tags: [...new Set((profile.tags ?? []).map((tag) => tag.trim()).filter(Boolean))],
+            thesis: profile.thesis?.trim() ?? '',
+            sources,
+            entries
+          }
+        ]
+      ]
+    })
+  )
+}
+
+export function synchronizeTrackingGroupMembership(
+  stocks: readonly WatchStock[],
+  groups: readonly WatchlistGroup[],
+  profiles: StockTrackingProfiles
+): WatchStock[] {
+  const trackingGroupId = getTrackingWatchlistGroup(groups).id
+  return stocks.map((stock) => {
+    const groupIds = new Set(stock.groupIds ?? [])
+    if (profiles[stock.quoteId]?.status === 'tracking') groupIds.add(trackingGroupId)
+    else groupIds.delete(trackingGroupId)
+    return { ...stock, groupIds: [...groupIds] }
+  })
 }
 
 export function normalizeWatchlist(stocks: readonly WatchStock[]): WatchStock[] {
@@ -79,16 +252,17 @@ export function normalizeWatchlist(stocks: readonly WatchStock[]): WatchStock[] 
     showRadarSignals: stock.showRadarSignals ?? true,
     groupIds: [...new Set((stock.groupIds ?? []).filter((groupId) => typeof groupId === 'string'))],
     positionSnapshots: Array.isArray(stock.positionSnapshots)
-      ? stock.positionSnapshots.filter((snapshot) => (
-          snapshot
-          && typeof snapshot.id === 'string'
-          && typeof snapshot.name === 'string'
-          && typeof snapshot.createdAt === 'string'
-          && Number.isFinite(snapshot.quantity)
-          && snapshot.quantity > 0
-          && Number.isFinite(snapshot.cost)
-          && snapshot.cost > 0
-        ))
+      ? stock.positionSnapshots.filter(
+          (snapshot) =>
+            snapshot &&
+            typeof snapshot.id === 'string' &&
+            typeof snapshot.name === 'string' &&
+            typeof snapshot.createdAt === 'string' &&
+            Number.isFinite(snapshot.quantity) &&
+            snapshot.quantity > 0 &&
+            Number.isFinite(snapshot.cost) &&
+            snapshot.cost > 0
+        )
       : [],
     alertRules: Array.isArray(stock.alertRules)
       ? stock.alertRules
@@ -118,30 +292,26 @@ export const MARKET_INDEX_OPTIONS = [
   { id: 'bse50', code: '899050', name: '北证50', quoteId: '0.899050', marketLabel: '北交所' }
 ] as const
 
-export type MarketIndexId = typeof MARKET_INDEX_OPTIONS[number]['id']
+export type MarketIndexId = (typeof MARKET_INDEX_OPTIONS)[number]['id']
 
 export const DEFAULT_MARKET_INDEX_IDS: MarketIndexId[] = ['shanghai', 'shenzhen', 'chinext']
 
 export function normalizeMarketIndexIds(indexIds: readonly string[] | undefined): MarketIndexId[] {
   const selectedIds = new Set(indexIds ?? DEFAULT_MARKET_INDEX_IDS)
-  return MARKET_INDEX_OPTIONS
-    .filter((index) => selectedIds.has(index.id))
-    .map((index) => index.id)
+  return MARKET_INDEX_OPTIONS.filter((index) => selectedIds.has(index.id)).map((index) => index.id)
 }
 
 export function getMarketIndexStocks(indexIds: readonly MarketIndexId[]): WatchStock[] {
   const selectedIds = new Set(indexIds)
-  return MARKET_INDEX_OPTIONS
-    .filter((index) => selectedIds.has(index.id))
-    .map((index) => ({
-      code: index.code,
-      name: index.name,
-      quoteId: index.quoteId,
-      marketLabel: index.marketLabel,
-      showInTaskbar: false,
-      isPriority: false,
-      showRadarSignals: false
-    }))
+  return MARKET_INDEX_OPTIONS.filter((index) => selectedIds.has(index.id)).map((index) => ({
+    code: index.code,
+    name: index.name,
+    quoteId: index.quoteId,
+    marketLabel: index.marketLabel,
+    showInTaskbar: false,
+    isPriority: false,
+    showRadarSignals: false
+  }))
 }
 
 export interface StockPosition {
@@ -288,19 +458,26 @@ export function hasLegacyTTradingData(accounts: unknown): boolean {
       activeBatch?: { trades?: unknown }
       history?: Array<{ trades?: unknown }>
     }
-    return Array.isArray(account.baseTrades)
-      || Array.isArray(account.activeBatch?.trades)
-      || account.history?.some((batch) => Array.isArray(batch.trades)) === true
+    return (
+      Array.isArray(account.baseTrades) ||
+      Array.isArray(account.activeBatch?.trades) ||
+      account.history?.some((batch) => Array.isArray(batch.trades)) === true
+    )
   })
 }
 
 function activeTQuantity(batch: TTradingBatch, trades: readonly TTrade[]): number {
   const openingSide: TTradeSide = (batch.direction ?? 'forward') === 'reverse' ? 'sell' : 'buy'
-  return Math.max(0, trades.reduce((total, trade) => (
-    trade.purpose !== 't'
-      ? total
-      : total + (trade.side === openingSide ? trade.quantity : -trade.quantity)
-  ), 0))
+  return Math.max(
+    0,
+    trades.reduce(
+      (total, trade) =>
+        trade.purpose !== 't'
+          ? total
+          : total + (trade.side === openingSide ? trade.quantity : -trade.quantity),
+      0
+    )
+  )
 }
 
 export function createDefaultTPlanLevels(quantity: number): TPlanLevel[] {
@@ -325,9 +502,10 @@ function normalizeTPlanLevels(
     return {
       targetPercent: Math.max(0, level.targetPercent ?? fallback.targetPercent),
       quantity: Math.max(0, level.quantity ?? fallback.quantity),
-      alertStatus: level.alertStatus === 'triggered' || level.alertStatus === 'handled'
-        ? level.alertStatus
-        : 'armed',
+      alertStatus:
+        level.alertStatus === 'triggered' || level.alertStatus === 'handled'
+          ? level.alertStatus
+          : 'armed',
       triggeredAt: level.triggeredAt
     }
   })
@@ -337,11 +515,10 @@ function normalizeTFloatingProfitAlert(
   alert: Partial<TFloatingProfitAlert> | undefined
 ): TFloatingProfitAlert {
   const enabled = alert?.enabled ?? false
-  const status = enabled && (
-    alert?.status === 'profit-triggered' || alert?.status === 'loss-triggered'
-  )
-    ? alert.status
-    : 'armed'
+  const status =
+    enabled && (alert?.status === 'profit-triggered' || alert?.status === 'loss-triggered')
+      ? alert.status
+      : 'armed'
   return {
     enabled,
     threshold: Math.max(1, alert?.threshold ?? DEFAULT_T_FLOATING_PROFIT_ALERT_THRESHOLD),
@@ -361,12 +538,12 @@ export function normalizeActiveTTradingBatch(
 
   return {
     ...batch,
-    buyLevels: direction === 'reverse' && !hasBuyLevels
-      ? legacyLevels
-      : normalizeTPlanLevels(batch.buyLevels, quantity),
-    sellLevels: direction === 'reverse' && !hasBuyLevels
-      ? createDefaultTPlanLevels(quantity)
-      : legacyLevels,
+    buyLevels:
+      direction === 'reverse' && !hasBuyLevels
+        ? legacyLevels
+        : normalizeTPlanLevels(batch.buyLevels, quantity),
+    sellLevels:
+      direction === 'reverse' && !hasBuyLevels ? createDefaultTPlanLevels(quantity) : legacyLevels,
     alertEnabled: batch.alertEnabled ?? false,
     floatingProfitAlert: normalizeTFloatingProfitAlert(batch.floatingProfitAlert)
   }
@@ -375,74 +552,83 @@ export function normalizeActiveTTradingBatch(
 export function normalizeTTradingAccounts(
   accounts: TTradingAccounts | undefined
 ): TTradingAccounts {
-  return Object.fromEntries(Object.entries(accounts ?? {}).map(([quoteId, account]) => {
-    type LegacyBatch = TTradingBatch & { trades?: TTrade[] }
-    type LegacyAccount = Omit<TTradingAccount, 'activeBatch' | 'history' | 'tradeRecords'> & {
-      activeBatch?: LegacyBatch
-      history?: LegacyBatch[]
-      baseTrades?: TTrade[]
-      tradeRecords?: TTradeRecord[]
-    }
-    const legacyAccount = account as LegacyAccount
-    const legacyHistory = legacyAccount.history ?? []
-    const stripLegacyTrades = (batch: LegacyBatch): TTradingBatch => {
-      const { trades: _legacyTrades, ...normalizedBatch } = batch
-      return normalizedBatch
-    }
-    const records = new Map(
-      (legacyAccount.tradeRecords ?? []).map((record) => [record.id, record])
-    )
-    const addLegacyBatchTrades = (batch: LegacyBatch) => {
-      const legacyTrades = batch.trades ?? []
-      legacyTrades.forEach((trade) => records.set(trade.id, {
-        ...trade,
-        batchId: batch.id,
-        batchSequence: batch.sequence,
-        batchDirection: batch.direction ?? 'forward'
-      }))
-    }
-
-    legacyAccount.baseTrades?.forEach((trade) => records.set(trade.id, { ...trade }))
-    legacyHistory.forEach(addLegacyBatchTrades)
-    if (legacyAccount.activeBatch) addLegacyBatchTrades(legacyAccount.activeBatch)
-
-    const history = legacyHistory.map(stripLegacyTrades)
-    const activeBatch = legacyAccount.activeBatch
-      ? stripLegacyTrades(legacyAccount.activeBatch)
-      : undefined
-    const batchesById = new Map(
-      [...history, ...(activeBatch ? [activeBatch] : [])].map((batch) => [batch.id, batch])
-    )
-    const tradeRecords = [...records.values()].map((record) => {
-      const batch = record.batchId ? batchesById.get(record.batchId) : undefined
-      return batch
-        ? {
-            ...record,
+  return Object.fromEntries(
+    Object.entries(accounts ?? {}).map(([quoteId, account]) => {
+      type LegacyBatch = TTradingBatch & { trades?: TTrade[] }
+      type LegacyAccount = Omit<TTradingAccount, 'activeBatch' | 'history' | 'tradeRecords'> & {
+        activeBatch?: LegacyBatch
+        history?: LegacyBatch[]
+        baseTrades?: TTrade[]
+        tradeRecords?: TTradeRecord[]
+      }
+      const legacyAccount = account as LegacyAccount
+      const legacyHistory = legacyAccount.history ?? []
+      const stripLegacyTrades = (batch: LegacyBatch): TTradingBatch => {
+        const { trades: _legacyTrades, ...normalizedBatch } = batch
+        return normalizedBatch
+      }
+      const records = new Map(
+        (legacyAccount.tradeRecords ?? []).map((record) => [record.id, record])
+      )
+      const addLegacyBatchTrades = (batch: LegacyBatch) => {
+        const legacyTrades = batch.trades ?? []
+        legacyTrades.forEach((trade) =>
+          records.set(trade.id, {
+            ...trade,
+            batchId: batch.id,
             batchSequence: batch.sequence,
             batchDirection: batch.direction ?? 'forward'
-          }
-        : record
-    }).sort((left, right) => right.tradedAt.localeCompare(left.tradedAt))
-    const activeTrades = activeBatch
-      ? tradeRecords.filter((record) => record.batchId === activeBatch.id)
-      : []
-    const {
-      activeBatch: _legacyActiveBatch,
-      history: _legacyHistory,
-      baseTrades: _legacyBaseTrades,
-      tradeRecords: _legacyTradeRecords,
-      ...accountFields
-    } = legacyAccount
+          })
+        )
+      }
 
-    return [quoteId, {
-      ...accountFields,
-      history,
-      activeBatch: activeBatch
-        ? normalizeActiveTTradingBatch(activeBatch, activeTrades)
-        : undefined,
-      tradeRecords
-    }]
-  }))
+      legacyAccount.baseTrades?.forEach((trade) => records.set(trade.id, { ...trade }))
+      legacyHistory.forEach(addLegacyBatchTrades)
+      if (legacyAccount.activeBatch) addLegacyBatchTrades(legacyAccount.activeBatch)
+
+      const history = legacyHistory.map(stripLegacyTrades)
+      const activeBatch = legacyAccount.activeBatch
+        ? stripLegacyTrades(legacyAccount.activeBatch)
+        : undefined
+      const batchesById = new Map(
+        [...history, ...(activeBatch ? [activeBatch] : [])].map((batch) => [batch.id, batch])
+      )
+      const tradeRecords = [...records.values()]
+        .map((record) => {
+          const batch = record.batchId ? batchesById.get(record.batchId) : undefined
+          return batch
+            ? {
+                ...record,
+                batchSequence: batch.sequence,
+                batchDirection: batch.direction ?? 'forward'
+              }
+            : record
+        })
+        .sort((left, right) => right.tradedAt.localeCompare(left.tradedAt))
+      const activeTrades = activeBatch
+        ? tradeRecords.filter((record) => record.batchId === activeBatch.id)
+        : []
+      const {
+        activeBatch: _legacyActiveBatch,
+        history: _legacyHistory,
+        baseTrades: _legacyBaseTrades,
+        tradeRecords: _legacyTradeRecords,
+        ...accountFields
+      } = legacyAccount
+
+      return [
+        quoteId,
+        {
+          ...accountFields,
+          history,
+          activeBatch: activeBatch
+            ? normalizeActiveTTradingBatch(activeBatch, activeTrades)
+            : undefined,
+          tradeRecords
+        }
+      ]
+    })
+  )
 }
 
 export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
@@ -464,7 +650,7 @@ export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
   'operation'
 ] as const
 
-export type WatchlistColumnId = typeof DEFAULT_WATCHLIST_COLUMN_ORDER[number]
+export type WatchlistColumnId = (typeof DEFAULT_WATCHLIST_COLUMN_ORDER)[number]
 export const WATCHLIST_COLUMN_ORDER_VERSION = 8
 
 export function normalizeWatchlistColumnOrder(
@@ -472,14 +658,15 @@ export function normalizeWatchlistColumnOrder(
 ): WatchlistColumnId[] {
   const source = columnOrder ?? DEFAULT_WATCHLIST_COLUMN_ORDER
   const validColumns = new Set<WatchlistColumnId>(DEFAULT_WATCHLIST_COLUMN_ORDER)
-  const normalized = source.filter((columnId, index): columnId is WatchlistColumnId => (
-    columnId !== 'operation'
-    && validColumns.has(columnId as WatchlistColumnId)
-    && source.indexOf(columnId) === index
-  ))
-  const missingColumns = DEFAULT_WATCHLIST_COLUMN_ORDER.filter((columnId) => (
-    columnId !== 'operation' && !normalized.includes(columnId)
-  ))
+  const normalized = source.filter(
+    (columnId, index): columnId is WatchlistColumnId =>
+      columnId !== 'operation' &&
+      validColumns.has(columnId as WatchlistColumnId) &&
+      source.indexOf(columnId) === index
+  )
+  const missingColumns = DEFAULT_WATCHLIST_COLUMN_ORDER.filter(
+    (columnId) => columnId !== 'operation' && !normalized.includes(columnId)
+  )
   return [...normalized, ...missingColumns, 'operation']
 }
 
@@ -610,12 +797,7 @@ export interface KlineResult {
 }
 
 export type DailyMarketScanSignalType =
-  | 'volumeSurge'
-  | 'strongGain'
-  | 'strongLoss'
-  | 'breakout20d'
-  | 'breakdown20d'
-  | 'reversal'
+  'volumeSurge' | 'strongGain' | 'strongLoss' | 'breakout20d' | 'breakdown20d' | 'reversal'
 
 export interface DailyMarketScanRow {
   code: string
@@ -650,12 +832,7 @@ export interface DailyMarketScanResult {
 }
 
 export type DailyMarketScanStage =
-  | 'idle'
-  | 'quotes'
-  | 'klines'
-  | 'calculating'
-  | 'completed'
-  | 'failed'
+  'idle' | 'quotes' | 'klines' | 'calculating' | 'completed' | 'failed'
 
 export interface DailyMarketScanProgress {
   stage: DailyMarketScanStage
@@ -799,12 +976,7 @@ export interface DividendFinancingSnapshot {
 }
 
 export type DividendFinancingChangeType =
-  | 'added'
-  | 'removed'
-  | 'rank'
-  | 'ratio'
-  | 'dividend'
-  | 'financing'
+  'added' | 'removed' | 'rank' | 'ratio' | 'dividend' | 'financing'
 
 export interface DividendFinancingChangeItem {
   code: string
@@ -852,13 +1024,7 @@ export interface DividendFinancingUpdateResult {
   diagnosticsPath: string
 }
 
-export type DataSnapshotStatus =
-  | 'missing'
-  | 'queued'
-  | 'updating'
-  | 'ready'
-  | 'stale'
-  | 'failed'
+export type DataSnapshotStatus = 'missing' | 'queued' | 'updating' | 'ready' | 'stale' | 'failed'
 
 export interface DataSnapshotRuntimeState {
   status: DataSnapshotStatus
@@ -871,12 +1037,7 @@ export interface DataSnapshotRuntimeState {
   staleReason: string | null
 }
 
-export type FundamentalOrganizationType =
-  | 'general'
-  | 'bank'
-  | 'securities'
-  | 'insurance'
-  | 'other'
+export type FundamentalOrganizationType = 'general' | 'bank' | 'securities' | 'insurance' | 'other'
 
 export interface FundamentalAnnualReport {
   year: number
@@ -1053,18 +1214,10 @@ export interface StockValuationAnalysis {
   priceBookRatio: StockValuationMetricAnalysis
 }
 
-export type FundamentalChangeRuleStatus =
-  | 'passed'
-  | 'failed'
-  | 'missing'
-  | 'not-applicable'
+export type FundamentalChangeRuleStatus = 'passed' | 'failed' | 'missing' | 'not-applicable'
 
 export type FundamentalChangeScreeningStatus =
-  | 'passed'
-  | 'review'
-  | 'missing'
-  | 'financial'
-  | 'unavailable'
+  'passed' | 'review' | 'missing' | 'financial' | 'unavailable'
 
 export type FundamentalChangeType =
   | 'addedCoverage'
@@ -1203,29 +1356,34 @@ function normalizeTTradingFeeSettings(
   settings: Partial<TTradingFeeSettings> | undefined
 ): TTradingFeeSettings {
   return {
-    commissionRatePerTenThousand: Math.max(0,
-      settings?.commissionRatePerTenThousand
-        ?? DEFAULT_T_TRADING_FEE_SETTINGS.commissionRatePerTenThousand
+    commissionRatePerTenThousand: Math.max(
+      0,
+      settings?.commissionRatePerTenThousand ??
+        DEFAULT_T_TRADING_FEE_SETTINGS.commissionRatePerTenThousand
     ),
-    minimumCommissionBundle: Math.max(0,
-      settings?.minimumCommissionBundle
-        ?? DEFAULT_T_TRADING_FEE_SETTINGS.minimumCommissionBundle
+    minimumCommissionBundle: Math.max(
+      0,
+      settings?.minimumCommissionBundle ?? DEFAULT_T_TRADING_FEE_SETTINGS.minimumCommissionBundle
     ),
-    handlingRatePerTenThousand: Math.max(0,
-      settings?.handlingRatePerTenThousand
-        ?? DEFAULT_T_TRADING_FEE_SETTINGS.handlingRatePerTenThousand
+    handlingRatePerTenThousand: Math.max(
+      0,
+      settings?.handlingRatePerTenThousand ??
+        DEFAULT_T_TRADING_FEE_SETTINGS.handlingRatePerTenThousand
     ),
-    regulatoryRatePerTenThousand: Math.max(0,
-      settings?.regulatoryRatePerTenThousand
-        ?? DEFAULT_T_TRADING_FEE_SETTINGS.regulatoryRatePerTenThousand
+    regulatoryRatePerTenThousand: Math.max(
+      0,
+      settings?.regulatoryRatePerTenThousand ??
+        DEFAULT_T_TRADING_FEE_SETTINGS.regulatoryRatePerTenThousand
     ),
-    transferRatePerTenThousand: Math.max(0,
-      settings?.transferRatePerTenThousand
-        ?? DEFAULT_T_TRADING_FEE_SETTINGS.transferRatePerTenThousand
+    transferRatePerTenThousand: Math.max(
+      0,
+      settings?.transferRatePerTenThousand ??
+        DEFAULT_T_TRADING_FEE_SETTINGS.transferRatePerTenThousand
     ),
-    stampDutyRatePerTenThousand: Math.max(0,
-      settings?.stampDutyRatePerTenThousand
-        ?? DEFAULT_T_TRADING_FEE_SETTINGS.stampDutyRatePerTenThousand
+    stampDutyRatePerTenThousand: Math.max(
+      0,
+      settings?.stampDutyRatePerTenThousand ??
+        DEFAULT_T_TRADING_FEE_SETTINGS.stampDutyRatePerTenThousand
     )
   }
 }
@@ -1244,10 +1402,7 @@ function normalizeTPlanDefaultSettings(
   settings: Partial<TPlanDefaultSettings> | undefined
 ): TPlanDefaultSettings {
   return {
-    buyLevels: normalizeTPlanDefaultLevels(
-      settings?.buyLevels,
-      DEFAULT_T_PLAN_SETTINGS.buyLevels
-    ),
+    buyLevels: normalizeTPlanDefaultLevels(settings?.buyLevels, DEFAULT_T_PLAN_SETTINGS.buyLevels),
     sellLevels: normalizeTPlanDefaultLevels(
       settings?.sellLevels,
       DEFAULT_T_PLAN_SETTINGS.sellLevels
@@ -1278,33 +1433,37 @@ export function normalizeAppSettings(
   settings: (Partial<AppSettings> & { refreshSeconds?: number }) | undefined
 ): AppSettings {
   const legacyRefreshSeconds = settings?.refreshSeconds
-  const regularFallback = typeof legacyRefreshSeconds === 'number' && legacyRefreshSeconds !== 5
-    ? legacyRefreshSeconds
-    : DEFAULT_APP_SETTINGS.regularRefreshSeconds
+  const regularFallback =
+    typeof legacyRefreshSeconds === 'number' && legacyRefreshSeconds !== 5
+      ? legacyRefreshSeconds
+      : DEFAULT_APP_SETTINGS.regularRefreshSeconds
   return {
-    priorityRefreshSeconds: Math.min(300, Math.max(3,
-      settings?.priorityRefreshSeconds ?? DEFAULT_APP_SETTINGS.priorityRefreshSeconds
-    )),
-    regularRefreshSeconds: Math.min(300, Math.max(3,
-      settings?.regularRefreshSeconds ?? regularFallback
-    )),
+    priorityRefreshSeconds: Math.min(
+      300,
+      Math.max(3, settings?.priorityRefreshSeconds ?? DEFAULT_APP_SETTINGS.priorityRefreshSeconds)
+    ),
+    regularRefreshSeconds: Math.min(
+      300,
+      Math.max(3, settings?.regularRefreshSeconds ?? regularFallback)
+    ),
     marketIndexIds: normalizeMarketIndexIds(
       Array.isArray(settings?.marketIndexIds) ? settings.marketIndexIds : undefined
     ),
     startWithWindows: settings?.startWithWindows ?? DEFAULT_APP_SETTINGS.startWithWindows,
     minimizeToTray: settings?.minimizeToTray ?? DEFAULT_APP_SETTINGS.minimizeToTray,
     showTaskbarTicker: settings?.showTaskbarTicker ?? DEFAULT_APP_SETTINGS.showTaskbarTicker,
-    showChipDistribution: settings?.showChipDistribution ?? DEFAULT_APP_SETTINGS.showChipDistribution,
+    showChipDistribution:
+      settings?.showChipDistribution ?? DEFAULT_APP_SETTINGS.showChipDistribution,
     showBollingerBands: settings?.showBollingerBands ?? DEFAULT_APP_SETTINGS.showBollingerBands,
-    taskbarPositionPercent: Math.min(100, Math.max(0,
-      settings?.taskbarPositionPercent ?? DEFAULT_APP_SETTINGS.taskbarPositionPercent
-    )),
+    taskbarPositionPercent: Math.min(
+      100,
+      Math.max(0, settings?.taskbarPositionPercent ?? DEFAULT_APP_SETTINGS.taskbarPositionPercent)
+    ),
     tTradingFees: normalizeTTradingFeeSettings(settings?.tTradingFees),
     tPlanDefaults: normalizeTPlanDefaultSettings(settings?.tPlanDefaults),
     tFloatingProfitAlertDefaultThreshold: Math.max(
       1,
-      settings?.tFloatingProfitAlertDefaultThreshold
-        ?? DEFAULT_T_FLOATING_PROFIT_ALERT_THRESHOLD
+      settings?.tFloatingProfitAlertDefaultThreshold ?? DEFAULT_T_FLOATING_PROFIT_ALERT_THRESHOLD
     ),
     tradingCalendar: normalizeTradingCalendarSettings(settings?.tradingCalendar)
   }
@@ -1313,6 +1472,7 @@ export function normalizeAppSettings(
 export interface AppState {
   watchlist: WatchStock[]
   watchlistGroups: WatchlistGroup[]
+  stockTrackingProfiles: StockTrackingProfiles
   settings: AppSettings
   columnOrder: WatchlistColumnId[]
   columnOrderVersion?: number
@@ -1361,7 +1521,9 @@ export interface StockDesktopApi {
   getDailyMarketScanResult: () => Promise<DailyMarketScanResult | null>
   getDailyMarketScanState: () => Promise<DailyMarketScanState>
   runDailyMarketScan: () => Promise<DailyMarketScanResult>
-  saveChipDistributionCache: (entry: ChipDistributionCacheEntry) => Promise<ChipDistributionCacheEntry>
+  saveChipDistributionCache: (
+    entry: ChipDistributionCacheEntry
+  ) => Promise<ChipDistributionCacheEntry>
   getOrderBook: (quoteId: string) => Promise<StockOrderBook>
   getFundsFlow: (quoteId: string) => Promise<FundsFlowResult>
   getSectorIndex: (quoteId: string) => Promise<SectorIndexResult>
@@ -1385,10 +1547,6 @@ export interface StockDesktopApi {
   onFundamentalUpdateProgress: (
     callback: (progress: FundamentalUpdateProgress) => void
   ) => () => void
-  onFundamentalStateUpdated: (
-    callback: (state: DataSnapshotRuntimeState) => void
-  ) => () => void
-  onDailyMarketScanProgress: (
-    callback: (state: DailyMarketScanState) => void
-  ) => () => void
+  onFundamentalStateUpdated: (callback: (state: DataSnapshotRuntimeState) => void) => () => void
+  onDailyMarketScanProgress: (callback: (state: DailyMarketScanState) => void) => () => void
 }

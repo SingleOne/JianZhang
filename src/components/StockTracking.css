@@ -1,0 +1,618 @@
+.stock-tracking-editor {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.stock-tracking-row-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(37, 99, 235, 0.24);
+  border-radius: 999px;
+  padding: 1px 5px;
+  background: var(--blue-soft);
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.stock-tracking-editor-header,
+.stock-tracking-section-title,
+.stock-tracking-save-row,
+.stock-tracking-inline-form,
+.stock-tracking-entry-form,
+.stock-tracking-stop-form > div,
+.stock-tracking-timeline article > div {
+  display: flex;
+  align-items: center;
+}
+
+.stock-tracking-editor-header {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.stock-tracking-editor-header > div {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stock-tracking-editor-header strong {
+  font-size: 17px;
+}
+
+.stock-tracking-editor-header small,
+.stock-tracking-section-title small,
+.stock-tracking-save-row span,
+.stock-tracking-sources small,
+.stock-tracking-timeline small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.stock-tracking-status {
+  border: 1px solid rgba(82, 162, 255, 0.34);
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: rgba(55, 135, 240, 0.12);
+  color: #8fc2ff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.stock-tracking-status.is-stopped {
+  border-color: rgba(151, 160, 174, 0.3);
+  background: rgba(151, 160, 174, 0.1);
+  color: var(--muted);
+}
+
+.stock-tracking-stop-form,
+.stock-tracking-conclusion {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(255, 171, 64, 0.3);
+  border-radius: 12px;
+  padding: 13px;
+  background: rgba(255, 156, 51, 0.07);
+}
+
+.stock-tracking-stop-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.stock-tracking-stop-form select,
+.stock-tracking-stop-form textarea,
+.stock-tracking-inline-form input,
+.stock-tracking-thesis,
+.stock-tracking-entry-form select,
+.stock-tracking-entry-form textarea {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+}
+
+.stock-tracking-stop-form select,
+.stock-tracking-inline-form input,
+.stock-tracking-entry-form select {
+  min-height: 34px;
+  padding: 0 9px;
+}
+
+.stock-tracking-stop-form textarea,
+.stock-tracking-thesis,
+.stock-tracking-entry-form textarea {
+  min-height: 88px;
+  resize: vertical;
+  padding: 9px;
+  line-height: 1.55;
+}
+
+.stock-tracking-stop-form > div {
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.stock-tracking-conclusion strong {
+  color: #ffc172;
+  font-size: 13px;
+}
+
+.stock-tracking-conclusion span {
+  white-space: pre-wrap;
+  font-size: 12px;
+}
+
+.stock-tracking-conclusion small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.stock-tracking-performance {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.stock-tracking-performance > span {
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 11px;
+  background: var(--surface-muted);
+}
+
+.stock-tracking-performance small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.stock-tracking-performance strong {
+  font-size: 16px;
+}
+
+.stock-tracking-section {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 13px;
+}
+
+.stock-tracking-section-title {
+  gap: 7px;
+  color: var(--muted);
+}
+
+.stock-tracking-section-title strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.stock-tracking-section-title small {
+  margin-left: auto;
+}
+
+.stock-tracking-sources {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px;
+}
+
+.stock-tracking-sources article {
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(74, 153, 255, 0.22);
+  border-radius: 9px;
+  padding: 9px 10px;
+  background: var(--blue-soft);
+}
+
+.stock-tracking-sources strong,
+.stock-tracking-sources span {
+  font-size: 12px;
+}
+
+.stock-tracking-sources span {
+  color: var(--muted);
+}
+
+.stock-tracking-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.stock-tracking-tags > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid rgba(159, 115, 255, 0.3);
+  border-radius: 999px;
+  padding: 4px 6px 4px 9px;
+  background: rgba(130, 86, 231, 0.1);
+  color: #c7adff;
+  font-size: 12px;
+}
+
+.stock-tracking-tags button {
+  display: grid;
+  place-items: center;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.stock-tracking-inline-form {
+  gap: 8px;
+}
+
+.stock-tracking-inline-form input {
+  flex: 1;
+  min-width: 180px;
+}
+
+.stock-tracking-thesis {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 112px;
+}
+
+.stock-tracking-save-row {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.stock-tracking-entry-form {
+  align-items: stretch;
+  gap: 8px;
+}
+
+.stock-tracking-entry-form select {
+  width: 112px;
+}
+
+.stock-tracking-entry-form textarea {
+  flex: 1;
+  min-height: 70px;
+}
+
+.stock-tracking-entry-form button {
+  align-self: flex-end;
+}
+
+.stock-tracking-timeline {
+  display: grid;
+  gap: 8px;
+}
+
+.stock-tracking-timeline article {
+  display: grid;
+  gap: 7px;
+  border-left: 3px solid rgba(80, 154, 250, 0.55);
+  border-radius: 0 9px 9px 0;
+  padding: 9px 11px;
+  background: var(--surface-muted);
+}
+
+.stock-tracking-timeline article.is-system {
+  border-left-color: rgba(151, 160, 174, 0.5);
+}
+
+.stock-tracking-timeline article.is-review {
+  border-left-color: rgba(167, 116, 255, 0.62);
+}
+
+.stock-tracking-timeline article > div {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.stock-tracking-timeline strong,
+.stock-tracking-timeline p,
+.stock-tracking-timeline span,
+.stock-tracking-timeline em {
+  font-size: 12px;
+}
+
+.stock-tracking-timeline p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.stock-tracking-timeline > article > span {
+  color: var(--muted);
+}
+
+.stock-tracking-timeline em {
+  margin-left: 8px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.stock-tracking-performance .is-up,
+.stock-tracking-timeline .is-up {
+  color: var(--red);
+}
+
+.stock-tracking-performance .is-down,
+.stock-tracking-timeline .is-down {
+  color: var(--green);
+}
+
+.stock-tracking-performance .is-flat,
+.stock-tracking-timeline .is-flat {
+  color: var(--muted);
+}
+
+@media (max-width: 920px) {
+  .stock-tracking-performance {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stock-tracking-entry-form {
+    display: grid;
+  }
+
+  .stock-tracking-entry-form select {
+    width: 100%;
+  }
+}
+
+.stock-tracking-empty {
+  display: grid;
+  place-items: center;
+  gap: 9px;
+  min-height: 290px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.stock-tracking-empty strong {
+  color: var(--text);
+  font-size: 15px;
+}
+
+.stock-tracking-empty span {
+  font-size: 12px;
+}
+
+.stock-tracking-tab {
+  padding: 15px 4px 4px;
+}
+
+.stock-tracking-dialog-backdrop {
+  position: fixed;
+  z-index: 920;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(3px);
+}
+
+.stock-tracking-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(1240px, 96vw);
+  height: min(830px, 92vh);
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow-menu);
+}
+
+.stock-tracking-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--border);
+  padding: 14px 17px;
+}
+
+.stock-tracking-dialog-header > div,
+.stock-tracking-dialog-header > div > div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.stock-tracking-dialog-header > div > div {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stock-tracking-dialog-header > div > span {
+  display: grid;
+  place-items: center;
+  width: 35px;
+  height: 35px;
+  border-radius: 10px;
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.stock-tracking-dialog-header strong {
+  font-size: 16px;
+}
+
+.stock-tracking-dialog-header small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.stock-tracking-dialog-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border-bottom: 1px solid var(--border);
+  padding: 10px 16px;
+  background: var(--surface-muted);
+}
+
+.stock-tracking-dialog-toolbar label {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 7px;
+  min-width: 220px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 9px;
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.stock-tracking-dialog-toolbar input,
+.stock-tracking-dialog-toolbar select {
+  min-height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+}
+
+.stock-tracking-dialog-toolbar input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+}
+
+.stock-tracking-dialog-toolbar select {
+  padding: 0 9px;
+}
+
+.stock-tracking-dialog-layout {
+  display: grid;
+  grid-template-columns: 310px minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+}
+
+.stock-tracking-profile-list {
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  background: var(--surface-muted);
+}
+
+.stock-tracking-profile-list > button {
+  display: grid;
+  gap: 7px;
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 11px 12px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.stock-tracking-profile-list > button:hover,
+.stock-tracking-profile-list > button.is-active {
+  background: var(--surface-selected);
+}
+
+.stock-tracking-profile-list > button.is-active {
+  box-shadow: inset 3px 0 var(--blue);
+}
+
+.stock-tracking-profile-list > button > span:first-child,
+.stock-tracking-list-summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.stock-tracking-profile-list strong,
+.stock-tracking-profile-list small,
+.stock-tracking-profile-list em,
+.stock-tracking-list-sources {
+  font-size: 12px;
+}
+
+.stock-tracking-profile-list > button > span:first-child > strong {
+  font-size: 14px;
+}
+
+.stock-tracking-profile-list small,
+.stock-tracking-list-sources {
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stock-tracking-profile-list em {
+  margin-left: auto;
+  border-radius: 999px;
+  padding: 2px 6px;
+  background: var(--blue-soft);
+  color: var(--blue);
+  font-style: normal;
+}
+
+.stock-tracking-profile-list em.is-stopped {
+  background: #eef1f5;
+  color: var(--muted);
+}
+
+.stock-tracking-list-summary {
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.stock-tracking-list-summary small {
+  flex: 1;
+}
+
+.stock-tracking-list-summary strong.is-up {
+  color: var(--red);
+}
+
+.stock-tracking-list-summary strong.is-down {
+  color: var(--green);
+}
+
+.stock-tracking-list-summary strong.is-flat {
+  color: var(--muted);
+}
+
+.stock-tracking-dialog-content {
+  overflow-y: auto;
+  padding: 15px 18px 24px;
+}
+
+.stock-tracking-dialog-content-actions {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 34px;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.stock-tracking-dialog-empty {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  flex: 1;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.stock-tracking-dialog-empty strong {
+  color: var(--text);
+  font-size: 15px;
+}
+
+.stock-tracking-dialog-empty span {
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .stock-tracking-dialog-layout {
+    grid-template-columns: 250px minmax(0, 1fr);
+  }
+
+  .stock-tracking-dialog-toolbar {
+    flex-wrap: wrap;
+  }
+}

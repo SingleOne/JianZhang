@@ -16,9 +16,11 @@ import { stockApi } from '../lib/api'
 import { dailyMarketScanBoardLabel } from '../lib/daily-market-scan'
 import type {
   DailyMarketScanResult,
+  DailyMarketScanRow,
   DailyMarketScanSignalType,
   DailyMarketScanState,
   SearchResult,
+  StockTrackingProfiles,
   WatchStock
 } from '../shared/types'
 import './DailyMarketScanDialog.css'
@@ -60,7 +62,8 @@ const EMPTY_STATE: DailyMarketScanState = {
 interface DailyMarketScanDialogProps {
   open: boolean
   watchlist: WatchStock[]
-  onAddStock: (stock: SearchResult) => void
+  trackingProfiles: StockTrackingProfiles
+  onAddStock: (stock: SearchResult, row: DailyMarketScanRow) => void
   onViewStock: (quoteId: string) => void
   onClose: () => void
 }
@@ -108,6 +111,7 @@ function sourceLabel(source: string): string {
 export function DailyMarketScanDialog({
   open,
   watchlist,
+  trackingProfiles,
   onAddStock,
   onViewStock,
   onClose
@@ -217,13 +221,16 @@ export function DailyMarketScanDialog({
   }
 
   const addStock = (row: DailyMarketScanResult['rows'][number]) => {
-    onAddStock({
-      code: row.code,
-      name: row.name,
-      quoteId: row.quoteId,
-      marketLabel: dailyMarketScanBoardLabel(row.code) ?? row.marketLabel
-    })
-    setActionMessage(`${row.name}已加入自选，并归入异动观察分组`)
+    onAddStock(
+      {
+        code: row.code,
+        name: row.name,
+        quoteId: row.quoteId,
+        marketLabel: dailyMarketScanBoardLabel(row.code) ?? row.marketLabel
+      },
+      row
+    )
+    setActionMessage(`${row.name}已开始追踪，并加入追踪分组`)
   }
 
   if (!open) return null
@@ -406,6 +413,15 @@ export function DailyMarketScanDialog({
                 <tbody>
                   {visibleRows.map((row) => {
                     const watched = watchlistQuoteIds.has(row.quoteId)
+                    const trackingProfile = trackingProfiles[row.quoteId]
+                    const tracking = trackingProfile?.status === 'tracking'
+                    const sourceRecorded =
+                      trackingProfile?.sources.some(
+                        (source) =>
+                          source.type === 'dailyScan' &&
+                          source.detail?.tradingDate === row.tradingDate
+                      ) ?? false
+                    const viewExisting = watched && tracking && sourceRecorded
                     const boardLabel = dailyMarketScanBoardLabel(row.code)
                     const rangeBreakPercent = row.breakoutPercent ?? row.breakdownPercent ?? null
                     return (
@@ -456,10 +472,18 @@ export function DailyMarketScanDialog({
                           <button
                             className="daily-scan-row-action"
                             type="button"
-                            onClick={() => (watched ? onViewStock(row.quoteId) : addStock(row))}
+                            onClick={() =>
+                              viewExisting ? onViewStock(row.quoteId) : addStock(row)
+                            }
                           >
-                            {watched ? <Eye size={14} /> : <Plus size={14} />}
-                            {watched ? '查看' : '自选'}
+                            {viewExisting ? <Eye size={14} /> : <Plus size={14} />}
+                            {viewExisting
+                              ? '查看'
+                              : watched && tracking
+                                ? '记录来源'
+                                : watched
+                                  ? '开始追踪'
+                                  : '加入并追踪'}
                           </button>
                         </td>
                       </tr>

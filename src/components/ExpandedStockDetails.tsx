@@ -1,6 +1,7 @@
 import {
   AlertCircle,
   BarChart3,
+  Binoculars,
   Bot,
   BookOpen,
   Building2,
@@ -63,12 +64,15 @@ import type {
   KlinePeriod,
   KlineResult,
   StockQuote,
+  StockTrackingConclusionResult,
+  StockTrackingProfile,
   WatchStock
 } from '../shared/types'
 import { FundsFlowPanel } from './FundsFlowPanel'
 import { ChipDistributionPanel } from './ChipDistributionPanel'
 import { CompanyReportLibrary, FundamentalReadingGuide } from './CompanyReportLibrary'
 import { OrderBookPanel } from './OrderBookPanel'
+import { StockTrackingPanel } from './StockTrackingPanel'
 import type { KlineVisibleRange, KlineVisibleRangeSource } from './PeriodKlineChart'
 import type { MarketInsightSnapshot } from '../modules/market-insight/shared/types'
 import type { AiAnalysisType } from '../modules/ai/shared/types'
@@ -77,17 +81,39 @@ const CandlestickChart = lazy(() => import('./CandlestickChart'))
 const PeriodKlineChart = lazy(() => import('./PeriodKlineChart'))
 const SectorIndexPanel = lazy(() => import('./SectorIndexPanel'))
 const MarketInsightPanel = __JIANZHANG_MARKET_INSIGHT_ENABLED__
-  ? lazy(() => import('../modules/market-insight/renderer/register').then((module) => ({ default: module.MarketInsightPanel })))
+  ? lazy(() =>
+      import('../modules/market-insight/renderer/register').then((module) => ({
+        default: module.MarketInsightPanel
+      }))
+    )
   : null
 const AiAnalysisPanel = __JIANZHANG_AI_MODULE_ENABLED__
-  ? lazy(() => import('../modules/ai/renderer/register').then((module) => ({ default: module.AiAnalysisPanel })))
+  ? lazy(() =>
+      import('../modules/ai/renderer/register').then((module) => ({
+        default: module.AiAnalysisPanel
+      }))
+    )
   : null
 const AiTAdvicePanel = __JIANZHANG_AI_T_ADVICE_MODULE_ENABLED__
-  ? lazy(() => import('../modules/ai-t-advice/renderer/register').then((module) => ({ default: module.TAdvicePanel })))
+  ? lazy(() =>
+      import('../modules/ai-t-advice/renderer/register').then((module) => ({
+        default: module.TAdvicePanel
+      }))
+    )
   : null
 
 type PriceTab = Exclude<KlinePeriod, 'intraday'> | 'trend'
-type DetailTab = PriceTab | 'dividendFinancing' | 'fundamental' | 'reports' | 'funds' | 'sector' | 'insight' | 'ai' | 't-advice'
+type DetailTab =
+  | PriceTab
+  | 'dividendFinancing'
+  | 'fundamental'
+  | 'reports'
+  | 'tracking'
+  | 'funds'
+  | 'sector'
+  | 'insight'
+  | 'ai'
+  | 't-advice'
 type HistoricalPeriod = Extract<KlinePeriod, 'daily' | 'weekly' | 'monthly'>
 
 interface KlineCacheEntry {
@@ -177,9 +203,12 @@ function fundamentalGeneratedTime(value?: string): string {
   }).format(date)
 }
 
-function annualCashConversion(netProfit: number | null, operatingCashFlow: number | null): number | null {
+function annualCashConversion(
+  netProfit: number | null,
+  operatingCashFlow: number | null
+): number | null {
   if (netProfit === null || netProfit <= 0 || operatingCashFlow === null) return null
-  return operatingCashFlow / netProfit * 100
+  return (operatingCashFlow / netProfit) * 100
 }
 
 const DCF_UNAVAILABLE_MESSAGES: Record<DcfUnavailableReason, string> = {
@@ -203,7 +232,9 @@ function DcfPanel({
     <section className="fundamental-dcf-section">
       <header>
         <span>
-          <i><Calculator size={17} /></i>
+          <i>
+            <Calculator size={17} />
+          </i>
           <span>
             <strong>DCF 现金流折现估值</strong>
             <small>用未来自由现金流估算每股内在价值</small>
@@ -228,7 +259,9 @@ function DcfPanel({
             </article>
             <article>
               <small>当前股价</small>
-              <strong>{analysis.currentPrice === null ? '--' : `¥${formatPrice(analysis.currentPrice)}`}</strong>
+              <strong>
+                {analysis.currentPrice === null ? '--' : `¥${formatPrice(analysis.currentPrice)}`}
+              </strong>
             </article>
             <article>
               <small>相对当前股价</small>
@@ -261,8 +294,8 @@ function DcfPanel({
               <AlertCircle size={16} />
               <span>
                 <strong>DCF 低于现价提醒</strong>
-                DCF 仅为当前股价的 {fundamentalPercent(analysis.fairValueToPricePercent, 1)}，
-                低于 {DCF_LOW_VALUE_THRESHOLD_PERCENT}% 警戒线；当前股价高于 DCF 估值{' '}
+                DCF 仅为当前股价的 {fundamentalPercent(analysis.fairValueToPricePercent, 1)}， 低于{' '}
+                {DCF_LOW_VALUE_THRESHOLD_PERCENT}% 警戒线；当前股价高于 DCF 估值{' '}
                 {fundamentalPercent(Math.abs(analysis.differencePercent ?? 0), 1)}。
               </span>
             </div>
@@ -273,15 +306,19 @@ function DcfPanel({
                 : `DCF 估值低于当前股价 ${fundamentalPercent(Math.abs(analysis.differencePercent), 1)}，尚未触发 ${DCF_LOW_VALUE_THRESHOLD_PERCENT}% 警戒线。`}
             </p>
           ) : (
-            <p className="fundamental-dcf-comparison">暂无实时股价，暂不能判断 DCF 高于或低于当前股价多少。</p>
+            <p className="fundamental-dcf-comparison">
+              暂无实时股价，暂不能判断 DCF 高于或低于当前股价多少。
+            </p>
           )}
 
           <p className="fundamental-dcf-method">
-            口径：以近三年平均自由现金流 {fundamentalAmount(analysis.normalizedFreeCashFlow)} 为基础，
-            预测 {DCF_FORECAST_YEARS} 年增长 {fundamentalPercent(analysis.forecastGrowthRate, 1)}
+            口径：以近三年平均自由现金流 {fundamentalAmount(analysis.normalizedFreeCashFlow)}{' '}
+            为基础， 预测 {DCF_FORECAST_YEARS} 年增长{' '}
+            {fundamentalPercent(analysis.forecastGrowthRate, 1)}
             （历史复合增长 {fundamentalPercent(analysis.historicalGrowthRate, 1)}，限制在{' '}
             {DCF_MIN_FORECAST_GROWTH_RATE}%—{DCF_MAX_FORECAST_GROWTH_RATE}%），折现率{' '}
-            {DCF_DISCOUNT_RATE}%，永续增长率 {DCF_TERMINAL_GROWTH_RATE}%；企业价值扣除净负债后按总股本折算。
+            {DCF_DISCOUNT_RATE}%，永续增长率 {DCF_TERMINAL_GROWTH_RATE}
+            %；企业价值扣除净负债后按总股本折算。
           </p>
         </>
       )}
@@ -293,13 +330,13 @@ function DividendFinancingDeepDetails({ item }: { item: DividendFinancingRanking
   const annualDividends = (item.annualDividends ?? []).slice(-12)
   const maxAnnualDividend = Math.max(...annualDividends.map((point) => point.amountYi), 0.0001)
   const scoreParts = item.qualityScoreBreakdown
-    ? [
+    ? ([
         ['分红融资比分位', item.qualityScoreBreakdown.ratio, 30],
         ['净回报额分位', item.qualityScoreBreakdown.netReturn, 25],
         ['分红连续性', item.qualityScoreBreakdown.continuity, 25],
         ['近期增长', item.qualityScoreBreakdown.growth, 10],
         ['融资纪律', item.qualityScoreBreakdown.financingDiscipline, 10]
-      ] as const
+      ] as const)
     : []
   const trendLabels = {
     growing: '增长',
@@ -311,20 +348,48 @@ function DividendFinancingDeepDetails({ item }: { item: DividendFinancingRanking
   return (
     <section className="dividend-financing-history">
       <div className="dividend-financing-deep-metrics">
-        <div><span>近3年分红</span><strong>{item.recent3YearDividendYi === undefined ? '--' : dividendAmount(item.recent3YearDividendYi)}</strong></div>
-        <div><span>近5年分红</span><strong>{item.recent5YearDividendYi === undefined ? '--' : dividendAmount(item.recent5YearDividendYi)}</strong></div>
-        <div><span>连续分红</span><strong>{item.consecutiveDividendYears ?? '--'} 年</strong></div>
-        <div><span>累计分红年份</span><strong>{item.dividendYears ?? '--'} / {item.listedYears ?? '--'} 年</strong></div>
+        <div>
+          <span>近3年分红</span>
+          <strong>
+            {item.recent3YearDividendYi === undefined
+              ? '--'
+              : dividendAmount(item.recent3YearDividendYi)}
+          </strong>
+        </div>
+        <div>
+          <span>近5年分红</span>
+          <strong>
+            {item.recent5YearDividendYi === undefined
+              ? '--'
+              : dividendAmount(item.recent5YearDividendYi)}
+          </strong>
+        </div>
+        <div>
+          <span>连续分红</span>
+          <strong>{item.consecutiveDividendYears ?? '--'} 年</strong>
+        </div>
+        <div>
+          <span>累计分红年份</span>
+          <strong>
+            {item.dividendYears ?? '--'} / {item.listedYears ?? '--'} 年
+          </strong>
+        </div>
         <div>
           <span>近期分红趋势</span>
           <strong className={signedValueClass(item.recentDividendTrendPercent ?? 0)}>
             {item.dividendTrend ? trendLabels[item.dividendTrend] : '--'}
-            {item.recentDividendTrendPercent === null || item.recentDividendTrendPercent === undefined
+            {item.recentDividendTrendPercent === null ||
+            item.recentDividendTrendPercent === undefined
               ? ''
               : ` ${item.recentDividendTrendPercent > 0 ? '+' : ''}${item.recentDividendTrendPercent.toFixed(2)}%`}
           </strong>
         </div>
-        <div><span>股权融资事件</span><strong>{item.financingCount ?? '--'} 次 · 最近 {item.lastFinancingDate ?? '--'}</strong></div>
+        <div>
+          <span>股权融资事件</span>
+          <strong>
+            {item.financingCount ?? '--'} 次 · 最近 {item.lastFinancingDate ?? '--'}
+          </strong>
+        </div>
       </div>
       <div className="dividend-financing-history-content">
         <section>
@@ -332,14 +397,25 @@ function DividendFinancingDeepDetails({ item }: { item: DividendFinancingRanking
           {annualDividends.length > 0 ? (
             <div className="annual-dividend-chart">
               {annualDividends.map((point) => (
-                <div key={point.year} title={`${point.year}年 · ${dividendAmount(point.amountYi)} · ${point.eventCount}次`}>
-                  <span>{point.amountYi.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}</span>
-                  <i style={{ height: `${Math.max(4, point.amountYi / maxAnnualDividend * 100)}%` }} />
+                <div
+                  key={point.year}
+                  title={`${point.year}年 · ${dividendAmount(point.amountYi)} · ${point.eventCount}次`}
+                >
+                  <span>
+                    {point.amountYi.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}
+                  </span>
+                  <i
+                    style={{
+                      height: `${Math.max(4, (point.amountYi / maxAnnualDividend) * 100)}%`
+                    }}
+                  />
                   <strong>{point.year}</strong>
                 </div>
               ))}
             </div>
-          ) : <p className="dividend-financing-no-history">当前快照没有年度拆分数据</p>}
+          ) : (
+            <p className="dividend-financing-no-history">当前快照没有年度拆分数据</p>
+          )}
         </section>
         <section>
           <h4>股权融资时间线</h4>
@@ -353,22 +429,35 @@ function DividendFinancingDeepDetails({ item }: { item: DividendFinancingRanking
                 </li>
               ))}
             </ol>
-          ) : <p className="dividend-financing-no-history">当前快照没有融资事件明细</p>}
+          ) : (
+            <p className="dividend-financing-no-history">当前快照没有融资事件明细</p>
+          )}
         </section>
         <section>
-          <h4>回报质量评分 · {item.qualityScore?.toFixed(1) ?? '--'} 分 · 第 {item.scoreRank ?? '--'} 名</h4>
+          <h4>
+            回报质量评分 · {item.qualityScore?.toFixed(1) ?? '--'} 分 · 第 {item.scoreRank ?? '--'}{' '}
+            名
+          </h4>
           {scoreParts.length > 0 ? (
             <div className="dividend-score-breakdown">
               {scoreParts.map(([label, value, maximum]) => (
                 <div key={label}>
                   <span>{label}</span>
-                  <i><b style={{ width: `${value / maximum * 100}%` }} /></i>
-                  <strong>{value.toFixed(1)} / {maximum}</strong>
+                  <i>
+                    <b style={{ width: `${(value / maximum) * 100}%` }} />
+                  </i>
+                  <strong>
+                    {value.toFixed(1)} / {maximum}
+                  </strong>
                 </div>
               ))}
             </div>
-          ) : <p className="dividend-financing-no-history">当前快照没有评分拆解数据</p>}
-          <p className="dividend-score-note">评分只比较本期分红融资比超过100%的股票，用于解释历史股东回报质量，不代表未来收益。</p>
+          ) : (
+            <p className="dividend-financing-no-history">当前快照没有评分拆解数据</p>
+          )}
+          <p className="dividend-score-note">
+            评分只比较本期分红融资比超过100%的股票，用于解释历史股东回报质量，不代表未来收益。
+          </p>
         </section>
       </div>
     </section>
@@ -420,13 +509,17 @@ function DividendFinancingPanel({
         </div>
         <div>
           <span>净回报额</span>
-          <strong className={signedValueClass(item.netReturnYi ?? item.dividendYi - item.financingYi)}>
+          <strong
+            className={signedValueClass(item.netReturnYi ?? item.dividendYi - item.financingYi)}
+          >
             {dividendAmount(item.netReturnYi ?? item.dividendYi - item.financingYi)}
           </strong>
         </div>
         <div>
           <span>回报质量评分</span>
-          <strong>{item.qualityScore?.toFixed(1) ?? '--'} 分 · 第 {item.scoreRank ?? '--'} 名</strong>
+          <strong>
+            {item.qualityScore?.toFixed(1) ?? '--'} 分 · 第 {item.scoreRank ?? '--'} 名
+          </strong>
         </div>
         <DividendFinancingDeepDetails item={item} />
       </div>
@@ -442,18 +535,16 @@ const FUNDAMENTAL_ORGANIZATION_LABELS = {
   other: '其他金融企业'
 } as const
 
-function FundamentalRuleBadge({
-  status
-}: {
-  status: FundamentalRuleAssessmentStatus
-}) {
+function FundamentalRuleBadge({ status }: { status: FundamentalRuleAssessmentStatus }) {
   return (
     <span className={`fundamental-rule-badge is-${status}`}>
-      {status === 'passed'
-        ? <CircleCheck size={14} />
-        : status === 'failed'
-          ? <CircleX size={14} />
-          : <CircleMinus size={14} />}
+      {status === 'passed' ? (
+        <CircleCheck size={14} />
+      ) : status === 'failed' ? (
+        <CircleX size={14} />
+      ) : (
+        <CircleMinus size={14} />
+      )}
       {status === 'passed'
         ? '通过'
         : status === 'failed'
@@ -481,9 +572,8 @@ function FundamentalPeerMetricCard({
     <div className="fundamental-peer-metric">
       <span>
         <small>{title}</small>
-        <strong className={direction === 'higher'
-          ? signedValueClass(comparison.value ?? 0)
-          : undefined}
+        <strong
+          className={direction === 'higher' ? signedValueClass(comparison.value ?? 0) : undefined}
         >
           {fundamentalPercent(comparison.value)}
         </strong>
@@ -493,7 +583,9 @@ function FundamentalPeerMetricCard({
           <strong>当前指标缺失</strong>
         ) : ranked ? (
           <>
-            <strong>行业第 {comparison.rank} / {comparison.sampleSize}</strong>
+            <strong>
+              行业第 {comparison.rank} / {comparison.sampleSize}
+            </strong>
             <em>
               {direction === 'higher'
                 ? `行业前 ${comparison.topPercent}%`
@@ -523,7 +615,9 @@ function FundamentalPeerPanel({
     <section className="fundamental-peer-section">
       <header>
         <span>
-          <i><UsersRound size={17} /></i>
+          <i>
+            <UsersRound size={17} />
+          </i>
           <span>
             <strong>同行位置</strong>
             <small>{evaluation.company.industryName || '行业未知'}</small>
@@ -559,8 +653,8 @@ function FundamentalPeerPanel({
             />
           </div>
           <p className="fundamental-peer-note">
-            每项仅统计数据完整的企业；有效样本少于 {MIN_FUNDAMENTAL_PEER_SAMPLE_SIZE} 家时不发布名次。
-            现金转换率可能受累计净利润较小影响，需结合五年明细判断。
+            每项仅统计数据完整的企业；有效样本少于 {MIN_FUNDAMENTAL_PEER_SAMPLE_SIZE}{' '}
+            家时不发布名次。 现金转换率可能受累计净利润较小影响，需结合五年明细判断。
           </p>
         </>
       ) : (
@@ -612,7 +706,9 @@ function FundamentalQualityEvidence({
         <strong className={signedValueClass(metrics.netProfitCagr ?? 0)}>
           净利润复合增速 {fundamentalPercent(metrics.netProfitCagr)}
         </strong>
-        <p>{firstYear}—{lastYear} 共四个年度间隔，要求严格高于 10%</p>
+        <p>
+          {firstYear}—{lastYear} 共四个年度间隔，要求严格高于 10%
+        </p>
       </>
     )
   }
@@ -620,10 +716,12 @@ function FundamentalQualityEvidence({
     return (
       <>
         <strong>
-          五年波动范围 {metrics.roeRange?.toLocaleString('zh-CN', {
+          五年波动范围{' '}
+          {metrics.roeRange?.toLocaleString('zh-CN', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2
-          }) ?? '--'} 个百分点
+          }) ?? '--'}{' '}
+          个百分点
         </strong>
         <p>五年加权 ROE 最大值与最小值之差严格小于 8 个百分点</p>
       </>
@@ -644,22 +742,22 @@ function FundamentalQualityEvidence({
       <strong className={signedValueClass(metrics.latestCashConversion ?? 0)}>
         最新现金转换率 {fundamentalPercent(metrics.latestCashConversion)}
       </strong>
-      <p>{recentFirstYear}—{lastYear} 加权 ROE 与净利润均连续增长</p>
+      <p>
+        {recentFirstYear}—{lastYear} 加权 ROE 与净利润均连续增长
+      </p>
     </>
   )
 }
 
-function FundamentalQualityPanel({
-  evaluation
-}: {
-  evaluation: FundamentalScreeningEvaluation
-}) {
+function FundamentalQualityPanel({ evaluation }: { evaluation: FundamentalScreeningEvaluation }) {
   const profile = evaluateFundamentalQuality(evaluation.company)
   return (
     <section className="fundamental-quality-section">
       <header>
         <span>
-          <i><Sparkles size={17} /></i>
+          <i>
+            <Sparkles size={17} />
+          </i>
           <span>
             <strong>质量特征</strong>
             <small>固定按软件推荐口径计算</small>
@@ -677,11 +775,7 @@ function FundamentalQualityPanel({
           {profile.tags.map((tag) => (
             <article className={tag === 'improving' ? 'is-improving' : ''} key={tag}>
               <span>{FUNDAMENTAL_QUALITY_TAG_LABELS[tag]}</span>
-              <FundamentalQualityEvidence
-                tag={tag}
-                profile={profile}
-                evaluation={evaluation}
-              />
+              <FundamentalQualityEvidence tag={tag} profile={profile} evaluation={evaluation} />
             </article>
           ))}
         </div>
@@ -744,7 +838,9 @@ function FundamentalRiskEvidence({
         <strong className={signedValueClass(metrics.latestCashConversion ?? 0)}>
           最新现金转换率 {fundamentalPercent(metrics.latestCashConversion)}
         </strong>
-        <p>{recentFirstYear}—{lastYear} 净利润连续增长，但经营现金流连续下降</p>
+        <p>
+          {recentFirstYear}—{lastYear} 净利润连续增长，但经营现金流连续下降
+        </p>
       </>
     )
   }
@@ -752,10 +848,12 @@ function FundamentalRiskEvidence({
     return (
       <>
         <strong className={signedValueClass(-(metrics.roeDeclinePoints ?? 0))}>
-          较 {firstYear} 年下降 {metrics.roeDeclinePoints?.toLocaleString('zh-CN', {
+          较 {firstYear} 年下降{' '}
+          {metrics.roeDeclinePoints?.toLocaleString('zh-CN', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2
-          }) ?? '--'} 个百分点
+          }) ?? '--'}{' '}
+          个百分点
         </strong>
         <p>五年 ROE 仍每年高于 15%，但最新值较五年前下降至少 5 个百分点</p>
       </>
@@ -771,17 +869,15 @@ function FundamentalRiskEvidence({
   )
 }
 
-function FundamentalRiskPanel({
-  evaluation
-}: {
-  evaluation: FundamentalScreeningEvaluation
-}) {
+function FundamentalRiskPanel({ evaluation }: { evaluation: FundamentalScreeningEvaluation }) {
   const profile = evaluateFundamentalRisk(evaluation.company)
   return (
     <section className="fundamental-risk-section">
       <header>
         <span>
-          <i><AlertCircle size={17} /></i>
+          <i>
+            <AlertCircle size={17} />
+          </i>
           <span>
             <strong>风险关注</strong>
             <small>固定按软件推荐口径识别</small>
@@ -799,11 +895,7 @@ function FundamentalRiskPanel({
           {profile.tags.map((tag) => (
             <article className={`is-${FUNDAMENTAL_RISK_TAG_SEVERITY[tag]}`} key={tag}>
               <span>{FUNDAMENTAL_RISK_TAG_LABELS[tag]}</span>
-              <FundamentalRiskEvidence
-                tag={tag}
-                profile={profile}
-                evaluation={evaluation}
-              />
+              <FundamentalRiskEvidence tag={tag} profile={profile} evaluation={evaluation} />
             </article>
           ))}
         </div>
@@ -858,14 +950,21 @@ function FundamentalPanel({
       {staleReason ? (
         <div className="fundamental-stale-notice" role="status">
           <AlertCircle size={15} />
-          <span><strong>当前基本面数据已过期</strong>{staleReason}</span>
+          <span>
+            <strong>当前基本面数据已过期</strong>
+            {staleReason}
+          </span>
         </div>
       ) : null}
 
       <div className="fundamental-detail-conclusion-card">
-        <span className="fundamental-detail-icon"><Building2 size={20} /></span>
+        <span className="fundamental-detail-icon">
+          <Building2 size={20} />
+        </span>
         <span className="fundamental-detail-conclusion-copy">
-          <small>{organizationLabel} · {company.industryName || '行业未知'}</small>
+          <small>
+            {organizationLabel} · {company.industryName || '行业未知'}
+          </small>
           <strong>
             {eligibleOrganization
               ? screeningSummary.status === 'passed'
@@ -936,10 +1035,13 @@ function FundamentalPanel({
           </header>
           <div>
             <span>资产负债率 / 行业 P60</span>
-            <strong>{fundamentalPercent(debtAssetRatio)} / {fundamentalPercent(debtP60)}</strong>
+            <strong>
+              {fundamentalPercent(debtAssetRatio)} / {fundamentalPercent(debtP60)}
+            </strong>
           </div>
           <p>
-            当前位于行业 {fundamentalPercent(debtPercentile, 1)} 分位，要求严格低于 {debtThreshold}% 分位
+            当前位于行业 {fundamentalPercent(debtPercentile, 1)} 分位，要求严格低于 {debtThreshold}%
+            分位
           </p>
         </section>
       </div>
@@ -1032,6 +1134,11 @@ interface ExpandedStockDetailsProps {
   autoRefreshOrderBook: boolean
   chipDistributionEnabled: boolean
   bollingerBandsEnabled: boolean
+  trackingProfile?: StockTrackingProfile
+  onStartTracking: (quoteId: string) => void
+  onUpdateTracking: (profile: StockTrackingProfile) => void
+  onStopTracking: (quoteId: string, result: StockTrackingConclusionResult, summary: string) => void
+  onRestartTracking: (quoteId: string) => void
   onChipDistributionEnabledChange: (enabled: boolean) => void
   onBollingerBandsEnabledChange: (enabled: boolean) => void
 }
@@ -1054,15 +1161,20 @@ export function ExpandedStockDetails({
   autoRefreshOrderBook,
   chipDistributionEnabled,
   bollingerBandsEnabled,
+  trackingProfile,
+  onStartTracking,
+  onUpdateTracking,
+  onStopTracking,
+  onRestartTracking,
   onChipDistributionEnabledChange,
   onBollingerBandsEnabledChange
 }: ExpandedStockDetailsProps) {
   const initialTrend = klineCache.get(cacheKey(stock.quoteId, 'trend'))?.data
   const [activeTab, setActiveTab] = useState<DetailTab>('trend')
   const [aiAnalysisType, setAiAnalysisType] = useState<AiAnalysisType>('short-term')
-  const [dataByTab, setDataByTab] = useState<Partial<Record<PriceTab, KlineResult>>>(() => (
+  const [dataByTab, setDataByTab] = useState<Partial<Record<PriceTab, KlineResult>>>(() =>
     initialTrend ? { trend: initialTrend } : {}
-  ))
+  )
   const [loadingTab, setLoadingTab] = useState<PriceTab | null>(initialTrend ? null : 'trend')
   const [errors, setErrors] = useState<Partial<Record<PriceTab, string>>>({})
   const [refreshVersion, setRefreshVersion] = useState(0)
@@ -1073,13 +1185,14 @@ export function ExpandedStockDetails({
   const [dailyVisibleRange, setDailyVisibleRange] = useState<KlineVisibleRange | null>(null)
   const [chipAutoRangeMode, setChipAutoRangeMode] = useState(true)
   const [chipRangeRequestKey, setChipRangeRequestKey] = useState(0)
-  const [marketInsightSnapshot, setMarketInsightSnapshot] = useState<MarketInsightSnapshot | null>(null)
+  const [marketInsightSnapshot, setMarketInsightSnapshot] = useState<MarketInsightSnapshot | null>(
+    null
+  )
   const [showInsightOverlay, setShowInsightOverlay] = useState(true)
   const [aiEnabled, setAiEnabled] = useState(false)
   const [aiStatusLoaded, setAiStatusLoaded] = useState(false)
-  const activeHistoricalLimit = isPriceTab(activeTab) && isHistoricalTab(activeTab)
-    ? historyLimits[activeTab]
-    : undefined
+  const activeHistoricalLimit =
+    isPriceTab(activeTab) && isHistoricalTab(activeTab) ? historyLimits[activeTab] : undefined
 
   useEffect(() => {
     if (!fundamentalTabRequested) return
@@ -1105,9 +1218,7 @@ export function ExpandedStockDetails({
     } else if (detailNavigationTarget === 't-advice') {
       setActiveTab('t-advice')
     } else {
-      setAiAnalysisType(
-        detailNavigationTarget === 'ai-long-term' ? 'long-term' : 'short-term'
-      )
+      setAiAnalysisType(detailNavigationTarget === 'ai-long-term' ? 'long-term' : 'short-term')
       setActiveTab('ai')
     }
     onDetailNavigationHandled(detailNavigationId)
@@ -1176,24 +1287,32 @@ export function ExpandedStockDetails({
     const cached = klineCache.get(key)
     const isLiveChart = tab === 'trend' || tab === 'fiveDay'
     const requestedLimit = isHistoricalTab(tab) ? activeHistoricalLimit : undefined
-    const cacheHasRequestedRange = requestedLimit === undefined
-      || (cached?.requestedLimit ?? 0) >= requestedLimit
+    const cacheHasRequestedRange =
+      requestedLimit === undefined || (cached?.requestedLimit ?? 0) >= requestedLimit
     const freshness = isLiveChart ? INTRADAY_REFRESH_MILLISECONDS : 5 * 60 * 1000
     let refreshTimer: number | undefined
     let active = true
 
     const scheduleRefresh = () => {
       if (!isLiveChart) return
-      refreshTimer = window.setTimeout(() => {
-        if (isBeijingAutoRefreshTime()) {
-          setRefreshVersion((current) => current + 1)
-        } else {
-          scheduleRefresh()
-        }
-      }, isBeijingAutoRefreshTime() ? freshness : millisecondsUntilNextAutoRefreshWindow())
+      refreshTimer = window.setTimeout(
+        () => {
+          if (isBeijingAutoRefreshTime()) {
+            setRefreshVersion((current) => current + 1)
+          } else {
+            scheduleRefresh()
+          }
+        },
+        isBeijingAutoRefreshTime() ? freshness : millisecondsUntilNextAutoRefreshWindow()
+      )
     }
 
-    if (refreshVersion === 0 && cached && cacheHasRequestedRange && Date.now() - cached.cachedAt < freshness) {
+    if (
+      refreshVersion === 0 &&
+      cached &&
+      cacheHasRequestedRange &&
+      Date.now() - cached.cachedAt < freshness
+    ) {
       setDataByTab((current) => ({ ...current, [tab]: cached.data }))
       setErrors((current) => ({ ...current, [tab]: '' }))
       setLoadingTab(null)
@@ -1203,7 +1322,8 @@ export function ExpandedStockDetails({
 
     setLoadingTab(tab)
     setErrors((current) => ({ ...current, [tab]: '' }))
-    stockApi.getKline(stock.quoteId, apiPeriod(tab), requestedLimit)
+    stockApi
+      .getKline(stock.quoteId, apiPeriod(tab), requestedLimit)
       .then((result) => {
         if (!active) return
         const isFiveMinuteFallback = tab === 'trend' && result.intervalMinutes === 5
@@ -1222,7 +1342,10 @@ export function ExpandedStockDetails({
         if (!active) return
         setErrors((current) => ({
           ...current,
-          [tab]: reason instanceof Error ? reason.message : `${PRICE_TABS.find((item) => item.id === tab)?.label}加载失败`
+          [tab]:
+            reason instanceof Error
+              ? reason.message
+              : `${PRICE_TABS.find((item) => item.id === tab)?.label}加载失败`
         }))
       })
       .finally(() => {
@@ -1238,34 +1361,40 @@ export function ExpandedStockDetails({
   }, [activeHistoricalLimit, activeTab, refreshVersion, stock.quoteId])
 
   const priceTab = isPriceTab(activeTab) ? activeTab : null
-  const data = priceTab ? dataByTab[priceTab] ?? null : null
-  const error = priceTab ? errors[priceTab] ?? '' : ''
+  const data = priceTab ? (dataByTab[priceTab] ?? null) : null
+  const error = priceTab ? (errors[priceTab] ?? '') : ''
   const tabMeta = priceTab ? PRICE_TABS.find((item) => item.id === priceTab) : undefined
   const isLoading = priceTab !== null && loadingTab === priceTab
   const historicalPeriod = priceTab && isHistoricalTab(priceTab) ? priceTab : null
   const isHistorical = historicalPeriod !== null
   const dailyBars = dataByTab.daily?.bars ?? []
   const chipAutoRange = useMemo(() => findChipAutoRange(dailyBars), [dailyBars])
-  const chipDataStatus = dailyBars.length > 0
-    ? chipAutoRange
-      ? 'ready' as const
-      : 'missing-turnover' as const
-    : loadingTab === 'daily' || activeTab === 'daily' && !dataByTab.daily && !errors.daily
-      ? 'loading' as const
-      : errors.daily
-        ? 'failed' as const
-        : 'empty' as const
-  const chipStatusDetail = chipDataStatus === 'failed'
-    ? errors.daily
-    : chipDataStatus === 'missing-turnover'
-      ? dataByTab.daily?.fallbackReason
-        ? `${dataByTab.daily.fallbackReason}；备用数据未提供完整换手率。`
+  const chipDataStatus =
+    dailyBars.length > 0
+      ? chipAutoRange
+        ? ('ready' as const)
+        : ('missing-turnover' as const)
+      : loadingTab === 'daily' || (activeTab === 'daily' && !dataByTab.daily && !errors.daily)
+        ? ('loading' as const)
+        : errors.daily
+          ? ('failed' as const)
+          : ('empty' as const)
+  const chipStatusDetail =
+    chipDataStatus === 'failed'
+      ? errors.daily
+      : chipDataStatus === 'missing-turnover'
+        ? dataByTab.daily?.fallbackReason
+          ? `${dataByTab.daily.fallbackReason}；备用数据未提供完整换手率。`
+          : undefined
         : undefined
-      : undefined
-  const chipVisibleRange = chipAutoRangeMode ? chipAutoRange : dailyVisibleRange ?? chipAutoRange
-  const chipBars = useMemo(() => chipVisibleRange
-    ? dailyBars.slice(chipVisibleRange.fromIndex, chipVisibleRange.toIndex + 1)
-    : [], [chipVisibleRange, dailyBars])
+  const chipVisibleRange = chipAutoRangeMode ? chipAutoRange : (dailyVisibleRange ?? chipAutoRange)
+  const chipBars = useMemo(
+    () =>
+      chipVisibleRange
+        ? dailyBars.slice(chipVisibleRange.fromIndex, chipVisibleRange.toIndex + 1)
+        : [],
+    [chipVisibleRange, dailyBars]
+  )
   const isFiveMinuteFallback = priceTab === 'trend' && data?.intervalMinutes === 5
   const overviewBar = priceTab === 'trend' ? null : hoveredBar
   const changePercentByTime = useMemo(() => {
@@ -1275,39 +1404,46 @@ export function ExpandedStockDetails({
     for (let index = 1; index < data.bars.length; index += 1) {
       const previousClose = data.bars[index - 1].close
       if (previousClose !== 0) {
-        changes.set(data.bars[index].time, (data.bars[index].close - previousClose) / previousClose * 100)
+        changes.set(
+          data.bars[index].time,
+          ((data.bars[index].close - previousClose) / previousClose) * 100
+        )
       }
     }
     return changes
   }, [data, isHistorical])
-  const overview = overviewBar ? [
-    ['开盘', formatPrice(overviewBar.open)],
-    ['收盘', formatPrice(overviewBar.close)],
-    ...(isHistorical ? [['涨幅', formatPercent(changePercentByTime.get(overviewBar.time))]] : []),
-    ['最高', formatPrice(overviewBar.high)],
-    ['最低', formatPrice(overviewBar.low)],
-    ['成交量', formatVolume(overviewBar.volume)],
-    ['成交额', formatAmount(overviewBar.amount)]
-  ] : [
-    ['今开', formatPrice(quote?.open)],
-    ['昨收', formatPrice(quote?.previousClose)],
-    ['最高', formatPrice(quote?.high)],
-    ['最低', formatPrice(quote?.low)],
-    ['成交量', formatVolume(quote?.volume)],
-    ['成交额', formatAmount(quote?.amount)]
-  ]
+  const overview = overviewBar
+    ? [
+        ['开盘', formatPrice(overviewBar.open)],
+        ['收盘', formatPrice(overviewBar.close)],
+        ...(isHistorical
+          ? [['涨幅', formatPercent(changePercentByTime.get(overviewBar.time))]]
+          : []),
+        ['最高', formatPrice(overviewBar.high)],
+        ['最低', formatPrice(overviewBar.low)],
+        ['成交量', formatVolume(overviewBar.volume)],
+        ['成交额', formatAmount(overviewBar.amount)]
+      ]
+    : [
+        ['今开', formatPrice(quote?.open)],
+        ['昨收', formatPrice(quote?.previousClose)],
+        ['最高', formatPrice(quote?.high)],
+        ['最低', formatPrice(quote?.low)],
+        ['成交量', formatVolume(quote?.volume)],
+        ['成交额', formatAmount(quote?.amount)]
+      ]
 
   const handleHoverBar = useCallback((bar: KlineBar | null) => {
     setHoveredBar(bar)
   }, [])
 
-  const handleDailyVisibleRangeChange = useCallback((
-    range: KlineVisibleRange,
-    source: KlineVisibleRangeSource
-  ) => {
-    setDailyVisibleRange(range)
-    if (source === 'user') setChipAutoRangeMode(false)
-  }, [])
+  const handleDailyVisibleRangeChange = useCallback(
+    (range: KlineVisibleRange, source: KlineVisibleRangeSource) => {
+      setDailyVisibleRange(range)
+      if (source === 'user') setChipAutoRangeMode(false)
+    },
+    []
+  )
 
   const requestMoreHistory = useCallback((period: HistoricalPeriod) => {
     setHistoryLimits((current) => {
@@ -1321,9 +1457,9 @@ export function ExpandedStockDetails({
     if (chipAutoRange.reachedThreshold || dailyBars.length < historyLimits.daily) return
     const estimatedLimit = estimateChipHistoryLimit(dailyBars, MAX_HISTORY_LIMITS.daily)
     if (estimatedLimit === null) return
-    setHistoryLimits((current) => current.daily >= estimatedLimit
-      ? current
-      : { ...current, daily: estimatedLimit })
+    setHistoryLimits((current) =>
+      current.daily >= estimatedLimit ? current : { ...current, daily: estimatedLimit }
+    )
   }, [activeTab, chipAutoRange, chipDistributionEnabled, dailyBars, historyLimits.daily])
 
   const toggleChipDistribution = () => {
@@ -1403,6 +1539,16 @@ export function ExpandedStockDetails({
           <BookOpen size={15} />
           财报库
         </button>
+        <button
+          className={activeTab === 'tracking' ? 'is-active' : ''}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'tracking'}
+          onClick={() => setActiveTab('tracking')}
+        >
+          <Binoculars size={15} />
+          选股复盘
+        </button>
         {MarketInsightPanel ? (
           <button
             className={activeTab === 'insight' ? 'is-active' : ''}
@@ -1435,8 +1581,7 @@ export function ExpandedStockDetails({
             aria-selected={activeTab === 't-advice'}
             onClick={() => setActiveTab('t-advice')}
           >
-            <Sparkles size={15} />
-            做 T 参考
+            <Sparkles size={15} />做 T 参考
           </button>
         ) : null}
         {TRAILING_PRICE_TABS.map((tab) => (
@@ -1466,7 +1611,10 @@ export function ExpandedStockDetails({
 
       {activeTab === 'dividendFinancing' ? (
         <div className="dividend-financing-tab-content" role="tabpanel">
-          <DividendFinancingPanel item={dividendFinancing} snapshotDate={dividendFinancingSnapshotDate} />
+          <DividendFinancingPanel
+            item={dividendFinancing}
+            snapshotDate={dividendFinancingSnapshotDate}
+          />
         </div>
       ) : activeTab === 'fundamental' ? (
         <div className="fundamental-tab-content" role="tabpanel">
@@ -1481,12 +1629,24 @@ export function ExpandedStockDetails({
         </div>
       ) : activeTab === 'reports' ? (
         <CompanyReportLibrary stock={stock} />
+      ) : activeTab === 'tracking' ? (
+        <StockTrackingPanel
+          stock={stock}
+          quote={quote}
+          profile={trackingProfile}
+          onStartTracking={onStartTracking}
+          onUpdateProfile={onUpdateTracking}
+          onStopTracking={onStopTracking}
+          onRestartTracking={onRestartTracking}
+        />
       ) : priceTab ? (
         <div className="trend-tab-panel" role="tabpanel">
           <div className="overview-header">
             <div>
               <strong>今日概览</strong>
-              <span>{overviewBar?.time || data?.tradingDate || '最近交易日'} · {tabMeta?.description}</span>
+              <span>
+                {overviewBar?.time || data?.tradingDate || '最近交易日'} · {tabMeta?.description}
+              </span>
               {isFiveMinuteFallback ? (
                 <em className="intraday-fallback-badge">5分钟备用行情</em>
               ) : null}
@@ -1506,7 +1666,9 @@ export function ExpandedStockDetails({
                   aria-checked={chipDistributionEnabled}
                   onClick={toggleChipDistribution}
                 >
-                  <span aria-hidden="true"><i /></span>
+                  <span aria-hidden="true">
+                    <i />
+                  </span>
                   筹码分布
                 </button>
               ) : null}
@@ -1520,10 +1682,15 @@ export function ExpandedStockDetails({
               </div>
             ))}
           </div>
-          <div className={`chart-panel ${priceTab === 'trend' ? 'has-order-book' : ''} ${historicalPeriod ? 'has-bollinger-toolbar' : ''} ${priceTab === 'daily' && chipDistributionEnabled ? 'has-chip-distribution' : ''}`}>
+          <div
+            className={`chart-panel ${priceTab === 'trend' ? 'has-order-book' : ''} ${historicalPeriod ? 'has-bollinger-toolbar' : ''} ${priceTab === 'daily' && chipDistributionEnabled ? 'has-chip-distribution' : ''}`}
+          >
             <div className="chart-content">
-              {error && data || isFiveMinuteFallback ? (
-                <div className="chart-refresh-warning" title={isFiveMinuteFallback ? data?.fallbackReason : error}>
+              {(error && data) || isFiveMinuteFallback ? (
+                <div
+                  className="chart-refresh-warning"
+                  title={isFiveMinuteFallback ? data?.fallbackReason : error}
+                >
                   <AlertCircle size={14} />
                   <span>
                     {isFiveMinuteFallback
@@ -1532,12 +1699,18 @@ export function ExpandedStockDetails({
                         ? '1分钟分时刷新失败，当前显示最近一次1分钟数据'
                         : `${tabMeta?.label}数据刷新失败，当前显示最近一次数据`}
                   </span>
-                  <button type="button" onClick={retryCurrentTab}>重试</button>
+                  <button type="button" onClick={retryCurrentTab}>
+                    重试
+                  </button>
                 </div>
               ) : null}
               {isLoading && data && isHistorical ? (
                 <div className="chart-history-loading">
-                  {priceTab === 'daily' && chipDistributionEnabled && chipAutoRangeMode && chipAutoRange && !chipAutoRange.reachedThreshold
+                  {priceTab === 'daily' &&
+                  chipDistributionEnabled &&
+                  chipAutoRangeMode &&
+                  chipAutoRange &&
+                  !chipAutoRange.reachedThreshold
                     ? `正在补取更早日 K：累计换手 ${chipAutoRange.cumulativeTurnover.toFixed(2)}%，目标 100%`
                     : '正在加载更早数据…'}
                 </div>
@@ -1551,7 +1724,11 @@ export function ExpandedStockDetails({
                 <div className="chart-error">
                   <AlertCircle size={18} />
                   <span>{error}</span>
-                  <button className="secondary-button chart-retry-button" type="button" onClick={retryCurrentTab}>
+                  <button
+                    className="secondary-button chart-retry-button"
+                    type="button"
+                    onClick={retryCurrentTab}
+                  >
                     <RefreshCw size={14} />
                     重新获取
                   </button>
@@ -1564,11 +1741,15 @@ export function ExpandedStockDetails({
                       period={historicalPeriod}
                       onHoverBar={handleHoverBar}
                       onRequestMore={requestMoreHistory}
-                      requestedVisibleBars={historicalPeriod === 'daily' && chipDistributionEnabled && chipAutoRangeMode
-                        ? chipAutoRange?.barCount
-                        : undefined}
+                      requestedVisibleBars={
+                        historicalPeriod === 'daily' && chipDistributionEnabled && chipAutoRangeMode
+                          ? chipAutoRange?.barCount
+                          : undefined
+                      }
                       visibleRangeRequestKey={chipRangeRequestKey}
-                      onVisibleRangeChange={historicalPeriod === 'daily' ? handleDailyVisibleRangeChange : undefined}
+                      onVisibleRangeChange={
+                        historicalPeriod === 'daily' ? handleDailyVisibleRangeChange : undefined
+                      }
                       bollingerBandsEnabled={bollingerBandsEnabled}
                       onBollingerBandsEnabledChange={onBollingerBandsEnabledChange}
                       height={historicalPeriod === 'daily' && chipDistributionEnabled ? 360 : 320}
@@ -1578,7 +1759,11 @@ export function ExpandedStockDetails({
                       bars={data.bars}
                       variant={priceTab === 'fiveDay' ? 'fiveDay' : 'intraday'}
                       onHoverBar={priceTab === 'trend' ? undefined : handleHoverBar}
-                      marketInsightOverlay={priceTab === 'trend' && showInsightOverlay ? marketInsightSnapshot?.chartOverlay : null}
+                      marketInsightOverlay={
+                        priceTab === 'trend' && showInsightOverlay
+                          ? marketInsightSnapshot?.chartOverlay
+                          : null
+                      }
                     />
                   )}
                 </Suspense>
