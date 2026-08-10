@@ -272,60 +272,62 @@ export function StockTrackingEditor({
         </div>
       </section>
 
-      <section className="stock-tracking-section">
-        <div className="stock-tracking-section-title">
-          <BookOpenText size={16} />
-          <strong>当前选股逻辑与总结</strong>
-        </div>
-        <textarea
-          className="stock-tracking-thesis"
-          value={thesis}
-          onChange={(event) => setThesis(event.target.value)}
-          placeholder="记录为什么关注这只股票、预期验证条件、风险点和失效条件"
-        />
-        <div className="stock-tracking-save-row">
-          <span>输入内容不会在每次按键时写入配置，请点击保存。</span>
-          <button className="primary-button" type="button" onClick={saveThesis}>
-            <Save size={14} />
-            保存总结
-          </button>
-        </div>
-      </section>
-
-      <section className="stock-tracking-section">
-        <div className="stock-tracking-section-title">
-          <History size={16} />
-          <strong>新增跟踪记录</strong>
-        </div>
-        <div className="stock-tracking-entry-form">
-          <select
-            value={entryType}
-            onChange={(event) =>
-              setEntryType(event.target.value as Exclude<StockTrackingEntryType, 'system'>)
-            }
-          >
-            {(['note', 'thesis', 'review'] as const).map((type) => (
-              <option value={type} key={type}>
-                {STOCK_TRACKING_ENTRY_LABELS[type]}
-              </option>
-            ))}
-          </select>
+      <div className="stock-tracking-edit-grid">
+        <section className="stock-tracking-section">
+          <div className="stock-tracking-section-title">
+            <BookOpenText size={16} />
+            <strong>当前选股逻辑与总结</strong>
+          </div>
           <textarea
-            value={entryContent}
-            onChange={(event) => setEntryContent(event.target.value)}
-            placeholder="记录今天观察到的变化、判断和后续计划"
+            className="stock-tracking-thesis"
+            value={thesis}
+            onChange={(event) => setThesis(event.target.value)}
+            placeholder="记录为什么关注这只股票、预期验证条件、风险点和失效条件"
           />
-          <button
-            className="primary-button"
-            type="button"
-            onClick={addEntry}
-            disabled={!entryContent.trim()}
-          >
-            <Plus size={14} />
-            添加记录
-          </button>
-        </div>
-      </section>
+          <div className="stock-tracking-save-row">
+            <span>输入内容不会在每次按键时写入配置，请点击保存。</span>
+            <button className="primary-button" type="button" onClick={saveThesis}>
+              <Save size={14} />
+              保存总结
+            </button>
+          </div>
+        </section>
+
+        <section className="stock-tracking-section">
+          <div className="stock-tracking-section-title">
+            <History size={16} />
+            <strong>新增跟踪记录</strong>
+          </div>
+          <div className="stock-tracking-entry-form">
+            <select
+              value={entryType}
+              onChange={(event) =>
+                setEntryType(event.target.value as Exclude<StockTrackingEntryType, 'system'>)
+              }
+            >
+              {(['note', 'thesis', 'review'] as const).map((type) => (
+                <option value={type} key={type}>
+                  {STOCK_TRACKING_ENTRY_LABELS[type]}
+                </option>
+              ))}
+            </select>
+            <textarea
+              value={entryContent}
+              onChange={(event) => setEntryContent(event.target.value)}
+              placeholder="记录今天观察到的变化、判断和后续计划"
+            />
+            <button
+              className="primary-button"
+              type="button"
+              onClick={addEntry}
+              disabled={!entryContent.trim()}
+            >
+              <Plus size={14} />
+              添加记录
+            </button>
+          </div>
+        </section>
+      </div>
 
       <section className="stock-tracking-section">
         <div className="stock-tracking-section-title">

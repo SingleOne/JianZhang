@@ -13,7 +13,15 @@
   background: var(--blue-soft);
   color: var(--blue);
   font-size: 12px;
+  font-family: inherit;
   font-weight: 700;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.stock-tracking-row-badge:hover {
+  border-color: rgba(37, 99, 235, 0.48);
+  background: rgba(37, 99, 235, 0.16);
 }
 
 .stock-tracking-editor-header,
@@ -485,6 +493,16 @@
   min-height: 112px;
 }
 
+.stock-tracking-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.stock-tracking-edit-grid > .stock-tracking-section {
+  min-width: 0;
+}
+
 .stock-tracking-save-row {
   justify-content: space-between;
   gap: 10px;
@@ -585,6 +603,10 @@
 
   .stock-tracking-entry-form select {
     width: 100%;
+  }
+
+  .stock-tracking-edit-grid {
+    grid-template-columns: 1fr;
   }
 
   .stock-tracking-metric-cards {

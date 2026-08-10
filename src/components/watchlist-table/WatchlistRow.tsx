@@ -188,6 +188,7 @@ export const WatchlistRow = memo(function WatchlistRow({
   onRemove
 }: WatchlistRowProps) {
   const [fundamentalTabRequested, setFundamentalTabRequested] = useState(false)
+  const [trackingTabRequested, setTrackingTabRequested] = useState(false)
   const fundamentalSummary = summarizeFundamentalScreening(fundamentalScreening)
   const fundamentalRisk = fundamentalScreening
     ? evaluateFundamentalRisk(fundamentalScreening.company)
@@ -222,6 +223,11 @@ export const WatchlistRow = memo(function WatchlistRow({
         : 'is-active'
   const handleFundamentalBadgeClick = useCallback(() => {
     setFundamentalTabRequested(true)
+    if (!selected) onToggleDetails(stock.quoteId)
+  }, [onToggleDetails, selected, stock.quoteId])
+
+  const handleTrackingBadgeClick = useCallback(() => {
+    setTrackingTabRequested(true)
     if (!selected) onToggleDetails(stock.quoteId)
   }, [onToggleDetails, selected, stock.quoteId])
 
@@ -371,9 +377,18 @@ export const WatchlistRow = memo(function WatchlistRow({
                           </span>
                         ) : null}
                         {trackingProfile?.status === 'tracking' ? (
-                          <span className="stock-tracking-row-badge" title="正在追踪并保留复盘记录">
+                          <button
+                            className="stock-tracking-row-badge"
+                            type="button"
+                            title="打开选股追踪"
+                            aria-label={`打开 ${stock.name} 的选股追踪`}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              handleTrackingBadgeClick()
+                            }}
+                          >
                             追踪
-                          </span>
+                          </button>
                         ) : null}
                         <FiveLevelAlertBadges
                           alerts={activeTBatch ? quote?.fiveLevelLargeOrders : undefined}
@@ -667,6 +682,8 @@ export const WatchlistRow = memo(function WatchlistRow({
                   fundamentalStaleReason={fundamentalStaleReason}
                   fundamentalTabRequested={fundamentalTabRequested}
                   onFundamentalTabRequestHandled={() => setFundamentalTabRequested(false)}
+                  trackingTabRequested={trackingTabRequested}
+                  onTrackingTabRequestHandled={() => setTrackingTabRequested(false)}
                   detailNavigationRequest={detailNavigationRequest}
                   onDetailNavigationHandled={onDetailNavigationHandled}
                   refreshSeconds={stock.isPriority ? priorityRefreshSeconds : regularRefreshSeconds}

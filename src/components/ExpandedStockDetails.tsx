@@ -1128,6 +1128,8 @@ interface ExpandedStockDetailsProps {
   fundamentalStaleReason?: string | null
   fundamentalTabRequested?: boolean
   onFundamentalTabRequestHandled?: () => void
+  trackingTabRequested?: boolean
+  onTrackingTabRequestHandled?: () => void
   detailNavigationRequest: StockDetailNavigationRequest | null
   onDetailNavigationHandled: (requestId: string) => void
   refreshSeconds: number
@@ -1155,6 +1157,8 @@ export function ExpandedStockDetails({
   fundamentalStaleReason,
   fundamentalTabRequested,
   onFundamentalTabRequestHandled,
+  trackingTabRequested,
+  onTrackingTabRequestHandled,
   detailNavigationRequest,
   onDetailNavigationHandled,
   refreshSeconds,
@@ -1199,6 +1203,12 @@ export function ExpandedStockDetails({
     setActiveTab('fundamental')
     onFundamentalTabRequestHandled?.()
   }, [fundamentalTabRequested, onFundamentalTabRequestHandled])
+
+  useEffect(() => {
+    if (!trackingTabRequested) return
+    setActiveTab('tracking')
+    onTrackingTabRequestHandled?.()
+  }, [onTrackingTabRequestHandled, trackingTabRequested])
 
   const detailNavigationId = detailNavigationRequest?.id
   const detailNavigationTarget = detailNavigationRequest?.target
@@ -1547,7 +1557,7 @@ export function ExpandedStockDetails({
           onClick={() => setActiveTab('tracking')}
         >
           <Binoculars size={15} />
-          选股复盘
+          选股追踪
         </button>
         {MarketInsightPanel ? (
           <button
@@ -1559,29 +1569,6 @@ export function ExpandedStockDetails({
           >
             <Radar size={15} />
             市场观察
-          </button>
-        ) : null}
-        {AiAnalysisPanel && aiEnabled ? (
-          <button
-            className={activeTab === 'ai' ? 'is-active' : ''}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'ai'}
-            onClick={() => setActiveTab('ai')}
-          >
-            <Bot size={15} />
-            AI 分析
-          </button>
-        ) : null}
-        {AiTAdvicePanel && aiEnabled ? (
-          <button
-            className={activeTab === 't-advice' ? 'is-active' : ''}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 't-advice'}
-            onClick={() => setActiveTab('t-advice')}
-          >
-            <Sparkles size={15} />做 T 参考
           </button>
         ) : null}
         {TRAILING_PRICE_TABS.map((tab) => (
@@ -1607,6 +1594,29 @@ export function ExpandedStockDetails({
           <Layers size={15} />
           板块
         </button>
+        {AiAnalysisPanel && aiEnabled ? (
+          <button
+            className={activeTab === 'ai' ? 'is-active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'ai'}
+            onClick={() => setActiveTab('ai')}
+          >
+            <Bot size={15} />
+            AI 分析
+          </button>
+        ) : null}
+        {AiTAdvicePanel && aiEnabled ? (
+          <button
+            className={activeTab === 't-advice' ? 'is-active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 't-advice'}
+            onClick={() => setActiveTab('t-advice')}
+          >
+            <Sparkles size={15} />做 T 参考
+          </button>
+        ) : null}
       </div>
 
       {activeTab === 'dividendFinancing' ? (
