@@ -79,7 +79,11 @@ export function parseConfigDocument(value: unknown): AppState {
     throw new Error('配置格式或版本不受支持')
   }
 
-  const importedState = document.state
+  return parseImportedAppState(document.state)
+}
+
+export function parseImportedAppState(value: unknown): AppState {
+  const importedState = value as Partial<AppState> | undefined
   if (
     !importedState ||
     !Array.isArray(importedState.watchlist) ||

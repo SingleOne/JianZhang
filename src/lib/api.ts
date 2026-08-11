@@ -30,7 +30,12 @@ import {
   type StockSectorQuote,
   type WatchStock
 } from '../shared/types'
-import { createConfigDocument, parseConfigDocument } from '../shared/config'
+import { parseConfigDocument } from '../shared/config'
+import {
+  JIANZHANG_USER_DATA_BACKUP_FORMAT,
+  createUserDataBackupDocument,
+  parseUserDataBackupDocument
+} from '../shared/user-data-backup'
 import { DEMO_SECTORS, DEMO_STOCKS, DEMO_VALUES } from './demo-data'
 
 function makeDemoSectorQuote(stockQuoteId: string): StockSectorQuote | undefined {
@@ -457,7 +462,7 @@ function demoSnapshotState(
 }
 
 function demoConfigFileName(): string {
-  return `见涨-配置-${new Date().toISOString().slice(0, 19).replaceAll(':', '-')}.json`
+  return `见涨-用户数据-${new Date().toISOString().slice(0, 19).replaceAll(':', '-')}.json`
 }
 
 function makeDemoShareholderSnapshot(quoteId: string): ShareholderSnapshot {
@@ -652,7 +657,7 @@ const demoApi: StockDesktopApi = {
   async exportConfig(state) {
     const fileName = demoConfigFileName()
     const blob = new Blob(
-      [JSON.stringify(createConfigDocument(state, 'browser-preview'), null, 2)],
+      [JSON.stringify(createUserDataBackupDocument(state, 'browser-preview', [], {}), null, 2)],
       {
         type: 'application/json'
       }
@@ -677,17 +682,58 @@ const demoApi: StockDesktopApi = {
         }
         file
           .text()
-          .then((content) =>
+          .then((content) => {
+            const value = JSON.parse(content) as { format?: unknown }
+            if (value?.format === JIANZHANG_USER_DATA_BACKUP_FORMAT) {
+              const backup = parseUserDataBackupDocument(value)
+              resolve({
+                canceled: false,
+                filePath: file.name,
+                state: backup.state,
+                backupSummary: {
+                  applicationVersion: backup.applicationVersion,
+                  exportedAt: backup.exportedAt,
+                  fileCount: backup.files.length,
+                  apiKeyCount: Object.keys(backup.aiApiKeys).length
+                }
+              })
+              return
+            }
             resolve({
               canceled: false,
               filePath: file.name,
-              state: parseConfigDocument(JSON.parse(content))
+              state: parseConfigDocument(value)
             })
-          )
+          })
           .catch(reject)
       }
       input.click()
     })
+  },
+  async applyConfigImport() {},
+  async getGitHubSyncSettings() {
+    return {
+      owner: '',
+      repository: '',
+      branch: 'main',
+      filePath: '.jianzhang-sync/user-data.json',
+      tokenConfigured: false
+    }
+  },
+  async saveGitHubSyncSettings(input) {
+    return {
+      owner: input.owner,
+      repository: input.repository,
+      branch: input.branch,
+      filePath: input.filePath,
+      tokenConfigured: Boolean(input.token)
+    }
+  },
+  async uploadUserDataToGitHub() {
+    throw new Error('GitHub 同步仅在 Windows 桌面版中可用')
+  },
+  async downloadUserDataFromGitHub() {
+    throw new Error('GitHub 同步仅在 Windows 桌面版中可用')
   },
   async hideWindow() {},
   async quitApp() {},

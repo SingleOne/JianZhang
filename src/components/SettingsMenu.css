@@ -251,7 +251,7 @@
 
 .config-management small {
   color: var(--subtle);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .config-management-actions {
@@ -282,6 +282,102 @@
 }
 
 .config-management-actions button:disabled {
+  color: #a1a9b8;
+  cursor: default;
+}
+
+.github-sync-management {
+  display: grid;
+  gap: 10px;
+  padding: 14px 0 2px;
+  border-top: 1px solid var(--border);
+}
+
+.github-sync-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: #586579;
+}
+
+.github-sync-heading > span {
+  display: grid;
+  gap: 3px;
+}
+
+.github-sync-heading strong,
+.github-sync-heading small,
+.github-sync-status {
+  font-size: 12px;
+}
+
+.github-sync-heading small,
+.github-sync-status {
+  color: var(--subtle);
+}
+
+.github-sync-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.github-sync-fields label {
+  display: grid;
+  gap: 4px;
+  color: #667085;
+  font-size: 12px;
+}
+
+.github-sync-fields input {
+  min-width: 0;
+  height: 32px;
+  padding: 0 9px;
+  color: #344054;
+  background: #fff;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  font-size: 12px;
+  outline: none;
+}
+
+.github-sync-fields input:focus {
+  border-color: #8eb1f5;
+  box-shadow: 0 0 0 2px rgb(47 111 237 / 10%);
+}
+
+.github-sync-token-field {
+  grid-column: 1 / -1;
+}
+
+.github-sync-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.github-sync-actions button {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #445268;
+  background: #f8fafc;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.github-sync-actions button:hover:not(:disabled) {
+  color: var(--blue);
+  border-color: #a9c3f8;
+  background: #f7faff;
+}
+
+.github-sync-actions button:disabled {
   color: #a1a9b8;
   cursor: default;
 }
@@ -591,7 +687,7 @@
   left: 3px;
   width: 14px;
   height: 14px;
-  content: "";
+  content: '';
   background: #ffffff;
   border-radius: 50%;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.25);

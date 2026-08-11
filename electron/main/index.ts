@@ -25,6 +25,7 @@ import {
   type StockTrackingPriceVolumeDivergence
 } from '../../src/lib/stock-tracking-metrics'
 import type { AiRuntime } from '../../src/modules/ai/main/register'
+import { AiSecrets } from '../../src/modules/ai/main/secrets'
 import type { MarketInsightRuntime } from '../../src/modules/market-insight/main/register'
 import {
   fetchDailyMarketActiveQuotes,
@@ -41,6 +42,7 @@ import { DailyMarketScanService } from './daily-market-scan-service'
 import { DividendFinancingService } from './dividend-financing-service'
 import { FundsFlowHub } from './funds-flow-hub'
 import { FundamentalDataService } from './fundamental-data-service'
+import { GitHubSyncService } from './github-sync-service'
 import { HistoricalKlineCache } from './historical-kline-cache'
 import { registerIpcHandlers } from './ipc-handlers'
 import { KlineHub } from './kline-hub'
@@ -53,6 +55,7 @@ import { ShareholderService } from './shareholder-service'
 import { StateStore } from './state-store'
 import { StockTrackingMetricsRuntime } from './stock-tracking-metrics-runtime'
 import { TradingCalendarRuntime } from './trading-calendar-runtime'
+import { UserDataBackupService } from './user-data-backup-service'
 import { ValuationHistoryService } from './valuation-history-service'
 import { createAppIcon } from './tray-icons'
 import { WindowManager } from './window-manager'
@@ -136,6 +139,9 @@ let companyReportService: CompanyReportService | null = null
 let valuationHistoryService: ValuationHistoryService | null = null
 let shareholderService: ShareholderService | null = null
 let dailyMarketScanService: DailyMarketScanService | null = null
+let userDataBackupService: UserDataBackupService | null = null
+let githubSyncService: GitHubSyncService | null = null
+let aiSecrets: AiSecrets | null = null
 
 const marketDataHub = new (class MarketDataHub {
   private readonly listeners = new Set<(quotes: readonly StockQuote[]) => void>()
@@ -266,6 +272,10 @@ if (!hasSingleInstanceLock) {
       app.quit()
       return
     }
+
+    userDataBackupService = new UserDataBackupService(app.getPath('userData'))
+    githubSyncService = new GitHubSyncService(app.getPath('userData'))
+    aiSecrets = new AiSecrets(join(app.getPath('userData'), 'modules', 'ai'))
 
     const marketCacheDirectory = join(app.getPath('userData'), 'market-cache')
     valuationHistoryService = new ValuationHistoryService(marketCacheDirectory)
@@ -412,12 +422,40 @@ if (!hasSingleInstanceLock) {
           getKline(sectorQuoteId, 'intraday', undefined, 'detail:sector')
         ),
       refreshTradingCalendar: () => tradingCalendarRuntime!.refresh(),
+      createUserDataBackup: (stateToExport, applicationVersion) =>
+        userDataBackupService!.create(
+          stateToExport,
+          applicationVersion,
+          aiSecrets!.exportAll()
+        ),
+      prepareUserDataBackup: (value) => userDataBackupService!.prepare(value),
+      applyUserDataBackup: (importId) =>
+        userDataBackupService!.apply(importId, (apiKeys) => aiSecrets!.replaceAll(apiKeys)),
+      getGitHubSyncSettings: () => githubSyncService!.getSettings(),
+      saveGitHubSyncSettings: (input) => githubSyncService!.saveSettings(input),
+      uploadUserDataToGitHub: async (stateToExport, applicationVersion) => {
+        const document = userDataBackupService!.create(
+          stateStore!.normalize(stateToExport),
+          applicationVersion,
+          aiSecrets!.exportAll()
+        )
+        return githubSyncService!.upload(
+          JSON.stringify(document, null, 2),
+          Object.keys(document.aiApiKeys).length
+        )
+      },
+      downloadUserDataFromGitHub: async () =>
+        userDataBackupService!.prepare(JSON.parse(await githubSyncService!.download())),
       clearInactiveFiveLevelAlerts: () => quoteRuntime!.clearInactiveFiveLevelAlerts(),
       sendToWindows,
       syncWindowSurfaces,
       showStockAlertNotification,
       showTFloatingProfitAlertNotification,
       hideMainWindow: () => windowManager?.hideMainWindow(),
+      restart: () => {
+        app.relaunch()
+        quitApp()
+      },
       quit: quitApp
     })
 

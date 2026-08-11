@@ -13,7 +13,11 @@ import {
   type TriggeredTFloatingProfitAlert
 } from '../../src/lib/t-alerts'
 import { applyStockAlertTriggers, type TriggeredStockAlert } from '../../src/lib/stock-alerts'
-import { createConfigDocument, parseConfigDocument } from '../../src/shared/config'
+import { parseConfigDocument } from '../../src/shared/config'
+import {
+  JIANZHANG_USER_DATA_BACKUP_FORMAT,
+  type JianzhangUserDataBackupDocument
+} from '../../src/shared/user-data-backup'
 import type {
   AppState,
   ChipDistributionCacheEntry,
@@ -30,6 +34,9 @@ import type {
   FundamentalSnapshot,
   FundamentalUpdateResult,
   FundsFlowResult,
+  GitHubSyncSettings,
+  GitHubSyncSettingsInput,
+  GitHubSyncUploadResult,
   KlinePeriod,
   KlineResult,
   SearchResult,
@@ -39,7 +46,8 @@ import type {
   StockQuote,
   StockValuationHistory,
   TaskbarLayout,
-  TradingCalendarSettings
+  TradingCalendarSettings,
+  UserDataBackupSummary
 } from '../../src/shared/types'
 
 interface IpcHandlerDependencies {
@@ -80,12 +88,34 @@ interface IpcHandlerDependencies {
   getFundsFlow: (quoteId: string) => Promise<FundsFlowResult>
   getSectorIndex: (quoteId: string) => Promise<SectorIndexResult>
   refreshTradingCalendar: () => Promise<TradingCalendarSettings>
+  createUserDataBackup: (
+    state: AppState,
+    applicationVersion: string
+  ) => JianzhangUserDataBackupDocument
+  prepareUserDataBackup: (value: unknown) => {
+    importId: string
+    state: AppState
+    summary: UserDataBackupSummary
+  }
+  applyUserDataBackup: (importId: string) => void
+  getGitHubSyncSettings: () => GitHubSyncSettings
+  saveGitHubSyncSettings: (input: GitHubSyncSettingsInput) => GitHubSyncSettings
+  uploadUserDataToGitHub: (
+    state: AppState,
+    applicationVersion: string
+  ) => Promise<GitHubSyncUploadResult>
+  downloadUserDataFromGitHub: () => Promise<{
+    importId: string
+    state: AppState
+    summary: UserDataBackupSummary
+  }>
   clearInactiveFiveLevelAlerts: () => boolean
   sendToWindows: (channel: string, payload: unknown) => void
   syncWindowSurfaces: () => void
   showStockAlertNotification: (alert: TriggeredStockAlert) => void
   showTFloatingProfitAlertNotification: (alert: TriggeredTFloatingProfitAlert) => void
   hideMainWindow: () => void
+  restart: () => void
   quit: () => void
 }
 
@@ -120,6 +150,11 @@ const CHANNELS = [
   'state:save',
   'config:export',
   'config:import',
+  'config:import:apply',
+  'github-sync:settings:get',
+  'github-sync:settings:save',
+  'github-sync:upload',
+  'github-sync:download',
   'app:hide',
   'app:quit'
 ] as const
@@ -249,9 +284,9 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
   })
   ipcMain.handle('config:export', async (_event, stateToExport: AppState) => {
     const options: SaveDialogOptions = {
-      title: '导出见涨配置',
-      defaultPath: join(app.getPath('documents'), `见涨-配置-${configTimestamp()}.json`),
-      filters: [{ name: 'JSON 配置文件', extensions: ['json'] }]
+      title: '导出见涨用户数据',
+      defaultPath: join(app.getPath('documents'), `见涨-用户数据-${configTimestamp()}.json`),
+      filters: [{ name: '见涨用户数据备份', extensions: ['json'] }]
     }
     const mainWindow = dependencies.getMainWindow()
     const result = mainWindow
@@ -259,15 +294,23 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
       : await dialog.showSaveDialog(options)
     if (result.canceled || !result.filePath) return { canceled: true }
 
-    const document = createConfigDocument(stateToExport, app.getVersion())
+    const document = dependencies.createUserDataBackup(
+      dependencies.normalizeState(stateToExport),
+      app.getVersion()
+    )
     writeFileSync(result.filePath, JSON.stringify(document, null, 2), 'utf8')
-    return { canceled: false, filePath: result.filePath }
+    return {
+      canceled: false,
+      filePath: result.filePath,
+      fileCount: document.files.length,
+      apiKeyCount: Object.keys(document.aiApiKeys).length
+    }
   })
   ipcMain.handle('config:import', async () => {
     const options: OpenDialogOptions = {
-      title: '导入见涨配置',
+      title: '导入见涨用户数据',
       properties: ['openFile'],
-      filters: [{ name: 'JSON 配置文件', extensions: ['json'] }]
+      filters: [{ name: '见涨用户数据或旧版配置', extensions: ['json'] }]
     }
     const mainWindow = dependencies.getMainWindow()
     const result = mainWindow
@@ -276,8 +319,41 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
     const filePath = result.filePaths[0]
     if (result.canceled || !filePath) return { canceled: true }
 
-    const importedState = parseConfigDocument(JSON.parse(readFileSync(filePath, 'utf8')))
-    return { canceled: false, filePath, state: importedState }
+    const value = JSON.parse(readFileSync(filePath, 'utf8')) as { format?: unknown }
+    if (value?.format === JIANZHANG_USER_DATA_BACKUP_FORMAT) {
+      const prepared = dependencies.prepareUserDataBackup(value)
+      return {
+        canceled: false,
+        filePath,
+        state: prepared.state,
+        importId: prepared.importId,
+        backupSummary: prepared.summary
+      }
+    }
+    return { canceled: false, filePath, state: parseConfigDocument(value) }
+  })
+  ipcMain.handle('config:import:apply', (_event, importId: string) => {
+    dependencies.applyUserDataBackup(importId)
+    setTimeout(dependencies.restart, 300)
+  })
+  ipcMain.handle('github-sync:settings:get', () => dependencies.getGitHubSyncSettings())
+  ipcMain.handle('github-sync:settings:save', (_event, input: GitHubSyncSettingsInput) =>
+    dependencies.saveGitHubSyncSettings(input)
+  )
+  ipcMain.handle('github-sync:upload', (_event, stateToExport: AppState) =>
+    dependencies.uploadUserDataToGitHub(
+      dependencies.normalizeState(stateToExport),
+      app.getVersion()
+    )
+  )
+  ipcMain.handle('github-sync:download', async () => {
+    const prepared = await dependencies.downloadUserDataFromGitHub()
+    return {
+      canceled: false,
+      state: prepared.state,
+      importId: prepared.importId,
+      backupSummary: prepared.summary
+    }
   })
   ipcMain.handle('app:hide', () => dependencies.hideMainWindow())
   ipcMain.handle('app:quit', () => dependencies.quit())

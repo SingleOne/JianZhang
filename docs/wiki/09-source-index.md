@@ -25,6 +25,8 @@
 | --- | --- | --- |
 | [`electron/main/index.ts`](../../electron/main/index.ts) | `app.whenReady`、`persistState`、`cleanupBeforeQuit` | Electron 生命周期、核心模块组装、依赖注入和可选模块注册 |
 | [`electron/main/state-store.ts`](../../electron/main/state-store.ts) | `StateStore` | 状态规范化/迁移、原子保存、最近备份和损坏配置恢复 |
+| [`electron/main/user-data-backup-service.ts`](../../electron/main/user-data-backup-service.ts) | `UserDataBackupService` | 收集、暂存和恢复核心状态之外的用户生成数据 |
+| [`electron/main/github-sync-service.ts`](../../electron/main/github-sync-service.ts) | `GitHubSyncService` | 私有仓库配置、Token 安全存储和 Contents API 上传/下载 |
 | [`electron/main/window-manager.ts`](../../electron/main/window-manager.ts) | `WindowManager` | 主窗口、任务栏、托盘菜单与悬浮窗口生命周期 |
 | [`electron/main/ipc-handlers.ts`](../../electron/main/ipc-handlers.ts) | `registerIpcHandlers` | 核心 StockDesktopApi IPC 注册和清理 |
 | [`electron/main/quote-runtime.ts`](../../electron/main/quote-runtime.ts) | `QuoteRuntime` | 批量报价刷新、板块绑定、提醒判断、盘口大单和窗口广播 |
@@ -66,6 +68,7 @@
 | [`src/shared/types.ts`](../../src/shared/types.ts) | `AppState`、`StockQuote`、`TTradingAccount`、`TTradeRecord`、`StockDesktopApi` | 领域类型、分组/提醒/筹码结构、默认值、状态规范化和旧交易/列迁移 |
 | [`src/shared/bollinger.ts`](../../src/shared/bollinger.ts) | `calculateBollingerBands` | 日/周/月图表与市场观察共用的 BOLL(20,2) 滚动计算 |
 | [`src/shared/config.ts`](../../src/shared/config.ts) | `createConfigDocument`、`parseConfigDocument` | 配置格式版本、导入验证和兼容 |
+| [`src/shared/user-data-backup.ts`](../../src/shared/user-data-backup.ts) | `createUserDataBackupDocument`、`parseUserDataBackupDocument` | 单一用户数据备份格式、受管文件范围和 AI API Key 文档结构 |
 | [`src/shared/market-hours.ts`](../../src/shared/market-hours.ts) | `isBeijingAutoRefreshTime` | 北京时间自动刷新窗口 |
 | [`src/shared/trading-calendar.ts`](../../src/shared/trading-calendar.ts) | `countAStockTradingDays` | 内置休市范围和交易日计数 |
 | [`src/shared/lru-cache.ts`](../../src/shared/lru-cache.ts) | `LruCache` | renderer 与主进程共享的有界最近最少使用缓存 |

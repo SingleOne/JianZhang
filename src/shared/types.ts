@@ -1561,10 +1561,47 @@ export interface AppState {
 export interface ConfigExportResult {
   canceled: boolean
   filePath?: string
+  fileCount?: number
+  apiKeyCount?: number
+}
+
+export interface UserDataBackupSummary {
+  applicationVersion: string
+  exportedAt: string
+  fileCount: number
+  apiKeyCount: number
+}
+
+export interface GitHubSyncSettings {
+  owner: string
+  repository: string
+  branch: string
+  filePath: string
+  tokenConfigured: boolean
+  tokenMaskedSuffix?: string
+  lastUploadedAt?: string
+  lastDownloadedAt?: string
+}
+
+export interface GitHubSyncSettingsInput {
+  owner: string
+  repository: string
+  branch: string
+  filePath: string
+  token?: string
+}
+
+export interface GitHubSyncUploadResult {
+  commitSha: string
+  uploadedAt: string
+  filePath: string
+  apiKeyCount: number
 }
 
 export interface ConfigImportResult extends ConfigExportResult {
   state?: AppState
+  importId?: string
+  backupSummary?: UserDataBackupSummary
 }
 
 export interface BootstrapResult {
@@ -1611,6 +1648,11 @@ export interface StockDesktopApi {
   saveState: (state: AppState) => Promise<AppState>
   exportConfig: (state: AppState) => Promise<ConfigExportResult>
   importConfig: () => Promise<ConfigImportResult>
+  applyConfigImport: (importId: string) => Promise<void>
+  getGitHubSyncSettings: () => Promise<GitHubSyncSettings>
+  saveGitHubSyncSettings: (input: GitHubSyncSettingsInput) => Promise<GitHubSyncSettings>
+  uploadUserDataToGitHub: (state: AppState) => Promise<GitHubSyncUploadResult>
+  downloadUserDataFromGitHub: () => Promise<ConfigImportResult>
   hideWindow: () => Promise<void>
   quitApp: () => Promise<void>
   onQuotesUpdated: (callback: (quotes: StockQuote[]) => void) => () => void

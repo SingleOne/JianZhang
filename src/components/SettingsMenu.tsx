@@ -1,14 +1,29 @@
-import { Download, RefreshCw, Settings2, Upload } from 'lucide-react'
-import { lazy, Suspense, useState } from 'react'
+import {
+  CloudDownload,
+  CloudUpload,
+  Download,
+  Github,
+  RefreshCw,
+  Save,
+  Settings2,
+  Upload
+} from 'lucide-react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import {
   MARKET_INDEX_OPTIONS,
   type AppSettings,
   type DataSnapshotRuntimeState,
+  type GitHubSyncSettings,
+  type GitHubSyncSettingsInput,
   type MarketIndexId
 } from '../shared/types'
 
 const MarketInsightSettingsToggle = __JIANZHANG_MARKET_INSIGHT_ENABLED__
-  ? lazy(() => import('../modules/market-insight/renderer/MarketInsightSettingsToggle').then((module) => ({ default: module.MarketInsightSettingsToggle })))
+  ? lazy(() =>
+      import('../modules/market-insight/renderer/MarketInsightSettingsToggle').then((module) => ({
+        default: module.MarketInsightSettingsToggle
+      }))
+    )
   : null
 
 interface SettingsMenuProps {
@@ -17,6 +32,11 @@ interface SettingsMenuProps {
   onImportConfig: () => void
   onExportConfig: () => void
   configBusy: boolean
+  githubSyncSettings: GitHubSyncSettings
+  githubSyncBusy: boolean
+  onSaveGitHubSyncSettings: (input: GitHubSyncSettingsInput) => void
+  onUploadUserDataToGitHub: (input: GitHubSyncSettingsInput) => void
+  onDownloadUserDataFromGitHub: (input: GitHubSyncSettingsInput) => void
   onRefreshTradingCalendar: () => void
   calendarRefreshing: boolean
   fundamentalDataState: DataSnapshotRuntimeState
@@ -64,12 +84,38 @@ export function SettingsMenu({
   onImportConfig,
   onExportConfig,
   configBusy,
+  githubSyncSettings,
+  githubSyncBusy,
+  onSaveGitHubSyncSettings,
+  onUploadUserDataToGitHub,
+  onDownloadUserDataFromGitHub,
   onRefreshTradingCalendar,
   calendarRefreshing,
   fundamentalDataState,
   onUpdateFundamentalData
 }: SettingsMenuProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('market')
+  const [githubSyncInput, setGitHubSyncInput] = useState<GitHubSyncSettingsInput>({
+    owner: githubSyncSettings.owner,
+    repository: githubSyncSettings.repository,
+    branch: githubSyncSettings.branch,
+    filePath: githubSyncSettings.filePath,
+    token: ''
+  })
+
+  useEffect(() => {
+    setGitHubSyncInput({
+      owner: githubSyncSettings.owner,
+      repository: githubSyncSettings.repository,
+      branch: githubSyncSettings.branch,
+      filePath: githubSyncSettings.filePath,
+      token: ''
+    })
+  }, [githubSyncSettings])
+
+  const updateGitHubSyncInput = (key: keyof GitHubSyncSettingsInput, value: string) => {
+    setGitHubSyncInput((current) => ({ ...current, [key]: value }))
+  }
 
   const toggleMarketIndex = (indexId: MarketIndexId, selected: boolean) => {
     const selectedIds = new Set(settings.marketIndexIds)
@@ -77,16 +123,13 @@ export function SettingsMenu({
     else selectedIds.delete(indexId)
     onChange({
       ...settings,
-      marketIndexIds: MARKET_INDEX_OPTIONS
-        .filter((index) => selectedIds.has(index.id))
-        .map((index) => index.id)
+      marketIndexIds: MARKET_INDEX_OPTIONS.filter((index) => selectedIds.has(index.id)).map(
+        (index) => index.id
+      )
     })
   }
 
-  const updateTradingFee = (
-    key: keyof AppSettings['tTradingFees'],
-    value: number
-  ) => {
+  const updateTradingFee = (key: keyof AppSettings['tTradingFees'], value: number) => {
     onChange({
       ...settings,
       tTradingFees: {
@@ -106,11 +149,9 @@ export function SettingsMenu({
       ...settings,
       tPlanDefaults: {
         ...settings.tPlanDefaults,
-        [side]: settings.tPlanDefaults[side].map((level, levelIndex) => (
-          levelIndex === index
-            ? { ...level, [key]: Math.max(0, value || 0) }
-            : level
-        ))
+        [side]: settings.tPlanDefaults[side].map((level, levelIndex) =>
+          levelIndex === index ? { ...level, [key]: Math.max(0, value || 0) } : level
+        )
       }
     })
   }
@@ -141,11 +182,7 @@ export function SettingsMenu({
             </button>
           ))}
         </div>
-        <div
-          className="settings-panel"
-          id={`settings-panel-${activeTab}`}
-          role="tabpanel"
-        >
+        <div className="settings-panel" id={`settings-panel-${activeTab}`} role="tabpanel">
           {activeTab === 'market' ? (
             <>
               <label className="setting-row setting-row-input">
@@ -189,15 +226,22 @@ export function SettingsMenu({
                 </span>
               </label>
               {MarketInsightSettingsToggle ? (
-                <Suspense fallback={(
-                  <div className="setting-row market-insight-setting-row">
-                    <span>
-                      <strong>市场观察</strong>
-                      <small>正在读取功能设置…</small>
-                    </span>
-                    <input className="switch-input" type="checkbox" disabled aria-label="市场观察设置读取中" />
-                  </div>
-                )}>
+                <Suspense
+                  fallback={
+                    <div className="setting-row market-insight-setting-row">
+                      <span>
+                        <strong>市场观察</strong>
+                        <small>正在读取功能设置…</small>
+                      </span>
+                      <input
+                        className="switch-input"
+                        type="checkbox"
+                        disabled
+                        aria-label="市场观察设置读取中"
+                      />
+                    </div>
+                  }
+                >
                   <MarketInsightSettingsToggle />
                 </Suspense>
               ) : null}
@@ -224,7 +268,9 @@ export function SettingsMenu({
             <>
               <fieldset className="trading-fee-setting">
                 <legend>做T费用</legend>
-                <small>佣金按净佣金计算；深A将过户费计入最低 5 元，沪A过户费在最低 5 元外单独收取</small>
+                <small>
+                  佣金按净佣金计算；深A将过户费计入最低 5 元，沪A过户费在最低 5 元外单独收取
+                </small>
                 <div className="trading-fee-grid">
                   <label>
                     <span>佣金</span>
@@ -233,7 +279,9 @@ export function SettingsMenu({
                       min="0"
                       step="0.001"
                       value={settings.tTradingFees.commissionRatePerTenThousand}
-                      onChange={(event) => updateTradingFee('commissionRatePerTenThousand', Number(event.target.value))}
+                      onChange={(event) =>
+                        updateTradingFee('commissionRatePerTenThousand', Number(event.target.value))
+                      }
                     />
                     <em>万分</em>
                   </label>
@@ -244,7 +292,9 @@ export function SettingsMenu({
                       min="0"
                       step="0.01"
                       value={settings.tTradingFees.minimumCommissionBundle}
-                      onChange={(event) => updateTradingFee('minimumCommissionBundle', Number(event.target.value))}
+                      onChange={(event) =>
+                        updateTradingFee('minimumCommissionBundle', Number(event.target.value))
+                      }
                     />
                     <em>元</em>
                   </label>
@@ -255,7 +305,9 @@ export function SettingsMenu({
                       min="0"
                       step="0.001"
                       value={settings.tTradingFees.handlingRatePerTenThousand}
-                      onChange={(event) => updateTradingFee('handlingRatePerTenThousand', Number(event.target.value))}
+                      onChange={(event) =>
+                        updateTradingFee('handlingRatePerTenThousand', Number(event.target.value))
+                      }
                     />
                     <em>万分</em>
                   </label>
@@ -266,7 +318,9 @@ export function SettingsMenu({
                       min="0"
                       step="0.001"
                       value={settings.tTradingFees.regulatoryRatePerTenThousand}
-                      onChange={(event) => updateTradingFee('regulatoryRatePerTenThousand', Number(event.target.value))}
+                      onChange={(event) =>
+                        updateTradingFee('regulatoryRatePerTenThousand', Number(event.target.value))
+                      }
                     />
                     <em>万分</em>
                   </label>
@@ -277,7 +331,9 @@ export function SettingsMenu({
                       min="0"
                       step="0.001"
                       value={settings.tTradingFees.transferRatePerTenThousand}
-                      onChange={(event) => updateTradingFee('transferRatePerTenThousand', Number(event.target.value))}
+                      onChange={(event) =>
+                        updateTradingFee('transferRatePerTenThousand', Number(event.target.value))
+                      }
                     />
                     <em>万分</em>
                   </label>
@@ -288,7 +344,9 @@ export function SettingsMenu({
                       min="0"
                       step="0.001"
                       value={settings.tTradingFees.stampDutyRatePerTenThousand}
-                      onChange={(event) => updateTradingFee('stampDutyRatePerTenThousand', Number(event.target.value))}
+                      onChange={(event) =>
+                        updateTradingFee('stampDutyRatePerTenThousand', Number(event.target.value))
+                      }
                     />
                     <em>万分</em>
                   </label>
@@ -379,7 +437,9 @@ export function SettingsMenu({
                   className="switch-input"
                   type="checkbox"
                   checked={settings.showTaskbarTicker}
-                  onChange={(event) => onChange({ ...settings, showTaskbarTicker: event.target.checked })}
+                  onChange={(event) =>
+                    onChange({ ...settings, showTaskbarTicker: event.target.checked })
+                  }
                 />
               </label>
               <label className="setting-row setting-row-position">
@@ -415,7 +475,9 @@ export function SettingsMenu({
                   className="switch-input"
                   type="checkbox"
                   checked={settings.startWithWindows}
-                  onChange={(event) => onChange({ ...settings, startWithWindows: event.target.checked })}
+                  onChange={(event) =>
+                    onChange({ ...settings, startWithWindows: event.target.checked })
+                  }
                 />
               </label>
               <label className="setting-row">
@@ -427,7 +489,9 @@ export function SettingsMenu({
                   className="switch-input"
                   type="checkbox"
                   checked={settings.minimizeToTray}
-                  onChange={(event) => onChange({ ...settings, minimizeToTray: event.target.checked })}
+                  onChange={(event) =>
+                    onChange({ ...settings, minimizeToTray: event.target.checked })
+                  }
                 />
               </label>
               <div className="trading-calendar-setting">
@@ -435,12 +499,13 @@ export function SettingsMenu({
                   <strong>交易日历</strong>
                   <small>每年首次启动时自动从上交所更新，失败时可手动重试</small>
                   <small>
-                    已覆盖至 {settings.tradingCalendar.coveredThroughYear} 年 ·
-                    最近刷新：{formatCalendarRefreshTime(settings.tradingCalendar.lastRefreshedAt)}
+                    已覆盖至 {settings.tradingCalendar.coveredThroughYear} 年 · 最近刷新：
+                    {formatCalendarRefreshTime(settings.tradingCalendar.lastRefreshedAt)}
                   </small>
                   {settings.tradingCalendar.lastError ? (
                     <small className="is-error">
-                      最近尝试 {formatCalendarRefreshTime(settings.tradingCalendar.lastAttemptedAt)} 失败：
+                      最近尝试 {formatCalendarRefreshTime(settings.tradingCalendar.lastAttemptedAt)}{' '}
+                      失败：
                       {settings.tradingCalendar.lastError}
                     </small>
                   ) : null}
@@ -464,8 +529,8 @@ export function SettingsMenu({
                       : ' 暂无公司数据'}
                   </small>
                   <small>
-                    状态：{dataStatusLabel(fundamentalDataState)} ·
-                    最近生成：{formatCalendarRefreshTime(fundamentalDataState.generatedAt)}
+                    状态：{dataStatusLabel(fundamentalDataState)} · 最近生成：
+                    {formatCalendarRefreshTime(fundamentalDataState.generatedAt)}
                   </small>
                   {fundamentalDataState.staleReason ? (
                     <small className="is-warning">{fundamentalDataState.staleReason}</small>
@@ -480,7 +545,10 @@ export function SettingsMenu({
                 <button
                   type="button"
                   onClick={onUpdateFundamentalData}
-                  disabled={fundamentalDataState.status === 'queued' || fundamentalDataState.status === 'updating'}
+                  disabled={
+                    fundamentalDataState.status === 'queued' ||
+                    fundamentalDataState.status === 'updating'
+                  }
                 >
                   <RefreshCw
                     size={14}
@@ -495,19 +563,115 @@ export function SettingsMenu({
               </div>
               <div className="config-management">
                 <span>
-                  <strong>配置管理</strong>
-                  <small>备份或恢复自选、持仓、排序与应用设置</small>
+                  <strong>用户数据备份</strong>
+                  <small>
+                    备份自选、追踪、持仓、交易、设置、AI 数据和 API Key；文件暂未加密，请妥善保管
+                  </small>
                 </span>
                 <span className="config-management-actions">
                   <button type="button" onClick={onImportConfig} disabled={configBusy}>
                     <Upload size={15} />
-                    导入配置
+                    导入用户数据
                   </button>
                   <button type="button" onClick={onExportConfig} disabled={configBusy}>
                     <Download size={15} />
-                    导出配置
+                    导出用户数据
                   </button>
                 </span>
+              </div>
+              <div className="github-sync-management">
+                <span className="github-sync-heading">
+                  <Github size={16} />
+                  <span>
+                    <strong>GitHub 私有仓库同步</strong>
+                    <small>上传同一份未加密备份；请使用仅授权目标仓库 Contents 读写的 Token</small>
+                  </span>
+                </span>
+                <div className="github-sync-fields">
+                  <label>
+                    <span>所有者</span>
+                    <input
+                      value={githubSyncInput.owner}
+                      onChange={(event) => updateGitHubSyncInput('owner', event.target.value)}
+                      placeholder="GitHub 用户名"
+                    />
+                  </label>
+                  <label>
+                    <span>仓库</span>
+                    <input
+                      value={githubSyncInput.repository}
+                      onChange={(event) => updateGitHubSyncInput('repository', event.target.value)}
+                      placeholder="私有仓库名"
+                    />
+                  </label>
+                  <label>
+                    <span>分支</span>
+                    <input
+                      value={githubSyncInput.branch}
+                      onChange={(event) => updateGitHubSyncInput('branch', event.target.value)}
+                      placeholder="main"
+                    />
+                  </label>
+                  <label>
+                    <span>同步路径</span>
+                    <input
+                      value={githubSyncInput.filePath}
+                      onChange={(event) => updateGitHubSyncInput('filePath', event.target.value)}
+                      placeholder=".jianzhang-sync/user-data.json"
+                    />
+                  </label>
+                  <label className="github-sync-token-field">
+                    <span>Personal Access Token</span>
+                    <input
+                      type="password"
+                      value={githubSyncInput.token}
+                      onChange={(event) => updateGitHubSyncInput('token', event.target.value)}
+                      placeholder={
+                        githubSyncSettings.tokenConfigured
+                          ? `已配置 ····${githubSyncSettings.tokenMaskedSuffix ?? ''}`
+                          : '输入 Fine-grained Token'
+                      }
+                    />
+                  </label>
+                </div>
+                <div className="github-sync-actions">
+                  <button
+                    type="button"
+                    onClick={() => onSaveGitHubSyncSettings(githubSyncInput)}
+                    disabled={githubSyncBusy}
+                  >
+                    <Save size={15} />
+                    保存连接
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDownloadUserDataFromGitHub(githubSyncInput)}
+                    disabled={githubSyncBusy}
+                  >
+                    <CloudDownload size={15} />从 GitHub 恢复
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onUploadUserDataToGitHub(githubSyncInput)}
+                    disabled={githubSyncBusy}
+                  >
+                    <CloudUpload size={15} />
+                    上传到 GitHub
+                  </button>
+                </div>
+                {githubSyncSettings.lastUploadedAt || githubSyncSettings.lastDownloadedAt ? (
+                  <small className="github-sync-status">
+                    {githubSyncSettings.lastUploadedAt
+                      ? `最近上传：${formatCalendarRefreshTime(githubSyncSettings.lastUploadedAt)}`
+                      : ''}
+                    {githubSyncSettings.lastUploadedAt && githubSyncSettings.lastDownloadedAt
+                      ? ' · '
+                      : ''}
+                    {githubSyncSettings.lastDownloadedAt
+                      ? `最近恢复：${formatCalendarRefreshTime(githubSyncSettings.lastDownloadedAt)}`
+                      : ''}
+                  </small>
+                ) : null}
               </div>
             </>
           ) : null}

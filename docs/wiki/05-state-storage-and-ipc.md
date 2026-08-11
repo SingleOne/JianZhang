@@ -122,39 +122,52 @@ interface AppState {
 
 新增持久化字段时，不能只改 interface；至少要补默认值和 normalize。
 
-## 配置导入导出
+## 用户数据备份与恢复
 
-配置文档定义在 `src/shared/config.ts`：
+用户数据备份文档定义在 `src/shared/user-data-backup.ts`：
 
 ```text
-JianzhangConfigDocument
-├─ format = "jianzhang-config"
-├─ formatVersion = 3
+JianzhangUserDataBackupDocument
+├─ format = "jianzhang-user-data-backup"
+├─ formatVersion = 1
 ├─ applicationVersion
 ├─ exportedAt
 ├─ state
-└─ source?
+├─ files[]
+└─ aiApiKeys
 ```
 
-当前导入接受格式版本 1、2 和 3；旧配置没有追踪字段时自动补为空档案。
+`state` 保存完整 `AppState`。`files` 只保存无法通过网络直接恢复的用户数据：市场观察设置与事件、AI 设置/对话/上下文快照/分析结果、AI 做 T 设置与建议历史，以及用户主动生成的财报 AI 总结。行情、K 线、股东、估值、基本面、分红融资、财报目录和全市场扫描等可重新获取的数据不进入备份。
+
+`aiApiKeys` 保存 OpenAI 和 DeepSeek API Key。导出时主进程通过 `safeStorage` 解密，导入到另一台电脑时再使用目标电脑的 `safeStorage` 加密。Codex 账号登录目录始终排除。当前备份文件没有密码或二次加密，因此 API Key 在 JSON 中是明文，设置页和导出结果会明确提示用户妥善保管。
 
 ### 导出
 
 1. React 把当前 `AppState` 传给 `config:export`。
 2. 主进程显示保存对话框。
-3. `createConfigDocument` 加入应用版本和导出时间。
-4. 写入用户选择的 JSON 文件。
+3. `UserDataBackupService` 收集允许备份的文件和 AI API Key。
+4. 写入 `见涨-用户数据-<时间>.json`。
 
 ### 导入
 
 1. 主进程显示打开对话框。
-2. `parseConfigDocument` 验证格式、版本、自选和设置基本结构。
-3. 运行共享 normalize/migrate。
-4. 返回给 React，但暂不覆盖现有状态。
-5. React 显示确认提示。
-6. 用户确认后再走普通 `state:save`。
+2. 校验备份格式、允许的相对路径、AI API Key 和 `AppState`，再运行共享 normalize/migrate。
+3. 只把状态、文件数量和 API Key 数量返回给 React；Key 本身不会进入 renderer。
+4. React 显示覆盖和自动重启确认提示。
+5. 用户确认后先走普通 `state:save`，再替换受管用户文件并重新加密 API Key。
+6. 应用自动重启，让各模块重新加载恢复后的设置和历史。
 
-`scripts/convert-stock-helper-config.mjs` 可将“股票基金助手”的旧配置转换成见涨格式 1，再由当前导入逻辑完成后续迁移。
+旧版 `jianzhang-config` 格式 1、2、3 仍可导入，但只恢复其中的核心配置，不触发模块数据替换和应用重启。`scripts/convert-stock-helper-config.mjs` 生成的转换结果也继续兼容。
+
+### GitHub 私有仓库同步
+
+GitHub 同步复用同一份用户数据备份，不维护第二套数据格式。用户在“设置 → 系统与数据”填写仓库所有者、私有仓库、分支、文件路径和 Fine-grained Personal Access Token，然后可以手动上传或从 GitHub 恢复。
+
+- Token 只需要目标仓库的 Contents 读写权限，使用当前电脑的 `safeStorage` 加密保存到 `userData/github-sync/token.bin`，不会写入用户数据备份。
+- 仓库、分支、路径和最近上传/恢复时间保存到 `userData/github-sync/settings.json`。
+- 上传通过 GitHub Contents API 创建或覆盖固定路径，Git 提交历史保留旧版本。
+- 从 GitHub 下载后走与本地导入完全相同的校验、确认、文件替换、API Key 重新加密和自动重启流程。
+- 当前备份未加密且包含 AI API Key，上传确认框会再次要求用户确认目标是自己的私有仓库。
 
 ## 浏览器演示存储
 
@@ -174,23 +187,20 @@ localStorage["jianzhang-demo-state-v1"]
 
 ## 核心外的本地存储
 
-以下数据不会进入 `AppState`，也不会随核心配置导出：
+以下数据不会进入 `AppState`。其中只有用户生成或无法等价联网恢复的部分进入用户数据备份：
 
-| 路径（相对 `userData`） | 内容 |
-| --- | --- |
-| `market-cache/klines/*.json` | 按股票和周期保存的日/周/月 K 线 |
-| `market-cache/chip-distributions.json` | 每只股票最后一次筹码分布结果 |
-| `market-cache/shareholders/*.json` | 按股票保存股东概览、近十期股东户数、十大股东和十大流通股东，24 小时有效 |
-| `modules/market-insight/` | 指标/事件快照、公告与要闻缓存、模块设置 |
-| `modules/ai/` | Provider 设置、加密凭证、对话 JSONL、股票快照、最近 AI 解读 |
-| `modules/ai-t-advice/` | 做 T 参考设置和历史 JSONL |
-| `dividend-financing/` | 运行时获取的 `ranking.json`、`previous-ranking.json`、`change-report.json`、Markdown 报告和诊断 JSON |
-| `fundamentals/` | 运行时获取的五年基本面 `snapshot.json`、覆盖率诊断 `diagnostics.json` 和最近一次默认规则筛选变化 `change-report.json` |
-| `company-reports/<股票代码>.json` | 按股票保存最近五个报告年度的巨潮定期报告目录和官方 PDF 链接，24 小时有效；不保存 PDF 文件 |
-| `company-reports/summaries.json` | 按报告 ID 保存用户主动生成的 AI 财报总结、生成时间、模型和服务商信息 |
-| `daily-market-scan/` | 最近一次全市场收盘扫描结果 `latest.json` |
-
-AI API Key 由主进程使用 Electron `safeStorage` 加密；renderer 只能读取是否配置和脱敏尾号。Codex 账号凭证由随应用运行的官方 App Server 在模块运行目录管理，核心状态和配置导出均不接触明文。
+| 路径（相对 `userData`） | 内容 | 进入备份 |
+| --- | --- | --- |
+| `market-cache/` | K 线、筹码、股东、估值和板块绑定 | 否，可联网重建 |
+| `modules/market-insight/settings.json`、`events.json` | 模块设置和历史观察事件 | 是 |
+| `modules/market-insight/cache/` 及新闻索引 | 指标、公告与要闻缓存 | 否，可联网重建 |
+| `modules/ai/settings.json`、`conversations/`、`snapshots/`、`cache/` | Provider 设置、对话、引用上下文和 AI 解读 | 是 |
+| `modules/ai/credentials.bin` | 当前电脑 `safeStorage` 加密的 API Key | 不直接复制；以明文 Key 写入备份后在目标电脑重新加密 |
+| `modules/ai/codex-runtime/`、`codex-workspace/` | Codex 账号登录和运行目录 | 否 |
+| `modules/ai-t-advice/` | 做 T 参考设置和历史 JSONL | 是 |
+| `dividend-financing/`、`fundamentals/`、`daily-market-scan/` | 可重新获取的运行时快照和报告 | 否 |
+| `company-reports/<股票代码>.json` | 可重新获取的财报目录 | 否 |
+| `company-reports/summaries.json` | 用户主动生成的 AI 财报总结 | 是 |
 
 ## IPC 请求
 
@@ -228,6 +238,11 @@ AI API Key 由主进程使用 Electron `safeStorage` 加密；renderer 只能读
 | `saveState` | `state:save` | 规范化并持久化状态 |
 | `exportConfig` | `config:export` | 保存 JSON |
 | `importConfig` | `config:import` | 读取并解析 JSON |
+| `applyConfigImport` | `config:import:apply` | 替换模块用户数据、重新加密 AI API Key，并重启应用 |
+| `getGitHubSyncSettings` | `github-sync:settings:get` | 返回仓库配置、Token 配置状态和最近同步时间 |
+| `saveGitHubSyncSettings` | `github-sync:settings:save` | 保存仓库配置并使用 `safeStorage` 更新 Token |
+| `uploadUserDataToGitHub` | `github-sync:upload` | 生成当前用户数据备份并上传到私有仓库 |
+| `downloadUserDataFromGitHub` | `github-sync:download` | 下载云端备份并进入统一导入确认流程 |
 | `hideWindow` | `app:hide` | 隐藏主窗口 |
 | `quitApp` | `app:quit` | 清理并退出 |
 

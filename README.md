@@ -95,9 +95,13 @@
 
 基本面财务数据位于同目录下的 `fundamentals/`，包含 `snapshot.json`、`diagnostics.json` 和最近一次更新生成的 `change-report.json`；没有可用快照时自动运行附带脚本获取并保存。首次快照不生成“全部新增”报告，后续更新只保留最近一次默认规则筛选变化。两个脚本在源码开发时的默认输出仍是 `src/data/`，软件运行时会显式改为用户数据目录。
 
-公司财报目录和用户主动生成的 AI 总结保存在同目录下的 `company-reports/`；官方 PDF 不落盘，这些数据也不进入配置导出。
+公司财报目录和用户主动生成的 AI 总结保存在同目录下的 `company-reports/`；官方 PDF 不落盘。用户数据备份会保存 AI 总结，不保存可重新联网获取的财报目录。
 
 最近一次全市场收盘扫描保存在同目录下的 `daily-market-scan/latest.json`。扫描日 K 与个股详情共用 `market-cache/klines/`，已缓存的数据会直接复用。
+
+“设置 → 系统与数据”可导出或导入用户数据备份。备份包含核心配置、自选/追踪、持仓与交易、提醒、AI 对话和分析、做 T 建议历史、财报 AI 总结以及 OpenAI/DeepSeek API Key；不包含可重新联网获取的行情缓存和 Codex 登录凭证。当前 JSON 备份未加密，API Key 以明文保存，请妥善保管。
+
+同一设置页还支持将这份备份手动上传到 GitHub 私有仓库，或从仓库下载并恢复。GitHub Token 使用当前电脑的 `safeStorage` 单独加密保存，不进入备份；建议使用只授予目标仓库 Contents 读写权限的 Fine-grained Token。由于备份暂未加密，不能上传到公开仓库。
 
 ## 源码开发
 

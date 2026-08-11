@@ -3,7 +3,7 @@ import { safeStorage } from 'electron'
 import { join } from 'node:path'
 import type { AiApiKeyProviderId, AiCredentialStatus } from '../shared/types'
 
-type CredentialDocument = Partial<Record<AiApiKeyProviderId, string>>
+export type AiApiKeyDocument = Partial<Record<AiApiKeyProviderId, string>>
 
 export class AiSecrets {
   private readonly filePath: string
@@ -12,17 +12,17 @@ export class AiSecrets {
     this.filePath = join(rootDirectory, 'credentials.bin')
   }
 
-  private readEncrypted(): CredentialDocument {
+  private readEncrypted(): AiApiKeyDocument {
     if (!existsSync(this.filePath)) return {}
     if (!safeStorage.isEncryptionAvailable()) throw new Error('当前系统无法安全加密 AI API Key')
     try {
-      return JSON.parse(safeStorage.decryptString(readFileSync(this.filePath))) as CredentialDocument
+      return JSON.parse(safeStorage.decryptString(readFileSync(this.filePath))) as AiApiKeyDocument
     } catch {
       throw new Error('AI 凭证无法解密，请重新配置 API Key')
     }
   }
 
-  private writeEncrypted(credentials: CredentialDocument): void {
+  private writeEncrypted(credentials: AiApiKeyDocument): void {
     if (!safeStorage.isEncryptionAvailable()) throw new Error('当前系统无法安全加密 AI API Key')
     writeFileSync(this.filePath, safeStorage.encryptString(JSON.stringify(credentials)))
   }
@@ -53,5 +53,22 @@ export class AiSecrets {
       return
     }
     this.writeEncrypted(credentials)
+  }
+
+  exportAll(): AiApiKeyDocument {
+    return this.readEncrypted()
+  }
+
+  replaceAll(credentials: AiApiKeyDocument): void {
+    const saved: AiApiKeyDocument = {}
+    for (const providerId of ['openai', 'deepseek'] as const) {
+      const apiKey = credentials[providerId]?.trim()
+      if (apiKey) saved[providerId] = apiKey
+    }
+    if (Object.keys(saved).length === 0) {
+      if (existsSync(this.filePath)) rmSync(this.filePath)
+      return
+    }
+    this.writeEncrypted(saved)
   }
 }

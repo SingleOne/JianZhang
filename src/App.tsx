@@ -54,6 +54,7 @@ import packageInfo from '../package.json'
 import type {
   AppSettings,
   AppState,
+  ConfigImportResult,
   DataSnapshotRuntimeState,
   DividendFinancingChangeReport,
   DividendFinancingRankingItem,
@@ -61,6 +62,8 @@ import type {
   DailyMarketScanRow,
   FundamentalChangeReport,
   FundamentalSnapshot,
+  GitHubSyncSettings,
+  GitHubSyncSettingsInput,
   SearchResult,
   StockPosition,
   StockPositionSnapshot,
@@ -125,6 +128,14 @@ export default function App() {
   const [refreshing, setRefreshing] = useState(false)
   const [calendarRefreshing, setCalendarRefreshing] = useState(false)
   const [configBusy, setConfigBusy] = useState(false)
+  const [githubSyncBusy, setGitHubSyncBusy] = useState(false)
+  const [githubSyncSettings, setGitHubSyncSettings] = useState<GitHubSyncSettings>({
+    owner: '',
+    repository: '',
+    branch: 'main',
+    filePath: '.jianzhang-sync/user-data.json',
+    tokenConfigured: false
+  })
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false)
@@ -181,6 +192,11 @@ export default function App() {
         reportError(reason instanceof Error ? reason.message : '应用初始化失败')
       )
       .finally(() => setInitializing(false))
+
+    stockApi
+      .getGitHubSyncSettings()
+      .then(setGitHubSyncSettings)
+      .catch(() => undefined)
 
     const unsubscribeQuotes = stockApi.onQuotesUpdated(updateQuotes)
     const unsubscribeState = stockApi.onStateUpdated(setState)
@@ -768,23 +784,34 @@ export default function App() {
     setConfigBusy(true)
     try {
       const result = await stockApi.exportConfig(state)
-      if (!result.canceled) reportSuccess('配置已导出到所选位置')
+      if (!result.canceled) {
+        const apiKeyMessage = result.apiKeyCount
+          ? `，包含 ${result.apiKeyCount} 个明文 AI API Key，请妥善保管`
+          : ''
+        reportSuccess(`用户数据已导出${apiKeyMessage}`)
+      }
     } catch (reason) {
-      reportError(reason instanceof Error ? reason.message : '配置导出失败')
+      reportError(reason instanceof Error ? reason.message : '用户数据导出失败')
     } finally {
       setConfigBusy(false)
     }
   }, [reportError, reportSuccess, state])
 
-  const importConfig = useCallback(async () => {
-    setConfigBusy(true)
-    try {
-      const result = await stockApi.importConfig()
+  const applyImportedData = useCallback(
+    async (result: ConfigImportResult) => {
       if (result.canceled || !result.state) return
+      const backupSummary = result.backupSummary
+      const apiKeyMessage = backupSummary
+        ? backupSummary.apiKeyCount > 0
+          ? `同时会恢复 ${backupSummary.apiKeyCount} 个 AI API Key。`
+          : '备份中没有 AI API Key，当前已配置的 API Key 将被清除。'
+        : ''
       const confirmed = await confirm({
-        title: '导入并覆盖当前配置',
-        message: `导入后将用文件中的 ${result.state.watchlist.length} 只股票和全部设置覆盖当前配置。`,
-        confirmLabel: '继续导入',
+        title: result.importId ? '导入用户数据并重启' : '导入并覆盖当前配置',
+        message: result.importId
+          ? `导入后将用备份中的 ${result.state.watchlist.length} 只股票、全部设置及 ${backupSummary?.fileCount ?? 0} 个持久化数据文件覆盖当前用户数据。${apiKeyMessage}应用将自动重启。`
+          : `导入后将用文件中的 ${result.state.watchlist.length} 只股票和全部设置覆盖当前配置。`,
+        confirmLabel: result.importId ? '导入并重启' : '继续导入',
         tone: 'danger'
       })
       if (!confirmed) return
@@ -793,13 +820,82 @@ export default function App() {
       setSelectedQuoteId(null)
       setQuotes((current) => current.filter((quote) => importedQuoteIds.has(quote.quoteId)))
       const saved = await persist(result.state)
-      if (saved) reportSuccess(`已导入 ${saved.watchlist.length} 只股票及全部设置`)
+      if (!saved) return
+      if (result.importId) {
+        await stockApi.applyConfigImport(result.importId)
+        reportSuccess('用户数据导入完成，应用正在重启')
+      } else {
+        reportSuccess(`已导入 ${saved.watchlist.length} 只股票及全部设置`)
+      }
+    },
+    [confirm, persist, reportSuccess]
+  )
+
+  const importConfig = useCallback(async () => {
+    setConfigBusy(true)
+    try {
+      await applyImportedData(await stockApi.importConfig())
     } catch (reason) {
-      reportError(reason instanceof Error ? reason.message : '配置导入失败')
+      reportError(reason instanceof Error ? reason.message : '用户数据导入失败')
     } finally {
       setConfigBusy(false)
     }
-  }, [confirm, persist, reportError, reportSuccess])
+  }, [applyImportedData, reportError])
+
+  const saveGitHubSyncSettings = useCallback(
+    async (input: GitHubSyncSettingsInput) => {
+      setGitHubSyncBusy(true)
+      try {
+        setGitHubSyncSettings(await stockApi.saveGitHubSyncSettings(input))
+        reportSuccess('GitHub 同步设置已保存')
+      } catch (reason) {
+        reportError(reason instanceof Error ? reason.message : 'GitHub 同步设置保存失败')
+      } finally {
+        setGitHubSyncBusy(false)
+      }
+    },
+    [reportError, reportSuccess]
+  )
+
+  const uploadUserDataToGitHub = useCallback(
+    async (input: GitHubSyncSettingsInput) => {
+      setGitHubSyncBusy(true)
+      try {
+        const savedSettings = await stockApi.saveGitHubSyncSettings(input)
+        setGitHubSyncSettings(savedSettings)
+        const confirmed = await confirm({
+          title: '上传用户数据到 GitHub',
+          message: `将覆盖 ${savedSettings.owner}/${savedSettings.repository} 中的 ${savedSettings.filePath}。备份未加密并包含已配置的 AI API Key，请确认这是你的私有仓库。`,
+          confirmLabel: '确认上传',
+          tone: 'danger'
+        })
+        if (!confirmed) return
+        const result = await stockApi.uploadUserDataToGitHub(state)
+        setGitHubSyncSettings(await stockApi.getGitHubSyncSettings())
+        reportSuccess(`用户数据已上传到 GitHub，提交 ${result.commitSha.slice(0, 7)}`)
+      } catch (reason) {
+        reportError(reason instanceof Error ? reason.message : 'GitHub 上传失败')
+      } finally {
+        setGitHubSyncBusy(false)
+      }
+    },
+    [confirm, reportError, reportSuccess, state]
+  )
+
+  const downloadUserDataFromGitHub = useCallback(
+    async (input: GitHubSyncSettingsInput) => {
+      setGitHubSyncBusy(true)
+      try {
+        setGitHubSyncSettings(await stockApi.saveGitHubSyncSettings(input))
+        await applyImportedData(await stockApi.downloadUserDataFromGitHub())
+      } catch (reason) {
+        reportError(reason instanceof Error ? reason.message : 'GitHub 下载失败')
+      } finally {
+        setGitHubSyncBusy(false)
+      }
+    },
+    [applyImportedData, reportError]
+  )
 
   const refreshNow = async () => {
     setRefreshing(true)
@@ -912,6 +1008,11 @@ export default function App() {
               onImportConfig={importConfig}
               onExportConfig={exportConfig}
               configBusy={configBusy}
+              githubSyncSettings={githubSyncSettings}
+              githubSyncBusy={githubSyncBusy}
+              onSaveGitHubSyncSettings={saveGitHubSyncSettings}
+              onUploadUserDataToGitHub={uploadUserDataToGitHub}
+              onDownloadUserDataFromGitHub={downloadUserDataFromGitHub}
               onRefreshTradingCalendar={refreshTradingCalendar}
               calendarRefreshing={calendarRefreshing}
               fundamentalDataState={fundamentalDataState}
