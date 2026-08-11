@@ -1434,7 +1434,8 @@ export function ExpandedStockDetails({
         ['最高', formatPrice(overviewBar.high)],
         ['最低', formatPrice(overviewBar.low)],
         ['成交量', formatVolume(overviewBar.volume)],
-        ['成交额', formatAmount(overviewBar.amount)]
+        ['成交额', formatAmount(overviewBar.amount)],
+        ['换手率', formatPercent(overviewBar.turnoverRate)]
       ]
     : [
         ['今开', formatPrice(quote?.open)],
@@ -1442,7 +1443,8 @@ export function ExpandedStockDetails({
         ['最高', formatPrice(quote?.high)],
         ['最低', formatPrice(quote?.low)],
         ['成交量', formatVolume(quote?.volume)],
-        ['成交额', formatAmount(quote?.amount)]
+        ['成交额', formatAmount(quote?.amount)],
+        ['换手率', formatPercent(quote?.turnoverRate)]
       ]
 
   const handleHoverBar = useCallback((bar: KlineBar | null) => {
@@ -1568,16 +1570,6 @@ export function ExpandedStockDetails({
           基本面
         </button>
         <button
-          className={activeTab === 'shareholders' ? 'is-active' : ''}
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'shareholders'}
-          onClick={(event) => changeDetailTab('shareholders', event.currentTarget)}
-        >
-          <UsersRound size={15} />
-          股东
-        </button>
-        <button
           className={activeTab === 'reports' ? 'is-active' : ''}
           type="button"
           role="tab"
@@ -1631,6 +1623,16 @@ export function ExpandedStockDetails({
         >
           <Layers size={15} />
           板块
+        </button>
+        <button
+          className={activeTab === 'shareholders' ? 'is-active' : ''}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'shareholders'}
+          onClick={(event) => changeDetailTab('shareholders', event.currentTarget)}
+        >
+          <UsersRound size={15} />
+          股东
         </button>
         {AiAnalysisPanel && aiEnabled ? (
           <button

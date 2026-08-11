@@ -460,12 +460,41 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  border: 1px solid rgba(159, 115, 255, 0.3);
+  border: 1px solid rgba(14, 116, 144, 0.25);
   border-radius: 999px;
   padding: 4px 6px 4px 9px;
-  background: rgba(130, 86, 231, 0.1);
-  color: #c7adff;
+  background: #ecfeff;
+  color: #155e75;
   font-size: 12px;
+}
+
+.stock-tracking-source-tags-button {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  padding: 0 9px;
+  color: #24657a;
+  background: #f0fafb;
+  border: 1px solid #c7e5e9;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.stock-tracking-source-tags-button:hover:not(:disabled) {
+  color: #155e75;
+  background: #e3f6f7;
+  border-color: #9ed6dc;
+}
+
+.stock-tracking-source-tags-button:disabled {
+  color: #98a2b3;
+  background: #f6f8fa;
+  border-color: #e2e8f0;
+  cursor: default;
 }
 
 .stock-tracking-tags button {

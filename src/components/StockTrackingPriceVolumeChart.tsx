@@ -305,7 +305,7 @@ export default function StockTrackingPriceVolumeChart({
       </div>
       <div className="stock-tracking-price-average-legend">
         {PRICE_AVERAGES.map((definition) => (
-          <span key={definition.period}>
+          <span style={{ color: definition.color }} key={definition.period}>
             MA{definition.period} {formatPrice(displayedMetrics?.[definition.metricId] ?? null)}
           </span>
         ))}

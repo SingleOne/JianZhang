@@ -41,6 +41,39 @@ const DAILY_SCAN_SIGNAL_LABELS = {
   reversal: '连跌后翻红'
 } as const
 
+type StockTrackingSourceTagExtractor = (source: StockTrackingSource) => string[]
+
+const STOCK_TRACKING_SOURCE_TAG_EXTRACTORS: Partial<
+  Record<StockTrackingSourceType, StockTrackingSourceTagExtractor>
+> = {
+  dailyScan: (source) =>
+    source.detail?.signals?.map((signal) => DAILY_SCAN_SIGNAL_LABELS[signal]) ?? [],
+  dividendFinancing: () => ['分红']
+}
+
+function uniqueTags(tags: readonly string[]): string[] {
+  return [...new Set(tags.map((tag) => tag.trim()).filter(Boolean))]
+}
+
+export function trackingSourceTags(source: StockTrackingSource): string[] {
+  return uniqueTags([
+    ...(source.detail?.tags ?? []),
+    ...(STOCK_TRACKING_SOURCE_TAG_EXTRACTORS[source.type]?.(source) ?? [])
+  ])
+}
+
+export function trackingProfileSourceTags(profile: StockTrackingProfile): string[] {
+  return uniqueTags(profile.sources.flatMap(trackingSourceTags))
+}
+
+export function addTrackingSourceTags(
+  profile: StockTrackingProfile,
+  now = new Date().toISOString()
+): StockTrackingProfile {
+  const tags = uniqueTags([...profile.tags, ...trackingProfileSourceTags(profile)])
+  return tags.length === profile.tags.length ? profile : { ...profile, tags, updatedAt: now }
+}
+
 function uniqueId(): string {
   return globalThis.crypto.randomUUID()
 }
@@ -124,6 +157,7 @@ export function startStockTracking(
   quote?: StockQuote,
   now = new Date().toISOString()
 ): StockTrackingProfile {
+  const sourceTags = trackingSourceTags(source)
   if (!current) {
     const profile: StockTrackingProfile = {
       quoteId: stock.quoteId,
@@ -131,7 +165,7 @@ export function startStockTracking(
       name: stock.name,
       marketLabel: stock.marketLabel,
       status: 'tracking',
-      tags: [],
+      tags: sourceTags,
       thesis: '',
       startedAt: now,
       updatedAt: now,
@@ -159,6 +193,7 @@ export function startStockTracking(
     stoppedAt: undefined,
     conclusion: undefined,
     updatedAt: now,
+    tags: uniqueTags([...current.tags, ...sourceTags]),
     sources: sourceExists ? current.sources : [source, ...current.sources]
   }
   if (restarting) {

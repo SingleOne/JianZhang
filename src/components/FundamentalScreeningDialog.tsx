@@ -105,7 +105,7 @@ interface FundamentalScreeningDialogProps {
   trackingProfiles: StockTrackingProfiles
   onAddStock: (
     stock: SearchResult,
-    company: FundamentalCompany,
+    evaluation: FundamentalScreeningEvaluation,
     snapshotDate: string | undefined
   ) => void
   onViewStock: (quoteId: string) => void
@@ -829,7 +829,8 @@ export function FundamentalScreeningDialog({
     return sortDirection === 'asc' ? <ChevronUp size={13} /> : <ChevronDown size={13} />
   }
 
-  const addCompany = (company: FundamentalCompany) => {
+  const addCompany = (evaluation: FundamentalScreeningEvaluation) => {
+    const { company } = evaluation
     onAddStock(
       {
         code: company.code,
@@ -837,7 +838,7 @@ export function FundamentalScreeningDialog({
         quoteId: company.quoteId,
         marketLabel: MARKET_LABELS[company.market]
       },
-      company,
+      evaluation,
       snapshot?.snapshotDate
     )
     setActionMessage(`${company.name}已开始追踪，并加入追踪分组`)
@@ -1308,7 +1309,7 @@ export function FundamentalScreeningDialog({
                                             source.detail?.snapshotDate === snapshot?.snapshotDate
                                         ) ?? false
                                       }
-                                      onAdd={addCompany}
+                                      onAdd={() => addCompany(evaluation)}
                                       onView={onViewStock}
                                     />
                                     {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}

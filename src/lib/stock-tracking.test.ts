@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  addTrackingSourceTags,
   addStockTrackingEntry,
   createStockTrackingSource,
   startStockTracking,
-  stopStockTracking
+  stopStockTracking,
+  trackingProfileSourceTags
 } from './stock-tracking'
 import type { WatchStock } from '../shared/types'
 
@@ -62,6 +64,7 @@ describe('stock tracking', () => {
     )
     expect(stopped.status).toBe('stopped')
     expect(stopped.sources.map((source) => source.type)).toEqual(['dividendFinancing', 'dailyScan'])
+    expect(stopped.tags).toEqual(['放量异动', '20 日新高', '分红'])
     expect(stopped.entries.some((entry) => entry.content === '关注突破后的承接')).toBe(true)
     expect(stopped.conclusion?.summary).toContain('阶段复盘完成')
 
@@ -104,5 +107,28 @@ describe('stock tracking', () => {
     )
 
     expect(repeated.sources).toHaveLength(1)
+  })
+
+  it('collects explicit source tags and can restore all available source tags', () => {
+    const profile = startStockTracking(
+      undefined,
+      stock,
+      createStockTrackingSource('fundamentalScreening', {
+        snapshotDate: '2026-08-11',
+        tags: ['持续高ROE通过', '现金利润质量通过', '行业杠杆水平未通过']
+      }),
+      undefined,
+      '2026-08-11T08:00:00.000Z'
+    )
+    const withoutTags = { ...profile, tags: [] }
+
+    expect(trackingProfileSourceTags(withoutTags)).toEqual([
+      '持续高ROE通过',
+      '现金利润质量通过',
+      '行业杠杆水平未通过'
+    ])
+    expect(addTrackingSourceTags(withoutTags, '2026-08-11T09:00:00.000Z').tags).toEqual(
+      trackingProfileSourceTags(withoutTags)
+    )
   })
 })

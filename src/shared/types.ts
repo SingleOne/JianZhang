@@ -38,6 +38,7 @@ export type StockTrackingSourceType =
   'manual' | 'dailyScan' | 'dividendFinancing' | 'fundamentalScreening' | 'legacy'
 
 export interface StockTrackingSourceDetail {
+  tags?: string[]
   tradingDate?: string
   signals?: DailyMarketScanSignalType[]
   startPrice?: number

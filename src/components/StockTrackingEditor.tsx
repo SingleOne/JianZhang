@@ -4,7 +4,9 @@ import {
   STOCK_TRACKING_CONCLUSION_LABELS,
   STOCK_TRACKING_ENTRY_LABELS,
   STOCK_TRACKING_SOURCE_LABELS,
+  addTrackingSourceTags,
   addStockTrackingEntry,
+  trackingProfileSourceTags,
   trackingSourceDescription
 } from '../lib/stock-tracking'
 import { formatPercent, formatPrice } from '../lib/format'
@@ -66,6 +68,8 @@ export function StockTrackingEditor({
   const [conclusionResult, setConclusionResult] =
     useState<StockTrackingConclusionResult>('unverified')
   const [conclusionSummary, setConclusionSummary] = useState('')
+  const sourceTags = trackingProfileSourceTags(profile)
+  const missingSourceTags = sourceTags.filter((tag) => !profile.tags.includes(tag))
 
   const saveThesis = () => {
     const now = new Date().toISOString()
@@ -92,6 +96,10 @@ export function StockTrackingEditor({
       tags: profile.tags.filter((item) => item !== tag),
       updatedAt: new Date().toISOString()
     })
+  }
+
+  const addSourceTags = () => {
+    onUpdateProfile(addTrackingSourceTags(profile))
   }
 
   const addEntry = () => {
@@ -236,6 +244,22 @@ export function StockTrackingEditor({
         <div className="stock-tracking-section-title">
           <Tag size={16} />
           <strong>标签与特点</strong>
+          <button
+            className="stock-tracking-source-tags-button"
+            type="button"
+            onClick={addSourceTags}
+            disabled={missingSourceTags.length === 0}
+            title={
+              missingSourceTags.length > 0
+                ? `添加来源标签：${missingSourceTags.join('、')}`
+                : sourceTags.length > 0
+                  ? '当前来源标签已全部添加'
+                  : '当前来源没有可添加的标签'
+            }
+          >
+            <Plus size={13} />
+            一键添加来源标签
+          </button>
         </div>
         <div className="stock-tracking-tags">
           {profile.tags.map((tag) => (

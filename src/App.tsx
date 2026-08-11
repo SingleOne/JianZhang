@@ -35,7 +35,8 @@ import {
 import {
   createFundamentalPeerComparisonMap,
   DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA,
-  screenFundamentalCompanies
+  screenFundamentalCompanies,
+  type FundamentalScreeningEvaluation
 } from './lib/fundamental-screening'
 import { calculatePortfolioSummary } from './lib/portfolio'
 import { reconcileStockQuotes } from './lib/quote-state'
@@ -58,7 +59,6 @@ import type {
   DividendFinancingRankingItem,
   DividendFinancingSnapshot,
   DailyMarketScanRow,
-  FundamentalCompany,
   FundamentalChangeReport,
   FundamentalSnapshot,
   SearchResult,
@@ -479,13 +479,25 @@ export default function App() {
   )
 
   const addFundamentalScreeningStock = useCallback(
-    (result: SearchResult, company: FundamentalCompany, snapshotDate: string | undefined) => {
+    (
+      result: SearchResult,
+      evaluation: FundamentalScreeningEvaluation,
+      snapshotDate: string | undefined
+    ) => {
+      const { company } = evaluation
       addStock(result, {
         startTracking: true,
         targetGroups: [getTrackingWatchlistGroup(state.watchlistGroups)],
         source: createStockTrackingSource('fundamentalScreening', {
           snapshotDate,
-          industryName: company.industryName
+          industryName: company.industryName,
+          tags: [
+            `持续高ROE${evaluation.checks.roe ? '通过' : '未通过'}`,
+            `现金利润质量${evaluation.checks.cash ? '通过' : '未通过'}`,
+            evaluation.eligibleOrganization
+              ? `行业杠杆水平${evaluation.checks.debt ? '通过' : '未通过'}`
+              : '行业杠杆水平不适用'
+          ]
         })
       })
     },
