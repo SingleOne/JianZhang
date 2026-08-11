@@ -1198,6 +1198,8 @@
   position: sticky;
   top: 60px;
   z-index: 11;
+  margin-top: -14px;
+  padding-top: 14px;
 }
 
 .detail-tabs button {

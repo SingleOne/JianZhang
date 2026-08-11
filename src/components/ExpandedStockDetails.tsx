@@ -1495,6 +1495,32 @@ export function ExpandedStockDetails({
     setRefreshVersion((current) => current + 1)
   }
 
+  const changeDetailTab = (nextTab: DetailTab, button: HTMLButtonElement) => {
+    if (nextTab === activeTab) return
+
+    setActiveTab(nextTab)
+    const tabList = button.parentElement
+    const details = tabList?.closest<HTMLElement>('.stock-details')
+    const scroller = tabList?.closest<HTMLElement>('.table-scroller')
+    if (!tabList || !details || !scroller) return
+
+    window.requestAnimationFrame(() => {
+      const content = details.querySelector<HTMLElement>(':scope > .detail-tab-content')
+      if (!content) return
+
+      const tabStyles = window.getComputedStyle(tabList)
+      const stickyTop = Number.parseFloat(tabStyles.top) || 0
+      const bottomSpacing = Number.parseFloat(tabStyles.marginBottom) || 0
+      const scrollerRect = scroller.getBoundingClientRect()
+      const contentRect = content.getBoundingClientRect()
+      const contentTop = scrollerRect.top + stickyTop + tabList.offsetHeight + bottomSpacing
+      scroller.scrollTo({
+        top: Math.max(0, scroller.scrollTop + contentRect.top - contentTop),
+        behavior: 'auto'
+      })
+    })
+  }
+
   return (
     <section className="stock-details" aria-label={`${stock.name} 行情详情`}>
       <div className="detail-tabs" role="tablist" aria-label="行情详情类型">
@@ -1504,7 +1530,7 @@ export function ExpandedStockDetails({
             type="button"
             role="tab"
             aria-selected={activeTab === tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={(event) => changeDetailTab(tab.id, event.currentTarget)}
             key={tab.id}
           >
             <BarChart3 size={15} />
@@ -1516,7 +1542,7 @@ export function ExpandedStockDetails({
           type="button"
           role="tab"
           aria-selected={activeTab === 'funds'}
-          onClick={() => setActiveTab('funds')}
+          onClick={(event) => changeDetailTab('funds', event.currentTarget)}
         >
           <TrendingUp size={15} />
           资金流向
@@ -1526,7 +1552,7 @@ export function ExpandedStockDetails({
           type="button"
           role="tab"
           aria-selected={activeTab === 'dividendFinancing'}
-          onClick={() => setActiveTab('dividendFinancing')}
+          onClick={(event) => changeDetailTab('dividendFinancing', event.currentTarget)}
         >
           <Trophy size={15} />
           分红融资
@@ -1536,7 +1562,7 @@ export function ExpandedStockDetails({
           type="button"
           role="tab"
           aria-selected={activeTab === 'fundamental'}
-          onClick={() => setActiveTab('fundamental')}
+          onClick={(event) => changeDetailTab('fundamental', event.currentTarget)}
         >
           <Building2 size={15} />
           基本面
@@ -1546,7 +1572,7 @@ export function ExpandedStockDetails({
           type="button"
           role="tab"
           aria-selected={activeTab === 'shareholders'}
-          onClick={() => setActiveTab('shareholders')}
+          onClick={(event) => changeDetailTab('shareholders', event.currentTarget)}
         >
           <UsersRound size={15} />
           股东
@@ -1556,7 +1582,7 @@ export function ExpandedStockDetails({
           type="button"
           role="tab"
           aria-selected={activeTab === 'reports'}
-          onClick={() => setActiveTab('reports')}
+          onClick={(event) => changeDetailTab('reports', event.currentTarget)}
         >
           <BookOpen size={15} />
           财报库
@@ -1566,7 +1592,7 @@ export function ExpandedStockDetails({
           type="button"
           role="tab"
           aria-selected={activeTab === 'tracking'}
-          onClick={() => setActiveTab('tracking')}
+          onClick={(event) => changeDetailTab('tracking', event.currentTarget)}
         >
           <Binoculars size={15} />
           选股追踪
@@ -1577,7 +1603,7 @@ export function ExpandedStockDetails({
             type="button"
             role="tab"
             aria-selected={activeTab === 'insight'}
-            onClick={() => setActiveTab('insight')}
+            onClick={(event) => changeDetailTab('insight', event.currentTarget)}
           >
             <Radar size={15} />
             市场观察
@@ -1589,7 +1615,7 @@ export function ExpandedStockDetails({
             type="button"
             role="tab"
             aria-selected={activeTab === tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={(event) => changeDetailTab(tab.id, event.currentTarget)}
             key={tab.id}
           >
             <BarChart3 size={15} />
@@ -1601,7 +1627,7 @@ export function ExpandedStockDetails({
           type="button"
           role="tab"
           aria-selected={activeTab === 'sector'}
-          onClick={() => setActiveTab('sector')}
+          onClick={(event) => changeDetailTab('sector', event.currentTarget)}
         >
           <Layers size={15} />
           板块
@@ -1612,7 +1638,7 @@ export function ExpandedStockDetails({
             type="button"
             role="tab"
             aria-selected={activeTab === 'ai'}
-            onClick={() => setActiveTab('ai')}
+            onClick={(event) => changeDetailTab('ai', event.currentTarget)}
           >
             <Bot size={15} />
             AI 分析
@@ -1624,13 +1650,14 @@ export function ExpandedStockDetails({
             type="button"
             role="tab"
             aria-selected={activeTab === 't-advice'}
-            onClick={() => setActiveTab('t-advice')}
+            onClick={(event) => changeDetailTab('t-advice', event.currentTarget)}
           >
             <Sparkles size={15} />做 T 参考
           </button>
         ) : null}
       </div>
 
+      <div className="detail-tab-content" aria-hidden="true" />
       {activeTab === 'dividendFinancing' ? (
         <div className="dividend-financing-tab-content" role="tabpanel">
           <DividendFinancingPanel
