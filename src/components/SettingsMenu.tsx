@@ -603,7 +603,7 @@ export function SettingsMenu({
                       <strong>私有仓库同步</strong>
                       <GitHubIcon size={16} />
                     </span>
-                    <small>通过 GitHub 官方网页授权，分支和同步路径由应用自动处理</small>
+                    <small>通过 GitHub 私有仓库进行同步</small>
                   </span>
                   {githubSyncSettings.lastUploadedAt ? (
                     <small className="github-last-uploaded-at">

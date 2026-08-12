@@ -8,6 +8,7 @@ import type {
   FundamentalRuleChange,
   FundamentalSnapshot
 } from '../shared/types'
+import { hasFinancialMineRisk } from './financial-mine-detector'
 
 export type FundamentalRoeMetric = 'weighted' | 'deducted'
 export type FundamentalCashFlowMode = 'cumulative' | 'latest'
@@ -43,18 +44,10 @@ export interface FundamentalScreeningEvaluation {
   passed: boolean
 }
 
-export type FundamentalRuleAssessmentStatus =
-  | 'passed'
-  | 'failed'
-  | 'missing'
-  | 'not-applicable'
+export type FundamentalRuleAssessmentStatus = 'passed' | 'failed' | 'missing' | 'not-applicable'
 
 export type FundamentalScreeningSummaryStatus =
-  | 'passed'
-  | 'review'
-  | 'missing'
-  | 'financial'
-  | 'unavailable'
+  'passed' | 'review' | 'missing' | 'financial' | 'unavailable'
 
 export interface FundamentalScreeningSummary {
   status: FundamentalScreeningSummaryStatus
@@ -131,10 +124,7 @@ export const FUNDAMENTAL_RISK_TAG_LABELS: Record<FundamentalRiskTag, string> = {
   singleYearCashWeak: '单年现金转弱'
 }
 
-export const FUNDAMENTAL_RISK_TAG_SEVERITY: Record<
-  FundamentalRiskTag,
-  FundamentalRiskSeverity
-> = {
+export const FUNDAMENTAL_RISK_TAG_SEVERITY: Record<FundamentalRiskTag, FundamentalRiskSeverity> = {
   cashDivergence: 'critical',
   highLeverageRoe: 'warning',
   deductedWeak: 'warning',
@@ -160,21 +150,9 @@ export interface FundamentalPeerComparison {
 }
 
 export type FundamentalWatchlistFilter =
-  | 'all'
-  | 'passed'
-  | 'review'
-  | 'missing'
-  | 'financial'
-  | 'unavailable'
-  | 'roe'
-  | 'cash'
-  | 'debt'
+  'all' | 'passed' | 'review' | 'missing' | 'financial' | 'unavailable' | 'roe' | 'cash' | 'debt'
 
-export type FundamentalDividendCategory =
-  | 'dual'
-  | 'fundamental'
-  | 'dividend'
-  | 'unlabeled'
+export type FundamentalDividendCategory = 'dual' | 'fundamental' | 'dividend' | 'unlabeled'
 
 export type FundamentalDividendFilter = 'all' | FundamentalDividendCategory
 
@@ -225,12 +203,12 @@ function sumAnnualField(
 
 function cashConversion(netProfit: number | null, operatingCashFlow: number | null): number | null {
   if (netProfit === null || operatingCashFlow === null || netProfit <= 0) return null
-  return operatingCashFlow / netProfit * 100
+  return (operatingCashFlow / netProfit) * 100
 }
 
 function completeValues(values: Array<number | null>, expectedLength: number): number[] | null {
   return values.length === expectedLength && values.every((value) => value !== null)
-    ? values as number[]
+    ? (values as number[])
     : null
 }
 
@@ -239,35 +217,34 @@ export function evaluateFundamentalCompany(
   industryBenchmark: FundamentalIndustryBenchmark | null,
   criteria: FundamentalScreeningCriteria
 ): FundamentalScreeningEvaluation {
-  const roeValues = company.annualReports.map((report) => (
+  const roeValues = company.annualReports.map((report) =>
     criteria.roeMetric === 'weighted'
       ? report.weightedAverageRoe
       : report.deductedWeightedAverageRoe
-  ))
+  )
   const completeRoeValues = roeValues.filter((value): value is number => value !== null)
-  const minimumRoe = completeRoeValues.length === roeValues.length && roeValues.length > 0
-    ? Math.min(...completeRoeValues)
-    : null
+  const minimumRoe =
+    completeRoeValues.length === roeValues.length && roeValues.length > 0
+      ? Math.min(...completeRoeValues)
+      : null
   const cumulativeNetProfit = sumAnnualField(company, 'netProfit')
   const cumulativeOperatingCashFlow = sumAnnualField(company, 'operatingCashFlow')
-  const cumulativeCashConversion = cashConversion(
-    cumulativeNetProfit,
-    cumulativeOperatingCashFlow
-  )
+  const cumulativeCashConversion = cashConversion(cumulativeNetProfit, cumulativeOperatingCashFlow)
   const latestReport = company.annualReports.at(-1)
   const latestNetProfit = latestReport?.netProfit ?? null
   const latestOperatingCashFlow = latestReport?.operatingCashFlow ?? null
   const latestCashConversion = cashConversion(latestNetProfit, latestOperatingCashFlow)
-  const selectedCashConversion = criteria.cashFlowMode === 'cumulative'
-    ? cumulativeCashConversion
-    : latestCashConversion
+  const selectedCashConversion =
+    criteria.cashFlowMode === 'cumulative' ? cumulativeCashConversion : latestCashConversion
   const eligibleOrganization = company.organizationType === 'general'
   const checks = {
-    roe: roeValues.length === 5
-      && roeValues.every((value) => value !== null && value > criteria.roeThreshold),
+    roe:
+      roeValues.length === 5 &&
+      roeValues.every((value) => value !== null && value > criteria.roeThreshold),
     cash: selectedCashConversion !== null && selectedCashConversion > 100,
-    debt: company.latestBalanceSheet.industryPercentile !== null
-      && company.latestBalanceSheet.industryPercentile < criteria.debtIndustryPercentile
+    debt:
+      company.latestBalanceSheet.industryPercentile !== null &&
+      company.latestBalanceSheet.industryPercentile < criteria.debtIndustryPercentile
   }
   const passedRuleCount = Object.values(checks).filter(Boolean).length
 
@@ -290,9 +267,7 @@ export function evaluateFundamentalCompany(
   }
 }
 
-export function evaluateFundamentalQuality(
-  company: FundamentalCompany
-): FundamentalQualityProfile {
+export function evaluateFundamentalQuality(company: FundamentalCompany): FundamentalQualityProfile {
   const reports = company.annualReports
   const defaultEvaluation = evaluateFundamentalCompany(
     company,
@@ -320,27 +295,27 @@ export function evaluateFundamentalQuality(
     5
   )
   const minimumDeductedRoe = deductedRoeValues ? Math.min(...deductedRoeValues) : null
-  const sustainedCashYears = reports.filter((report) => (
-    report.netProfit !== null
-    && report.operatingCashFlow !== null
-    && report.operatingCashFlow > report.netProfit
-  )).length
-  const netProfitCagr = netProfitValues
-    && netProfitValues[0] > 0
-    && netProfitValues.at(-1)! > 0
-    ? (Math.pow(netProfitValues.at(-1)! / netProfitValues[0], 1 / 4) - 1) * 100
-    : null
+  const sustainedCashYears = reports.filter(
+    (report) =>
+      report.netProfit !== null &&
+      report.operatingCashFlow !== null &&
+      report.operatingCashFlow > report.netProfit
+  ).length
+  const netProfitCagr =
+    netProfitValues && netProfitValues[0] > 0 && netProfitValues.at(-1)! > 0
+      ? (Math.pow(netProfitValues.at(-1)! / netProfitValues[0], 1 / 4) - 1) * 100
+      : null
   const roeRange = weightedRoeValues
     ? Math.max(...weightedRoeValues) - Math.min(...weightedRoeValues)
     : null
   const cumulativeParentProfit = parentProfitValues?.reduce((total, value) => total + value, 0)
-  const cumulativeDeductedProfit = deductedProfitValues
-    ?.reduce((total, value) => total + value, 0)
-  const deductedProfitRatio = cumulativeParentProfit !== undefined
-    && cumulativeDeductedProfit !== undefined
-    && cumulativeParentProfit > 0
-    ? cumulativeDeductedProfit / cumulativeParentProfit * 100
-    : null
+  const cumulativeDeductedProfit = deductedProfitValues?.reduce((total, value) => total + value, 0)
+  const deductedProfitRatio =
+    cumulativeParentProfit !== undefined &&
+    cumulativeDeductedProfit !== undefined &&
+    cumulativeParentProfit > 0
+      ? (cumulativeDeductedProfit / cumulativeParentProfit) * 100
+      : null
   const latestReport = reports.at(-1)
   const latestCashConversion = cashConversion(
     latestReport?.netProfit ?? null,
@@ -355,14 +330,15 @@ export function evaluateFundamentalQuality(
     recentReports.map((report) => report.netProfit),
     3
   )
-  const improving = recentRoe !== null
-    && recentProfit !== null
-    && recentRoe[0] < recentRoe[1]
-    && recentRoe[1] < recentRoe[2]
-    && recentProfit[0] < recentProfit[1]
-    && recentProfit[1] < recentProfit[2]
-    && latestCashConversion !== null
-    && latestCashConversion > 100
+  const improving =
+    recentRoe !== null &&
+    recentProfit !== null &&
+    recentRoe[0] < recentRoe[1] &&
+    recentRoe[1] < recentRoe[2] &&
+    recentProfit[0] < recentProfit[1] &&
+    recentProfit[1] < recentProfit[2] &&
+    latestCashConversion !== null &&
+    latestCashConversion > 100
 
   if (company.organizationType !== 'general') {
     return {
@@ -409,9 +385,7 @@ export function evaluateFundamentalQuality(
   }
 }
 
-export function evaluateFundamentalRisk(
-  company: FundamentalCompany
-): FundamentalRiskProfile {
+export function evaluateFundamentalRisk(company: FundamentalCompany): FundamentalRiskProfile {
   const reports = company.annualReports
   const weightedRoe = completeValues(
     reports.map((report) => report.weightedAverageRoe),
@@ -432,19 +406,16 @@ export function evaluateFundamentalRisk(
   const minimumWeightedRoe = weightedRoe ? Math.min(...weightedRoe) : null
   const minimumDeductedRoe = deductedRoe ? Math.min(...deductedRoe) : null
   const cumulativeNetProfit = netProfits?.reduce((total, value) => total + value, 0)
-  const cumulativeOperatingCashFlow = operatingCashFlows
-    ?.reduce((total, value) => total + value, 0)
-  const cumulativeCashConversion = cumulativeNetProfit !== undefined
-    && cumulativeOperatingCashFlow !== undefined
-    ? cashConversion(cumulativeNetProfit, cumulativeOperatingCashFlow)
-    : null
+  const cumulativeOperatingCashFlow = operatingCashFlows?.reduce((total, value) => total + value, 0)
+  const cumulativeCashConversion =
+    cumulativeNetProfit !== undefined && cumulativeOperatingCashFlow !== undefined
+      ? cashConversion(cumulativeNetProfit, cumulativeOperatingCashFlow)
+      : null
   const latestReport = reports.at(-1)
   const latestNetProfit = latestReport?.netProfit ?? null
   const latestOperatingCashFlow = latestReport?.operatingCashFlow ?? null
   const latestCashConversion = cashConversion(latestNetProfit, latestOperatingCashFlow)
-  const roeDeclinePoints = weightedRoe
-    ? weightedRoe[0] - weightedRoe.at(-1)!
-    : null
+  const roeDeclinePoints = weightedRoe ? weightedRoe[0] - weightedRoe.at(-1)! : null
   const highRoe = weightedRoe !== null && weightedRoe.every((value) => value > 15)
   const recentNetProfits = completeValues(
     reports.slice(-3).map((report) => report.netProfit),
@@ -454,15 +425,16 @@ export function evaluateFundamentalRisk(
     reports.slice(-3).map((report) => report.operatingCashFlow),
     3
   )
-  const profitCashDivergence = recentNetProfits !== null
-    && recentOperatingCashFlows !== null
-    && recentNetProfits.every((value) => value > 0)
-    && recentNetProfits[0] < recentNetProfits[1]
-    && recentNetProfits[1] < recentNetProfits[2]
-    && recentOperatingCashFlows[0] > recentOperatingCashFlows[1]
-    && recentOperatingCashFlows[1] > recentOperatingCashFlows[2]
-    && latestCashConversion !== null
-    && latestCashConversion < 100
+  const profitCashDivergence =
+    recentNetProfits !== null &&
+    recentOperatingCashFlows !== null &&
+    recentNetProfits.every((value) => value > 0) &&
+    recentNetProfits[0] < recentNetProfits[1] &&
+    recentNetProfits[1] < recentNetProfits[2] &&
+    recentOperatingCashFlows[0] > recentOperatingCashFlows[1] &&
+    recentOperatingCashFlows[1] > recentOperatingCashFlows[2] &&
+    latestCashConversion !== null &&
+    latestCashConversion < 100
   const tags: FundamentalRiskTag[] = []
 
   if (company.organizationType === 'general') {
@@ -470,9 +442,9 @@ export function evaluateFundamentalRisk(
       tags.push('cashDivergence')
     }
     if (
-      highRoe
-      && company.latestBalanceSheet.industryPercentile !== null
-      && company.latestBalanceSheet.industryPercentile >= 80
+      highRoe &&
+      company.latestBalanceSheet.industryPercentile !== null &&
+      company.latestBalanceSheet.industryPercentile >= 80
     ) {
       tags.push('highLeverageRoe')
     }
@@ -484,10 +456,10 @@ export function evaluateFundamentalRisk(
       tags.push('roeDecline')
     }
     if (
-      cumulativeCashConversion !== null
-      && cumulativeCashConversion > 100
-      && latestCashConversion !== null
-      && latestCashConversion < 100
+      cumulativeCashConversion !== null &&
+      cumulativeCashConversion > 100 &&
+      latestCashConversion !== null &&
+      latestCashConversion < 100
     ) {
       tags.push('singleYearCashWeak')
     }
@@ -544,10 +516,10 @@ export function summarizeFundamentalScreening(
     }
   }
 
-  const roeComplete = evaluation.roeValues.length === 5
-    && evaluation.roeValues.every((value) => value !== null)
-  const cashComplete = evaluation.cumulativeNetProfit !== null
-    && evaluation.cumulativeOperatingCashFlow !== null
+  const roeComplete =
+    evaluation.roeValues.length === 5 && evaluation.roeValues.every((value) => value !== null)
+  const cashComplete =
+    evaluation.cumulativeNetProfit !== null && evaluation.cumulativeOperatingCashFlow !== null
   const debtComplete = evaluation.company.latestBalanceSheet.industryPercentile !== null
   const ruleStatuses: FundamentalScreeningSummary['ruleStatuses'] = {
     roe: roeComplete ? (evaluation.checks.roe ? 'passed' : 'failed') : 'missing',
@@ -557,9 +529,11 @@ export function summarizeFundamentalScreening(
   const reviewReasons = [
     ...(ruleStatuses.roe === 'failed' ? ['ROE未达标'] : []),
     ...(ruleStatuses.cash === 'failed'
-      ? [evaluation.cumulativeNetProfit !== null && evaluation.cumulativeNetProfit <= 0
-          ? '五年累计净利润不为正'
-          : '现金转化不足']
+      ? [
+          evaluation.cumulativeNetProfit !== null && evaluation.cumulativeNetProfit <= 0
+            ? '五年累计净利润不为正'
+            : '现金转化不足'
+        ]
       : []),
     ...(ruleStatuses.debt === 'failed' ? ['杠杆待核'] : [])
   ]
@@ -570,11 +544,7 @@ export function summarizeFundamentalScreening(
   ]
 
   return {
-    status: evaluation.passed
-      ? 'passed'
-      : missingReasons.length > 0
-        ? 'missing'
-        : 'review',
+    status: evaluation.passed ? 'passed' : missingReasons.length > 0 ? 'missing' : 'review',
     ruleStatuses,
     reviewReasons,
     missingReasons,
@@ -629,7 +599,11 @@ export function matchesFundamentalWatchlistFilter(
 export function hasFundamentalRisk(
   evaluation: FundamentalScreeningEvaluation | undefined
 ): boolean {
-  return Boolean(evaluation && evaluateFundamentalRisk(evaluation.company).tags.length > 0)
+  return Boolean(
+    evaluation &&
+    (evaluateFundamentalRisk(evaluation.company).tags.length > 0 ||
+      hasFinancialMineRisk(evaluation.company))
+  )
 }
 
 export function classifyFundamentalDividendCategory(
@@ -654,10 +628,7 @@ export function summarizeFundamentalDividendWatchlist(
     unlabeled: 0
   }
   for (const item of items) {
-    summary[classifyFundamentalDividendCategory(
-      item.evaluation,
-      item.hasDividendLabel
-    )] += 1
+    summary[classifyFundamentalDividendCategory(item.evaluation, item.hasDividendLabel)] += 1
   }
   return summary
 }
@@ -666,8 +637,10 @@ export function matchesFundamentalDividendFilter(
   item: FundamentalDividendWatchlistItem,
   filter: FundamentalDividendFilter
 ): boolean {
-  return filter === 'all'
-    || classifyFundamentalDividendCategory(item.evaluation, item.hasDividendLabel) === filter
+  return (
+    filter === 'all' ||
+    classifyFundamentalDividendCategory(item.evaluation, item.hasDividendLabel) === filter
+  )
 }
 
 interface PeerMetricIndex {
@@ -675,13 +648,10 @@ interface PeerMetricIndex {
   positions: Map<number, { first: number; last: number }>
 }
 
-function createPeerMetricIndex(
-  values: number[],
-  direction: 'higher' | 'lower'
-): PeerMetricIndex {
-  const sorted = [...values].sort((left, right) => (
+function createPeerMetricIndex(values: number[], direction: 'higher' | 'lower'): PeerMetricIndex {
+  const sorted = [...values].sort((left, right) =>
     direction === 'higher' ? right - left : left - right
-  ))
+  )
   const positions = new Map<number, { first: number; last: number }>()
   sorted.forEach((value, index) => {
     const position = positions.get(value)
@@ -712,10 +682,9 @@ function createPeerMetricComparison(
     value,
     sampleSize: index.sampleSize,
     rank,
-    topPercent: Math.ceil(rank / index.sampleSize * 100),
-    betterThanPercent: peerCount > 0
-      ? Math.round((index.sampleSize - position.last - 1) / peerCount * 100)
-      : 0
+    topPercent: Math.ceil((rank / index.sampleSize) * 100),
+    betterThanPercent:
+      peerCount > 0 ? Math.round(((index.sampleSize - position.last - 1) / peerCount) * 100) : 0
   }
 }
 
@@ -773,18 +742,14 @@ export function screenFundamentalCompanies(
   criteria: FundamentalScreeningCriteria
 ): FundamentalScreeningEvaluation[] {
   const benchmarks = new Map(snapshot.industries.map((industry) => [industry.code, industry]))
-  return snapshot.rows.map((company) => evaluateFundamentalCompany(
-    company,
-    benchmarks.get(company.industryCode) ?? null,
-    criteria
-  ))
+  return snapshot.rows.map((company) =>
+    evaluateFundamentalCompany(company, benchmarks.get(company.industryCode) ?? null, criteria)
+  )
 }
 
 const FUNDAMENTAL_RULES = ['roe', 'cash', 'debt'] as const
 
-function changeMetrics(
-  evaluation: FundamentalScreeningEvaluation
-): FundamentalChangeMetrics {
+function changeMetrics(evaluation: FundamentalScreeningEvaluation): FundamentalChangeMetrics {
   return {
     minimumRoe: evaluation.minimumRoe,
     cumulativeCashConversion: evaluation.cumulativeCashConversion,
@@ -798,12 +763,14 @@ export function createFundamentalChangeReport(
   generatedAt = new Date().toISOString()
 ): FundamentalChangeReport {
   const previousByCode = new Map(
-    screenFundamentalCompanies(previous, DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA)
-      .map((evaluation) => [evaluation.company.code, evaluation])
+    screenFundamentalCompanies(previous, DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA).map(
+      (evaluation) => [evaluation.company.code, evaluation]
+    )
   )
   const currentByCode = new Map(
-    screenFundamentalCompanies(current, DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA)
-      .map((evaluation) => [evaluation.company.code, evaluation])
+    screenFundamentalCompanies(current, DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA).map(
+      (evaluation) => [evaluation.company.code, evaluation]
+    )
   )
   const allCodes = new Set([...previousByCode.keys(), ...currentByCode.keys()])
   const rows: FundamentalChangeItem[] = []
@@ -852,9 +819,7 @@ export function createFundamentalChangeReport(
     const ruleChanges: FundamentalRuleChange[] = FUNDAMENTAL_RULES.flatMap((rule) => {
       const previousStatus = previousSummary.ruleStatuses[rule]
       const currentStatus = currentSummary.ruleStatuses[rule]
-      return previousStatus === currentStatus
-        ? []
-        : [{ rule, previousStatus, currentStatus }]
+      return previousStatus === currentStatus ? [] : [{ rule, previousStatus, currentStatus }]
     })
     const changeTypes: FundamentalChangeType[] = []
     if (previousSummary.status !== 'passed' && currentSummary.status === 'passed') {
@@ -866,21 +831,29 @@ export function createFundamentalChangeReport(
     if (ruleChanges.some((change) => change.currentStatus === 'failed')) {
       changeTypes.push('reviewAdded')
     }
-    if (ruleChanges.some((change) => (
-      change.previousStatus === 'failed' && change.currentStatus === 'passed'
-    ))) {
+    if (
+      ruleChanges.some(
+        (change) => change.previousStatus === 'failed' && change.currentStatus === 'passed'
+      )
+    ) {
       changeTypes.push('reviewResolved')
     }
-    if (ruleChanges.some((change) => (
-      change.previousStatus === 'missing'
-      && (change.currentStatus === 'passed' || change.currentStatus === 'failed')
-    ))) {
+    if (
+      ruleChanges.some(
+        (change) =>
+          change.previousStatus === 'missing' &&
+          (change.currentStatus === 'passed' || change.currentStatus === 'failed')
+      )
+    ) {
       changeTypes.push('dataCompleted')
     }
-    if (ruleChanges.some((change) => (
-      (change.previousStatus === 'passed' || change.previousStatus === 'failed')
-      && change.currentStatus === 'missing'
-    ))) {
+    if (
+      ruleChanges.some(
+        (change) =>
+          (change.previousStatus === 'passed' || change.previousStatus === 'failed') &&
+          change.currentStatus === 'missing'
+      )
+    ) {
       changeTypes.push('dataMissing')
     }
     if (before.company.organizationType !== after.company.organizationType) {
@@ -915,7 +888,9 @@ export function createFundamentalChangeReport(
     if (item.changeTypes.includes('addedCoverage')) return 7
     return 8
   }
-  rows.sort((left, right) => priority(left) - priority(right) || left.code.localeCompare(right.code))
+  rows.sort(
+    (left, right) => priority(left) - priority(right) || left.code.localeCompare(right.code)
+  )
 
   return {
     schemaVersion: 1,
@@ -928,13 +903,18 @@ export function createFundamentalChangeReport(
       enteredCount: rows.filter((item) => item.changeTypes.includes('entered')).length,
       exitedCount: rows.filter((item) => item.changeTypes.includes('exited')).length,
       reviewAddedCount: rows.filter((item) => item.changeTypes.includes('reviewAdded')).length,
-      reviewResolvedCount: rows.filter((item) => item.changeTypes.includes('reviewResolved')).length,
-      dataChangedCount: rows.filter((item) => (
-        item.changeTypes.includes('dataCompleted') || item.changeTypes.includes('dataMissing')
-      )).length,
+      reviewResolvedCount: rows.filter((item) => item.changeTypes.includes('reviewResolved'))
+        .length,
+      dataChangedCount: rows.filter(
+        (item) =>
+          item.changeTypes.includes('dataCompleted') || item.changeTypes.includes('dataMissing')
+      ).length,
       addedCoverageCount: rows.filter((item) => item.changeTypes.includes('addedCoverage')).length,
-      removedCoverageCount: rows.filter((item) => item.changeTypes.includes('removedCoverage')).length,
-      organizationChangedCount: rows.filter((item) => item.changeTypes.includes('organizationChanged')).length
+      removedCoverageCount: rows.filter((item) => item.changeTypes.includes('removedCoverage'))
+        .length,
+      organizationChangedCount: rows.filter((item) =>
+        item.changeTypes.includes('organizationChanged')
+      ).length
     },
     rows
   }

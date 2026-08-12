@@ -11,6 +11,7 @@ import {
   CircleX,
   Database,
   GraduationCap,
+  Info,
   Layers,
   Radar,
   RefreshCw,
@@ -34,6 +35,12 @@ import {
   type DcfUnavailableReason
 } from '../lib/dcf-analysis'
 import { formatAmount, formatPercent, formatPrice, formatVolume } from '../lib/format'
+import {
+  FINANCIAL_MINE_LEVEL_LABELS,
+  evaluateFinancialMine,
+  type FinancialMineIndicator,
+  type FinancialMineIndicatorId
+} from '../lib/financial-mine-detector'
 import {
   DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA,
   FUNDAMENTAL_QUALITY_TAG_LABELS,
@@ -911,6 +918,122 @@ function FundamentalRiskPanel({ evaluation }: { evaluation: FundamentalScreening
   )
 }
 
+const FINANCIAL_MINE_INDICATOR_META: Record<
+  FinancialMineIndicatorId,
+  { title: string; explanation: string }
+> = {
+  operatingCashFlow: {
+    title: '连续季度经营现金流',
+    explanation:
+      '将半年报、三季报和年报的累计经营现金流还原为单季度值，再从最新季度向前统计连续为负的季度数。连续2季起关注，连续4季起高风险。'
+  },
+  receivableRevenueDivergence: {
+    title: '应收账款与营收背离',
+    explanation:
+      '比较同一报告期的应收账款同比增速与累计营业收入同比增速。应收增速高出营收10个百分点以上需关注，高出20个百分点以上为高风险。'
+  },
+  inventoryTurnover: {
+    title: '存货周转天数变化',
+    explanation:
+      '用平均存货÷累计营业成本×报告期天数计算存货周转天数，再与上年同期比较。同比延长超过30%表示存货消化速度明显变慢。'
+  },
+  goodwillRatio: {
+    title: '商誉占总资产',
+    explanation:
+      '用最新报告期商誉÷总资产计算。比例超过30%时提示关注潜在商誉减值对利润和净资产的影响。'
+  }
+}
+
+const FINANCIAL_MINE_STATUS_LABELS: Record<FinancialMineIndicator['status'], string> = {
+  critical: '高风险',
+  warning: '需关注',
+  passed: '未触发',
+  missing: '数据不足'
+}
+
+function FinancialMineHelp({ indicatorId }: { indicatorId: FinancialMineIndicatorId }) {
+  const meta = FINANCIAL_MINE_INDICATOR_META[indicatorId]
+  return (
+    <details className="financial-mine-help">
+      <summary title={`说明：${meta.title}`} aria-label={`查看${meta.title}说明`}>
+        <Info size={14} />
+      </summary>
+      <span role="tooltip">
+        <strong>{meta.title}</strong>
+        {meta.explanation}
+      </span>
+    </details>
+  )
+}
+
+function financialMineIndicatorValue(indicator: FinancialMineIndicator): string {
+  if (indicator.value === null) return '--'
+  if (indicator.id === 'operatingCashFlow') return `${indicator.value} 季`
+  if (indicator.id === 'receivableRevenueDivergence') {
+    return `${indicator.value.toFixed(1)} 个百分点`
+  }
+  return fundamentalPercent(indicator.value, 1)
+}
+
+function FinancialMinePanel({ evaluation }: { evaluation: FundamentalScreeningEvaluation }) {
+  const assessment = evaluateFinancialMine(evaluation.company)
+  return (
+    <section className={`financial-mine-section is-${assessment.level}`}>
+      <header>
+        <span>
+          <i>
+            <Radar size={17} />
+          </i>
+          <span>
+            <strong>季度财务排雷</strong>
+            <small>
+              {assessment.reportDate
+                ? `报告期 ${assessment.reportDate}${assessment.noticeDate ? ` · 公告 ${assessment.noticeDate}` : ''}`
+                : '当前快照暂无季度排雷数据'}
+            </small>
+          </span>
+        </span>
+        <span className={`financial-mine-rating is-${assessment.level}`}>
+          {FINANCIAL_MINE_LEVEL_LABELS[assessment.level]}
+          {assessment.level === 'high' ||
+          assessment.level === 'medium' ||
+          assessment.level === 'low'
+            ? ` · ${assessment.score}/8`
+            : ''}
+        </span>
+      </header>
+      {assessment.level === 'notApplicable' ? (
+        <div className="financial-mine-empty">
+          <strong>金融企业暂不使用普通企业排雷口径</strong>
+          <span>银行、证券和保险公司的现金流、存货与资产结构需要采用行业专用指标。</span>
+        </div>
+      ) : (
+        <>
+          <div className="financial-mine-grid">
+            {assessment.indicators.map((indicator) => {
+              const meta = FINANCIAL_MINE_INDICATOR_META[indicator.id]
+              return (
+                <article className={`is-${indicator.status}`} key={indicator.id}>
+                  <header>
+                    <strong>{meta.title}</strong>
+                    <FinancialMineHelp indicatorId={indicator.id} />
+                  </header>
+                  <span>{FINANCIAL_MINE_STATUS_LABELS[indicator.status]}</span>
+                  <em>{financialMineIndicatorValue(indicator)}</em>
+                  <p>{indicator.message}</p>
+                </article>
+              )
+            })}
+          </div>
+          <footer>
+            任一红色信号即为高风险；仅有黄色信号为中等风险。该模型用于定位财务异常，不代表投资结论。
+          </footer>
+        </>
+      )}
+    </section>
+  )
+}
+
 function FundamentalPanel({
   evaluation,
   currentPrice,
@@ -1051,6 +1174,8 @@ function FundamentalPanel({
       <DcfPanel evaluation={evaluation} currentPrice={currentPrice} />
 
       <FundamentalQualityPanel evaluation={evaluation} />
+
+      <FinancialMinePanel evaluation={evaluation} />
 
       <FundamentalRiskPanel evaluation={evaluation} />
 

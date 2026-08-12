@@ -11,6 +11,7 @@ import {
   screenFundamentalCompanies,
   summarizeFundamentalScreening
 } from '../../../../lib/fundamental-screening'
+import { evaluateFinancialMine } from '../../../../lib/financial-mine-detector'
 import type {
   CompanyReportSummary,
   DataSnapshotRuntimeState,
@@ -48,9 +49,7 @@ interface LongTermContextInput {
 }
 
 function percentChange(current: number | null, base: number | undefined): number | null {
-  return current !== null && base !== undefined && base !== 0
-    ? (current / base - 1) * 100
-    : null
+  return current !== null && base !== undefined && base !== 0 ? (current / base - 1) * 100 : null
 }
 
 function average(values: readonly number[]): number | null {
@@ -74,15 +73,18 @@ export function calculateLongTermPriceStrength(
   const currentPrice = quote?.latest ?? closes.at(-1) ?? null
   const movingAverage = (sessions: number) => average(closes.slice(-sessions))
   const rangeBars = bars.slice(-250)
-  const rangeHigh = rangeBars.length > 0
-    ? Math.max(...rangeBars.map((bar) => bar.high), currentPrice ?? Number.NEGATIVE_INFINITY)
-    : null
-  const rangeLow = rangeBars.length > 0
-    ? Math.min(...rangeBars.map((bar) => bar.low), currentPrice ?? Number.POSITIVE_INFINITY)
-    : null
-  const rangePosition = currentPrice !== null && rangeHigh !== null && rangeLow !== null && rangeHigh !== rangeLow
-    ? (currentPrice - rangeLow) / (rangeHigh - rangeLow) * 100
-    : null
+  const rangeHigh =
+    rangeBars.length > 0
+      ? Math.max(...rangeBars.map((bar) => bar.high), currentPrice ?? Number.NEGATIVE_INFINITY)
+      : null
+  const rangeLow =
+    rangeBars.length > 0
+      ? Math.min(...rangeBars.map((bar) => bar.low), currentPrice ?? Number.POSITIVE_INFINITY)
+      : null
+  const rangePosition =
+    currentPrice !== null && rangeHigh !== null && rangeLow !== null && rangeHigh !== rangeLow
+      ? ((currentPrice - rangeLow) / (rangeHigh - rangeLow)) * 100
+      : null
 
   return {
     dataAt: quote?.updatedAt ?? bars.at(-1)?.time ?? null,
@@ -106,9 +108,13 @@ export function calculateLongTermPriceStrength(
 }
 
 export function buildLongTermContext(input: LongTermContextInput) {
-  const fundamentalCompany = input.fundamentalSnapshot?.rows.find((row) => row.quoteId === input.quoteId)
+  const fundamentalCompany = input.fundamentalSnapshot?.rows.find(
+    (row) => row.quoteId === input.quoteId
+  )
   const industryBenchmark = fundamentalCompany
-    ? input.fundamentalSnapshot?.industries.find((industry) => industry.code === fundamentalCompany.industryCode) ?? null
+    ? (input.fundamentalSnapshot?.industries.find(
+        (industry) => industry.code === fundamentalCompany.industryCode
+      ) ?? null)
     : null
   const evaluation = fundamentalCompany
     ? evaluateFundamentalCompany(
@@ -120,16 +126,23 @@ export function buildLongTermContext(input: LongTermContextInput) {
   const screening = evaluation ? summarizeFundamentalScreening(evaluation) : null
   const quality = fundamentalCompany ? evaluateFundamentalQuality(fundamentalCompany) : null
   const risk = fundamentalCompany ? evaluateFundamentalRisk(fundamentalCompany) : null
-  const peerComparison = fundamentalCompany && input.fundamentalSnapshot
-    ? createFundamentalPeerComparisonMap(screenFundamentalCompanies(
-        input.fundamentalSnapshot,
-        DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA
-      )).get(fundamentalCompany.code) ?? null
-    : null
-  const dividendItem = input.dividendSnapshot?.rows.find((row) => row.code === fundamentalCompany?.code || row.code === input.quote?.code)
-  const valueCategory = input.fundamentalSnapshot && input.dividendSnapshot
-    ? classifyFundamentalDividendCategory(evaluation ?? undefined, Boolean(dividendItem))
-    : null
+  const financialMine = fundamentalCompany ? evaluateFinancialMine(fundamentalCompany) : null
+  const peerComparison =
+    fundamentalCompany && input.fundamentalSnapshot
+      ? (createFundamentalPeerComparisonMap(
+          screenFundamentalCompanies(
+            input.fundamentalSnapshot,
+            DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA
+          )
+        ).get(fundamentalCompany.code) ?? null)
+      : null
+  const dividendItem = input.dividendSnapshot?.rows.find(
+    (row) => row.code === fundamentalCompany?.code || row.code === input.quote?.code
+  )
+  const valueCategory =
+    input.fundamentalSnapshot && input.dividendSnapshot
+      ? classifyFundamentalDividendCategory(evaluation ?? undefined, Boolean(dividendItem))
+      : null
   const priceStrength = calculateLongTermPriceStrength(input.quote, input.dailyKline)
   const ordinaryCorporateMetricsApplicable = usesOrdinaryCorporateInvestmentMetrics(
     fundamentalCompany?.organizationType
@@ -143,33 +156,35 @@ export function buildLongTermContext(input: LongTermContextInput) {
   const dcfResult = fundamentalCompany
     ? createDcfAnalysis(fundamentalCompany, input.quote?.latest)
     : null
-  const dcf = dcfResult?.analysis ? {
-    available: true as const,
-    unavailableReason: null,
-    normalizedFreeCashFlow: dcfResult.analysis.normalizedFreeCashFlow,
-    historicalGrowthRate: dcfResult.analysis.historicalGrowthRate,
-    forecastGrowthRate: dcfResult.analysis.forecastGrowthRate,
-    forecastYears: DCF_FORECAST_YEARS,
-    discountRate: DCF_DISCOUNT_RATE,
-    terminalGrowthRate: DCF_TERMINAL_GROWTH_RATE,
-    forecastGrowthRateRange: {
-      minimum: DCF_MIN_FORECAST_GROWTH_RATE,
-      maximum: DCF_MAX_FORECAST_GROWTH_RATE
-    },
-    enterpriseValue: dcfResult.analysis.enterpriseValue,
-    equityValue: dcfResult.analysis.equityValue,
-    sharesOutstanding: dcfResult.analysis.sharesOutstanding,
-    fairValuePerShare: dcfResult.analysis.fairValuePerShare,
-    currentPrice: dcfResult.analysis.currentPrice,
-    differencePercent: dcfResult.analysis.differencePercent,
-    fairValueToPricePercent: dcfResult.analysis.fairValueToPricePercent,
-    priceToFairValuePercent: dcfResult.analysis.priceToFairValuePercent,
-    lowValueThresholdPercent: DCF_LOW_VALUE_THRESHOLD_PERCENT,
-    belowLowValueThreshold: dcfResult.analysis.belowLowValueThreshold
-  } : {
-    available: false as const,
-    unavailableReason: dcfResult?.unavailableReason ?? 'company-not-covered'
-  }
+  const dcf = dcfResult?.analysis
+    ? {
+        available: true as const,
+        unavailableReason: null,
+        normalizedFreeCashFlow: dcfResult.analysis.normalizedFreeCashFlow,
+        historicalGrowthRate: dcfResult.analysis.historicalGrowthRate,
+        forecastGrowthRate: dcfResult.analysis.forecastGrowthRate,
+        forecastYears: DCF_FORECAST_YEARS,
+        discountRate: DCF_DISCOUNT_RATE,
+        terminalGrowthRate: DCF_TERMINAL_GROWTH_RATE,
+        forecastGrowthRateRange: {
+          minimum: DCF_MIN_FORECAST_GROWTH_RATE,
+          maximum: DCF_MAX_FORECAST_GROWTH_RATE
+        },
+        enterpriseValue: dcfResult.analysis.enterpriseValue,
+        equityValue: dcfResult.analysis.equityValue,
+        sharesOutstanding: dcfResult.analysis.sharesOutstanding,
+        fairValuePerShare: dcfResult.analysis.fairValuePerShare,
+        currentPrice: dcfResult.analysis.currentPrice,
+        differencePercent: dcfResult.analysis.differencePercent,
+        fairValueToPricePercent: dcfResult.analysis.fairValueToPricePercent,
+        priceToFairValuePercent: dcfResult.analysis.priceToFairValuePercent,
+        lowValueThresholdPercent: DCF_LOW_VALUE_THRESHOLD_PERCENT,
+        belowLowValueThreshold: dcfResult.analysis.belowLowValueThreshold
+      }
+    : {
+        available: false as const,
+        unavailableReason: dcfResult?.unavailableReason ?? 'company-not-covered'
+      }
   const valuation = {
     ...marketValuation,
     dcf
@@ -181,89 +196,114 @@ export function buildLongTermContext(input: LongTermContextInput) {
     snapshotDate: input.fundamentalSnapshot?.snapshotDate ?? null,
     generatedAt: input.fundamentalSnapshot?.generatedAt ?? null,
     fiscalYears: input.fundamentalSnapshot?.fiscalYears ?? [],
-    staleReason: input.fundamentalState.status === 'stale'
-      ? input.fundamentalState.staleReason
-      : null,
-    company: fundamentalCompany ? {
-      code: fundamentalCompany.code,
-      name: fundamentalCompany.name,
-      organizationType: fundamentalCompany.organizationType,
-      industryCode: fundamentalCompany.industryCode,
-      industryName: fundamentalCompany.industryName,
-      ordinaryCorporateMetricsApplicable,
-      ordinaryCorporateMetricsReason: ordinaryCorporateMetricsApplicable
-        ? null
-        : '银行、保险和券商的普通企业 ROIC、自由现金流和净负债不适用，应使用金融行业专用指标。',
-      annualReports: fundamentalCompany.annualReports.map((report) => ({
-        year: report.year,
-        reportDate: report.reportDate,
-        noticeDate: report.noticeDate,
-        weightedAverageRoe: report.weightedAverageRoe,
-        deductedWeightedAverageRoe: report.deductedWeightedAverageRoe,
-        roic: ordinaryCorporateMetricsApplicable ? report.roic ?? null : null,
-        netProfit: report.netProfit,
-        parentNetProfit: report.parentNetProfit,
-        deductedParentNetProfit: report.deductedParentNetProfit,
-        operatingCashFlow: report.operatingCashFlow,
-        capitalExpenditure: report.capitalExpenditure ?? null,
-        freeCashFlow: ordinaryCorporateMetricsApplicable ? report.freeCashFlow ?? null : null
-      })),
-      latestBalanceSheet: {
-        reportDate: fundamentalCompany.latestBalanceSheet.reportDate,
-        debtAssetRatio: fundamentalCompany.latestBalanceSheet.debtAssetRatio,
-        industryDebtPercentile: fundamentalCompany.latestBalanceSheet.industryPercentile,
-        industryDebtP60: industryBenchmark?.debtAssetRatioP60 ?? null,
-        monetaryFunds: fundamentalCompany.latestBalanceSheet.monetaryFunds ?? null,
-        interestBearingDebt: fundamentalCompany.latestBalanceSheet.interestBearingDebt ?? null,
-        netDebt: ordinaryCorporateMetricsApplicable
-          ? fundamentalCompany.latestBalanceSheet.netDebt ?? null
-          : null
-      },
-      screening: evaluation && screening ? {
-        status: screening.status,
-        ruleStatuses: screening.ruleStatuses,
-        minimumWeightedRoe: evaluation.minimumRoe,
-        cumulativeCashConversion: evaluation.cumulativeCashConversion,
-        latestCashConversion: evaluation.latestCashConversion,
-        missingReasons: screening.missingReasons,
-        reviewReasons: screening.reviewReasons
-      } : null,
-      quality: quality ? {
-        tags: quality.tags.map((tag) => ({ id: tag, label: FUNDAMENTAL_QUALITY_TAG_LABELS[tag] })),
-        metrics: quality.metrics
-      } : null,
-      risk: risk ? {
-        severity: risk.severity,
-        tags: risk.tags.map((tag) => ({ id: tag, label: FUNDAMENTAL_RISK_TAG_LABELS[tag] })),
-        metrics: risk.metrics
-      } : null,
-      peerComparison
-    } : null
+    staleReason:
+      input.fundamentalState.status === 'stale' ? input.fundamentalState.staleReason : null,
+    company: fundamentalCompany
+      ? {
+          code: fundamentalCompany.code,
+          name: fundamentalCompany.name,
+          organizationType: fundamentalCompany.organizationType,
+          industryCode: fundamentalCompany.industryCode,
+          industryName: fundamentalCompany.industryName,
+          ordinaryCorporateMetricsApplicable,
+          ordinaryCorporateMetricsReason: ordinaryCorporateMetricsApplicable
+            ? null
+            : '银行、保险和券商的普通企业 ROIC、自由现金流和净负债不适用，应使用金融行业专用指标。',
+          annualReports: fundamentalCompany.annualReports.map((report) => ({
+            year: report.year,
+            reportDate: report.reportDate,
+            noticeDate: report.noticeDate,
+            weightedAverageRoe: report.weightedAverageRoe,
+            deductedWeightedAverageRoe: report.deductedWeightedAverageRoe,
+            roic: ordinaryCorporateMetricsApplicable ? (report.roic ?? null) : null,
+            netProfit: report.netProfit,
+            parentNetProfit: report.parentNetProfit,
+            deductedParentNetProfit: report.deductedParentNetProfit,
+            operatingCashFlow: report.operatingCashFlow,
+            capitalExpenditure: report.capitalExpenditure ?? null,
+            freeCashFlow: ordinaryCorporateMetricsApplicable ? (report.freeCashFlow ?? null) : null
+          })),
+          latestBalanceSheet: {
+            reportDate: fundamentalCompany.latestBalanceSheet.reportDate,
+            debtAssetRatio: fundamentalCompany.latestBalanceSheet.debtAssetRatio,
+            industryDebtPercentile: fundamentalCompany.latestBalanceSheet.industryPercentile,
+            industryDebtP60: industryBenchmark?.debtAssetRatioP60 ?? null,
+            monetaryFunds: fundamentalCompany.latestBalanceSheet.monetaryFunds ?? null,
+            interestBearingDebt: fundamentalCompany.latestBalanceSheet.interestBearingDebt ?? null,
+            netDebt: ordinaryCorporateMetricsApplicable
+              ? (fundamentalCompany.latestBalanceSheet.netDebt ?? null)
+              : null
+          },
+          screening:
+            evaluation && screening
+              ? {
+                  status: screening.status,
+                  ruleStatuses: screening.ruleStatuses,
+                  minimumWeightedRoe: evaluation.minimumRoe,
+                  cumulativeCashConversion: evaluation.cumulativeCashConversion,
+                  latestCashConversion: evaluation.latestCashConversion,
+                  missingReasons: screening.missingReasons,
+                  reviewReasons: screening.reviewReasons
+                }
+              : null,
+          quality: quality
+            ? {
+                tags: quality.tags.map((tag) => ({
+                  id: tag,
+                  label: FUNDAMENTAL_QUALITY_TAG_LABELS[tag]
+                })),
+                metrics: quality.metrics
+              }
+            : null,
+          risk: risk
+            ? {
+                severity: risk.severity,
+                tags: risk.tags.map((tag) => ({
+                  id: tag,
+                  label: FUNDAMENTAL_RISK_TAG_LABELS[tag]
+                })),
+                metrics: risk.metrics
+              }
+            : null,
+          financialMine: financialMine
+            ? {
+                level: financialMine.level,
+                score: financialMine.score,
+                reportDate: financialMine.reportDate,
+                noticeDate: financialMine.noticeDate,
+                consecutiveNegativeCashFlowQuarters:
+                  financialMine.consecutiveNegativeCashFlowQuarters,
+                indicators: financialMine.indicators
+              }
+            : null,
+          peerComparison
+        }
+      : null
   }
 
   const dividendFinancing = {
     available: Boolean(input.dividendSnapshot),
     snapshotDate: input.dividendSnapshot?.snapshotDate ?? null,
     generatedAt: input.dividendSnapshot?.generatedAt ?? null,
-    staleReason: input.dividendState.status === 'stale'
-      ? input.dividendState.staleReason
-      : null,
+    staleReason: input.dividendState.status === 'stale' ? input.dividendState.staleReason : null,
     listed: Boolean(dividendItem),
-    item: dividendItem ? {
-      rank: dividendItem.rank,
-      dividendYi: dividendItem.dividendYi,
-      financingYi: dividendItem.financingYi,
-      ratio: dividendItem.ratio,
-      netReturnYi: dividendItem.netReturnYi ?? null,
-      dividendYears: dividendItem.dividendYears ?? null,
-      consecutiveDividendYears: dividendItem.consecutiveDividendYears ?? null,
-      recent3YearDividendYi: dividendItem.recent3YearDividendYi ?? null,
-      recent5YearDividendYi: dividendItem.recent5YearDividendYi ?? null,
-      dividendTrend: dividendItem.dividendTrend ?? null,
-      qualityScore: dividendItem.qualityScore ?? null,
-      qualityScoreRank: dividendItem.scoreRank ?? null,
-      lastFinancingDate: dividendItem.lastFinancingDate ?? null
-    } : null
+    item: dividendItem
+      ? {
+          rank: dividendItem.rank,
+          dividendYi: dividendItem.dividendYi,
+          financingYi: dividendItem.financingYi,
+          ratio: dividendItem.ratio,
+          netReturnYi: dividendItem.netReturnYi ?? null,
+          dividendYears: dividendItem.dividendYears ?? null,
+          consecutiveDividendYears: dividendItem.consecutiveDividendYears ?? null,
+          recent3YearDividendYi: dividendItem.recent3YearDividendYi ?? null,
+          recent5YearDividendYi: dividendItem.recent5YearDividendYi ?? null,
+          dividendTrend: dividendItem.dividendTrend ?? null,
+          qualityScore: dividendItem.qualityScore ?? null,
+          qualityScoreRank: dividendItem.scoreRank ?? null,
+          lastFinancingDate: dividendItem.lastFinancingDate ?? null
+        }
+      : null
   }
   const companyReportSummaries = (input.companyReportSummaries ?? []).map((summary) => ({
     reportId: summary.reportId,

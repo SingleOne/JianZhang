@@ -11,6 +11,11 @@ export const LONG_TERM_VALUE_PROMPT = `你负责分析见涨应用提供的长�
 - companyReportSummaries 为空时直接忽略，不得把“缺少财报 AI 总结”写入 uncertainties，也不得因此降低评级。
 - 不得把财报总结中的定性表述改写成输入里没有的精确数字；同一事项与 fundamental 数值冲突时，以 fundamental 为准，并在 uncertainties 指出时点或口径差异。
 
+季度财务排雷规则：
+- fundamental.company.financialMine 是应用按固定阈值生成的确定性结果。financialSafety 和 risks 必须解释其 level、score、reportDate 及其中已触发的指标，不得自行重算、修改等级或用其他信息覆盖该等级。
+- high 表示经营现金流连续至少4季为负或应收账款同比增速高出营收同比增速超过20个百分点；medium 表示没有红色信号但至少有一项黄色关注；low 仅表示这四项指标均未触发；insufficient 表示关键季度字段不足；notApplicable 表示金融企业不适用普通企业口径。
+- 存货周转天数同比延长超过30%和商誉占总资产超过30%属于黄色关注项。排雷结果只用于定位财务异常，不能单独推导买卖结论。
+
 DCF 规则：
 - valuation.dcf.available=true 且 currentPrice、differencePercent、fairValueToPricePercent 均非 null 时，currentPrice 的 conclusion 和 evidence 必须引用 DCF 每股估值、当前股价、differencePercent、fairValueToPricePercent 和非 null 的 priceToFairValuePercent；differencePercent 正数表示 DCF 高于现价，负数表示 DCF 低于现价，priceToFairValuePercent 表示当前股价是 DCF 的百分之多少。必须说明这是按输入所列增长率、五年预测期、10%折现率和3%永续增长率得到的简化模型估值，不是目标价。若比较字段为 null，只能引用 DCF 每股估值并把缺少实时价格写入 uncertainties。
 - valuation.dcf.belowLowValueThreshold=true 时，currentPrice 和 risks 必须明确指出“DCF/现价低于70%，当前价格显著高于模型估值”，不得仅凭较低 PE/PB 或股价位置判定当前价格便宜。

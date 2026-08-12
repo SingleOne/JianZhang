@@ -1,9 +1,10 @@
-"""分四阶段生成 A 股基本面财务数据快照。
+"""分五阶段生成 A 股基本面财务数据快照。
 
 阶段一：最近五个完整财年的加权 ROE、扣非加权 ROE 和 ROIC。
 阶段二：同期净利润、经营现金流、资本开支和自由现金流。
 阶段三：最近完整财年的资产负债率、行业分位和净负债。
 阶段四：同一交易日的收盘价、PE TTM、PB、总市值、流通市值及行业分位。
+阶段五：最近季度的现金流、应收营收背离、存货周转和商誉占比。
 """
 
 from __future__ import annotations
@@ -46,6 +47,22 @@ INCOME_COLUMNS = (
 CASHFLOW_COLUMNS = (
     "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,INDUSTRY_CODE,INDUSTRY_NAME,"
     "SECURITY_TYPE_CODE,REPORT_DATE,NOTICE_DATE,NETCASH_OPERATE,CONSTRUCT_LONG_ASSET"
+)
+QUARTERLY_INCOME_COLUMNS = (
+    "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,SECURITY_TYPE_CODE,REPORT_DATE,"
+    "NOTICE_DATE,TOTAL_OPERATE_INCOME,OPERATE_COST"
+)
+QUARTERLY_CASHFLOW_COLUMNS = (
+    "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,SECURITY_TYPE_CODE,REPORT_DATE,"
+    "NOTICE_DATE,NETCASH_OPERATE"
+)
+QUARTERLY_BALANCE_COLUMNS = (
+    "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,SECURITY_TYPE_CODE,REPORT_DATE,"
+    "NOTICE_DATE,ACCOUNTS_RECE,INVENTORY,TOTAL_ASSETS"
+)
+QUARTERLY_DETAILED_BALANCE_COLUMNS = (
+    "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,SECURITY_TYPE_CODE,REPORT_DATE,"
+    "NOTICE_DATE,GOODWILL"
 )
 BALANCE_COLUMNS = (
     "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,INDUSTRY_CODE,INDUSTRY_NAME,"
@@ -115,7 +132,7 @@ def fetch_filtered_report(
         "columns": columns,
         "pageSize": PAGE_SIZE,
         "sortColumns": sort_columns,
-        "sortTypes": "1",
+        "sortTypes": ",".join("1" for _ in sort_columns.split(",")),
         "filter": filter_expression,
         "source": "WEB",
         "client": "WEB",
@@ -172,6 +189,25 @@ def a_share_rows(rows: list[dict]) -> dict[str, dict]:
     return result
 
 
+def a_share_report_rows(rows: list[dict], snapshot_date: str) -> dict[str, dict[str, dict]]:
+    result: dict[str, dict[str, dict]] = defaultdict(dict)
+    for row in rows:
+        code = str(row.get("SECURITY_CODE") or "")
+        secucode = str(row.get("SECUCODE") or "")
+        report_date = date_part(row.get("REPORT_DATE"))
+        notice_date = date_part(row.get("NOTICE_DATE"))
+        if row.get("SECURITY_TYPE_CODE") != A_SHARE_TYPE:
+            continue
+        if not re.fullmatch(r"\d{6}\.(?:SH|SZ|BJ)", secucode):
+            continue
+        if not re.fullmatch(r"\d{6}", code) or not report_date:
+            continue
+        if notice_date and notice_date > snapshot_date:
+            continue
+        result[code][report_date] = row
+    return result
+
+
 def valuation_rows(rows: list[dict]) -> dict[str, dict]:
     result: dict[str, dict] = {}
     for row in rows:
@@ -204,6 +240,137 @@ def date_part(value: object) -> str | None:
     return text if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text) else None
 
 
+def quarter_end_dates(snapshot_day: dt.date, count: int = 13) -> list[str]:
+    dates: list[dt.date] = []
+    year = snapshot_day.year
+    while len(dates) < count:
+        for month in (12, 9, 6, 3):
+            day = 31 if month in (3, 12) else 30
+            value = dt.date(year, month, day)
+            if value <= snapshot_day:
+                dates.append(value)
+                if len(dates) == count:
+                    break
+        year -= 1
+    return sorted(value.isoformat() for value in dates)
+
+
+def percentage_growth(current: float | None, previous: float | None) -> float | None:
+    if current is None or previous is None:
+        return None
+    if previous == 0:
+        return 0.0 if current == 0 else None
+    return (current / previous - 1) * 100
+
+
+def single_quarter_value(reports: dict[str, dict], report_date: str, field: str) -> float | None:
+    current = number(reports.get(report_date, {}).get(field))
+    date = dt.date.fromisoformat(report_date)
+    if current is None or date.month == 3:
+        return current
+    previous_month = {6: 3, 9: 6, 12: 9}[date.month]
+    previous_day = 31 if previous_month == 3 else 30
+    previous_date = f"{date.year}-{previous_month:02d}-{previous_day:02d}"
+    previous = number(reports.get(previous_date, {}).get(field))
+    return current - previous if previous is not None else None
+
+
+def inventory_turnover_days(
+    balance_reports: dict[str, dict], income_reports: dict[str, dict], report_date: str
+) -> float | None:
+    date = dt.date.fromisoformat(report_date)
+    current_inventory = number(balance_reports.get(report_date, {}).get("INVENTORY"))
+    opening_inventory = number(
+        balance_reports.get(f"{date.year - 1}-12-31", {}).get("INVENTORY")
+    )
+    operating_cost = number(income_reports.get(report_date, {}).get("OPERATE_COST"))
+    if current_inventory is None or opening_inventory is None or not operating_cost or operating_cost <= 0:
+        return None
+    days = (date - dt.date(date.year, 1, 1)).days + 1
+    return ((opening_inventory + current_inventory) / 2) / operating_cost * days
+
+
+def build_quarterly_risk_reports(
+    code: str,
+    income_by_code: dict[str, dict[str, dict]],
+    cashflow_by_code: dict[str, dict[str, dict]],
+    balance_by_code: dict[str, dict[str, dict]],
+    detailed_balance_by_code: dict[str, dict[str, dict]],
+) -> list[dict]:
+    income_reports = income_by_code.get(code, {})
+    cashflow_reports = cashflow_by_code.get(code, {})
+    balance_reports = balance_by_code.get(code, {})
+    detailed_balance_reports = detailed_balance_by_code.get(code, {})
+    available_dates = sorted(set(income_reports) | set(cashflow_reports) | set(balance_reports))
+    reports: list[dict] = []
+
+    for report_date in available_dates:
+        date = dt.date.fromisoformat(report_date)
+        prior_year_date = f"{date.year - 1}-{date.month:02d}-{date.day:02d}"
+        income = income_reports.get(report_date, {})
+        cashflow = cashflow_reports.get(report_date, {})
+        balance = balance_reports.get(report_date, {})
+        detailed_balance = detailed_balance_reports.get(report_date, {})
+        previous_income = income_reports.get(prior_year_date, {})
+        previous_balance = balance_reports.get(prior_year_date, {})
+        operating_cash_flow_cumulative = number(cashflow.get("NETCASH_OPERATE"))
+        accounts_receivable = number(balance.get("ACCOUNTS_RECE"))
+        accounts_receivable_growth = percentage_growth(
+            accounts_receivable, number(previous_balance.get("ACCOUNTS_RECE"))
+        )
+        total_operating_revenue = number(income.get("TOTAL_OPERATE_INCOME"))
+        revenue_growth = percentage_growth(
+            total_operating_revenue, number(previous_income.get("TOTAL_OPERATE_INCOME"))
+        )
+        divergence = (
+            accounts_receivable_growth - revenue_growth
+            if accounts_receivable_growth is not None and revenue_growth is not None
+            else None
+        )
+        inventory_days = inventory_turnover_days(balance_reports, income_reports, report_date)
+        previous_inventory_days = inventory_turnover_days(
+            balance_reports, income_reports, prior_year_date
+        )
+        inventory_days_change = percentage_growth(inventory_days, previous_inventory_days)
+        total_assets = number(balance.get("TOTAL_ASSETS"))
+        goodwill = number(detailed_balance.get("GOODWILL"))
+        if goodwill is None and detailed_balance and total_assets is not None:
+            goodwill = 0.0
+        goodwill_ratio = (
+            goodwill / total_assets * 100
+            if goodwill is not None and total_assets is not None and total_assets > 0
+            else None
+        )
+        reports.append(
+            {
+                "reportDate": report_date,
+                "noticeDate": date_part(
+                    balance.get("NOTICE_DATE")
+                    or detailed_balance.get("NOTICE_DATE")
+                    or income.get("NOTICE_DATE")
+                    or cashflow.get("NOTICE_DATE")
+                ),
+                "operatingCashFlowCumulative": rounded(operating_cash_flow_cumulative),
+                "operatingCashFlowQuarter": rounded(
+                    single_quarter_value(cashflow_reports, report_date, "NETCASH_OPERATE")
+                ),
+                "accountsReceivable": rounded(accounts_receivable),
+                "accountsReceivableGrowthYoY": rounded(accounts_receivable_growth, 4),
+                "totalOperatingRevenue": rounded(total_operating_revenue),
+                "revenueGrowthYoY": rounded(revenue_growth, 4),
+                "receivableRevenueDivergence": rounded(divergence, 4),
+                "inventory": rounded(number(balance.get("INVENTORY"))),
+                "operatingCost": rounded(number(income.get("OPERATE_COST"))),
+                "inventoryTurnoverDays": rounded(inventory_days, 4),
+                "inventoryDaysChangeYoY": rounded(inventory_days_change, 4),
+                "goodwill": rounded(goodwill),
+                "totalAssets": rounded(total_assets),
+                "goodwillAssetRatio": rounded(goodwill_ratio, 4),
+            }
+        )
+    return reports[-8:]
+
+
 def percentile(values: list[float], quantile: float) -> float:
     position = (len(values) - 1) * quantile
     lower = math.floor(position)
@@ -228,15 +395,20 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
     latest_year = snapshot_day.year - (1 if annual_reports_complete else 2)
     fiscal_years = list(range(latest_year - years + 1, latest_year + 1))
     annual_dates = {year: f"{year}-12-31" for year in fiscal_years}
+    quarterly_dates = quarter_end_dates(snapshot_day)
+    quarterly_filter = (
+        f"(REPORT_DATE>='{quarterly_dates[0]}')"
+        f"(REPORT_DATE<='{quarterly_dates[-1]}')"
+    )
 
-    log(f"阶段一/四：获取 {fiscal_years[0]}—{fiscal_years[-1]} 年 ROE 与 ROIC")
+    log(f"阶段一/五：获取 {fiscal_years[0]}—{fiscal_years[-1]} 年 ROE 与 ROIC")
     main_by_year: dict[int, dict[str, dict]] = {}
     for year in fiscal_years:
         rows = fetch_report("RPT_F10_FINANCE_MAINFINADATA", MAIN_COLUMNS, annual_dates[year])
         main_by_year[year] = a_share_rows(rows)
-        log(f"阶段一/四：{year} 年 ROE 已获取 {len(main_by_year[year]):,} 家")
+        log(f"阶段一/五：{year} 年 ROE 已获取 {len(main_by_year[year]):,} 家")
 
-    log(f"阶段二/四：获取 {fiscal_years[0]}—{fiscal_years[-1]} 年利润与现金流")
+    log(f"阶段二/五：获取 {fiscal_years[0]}—{fiscal_years[-1]} 年利润与现金流")
     income_by_year: dict[int, dict[str, dict]] = {}
     cashflow_by_year: dict[int, dict[str, dict]] = {}
     for year in fiscal_years:
@@ -250,11 +422,11 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
             income_by_year[year] = a_share_rows(income_future.result())
             cashflow_by_year[year] = a_share_rows(cashflow_future.result())
         log(
-            f"阶段二/四：{year} 年利润 {len(income_by_year[year]):,} 家，"
+            f"阶段二/五：{year} 年利润 {len(income_by_year[year]):,} 家，"
             f"现金流 {len(cashflow_by_year[year]):,} 家"
         )
 
-    log(f"阶段三/四：获取 {latest_year} 年资产负债率、净负债并计算行业分位")
+    log(f"阶段三/五：获取 {latest_year} 年资产负债率、净负债并计算行业分位")
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
         balance_future = pool.submit(
             fetch_report, "RPT_DMSK_FN_BALANCE", BALANCE_COLUMNS, annual_dates[latest_year]
@@ -274,7 +446,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
     }
 
     valuation_date = latest_valuation_date(snapshot_date)
-    log(f"阶段四/四：获取 {valuation_date} 的 PE TTM、PB、总市值、流通市值并计算行业分位")
+    log(f"阶段四/五：获取 {valuation_date} 的 PE TTM、PB、总市值、流通市值并计算行业分位")
     latest_valuation = valuation_rows(
         fetch_filtered_report(
             "RPT_VALUEANALYSIS_DET",
@@ -282,6 +454,57 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
             f"(TRADE_DATE='{valuation_date}')",
             "SECURITY_CODE",
         )
+    )
+
+    log(f"阶段五/五：获取 {quarterly_dates[0]}—{quarterly_dates[-1]} 季度财务排雷数据")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+        quarterly_income_future = pool.submit(
+            fetch_filtered_report,
+            "RPT_DMSK_FN_INCOME",
+            QUARTERLY_INCOME_COLUMNS,
+            quarterly_filter,
+            "REPORT_DATE,SECURITY_CODE",
+        )
+        quarterly_cashflow_future = pool.submit(
+            fetch_filtered_report,
+            "RPT_DMSK_FN_CASHFLOW",
+            QUARTERLY_CASHFLOW_COLUMNS,
+            quarterly_filter,
+            "REPORT_DATE,SECURITY_CODE",
+        )
+        quarterly_balance_future = pool.submit(
+            fetch_filtered_report,
+            "RPT_DMSK_FN_BALANCE",
+            QUARTERLY_BALANCE_COLUMNS,
+            quarterly_filter,
+            "REPORT_DATE,SECURITY_CODE",
+        )
+        quarterly_detailed_balance_future = pool.submit(
+            fetch_filtered_report,
+            "RPT_F10_FINANCE_GBALANCE",
+            QUARTERLY_DETAILED_BALANCE_COLUMNS,
+            quarterly_filter,
+            "REPORT_DATE,SECURITY_CODE",
+        )
+        quarterly_income_by_code = a_share_report_rows(
+            quarterly_income_future.result(), snapshot_date
+        )
+        quarterly_cashflow_by_code = a_share_report_rows(
+            quarterly_cashflow_future.result(), snapshot_date
+        )
+        quarterly_balance_by_code = a_share_report_rows(
+            quarterly_balance_future.result(), snapshot_date
+        )
+        quarterly_detailed_balance_by_code = a_share_report_rows(
+            quarterly_detailed_balance_future.result(), snapshot_date
+        )
+    latest_quarterly_report_date = max(
+        (
+            report_date
+            for reports in quarterly_balance_by_code.values()
+            for report_date in reports
+        ),
+        default=quarterly_dates[-1],
     )
 
     industry_values: dict[tuple[str, str], list[float]] = defaultdict(list)
@@ -333,6 +556,13 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         latest_main = main_by_year[latest_year].get(code, {})
         detailed_balance = latest_detailed_balance.get(code, {})
         valuation = latest_valuation.get(code, {})
+        quarterly_risk_reports = build_quarterly_risk_reports(
+            code,
+            quarterly_income_by_code,
+            quarterly_cashflow_by_code,
+            quarterly_balance_by_code,
+            quarterly_detailed_balance_by_code,
+        )
         annual_reports: list[dict] = []
 
         for year in fiscal_years:
@@ -430,6 +660,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
                 "industryCode": industry_code,
                 "industryName": industry_name,
                 "annualReports": annual_reports,
+                "quarterlyRiskReports": quarterly_risk_reports,
                 "latestBalanceSheet": {
                     "reportDate": annual_dates[latest_year],
                     "noticeDate": date_part(balance.get("NOTICE_DATE")),
@@ -499,15 +730,30 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
     pb_industry_percentile_count = sum(
         row["valuation"]["priceBookIndustryPercentile"] is not None for row in rows
     )
+    latest_quarterly_risk_report_count = sum(
+        bool(row["quarterlyRiskReports"]) for row in rows
+    )
+    complete_quarterly_risk_indicator_count = sum(
+        bool(row["quarterlyRiskReports"])
+        and row["quarterlyRiskReports"][-1]["receivableRevenueDivergence"] is not None
+        and row["quarterlyRiskReports"][-1]["inventoryDaysChangeYoY"] is not None
+        and row["quarterlyRiskReports"][-1]["goodwillAssetRatio"] is not None
+        and any(
+            report["operatingCashFlowQuarter"] is not None
+            for report in row["quarterlyRiskReports"]
+        )
+        for row in rows
+    )
 
     generated_at = dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).isoformat(timespec="seconds")
     snapshot = {
-        "schemaVersion": 5,
+        "schemaVersion": 6,
         "snapshotDate": snapshot_date,
         "generatedAt": generated_at,
         "currency": "CNY",
         "fiscalYears": fiscal_years,
         "latestAnnualReportDate": annual_dates[latest_year],
+        "latestQuarterlyReportDate": latest_quarterly_report_date,
         "sources": [
             {
                 "name": "东方财富主要财务指标",
@@ -554,13 +800,15 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
             "latestCirculatingMarketValueCount": circulating_market_value_count,
             "latestPriceEarningsIndustryPercentileCount": pe_industry_percentile_count,
             "latestPriceBookIndustryPercentileCount": pb_industry_percentile_count,
+            "latestQuarterlyRiskReportCount": latest_quarterly_risk_report_count,
+            "completeQuarterlyRiskIndicatorCount": complete_quarterly_risk_indicator_count,
             "industryCount": len(industries),
         },
         "industries": industries,
         "rows": rows,
     }
     diagnostics = {
-        "schemaVersion": 5,
+        "schemaVersion": 6,
         "snapshotDate": snapshot_date,
         "generatedAt": generated_at,
         "fiscalYears": fiscal_years,
@@ -576,10 +824,15 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         "latestDetailedBalanceRows": len(latest_detailed_balance),
         "latestValuationDate": valuation_date,
         "latestValuationRows": len(latest_valuation),
+        "latestQuarterlyReportDate": latest_quarterly_report_date,
+        "quarterlyIncomeCompanies": len(quarterly_income_by_code),
+        "quarterlyCashflowCompanies": len(quarterly_cashflow_by_code),
+        "quarterlyBalanceCompanies": len(quarterly_balance_by_code),
+        "quarterlyDetailedBalanceCompanies": len(quarterly_detailed_balance_by_code),
         "coverage": snapshot["coverage"],
     }
     log(
-        f"阶段四/四：完成 {len(rows):,} 家公司、{len(industries):,} 个行业的财务与估值分位"
+        f"阶段五/五：完成 {len(rows):,} 家公司、{len(industries):,} 个行业的财务、估值与排雷数据"
     )
     return snapshot, diagnostics
 

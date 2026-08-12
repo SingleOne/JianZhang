@@ -68,10 +68,7 @@ const benchmark: FundamentalIndustryBenchmark = {
   debtAssetRatioP60: 52
 }
 
-function snapshot(
-  snapshotDate: string,
-  rows: FundamentalCompany[]
-): FundamentalSnapshot {
+function snapshot(snapshotDate: string, rows: FundamentalCompany[]): FundamentalSnapshot {
   return {
     schemaVersion: 1,
     snapshotDate,
@@ -108,11 +105,13 @@ describe('fundamental screening', () => {
   })
 
   it('uses strict boundaries and does not treat non-positive profit as cash conversion', () => {
-    const reports = [2021, 2022, 2023, 2024, 2025].map((year) => annualReport(year, {
-      weightedAverageRoe: year === 2023 ? 15 : 18,
-      netProfit: -10,
-      operatingCashFlow: 20
-    }))
+    const reports = [2021, 2022, 2023, 2024, 2025].map((year) =>
+      annualReport(year, {
+        weightedAverageRoe: year === 2023 ? 15 : 18,
+        netProfit: -10,
+        operatingCashFlow: 20
+      })
+    )
     const result = evaluateFundamentalCompany(
       company({
         annualReports: reports,
@@ -130,19 +129,17 @@ describe('fundamental screening', () => {
   })
 
   it('supports deducted ROE and latest-year cash-flow modes', () => {
-    const reports = [2021, 2022, 2023, 2024, 2025].map((year) => annualReport(year, {
-      deductedWeightedAverageRoe: year === 2022 ? 12 : 17,
-      operatingCashFlow: year === 2025 ? 80 : 150
-    }))
-    const result = evaluateFundamentalCompany(
-      company({ annualReports: reports }),
-      benchmark,
-      {
-        ...DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA,
-        roeMetric: 'deducted',
-        cashFlowMode: 'latest'
-      }
+    const reports = [2021, 2022, 2023, 2024, 2025].map((year) =>
+      annualReport(year, {
+        deductedWeightedAverageRoe: year === 2022 ? 12 : 17,
+        operatingCashFlow: year === 2025 ? 80 : 150
+      })
     )
+    const result = evaluateFundamentalCompany(company({ annualReports: reports }), benchmark, {
+      ...DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA,
+      roeMetric: 'deducted',
+      cashFlowMode: 'latest'
+    })
 
     expect(result.checks.roe).toBe(false)
     expect(result.cumulativeCashConversion).toBe(136)
@@ -176,9 +173,11 @@ describe('fundamental screening', () => {
     )
     const missing = evaluateFundamentalCompany(
       company({
-        annualReports: [2021, 2022, 2023, 2024, 2025].map((year) => annualReport(year, {
-          weightedAverageRoe: year === 2023 ? null : 18
-        }))
+        annualReports: [2021, 2022, 2023, 2024, 2025].map((year) =>
+          annualReport(year, {
+            weightedAverageRoe: year === 2023 ? null : 18
+          })
+        )
       }),
       benchmark,
       DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA
@@ -257,36 +256,48 @@ describe('fundamental screening', () => {
       })
     })
     const boundaryProfile = evaluateFundamentalQuality(company({ annualReports: reports }))
-    const improvingOnly = evaluateFundamentalQuality(company({
-      annualReports: [2021, 2022, 2023, 2024, 2025].map((year, index) => annualReport(year, {
-        weightedAverageRoe: [8, 8, 9, 10, 11][index],
-        netProfit: [80, 90, 100, 110, 120][index],
-        operatingCashFlow: [90, 100, 110, 125, 150][index]
-      }))
-    }))
+    const improvingOnly = evaluateFundamentalQuality(
+      company({
+        annualReports: [2021, 2022, 2023, 2024, 2025].map((year, index) =>
+          annualReport(year, {
+            weightedAverageRoe: [8, 8, 9, 10, 11][index],
+            netProfit: [80, 90, 100, 110, 120][index],
+            operatingCashFlow: [90, 100, 110, 125, 150][index]
+          })
+        )
+      })
+    )
 
     expect(boundaryProfile.tags).toEqual(['improving'])
     expect(improvingOnly.tags).toEqual(['improving'])
-    expect(evaluateFundamentalQuality(company({
-      organizationType: 'bank',
-      annualReports: reports
-    })).tags).toEqual([])
+    expect(
+      evaluateFundamentalQuality(
+        company({
+          organizationType: 'bank',
+          annualReports: reports
+        })
+      ).tags
+    ).toEqual([])
   })
 
   it('identifies overlapping fundamental risks and promotes direct cash divergence to critical', () => {
-    const reports = [2021, 2022, 2023, 2024, 2025].map((year, index) => annualReport(year, {
-      weightedAverageRoe: [25, 24, 23, 21, 19][index],
-      deductedWeightedAverageRoe: 12,
-      netProfit: [100, 110, 120, 130, 140][index],
-      operatingCashFlow: [220, 210, 200, 150, 100][index]
-    }))
-    const profile = evaluateFundamentalRisk(company({
-      annualReports: reports,
-      latestBalanceSheet: {
-        ...company().latestBalanceSheet,
-        industryPercentile: 85
-      }
-    }))
+    const reports = [2021, 2022, 2023, 2024, 2025].map((year, index) =>
+      annualReport(year, {
+        weightedAverageRoe: [25, 24, 23, 21, 19][index],
+        deductedWeightedAverageRoe: 12,
+        netProfit: [100, 110, 120, 130, 140][index],
+        operatingCashFlow: [220, 210, 200, 150, 100][index]
+      })
+    )
+    const profile = evaluateFundamentalRisk(
+      company({
+        annualReports: reports,
+        latestBalanceSheet: {
+          ...company().latestBalanceSheet,
+          industryPercentile: 85
+        }
+      })
+    )
 
     expect(profile.tags).toEqual([
       'highLeverageRoe',
@@ -306,12 +317,14 @@ describe('fundamental screening', () => {
   })
 
   it('uses strict risk thresholds and excludes financial organizations', () => {
-    const boundaryReports = [2021, 2022, 2023, 2024, 2025].map((year, index) => annualReport(year, {
-      weightedAverageRoe: [22, 21, 20, 18, 17][index],
-      deductedWeightedAverageRoe: index === 0 ? 15 : 18,
-      netProfit: 100,
-      operatingCashFlow: index === 4 ? 100 : 125
-    }))
+    const boundaryReports = [2021, 2022, 2023, 2024, 2025].map((year, index) =>
+      annualReport(year, {
+        weightedAverageRoe: [22, 21, 20, 18, 17][index],
+        deductedWeightedAverageRoe: index === 0 ? 15 : 18,
+        netProfit: 100,
+        operatingCashFlow: index === 4 ? 100 : 125
+      })
+    )
     const boundaryCompany = company({
       annualReports: boundaryReports,
       latestBalanceSheet: {
@@ -320,49 +333,91 @@ describe('fundamental screening', () => {
       }
     })
     const boundaryProfile = evaluateFundamentalRisk(boundaryCompany)
-    const cashDivergence = evaluateFundamentalRisk(company({
-      annualReports: [2021, 2022, 2023, 2024, 2025].map((year) => annualReport(year, {
-        operatingCashFlow: 70
-      }))
-    }))
+    const cashDivergence = evaluateFundamentalRisk(
+      company({
+        annualReports: [2021, 2022, 2023, 2024, 2025].map((year) =>
+          annualReport(year, {
+            operatingCashFlow: 70
+          })
+        )
+      })
+    )
 
-    expect(boundaryProfile.tags).toEqual([
-      'highLeverageRoe',
-      'deductedWeak',
-      'roeDecline'
-    ])
+    expect(boundaryProfile.tags).toEqual(['highLeverageRoe', 'deductedWeak', 'roeDecline'])
     expect(boundaryProfile.severity).toBe('warning')
     expect(cashDivergence.tags).toEqual(['cashDivergence'])
     expect(cashDivergence.severity).toBe('critical')
-    expect(hasFundamentalRisk(
-      evaluateFundamentalCompany(
-        boundaryCompany,
-        benchmark,
-        DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA
+    expect(
+      hasFundamentalRisk(
+        evaluateFundamentalCompany(
+          boundaryCompany,
+          benchmark,
+          DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA
+        )
       )
-    )).toBe(true)
-    expect(evaluateFundamentalRisk(company({
-      organizationType: 'bank',
-      annualReports: boundaryReports
-    })).tags).toEqual([])
+    ).toBe(true)
+    expect(
+      evaluateFundamentalRisk(
+        company({
+          organizationType: 'bank',
+          annualReports: boundaryReports
+        })
+      ).tags
+    ).toEqual([])
   })
 
-  it('ranks complete ordinary companies against valid peers in the same industry', () => {
-    const evaluations = Array.from({ length: 10 }, (_, index) => evaluateFundamentalCompany(
+  it('includes quarterly financial mine warnings in the combined risk filter', () => {
+    const evaluation = evaluateFundamentalCompany(
       company({
-        code: `6000${index.toString().padStart(2, '0')}`,
-        annualReports: [2021, 2022, 2023, 2024, 2025].map((year) => annualReport(year, {
-          weightedAverageRoe: index === 8 ? 19 : 10 + index,
-          operatingCashFlow: 100 + index * 10
-        })),
-        latestBalanceSheet: {
-          ...company().latestBalanceSheet,
-          debtAssetRatio: 50 - index
-        }
+        quarterlyRiskReports: [
+          {
+            reportDate: '2026-06-30',
+            noticeDate: '2026-08-01',
+            operatingCashFlowCumulative: 100,
+            operatingCashFlowQuarter: 20,
+            accountsReceivable: 120,
+            accountsReceivableGrowthYoY: 25,
+            totalOperatingRevenue: 500,
+            revenueGrowthYoY: 10,
+            receivableRevenueDivergence: 15,
+            inventory: 80,
+            operatingCost: 300,
+            inventoryTurnoverDays: 70,
+            inventoryDaysChangeYoY: 5,
+            goodwill: 10,
+            totalAssets: 1000,
+            goodwillAssetRatio: 1
+          }
+        ]
       }),
       benchmark,
       DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA
-    ))
+    )
+
+    expect(evaluateFundamentalRisk(evaluation.company).tags).toEqual([])
+    expect(hasFundamentalRisk(evaluation)).toBe(true)
+  })
+
+  it('ranks complete ordinary companies against valid peers in the same industry', () => {
+    const evaluations = Array.from({ length: 10 }, (_, index) =>
+      evaluateFundamentalCompany(
+        company({
+          code: `6000${index.toString().padStart(2, '0')}`,
+          annualReports: [2021, 2022, 2023, 2024, 2025].map((year) =>
+            annualReport(year, {
+              weightedAverageRoe: index === 8 ? 19 : 10 + index,
+              operatingCashFlow: 100 + index * 10
+            })
+          ),
+          latestBalanceSheet: {
+            ...company().latestBalanceSheet,
+            debtAssetRatio: 50 - index
+          }
+        }),
+        benchmark,
+        DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA
+      )
+    )
     const comparisons = createFundamentalPeerComparisonMap(evaluations)
     const best = comparisons.get('600009')
     const tiedBest = comparisons.get('600008')
@@ -379,11 +434,13 @@ describe('fundamental screening', () => {
   })
 
   it('does not publish a peer rank below the minimum valid sample size', () => {
-    const evaluations = Array.from({ length: 9 }, (_, index) => evaluateFundamentalCompany(
-      company({ code: `6001${index.toString().padStart(2, '0')}` }),
-      benchmark,
-      DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA
-    ))
+    const evaluations = Array.from({ length: 9 }, (_, index) =>
+      evaluateFundamentalCompany(
+        company({ code: `6001${index.toString().padStart(2, '0')}` }),
+        benchmark,
+        DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA
+      )
+    )
     const comparison = createFundamentalPeerComparisonMap(evaluations).get('600100')
 
     expect(comparison?.roe).toMatchObject({ sampleSize: 9, rank: null, topPercent: null })
@@ -411,9 +468,11 @@ describe('fundamental screening', () => {
     const missing = evaluateFundamentalCompany(
       company({
         code: '600203',
-        annualReports: [2021, 2022, 2023, 2024, 2025].map((year) => annualReport(year, {
-          weightedAverageRoe: year === 2024 ? null : 18
-        }))
+        annualReports: [2021, 2022, 2023, 2024, 2025].map((year) =>
+          annualReport(year, {
+            weightedAverageRoe: year === 2024 ? null : 18
+          })
+        )
       }),
       benchmark,
       DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA
@@ -424,13 +483,7 @@ describe('fundamental screening', () => {
       DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA
     )
 
-    expect(summarizeFundamentalWatchlist([
-      passed,
-      review,
-      missing,
-      financial,
-      undefined
-    ])).toEqual({
+    expect(summarizeFundamentalWatchlist([passed, review, missing, financial, undefined])).toEqual({
       total: 5,
       covered: 4,
       passed: 1,
@@ -500,9 +553,11 @@ describe('fundamental screening', () => {
       company({
         code: '600303',
         name: '补齐数据',
-        annualReports: [2021, 2022, 2023, 2024, 2025].map((year) => annualReport(year, {
-          weightedAverageRoe: year === 2024 ? null : 18
-        }))
+        annualReports: [2021, 2022, 2023, 2024, 2025].map((year) =>
+          annualReport(year, {
+            weightedAverageRoe: year === 2024 ? null : 18
+          })
+        )
       }),
       company({ code: '600304', name: '退出覆盖' }),
       company({ code: '600305', name: '只有数值变化' })
@@ -511,26 +566,26 @@ describe('fundamental screening', () => {
       company({
         code: '600301',
         name: '移出候选',
-        annualReports: [2021, 2022, 2023, 2024, 2025].map((year) => annualReport(year, {
-          operatingCashFlow: 80
-        }))
+        annualReports: [2021, 2022, 2023, 2024, 2025].map((year) =>
+          annualReport(year, {
+            operatingCashFlow: 80
+          })
+        )
       }),
       company({ code: '600302', name: '新入候选' }),
       company({ code: '600303', name: '补齐数据' }),
       company({
         code: '600305',
         name: '只有数值变化',
-        annualReports: [2021, 2022, 2023, 2024, 2025].map((year) => annualReport(year, {
-          weightedAverageRoe: 19
-        }))
+        annualReports: [2021, 2022, 2023, 2024, 2025].map((year) =>
+          annualReport(year, {
+            weightedAverageRoe: 19
+          })
+        )
       }),
       company({ code: '600306', name: '新增覆盖' })
     ])
-    const report = createFundamentalChangeReport(
-      previous,
-      current,
-      '2026-08-01T13:00:00+08:00'
-    )
+    const report = createFundamentalChangeReport(previous, current, '2026-08-01T13:00:00+08:00')
 
     expect(report.summary).toEqual({
       enteredCount: 2,

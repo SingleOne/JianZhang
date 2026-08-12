@@ -1145,6 +1145,25 @@ export interface FundamentalBalanceSheet {
   netDebt?: number | null
 }
 
+export interface FundamentalQuarterlyRiskReport {
+  reportDate: string
+  noticeDate: string | null
+  operatingCashFlowCumulative: number | null
+  operatingCashFlowQuarter: number | null
+  accountsReceivable: number | null
+  accountsReceivableGrowthYoY: number | null
+  totalOperatingRevenue: number | null
+  revenueGrowthYoY: number | null
+  receivableRevenueDivergence: number | null
+  inventory: number | null
+  operatingCost: number | null
+  inventoryTurnoverDays: number | null
+  inventoryDaysChangeYoY: number | null
+  goodwill: number | null
+  totalAssets: number | null
+  goodwillAssetRatio: number | null
+}
+
 export interface FundamentalValuationSnapshot {
   dataDate: string
   closePrice?: number | null
@@ -1219,6 +1238,7 @@ export interface FundamentalCompany {
   industryCode: string
   industryName: string
   annualReports: FundamentalAnnualReport[]
+  quarterlyRiskReports?: FundamentalQuarterlyRiskReport[]
   latestBalanceSheet: FundamentalBalanceSheet
   valuation?: FundamentalValuationSnapshot
 }
@@ -1231,12 +1251,13 @@ export interface FundamentalIndustryBenchmark {
 }
 
 export interface FundamentalSnapshot {
-  schemaVersion: 1 | 2 | 3 | 4 | 5
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6
   snapshotDate: string
   generatedAt: string
   currency: 'CNY'
   fiscalYears: number[]
   latestAnnualReportDate: string
+  latestQuarterlyReportDate?: string
   sources: Array<{
     name: string
     reportName: string
@@ -1256,6 +1277,8 @@ export interface FundamentalSnapshot {
     latestCirculatingMarketValueCount?: number
     latestPriceEarningsIndustryPercentileCount?: number
     latestPriceBookIndustryPercentileCount?: number
+    latestQuarterlyRiskReportCount?: number
+    completeQuarterlyRiskIndicatorCount?: number
     industryCount: number
   }
   industries: FundamentalIndustryBenchmark[]

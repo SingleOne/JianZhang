@@ -60,7 +60,7 @@ function dailyKline(): KlineResult {
 
 function fundamentalSnapshot(): FundamentalSnapshot {
   return {
-    schemaVersion: 5,
+    schemaVersion: 6,
     snapshotDate: '2026-08-05',
     generatedAt: '2026-08-05T12:00:00+08:00',
     currency: 'CNY',
@@ -81,52 +81,74 @@ function fundamentalSnapshot(): FundamentalSnapshot {
       industryCount: 1
     },
     industries: [{ code: '10', name: '测试行业', sampleSize: 20, debtAssetRatioP60: 50 }],
-    rows: [{
-      code: '600000',
-      name: '测试公司',
-      market: 'SH',
-      quoteId: '1.600000',
-      organizationType: 'general',
-      industryCode: '10',
-      industryName: '测试行业',
-      annualReports: [2021, 2022, 2023, 2024, 2025].map((year) => ({
-        year,
-        reportDate: `${year}-12-31`,
-        noticeDate: null,
-        weightedAverageRoe: 18,
-        deductedWeightedAverageRoe: 17,
-        roic: 14,
-        netProfit: 100,
-        parentNetProfit: 95,
-        deductedParentNetProfit: 92,
-        operatingCashFlow: 130,
-        capitalExpenditure: 30,
-        freeCashFlow: 100
-      })),
-      latestBalanceSheet: {
-        reportDate: '2025-12-31',
-        noticeDate: null,
-        totalAssets: 1000,
-        totalLiabilities: 400,
-        debtAssetRatio: 40,
-        industryPercentile: 35,
-        monetaryFunds: 200,
-        interestBearingDebt: 120,
-        netDebt: -80
-      },
-      valuation: {
-        dataDate: '2026-08-04',
-        closePrice: 120,
-        priceEarningsRatioTtm: 12.3,
-        priceBookRatio: 1.75,
-        totalMarketValue: 120_000_000_000,
-        circulatingMarketValue: 96_000_000_000,
-        priceEarningsIndustryPercentile: 42,
-        priceBookIndustryPercentile: 36,
-        priceEarningsIndustrySampleSize: 20,
-        priceBookIndustrySampleSize: 21
+    rows: [
+      {
+        code: '600000',
+        name: '测试公司',
+        market: 'SH',
+        quoteId: '1.600000',
+        organizationType: 'general',
+        industryCode: '10',
+        industryName: '测试行业',
+        quarterlyRiskReports: [
+          {
+            reportDate: '2026-06-30',
+            noticeDate: '2026-08-01',
+            operatingCashFlowCumulative: 150,
+            operatingCashFlowQuarter: 70,
+            accountsReceivable: 120,
+            accountsReceivableGrowthYoY: 20,
+            totalOperatingRevenue: 500,
+            revenueGrowthYoY: 12,
+            receivableRevenueDivergence: 8,
+            inventory: 80,
+            operatingCost: 300,
+            inventoryTurnoverDays: 70,
+            inventoryDaysChangeYoY: 5,
+            goodwill: 10,
+            totalAssets: 1000,
+            goodwillAssetRatio: 1
+          }
+        ],
+        annualReports: [2021, 2022, 2023, 2024, 2025].map((year) => ({
+          year,
+          reportDate: `${year}-12-31`,
+          noticeDate: null,
+          weightedAverageRoe: 18,
+          deductedWeightedAverageRoe: 17,
+          roic: 14,
+          netProfit: 100,
+          parentNetProfit: 95,
+          deductedParentNetProfit: 92,
+          operatingCashFlow: 130,
+          capitalExpenditure: 30,
+          freeCashFlow: 100
+        })),
+        latestBalanceSheet: {
+          reportDate: '2025-12-31',
+          noticeDate: null,
+          totalAssets: 1000,
+          totalLiabilities: 400,
+          debtAssetRatio: 40,
+          industryPercentile: 35,
+          monetaryFunds: 200,
+          interestBearingDebt: 120,
+          netDebt: -80
+        },
+        valuation: {
+          dataDate: '2026-08-04',
+          closePrice: 120,
+          priceEarningsRatioTtm: 12.3,
+          priceBookRatio: 1.75,
+          totalMarketValue: 120_000_000_000,
+          circulatingMarketValue: 96_000_000_000,
+          priceEarningsIndustryPercentile: 42,
+          priceBookIndustryPercentile: 36,
+          priceEarningsIndustrySampleSize: 20,
+          priceBookIndustrySampleSize: 21
+        }
       }
-    }]
+    ]
   }
 }
 
@@ -153,16 +175,18 @@ function dividendSnapshot(): DividendFinancingSnapshot {
     dualListedCount: 0,
     financingErrorCount: 0,
     dividendErrorCount: 0,
-    rows: [{
-      rank: 1,
-      code: '600000',
-      name: '测试公司',
-      market: 'SH',
-      dividendYi: 100,
-      financingYi: 20,
-      ratio: 500,
-      qualityScore: 88
-    }]
+    rows: [
+      {
+        rank: 1,
+        code: '600000',
+        name: '测试公司',
+        market: 'SH',
+        dividendYi: 100,
+        financingYi: 20,
+        ratio: 500,
+        qualityScore: 88
+      }
+    ]
   }
 }
 
@@ -214,17 +238,25 @@ describe('long-term AI context', () => {
         belowLowValueThreshold: true
       }
     })
-    expect(context.valuation.dcf.available && context.valuation.dcf.fairValuePerShare)
-      .toBeGreaterThan(0)
-    expect(context.valuation.dcf.available && context.valuation.dcf.fairValueToPricePercent)
-      .toBeLessThan(70)
-    expect(context.valuation.dcf.available && context.valuation.dcf.priceToFairValuePercent)
-      .toBeGreaterThan(100)
+    expect(
+      context.valuation.dcf.available && context.valuation.dcf.fairValuePerShare
+    ).toBeGreaterThan(0)
+    expect(
+      context.valuation.dcf.available && context.valuation.dcf.fairValueToPricePercent
+    ).toBeLessThan(70)
+    expect(
+      context.valuation.dcf.available && context.valuation.dcf.priceToFairValuePercent
+    ).toBeGreaterThan(100)
     expect(context.fundamental.company?.annualReports.at(-1)).toMatchObject({
       roic: 14,
       freeCashFlow: 100
     })
     expect(context.fundamental.company?.latestBalanceSheet.netDebt).toBe(-80)
+    expect(context.fundamental.company?.financialMine).toMatchObject({
+      level: 'low',
+      score: 0,
+      reportDate: '2026-06-30'
+    })
     expect(context.dividendFinancing.listed).toBe(true)
   })
 
@@ -257,32 +289,36 @@ describe('long-term AI context', () => {
       fundamentalState: readyState,
       dividendSnapshot: dividendSnapshot(),
       dividendState: readyState,
-      companyReportSummaries: [{
-        reportId: 'annual-2025',
-        code: '600000',
-        content: '经营稳定，但仍需关注现金流',
-        managementDiscussion: '主营业务保持增长',
-        auditOpinion: '标准无保留意见',
-        financialStatementNotes: '应收账款减值增加',
-        aiConclusion: '经营稳定，但仍需关注现金流',
-        reportTitle: '2025年年度报告',
-        reportType: 'annual',
-        reportYear: 2025,
-        publishedAt: '2026-03-30T00:00:00.000Z',
-        generatedAt: '2026-08-07T11:30:00+08:00',
-        providerId: 'deepseek',
-        model: 'deepseek-v4-flash'
-      }],
+      companyReportSummaries: [
+        {
+          reportId: 'annual-2025',
+          code: '600000',
+          content: '经营稳定，但仍需关注现金流',
+          managementDiscussion: '主营业务保持增长',
+          auditOpinion: '标准无保留意见',
+          financialStatementNotes: '应收账款减值增加',
+          aiConclusion: '经营稳定，但仍需关注现金流',
+          reportTitle: '2025年年度报告',
+          reportType: 'annual',
+          reportYear: 2025,
+          publishedAt: '2026-03-30T00:00:00.000Z',
+          generatedAt: '2026-08-07T11:30:00+08:00',
+          providerId: 'deepseek',
+          model: 'deepseek-v4-flash'
+        }
+      ],
       generatedAt: '2026-08-07T11:31:00+08:00'
     })
 
-    expect(context.companyReportSummaries).toEqual([expect.objectContaining({
-      reportYear: 2025,
-      managementDiscussion: '主营业务保持增长',
-      auditOpinion: '标准无保留意见',
-      financialStatementNotes: '应收账款减值增加',
-      aiConclusion: '经营稳定，但仍需关注现金流'
-    })])
+    expect(context.companyReportSummaries).toEqual([
+      expect.objectContaining({
+        reportYear: 2025,
+        managementDiscussion: '主营业务保持增长',
+        auditOpinion: '标准无保留意见',
+        financialStatementNotes: '应收账款减值增加',
+        aiConclusion: '经营稳定，但仍需关注现金流'
+      })
+    ])
     expect(JSON.stringify(context.companyReportSummaries)).not.toContain('excerpt')
   })
 

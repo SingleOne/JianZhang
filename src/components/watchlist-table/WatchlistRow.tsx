@@ -21,6 +21,10 @@ import { getTriggeredTAlertBadges, getTriggeredTFloatingProfitAlert } from '../.
 import { calculateTBatchMetrics } from '../../lib/t-trading'
 import { getBatchTrades } from '../../lib/trade-records'
 import {
+  FINANCIAL_MINE_LEVEL_LABELS,
+  evaluateFinancialMine
+} from '../../lib/financial-mine-detector'
+import {
   FUNDAMENTAL_RISK_TAG_LABELS,
   evaluateFundamentalRisk,
   summarizeFundamentalScreening,
@@ -192,6 +196,9 @@ export const WatchlistRow = memo(function WatchlistRow({
   const fundamentalSummary = summarizeFundamentalScreening(fundamentalScreening)
   const fundamentalRisk = fundamentalScreening
     ? evaluateFundamentalRisk(fundamentalScreening.company)
+    : null
+  const financialMine = fundamentalScreening
+    ? evaluateFinancialMine(fundamentalScreening.company)
     : null
   const metrics = calculatePositionMetrics(stock.position, quote, tradingAccount)
   const quoteDirection = valueClass(quote?.changePercent)
@@ -485,7 +492,20 @@ export const WatchlistRow = memo(function WatchlistRow({
                   ? FUNDAMENTAL_BADGE_META[fundamentalSummary.status]
                   : null
               const hasDividendBadge = Boolean(dividendFinancing)
-              const hasRiskBadge = Boolean(fundamentalRisk?.tags.length)
+              const hasAnnualRisk = Boolean(fundamentalRisk?.tags.length)
+              const hasMineRisk =
+                financialMine?.level === 'high' || financialMine?.level === 'medium'
+              const hasRiskBadge = hasAnnualRisk || hasMineRisk
+              const riskSeverity =
+                fundamentalRisk?.severity === 'critical' || financialMine?.level === 'high'
+                  ? 'critical'
+                  : 'warning'
+              const riskMessages = [
+                ...(fundamentalRisk?.tags.map((tag) => FUNDAMENTAL_RISK_TAG_LABELS[tag]) ?? []),
+                ...(hasMineRisk && financialMine
+                  ? [`财务排雷${FINANCIAL_MINE_LEVEL_LABELS[financialMine.level]}`]
+                  : [])
+              ]
               return (
                 <td key={columnId}>
                   <span className="value-tag-cell">
@@ -508,11 +528,11 @@ export const WatchlistRow = memo(function WatchlistRow({
                         {fundamentalBadge.label}
                       </button>
                     ) : null}
-                    {hasRiskBadge && fundamentalRisk ? (
+                    {hasRiskBadge ? (
                       <button
-                        className={`value-screening-badge is-risk-${fundamentalRisk.severity}`}
+                        className={`value-screening-badge is-risk-${riskSeverity}`}
                         type="button"
-                        title={`基本面${fundamentalRisk.severity === 'critical' ? '风险' : '关注'}：${fundamentalRisk.tags.map((tag) => FUNDAMENTAL_RISK_TAG_LABELS[tag]).join('、')}；点击查看详情`}
+                        title={`基本面${riskSeverity === 'critical' ? '风险' : '关注'}：${riskMessages.join('、')}；点击查看详情`}
                         aria-label={`打开${stock.name}基本面风险详情`}
                         onKeyDown={(event) => event.stopPropagation()}
                         onClick={(event) => {
@@ -520,7 +540,7 @@ export const WatchlistRow = memo(function WatchlistRow({
                           handleFundamentalBadgeClick()
                         }}
                       >
-                        {fundamentalRisk.severity === 'critical' ? '风险' : '关注'}
+                        {riskSeverity === 'critical' ? '风险' : '关注'}
                       </button>
                     ) : null}
                     {hasDividendBadge ? (
