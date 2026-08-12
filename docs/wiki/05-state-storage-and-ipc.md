@@ -163,14 +163,14 @@ JianzhangUserDataBackupDocument
 
 GitHub 同步复用同一份用户数据备份，不维护第二套数据格式。用户在“设置 → 系统与数据”点击“连接 GitHub”，应用通过 GitHub OAuth Device Flow 打开官方网页授权；授权成功后自动读取当前账号的可写私有仓库，用户只需选择一个仓库。
 
-- OAuth App 必须启用 Device Flow。构建时通过 `JIANZHANG_GITHUB_OAUTH_CLIENT_ID` 注入公开 Client ID，不使用 Client Secret。
+- OAuth App 必须启用 Device Flow。仓库内置见涨 OAuth App 的公开 Client ID，也可在构建时通过 `JIANZHANG_GITHUB_OAUTH_CLIENT_ID` 覆盖，不使用 Client Secret。
 - Device Flow 请求 `repo` scope，以读取并写入用户有权限的私有仓库；访问令牌使用当前电脑的 `safeStorage` 加密保存到 `userData/github-sync/token.bin`，不会写入用户数据备份。
 - 账号、所选仓库、仓库默认分支和最近上传/恢复时间保存到 `userData/github-sync/settings.json`。同步路径固定为 `.jianzhang-sync/user-data.json`。
 - 上传通过 GitHub Contents API 创建或覆盖固定路径，Git 提交历史保留旧版本；仓库默认分支发生变化时会自动跟随。
 - 从 GitHub 下载后走与本地导入完全相同的校验、确认、文件替换、API Key 重新加密和自动重启流程。
 - 当前备份未加密且包含 AI API Key。仓库列表只显示可写私有仓库，上传和恢复前还会重新检查仓库仍为私有；上传操作本身由 GitHub Contents API 校验写入权限。
 
-源码构建示例：
+切换到其他 OAuth App 的构建示例：
 
 ```powershell
 $env:JIANZHANG_GITHUB_OAUTH_CLIENT_ID='你的Client ID'

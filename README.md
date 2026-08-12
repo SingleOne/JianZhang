@@ -114,13 +114,13 @@ npm run build
 npm run package:win
 ```
 
-GitHub 网页授权需要先在 GitHub 的“Settings → Developer settings → OAuth Apps”创建 OAuth App 并启用 Device Flow，再将公开的 Client ID 注入构建：
+仓库已经内置见涨 OAuth App 的公开 Client ID，直接执行 `npm run build` 即可使用 GitHub 网页授权。需要切换到其他 OAuth App 时，可以在构建前通过环境变量覆盖：
 
 ```powershell
 $env:JIANZHANG_GITHUB_OAUTH_CLIENT_ID='你的Client ID'
 npm run build
 ```
 
-不需要也不要把 OAuth App Client Secret 写入项目。未配置 Client ID 的构建仍可使用本地导入导出，但“连接 GitHub”会保持禁用。
+OAuth App 必须启用 Device Flow。不需要也不要把 OAuth App Client Secret 写入项目。
 
 技术栈：Electron、React、TypeScript、Vite、Lightweight Charts。
