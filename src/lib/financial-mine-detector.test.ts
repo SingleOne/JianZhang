@@ -57,10 +57,12 @@ function company(overrides: Partial<FundamentalCompany> = {}): FundamentalCompan
 
 describe('financial mine detector', () => {
   it('marks any critical signal as high risk and keeps an eight-point maximum score', () => {
-    const reports = company().quarterlyRiskReports!.map((report) => ({
-      ...report,
-      operatingCashFlowQuarter: -20
-    }))
+    const reports: FundamentalQuarterlyRiskReport[] = company().quarterlyRiskReports!.map(
+      (report) => ({
+        ...report,
+        operatingCashFlowQuarter: -20
+      })
+    )
     reports[3] = quarterlyReport('2026-06-30', {
       operatingCashFlowQuarter: -20,
       receivableRevenueDivergence: 25,
@@ -81,10 +83,12 @@ describe('financial mine detector', () => {
   })
 
   it('uses strict thresholds and reports only warning signals as medium risk', () => {
-    const reports = company().quarterlyRiskReports!.map((report, index) => ({
-      ...report,
-      operatingCashFlowQuarter: index >= 2 ? -10 : 20
-    }))
+    const reports: FundamentalQuarterlyRiskReport[] = company().quarterlyRiskReports!.map(
+      (report, index) => ({
+        ...report,
+        operatingCashFlowQuarter: index >= 2 ? -10 : 20
+      })
+    )
     reports[3] = quarterlyReport('2026-06-30', {
       operatingCashFlowQuarter: -10,
       receivableRevenueDivergence: 20,
