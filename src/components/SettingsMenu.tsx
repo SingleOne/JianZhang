@@ -1,8 +1,9 @@
 import {
+  Check,
+  ChevronDown,
   CloudDownload,
   CloudUpload,
   Download,
-  Github,
   RefreshCw,
   Settings2,
   Upload
@@ -55,13 +56,29 @@ const T_PLAN_DEFAULT_GROUPS = [
   { key: 'sellLevels', label: '卖出五档', percentLabel: '涨幅' }
 ] as const
 
-type SettingsTab = 'market' | 'trading' | 'system'
+type SettingsTab = 'market' | 'trading' | 'system' | 'data'
 
 const SETTINGS_TABS = [
   { id: 'market', label: '行情' },
   { id: 'trading', label: '做T' },
-  { id: 'system', label: '系统与数据' }
+  { id: 'system', label: '系统' },
+  { id: 'data', label: '数据' }
 ] as const satisfies readonly { id: SettingsTab; label: string }[]
+
+function GitHubIcon({ size }: { size: number }) {
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+    >
+      <path d="M12 .7a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2.23c-3.22.7-3.9-1.37-3.9-1.37-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.71.08-.71 1.17.08 1.78 1.2 1.78 1.2 1.04 1.78 2.72 1.27 3.38.97.1-.75.4-1.27.74-1.56-2.57-.29-5.27-1.29-5.27-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.16 1.18a10.96 10.96 0 0 1 5.75 0c2.2-1.49 3.16-1.18 3.16-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.4-2.71 5.38-5.29 5.67.42.36.79 1.06.79 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .7Z" />
+    </svg>
+  )
+}
 
 function formatCalendarRefreshTime(value: string | null): string {
   if (!value) return '尚未在线刷新'
@@ -487,6 +504,11 @@ export function SettingsMenu({
                   }
                 />
               </label>
+            </>
+          ) : null}
+
+          {activeTab === 'data' ? (
+            <>
               <div className="trading-calendar-setting">
                 <span>
                   <strong>交易日历</strong>
@@ -574,11 +596,18 @@ export function SettingsMenu({
               </div>
               <div className="github-sync-management">
                 <span className="github-sync-heading">
-                  <Github size={16} />
-                  <span>
-                    <strong>GitHub 私有仓库同步</strong>
+                  <span className="github-sync-heading-copy">
+                    <span className="github-sync-title">
+                      <strong>私有仓库同步</strong>
+                      <GitHubIcon size={16} />
+                    </span>
                     <small>通过 GitHub 官方网页授权，分支和同步路径由应用自动处理</small>
                   </span>
+                  {githubSyncSettings.lastUploadedAt ? (
+                    <small className="github-last-uploaded-at">
+                      最近上传：{formatCalendarRefreshTime(githubSyncSettings.lastUploadedAt)}
+                    </small>
+                  ) : null}
                 </span>
                 {!githubSyncSettings.connected ? (
                   <button
@@ -587,7 +616,7 @@ export function SettingsMenu({
                     onClick={onConnectGitHub}
                     disabled={githubSyncBusy || !githubSyncSettings.oauthAvailable}
                   >
-                    <Github size={15} />
+                    <GitHubIcon size={15} />
                     {githubSyncBusy ? '等待网页授权…' : '连接 GitHub'}
                   </button>
                 ) : (
@@ -617,31 +646,63 @@ export function SettingsMenu({
                         </button>
                       </span>
                     </span>
-                    <label className="github-repository-select">
+                    <div className="github-repository-select">
                       <span>同步到私有仓库</span>
-                      <select
-                        value={githubSyncSettings.repositoryFullName ?? ''}
-                        onChange={(event) => onSelectGitHubRepository(event.target.value)}
-                        disabled={githubSyncBusy || githubRepositoriesLoading}
+                      <details
+                        className={`github-repository-dropdown${
+                          githubSyncBusy || githubRepositoriesLoading ? ' is-disabled' : ''
+                        }`}
                       >
-                        <option value="" disabled>
-                          {githubRepositoriesLoading
-                            ? '正在读取仓库…'
-                            : githubRepositories.length > 0
-                              ? '请选择仓库'
-                              : '暂无可写私有仓库'}
-                        </option>
-                        {githubRepositories.map((repository) => (
-                          <option key={repository.id} value={repository.fullName}>
-                            {repository.fullName}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                        <summary
+                          aria-disabled={githubSyncBusy || githubRepositoriesLoading}
+                          onClick={(event) => {
+                            if (githubSyncBusy || githubRepositoriesLoading) event.preventDefault()
+                          }}
+                        >
+                          <span>
+                            {githubRepositoriesLoading
+                              ? '正在读取仓库…'
+                              : (githubSyncSettings.repositoryFullName ??
+                                (githubRepositories.length > 0
+                                  ? '请选择仓库'
+                                  : '暂无可写私有仓库'))}
+                          </span>
+                          <ChevronDown size={15} />
+                        </summary>
+                        {githubRepositories.length > 0 ? (
+                          <div
+                            className="github-repository-options"
+                            role="listbox"
+                            aria-label="GitHub 私有仓库"
+                          >
+                            {githubRepositories.map((repository) => {
+                              const selected =
+                                repository.fullName === githubSyncSettings.repositoryFullName
+                              return (
+                                <button
+                                  type="button"
+                                  role="option"
+                                  aria-selected={selected}
+                                  className={selected ? 'is-selected' : ''}
+                                  key={repository.id}
+                                  onClick={(event) => {
+                                    event.currentTarget.closest('details')?.removeAttribute('open')
+                                    onSelectGitHubRepository(repository.fullName)
+                                  }}
+                                >
+                                  <span>{repository.fullName}</span>
+                                  {selected ? <Check size={14} /> : null}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        ) : null}
+                      </details>
+                    </div>
                     {githubSyncSettings.repositoryFullName ? (
                       <small>
                         默认分支：{githubSyncSettings.repositoryDefaultBranch} · 同步路径：
-                        .jianzhang-sync/user-data.json
+                        .data/user-data.json
                       </small>
                     ) : null}
                     {githubSyncError ? (
@@ -683,17 +744,9 @@ export function SettingsMenu({
                     </button>
                   </div>
                 ) : null}
-                {githubSyncSettings.lastUploadedAt || githubSyncSettings.lastDownloadedAt ? (
+                {githubSyncSettings.lastDownloadedAt ? (
                   <small className="github-sync-status">
-                    {githubSyncSettings.lastUploadedAt
-                      ? `最近上传：${formatCalendarRefreshTime(githubSyncSettings.lastUploadedAt)}`
-                      : ''}
-                    {githubSyncSettings.lastUploadedAt && githubSyncSettings.lastDownloadedAt
-                      ? ' · '
-                      : ''}
-                    {githubSyncSettings.lastDownloadedAt
-                      ? `最近恢复：${formatCalendarRefreshTime(githubSyncSettings.lastDownloadedAt)}`
-                      : ''}
+                    最近恢复：{formatCalendarRefreshTime(githubSyncSettings.lastDownloadedAt)}
                   </small>
                 ) : null}
               </div>

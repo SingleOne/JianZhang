@@ -71,7 +71,7 @@ interface RemoteFile {
   content: string
 }
 
-const SYNC_FILE_PATH = '.jianzhang-sync/user-data.json'
+const SYNC_FILE_PATH = '.data/user-data.json'
 const OAUTH_SCOPE = 'repo'
 
 export class GitHubSyncService {

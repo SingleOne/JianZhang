@@ -942,7 +942,7 @@ export default function App() {
       if (!repository) throw new Error('请先选择用于同步的 GitHub 私有仓库')
       const confirmed = await confirm({
         title: '上传用户数据到 GitHub',
-        message: `将覆盖 ${repository} 中固定路径 .jianzhang-sync/user-data.json。备份未加密并包含已配置的 AI API Key。`,
+        message: `将覆盖 ${repository} 中固定路径 .data/user-data.json。备份未加密并包含已配置的 AI API Key。`,
         confirmLabel: '确认上传',
         tone: 'danger'
       })
