@@ -55,7 +55,12 @@ const api: StockDesktopApi = {
   importConfig: () => ipcRenderer.invoke('config:import'),
   applyConfigImport: (importId) => ipcRenderer.invoke('config:import:apply', importId),
   getGitHubSyncSettings: () => ipcRenderer.invoke('github-sync:settings:get'),
-  saveGitHubSyncSettings: (input) => ipcRenderer.invoke('github-sync:settings:save', input),
+  startGitHubLogin: () => ipcRenderer.invoke('github-sync:login:start'),
+  completeGitHubLogin: (loginId) => ipcRenderer.invoke('github-sync:login:complete', loginId),
+  listGitHubRepositories: () => ipcRenderer.invoke('github-sync:repositories:list'),
+  selectGitHubRepository: (fullName) =>
+    ipcRenderer.invoke('github-sync:repository:select', fullName),
+  disconnectGitHub: () => ipcRenderer.invoke('github-sync:disconnect'),
   uploadUserDataToGitHub: (state) => ipcRenderer.invoke('github-sync:upload', state),
   downloadUserDataFromGitHub: () => ipcRenderer.invoke('github-sync:download'),
   hideWindow: () => ipcRenderer.invoke('app:hide'),

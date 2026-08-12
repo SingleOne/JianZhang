@@ -274,7 +274,10 @@ if (!hasSingleInstanceLock) {
     }
 
     userDataBackupService = new UserDataBackupService(app.getPath('userData'))
-    githubSyncService = new GitHubSyncService(app.getPath('userData'))
+    githubSyncService = new GitHubSyncService(
+      app.getPath('userData'),
+      __JIANZHANG_GITHUB_OAUTH_CLIENT_ID__
+    )
     aiSecrets = new AiSecrets(join(app.getPath('userData'), 'modules', 'ai'))
 
     const marketCacheDirectory = join(app.getPath('userData'), 'market-cache')
@@ -423,16 +426,16 @@ if (!hasSingleInstanceLock) {
         ),
       refreshTradingCalendar: () => tradingCalendarRuntime!.refresh(),
       createUserDataBackup: (stateToExport, applicationVersion) =>
-        userDataBackupService!.create(
-          stateToExport,
-          applicationVersion,
-          aiSecrets!.exportAll()
-        ),
+        userDataBackupService!.create(stateToExport, applicationVersion, aiSecrets!.exportAll()),
       prepareUserDataBackup: (value) => userDataBackupService!.prepare(value),
       applyUserDataBackup: (importId) =>
         userDataBackupService!.apply(importId, (apiKeys) => aiSecrets!.replaceAll(apiKeys)),
       getGitHubSyncSettings: () => githubSyncService!.getSettings(),
-      saveGitHubSyncSettings: (input) => githubSyncService!.saveSettings(input),
+      startGitHubLogin: () => githubSyncService!.startLogin(),
+      completeGitHubLogin: (loginId) => githubSyncService!.completeLogin(loginId),
+      listGitHubRepositories: () => githubSyncService!.listRepositories(),
+      selectGitHubRepository: (fullName) => githubSyncService!.selectRepository(fullName),
+      disconnectGitHub: () => githubSyncService!.disconnect(),
       uploadUserDataToGitHub: async (stateToExport, applicationVersion) => {
         const document = userDataBackupService!.create(
           stateStore!.normalize(stateToExport),

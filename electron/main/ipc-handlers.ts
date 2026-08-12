@@ -34,8 +34,10 @@ import type {
   FundamentalSnapshot,
   FundamentalUpdateResult,
   FundsFlowResult,
+  GitHubDeviceAuthorization,
+  GitHubLoginResult,
+  GitHubRepositoryOption,
   GitHubSyncSettings,
-  GitHubSyncSettingsInput,
   GitHubSyncUploadResult,
   KlinePeriod,
   KlineResult,
@@ -99,7 +101,11 @@ interface IpcHandlerDependencies {
   }
   applyUserDataBackup: (importId: string) => void
   getGitHubSyncSettings: () => GitHubSyncSettings
-  saveGitHubSyncSettings: (input: GitHubSyncSettingsInput) => GitHubSyncSettings
+  startGitHubLogin: () => Promise<GitHubDeviceAuthorization>
+  completeGitHubLogin: (loginId: string) => Promise<GitHubLoginResult>
+  listGitHubRepositories: () => Promise<GitHubRepositoryOption[]>
+  selectGitHubRepository: (fullName: string) => Promise<GitHubSyncSettings>
+  disconnectGitHub: () => GitHubSyncSettings
   uploadUserDataToGitHub: (
     state: AppState,
     applicationVersion: string
@@ -152,7 +158,11 @@ const CHANNELS = [
   'config:import',
   'config:import:apply',
   'github-sync:settings:get',
-  'github-sync:settings:save',
+  'github-sync:login:start',
+  'github-sync:login:complete',
+  'github-sync:repositories:list',
+  'github-sync:repository:select',
+  'github-sync:disconnect',
   'github-sync:upload',
   'github-sync:download',
   'app:hide',
@@ -337,9 +347,15 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
     setTimeout(dependencies.restart, 300)
   })
   ipcMain.handle('github-sync:settings:get', () => dependencies.getGitHubSyncSettings())
-  ipcMain.handle('github-sync:settings:save', (_event, input: GitHubSyncSettingsInput) =>
-    dependencies.saveGitHubSyncSettings(input)
+  ipcMain.handle('github-sync:login:start', () => dependencies.startGitHubLogin())
+  ipcMain.handle('github-sync:login:complete', (_event, loginId: string) =>
+    dependencies.completeGitHubLogin(loginId)
   )
+  ipcMain.handle('github-sync:repositories:list', () => dependencies.listGitHubRepositories())
+  ipcMain.handle('github-sync:repository:select', (_event, fullName: string) =>
+    dependencies.selectGitHubRepository(fullName)
+  )
+  ipcMain.handle('github-sync:disconnect', () => dependencies.disconnectGitHub())
   ipcMain.handle('github-sync:upload', (_event, stateToExport: AppState) =>
     dependencies.uploadUserDataToGitHub(
       dependencies.normalizeState(stateToExport),

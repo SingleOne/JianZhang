@@ -713,21 +713,24 @@ const demoApi: StockDesktopApi = {
   async applyConfigImport() {},
   async getGitHubSyncSettings() {
     return {
-      owner: '',
-      repository: '',
-      branch: 'main',
-      filePath: '.jianzhang-sync/user-data.json',
-      tokenConfigured: false
+      oauthAvailable: false,
+      connected: false
     }
   },
-  async saveGitHubSyncSettings(input) {
-    return {
-      owner: input.owner,
-      repository: input.repository,
-      branch: input.branch,
-      filePath: input.filePath,
-      tokenConfigured: Boolean(input.token)
-    }
+  async startGitHubLogin() {
+    throw new Error('GitHub 网页授权仅在 Windows 桌面版中可用')
+  },
+  async completeGitHubLogin() {
+    throw new Error('GitHub 网页授权仅在 Windows 桌面版中可用')
+  },
+  async listGitHubRepositories() {
+    return []
+  },
+  async selectGitHubRepository() {
+    throw new Error('GitHub 同步仅在 Windows 桌面版中可用')
+  },
+  async disconnectGitHub() {
+    return { oauthAvailable: false, connected: false }
   },
   async uploadUserDataToGitHub() {
     throw new Error('GitHub 同步仅在 Windows 桌面版中可用')

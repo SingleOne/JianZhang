@@ -1573,22 +1573,31 @@ export interface UserDataBackupSummary {
 }
 
 export interface GitHubSyncSettings {
-  owner: string
-  repository: string
-  branch: string
-  filePath: string
-  tokenConfigured: boolean
-  tokenMaskedSuffix?: string
+  oauthAvailable: boolean
+  connected: boolean
+  accountLogin?: string
+  repositoryFullName?: string
+  repositoryDefaultBranch?: string
   lastUploadedAt?: string
   lastDownloadedAt?: string
 }
 
-export interface GitHubSyncSettingsInput {
-  owner: string
-  repository: string
-  branch: string
-  filePath: string
-  token?: string
+export interface GitHubRepositoryOption {
+  id: number
+  fullName: string
+  defaultBranch: string
+}
+
+export interface GitHubDeviceAuthorization {
+  loginId: string
+  userCode: string
+  verificationUri: string
+  expiresAt: string
+}
+
+export interface GitHubLoginResult {
+  settings: GitHubSyncSettings
+  repositories: GitHubRepositoryOption[]
 }
 
 export interface GitHubSyncUploadResult {
@@ -1650,7 +1659,11 @@ export interface StockDesktopApi {
   importConfig: () => Promise<ConfigImportResult>
   applyConfigImport: (importId: string) => Promise<void>
   getGitHubSyncSettings: () => Promise<GitHubSyncSettings>
-  saveGitHubSyncSettings: (input: GitHubSyncSettingsInput) => Promise<GitHubSyncSettings>
+  startGitHubLogin: () => Promise<GitHubDeviceAuthorization>
+  completeGitHubLogin: (loginId: string) => Promise<GitHubLoginResult>
+  listGitHubRepositories: () => Promise<GitHubRepositoryOption[]>
+  selectGitHubRepository: (fullName: string) => Promise<GitHubSyncSettings>
+  disconnectGitHub: () => Promise<GitHubSyncSettings>
   uploadUserDataToGitHub: (state: AppState) => Promise<GitHubSyncUploadResult>
   downloadUserDataFromGitHub: () => Promise<ConfigImportResult>
   hideWindow: () => Promise<void>

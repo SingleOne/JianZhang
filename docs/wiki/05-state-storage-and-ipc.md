@@ -161,13 +161,21 @@ JianzhangUserDataBackupDocument
 
 ### GitHub 私有仓库同步
 
-GitHub 同步复用同一份用户数据备份，不维护第二套数据格式。用户在“设置 → 系统与数据”填写仓库所有者、私有仓库、分支、文件路径和 Fine-grained Personal Access Token，然后可以手动上传或从 GitHub 恢复。
+GitHub 同步复用同一份用户数据备份，不维护第二套数据格式。用户在“设置 → 系统与数据”点击“连接 GitHub”，应用通过 GitHub OAuth Device Flow 打开官方网页授权；授权成功后自动读取当前账号的可写私有仓库，用户只需选择一个仓库。
 
-- Token 只需要目标仓库的 Contents 读写权限，使用当前电脑的 `safeStorage` 加密保存到 `userData/github-sync/token.bin`，不会写入用户数据备份。
-- 仓库、分支、路径和最近上传/恢复时间保存到 `userData/github-sync/settings.json`。
-- 上传通过 GitHub Contents API 创建或覆盖固定路径，Git 提交历史保留旧版本。
+- OAuth App 必须启用 Device Flow。构建时通过 `JIANZHANG_GITHUB_OAUTH_CLIENT_ID` 注入公开 Client ID，不使用 Client Secret。
+- Device Flow 请求 `repo` scope，以读取并写入用户有权限的私有仓库；访问令牌使用当前电脑的 `safeStorage` 加密保存到 `userData/github-sync/token.bin`，不会写入用户数据备份。
+- 账号、所选仓库、仓库默认分支和最近上传/恢复时间保存到 `userData/github-sync/settings.json`。同步路径固定为 `.jianzhang-sync/user-data.json`。
+- 上传通过 GitHub Contents API 创建或覆盖固定路径，Git 提交历史保留旧版本；仓库默认分支发生变化时会自动跟随。
 - 从 GitHub 下载后走与本地导入完全相同的校验、确认、文件替换、API Key 重新加密和自动重启流程。
-- 当前备份未加密且包含 AI API Key，上传确认框会再次要求用户确认目标是自己的私有仓库。
+- 当前备份未加密且包含 AI API Key。仓库列表只显示可写私有仓库，上传和恢复前还会重新检查仓库仍为私有；上传操作本身由 GitHub Contents API 校验写入权限。
+
+源码构建示例：
+
+```powershell
+$env:JIANZHANG_GITHUB_OAUTH_CLIENT_ID='你的Client ID'
+npm run build
+```
 
 ## 浏览器演示存储
 
@@ -239,8 +247,10 @@ localStorage["jianzhang-demo-state-v1"]
 | `exportConfig` | `config:export` | 保存 JSON |
 | `importConfig` | `config:import` | 读取并解析 JSON |
 | `applyConfigImport` | `config:import:apply` | 替换模块用户数据、重新加密 AI API Key，并重启应用 |
-| `getGitHubSyncSettings` | `github-sync:settings:get` | 返回仓库配置、Token 配置状态和最近同步时间 |
-| `saveGitHubSyncSettings` | `github-sync:settings:save` | 保存仓库配置并使用 `safeStorage` 更新 Token |
+| `getGitHubSyncSettings` | `github-sync:settings:get` | 返回 OAuth 可用性、账号、所选仓库和最近同步时间 |
+| `startGitHubLogin` / `completeGitHubLogin` | `github-sync:login:start` / `github-sync:login:complete` | 发起并完成 GitHub OAuth Device Flow，安全保存访问令牌 |
+| `listGitHubRepositories` / `selectGitHubRepository` | `github-sync:repositories:list` / `github-sync:repository:select` | 读取并选择可写私有仓库 |
+| `disconnectGitHub` | `github-sync:disconnect` | 删除当前电脑的 GitHub 访问令牌及账号/仓库选择 |
 | `uploadUserDataToGitHub` | `github-sync:upload` | 生成当前用户数据备份并上传到私有仓库 |
 | `downloadUserDataFromGitHub` | `github-sync:download` | 下载云端备份并进入统一导入确认流程 |
 | `hideWindow` | `app:hide` | 隐藏主窗口 |

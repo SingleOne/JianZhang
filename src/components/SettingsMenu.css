@@ -316,43 +316,95 @@
   color: var(--subtle);
 }
 
-.github-sync-fields {
+.github-connect-button {
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #ffffff;
+  background: #24292f;
+  border: 1px solid #24292f;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.github-connect-button:disabled {
+  color: #a1a9b8;
+  background: #f8fafc;
+  border-color: var(--border-strong);
+  cursor: default;
+}
+
+.github-connected-panel {
   display: grid;
-  grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
 
-.github-sync-fields label {
+.github-account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #586579;
+  font-size: 12px;
+}
+
+.github-account-row button {
+  color: #667085;
+  background: transparent;
+  border: 0;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.github-repository-select {
   display: grid;
   gap: 4px;
   color: #667085;
   font-size: 12px;
 }
 
-.github-sync-fields input {
-  min-width: 0;
-  height: 32px;
-  padding: 0 9px;
+.github-repository-select select {
+  width: 100%;
+  height: 34px;
+  padding: 0 8px;
   color: #344054;
   background: #fff;
   border: 1px solid var(--border-strong);
   border-radius: 7px;
   font-size: 12px;
-  outline: none;
 }
 
-.github-sync-fields input:focus {
-  border-color: #8eb1f5;
-  box-shadow: 0 0 0 2px rgb(47 111 237 / 10%);
+.github-connected-panel small,
+.github-device-code small,
+.github-oauth-unavailable {
+  color: var(--subtle);
+  font-size: 12px;
 }
 
-.github-sync-token-field {
-  grid-column: 1 / -1;
+.github-device-code {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  color: #586579;
+  background: #f7faff;
+  border: 1px solid #c9d9fa;
+  border-radius: 7px;
+  font-size: 12px;
+}
+
+.github-device-code strong {
+  color: var(--blue);
+  font-size: 18px;
+  letter-spacing: 2px;
 }
 
 .github-sync-actions {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 8px;
 }
 

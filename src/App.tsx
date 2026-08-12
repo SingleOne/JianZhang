@@ -62,8 +62,9 @@ import type {
   DailyMarketScanRow,
   FundamentalChangeReport,
   FundamentalSnapshot,
+  GitHubDeviceAuthorization,
+  GitHubRepositoryOption,
   GitHubSyncSettings,
-  GitHubSyncSettingsInput,
   SearchResult,
   StockPosition,
   StockPositionSnapshot,
@@ -130,12 +131,12 @@ export default function App() {
   const [configBusy, setConfigBusy] = useState(false)
   const [githubSyncBusy, setGitHubSyncBusy] = useState(false)
   const [githubSyncSettings, setGitHubSyncSettings] = useState<GitHubSyncSettings>({
-    owner: '',
-    repository: '',
-    branch: 'main',
-    filePath: '.jianzhang-sync/user-data.json',
-    tokenConfigured: false
+    oauthAvailable: false,
+    connected: false
   })
+  const [githubRepositories, setGitHubRepositories] = useState<GitHubRepositoryOption[]>([])
+  const [githubDeviceAuthorization, setGitHubDeviceAuthorization] =
+    useState<GitHubDeviceAuthorization | null>(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false)
@@ -195,7 +196,15 @@ export default function App() {
 
     stockApi
       .getGitHubSyncSettings()
-      .then(setGitHubSyncSettings)
+      .then((settings) => {
+        setGitHubSyncSettings(settings)
+        if (settings.connected) {
+          void stockApi
+            .listGitHubRepositories()
+            .then(setGitHubRepositories)
+            .catch(() => undefined)
+        }
+      })
       .catch(() => undefined)
 
     const unsubscribeQuotes = stockApi.onQuotesUpdated(updateQuotes)
@@ -842,14 +851,33 @@ export default function App() {
     }
   }, [applyImportedData, reportError])
 
-  const saveGitHubSyncSettings = useCallback(
-    async (input: GitHubSyncSettingsInput) => {
+  const connectGitHub = useCallback(async () => {
+    setGitHubSyncBusy(true)
+    try {
+      const authorization = await stockApi.startGitHubLogin()
+      setGitHubDeviceAuthorization(authorization)
+      reportSuccess(`GitHub 授权网页已打开，验证码 ${authorization.userCode} 已复制`)
+      const result = await stockApi.completeGitHubLogin(authorization.loginId)
+      setGitHubSyncSettings(result.settings)
+      setGitHubRepositories(result.repositories)
+      setGitHubDeviceAuthorization(null)
+      reportSuccess(`已连接 GitHub 账号 ${result.settings.accountLogin ?? ''}`)
+    } catch (reason) {
+      setGitHubDeviceAuthorization(null)
+      reportError(reason instanceof Error ? reason.message : 'GitHub 网页授权失败')
+    } finally {
+      setGitHubSyncBusy(false)
+    }
+  }, [reportError, reportSuccess])
+
+  const selectGitHubRepository = useCallback(
+    async (fullName: string) => {
       setGitHubSyncBusy(true)
       try {
-        setGitHubSyncSettings(await stockApi.saveGitHubSyncSettings(input))
-        reportSuccess('GitHub 同步设置已保存')
+        setGitHubSyncSettings(await stockApi.selectGitHubRepository(fullName))
+        reportSuccess(`已选择 GitHub 私有仓库 ${fullName}`)
       } catch (reason) {
-        reportError(reason instanceof Error ? reason.message : 'GitHub 同步设置保存失败')
+        reportError(reason instanceof Error ? reason.message : 'GitHub 仓库选择失败')
       } finally {
         setGitHubSyncBusy(false)
       }
@@ -857,45 +885,52 @@ export default function App() {
     [reportError, reportSuccess]
   )
 
-  const uploadUserDataToGitHub = useCallback(
-    async (input: GitHubSyncSettingsInput) => {
-      setGitHubSyncBusy(true)
-      try {
-        const savedSettings = await stockApi.saveGitHubSyncSettings(input)
-        setGitHubSyncSettings(savedSettings)
-        const confirmed = await confirm({
-          title: '上传用户数据到 GitHub',
-          message: `将覆盖 ${savedSettings.owner}/${savedSettings.repository} 中的 ${savedSettings.filePath}。备份未加密并包含已配置的 AI API Key，请确认这是你的私有仓库。`,
-          confirmLabel: '确认上传',
-          tone: 'danger'
-        })
-        if (!confirmed) return
-        const result = await stockApi.uploadUserDataToGitHub(state)
-        setGitHubSyncSettings(await stockApi.getGitHubSyncSettings())
-        reportSuccess(`用户数据已上传到 GitHub，提交 ${result.commitSha.slice(0, 7)}`)
-      } catch (reason) {
-        reportError(reason instanceof Error ? reason.message : 'GitHub 上传失败')
-      } finally {
-        setGitHubSyncBusy(false)
-      }
-    },
-    [confirm, reportError, reportSuccess, state]
-  )
+  const disconnectGitHub = useCallback(async () => {
+    setGitHubSyncBusy(true)
+    try {
+      setGitHubSyncSettings(await stockApi.disconnectGitHub())
+      setGitHubRepositories([])
+      setGitHubDeviceAuthorization(null)
+      reportSuccess('已断开 GitHub 连接')
+    } catch (reason) {
+      reportError(reason instanceof Error ? reason.message : '断开 GitHub 失败')
+    } finally {
+      setGitHubSyncBusy(false)
+    }
+  }, [reportError, reportSuccess])
 
-  const downloadUserDataFromGitHub = useCallback(
-    async (input: GitHubSyncSettingsInput) => {
-      setGitHubSyncBusy(true)
-      try {
-        setGitHubSyncSettings(await stockApi.saveGitHubSyncSettings(input))
-        await applyImportedData(await stockApi.downloadUserDataFromGitHub())
-      } catch (reason) {
-        reportError(reason instanceof Error ? reason.message : 'GitHub 下载失败')
-      } finally {
-        setGitHubSyncBusy(false)
-      }
-    },
-    [applyImportedData, reportError]
-  )
+  const uploadUserDataToGitHub = useCallback(async () => {
+    setGitHubSyncBusy(true)
+    try {
+      const repository = githubSyncSettings.repositoryFullName
+      if (!repository) throw new Error('请先选择用于同步的 GitHub 私有仓库')
+      const confirmed = await confirm({
+        title: '上传用户数据到 GitHub',
+        message: `将覆盖 ${repository} 中固定路径 .jianzhang-sync/user-data.json。备份未加密并包含已配置的 AI API Key。`,
+        confirmLabel: '确认上传',
+        tone: 'danger'
+      })
+      if (!confirmed) return
+      const result = await stockApi.uploadUserDataToGitHub(state)
+      setGitHubSyncSettings(await stockApi.getGitHubSyncSettings())
+      reportSuccess(`用户数据已上传到 GitHub，提交 ${result.commitSha.slice(0, 7)}`)
+    } catch (reason) {
+      reportError(reason instanceof Error ? reason.message : 'GitHub 上传失败')
+    } finally {
+      setGitHubSyncBusy(false)
+    }
+  }, [confirm, githubSyncSettings.repositoryFullName, reportError, reportSuccess, state])
+
+  const downloadUserDataFromGitHub = useCallback(async () => {
+    setGitHubSyncBusy(true)
+    try {
+      await applyImportedData(await stockApi.downloadUserDataFromGitHub())
+    } catch (reason) {
+      reportError(reason instanceof Error ? reason.message : 'GitHub 下载失败')
+    } finally {
+      setGitHubSyncBusy(false)
+    }
+  }, [applyImportedData, reportError])
 
   const refreshNow = async () => {
     setRefreshing(true)
@@ -1009,8 +1044,12 @@ export default function App() {
               onExportConfig={exportConfig}
               configBusy={configBusy}
               githubSyncSettings={githubSyncSettings}
+              githubRepositories={githubRepositories}
+              githubDeviceAuthorization={githubDeviceAuthorization}
               githubSyncBusy={githubSyncBusy}
-              onSaveGitHubSyncSettings={saveGitHubSyncSettings}
+              onConnectGitHub={connectGitHub}
+              onSelectGitHubRepository={selectGitHubRepository}
+              onDisconnectGitHub={disconnectGitHub}
               onUploadUserDataToGitHub={uploadUserDataToGitHub}
               onDownloadUserDataFromGitHub={downloadUserDataFromGitHub}
               onRefreshTradingCalendar={refreshTradingCalendar}

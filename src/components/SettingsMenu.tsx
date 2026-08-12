@@ -4,17 +4,17 @@ import {
   Download,
   Github,
   RefreshCw,
-  Save,
   Settings2,
   Upload
 } from 'lucide-react'
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import {
   MARKET_INDEX_OPTIONS,
   type AppSettings,
   type DataSnapshotRuntimeState,
+  type GitHubDeviceAuthorization,
+  type GitHubRepositoryOption,
   type GitHubSyncSettings,
-  type GitHubSyncSettingsInput,
   type MarketIndexId
 } from '../shared/types'
 
@@ -33,10 +33,14 @@ interface SettingsMenuProps {
   onExportConfig: () => void
   configBusy: boolean
   githubSyncSettings: GitHubSyncSettings
+  githubRepositories: GitHubRepositoryOption[]
+  githubDeviceAuthorization: GitHubDeviceAuthorization | null
   githubSyncBusy: boolean
-  onSaveGitHubSyncSettings: (input: GitHubSyncSettingsInput) => void
-  onUploadUserDataToGitHub: (input: GitHubSyncSettingsInput) => void
-  onDownloadUserDataFromGitHub: (input: GitHubSyncSettingsInput) => void
+  onConnectGitHub: () => void
+  onSelectGitHubRepository: (fullName: string) => void
+  onDisconnectGitHub: () => void
+  onUploadUserDataToGitHub: () => void
+  onDownloadUserDataFromGitHub: () => void
   onRefreshTradingCalendar: () => void
   calendarRefreshing: boolean
   fundamentalDataState: DataSnapshotRuntimeState
@@ -85,8 +89,12 @@ export function SettingsMenu({
   onExportConfig,
   configBusy,
   githubSyncSettings,
+  githubRepositories,
+  githubDeviceAuthorization,
   githubSyncBusy,
-  onSaveGitHubSyncSettings,
+  onConnectGitHub,
+  onSelectGitHubRepository,
+  onDisconnectGitHub,
   onUploadUserDataToGitHub,
   onDownloadUserDataFromGitHub,
   onRefreshTradingCalendar,
@@ -95,27 +103,6 @@ export function SettingsMenu({
   onUpdateFundamentalData
 }: SettingsMenuProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('market')
-  const [githubSyncInput, setGitHubSyncInput] = useState<GitHubSyncSettingsInput>({
-    owner: githubSyncSettings.owner,
-    repository: githubSyncSettings.repository,
-    branch: githubSyncSettings.branch,
-    filePath: githubSyncSettings.filePath,
-    token: ''
-  })
-
-  useEffect(() => {
-    setGitHubSyncInput({
-      owner: githubSyncSettings.owner,
-      repository: githubSyncSettings.repository,
-      branch: githubSyncSettings.branch,
-      filePath: githubSyncSettings.filePath,
-      token: ''
-    })
-  }, [githubSyncSettings])
-
-  const updateGitHubSyncInput = (key: keyof GitHubSyncSettingsInput, value: string) => {
-    setGitHubSyncInput((current) => ({ ...current, [key]: value }))
-  }
 
   const toggleMarketIndex = (indexId: MarketIndexId, selected: boolean) => {
     const selectedIds = new Set(settings.marketIndexIds)
@@ -584,81 +571,85 @@ export function SettingsMenu({
                   <Github size={16} />
                   <span>
                     <strong>GitHub 私有仓库同步</strong>
-                    <small>上传同一份未加密备份；请使用仅授权目标仓库 Contents 读写的 Token</small>
+                    <small>通过 GitHub 官方网页授权，分支和同步路径由应用自动处理</small>
                   </span>
                 </span>
-                <div className="github-sync-fields">
-                  <label>
-                    <span>所有者</span>
-                    <input
-                      value={githubSyncInput.owner}
-                      onChange={(event) => updateGitHubSyncInput('owner', event.target.value)}
-                      placeholder="GitHub 用户名"
-                    />
-                  </label>
-                  <label>
-                    <span>仓库</span>
-                    <input
-                      value={githubSyncInput.repository}
-                      onChange={(event) => updateGitHubSyncInput('repository', event.target.value)}
-                      placeholder="私有仓库名"
-                    />
-                  </label>
-                  <label>
-                    <span>分支</span>
-                    <input
-                      value={githubSyncInput.branch}
-                      onChange={(event) => updateGitHubSyncInput('branch', event.target.value)}
-                      placeholder="main"
-                    />
-                  </label>
-                  <label>
-                    <span>同步路径</span>
-                    <input
-                      value={githubSyncInput.filePath}
-                      onChange={(event) => updateGitHubSyncInput('filePath', event.target.value)}
-                      placeholder=".jianzhang-sync/user-data.json"
-                    />
-                  </label>
-                  <label className="github-sync-token-field">
-                    <span>Personal Access Token</span>
-                    <input
-                      type="password"
-                      value={githubSyncInput.token}
-                      onChange={(event) => updateGitHubSyncInput('token', event.target.value)}
-                      placeholder={
-                        githubSyncSettings.tokenConfigured
-                          ? `已配置 ····${githubSyncSettings.tokenMaskedSuffix ?? ''}`
-                          : '输入 Fine-grained Token'
-                      }
-                    />
-                  </label>
-                </div>
-                <div className="github-sync-actions">
+                {!githubSyncSettings.connected ? (
                   <button
+                    className="github-connect-button"
                     type="button"
-                    onClick={() => onSaveGitHubSyncSettings(githubSyncInput)}
-                    disabled={githubSyncBusy}
+                    onClick={onConnectGitHub}
+                    disabled={githubSyncBusy || !githubSyncSettings.oauthAvailable}
                   >
-                    <Save size={15} />
-                    保存连接
+                    <Github size={15} />
+                    {githubSyncBusy ? '等待网页授权…' : '连接 GitHub'}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => onDownloadUserDataFromGitHub(githubSyncInput)}
-                    disabled={githubSyncBusy}
-                  >
-                    <CloudDownload size={15} />从 GitHub 恢复
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onUploadUserDataToGitHub(githubSyncInput)}
-                    disabled={githubSyncBusy}
-                  >
-                    <CloudUpload size={15} />
-                    上传到 GitHub
-                  </button>
-                </div>
+                ) : (
+                  <div className="github-connected-panel">
+                    <span className="github-account-row">
+                      <span>
+                        已连接 <strong>{githubSyncSettings.accountLogin}</strong>
+                      </span>
+                      <button type="button" onClick={onDisconnectGitHub} disabled={githubSyncBusy}>
+                        断开
+                      </button>
+                    </span>
+                    <label className="github-repository-select">
+                      <span>同步到私有仓库</span>
+                      <select
+                        value={githubSyncSettings.repositoryFullName ?? ''}
+                        onChange={(event) => onSelectGitHubRepository(event.target.value)}
+                        disabled={githubSyncBusy}
+                      >
+                        <option value="" disabled>
+                          请选择仓库
+                        </option>
+                        {githubRepositories.map((repository) => (
+                          <option key={repository.id} value={repository.fullName}>
+                            {repository.fullName}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {githubSyncSettings.repositoryFullName ? (
+                      <small>
+                        默认分支：{githubSyncSettings.repositoryDefaultBranch} · 同步路径：
+                        .jianzhang-sync/user-data.json
+                      </small>
+                    ) : null}
+                  </div>
+                )}
+                {githubDeviceAuthorization ? (
+                  <div className="github-device-code">
+                    <span>请在已打开的 GitHub 网页输入验证码</span>
+                    <strong>{githubDeviceAuthorization.userCode}</strong>
+                    <small>验证码已复制，完成授权后应用会自动继续</small>
+                  </div>
+                ) : null}
+                {!githubSyncSettings.oauthAvailable ? (
+                  <small className="github-oauth-unavailable">
+                    当前构建未配置 GitHub OAuth App Client ID，暂时不能发起网页授权
+                  </small>
+                ) : null}
+                {githubSyncSettings.connected ? (
+                  <div className="github-sync-actions">
+                    <button
+                      type="button"
+                      onClick={onDownloadUserDataFromGitHub}
+                      disabled={githubSyncBusy || !githubSyncSettings.repositoryFullName}
+                    >
+                      <CloudDownload size={15} />从 GitHub 恢复
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onUploadUserDataToGitHub}
+                      disabled={githubSyncBusy || !githubSyncSettings.repositoryFullName}
+                    >
+                      <CloudUpload size={15} />
+                      上传到 GitHub
+                    </button>
+                  </div>
+                ) : null}
                 {githubSyncSettings.lastUploadedAt || githubSyncSettings.lastDownloadedAt ? (
                   <small className="github-sync-status">
                     {githubSyncSettings.lastUploadedAt
