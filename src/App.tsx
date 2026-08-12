@@ -135,6 +135,8 @@ export default function App() {
     connected: false
   })
   const [githubRepositories, setGitHubRepositories] = useState<GitHubRepositoryOption[]>([])
+  const [githubRepositoriesLoading, setGitHubRepositoriesLoading] = useState(false)
+  const [githubSyncError, setGitHubSyncError] = useState('')
   const [githubDeviceAuthorization, setGitHubDeviceAuthorization] =
     useState<GitHubDeviceAuthorization | null>(null)
   const [error, setError] = useState('')
@@ -175,6 +177,33 @@ export default function App() {
     setNotice(message)
   }, [])
 
+  const refreshGitHubRepositories = useCallback(
+    async (announce = true) => {
+      setGitHubRepositoriesLoading(true)
+      setGitHubSyncError('')
+      try {
+        const repositories = await stockApi.listGitHubRepositories()
+        setGitHubRepositories(repositories)
+        setGitHubSyncSettings(await stockApi.getGitHubSyncSettings())
+        if (announce) {
+          reportSuccess(
+            repositories.length > 0
+              ? `已读取 ${repositories.length} 个可写私有仓库`
+              : 'GitHub 已连接，但当前账号没有可写私有仓库'
+          )
+        }
+      } catch (reason) {
+        const message = reason instanceof Error ? reason.message : '无法读取 GitHub 私有仓库'
+        setGitHubSyncSettings(await stockApi.getGitHubSyncSettings())
+        setGitHubSyncError(message)
+        if (announce) reportError(`GitHub 已连接，但${message}`)
+      } finally {
+        setGitHubRepositoriesLoading(false)
+      }
+    },
+    [reportError, reportSuccess]
+  )
+
   useEffect(() => {
     stockApi
       .getBootstrap()
@@ -199,10 +228,7 @@ export default function App() {
       .then((settings) => {
         setGitHubSyncSettings(settings)
         if (settings.connected) {
-          void stockApi
-            .listGitHubRepositories()
-            .then(setGitHubRepositories)
-            .catch(() => undefined)
+          void refreshGitHubRepositories(false)
         }
       })
       .catch(() => undefined)
@@ -217,7 +243,7 @@ export default function App() {
       unsubscribeSelection()
       unsubscribeError()
     }
-  }, [reportError, updateQuotes])
+  }, [refreshGitHubRepositories, reportError, updateQuotes])
 
   useEffect(() => {
     let active = true
@@ -853,31 +879,38 @@ export default function App() {
 
   const connectGitHub = useCallback(async () => {
     setGitHubSyncBusy(true)
+    setGitHubSyncError('')
     try {
       const authorization = await stockApi.startGitHubLogin()
       setGitHubDeviceAuthorization(authorization)
       reportSuccess(`GitHub 授权网页已打开，验证码 ${authorization.userCode} 已复制`)
       const result = await stockApi.completeGitHubLogin(authorization.loginId)
       setGitHubSyncSettings(result.settings)
-      setGitHubRepositories(result.repositories)
       setGitHubDeviceAuthorization(null)
-      reportSuccess(`已连接 GitHub 账号 ${result.settings.accountLogin ?? ''}`)
+      setGitHubSyncBusy(false)
+      reportSuccess('GitHub 授权已保存，正在读取账号与私有仓库')
+      void refreshGitHubRepositories()
     } catch (reason) {
       setGitHubDeviceAuthorization(null)
-      reportError(reason instanceof Error ? reason.message : 'GitHub 网页授权失败')
+      const message = reason instanceof Error ? reason.message : 'GitHub 网页授权失败'
+      setGitHubSyncError(message)
+      reportError(message)
     } finally {
       setGitHubSyncBusy(false)
     }
-  }, [reportError, reportSuccess])
+  }, [refreshGitHubRepositories, reportError, reportSuccess])
 
   const selectGitHubRepository = useCallback(
     async (fullName: string) => {
       setGitHubSyncBusy(true)
       try {
         setGitHubSyncSettings(await stockApi.selectGitHubRepository(fullName))
+        setGitHubSyncError('')
         reportSuccess(`已选择 GitHub 私有仓库 ${fullName}`)
       } catch (reason) {
-        reportError(reason instanceof Error ? reason.message : 'GitHub 仓库选择失败')
+        const message = reason instanceof Error ? reason.message : 'GitHub 仓库选择失败'
+        setGitHubSyncError(message)
+        reportError(message)
       } finally {
         setGitHubSyncBusy(false)
       }
@@ -890,10 +923,13 @@ export default function App() {
     try {
       setGitHubSyncSettings(await stockApi.disconnectGitHub())
       setGitHubRepositories([])
+      setGitHubSyncError('')
       setGitHubDeviceAuthorization(null)
       reportSuccess('已断开 GitHub 连接')
     } catch (reason) {
-      reportError(reason instanceof Error ? reason.message : '断开 GitHub 失败')
+      const message = reason instanceof Error ? reason.message : '断开 GitHub 失败'
+      setGitHubSyncError(message)
+      reportError(message)
     } finally {
       setGitHubSyncBusy(false)
     }
@@ -1045,9 +1081,12 @@ export default function App() {
               configBusy={configBusy}
               githubSyncSettings={githubSyncSettings}
               githubRepositories={githubRepositories}
+              githubRepositoriesLoading={githubRepositoriesLoading}
+              githubSyncError={githubSyncError}
               githubDeviceAuthorization={githubDeviceAuthorization}
               githubSyncBusy={githubSyncBusy}
               onConnectGitHub={connectGitHub}
+              onRefreshGitHubRepositories={() => void refreshGitHubRepositories()}
               onSelectGitHubRepository={selectGitHubRepository}
               onDisconnectGitHub={disconnectGitHub}
               onUploadUserDataToGitHub={uploadUserDataToGitHub}

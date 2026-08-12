@@ -94,7 +94,7 @@ export class GitHubSyncService {
     const saved = this.readSettings()
     return {
       oauthAvailable: Boolean(this.oauthClientId),
-      connected: existsSync(this.tokenPath) && Boolean(saved.accountLogin),
+      connected: existsSync(this.tokenPath),
       ...saved
     }
   }
@@ -139,23 +139,20 @@ export class GitHubSyncService {
     if (!login) throw new Error('GitHub 网页授权已失效，请重新连接')
     try {
       const token = await this.pollForAccessToken(login)
-      const accountLogin = await this.getAccountLogin(token)
-      const repositories = await this.listRepositoriesWithToken(token)
       this.writeToken(token)
-      const current = this.readSettings()
-      this.writeSettings({
-        accountLogin,
-        ...(current.lastUploadedAt ? { lastUploadedAt: current.lastUploadedAt } : {}),
-        ...(current.lastDownloadedAt ? { lastDownloadedAt: current.lastDownloadedAt } : {})
-      })
-      return { settings: this.getSettings(), repositories }
+      return { settings: this.getSettings() }
     } finally {
       this.pendingLogins.delete(loginId)
     }
   }
 
   async listRepositories(): Promise<GitHubRepositoryOption[]> {
-    return this.listRepositoriesWithToken(this.requireToken())
+    const token = this.requireToken()
+    const current = this.readSettings()
+    if (!current.accountLogin) {
+      this.writeSettings({ ...current, accountLogin: await this.getAccountLogin(token) })
+    }
+    return this.listRepositoriesWithToken(token)
   }
 
   async selectRepository(fullName: string): Promise<GitHubSyncSettings> {

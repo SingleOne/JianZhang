@@ -1597,7 +1597,6 @@ export interface GitHubDeviceAuthorization {
 
 export interface GitHubLoginResult {
   settings: GitHubSyncSettings
-  repositories: GitHubRepositoryOption[]
 }
 
 export interface GitHubSyncUploadResult {

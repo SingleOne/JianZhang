@@ -353,11 +353,20 @@
 }
 
 .github-account-row button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   color: #667085;
   background: transparent;
   border: 0;
   font-size: 12px;
   cursor: pointer;
+}
+
+.github-account-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .github-repository-select {
@@ -383,6 +392,13 @@
 .github-oauth-unavailable {
   color: var(--subtle);
   font-size: 12px;
+}
+
+.github-connected-panel .github-sync-error,
+.github-sync-error {
+  color: #b4232e;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .github-device-code {

@@ -34,9 +34,12 @@ interface SettingsMenuProps {
   configBusy: boolean
   githubSyncSettings: GitHubSyncSettings
   githubRepositories: GitHubRepositoryOption[]
+  githubRepositoriesLoading: boolean
+  githubSyncError: string
   githubDeviceAuthorization: GitHubDeviceAuthorization | null
   githubSyncBusy: boolean
   onConnectGitHub: () => void
+  onRefreshGitHubRepositories: () => void
   onSelectGitHubRepository: (fullName: string) => void
   onDisconnectGitHub: () => void
   onUploadUserDataToGitHub: () => void
@@ -90,9 +93,12 @@ export function SettingsMenu({
   configBusy,
   githubSyncSettings,
   githubRepositories,
+  githubRepositoriesLoading,
+  githubSyncError,
   githubDeviceAuthorization,
   githubSyncBusy,
   onConnectGitHub,
+  onRefreshGitHubRepositories,
   onSelectGitHubRepository,
   onDisconnectGitHub,
   onUploadUserDataToGitHub,
@@ -588,21 +594,42 @@ export function SettingsMenu({
                   <div className="github-connected-panel">
                     <span className="github-account-row">
                       <span>
-                        已连接 <strong>{githubSyncSettings.accountLogin}</strong>
+                        已连接 <strong>{githubSyncSettings.accountLogin ?? 'GitHub 账号'}</strong>
                       </span>
-                      <button type="button" onClick={onDisconnectGitHub} disabled={githubSyncBusy}>
-                        断开
-                      </button>
+                      <span className="github-account-actions">
+                        <button
+                          type="button"
+                          onClick={onRefreshGitHubRepositories}
+                          disabled={githubSyncBusy || githubRepositoriesLoading}
+                        >
+                          <RefreshCw
+                            size={12}
+                            className={githubRepositoriesLoading ? 'is-spinning' : ''}
+                          />
+                          {githubRepositoriesLoading ? '读取中' : '刷新仓库'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={onDisconnectGitHub}
+                          disabled={githubSyncBusy || githubRepositoriesLoading}
+                        >
+                          断开
+                        </button>
+                      </span>
                     </span>
                     <label className="github-repository-select">
                       <span>同步到私有仓库</span>
                       <select
                         value={githubSyncSettings.repositoryFullName ?? ''}
                         onChange={(event) => onSelectGitHubRepository(event.target.value)}
-                        disabled={githubSyncBusy}
+                        disabled={githubSyncBusy || githubRepositoriesLoading}
                       >
                         <option value="" disabled>
-                          请选择仓库
+                          {githubRepositoriesLoading
+                            ? '正在读取仓库…'
+                            : githubRepositories.length > 0
+                              ? '请选择仓库'
+                              : '暂无可写私有仓库'}
                         </option>
                         {githubRepositories.map((repository) => (
                           <option key={repository.id} value={repository.fullName}>
@@ -617,6 +644,9 @@ export function SettingsMenu({
                         .jianzhang-sync/user-data.json
                       </small>
                     ) : null}
+                    {githubSyncError ? (
+                      <small className="github-sync-error">{githubSyncError}</small>
+                    ) : null}
                   </div>
                 )}
                 {githubDeviceAuthorization ? (
@@ -625,6 +655,9 @@ export function SettingsMenu({
                     <strong>{githubDeviceAuthorization.userCode}</strong>
                     <small>验证码已复制，完成授权后应用会自动继续</small>
                   </div>
+                ) : null}
+                {!githubSyncSettings.connected && githubSyncError ? (
+                  <small className="github-sync-error">{githubSyncError}</small>
                 ) : null}
                 {!githubSyncSettings.oauthAvailable ? (
                   <small className="github-oauth-unavailable">
