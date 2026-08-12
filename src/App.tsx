@@ -130,6 +130,7 @@ export default function App() {
   const [calendarRefreshing, setCalendarRefreshing] = useState(false)
   const [configBusy, setConfigBusy] = useState(false)
   const [githubSyncBusy, setGitHubSyncBusy] = useState(false)
+  const [githubSyncUploading, setGitHubSyncUploading] = useState(false)
   const [githubSyncSettings, setGitHubSyncSettings] = useState<GitHubSyncSettings>({
     oauthAvailable: false,
     connected: false
@@ -947,12 +948,14 @@ export default function App() {
         tone: 'danger'
       })
       if (!confirmed) return
+      setGitHubSyncUploading(true)
       const result = await stockApi.uploadUserDataToGitHub(state)
       setGitHubSyncSettings(await stockApi.getGitHubSyncSettings())
       reportSuccess(`用户数据已上传到 GitHub，提交 ${result.commitSha.slice(0, 7)}`)
     } catch (reason) {
       reportError(reason instanceof Error ? reason.message : 'GitHub 上传失败')
     } finally {
+      setGitHubSyncUploading(false)
       setGitHubSyncBusy(false)
     }
   }, [confirm, githubSyncSettings.repositoryFullName, reportError, reportSuccess, state])
@@ -1085,6 +1088,7 @@ export default function App() {
               githubSyncError={githubSyncError}
               githubDeviceAuthorization={githubDeviceAuthorization}
               githubSyncBusy={githubSyncBusy}
+              githubSyncUploading={githubSyncUploading}
               onConnectGitHub={connectGitHub}
               onRefreshGitHubRepositories={() => void refreshGitHubRepositories()}
               onSelectGitHubRepository={selectGitHubRepository}

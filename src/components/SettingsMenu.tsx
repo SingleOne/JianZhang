@@ -39,6 +39,7 @@ interface SettingsMenuProps {
   githubSyncError: string
   githubDeviceAuthorization: GitHubDeviceAuthorization | null
   githubSyncBusy: boolean
+  githubSyncUploading: boolean
   onConnectGitHub: () => void
   onRefreshGitHubRepositories: () => void
   onSelectGitHubRepository: (fullName: string) => void
@@ -114,6 +115,7 @@ export function SettingsMenu({
   githubSyncError,
   githubDeviceAuthorization,
   githubSyncBusy,
+  githubSyncUploading,
   onConnectGitHub,
   onRefreshGitHubRepositories,
   onSelectGitHubRepository,
@@ -685,6 +687,7 @@ export function SettingsMenu({
                                   aria-selected={selected}
                                   className={selected ? 'is-selected' : ''}
                                   key={repository.id}
+                                  disabled={githubSyncBusy || githubRepositoriesLoading}
                                   onClick={(event) => {
                                     event.currentTarget.closest('details')?.removeAttribute('open')
                                     onSelectGitHubRepository(repository.fullName)
@@ -739,8 +742,12 @@ export function SettingsMenu({
                       onClick={onUploadUserDataToGitHub}
                       disabled={githubSyncBusy || !githubSyncSettings.repositoryFullName}
                     >
-                      <CloudUpload size={15} />
-                      上传到 GitHub
+                      {githubSyncUploading ? (
+                        <RefreshCw size={15} className="is-spinning" />
+                      ) : (
+                        <CloudUpload size={15} />
+                      )}
+                      {githubSyncUploading ? '上传中…' : '上传到 GitHub'}
                     </button>
                   </div>
                 ) : null}

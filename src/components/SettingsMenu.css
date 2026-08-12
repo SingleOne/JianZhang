@@ -116,7 +116,7 @@
 .config-management {
   display: grid;
   gap: 10px;
-  padding: 13px 0 2px;
+  padding: 13px 0 14px;
 }
 
 .trading-calendar-setting {
@@ -479,6 +479,11 @@
 .github-repository-options button.is-selected {
   color: var(--blue);
   background: var(--blue-soft);
+}
+
+.github-repository-options button:disabled {
+  color: #98a2b3;
+  cursor: default;
 }
 
 .github-repository-options button span {
