@@ -34,6 +34,8 @@ export const STOCK_TRACKING_VOLUME_AVERAGE_METRICS = {
 
 export type StockTrackingMetricPeriod = keyof typeof STOCK_TRACKING_VOLUME_RATIO_METRICS
 export type StockTrackingPriceVolumeState =
+  | 'volumeSurgePriceRise'
+  | 'volumeSurgePriceFall'
   | 'volumeRisePriceRise'
   | 'volumeFallPriceRise'
   | 'volumeRisePriceFall'
@@ -45,6 +47,8 @@ export const STOCK_TRACKING_PRICE_VOLUME_STATE_LABELS: Record<
   StockTrackingPriceVolumeState,
   string
 > = {
+  volumeSurgePriceRise: '放量大涨',
+  volumeSurgePriceFall: '放量大跌',
   volumeRisePriceRise: '放量上涨',
   volumeFallPriceRise: '缩量上涨',
   volumeRisePriceFall: '放量下跌',
@@ -65,6 +69,14 @@ const METRIC_PERIODS = Object.keys(STOCK_TRACKING_VOLUME_RATIO_METRICS).map(
 ) as StockTrackingMetricPeriod[]
 const EXPANDED_VOLUME_RATIO = 1.2
 const CONTRACTED_VOLUME_RATIO = 0.8
+const LARGE_PRICE_CHANGE_PERCENT = 5
+
+export interface RealtimeVolumeRatioPoint {
+  time: string
+  ratio: number
+  cumulativeVolume: number
+  expectedVolume: number
+}
 
 function dateKey(value: string): string {
   return value.slice(0, 10)
@@ -76,6 +88,58 @@ function percentageChange(current: number, previous: number): number {
 
 function average(values: readonly number[]): number {
   return values.reduce((total, value) => total + value, 0) / values.length
+}
+
+function tradingMinutesAt(time: string): number | null {
+  const timeText = time.slice(11, 16)
+  const [hour, minute] = timeText.split(':').map(Number)
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null
+  const minutes = hour * 60 + minute
+  const auction = 9 * 60 + 25
+  const morningStart = 9 * 60 + 30
+  const morningEnd = 11 * 60 + 30
+  const afternoonStart = 13 * 60
+  const afternoonEnd = 15 * 60
+  if (minutes === auction) return 1
+  if (minutes >= morningStart && minutes <= morningEnd) {
+    return Math.min(120, minutes - morningStart + 1)
+  }
+  if (minutes >= afternoonStart && minutes <= afternoonEnd) {
+    return Math.min(240, minutes - afternoonStart + 121)
+  }
+  return null
+}
+
+export function calculateRealtimeVolumeRatio(
+  intradayBars: readonly KlineBar[],
+  dailyBars: readonly KlineBar[],
+  tradingDate: string
+): RealtimeVolumeRatioPoint[] {
+  const previousDailyBars = [...dailyBars]
+    .filter((bar) => dateKey(bar.time) < tradingDate)
+    .sort((left, right) => left.time.localeCompare(right.time))
+    .slice(-5)
+  if (previousDailyBars.length < 5) return []
+
+  const averageDailyVolume = average(previousDailyBars.map((bar) => bar.volume))
+  if (!Number.isFinite(averageDailyVolume) || averageDailyVolume <= 0) return []
+
+  let cumulativeVolume = 0
+  const points: RealtimeVolumeRatioPoint[] = []
+  for (const bar of [...intradayBars].sort((left, right) => left.time.localeCompare(right.time))) {
+    if (dateKey(bar.time) !== tradingDate) continue
+    const tradedMinutes = tradingMinutesAt(bar.time)
+    if (tradedMinutes === null || !Number.isFinite(bar.volume)) continue
+    cumulativeVolume += bar.volume
+    const expectedVolume = (averageDailyVolume * tradedMinutes) / 240
+    points.push({
+      time: bar.time,
+      ratio: cumulativeVolume / expectedVolume,
+      cumulativeVolume,
+      expectedVolume
+    })
+  }
+  return points
 }
 
 function divergenceCode(bars: readonly KlineBar[], index: number): number | null {
@@ -175,6 +239,12 @@ export function stockTrackingPriceVolumeState(
   const volumeRatio = snapshot.metrics[STOCK_TRACKING_VOLUME_RATIO_METRICS[5]]
   if (changePercent === undefined || volumeRatio === undefined || changePercent === 0) {
     return 'neutral'
+  }
+  if (changePercent > LARGE_PRICE_CHANGE_PERCENT && volumeRatio >= EXPANDED_VOLUME_RATIO) {
+    return 'volumeSurgePriceRise'
+  }
+  if (changePercent < -LARGE_PRICE_CHANGE_PERCENT && volumeRatio >= EXPANDED_VOLUME_RATIO) {
+    return 'volumeSurgePriceFall'
   }
   if (changePercent > 0 && volumeRatio >= EXPANDED_VOLUME_RATIO) return 'volumeRisePriceRise'
   if (changePercent > 0 && volumeRatio <= CONTRACTED_VOLUME_RATIO) return 'volumeFallPriceRise'

@@ -12,6 +12,7 @@ import type {
   WatchStock
 } from '../shared/types'
 import { StockTrackingEditor, type StockTrackingPerformance } from './StockTrackingEditor'
+import { useStockTrackingMarketData } from './useStockTrackingMarketData'
 
 type StatusFilter = 'all' | 'tracking' | 'stopped'
 type SourceFilter = 'all' | StockTrackingSourceType
@@ -129,6 +130,7 @@ export function StockTrackingDialog({
     filteredProfiles.some((profile) => profile.quoteId === selectedQuoteId)
       ? profiles[selectedQuoteId]
       : filteredProfiles[0]
+  const marketData = useStockTrackingMarketData(open ? selectedProfile?.quoteId : undefined)
 
   if (!open) return null
 
@@ -263,6 +265,7 @@ export function StockTrackingDialog({
                     selectedProfile,
                     quoteMap.get(selectedProfile.quoteId)
                   )}
+                  marketData={marketData}
                   onUpdateProfile={onUpdateProfile}
                   onStopTracking={onStopTracking}
                   onRestartTracking={onRestartTracking}

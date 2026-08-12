@@ -17,6 +17,7 @@ import type {
   StockTrackingProfile
 } from '../shared/types'
 import { StockTrackingMetricsPanel } from './StockTrackingMetricsPanel'
+import type { StockTrackingMarketData } from './useStockTrackingMarketData'
 
 export interface StockTrackingPerformance {
   trackingReturn: number | null
@@ -29,6 +30,7 @@ interface StockTrackingEditorProps {
   profile: StockTrackingProfile
   quote?: StockQuote
   performance?: StockTrackingPerformance
+  marketData?: StockTrackingMarketData
   onUpdateProfile: (profile: StockTrackingProfile) => void
   onStopTracking: (quoteId: string, result: StockTrackingConclusionResult, summary: string) => void
   onRestartTracking: (quoteId: string) => void
@@ -55,6 +57,7 @@ export function StockTrackingEditor({
   profile,
   quote,
   performance,
+  marketData,
   onUpdateProfile,
   onStopTracking,
   onRestartTracking,
@@ -222,7 +225,7 @@ export function StockTrackingEditor({
         </section>
       ) : null}
 
-      <StockTrackingMetricsPanel snapshots={profile.metricSnapshots} />
+      <StockTrackingMetricsPanel snapshots={profile.metricSnapshots} marketData={marketData} />
 
       <section className="stock-tracking-section">
         <div className="stock-tracking-section-title">

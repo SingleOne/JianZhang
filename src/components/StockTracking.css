@@ -174,7 +174,7 @@
 
 .stock-tracking-metric-cards {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 9px;
 }
 
@@ -227,6 +227,25 @@
 .stock-tracking-metric-cards article.is-state-volumeRisePriceRise {
   border-color: rgba(220, 55, 66, 0.32);
   background: rgba(220, 55, 66, 0.06);
+}
+
+.stock-tracking-metric-cards article.is-state-volumeSurgePriceRise {
+  border-color: rgba(168, 15, 30, 0.42);
+  background: rgba(168, 15, 30, 0.09);
+}
+
+.stock-tracking-metric-cards article.is-state-volumeSurgePriceFall {
+  border-color: rgba(8, 104, 65, 0.42);
+  background: rgba(8, 104, 65, 0.09);
+}
+
+.stock-tracking-metric-cards article.is-realtime-volume-ratio {
+  border-color: rgba(124, 58, 237, 0.28);
+  background: rgba(124, 58, 237, 0.05);
+}
+
+.stock-tracking-metric-cards article.is-realtime-volume-ratio strong {
+  color: #6d28d9;
 }
 
 .stock-tracking-metric-cards article.is-state-volumeRisePriceFall {
@@ -366,6 +385,16 @@
   color: #b4232e;
 }
 
+.stock-tracking-price-volume-legend > em.is-volumeSurgePriceRise {
+  background: rgba(168, 15, 30, 0.13);
+  color: #8c1020;
+}
+
+.stock-tracking-price-volume-legend > em.is-volumeSurgePriceFall {
+  background: rgba(8, 104, 65, 0.13);
+  color: #075d3b;
+}
+
 .stock-tracking-price-volume-legend > em.is-volumeRisePriceFall {
   background: rgba(24, 146, 102, 0.1);
   color: #11734f;
@@ -384,6 +413,46 @@
 .stock-tracking-price-average-legend {
   border-bottom: 1px solid #edf1f7;
   background: #fafcff;
+}
+
+.stock-tracking-realtime-volume-ratio-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  border-bottom: 1px solid #edf1f7;
+  padding: 9px 12px;
+  color: #64748b;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-tracking-realtime-volume-ratio-legend strong,
+.stock-tracking-realtime-volume-ratio-legend span,
+.stock-tracking-realtime-volume-ratio-legend em,
+.stock-tracking-realtime-volume-ratio-legend i {
+  font-size: 12px;
+}
+
+.stock-tracking-realtime-volume-ratio-legend strong {
+  min-width: 52px;
+  color: #334155;
+}
+
+.stock-tracking-realtime-volume-ratio-legend em {
+  margin-left: 4px;
+  color: #6d28d9;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.stock-tracking-realtime-volume-ratio-legend i {
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: rgba(217, 119, 6, 0.1);
+  color: #a45d08;
+  font-style: normal;
+  font-weight: 700;
 }
 
 .stock-tracking-metrics-loading,

@@ -73,20 +73,31 @@ function stateMarker(snapshot: StockTrackingMetricSnapshot): SeriesMarker<Time> 
   }
   const state = stockTrackingPriceVolumeState(snapshot)
   if (state === 'neutral') return null
-  const rising = state === 'volumeRisePriceRise' || state === 'volumeFallPriceRise'
-  const expanded = state === 'volumeRisePriceRise' || state === 'volumeRisePriceFall'
+  const rising =
+    state === 'volumeSurgePriceRise' ||
+    state === 'volumeRisePriceRise' ||
+    state === 'volumeFallPriceRise'
+  const expanded =
+    state === 'volumeSurgePriceRise' ||
+    state === 'volumeSurgePriceFall' ||
+    state === 'volumeRisePriceRise' ||
+    state === 'volumeRisePriceFall'
   return {
     time,
     position: rising ? 'belowBar' : 'aboveBar',
     shape: expanded ? (rising ? 'arrowUp' : 'arrowDown') : 'circle',
     color:
-      state === 'volumeRisePriceRise'
-        ? '#dc3742'
-        : state === 'volumeRisePriceFall'
-          ? '#189266'
-          : state === 'volumeFallPriceRise'
-            ? '#d97706'
-            : '#3f7fd3',
+      state === 'volumeSurgePriceRise'
+        ? '#a80f1e'
+        : state === 'volumeSurgePriceFall'
+          ? '#086841'
+          : state === 'volumeRisePriceRise'
+            ? '#dc3742'
+            : state === 'volumeRisePriceFall'
+              ? '#189266'
+              : state === 'volumeFallPriceRise'
+                ? '#d97706'
+                : '#3f7fd3',
     text: STOCK_TRACKING_PRICE_VOLUME_STATE_LABELS[state],
     size: 0.8
   }

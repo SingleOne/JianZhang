@@ -1,6 +1,5 @@
 import { Binoculars, Play } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
-import { stockApi } from '../lib/api'
+import { useMemo } from 'react'
 import { initialTrackingPrice } from '../lib/stock-tracking'
 import type {
   KlineBar,
@@ -10,6 +9,7 @@ import type {
   WatchStock
 } from '../shared/types'
 import { StockTrackingEditor, type StockTrackingPerformance } from './StockTrackingEditor'
+import { useStockTrackingMarketData } from './useStockTrackingMarketData'
 
 interface StockTrackingPanelProps {
   stock: WatchStock
@@ -81,28 +81,12 @@ export function StockTrackingPanel({
   onStopTracking,
   onRestartTracking
 }: StockTrackingPanelProps) {
-  const [bars, setBars] = useState<KlineBar[]>([])
   const profileQuoteId = profile?.quoteId
-
-  useEffect(() => {
-    if (!profileQuoteId) return
-    let active = true
-    stockApi
-      .getKline(stock.quoteId, 'daily', 500)
-      .then((result) => {
-        if (active) setBars(result.bars)
-      })
-      .catch(() => {
-        if (active) setBars([])
-      })
-    return () => {
-      active = false
-    }
-  }, [profileQuoteId, stock.quoteId])
+  const marketData = useStockTrackingMarketData(profileQuoteId ? stock.quoteId : undefined)
 
   const performance = useMemo(
-    () => (profile ? calculatePerformance(profile, quote, bars) : undefined),
-    [bars, profile, quote]
+    () => (profile ? calculatePerformance(profile, quote, marketData.dailyBars) : undefined),
+    [marketData.dailyBars, profile, quote]
   )
 
   if (!profile) {
@@ -130,6 +114,7 @@ export function StockTrackingPanel({
         profile={profile}
         quote={quote}
         performance={performance}
+        marketData={marketData}
         onUpdateProfile={onUpdateProfile}
         onStopTracking={onStopTracking}
         onRestartTracking={onRestartTracking}

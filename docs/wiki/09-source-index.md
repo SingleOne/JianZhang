@@ -95,7 +95,7 @@
 | [`src/lib/chip-distribution.ts`](../../src/lib/chip-distribution.ts) | `findChipAutoRange`、`estimateChipHistoryLimit`、`calculateChipDistribution` | 累计换手 100% 自动范围、历史根数估算和筹码分布计算 |
 | [`src/lib/format.ts`](../../src/lib/format.ts) | `formatPrice`、`formatProfit`、`formatAmount` | 展示格式化 |
 | [`src/lib/stock-tracking.ts`](../../src/lib/stock-tracking.ts) | `startStockTracking`、`stopStockTracking`、`addStockTrackingEntry` | 追踪来源、停止/恢复和复盘时间线状态转换 |
-| [`src/lib/stock-tracking-metrics.ts`](../../src/lib/stock-tracking-metrics.ts) | `calculateStockTrackingDailyMetrics`、`stockTrackingPriceVolumeState`、`stockTrackingPriceVolumeDivergence`、`mergeStockTrackingMetricSnapshots` | 价格、成交量、均价/均量、周期涨幅、5/10/20 日量比、四类量价状态、三日背离及可扩展每日快照合并 |
+| [`src/lib/stock-tracking-metrics.ts`](../../src/lib/stock-tracking-metrics.ts) | `calculateStockTrackingDailyMetrics`、`calculateRealtimeVolumeRatio`、`stockTrackingPriceVolumeState`、`stockTrackingPriceVolumeDivergence`、`mergeStockTrackingMetricSnapshots` | 价格、成交量、均价/均量、周期涨幅、5/10/20 日量比、实时量比、六类量价状态、三日背离及可扩展每日快照合并 |
 
 ## 主界面组件
 
@@ -110,7 +110,7 @@
 | [`src/components/StockTrackingDialog.tsx`](../../src/components/StockTrackingDialog.tsx) | 全部追踪档案的状态、来源和关键词筛选以及集中复盘 |
 | [`src/components/StockTrackingEditor.tsx`](../../src/components/StockTrackingEditor.tsx) | 来源历史、标签、选股逻辑、时间线和停止结论编辑 |
 | [`src/components/StockTrackingPanel.tsx`](../../src/components/StockTrackingPanel.tsx) | 个股复盘入口及追踪以来涨跌、最大涨幅、最大回撤计算 |
-| [`src/components/StockTrackingMetricsPanel.tsx`](../../src/components/StockTrackingMetricsPanel.tsx) / [`StockTrackingPriceVolumeChart.tsx`](../../src/components/StockTrackingPriceVolumeChart.tsx) / [`StockTrackingMetricsChart.tsx`](../../src/components/StockTrackingMetricsChart.tsx) | 当前量价状态、5/10/20 日量比卡片、价格与成交量组合趋势、状态/背离标记、量比趋势和 1.00 倍基准线 |
+| [`src/components/StockTrackingMetricsPanel.tsx`](../../src/components/StockTrackingMetricsPanel.tsx) / [`StockTrackingPriceVolumeChart.tsx`](../../src/components/StockTrackingPriceVolumeChart.tsx) / [`StockTrackingMetricsChart.tsx`](../../src/components/StockTrackingMetricsChart.tsx) / [`StockTrackingRealtimeVolumeRatioChart.tsx`](../../src/components/StockTrackingRealtimeVolumeRatioChart.tsx) / [`useStockTrackingMarketData.ts`](../../src/components/useStockTrackingMarketData.ts) | 当前六类量价状态、5/10/20 日量比与实时量比卡片、价格和成交量组合趋势、状态/背离标记、日量比趋势、当日实时量比曲线、双入口行情加载及 1.00 倍基准线 |
 | [`src/components/PortfolioQualityDialog.tsx`](../../src/components/PortfolioQualityDialog.tsx) | 全部持仓价值类型、具体风险、行业结构、组合筛选、未计价说明和主表定位 |
 | [`src/components/WatchlistTable.tsx`](../../src/components/WatchlistTable.tsx) | 自选主表、排序、列、异动、展开详情和操作入口 |
 | [`src/components/watchlist-table/WatchlistRow.tsx`](../../src/components/watchlist-table/WatchlistRow.tsx) | 单股行指标、单元格、提醒、操作和展开详情 |
