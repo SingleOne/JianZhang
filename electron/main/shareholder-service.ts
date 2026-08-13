@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ShareholderSnapshot } from '../../src/shared/types'
+import { atomicWriteJsonSync } from './file-storage'
 import {
   eastmoneyShareholderCode,
   normalizeEastmoneyShareholderPayload,
@@ -77,7 +78,7 @@ export class ShareholderService {
         snapshot
       }
       this.memory.set(quoteId, entry)
-      writeFileSync(this.path(quoteId), JSON.stringify(entry, null, 2), 'utf8')
+      atomicWriteJsonSync(this.path(quoteId), entry)
       return snapshot
     } catch (reason) {
       if (!cached) throw reason

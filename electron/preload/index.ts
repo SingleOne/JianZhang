@@ -51,6 +51,9 @@ const api: StockDesktopApi = {
   getSectorIndex: (quoteId) => ipcRenderer.invoke('sector-index:get', quoteId),
   refreshTradingCalendar: () => ipcRenderer.invoke('trading-calendar:refresh'),
   saveState: (state) => ipcRenderer.invoke('state:save', state),
+  getCompletionNotifications: () => ipcRenderer.invoke('completion-notifications:get'),
+  saveCompletionNotifications: (notifications) =>
+    ipcRenderer.invoke('completion-notifications:save', notifications),
   exportConfig: (state) => ipcRenderer.invoke('config:export', state),
   importConfig: () => ipcRenderer.invoke('config:import'),
   applyConfigImport: (importId) => ipcRenderer.invoke('config:import:apply', importId),

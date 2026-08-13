@@ -1,7 +1,8 @@
 import { net } from 'electron'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { StockValuationHistory } from '../../src/shared/types'
+import { atomicWriteJsonSync } from './file-storage'
 
 interface ValuationHistoryCacheEntry extends StockValuationHistory {
   version: 1
@@ -30,7 +31,10 @@ export class ValuationHistoryService {
   private readonly directory: string
   private readonly memory = new Map<string, ValuationHistoryCacheEntry>()
 
-  constructor(rootDirectory: string, private readonly now: () => number = Date.now) {
+  constructor(
+    rootDirectory: string,
+    private readonly now: () => number = Date.now
+  ) {
     this.directory = join(rootDirectory, 'valuations')
     mkdirSync(this.directory, { recursive: true })
   }
@@ -59,39 +63,38 @@ export class ValuationHistoryService {
       }
     })
     if (!response.ok) throw new Error(`历史估值接口返回 ${response.status}`)
-    const payload = await response.json() as {
+    const payload = (await response.json()) as {
       success?: boolean
       result?: { data?: EastmoneyValuationRow[] }
     }
     const rows = payload.result?.data ?? []
     if (!payload.success || rows.length === 0) throw new Error('历史估值数据暂不可用')
 
-    const dates = rows.flatMap((row) => typeof row.TRADE_DATE === 'string'
-      ? [row.TRADE_DATE.slice(0, 10)]
-      : [])
+    const dates = rows.flatMap((row) =>
+      typeof row.TRADE_DATE === 'string' ? [row.TRADE_DATE.slice(0, 10)] : []
+    )
     const periodEnd = dates.sort().at(-1) ?? null
     const cutoff = periodEnd ? startOfFiveYearWindow(periodEnd) : ''
-    const windowRows = rows.filter((row) => (
-      typeof row.TRADE_DATE === 'string' && row.TRADE_DATE.slice(0, 10) >= cutoff
-    ))
+    const windowRows = rows.filter(
+      (row) => typeof row.TRADE_DATE === 'string' && row.TRADE_DATE.slice(0, 10) >= cutoff
+    )
     const entry: ValuationHistoryCacheEntry = {
       version: 1,
       quoteId,
       cachedAt: this.now(),
       fetchedAt: new Date(this.now()).toISOString(),
-      periodStart: windowRows
-        .flatMap((row) => typeof row.TRADE_DATE === 'string' ? [row.TRADE_DATE.slice(0, 10)] : [])
-        .sort()[0] ?? null,
+      periodStart:
+        windowRows
+          .flatMap((row) =>
+            typeof row.TRADE_DATE === 'string' ? [row.TRADE_DATE.slice(0, 10)] : []
+          )
+          .sort()[0] ?? null,
       periodEnd,
-      priceEarningsRatioTtmValues: windowRows
-        .map((row) => row.PE_TTM)
-        .filter(finitePositive),
-      priceBookRatioValues: windowRows
-        .map((row) => row.PB_MRQ)
-        .filter(finitePositive)
+      priceEarningsRatioTtmValues: windowRows.map((row) => row.PE_TTM).filter(finitePositive),
+      priceBookRatioValues: windowRows.map((row) => row.PB_MRQ).filter(finitePositive)
     }
     this.memory.set(quoteId, entry)
-    writeFileSync(this.path(quoteId), JSON.stringify(entry), 'utf8')
+    atomicWriteJsonSync(this.path(quoteId), entry, false)
     return entry
   }
 

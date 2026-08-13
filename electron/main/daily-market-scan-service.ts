@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, renameSync, writeFileSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   DAILY_MARKET_SCAN_KLINE_LIMIT,
@@ -51,11 +52,24 @@ export class DailyMarketScanService {
   private snapshot: DailyMarketScanResult | null = null
   private state: DailyMarketScanState = EMPTY_STATE
   private runningTask: Promise<DailyMarketScanResult> | null = null
+  private initialization: Promise<void> | null = null
 
   constructor(private readonly dependencies: DailyMarketScanDependencies) {
     this.directory = join(dependencies.userDataDirectory, 'daily-market-scan')
     this.snapshotPath = join(this.directory, 'latest.json')
-    this.loadSnapshot()
+    if (existsSync(this.snapshotPath)) {
+      this.state = {
+        running: false,
+        progress: {
+          stage: 'idle',
+          message: '正在加载最近一次收盘扫描结果。',
+          completed: 0,
+          total: 0
+        },
+        error: null
+      }
+      this.initialization = this.loadSnapshot()
+    }
   }
 
   getResult(): DailyMarketScanResult | null {
@@ -71,7 +85,9 @@ export class DailyMarketScanService {
 
   run(): Promise<DailyMarketScanResult> {
     if (this.runningTask) return this.runningTask
-    const task = this.execute()
+    const task = this.initialization
+      ? this.initialization.then(() => this.execute())
+      : this.execute()
     this.runningTask = task
     task.then(
       () => this.finishTask(task),
@@ -231,13 +247,15 @@ export class DailyMarketScanService {
     return cache.save(quote.quoteId, 'daily', DAILY_MARKET_SCAN_KLINE_LIMIT, data)
   }
 
-  private loadSnapshot(): void {
+  private async loadSnapshot(): Promise<void> {
     if (!existsSync(this.snapshotPath)) return
     try {
-      const snapshot = JSON.parse(readFileSync(this.snapshotPath, 'utf8')) as DailyMarketScanResult
+      const snapshot = JSON.parse(
+        await readFile(this.snapshotPath, 'utf8')
+      ) as DailyMarketScanResult
       if (snapshot.schemaVersion !== 1 || !Array.isArray(snapshot.rows)) return
       this.snapshot = snapshot
-      this.state = {
+      this.setState({
         running: false,
         progress: {
           stage: 'completed',
@@ -246,7 +264,7 @@ export class DailyMarketScanService {
           total: snapshot.activeCount
         },
         error: null
-      }
+      })
     } catch {}
   }
 

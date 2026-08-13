@@ -1,11 +1,4 @@
-import {
-  copyFileSync,
-  existsSync,
-  readFileSync,
-  renameSync,
-  unlinkSync,
-  writeFileSync
-} from 'node:fs'
+import { copyFileSync, existsSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import {
   WATCHLIST_COLUMN_ORDER_VERSION,
@@ -20,10 +13,14 @@ import {
   synchronizeTrackingGroupMembership,
   type AppState
 } from '../../src/shared/types'
+import { atomicWriteFileSync } from './file-storage'
 
 export const STATE_FILE_NAME = 'settings.json'
 export const LAST_GOOD_STATE_FILE_NAME = 'settings.last-good.json'
 export const LEGACY_TRADING_BACKUP_FILE_NAME = 'settings.pre-unified-trades.json'
+export const STATE_HISTORY_DIRECTORY_NAME = 'state-history'
+const STATE_HISTORY_LIMIT = 20
+const STATE_HISTORY_MIN_INTERVAL_MILLISECONDS = 15 * 60 * 1000
 
 export interface StateStoreLoadResult {
   state: AppState
@@ -43,6 +40,8 @@ export class StateStore {
   private readonly statePath: string
   private readonly lastGoodPath: string
   private readonly legacyTradingBackupPath: string
+  private revision = 0
+  private lastHistoryAt = 0
 
   constructor(
     private readonly directory: string,
@@ -66,6 +65,7 @@ export class StateStore {
     try {
       saved = this.readState(this.statePath)
       state = this.normalizeLoadedState(saved)
+      this.revision = state.revision ?? 0
     } catch (reason) {
       return this.recoverFromInvalidState(reason)
     }
@@ -99,11 +99,19 @@ export class StateStore {
     return { state }
   }
 
+  assertRevision(state: AppState): void {
+    if (state.revision === undefined) return
+    if (state.revision !== this.revision) {
+      throw new Error('数据已在后台更新，请重试刚才的操作')
+    }
+  }
+
   normalize(state: AppState): AppState {
     const watchlistGroups = normalizeWatchlistGroups(state.watchlistGroups)
     const stockTrackingProfiles = normalizeStockTrackingProfiles(state.stockTrackingProfiles)
     return {
       ...state,
+      revision: state.revision,
       watchlist: synchronizeTrackingGroupMembership(
         normalizeWatchlist(state.watchlist),
         watchlistGroups,
@@ -119,15 +127,38 @@ export class StateStore {
   }
 
   save(state: AppState): void {
+    const previousContent = existsSync(this.statePath) ? readFileSync(this.statePath, 'utf8') : null
+    if (previousContent && this.revision > 0) this.saveHistorySnapshot(previousContent)
+    this.revision += 1
+    state.revision = this.revision
     const content = JSON.stringify(state, null, 2)
-    this.writeAtomically(this.statePath, content)
-    this.writeAtomically(this.lastGoodPath, content)
+    try {
+      this.writeAtomically(this.statePath, content)
+      this.writeAtomically(this.lastGoodPath, content)
+    } catch (reason) {
+      this.revision -= 1
+      state.revision = this.revision
+      if (previousContent && readFileSync(this.statePath, 'utf8') !== previousContent) {
+        this.writeAtomically(this.statePath, previousContent)
+      }
+      throw reason
+    }
+  }
+
+  saveImported(state: AppState): AppState {
+    const normalized = this.normalize({ ...state, revision: this.revision })
+    this.save(normalized)
+    return normalized
   }
 
   private normalizeLoadedState(saved: AppState): AppState {
     const watchlistGroups = normalizeWatchlistGroups(saved.watchlistGroups)
     const stockTrackingProfiles = normalizeStockTrackingProfiles(saved.stockTrackingProfiles)
     return {
+      revision:
+        typeof saved.revision === 'number' && Number.isInteger(saved.revision)
+          ? Math.max(0, saved.revision)
+          : 0,
       watchlist: synchronizeTrackingGroupMembership(
         normalizeWatchlist(saved.watchlist ?? this.defaultState.watchlist),
         watchlistGroups,
@@ -156,6 +187,7 @@ export class StateStore {
     copyFileSync(this.statePath, invalidPath)
     const recovered = this.loadLastGoodState()
     if (recovered) {
+      this.revision = recovered.revision ?? 0
       this.save(recovered)
       return {
         state: recovered,
@@ -173,15 +205,22 @@ export class StateStore {
   }
 
   private writeAtomically(path: string, content: string): void {
-    const temporaryPath = `${path}.tmp`
-    let temporaryFileWritten = false
-    try {
-      writeFileSync(temporaryPath, content, 'utf8')
-      temporaryFileWritten = true
-      renameSync(temporaryPath, path)
-    } catch (reason) {
-      if (temporaryFileWritten && existsSync(temporaryPath)) unlinkSync(temporaryPath)
-      throw reason
+    atomicWriteFileSync(path, content)
+  }
+
+  private saveHistorySnapshot(content: string): void {
+    const now = this.now()
+    if (now.getTime() - this.lastHistoryAt < STATE_HISTORY_MIN_INTERVAL_MILLISECONDS) return
+    const historyDirectory = join(this.directory, STATE_HISTORY_DIRECTORY_NAME)
+    const timestamp = now.toISOString().replaceAll(':', '-').replaceAll('.', '-')
+    const historyPath = join(historyDirectory, `settings-${timestamp}-r${this.revision}.json`)
+    atomicWriteFileSync(historyPath, content)
+    this.lastHistoryAt = now.getTime()
+    const historyFiles = readdirSync(historyDirectory)
+      .filter((name) => name.startsWith('settings-') && name.endsWith('.json'))
+      .sort()
+    for (const name of historyFiles.slice(0, -STATE_HISTORY_LIMIT)) {
+      rmSync(join(historyDirectory, name), { force: true })
     }
   }
 }

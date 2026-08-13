@@ -1,12 +1,6 @@
 import { app } from 'electron'
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  unlinkSync,
-  writeFileSync
-} from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { dividendFinancingStaleReason } from '../../src/lib/data-snapshot-status'
 import {
@@ -21,6 +15,7 @@ import type {
   DividendFinancingUpdateResult
 } from '../../src/shared/types'
 import type { PythonTaskQueue } from './python-task-queue'
+import { atomicWriteJsonSync } from './file-storage'
 
 const EMPTY_STATE: DataSnapshotRuntimeState = {
   status: 'missing',
@@ -44,6 +39,8 @@ export class DividendFinancingService {
   private changeReportCache: DividendFinancingChangeReport | null | undefined
   private runtimeState: DataSnapshotRuntimeState = EMPTY_STATE
   private updating = false
+  private initialization: Promise<void> | null = null
+  private initialized = false
 
   constructor(
     userDataDirectory: string,
@@ -57,7 +54,13 @@ export class DividendFinancingService {
     this.diagnosticsPath = join(this.dataDirectory, 'diagnostics.json')
     this.previousSnapshotPath = join(this.dataDirectory, 'previous-ranking.json')
     this.changeReportPath = join(this.dataDirectory, 'change-report.json')
-    this.loadSnapshot()
+    if (existsSync(this.snapshotPath)) {
+      this.runtimeState = {
+        ...EMPTY_STATE,
+        status: 'queued',
+        progressMessage: '正在加载本地分红融资榜数据。'
+      }
+    }
   }
 
   getSnapshot(): DividendFinancingSnapshot | null {
@@ -79,9 +82,8 @@ export class DividendFinancingService {
       const report = JSON.parse(
         readFileSync(this.changeReportPath, 'utf8')
       ) as DividendFinancingChangeReport
-      this.changeReportCache = report.schemaVersion === 1 && Array.isArray(report.rows)
-        ? report
-        : null
+      this.changeReportCache =
+        report.schemaVersion === 1 && Array.isArray(report.rows) ? report : null
       return this.changeReportCache
     } catch {
       this.changeReportCache = null
@@ -90,10 +92,16 @@ export class DividendFinancingService {
   }
 
   initializeIfMissing(): void {
-    if (this.runtimeState.status === 'missing') void this.runUpdate().catch(() => undefined)
+    if (!this.initialization) this.initialization = this.loadSnapshot().catch(() => undefined)
+    if (this.initialized) return
+    this.initialized = true
+    void this.initialization.then(() => {
+      if (this.runtimeState.status === 'missing') void this.runUpdate().catch(() => undefined)
+    })
   }
 
   async runUpdate(): Promise<DividendFinancingUpdateResult> {
+    if (this.initialization) await this.initialization
     if (this.updating) throw new Error('分红融资榜更新脚本正在运行')
     this.updating = true
     mkdirSync(this.dataDirectory, { recursive: true })
@@ -140,11 +148,7 @@ export class DividendFinancingService {
         ? createDividendFinancingChangeReport(previousSnapshot, snapshot)
         : null
       if (previousSnapshot) {
-        writeFileSync(
-          this.previousSnapshotPath,
-          JSON.stringify(previousSnapshot, null, 2),
-          'utf8'
-        )
+        atomicWriteJsonSync(this.previousSnapshotPath, previousSnapshot)
       }
       if (changeReport) {
         writeFileSync(nextChangeReportPath, JSON.stringify(changeReport, null, 2), 'utf8')
@@ -183,16 +187,16 @@ export class DividendFinancingService {
     }
   }
 
-  private loadSnapshot(): void {
+  private async loadSnapshot(): Promise<void> {
     if (!existsSync(this.snapshotPath)) return
     try {
-      this.snapshotCache = parseDividendFinancingSnapshot(readFileSync(this.snapshotPath, 'utf8'))
-      this.runtimeState = this.snapshotState(this.snapshotCache)
+      this.snapshotCache = parseDividendFinancingSnapshot(await readFile(this.snapshotPath, 'utf8'))
+      this.setState(this.snapshotState(this.snapshotCache))
     } catch (reason) {
-      this.runtimeState = {
+      this.setState({
         ...EMPTY_STATE,
         error: reason instanceof Error ? reason.message : '分红融资榜快照无法读取'
-      }
+      })
     }
   }
 

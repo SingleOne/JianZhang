@@ -86,10 +86,10 @@ function regularNewsQueryDate(date: Date, closedDates: readonly string[]): strin
   const dateKey = beijing.toISOString().slice(0, 10)
   const dayOfWeek = beijing.getUTCDay()
   const minutes = beijing.getUTCHours() * 60 + beijing.getUTCMinutes()
-  return dayOfWeek !== 0
-    && dayOfWeek !== 6
-    && minutes >= MARKET_CLOSE_MINUTES
-    && !closedDates.includes(dateKey)
+  return dayOfWeek !== 0 &&
+    dayOfWeek !== 6 &&
+    minutes >= MARKET_CLOSE_MINUTES &&
+    !closedDates.includes(dateKey)
     ? dateKey
     : null
 }
@@ -125,9 +125,13 @@ export class MarketInsightService {
     if (this.events.length !== storedEvents.length) storage.saveEvents(this.events)
     this.newsIndex = storage.loadNewsIndex()
     this.regularNewsQueryDates = storage.loadRegularNewsQueryDates()
-    storage.cleanupCache(
-      MARKET_INSIGHT_RESOURCE_LIMITS.cacheRetentionMilliseconds,
-      MARKET_INSIGHT_RESOURCE_LIMITS.maxCacheFiles
+    setTimeout(
+      () =>
+        storage.cleanupCache(
+          MARKET_INSIGHT_RESOURCE_LIMITS.cacheRetentionMilliseconds,
+          MARKET_INSIGHT_RESOURCE_LIMITS.maxCacheFiles
+        ),
+      0
     )
     this.newsScheduleTimer = setInterval(
       () => void this.refreshScheduledNews().catch(() => undefined),
@@ -145,10 +149,10 @@ export class MarketInsightService {
       newsMessage: this.lastNewsError
         ? `新闻来源刷新失败，当前保留最近缓存：${this.lastNewsError}`
         : this.lastNewsWarning
-        ? `新闻源已就绪；${this.lastNewsWarning}`
-        : state === 'ready'
-        ? '新闻源已就绪'
-        : '桌面版尚未配置已确认使用条件的新闻来源；不会将空结果表示为“无新闻”。',
+          ? `新闻源已就绪；${this.lastNewsWarning}`
+          : state === 'ready'
+            ? '新闻源已就绪'
+            : '桌面版尚未配置已确认使用条件的新闻来源；不会将空结果表示为“无新闻”。',
       performance: {
         snapshotCount: this.snapshots.size,
         eventCount: this.events.length,
@@ -194,7 +198,9 @@ export class MarketInsightService {
   }
 
   clearExpiredEvents(quoteId: string): void {
-    this.events = this.events.filter((event) => event.quoteId !== quoteId || event.status !== 'expired')
+    this.events = this.events.filter(
+      (event) => event.quoteId !== quoteId || event.status !== 'expired'
+    )
     this.storage.saveEvents(this.events)
   }
 
@@ -221,8 +227,8 @@ export class MarketInsightService {
     if (!quote) throw new Error('当前没有该股票的行情快照，请先刷新行情')
     const stock = this.dependencies.getState().watchlist.find((item) => item.quoteId === quoteId)
     if (!stock) throw new Error('该股票不在自选列表中')
-    const shouldRefreshOrderBook = force
-      || Boolean(this.dependencies.getState().tTradingAccounts[quoteId]?.activeBatch)
+    const shouldRefreshOrderBook =
+      force || Boolean(this.dependencies.getState().tTradingAccounts[quoteId]?.activeBatch)
     const [intraday, daily, orderBook, fundsFlow] = await Promise.all([
       this.source(
         quoteId,
@@ -252,7 +258,9 @@ export class MarketInsightService {
             () => this.dependencies.getOrderBook(quoteId),
             (value) => value.updatedAt
           ).catch(() => null)
-        : Promise.resolve(this.storage.loadCache<StockOrderBook>(quoteId, 'order-book', 'five-level')),
+        : Promise.resolve(
+            this.storage.loadCache<StockOrderBook>(quoteId, 'order-book', 'five-level')
+          ),
       this.source(
         quoteId,
         'funds-flow',
@@ -265,16 +273,29 @@ export class MarketInsightService {
     ])
     const calculatedAt = new Date().toISOString()
     const previous = await this.getSnapshot(quoteId)
-    const intradayIndicators = calculateIntradayIndicators(intraday.value.bars, quote.latest, calculatedAt)
-    const previousImbalance = previous?.indicators.orderBook.find((item) => item.id === 'order-book-imbalance')?.value ?? null
-    const orderBookIndicators = calculateOrderBookIndicators(orderBook?.value ?? null, calculatedAt, previousImbalance)
+    const intradayIndicators = calculateIntradayIndicators(
+      intraday.value.bars,
+      quote.latest,
+      calculatedAt
+    )
+    const previousImbalance =
+      previous?.indicators.orderBook.find((item) => item.id === 'order-book-imbalance')?.value ??
+      null
+    const orderBookIndicators = calculateOrderBookIndicators(
+      orderBook?.value ?? null,
+      calculatedAt,
+      previousImbalance
+    )
     const state = this.dependencies.getState()
     const selectedIndexQuoteId = getMarketIndexStocks(state.settings.marketIndexIds)[0]?.quoteId
-    const relative = calculateRelativeStrengthIndicators({
-      quote,
-      marketIndexQuote: selectedIndexQuoteId ? this.quotes.get(selectedIndexQuoteId) : undefined,
-      fundsFlow: fundsFlow?.value ?? null
-    }, calculatedAt)
+    const relative = calculateRelativeStrengthIndicators(
+      {
+        quote,
+        marketIndexQuote: selectedIndexQuoteId ? this.quotes.get(selectedIndexQuoteId) : undefined,
+        fundsFlow: fundsFlow?.value ?? null
+      },
+      calculatedAt
+    )
     const distances = this.calculateTPlanDistances(stock, quote.latest)
     const sourceStates = [
       this.sourceState('intraday', '分时', intraday, MARKET_INSIGHT_REFRESH_INTERVALS.intraday),
@@ -320,7 +341,12 @@ export class MarketInsightService {
         openingRange15: intradayIndicators.openingRange15,
         tPlanLevels: distances
           .filter((item) => item.side === 'buy' || item.side === 'sell')
-          .map((item) => ({ id: item.id, label: item.label, price: item.price, side: item.side as 'buy' | 'sell' })),
+          .map((item) => ({
+            id: item.id,
+            label: item.label,
+            price: item.price,
+            side: item.side as 'buy' | 'sell'
+          })),
         eventMarkers: []
       }
     }
@@ -380,18 +406,16 @@ export class MarketInsightService {
     dataCutoffAt: (value: T) => string
   ): Promise<CachedSource<T>> {
     const cached = this.storage.loadCache<T>(quoteId, dataType, period)
-    const shouldRefresh = this.scheduler.shouldRefresh(quoteId, `${dataType}:${period}`, interval, force)
+    const shouldRefresh = this.scheduler.shouldRefresh(
+      quoteId,
+      `${dataType}:${period}`,
+      interval,
+      force
+    )
     if (!shouldRefresh && cached) return cached
     try {
       const value = await load()
-      return this.storage.saveCache(
-        quoteId,
-        dataType,
-        period,
-        value,
-        dataCutoffAt(value),
-        interval
-      )
+      return this.storage.saveCache(quoteId, dataType, period, value, dataCutoffAt(value), interval)
     } catch (error) {
       if (cached) return cached
       throw error
@@ -405,11 +429,12 @@ export class MarketInsightService {
     interval: number
   ): MarketInsightSourceState {
     if (!source) return { id, label, state: 'unavailable' }
-    const state = new Date(source.expiresAt).getTime() <= Date.now() || isExpired(source.savedAt, interval)
-      ? 'stale'
-      : new Date(source.savedAt).getTime() + 2_000 < Date.now()
-        ? 'cached'
-        : 'live'
+    const state =
+      new Date(source.expiresAt).getTime() <= Date.now() || isExpired(source.savedAt, interval)
+        ? 'stale'
+        : new Date(source.savedAt).getTime() + 2_000 < Date.now()
+          ? 'cached'
+          : 'live'
     return {
       id,
       label,
@@ -419,18 +444,21 @@ export class MarketInsightService {
     }
   }
 
-  private dataState(sourceStates: readonly MarketInsightSourceState[]): 'live' | 'cached' | 'stale' {
+  private dataState(
+    sourceStates: readonly MarketInsightSourceState[]
+  ): 'live' | 'cached' | 'stale' {
     if (sourceStates.some((source) => source.state === 'stale')) return 'stale'
     return sourceStates.some((source) => source.state === 'cached') ? 'cached' : 'live'
   }
 
   private currentSnapshotState(snapshot: MarketInsightSnapshot): MarketInsightSnapshot {
     const age = Date.now() - new Date(snapshot.generatedAt).getTime()
-    const dataState = snapshot.dataState === 'stale' || age > MARKET_INSIGHT_REFRESH_INTERVALS.intraday
-      ? 'stale'
-      : age > 2_000
-        ? 'cached'
-        : snapshot.dataState
+    const dataState =
+      snapshot.dataState === 'stale' || age > MARKET_INSIGHT_REFRESH_INTERVALS.intraday
+        ? 'stale'
+        : age > 2_000
+          ? 'cached'
+          : snapshot.dataState
     return dataState === snapshot.dataState ? snapshot : { ...snapshot, dataState }
   }
 
@@ -452,45 +480,57 @@ export class MarketInsightService {
       isNearest: false
     }
     if (!batch) return [position]
-    const levels = (side: 'buy' | 'sell', items: readonly TPlanLevel[] | undefined) => (items ?? []).map((level, index): TPlanDistance => {
-      const price = tPlanTargetPrice(cost, side, level.targetPercent)!
-      const distancePercent = price === 0 ? null : (latest / price - 1) * 100
-      return {
-        id: `${side}-${index + 1}`,
-        label: `T${index + 1}${side === 'buy' ? ' 买入档' : ' 卖出档'}`,
-        side,
-        price,
-        distancePercent,
-        quantity: level.quantity,
-        isNearest: false
-      }
-    })
-    const result = [position, ...levels('buy', batch.buyLevels), ...levels('sell', batch.sellLevels)]
+    const levels = (side: 'buy' | 'sell', items: readonly TPlanLevel[] | undefined) =>
+      (items ?? []).map((level, index): TPlanDistance => {
+        const price = tPlanTargetPrice(cost, side, level.targetPercent)!
+        const distancePercent = price === 0 ? null : (latest / price - 1) * 100
+        return {
+          id: `${side}-${index + 1}`,
+          label: `T${index + 1}${side === 'buy' ? ' 买入档' : ' 卖出档'}`,
+          side,
+          price,
+          distancePercent,
+          quantity: level.quantity,
+          isNearest: false
+        }
+      })
+    const result = [
+      position,
+      ...levels('buy', batch.buyLevels),
+      ...levels('sell', batch.sellLevels)
+    ]
     const nearest = result
       .filter((item) => item.side !== 'position' && item.distancePercent !== null)
-      .reduce<TPlanDistance | null>((current, item) => (
-        !current || Math.abs(item.distancePercent!) < Math.abs(current.distancePercent!) ? item : current
-      ), null)
-    return result.map((item) => item.id === nearest?.id ? { ...item, isNearest: true } : item)
+      .reduce<TPlanDistance | null>(
+        (current, item) =>
+          !current || Math.abs(item.distancePercent!) < Math.abs(current.distancePercent!)
+            ? item
+            : current,
+        null
+      )
+    return result.map((item) => (item.id === nearest?.id ? { ...item, isNearest: true } : item))
   }
 
   private async fetchNews(stock: WatchStock, fetchedAt: string) {
     const current = this.newsRefreshes.get(stock.quoteId)
     if (current) return current
-    const task = this.news.fetch({
-      quoteId: stock.quoteId,
-      code: stock.code,
-      sectorQuoteId: this.quotes.get(stock.quoteId)?.sector?.quoteId,
-      fetchedAt,
-      newsLookbackDays: this.settings.includeOlderNews ? 30 : 7
-    }).then((items) => {
-      this.newsIndex[stock.quoteId] = items.map((item) => item.id)
-      this.storage.saveNewsIndex(this.newsIndex)
-      this.storage.saveNews(stock.quoteId, items, this.settings.newsCacheHours)
-      return items
-    }).finally(() => {
-      this.newsRefreshes.delete(stock.quoteId)
-    })
+    const task = this.news
+      .fetch({
+        quoteId: stock.quoteId,
+        code: stock.code,
+        sectorQuoteId: this.quotes.get(stock.quoteId)?.sector?.quoteId,
+        fetchedAt,
+        newsLookbackDays: this.settings.includeOlderNews ? 30 : 7
+      })
+      .then((items) => {
+        this.newsIndex[stock.quoteId] = items.map((item) => item.id)
+        this.storage.saveNewsIndex(this.newsIndex)
+        this.storage.saveNews(stock.quoteId, items, this.settings.newsCacheHours)
+        return items
+      })
+      .finally(() => {
+        this.newsRefreshes.delete(stock.quoteId)
+      })
     this.newsRefreshes.set(stock.quoteId, task)
     return task
   }
@@ -518,16 +558,20 @@ export class MarketInsightService {
     if (regularDate && due.some((stock) => !stock.isPriority)) {
       this.storage.saveRegularNewsQueryDates(this.regularNewsQueryDates)
     }
-    const results = await Promise.allSettled(due.map(async (stock) => {
-      const previousNews = this.storage.loadNews(stock.quoteId)
-      const items = await this.fetchNews(stock, fetchedAt)
-      await this.applyBackgroundNews(stock, previousNews, items, fetchedAt)
-    }))
-    const errors = results.flatMap((result, index) => (
+    const results = await Promise.allSettled(
+      due.map(async (stock) => {
+        const previousNews = this.storage.loadNews(stock.quoteId)
+        const items = await this.fetchNews(stock, fetchedAt)
+        await this.applyBackgroundNews(stock, previousNews, items, fetchedAt)
+      })
+    )
+    const errors = results.flatMap((result, index) =>
       result.status === 'rejected'
-        ? [`${due[index].name}：${result.reason instanceof Error ? result.reason.message : '未知错误'}`]
+        ? [
+            `${due[index].name}：${result.reason instanceof Error ? result.reason.message : '未知错误'}`
+          ]
         : []
-    ))
+    )
     this.lastNewsError = errors.length > 0 ? errors.join('；') : null
     this.lastNewsWarning = this.news.lastWarning
   }
@@ -547,9 +591,9 @@ export class MarketInsightService {
       'volume_spike',
       'intraday_extreme'
     ])
-    const activeContinuousFingerprints = this.events.flatMap((event) => (
+    const activeContinuousFingerprints = this.events.flatMap((event) =>
       event.status !== 'expired' && continuousTypes.has(event.type) ? [event.fingerprint] : []
-    ))
+    )
     const previousEventState = JSON.stringify(this.events)
     this.events = pruneWatchEvents(
       reconcileWatchEvents(

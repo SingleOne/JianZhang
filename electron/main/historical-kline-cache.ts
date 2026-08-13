@@ -1,16 +1,9 @@
-import {
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  statSync,
-  unlinkSync,
-  utimesSync,
-  writeFileSync
-} from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, utimesSync } from 'node:fs'
 import { join } from 'node:path'
 import { isBeijingAutoRefreshTime } from '../../src/shared/market-hours'
 import { LruCache } from '../../src/shared/lru-cache'
 import type { KlinePeriod, KlineResult } from '../../src/shared/types'
+import { atomicWriteJsonSync } from './file-storage'
 
 type HistoricalKlinePeriod = Extract<KlinePeriod, 'daily' | 'weekly' | 'monthly'>
 
@@ -138,7 +131,7 @@ export class HistoricalKlineCache {
     }
     this.entries.set(cacheKey(quoteId, period), entry)
     const path = join(this.directory, cacheFileName(quoteId, period))
-    writeFileSync(path, JSON.stringify(entry), 'utf8')
+    atomicWriteJsonSync(path, entry, false)
     this.touch(path)
     return merged
   }

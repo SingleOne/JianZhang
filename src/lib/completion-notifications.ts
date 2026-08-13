@@ -1,18 +1,8 @@
+import type { AppCompletionNotification, CompletionNotificationTarget } from '../shared/types'
+
+export type { AppCompletionNotification, CompletionNotificationTarget } from '../shared/types'
+
 export const APP_COMPLETION_NOTIFICATION_EVENT = 'app:completion-notification'
-
-export type CompletionNotificationTarget =
-  | 'reports'
-  | 'ai-short-term'
-  | 'ai-long-term'
-  | 't-advice'
-
-export interface AppCompletionNotification {
-  id: string
-  quoteId: string
-  target: CompletionNotificationTarget
-  message: string
-  createdAt: string
-}
 
 export interface StockDetailNavigationRequest {
   id: string

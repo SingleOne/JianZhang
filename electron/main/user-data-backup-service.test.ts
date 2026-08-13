@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -49,6 +49,7 @@ describe('UserDataBackupService', () => {
     write(directory, 'modules/ai/codex-runtime/auth.json', '{"token":"private"}')
     write(directory, 'market-cache/shareholders/1_600519.json', '{"cached":true}')
     write(directory, 'company-reports/summaries.json', '{"report":"summary"}')
+    write(directory, 'completion-notifications.json', '[{"id":"notification-1"}]')
 
     const document = new UserDataBackupService(directory).create(state(), '8.3.0', {
       openai: 'openai-key'
@@ -56,6 +57,7 @@ describe('UserDataBackupService', () => {
 
     expect(document.files.map((file) => file.path)).toEqual([
       'company-reports/summaries.json',
+      'completion-notifications.json',
       'modules/ai/conversations/index.json',
       'modules/ai/settings.json'
     ])
@@ -77,8 +79,13 @@ describe('UserDataBackupService', () => {
     const prepared = targetService.prepare(document)
     let restoredApiKeys: UserDataBackupApiKeys = {}
 
-    targetService.apply(prepared.importId, (apiKeys) => {
-      restoredApiKeys = apiKeys
+    targetService.apply(prepared.importId, {
+      currentState: state(),
+      currentApiKeys: {},
+      replaceState: (nextState) => nextState,
+      replaceAiApiKeys: (apiKeys) => {
+        restoredApiKeys = apiKeys
+      }
     })
 
     expect(readFileSync(join(target, 'modules/ai/conversations/index.json'), 'utf8')).toContain(
@@ -91,5 +98,51 @@ describe('UserDataBackupService', () => {
       'cached'
     )
     expect(restoredApiKeys).toEqual({ deepseek: 'deepseek-key' })
+    const restoreBackups = readdirSync(join(target, 'restore-backups'))
+    expect(restoreBackups).toHaveLength(1)
+    expect(
+      readFileSync(
+        join(target, 'restore-backups', restoreBackups[0], 'modules/ai/conversations/index.json'),
+        'utf8'
+      )
+    ).toContain('local')
+  })
+
+  it('rolls back files, state and API keys when applying the backup fails', () => {
+    const source = temporaryDirectory()
+    write(source, 'modules/market-insight/events.json', '[{"id":"from-backup"}]')
+    const document = new UserDataBackupService(source).create(state(), '10.0.0', {
+      openai: 'new-key'
+    })
+
+    const target = temporaryDirectory()
+    write(target, 'modules/market-insight/events.json', '[{"id":"local"}]')
+    write(target, 'settings.json', '{"local":true}')
+    const targetService = new UserDataBackupService(target)
+    const prepared = targetService.prepare(document)
+    const replacedStates: AppState[] = []
+    let restoredApiKeys: UserDataBackupApiKeys = {}
+
+    expect(() =>
+      targetService.apply(prepared.importId, {
+        currentState: state(),
+        currentApiKeys: { deepseek: 'old-key' },
+        replaceState: (nextState) => {
+          replacedStates.push(nextState)
+          if (replacedStates.length === 1) throw new Error('save failed')
+          return nextState
+        },
+        replaceAiApiKeys: (apiKeys) => {
+          restoredApiKeys = apiKeys
+        }
+      })
+    ).toThrow('save failed')
+
+    expect(readFileSync(join(target, 'modules/market-insight/events.json'), 'utf8')).toContain(
+      'local'
+    )
+    expect(readFileSync(join(target, 'settings.json'), 'utf8')).toContain('local')
+    expect(restoredApiKeys).toEqual({ deepseek: 'old-key' })
+    expect(replacedStates).toHaveLength(2)
   })
 })

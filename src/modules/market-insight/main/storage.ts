@@ -1,6 +1,12 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
-import type { MarketInsightSettings, MarketInsightSnapshot, MarketNewsItem, WatchEvent } from '../shared/types'
+import { atomicWriteJsonSync } from '../../../../electron/main/file-storage'
+import type {
+  MarketInsightSettings,
+  MarketInsightSnapshot,
+  MarketNewsItem,
+  WatchEvent
+} from '../shared/types'
 import { normalizeMarketInsightSettings } from '../shared/normalize'
 
 interface StoredValue<T> {
@@ -36,7 +42,10 @@ export class MarketInsightStorage {
   }
 
   loadSnapshot(quoteId: string): MarketInsightSnapshot | null {
-    const stored = this.read<StoredValue<MarketInsightSnapshot> | null>(`cache/${this.fileName(quoteId, 'snapshot', 'v2')}`, null)
+    const stored = this.read<StoredValue<MarketInsightSnapshot> | null>(
+      `cache/${this.fileName(quoteId, 'snapshot', 'v2')}`,
+      null
+    )
     return stored?.value ?? null
   }
 
@@ -50,7 +59,10 @@ export class MarketInsightStorage {
   }
 
   loadCache<T>(quoteId: string, dataType: string, period: string): StoredValue<T> | null {
-    return this.read<StoredValue<T> | null>(`cache/${this.fileName(quoteId, dataType, `${period}-source-v1`)}`, null)
+    return this.read<StoredValue<T> | null>(
+      `cache/${this.fileName(quoteId, dataType, `${period}-source-v1`)}`,
+      null
+    )
   }
 
   saveCache<T>(
@@ -133,6 +145,6 @@ export class MarketInsightStorage {
   private write(relativePath: string, value: unknown): void {
     const filePath = join(this.cacheDirectory, '..', relativePath)
     mkdirSync(join(filePath, '..'), { recursive: true })
-    writeFileSync(filePath, JSON.stringify(value, null, 2), 'utf8')
+    atomicWriteJsonSync(filePath, value)
   }
 }

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { clipboard, shell, safeStorage } from 'electron'
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import type {
   GitHubDeviceAuthorization,
@@ -9,6 +9,7 @@ import type {
   GitHubSyncSettings,
   GitHubSyncUploadResult
 } from '../../src/shared/types'
+import { atomicWriteFileSync, atomicWriteJsonSync } from './file-storage'
 
 interface StoredGitHubSyncSettings {
   accountLogin?: string
@@ -306,7 +307,7 @@ export class GitHubSyncService {
   }
 
   private writeSettings(settings: StoredGitHubSyncSettings): void {
-    writeFileSync(this.settingsPath, JSON.stringify(settings, null, 2), 'utf8')
+    atomicWriteJsonSync(this.settingsPath, settings)
   }
 
   private requireOAuthClientId(): void {
@@ -333,7 +334,7 @@ export class GitHubSyncService {
 
   private writeToken(token: string): void {
     if (!safeStorage.isEncryptionAvailable()) throw new Error('当前系统无法安全保存 GitHub 授权')
-    writeFileSync(this.tokenPath, safeStorage.encryptString(token))
+    atomicWriteFileSync(this.tokenPath, safeStorage.encryptString(token))
   }
 
   private requireRepository(): StoredGitHubSyncSettings & {

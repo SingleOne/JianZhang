@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { StockQuote, StockSectorQuote, WatchStock } from '../../src/shared/types'
+import { atomicWriteJsonSync } from './file-storage'
 
 const BINDING_MAX_AGE_MILLISECONDS = 24 * 60 * 60 * 1000
 const BINDING_FAILURE_COOLDOWN_MILLISECONDS = 5 * 60 * 1000
@@ -51,7 +52,9 @@ export class SectorMarketCache {
   async prime(stocks: readonly WatchStock[]): Promise<boolean> {
     const missing = stocks.filter((stock) => !this.getFreshBinding(stock.quoteId))
     if (missing.length === 0) return false
-    const results = await Promise.allSettled(missing.map((stock) => this.ensureBinding(stock.quoteId)))
+    const results = await Promise.allSettled(
+      missing.map((stock) => this.ensureBinding(stock.quoteId))
+    )
     return results.some((result) => result.status === 'fulfilled')
   }
 
@@ -122,9 +125,7 @@ export class SectorMarketCache {
 
   private getFreshBinding(stockQuoteId: string): SectorBinding | null {
     const binding = this.bindings.get(stockQuoteId)
-    return binding && Date.now() - binding.cachedAt < BINDING_MAX_AGE_MILLISECONDS
-      ? binding
-      : null
+    return binding && Date.now() - binding.cachedAt < BINDING_MAX_AGE_MILLISECONDS ? binding : null
   }
 
   private isQuoteFresh(boardQuoteId: string): boolean {
@@ -181,6 +182,6 @@ export class SectorMarketCache {
       version: 1,
       bindings: Object.fromEntries(this.bindings)
     }
-    writeFileSync(this.bindingPath, JSON.stringify(document), 'utf8')
+    atomicWriteJsonSync(this.bindingPath, document, false)
   }
 }

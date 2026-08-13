@@ -331,10 +331,29 @@ export default function App() {
   }, [notice])
 
   useEffect(() => {
+    stockApi
+      .getCompletionNotifications()
+      .then((saved) => {
+        setCompletionNotifications((current) => {
+          if (current.length === 0) return saved
+          const currentIds = new Set(current.map((item) => item.id))
+          const merged = [...current, ...saved.filter((item) => !currentIds.has(item.id))]
+          void stockApi.saveCompletionNotifications(merged)
+          return merged
+        })
+      })
+      .catch(() => undefined)
+  }, [])
+
+  useEffect(() => {
     const addCompletionNotification = (event: Event) => {
       const notification = (event as CustomEvent<AppCompletionNotification>).detail
       if (!notification) return
-      setCompletionNotifications((current) => [notification, ...current])
+      setCompletionNotifications((current) => {
+        const next = [notification, ...current.filter((item) => item.id !== notification.id)]
+        void stockApi.saveCompletionNotifications(next)
+        return next
+      })
     }
     window.addEventListener(APP_COMPLETION_NOTIFICATION_EVENT, addCompletionNotification)
     return () =>
@@ -406,6 +425,9 @@ export default function App() {
         return saved
       } catch (reason) {
         reportError(reason instanceof Error ? reason.message : '设置保存失败')
+        if (isDesktopRuntime) {
+          void stockApi.getBootstrap().then((bootstrap) => setState(bootstrap.state))
+        }
         return null
       }
     },
@@ -768,7 +790,11 @@ export default function App() {
   }, [])
 
   const openCompletionNotification = useCallback((notification: AppCompletionNotification) => {
-    setCompletionNotifications((current) => current.filter((item) => item.id !== notification.id))
+    setCompletionNotifications((current) => {
+      const next = current.filter((item) => item.id !== notification.id)
+      void stockApi.saveCompletionNotifications(next)
+      return next
+    })
     setSelectedQuoteId(notification.quoteId)
     setDetailNavigationRequest({
       id: notification.id,
@@ -855,12 +881,12 @@ export default function App() {
       const importedQuoteIds = new Set(result.state.watchlist.map((stock) => stock.quoteId))
       setSelectedQuoteId(null)
       setQuotes((current) => current.filter((quote) => importedQuoteIds.has(quote.quoteId)))
-      const saved = await persist(result.state)
-      if (!saved) return
       if (result.importId) {
         await stockApi.applyConfigImport(result.importId)
         reportSuccess('用户数据导入完成，应用正在重启')
       } else {
+        const saved = await persist(result.state)
+        if (!saved) return
         reportSuccess(`已导入 ${saved.watchlist.length} 只股票及全部设置`)
       }
     },

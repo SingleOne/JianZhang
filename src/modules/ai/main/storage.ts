@@ -1,5 +1,6 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
+import { atomicWriteJsonSync } from '../../../../electron/main/file-storage'
 import type {
   AiConversation,
   AiConversationExport,
@@ -38,32 +39,45 @@ export class AiStorage {
     this.conversationsDirectory = join(rootDirectory, 'conversations')
     this.snapshotsDirectory = join(rootDirectory, 'snapshots')
     this.cacheDirectory = join(rootDirectory, 'cache')
-    for (const directory of [rootDirectory, this.conversationsDirectory, this.snapshotsDirectory, this.cacheDirectory]) {
+    for (const directory of [
+      rootDirectory,
+      this.conversationsDirectory,
+      this.snapshotsDirectory,
+      this.cacheDirectory
+    ]) {
       mkdirSync(directory, { recursive: true })
     }
   }
 
   getSettings(): AiSettings {
     const saved = readJson<Partial<AiSettings>>(join(this.rootDirectory, 'settings.json'), {})
-    const providerId: AiProviderId = saved.providerId === 'deepseek'
-      ? 'deepseek'
-      : saved.providerId === 'openai-codex' ? 'openai-codex' : 'openai'
-    const defaultModel = providerId === 'deepseek'
-      ? 'deepseek-v4-flash'
-      : providerId === 'openai-codex' ? OPENAI_CODEX_DEFAULT_MODEL : 'gpt-5.6'
-    const savedModel = typeof saved.model === 'string' && saved.model.trim() ? saved.model.trim() : defaultModel
+    const providerId: AiProviderId =
+      saved.providerId === 'deepseek'
+        ? 'deepseek'
+        : saved.providerId === 'openai-codex'
+          ? 'openai-codex'
+          : 'openai'
+    const defaultModel =
+      providerId === 'deepseek'
+        ? 'deepseek-v4-flash'
+        : providerId === 'openai-codex'
+          ? OPENAI_CODEX_DEFAULT_MODEL
+          : 'gpt-5.6'
+    const savedModel =
+      typeof saved.model === 'string' && saved.model.trim() ? saved.model.trim() : defaultModel
     return {
       enabled: saved.enabled !== false,
       providerId,
       model: providerId === 'openai-codex' ? normalizeOpenAiCodexModelId(savedModel) : savedModel,
-      maxContextMessages: typeof saved.maxContextMessages === 'number'
-        ? Math.max(4, Math.min(40, Math.round(saved.maxContextMessages)))
-        : DEFAULT_SETTINGS.maxContextMessages
+      maxContextMessages:
+        typeof saved.maxContextMessages === 'number'
+          ? Math.max(4, Math.min(40, Math.round(saved.maxContextMessages)))
+          : DEFAULT_SETTINGS.maxContextMessages
     }
   }
 
   saveSettings(settings: AiSettings): AiSettings {
-    writeFileSync(join(this.rootDirectory, 'settings.json'), JSON.stringify(settings, null, 2), 'utf8')
+    atomicWriteJsonSync(join(this.rootDirectory, 'settings.json'), settings)
     return settings
   }
 
@@ -80,11 +94,13 @@ export class AiStorage {
   }
 
   listConversations(): AiConversation[] {
-    return readJson<AiConversation[]>(this.indexPath(), []).sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+    return readJson<AiConversation[]>(this.indexPath(), []).sort((left, right) =>
+      right.updatedAt.localeCompare(left.updatedAt)
+    )
   }
 
   saveConversations(conversations: AiConversation[]): void {
-    writeFileSync(this.indexPath(), JSON.stringify(conversations, null, 2), 'utf8')
+    atomicWriteJsonSync(this.indexPath(), conversations)
   }
 
   getConversation(conversationId: string): AiConversation | null {
@@ -120,14 +136,16 @@ export class AiStorage {
   }
 
   deleteConversation(conversationId: string): void {
-    const deletedSnapshotIds = new Set(this.getMessages(conversationId)
-      .flatMap(messageSnapshotIds))
+    const deletedSnapshotIds = new Set(this.getMessages(conversationId).flatMap(messageSnapshotIds))
     const conversations = this.listConversations().filter((item) => item.id !== conversationId)
     this.saveConversations(conversations)
     const filePath = this.messagePath(conversationId)
     if (existsSync(filePath)) rmSync(filePath)
-    const referencedSnapshotIds = new Set(conversations.flatMap((conversation) => this.getMessages(conversation.id)
-      .flatMap(messageSnapshotIds)))
+    const referencedSnapshotIds = new Set(
+      conversations.flatMap((conversation) =>
+        this.getMessages(conversation.id).flatMap(messageSnapshotIds)
+      )
+    )
     for (const snapshotId of deletedSnapshotIds) {
       const snapshotPath = this.snapshotPath(snapshotId)
       if (!referencedSnapshotIds.has(snapshotId) && existsSync(snapshotPath)) rmSync(snapshotPath)
@@ -149,7 +167,7 @@ export class AiStorage {
   }
 
   saveSnapshot(snapshotId: string, snapshot: unknown): void {
-    writeFileSync(this.snapshotPath(snapshotId), JSON.stringify(snapshot, null, 2), 'utf8')
+    atomicWriteJsonSync(this.snapshotPath(snapshotId), snapshot)
   }
 
   getInterpretation<T>(cacheKey: string): T | null {
@@ -161,7 +179,7 @@ export class AiStorage {
     const cachePath = join(this.cacheDirectory, 'interpretations.json')
     const cache = readJson<Record<string, T>>(cachePath, {})
     cache[cacheKey] = value
-    writeFileSync(cachePath, JSON.stringify(cache, null, 2), 'utf8')
+    atomicWriteJsonSync(cachePath, cache)
   }
 
   getLatestInterpretation<T>(quoteId: string): T | null {
@@ -176,6 +194,6 @@ export class AiStorage {
     const latestPath = join(this.cacheDirectory, 'latest-interpretations.json')
     const latest = readJson<Record<string, T>>(latestPath, {})
     latest[quoteId] = value
-    writeFileSync(latestPath, JSON.stringify(latest, null, 2), 'utf8')
+    atomicWriteJsonSync(latestPath, latest)
   }
 }

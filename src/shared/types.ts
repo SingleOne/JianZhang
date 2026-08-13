@@ -1572,6 +1572,7 @@ export function normalizeAppSettings(
 }
 
 export interface AppState {
+  revision?: number
   watchlist: WatchStock[]
   watchlistGroups: WatchlistGroup[]
   stockTrackingProfiles: StockTrackingProfiles
@@ -1579,6 +1580,16 @@ export interface AppState {
   columnOrder: WatchlistColumnId[]
   columnOrderVersion?: number
   tTradingAccounts: TTradingAccounts
+}
+
+export type CompletionNotificationTarget = 'reports' | 'ai-short-term' | 'ai-long-term' | 't-advice'
+
+export interface AppCompletionNotification {
+  id: string
+  quoteId: string
+  target: CompletionNotificationTarget
+  message: string
+  createdAt: string
 }
 
 export interface ConfigExportResult {
@@ -1677,6 +1688,10 @@ export interface StockDesktopApi {
   getSectorIndex: (quoteId: string) => Promise<SectorIndexResult>
   refreshTradingCalendar: () => Promise<TradingCalendarSettings>
   saveState: (state: AppState) => Promise<AppState>
+  getCompletionNotifications: () => Promise<AppCompletionNotification[]>
+  saveCompletionNotifications: (
+    notifications: AppCompletionNotification[]
+  ) => Promise<AppCompletionNotification[]>
   exportConfig: (state: AppState) => Promise<ConfigExportResult>
   importConfig: () => Promise<ConfigImportResult>
   applyConfigImport: (importId: string) => Promise<void>

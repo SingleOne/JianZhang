@@ -57,6 +57,7 @@ const DEFAULT_WATCHLIST: WatchStock[] = DEMO_STOCKS.slice(0, 5).map((stock, inde
 }))
 
 const DEFAULT_STATE: AppState = {
+  revision: 0,
   watchlist: DEFAULT_WATCHLIST,
   watchlistGroups: DEFAULT_WATCHLIST_GROUPS.map((group) => ({ ...group })),
   stockTrackingProfiles: {},
@@ -159,6 +160,7 @@ function loadDemoState(): AppState {
   const watchlistGroups = normalizeWatchlistGroups(parsed.watchlistGroups)
   const stockTrackingProfiles = normalizeStockTrackingProfiles(parsed.stockTrackingProfiles)
   return {
+    revision: parsed.revision,
     watchlist: synchronizeTrackingGroupMembership(
       normalizeWatchlist(parsed.watchlist),
       watchlistGroups,
@@ -653,6 +655,14 @@ const demoApi: StockDesktopApi = {
   async saveState(state) {
     localStorage.setItem('jianzhang-demo-state-v1', JSON.stringify(state))
     return state
+  },
+  async getCompletionNotifications() {
+    const saved = localStorage.getItem('jianzhang-completion-notifications-v1')
+    return saved ? JSON.parse(saved) : []
+  },
+  async saveCompletionNotifications(notifications) {
+    localStorage.setItem('jianzhang-completion-notifications-v1', JSON.stringify(notifications))
+    return notifications
   },
   async exportConfig(state) {
     const fileName = demoConfigFileName()

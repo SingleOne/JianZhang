@@ -8,6 +8,7 @@
 
 ```ts
 interface AppState {
+  revision?: number
   watchlist: WatchStock[]
   watchlistGroups: WatchlistGroup[]
   stockTrackingProfiles: StockTrackingProfiles
@@ -53,11 +54,12 @@ interface AppState {
 
 状态文件由 `electron/main/state-store.ts` 的 `StateStore` 统一管理。除正式文件外，同目录还可能包含：
 
-| 文件 | 作用 |
-| --- | --- |
-| `settings.last-good.json` | 最近一次完整保存的可用备份 |
-| `settings.pre-unified-trades.json` | 统一交易流水迁移前的一次性原始备份 |
-| `settings.invalid-<时间>.json` | 配置损坏时保留的原文件副本 |
+| 文件                                         | 作用                                       |
+| -------------------------------------------- | ------------------------------------------ |
+| `settings.last-good.json`                    | 最近一次完整保存的可用备份                 |
+| `settings.pre-unified-trades.json`           | 统一交易流水迁移前的一次性原始备份         |
+| `settings.invalid-<时间>.json`               | 配置损坏时保留的原文件副本                 |
+| `state-history/settings-<时间>-r<版本>.json` | 最多 20 份、至少间隔 15 分钟的历史状态快照 |
 
 ### 加载
 
@@ -84,6 +86,8 @@ interface AppState {
 
 主进程 `persistState` 调用 `StateStore.save()` 保存完整 `state`。保存先写同路径 `.tmp` 临时文件，再原子重命名替换目标文件；正式文件成功后同步更新 `settings.last-good.json`。常规保存入口是 IPC `state:save`：
 
+每次成功保存都会递增 `revision`。渲染层提交的版本落后于主进程时会拒绝整份覆盖，并重新读取最新状态，避免后台提醒、追踪指标或交易日历更新被旧界面状态覆盖。
+
 1. 接收渲染层的完整 `AppState`。
 2. 再次 normalize。
 3. 比较新旧状态中会触发主进程副作用的字段。
@@ -94,31 +98,31 @@ interface AppState {
 
 可能触发的额外动作：
 
-| 变化 | 副作用 |
-| --- | --- |
-| 刷新秒数 | 重排统一行情调度器的重点/普通到期时间 |
-| 大盘指数选择 | 向统一调度器提交全量报价刷新 |
-| 开机启动 | `app.setLoginItemSettings` |
+| 变化               | 副作用                                           |
+| ------------------ | ------------------------------------------------ |
+| 刷新秒数           | 重排统一行情调度器的重点/普通到期时间            |
+| 大盘指数选择       | 向统一调度器提交全量报价刷新                     |
+| 开机启动           | `app.setLoginItemSettings`                       |
 | 自选集合或重点状态 | 交易时段内提交合并刷新；新增股票后台补取板块绑定 |
-| 任务栏相关设置 | 重新计算窗口显示和位置 |
+| 任务栏相关设置     | 重新计算窗口显示和位置                           |
 
 ## 状态规范化和迁移
 
 `src/shared/types.ts` 中的 normalize/migrate 是当前兼容核心：
 
-| 函数 | 作用 |
-| --- | --- |
-| `normalizeWatchlist` | 持仓股票强制重点关注、补异动开关、过滤无效快照 |
-| `normalizeWatchlistGroups` | 去除无 ID、无名称或重复 ID 的自选分组，并补齐系统“异动观察”和“追踪”分组 |
-| `normalizeStockTrackingProfiles` | 兼容缺失追踪数据的旧配置并规范化来源、标签、时间线和通用每日指标快照；快照中的数字指标按名称扩展 |
-| `synchronizeTrackingGroupMembership` | 根据追踪中/已停止状态自动加入或移出系统“追踪”分组 |
-| `normalizeMarketIndexIds` | 过滤并按内置顺序返回指数 |
-| `normalizeActiveTTradingBatch` | 兼容旧双五档、价格/浮动盈亏提醒开关和反 T 语义 |
-| `normalizeTTradingAccounts` | 把旧活动/历史批次流水和 `baseTrades` 按 ID 合并到唯一 `tradeRecords`，再移除旧字段并规范化活动批次 |
-| `normalizeWatchlistColumnOrder` | 去重、补缺失列、保证操作列在末尾 |
-| `migrateWatchlistColumnOrder` | 按版本插入今日收益、板块、成交等新列，并过滤已经移除的列 |
-| `normalizeAppSettings` | 兼容旧刷新字段、限制秒数/位置、补费用、浮动盈亏提醒默认值和日历 |
-| `normalizeTradingCalendarSettings` | 校验日期、去重、排序并保证内置覆盖年份 |
+| 函数                                 | 作用                                                                                               |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `normalizeWatchlist`                 | 持仓股票强制重点关注、补异动开关、过滤无效快照                                                     |
+| `normalizeWatchlistGroups`           | 去除无 ID、无名称或重复 ID 的自选分组，并补齐系统“异动观察”和“追踪”分组                            |
+| `normalizeStockTrackingProfiles`     | 兼容缺失追踪数据的旧配置并规范化来源、标签、时间线和通用每日指标快照；快照中的数字指标按名称扩展   |
+| `synchronizeTrackingGroupMembership` | 根据追踪中/已停止状态自动加入或移出系统“追踪”分组                                                  |
+| `normalizeMarketIndexIds`            | 过滤并按内置顺序返回指数                                                                           |
+| `normalizeActiveTTradingBatch`       | 兼容旧双五档、价格/浮动盈亏提醒开关和反 T 语义                                                     |
+| `normalizeTTradingAccounts`          | 把旧活动/历史批次流水和 `baseTrades` 按 ID 合并到唯一 `tradeRecords`，再移除旧字段并规范化活动批次 |
+| `normalizeWatchlistColumnOrder`      | 去重、补缺失列、保证操作列在末尾                                                                   |
+| `migrateWatchlistColumnOrder`        | 按版本插入今日收益、板块、成交等新列，并过滤已经移除的列                                           |
+| `normalizeAppSettings`               | 兼容旧刷新字段、限制秒数/位置、补费用、浮动盈亏提醒默认值和日历                                    |
+| `normalizeTradingCalendarSettings`   | 校验日期、去重、排序并保证内置覆盖年份                                                             |
 
 新增持久化字段时，不能只改 interface；至少要补默认值和 normalize。
 
@@ -137,7 +141,7 @@ JianzhangUserDataBackupDocument
 └─ aiApiKeys
 ```
 
-`state` 保存完整 `AppState`。`files` 只保存无法通过网络直接恢复的用户数据：市场观察设置与事件、AI 设置/对话/上下文快照/分析结果、AI 做 T 设置与建议历史，以及用户主动生成的财报 AI 总结。行情、K 线、股东、估值、基本面、分红融资、财报目录和全市场扫描等可重新获取的数据不进入备份。
+`state` 保存完整 `AppState`。`files` 只保存无法通过网络直接恢复的用户数据：市场观察设置与事件、AI 设置/对话/上下文快照/分析结果、AI 做 T 设置与建议历史、完成通知队列，以及用户主动生成的财报 AI 总结。行情、K 线、股东、估值、基本面、分红融资、财报目录和全市场扫描等可重新获取的数据不进入备份。
 
 `aiApiKeys` 保存 OpenAI 和 DeepSeek API Key。导出时主进程通过 `safeStorage` 解密，导入到另一台电脑时再使用目标电脑的 `safeStorage` 加密。Codex 账号登录目录始终排除。当前备份文件没有密码或二次加密，因此 API Key 在 JSON 中是明文，设置页和导出结果会明确提示用户妥善保管。
 
@@ -154,8 +158,9 @@ JianzhangUserDataBackupDocument
 2. 校验备份格式、允许的相对路径、AI API Key 和 `AppState`，再运行共享 normalize/migrate。
 3. 只把状态、文件数量和 API Key 数量返回给 React；Key 本身不会进入 renderer。
 4. React 显示覆盖和自动重启确认提示。
-5. 用户确认后先走普通 `state:save`，再替换受管用户文件并重新加密 API Key。
-6. 应用自动重启，让各模块重新加载恢复后的设置和历史。
+5. 用户确认后先在临时目录完整写入并校验备份内容，再保存当前状态、模块文件和凭证到 `restore-backups/`。
+6. 替换受管用户文件、重新加密 API Key，最后保存导入状态；任一步骤失败都会回滚当前状态、模块文件和凭证。
+7. 成功恢复后保留最近 5 份恢复前快照，并自动重启，让各模块重新加载恢复后的设置和历史。
 
 旧版 `jianzhang-config` 格式 1、2、3 仍可导入，但只恢复其中的核心配置，不触发模块数据替换和应用重启。`scripts/convert-stock-helper-config.mjs` 生成的转换结果也继续兼容。
 
@@ -197,81 +202,86 @@ localStorage["jianzhang-demo-state-v1"]
 
 以下数据不会进入 `AppState`。其中只有用户生成或无法等价联网恢复的部分进入用户数据备份：
 
-| 路径（相对 `userData`） | 内容 | 进入备份 |
-| --- | --- | --- |
-| `market-cache/` | K 线、筹码、股东、估值和板块绑定 | 否，可联网重建 |
-| `modules/market-insight/settings.json`、`events.json` | 模块设置和历史观察事件 | 是 |
-| `modules/market-insight/cache/` 及新闻索引 | 指标、公告与要闻缓存 | 否，可联网重建 |
-| `modules/ai/settings.json`、`conversations/`、`snapshots/`、`cache/` | Provider 设置、对话、引用上下文和 AI 解读 | 是 |
-| `modules/ai/credentials.bin` | 当前电脑 `safeStorage` 加密的 API Key | 不直接复制；以明文 Key 写入备份后在目标电脑重新加密 |
-| `modules/ai/codex-runtime/`、`codex-workspace/` | Codex 账号登录和运行目录 | 否 |
-| `modules/ai-t-advice/` | 做 T 参考设置和历史 JSONL | 是 |
-| `dividend-financing/`、`fundamentals/`、`daily-market-scan/` | 可重新获取的运行时快照和报告 | 否 |
-| `company-reports/<股票代码>.json` | 可重新获取的财报目录 | 否 |
-| `company-reports/summaries.json` | 用户主动生成的 AI 财报总结 | 是 |
+| 路径（相对 `userData`）                                              | 内容                                                                 | 进入备份                                            |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------- |
+| `market-cache/`                                                      | K 线、筹码、股东、估值和板块绑定                                     | 否，可联网重建                                      |
+| `modules/market-insight/settings.json`、`events.json`                | 模块设置和历史观察事件                                               | 是                                                  |
+| `modules/market-insight/cache/` 及新闻索引                           | 指标、公告与要闻缓存                                                 | 否，可联网重建                                      |
+| `modules/ai/settings.json`、`conversations/`、`snapshots/`、`cache/` | Provider 设置、对话、引用上下文和 AI 解读                            | 是                                                  |
+| `modules/ai/credentials.bin`                                         | 当前电脑 `safeStorage` 加密的 API Key                                | 不直接复制；以明文 Key 写入备份后在目标电脑重新加密 |
+| `modules/ai/codex-runtime/`、`codex-workspace/`                      | Codex 账号登录和运行目录                                             | 否                                                  |
+| `modules/ai-t-advice/`                                               | 做 T 参考设置和历史 JSONL                                            | 是                                                  |
+| `dividend-financing/`、`fundamentals/`、`daily-market-scan/`         | 可重新获取的运行时快照和报告                                         | 否                                                  |
+| `company-reports/<股票代码>.json`                                    | 可重新获取的财报目录                                                 | 否                                                  |
+| `company-reports/summaries.json`                                     | 用户主动生成的 AI 财报总结                                           | 是                                                  |
+| `completion-notifications.json`                                      | 最近 100 条任务完成通知，点击后移除                                  | 是                                                  |
+| `logs/market-requests-*.jsonl`                                       | 行情诊断日志；成功请求抽样，错误、回退和慢请求完整保留；按 5 MB 分片 | 否                                                  |
+
+重要 JSON 文件、模块设置、AI 缓存、用户生成内容和加密凭证统一通过临时文件原子替换。AI 做 T 的 JSONL 历史允许跳过损坏行，超过阈值后保留最近 200 条唯一记录。基本面、分红融资和最近扫描快照改为异步加载，市场观察缓存清理延后到启动完成后执行。
 
 ## IPC 请求
 
 类型契约统一定义在 `StockDesktopApi`。
 
-| preload 方法 | IPC channel | 主进程处理 |
-| --- | --- | --- |
-| `getBootstrap` | `app:bootstrap` | 返回状态、内存报价和数据源 |
-| `getTaskbarLayout` | `taskbar:layout:get` | 返回任务栏高度 |
-| `searchStocks` | `stocks:search` | 股票联想 |
-| `getDividendFinancingSnapshot` | `dividend-financing:get` | 返回进程内缓存的 schema v2 用户快照；本地不存在时返回 `null` |
-| `getDividendFinancingState` | `dividend-financing:state:get` | 返回缺失、排队、更新中、有效、过期或失败状态 |
-| `getDividendFinancingChangeReport` | `dividend-financing:changes:get` | 返回最近一次手动更新前后的新入榜、移出、排名、比例、分红与融资变化 |
-| `runDividendFinancingUpdate` | `dividend-financing:update` | 调用随应用附带的 Python 脚本，保存更新前快照并生成变化报告 |
-| `getFundamentalSnapshot` | `fundamentals:get` | 返回进程内缓存的 schema v1/v2/v3/v4/v5 用户快照；本地不存在时返回 `null` |
-| `getFundamentalState` | `fundamentals:state:get` | 返回基本面快照状态、报告期、生成时间和过期原因 |
-| `getFundamentalChangeReport` | `fundamentals:changes:get` | 返回最近两次快照按默认规则比较的新入选、移出、待核、数据完整性、覆盖和企业口径变化；首次快照返回 `null` |
-| `runFundamentalUpdate` | `fundamentals:update` | 调用四阶段 Python 脚本，更新五年财务、行业资产负债分位、净负债、快照日 PE/PB行业分位、总市值和流通市值 |
-| `getCompanyReports` | `company-reports:get` | 按股票读取有效缓存或查询巨潮最近五个报告年度的年报、半年报、一季报和三季报目录；可强制更新 |
-| `generateCompanyReportSummary` | `company-reports:summary:generate` | 下载巨潮官方 PDF、提取重点章节、调用当前 AI 模型生成总结并保存到本地 |
-| `openCompanyReport` | `company-reports:open` | 校验巨潮资讯 HTTPS 链接后用系统浏览器打开原始 PDF |
-| `getShareholderSnapshot` | `shareholders:get` | 按股票读取 24 小时持久化缓存或查询东方财富 F10 股东信息；可强制更新，失败时允许返回旧缓存并提示 |
-| `getValuationHistory` | `valuation-history:get` | 按股票返回近五年 PE TTM/PB正值序列，主进程按日缓存供市场观察和长期 AI 计算历史分位 |
-| `refreshQuotes` | `quotes:refresh` | 向统一调度器提交手动全量刷新 |
-| `refreshQuote` | `quotes:refresh-one` | 新增自选后向统一调度器提交单股定向刷新，并返回合并后的当前报价 |
-| `getKline` | `kline:get` | 通过 `KlineHub` 获取分时/五日/周期 K，同参数合并并串行请求 |
-| `getDailyMarketScanResult` | `daily-market-scan:get` | 返回最近一次落盘的收盘扫描结果；没有结果时返回 `null` |
-| `getDailyMarketScanState` | `daily-market-scan:state:get` | 返回扫描阶段、进度和错误状态 |
-| `runDailyMarketScan` | `daily-market-scan:run` | 启动全市场报价过滤、日 K 批处理和本地信号计算 |
-| `saveChipDistributionCache` | `chip-distribution:cache:save` | 保存股票最后一次筹码分布计算结果 |
-| `getOrderBook` | `order-book:get` | 从主进程 `OrderBookHub` 获取五档盘口、缓存状态和刷新错误 |
-| `getFundsFlow` | `funds-flow:get` | 通过 `FundsFlowHub` 获取当日资金流 |
-| `getSectorIndex` | `sector-index:get` | 所属板块详情 |
-| `refreshTradingCalendar` | `trading-calendar:refresh` | 在线刷新当年休市日 |
-| `saveState` | `state:save` | 规范化并持久化状态 |
-| `exportConfig` | `config:export` | 保存 JSON |
-| `importConfig` | `config:import` | 读取并解析 JSON |
-| `applyConfigImport` | `config:import:apply` | 替换模块用户数据、重新加密 AI API Key，并重启应用 |
-| `getGitHubSyncSettings` | `github-sync:settings:get` | 返回 OAuth 可用性、账号、所选仓库和最近同步时间 |
-| `startGitHubLogin` / `completeGitHubLogin` | `github-sync:login:start` / `github-sync:login:complete` | 发起并完成 GitHub OAuth Device Flow，安全保存访问令牌 |
-| `listGitHubRepositories` / `selectGitHubRepository` | `github-sync:repositories:list` / `github-sync:repository:select` | 读取并选择可写私有仓库 |
-| `disconnectGitHub` | `github-sync:disconnect` | 删除当前电脑的 GitHub 访问令牌及账号/仓库选择 |
-| `uploadUserDataToGitHub` | `github-sync:upload` | 生成当前用户数据备份并上传到私有仓库 |
-| `downloadUserDataFromGitHub` | `github-sync:download` | 下载云端备份并进入统一导入确认流程 |
-| `hideWindow` | `app:hide` | 隐藏主窗口 |
-| `quitApp` | `app:quit` | 清理并退出 |
+| preload 方法                                                 | IPC channel                                                       | 主进程处理                                                                                              |
+| ------------------------------------------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `getBootstrap`                                               | `app:bootstrap`                                                   | 返回状态、内存报价和数据源                                                                              |
+| `getTaskbarLayout`                                           | `taskbar:layout:get`                                              | 返回任务栏高度                                                                                          |
+| `searchStocks`                                               | `stocks:search`                                                   | 股票联想                                                                                                |
+| `getDividendFinancingSnapshot`                               | `dividend-financing:get`                                          | 返回进程内缓存的 schema v2 用户快照；本地不存在时返回 `null`                                            |
+| `getDividendFinancingState`                                  | `dividend-financing:state:get`                                    | 返回缺失、排队、更新中、有效、过期或失败状态                                                            |
+| `getDividendFinancingChangeReport`                           | `dividend-financing:changes:get`                                  | 返回最近一次手动更新前后的新入榜、移出、排名、比例、分红与融资变化                                      |
+| `runDividendFinancingUpdate`                                 | `dividend-financing:update`                                       | 调用随应用附带的 Python 脚本，保存更新前快照并生成变化报告                                              |
+| `getFundamentalSnapshot`                                     | `fundamentals:get`                                                | 返回进程内缓存的 schema v1/v2/v3/v4/v5 用户快照；本地不存在时返回 `null`                                |
+| `getFundamentalState`                                        | `fundamentals:state:get`                                          | 返回基本面快照状态、报告期、生成时间和过期原因                                                          |
+| `getFundamentalChangeReport`                                 | `fundamentals:changes:get`                                        | 返回最近两次快照按默认规则比较的新入选、移出、待核、数据完整性、覆盖和企业口径变化；首次快照返回 `null` |
+| `runFundamentalUpdate`                                       | `fundamentals:update`                                             | 调用四阶段 Python 脚本，更新五年财务、行业资产负债分位、净负债、快照日 PE/PB行业分位、总市值和流通市值  |
+| `getCompanyReports`                                          | `company-reports:get`                                             | 按股票读取有效缓存或查询巨潮最近五个报告年度的年报、半年报、一季报和三季报目录；可强制更新              |
+| `generateCompanyReportSummary`                               | `company-reports:summary:generate`                                | 下载巨潮官方 PDF、提取重点章节、调用当前 AI 模型生成总结并保存到本地                                    |
+| `openCompanyReport`                                          | `company-reports:open`                                            | 校验巨潮资讯 HTTPS 链接后用系统浏览器打开原始 PDF                                                       |
+| `getShareholderSnapshot`                                     | `shareholders:get`                                                | 按股票读取 24 小时持久化缓存或查询东方财富 F10 股东信息；可强制更新，失败时允许返回旧缓存并提示         |
+| `getValuationHistory`                                        | `valuation-history:get`                                           | 按股票返回近五年 PE TTM/PB正值序列，主进程按日缓存供市场观察和长期 AI 计算历史分位                      |
+| `refreshQuotes`                                              | `quotes:refresh`                                                  | 向统一调度器提交手动全量刷新                                                                            |
+| `refreshQuote`                                               | `quotes:refresh-one`                                              | 新增自选后向统一调度器提交单股定向刷新，并返回合并后的当前报价                                          |
+| `getKline`                                                   | `kline:get`                                                       | 通过 `KlineHub` 获取分时/五日/周期 K，同参数合并并串行请求                                              |
+| `getDailyMarketScanResult`                                   | `daily-market-scan:get`                                           | 返回最近一次落盘的收盘扫描结果；没有结果时返回 `null`                                                   |
+| `getDailyMarketScanState`                                    | `daily-market-scan:state:get`                                     | 返回扫描阶段、进度和错误状态                                                                            |
+| `runDailyMarketScan`                                         | `daily-market-scan:run`                                           | 启动全市场报价过滤、日 K 批处理和本地信号计算                                                           |
+| `saveChipDistributionCache`                                  | `chip-distribution:cache:save`                                    | 保存股票最后一次筹码分布计算结果                                                                        |
+| `getOrderBook`                                               | `order-book:get`                                                  | 从主进程 `OrderBookHub` 获取五档盘口、缓存状态和刷新错误                                                |
+| `getFundsFlow`                                               | `funds-flow:get`                                                  | 通过 `FundsFlowHub` 获取当日资金流                                                                      |
+| `getSectorIndex`                                             | `sector-index:get`                                                | 所属板块详情                                                                                            |
+| `refreshTradingCalendar`                                     | `trading-calendar:refresh`                                        | 在线刷新当年休市日                                                                                      |
+| `saveState`                                                  | `state:save`                                                      | 规范化并持久化状态                                                                                      |
+| `getCompletionNotifications` / `saveCompletionNotifications` | `completion-notifications:get` / `completion-notifications:save`  | 读取及保存跨重启完成通知队列                                                                            |
+| `exportConfig`                                               | `config:export`                                                   | 保存 JSON                                                                                               |
+| `importConfig`                                               | `config:import`                                                   | 读取并解析 JSON                                                                                         |
+| `applyConfigImport`                                          | `config:import:apply`                                             | 替换模块用户数据、重新加密 AI API Key，并重启应用                                                       |
+| `getGitHubSyncSettings`                                      | `github-sync:settings:get`                                        | 返回 OAuth 可用性、账号、所选仓库和最近同步时间                                                         |
+| `startGitHubLogin` / `completeGitHubLogin`                   | `github-sync:login:start` / `github-sync:login:complete`          | 发起并完成 GitHub OAuth Device Flow，安全保存访问令牌                                                   |
+| `listGitHubRepositories` / `selectGitHubRepository`          | `github-sync:repositories:list` / `github-sync:repository:select` | 读取并选择可写私有仓库                                                                                  |
+| `disconnectGitHub`                                           | `github-sync:disconnect`                                          | 删除当前电脑的 GitHub 访问令牌及账号/仓库选择                                                           |
+| `uploadUserDataToGitHub`                                     | `github-sync:upload`                                              | 生成当前用户数据备份并上传到私有仓库                                                                    |
+| `downloadUserDataFromGitHub`                                 | `github-sync:download`                                            | 下载云端备份并进入统一导入确认流程                                                                      |
+| `hideWindow`                                                 | `app:hide`                                                        | 隐藏主窗口                                                                                              |
+| `quitApp`                                                    | `app:quit`                                                        | 清理并退出                                                                                              |
 
 ## IPC 事件
 
 主进程通过 `sendToWindows` 同时发送给主窗口、任务栏窗口和托盘悬浮窗口。
 
-| preload 订阅 | 事件 channel | 数据 |
-| --- | --- | --- |
-| `onQuotesUpdated` | `quotes:updated` | `StockQuote[]` |
-| `onDailyMarketScanProgress` | `daily-market-scan:progress` | `DailyMarketScanState` |
-| `onStateUpdated` | `state:updated` | `AppState` |
-| `onTaskbarLayout` | `taskbar:layout` | `TaskbarLayout` |
-| `onSelectStock` | `stock:selected` | `quoteId` |
-| `onDataError` | `data:error` | 错误文本 |
-| `onDividendFinancingUpdateProgress` | `dividend-financing:update-progress` | Python 脚本当前日志或完成/失败状态 |
-| `onDividendFinancingStateUpdated` | `dividend-financing:state-updated` | 分红融资榜快照状态变化 |
-| `onFundamentalUpdateProgress` | `fundamentals:update-progress` | 基本面四阶段脚本当前日志或完成/失败状态 |
-| `onFundamentalStateUpdated` | `fundamentals:state-updated` | 基本面快照状态变化 |
+| preload 订阅                        | 事件 channel                         | 数据                                    |
+| ----------------------------------- | ------------------------------------ | --------------------------------------- |
+| `onQuotesUpdated`                   | `quotes:updated`                     | `StockQuote[]`                          |
+| `onDailyMarketScanProgress`         | `daily-market-scan:progress`         | `DailyMarketScanState`                  |
+| `onStateUpdated`                    | `state:updated`                      | `AppState`                              |
+| `onTaskbarLayout`                   | `taskbar:layout`                     | `TaskbarLayout`                         |
+| `onSelectStock`                     | `stock:selected`                     | `quoteId`                               |
+| `onDataError`                       | `data:error`                         | 错误文本                                |
+| `onDividendFinancingUpdateProgress` | `dividend-financing:update-progress` | Python 脚本当前日志或完成/失败状态      |
+| `onDividendFinancingStateUpdated`   | `dividend-financing:state-updated`   | 分红融资榜快照状态变化                  |
+| `onFundamentalUpdateProgress`       | `fundamentals:update-progress`       | 基本面四阶段脚本当前日志或完成/失败状态 |
+| `onFundamentalStateUpdated`         | `fundamentals:state-updated`         | 基本面快照状态变化                      |
 
 `stock:selected` 用于从托盘菜单点选股票后，让主窗口定位/展开对应股票。
 

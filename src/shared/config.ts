@@ -96,6 +96,7 @@ export function parseImportedAppState(value: unknown): AppState {
   const watchlistGroups = normalizeWatchlistGroups(importedState.watchlistGroups)
   const stockTrackingProfiles = normalizeStockTrackingProfiles(importedState.stockTrackingProfiles)
   return {
+    revision: undefined,
     watchlist: synchronizeTrackingGroupMembership(
       normalizeWatchlist(importedState.watchlist),
       watchlistGroups,

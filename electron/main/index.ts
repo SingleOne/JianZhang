@@ -38,6 +38,7 @@ import {
 } from './market'
 import { ChipDistributionCache } from './chip-distribution-cache'
 import { CompanyReportService } from './company-report-service'
+import { CompletionNotificationStore } from './completion-notification-store'
 import { DailyMarketScanService } from './daily-market-scan-service'
 import { DividendFinancingService } from './dividend-financing-service'
 import { FundsFlowHub } from './funds-flow-hub'
@@ -109,6 +110,7 @@ const DEFAULT_WATCHLIST: WatchStock[] = [
 ]
 
 const DEFAULT_STATE: AppState = {
+  revision: 0,
   watchlist: DEFAULT_WATCHLIST,
   watchlistGroups: DEFAULT_WATCHLIST_GROUPS.map((group) => ({ ...group })),
   stockTrackingProfiles: {},
@@ -142,6 +144,8 @@ let dailyMarketScanService: DailyMarketScanService | null = null
 let userDataBackupService: UserDataBackupService | null = null
 let githubSyncService: GitHubSyncService | null = null
 let aiSecrets: AiSecrets | null = null
+let completionNotificationStore: CompletionNotificationStore | null = null
+let marketRequestLogger: MarketRequestLogger | null = null
 
 const marketDataHub = new (class MarketDataHub {
   private readonly listeners = new Set<(quotes: readonly StockQuote[]) => void>()
@@ -235,6 +239,8 @@ function cleanupBeforeQuit(): void {
   quoteRuntime = null
   stockTrackingMetricsRuntime?.dispose()
   stockTrackingMetricsRuntime = null
+  marketRequestLogger?.dispose()
+  marketRequestLogger = null
   disposeIpcHandlers?.()
   disposeIpcHandlers = null
   windowManager?.dispose()
@@ -274,6 +280,7 @@ if (!hasSingleInstanceLock) {
     }
 
     userDataBackupService = new UserDataBackupService(app.getPath('userData'))
+    completionNotificationStore = new CompletionNotificationStore(app.getPath('userData'))
     githubSyncService = new GitHubSyncService(
       app.getPath('userData'),
       __JIANZHANG_GITHUB_OAUTH_CLIENT_ID__
@@ -304,7 +311,7 @@ if (!hasSingleInstanceLock) {
       (snapshotState) => sendToWindows('fundamentals:state-updated', snapshotState)
     )
     companyReportService = new CompanyReportService(app.getPath('userData'))
-    const marketRequestLogger = new MarketRequestLogger(join(app.getPath('userData'), 'logs'))
+    marketRequestLogger = new MarketRequestLogger(join(app.getPath('userData'), 'logs'))
     setMarketRequestLogger(marketRequestLogger)
     chipDistributionCache = new ChipDistributionCache(marketCacheDirectory)
     fundsFlowHub = new FundsFlowHub(fetchFundsFlow, FUNDS_FLOW_REFRESH_MILLISECONDS)
@@ -372,6 +379,10 @@ if (!hasSingleInstanceLock) {
         if (!stateStore) throw new Error('配置存储尚未初始化')
         return stateStore.normalize(nextState)
       },
+      assertStateRevision: (nextState) => {
+        if (!stateStore) throw new Error('配置存储尚未初始化')
+        stateStore.assertRevision(nextState)
+      },
       persistState,
       getQuotes: getLatestQuotes,
       getStartupWarning: () => startupWarning,
@@ -425,11 +436,23 @@ if (!hasSingleInstanceLock) {
           getKline(sectorQuoteId, 'intraday', undefined, 'detail:sector')
         ),
       refreshTradingCalendar: () => tradingCalendarRuntime!.refresh(),
+      getCompletionNotifications: () => completionNotificationStore!.load(),
+      saveCompletionNotifications: (notifications) =>
+        completionNotificationStore!.save(notifications),
       createUserDataBackup: (stateToExport, applicationVersion) =>
         userDataBackupService!.create(stateToExport, applicationVersion, aiSecrets!.exportAll()),
       prepareUserDataBackup: (value) => userDataBackupService!.prepare(value),
       applyUserDataBackup: (importId) =>
-        userDataBackupService!.apply(importId, (apiKeys) => aiSecrets!.replaceAll(apiKeys)),
+        userDataBackupService!.apply(importId, {
+          currentState: structuredClone(state),
+          currentApiKeys: aiSecrets!.exportAll(),
+          replaceState: (nextState) => {
+            if (!stateStore) throw new Error('配置存储尚未初始化')
+            state = stateStore.saveImported(nextState)
+            return state
+          },
+          replaceAiApiKeys: (apiKeys) => aiSecrets!.replaceAll(apiKeys)
+        }),
       getGitHubSyncSettings: () => githubSyncService!.getSettings(),
       startGitHubLogin: () => githubSyncService!.startLogin(),
       completeGitHubLogin: (loginId) => githubSyncService!.completeLogin(loginId),

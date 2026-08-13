@@ -22,6 +22,7 @@ import {
   LAST_GOOD_STATE_FILE_NAME,
   LEGACY_TRADING_BACKUP_FILE_NAME,
   STATE_FILE_NAME,
+  STATE_HISTORY_DIRECTORY_NAME,
   StateStore
 } from './state-store'
 
@@ -87,9 +88,9 @@ describe('StateStore', () => {
     const defaultState = makeState()
     const result = new StateStore(directory, defaultState).load()
 
-    expect(result).toEqual({ state: defaultState })
-    expect(readState(join(directory, STATE_FILE_NAME))).toEqual(defaultState)
-    expect(readState(join(directory, LAST_GOOD_STATE_FILE_NAME))).toEqual(defaultState)
+    expect(result.state).toEqual({ ...defaultState, revision: 1 })
+    expect(readState(join(directory, STATE_FILE_NAME))).toEqual(result.state)
+    expect(readState(join(directory, LAST_GOOD_STATE_FILE_NAME))).toEqual(result.state)
   })
 
   it('loads an existing current-version state without a warning', () => {
@@ -195,5 +196,25 @@ describe('StateStore', () => {
     expect(() => store.save(makeState('不应写入'))).toThrow()
     expect(readState(join(directory, STATE_FILE_NAME)).watchlist[0].name).toBe('原配置')
     expect(readState(join(directory, LAST_GOOD_STATE_FILE_NAME)).watchlist[0].name).toBe('原配置')
+  })
+
+  it('rejects stale renderer revisions', () => {
+    const store = new StateStore(directory, makeState())
+    const state = makeState('当前配置')
+    store.save(state)
+
+    expect(() => store.assertRevision({ ...state, revision: 0 })).toThrow('数据已在后台更新')
+    expect(() => store.assertRevision(state)).not.toThrow()
+  })
+
+  it('keeps timestamped state history snapshots', () => {
+    let current = new Date('2026-08-13T00:00:00.000Z')
+    const store = new StateStore(directory, makeState(), () => current)
+    store.save(makeState('第一次保存'))
+    current = new Date('2026-08-13T00:16:00.000Z')
+    store.save(makeState('第二次保存'))
+
+    const history = readdirSync(join(directory, STATE_HISTORY_DIRECTORY_NAME))
+    expect(history).toHaveLength(1)
   })
 })

@@ -28,7 +28,8 @@ const BACKUP_SINGLE_FILES = new Set([
   'modules/ai/settings.json',
   'modules/ai-t-advice/settings.json',
   'modules/ai-t-advice/advice-history.jsonl',
-  'company-reports/summaries.json'
+  'company-reports/summaries.json',
+  'completion-notifications.json'
 ])
 
 const BACKUP_DIRECTORY_PREFIXES = [

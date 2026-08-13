@@ -1,6 +1,7 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ChipDistributionCacheEntry } from '../../src/shared/types'
+import { atomicWriteJsonSync } from './file-storage'
 
 interface ChipDistributionCacheFile {
   version: 1
@@ -24,7 +25,7 @@ export class ChipDistributionCache {
   save(entry: ChipDistributionCacheEntry): ChipDistributionCacheEntry {
     this.entries[entry.quoteId] = entry
     const file: ChipDistributionCacheFile = { version: 1, entries: this.entries }
-    writeFileSync(this.filePath, JSON.stringify(file, null, 2), 'utf8')
+    atomicWriteJsonSync(this.filePath, file)
     return entry
   }
 

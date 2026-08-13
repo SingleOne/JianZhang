@@ -1,6 +1,7 @@
 import { net, shell } from 'electron'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { atomicWriteJsonSync } from './file-storage'
 import pdfParse from 'pdf-parse'
 import {
   companyReportVariant,
@@ -180,11 +181,12 @@ export class CompanyReportService {
           publishedAt: summary.publishedAt ?? report?.publishedAt
         }
       })
-      .sort((left, right) =>
-        (right.reportYear ?? 0) - (left.reportYear ?? 0)
-        || (right.publishedAt ?? right.generatedAt).localeCompare(
-          left.publishedAt ?? left.generatedAt
-        )
+      .sort(
+        (left, right) =>
+          (right.reportYear ?? 0) - (left.reportYear ?? 0) ||
+          (right.publishedAt ?? right.generatedAt).localeCompare(
+            left.publishedAt ?? left.generatedAt
+          )
       )
   }
 
@@ -383,7 +385,7 @@ export class CompanyReportService {
 
   private writeSummaries(summaries: Record<string, CompanyReportSummary>): void {
     mkdirSync(this.cacheDirectory, { recursive: true })
-    writeFileSync(this.summariesPath(), JSON.stringify(summaries, null, 2), 'utf8')
+    atomicWriteJsonSync(this.summariesPath(), summaries)
   }
 
   private cachePath(code: string): string {
@@ -398,6 +400,6 @@ export class CompanyReportService {
 
   private writeCache(result: CompanyReportLibraryResult): void {
     mkdirSync(this.cacheDirectory, { recursive: true })
-    writeFileSync(this.cachePath(result.code), JSON.stringify(result, null, 2), 'utf8')
+    atomicWriteJsonSync(this.cachePath(result.code), result)
   }
 }

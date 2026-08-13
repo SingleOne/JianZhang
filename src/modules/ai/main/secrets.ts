@@ -1,7 +1,8 @@
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { safeStorage } from 'electron'
 import { join } from 'node:path'
 import type { AiApiKeyProviderId, AiCredentialStatus } from '../shared/types'
+import { atomicWriteFileSync } from '../../../../electron/main/file-storage'
 
 export type AiApiKeyDocument = Partial<Record<AiApiKeyProviderId, string>>
 
@@ -24,7 +25,7 @@ export class AiSecrets {
 
   private writeEncrypted(credentials: AiApiKeyDocument): void {
     if (!safeStorage.isEncryptionAvailable()) throw new Error('当前系统无法安全加密 AI API Key')
-    writeFileSync(this.filePath, safeStorage.encryptString(JSON.stringify(credentials)))
+    atomicWriteFileSync(this.filePath, safeStorage.encryptString(JSON.stringify(credentials)))
   }
 
   get(providerId: AiApiKeyProviderId): string | null {

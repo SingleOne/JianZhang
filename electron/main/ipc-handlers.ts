@@ -6,8 +6,9 @@ import {
   type OpenDialogOptions,
   type SaveDialogOptions
 } from 'electron'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { atomicWriteFileSync } from './file-storage'
 import {
   applyTAlertTriggersToAccounts,
   type TriggeredTFloatingProfitAlert
@@ -20,6 +21,7 @@ import {
 } from '../../src/shared/user-data-backup'
 import type {
   AppState,
+  AppCompletionNotification,
   ChipDistributionCacheEntry,
   CompanyReportItem,
   CompanyReportLibraryResult,
@@ -56,6 +58,7 @@ interface IpcHandlerDependencies {
   getState: () => AppState
   setState: (state: AppState) => void
   normalizeState: (state: AppState) => AppState
+  assertStateRevision: (state: AppState) => void
   persistState: () => void
   getQuotes: () => StockQuote[]
   getStartupWarning: () => string | undefined
@@ -90,6 +93,10 @@ interface IpcHandlerDependencies {
   getFundsFlow: (quoteId: string) => Promise<FundsFlowResult>
   getSectorIndex: (quoteId: string) => Promise<SectorIndexResult>
   refreshTradingCalendar: () => Promise<TradingCalendarSettings>
+  getCompletionNotifications: () => AppCompletionNotification[]
+  saveCompletionNotifications: (
+    notifications: AppCompletionNotification[]
+  ) => AppCompletionNotification[]
   createUserDataBackup: (
     state: AppState,
     applicationVersion: string
@@ -154,6 +161,8 @@ const CHANNELS = [
   'sector-index:get',
   'trading-calendar:refresh',
   'state:save',
+  'completion-notifications:get',
+  'completion-notifications:save',
   'config:export',
   'config:import',
   'config:import:apply',
@@ -234,6 +243,7 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
   )
   ipcMain.handle('trading-calendar:refresh', () => dependencies.refreshTradingCalendar())
   ipcMain.handle('state:save', async (_event, nextState: AppState) => {
+    dependencies.assertStateRevision(nextState)
     const currentState = dependencies.getState()
     const normalizedState = dependencies.normalizeState(nextState)
     const refreshSettingsChanged =
@@ -292,7 +302,13 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
     tAlertUpdate.triggered.forEach(dependencies.showTFloatingProfitAlertNotification)
     return savedState
   })
-  ipcMain.handle('config:export', async (_event, stateToExport: AppState) => {
+  ipcMain.handle('completion-notifications:get', () => dependencies.getCompletionNotifications())
+  ipcMain.handle(
+    'completion-notifications:save',
+    (_event, notifications: AppCompletionNotification[]) =>
+      dependencies.saveCompletionNotifications(notifications)
+  )
+  ipcMain.handle('config:export', async (_event, _stateToExport: AppState) => {
     const options: SaveDialogOptions = {
       title: '导出见涨用户数据',
       defaultPath: join(app.getPath('documents'), `见涨-用户数据-${configTimestamp()}.json`),
@@ -305,10 +321,10 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
     if (result.canceled || !result.filePath) return { canceled: true }
 
     const document = dependencies.createUserDataBackup(
-      dependencies.normalizeState(stateToExport),
+      dependencies.normalizeState(dependencies.getState()),
       app.getVersion()
     )
-    writeFileSync(result.filePath, JSON.stringify(document, null, 2), 'utf8')
+    atomicWriteFileSync(result.filePath, JSON.stringify(document, null, 2))
     return {
       canceled: false,
       filePath: result.filePath,
@@ -356,9 +372,9 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
     dependencies.selectGitHubRepository(fullName)
   )
   ipcMain.handle('github-sync:disconnect', () => dependencies.disconnectGitHub())
-  ipcMain.handle('github-sync:upload', (_event, stateToExport: AppState) =>
+  ipcMain.handle('github-sync:upload', (_event, _stateToExport: AppState) =>
     dependencies.uploadUserDataToGitHub(
-      dependencies.normalizeState(stateToExport),
+      dependencies.normalizeState(dependencies.getState()),
       app.getVersion()
     )
   )
