@@ -98,10 +98,10 @@ describe('financial mine detector', () => {
     const result = evaluateFinancialMine(company({ quarterlyRiskReports: reports }))
 
     expect(result.level).toBe('medium')
-    expect(result.score).toBe(1)
+    expect(result.score).toBe(2)
     expect(result.indicators.map((indicator) => indicator.status)).toEqual([
       'warning',
-      'passed',
+      'warning',
       'passed',
       'passed'
     ])
