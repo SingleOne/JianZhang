@@ -131,6 +131,7 @@ export default function App() {
   const [configBusy, setConfigBusy] = useState(false)
   const [githubSyncBusy, setGitHubSyncBusy] = useState(false)
   const [githubSyncUploading, setGitHubSyncUploading] = useState(false)
+  const [githubSyncDownloading, setGitHubSyncDownloading] = useState(false)
   const [githubSyncSettings, setGitHubSyncSettings] = useState<GitHubSyncSettings>({
     oauthAvailable: false,
     connected: false
@@ -988,11 +989,15 @@ export default function App() {
 
   const downloadUserDataFromGitHub = useCallback(async () => {
     setGitHubSyncBusy(true)
+    setGitHubSyncDownloading(true)
     try {
-      await applyImportedData(await stockApi.downloadUserDataFromGitHub())
+      const result = await stockApi.downloadUserDataFromGitHub()
+      setGitHubSyncSettings(await stockApi.getGitHubSyncSettings())
+      await applyImportedData(result)
     } catch (reason) {
       reportError(reason instanceof Error ? reason.message : 'GitHub 下载失败')
     } finally {
+      setGitHubSyncDownloading(false)
       setGitHubSyncBusy(false)
     }
   }, [applyImportedData, reportError])
@@ -1115,6 +1120,7 @@ export default function App() {
               githubDeviceAuthorization={githubDeviceAuthorization}
               githubSyncBusy={githubSyncBusy}
               githubSyncUploading={githubSyncUploading}
+              githubSyncDownloading={githubSyncDownloading}
               onConnectGitHub={connectGitHub}
               onRefreshGitHubRepositories={() => void refreshGitHubRepositories()}
               onSelectGitHubRepository={selectGitHubRepository}

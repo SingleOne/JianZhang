@@ -10,6 +10,7 @@ import {
   trackingSourceDescription
 } from '../lib/stock-tracking'
 import { formatPercent, formatPrice } from '../lib/format'
+import type { StockTrackingPerformance } from '../lib/stock-tracking-performance'
 import type {
   StockQuote,
   StockTrackingConclusionResult,
@@ -18,13 +19,6 @@ import type {
 } from '../shared/types'
 import { StockTrackingMetricsPanel } from './StockTrackingMetricsPanel'
 import type { StockTrackingMarketData } from './useStockTrackingMarketData'
-
-export interface StockTrackingPerformance {
-  trackingReturn: number | null
-  maximumGain: number | null
-  maximumDrawdown: number | null
-  trackingDays: number
-}
 
 interface StockTrackingEditorProps {
   profile: StockTrackingProfile

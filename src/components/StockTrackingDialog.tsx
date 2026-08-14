@@ -1,7 +1,8 @@
 import { Binoculars, Eye, Search, X } from 'lucide-react'
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { STOCK_TRACKING_SOURCE_LABELS, initialTrackingPrice } from '../lib/stock-tracking'
+import { STOCK_TRACKING_SOURCE_LABELS } from '../lib/stock-tracking'
+import { calculateStockTrackingPerformance } from '../lib/stock-tracking-performance'
 import { formatPercent } from '../lib/format'
 import type {
   StockQuote,
@@ -11,7 +12,7 @@ import type {
   StockTrackingSourceType,
   WatchStock
 } from '../shared/types'
-import { StockTrackingEditor, type StockTrackingPerformance } from './StockTrackingEditor'
+import { StockTrackingEditor } from './StockTrackingEditor'
 import { useStockTrackingMarketData } from './useStockTrackingMarketData'
 
 type StatusFilter = 'all' | 'tracking' | 'stopped'
@@ -32,32 +33,6 @@ interface StockTrackingDialogProps {
 function valueClass(value: number | null): string {
   if (value === null || value === 0) return 'is-flat'
   return value > 0 ? 'is-up' : 'is-down'
-}
-
-function currentPerformance(
-  profile: StockTrackingProfile,
-  quote: StockQuote | undefined
-): StockTrackingPerformance {
-  const baseline = initialTrackingPrice(profile)
-  const stoppedPrice =
-    profile.status === 'stopped'
-      ? profile.entries.find((entry) => entry.createdAt === profile.stoppedAt)?.quoteSnapshot
-          ?.latest
-      : undefined
-  const current = stoppedPrice ?? quote?.latest
-  return {
-    trackingReturn: baseline && current ? (current / baseline - 1) * 100 : null,
-    maximumGain: null,
-    maximumDrawdown: null,
-    trackingDays: Math.max(
-      1,
-      Math.floor(
-        ((profile.stoppedAt ? new Date(profile.stoppedAt).getTime() : Date.now()) -
-          new Date(profile.startedAt).getTime()) /
-          86_400_000
-      ) + 1
-    )
-  }
 }
 
 export function StockTrackingDialog({
@@ -131,6 +106,17 @@ export function StockTrackingDialog({
       ? profiles[selectedQuoteId]
       : filteredProfiles[0]
   const marketData = useStockTrackingMarketData(open ? selectedProfile?.quoteId : undefined)
+  const selectedPerformance = useMemo(
+    () =>
+      selectedProfile
+        ? calculateStockTrackingPerformance(
+            selectedProfile,
+            quoteMap.get(selectedProfile.quoteId),
+            marketData.dailyBars
+          )
+        : undefined,
+    [marketData.dailyBars, quoteMap, selectedProfile]
+  )
 
   if (!open) return null
 
@@ -204,7 +190,11 @@ export function StockTrackingDialog({
             <aside className="stock-tracking-profile-list">
               {filteredProfiles.map((profile) => {
                 const quote = quoteMap.get(profile.quoteId)
-                const trackingReturn = currentPerformance(profile, quote).trackingReturn
+                const trackingReturn = calculateStockTrackingPerformance(
+                  profile,
+                  quote,
+                  []
+                ).trackingReturn
                 const lastEntry = profile.entries[0]
                 return (
                   <button
@@ -229,9 +219,12 @@ export function StockTrackingDialog({
                     </span>
                     <span className="stock-tracking-list-summary">
                       <small>{lastEntry?.content ?? '尚无记录'}</small>
-                      <strong className={valueClass(trackingReturn)}>
-                        {formatPercent(trackingReturn)}
-                      </strong>
+                      <span className="stock-tracking-list-return">
+                        <small>追踪以来</small>
+                        <strong className={valueClass(trackingReturn)}>
+                          {formatPercent(trackingReturn)}
+                        </strong>
+                      </span>
                     </span>
                   </button>
                 )
@@ -261,10 +254,7 @@ export function StockTrackingDialog({
                   key={`${selectedProfile.quoteId}:${selectedProfile.updatedAt}`}
                   profile={selectedProfile}
                   quote={quoteMap.get(selectedProfile.quoteId)}
-                  performance={currentPerformance(
-                    selectedProfile,
-                    quoteMap.get(selectedProfile.quoteId)
-                  )}
+                  performance={selectedPerformance}
                   marketData={marketData}
                   onUpdateProfile={onUpdateProfile}
                   onStopTracking={onStopTracking}

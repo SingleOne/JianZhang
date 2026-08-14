@@ -136,4 +136,45 @@ describe('GitHubSyncService', () => {
       accountLogin: 'jianzhang-user'
     })
   })
+
+  it('reports local and remote user data version timestamps', async () => {
+    const localDataUpdatedAt = '2026-08-14T01:00:00.000Z'
+    const remoteDataUpdatedAt = '2026-08-14T02:00:00.000Z'
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response({
+          device_code: 'device-code',
+          user_code: 'ABCD-EFGH',
+          verification_uri: 'https://github.com/login/device',
+          expires_in: 900,
+          interval: 5
+        })
+      )
+      .mockResolvedValueOnce(response({ access_token: 'access-token' }))
+      .mockResolvedValueOnce(response({ login: 'jianzhang-user' }))
+      .mockResolvedValueOnce(
+        response([
+          {
+            id: 1,
+            full_name: 'jianzhang-user/private-data',
+            private: true,
+            default_branch: 'main',
+            permissions: { push: true }
+          }
+        ])
+      )
+      .mockResolvedValueOnce(response([{ commit: { committer: { date: remoteDataUpdatedAt } } }]))
+    vi.stubGlobal('fetch', fetchMock)
+    const service = new GitHubSyncService(
+      temporaryDirectory(),
+      'client-id',
+      () => localDataUpdatedAt
+    )
+
+    await completeAuthorization(service)
+    const settings = await service.selectRepository('jianzhang-user/private-data')
+
+    expect(settings).toMatchObject({ localDataUpdatedAt, remoteDataUpdatedAt })
+  })
 })

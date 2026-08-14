@@ -1612,8 +1612,8 @@ export interface GitHubSyncSettings {
   accountLogin?: string
   repositoryFullName?: string
   repositoryDefaultBranch?: string
-  lastUploadedAt?: string
-  lastDownloadedAt?: string
+  localDataUpdatedAt?: string
+  remoteDataUpdatedAt?: string
 }
 
 export interface GitHubRepositoryOption {

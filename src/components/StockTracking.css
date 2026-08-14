@@ -925,8 +925,15 @@
   min-width: 0;
 }
 
-.stock-tracking-list-summary small {
+.stock-tracking-list-summary > small {
   flex: 1;
+}
+
+.stock-tracking-list-return {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
 }
 
 .stock-tracking-list-summary strong.is-up {

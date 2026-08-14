@@ -1,4 +1,12 @@
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  utimesSync,
+  writeFileSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -42,6 +50,28 @@ function write(directory: string, relativePath: string, content: string): void {
 }
 
 describe('UserDataBackupService', () => {
+  it('reports the latest modification time from local data included in backups', () => {
+    const directory = temporaryDirectory()
+    write(directory, 'settings.json', '{}')
+    write(directory, 'modules/ai/conversations/conversation.json', '{}')
+    write(directory, 'market-cache/shareholders/1_600519.json', '{}')
+    utimesSync(join(directory, 'settings.json'), new Date(1_000), new Date(1_000))
+    utimesSync(
+      join(directory, 'modules/ai/conversations/conversation.json'),
+      new Date(2_000),
+      new Date(2_000)
+    )
+    utimesSync(
+      join(directory, 'market-cache/shareholders/1_600519.json'),
+      new Date(3_000),
+      new Date(3_000)
+    )
+
+    expect(new UserDataBackupService(directory).getLocalDataUpdatedAt()).toBe(
+      '1970-01-01T00:00:02.000Z'
+    )
+  })
+
   it('exports user-owned data and excludes network caches and Codex login data', () => {
     const directory = temporaryDirectory()
     write(directory, 'modules/ai/settings.json', '{"providerId":"openai"}')

@@ -283,7 +283,8 @@ if (!hasSingleInstanceLock) {
     completionNotificationStore = new CompletionNotificationStore(app.getPath('userData'))
     githubSyncService = new GitHubSyncService(
       app.getPath('userData'),
-      __JIANZHANG_GITHUB_OAUTH_CLIENT_ID__
+      __JIANZHANG_GITHUB_OAUTH_CLIENT_ID__,
+      () => userDataBackupService!.getLocalDataUpdatedAt()
     )
     aiSecrets = new AiSecrets(join(app.getPath('userData'), 'modules', 'ai'))
 

@@ -15,8 +15,7 @@ interface StoredGitHubSyncSettings {
   accountLogin?: string
   repositoryFullName?: string
   repositoryDefaultBranch?: string
-  lastUploadedAt?: string
-  lastDownloadedAt?: string
+  remoteDataUpdatedAt?: string
 }
 
 interface PendingDeviceLogin {
@@ -63,8 +62,12 @@ interface GitHubContentResponse {
 }
 
 interface GitHubCommitResponse {
-  commit?: { sha?: string }
+  commit?: { sha?: string; committer?: { date?: string } }
   content?: { path?: string }
+}
+
+interface GitHubPathCommitResponse {
+  commit?: { committer?: { date?: string } }
 }
 
 interface RemoteFile {
@@ -83,7 +86,8 @@ export class GitHubSyncService {
 
   constructor(
     userDataDirectory: string,
-    private readonly oauthClientId: string
+    private readonly oauthClientId: string,
+    private readonly getLocalDataUpdatedAt: () => string | undefined = () => undefined
   ) {
     this.directory = join(userDataDirectory, 'github-sync')
     this.settingsPath = join(this.directory, 'settings.json')
@@ -93,10 +97,12 @@ export class GitHubSyncService {
 
   getSettings(): GitHubSyncSettings {
     const saved = this.readSettings()
+    const localDataUpdatedAt = this.getLocalDataUpdatedAt()
     return {
       oauthAvailable: Boolean(this.oauthClientId),
       connected: existsSync(this.tokenPath),
-      ...saved
+      ...saved,
+      ...(localDataUpdatedAt ? { localDataUpdatedAt } : {})
     }
   }
 
@@ -153,28 +159,48 @@ export class GitHubSyncService {
     if (!current.accountLogin) {
       this.writeSettings({ ...current, accountLogin: await this.getAccountLogin(token) })
     }
-    return this.listRepositoriesWithToken(token)
+    const repositories = await this.listRepositoriesWithToken(token)
+    const selected = repositories.find(
+      (repository) => repository.fullName === this.readSettings().repositoryFullName
+    )
+    if (selected) {
+      await this.refreshRemoteDataUpdatedAt(
+        {
+          ...this.readSettings(),
+          repositoryFullName: selected.fullName,
+          repositoryDefaultBranch: selected.defaultBranch
+        },
+        token
+      )
+    }
+    return repositories
   }
 
   async selectRepository(fullName: string): Promise<GitHubSyncSettings> {
-    const repository = (await this.listRepositories()).find((item) => item.fullName === fullName)
+    const token = this.requireToken()
+    const saved = this.readSettings()
+    if (!saved.accountLogin) {
+      this.writeSettings({ ...saved, accountLogin: await this.getAccountLogin(token) })
+    }
+    const repository = (await this.listRepositoriesWithToken(token)).find(
+      (item) => item.fullName === fullName
+    )
     if (!repository) throw new Error('未找到可写入的 GitHub 私有仓库')
     const current = this.readSettings()
-    this.writeSettings({
-      ...current,
-      repositoryFullName: repository.fullName,
-      repositoryDefaultBranch: repository.defaultBranch
-    })
+    await this.refreshRemoteDataUpdatedAt(
+      {
+        ...current,
+        repositoryFullName: repository.fullName,
+        repositoryDefaultBranch: repository.defaultBranch
+      },
+      token
+    )
     return this.getSettings()
   }
 
   disconnect(): GitHubSyncSettings {
     rmSync(this.tokenPath, { force: true })
-    const current = this.readSettings()
-    this.writeSettings({
-      ...(current.lastUploadedAt ? { lastUploadedAt: current.lastUploadedAt } : {}),
-      ...(current.lastDownloadedAt ? { lastDownloadedAt: current.lastDownloadedAt } : {})
-    })
+    this.writeSettings({})
     return this.getSettings()
   }
 
@@ -196,8 +222,8 @@ export class GitHubSyncService {
     const result = (await response.json()) as GitHubCommitResponse
     const commitSha = result.commit?.sha
     if (!commitSha) throw new Error('GitHub 未返回提交信息')
-    const uploadedAt = new Date().toISOString()
-    this.writeSettings({ ...settings, lastUploadedAt: uploadedAt })
+    const uploadedAt = result.commit?.committer?.date ?? new Date().toISOString()
+    this.writeSettings({ ...settings, remoteDataUpdatedAt: uploadedAt })
     return {
       commitSha,
       uploadedAt,
@@ -211,7 +237,11 @@ export class GitHubSyncService {
     const settings = await this.requirePrivateRepository(this.requireRepository(), token)
     const remote = await this.getRemoteFile(settings, token)
     if (!remote) throw new Error('所选 GitHub 仓库中还没有见涨用户数据备份')
-    this.writeSettings({ ...settings, lastDownloadedAt: new Date().toISOString() })
+    const remoteDataUpdatedAt = await this.getRemoteDataUpdatedAt(settings, token)
+    this.writeSettings({
+      ...settings,
+      ...(remoteDataUpdatedAt ? { remoteDataUpdatedAt } : {})
+    })
     return remote.content
   }
 
@@ -291,6 +321,7 @@ export class GitHubSyncService {
         owner?: string
         repository?: string
         branch?: string
+        lastUploadedAt?: string
       }
       return {
         accountLogin: saved.accountLogin,
@@ -298,8 +329,7 @@ export class GitHubSyncService {
           saved.repositoryFullName ??
           (saved.owner && saved.repository ? `${saved.owner}/${saved.repository}` : undefined),
         repositoryDefaultBranch: saved.repositoryDefaultBranch ?? saved.branch,
-        lastUploadedAt: saved.lastUploadedAt,
-        lastDownloadedAt: saved.lastDownloadedAt
+        remoteDataUpdatedAt: saved.remoteDataUpdatedAt ?? saved.lastUploadedAt
       }
     } catch {
       return {}
@@ -355,6 +385,41 @@ export class GitHubSyncService {
   private contentUrl(settings: { repositoryFullName: string }): string {
     const repository = settings.repositoryFullName.split('/').map(encodeURIComponent).join('/')
     return `https://api.github.com/repos/${repository}/contents/${SYNC_FILE_PATH}`
+  }
+
+  private async refreshRemoteDataUpdatedAt(
+    settings: StoredGitHubSyncSettings & {
+      repositoryFullName: string
+      repositoryDefaultBranch: string
+    },
+    token: string
+  ): Promise<void> {
+    const remoteDataUpdatedAt = await this.getRemoteDataUpdatedAt(settings, token)
+    const current: StoredGitHubSyncSettings = {
+      accountLogin: settings.accountLogin,
+      repositoryFullName: settings.repositoryFullName,
+      repositoryDefaultBranch: settings.repositoryDefaultBranch
+    }
+    this.writeSettings(remoteDataUpdatedAt ? { ...current, remoteDataUpdatedAt } : current)
+  }
+
+  private async getRemoteDataUpdatedAt(
+    settings: { repositoryFullName: string; repositoryDefaultBranch: string },
+    token: string
+  ): Promise<string | undefined> {
+    const repository = settings.repositoryFullName.split('/').map(encodeURIComponent).join('/')
+    const query = new URLSearchParams({
+      path: SYNC_FILE_PATH,
+      sha: settings.repositoryDefaultBranch,
+      per_page: '1'
+    })
+    const response = await fetch(`https://api.github.com/repos/${repository}/commits?${query}`, {
+      headers: this.apiHeaders(token)
+    })
+    if (response.status === 404 || response.status === 409) return undefined
+    if (!response.ok) throw await this.githubError(response, '读取 GitHub 远程版本时间失败')
+    const result = (await response.json()) as GitHubPathCommitResponse[]
+    return result[0]?.commit?.committer?.date
   }
 
   private oauthHeaders(): Record<string, string> {

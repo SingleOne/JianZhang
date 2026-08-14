@@ -1,5 +1,13 @@
 import { randomUUID } from 'node:crypto'
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync
+} from 'node:fs'
 import { dirname, join } from 'node:path'
 import {
   USER_DATA_BACKUP_DIRECTORIES,
@@ -42,6 +50,29 @@ export class UserDataBackupService {
   private preparedImport: PreparedUserDataImport | null = null
 
   constructor(private readonly userDataDirectory: string) {}
+
+  getLocalDataUpdatedAt(): string | undefined {
+    let latestModifiedAt = 0
+    const recordFile = (relativePath: string) => {
+      const path = this.filePath(relativePath)
+      if (existsSync(path)) latestModifiedAt = Math.max(latestModifiedAt, statSync(path).mtimeMs)
+    }
+    const recordDirectory = (relativeDirectory: string) => {
+      const directory = this.filePath(relativeDirectory)
+      if (!existsSync(directory)) return
+      for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        const relativePath = `${relativeDirectory}/${entry.name}`
+        if (entry.isDirectory()) recordDirectory(relativePath)
+        else if (entry.isFile()) recordFile(relativePath)
+      }
+    }
+
+    recordFile('settings.json')
+    recordFile('modules/ai/credentials.bin')
+    USER_DATA_BACKUP_SINGLE_FILES.forEach(recordFile)
+    USER_DATA_BACKUP_DIRECTORIES.forEach(recordDirectory)
+    return latestModifiedAt > 0 ? new Date(latestModifiedAt).toISOString() : undefined
+  }
 
   create(
     state: AppState,

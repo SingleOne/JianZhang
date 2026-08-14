@@ -40,6 +40,7 @@ interface SettingsMenuProps {
   githubDeviceAuthorization: GitHubDeviceAuthorization | null
   githubSyncBusy: boolean
   githubSyncUploading: boolean
+  githubSyncDownloading: boolean
   onConnectGitHub: () => void
   onRefreshGitHubRepositories: () => void
   onSelectGitHubRepository: (fullName: string) => void
@@ -116,6 +117,7 @@ export function SettingsMenu({
   githubDeviceAuthorization,
   githubSyncBusy,
   githubSyncUploading,
+  githubSyncDownloading,
   onConnectGitHub,
   onRefreshGitHubRepositories,
   onSelectGitHubRepository,
@@ -605,11 +607,6 @@ export function SettingsMenu({
                     </span>
                     <small>通过 GitHub 私有仓库进行同步</small>
                   </span>
-                  {githubSyncSettings.lastUploadedAt ? (
-                    <small className="github-last-uploaded-at">
-                      最近上传：{formatCalendarRefreshTime(githubSyncSettings.lastUploadedAt)}
-                    </small>
-                  ) : null}
                 </span>
                 {!githubSyncSettings.connected ? (
                   <button
@@ -735,7 +732,12 @@ export function SettingsMenu({
                       onClick={onDownloadUserDataFromGitHub}
                       disabled={githubSyncBusy || !githubSyncSettings.repositoryFullName}
                     >
-                      <CloudDownload size={15} />从 GitHub 恢复
+                      {githubSyncDownloading ? (
+                        <RefreshCw size={15} className="is-spinning" />
+                      ) : (
+                        <CloudDownload size={15} />
+                      )}
+                      {githubSyncDownloading ? '恢复中…' : '从 GitHub 恢复'}
                     </button>
                     <button
                       type="button"
@@ -751,9 +753,20 @@ export function SettingsMenu({
                     </button>
                   </div>
                 ) : null}
-                {githubSyncSettings.lastDownloadedAt ? (
+                {githubSyncSettings.localDataUpdatedAt || githubSyncSettings.remoteDataUpdatedAt ? (
                   <small className="github-sync-status">
-                    最近恢复：{formatCalendarRefreshTime(githubSyncSettings.lastDownloadedAt)}
+                    <span>
+                      本地版本：
+                      {githubSyncSettings.localDataUpdatedAt
+                        ? formatCalendarRefreshTime(githubSyncSettings.localDataUpdatedAt)
+                        : '暂无数据'}
+                    </span>
+                    <span>
+                      远程版本：
+                      {githubSyncSettings.remoteDataUpdatedAt
+                        ? formatCalendarRefreshTime(githubSyncSettings.remoteDataUpdatedAt)
+                        : '暂无备份'}
+                    </span>
                   </small>
                 ) : null}
               </div>

@@ -23,7 +23,7 @@
   right: 14px;
   z-index: 60;
   width: min(500px, calc(100vw - 28px));
-  height: min(620px, calc(100vh - 107px));
+  height: min(682px, calc(100vh - 72px));
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
   padding: 9px 14px 12px;
@@ -329,12 +329,6 @@
   color: var(--subtle);
 }
 
-.github-last-uploaded-at {
-  flex: 0 0 auto;
-  text-align: right;
-  white-space: nowrap;
-}
-
 .github-connect-button {
   height: 36px;
   display: inline-flex;
@@ -530,6 +524,17 @@
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 8px;
+}
+
+.github-sync-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.github-sync-status span {
+  white-space: nowrap;
 }
 
 .github-sync-actions button {
