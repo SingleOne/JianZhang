@@ -615,6 +615,25 @@ const demoApi: StockDesktopApi = {
       ...getMarketIndexStocks(state.settings.marketIndexIds)
     ])
   },
+  async refreshQuotesByIds(quoteIds) {
+    const state = loadDemoState()
+    const requestedIds = new Set(quoteIds)
+    const profileStocks = Object.values(state.stockTrackingProfiles).map((profile) => ({
+      code: profile.code,
+      name: profile.name,
+      quoteId: profile.quoteId,
+      marketLabel: profile.marketLabel,
+      showInTaskbar: false,
+      isPriority: false,
+      showRadarSignals: false
+    }))
+    const requestableStocks = [
+      ...new Map(
+        [...state.watchlist, ...profileStocks].map((stock) => [stock.quoteId, stock])
+      ).values()
+    ]
+    return makeDemoQuotes(requestableStocks.filter((stock) => requestedIds.has(stock.quoteId)))
+  },
   async getKline(quoteId, period, limit) {
     return makeDemoKline(quoteId, period, limit)
   },

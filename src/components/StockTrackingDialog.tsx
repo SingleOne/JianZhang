@@ -1,6 +1,7 @@
 import { Binoculars, Eye, Search, X } from 'lucide-react'
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { stockApi } from '../lib/api'
 import { STOCK_TRACKING_SOURCE_LABELS } from '../lib/stock-tracking'
 import { calculateStockTrackingPerformance } from '../lib/stock-tracking-performance'
 import { formatPercent } from '../lib/format'
@@ -51,6 +52,8 @@ export function StockTrackingDialog({
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all')
   const [selectedQuoteId, setSelectedQuoteId] = useState('')
+  const [trackingQuotes, setTrackingQuotes] = useState<StockQuote[]>([])
+  const trackingQuoteIdsKey = Object.keys(profiles).sort().join(',')
 
   useEffect(() => {
     if (!open) return
@@ -66,7 +69,24 @@ export function StockTrackingDialog({
     }
   }, [onClose, open])
 
-  const quoteMap = useMemo(() => new Map(quotes.map((quote) => [quote.quoteId, quote])), [quotes])
+  useEffect(() => {
+    if (!open || !trackingQuoteIdsKey) return
+    let active = true
+    void stockApi
+      .refreshQuotesByIds(trackingQuoteIdsKey.split(','))
+      .then((refreshedQuotes) => {
+        if (active) setTrackingQuotes(refreshedQuotes)
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [open, trackingQuoteIdsKey])
+
+  const quoteMap = useMemo(
+    () => new Map([...trackingQuotes, ...quotes].map((quote) => [quote.quoteId, quote] as const)),
+    [quotes, trackingQuotes]
+  )
   const watchlistQuoteIds = useMemo(
     () => new Set(watchlist.map((stock) => stock.quoteId)),
     [watchlist]

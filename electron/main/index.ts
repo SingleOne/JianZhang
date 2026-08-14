@@ -412,6 +412,7 @@ if (!hasSingleInstanceLock) {
       refreshQuotes: (reason) => quoteRuntime!.refreshAll(reason),
       refreshQuotesAutomatically: (reason) => quoteRuntime!.refreshAutomatically(reason),
       refreshStock: (quoteId, reason) => quoteRuntime!.refreshStock(quoteId, reason),
+      refreshStocks: (quoteIds, reason) => quoteRuntime!.refreshStocks(quoteIds, reason),
       captureStockTrackingMetrics: () => stockTrackingMetricsRuntime!.capture(),
       restartQuoteSchedule: () => quoteRuntime!.restartSchedule(),
       primeSectorBindings: (refreshWhenReady) =>

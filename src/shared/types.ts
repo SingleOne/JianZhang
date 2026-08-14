@@ -1676,6 +1676,7 @@ export interface StockDesktopApi {
   getValuationHistory: (quoteId: string) => Promise<StockValuationHistory>
   refreshQuotes: () => Promise<StockQuote[]>
   refreshQuote: (quoteId: string) => Promise<StockQuote[]>
+  refreshQuotesByIds: (quoteIds: string[]) => Promise<StockQuote[]>
   getKline: (quoteId: string, period: KlinePeriod, limit?: number) => Promise<KlineResult>
   getDailyMarketScanResult: () => Promise<DailyMarketScanResult | null>
   getDailyMarketScanState: () => Promise<DailyMarketScanState>

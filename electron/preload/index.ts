@@ -41,6 +41,7 @@ const api: StockDesktopApi = {
   getValuationHistory: (quoteId) => ipcRenderer.invoke('valuation-history:get', quoteId),
   refreshQuotes: () => ipcRenderer.invoke('quotes:refresh'),
   refreshQuote: (quoteId) => ipcRenderer.invoke('quotes:refresh-one', quoteId),
+  refreshQuotesByIds: (quoteIds) => ipcRenderer.invoke('quotes:refresh-by-ids', quoteIds),
   getKline: (quoteId, period, limit) => ipcRenderer.invoke('kline:get', quoteId, period, limit),
   getDailyMarketScanResult: () => ipcRenderer.invoke('daily-market-scan:get'),
   getDailyMarketScanState: () => ipcRenderer.invoke('daily-market-scan:state:get'),

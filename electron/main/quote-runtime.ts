@@ -71,6 +71,10 @@ export class QuoteRuntime {
     return this.coordinator.request({ reason, stockQuoteIds: [quoteId] })
   }
 
+  refreshStocks(quoteIds: readonly string[], reason = 'stocks-requested'): Promise<StockQuote[]> {
+    return this.coordinator.request({ reason, stockQuoteIds: quoteIds })
+  }
+
   refreshAutomatically(reason = 'automatic'): Promise<StockQuote[]> {
     return this.isAutoRefreshTime() ? this.refreshAll(reason) : Promise.resolve(this.latestQuotes)
   }
@@ -162,9 +166,10 @@ export class QuoteRuntime {
     const state = this.dependencies.getState()
     const displayedStocks = [
       ...state.watchlist,
+      ...this.trackingProfileStocks(state),
       ...getMarketIndexStocks(state.settings.marketIndexIds)
     ]
-    this.latestQuotes = displayedStocks.flatMap((stock) => {
+    this.latestQuotes = this.uniqueStocks(displayedStocks).flatMap((stock) => {
       const quote = quoteMap.get(stock.quoteId)
       return quote ? [quote] : []
     })
@@ -218,6 +223,18 @@ export class QuoteRuntime {
     return [...new Map(stocks.map((stock) => [stock.quoteId, stock])).values()]
   }
 
+  private trackingProfileStocks(state: AppState): WatchStock[] {
+    return Object.values(state.stockTrackingProfiles).map((profile) => ({
+      code: profile.code,
+      name: profile.name,
+      quoteId: profile.quoteId,
+      marketLabel: profile.marketLabel,
+      showInTaskbar: false,
+      isPriority: false,
+      showRadarSignals: false
+    }))
+  }
+
   private async executeRefresh(batch: QuoteRefreshBatch): Promise<StockQuote[]> {
     const state = this.dependencies.getState()
     const refreshAllStocks = batch.scopes.has('all')
@@ -226,7 +243,11 @@ export class QuoteRuntime {
     const scopedStocks = state.watchlist.filter((stock) =>
       stock.isPriority ? refreshPriority : refreshRegular
     )
-    const explicitlyRequestedStocks = state.watchlist.filter((stock) =>
+    const requestableStocks = this.uniqueStocks([
+      ...state.watchlist,
+      ...this.trackingProfileStocks(state)
+    ])
+    const explicitlyRequestedStocks = requestableStocks.filter((stock) =>
       batch.stockQuoteIds.has(stock.quoteId)
     )
     const stocks = this.uniqueStocks([...scopedStocks, ...explicitlyRequestedStocks])

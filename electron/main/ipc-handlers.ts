@@ -81,6 +81,7 @@ interface IpcHandlerDependencies {
   refreshQuotes: (reason?: string) => Promise<StockQuote[]>
   refreshQuotesAutomatically: (reason: string) => Promise<StockQuote[]>
   refreshStock: (quoteId: string, reason?: string) => Promise<StockQuote[]>
+  refreshStocks: (quoteIds: string[], reason?: string) => Promise<StockQuote[]>
   captureStockTrackingMetrics: () => Promise<void>
   restartQuoteSchedule: () => void
   primeSectorBindings: (refreshWhenReady: boolean) => Promise<void>
@@ -151,6 +152,7 @@ const CHANNELS = [
   'valuation-history:get',
   'quotes:refresh',
   'quotes:refresh-one',
+  'quotes:refresh-by-ids',
   'kline:get',
   'daily-market-scan:get',
   'daily-market-scan:state:get',
@@ -226,6 +228,9 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
   ipcMain.handle('quotes:refresh', () => dependencies.refreshQuotes())
   ipcMain.handle('quotes:refresh-one', (_event, quoteId: string) =>
     dependencies.refreshStock(quoteId)
+  )
+  ipcMain.handle('quotes:refresh-by-ids', (_event, quoteIds: string[]) =>
+    dependencies.refreshStocks(quoteIds, 'tracking-review')
   )
   ipcMain.handle('kline:get', (_event, quoteId: string, period: KlinePeriod, limit?: number) =>
     dependencies.getKline(quoteId, period, limit)
