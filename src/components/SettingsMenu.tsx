@@ -645,6 +645,19 @@ export function SettingsMenu({
                     <span className="github-sync-title">
                       <strong>GitHub Gist 同步</strong>
                       <GitHubIcon size={16} />
+                      {githubSyncSettings.connected ? (
+                        <span className="github-connection-summary">
+                          （已连接 {githubSyncSettings.accountLogin ?? 'GitHub 账号'} ·{' '}
+                          <button
+                            type="button"
+                            onClick={onDisconnectGitHub}
+                            disabled={githubControlsDisabled}
+                          >
+                            断开
+                          </button>
+                          ）
+                        </span>
+                      ) : null}
                     </span>
                     <small>使用本机同步密码加密后保存到 Secret Gist</small>
                   </span>
@@ -661,37 +674,22 @@ export function SettingsMenu({
                   </button>
                 ) : (
                   <div className="github-connected-panel">
-                    <span className="github-account-row">
-                      <span>
-                        已连接 <strong>{githubSyncSettings.accountLogin ?? 'GitHub 账号'}</strong>
-                      </span>
-                      <span className="github-account-actions">
-                        <button
-                          type="button"
-                          onClick={onDisconnectGitHub}
-                          disabled={githubControlsDisabled}
-                        >
-                          断开
-                        </button>
-                      </span>
-                    </span>
                     <div className="github-gist-target">
-                      <span>
-                        <strong>
-                          {githubGistLoading
-                            ? '正在自动查找 Gist…'
-                            : githubSyncSettings.gistId
-                              ? 'Secret Gist 已绑定'
-                              : '尚未创建同步 Gist'}
-                        </strong>
-                        <small>
-                          {githubSyncSettings.gistId
-                            ? githubSyncSettings.requiresRemoteRestore
-                              ? '远程版本尚未在本机恢复，请先执行“从 GitHub 恢复”'
-                              : `Gist ${githubSyncSettings.gistId.slice(0, 10)} · jianzhang-user-data.json`
-                            : '首次上传时自动创建，无需填写 Gist 链接'}
-                        </small>
-                      </span>
+                      {githubGistLoading ? (
+                        '正在自动查找 Gist…'
+                      ) : githubSyncSettings.gistId ? (
+                        <>
+                          <strong>Secret Gist 已绑定</strong> ·{' '}
+                          {githubSyncSettings.requiresRemoteRestore
+                            ? '远程版本尚未在本机恢复，请先执行“从 GitHub 恢复”'
+                            : `Gist ${githubSyncSettings.gistId.slice(0, 10)} · jianzhang-user-data.json`}
+                        </>
+                      ) : (
+                        <>
+                          <strong>尚未创建同步 Gist</strong> · 首次上传时自动创建，无需填写 Gist
+                          链接
+                        </>
+                      )}
                     </div>
                     {githubSyncError ? (
                       <small className="github-sync-error">{githubSyncError}</small>
@@ -718,7 +716,10 @@ export function SettingsMenu({
                     <span className="github-password-heading">
                       <span>
                         <KeyRound size={15} />
-                        <strong>本机同步密码</strong>
+                        <strong>同步密码</strong>
+                        {githubSyncSettings.syncPasswordReady && !githubPasswordEditing ? (
+                          <small>已绑定本机；本地显示和使用不需要再次验证</small>
+                        ) : null}
                       </span>
                       {githubSyncSettings.connected &&
                       githubSyncSettings.syncPasswordReady &&
@@ -733,39 +734,36 @@ export function SettingsMenu({
                       ) : null}
                     </span>
                     {githubSyncSettings.syncPasswordReady && !githubPasswordEditing ? (
-                      <>
-                        <div className="github-password-value">
-                          <input
-                            type={githubPasswordVisible ? 'text' : 'password'}
-                            value={githubSyncPassword ?? ''}
-                            readOnly
-                            aria-label="本机保存的 GitHub Gist 同步密码"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setGitHubPasswordVisible((visible) => !visible)}
-                            disabled={githubControlsDisabled}
-                            aria-label={githubPasswordVisible ? '隐藏同步密码' : '显示同步密码'}
-                            title={githubPasswordVisible ? '隐藏同步密码' : '显示同步密码'}
-                          >
-                            {githubPasswordVisible ? <EyeOff size={15} /> : <Eye size={15} />}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (githubSyncPassword) {
-                                void navigator.clipboard.writeText(githubSyncPassword)
-                              }
-                            }}
-                            disabled={githubControlsDisabled}
-                            aria-label="复制同步密码"
-                            title="复制同步密码"
-                          >
-                            <Copy size={15} />
-                          </button>
-                        </div>
-                        <small>已绑定本机；本地显示和使用不需要再次验证</small>
-                      </>
+                      <div className="github-password-value">
+                        <input
+                          type={githubPasswordVisible ? 'text' : 'password'}
+                          value={githubSyncPassword ?? ''}
+                          readOnly
+                          aria-label="本机保存的 GitHub Gist 同步密码"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setGitHubPasswordVisible((visible) => !visible)}
+                          disabled={githubControlsDisabled}
+                          aria-label={githubPasswordVisible ? '隐藏同步密码' : '显示同步密码'}
+                          title={githubPasswordVisible ? '隐藏同步密码' : '显示同步密码'}
+                        >
+                          {githubPasswordVisible ? <EyeOff size={15} /> : <Eye size={15} />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (githubSyncPassword) {
+                              void navigator.clipboard.writeText(githubSyncPassword)
+                            }
+                          }}
+                          disabled={githubControlsDisabled}
+                          aria-label="复制同步密码"
+                          title="复制同步密码"
+                        >
+                          <Copy size={15} />
+                        </button>
+                      </div>
                     ) : githubSyncSettings.connected ? (
                       <div className="github-password-editor">
                         <label>

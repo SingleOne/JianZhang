@@ -318,6 +318,35 @@
   color: #24292f;
 }
 
+.github-connection-summary {
+  display: inline-flex;
+  align-items: center;
+  color: var(--subtle);
+  font-size: 12px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.github-connection-summary button {
+  padding: 0;
+  color: #c4320a;
+  background: transparent;
+  border: 0;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.github-connection-summary button:hover:not(:disabled) {
+  color: #9c2a10;
+  text-decoration: underline;
+}
+
+.github-connection-summary button:disabled {
+  color: #a1a9b8;
+  cursor: default;
+}
+
 .github-sync-heading strong,
 .github-sync-heading small,
 .github-sync-status {
@@ -356,48 +385,16 @@
   gap: 8px;
 }
 
-.github-account-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  color: #586579;
-  font-size: 12px;
-}
-
-.github-account-row button {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: #667085;
-  background: transparent;
-  border: 0;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.github-account-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
 .github-gist-target {
+  overflow: hidden;
   padding: 9px 10px;
   color: #526075;
   background: #f8fafc;
   border: 1px solid var(--border);
   border-radius: 7px;
-}
-
-.github-gist-target > span {
-  display: grid;
-  gap: 3px;
-}
-
-.github-gist-target strong,
-.github-gist-target small {
   font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .github-password-panel {
@@ -420,7 +417,16 @@
 }
 
 .github-password-heading > span {
+  min-width: 0;
   justify-content: flex-start;
+}
+
+.github-password-heading small {
+  overflow: hidden;
+  color: var(--subtle);
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .github-password-heading button,
@@ -441,6 +447,7 @@
 }
 
 .github-password-heading button {
+  flex: 0 0 auto;
   min-height: auto;
   padding: 0;
   background: transparent;
