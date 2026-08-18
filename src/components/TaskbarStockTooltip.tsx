@@ -100,6 +100,11 @@ export function TaskbarStockTooltip() {
           <span>
             {formatSigned(quote?.change)} · {formatPercent(quote?.changePercent)}
           </span>
+          <span
+            className={`taskbar-tooltip-today-profit ${valueClass(positionMetrics.todayProfit)}`}
+          >
+            {formatProfit(positionMetrics.todayProfit)}
+          </span>
         </div>
 
         <dl className="taskbar-tooltip-details">
@@ -122,10 +127,6 @@ export function TaskbarStockTooltip() {
         </dl>
 
         <section className="taskbar-tooltip-section">
-          <div className="taskbar-tooltip-section-heading">
-            <strong>持仓与收益</strong>
-            <span>{stock?.position ? '当前持仓' : '暂无持仓'}</span>
-          </div>
           <div className="taskbar-tooltip-position-grid">
             <span>
               <small>持仓股数</small>
@@ -146,23 +147,13 @@ export function TaskbarStockTooltip() {
                 <em>{formatPercent(positionMetrics.profitPercent)}</em>
               </b>
             </span>
-            <span>
-              <small>今日收益</small>
-              <b className={valueClass(positionMetrics.todayProfit)}>
-                {formatProfit(positionMetrics.todayProfit)}
-                <em>{formatPercent(positionMetrics.todayProfitPercent)}</em>
-              </b>
-            </span>
           </div>
         </section>
 
         {tMetrics ? (
           <section className="taskbar-tooltip-section">
-            <div className="taskbar-tooltip-section-heading">
-              <strong>进行中的 T 仓</strong>
-              <span>{tMetrics.direction === 'reverse' ? '反T' : '正T'}</span>
-            </div>
             <div className="taskbar-tooltip-t-summary">
+              <strong>{tMetrics.direction === 'reverse' ? '反T' : '正T'}</strong>
               <span>剩余 {formatShares(tMetrics.remainingQuantity)}</span>
               <span>
                 {tMetrics.direction === 'reverse' ? '基准' : '成本'}{' '}
@@ -176,12 +167,8 @@ export function TaskbarStockTooltip() {
           </section>
         ) : null}
 
-        <section className="taskbar-tooltip-section taskbar-tooltip-alert-section">
-          <div className="taskbar-tooltip-section-heading">
-            <strong>当前提示</strong>
-            <span>{alertCount > 0 ? `${alertCount} 条已触发` : '暂无触发'}</span>
-          </div>
-          {alertCount > 0 ? (
+        {alertCount > 0 ? (
+          <section className="taskbar-tooltip-section taskbar-tooltip-alert-section">
             <ul className="taskbar-tooltip-alert-list">
               {triggeredStockAlerts.map((rule) => {
                 const actualValue =
@@ -238,12 +225,8 @@ export function TaskbarStockTooltip() {
                 </li>
               ) : null}
             </ul>
-          ) : (
-            <p className="taskbar-tooltip-no-alert">
-              当前没有达到触发条件的股价、T 仓或五档大单提醒。
-            </p>
-          )}
-        </section>
+          </section>
+        ) : null}
 
         <footer>行情更新于 {formatUpdateTime(quote?.updatedAt)}</footer>
       </article>

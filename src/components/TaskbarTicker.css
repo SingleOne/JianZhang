@@ -302,6 +302,10 @@
   font-weight: 700;
 }
 
+.taskbar-tooltip-price-row .taskbar-tooltip-today-profit {
+  margin-left: 2px;
+}
+
 .taskbar-tooltip-price-row.is-up {
   color: #c92733;
 }
@@ -311,6 +315,18 @@
 }
 
 .taskbar-tooltip-price-row.is-flat {
+  color: #657187;
+}
+
+.taskbar-tooltip-price-row .taskbar-tooltip-today-profit.is-up {
+  color: #c92733;
+}
+
+.taskbar-tooltip-price-row .taskbar-tooltip-today-profit.is-down {
+  color: #087c57;
+}
+
+.taskbar-tooltip-price-row .taskbar-tooltip-today-profit.is-flat {
   color: #657187;
 }
 
@@ -343,26 +359,9 @@
   border-top: 1px solid #edf0f4;
 }
 
-.taskbar-tooltip-section-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.taskbar-tooltip-section-heading strong {
-  color: #344054;
-  font-size: 12px;
-}
-
-.taskbar-tooltip-section-heading span {
-  color: #8a94a6;
-  font-size: 12px;
-}
-
 .taskbar-tooltip-position-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px 12px;
 }
 
@@ -420,6 +419,11 @@
   white-space: nowrap;
 }
 
+.taskbar-tooltip-t-summary strong {
+  color: #344054;
+  font-size: 12px;
+}
+
 .taskbar-tooltip-alert-list {
   display: grid;
   gap: 5px;
@@ -455,13 +459,6 @@
 .taskbar-tooltip-alert-list .is-buy b,
 .taskbar-tooltip-alert-list .is-loss b {
   color: #087c57;
-}
-
-.taskbar-tooltip-no-alert {
-  margin: 0;
-  color: #8a94a6;
-  font-size: 12px;
-  line-height: 18px;
 }
 
 .taskbar-stock-tooltip > footer {
@@ -600,17 +597,15 @@
     border-color: rgba(96, 111, 132, 0.38);
   }
 
-  .taskbar-tooltip-section-heading strong,
   .taskbar-tooltip-position-grid b,
+  .taskbar-tooltip-t-summary strong,
   .taskbar-tooltip-alert-list b {
     color: #e2e8f0;
   }
 
-  .taskbar-tooltip-section-heading span,
   .taskbar-tooltip-position-grid small,
   .taskbar-tooltip-t-summary,
-  .taskbar-tooltip-alert-list li,
-  .taskbar-tooltip-no-alert {
+  .taskbar-tooltip-alert-list li {
     color: #a8b3c3;
   }
 
@@ -619,6 +614,7 @@
   }
 
   .taskbar-tooltip-price-row.is-up,
+  .taskbar-tooltip-price-row .taskbar-tooltip-today-profit.is-up,
   .taskbar-tooltip-position-grid b.is-up,
   .taskbar-tooltip-t-summary .is-up,
   .taskbar-tooltip-alert-list .is-gte b,
@@ -628,6 +624,7 @@
   }
 
   .taskbar-tooltip-price-row.is-down,
+  .taskbar-tooltip-price-row .taskbar-tooltip-today-profit.is-down,
   .taskbar-tooltip-position-grid b.is-down,
   .taskbar-tooltip-t-summary .is-down,
   .taskbar-tooltip-alert-list .is-lte b,
@@ -637,6 +634,7 @@
   }
 
   .taskbar-tooltip-price-row.is-flat,
+  .taskbar-tooltip-price-row .taskbar-tooltip-today-profit.is-flat,
   .taskbar-tooltip-position-grid b.is-flat,
   .taskbar-tooltip-t-summary .is-flat {
     color: #c5cedb;
