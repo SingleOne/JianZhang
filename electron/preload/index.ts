@@ -7,7 +7,8 @@ import type {
   FundamentalUpdateProgress,
   StockDesktopApi,
   StockQuote,
-  TaskbarLayout
+  TaskbarLayout,
+  TaskbarTooltipAnchor
 } from '../../src/shared/types'
 import { installMarketInsightPreload } from '../../src/modules/market-insight/preload/register'
 import { installAiPreload } from '../../src/modules/ai/preload/register'
@@ -22,6 +23,9 @@ function subscribe<T>(channel: string, callback: (payload: T) => void): () => vo
 const api: StockDesktopApi = {
   getBootstrap: () => ipcRenderer.invoke('app:bootstrap'),
   getTaskbarLayout: () => ipcRenderer.invoke('taskbar:layout:get'),
+  getTaskbarTooltipQuoteId: () => ipcRenderer.invoke('taskbar:tooltip:get'),
+  setTaskbarTooltip: (anchor: TaskbarTooltipAnchor | null) =>
+    ipcRenderer.invoke('taskbar:tooltip:set', anchor),
   searchStocks: (query) => ipcRenderer.invoke('stocks:search', query),
   getDividendFinancingSnapshot: () => ipcRenderer.invoke('dividend-financing:get'),
   getDividendFinancingState: () => ipcRenderer.invoke('dividend-financing:state:get'),
@@ -72,6 +76,7 @@ const api: StockDesktopApi = {
   onQuotesUpdated: (callback) => subscribe<StockQuote[]>('quotes:updated', callback),
   onStateUpdated: (callback) => subscribe<AppState>('state:updated', callback),
   onTaskbarLayout: (callback) => subscribe<TaskbarLayout>('taskbar:layout', callback),
+  onTaskbarTooltipStock: (callback) => subscribe<string>('taskbar:tooltip-stock', callback),
   onSelectStock: (callback) => subscribe<string>('stock:selected', callback),
   onDataError: (callback) => subscribe<string>('data:error', callback),
   onDividendFinancingUpdateProgress: (callback) =>

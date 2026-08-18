@@ -83,7 +83,7 @@ export function TaskbarTicker() {
   }, [quotes, state.tTradingAccounts, state.watchlist])
 
   return (
-    <div className="taskbar-ticker-shell" title="见涨">
+    <div className="taskbar-ticker-shell">
       <div
         className={`taskbar-ticker ${selectedStocks.length === 1 ? 'is-single' : ''}`}
         style={{ height: layout.taskbarHeight }}
@@ -102,6 +102,15 @@ export function TaskbarTicker() {
             <div
               className={`taskbar-quote ${direction} ${stockAlertDirection ? `is-stock-alert-triggered is-alert-${stockAlertDirection}` : ''}`}
               key={stock.quoteId}
+              onMouseEnter={(event) => {
+                const bounds = event.currentTarget.getBoundingClientRect()
+                void stockApi.setTaskbarTooltip({
+                  quoteId: stock.quoteId,
+                  left: bounds.left,
+                  width: bounds.width
+                })
+              }}
+              onMouseLeave={() => void stockApi.setTaskbarTooltip(null)}
             >
               <span className="taskbar-stock-name">{stock.name}</span>
               <FiveLevelAlertBadges alerts={fiveLevelAlerts} compact />

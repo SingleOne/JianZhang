@@ -50,6 +50,7 @@ import type {
   StockQuote,
   StockValuationHistory,
   TaskbarLayout,
+  TaskbarTooltipAnchor,
   TradingCalendarSettings,
   UserDataBackupSummary
 } from '../../src/shared/types'
@@ -63,6 +64,8 @@ interface IpcHandlerDependencies {
   getQuotes: () => StockQuote[]
   getStartupWarning: () => string | undefined
   getTaskbarLayout: () => TaskbarLayout
+  getTaskbarTooltipQuoteId: () => string | null
+  setTaskbarTooltip: (anchor: TaskbarTooltipAnchor | null) => void
   getMainWindow: () => BrowserWindow | null
   searchStocks: (query: string) => Promise<SearchResult[]>
   getDividendFinancingSnapshot: () => DividendFinancingSnapshot | null
@@ -136,6 +139,8 @@ interface IpcHandlerDependencies {
 const CHANNELS = [
   'app:bootstrap',
   'taskbar:layout:get',
+  'taskbar:tooltip:get',
+  'taskbar:tooltip:set',
   'stocks:search',
   'dividend-financing:get',
   'dividend-financing:state:get',
@@ -199,6 +204,10 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
     warning: dependencies.getStartupWarning()
   }))
   ipcMain.handle('taskbar:layout:get', () => dependencies.getTaskbarLayout())
+  ipcMain.handle('taskbar:tooltip:get', () => dependencies.getTaskbarTooltipQuoteId())
+  ipcMain.handle('taskbar:tooltip:set', (_event, anchor: TaskbarTooltipAnchor | null) =>
+    dependencies.setTaskbarTooltip(anchor)
+  )
   ipcMain.handle('stocks:search', (_event, query: string) => dependencies.searchStocks(query))
   ipcMain.handle('dividend-financing:get', () => dependencies.getDividendFinancingSnapshot())
   ipcMain.handle('dividend-financing:state:get', () => dependencies.getDividendFinancingState())

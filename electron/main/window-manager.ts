@@ -4,7 +4,13 @@ import { join } from 'node:path'
 import { accountHasTriggeredTAlerts } from '../../src/lib/t-alerts'
 import { calculatePositionMetrics } from '../../src/lib/portfolio'
 import { formatPercent, formatPrice, formatProfit } from '../../src/lib/format'
-import type { AppState, StockQuote, TaskbarLayout, WatchStock } from '../../src/shared/types'
+import type {
+  AppState,
+  StockQuote,
+  TaskbarLayout,
+  TaskbarTooltipAnchor,
+  WatchStock
+} from '../../src/shared/types'
 import { atomicWriteJsonSync } from './file-storage'
 import { createAppIcon } from './tray-icons'
 
@@ -19,11 +25,13 @@ interface WindowManagerDependencies {
 export class WindowManager {
   private mainWindow: BrowserWindow | null = null
   private taskbarWindow: BrowserWindow | null = null
+  private taskbarTooltipWindow: BrowserWindow | null = null
   private trayPopupWindow: BrowserWindow | null = null
   private appTray: Tray | null = null
   private trayPopupShowTimer: NodeJS.Timeout | null = null
   private taskbarPositionTimer: NodeJS.Timeout | null = null
   private taskbarLayout: TaskbarLayout = { taskbarHeight: 48 }
+  private taskbarTooltipAnchor: TaskbarTooltipAnchor | null = null
   private trayHovered = false
   private disposed = false
   private readonly windowStatePath: string
@@ -64,6 +72,27 @@ export class WindowManager {
     return this.taskbarLayout
   }
 
+  getTaskbarTooltipQuoteId(): string | null {
+    return this.taskbarTooltipAnchor?.quoteId ?? null
+  }
+
+  setTaskbarTooltip(anchor: TaskbarTooltipAnchor | null): void {
+    this.taskbarTooltipAnchor = anchor
+    if (!anchor) {
+      if (this.taskbarTooltipWindow && !this.taskbarTooltipWindow.isDestroyed()) {
+        this.taskbarTooltipWindow.hide()
+      }
+      return
+    }
+
+    if (!this.taskbarTooltipWindow || this.taskbarTooltipWindow.isDestroyed()) {
+      this.createTaskbarTooltipWindow()
+      return
+    }
+
+    this.showTaskbarTooltipWindow()
+  }
+
   showMainWindow(quoteId?: string): void {
     const window = this.getMainWindow()
     if (!window) return
@@ -86,7 +115,12 @@ export class WindowManager {
   }
 
   sendToWindows(channel: string, payload: unknown): void {
-    for (const window of [this.mainWindow, this.taskbarWindow, this.trayPopupWindow]) {
+    for (const window of [
+      this.mainWindow,
+      this.taskbarWindow,
+      this.taskbarTooltipWindow,
+      this.trayPopupWindow
+    ]) {
       if (window && !window.isDestroyed()) window.webContents.send(channel, payload)
     }
   }
@@ -136,6 +170,7 @@ export class WindowManager {
 
     if (!shouldShow) {
       if (this.taskbarWindow && !this.taskbarWindow.isDestroyed()) this.taskbarWindow.hide()
+      this.setTaskbarTooltip(null)
       return
     }
 
@@ -165,6 +200,8 @@ export class WindowManager {
     this.appTray = null
     this.trayPopupWindow?.destroy()
     this.trayPopupWindow = null
+    this.taskbarTooltipWindow?.destroy()
+    this.taskbarTooltipWindow = null
     this.taskbarWindow?.destroy()
     this.taskbarWindow = null
   }
@@ -344,6 +381,7 @@ export class WindowManager {
       taskbarHeight < 24
     ) {
       this.taskbarWindow.hide()
+      this.setTaskbarTooltip(null)
       return
     }
 
@@ -366,6 +404,96 @@ export class WindowManager {
     this.taskbarWindow.webContents.send('taskbar:layout', this.taskbarLayout)
     this.taskbarWindow.setAlwaysOnTop(true, 'pop-up-menu')
     this.taskbarWindow.showInactive()
+    if (this.taskbarTooltipWindow?.isVisible()) {
+      this.positionTaskbarTooltipWindow()
+      this.taskbarTooltipWindow.setAlwaysOnTop(true, 'pop-up-menu')
+      this.taskbarTooltipWindow.moveTop()
+    }
+  }
+
+  private positionTaskbarTooltipWindow(): void {
+    if (
+      !this.taskbarTooltipWindow ||
+      this.taskbarTooltipWindow.isDestroyed() ||
+      !this.taskbarWindow ||
+      this.taskbarWindow.isDestroyed() ||
+      !this.taskbarTooltipAnchor
+    ) {
+      return
+    }
+
+    const width = 300
+    const height = 154
+    const margin = 8
+    const taskbarBounds = this.taskbarWindow.getBounds()
+    const display = screen.getDisplayMatching(taskbarBounds)
+    const anchorCenter =
+      taskbarBounds.x + this.taskbarTooltipAnchor.left + this.taskbarTooltipAnchor.width / 2
+    const minX = display.workArea.x + margin
+    const maxX = display.workArea.x + display.workArea.width - width - margin
+    const x = Math.min(maxX, Math.max(minX, Math.round(anchorCenter - width / 2)))
+    const y = Math.max(display.workArea.y + margin, taskbarBounds.y - height - margin)
+
+    this.taskbarTooltipWindow.setBounds({ x, y, width, height })
+  }
+
+  private showTaskbarTooltipWindow(): void {
+    const window = this.taskbarTooltipWindow
+    const anchor = this.taskbarTooltipAnchor
+    if (!window || window.isDestroyed() || !anchor) return
+
+    this.positionTaskbarTooltipWindow()
+    window.webContents.send('taskbar:tooltip-stock', anchor.quoteId)
+    window.setAlwaysOnTop(true, 'pop-up-menu')
+    window.showInactive()
+    window.moveTop()
+  }
+
+  private createTaskbarTooltipWindow(): void {
+    if (this.taskbarTooltipWindow && !this.taskbarTooltipWindow.isDestroyed()) return
+
+    const window = new BrowserWindow({
+      width: 300,
+      height: 154,
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      resizable: false,
+      movable: false,
+      minimizable: false,
+      maximizable: false,
+      closable: false,
+      focusable: false,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+      hasShadow: false,
+      parent: this.taskbarWindow ?? undefined,
+      webPreferences: {
+        preload: join(__dirname, '../preload/index.js'),
+        contextIsolation: true,
+        sandbox: true,
+        nodeIntegration: false,
+        backgroundThrottling: false
+      }
+    })
+    this.taskbarTooltipWindow = window
+
+    window.setAlwaysOnTop(true, 'pop-up-menu')
+    window.setIgnoreMouseEvents(true)
+    window.setMenuBarVisibility(false)
+    window.on('closed', () => {
+      if (this.taskbarTooltipWindow === window) this.taskbarTooltipWindow = null
+    })
+    window.webContents.on('did-finish-load', () => this.showTaskbarTooltipWindow())
+
+    if (process.env.ELECTRON_RENDERER_URL) {
+      void window.loadURL(`${process.env.ELECTRON_RENDERER_URL}?mode=taskbar-tooltip`)
+    } else {
+      void window.loadFile(join(__dirname, '../renderer/index.html'), {
+        query: { mode: 'taskbar-tooltip' }
+      })
+    }
   }
 
   private createTaskbarWindow(): void {
@@ -400,7 +528,10 @@ export class WindowManager {
     window.setAlwaysOnTop(true, 'pop-up-menu')
     window.setMenuBarVisibility(false)
     window.on('closed', () => {
-      if (this.taskbarWindow === window) this.taskbarWindow = null
+      if (this.taskbarWindow === window) {
+        this.taskbarWindow = null
+        this.taskbarTooltipAnchor = null
+      }
     })
     window.webContents.on('did-finish-load', () => {
       this.syncTaskbarWindow()

@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
+import { TaskbarStockTooltip } from './components/TaskbarStockTooltip'
 import { TaskbarTicker } from './components/TaskbarTicker'
 import { TrayHoverSummary } from './components/TrayHoverSummary'
 import { ConfirmDialogProvider } from './components/ConfirmDialog'
@@ -23,14 +24,24 @@ import './modules/ai/renderer/AiAssistantDrawer.css'
 
 const windowMode = new URLSearchParams(window.location.search).get('mode')
 const taskbarMode = windowMode === 'taskbar'
+const taskbarTooltipMode = windowMode === 'taskbar-tooltip'
 const trayMode = windowMode === 'tray'
 document.documentElement.classList.toggle('taskbar-mode', taskbarMode)
+document.documentElement.classList.toggle('taskbar-tooltip-mode', taskbarTooltipMode)
 document.documentElement.classList.toggle('tray-mode', trayMode)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ConfirmDialogProvider>
-      {taskbarMode ? <TaskbarTicker /> : trayMode ? <TrayHoverSummary /> : <App />}
+      {taskbarMode ? (
+        <TaskbarTicker />
+      ) : taskbarTooltipMode ? (
+        <TaskbarStockTooltip />
+      ) : trayMode ? (
+        <TrayHoverSummary />
+      ) : (
+        <App />
+      )}
     </ConfirmDialogProvider>
   </StrictMode>
 )

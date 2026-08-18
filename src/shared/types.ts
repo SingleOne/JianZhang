@@ -1657,9 +1657,17 @@ export interface TaskbarLayout {
   taskbarHeight: number
 }
 
+export interface TaskbarTooltipAnchor {
+  quoteId: string
+  left: number
+  width: number
+}
+
 export interface StockDesktopApi {
   getBootstrap: () => Promise<BootstrapResult>
   getTaskbarLayout: () => Promise<TaskbarLayout>
+  getTaskbarTooltipQuoteId: () => Promise<string | null>
+  setTaskbarTooltip: (anchor: TaskbarTooltipAnchor | null) => Promise<void>
   searchStocks: (query: string) => Promise<SearchResult[]>
   getDividendFinancingSnapshot: () => Promise<DividendFinancingSnapshot | null>
   getDividendFinancingState: () => Promise<DataSnapshotRuntimeState>
@@ -1709,6 +1717,7 @@ export interface StockDesktopApi {
   onQuotesUpdated: (callback: (quotes: StockQuote[]) => void) => () => void
   onStateUpdated: (callback: (state: AppState) => void) => () => void
   onTaskbarLayout: (callback: (layout: TaskbarLayout) => void) => () => void
+  onTaskbarTooltipStock: (callback: (quoteId: string) => void) => () => void
   onSelectStock: (callback: (quoteId: string) => void) => () => void
   onDataError: (callback: (message: string) => void) => () => void
   onDividendFinancingUpdateProgress: (

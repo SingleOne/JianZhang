@@ -217,6 +217,132 @@
   animation-name: taskbar-stock-alert-text-flash-both;
 }
 
+.taskbar-stock-tooltip-shell {
+  width: 100%;
+  height: 100%;
+  padding: 0 5px 10px;
+}
+
+.taskbar-stock-tooltip {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px 10px;
+  color: #344054;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(193, 202, 216, 0.95);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.24);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.taskbar-stock-tooltip::after {
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  width: 13px;
+  height: 13px;
+  background: inherit;
+  border-right: 1px solid rgba(193, 202, 216, 0.95);
+  border-bottom: 1px solid rgba(193, 202, 216, 0.95);
+  content: '';
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.taskbar-stock-tooltip > header,
+.taskbar-tooltip-price-row,
+.taskbar-tooltip-identity {
+  display: flex;
+  align-items: center;
+}
+
+.taskbar-stock-tooltip > header {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.taskbar-tooltip-identity {
+  min-width: 0;
+  gap: 7px;
+}
+
+.taskbar-tooltip-identity strong {
+  overflow: hidden;
+  color: #111827;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskbar-tooltip-identity span,
+.taskbar-tooltip-market,
+.taskbar-stock-tooltip > footer {
+  color: #7a8598;
+}
+
+.taskbar-tooltip-market {
+  flex: none;
+  padding: 2px 6px;
+  background: #f1f4f8;
+  border-radius: 999px;
+}
+
+.taskbar-tooltip-price-row {
+  gap: 10px;
+}
+
+.taskbar-tooltip-price-row strong {
+  font-size: 22px;
+  line-height: 24px;
+}
+
+.taskbar-tooltip-price-row span {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.taskbar-stock-tooltip.is-up .taskbar-tooltip-price-row {
+  color: #c92733;
+}
+
+.taskbar-stock-tooltip.is-down .taskbar-tooltip-price-row {
+  color: #087c57;
+}
+
+.taskbar-stock-tooltip.is-flat .taskbar-tooltip-price-row {
+  color: #657187;
+}
+
+.taskbar-tooltip-details {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.taskbar-tooltip-details > div {
+  display: grid;
+  gap: 2px;
+}
+
+.taskbar-tooltip-details dt {
+  color: #8a94a6;
+}
+
+.taskbar-tooltip-details dd {
+  margin: 0;
+  color: #344054;
+  font-weight: 700;
+}
+
+.taskbar-stock-tooltip > footer {
+  margin-top: auto;
+  font-size: 12px;
+}
+
 @keyframes taskbar-stock-alert-text-flash {
   0%, 100% {
     color: #d51f2d;
@@ -254,6 +380,9 @@
   html.taskbar-mode,
   html.taskbar-mode body,
   html.taskbar-mode #root,
+  html.taskbar-tooltip-mode,
+  html.taskbar-tooltip-mode body,
+  html.taskbar-tooltip-mode #root,
   html.tray-mode,
   html.tray-mode body,
   html.tray-mode #root {
@@ -309,5 +438,47 @@
 
   .taskbar-quote.is-flat {
     color: #e2e8f0;
+  }
+
+  .taskbar-stock-tooltip {
+    color: #d7deea;
+    background: rgba(24, 32, 46, 0.98);
+    border-color: rgba(96, 111, 132, 0.9);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+  }
+
+  .taskbar-stock-tooltip::after {
+    border-color: rgba(96, 111, 132, 0.9);
+  }
+
+  .taskbar-tooltip-identity strong {
+    color: #f8fafc;
+  }
+
+  .taskbar-tooltip-identity span,
+  .taskbar-tooltip-market,
+  .taskbar-stock-tooltip > footer,
+  .taskbar-tooltip-details dt {
+    color: #a8b3c3;
+  }
+
+  .taskbar-tooltip-market {
+    background: #303b4d;
+  }
+
+  .taskbar-tooltip-details dd {
+    color: #e2e8f0;
+  }
+
+  .taskbar-stock-tooltip.is-up .taskbar-tooltip-price-row {
+    color: #ff6b75;
+  }
+
+  .taskbar-stock-tooltip.is-down .taskbar-tooltip-price-row {
+    color: #51d39e;
+  }
+
+  .taskbar-stock-tooltip.is-flat .taskbar-tooltip-price-row {
+    color: #c5cedb;
   }
 }

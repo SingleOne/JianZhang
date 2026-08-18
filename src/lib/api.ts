@@ -537,6 +537,10 @@ const demoApi: StockDesktopApi = {
   async getTaskbarLayout() {
     return { taskbarHeight: 48 }
   },
+  async getTaskbarTooltipQuoteId() {
+    return null
+  },
+  async setTaskbarTooltip() {},
   async searchStocks(query) {
     const normalized = query.trim().toLowerCase()
     return DEMO_STOCKS.filter(
@@ -772,6 +776,7 @@ const demoApi: StockDesktopApi = {
   onQuotesUpdated: noSubscribe,
   onStateUpdated: noSubscribe,
   onTaskbarLayout: noSubscribe,
+  onTaskbarTooltipStock: noSubscribe,
   onSelectStock: noSubscribe,
   onDataError: noSubscribe,
   onDividendFinancingUpdateProgress: noSubscribe,
