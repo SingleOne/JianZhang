@@ -398,7 +398,6 @@ export class WindowManager {
     this.taskbarWindow = window
 
     window.setAlwaysOnTop(true, 'pop-up-menu')
-    window.setIgnoreMouseEvents(true)
     window.setMenuBarVisibility(false)
     window.on('closed', () => {
       if (this.taskbarWindow === window) this.taskbarWindow = null

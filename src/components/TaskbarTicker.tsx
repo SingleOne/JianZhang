@@ -83,7 +83,7 @@ export function TaskbarTicker() {
   }, [quotes, state.tTradingAccounts, state.watchlist])
 
   return (
-    <div className="taskbar-ticker-shell">
+    <div className="taskbar-ticker-shell" title="见涨">
       <div
         className={`taskbar-ticker ${selectedStocks.length === 1 ? 'is-single' : ''}`}
         style={{ height: layout.taskbarHeight }}
