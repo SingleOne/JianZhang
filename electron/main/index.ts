@@ -556,13 +556,16 @@ if (!hasSingleInstanceLock) {
       }
     }
 
-    windowManager = new WindowManager({
-      getState: () => state,
-      getQuotes: getLatestQuotes,
-      isQuitting: () => isQuitting,
-      refreshQuotes: () => quoteRuntime!.refreshAll(),
-      quit: quitApp
-    })
+    windowManager = new WindowManager(
+      {
+        getState: () => state,
+        getQuotes: getLatestQuotes,
+        isQuitting: () => isQuitting,
+        refreshQuotes: () => quoteRuntime!.refreshAll(),
+        quit: quitApp
+      },
+      app.getPath('userData')
+    )
     windowManager.create()
     dividendFinancingService.initializeIfMissing()
     fundamentalDataService.initializeIfMissing()

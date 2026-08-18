@@ -1,9 +1,11 @@
 import { BrowserWindow, Menu, screen, Tray, type MenuItemConstructorOptions } from 'electron'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { accountHasTriggeredTAlerts } from '../../src/lib/t-alerts'
 import { calculatePositionMetrics } from '../../src/lib/portfolio'
 import { formatPercent, formatPrice, formatProfit } from '../../src/lib/format'
 import type { AppState, StockQuote, TaskbarLayout, WatchStock } from '../../src/shared/types'
+import { atomicWriteJsonSync } from './file-storage'
 import { createAppIcon } from './tray-icons'
 
 interface WindowManagerDependencies {
@@ -24,6 +26,8 @@ export class WindowManager {
   private taskbarLayout: TaskbarLayout = { taskbarHeight: 48 }
   private trayHovered = false
   private disposed = false
+  private readonly windowStatePath: string
+  private mainWindowVisible: boolean
 
   private readonly handleDisplayMetricsChanged = (): void => {
     this.syncTaskbarWindow()
@@ -34,7 +38,13 @@ export class WindowManager {
     this.syncTaskbarWindow()
   }
 
-  constructor(private readonly dependencies: WindowManagerDependencies) {}
+  constructor(
+    private readonly dependencies: WindowManagerDependencies,
+    userDataDirectory: string
+  ) {
+    this.windowStatePath = join(userDataDirectory, 'window-state.json')
+    this.mainWindowVisible = this.loadMainWindowVisible()
+  }
 
   create(): void {
     this.createMainWindow()
@@ -56,14 +66,18 @@ export class WindowManager {
   showMainWindow(quoteId?: string): void {
     const window = this.getMainWindow()
     if (!window) return
-    window.show()
     if (window.isMinimized()) window.restore()
+    window.show()
     window.focus()
+    this.saveMainWindowVisible(true)
     if (quoteId) window.webContents.send('stock:selected', quoteId)
   }
 
   hideMainWindow(): void {
-    this.getMainWindow()?.hide()
+    const window = this.getMainWindow()
+    if (!window) return
+    window.hide()
+    this.saveMainWindowVisible(false)
   }
 
   sendToWindows(channel: string, payload: unknown): void {
@@ -177,6 +191,22 @@ export class WindowManager {
               quote.quoteId === stock.quoteId && Boolean(quote.fiveLevelLargeOrders?.length)
           ))
     )
+  }
+
+  private loadMainWindowVisible(): boolean {
+    if (!existsSync(this.windowStatePath)) return true
+    try {
+      const state = JSON.parse(readFileSync(this.windowStatePath, 'utf8')) as { visible?: unknown }
+      return state.visible !== false
+    } catch {
+      return true
+    }
+  }
+
+  private saveMainWindowVisible(visible: boolean): void {
+    if (this.mainWindowVisible === visible) return
+    this.mainWindowVisible = visible
+    atomicWriteJsonSync(this.windowStatePath, { visible })
   }
 
   private trayPopupSize(): { width: number; height: number } {
@@ -413,12 +443,12 @@ export class WindowManager {
     window.setMenuBarVisibility(false)
     window.on('ready-to-show', () => {
       window.maximize()
-      window.show()
+      if (this.mainWindowVisible) window.show()
     })
     window.on('close', (event) => {
       if (!this.dependencies.isQuitting() && this.dependencies.getState().settings.minimizeToTray) {
         event.preventDefault()
-        window.hide()
+        this.hideMainWindow()
       }
     })
     window.on('closed', () => {

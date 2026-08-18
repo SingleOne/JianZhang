@@ -1930,6 +1930,12 @@ export function ExpandedStockDetails({
                       }
                       bollingerBandsEnabled={bollingerBandsEnabled}
                       onBollingerBandsEnabledChange={onBollingerBandsEnabledChange}
+                      trackingStartedAt={
+                        historicalPeriod === 'daily' ? trackingProfile?.startedAt : undefined
+                      }
+                      trackingStoppedAt={
+                        historicalPeriod === 'daily' ? trackingProfile?.stoppedAt : undefined
+                      }
                       height={historicalPeriod === 'daily' && chipDistributionEnabled ? 360 : 320}
                     />
                   ) : (

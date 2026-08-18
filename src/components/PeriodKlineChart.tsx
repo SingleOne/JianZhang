@@ -21,6 +21,7 @@ import {
   calculateBollingerBands,
   type BollingerBandPoint
 } from '../shared/bollinger'
+import { beijingDateKey } from '../shared/market-hours'
 import type { KlineBar, KlinePeriod } from '../shared/types'
 
 type HistoricalPeriod = Extract<KlinePeriod, 'daily' | 'weekly' | 'monthly'>
@@ -35,6 +36,8 @@ interface PeriodKlineChartProps {
   onVisibleRangeChange?: (range: KlineVisibleRange, source: KlineVisibleRangeSource) => void
   bollingerBandsEnabled: boolean
   onBollingerBandsEnabledChange: (enabled: boolean) => void
+  trackingStartedAt?: string
+  trackingStoppedAt?: string
   height?: number
 }
 
@@ -63,6 +66,58 @@ function bollingerPrice(value: number | undefined): string {
   return value === undefined ? '--' : value.toFixed(2)
 }
 
+function trackingDateMarkers(
+  bars: readonly KlineBar[],
+  startedAt: string | undefined,
+  stoppedAt: string | undefined
+): SeriesMarker<Time>[] {
+  if (!startedAt || bars.length === 0) return []
+
+  const firstDate = bars[0].time.slice(0, 10)
+  const lastDate = bars.at(-1)!.time.slice(0, 10)
+  const startedDate = beijingDateKey(new Date(startedAt))
+  const markers: SeriesMarker<Time>[] = []
+
+  if (startedDate >= firstDate && startedDate <= lastDate) {
+    const startedBar = bars.find((bar) => bar.time.slice(0, 10) >= startedDate)
+    if (startedBar) {
+      markers.push({
+        time: toTimestamp(startedBar.time),
+        position: 'belowBar',
+        shape: 'arrowUp',
+        color: '#2563eb',
+        text: '开始追踪',
+        size: 1
+      })
+    }
+  }
+
+  if (stoppedAt) {
+    const stoppedDate = beijingDateKey(new Date(stoppedAt))
+    if (stoppedDate >= firstDate) {
+      let stoppedBar: KlineBar | undefined
+      for (let index = bars.length - 1; index >= 0; index -= 1) {
+        if (bars[index].time.slice(0, 10) <= stoppedDate) {
+          stoppedBar = bars[index]
+          break
+        }
+      }
+      if (stoppedBar) {
+        markers.push({
+          time: toTimestamp(stoppedBar.time),
+          position: 'aboveBar',
+          shape: 'arrowDown',
+          color: '#d97706',
+          text: '结束追踪',
+          size: 1
+        })
+      }
+    }
+  }
+
+  return markers
+}
+
 const INITIAL_VISIBLE_BARS: Record<HistoricalPeriod, number> = {
   daily: 80,
   weekly: 60,
@@ -79,6 +134,8 @@ export default function PeriodKlineChart({
   onVisibleRangeChange,
   bollingerBandsEnabled,
   onBollingerBandsEnabledChange,
+  trackingStartedAt,
+  trackingStoppedAt,
   height = 320
 }: PeriodKlineChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -101,7 +158,10 @@ export default function PeriodKlineChart({
     range: { from: number; to: number },
     source: KlineVisibleRangeSource
   ) => void>(() => {})
-  const updateExtremaMarkersRef = useRef<(range: { from: number; to: number } | null) => void>(() => {})
+  const updateMarkersRef = useRef<
+    (range: { from: number; to: number } | null) => void
+  >(() => {})
+  const trackingDatesRef = useRef({ startedAt: trackingStartedAt, stoppedAt: trackingStoppedAt })
   const bollingerBands = useMemo(() => calculateBollingerBands(bars), [bars])
   const [hoveredBollinger, setHoveredBollinger] = useState<BollingerBandPoint | null | undefined>()
   const displayedBollinger = hoveredBollinger === undefined ? bollingerBands.at(-1) : hoveredBollinger
@@ -110,6 +170,7 @@ export default function PeriodKlineChart({
   onHoverBarRef.current = onHoverBar
   onRequestMoreRef.current = onRequestMore
   onVisibleRangeChangeRef.current = onVisibleRangeChange
+  trackingDatesRef.current = { startedAt: trackingStartedAt, stoppedAt: trackingStoppedAt }
 
   useEffect(() => {
     const container = containerRef.current
@@ -165,22 +226,22 @@ export default function PeriodKlineChart({
       lastValueVisible: true
     })
     candlesRef.current = candles
-    const extremaMarkers = createSeriesMarkers(candles, [], {
+    const chartMarkers = createSeriesMarkers(candles, [], {
       autoScale: true,
       zOrder: 'aboveSeries'
     })
 
-    const updateExtremaMarkers = (range: { from: number; to: number } | null) => {
+    const updateMarkers = (range: { from: number; to: number } | null) => {
       const currentBars = barsRef.current
       if (!range || currentBars.length === 0) {
-        extremaMarkers.setMarkers([])
+        chartMarkers.setMarkers([])
         return
       }
 
       const firstIndex = Math.max(0, Math.ceil(range.from))
       const lastIndex = Math.min(currentBars.length - 1, Math.floor(range.to))
       if (firstIndex > lastIndex) {
-        extremaMarkers.setMarkers([])
+        chartMarkers.setMarkers([])
         return
       }
 
@@ -210,13 +271,22 @@ export default function PeriodKlineChart({
         text: `最低 ${formatPrice(lowestBar.low)}`,
         size: 1
       }
-      extremaMarkers.setMarkers(
+      const extrema =
         toTimestamp(highestBar.time) <= toTimestamp(lowestBar.time)
           ? [highMarker, lowMarker]
           : [lowMarker, highMarker]
+      const trackingMarkers = trackingDateMarkers(
+        currentBars,
+        trackingDatesRef.current.startedAt,
+        trackingDatesRef.current.stoppedAt
+      )
+      chartMarkers.setMarkers(
+        [...extrema, ...trackingMarkers].sort(
+          (left, right) => Number(left.time) - Number(right.time)
+        )
       )
     }
-    updateExtremaMarkersRef.current = updateExtremaMarkers
+    updateMarkersRef.current = updateMarkers
 
     const reportVisibleRange = (
       range: { from: number; to: number },
@@ -283,7 +353,7 @@ export default function PeriodKlineChart({
       const alignedFrom = latestEdge - visibleSpan
       const alignedRange = { from: alignedFrom, to: latestEdge }
 
-      updateExtremaMarkers(alignedRange)
+      updateMarkers(alignedRange)
       reportVisibleRange(alignedRange, 'user')
 
       if (alignedFrom < 12 && lastRequestedLengthRef.current !== dataLengthRef.current) {
@@ -317,7 +387,7 @@ export default function PeriodKlineChart({
       bollingerMiddleRef.current = null
       bollingerLowerRef.current = null
       reportVisibleRangeRef.current = () => {}
-      updateExtremaMarkersRef.current = () => {}
+      updateMarkersRef.current = () => {}
     }
   }, [height, period])
 
@@ -354,10 +424,16 @@ export default function PeriodKlineChart({
     const nextRange = { from: latestEdge - visibleSpan, to: latestEdge }
     isAligningRangeRef.current = true
     chart.timeScale().setVisibleLogicalRange(nextRange)
-    updateExtremaMarkersRef.current(nextRange)
+    updateMarkersRef.current(nextRange)
     reportVisibleRangeRef.current(nextRange, 'programmatic')
     requestAnimationFrame(() => { isAligningRangeRef.current = false })
   }, [bars, height, period])
+
+  useEffect(() => {
+    const chart = chartRef.current
+    if (!chart) return
+    updateMarkersRef.current(chart.timeScale().getVisibleLogicalRange())
+  }, [trackingStartedAt, trackingStoppedAt])
 
   useEffect(() => {
     const upper = bollingerUpperRef.current
@@ -388,7 +464,7 @@ export default function PeriodKlineChart({
     const range = { from: latestEdge - visibleBars, to: latestEdge }
     isAligningRangeRef.current = true
     chart.timeScale().setVisibleLogicalRange(range)
-    updateExtremaMarkersRef.current(range)
+    updateMarkersRef.current(range)
     reportVisibleRangeRef.current(range, 'programmatic')
     requestAnimationFrame(() => { isAligningRangeRef.current = false })
   }, [bars.length, requestedVisibleBars, visibleRangeRequestKey])
