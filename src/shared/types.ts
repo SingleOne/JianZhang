@@ -1656,6 +1656,7 @@ export interface BootstrapResult {
 
 export interface TaskbarLayout {
   taskbarHeight: number
+  taskbarEdge: 'top' | 'bottom'
 }
 
 export interface TaskbarTooltipAnchor {

@@ -387,7 +387,8 @@ if (!hasSingleInstanceLock) {
       persistState,
       getQuotes: getLatestQuotes,
       getStartupWarning: () => startupWarning,
-      getTaskbarLayout: () => windowManager?.getTaskbarLayout() ?? { taskbarHeight: 48 },
+      getTaskbarLayout: () =>
+        windowManager?.getTaskbarLayout() ?? { taskbarHeight: 48, taskbarEdge: 'bottom' },
       getTaskbarTooltipQuoteId: () => windowManager?.getTaskbarTooltipQuoteId() ?? null,
       setTaskbarTooltip: (anchor) => windowManager?.setTaskbarTooltip(anchor),
       resizeTaskbarTooltip: (height) => windowManager?.resizeTaskbarTooltip(height),

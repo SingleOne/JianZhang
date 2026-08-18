@@ -1,10 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { initialState, stockApi } from '../lib/api'
 import { formatPercent, formatPrice } from '../lib/format'
-import {
-  getTriggeredTAlertBadges,
-  getTriggeredTFloatingProfitAlert
-} from '../lib/t-alerts'
+import { getTriggeredTAlertBadges, getTriggeredTFloatingProfitAlert } from '../lib/t-alerts'
 import { calculateTBatchMetrics } from '../lib/t-trading'
 import { getBatchTrades } from '../lib/trade-records'
 import { getTriggeredStockAlertDirection } from '../lib/stock-alerts'
@@ -21,7 +18,10 @@ function directionClass(changePercent: number | null | undefined): string {
 export function TaskbarTicker() {
   const [state, setState] = useState<AppState>(initialState)
   const [quotes, setQuotes] = useState<StockQuote[]>([])
-  const [layout, setLayout] = useState<TaskbarLayout>({ taskbarHeight: 48 })
+  const [layout, setLayout] = useState<TaskbarLayout>({
+    taskbarHeight: 48,
+    taskbarEdge: 'bottom'
+  })
 
   useEffect(() => {
     let active = true
@@ -34,15 +34,14 @@ export function TaskbarTicker() {
       setLayout(nextLayout)
     })
 
-    void Promise.all([
-      stockApi.getBootstrap(),
-      stockApi.getTaskbarLayout()
-    ]).then(([bootstrap, taskbarLayout]) => {
-      if (!active) return
-      setState(bootstrap.state)
-      setQuotes(bootstrap.quotes)
-      if (!receivedLayoutEvent) setLayout(taskbarLayout)
-    })
+    void Promise.all([stockApi.getBootstrap(), stockApi.getTaskbarLayout()]).then(
+      ([bootstrap, taskbarLayout]) => {
+        if (!active) return
+        setState(bootstrap.state)
+        setQuotes(bootstrap.quotes)
+        if (!receivedLayoutEvent) setLayout(taskbarLayout)
+      }
+    )
 
     return () => {
       active = false
@@ -77,9 +76,13 @@ export function TaskbarTicker() {
           stockAlertDirection: getTriggeredStockAlertDirection(stock.alertRules)
         }
       })
-      .filter(({ stock, alertBadges, floatingProfitAlert, fiveLevelAlerts }) => (
-        stock.showInTaskbar || alertBadges.length > 0 || Boolean(floatingProfitAlert) || Boolean(fiveLevelAlerts?.length)
-      ))
+      .filter(
+        ({ stock, alertBadges, floatingProfitAlert, fiveLevelAlerts }) =>
+          stock.showInTaskbar ||
+          alertBadges.length > 0 ||
+          Boolean(floatingProfitAlert) ||
+          Boolean(fiveLevelAlerts?.length)
+      )
   }, [quotes, state.tTradingAccounts, state.watchlist])
 
   return (
@@ -88,46 +91,48 @@ export function TaskbarTicker() {
         className={`taskbar-ticker ${selectedStocks.length === 1 ? 'is-single' : ''}`}
         style={{ height: layout.taskbarHeight }}
       >
-        {selectedStocks.map(({
-          stock,
-          quote,
-          alertBadges,
-          tMetrics,
-          floatingProfitAlert,
-          fiveLevelAlerts,
-          stockAlertDirection
-        }) => {
-          const direction = directionClass(quote?.changePercent)
-          return (
-            <div
-              className={`taskbar-quote ${direction} ${stockAlertDirection ? `is-stock-alert-triggered is-alert-${stockAlertDirection}` : ''}`}
-              key={stock.quoteId}
-              onMouseEnter={(event) => {
-                const bounds = event.currentTarget.getBoundingClientRect()
-                void stockApi.setTaskbarTooltip({
-                  quoteId: stock.quoteId,
-                  left: bounds.left,
-                  width: bounds.width
-                })
-              }}
-              onMouseLeave={() => void stockApi.setTaskbarTooltip(null)}
-            >
-              <span className="taskbar-stock-name">{stock.name}</span>
-              <FiveLevelAlertBadges alerts={fiveLevelAlerts} compact showTitle={false} />
-              <strong>{formatPrice(quote?.latest)}</strong>
-              <span className="taskbar-stock-change">{formatPercent(quote?.changePercent)}</span>
-              <TAlertBadges badges={alertBadges} compact showTitle={false} />
-              {floatingProfitAlert ? (
-                <TFloatingProfitAlertBadge
-                  batch={state.tTradingAccounts[stock.quoteId]?.activeBatch}
-                  floatingProfit={tMetrics?.floatingProfit}
-                  compact
-                  showTitle={false}
-                />
-              ) : null}
-            </div>
-          )
-        })}
+        {selectedStocks.map(
+          ({
+            stock,
+            quote,
+            alertBadges,
+            tMetrics,
+            floatingProfitAlert,
+            fiveLevelAlerts,
+            stockAlertDirection
+          }) => {
+            const direction = directionClass(quote?.changePercent)
+            return (
+              <div
+                className={`taskbar-quote ${direction} ${stockAlertDirection ? `is-stock-alert-triggered is-alert-${stockAlertDirection}` : ''}`}
+                key={stock.quoteId}
+                onMouseEnter={(event) => {
+                  const bounds = event.currentTarget.getBoundingClientRect()
+                  void stockApi.setTaskbarTooltip({
+                    quoteId: stock.quoteId,
+                    left: bounds.left,
+                    width: bounds.width
+                  })
+                }}
+                onMouseLeave={() => void stockApi.setTaskbarTooltip(null)}
+              >
+                <span className="taskbar-stock-name">{stock.name}</span>
+                <FiveLevelAlertBadges alerts={fiveLevelAlerts} compact showTitle={false} />
+                <strong>{formatPrice(quote?.latest)}</strong>
+                <span className="taskbar-stock-change">{formatPercent(quote?.changePercent)}</span>
+                <TAlertBadges badges={alertBadges} compact showTitle={false} />
+                {floatingProfitAlert ? (
+                  <TFloatingProfitAlertBadge
+                    batch={state.tTradingAccounts[stock.quoteId]?.activeBatch}
+                    floatingProfit={tMetrics?.floatingProfit}
+                    compact
+                    showTitle={false}
+                  />
+                ) : null}
+              </div>
+            )
+          }
+        )}
       </div>
     </div>
   )

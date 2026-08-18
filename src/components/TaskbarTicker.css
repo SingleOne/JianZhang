@@ -222,6 +222,10 @@
   padding: 0 5px 10px;
 }
 
+.taskbar-stock-tooltip-shell.is-taskbar-top {
+  padding: 10px 5px 0;
+}
+
 .taskbar-stock-tooltip {
   position: relative;
   display: flex;
@@ -248,6 +252,15 @@
   border-bottom: 1px solid rgba(193, 202, 216, 0.95);
   content: '';
   transform: translateX(-50%) rotate(45deg);
+}
+
+.taskbar-stock-tooltip-shell.is-taskbar-top .taskbar-stock-tooltip::after {
+  top: -7px;
+  bottom: auto;
+  border-top: 1px solid rgba(193, 202, 216, 0.95);
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 1px solid rgba(193, 202, 216, 0.95);
 }
 
 .taskbar-stock-tooltip > header,
@@ -468,7 +481,8 @@
 }
 
 @keyframes taskbar-stock-alert-text-flash {
-  0%, 100% {
+  0%,
+  100% {
     color: #d51f2d;
     text-shadow: 0 0 2px rgba(213, 31, 45, 0.28);
   }
@@ -479,7 +493,8 @@
 }
 
 @keyframes taskbar-stock-alert-text-flash-lte {
-  0%, 100% {
+  0%,
+  100% {
     color: #087c57;
     text-shadow: 0 0 2px rgba(8, 124, 87, 0.28);
   }
@@ -490,7 +505,8 @@
 }
 
 @keyframes taskbar-stock-alert-text-flash-both {
-  0%, 100% {
+  0%,
+  100% {
     color: #d51f2d;
     text-shadow: 0 0 5px rgba(213, 31, 45, 0.55);
   }

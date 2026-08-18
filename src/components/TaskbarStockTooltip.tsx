@@ -15,7 +15,7 @@ import { formatStockAlertValue, STOCK_ALERT_METRIC_LABELS } from '../lib/stock-a
 import { getTriggeredTAlertBadges, getTriggeredTFloatingProfitAlert } from '../lib/t-alerts'
 import { calculateTBatchMetrics } from '../lib/t-trading'
 import { getBatchTrades } from '../lib/trade-records'
-import type { AppState, StockQuote } from '../shared/types'
+import type { AppState, StockQuote, TaskbarLayout } from '../shared/types'
 
 function valueClass(value: number | null | undefined): string {
   if (value === null || value === undefined || value === 0) return 'is-flat'
@@ -31,10 +31,15 @@ export function TaskbarStockTooltip() {
   const [state, setState] = useState<AppState>(initialState)
   const [quotes, setQuotes] = useState<StockQuote[]>([])
   const [quoteId, setQuoteId] = useState<string | null>(null)
+  const [layout, setLayout] = useState<TaskbarLayout>({
+    taskbarHeight: 48,
+    taskbarEdge: 'bottom'
+  })
 
   useEffect(() => {
     let active = true
     let receivedTooltipEvent = false
+    let receivedLayoutEvent = false
 
     const unsubscribeQuotes = stockApi.onQuotesUpdated(setQuotes)
     const unsubscribeState = stockApi.onStateUpdated(setState)
@@ -42,21 +47,29 @@ export function TaskbarStockTooltip() {
       receivedTooltipEvent = true
       setQuoteId(nextQuoteId)
     })
+    const unsubscribeLayout = stockApi.onTaskbarLayout((nextLayout) => {
+      receivedLayoutEvent = true
+      setLayout(nextLayout)
+    })
 
-    void Promise.all([stockApi.getBootstrap(), stockApi.getTaskbarTooltipQuoteId()]).then(
-      ([bootstrap, currentQuoteId]) => {
-        if (!active) return
-        setState(bootstrap.state)
-        setQuotes(bootstrap.quotes)
-        if (!receivedTooltipEvent) setQuoteId(currentQuoteId)
-      }
-    )
+    void Promise.all([
+      stockApi.getBootstrap(),
+      stockApi.getTaskbarTooltipQuoteId(),
+      stockApi.getTaskbarLayout()
+    ]).then(([bootstrap, currentQuoteId, taskbarLayout]) => {
+      if (!active) return
+      setState(bootstrap.state)
+      setQuotes(bootstrap.quotes)
+      if (!receivedTooltipEvent) setQuoteId(currentQuoteId)
+      if (!receivedLayoutEvent) setLayout(taskbarLayout)
+    })
 
     return () => {
       active = false
       unsubscribeQuotes()
       unsubscribeState()
       unsubscribeTooltip()
+      unsubscribeLayout()
     }
   }, [])
 
@@ -85,7 +98,10 @@ export function TaskbarStockTooltip() {
   })
 
   return (
-    <div className="taskbar-stock-tooltip-shell" ref={shellRef}>
+    <div
+      className={`taskbar-stock-tooltip-shell ${layout.taskbarEdge === 'top' ? 'is-taskbar-top' : ''}`}
+      ref={shellRef}
+    >
       <article className="taskbar-stock-tooltip">
         <header>
           <span className="taskbar-tooltip-identity">

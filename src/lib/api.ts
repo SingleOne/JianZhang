@@ -539,7 +539,7 @@ const demoApi: StockDesktopApi = {
     return { state, quotes: makeDemoQuotes([...state.watchlist, ...marketIndices]), source: 'demo' }
   },
   async getTaskbarLayout() {
-    return { taskbarHeight: 48 }
+    return { taskbarHeight: 48, taskbarEdge: 'bottom' }
   },
   async getTaskbarTooltipQuoteId() {
     return null

@@ -33,7 +33,7 @@ export class WindowManager {
   private appTray: Tray | null = null
   private trayPopupShowTimer: NodeJS.Timeout | null = null
   private taskbarPositionTimer: NodeJS.Timeout | null = null
-  private taskbarLayout: TaskbarLayout = { taskbarHeight: 48 }
+  private taskbarLayout: TaskbarLayout = { taskbarHeight: 48, taskbarEdge: 'bottom' }
   private taskbarTooltipAnchor: TaskbarTooltipAnchor | null = null
   private taskbarTooltipHeight = TASKBAR_TOOLTIP_DEFAULT_HEIGHT
   private trayHovered = false
@@ -381,9 +381,15 @@ export class WindowManager {
 
     const state = this.dependencies.getState()
     const display = screen.getPrimaryDisplay()
-    const taskbarTop = display.workArea.y + display.workArea.height
+    const displayTop = display.bounds.y
+    const workAreaTop = display.workArea.y
+    const workAreaBottom = display.workArea.y + display.workArea.height
     const displayBottom = display.bounds.y + display.bounds.height
-    const taskbarHeight = displayBottom - taskbarTop
+    const topTaskbarHeight = workAreaTop - displayTop
+    const bottomTaskbarHeight = displayBottom - workAreaBottom
+    const taskbarEdge = topTaskbarHeight >= 24 ? 'top' : 'bottom'
+    const taskbarHeight = taskbarEdge === 'top' ? topTaskbarHeight : bottomTaskbarHeight
+    const taskbarY = taskbarEdge === 'top' ? displayTop : workAreaBottom
     const selectedCount = this.taskbarVisibleStocks().length
 
     if (
@@ -404,15 +410,18 @@ export class WindowManager {
     const positionPercent = Math.min(100, Math.max(0, state.settings.taskbarPositionPercent))
     const x =
       display.bounds.x + horizontalMargin + Math.round((travelWidth * positionPercent) / 100)
-    this.taskbarLayout = { taskbarHeight }
+    this.taskbarLayout = { taskbarHeight, taskbarEdge }
 
     this.taskbarWindow.setBounds({
       x,
-      y: taskbarTop,
+      y: taskbarY,
       width,
       height: taskbarHeight
     })
     this.taskbarWindow.webContents.send('taskbar:layout', this.taskbarLayout)
+    if (this.taskbarTooltipWindow && !this.taskbarTooltipWindow.isDestroyed()) {
+      this.taskbarTooltipWindow.webContents.send('taskbar:layout', this.taskbarLayout)
+    }
     this.taskbarWindow.setAlwaysOnTop(true, 'pop-up-menu')
     this.taskbarWindow.showInactive()
     if (this.taskbarTooltipWindow?.isVisible()) {
@@ -443,7 +452,13 @@ export class WindowManager {
     const minX = display.workArea.x + margin
     const maxX = display.workArea.x + display.workArea.width - width - margin
     const x = Math.min(maxX, Math.max(minX, Math.round(anchorCenter - width / 2)))
-    const y = Math.max(display.workArea.y + margin, taskbarBounds.y - height - margin)
+    const y =
+      this.taskbarLayout.taskbarEdge === 'top'
+        ? Math.min(
+            display.workArea.y + display.workArea.height - height - margin,
+            taskbarBounds.y + taskbarBounds.height + margin
+          )
+        : Math.max(display.workArea.y + margin, taskbarBounds.y - height - margin)
 
     this.taskbarTooltipWindow.setBounds({ x, y, width, height })
   }
