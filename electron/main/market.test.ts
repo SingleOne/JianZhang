@@ -182,6 +182,65 @@ describe('fetchQuotes investment valuation fields', () => {
       priceBookRatio: 6.92
     })
   })
+
+  it('publishes an update after asynchronously loading radar signals', async () => {
+    const stock = {
+      code: '600001',
+      name: '异动测试',
+      quoteId: '1.600001',
+      marketLabel: '沪A',
+      showInTaskbar: false,
+      isPriority: false,
+      showRadarSignals: true
+    }
+    const quotePayload = {
+      data: {
+        diff: [{
+          f2: 1050,
+          f3: 200,
+          f4: 21,
+          f5: 10_000,
+          f6: 60_000_000,
+          f8: 120,
+          f12: stock.code,
+          f13: 1,
+          f14: stock.name,
+          f15: 1060,
+          f16: 1020,
+          f17: 1030,
+          f18: 1029
+        }]
+      }
+    }
+    const now = new Date()
+    const date = [now.getFullYear(), now.getMonth() + 1, now.getDate()]
+      .map((part, index) => index === 0 ? String(part) : String(part).padStart(2, '0'))
+      .join('')
+    netFetch
+      .mockResolvedValueOnce(jsonResponse({
+        data: { allstock: [{ tm: 101530, c: stock.code, m: 1, t: 8201, i: '快速拉升,测试' }] }
+      }))
+      .mockResolvedValueOnce(jsonResponse({ data: { data: [] } }))
+      .mockResolvedValueOnce(jsonResponse(quotePayload))
+    const onRadarSignalsUpdated = vi.fn()
+
+    const initial = await fetchQuotes([stock], [stock], 'radar-test', onRadarSignalsUpdated)
+
+    expect(initial.quotes[0].radarSignals).toBeUndefined()
+    await vi.waitFor(() => expect(onRadarSignalsUpdated).toHaveBeenCalled())
+
+    netFetch.mockResolvedValueOnce(jsonResponse(quotePayload))
+    const refreshed = await fetchQuotes([stock], [stock], 'radar-test', onRadarSignalsUpdated)
+
+    expect(refreshed.quotes[0].radarSignals).toEqual([{
+      type: '8201',
+      label: '火箭发射',
+      date,
+      time: '10:15:30',
+      info: '快速拉升',
+      direction: 'up'
+    }])
+  })
 })
 
 describe('fetchDailyMarketActiveQuotes', () => {

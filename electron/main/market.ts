@@ -90,6 +90,8 @@ interface EastmoneyRadarItem {
 
 type RadarSignalMap = Map<string, StockRadarSignal[]>
 
+type RadarSignalsUpdated = () => void
+
 interface RadarCache {
   cachedAt: number
   date: string
@@ -532,11 +534,12 @@ async function fetchSinaQuotes(stocks: WatchStock[], caller: string): Promise<St
 export async function fetchQuotes(
   stocks: WatchStock[],
   radarStocks: WatchStock[] = stocks,
-  caller = 'quotes'
+  caller = 'quotes',
+  onRadarSignalsUpdated?: RadarSignalsUpdated
 ): Promise<QuoteBatchResult> {
   if (stocks.length === 0) return { quotes: [], source: 'none' }
 
-  const radarSignals = currentRadarSignals(radarStocks)
+  const radarSignals = currentRadarSignals(radarStocks, onRadarSignalsUpdated)
   const withRadarSignals = (quotes: StockQuote[]) => quotes.map((quote) => ({
     ...quote,
     radarSignals: radarSignals.get(quote.quoteId)
@@ -700,6 +703,24 @@ function normalizeRadarSignals(signals: StockRadarSignal[]): StockRadarSignal[] 
   ))
 }
 
+function radarSignalMapsEqual(left: RadarSignalMap | undefined, right: RadarSignalMap): boolean {
+  if (!left || left.size !== right.size) return false
+  for (const [quoteId, rightSignals] of right) {
+    const leftSignals = left.get(quoteId)
+    if (!leftSignals || leftSignals.length !== rightSignals.length) return false
+    if (leftSignals.some((signal, index) => {
+      const rightSignal = rightSignals[index]
+      return signal.type !== rightSignal.type
+        || signal.label !== rightSignal.label
+        || signal.date !== rightSignal.date
+        || signal.time !== rightSignal.time
+        || signal.info !== rightSignal.info
+        || signal.direction !== rightSignal.direction
+    })) return false
+  }
+  return true
+}
+
 function mergeRadarSignals(...maps: Array<RadarSignalMap | undefined>): RadarSignalMap {
   const merged = new Map<string, StockRadarSignal[]>()
   for (const map of maps) {
@@ -710,7 +731,10 @@ function mergeRadarSignals(...maps: Array<RadarSignalMap | undefined>): RadarSig
   return merged
 }
 
-function currentRadarSignals(stocks: WatchStock[]): RadarSignalMap {
+function currentRadarSignals(
+  stocks: WatchStock[],
+  onRadarSignalsUpdated?: RadarSignalsUpdated
+): RadarSignalMap {
   if (stocks.length === 0) return new Map()
   const { startDate, endDate } = recentRadarDates()
   const watchlistKey = stocks.map((stock) => stock.quoteId).sort().join(',')
@@ -718,18 +742,26 @@ function currentRadarSignals(stocks: WatchStock[]): RadarSignalMap {
   const historyCacheValid = historyRadarCache?.date === endDate && historyRadarCache.watchlistKey === watchlistKey
 
   if ((!todayCacheValid || Date.now() - (todayRadarCache?.cachedAt ?? 0) >= 30_000) && !todayRadarRefresh) {
+    const previousSignals = todayCacheValid ? todayRadarCache?.signals : undefined
     todayRadarRefresh = fetchTodayRadarSignals(stocks, endDate)
       .then((signals) => {
         todayRadarCache = { cachedAt: Date.now(), date: endDate, watchlistKey, signals }
+        if ((previousSignals || signals.size > 0) && !radarSignalMapsEqual(previousSignals, signals)) {
+          onRadarSignalsUpdated?.()
+        }
       })
       .catch(() => undefined)
       .finally(() => { todayRadarRefresh = undefined })
   }
 
   if ((!historyCacheValid || Date.now() - (historyRadarCache?.cachedAt ?? 0) >= 10 * 60_000) && !historyRadarRefresh) {
+    const previousSignals = historyCacheValid ? historyRadarCache?.signals : undefined
     historyRadarRefresh = fetchHistoricalRadarSignals(stocks, startDate, endDate)
       .then((signals) => {
         historyRadarCache = { cachedAt: Date.now(), date: endDate, watchlistKey, signals }
+        if ((previousSignals || signals.size > 0) && !radarSignalMapsEqual(previousSignals, signals)) {
+          onRadarSignalsUpdated?.()
+        }
       })
       .catch(() => undefined)
       .finally(() => { historyRadarRefresh = undefined })

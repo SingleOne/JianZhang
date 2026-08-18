@@ -160,6 +160,7 @@ export class QuoteRuntime {
       quoteMap.set(quote.quoteId, {
         ...quote,
         sector: quote.sector ?? previous?.sector,
+        radarSignals: quote.radarSignals ?? previous?.radarSignals,
         fiveLevelLargeOrders: quote.fiveLevelLargeOrders ?? previous?.fiveLevelLargeOrders
       })
     }
@@ -251,6 +252,7 @@ export class QuoteRuntime {
       batch.stockQuoteIds.has(stock.quoteId)
     )
     const stocks = this.uniqueStocks([...scopedStocks, ...explicitlyRequestedStocks])
+    const radarStocks = state.watchlist.filter((stock) => stock.showRadarSignals)
     const marketIndices = refreshRegular ? getMarketIndexStocks(state.settings.marketIndexIds) : []
     const dueSectorStocks = this.dependencies.sectorMarketCache.dueBoardStocks(scopedStocks)
     const requestedSectorStocks = [...batch.sectorQuoteIds].flatMap((quoteId) => {
@@ -266,8 +268,11 @@ export class QuoteRuntime {
     try {
       const result = await fetchQuotes(
         requestedStocks,
-        stocks.filter((stock) => stock.showRadarSignals),
-        `quote-cycle:${reasons.join('+')}`
+        radarStocks,
+        `quote-cycle:${reasons.join('+')}`,
+        () => {
+          void this.coordinator.request({ scope: 'all', reason: 'radar-updated' })
+        }
       )
       const sectorQuoteIds = new Set(sectorStocks.map((stock) => stock.quoteId))
       this.dependencies.sectorMarketCache.saveQuotes(
