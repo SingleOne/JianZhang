@@ -28,6 +28,7 @@ export class WindowManager {
   private disposed = false
   private readonly windowStatePath: string
   private mainWindowVisible: boolean
+  private mainWindowHasBeenShown = false
 
   private readonly handleDisplayMetricsChanged = (): void => {
     this.syncTaskbarWindow()
@@ -66,6 +67,10 @@ export class WindowManager {
   showMainWindow(quoteId?: string): void {
     const window = this.getMainWindow()
     if (!window) return
+    if (!this.mainWindowHasBeenShown) {
+      this.mainWindowHasBeenShown = true
+      window.maximize()
+    }
     if (window.isMinimized()) window.restore()
     window.show()
     window.focus()
@@ -442,8 +447,7 @@ export class WindowManager {
 
     window.setMenuBarVisibility(false)
     window.on('ready-to-show', () => {
-      window.maximize()
-      if (this.mainWindowVisible) window.show()
+      if (this.mainWindowVisible) this.showMainWindow()
     })
     window.on('close', (event) => {
       if (!this.dependencies.isQuitting() && this.dependencies.getState().settings.minimizeToTray) {
