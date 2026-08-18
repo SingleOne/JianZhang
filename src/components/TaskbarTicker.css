@@ -277,8 +277,20 @@
 
 .taskbar-tooltip-identity span,
 .taskbar-tooltip-market,
-.taskbar-stock-tooltip > footer {
+.taskbar-tooltip-update-time {
   color: #7a8598;
+}
+
+.taskbar-tooltip-header-meta {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.taskbar-tooltip-update-time {
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .taskbar-tooltip-market {
@@ -361,7 +373,7 @@
 
 .taskbar-tooltip-position-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 0.85fr 0.85fr 1.15fr 1.15fr;
   gap: 8px 12px;
 }
 
@@ -401,12 +413,6 @@
 .taskbar-tooltip-position-grid b.is-flat,
 .taskbar-tooltip-t-summary .is-flat {
   color: #657187;
-}
-
-.taskbar-tooltip-position-grid em {
-  flex: none;
-  font-size: 12px;
-  font-style: normal;
 }
 
 .taskbar-tooltip-t-summary {
@@ -459,11 +465,6 @@
 .taskbar-tooltip-alert-list .is-buy b,
 .taskbar-tooltip-alert-list .is-loss b {
   color: #087c57;
-}
-
-.taskbar-stock-tooltip > footer {
-  margin-top: auto;
-  font-size: 12px;
 }
 
 @keyframes taskbar-stock-alert-text-flash {
@@ -580,7 +581,7 @@
 
   .taskbar-tooltip-identity span,
   .taskbar-tooltip-market,
-  .taskbar-stock-tooltip > footer,
+  .taskbar-tooltip-update-time,
   .taskbar-tooltip-details dt {
     color: #a8b3c3;
   }

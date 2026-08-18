@@ -92,7 +92,12 @@ export function TaskbarStockTooltip() {
             <strong>{stock?.name ?? quote?.name ?? '--'}</strong>
             <span>{stock?.code ?? quote?.code ?? '--'}</span>
           </span>
-          <span className="taskbar-tooltip-market">{stock?.marketLabel ?? '实时行情'}</span>
+          <span className="taskbar-tooltip-header-meta">
+            <span className="taskbar-tooltip-update-time">
+              更新 {formatUpdateTime(quote?.updatedAt)}
+            </span>
+            <span className="taskbar-tooltip-market">{stock?.marketLabel ?? '实时行情'}</span>
+          </span>
         </header>
 
         <div className={`taskbar-tooltip-price-row ${valueClass(quote?.changePercent)}`}>
@@ -144,7 +149,6 @@ export function TaskbarStockTooltip() {
               <small>持仓收益</small>
               <b className={valueClass(positionMetrics.totalProfit)}>
                 {formatProfit(positionMetrics.totalProfit)}
-                <em>{formatPercent(positionMetrics.profitPercent)}</em>
               </b>
             </span>
           </div>
@@ -227,8 +231,6 @@ export function TaskbarStockTooltip() {
             </ul>
           </section>
         ) : null}
-
-        <footer>行情更新于 {formatUpdateTime(quote?.updatedAt)}</footer>
       </article>
     </div>
   )
