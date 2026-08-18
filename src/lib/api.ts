@@ -752,7 +752,10 @@ const demoApi: StockDesktopApi = {
   async getGitHubSyncSettings() {
     return {
       oauthAvailable: false,
-      connected: false
+      connected: false,
+      hasStoredPassword: false,
+      syncPasswordReady: false,
+      requiresRemoteRestore: false
     }
   },
   async startGitHubLogin() {
@@ -761,20 +764,35 @@ const demoApi: StockDesktopApi = {
   async completeGitHubLogin() {
     throw new Error('GitHub 网页授权仅在 Windows 桌面版中可用')
   },
-  async listGitHubRepositories() {
-    return []
+  async refreshGitHubGist() {
+    throw new Error('GitHub Gist 同步仅在 Windows 桌面版中可用')
   },
-  async selectGitHubRepository() {
-    throw new Error('GitHub 同步仅在 Windows 桌面版中可用')
+  async getGitHubSyncPassword() {
+    return null
+  },
+  async generateGitHubSyncPassword() {
+    throw new Error('同步密钥生成仅在 Windows 桌面版中可用')
+  },
+  async saveGitHubSyncPassword() {
+    throw new Error('GitHub Gist 同步仅在 Windows 桌面版中可用')
   },
   async disconnectGitHub() {
-    return { oauthAvailable: false, connected: false }
+    return {
+      oauthAvailable: false,
+      connected: false,
+      hasStoredPassword: false,
+      syncPasswordReady: false,
+      requiresRemoteRestore: false
+    }
   },
   async uploadUserDataToGitHub() {
     throw new Error('GitHub 同步仅在 Windows 桌面版中可用')
   },
   async downloadUserDataFromGitHub() {
     throw new Error('GitHub 同步仅在 Windows 桌面版中可用')
+  },
+  async confirmGitHubGistRestore() {
+    throw new Error('GitHub Gist 同步仅在 Windows 桌面版中可用')
   },
   async hideWindow() {},
   async quitApp() {},

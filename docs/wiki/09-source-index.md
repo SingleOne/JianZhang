@@ -26,7 +26,8 @@
 | [`electron/main/index.ts`](../../electron/main/index.ts) | `app.whenReady`、`persistState`、`cleanupBeforeQuit` | Electron 生命周期、核心模块组装、依赖注入和可选模块注册 |
 | [`electron/main/state-store.ts`](../../electron/main/state-store.ts) | `StateStore` | 状态规范化/迁移、原子保存、最近备份和损坏配置恢复 |
 | [`electron/main/user-data-backup-service.ts`](../../electron/main/user-data-backup-service.ts) | `UserDataBackupService` | 收集、暂存和恢复核心状态之外的用户生成数据 |
-| [`electron/main/github-sync-service.ts`](../../electron/main/github-sync-service.ts) | `GitHubSyncService` | GitHub OAuth Device Flow、可写私有仓库选择、Token 安全存储和 Contents API 上传/下载 |
+| [`electron/main/github-sync-service.ts`](../../electron/main/github-sync-service.ts) | `GitHubSyncService` | GitHub OAuth Device Flow、Secret Gist 自动定位、同步密码绑定、版本冲突检查和上传/恢复 |
+| [`electron/main/github-gist-crypto.ts`](../../electron/main/github-gist-crypto.ts) | `encryptGitHubGistBackup`、`decryptGitHubGistBackup` | 使用 scrypt 和 AES-256-GCM 加密或解密完整 Gist 备份 |
 | [`electron/main/window-manager.ts`](../../electron/main/window-manager.ts) | `WindowManager` | 主窗口、任务栏、托盘菜单与悬浮窗口生命周期 |
 | [`electron/main/ipc-handlers.ts`](../../electron/main/ipc-handlers.ts) | `registerIpcHandlers` | 核心 StockDesktopApi IPC 注册和清理 |
 | [`electron/main/quote-runtime.ts`](../../electron/main/quote-runtime.ts) | `QuoteRuntime` | 批量报价刷新、板块绑定、提醒判断、盘口大单和窗口广播 |

@@ -382,111 +382,145 @@
   gap: 10px;
 }
 
-.github-repository-select {
+.github-gist-target {
+  padding: 9px 10px;
+  color: #526075;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+
+.github-gist-target > span {
   display: grid;
-  gap: 4px;
-  color: #667085;
+  gap: 3px;
+}
+
+.github-gist-target strong,
+.github-gist-target small {
   font-size: 12px;
 }
 
-.github-repository-dropdown {
-  position: relative;
+.github-password-panel {
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+  color: #526075;
+  background: #fbfcfe;
+  border: 1px solid var(--border);
+  border-radius: 7px;
 }
 
-.github-repository-dropdown summary {
-  width: 100%;
-  height: 34px;
+.github-password-heading,
+.github-password-heading > span {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 0 8px;
-  overflow: hidden;
-  color: #344054;
-  background: #fff;
-  border: 1px solid var(--border-strong);
-  border-radius: 7px;
+  gap: 6px;
   font-size: 12px;
-  cursor: pointer;
-  list-style: none;
 }
 
-.github-repository-dropdown summary::-webkit-details-marker {
-  display: none;
+.github-password-heading > span {
+  justify-content: flex-start;
 }
 
-.github-repository-dropdown summary span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.github-repository-dropdown summary svg {
-  flex: 0 0 auto;
-  color: #7b8493;
-  transition: transform 150ms ease;
-}
-
-.github-repository-dropdown[open] summary svg {
-  transform: rotate(180deg);
-}
-
-.github-repository-dropdown.is-disabled summary {
-  color: #98a2b3;
-  background: #f8fafc;
-  cursor: default;
-}
-
-.github-repository-options {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 5px);
-  left: 0;
-  z-index: 2;
-  max-height: 190px;
-  padding: 4px;
-  overflow-y: auto;
+.github-password-heading button,
+.github-password-value button,
+.github-password-editor-actions button {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 8px;
+  color: #526075;
   background: #ffffff;
   border: 1px solid var(--border-strong);
-  border-radius: 7px;
-  box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.14);
-}
-
-.github-repository-options button {
-  width: 100%;
-  min-height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 5px 7px;
-  color: #445268;
-  background: transparent;
-  border: 0;
-  border-radius: 5px;
+  border-radius: 6px;
   font-size: 12px;
-  text-align: left;
   cursor: pointer;
 }
 
-.github-repository-options button:hover,
-.github-repository-options button.is-selected {
-  color: var(--blue);
-  background: var(--blue-soft);
+.github-password-heading button {
+  min-height: auto;
+  padding: 0;
+  background: transparent;
+  border: 0;
 }
 
-.github-repository-options button:disabled {
-  color: #98a2b3;
+.github-password-value {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px 34px;
+  gap: 5px;
+}
+
+.github-password-value input,
+.github-password-editor input {
+  min-width: 0;
+  height: 34px;
+  padding: 0 9px;
+  color: #344054;
+  background: #ffffff;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+}
+
+.github-password-editor {
+  display: grid;
+  gap: 7px;
+}
+
+.github-password-editor label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.github-password-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.github-password-editor-actions button.is-primary {
+  color: #ffffff;
+  background: #24292f;
+  border-color: #24292f;
+}
+
+.github-password-heading button:hover:not(:disabled),
+.github-password-value button:hover:not(:disabled),
+.github-password-editor-actions button:hover:not(:disabled) {
+  color: var(--blue);
+  border-color: #a9c3f8;
+}
+
+.github-password-editor-actions button.is-primary:hover:not(:disabled) {
+  color: #ffffff;
+  background: #111827;
+  border-color: #111827;
+}
+
+.github-password-heading button:disabled,
+.github-password-value button:disabled,
+.github-password-editor-actions button:disabled {
+  color: #a1a9b8;
   cursor: default;
 }
 
-.github-repository-options button span {
-  min-width: 0;
-  overflow-wrap: anywhere;
+.github-password-panel small,
+.github-password-message,
+.github-password-warning {
+  font-size: 12px;
 }
 
-.github-repository-options button svg {
-  flex: 0 0 auto;
+.github-password-message {
+  color: var(--blue);
+}
+
+.github-password-warning {
+  color: #b54708;
 }
 
 .github-connected-panel small,

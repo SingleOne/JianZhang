@@ -66,12 +66,15 @@ const api: StockDesktopApi = {
   getGitHubSyncSettings: () => ipcRenderer.invoke('github-sync:settings:get'),
   startGitHubLogin: () => ipcRenderer.invoke('github-sync:login:start'),
   completeGitHubLogin: (loginId) => ipcRenderer.invoke('github-sync:login:complete', loginId),
-  listGitHubRepositories: () => ipcRenderer.invoke('github-sync:repositories:list'),
-  selectGitHubRepository: (fullName) =>
-    ipcRenderer.invoke('github-sync:repository:select', fullName),
+  refreshGitHubGist: () => ipcRenderer.invoke('github-sync:gist:refresh'),
+  getGitHubSyncPassword: () => ipcRenderer.invoke('github-sync:password:get'),
+  generateGitHubSyncPassword: () => ipcRenderer.invoke('github-sync:password:generate'),
+  saveGitHubSyncPassword: (password) => ipcRenderer.invoke('github-sync:password:save', password),
   disconnectGitHub: () => ipcRenderer.invoke('github-sync:disconnect'),
   uploadUserDataToGitHub: (state) => ipcRenderer.invoke('github-sync:upload', state),
   downloadUserDataFromGitHub: () => ipcRenderer.invoke('github-sync:download'),
+  confirmGitHubGistRestore: (version) =>
+    ipcRenderer.invoke('github-sync:gist:restore-confirm', version),
   hideWindow: () => ipcRenderer.invoke('app:hide'),
   quitApp: () => ipcRenderer.invoke('app:quit'),
   onQuotesUpdated: (callback) => subscribe<StockQuote[]>('quotes:updated', callback),

@@ -462,8 +462,10 @@ if (!hasSingleInstanceLock) {
       getGitHubSyncSettings: () => githubSyncService!.getSettings(),
       startGitHubLogin: () => githubSyncService!.startLogin(),
       completeGitHubLogin: (loginId) => githubSyncService!.completeLogin(loginId),
-      listGitHubRepositories: () => githubSyncService!.listRepositories(),
-      selectGitHubRepository: (fullName) => githubSyncService!.selectRepository(fullName),
+      refreshGitHubGist: () => githubSyncService!.refreshGist(),
+      getGitHubSyncPassword: () => githubSyncService!.getSyncPassword(),
+      generateGitHubSyncPassword: () => githubSyncService!.generateSyncPassword(),
+      saveGitHubSyncPassword: (password) => githubSyncService!.saveSyncPassword(password),
       disconnectGitHub: () => githubSyncService!.disconnect(),
       uploadUserDataToGitHub: async (stateToExport, applicationVersion) => {
         const document = userDataBackupService!.create(
@@ -476,8 +478,14 @@ if (!hasSingleInstanceLock) {
           Object.keys(document.aiApiKeys).length
         )
       },
-      downloadUserDataFromGitHub: async () =>
-        userDataBackupService!.prepare(JSON.parse(await githubSyncService!.download())),
+      downloadUserDataFromGitHub: async () => {
+        const download = await githubSyncService!.download()
+        return {
+          ...userDataBackupService!.prepare(JSON.parse(download.content)),
+          githubGistVersion: download.version
+        }
+      },
+      confirmGitHubGistRestore: (version) => githubSyncService!.confirmRestore(version),
       clearInactiveFiveLevelAlerts: () => quoteRuntime!.clearInactiveFiveLevelAlerts(),
       sendToWindows,
       syncWindowSurfaces,

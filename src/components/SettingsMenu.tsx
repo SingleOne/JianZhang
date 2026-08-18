@@ -1,10 +1,13 @@
 import {
-  Check,
-  ChevronDown,
   CloudDownload,
   CloudUpload,
+  Copy,
   Download,
+  Eye,
+  EyeOff,
+  KeyRound,
   RefreshCw,
+  Sparkles,
   Settings2,
   Upload
 } from 'lucide-react'
@@ -14,7 +17,6 @@ import {
   type AppSettings,
   type DataSnapshotRuntimeState,
   type GitHubDeviceAuthorization,
-  type GitHubRepositoryOption,
   type GitHubSyncSettings,
   type MarketIndexId
 } from '../shared/types'
@@ -34,17 +36,18 @@ interface SettingsMenuProps {
   onExportConfig: () => void
   configBusy: boolean
   githubSyncSettings: GitHubSyncSettings
-  githubRepositories: GitHubRepositoryOption[]
-  githubRepositoriesLoading: boolean
+  githubSyncPassword: string | null
+  githubGistLoading: boolean
+  githubSyncPasswordSaving: boolean
   githubSyncError: string
   githubDeviceAuthorization: GitHubDeviceAuthorization | null
   githubSyncBusy: boolean
   githubSyncUploading: boolean
   githubSyncDownloading: boolean
   onConnectGitHub: () => void
-  onRefreshGitHubRepositories: () => void
-  onSelectGitHubRepository: (fullName: string) => void
   onDisconnectGitHub: () => void
+  onGenerateGitHubSyncPassword: () => Promise<string>
+  onSaveGitHubSyncPassword: (password: string) => Promise<boolean>
   onUploadUserDataToGitHub: () => void
   onDownloadUserDataFromGitHub: () => void
   onRefreshTradingCalendar: () => void
@@ -111,17 +114,18 @@ export function SettingsMenu({
   onExportConfig,
   configBusy,
   githubSyncSettings,
-  githubRepositories,
-  githubRepositoriesLoading,
+  githubSyncPassword,
+  githubGistLoading,
+  githubSyncPasswordSaving,
   githubSyncError,
   githubDeviceAuthorization,
   githubSyncBusy,
   githubSyncUploading,
   githubSyncDownloading,
   onConnectGitHub,
-  onRefreshGitHubRepositories,
-  onSelectGitHubRepository,
   onDisconnectGitHub,
+  onGenerateGitHubSyncPassword,
+  onSaveGitHubSyncPassword,
   onUploadUserDataToGitHub,
   onDownloadUserDataFromGitHub,
   onRefreshTradingCalendar,
@@ -130,6 +134,43 @@ export function SettingsMenu({
   onUpdateFundamentalData
 }: SettingsMenuProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('market')
+  const [githubPasswordEditing, setGitHubPasswordEditing] = useState(false)
+  const [githubPasswordVisible, setGitHubPasswordVisible] = useState(false)
+  const [githubPasswordDraft, setGitHubPasswordDraft] = useState('')
+  const [githubPasswordConfirmation, setGitHubPasswordConfirmation] = useState('')
+  const [githubPasswordMessage, setGitHubPasswordMessage] = useState('')
+  const githubControlsDisabled = githubSyncBusy || githubGistLoading
+
+  const editGitHubPassword = () => {
+    setGitHubPasswordDraft(githubSyncPassword ?? '')
+    setGitHubPasswordConfirmation(githubSyncPassword ?? '')
+    setGitHubPasswordMessage('')
+    setGitHubPasswordEditing(true)
+  }
+
+  const generateGitHubPassword = async () => {
+    const generated = await onGenerateGitHubSyncPassword()
+    if (!generated) return
+    setGitHubPasswordDraft(generated)
+    setGitHubPasswordConfirmation(generated)
+    setGitHubPasswordVisible(true)
+    setGitHubPasswordMessage('已生成安全密钥，保存前可以自行修改')
+  }
+
+  const saveGitHubPassword = async () => {
+    if (!githubPasswordDraft.trim()) {
+      setGitHubPasswordMessage('请输入同步密码')
+      return
+    }
+    if (githubPasswordDraft !== githubPasswordConfirmation) {
+      setGitHubPasswordMessage('两次输入的同步密码不一致')
+      return
+    }
+    if (await onSaveGitHubSyncPassword(githubPasswordDraft)) {
+      setGitHubPasswordEditing(false)
+      setGitHubPasswordMessage('')
+    }
+  }
 
   const toggleMarketIndex = (indexId: MarketIndexId, selected: boolean) => {
     const selectedIds = new Set(settings.marketIndexIds)
@@ -602,10 +643,10 @@ export function SettingsMenu({
                 <span className="github-sync-heading">
                   <span className="github-sync-heading-copy">
                     <span className="github-sync-title">
-                      <strong>私有仓库同步</strong>
+                      <strong>GitHub Gist 同步</strong>
                       <GitHubIcon size={16} />
                     </span>
-                    <small>通过 GitHub 私有仓库进行同步</small>
+                    <small>使用本机同步密码加密后保存到 Secret Gist</small>
                   </span>
                 </span>
                 {!githubSyncSettings.connected ? (
@@ -627,84 +668,31 @@ export function SettingsMenu({
                       <span className="github-account-actions">
                         <button
                           type="button"
-                          onClick={onRefreshGitHubRepositories}
-                          disabled={githubSyncBusy || githubRepositoriesLoading}
-                        >
-                          <RefreshCw
-                            size={12}
-                            className={githubRepositoriesLoading ? 'is-spinning' : ''}
-                          />
-                          {githubRepositoriesLoading ? '读取中' : '刷新仓库'}
-                        </button>
-                        <button
-                          type="button"
                           onClick={onDisconnectGitHub}
-                          disabled={githubSyncBusy || githubRepositoriesLoading}
+                          disabled={githubControlsDisabled}
                         >
                           断开
                         </button>
                       </span>
                     </span>
-                    <div className="github-repository-select">
-                      <span>同步到私有仓库</span>
-                      <details
-                        className={`github-repository-dropdown${
-                          githubSyncBusy || githubRepositoriesLoading ? ' is-disabled' : ''
-                        }`}
-                      >
-                        <summary
-                          aria-disabled={githubSyncBusy || githubRepositoriesLoading}
-                          onClick={(event) => {
-                            if (githubSyncBusy || githubRepositoriesLoading) event.preventDefault()
-                          }}
-                        >
-                          <span>
-                            {githubRepositoriesLoading
-                              ? '正在读取仓库…'
-                              : (githubSyncSettings.repositoryFullName ??
-                                (githubRepositories.length > 0
-                                  ? '请选择仓库'
-                                  : '暂无可写私有仓库'))}
-                          </span>
-                          <ChevronDown size={15} />
-                        </summary>
-                        {githubRepositories.length > 0 ? (
-                          <div
-                            className="github-repository-options"
-                            role="listbox"
-                            aria-label="GitHub 私有仓库"
-                          >
-                            {githubRepositories.map((repository) => {
-                              const selected =
-                                repository.fullName === githubSyncSettings.repositoryFullName
-                              return (
-                                <button
-                                  type="button"
-                                  role="option"
-                                  aria-selected={selected}
-                                  className={selected ? 'is-selected' : ''}
-                                  key={repository.id}
-                                  disabled={githubSyncBusy || githubRepositoriesLoading}
-                                  onClick={(event) => {
-                                    event.currentTarget.closest('details')?.removeAttribute('open')
-                                    onSelectGitHubRepository(repository.fullName)
-                                  }}
-                                >
-                                  <span>{repository.fullName}</span>
-                                  {selected ? <Check size={14} /> : null}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        ) : null}
-                      </details>
+                    <div className="github-gist-target">
+                      <span>
+                        <strong>
+                          {githubGistLoading
+                            ? '正在自动查找 Gist…'
+                            : githubSyncSettings.gistId
+                              ? 'Secret Gist 已绑定'
+                              : '尚未创建同步 Gist'}
+                        </strong>
+                        <small>
+                          {githubSyncSettings.gistId
+                            ? githubSyncSettings.requiresRemoteRestore
+                              ? '远程版本尚未在本机恢复，请先执行“从 GitHub 恢复”'
+                              : `Gist ${githubSyncSettings.gistId.slice(0, 10)} · jianzhang-user-data.json`
+                            : '首次上传时自动创建，无需填写 Gist 链接'}
+                        </small>
+                      </span>
                     </div>
-                    {githubSyncSettings.repositoryFullName ? (
-                      <small>
-                        默认分支：{githubSyncSettings.repositoryDefaultBranch} · 同步路径：
-                        .data/user-data.json
-                      </small>
-                    ) : null}
                     {githubSyncError ? (
                       <small className="github-sync-error">{githubSyncError}</small>
                     ) : null}
@@ -725,12 +713,142 @@ export function SettingsMenu({
                     当前构建未配置 GitHub OAuth App Client ID，暂时不能发起网页授权
                   </small>
                 ) : null}
+                {githubSyncSettings.connected || githubSyncSettings.hasStoredPassword ? (
+                  <div className="github-password-panel">
+                    <span className="github-password-heading">
+                      <span>
+                        <KeyRound size={15} />
+                        <strong>本机同步密码</strong>
+                      </span>
+                      {githubSyncSettings.connected &&
+                      githubSyncSettings.syncPasswordReady &&
+                      !githubPasswordEditing ? (
+                        <button
+                          type="button"
+                          onClick={editGitHubPassword}
+                          disabled={githubControlsDisabled}
+                        >
+                          更换
+                        </button>
+                      ) : null}
+                    </span>
+                    {githubSyncSettings.syncPasswordReady && !githubPasswordEditing ? (
+                      <>
+                        <div className="github-password-value">
+                          <input
+                            type={githubPasswordVisible ? 'text' : 'password'}
+                            value={githubSyncPassword ?? ''}
+                            readOnly
+                            aria-label="本机保存的 GitHub Gist 同步密码"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setGitHubPasswordVisible((visible) => !visible)}
+                            disabled={githubControlsDisabled}
+                            aria-label={githubPasswordVisible ? '隐藏同步密码' : '显示同步密码'}
+                            title={githubPasswordVisible ? '隐藏同步密码' : '显示同步密码'}
+                          >
+                            {githubPasswordVisible ? <EyeOff size={15} /> : <Eye size={15} />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (githubSyncPassword) {
+                                void navigator.clipboard.writeText(githubSyncPassword)
+                              }
+                            }}
+                            disabled={githubControlsDisabled}
+                            aria-label="复制同步密码"
+                            title="复制同步密码"
+                          >
+                            <Copy size={15} />
+                          </button>
+                        </div>
+                        <small>已绑定本机；本地显示和使用不需要再次验证</small>
+                      </>
+                    ) : githubSyncSettings.connected ? (
+                      <div className="github-password-editor">
+                        <label>
+                          <span>同步密码</span>
+                          <input
+                            type={githubPasswordVisible ? 'text' : 'password'}
+                            value={githubPasswordDraft}
+                            onChange={(event) => setGitHubPasswordDraft(event.target.value)}
+                            disabled={githubControlsDisabled}
+                            placeholder="由你设置，或使用安全密钥生成器"
+                            autoComplete="new-password"
+                          />
+                        </label>
+                        <label>
+                          <span>确认密码</span>
+                          <input
+                            type={githubPasswordVisible ? 'text' : 'password'}
+                            value={githubPasswordConfirmation}
+                            onChange={(event) => setGitHubPasswordConfirmation(event.target.value)}
+                            disabled={githubControlsDisabled}
+                            placeholder="再次输入同步密码"
+                            autoComplete="new-password"
+                          />
+                        </label>
+                        <span className="github-password-editor-actions">
+                          <button
+                            type="button"
+                            onClick={() => setGitHubPasswordVisible((visible) => !visible)}
+                            disabled={githubControlsDisabled}
+                          >
+                            {githubPasswordVisible ? <EyeOff size={14} /> : <Eye size={14} />}
+                            {githubPasswordVisible ? '隐藏' : '显示'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void generateGitHubPassword()}
+                            disabled={githubControlsDisabled}
+                          >
+                            <Sparkles size={14} />
+                            生成安全密钥
+                          </button>
+                          {githubSyncSettings.syncPasswordReady ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setGitHubPasswordEditing(false)
+                                setGitHubPasswordMessage('')
+                              }}
+                              disabled={githubControlsDisabled}
+                            >
+                              取消
+                            </button>
+                          ) : null}
+                          <button
+                            className="is-primary"
+                            type="button"
+                            onClick={() => void saveGitHubPassword()}
+                            disabled={githubControlsDisabled}
+                          >
+                            {githubSyncPasswordSaving ? '保存中…' : '保存并绑定本机'}
+                          </button>
+                        </span>
+                        {githubPasswordMessage ? (
+                          <small className="github-password-message">{githubPasswordMessage}</small>
+                        ) : githubPasswordDraft && githubPasswordDraft.length < 12 ? (
+                          <small className="github-password-warning">
+                            密码较短，Gist 链接泄露后更容易被离线破解
+                          </small>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 {githubSyncSettings.connected ? (
                   <div className="github-sync-actions">
                     <button
                       type="button"
                       onClick={onDownloadUserDataFromGitHub}
-                      disabled={githubSyncBusy || !githubSyncSettings.repositoryFullName}
+                      disabled={
+                        githubControlsDisabled ||
+                        !githubSyncSettings.gistId ||
+                        !githubSyncSettings.syncPasswordReady
+                      }
                     >
                       {githubSyncDownloading ? (
                         <RefreshCw size={15} className="is-spinning" />
@@ -742,14 +860,18 @@ export function SettingsMenu({
                     <button
                       type="button"
                       onClick={onUploadUserDataToGitHub}
-                      disabled={githubSyncBusy || !githubSyncSettings.repositoryFullName}
+                      disabled={
+                        githubControlsDisabled ||
+                        !githubSyncSettings.syncPasswordReady ||
+                        githubSyncSettings.requiresRemoteRestore
+                      }
                     >
                       {githubSyncUploading ? (
                         <RefreshCw size={15} className="is-spinning" />
                       ) : (
                         <CloudUpload size={15} />
                       )}
-                      {githubSyncUploading ? '上传中…' : '上传到 GitHub'}
+                      {githubSyncUploading ? '上传中…' : '上传到 Gist'}
                     </button>
                   </div>
                 ) : null}

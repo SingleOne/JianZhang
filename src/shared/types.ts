@@ -1610,17 +1610,15 @@ export interface UserDataBackupSummary {
 export interface GitHubSyncSettings {
   oauthAvailable: boolean
   connected: boolean
+  hasStoredPassword: boolean
+  syncPasswordReady: boolean
+  requiresRemoteRestore: boolean
   accountLogin?: string
-  repositoryFullName?: string
-  repositoryDefaultBranch?: string
+  gistId?: string
+  gistUrl?: string
   localDataUpdatedAt?: string
   remoteDataUpdatedAt?: string
-}
-
-export interface GitHubRepositoryOption {
-  id: number
-  fullName: string
-  defaultBranch: string
+  remoteVersion?: string
 }
 
 export interface GitHubDeviceAuthorization {
@@ -1635,9 +1633,11 @@ export interface GitHubLoginResult {
 }
 
 export interface GitHubSyncUploadResult {
-  commitSha: string
+  gistId: string
+  gistUrl: string
+  version: string
   uploadedAt: string
-  filePath: string
+  fileName: string
   apiKeyCount: number
 }
 
@@ -1645,6 +1645,7 @@ export interface ConfigImportResult extends ConfigExportResult {
   state?: AppState
   importId?: string
   backupSummary?: UserDataBackupSummary
+  githubGistVersion?: string
 }
 
 export interface BootstrapResult {
@@ -1710,11 +1711,14 @@ export interface StockDesktopApi {
   getGitHubSyncSettings: () => Promise<GitHubSyncSettings>
   startGitHubLogin: () => Promise<GitHubDeviceAuthorization>
   completeGitHubLogin: (loginId: string) => Promise<GitHubLoginResult>
-  listGitHubRepositories: () => Promise<GitHubRepositoryOption[]>
-  selectGitHubRepository: (fullName: string) => Promise<GitHubSyncSettings>
+  refreshGitHubGist: () => Promise<GitHubSyncSettings>
+  getGitHubSyncPassword: () => Promise<string | null>
+  generateGitHubSyncPassword: () => Promise<string>
+  saveGitHubSyncPassword: (password: string) => Promise<GitHubSyncSettings>
   disconnectGitHub: () => Promise<GitHubSyncSettings>
   uploadUserDataToGitHub: (state: AppState) => Promise<GitHubSyncUploadResult>
   downloadUserDataFromGitHub: () => Promise<ConfigImportResult>
+  confirmGitHubGistRestore: (version: string) => Promise<GitHubSyncSettings>
   hideWindow: () => Promise<void>
   quitApp: () => Promise<void>
   onQuotesUpdated: (callback: (quotes: StockQuote[]) => void) => () => void

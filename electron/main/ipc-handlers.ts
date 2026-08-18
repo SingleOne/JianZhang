@@ -38,7 +38,6 @@ import type {
   FundsFlowResult,
   GitHubDeviceAuthorization,
   GitHubLoginResult,
-  GitHubRepositoryOption,
   GitHubSyncSettings,
   GitHubSyncUploadResult,
   KlinePeriod,
@@ -115,8 +114,10 @@ interface IpcHandlerDependencies {
   getGitHubSyncSettings: () => GitHubSyncSettings
   startGitHubLogin: () => Promise<GitHubDeviceAuthorization>
   completeGitHubLogin: (loginId: string) => Promise<GitHubLoginResult>
-  listGitHubRepositories: () => Promise<GitHubRepositoryOption[]>
-  selectGitHubRepository: (fullName: string) => Promise<GitHubSyncSettings>
+  refreshGitHubGist: () => Promise<GitHubSyncSettings>
+  getGitHubSyncPassword: () => string | null
+  generateGitHubSyncPassword: () => string
+  saveGitHubSyncPassword: (password: string) => Promise<GitHubSyncSettings>
   disconnectGitHub: () => GitHubSyncSettings
   uploadUserDataToGitHub: (
     state: AppState,
@@ -126,7 +127,9 @@ interface IpcHandlerDependencies {
     importId: string
     state: AppState
     summary: UserDataBackupSummary
+    githubGistVersion: string
   }>
+  confirmGitHubGistRestore: (version: string) => GitHubSyncSettings
   clearInactiveFiveLevelAlerts: () => boolean
   sendToWindows: (channel: string, payload: unknown) => void
   syncWindowSurfaces: () => void
@@ -178,11 +181,14 @@ const CHANNELS = [
   'github-sync:settings:get',
   'github-sync:login:start',
   'github-sync:login:complete',
-  'github-sync:repositories:list',
-  'github-sync:repository:select',
+  'github-sync:gist:refresh',
+  'github-sync:password:get',
+  'github-sync:password:generate',
+  'github-sync:password:save',
   'github-sync:disconnect',
   'github-sync:upload',
   'github-sync:download',
+  'github-sync:gist:restore-confirm',
   'app:hide',
   'app:quit'
 ] as const
@@ -386,9 +392,11 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
   ipcMain.handle('github-sync:login:complete', (_event, loginId: string) =>
     dependencies.completeGitHubLogin(loginId)
   )
-  ipcMain.handle('github-sync:repositories:list', () => dependencies.listGitHubRepositories())
-  ipcMain.handle('github-sync:repository:select', (_event, fullName: string) =>
-    dependencies.selectGitHubRepository(fullName)
+  ipcMain.handle('github-sync:gist:refresh', () => dependencies.refreshGitHubGist())
+  ipcMain.handle('github-sync:password:get', () => dependencies.getGitHubSyncPassword())
+  ipcMain.handle('github-sync:password:generate', () => dependencies.generateGitHubSyncPassword())
+  ipcMain.handle('github-sync:password:save', (_event, password: string) =>
+    dependencies.saveGitHubSyncPassword(password)
   )
   ipcMain.handle('github-sync:disconnect', () => dependencies.disconnectGitHub())
   ipcMain.handle('github-sync:upload', (_event, _stateToExport: AppState) =>
@@ -403,9 +411,13 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
       canceled: false,
       state: prepared.state,
       importId: prepared.importId,
-      backupSummary: prepared.summary
+      backupSummary: prepared.summary,
+      githubGistVersion: prepared.githubGistVersion
     }
   })
+  ipcMain.handle('github-sync:gist:restore-confirm', (_event, version: string) =>
+    dependencies.confirmGitHubGistRestore(version)
+  )
   ipcMain.handle('app:hide', () => dependencies.hideMainWindow())
   ipcMain.handle('app:quit', () => dependencies.quit())
 

@@ -164,16 +164,17 @@ JianzhangUserDataBackupDocument
 
 旧版 `jianzhang-config` 格式 1、2、3 仍可导入，但只恢复其中的核心配置，不触发模块数据替换和应用重启。`scripts/convert-stock-helper-config.mjs` 生成的转换结果也继续兼容。
 
-### GitHub 私有仓库同步
+### GitHub Gist 加密同步
 
-GitHub 同步复用同一份用户数据备份，不维护第二套数据格式。用户在“设置 → 系统与数据”点击“连接 GitHub”，应用通过 GitHub OAuth Device Flow 打开官方网页授权；取得访问令牌后立即加密保存并更新为已连接，账号和可写私有仓库随后单独读取。仓库列表请求失败不会撤销授权，错误会保留在 GitHub 设置区域，并可通过“刷新仓库”直接重试。读取成功后用户只需选择一个仓库。
+GitHub 同步复用同一份用户数据备份，不维护第二套业务数据格式。用户在“设置 → 数据”点击“连接 GitHub”，应用通过 GitHub OAuth Device Flow 打开官方网页授权，并自动查找账号下描述为“见涨用户数据同步”、文件名为 `jianzhang-user-data.json` 的 Secret Gist。未找到时不要求用户填写链接，首次上传自动创建；存在多个匹配项时选择最近更新的一个。
 
 - OAuth App 必须启用 Device Flow。仓库内置见涨 OAuth App 的公开 Client ID，也可在构建时通过 `JIANZHANG_GITHUB_OAUTH_CLIENT_ID` 覆盖，不使用 Client Secret。
-- Device Flow 请求 `repo` scope，以读取并写入用户有权限的私有仓库；访问令牌使用当前电脑的 `safeStorage` 加密保存到 `userData/github-sync/token.bin`，不会写入用户数据备份。
-- 账号、所选仓库、仓库默认分支和最近上传/恢复时间保存到 `userData/github-sync/settings.json`。同步路径固定为 `.jianzhang-sync/user-data.json`。
-- 上传通过 GitHub Contents API 创建或覆盖固定路径，Git 提交历史保留旧版本；仓库默认分支发生变化时会自动跟随。
-- 从 GitHub 下载后走与本地导入完全相同的校验、确认、文件替换、API Key 重新加密和自动重启流程。
-- 当前备份未加密且包含 AI API Key。仓库列表只显示可写私有仓库，上传和恢复前还会重新检查仓库仍为私有；上传操作本身由 GitHub Contents API 校验写入权限。
+- Device Flow 请求独立的 `gist` scope。旧版 `repo` 授权不会直接复用，升级后需要重新连接一次；访问令牌使用当前电脑的 `safeStorage` 加密保存到 `userData/github-sync/token.bin`。
+- 用户首次自行设置同步密码，也可主动点击“生成安全密钥”。密码使用当前电脑的 `safeStorage` 保存到 `userData/github-sync/sync-password.bin`，设置页允许直接显示、复制和更换，不进行本地二次验证。
+- 上传前以随机 salt 运行 `scrypt` 派生 256 位密钥，再使用随机 IV 的 `AES-256-GCM` 加密完整备份。Gist 只保存带版本、KDF 参数、IV、认证标签和密文的加密信封，AI API Key 不会以明文离开本机。
+- `userData/github-sync/settings.json` 保存账号、Gist ID、远程版本、最近同步基线和密码绑定的 Gist ID。新电脑自动找到 Gist 后，需要输入一次同步密码并成功解密，才会绑定到当前机器。
+- 上传前重新读取 Gist version；远程版本相对本机同步基线发生变化时阻止覆盖，要求先恢复远程数据。从 Gist 下载解密后继续使用本地导入的校验、确认、文件替换、API Key 重新加密、回滚和自动重启流程。
+- 更换密码时先用本机旧密码解密当前远程内容，再使用新密码重新加密并写入新版本。同步密码遗失后 GitHub 和应用都无法解密远程备份。
 
 切换到其他 OAuth App 的构建示例：
 
@@ -257,12 +258,14 @@ localStorage["jianzhang-demo-state-v1"]
 | `exportConfig`                                               | `config:export`                                                   | 保存 JSON                                                                                               |
 | `importConfig`                                               | `config:import`                                                   | 读取并解析 JSON                                                                                         |
 | `applyConfigImport`                                          | `config:import:apply`                                             | 替换模块用户数据、重新加密 AI API Key，并重启应用                                                       |
-| `getGitHubSyncSettings`                                      | `github-sync:settings:get`                                        | 返回 OAuth 可用性、账号、所选仓库和最近同步时间                                                         |
+| `getGitHubSyncSettings`                                      | `github-sync:settings:get`                                        | 返回 OAuth、Gist、同步密码绑定和本地/远程版本状态                                                       |
 | `startGitHubLogin` / `completeGitHubLogin`                   | `github-sync:login:start` / `github-sync:login:complete`          | 发起并完成 GitHub OAuth Device Flow，安全保存访问令牌                                                   |
-| `listGitHubRepositories` / `selectGitHubRepository`          | `github-sync:repositories:list` / `github-sync:repository:select` | 读取并选择可写私有仓库                                                                                  |
-| `disconnectGitHub`                                           | `github-sync:disconnect`                                          | 删除当前电脑的 GitHub 访问令牌及账号/仓库选择                                                           |
-| `uploadUserDataToGitHub`                                     | `github-sync:upload`                                              | 生成当前用户数据备份并上传到私有仓库                                                                    |
-| `downloadUserDataFromGitHub`                                 | `github-sync:download`                                            | 下载云端备份并进入统一导入确认流程                                                                      |
+| `refreshGitHubGist`                                          | `github-sync:gist:refresh`                                        | 自动查找并刷新当前账号的见涨 Secret Gist                                                                |
+| `get/generate/saveGitHubSyncPassword`                        | `github-sync:password:*`                                          | 显示本机密码、可选生成安全密钥、验证并绑定或更换同步密码                                                |
+| `disconnectGitHub`                                           | `github-sync:disconnect`                                          | 删除当前电脑的 GitHub 访问令牌，保留本机同步密码                                                        |
+| `uploadUserDataToGitHub`                                     | `github-sync:upload`                                              | 加密当前用户数据并创建或更新 Secret Gist                                                                |
+| `downloadUserDataFromGitHub`                                 | `github-sync:download`                                            | 下载并解密远程备份，进入统一导入确认流程                                                                |
+| `confirmGitHubGistRestore`                                   | `github-sync:gist:restore-confirm`                                | 恢复成功后记录当前 Gist version 为本机同步基线                                                         |
 | `hideWindow`                                                 | `app:hide`                                                        | 隐藏主窗口                                                                                              |
 | `quitApp`                                                    | `app:quit`                                                        | 清理并退出                                                                                              |
 
