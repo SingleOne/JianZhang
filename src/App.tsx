@@ -1397,6 +1397,8 @@ export default function App() {
         onStopTracking={stopTracking}
         onRestartTracking={restartTracking}
         onViewStock={viewWatchlistStockFromDailyScan}
+        bollingerBandsEnabled={state.settings.showBollingerBands}
+        onBollingerBandsEnabledChange={updateBollingerBandsEnabled}
         onClose={() => setStockTrackingOpen(false)}
       />
       {AiAssistantDrawer ? (

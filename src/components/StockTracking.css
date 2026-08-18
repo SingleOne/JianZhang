@@ -298,6 +298,61 @@
   background: #ffffff;
 }
 
+.stock-tracking-daily-kline {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: #ffffff;
+}
+
+.stock-tracking-daily-kline-overview {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  border-bottom: 1px solid #edf1f7;
+  background: #fafcff;
+}
+
+.stock-tracking-daily-kline-overview > span {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  border-right: 1px solid #edf1f7;
+}
+
+.stock-tracking-daily-kline-overview > span:last-child {
+  border-right: 0;
+}
+
+.stock-tracking-daily-kline-overview small,
+.stock-tracking-daily-kline-overview strong {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stock-tracking-daily-kline-overview small {
+  color: var(--muted);
+}
+
+.stock-tracking-daily-kline-overview strong {
+  color: #334155;
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-tracking-daily-kline-overview strong.is-up {
+  color: var(--red);
+}
+
+.stock-tracking-daily-kline-overview strong.is-down {
+  color: var(--green);
+}
+
+.stock-tracking-daily-kline-overview strong.is-flat {
+  color: var(--muted);
+}
+
 .stock-tracking-metrics-chart-legend {
   display: flex;
   align-items: center;
@@ -707,6 +762,10 @@
 
   .stock-tracking-metric-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stock-tracking-daily-kline-overview {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 

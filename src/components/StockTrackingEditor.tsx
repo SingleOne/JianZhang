@@ -25,6 +25,9 @@ interface StockTrackingEditorProps {
   quote?: StockQuote
   performance?: StockTrackingPerformance
   marketData?: StockTrackingMarketData
+  showDailyKline?: boolean
+  bollingerBandsEnabled?: boolean
+  onBollingerBandsEnabledChange?: (enabled: boolean) => void
   onUpdateProfile: (profile: StockTrackingProfile) => void
   onStopTracking: (quoteId: string, result: StockTrackingConclusionResult, summary: string) => void
   onRestartTracking: (quoteId: string) => void
@@ -52,6 +55,9 @@ export function StockTrackingEditor({
   quote,
   performance,
   marketData,
+  showDailyKline = false,
+  bollingerBandsEnabled,
+  onBollingerBandsEnabledChange,
   onUpdateProfile,
   onStopTracking,
   onRestartTracking,
@@ -219,7 +225,15 @@ export function StockTrackingEditor({
         </section>
       ) : null}
 
-      <StockTrackingMetricsPanel snapshots={profile.metricSnapshots} marketData={marketData} />
+      <StockTrackingMetricsPanel
+        snapshots={profile.metricSnapshots}
+        marketData={marketData}
+        showDailyKline={showDailyKline}
+        trackingStartedAt={profile.startedAt}
+        trackingStoppedAt={profile.stoppedAt}
+        bollingerBandsEnabled={bollingerBandsEnabled}
+        onBollingerBandsEnabledChange={onBollingerBandsEnabledChange}
+      />
 
       <section className="stock-tracking-section">
         <div className="stock-tracking-section-title">

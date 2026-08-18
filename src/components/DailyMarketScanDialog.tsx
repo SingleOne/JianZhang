@@ -1,6 +1,9 @@
 import {
   Activity,
   AlertCircle,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   ChevronLeft,
   ChevronRight,
   Database,
@@ -37,6 +40,13 @@ const SIGNAL_LABELS: Record<DailyMarketScanSignalType, string> = {
 }
 
 type ScanView = 'all' | DailyMarketScanSignalType
+type ScanSortKey = 'changePercent' | 'volumeRatio' | 'rangeBreakPercent' | 'turnoverRate'
+type ScanSortDirection = 'asc' | 'desc'
+
+interface ScanSort {
+  key: ScanSortKey
+  direction: ScanSortDirection
+}
 
 const VIEW_OPTIONS: { id: ScanView; label: string }[] = [
   { id: 'all', label: '全部信号' },
@@ -108,6 +118,56 @@ function sourceLabel(source: string): string {
   return source
 }
 
+function scanSortValue(row: DailyMarketScanRow, key: ScanSortKey): number | null {
+  if (key === 'rangeBreakPercent') {
+    return row.breakoutPercent ?? row.breakdownPercent ?? null
+  }
+  return row[key] ?? null
+}
+
+function compareScanRows(
+  left: DailyMarketScanRow,
+  right: DailyMarketScanRow,
+  sort: ScanSort
+): number {
+  const leftValue = scanSortValue(left, sort.key)
+  const rightValue = scanSortValue(right, sort.key)
+  if (leftValue === null) return rightValue === null ? 0 : 1
+  if (rightValue === null) return -1
+  return sort.direction === 'asc' ? leftValue - rightValue : rightValue - leftValue
+}
+
+interface SortableHeaderProps {
+  label: string
+  sortKey: ScanSortKey
+  sort: ScanSort
+  onSort: (key: ScanSortKey) => void
+}
+
+function SortableHeader({ label, sortKey, sort, onSort }: SortableHeaderProps) {
+  const active = sort.key === sortKey
+  return (
+    <th aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}>
+      <button
+        className={active ? 'daily-scan-sort is-active' : 'daily-scan-sort'}
+        type="button"
+        onClick={() => onSort(sortKey)}
+      >
+        {label}
+        {active ? (
+          sort.direction === 'asc' ? (
+            <ArrowUp size={13} />
+          ) : (
+            <ArrowDown size={13} />
+          )
+        ) : (
+          <ArrowUpDown size={13} />
+        )}
+      </button>
+    </th>
+  )
+}
+
 export function DailyMarketScanDialog({
   open,
   watchlist,
@@ -118,7 +178,8 @@ export function DailyMarketScanDialog({
 }: DailyMarketScanDialogProps) {
   const [result, setResult] = useState<DailyMarketScanResult | null>(null)
   const [scanState, setScanState] = useState<DailyMarketScanState>(EMPTY_STATE)
-  const [activeView, setActiveView] = useState<ScanView>('all')
+  const [selectedSignals, setSelectedSignals] = useState<DailyMarketScanSignalType[]>([])
+  const [sort, setSort] = useState<ScanSort>({ key: 'volumeRatio', direction: 'desc' })
   const [page, setPage] = useState(1)
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
@@ -169,7 +230,7 @@ export function DailyMarketScanDialog({
 
   useEffect(() => {
     setPage(1)
-  }, [activeView, normalizedQuery, result])
+  }, [normalizedQuery, result, selectedSignals])
 
   const counts = useMemo(() => {
     const next = new Map<DailyMarketScanSignalType, number>()
@@ -180,23 +241,11 @@ export function DailyMarketScanDialog({
   }, [searchedRows])
 
   const filteredRows = useMemo(() => {
-    const rows = searchedRows.filter(
-      (row) => activeView === 'all' || row.signals.includes(activeView)
+    const rows = searchedRows.filter((row) =>
+      selectedSignals.every((signal) => row.signals.includes(signal))
     )
-    return rows.sort((left, right) => {
-      if (activeView === 'strongGain' || activeView === 'reversal') {
-        return right.changePercent - left.changePercent
-      }
-      if (activeView === 'strongLoss') return left.changePercent - right.changePercent
-      if (activeView === 'breakout20d') {
-        return (right.breakoutPercent ?? 0) - (left.breakoutPercent ?? 0)
-      }
-      if (activeView === 'breakdown20d') {
-        return (left.breakdownPercent ?? 0) - (right.breakdownPercent ?? 0)
-      }
-      return right.volumeRatio - left.volumeRatio
-    })
-  }, [activeView, searchedRows])
+    return rows.sort((left, right) => compareScanRows(left, right, sort))
+  }, [searchedRows, selectedSignals, sort])
 
   const pageCount = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
   const visibleRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -231,6 +280,19 @@ export function DailyMarketScanDialog({
       row
     )
     setActionMessage(`${row.name}已开始追踪，并加入追踪分组`)
+  }
+
+  const toggleSignal = (signal: DailyMarketScanSignalType) => {
+    setSelectedSignals((current) =>
+      current.includes(signal) ? current.filter((item) => item !== signal) : [...current, signal]
+    )
+  }
+
+  const changeSort = (key: ScanSortKey) => {
+    setSort((current) => ({
+      key,
+      direction: current.key === key && current.direction === 'desc' ? 'asc' : 'desc'
+    }))
   }
 
   if (!open) return null
@@ -369,17 +431,22 @@ export function DailyMarketScanDialog({
               </div>
             </div>
 
-            <div className="daily-scan-tabs" role="tablist" aria-label="收盘扫描信号分类">
+            <div className="daily-scan-tabs" role="group" aria-label="收盘扫描信号组合筛选">
+              <span className="daily-scan-combination-hint">组合筛选（同时满足）</span>
               {VIEW_OPTIONS.map((option) => {
                 const count =
                   option.id === 'all' ? searchedRows.length : (counts.get(option.id) ?? 0)
+                const signal = option.id === 'all' ? null : option.id
+                const active =
+                  signal === null ? selectedSignals.length === 0 : selectedSignals.includes(signal)
                 return (
                   <button
-                    className={activeView === option.id ? 'is-active' : ''}
+                    className={active ? 'is-active' : ''}
                     type="button"
-                    role="tab"
-                    aria-selected={activeView === option.id}
-                    onClick={() => setActiveView(option.id)}
+                    aria-pressed={active}
+                    onClick={() =>
+                      signal === null ? setSelectedSignals([]) : toggleSignal(signal)
+                    }
                     key={option.id}
                   >
                     {option.label}
@@ -399,12 +466,33 @@ export function DailyMarketScanDialog({
                   <tr>
                     <th>股票</th>
                     <th>收盘价</th>
-                    <th>涨跌幅</th>
+                    <SortableHeader
+                      label="涨跌幅"
+                      sortKey="changePercent"
+                      sort={sort}
+                      onSort={changeSort}
+                    />
                     <th>成交额</th>
                     <th>成交量</th>
                     <th>20 日均量</th>
-                    <th>量比</th>
-                    <th>新高/新低幅度</th>
+                    <SortableHeader
+                      label="量比"
+                      sortKey="volumeRatio"
+                      sort={sort}
+                      onSort={changeSort}
+                    />
+                    <SortableHeader
+                      label="换手率"
+                      sortKey="turnoverRate"
+                      sort={sort}
+                      onSort={changeSort}
+                    />
+                    <SortableHeader
+                      label="新高/新低幅度"
+                      sortKey="rangeBreakPercent"
+                      sort={sort}
+                      onSort={changeSort}
+                    />
                     <th>前 5 日累计</th>
                     <th>信号</th>
                     <th>操作</th>
@@ -453,6 +541,7 @@ export function DailyMarketScanDialog({
                         <td>
                           <strong>{row.volumeRatio.toFixed(2)}x</strong>
                         </td>
+                        <td>{formatPercent(row.turnoverRate)}</td>
                         <td className={directionClass(rangeBreakPercent)}>
                           {formatPercent(rangeBreakPercent)}
                         </td>
@@ -495,13 +584,15 @@ export function DailyMarketScanDialog({
                 <div className="daily-scan-no-signals">
                   {normalizedQuery
                     ? `没有找到与“${deferredQuery.trim()}”匹配的扫描结果。`
-                    : '该分类当前没有命中股票。'}
+                    : selectedSignals.length > 1
+                      ? '没有同时满足当前标签组合的股票。'
+                      : '当前筛选条件没有命中股票。'}
                 </div>
               ) : null}
             </div>
 
             <footer className="daily-scan-footer">
-              <span>量比使用此前 20 个交易日均量；不同分类之间允许重叠。</span>
+              <span>标签可多选并按同时满足筛选；量比使用此前 20 个交易日均量。</span>
               <div>
                 <button
                   type="button"

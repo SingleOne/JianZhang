@@ -43,6 +43,7 @@ describe('createDailyMarketScanRow', () => {
 
     expect(result?.averageVolume20d).toBe(100)
     expect(result?.volumeRatio).toBe(3)
+    expect(result?.turnoverRate).toBe(2)
     expect(result?.signals).toContain('volumeSurge')
     expect(result?.signals).toContain('strongGain')
     expect(result?.signals).toContain('breakout20d')

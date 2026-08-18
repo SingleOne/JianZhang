@@ -91,6 +91,7 @@ export function createDailyMarketScanRow(
     volume: quote.volume,
     averageVolume20d,
     volumeRatio,
+    turnoverRate: quote.turnoverRate ?? todayBar.turnoverRate ?? null,
     breakoutPercent,
     breakdownPercent,
     previousFiveDayReturn,

@@ -841,6 +841,7 @@ export interface DailyMarketScanRow {
   volume: number
   averageVolume20d: number
   volumeRatio: number
+  turnoverRate?: number | null
   breakoutPercent: number | null
   breakdownPercent?: number | null
   previousFiveDayReturn: number

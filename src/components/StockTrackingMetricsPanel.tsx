@@ -1,6 +1,6 @@
 import { BarChart3 } from 'lucide-react'
 import { lazy, Suspense, useState } from 'react'
-import { formatPercent, formatPrice } from '../lib/format'
+import { formatAmount, formatPercent, formatPrice, formatVolume } from '../lib/format'
 import {
   STOCK_TRACKING_BASE_METRICS,
   STOCK_TRACKING_PRICE_VOLUME_STATE_LABELS,
@@ -8,7 +8,7 @@ import {
   latestStockTrackingMetric,
   stockTrackingPriceVolumeState
 } from '../lib/stock-tracking-metrics'
-import type { StockTrackingMetricSnapshot } from '../shared/types'
+import type { KlineBar, StockTrackingMetricSnapshot } from '../shared/types'
 import type { StockTrackingMarketData } from './useStockTrackingMarketData'
 
 const StockTrackingMetricsChart = lazy(() => import('./StockTrackingMetricsChart'))
@@ -16,12 +16,18 @@ const StockTrackingPriceVolumeChart = lazy(() => import('./StockTrackingPriceVol
 const StockTrackingRealtimeVolumeRatioChart = lazy(
   () => import('./StockTrackingRealtimeVolumeRatioChart')
 )
+const PeriodKlineChart = lazy(() => import('./PeriodKlineChart'))
 
-type TrackingChart = 'priceVolume' | 'volumeRatio' | 'realtimeVolumeRatio'
+type TrackingChart = 'priceVolume' | 'volumeRatio' | 'realtimeVolumeRatio' | 'dailyKline'
 
 interface StockTrackingMetricsPanelProps {
   snapshots: StockTrackingMetricSnapshot[]
   marketData?: StockTrackingMarketData
+  showDailyKline?: boolean
+  trackingStartedAt?: string
+  trackingStoppedAt?: string
+  bollingerBandsEnabled?: boolean
+  onBollingerBandsEnabledChange?: (enabled: boolean) => void
 }
 
 const CARDS = [
@@ -29,6 +35,8 @@ const CARDS = [
   { period: 10, metricId: STOCK_TRACKING_VOLUME_RATIO_METRICS[10] },
   { period: 20, metricId: STOCK_TRACKING_VOLUME_RATIO_METRICS[20] }
 ] as const
+
+const ignoreBollingerChange = () => undefined
 
 function ratioText(value: number | null): string {
   return value === null ? '--' : `${value.toFixed(2)}x`
@@ -39,11 +47,24 @@ function directionClass(value: number | null | undefined): string {
   return value > 0 ? 'is-up' : 'is-down'
 }
 
+function dailyChangePercent(bars: readonly KlineBar[], bar: KlineBar | undefined): number | null {
+  if (!bar) return null
+  const index = bars.findIndex((item) => item.time === bar.time)
+  if (index <= 0 || bars[index - 1].close === 0) return null
+  return ((bar.close - bars[index - 1].close) / bars[index - 1].close) * 100
+}
+
 export function StockTrackingMetricsPanel({
   snapshots,
-  marketData
+  marketData,
+  showDailyKline = false,
+  trackingStartedAt,
+  trackingStoppedAt,
+  bollingerBandsEnabled = false,
+  onBollingerBandsEnabledChange
 }: StockTrackingMetricsPanelProps) {
   const [activeChart, setActiveChart] = useState<TrackingChart>('priceVolume')
+  const [hoveredDailyBar, setHoveredDailyBar] = useState<KlineBar | null>(null)
   const latestSnapshot = snapshots.at(-1)
   const latestDate = latestSnapshot?.tradingDate
   const priceVolumeState = stockTrackingPriceVolumeState(latestSnapshot)
@@ -52,6 +73,9 @@ export function StockTrackingMetricsPanel({
     (snapshot) => snapshot.metrics[STOCK_TRACKING_BASE_METRICS.close] !== undefined
   )
   const latestRealtimePoint = marketData?.realtimeVolumeRatioPoints.at(-1)
+  const dailyBars = marketData?.dailyBars ?? []
+  const displayedDailyBar = hoveredDailyBar ?? dailyBars.at(-1)
+  const displayedDailyChange = dailyChangePercent(dailyBars, displayedDailyBar)
 
   return (
     <section className="stock-tracking-section stock-tracking-metrics-section">
@@ -116,9 +140,84 @@ export function StockTrackingMetricsPanel({
         >
           实时量比
         </button>
+        {showDailyKline ? (
+          <button
+            className={activeChart === 'dailyKline' ? 'is-active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={activeChart === 'dailyKline'}
+            onClick={() => setActiveChart('dailyKline')}
+          >
+            日 K
+          </button>
+        ) : null}
       </div>
       <Suspense fallback={<div className="stock-tracking-metrics-loading">追踪趋势加载中…</div>}>
-        {activeChart === 'realtimeVolumeRatio' ? (
+        {activeChart === 'dailyKline' ? (
+          dailyBars.length ? (
+            <div className="stock-tracking-daily-kline">
+              <div className="stock-tracking-daily-kline-overview">
+                <span>
+                  <small>日期</small>
+                  <strong>{displayedDailyBar?.time.slice(0, 10) ?? '--'}</strong>
+                </span>
+                <span>
+                  <small>开盘</small>
+                  <strong>{formatPrice(displayedDailyBar?.open)}</strong>
+                </span>
+                <span>
+                  <small>收盘</small>
+                  <strong>{formatPrice(displayedDailyBar?.close)}</strong>
+                </span>
+                <span>
+                  <small>涨跌幅</small>
+                  <strong className={directionClass(displayedDailyChange)}>
+                    {formatPercent(displayedDailyChange)}
+                  </strong>
+                </span>
+                <span>
+                  <small>最高</small>
+                  <strong>{formatPrice(displayedDailyBar?.high)}</strong>
+                </span>
+                <span>
+                  <small>最低</small>
+                  <strong>{formatPrice(displayedDailyBar?.low)}</strong>
+                </span>
+                <span>
+                  <small>成交量</small>
+                  <strong>{formatVolume(displayedDailyBar?.volume)}</strong>
+                </span>
+                <span>
+                  <small>成交额</small>
+                  <strong>{formatAmount(displayedDailyBar?.amount)}</strong>
+                </span>
+                <span>
+                  <small>换手率</small>
+                  <strong>{formatPercent(displayedDailyBar?.turnoverRate)}</strong>
+                </span>
+              </div>
+              <PeriodKlineChart
+                bars={dailyBars}
+                period="daily"
+                onHoverBar={setHoveredDailyBar}
+                bollingerBandsEnabled={bollingerBandsEnabled}
+                onBollingerBandsEnabledChange={
+                  onBollingerBandsEnabledChange ?? ignoreBollingerChange
+                }
+                trackingStartedAt={trackingStartedAt}
+                trackingStoppedAt={trackingStoppedAt}
+                ctrlWheelZoomOnly
+                height={320}
+              />
+            </div>
+          ) : (
+            <div className="stock-tracking-metrics-empty">
+              {marketData?.realtimeLoading
+                ? '正在加载日 K 数据…'
+                : marketData?.realtimeError || '暂无日 K 数据。'}
+            </div>
+          )
+        ) : activeChart === 'realtimeVolumeRatio' ? (
           marketData?.realtimeVolumeRatioPoints.length ? (
             <StockTrackingRealtimeVolumeRatioChart
               points={marketData.realtimeVolumeRatioPoints}
@@ -147,7 +246,8 @@ export function StockTrackingMetricsPanel({
         )}
       </Suspense>
       <p className="stock-tracking-metrics-note">
-        日级追踪每 30 分钟更新；实时量比按交易时段每 30 秒刷新，计算口径为累计成交量 ÷
+        图表请按住 Ctrl 并滚动鼠标滚轮进行横轴缩放。 日级追踪每 30 分钟更新；实时量比按交易时段每 30
+        秒刷新，计算口径为累计成交量 ÷
         近5日平均成交量按已交易分钟折算值，午休不计时。连续三日量价背离会写入时间线并发送系统提醒。
       </p>
     </section>

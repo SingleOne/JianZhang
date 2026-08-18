@@ -15,6 +15,11 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatAmount, formatPercent, formatPrice, formatVolume } from '../lib/format'
 import {
+  CTRL_WHEEL_HANDLE_SCALE,
+  CTRL_WHEEL_HANDLE_SCROLL,
+  enableCtrlWheelZoom
+} from '../lib/lightweight-chart-interactions'
+import {
   STOCK_TRACKING_BASE_METRICS,
   STOCK_TRACKING_PRICE_AVERAGE_METRICS,
   STOCK_TRACKING_PRICE_RETURN_METRICS,
@@ -156,8 +161,8 @@ export default function StockTrackingPriceVolumeChart({
         fixRightEdge: true,
         tickMarkFormatter: dateLabel
       },
-      handleScroll: true,
-      handleScale: true,
+      handleScroll: CTRL_WHEEL_HANDLE_SCROLL,
+      handleScale: CTRL_WHEEL_HANDLE_SCALE,
       crosshair: {
         mode: CrosshairMode.Normal,
         vertLine: { color: '#94a3b8', width: 1, labelBackgroundColor: '#334155' },
@@ -229,8 +234,14 @@ export default function StockTrackingPriceVolumeChart({
       chart.applyOptions({ width: container.clientWidth })
     })
     resizeObserver.observe(container)
+    const disableCtrlWheelZoom = enableCtrlWheelZoom(
+      chart,
+      container,
+      () => snapshotsByTimeRef.current.size
+    )
 
     return () => {
+      disableCtrlWheelZoom()
       resizeObserver.disconnect()
       priceAverageSeries.clear()
       volumeAverageSeries.clear()

@@ -11,6 +11,11 @@ import {
 } from 'lightweight-charts'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatVolume } from '../lib/format'
+import {
+  CTRL_WHEEL_HANDLE_SCALE,
+  CTRL_WHEEL_HANDLE_SCROLL,
+  enableCtrlWheelZoom
+} from '../lib/lightweight-chart-interactions'
 import type { RealtimeVolumeRatioPoint } from '../lib/stock-tracking-metrics'
 
 interface StockTrackingRealtimeVolumeRatioChartProps {
@@ -82,6 +87,8 @@ export default function StockTrackingRealtimeVolumeRatioChart({
         secondsVisible: false,
         tickMarkFormatter: timeLabel
       },
+      handleScroll: CTRL_WHEEL_HANDLE_SCROLL,
+      handleScale: CTRL_WHEEL_HANDLE_SCALE,
       crosshair: {
         mode: CrosshairMode.Normal,
         vertLine: { color: '#94a3b8', width: 1, labelBackgroundColor: '#334155' },
@@ -119,8 +126,14 @@ export default function StockTrackingRealtimeVolumeRatioChart({
       chart.applyOptions({ width: container.clientWidth })
     })
     resizeObserver.observe(container)
+    const disableCtrlWheelZoom = enableCtrlWheelZoom(
+      chart,
+      container,
+      () => pointsByTimeRef.current.size
+    )
 
     return () => {
+      disableCtrlWheelZoom()
       resizeObserver.disconnect()
       chart.remove()
       chartRef.current = null

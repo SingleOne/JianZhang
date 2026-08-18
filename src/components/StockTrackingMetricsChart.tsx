@@ -10,6 +10,11 @@ import {
   type UTCTimestamp
 } from 'lightweight-charts'
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import {
+  CTRL_WHEEL_HANDLE_SCALE,
+  CTRL_WHEEL_HANDLE_SCROLL,
+  enableCtrlWheelZoom
+} from '../lib/lightweight-chart-interactions'
 import { STOCK_TRACKING_VOLUME_RATIO_METRICS } from '../lib/stock-tracking-metrics'
 import type { StockTrackingMetricSnapshot } from '../shared/types'
 
@@ -80,6 +85,8 @@ export default function StockTrackingMetricsChart({ snapshots }: StockTrackingMe
         fixRightEdge: true,
         tickMarkFormatter: dateLabel
       },
+      handleScroll: CTRL_WHEEL_HANDLE_SCROLL,
+      handleScale: CTRL_WHEEL_HANDLE_SCALE,
       crosshair: {
         mode: CrosshairMode.Normal,
         vertLine: { color: '#94a3b8', width: 1, labelBackgroundColor: '#334155' },
@@ -124,8 +131,14 @@ export default function StockTrackingMetricsChart({ snapshots }: StockTrackingMe
       chart.applyOptions({ width: container.clientWidth })
     })
     resizeObserver.observe(container)
+    const disableCtrlWheelZoom = enableCtrlWheelZoom(
+      chart,
+      container,
+      () => snapshotsByTimeRef.current.size
+    )
 
     return () => {
+      disableCtrlWheelZoom()
       resizeObserver.disconnect()
       seriesByMetric.clear()
       chart.remove()

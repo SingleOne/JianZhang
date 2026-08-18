@@ -250,9 +250,19 @@
   display: flex;
   align-items: center;
   gap: 4px;
+  overflow-x: auto;
   padding: 8px 20px;
   background: #ffffff;
   border-bottom: 1px solid var(--border);
+}
+
+.daily-scan-combination-hint {
+  flex: 0 0 auto;
+  margin-right: 4px;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
 }
 
 .daily-scan-tabs button {
@@ -300,10 +310,32 @@
 
 .daily-scan-table {
   width: 100%;
-  min-width: 1280px;
+  min-width: 1380px;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 12px;
+}
+
+.daily-scan-sort {
+  width: 100%;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.daily-scan-sort:hover,
+.daily-scan-sort.is-active {
+  color: #6d28d9;
 }
 
 .daily-scan-table th {

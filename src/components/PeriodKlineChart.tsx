@@ -16,6 +16,11 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatPrice } from '../lib/format'
 import {
+  CTRL_WHEEL_HANDLE_SCALE,
+  CTRL_WHEEL_HANDLE_SCROLL,
+  enableCtrlWheelZoom
+} from '../lib/lightweight-chart-interactions'
+import {
   BOLLINGER_MULTIPLIER,
   BOLLINGER_PERIOD,
   calculateBollingerBands,
@@ -38,6 +43,7 @@ interface PeriodKlineChartProps {
   onBollingerBandsEnabledChange: (enabled: boolean) => void
   trackingStartedAt?: string
   trackingStoppedAt?: string
+  ctrlWheelZoomOnly?: boolean
   height?: number
 }
 
@@ -136,6 +142,7 @@ export default function PeriodKlineChart({
   onBollingerBandsEnabledChange,
   trackingStartedAt,
   trackingStoppedAt,
+  ctrlWheelZoomOnly = false,
   height = 320
 }: PeriodKlineChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -154,19 +161,19 @@ export default function PeriodKlineChart({
   const onHoverBarRef = useRef(onHoverBar)
   const onRequestMoreRef = useRef(onRequestMore)
   const onVisibleRangeChangeRef = useRef(onVisibleRangeChange)
-  const reportVisibleRangeRef = useRef<(
-    range: { from: number; to: number },
-    source: KlineVisibleRangeSource
-  ) => void>(() => {})
-  const updateMarkersRef = useRef<
-    (range: { from: number; to: number } | null) => void
+  const reportVisibleRangeRef = useRef<
+    (range: { from: number; to: number }, source: KlineVisibleRangeSource) => void
   >(() => {})
+  const updateMarkersRef = useRef<(range: { from: number; to: number } | null) => void>(() => {})
   const trackingDatesRef = useRef({ startedAt: trackingStartedAt, stoppedAt: trackingStoppedAt })
   const bollingerBands = useMemo(() => calculateBollingerBands(bars), [bars])
   const [hoveredBollinger, setHoveredBollinger] = useState<BollingerBandPoint | null | undefined>()
-  const displayedBollinger = hoveredBollinger === undefined ? bollingerBands.at(-1) : hoveredBollinger
+  const displayedBollinger =
+    hoveredBollinger === undefined ? bollingerBands.at(-1) : hoveredBollinger
   barsRef.current = bars
-  bollingerByTimeRef.current = new Map(bollingerBands.map((point) => [toTimestamp(point.time), point]))
+  bollingerByTimeRef.current = new Map(
+    bollingerBands.map((point) => [toTimestamp(point.time), point])
+  )
   onHoverBarRef.current = onHoverBar
   onRequestMoreRef.current = onRequestMore
   onVisibleRangeChangeRef.current = onVisibleRangeChange
@@ -201,8 +208,8 @@ export default function PeriodKlineChart({
         lockVisibleTimeRangeOnResize: true,
         tickMarkFormatter: (time: Time) => dateLabel(time, period)
       },
-      handleScroll: false,
-      handleScale: true,
+      handleScroll: ctrlWheelZoomOnly ? CTRL_WHEEL_HANDLE_SCROLL : false,
+      handleScale: ctrlWheelZoomOnly ? CTRL_WHEEL_HANDLE_SCALE : true,
       crosshair: {
         mode: CrosshairMode.Normal,
         vertLine: { color: '#94a3b8', width: 1, labelBackgroundColor: '#334155' },
@@ -364,7 +371,9 @@ export default function PeriodKlineChart({
       if (Math.abs(range.to - latestEdge) > 0.05) {
         isAligningRangeRef.current = true
         chart.timeScale().setVisibleLogicalRange(alignedRange)
-        requestAnimationFrame(() => { isAligningRangeRef.current = false })
+        requestAnimationFrame(() => {
+          isAligningRangeRef.current = false
+        })
       }
     }
     chart.timeScale().subscribeVisibleLogicalRangeChange(handleVisibleRangeChange)
@@ -373,8 +382,12 @@ export default function PeriodKlineChart({
       chart.applyOptions({ width: Math.floor(entry.contentRect.width) })
     })
     resizeObserver.observe(container)
+    const disableCtrlWheelZoom = ctrlWheelZoomOnly
+      ? enableCtrlWheelZoom(chart, container, () => dataLengthRef.current)
+      : () => undefined
 
     return () => {
+      disableCtrlWheelZoom()
       resizeObserver.disconnect()
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(handleVisibleRangeChange)
       chart.unsubscribeCrosshairMove(handleCrosshairMove)
@@ -389,7 +402,7 @@ export default function PeriodKlineChart({
       reportVisibleRangeRef.current = () => {}
       updateMarkersRef.current = () => {}
     }
-  }, [height, period])
+  }, [ctrlWheelZoomOnly, height, period])
 
   useEffect(() => {
     setHoveredBollinger(undefined)
@@ -406,18 +419,22 @@ export default function PeriodKlineChart({
     barsByTimeRef.current = new Map(bars.map((bar) => [toTimestamp(bar.time), bar]))
     dataLengthRef.current = bars.length
 
-    candles.setData(bars.map((bar) => ({
-      time: toTimestamp(bar.time),
-      open: bar.open,
-      high: bar.high,
-      low: bar.low,
-      close: bar.close
-    })))
-    volume.setData(bars.map((bar) => ({
-      time: toTimestamp(bar.time),
-      value: bar.volume,
-      color: bar.close >= bar.open ? 'rgba(220, 55, 66, 0.34)' : 'rgba(24, 146, 102, 0.34)'
-    })))
+    candles.setData(
+      bars.map((bar) => ({
+        time: toTimestamp(bar.time),
+        open: bar.open,
+        high: bar.high,
+        low: bar.low,
+        close: bar.close
+      }))
+    )
+    volume.setData(
+      bars.map((bar) => ({
+        time: toTimestamp(bar.time),
+        value: bar.volume,
+        color: bar.close >= bar.open ? 'rgba(220, 55, 66, 0.34)' : 'rgba(24, 146, 102, 0.34)'
+      }))
+    )
 
     const visibleSpan = currentSpan ?? Math.min(INITIAL_VISIBLE_BARS[period], bars.length)
     const latestEdge = bars.length - 0.5
@@ -426,7 +443,9 @@ export default function PeriodKlineChart({
     chart.timeScale().setVisibleLogicalRange(nextRange)
     updateMarkersRef.current(nextRange)
     reportVisibleRangeRef.current(nextRange, 'programmatic')
-    requestAnimationFrame(() => { isAligningRangeRef.current = false })
+    requestAnimationFrame(() => {
+      isAligningRangeRef.current = false
+    })
   }, [bars, height, period])
 
   useEffect(() => {
@@ -441,18 +460,30 @@ export default function PeriodKlineChart({
     const lower = bollingerLowerRef.current
     if (!upper || !middle || !lower) return
 
-    upper.setData(bollingerBandsEnabled ? bollingerBands.map((point) => ({
-      time: toTimestamp(point.time),
-      value: point.upper
-    })) : [])
-    middle.setData(bollingerBandsEnabled ? bollingerBands.map((point) => ({
-      time: toTimestamp(point.time),
-      value: point.middle
-    })) : [])
-    lower.setData(bollingerBandsEnabled ? bollingerBands.map((point) => ({
-      time: toTimestamp(point.time),
-      value: point.lower
-    })) : [])
+    upper.setData(
+      bollingerBandsEnabled
+        ? bollingerBands.map((point) => ({
+            time: toTimestamp(point.time),
+            value: point.upper
+          }))
+        : []
+    )
+    middle.setData(
+      bollingerBandsEnabled
+        ? bollingerBands.map((point) => ({
+            time: toTimestamp(point.time),
+            value: point.middle
+          }))
+        : []
+    )
+    lower.setData(
+      bollingerBandsEnabled
+        ? bollingerBands.map((point) => ({
+            time: toTimestamp(point.time),
+            value: point.lower
+          }))
+        : []
+    )
   }, [bollingerBands, bollingerBandsEnabled, height, period])
 
   useEffect(() => {
@@ -466,7 +497,9 @@ export default function PeriodKlineChart({
     chart.timeScale().setVisibleLogicalRange(range)
     updateMarkersRef.current(range)
     reportVisibleRangeRef.current(range, 'programmatic')
-    requestAnimationFrame(() => { isAligningRangeRef.current = false })
+    requestAnimationFrame(() => {
+      isAligningRangeRef.current = false
+    })
   }, [bars.length, requestedVisibleBars, visibleRangeRequestKey])
 
   return (
@@ -481,17 +514,29 @@ export default function PeriodKlineChart({
           title={bollingerBandsEnabled ? '隐藏 BOLL 线' : '显示 BOLL 线'}
           onClick={() => onBollingerBandsEnabledChange(!bollingerBandsEnabled)}
         >
-          <span aria-hidden="true"><i /></span>
+          <span aria-hidden="true">
+            <i />
+          </span>
           <strong>BOLL</strong>
-          <em>({BOLLINGER_PERIOD}, {BOLLINGER_MULTIPLIER})</em>
+          <em>
+            ({BOLLINGER_PERIOD}, {BOLLINGER_MULTIPLIER})
+          </em>
         </button>
         {bollingerBandsEnabled ? (
           <div className="bollinger-values">
-            <span className="is-upper">UP <strong>{bollingerPrice(displayedBollinger?.upper)}</strong></span>
-            <span className="is-middle">MID <strong>{bollingerPrice(displayedBollinger?.middle)}</strong></span>
-            <span className="is-lower">LOW <strong>{bollingerPrice(displayedBollinger?.lower)}</strong></span>
+            <span className="is-upper">
+              UP <strong>{bollingerPrice(displayedBollinger?.upper)}</strong>
+            </span>
+            <span className="is-middle">
+              MID <strong>{bollingerPrice(displayedBollinger?.middle)}</strong>
+            </span>
+            <span className="is-lower">
+              LOW <strong>{bollingerPrice(displayedBollinger?.lower)}</strong>
+            </span>
           </div>
-        ) : <span className="bollinger-disabled-label">三轨线已隐藏</span>}
+        ) : (
+          <span className="bollinger-disabled-label">三轨线已隐藏</span>
+        )}
       </div>
     </div>
   )

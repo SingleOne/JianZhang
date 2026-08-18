@@ -28,6 +28,8 @@ interface StockTrackingDialogProps {
   onStopTracking: (quoteId: string, result: StockTrackingConclusionResult, summary: string) => void
   onRestartTracking: (quoteId: string) => void
   onViewStock: (quoteId: string) => void
+  bollingerBandsEnabled: boolean
+  onBollingerBandsEnabledChange: (enabled: boolean) => void
   onClose: () => void
 }
 
@@ -45,6 +47,8 @@ export function StockTrackingDialog({
   onStopTracking,
   onRestartTracking,
   onViewStock,
+  bollingerBandsEnabled,
+  onBollingerBandsEnabledChange,
   onClose
 }: StockTrackingDialogProps) {
   const [query, setQuery] = useState('')
@@ -276,6 +280,9 @@ export function StockTrackingDialog({
                   quote={quoteMap.get(selectedProfile.quoteId)}
                   performance={selectedPerformance}
                   marketData={marketData}
+                  showDailyKline
+                  bollingerBandsEnabled={bollingerBandsEnabled}
+                  onBollingerBandsEnabledChange={onBollingerBandsEnabledChange}
                   onUpdateProfile={onUpdateProfile}
                   onStopTracking={onStopTracking}
                   onRestartTracking={onRestartTracking}
