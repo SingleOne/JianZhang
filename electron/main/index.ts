@@ -390,6 +390,7 @@ if (!hasSingleInstanceLock) {
       getTaskbarLayout: () => windowManager?.getTaskbarLayout() ?? { taskbarHeight: 48 },
       getTaskbarTooltipQuoteId: () => windowManager?.getTaskbarTooltipQuoteId() ?? null,
       setTaskbarTooltip: (anchor) => windowManager?.setTaskbarTooltip(anchor),
+      resizeTaskbarTooltip: (height) => windowManager?.resizeTaskbarTooltip(height),
       getMainWindow: () => windowManager?.getMainWindow() ?? null,
       searchStocks,
       getDividendFinancingSnapshot: () => dividendFinancingService!.getSnapshot(),

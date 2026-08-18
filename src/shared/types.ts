@@ -1668,6 +1668,7 @@ export interface StockDesktopApi {
   getTaskbarLayout: () => Promise<TaskbarLayout>
   getTaskbarTooltipQuoteId: () => Promise<string | null>
   setTaskbarTooltip: (anchor: TaskbarTooltipAnchor | null) => Promise<void>
+  resizeTaskbarTooltip: (height: number) => Promise<void>
   searchStocks: (query: string) => Promise<SearchResult[]>
   getDividendFinancingSnapshot: () => Promise<DividendFinancingSnapshot | null>
   getDividendFinancingState: () => Promise<DataSnapshotRuntimeState>

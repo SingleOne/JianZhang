@@ -219,16 +219,14 @@
 
 .taskbar-stock-tooltip-shell {
   width: 100%;
-  height: 100%;
   padding: 0 5px 10px;
 }
 
 .taskbar-stock-tooltip {
   position: relative;
-  height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   padding: 12px 14px 10px;
   color: #344054;
   background: rgba(255, 255, 255, 0.98);
@@ -304,15 +302,15 @@
   font-weight: 700;
 }
 
-.taskbar-stock-tooltip.is-up .taskbar-tooltip-price-row {
+.taskbar-tooltip-price-row.is-up {
   color: #c92733;
 }
 
-.taskbar-stock-tooltip.is-down .taskbar-tooltip-price-row {
+.taskbar-tooltip-price-row.is-down {
   color: #087c57;
 }
 
-.taskbar-stock-tooltip.is-flat .taskbar-tooltip-price-row {
+.taskbar-tooltip-price-row.is-flat {
   color: #657187;
 }
 
@@ -336,6 +334,134 @@
   margin: 0;
   color: #344054;
   font-weight: 700;
+}
+
+.taskbar-tooltip-section {
+  display: grid;
+  gap: 7px;
+  padding-top: 9px;
+  border-top: 1px solid #edf0f4;
+}
+
+.taskbar-tooltip-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.taskbar-tooltip-section-heading strong {
+  color: #344054;
+  font-size: 12px;
+}
+
+.taskbar-tooltip-section-heading span {
+  color: #8a94a6;
+  font-size: 12px;
+}
+
+.taskbar-tooltip-position-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
+.taskbar-tooltip-position-grid > span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.taskbar-tooltip-position-grid small {
+  color: #8a94a6;
+  font-size: 12px;
+}
+
+.taskbar-tooltip-position-grid b {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  overflow: hidden;
+  color: #344054;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskbar-tooltip-position-grid b.is-up,
+.taskbar-tooltip-t-summary .is-up {
+  color: #c92733;
+}
+
+.taskbar-tooltip-position-grid b.is-down,
+.taskbar-tooltip-t-summary .is-down {
+  color: #087c57;
+}
+
+.taskbar-tooltip-position-grid b.is-flat,
+.taskbar-tooltip-t-summary .is-flat {
+  color: #657187;
+}
+
+.taskbar-tooltip-position-grid em {
+  flex: none;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.taskbar-tooltip-t-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #657187;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.taskbar-tooltip-alert-list {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.taskbar-tooltip-alert-list li {
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr);
+  align-items: start;
+  gap: 7px;
+  padding: 5px 7px;
+  color: #657187;
+  background: #f7f9fc;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.taskbar-tooltip-alert-list b {
+  color: #344054;
+}
+
+.taskbar-tooltip-alert-list .is-gte b,
+.taskbar-tooltip-alert-list .is-sell b,
+.taskbar-tooltip-alert-list .is-profit b {
+  color: #c92733;
+}
+
+.taskbar-tooltip-alert-list .is-lte b,
+.taskbar-tooltip-alert-list .is-buy b,
+.taskbar-tooltip-alert-list .is-loss b {
+  color: #087c57;
+}
+
+.taskbar-tooltip-no-alert {
+  margin: 0;
+  color: #8a94a6;
+  font-size: 12px;
+  line-height: 18px;
 }
 
 .taskbar-stock-tooltip > footer {
@@ -470,15 +596,49 @@
     color: #e2e8f0;
   }
 
-  .taskbar-stock-tooltip.is-up .taskbar-tooltip-price-row {
+  .taskbar-tooltip-section {
+    border-color: rgba(96, 111, 132, 0.38);
+  }
+
+  .taskbar-tooltip-section-heading strong,
+  .taskbar-tooltip-position-grid b,
+  .taskbar-tooltip-alert-list b {
+    color: #e2e8f0;
+  }
+
+  .taskbar-tooltip-section-heading span,
+  .taskbar-tooltip-position-grid small,
+  .taskbar-tooltip-t-summary,
+  .taskbar-tooltip-alert-list li,
+  .taskbar-tooltip-no-alert {
+    color: #a8b3c3;
+  }
+
+  .taskbar-tooltip-alert-list li {
+    background: #253043;
+  }
+
+  .taskbar-tooltip-price-row.is-up,
+  .taskbar-tooltip-position-grid b.is-up,
+  .taskbar-tooltip-t-summary .is-up,
+  .taskbar-tooltip-alert-list .is-gte b,
+  .taskbar-tooltip-alert-list .is-sell b,
+  .taskbar-tooltip-alert-list .is-profit b {
     color: #ff6b75;
   }
 
-  .taskbar-stock-tooltip.is-down .taskbar-tooltip-price-row {
+  .taskbar-tooltip-price-row.is-down,
+  .taskbar-tooltip-position-grid b.is-down,
+  .taskbar-tooltip-t-summary .is-down,
+  .taskbar-tooltip-alert-list .is-lte b,
+  .taskbar-tooltip-alert-list .is-buy b,
+  .taskbar-tooltip-alert-list .is-loss b {
     color: #51d39e;
   }
 
-  .taskbar-stock-tooltip.is-flat .taskbar-tooltip-price-row {
+  .taskbar-tooltip-price-row.is-flat,
+  .taskbar-tooltip-position-grid b.is-flat,
+  .taskbar-tooltip-t-summary .is-flat {
     color: #c5cedb;
   }
 }

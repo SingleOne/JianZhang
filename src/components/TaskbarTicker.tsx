@@ -113,15 +113,16 @@ export function TaskbarTicker() {
               onMouseLeave={() => void stockApi.setTaskbarTooltip(null)}
             >
               <span className="taskbar-stock-name">{stock.name}</span>
-              <FiveLevelAlertBadges alerts={fiveLevelAlerts} compact />
+              <FiveLevelAlertBadges alerts={fiveLevelAlerts} compact showTitle={false} />
               <strong>{formatPrice(quote?.latest)}</strong>
               <span className="taskbar-stock-change">{formatPercent(quote?.changePercent)}</span>
-              <TAlertBadges badges={alertBadges} compact />
+              <TAlertBadges badges={alertBadges} compact showTitle={false} />
               {floatingProfitAlert ? (
                 <TFloatingProfitAlertBadge
                   batch={state.tTradingAccounts[stock.quoteId]?.activeBatch}
                   floatingProfit={tMetrics?.floatingProfit}
                   compact
+                  showTitle={false}
                 />
               ) : null}
             </div>

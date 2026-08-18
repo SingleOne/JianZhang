@@ -26,6 +26,7 @@ const api: StockDesktopApi = {
   getTaskbarTooltipQuoteId: () => ipcRenderer.invoke('taskbar:tooltip:get'),
   setTaskbarTooltip: (anchor: TaskbarTooltipAnchor | null) =>
     ipcRenderer.invoke('taskbar:tooltip:set', anchor),
+  resizeTaskbarTooltip: (height) => ipcRenderer.invoke('taskbar:tooltip:resize', height),
   searchStocks: (query) => ipcRenderer.invoke('stocks:search', query),
   getDividendFinancingSnapshot: () => ipcRenderer.invoke('dividend-financing:get'),
   getDividendFinancingState: () => ipcRenderer.invoke('dividend-financing:state:get'),

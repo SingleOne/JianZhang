@@ -470,3 +470,9 @@ html.tray-mode #root {
   color: #111827;
   background: transparent !important;
 }
+
+html.taskbar-tooltip-mode,
+html.taskbar-tooltip-mode body,
+html.taskbar-tooltip-mode #root {
+  height: auto;
+}

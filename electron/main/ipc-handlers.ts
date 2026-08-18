@@ -66,6 +66,7 @@ interface IpcHandlerDependencies {
   getTaskbarLayout: () => TaskbarLayout
   getTaskbarTooltipQuoteId: () => string | null
   setTaskbarTooltip: (anchor: TaskbarTooltipAnchor | null) => void
+  resizeTaskbarTooltip: (height: number) => void
   getMainWindow: () => BrowserWindow | null
   searchStocks: (query: string) => Promise<SearchResult[]>
   getDividendFinancingSnapshot: () => DividendFinancingSnapshot | null
@@ -141,6 +142,7 @@ const CHANNELS = [
   'taskbar:layout:get',
   'taskbar:tooltip:get',
   'taskbar:tooltip:set',
+  'taskbar:tooltip:resize',
   'stocks:search',
   'dividend-financing:get',
   'dividend-financing:state:get',
@@ -207,6 +209,9 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
   ipcMain.handle('taskbar:tooltip:get', () => dependencies.getTaskbarTooltipQuoteId())
   ipcMain.handle('taskbar:tooltip:set', (_event, anchor: TaskbarTooltipAnchor | null) =>
     dependencies.setTaskbarTooltip(anchor)
+  )
+  ipcMain.handle('taskbar:tooltip:resize', (_event, height: number) =>
+    dependencies.resizeTaskbarTooltip(height)
   )
   ipcMain.handle('stocks:search', (_event, query: string) => dependencies.searchStocks(query))
   ipcMain.handle('dividend-financing:get', () => dependencies.getDividendFinancingSnapshot())

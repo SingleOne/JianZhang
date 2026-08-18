@@ -14,6 +14,9 @@ import type {
 import { atomicWriteJsonSync } from './file-storage'
 import { createAppIcon } from './tray-icons'
 
+const TASKBAR_TOOLTIP_WIDTH = 380
+const TASKBAR_TOOLTIP_DEFAULT_HEIGHT = 260
+
 interface WindowManagerDependencies {
   getState: () => AppState
   getQuotes: () => readonly StockQuote[]
@@ -32,6 +35,7 @@ export class WindowManager {
   private taskbarPositionTimer: NodeJS.Timeout | null = null
   private taskbarLayout: TaskbarLayout = { taskbarHeight: 48 }
   private taskbarTooltipAnchor: TaskbarTooltipAnchor | null = null
+  private taskbarTooltipHeight = TASKBAR_TOOLTIP_DEFAULT_HEIGHT
   private trayHovered = false
   private disposed = false
   private readonly windowStatePath: string
@@ -91,6 +95,13 @@ export class WindowManager {
     }
 
     this.showTaskbarTooltipWindow()
+  }
+
+  resizeTaskbarTooltip(height: number): void {
+    const nextHeight = Math.min(560, Math.max(200, Math.ceil(height)))
+    if (this.taskbarTooltipHeight === nextHeight) return
+    this.taskbarTooltipHeight = nextHeight
+    if (this.taskbarTooltipWindow?.isVisible()) this.positionTaskbarTooltipWindow()
   }
 
   showMainWindow(quoteId?: string): void {
@@ -422,8 +433,8 @@ export class WindowManager {
       return
     }
 
-    const width = 300
-    const height = 154
+    const width = TASKBAR_TOOLTIP_WIDTH
+    const height = this.taskbarTooltipHeight
     const margin = 8
     const taskbarBounds = this.taskbarWindow.getBounds()
     const display = screen.getDisplayMatching(taskbarBounds)
@@ -453,8 +464,8 @@ export class WindowManager {
     if (this.taskbarTooltipWindow && !this.taskbarTooltipWindow.isDestroyed()) return
 
     const window = new BrowserWindow({
-      width: 300,
-      height: 154,
+      width: TASKBAR_TOOLTIP_WIDTH,
+      height: TASKBAR_TOOLTIP_DEFAULT_HEIGHT,
       show: false,
       frame: false,
       transparent: true,

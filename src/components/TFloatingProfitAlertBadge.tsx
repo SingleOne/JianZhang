@@ -6,20 +6,23 @@ interface TFloatingProfitAlertBadgeProps {
   batch: TTradingBatch | undefined
   floatingProfit: number | null | undefined
   compact?: boolean
+  showTitle?: boolean
 }
 
 export function TFloatingProfitAlertBadge({
   batch,
   floatingProfit,
-  compact = false
+  compact = false,
+  showTitle = true
 }: TFloatingProfitAlertBadgeProps) {
   const direction = getTriggeredTFloatingProfitAlert(batch)
   if (!direction || !batch?.floatingProfitAlert) return null
 
   const label = direction === 'profit' ? '盈' : '亏'
-  const target = direction === 'profit'
-    ? batch.floatingProfitAlert.threshold
-    : -batch.floatingProfitAlert.threshold
+  const target =
+    direction === 'profit'
+      ? batch.floatingProfitAlert.threshold
+      : -batch.floatingProfitAlert.threshold
   return (
     <span
       className={`t-alert-badges t-floating-profit-alert-badges ${compact ? 'is-compact' : ''}`}
@@ -27,7 +30,11 @@ export function TFloatingProfitAlertBadge({
     >
       <span
         className={`t-alert-badge is-${direction}`}
-        title={`当前浮动收益 ${formatProfit(floatingProfit)}，已达到 ${formatProfit(target)} 提醒值`}
+        title={
+          showTitle
+            ? `当前浮动收益 ${formatProfit(floatingProfit)}，已达到 ${formatProfit(target)} 提醒值`
+            : undefined
+        }
       >
         {label}
       </span>

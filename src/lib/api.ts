@@ -541,6 +541,7 @@ const demoApi: StockDesktopApi = {
     return null
   },
   async setTaskbarTooltip() {},
+  async resizeTaskbarTooltip() {},
   async searchStocks(query) {
     const normalized = query.trim().toLowerCase()
     return DEMO_STOCKS.filter(

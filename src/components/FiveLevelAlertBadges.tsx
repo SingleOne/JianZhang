@@ -4,13 +4,18 @@ import type { FiveLevelLargeOrderAlert } from '../shared/types'
 interface FiveLevelAlertBadgesProps {
   alerts: readonly FiveLevelLargeOrderAlert[] | undefined
   compact?: boolean
+  showTitle?: boolean
 }
 
 function formatVolume(volume: number): string {
   return volume >= 10_000 ? `${(volume / 10_000).toFixed(2)}万` : volume.toLocaleString('zh-CN')
 }
 
-export function FiveLevelAlertBadges({ alerts, compact = false }: FiveLevelAlertBadgesProps) {
+export function FiveLevelAlertBadges({
+  alerts,
+  compact = false,
+  showTitle = true
+}: FiveLevelAlertBadgesProps) {
   if (!alerts?.length) return null
 
   return (
@@ -24,7 +29,11 @@ export function FiveLevelAlertBadges({ alerts, compact = false }: FiveLevelAlert
           <span
             className={`t-alert-badge five-level-alert-badge is-${alert.side}`}
             key={alert.side}
-            title={`${sideLabel}${alert.level}明显大单，价格 ${formatPrice(alert.price)}，该档挂单量 ${formatVolume(alert.volume)}，其余四档合计 ${formatVolume(alert.otherLevelsVolume)}`}
+            title={
+              showTitle
+                ? `${sideLabel}${alert.level}明显大单，价格 ${formatPrice(alert.price)}，该档挂单量 ${formatVolume(alert.volume)}，其余四档合计 ${formatVolume(alert.otherLevelsVolume)}`
+                : undefined
+            }
           >
             五
           </span>
