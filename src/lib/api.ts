@@ -544,6 +544,7 @@ const demoApi: StockDesktopApi = {
   async getTaskbarTooltipQuoteId() {
     return null
   },
+  async resizeTaskbarTicker() {},
   async setTaskbarTooltip() {},
   async resizeTaskbarTooltip() {},
   async searchStocks(query) {

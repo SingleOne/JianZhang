@@ -24,6 +24,8 @@ const api: StockDesktopApi = {
   getBootstrap: () => ipcRenderer.invoke('app:bootstrap'),
   getTaskbarLayout: () => ipcRenderer.invoke('taskbar:layout:get'),
   getTaskbarTooltipQuoteId: () => ipcRenderer.invoke('taskbar:tooltip:get'),
+  resizeTaskbarTicker: (width, height) =>
+    ipcRenderer.invoke('taskbar:ticker:resize', width, height),
   setTaskbarTooltip: (anchor: TaskbarTooltipAnchor | null) =>
     ipcRenderer.invoke('taskbar:tooltip:set', anchor),
   resizeTaskbarTooltip: (height) => ipcRenderer.invoke('taskbar:tooltip:resize', height),

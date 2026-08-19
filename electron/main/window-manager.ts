@@ -1,9 +1,9 @@
 import { BrowserWindow, Menu, screen, Tray, type MenuItemConstructorOptions } from 'electron'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { accountHasTriggeredTAlerts } from '../../src/lib/t-alerts'
 import { calculatePositionMetrics } from '../../src/lib/portfolio'
 import { formatPercent, formatPrice, formatProfit } from '../../src/lib/format'
+import { getTaskbarVisibleStocks, shouldShowTaskbarTicker } from '../../src/lib/taskbar-visibility'
 import type {
   AppState,
   StockQuote,
@@ -32,8 +32,8 @@ export class WindowManager {
   private trayPopupWindow: BrowserWindow | null = null
   private appTray: Tray | null = null
   private trayPopupShowTimer: NodeJS.Timeout | null = null
-  private taskbarPositionTimer: NodeJS.Timeout | null = null
   private taskbarLayout: TaskbarLayout = { taskbarHeight: 48, taskbarEdge: 'bottom' }
+  private taskbarContentSize: { width: number; height: number } | null = null
   private taskbarTooltipAnchor: TaskbarTooltipAnchor | null = null
   private taskbarTooltipHeight = TASKBAR_TOOLTIP_DEFAULT_HEIGHT
   private trayHovered = false
@@ -78,6 +78,21 @@ export class WindowManager {
 
   getTaskbarTooltipQuoteId(): string | null {
     return this.taskbarTooltipAnchor?.quoteId ?? null
+  }
+
+  resizeTaskbarTicker(width: number, height: number): void {
+    const nextSize = {
+      width: Math.max(1, Math.ceil(width)),
+      height: Math.max(1, Math.ceil(height))
+    }
+    if (
+      this.taskbarContentSize?.width === nextSize.width &&
+      this.taskbarContentSize.height === nextSize.height
+    ) {
+      return
+    }
+    this.taskbarContentSize = nextSize
+    this.positionTaskbarWindow()
   }
 
   setTaskbarTooltip(anchor: TaskbarTooltipAnchor | null): void {
@@ -175,9 +190,7 @@ export class WindowManager {
 
   syncTaskbarWindow(): void {
     const state = this.dependencies.getState()
-    const shouldShow =
-      this.taskbarVisibleStocks().length > 0 &&
-      (state.settings.showTaskbarTicker || this.hasActiveTaskbarAlert())
+    const shouldShow = shouldShowTaskbarTicker(state.settings.showTaskbarTicker, state.watchlist)
 
     if (!shouldShow) {
       if (this.taskbarWindow && !this.taskbarWindow.isDestroyed()) this.taskbarWindow.hide()
@@ -204,9 +217,7 @@ export class WindowManager {
     screen.removeListener('display-added', this.handleDisplayChanged)
     screen.removeListener('display-removed', this.handleDisplayChanged)
     if (this.trayPopupShowTimer) clearTimeout(this.trayPopupShowTimer)
-    if (this.taskbarPositionTimer) clearTimeout(this.taskbarPositionTimer)
     this.trayPopupShowTimer = null
-    this.taskbarPositionTimer = null
     this.appTray?.destroy()
     this.appTray = null
     this.trayPopupWindow?.destroy()
@@ -218,32 +229,7 @@ export class WindowManager {
   }
 
   private taskbarVisibleStocks(): WatchStock[] {
-    const state = this.dependencies.getState()
-    const quotes = this.dependencies.getQuotes()
-    return state.watchlist.filter(
-      (stock) =>
-        stock.showInTaskbar ||
-        accountHasTriggeredTAlerts(state.tTradingAccounts[stock.quoteId]) ||
-        (state.tTradingAccounts[stock.quoteId]?.activeBatch &&
-          quotes.some(
-            (quote) =>
-              quote.quoteId === stock.quoteId && Boolean(quote.fiveLevelLargeOrders?.length)
-          ))
-    )
-  }
-
-  private hasActiveTaskbarAlert(): boolean {
-    const state = this.dependencies.getState()
-    const quotes = this.dependencies.getQuotes()
-    return state.watchlist.some(
-      (stock) =>
-        accountHasTriggeredTAlerts(state.tTradingAccounts[stock.quoteId]) ||
-        (state.tTradingAccounts[stock.quoteId]?.activeBatch &&
-          quotes.some(
-            (quote) =>
-              quote.quoteId === stock.quoteId && Boolean(quote.fiveLevelLargeOrders?.length)
-          ))
-    )
+    return getTaskbarVisibleStocks(this.dependencies.getState().watchlist)
   }
 
   private loadMainWindowVisible(): boolean {
@@ -393,18 +379,19 @@ export class WindowManager {
     const selectedCount = this.taskbarVisibleStocks().length
 
     if (
-      (!state.settings.showTaskbarTicker && !this.hasActiveTaskbarAlert()) ||
+      !state.settings.showTaskbarTicker ||
       selectedCount === 0 ||
-      taskbarHeight < 24
+      taskbarHeight < 24 ||
+      !this.taskbarContentSize
     ) {
       this.taskbarWindow.hide()
       this.setTaskbarTooltip(null)
       return
     }
 
-    const columns = Math.ceil(selectedCount / 2)
     const availableWidth = Math.max(280, Math.floor(display.bounds.width / 2 - 110))
-    const width = Math.min(availableWidth, Math.max(280, columns * 260))
+    const width = Math.min(availableWidth, this.taskbarContentSize.width)
+    const height = Math.min(taskbarHeight, this.taskbarContentSize.height)
     const horizontalMargin = 24
     const travelWidth = Math.max(0, display.bounds.width - width - horizontalMargin * 2)
     const positionPercent = Math.min(100, Math.max(0, state.settings.taskbarPositionPercent))
@@ -414,9 +401,9 @@ export class WindowManager {
 
     this.taskbarWindow.setBounds({
       x,
-      y: taskbarY,
+      y: taskbarY + Math.floor((taskbarHeight - height) / 2),
       width,
-      height: taskbarHeight
+      height
     })
     this.taskbarWindow.webContents.send('taskbar:layout', this.taskbarLayout)
     if (this.taskbarTooltipWindow && !this.taskbarTooltipWindow.isDestroyed()) {
@@ -559,13 +546,7 @@ export class WindowManager {
         this.taskbarTooltipAnchor = null
       }
     })
-    window.webContents.on('did-finish-load', () => {
-      this.syncTaskbarWindow()
-      this.taskbarPositionTimer = setTimeout(() => {
-        this.taskbarPositionTimer = null
-        this.positionTaskbarWindow()
-      }, 100)
-    })
+    window.webContents.on('did-finish-load', () => this.syncTaskbarWindow())
 
     if (process.env.ELECTRON_RENDERER_URL) {
       void window.loadURL(`${process.env.ELECTRON_RENDERER_URL}?mode=taskbar`)

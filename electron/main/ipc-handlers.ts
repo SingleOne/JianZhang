@@ -64,6 +64,7 @@ interface IpcHandlerDependencies {
   getStartupWarning: () => string | undefined
   getTaskbarLayout: () => TaskbarLayout
   getTaskbarTooltipQuoteId: () => string | null
+  resizeTaskbarTicker: (width: number, height: number) => void
   setTaskbarTooltip: (anchor: TaskbarTooltipAnchor | null) => void
   resizeTaskbarTooltip: (height: number) => void
   getMainWindow: () => BrowserWindow | null
@@ -143,6 +144,7 @@ interface IpcHandlerDependencies {
 const CHANNELS = [
   'app:bootstrap',
   'taskbar:layout:get',
+  'taskbar:ticker:resize',
   'taskbar:tooltip:get',
   'taskbar:tooltip:set',
   'taskbar:tooltip:resize',
@@ -212,6 +214,9 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
     warning: dependencies.getStartupWarning()
   }))
   ipcMain.handle('taskbar:layout:get', () => dependencies.getTaskbarLayout())
+  ipcMain.handle('taskbar:ticker:resize', (_event, width: number, height: number) =>
+    dependencies.resizeTaskbarTicker(width, height)
+  )
   ipcMain.handle('taskbar:tooltip:get', () => dependencies.getTaskbarTooltipQuoteId())
   ipcMain.handle('taskbar:tooltip:set', (_event, anchor: TaskbarTooltipAnchor | null) =>
     dependencies.setTaskbarTooltip(anchor)

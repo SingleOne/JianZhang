@@ -1670,6 +1670,7 @@ export interface StockDesktopApi {
   getBootstrap: () => Promise<BootstrapResult>
   getTaskbarLayout: () => Promise<TaskbarLayout>
   getTaskbarTooltipQuoteId: () => Promise<string | null>
+  resizeTaskbarTicker: (width: number, height: number) => Promise<void>
   setTaskbarTooltip: (anchor: TaskbarTooltipAnchor | null) => Promise<void>
   resizeTaskbarTooltip: (height: number) => Promise<void>
   searchStocks: (query: string) => Promise<SearchResult[]>
