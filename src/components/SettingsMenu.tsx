@@ -699,7 +699,19 @@ export function SettingsMenu({
                 {githubDeviceAuthorization ? (
                   <div className="github-device-code">
                     <span>请在已打开的 GitHub 网页输入验证码</span>
-                    <strong>{githubDeviceAuthorization.userCode}</strong>
+                    <span className="github-device-code-value">
+                      <strong>{githubDeviceAuthorization.userCode}</strong>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void navigator.clipboard.writeText(githubDeviceAuthorization.userCode)
+                        }
+                        aria-label="复制 GitHub 设备验证码"
+                        title="复制验证码"
+                      >
+                        <Copy size={15} />
+                      </button>
+                    </span>
                     <small>验证码已复制，完成授权后应用会自动继续</small>
                   </div>
                 ) : null}

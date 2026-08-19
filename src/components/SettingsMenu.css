@@ -561,6 +561,32 @@
   letter-spacing: 2px;
 }
 
+.github-device-code-value {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.github-device-code-value button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--blue);
+  background: #fff;
+  border: 1px solid #c9d9fa;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.github-device-code-value button:hover {
+  background: #edf4ff;
+  border-color: var(--blue);
+}
+
 .github-sync-actions {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
