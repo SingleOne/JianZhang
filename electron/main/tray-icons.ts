@@ -25,21 +25,25 @@ function fillRoundedSquare(png: PNG, color: Color): void {
 
 export function createAppIcon(): NativeImage {
   const png = new PNG({ width: 32, height: 32 })
-  fillRoundedSquare(png, [220, 55, 66, 255])
+  const red: Color = [220, 55, 66, 255]
   const white: Color = [255, 255, 255, 255]
+  const foreground = __JIANZHANG_ICON_VARIANT__ === 'red' ? white : red
+  const background = __JIANZHANG_ICON_VARIANT__ === 'red' ? red : white
+  const guide: Color = [foreground[0], foreground[1], foreground[2], 90]
+  fillRoundedSquare(png, background)
 
-  for (let x = 7; x <= 24; x += 1) setPixel(png, x, 24, [255, 255, 255, 90])
+  for (let x = 7; x <= 24; x += 1) setPixel(png, x, 24, guide)
   const points = [
     [7, 22], [8, 21], [9, 20], [10, 19], [11, 20], [12, 21], [13, 19],
     [14, 17], [15, 18], [16, 16], [17, 14], [18, 15], [19, 13], [20, 11],
     [21, 12], [22, 9], [23, 8], [24, 7]
   ]
   for (const [x, y] of points) {
-    setPixel(png, x, y, white)
-    setPixel(png, x, y + 1, white)
+    setPixel(png, x, y, foreground)
+    setPixel(png, x, y + 1, foreground)
   }
-  for (let y = 7; y <= 12; y += 1) setPixel(png, 24, y, white)
-  for (let x = 20; x <= 24; x += 1) setPixel(png, x, 7, white)
+  for (let y = 7; y <= 12; y += 1) setPixel(png, 24, y, foreground)
+  for (let x = 20; x <= 24; x += 1) setPixel(png, x, 7, foreground)
 
   return nativeImage.createFromBuffer(PNG.sync.write(png))
 }

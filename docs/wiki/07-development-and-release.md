@@ -42,9 +42,19 @@ npm run package:portable
 | `format:check` | 用 Prettier 检查代码格式；当前仍会列出尚未批量格式化的历史文件 |
 | `build` | 先 `tsc --noEmit`，再构建 main/preload/renderer |
 | `build:unpacked` | 完成类型检查、生产构建和图标生成，并更新 `release/win-unpacked` 开发预览，不生成安装包 |
-| `generate:icon` | 生成 `build/icon.png` |
+| `generate:icon` | 生成红底版 `build/icon.png` 和白底版 `build/icon-white.png` |
 | `package:win` | build + icon + NSIS x64 安装包 |
 | `package:portable` | build + icon + Windows portable 包 |
+
+应用图标默认使用白底红箭头。通过编译环境变量可统一切换 exe、主窗体和托盘图标：
+
+```powershell
+$env:JIANZHANG_ICON_VARIANT = 'red'
+npm run build:unpacked
+Remove-Item Env:JIANZHANG_ICON_VARIANT
+```
+
+`JIANZHANG_ICON_VARIANT` 支持 `white`（默认）和 `red`；两个版本的 PNG 都会由 `generate:icon` 保留在 `build/`。
 
 ## 构建输出
 

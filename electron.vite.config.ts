@@ -5,6 +5,7 @@ import { resolve } from 'node:path'
 const marketInsightModuleEnabled = process.env.JIANZHANG_MARKET_INSIGHT_MODULE !== '0'
 const aiModuleEnabled = process.env.JIANZHANG_AI_MODULE !== '0'
 const aiTAdviceModuleEnabled = aiModuleEnabled && process.env.JIANZHANG_AI_T_ADVICE_MODULE !== '0'
+const iconVariant = process.env.JIANZHANG_ICON_VARIANT === 'red' ? 'red' : 'white'
 const defaultGitHubOauthClientId = 'Ov23liCYRkPi2M4mnbYh'
 const githubOauthClientId =
   process.env.JIANZHANG_GITHUB_OAUTH_CLIENT_ID?.trim() || defaultGitHubOauthClientId
@@ -12,6 +13,7 @@ const buildConstants = {
   __JIANZHANG_MARKET_INSIGHT_ENABLED__: JSON.stringify(marketInsightModuleEnabled),
   __JIANZHANG_AI_MODULE_ENABLED__: JSON.stringify(aiModuleEnabled),
   __JIANZHANG_AI_T_ADVICE_MODULE_ENABLED__: JSON.stringify(aiTAdviceModuleEnabled),
+  __JIANZHANG_ICON_VARIANT__: JSON.stringify(iconVariant),
   __JIANZHANG_GITHUB_OAUTH_CLIENT_ID__: JSON.stringify(githubOauthClientId)
 }
 
