@@ -29,7 +29,7 @@ export function AppTitlebar({ children }: AppTitlebarProps) {
 
   return (
     <header className="titlebar">
-      <div className="brand-mark" aria-hidden="true">
+      <div className={`brand-mark is-${__JIANZHANG_ICON_VARIANT__}`} aria-hidden="true">
         <svg viewBox="0 0 24 24" role="img">
           <path d="M4 17.5 9 13l3 2.5L19.5 7" />
           <path d="M15.5 7h4v4" />
