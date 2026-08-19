@@ -4,16 +4,8 @@ import { PNG } from 'pngjs'
 const outputSize = 256
 const scale = 4
 const size = outputSize * scale
-const pixels = new Uint8ClampedArray(size * size * 4)
-
-function setPixel(x, y, red, green, blue, alpha = 255) {
-  if (x < 0 || y < 0 || x >= size || y >= size) return
-  const offset = (y * size + x) * 4
-  pixels[offset] = red
-  pixels[offset + 1] = green
-  pixels[offset + 2] = blue
-  pixels[offset + 3] = alpha
-}
+const red = [220, 55, 66]
+const white = [255, 255, 255]
 
 function isInsideRoundedSquare(x, y) {
   const inset = 32 * scale
@@ -41,42 +33,58 @@ function distanceToSegment(px, py, x1, y1, x2, y2) {
   return Math.sqrt(dx * dx + dy * dy)
 }
 
-for (let y = 0; y < size; y += 1) {
-  for (let x = 0; x < size; x += 1) {
-    if (isInsideRoundedSquare(x, y)) setPixel(x, y, 37, 99, 235)
+function renderIcon(background, foreground) {
+  const pixels = new Uint8ClampedArray(size * size * 4)
+
+  function setPixel(x, y, color, alpha = 255) {
+    if (x < 0 || y < 0 || x >= size || y >= size) return
+    const offset = (y * size + x) * 4
+    pixels[offset] = color[0]
+    pixels[offset + 1] = color[1]
+    pixels[offset + 2] = color[2]
+    pixels[offset + 3] = alpha
   }
-}
 
-const points = [
-  [64, 174], [105, 139], [135, 158], [192, 91]
-].map(([x, y]) => [x * scale, y * scale])
-const stroke = 9 * scale
-
-for (let y = 0; y < size; y += 1) {
-  for (let x = 0; x < size; x += 1) {
-    const onLine = points.slice(0, -1).some((point, index) =>
-      distanceToSegment(x, y, point[0], point[1], points[index + 1][0], points[index + 1][1]) <= stroke
-    )
-    const onArrowA = distanceToSegment(x, y, 192 * scale, 91 * scale, 158 * scale, 94 * scale) <= stroke
-    const onArrowB = distanceToSegment(x, y, 192 * scale, 91 * scale, 189 * scale, 125 * scale) <= stroke
-    if (onLine || onArrowA || onArrowB) setPixel(x, y, 255, 255, 255)
-  }
-}
-
-const png = new PNG({ width: outputSize, height: outputSize })
-for (let y = 0; y < outputSize; y += 1) {
-  for (let x = 0; x < outputSize; x += 1) {
-    const totals = [0, 0, 0, 0]
-    for (let sy = 0; sy < scale; sy += 1) {
-      for (let sx = 0; sx < scale; sx += 1) {
-        const source = (((y * scale + sy) * size) + (x * scale + sx)) * 4
-        for (let channel = 0; channel < 4; channel += 1) totals[channel] += pixels[source + channel]
-      }
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      if (isInsideRoundedSquare(x, y)) setPixel(x, y, background)
     }
-    const destination = (y * outputSize + x) * 4
-    for (let channel = 0; channel < 4; channel += 1) png.data[destination + channel] = totals[channel] / (scale * scale)
   }
+
+  const points = [
+    [64, 174], [105, 139], [135, 158], [192, 91]
+  ].map(([x, y]) => [x * scale, y * scale])
+  const stroke = 9 * scale
+
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const onLine = points.slice(0, -1).some((point, index) =>
+        distanceToSegment(x, y, point[0], point[1], points[index + 1][0], points[index + 1][1]) <= stroke
+      )
+      const onArrowA = distanceToSegment(x, y, 192 * scale, 91 * scale, 158 * scale, 94 * scale) <= stroke
+      const onArrowB = distanceToSegment(x, y, 192 * scale, 91 * scale, 189 * scale, 125 * scale) <= stroke
+      if (onLine || onArrowA || onArrowB) setPixel(x, y, foreground)
+    }
+  }
+
+  const png = new PNG({ width: outputSize, height: outputSize })
+  for (let y = 0; y < outputSize; y += 1) {
+    for (let x = 0; x < outputSize; x += 1) {
+      const totals = [0, 0, 0, 0]
+      for (let sy = 0; sy < scale; sy += 1) {
+        for (let sx = 0; sx < scale; sx += 1) {
+          const source = (((y * scale + sy) * size) + (x * scale + sx)) * 4
+          for (let channel = 0; channel < 4; channel += 1) totals[channel] += pixels[source + channel]
+        }
+      }
+      const destination = (y * outputSize + x) * 4
+      for (let channel = 0; channel < 4; channel += 1) png.data[destination + channel] = totals[channel] / (scale * scale)
+    }
+  }
+
+  return PNG.sync.write(png)
 }
 
 mkdirSync('build', { recursive: true })
-writeFileSync('build/icon.png', PNG.sync.write(png))
+writeFileSync('build/icon.png', renderIcon(red, white))
+writeFileSync('build/icon-white.png', renderIcon(white, red))

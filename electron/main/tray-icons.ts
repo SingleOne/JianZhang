@@ -25,7 +25,7 @@ function fillRoundedSquare(png: PNG, color: Color): void {
 
 export function createAppIcon(): NativeImage {
   const png = new PNG({ width: 32, height: 32 })
-  fillRoundedSquare(png, [37, 99, 235, 255])
+  fillRoundedSquare(png, [220, 55, 66, 255])
   const white: Color = [255, 255, 255, 255]
 
   for (let x = 7; x <= 24; x += 1) setPixel(png, x, 24, [255, 255, 255, 90])
