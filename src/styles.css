@@ -99,6 +99,12 @@ tr:focus-visible {
   box-shadow: none;
 }
 
+.brand-mark.is-black {
+  color: var(--red);
+  background: #111111;
+  box-shadow: none;
+}
+
 .brand-mark svg {
   width: 18px;
   height: 18px;

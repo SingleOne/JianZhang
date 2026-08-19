@@ -27,8 +27,10 @@ export function createAppIcon(): NativeImage {
   const png = new PNG({ width: 32, height: 32 })
   const red: Color = [220, 55, 66, 255]
   const white: Color = [255, 255, 255, 255]
+  const black: Color = [17, 17, 17, 255]
+  const backgrounds = { white, red, black }
   const foreground = __JIANZHANG_ICON_VARIANT__ === 'red' ? white : red
-  const background = __JIANZHANG_ICON_VARIANT__ === 'red' ? red : white
+  const background = backgrounds[__JIANZHANG_ICON_VARIANT__]
   const guide: Color = [foreground[0], foreground[1], foreground[2], 90]
   fillRoundedSquare(png, background)
 

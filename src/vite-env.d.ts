@@ -6,7 +6,7 @@ declare global {
   const __JIANZHANG_MARKET_INSIGHT_ENABLED__: boolean
   const __JIANZHANG_AI_MODULE_ENABLED__: boolean
   const __JIANZHANG_AI_T_ADVICE_MODULE_ENABLED__: boolean
-  const __JIANZHANG_ICON_VARIANT__: 'white' | 'red'
+  const __JIANZHANG_ICON_VARIANT__: 'white' | 'red' | 'black'
   const __JIANZHANG_GITHUB_OAUTH_CLIENT_ID__: string
 
   interface Window {

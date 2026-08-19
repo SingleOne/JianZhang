@@ -1,5 +1,13 @@
 const aiModuleEnabled = process.env.JIANZHANG_AI_MODULE !== '0'
-const iconVariant = process.env.JIANZHANG_ICON_VARIANT === 'red' ? 'red' : 'white'
+const requestedIconVariant = process.env.JIANZHANG_ICON_VARIANT
+const iconVariant = requestedIconVariant === 'red' || requestedIconVariant === 'black'
+  ? requestedIconVariant
+  : 'white'
+const iconFiles = {
+  white: 'build/icon-white.png',
+  red: 'build/icon.png',
+  black: 'build/icon-black.png'
+}
 
 module.exports = {
   appId: 'com.jianzhang.stock',
@@ -28,7 +36,7 @@ module.exports = {
       : [])
   ],
   win: {
-    icon: iconVariant === 'red' ? 'build/icon.png' : 'build/icon-white.png',
+    icon: iconFiles[iconVariant],
     target: [{ target: 'nsis', arch: ['x64'] }],
     artifactName: '见涨-Setup-${version}-${arch}.${ext}'
   },

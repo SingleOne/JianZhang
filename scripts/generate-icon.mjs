@@ -6,6 +6,7 @@ const scale = 4
 const size = outputSize * scale
 const red = [220, 55, 66]
 const white = [255, 255, 255]
+const black = [17, 17, 17]
 
 function isInsideRoundedSquare(x, y) {
   const inset = 32 * scale
@@ -88,3 +89,4 @@ function renderIcon(background, foreground) {
 mkdirSync('build', { recursive: true })
 writeFileSync('build/icon.png', renderIcon(red, white))
 writeFileSync('build/icon-white.png', renderIcon(white, red))
+writeFileSync('build/icon-black.png', renderIcon(black, red))
