@@ -32,7 +32,6 @@ interface EastmoneySearchItem {
   Name?: string
   QuoteID?: string
   SecurityTypeName?: string
-  Classify?: string
 }
 
 interface EastmoneyQuoteItem {
@@ -286,7 +285,7 @@ export async function searchStocks(query: string): Promise<SearchResult[]> {
   })
 
   return (payload.QuotationCodeTable?.Data ?? [])
-    .filter((item) => item.Classify === 'AStock' && item.Code && item.Name && item.QuoteID)
+    .filter((item) => item.Code && item.Name && item.QuoteID)
     .map((item) => ({
       code: item.Code!,
       name: item.Name!,
