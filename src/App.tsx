@@ -984,6 +984,7 @@ export default function App() {
 
   const uploadUserDataToGitHub = useCallback(async () => {
     setGitHubSyncBusy(true)
+    setGitHubSyncUploading(true)
     try {
       if (!githubSyncSettings.syncPasswordReady) throw new Error('请先设置并保存 Gist 同步密码')
       const latestSettings = await stockApi.refreshGitHubGist()
@@ -1012,7 +1013,6 @@ export default function App() {
         tone: 'danger'
       })
       if (!confirmed) return
-      setGitHubSyncUploading(true)
       const result = await stockApi.uploadUserDataToGitHub(
         state,
         latestSettings.requiresRemoteRestore
