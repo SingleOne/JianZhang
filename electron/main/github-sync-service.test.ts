@@ -206,6 +206,25 @@ describe('GitHubSyncService Gist sync', () => {
     await expect(service.upload('{"version":2}', 0)).rejects.toThrow('远程备份已由其他设备更新')
   })
 
+  it('overwrites a changed remote Gist after the user confirms the warning', async () => {
+    const api = installGitHubApi()
+    const service = new GitHubSyncService(temporaryDirectory(), 'client-id')
+    await completeAuthorization(service)
+    await service.refreshGist()
+    await service.saveSyncPassword('sync-password')
+    await service.upload('{"version":1}', 0)
+
+    api.advanceRemoteVersion()
+
+    const uploaded = await service.upload('{"version":2}', 0, true)
+    const encrypted = api.getGist()?.files['jianzhang-user-data.json'].content ?? ''
+    await expect(decryptGitHubGistBackup(encrypted, 'sync-password')).resolves.toBe('{"version":2}')
+    expect(service.getSettings()).toMatchObject({
+      remoteVersion: uploaded.version,
+      requiresRemoteRestore: false
+    })
+  })
+
   it('re-encrypts the current remote backup when the local password is changed', async () => {
     const api = installGitHubApi()
     const service = new GitHubSyncService(temporaryDirectory(), 'client-id')

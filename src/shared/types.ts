@@ -1717,7 +1717,10 @@ export interface StockDesktopApi {
   generateGitHubSyncPassword: () => Promise<string>
   saveGitHubSyncPassword: (password: string) => Promise<GitHubSyncSettings>
   disconnectGitHub: () => Promise<GitHubSyncSettings>
-  uploadUserDataToGitHub: (state: AppState) => Promise<GitHubSyncUploadResult>
+  uploadUserDataToGitHub: (
+    state: AppState,
+    overwriteRemote?: boolean
+  ) => Promise<GitHubSyncUploadResult>
   downloadUserDataFromGitHub: () => Promise<ConfigImportResult>
   confirmGitHubGistRestore: (version: string) => Promise<GitHubSyncSettings>
   hideWindow: () => Promise<void>

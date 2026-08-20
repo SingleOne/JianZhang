@@ -681,7 +681,7 @@ export function SettingsMenu({
                         <>
                           <strong>Secret Gist 已绑定</strong> ·{' '}
                           {githubSyncSettings.requiresRemoteRestore
-                            ? '远程版本尚未在本机恢复，请先执行“从 GitHub 恢复”'
+                            ? '远程版本与本机同步记录不一致，上传时会提示覆盖风险'
                             : `Gist ${githubSyncSettings.gistId.slice(0, 10)} · jianzhang-user-data.json`}
                         </>
                       ) : (
@@ -870,11 +870,7 @@ export function SettingsMenu({
                     <button
                       type="button"
                       onClick={onUploadUserDataToGitHub}
-                      disabled={
-                        githubControlsDisabled ||
-                        !githubSyncSettings.syncPasswordReady ||
-                        githubSyncSettings.requiresRemoteRestore
-                      }
+                      disabled={githubControlsDisabled || !githubSyncSettings.syncPasswordReady}
                     >
                       {githubSyncUploading ? (
                         <RefreshCw size={15} className="is-spinning" />

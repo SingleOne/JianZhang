@@ -122,7 +122,8 @@ interface IpcHandlerDependencies {
   disconnectGitHub: () => GitHubSyncSettings
   uploadUserDataToGitHub: (
     state: AppState,
-    applicationVersion: string
+    applicationVersion: string,
+    overwriteRemote?: boolean
   ) => Promise<GitHubSyncUploadResult>
   downloadUserDataFromGitHub: () => Promise<{
     importId: string
@@ -404,11 +405,14 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
     dependencies.saveGitHubSyncPassword(password)
   )
   ipcMain.handle('github-sync:disconnect', () => dependencies.disconnectGitHub())
-  ipcMain.handle('github-sync:upload', (_event, _stateToExport: AppState) =>
-    dependencies.uploadUserDataToGitHub(
-      dependencies.normalizeState(dependencies.getState()),
-      app.getVersion()
-    )
+  ipcMain.handle(
+    'github-sync:upload',
+    (_event, _stateToExport: AppState, overwriteRemote?: boolean) =>
+      dependencies.uploadUserDataToGitHub(
+        dependencies.normalizeState(dependencies.getState()),
+        app.getVersion(),
+        overwriteRemote
+      )
   )
   ipcMain.handle('github-sync:download', async () => {
     const prepared = await dependencies.downloadUserDataFromGitHub()

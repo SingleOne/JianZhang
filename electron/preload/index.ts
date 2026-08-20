@@ -73,7 +73,8 @@ const api: StockDesktopApi = {
   generateGitHubSyncPassword: () => ipcRenderer.invoke('github-sync:password:generate'),
   saveGitHubSyncPassword: (password) => ipcRenderer.invoke('github-sync:password:save', password),
   disconnectGitHub: () => ipcRenderer.invoke('github-sync:disconnect'),
-  uploadUserDataToGitHub: (state) => ipcRenderer.invoke('github-sync:upload', state),
+  uploadUserDataToGitHub: (state, overwriteRemote) =>
+    ipcRenderer.invoke('github-sync:upload', state, overwriteRemote),
   downloadUserDataFromGitHub: () => ipcRenderer.invoke('github-sync:download'),
   confirmGitHubGistRestore: (version) =>
     ipcRenderer.invoke('github-sync:gist:restore-confirm', version),

@@ -468,7 +468,7 @@ if (!hasSingleInstanceLock) {
       generateGitHubSyncPassword: () => githubSyncService!.generateSyncPassword(),
       saveGitHubSyncPassword: (password) => githubSyncService!.saveSyncPassword(password),
       disconnectGitHub: () => githubSyncService!.disconnect(),
-      uploadUserDataToGitHub: async (stateToExport, applicationVersion) => {
+      uploadUserDataToGitHub: async (stateToExport, applicationVersion, overwriteRemote) => {
         const document = userDataBackupService!.create(
           stateStore!.normalize(stateToExport),
           applicationVersion,
@@ -476,7 +476,8 @@ if (!hasSingleInstanceLock) {
         )
         return githubSyncService!.upload(
           JSON.stringify(document, null, 2),
-          Object.keys(document.aiApiKeys).length
+          Object.keys(document.aiApiKeys).length,
+          overwriteRemote
         )
       },
       downloadUserDataFromGitHub: async () => {

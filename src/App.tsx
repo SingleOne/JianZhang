@@ -986,20 +986,37 @@ export default function App() {
     setGitHubSyncBusy(true)
     try {
       if (!githubSyncSettings.syncPasswordReady) throw new Error('请先设置并保存 Gist 同步密码')
-      if (githubSyncSettings.requiresRemoteRestore) {
-        throw new Error('远程 Gist 尚未在本机恢复或已经更新，请先恢复远程数据')
-      }
+      const latestSettings = await stockApi.refreshGitHubGist()
+      setGitHubSyncSettings(latestSettings)
+      const localUpdatedAt = latestSettings.localDataUpdatedAt
+        ? Date.parse(latestSettings.localDataUpdatedAt)
+        : Number.NaN
+      const remoteUpdatedAt = latestSettings.remoteDataUpdatedAt
+        ? Date.parse(latestSettings.remoteDataUpdatedAt)
+        : Number.NaN
+      const versionWarning = latestSettings.requiresRemoteRestore
+        ? Number.isFinite(localUpdatedAt) && Number.isFinite(remoteUpdatedAt)
+          ? localUpdatedAt < remoteUpdatedAt
+            ? '本机数据更新时间早于远程备份，远程可能包含其他设备的新数据。'
+            : localUpdatedAt > remoteUpdatedAt
+              ? '本机数据更新时间晚于远程备份，但远程版本与本机上次同步记录不一致。'
+              : '本机与远程显示相同的更新时间，但远程版本已经变化。'
+          : '远程备份版本与本机上次同步记录不一致。'
+        : ''
       const confirmed = await confirm({
         title: '上传用户数据到 GitHub Gist',
-        message: githubSyncSettings.gistId
-          ? '将使用本机同步密码加密全部用户数据并覆盖当前 Secret Gist，包括已配置的 AI API Key。'
+        message: latestSettings.gistId
+          ? `${versionWarning}将使用本机同步密码加密全部用户数据并覆盖当前 Secret Gist，包括已配置的 AI API Key。`
           : '将使用本机同步密码加密全部用户数据，并自动创建一个 Secret Gist，包括已配置的 AI API Key。',
-        confirmLabel: '确认上传',
+        confirmLabel: latestSettings.requiresRemoteRestore ? '仍然上传并覆盖' : '确认上传',
         tone: 'danger'
       })
       if (!confirmed) return
       setGitHubSyncUploading(true)
-      const result = await stockApi.uploadUserDataToGitHub(state)
+      const result = await stockApi.uploadUserDataToGitHub(
+        state,
+        latestSettings.requiresRemoteRestore
+      )
       setGitHubSyncSettings(await stockApi.getGitHubSyncSettings())
       reportSuccess(`用户数据已加密上传到 GitHub Gist，版本 ${result.version.slice(0, 7)}`)
     } catch (reason) {
@@ -1008,15 +1025,7 @@ export default function App() {
       setGitHubSyncUploading(false)
       setGitHubSyncBusy(false)
     }
-  }, [
-    confirm,
-    githubSyncSettings.gistId,
-    githubSyncSettings.requiresRemoteRestore,
-    githubSyncSettings.syncPasswordReady,
-    reportError,
-    reportSuccess,
-    state
-  ])
+  }, [confirm, githubSyncSettings.syncPasswordReady, reportError, reportSuccess, state])
 
   const downloadUserDataFromGitHub = useCallback(async () => {
     setGitHubSyncBusy(true)

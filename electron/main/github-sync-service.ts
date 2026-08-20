@@ -274,7 +274,11 @@ export class GitHubSyncService {
     return this.getSettings()
   }
 
-  async upload(content: string, apiKeyCount: number): Promise<GitHubSyncUploadResult> {
+  async upload(
+    content: string,
+    apiKeyCount: number,
+    overwriteRemote = false
+  ): Promise<GitHubSyncUploadResult> {
     const password = this.requireSyncPassword()
     const token = this.requireToken()
     await this.refreshGist()
@@ -283,10 +287,10 @@ export class GitHubSyncService {
     let uploaded: RemoteGist
     if (settings.gistId) {
       const remote = await this.getGist(settings.gistId, token)
-      if (!settings.lastSynchronizedVersion) {
+      if (!overwriteRemote && !settings.lastSynchronizedVersion) {
         throw new Error('当前机器尚未与远程备份建立同步基线，请先从 GitHub Gist 恢复')
       }
-      if (remote.version !== settings.lastSynchronizedVersion) {
+      if (!overwriteRemote && remote.version !== settings.lastSynchronizedVersion) {
         throw new Error('远程备份已由其他设备更新，请先从 GitHub Gist 恢复后再上传')
       }
       uploaded = await this.updateGist(remote.id, encryptedContent, token)
