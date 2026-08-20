@@ -17,7 +17,6 @@ import {
 import { calculateTBatchMetrics } from '../lib/t-trading'
 import { getBatchTrades } from '../lib/trade-records'
 import type { AppState, StockQuote } from '../shared/types'
-import { TFloatingProfitAlertBadge } from './TFloatingProfitAlertBadge'
 
 function valueClass(value: number | null | undefined): string {
   if (value === null || value === undefined || value === 0) return 'is-flat'
@@ -86,7 +85,7 @@ export function TrayHoverSummary() {
         </span>
       </header>
       <div className="tray-summary-list">
-        {selectedStocks.map(({ stock, quote, positionMetrics, tMetrics, floatingProfitAlert }) => (
+        {selectedStocks.map(({ stock, quote, positionMetrics, tMetrics }) => (
           <section className="tray-summary-item" key={stock.quoteId}>
             <div className="tray-summary-heading">
               <div className="tray-summary-stock">
@@ -128,13 +127,6 @@ export function TrayHoverSummary() {
                       ({formatPercent(tMetrics.floatingProfitRate)})
                     </small>
                   )}
-                  {floatingProfitAlert ? (
-                    <TFloatingProfitAlertBadge
-                      batch={state.tTradingAccounts[stock.quoteId]?.activeBatch}
-                      floatingProfit={tMetrics.floatingProfit}
-                      compact
-                    />
-                  ) : null}
                 </span>
               </div>
             ) : (
