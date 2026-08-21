@@ -333,7 +333,7 @@ App
 - `market-insight/renderer`：市场观察指标、指标说明、客观事件、公告/要闻/交易所通知和分时覆盖层。
 - `ai/renderer/AiAnalysisPanel.tsx`：切换短期行情与长期价值，按股票分别恢复结果、展示独立进度，并保留旧结果直到同类型新结果完成。
 - `ai/renderer/AiAssistantDrawer.tsx`：会话列表、搜索/重命名/删除/导出、流式对话、最近消息上下文和 `@自选股` 快速选择。
-- `ai-t-advice/renderer/TAdvicePanel.tsx`：恢复每只股票最近做 T 参考、等待实时盘口、展示客观事件与结构化结果，并通过一次性预览确认应用 T1。
+- `ai-t-advice/renderer/TAdvicePanel.tsx`：恢复每只股票最近做 T 参考、等待实时盘口并展示客观事件与结构化只读结果。
 
 ## 样式系统
 

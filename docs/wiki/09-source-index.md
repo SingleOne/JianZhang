@@ -169,7 +169,7 @@
 | [`src/modules/market-insight/renderer/InvestmentValueMetrics.tsx`](../../src/modules/market-insight/renderer/InvestmentValueMetrics.tsx) | 市场观察中的 PE/PB历史/行业分位、总市值、流通市值、财务时点和金融行业适用性展示 |
 | [`electron/main/valuation-history-service.ts`](../../electron/main/valuation-history-service.ts) | 按股票获取并缓存近五年日度 PE TTM/PB历史序列 |
 | [`src/lib/valuation-analysis.ts`](../../src/lib/valuation-analysis.ts) | 计算历史估值分位并组合快照日同行分位 |
-| [`src/modules/ai-t-advice`](../../src/modules/ai-t-advice/) | 结构化做 T 参考、确定性事件、校验、应用预览和独立历史 |
+| [`src/modules/ai-t-advice`](../../src/modules/ai-t-advice/) | 结构化只读做 T 参考、确定性事件、校验和独立历史 |
 
 ## 脚本和历史文档
 

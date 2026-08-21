@@ -15,11 +15,9 @@ import type { StockQuote, WatchStock } from '../../../shared/types'
 import type {
   AiTAdvice,
   AiTAdviceAction,
-  AiTAdviceApplyPreview,
   AiTAdviceProgressEvent,
   AiTAdviceSettings
 } from '../shared/types'
-import { ApplyToTPlanDialog } from './ApplyToTPlanDialog'
 
 interface TAdvicePanelProps {
   stock: WatchStock
@@ -109,10 +107,6 @@ export function TAdvicePanel({ stock, quote }: TAdvicePanelProps) {
   const [progress, setProgress] = useState<AiTAdviceProgressEvent | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [notice, setNotice] = useState('')
-  const [preview, setPreview] = useState<AiTAdviceApplyPreview | null>(null)
-  const [previewError, setPreviewError] = useState('')
-  const [applying, setApplying] = useState(false)
 
   const load = useCallback(async () => {
     if (!api) return
@@ -126,8 +120,6 @@ export function TAdvicePanel({ stock, quote }: TAdvicePanelProps) {
 
   useEffect(() => {
     setError('')
-    setNotice('')
-    setPreview(null)
     setProgress(null)
     void load().catch((reason) => setError(reason instanceof Error ? reason.message : '做 T 参考加载失败'))
   }, [load])
@@ -166,7 +158,6 @@ export function TAdvicePanel({ stock, quote }: TAdvicePanelProps) {
       updatedAt: new Date().toISOString()
     })
     setError('')
-    setNotice('')
     try {
       const result = await api.generate(stock.quoteId)
       setHistory((current) => [result.advice, ...current.filter((item) => item.id !== result.advice.id)])
@@ -194,32 +185,6 @@ export function TAdvicePanel({ stock, quote }: TAdvicePanelProps) {
       setHistory((current) => current.map((item) => item.id === dismissed.id ? dismissed : item))
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '忽略参考失败')
-    }
-  }
-
-  const openPreview = async (adviceId: string) => {
-    setError('')
-    try {
-      setPreview(await api.previewApply(adviceId))
-      setPreviewError('')
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '无法生成应用预览')
-    }
-  }
-
-  const confirmApply = async () => {
-    if (!preview) return
-    setApplying(true)
-    setPreviewError('')
-    try {
-      const result = await api.confirmApply(preview.previewId)
-      setHistory((current) => current.map((item) => item.id === result.advice.id ? result.advice : item))
-      setPreview(null)
-      setNotice(`已应用到${preview.change.label}，请在做 T 管理中复核。`)
-    } catch (reason) {
-      setPreviewError(reason instanceof Error ? reason.message : '应用 T 计划失败')
-    } finally {
-      setApplying(false)
     }
   }
 
@@ -263,33 +228,21 @@ export function TAdvicePanel({ stock, quote }: TAdvicePanelProps) {
           {latest.status === 'active' ? (
             <footer>
               <button type="button" className="ai-text-button" disabled={loading} onClick={() => void dismiss(latest.id)}>忽略本次</button>
-              {latest.action !== 'hold' ? <button type="button" className="primary-button" disabled={loading} onClick={() => void openPreview(latest.id)}>预览应用到 T 计划</button> : null}
             </footer>
-          ) : <p className="ai-t-record-status">{latest.status === 'applied' ? '已应用到 T 计划' : '本次参考已忽略'}</p>}
+          ) : <p className="ai-t-record-status">本次参考已处理</p>}
         </article>
       ) : settings.enabled && !loading ? (
         <div className="ai-t-empty"><Sparkles size={26} /><strong>按需生成，不自动调用模型</strong><span>当前最新价：{formatPrice(quote?.latest)}。请先确保市场观察已有最新快照。</span></div>
       ) : null}
 
       {error ? <div className="ai-t-error"><AlertCircle size={16} />{error}</div> : null}
-      {notice ? <div className="ai-t-notice">{notice}</div> : null}
       {olderHistory.length > 0 ? (
         <details className="ai-t-history">
           <summary><History size={15} />最近记录（{olderHistory.length}）</summary>
-          <div>{olderHistory.map((item) => <article key={item.id}><span>{ACTION_LABELS[item.action]}</span><small>{formatTime(item.generatedAt)} · {item.status === 'active' ? '未处理' : item.status === 'applied' ? '已应用' : '已忽略'}</small></article>)}</div>
+          <div>{olderHistory.map((item) => <article key={item.id}><span>{ACTION_LABELS[item.action]}</span><small>{formatTime(item.generatedAt)} · {item.status === 'active' ? '未处理' : '已处理'}</small></article>)}</div>
         </details>
       ) : null}
-      <p className="ai-t-disclaimer">模型输出仅供个人复核，不保证收益。不会自动下单；应用计划前必须预览并二次确认。</p>
-
-      {preview ? (
-        <ApplyToTPlanDialog
-          preview={preview}
-          applying={applying}
-          error={previewError}
-          onCancel={() => setPreview(null)}
-          onConfirm={() => void confirmApply()}
-        />
-      ) : null}
+      <p className="ai-t-disclaimer">模型输出仅供个人复核，不保证收益。不会修改 T 计划或自动下单。</p>
     </section>
   )
 }

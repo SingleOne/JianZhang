@@ -12,8 +12,6 @@ export function installAiTAdvicePreload(): void {
     cancel: (quoteId) => ipcRenderer.invoke('ai-t:advice:cancel', quoteId),
     listHistory: (quoteId) => ipcRenderer.invoke('ai-t:advice:history', quoteId),
     dismiss: (adviceId) => ipcRenderer.invoke('ai-t:advice:dismiss', adviceId),
-    previewApply: (adviceId) => ipcRenderer.invoke('ai-t:advice:preview-apply', adviceId),
-    confirmApply: (previewId) => ipcRenderer.invoke('ai-t:advice:confirm-apply', previewId),
     onProgress: (listener) => {
       const handler = (_event: Electron.IpcRendererEvent, payload: AiTAdviceProgressEvent): void => listener(payload)
       ipcRenderer.on(PROGRESS_CHANNEL, handler)

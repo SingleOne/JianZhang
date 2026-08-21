@@ -8,9 +8,8 @@
 - 在模块内部从同一份快照确定性提取显著客观事件，包括布林带位置、VWAP/开盘区间、均线与 MACD、RSI/KDJ、量能、波动、盘口、资金流、相对强弱以及 T 档位距离；原始指标仍同时发送用于交叉核对。
 - 复用基础 AI 模块当前选中的 Provider、模型和认证，不自行保存任何密钥。
 - 生成结构化的观望、正 T 或反 T 参考，并在主进程校验价格、持仓上限和 100 股整数倍。
-- 独立保存生成历史、忽略和应用状态。
-- 应用前生成 10 分钟有效的一次性预览；确认时只接受预览 ID，并重新核对活动批次。
-- 只修改活动批次的买入或卖出 T1 计划，不创建交易、不自动下单。
+- 独立保存生成历史和处理状态。
+- 全程只读，不修改 T 计划、不创建交易、不自动下单；用户需要在“做 T 管理”中自行复核并手动录入。
 
 ## 边界
 
@@ -23,7 +22,7 @@
 ## 安装点
 
 - `electron.vite.config.ts`：计算 `__JIANZHANG_AI_T_ADVICE_MODULE_ENABLED__`。
-- `electron/main/index.ts`：条件动态注册主进程服务，并传入只读上下文与受控账户保存函数。
+- `electron/main/index.ts`：条件动态注册主进程服务，并传入只读上下文。
 - `electron/preload/index.ts`：条件挂载 `window.aiTAdviceApi`。
 - `src/components/ExpandedStockDetails.tsx`：条件动态加载做 T 参考卡片。
 - `src/vite-env.d.ts`：声明构建常量。

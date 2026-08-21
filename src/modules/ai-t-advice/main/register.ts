@@ -13,9 +13,7 @@ const IPC = {
   generate: 'ai-t:advice:generate',
   cancel: 'ai-t:advice:cancel',
   history: 'ai-t:advice:history',
-  dismiss: 'ai-t:advice:dismiss',
-  previewApply: 'ai-t:advice:preview-apply',
-  confirmApply: 'ai-t:advice:confirm-apply'
+  dismiss: 'ai-t:advice:dismiss'
 } as const
 
 export interface AiTAdviceRuntime {
@@ -36,8 +34,6 @@ export function installAiTAdvice(dependencies: AiTAdviceDependencies): AiTAdvice
   ipcMain.handle(IPC.cancel, (_event, quoteId: string) => service.cancel(quoteId))
   ipcMain.handle(IPC.history, (_event, quoteId: string) => service.listHistory(quoteId))
   ipcMain.handle(IPC.dismiss, (_event, adviceId: string) => service.dismiss(adviceId))
-  ipcMain.handle(IPC.previewApply, (_event, adviceId: string) => service.previewApply(adviceId))
-  ipcMain.handle(IPC.confirmApply, (_event, previewId: string) => service.confirmApply(previewId))
 
   return {
     dispose: () => {

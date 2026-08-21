@@ -2,7 +2,7 @@ import type { StockPosition, StockQuote, TTradingAccount, WatchStock } from '../
 
 export type AiTAdviceAction = 'hold' | 'forward-t' | 'reverse-t'
 export type AiTAdviceConfidence = 'low' | 'medium' | 'high'
-export type AiTAdviceRecordStatus = 'active' | 'dismissed' | 'applied'
+export type AiTAdviceRecordStatus = 'active' | 'dismissed'
 
 export interface AiTAdviceSettings {
   enabled: boolean
@@ -59,38 +59,6 @@ export interface AiTAdviceGenerationResult {
   advice: AiTAdvice
 }
 
-export interface AiTPlanLevelPreview {
-  side: 'buy' | 'sell'
-  levelIndex: number
-  label: string
-  current: {
-    targetPercent: number
-    targetPrice: number | null
-    quantity: number
-  }
-  proposed: {
-    targetPercent: number
-    targetPrice: number
-    quantity: number
-  }
-}
-
-export interface AiTAdviceApplyPreview {
-  previewId: string
-  adviceId: string
-  quoteId: string
-  quoteName: string
-  batchId: string
-  action: Exclude<AiTAdviceAction, 'hold'>
-  expiresAt: string
-  change: AiTPlanLevelPreview
-}
-
-export interface AiTAdviceApplyResult {
-  advice: AiTAdvice
-  appliedAt: string
-}
-
 export interface AiTAdviceTradingContext {
   stock: WatchStock
   quote?: StockQuote
@@ -106,8 +74,6 @@ export interface AiTAdviceApi {
   cancel: (quoteId: string) => Promise<void>
   listHistory: (quoteId: string) => Promise<AiTAdvice[]>
   dismiss: (adviceId: string) => Promise<AiTAdvice>
-  previewApply: (adviceId: string) => Promise<AiTAdviceApplyPreview>
-  confirmApply: (previewId: string) => Promise<AiTAdviceApplyResult>
   onProgress: (listener: (event: AiTAdviceProgressEvent) => void) => () => void
 }
 

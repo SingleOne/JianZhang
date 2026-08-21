@@ -145,48 +145,39 @@
 @keyframes locate-stock-row {
   50% {
     background: #c9e4ff;
-    box-shadow: inset 0 0 0 1px #5aa4f5;
   }
 }
 
 @keyframes stock-alert-name-flash {
   0%, 100% {
     background: #fff1f2;
-    box-shadow: inset 0 0 0 1px rgba(220, 55, 66, 0.2);
   }
   50% {
     background: #d93744;
-    box-shadow: inset 0 0 0 1px #b91f2d, 0 0 12px rgba(217, 55, 68, 0.26);
   }
 }
 
 @keyframes stock-alert-name-flash-lte {
   0%, 100% {
     background: #ecfdf5;
-    box-shadow: inset 0 0 0 1px rgba(24, 146, 102, 0.2);
   }
   50% {
     background: #159466;
-    box-shadow: inset 0 0 0 1px #087c57, 0 0 12px rgba(21, 148, 102, 0.26);
   }
 }
 
 @keyframes stock-alert-name-flash-both {
   0%, 100% {
     background: #fff1f2;
-    box-shadow: inset 0 0 0 1px rgba(220, 55, 66, 0.2);
   }
   25% {
     background: #d93744;
-    box-shadow: inset 0 0 0 1px #b91f2d, 0 0 12px rgba(217, 55, 68, 0.26);
   }
   50% {
     background: #ecfdf5;
-    box-shadow: inset 0 0 0 1px rgba(24, 146, 102, 0.2);
   }
   75% {
     background: #159466;
-    box-shadow: inset 0 0 0 1px #087c57, 0 0 12px rgba(21, 148, 102, 0.26);
   }
 }
 

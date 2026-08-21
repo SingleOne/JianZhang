@@ -552,19 +552,6 @@ if (!hasSingleInstanceLock) {
               account: state.tTradingAccounts[quoteId]
             }
           },
-          saveTradingAccount: (quoteId, account) => {
-            state = {
-              ...state,
-              tTradingAccounts: {
-                ...state.tTradingAccounts,
-                [quoteId]: account
-              }
-            }
-            persistState()
-            sendToWindows('state:updated', state)
-            windowManager?.updateTrayMenu()
-            windowManager?.syncTaskbarWindow()
-          },
           runStructuredTask: (request, signal) => aiRuntime!.runStructuredTask(request, signal)
         })
       }
