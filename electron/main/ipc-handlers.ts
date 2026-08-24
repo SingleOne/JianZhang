@@ -22,6 +22,9 @@ import {
 import type {
   AppState,
   AppCompletionNotification,
+  CacheCategoryId,
+  CacheClearResult,
+  CacheSummary,
   ChipDistributionCacheEntry,
   CompanyReportItem,
   CompanyReportLibraryResult,
@@ -102,6 +105,8 @@ interface IpcHandlerDependencies {
   saveCompletionNotifications: (
     notifications: AppCompletionNotification[]
   ) => AppCompletionNotification[]
+  getCacheSummary: () => Promise<CacheSummary>
+  clearCaches: (categoryIds: CacheCategoryId[]) => Promise<CacheClearResult>
   createUserDataBackup: (
     state: AppState,
     applicationVersion: string
@@ -178,6 +183,8 @@ const CHANNELS = [
   'state:save',
   'completion-notifications:get',
   'completion-notifications:save',
+  'cache:summary',
+  'cache:clear',
   'config:export',
   'config:import',
   'config:import:apply',
@@ -338,6 +345,10 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
     'completion-notifications:save',
     (_event, notifications: AppCompletionNotification[]) =>
       dependencies.saveCompletionNotifications(notifications)
+  )
+  ipcMain.handle('cache:summary', () => dependencies.getCacheSummary())
+  ipcMain.handle('cache:clear', (_event, categoryIds: CacheCategoryId[]) =>
+    dependencies.clearCaches(categoryIds)
   )
   ipcMain.handle('config:export', async (_event, _stateToExport: AppState) => {
     const options: SaveDialogOptions = {

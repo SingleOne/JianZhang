@@ -54,6 +54,9 @@ import packageInfo from '../package.json'
 import type {
   AppSettings,
   AppState,
+  CacheCategoryId,
+  CacheClearResult,
+  CacheSummary,
   ConfigImportResult,
   DataSnapshotRuntimeState,
   DividendFinancingChangeReport,
@@ -132,6 +135,8 @@ export default function App() {
   const [refreshing, setRefreshing] = useState(false)
   const [calendarRefreshing, setCalendarRefreshing] = useState(false)
   const [configBusy, setConfigBusy] = useState(false)
+  const [cacheSummary, setCacheSummary] = useState<CacheSummary | null>(null)
+  const [cacheBusy, setCacheBusy] = useState(false)
   const [githubSyncBusy, setGitHubSyncBusy] = useState(false)
   const [githubSyncUploading, setGitHubSyncUploading] = useState(false)
   const [githubSyncDownloading, setGitHubSyncDownloading] = useState(false)
@@ -261,6 +266,13 @@ export default function App() {
       unsubscribeError()
     }
   }, [handleStockSelection, refreshGitHubGist, reportError, updateQuotes])
+
+  useEffect(() => {
+    stockApi
+      .getCacheSummary()
+      .then(setCacheSummary)
+      .catch(() => undefined)
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -801,6 +813,52 @@ export default function App() {
     [persist, state]
   )
 
+  const refreshCacheSummary = useCallback(() => {
+    if (!isDesktopRuntime || cacheBusy) return
+    setCacheBusy(true)
+    stockApi
+      .getCacheSummary()
+      .then(setCacheSummary)
+      .catch((reason) => reportError(reason instanceof Error ? reason.message : '缓存统计读取失败'))
+      .finally(() => setCacheBusy(false))
+  }, [cacheBusy, reportError])
+
+  const clearCaches = useCallback(
+    async (categoryIds: CacheCategoryId[]) => {
+      if (!isDesktopRuntime || categoryIds.length === 0 || cacheBusy) return
+      setCacheBusy(true)
+      try {
+        const categories = categoryIds
+          .map((id) => cacheSummary?.categories.find((category) => category.id === id))
+          .filter((category): category is NonNullable<typeof category> => Boolean(category))
+        const includesSnapshots = categories.some((category) => category.group === 'separate')
+        const categoryLabels = categories.map((category) => category.label).join('、')
+        const confirmed = await confirm({
+          title: includesSnapshots ? '清理数据并重启' : '清理缓存并重启',
+          message: includesSnapshots
+            ? `将删除 ${categoryLabels || '选中的运行数据'}。相关数据需要重新运行更新或联网获取；不会删除自选、持仓、设置、AI 对话、API Key 和 GitHub 同步凭证。应用会自动重启。`
+            : `将删除 ${categoryLabels || '选中的临时缓存'}。相关页面下次打开时会重新获取；不会删除用户配置、AI 数据或同步凭证。应用会自动重启。`,
+          confirmLabel: includesSnapshots ? '清理并重启' : '清理并重启',
+          tone: includesSnapshots ? 'danger' : 'default'
+        })
+        if (!confirmed) return
+        const result: CacheClearResult = await stockApi.clearCaches(categoryIds)
+        const sizeInMegabytes = (result.clearedBytes / (1024 * 1024)).toFixed(1)
+        const failureMessage = result.failedPaths.length
+          ? `，${result.failedPaths.length} 项未能删除`
+          : ''
+        reportSuccess(
+          `已清理 ${result.clearedFileCount} 个文件，释放 ${sizeInMegabytes} MB${failureMessage}，应用正在重启`
+        )
+      } catch (reason) {
+        reportError(reason instanceof Error ? reason.message : '缓存清理失败')
+      } finally {
+        setCacheBusy(false)
+      }
+    },
+    [cacheBusy, cacheSummary, confirm, reportError, reportSuccess]
+  )
+
   const selectWatchlistStock = useCallback((quoteId: string) => {
     setSelectedQuoteId((current) => (current === quoteId ? null : quoteId))
   }, [])
@@ -1184,6 +1242,10 @@ export default function App() {
               calendarRefreshing={calendarRefreshing}
               fundamentalDataState={fundamentalDataState}
               onUpdateFundamentalData={updateFundamentalData}
+              cacheSummary={cacheSummary}
+              cacheBusy={cacheBusy}
+              onRefreshCacheSummary={refreshCacheSummary}
+              onClearCaches={clearCaches}
             />
           </div>
         </section>

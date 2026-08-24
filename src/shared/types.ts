@@ -1648,6 +1648,41 @@ export interface ConfigImportResult extends ConfigExportResult {
   githubGistVersion?: string
 }
 
+export type CacheCategoryId =
+  | 'temporary-market'
+  | 'diagnostic-logs'
+  | 'shareholders'
+  | 'valuations'
+  | 'market-insight'
+  | 'company-reports'
+  | 'data-snapshots'
+  | 'electron-web'
+
+export type CacheCategoryGroup = 'default' | 'advanced' | 'separate'
+
+export interface CacheCategorySummary {
+  id: CacheCategoryId
+  label: string
+  description: string
+  group: CacheCategoryGroup
+  fileCount: number | null
+  sizeBytes: number
+  latestModifiedAt: string | null
+}
+
+export interface CacheSummary {
+  generatedAt: string
+  categories: CacheCategorySummary[]
+}
+
+export interface CacheClearResult {
+  categoryIds: CacheCategoryId[]
+  clearedFileCount: number
+  clearedBytes: number
+  webCacheCleared: boolean
+  failedPaths: string[]
+}
+
 export interface BootstrapResult {
   state: AppState
   quotes: StockQuote[]
@@ -1715,6 +1750,8 @@ export interface StockDesktopApi {
   exportConfig: (state: AppState) => Promise<ConfigExportResult>
   importConfig: () => Promise<ConfigImportResult>
   applyConfigImport: (importId: string) => Promise<void>
+  getCacheSummary: () => Promise<CacheSummary>
+  clearCaches: (categoryIds: CacheCategoryId[]) => Promise<CacheClearResult>
   getGitHubSyncSettings: () => Promise<GitHubSyncSettings>
   startGitHubLogin: () => Promise<GitHubDeviceAuthorization>
   completeGitHubLogin: (loginId: string) => Promise<GitHubLoginResult>

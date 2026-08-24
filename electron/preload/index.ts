@@ -1,6 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AppState,
+  CacheCategoryId,
+  CacheClearResult,
+  CacheSummary,
   DataSnapshotRuntimeState,
   DailyMarketScanState,
   DividendFinancingUpdateProgress,
@@ -66,6 +69,9 @@ const api: StockDesktopApi = {
   exportConfig: (state) => ipcRenderer.invoke('config:export', state),
   importConfig: () => ipcRenderer.invoke('config:import'),
   applyConfigImport: (importId) => ipcRenderer.invoke('config:import:apply', importId),
+  getCacheSummary: () => ipcRenderer.invoke('cache:summary') as Promise<CacheSummary>,
+  clearCaches: (categoryIds: CacheCategoryId[]) =>
+    ipcRenderer.invoke('cache:clear', categoryIds) as Promise<CacheClearResult>,
   getGitHubSyncSettings: () => ipcRenderer.invoke('github-sync:settings:get'),
   startGitHubLogin: () => ipcRenderer.invoke('github-sync:login:start'),
   completeGitHubLogin: (loginId) => ipcRenderer.invoke('github-sync:login:complete', loginId),

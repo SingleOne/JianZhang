@@ -38,6 +38,7 @@ import {
 } from './market'
 import { ChipDistributionCache } from './chip-distribution-cache'
 import { CompanyReportService } from './company-report-service'
+import { CacheMaintenanceService } from './cache-maintenance-service'
 import { CompletionNotificationStore } from './completion-notification-store'
 import { DailyMarketScanService } from './daily-market-scan-service'
 import { DividendFinancingService } from './dividend-financing-service'
@@ -146,6 +147,7 @@ let githubSyncService: GitHubSyncService | null = null
 let aiSecrets: AiSecrets | null = null
 let completionNotificationStore: CompletionNotificationStore | null = null
 let marketRequestLogger: MarketRequestLogger | null = null
+let cacheMaintenanceService: CacheMaintenanceService | null = null
 
 const marketDataHub = new (class MarketDataHub {
   private readonly listeners = new Set<(quotes: readonly StockQuote[]) => void>()
@@ -264,6 +266,7 @@ function cleanupBeforeQuit(): void {
   stockTrackingMetricsRuntime = null
   marketRequestLogger?.dispose()
   marketRequestLogger = null
+  cacheMaintenanceService = null
   disposeIpcHandlers?.()
   disposeIpcHandlers = null
   windowManager?.dispose()
@@ -303,6 +306,7 @@ if (!hasSingleInstanceLock) {
     }
 
     userDataBackupService = new UserDataBackupService(app.getPath('userData'))
+    cacheMaintenanceService = new CacheMaintenanceService(app.getPath('userData'))
     completionNotificationStore = new CompletionNotificationStore(app.getPath('userData'))
     githubSyncService = new GitHubSyncService(
       app.getPath('userData'),
@@ -469,6 +473,15 @@ if (!hasSingleInstanceLock) {
       getCompletionNotifications: () => completionNotificationStore!.load(),
       saveCompletionNotifications: (notifications) =>
         completionNotificationStore!.save(notifications),
+      getCacheSummary: () => cacheMaintenanceService!.getSummary(),
+      clearCaches: async (categoryIds) => {
+        const result = await cacheMaintenanceService!.clear(categoryIds)
+        setTimeout(() => {
+          app.relaunch()
+          quitApp()
+        }, 300)
+        return result
+      },
       createUserDataBackup: (stateToExport, applicationVersion) =>
         userDataBackupService!.create(stateToExport, applicationVersion, aiSecrets!.exportAll()),
       prepareUserDataBackup: (value) => userDataBackupService!.prepare(value),

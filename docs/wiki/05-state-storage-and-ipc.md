@@ -220,6 +220,8 @@ localStorage["jianzhang-demo-state-v1"]
 
 重要 JSON 文件、模块设置、AI 缓存、用户生成内容和加密凭证统一通过临时文件原子替换。AI 做 T 的 JSONL 历史允许跳过损坏行，超过阈值后保留最近 200 条唯一记录。基本面、分红融资和最近扫描快照改为异步加载，市场观察缓存清理延后到启动完成后执行。
 
+“设置 → 数据 → 缓存管理”默认只清理行情临时缓存（K 线、筹码分布、板块绑定）和行情诊断日志。股东、历史估值、市场观察缓存、财报目录以及 Electron 网页 HTTP 缓存位于高级清理；基本面、分红融资和收盘扫描快照需要单独确认。清理由主进程按固定白名单执行，保留 `company-reports/summaries.json`、AI 对话、API Key、GitHub 同步凭证和其他用户数据，完成后自动重启应用。
+
 ## IPC 请求
 
 类型契约统一定义在 `StockDesktopApi`。
@@ -255,6 +257,7 @@ localStorage["jianzhang-demo-state-v1"]
 | `refreshTradingCalendar`                                     | `trading-calendar:refresh`                                        | 在线刷新当年休市日                                                                                      |
 | `saveState`                                                  | `state:save`                                                      | 规范化并持久化状态                                                                                      |
 | `getCompletionNotifications` / `saveCompletionNotifications` | `completion-notifications:get` / `completion-notifications:save`  | 读取及保存跨重启完成通知队列                                                                            |
+| `getCacheSummary` / `clearCaches`                            | `cache:summary` / `cache:clear`                                  | 返回缓存分类占用并按固定白名单清理，清理后自动重启                                                       |
 | `exportConfig`                                               | `config:export`                                                   | 保存 JSON                                                                                               |
 | `importConfig`                                               | `config:import`                                                   | 读取并解析 JSON                                                                                         |
 | `applyConfigImport`                                          | `config:import:apply`                                             | 替换模块用户数据、重新加密 AI API Key，并重启应用                                                       |

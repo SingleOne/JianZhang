@@ -13,6 +13,9 @@ import {
   synchronizeTrackingGroupMembership,
   type AppState,
   type BootstrapResult,
+  type CacheCategoryId,
+  type CacheClearResult,
+  type CacheSummary,
   type CompanyReportLibraryResult,
   type ConfigImportResult,
   type DataSnapshotRuntimeState,
@@ -750,6 +753,21 @@ const demoApi: StockDesktopApi = {
     })
   },
   async applyConfigImport() {},
+  async getCacheSummary(): Promise<CacheSummary> {
+    return {
+      generatedAt: new Date().toISOString(),
+      categories: []
+    }
+  },
+  async clearCaches(categoryIds: CacheCategoryId[]): Promise<CacheClearResult> {
+    return {
+      categoryIds,
+      clearedFileCount: 0,
+      clearedBytes: 0,
+      webCacheCleared: false,
+      failedPaths: []
+    }
+  },
   async getGitHubSyncSettings() {
     return {
       oauthAvailable: false,

@@ -15,6 +15,8 @@ import { lazy, Suspense, useState } from 'react'
 import {
   MARKET_INDEX_OPTIONS,
   type AppSettings,
+  type CacheCategoryId,
+  type CacheSummary,
   type DataSnapshotRuntimeState,
   type GitHubDeviceAuthorization,
   type GitHubSyncSettings,
@@ -54,6 +56,10 @@ interface SettingsMenuProps {
   calendarRefreshing: boolean
   fundamentalDataState: DataSnapshotRuntimeState
   onUpdateFundamentalData: () => void
+  cacheSummary: CacheSummary | null
+  cacheBusy: boolean
+  onRefreshCacheSummary: () => void
+  onClearCaches: (categoryIds: CacheCategoryId[]) => void
 }
 
 const T_PLAN_DEFAULT_GROUPS = [
@@ -107,6 +113,13 @@ function dataStatusLabel(state: DataSnapshotRuntimeState): string {
   return '尚无数据'
 }
 
+function formatCacheSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
+}
+
 export function SettingsMenu({
   settings,
   onChange,
@@ -131,7 +144,11 @@ export function SettingsMenu({
   onRefreshTradingCalendar,
   calendarRefreshing,
   fundamentalDataState,
-  onUpdateFundamentalData
+  onUpdateFundamentalData,
+  cacheSummary,
+  cacheBusy,
+  onRefreshCacheSummary,
+  onClearCaches
 }: SettingsMenuProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('market')
   const [githubPasswordEditing, setGitHubPasswordEditing] = useState(false)
@@ -139,7 +156,23 @@ export function SettingsMenu({
   const [githubPasswordDraft, setGitHubPasswordDraft] = useState('')
   const [githubPasswordConfirmation, setGitHubPasswordConfirmation] = useState('')
   const [githubPasswordMessage, setGitHubPasswordMessage] = useState('')
+  const [cacheAdvancedOpen, setCacheAdvancedOpen] = useState(false)
+  const [selectedCacheIds, setSelectedCacheIds] = useState<CacheCategoryId[]>([])
   const githubControlsDisabled = githubSyncBusy || githubGistLoading
+
+  const defaultCacheIds =
+    cacheSummary?.categories
+      .filter((category) => category.group === 'default')
+      .map((category) => category.id) ?? []
+  const advancedCacheCategories =
+    cacheSummary?.categories.filter((category) => category.group !== 'default') ?? []
+
+  const toggleCacheSelection = (categoryId: CacheCategoryId, selected: boolean) => {
+    setSelectedCacheIds((current) => {
+      if (selected) return current.includes(categoryId) ? current : [...current, categoryId]
+      return current.filter((id) => id !== categoryId)
+    })
+  }
 
   const editGitHubPassword = () => {
     setGitHubPasswordDraft(githubSyncPassword ?? '')
@@ -620,6 +653,82 @@ export function SettingsMenu({
                       ? '更新中'
                       : '立即更新'}
                 </button>
+              </div>
+              <div className="cache-management">
+                <span className="cache-management-heading">
+                  <span>
+                    <strong>缓存管理</strong>
+                    <small>默认只清理行情临时缓存和诊断日志；清理后应用会自动重启</small>
+                  </span>
+                  <button type="button" onClick={onRefreshCacheSummary} disabled={cacheBusy}>
+                    {cacheBusy ? '处理中…' : '刷新统计'}
+                  </button>
+                </span>
+                <div className="cache-management-summary">
+                  {cacheSummary ? (
+                    <>
+                      {cacheSummary.categories
+                        .filter((category) => category.group === 'default')
+                        .map((category) => (
+                          <span key={category.id}>
+                            {category.label} {formatCacheSize(category.sizeBytes)}
+                          </span>
+                        ))}
+                    </>
+                  ) : (
+                    <span>正在读取缓存占用…</span>
+                  )}
+                </div>
+                <div className="cache-management-actions">
+                  <button
+                    type="button"
+                    onClick={() => onClearCaches(defaultCacheIds)}
+                    disabled={cacheBusy || defaultCacheIds.length === 0}
+                  >
+                    {cacheBusy ? '清理中…' : '清理临时缓存和日志'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCacheAdvancedOpen((open) => !open)}
+                    disabled={cacheBusy || !cacheSummary}
+                  >
+                    {cacheAdvancedOpen ? '收起高级清理' : '高级清理'}
+                  </button>
+                </div>
+                {cacheAdvancedOpen ? (
+                  <div className="cache-advanced-panel">
+                    <small>以下数据按股票或模块保存，清理后相关页面需要重新获取。</small>
+                    {advancedCacheCategories.map((category) => (
+                      <label key={category.id} className="cache-category-option">
+                        <input
+                          type="checkbox"
+                          checked={selectedCacheIds.includes(category.id)}
+                          onChange={(event) =>
+                            toggleCacheSelection(category.id, event.target.checked)
+                          }
+                          disabled={cacheBusy}
+                        />
+                        <span>
+                          <strong>
+                            {category.label}
+                            {category.group === 'separate' ? ' · 需单独确认' : ''}
+                          </strong>
+                          <small>
+                            {category.description} · {formatCacheSize(category.sizeBytes)}
+                          </small>
+                        </span>
+                      </label>
+                    ))}
+                    <button
+                      type="button"
+                      className="cache-advanced-clear-button"
+                      onClick={() => onClearCaches(selectedCacheIds)}
+                      disabled={cacheBusy || selectedCacheIds.length === 0}
+                    >
+                      清理选中数据
+                    </button>
+                  </div>
+                ) : null}
               </div>
               <div className="config-management">
                 <span>
