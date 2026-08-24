@@ -21,6 +21,7 @@ import type {
   StockPosition,
   StockPositionSnapshot,
   StockQuote,
+  StockSelectionRequest,
   StockTrackingConclusionResult,
   StockTrackingProfile,
   StockTrackingProfiles,
@@ -82,6 +83,7 @@ interface WatchlistTableProps {
   chipDistributionEnabled: boolean
   bollingerBandsEnabled: boolean
   selectedQuoteId: string | null
+  stockSelectionRequest: StockSelectionRequest | null
   detailNavigationRequest: StockDetailNavigationRequest | null
   tTradingAccounts: TTradingAccounts
   tTradingFees: TTradingFeeSettings
@@ -198,6 +200,7 @@ export function WatchlistTable({
   chipDistributionEnabled,
   bollingerBandsEnabled,
   selectedQuoteId,
+  stockSelectionRequest,
   detailNavigationRequest,
   tTradingAccounts,
   tTradingFees,
@@ -560,28 +563,33 @@ export function WatchlistTable({
     })
   }, [])
 
-  const scrollToStock = useCallback((quoteId: string) => {
-    const scroller = tableScrollerRef.current
-    const row = scroller?.querySelector<HTMLTableRowElement>(`tr[data-quote-id="${quoteId}"]`)
-    if (!scroller || !row) return
+  const scrollToStock = useCallback(
+    (quoteId: string, alignment: 'center' | 'sticky-top' = 'center') => {
+      const scroller = tableScrollerRef.current
+      const row = scroller?.querySelector<HTMLTableRowElement>(`tr[data-quote-id="${quoteId}"]`)
+      if (!scroller || !row) return
 
-    const scrollerRect = scroller.getBoundingClientRect()
-    const rowRect = row.getBoundingClientRect()
-    const targetTop =
-      scroller.scrollTop +
-      rowRect.top -
-      scrollerRect.top -
-      (scroller.clientHeight - rowRect.height) / 2
-    scroller.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' })
-    row.focus({ preventScroll: true })
-    window.clearTimeout(locateTimerRef.current)
-    window.cancelAnimationFrame(locateFrameRef.current ?? 0)
-    setLocatedQuoteId(null)
-    locateFrameRef.current = window.requestAnimationFrame(() => {
-      setLocatedQuoteId(quoteId)
-      locateTimerRef.current = window.setTimeout(() => setLocatedQuoteId(null), 2000)
-    })
-  }, [])
+      const scrollerRect = scroller.getBoundingClientRect()
+      const rowRect = row.getBoundingClientRect()
+      const stickyTop =
+        alignment === 'sticky-top' ? Number.parseFloat(window.getComputedStyle(row).top) || 0 : 0
+      const targetTop =
+        scroller.scrollTop +
+        rowRect.top -
+        scrollerRect.top -
+        (alignment === 'sticky-top' ? stickyTop : (scroller.clientHeight - rowRect.height) / 2)
+      scroller.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' })
+      row.focus({ preventScroll: true })
+      window.clearTimeout(locateTimerRef.current)
+      window.cancelAnimationFrame(locateFrameRef.current ?? 0)
+      setLocatedQuoteId(null)
+      locateFrameRef.current = window.requestAnimationFrame(() => {
+        setLocatedQuoteId(quoteId)
+        locateTimerRef.current = window.setTimeout(() => setLocatedQuoteId(null), 2000)
+      })
+    },
+    []
+  )
 
   const openRadar = useCallback((quoteId: string, anchor: HTMLButtonElement) => {
     radarAnchorRef.current = anchor
@@ -634,6 +642,27 @@ export function WatchlistTable({
 
   const detailNavigationRequestId = detailNavigationRequest?.id
   const detailNavigationQuoteId = detailNavigationRequest?.quoteId
+  const stockSelectionRequestId = stockSelectionRequest?.id
+  const stockSelectionQuoteId = stockSelectionRequest?.quoteId
+  const stockSelectionScrollAlignment = stockSelectionRequest?.scrollAlignment
+
+  useEffect(() => {
+    if (
+      !stockSelectionRequestId ||
+      !stockSelectionQuoteId ||
+      stockSelectionScrollAlignment !== 'sticky-top'
+    ) {
+      return
+    }
+    resetFilters()
+    window.requestAnimationFrame(() => scrollToStock(stockSelectionQuoteId, 'sticky-top'))
+  }, [
+    resetFilters,
+    scrollToStock,
+    stockSelectionQuoteId,
+    stockSelectionRequestId,
+    stockSelectionScrollAlignment
+  ])
 
   useEffect(() => {
     if (!detailNavigationRequestId || !detailNavigationQuoteId) return

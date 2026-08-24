@@ -72,6 +72,7 @@ import type {
   StockTrackingProfile,
   StockTrackingSource,
   StockQuote,
+  StockSelectionRequest,
   TTradingAccount,
   WatchlistGroup,
   WatchlistColumnId
@@ -118,6 +119,9 @@ export default function App() {
   const [state, setState] = useState<AppState>(initialState)
   const [quotes, setQuotes] = useState<StockQuote[]>([])
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null)
+  const [stockSelectionRequest, setStockSelectionRequest] = useState<StockSelectionRequest | null>(
+    null
+  )
   const [completionNotifications, setCompletionNotifications] = useState<
     AppCompletionNotification[]
   >([])
@@ -182,6 +186,11 @@ export default function App() {
     setNotice(message)
   }, [])
 
+  const handleStockSelection = useCallback((request: StockSelectionRequest) => {
+    setSelectedQuoteId(request.quoteId)
+    if (request.scrollAlignment === 'sticky-top') setStockSelectionRequest(request)
+  }, [])
+
   const refreshGitHubGist = useCallback(
     async (announce = true) => {
       setGitHubGistLoading(true)
@@ -243,7 +252,7 @@ export default function App() {
 
     const unsubscribeQuotes = stockApi.onQuotesUpdated(updateQuotes)
     const unsubscribeState = stockApi.onStateUpdated(setState)
-    const unsubscribeSelection = stockApi.onSelectStock(setSelectedQuoteId)
+    const unsubscribeSelection = stockApi.onSelectStock(handleStockSelection)
     const unsubscribeError = stockApi.onDataError(reportError)
     return () => {
       unsubscribeQuotes()
@@ -251,7 +260,7 @@ export default function App() {
       unsubscribeSelection()
       unsubscribeError()
     }
-  }, [refreshGitHubGist, reportError, updateQuotes])
+  }, [handleStockSelection, refreshGitHubGist, reportError, updateQuotes])
 
   useEffect(() => {
     let active = true
@@ -1321,6 +1330,7 @@ export default function App() {
                 chipDistributionEnabled={state.settings.showChipDistribution}
                 bollingerBandsEnabled={state.settings.showBollingerBands}
                 selectedQuoteId={selectedQuoteId}
+                stockSelectionRequest={stockSelectionRequest}
                 detailNavigationRequest={detailNavigationRequest}
                 tTradingAccounts={state.tTradingAccounts}
                 tTradingFees={state.settings.tTradingFees}

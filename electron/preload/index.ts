@@ -7,6 +7,7 @@ import type {
   FundamentalUpdateProgress,
   StockDesktopApi,
   StockQuote,
+  StockSelectionRequest,
   TaskbarLayout,
   TaskbarTooltipAnchor
 } from '../../src/shared/types'
@@ -84,7 +85,7 @@ const api: StockDesktopApi = {
   onStateUpdated: (callback) => subscribe<AppState>('state:updated', callback),
   onTaskbarLayout: (callback) => subscribe<TaskbarLayout>('taskbar:layout', callback),
   onTaskbarTooltipStock: (callback) => subscribe<string>('taskbar:tooltip-stock', callback),
-  onSelectStock: (callback) => subscribe<string>('stock:selected', callback),
+  onSelectStock: (callback) => subscribe<StockSelectionRequest>('stock:selected', callback),
   onDataError: (callback) => subscribe<string>('data:error', callback),
   onDividendFinancingUpdateProgress: (callback) =>
     subscribe<DividendFinancingUpdateProgress>('dividend-financing:update-progress', callback),

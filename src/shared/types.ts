@@ -1666,6 +1666,12 @@ export interface TaskbarTooltipAnchor {
   width: number
 }
 
+export interface StockSelectionRequest {
+  id: string
+  quoteId: string
+  scrollAlignment?: 'sticky-top'
+}
+
 export interface StockDesktopApi {
   getBootstrap: () => Promise<BootstrapResult>
   getTaskbarLayout: () => Promise<TaskbarLayout>
@@ -1729,7 +1735,7 @@ export interface StockDesktopApi {
   onStateUpdated: (callback: (state: AppState) => void) => () => void
   onTaskbarLayout: (callback: (layout: TaskbarLayout) => void) => () => void
   onTaskbarTooltipStock: (callback: (quoteId: string) => void) => () => void
-  onSelectStock: (callback: (quoteId: string) => void) => () => void
+  onSelectStock: (callback: (request: StockSelectionRequest) => void) => () => void
   onDataError: (callback: (message: string) => void) => () => void
   onDividendFinancingUpdateProgress: (
     callback: (progress: DividendFinancingUpdateProgress) => void

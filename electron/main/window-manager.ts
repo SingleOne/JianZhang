@@ -6,6 +6,7 @@ import { formatPercent, formatPrice, formatProfit } from '../../src/lib/format'
 import { getTaskbarVisibleStocks, shouldShowTaskbarTicker } from '../../src/lib/taskbar-visibility'
 import type {
   AppState,
+  StockSelectionRequest,
   StockQuote,
   TaskbarLayout,
   TaskbarTooltipAnchor,
@@ -38,6 +39,7 @@ export class WindowManager {
   private taskbarTooltipHeight = TASKBAR_TOOLTIP_DEFAULT_HEIGHT
   private trayHovered = false
   private disposed = false
+  private stockSelectionSequence = 0
   private readonly windowStatePath: string
   private mainWindowVisible: boolean
   private mainWindowHasBeenShown = false
@@ -119,7 +121,10 @@ export class WindowManager {
     if (this.taskbarTooltipWindow?.isVisible()) this.positionTaskbarTooltipWindow()
   }
 
-  showMainWindow(quoteId?: string): void {
+  showMainWindow(
+    quoteId?: string,
+    scrollAlignment?: StockSelectionRequest['scrollAlignment']
+  ): void {
     const window = this.getMainWindow()
     if (!window) return
     if (!this.mainWindowHasBeenShown) {
@@ -130,7 +135,14 @@ export class WindowManager {
     window.show()
     window.focus()
     this.saveMainWindowVisible(true)
-    if (quoteId) window.webContents.send('stock:selected', quoteId)
+    if (quoteId) {
+      this.stockSelectionSequence += 1
+      window.webContents.send('stock:selected', {
+        id: `${Date.now()}-${this.stockSelectionSequence}`,
+        quoteId,
+        scrollAlignment
+      } satisfies StockSelectionRequest)
+    }
   }
 
   hideMainWindow(): void {

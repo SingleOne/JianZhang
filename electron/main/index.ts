@@ -189,7 +189,7 @@ function showStockAlertNotification(alert: TriggeredStockAlert): void {
     icon: createAppIcon(),
     timeoutType: 'default'
   })
-  notification.on('click', () => windowManager?.showMainWindow(alert.stock.quoteId))
+  notification.on('click', () => windowManager?.showMainWindow(alert.stock.quoteId, 'sticky-top'))
   notification.show()
 }
 
@@ -200,7 +200,7 @@ function showTFloatingProfitAlertNotification(alert: TriggeredTFloatingProfitAle
     icon: createAppIcon(),
     timeoutType: 'default'
   })
-  notification.on('click', () => windowManager?.showMainWindow(alert.quoteId))
+  notification.on('click', () => windowManager?.showMainWindow(alert.quoteId, 'sticky-top'))
   notification.show()
 }
 
@@ -216,7 +216,7 @@ function showPriceVolumeDivergenceNotification(
     icon: createAppIcon(),
     timeoutType: 'default'
   })
-  notification.on('click', () => windowManager?.showMainWindow(profile.quoteId))
+  notification.on('click', () => windowManager?.showMainWindow(profile.quoteId, 'sticky-top'))
   notification.show()
 }
 

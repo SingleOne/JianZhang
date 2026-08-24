@@ -279,14 +279,14 @@ localStorage["jianzhang-demo-state-v1"]
 | `onDailyMarketScanProgress`         | `daily-market-scan:progress`         | `DailyMarketScanState`                  |
 | `onStateUpdated`                    | `state:updated`                      | `AppState`                              |
 | `onTaskbarLayout`                   | `taskbar:layout`                     | `TaskbarLayout`                         |
-| `onSelectStock`                     | `stock:selected`                     | `quoteId`                               |
+| `onSelectStock`                     | `stock:selected`                     | `StockSelectionRequest`                 |
 | `onDataError`                       | `data:error`                         | 错误文本                                |
 | `onDividendFinancingUpdateProgress` | `dividend-financing:update-progress` | Python 脚本当前日志或完成/失败状态      |
 | `onDividendFinancingStateUpdated`   | `dividend-financing:state-updated`   | 分红融资榜快照状态变化                  |
 | `onFundamentalUpdateProgress`       | `fundamentals:update-progress`       | 基本面四阶段脚本当前日志或完成/失败状态 |
 | `onFundamentalStateUpdated`         | `fundamentals:state-updated`         | 基本面快照状态变化                      |
 
-`stock:selected` 用于从托盘菜单点选股票后，让主窗口定位/展开对应股票。
+`stock:selected` 用于从托盘菜单点选股票或点击 Windows 系统通知后，让主窗口定位/展开对应股票。系统通知会附带 `scrollAlignment: 'sticky-top'`，列表清除筛选条件后将目标主行滚动到顶部 sticky 位置。
 
 ## 主窗口保存流程
 

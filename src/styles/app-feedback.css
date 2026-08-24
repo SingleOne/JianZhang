@@ -145,7 +145,6 @@
 @keyframes locate-stock-row {
   50% {
     background: #c9e4ff;
-    box-shadow: inset 0 0 0 1px #5aa4f5;
   }
 }
 
