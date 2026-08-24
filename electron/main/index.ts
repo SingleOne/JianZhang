@@ -202,6 +202,11 @@ function showStockNavigationNotification(notification: Notification, quoteId: st
   notification.show()
 }
 
+function closeRetainedSystemNotifications(): void {
+  for (const notification of retainedSystemNotifications) notification.close()
+  retainedSystemNotifications.length = 0
+}
+
 function showStockAlertNotification(alert: TriggeredStockAlert): void {
   if (!Notification.isSupported()) return
   const notification = new Notification({
@@ -244,6 +249,7 @@ function syncWindowSurfaces(): void {
 function cleanupBeforeQuit(): void {
   if (isQuitting) return
   isQuitting = true
+  closeRetainedSystemNotifications()
   aiTAdviceRuntime?.dispose()
   aiTAdviceRuntime = null
   aiRuntime?.dispose()
