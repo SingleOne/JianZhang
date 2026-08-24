@@ -160,6 +160,8 @@ const marketDataHub = new (class MarketDataHub {
   }
 })()
 const orderBookHub = new OrderBookHub(fetchOrderBook)
+const RETAINED_SYSTEM_NOTIFICATION_LIMIT = 100
+const retainedSystemNotifications: Notification[] = []
 
 async function getKline(quoteId: string, period: KlinePeriod, limit?: number, caller = 'kline') {
   return klineHub?.get(quoteId, period, limit, caller) ?? fetchKline(quoteId, period, limit, caller)
@@ -182,6 +184,24 @@ function sendToWindows(channel: string, payload: unknown): void {
   windowManager?.sendToWindows(channel, payload)
 }
 
+function showStockNavigationNotification(notification: Notification, quoteId: string): void {
+  retainedSystemNotifications.push(notification)
+  if (retainedSystemNotifications.length > RETAINED_SYSTEM_NOTIFICATION_LIMIT) {
+    retainedSystemNotifications.shift()
+  }
+
+  const releaseNotification = (): void => {
+    const index = retainedSystemNotifications.indexOf(notification)
+    if (index >= 0) retainedSystemNotifications.splice(index, 1)
+  }
+  notification.once('click', () => {
+    windowManager?.showMainWindow(quoteId, 'sticky-top')
+    releaseNotification()
+  })
+  notification.once('failed', releaseNotification)
+  notification.show()
+}
+
 function showStockAlertNotification(alert: TriggeredStockAlert): void {
   if (!Notification.isSupported()) return
   const notification = new Notification({
@@ -189,8 +209,7 @@ function showStockAlertNotification(alert: TriggeredStockAlert): void {
     icon: createAppIcon(),
     timeoutType: 'default'
   })
-  notification.on('click', () => windowManager?.showMainWindow(alert.stock.quoteId, 'sticky-top'))
-  notification.show()
+  showStockNavigationNotification(notification, alert.stock.quoteId)
 }
 
 function showTFloatingProfitAlertNotification(alert: TriggeredTFloatingProfitAlert): void {
@@ -200,8 +219,7 @@ function showTFloatingProfitAlertNotification(alert: TriggeredTFloatingProfitAle
     icon: createAppIcon(),
     timeoutType: 'default'
   })
-  notification.on('click', () => windowManager?.showMainWindow(alert.quoteId, 'sticky-top'))
-  notification.show()
+  showStockNavigationNotification(notification, alert.quoteId)
 }
 
 function showPriceVolumeDivergenceNotification(
@@ -216,8 +234,7 @@ function showPriceVolumeDivergenceNotification(
     icon: createAppIcon(),
     timeoutType: 'default'
   })
-  notification.on('click', () => windowManager?.showMainWindow(profile.quoteId, 'sticky-top'))
-  notification.show()
+  showStockNavigationNotification(notification, profile.quoteId)
 }
 
 function syncWindowSurfaces(): void {
