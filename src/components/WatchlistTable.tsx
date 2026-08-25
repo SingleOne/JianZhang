@@ -18,6 +18,7 @@ import type { StockDetailNavigationRequest } from '../lib/completion-notificatio
 import type {
   DividendFinancingRankingItem,
   ExchangeRateSettings,
+  MarketTradeFeeSettings,
   StockAlertRule,
   StockPosition,
   StockPositionSnapshot,
@@ -95,6 +96,7 @@ interface WatchlistTableProps {
   detailNavigationRequest: StockDetailNavigationRequest | null
   tTradingAccounts: TTradingAccounts
   tTradingFees: TTradingFeeSettings
+  marketTradeFees: MarketTradeFeeSettings
   tPlanDefaults: TPlanDefaultSettings
   tFloatingProfitAlertDefaultThreshold: number
   tradingCalendar: TradingCalendarSettings
@@ -213,6 +215,7 @@ export function WatchlistTable({
   detailNavigationRequest,
   tTradingAccounts,
   tTradingFees,
+  marketTradeFees,
   tPlanDefaults,
   tFloatingProfitAlertDefaultThreshold,
   tradingCalendar,
@@ -1074,6 +1077,8 @@ export function WatchlistTable({
           account={tTradingAccounts[editingStock.quoteId]}
           planDefaults={tPlanDefaults}
           exchangeRates={exchangeRates}
+          marketTradeFees={marketTradeFees}
+          tradingCalendar={tradingCalendar}
           onClose={() => setEditingStock(null)}
           onSave={(position, showRadarSignals, positionSnapshots, updatedAccount) => {
             onEditPosition(

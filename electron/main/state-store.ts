@@ -6,7 +6,7 @@ import {
   migrateWatchlistColumnOrder,
   normalizeAppSettings,
   normalizeStockTrackingProfiles,
-  normalizeTTradingAccounts,
+  normalizeTradingAccountsForWatchlist,
   normalizeWatchlist,
   normalizeWatchlistColumnOrder,
   normalizeWatchlistGroups,
@@ -109,20 +109,21 @@ export class StateStore {
   normalize(state: AppState): AppState {
     const watchlistGroups = normalizeWatchlistGroups(state.watchlistGroups)
     const stockTrackingProfiles = normalizeStockTrackingProfiles(state.stockTrackingProfiles)
+    const watchlist = synchronizeTrackingGroupMembership(
+      normalizeWatchlist(state.watchlist),
+      watchlistGroups,
+      stockTrackingProfiles
+    )
     return {
       ...state,
       revision: state.revision,
-      watchlist: synchronizeTrackingGroupMembership(
-        normalizeWatchlist(state.watchlist),
-        watchlistGroups,
-        stockTrackingProfiles
-      ),
+      watchlist,
       watchlistGroups,
       stockTrackingProfiles,
       settings: normalizeAppSettings(state.settings),
       columnOrder: normalizeWatchlistColumnOrder(state.columnOrder),
       columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
-      tTradingAccounts: normalizeTTradingAccounts(state.tTradingAccounts)
+      tTradingAccounts: normalizeTradingAccountsForWatchlist(watchlist, state.tTradingAccounts)
     }
   }
 
@@ -154,22 +155,23 @@ export class StateStore {
   private normalizeLoadedState(saved: AppState): AppState {
     const watchlistGroups = normalizeWatchlistGroups(saved.watchlistGroups)
     const stockTrackingProfiles = normalizeStockTrackingProfiles(saved.stockTrackingProfiles)
+    const watchlist = synchronizeTrackingGroupMembership(
+      normalizeWatchlist(saved.watchlist ?? this.defaultState.watchlist),
+      watchlistGroups,
+      stockTrackingProfiles
+    )
     return {
       revision:
         typeof saved.revision === 'number' && Number.isInteger(saved.revision)
           ? Math.max(0, saved.revision)
           : 0,
-      watchlist: synchronizeTrackingGroupMembership(
-        normalizeWatchlist(saved.watchlist ?? this.defaultState.watchlist),
-        watchlistGroups,
-        stockTrackingProfiles
-      ),
+      watchlist,
       watchlistGroups,
       stockTrackingProfiles,
       settings: normalizeAppSettings(saved.settings),
       columnOrder: migrateWatchlistColumnOrder(saved.columnOrder, saved.columnOrderVersion),
       columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
-      tTradingAccounts: normalizeTTradingAccounts(saved.tTradingAccounts)
+      tTradingAccounts: normalizeTradingAccountsForWatchlist(watchlist, saved.tTradingAccounts)
     }
   }
 

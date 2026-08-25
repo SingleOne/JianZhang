@@ -14,6 +14,7 @@ export interface StockMarketIdentity {
 
 export interface StockMarketCapabilities {
   position: boolean
+  tradeLedger: boolean
   tTrading: boolean
   profitAlert: boolean
   radar: boolean
@@ -50,6 +51,7 @@ export const STOCK_CURRENCY_SYMBOLS: Record<StockCurrency, string> = {
 
 const A_STOCK_CAPABILITIES: StockMarketCapabilities = {
   position: true,
+  tradeLedger: true,
   tTrading: true,
   profitAlert: true,
   radar: true,
@@ -68,6 +70,7 @@ const A_STOCK_CAPABILITIES: StockMarketCapabilities = {
 
 const GLOBAL_MARKET_CAPABILITIES: StockMarketCapabilities = {
   position: true,
+  tradeLedger: true,
   tTrading: false,
   profitAlert: true,
   radar: false,

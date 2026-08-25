@@ -6,7 +6,7 @@ import {
   getMarketIndexStocks,
   migrateWatchlistColumnOrder,
   normalizeAppSettings,
-  normalizeTTradingAccounts,
+  normalizeTradingAccountsForWatchlist,
   normalizeStockTrackingProfiles,
   normalizeWatchlist,
   normalizeWatchlistGroups,
@@ -167,19 +167,20 @@ function loadDemoState(): AppState {
   const parsed = JSON.parse(saved) as AppState
   const watchlistGroups = normalizeWatchlistGroups(parsed.watchlistGroups)
   const stockTrackingProfiles = normalizeStockTrackingProfiles(parsed.stockTrackingProfiles)
+  const watchlist = synchronizeTrackingGroupMembership(
+    normalizeWatchlist(parsed.watchlist),
+    watchlistGroups,
+    stockTrackingProfiles
+  )
   return {
     revision: parsed.revision,
-    watchlist: synchronizeTrackingGroupMembership(
-      normalizeWatchlist(parsed.watchlist),
-      watchlistGroups,
-      stockTrackingProfiles
-    ),
+    watchlist,
     watchlistGroups,
     stockTrackingProfiles,
     settings: normalizeAppSettings(parsed.settings),
     columnOrder: migrateWatchlistColumnOrder(parsed.columnOrder, parsed.columnOrderVersion),
     columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
-    tTradingAccounts: normalizeTTradingAccounts(parsed.tTradingAccounts)
+    tTradingAccounts: normalizeTradingAccountsForWatchlist(watchlist, parsed.tTradingAccounts)
   }
 }
 

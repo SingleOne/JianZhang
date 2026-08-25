@@ -46,8 +46,11 @@ export function currentDateKey(): string {
     .join('-')
 }
 
-export function isPositionOpenedToday(position: StockPosition | undefined): boolean {
-  return position?.openedOn === currentDateKey()
+export function isPositionOpenedToday(
+  position: StockPosition | undefined,
+  market: StockMarket = 'CN'
+): boolean {
+  return position?.openedOn === marketDateKey(new Date(), market)
 }
 
 export function getAvailablePositionQuantity(
@@ -57,7 +60,7 @@ export function getAvailablePositionQuantity(
 ): number | null {
   if (!position) return null
   if (market !== 'CN') return position.quantity
-  if (isPositionOpenedToday(position)) return 0
+  if (isPositionOpenedToday(position, market)) return 0
 
   const today = currentDateKey()
   const trades = getAccountTrades(account)
@@ -93,6 +96,7 @@ function getTradeFees(trade: TTrade): number {
     + trade.fees.regulatory
     + trade.fees.transfer
     + trade.fees.stampDuty
+    + (trade.feeItems ?? []).reduce((total, item) => total + item.amount, 0)
 }
 
 export function calculatePositionMetrics(
@@ -101,6 +105,7 @@ export function calculatePositionMetrics(
   account?: TTradingAccount,
   exchangeRates: ExchangeRateSettings = DEFAULT_EXCHANGE_RATE_SETTINGS
 ): PositionMetrics {
+  const market = marketFromQuoteId(quote?.quoteId ?? account?.quoteId ?? '')
   const currency = position?.currency ?? quote?.currency ?? 'CNY'
   const exchangeRate = exchangeRateForCurrency(exchangeRates, currency)
   const costExchangeRate = position?.costExchangeRate ?? (currency === 'CNY' ? 1 : null)
@@ -111,7 +116,7 @@ export function calculatePositionMetrics(
   const totalProfit = position && latest !== null && latest !== undefined
     ? (latest - position.cost) * position.quantity
     : null
-  const today = currentDateKey()
+  const today = marketDateKey(new Date(), market)
   const todayTrades = getAccountTrades(account)
     .filter((trade) => trade.tradedAt.slice(0, 10) === today)
 
@@ -137,7 +142,7 @@ export function calculatePositionMetrics(
     }
 
     const openingQuantity = Math.max(0, currentQuantity - buyQuantity + sellQuantity)
-    const openedToday = isPositionOpenedToday(position)
+    const openedToday = isPositionOpenedToday(position, market)
     const openingValue = openedToday && position
       ? position.cost * currentQuantity - buyCost + sellProceeds
       : quote?.previousClose === null || quote?.previousClose === undefined

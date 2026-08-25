@@ -1472,6 +1472,7 @@ export default function App() {
                 detailNavigationRequest={detailNavigationRequest}
                 tTradingAccounts={state.tTradingAccounts}
                 tTradingFees={state.settings.tTradingFees}
+                marketTradeFees={state.settings.marketTradeFees}
                 tPlanDefaults={state.settings.tPlanDefaults}
                 tFloatingProfitAlertDefaultThreshold={
                   state.settings.tFloatingProfitAlertDefaultThreshold

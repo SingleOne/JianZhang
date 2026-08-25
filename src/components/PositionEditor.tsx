@@ -1,12 +1,4 @@
-import {
-  BriefcaseBusiness,
-  Camera,
-  Check,
-  PencilLine,
-  ReceiptText,
-  Trash2,
-  X
-} from 'lucide-react'
+import { BriefcaseBusiness, Camera, Check, PencilLine, ReceiptText, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -17,7 +9,6 @@ import {
   formatPrice,
   formatShares
 } from '../lib/format'
-import { currentDateKey } from '../lib/portfolio'
 import { exchangeRateForCurrency } from '../shared/exchange-rates'
 import {
   detachTradeRecordsFromBatch,
@@ -25,17 +16,30 @@ import {
   upsertTradeRecord
 } from '../lib/trade-records'
 import {
+  calculateMarketLedgerMetrics,
+  calculateMarketTradeFeeItems,
+  estimateSettlementDate,
+  MARKET_FEE_TEMPLATES,
+  marketTradeQuantityError,
+  settlementRuleForTradeDate,
+  totalTradeFeeItems
+} from '../lib/market-trades'
+import {
   calculateTBatchMetrics,
   recalculatePositionFromBatch,
   rebalanceTBatchPlans,
   roundMoney,
+  totalRecordedTradeFees,
   totalTradeFees,
   validateTBatchTrades
 } from '../lib/t-trading'
 import type {
+  MarketTradeFeeSettings,
+  StockCurrency,
   StockPosition,
   StockPositionSnapshot,
   StockQuote,
+  StockMarket,
   ExchangeRateSettings,
   TPlanDefaultSettings,
   TTradingAccount,
@@ -45,10 +49,16 @@ import type {
   TTradePurpose,
   TTradeRecord,
   TTradeSide,
+  TradeFeeItem,
+  TradingCalendarSettings,
   WatchStock
 } from '../shared/types'
 import {
+  currencyForMarket,
   marketCapabilitiesForQuoteId,
+  marketFromQuoteId,
+  STOCK_MARKET_LABELS,
+  STOCK_MARKET_TIME_ZONES,
   STOCK_CURRENCY_SYMBOLS
 } from '../shared/stock-market'
 import { useConfirmDialog } from './ConfirmDialog'
@@ -59,6 +69,8 @@ interface PositionEditorProps {
   account: TTradingAccount | undefined
   planDefaults: TPlanDefaultSettings
   exchangeRates: ExchangeRateSettings
+  marketTradeFees: MarketTradeFeeSettings
+  tradingCalendar: TradingCalendarSettings
   onSave: (
     position: StockPosition | undefined,
     showRadarSignals: boolean,
@@ -81,6 +93,19 @@ interface TradeRecordDraft {
   price: string
   quantity: string
   fees: string
+  exchangeRate: string
+  actualSettlementDate: string
+  note: string
+}
+
+interface NewTradeRecordDraft {
+  side: TTradeSide
+  tradedAt: string
+  price: string
+  quantity: string
+  actualFees: string
+  exchangeRate: string
+  stampDutyExempt: boolean
   note: string
 }
 
@@ -121,18 +146,32 @@ function formatSnapshotTime(value: string): string {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false
-  }).format(new Date(value)).replaceAll('/', '-')
+  })
+    .format(new Date(value))
+    .replaceAll('/', '-')
 }
 
 function defaultSnapshotName(createdAt: string): string {
   return formatSnapshotTime(createdAt)
 }
 
-function localDateTimeInput(): string {
-  const now = new Date()
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
-    .toISOString()
-    .slice(0, 16)
+function marketDateTimeInput(market: StockMarket, date = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: STOCK_MARKET_TIME_ZONES[market],
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(date)
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value ?? ''
+  return `${part('year')}-${part('month')}-${part('day')}T${part('hour')}:${part('minute')}`
+}
+
+function emptyTradeFees(): TTradeFees {
+  return { commission: 0, handling: 0, regulatory: 0, transfer: 0, stampDuty: 0 }
 }
 
 function createOpeningTradeAccount(
@@ -140,28 +179,43 @@ function createOpeningTradeAccount(
   account: TTradingAccount | undefined,
   quantity: number,
   cost: number,
-  openedOn: string
+  openedOn: string,
+  market: StockMarket,
+  exchangeRate: number | null,
+  exchangeRateDate: string | null
 ): TTradingAccount {
+  const currency = stock.currency ?? currencyForMarket(market)
+  const marketNow = marketDateTimeInput(market)
   const trade: TTrade = {
     id: crypto.randomUUID(),
     side: 'buy',
     purpose: 'base',
-    tradedAt: openedOn === currentDateKey() ? localDateTimeInput() : `${openedOn}T09:30`,
+    tradedAt: openedOn === marketNow.slice(0, 10) ? marketNow : `${openedOn}T09:30`,
     price: cost,
     quantity,
-    fees: { commission: 0, handling: 0, regulatory: 0, transfer: 0, stampDuty: 0 },
-    note: '首次建仓'
+    fees: emptyTradeFees(),
+    market,
+    currency,
+    marketDate: openedOn,
+    exchangeRate: exchangeRate ?? undefined,
+    exchangeRateDate: exchangeRateDate ?? undefined,
+    origin: 'opening-balance',
+    note: '期初持仓'
   }
   const currentAccount: TTradingAccount = account ?? {
     quoteId: stock.quoteId,
     code: stock.code,
     name: stock.name,
+    market,
+    currency,
     history: [],
     tradeRecords: []
   }
 
   return {
     ...currentAccount,
+    market,
+    currency,
     tradeRecords: upsertTradeRecord(currentAccount.tradeRecords, trade)
   }
 }
@@ -173,6 +227,7 @@ function formatTradeTime(value: string): string {
 }
 
 function tradeRecordLabel(record: TTradeRecord): string {
+  if (record.origin === 'opening-balance') return '期初持仓'
   if (record.purpose === 'base') return record.side === 'buy' ? '底仓买入' : '底仓卖出'
   if ((record.batchDirection ?? 'forward') === 'reverse') {
     return record.side === 'sell' ? '反T卖出' : '回补买入'
@@ -181,7 +236,8 @@ function tradeRecordLabel(record: TTradeRecord): string {
 }
 
 function tradeRecordContext(record: TTradeRecord): string {
-  if (record.batchSequence === undefined) return '独立底仓'
+  if (record.origin === 'opening-balance') return '期初余额'
+  if (record.batchSequence === undefined) return '独立交易'
   return `${(record.batchDirection ?? 'forward') === 'reverse' ? '反T' : '正T'}批次 #${record.batchSequence}`
 }
 
@@ -192,7 +248,9 @@ function createTradeRecordDraft(record: TTradeRecord): TradeRecordDraft {
     tradedAt: record.tradedAt.slice(0, 16),
     price: record.price.toString(),
     quantity: record.quantity.toString(),
-    fees: totalTradeFees(record.fees).toString(),
+    fees: totalRecordedTradeFees(record).toString(),
+    exchangeRate: record.exchangeRate?.toString() ?? '',
+    actualSettlementDate: record.actualSettlementDate ?? '',
     note: record.note
   }
 }
@@ -209,18 +267,13 @@ function feesWithTotal(fees: TTradeFees, nextTotal: number): TTradeFees {
   }
 }
 
-function refreshBatchSettlement(
-  batch: TTradingBatch,
-  trades: readonly TTrade[]
-): TTradingBatch {
+function refreshBatchSettlement(batch: TTradingBatch, trades: readonly TTrade[]): TTradingBatch {
   if (!batch.settlement) return batch
   const ledgerProfit = calculateTBatchMetrics(batch, trades).realizedProfit
   const settlement = {
     ...batch.settlement,
     ledgerProfit,
-    finalProfit: batch.settlement.source === 'ledger'
-      ? ledgerProfit
-      : batch.settlement.finalProfit
+    finalProfit: batch.settlement.source === 'ledger' ? ledgerProfit : batch.settlement.finalProfit
   }
   return { ...batch, settlement }
 }
@@ -265,9 +318,7 @@ function updateTradeAccount(
     }
   }
 
-  const historyIndex = account.history.findIndex((batch) => (
-    batch.id === record.batchId
-  ))
+  const historyIndex = account.history.findIndex((batch) => batch.id === record.batchId)
   if (historyIndex >= 0) {
     const batch = account.history[historyIndex]
     const nextBatchTrades = sortTradeRecords(
@@ -278,9 +329,9 @@ function updateTradeAccount(
     if (validationError) {
       return { account, updatesPosition: false, error: validationError }
     }
-    const history = account.history.map((item, index) => (
+    const history = account.history.map((item, index) =>
       index === historyIndex ? refreshBatchSettlement(batch, nextBatchTrades) : item
-    ))
+    )
     return {
       account: { ...account, history, tradeRecords: nextRecords },
       updatesPosition: false
@@ -295,6 +346,8 @@ function updateTradeAccount(
 
 interface TradeRecordListProps {
   records: readonly TTradeRecord[]
+  market: StockMarket
+  currency: StockCurrency
   editingTradeId: string | null
   draft: TradeRecordDraft | null
   error: string
@@ -307,6 +360,8 @@ interface TradeRecordListProps {
 
 function TradeRecordList({
   records,
+  market,
+  currency,
   editingTradeId,
   draft,
   error,
@@ -328,18 +383,20 @@ function TradeRecordList({
           <span>操作</span>
         </div>
         {records.map((record) => {
-          const fees = totalTradeFees(record.fees)
-          const amountChange = record.side === 'buy'
-            ? -(record.price * record.quantity + fees)
-            : record.price * record.quantity - fees
+          const fees = totalRecordedTradeFees(record)
+          const feeDetails = record.feeItems
+            ?.map((item) => `${item.label} ${item.amount.toFixed(2)}`)
+            .join(' · ')
+          const amountChange =
+            record.side === 'buy'
+              ? -(record.price * record.quantity + fees)
+              : record.price * record.quantity - fees
           const isEditing = editingTradeId === record.id && draft
           if (isEditing) {
-            const tBuyLabel = (record.batchDirection ?? 'forward') === 'reverse'
-              ? '回补买入'
-              : 'T仓买入'
-            const tSellLabel = (record.batchDirection ?? 'forward') === 'reverse'
-              ? '反T卖出'
-              : 'T仓卖出'
+            const tBuyLabel =
+              (record.batchDirection ?? 'forward') === 'reverse' ? '回补买入' : 'T仓买入'
+            const tSellLabel =
+              (record.batchDirection ?? 'forward') === 'reverse' ? '反T卖出' : 'T仓卖出'
             return (
               <div
                 className="trade-record-row is-editing"
@@ -358,7 +415,10 @@ function TradeRecordList({
                 <select
                   value={`${draft.purpose}:${draft.side}`}
                   onChange={(event) => {
-                    const [purpose, side] = event.target.value.split(':') as [TTradePurpose, TTradeSide]
+                    const [purpose, side] = event.target.value.split(':') as [
+                      TTradePurpose,
+                      TTradeSide
+                    ]
                     onDraftChange({ purpose, side })
                   }}
                   aria-label="交易类型"
@@ -382,7 +442,7 @@ function TradeRecordList({
                     <span>数量</span>
                     <input
                       type="number"
-                      min="100"
+                      min={market === 'CN' ? 100 : 1}
                       step="100"
                       value={draft.quantity}
                       onChange={(event) => onDraftChange({ quantity: event.target.value })}
@@ -411,8 +471,34 @@ function TradeRecordList({
                       aria-label="交易费用合计"
                     />
                   </label>
+                  {currency !== 'CNY' ? (
+                    <label>
+                      <span>汇率</span>
+                      <input
+                        type="number"
+                        min="0.000001"
+                        step="0.000001"
+                        value={draft.exchangeRate}
+                        onChange={(event) => onDraftChange({ exchangeRate: event.target.value })}
+                        aria-label="成交汇率"
+                      />
+                    </label>
+                  ) : null}
                 </span>
-                <span className="trade-record-edit-hint">保存后重新计算</span>
+                <span className="trade-record-edit-hint">
+                  <label>
+                    <span>实际交收</span>
+                    <input
+                      type="date"
+                      value={draft.actualSettlementDate}
+                      onChange={(event) =>
+                        onDraftChange({
+                          actualSettlementDate: event.target.value
+                        })
+                      }
+                    />
+                  </label>
+                </span>
                 <input
                   className="trade-record-note-input"
                   type="text"
@@ -452,14 +538,31 @@ function TradeRecordList({
               </span>
               <span>
                 <strong>{tradeRecordContext(record)}</strong>
-                <small>{formatTradeTime(record.tradedAt)}</small>
+                <small>
+                  {formatTradeTime(record.tradedAt)} ·{' '}
+                  {record.actualSettlementDate
+                    ? `实际交收 ${record.actualSettlementDate}`
+                    : record.estimatedSettlementDate
+                      ? `预计交收 ${record.estimatedSettlementDate}`
+                      : '交收日 --'}
+                  {record.settlementRule ? ` · ${record.settlementRule.label}` : ''}
+                </small>
               </span>
               <span>
-                <strong>{formatShares(record.quantity)} × {formatPrice(record.price)}</strong>
-                <small>费用 {formatMoney(fees, 'CNY')}</small>
+                <strong>
+                  {formatShares(record.quantity)} × {formatPrice(record.price)}
+                </strong>
+                <small title={feeDetails}>
+                  费用 {formatMoney(fees, currency)}
+                  {feeDetails ? ` · ${feeDetails}` : ''}
+                  {record.feeTemplate
+                    ? ` · ${record.feeTemplate.label} v${record.feeTemplate.version}`
+                    : ''}
+                  {record.exchangeRate ? ` · 汇率 ${record.exchangeRate.toFixed(6)}` : ''}
+                </small>
               </span>
               <strong className={valueClass(amountChange)}>
-                金额变动 {formatMoneyProfit(amountChange, 'CNY')}
+                金额变动 {formatMoneyProfit(amountChange, currency)}
               </strong>
               <small title={record.note || undefined}>{record.note || '--'}</small>
               <span className="trade-record-actions">
@@ -496,22 +599,25 @@ export function PositionEditor({
   account,
   planDefaults,
   exchangeRates,
+  marketTradeFees,
+  tradingCalendar,
   onSave,
   onClose
 }: PositionEditorProps) {
   const confirm = useConfirmDialog()
+  const market = marketFromQuoteId(stock.quoteId)
   const capabilities = marketCapabilitiesForQuoteId(stock.quoteId)
-  const currency = stock.currency ?? quote?.currency ?? 'CNY'
+  const currency = stock.currency ?? quote?.currency ?? currencyForMarket(market)
+  const currentMarketDateTime = marketDateTimeInput(market)
   const effectiveExchangeRate = exchangeRateForCurrency(exchangeRates, currency)
-  const usesManualRate = currency !== 'CNY' &&
-    exchangeRates.manualOverrides[currency] !== undefined
+  const usesManualRate = currency !== 'CNY' && exchangeRates.manualOverrides[currency] !== undefined
   const [quantity, setQuantity] = useState(stock.position?.quantity.toString() ?? '')
   const [cost, setCost] = useState(stock.position?.cost.toString() ?? '')
   const [costExchangeRate, setCostExchangeRate] = useState(
     stock.position?.costExchangeRate?.toString() ?? effectiveExchangeRate?.toString() ?? ''
   )
   const [openedOn, setOpenedOn] = useState(
-    stock.position ? stock.position.openedOn ?? '' : currentDateKey()
+    stock.position ? (stock.position.openedOn ?? '') : currentMarketDateTime.slice(0, 10)
   )
   const [showRadarSignals, setShowRadarSignals] = useState(stock.showRadarSignals)
   const [positionSnapshots, setPositionSnapshots] = useState<StockPositionSnapshot[]>(
@@ -521,23 +627,44 @@ export function PositionEditor({
   const [editingTradeId, setEditingTradeId] = useState<string | null>(null)
   const [tradeRecordDraft, setTradeRecordDraft] = useState<TradeRecordDraft | null>(null)
   const [tradeRecordError, setTradeRecordError] = useState('')
+  const [newTradeDraft, setNewTradeDraft] = useState<NewTradeRecordDraft>(() => ({
+    side: 'buy',
+    tradedAt: currentMarketDateTime,
+    price: quote?.latest?.toString() ?? '',
+    quantity: market === 'CN' ? '100' : '1',
+    actualFees: '',
+    exchangeRate: effectiveExchangeRate?.toString() ?? '',
+    stampDutyExempt: stock.instrumentType === 'etf',
+    note: ''
+  }))
+  const [newTradeError, setNewTradeError] = useState('')
   const [showAllTradeRecords, setShowAllTradeRecords] = useState(false)
   const [tradeRecordPage, setTradeRecordPage] = useState(0)
+  const [positionError, setPositionError] = useState('')
   const hasPositionInput = quantity.trim() !== '' || cost.trim() !== ''
   const currentQuantity = Number(quantity) || 0
   const currentCost = Number(cost) || 0
   const currentMetrics = calculateVersionMetrics(currentQuantity, currentCost, quote?.latest)
   const workingAccount = editedAccount ?? account
   const tradeRecords = workingAccount?.tradeRecords ?? []
+  const ledgerMetrics =
+    market === 'CN' ? null : calculateMarketLedgerMetrics(tradeRecords, market, currency)
+  const newTradePrice = Number(newTradeDraft.price)
+  const newTradeQuantity = Number(newTradeDraft.quantity)
+  const calculatedNewTradeFeeItems = calculateMarketTradeFeeItems(
+    market,
+    Number.isFinite(newTradePrice) && Number.isFinite(newTradeQuantity)
+      ? newTradePrice * newTradeQuantity
+      : 0,
+    Number.isFinite(newTradeQuantity) ? newTradeQuantity : 0,
+    newTradeDraft.side,
+    marketTradeFees,
+    { stampDutyExempt: newTradeDraft.stampDutyExempt }
+  )
+  const calculatedNewTradeFees = totalTradeFeeItems(calculatedNewTradeFeeItems)
   const recentTradeRecords = tradeRecords.slice(0, 5)
-  const tradeRecordPageCount = Math.max(
-    1,
-    Math.ceil(tradeRecords.length / TRADE_RECORD_PAGE_SIZE)
-  )
-  const currentTradeRecordPage = Math.min(
-    tradeRecordPage,
-    Math.max(0, tradeRecordPageCount - 1)
-  )
+  const tradeRecordPageCount = Math.max(1, Math.ceil(tradeRecords.length / TRADE_RECORD_PAGE_SIZE))
+  const currentTradeRecordPage = Math.min(tradeRecordPage, Math.max(0, tradeRecordPageCount - 1))
   const visibleTradeRecords = tradeRecords.slice(
     currentTradeRecordPage * TRADE_RECORD_PAGE_SIZE,
     (currentTradeRecordPage + 1) * TRADE_RECORD_PAGE_SIZE
@@ -546,25 +673,30 @@ export function PositionEditor({
   const addSnapshot = () => {
     if (!stock.position) return
     const createdAt = new Date().toISOString()
-    setPositionSnapshots((current) => [{
-      id: crypto.randomUUID(),
-      name: defaultSnapshotName(createdAt),
-      createdAt,
-      quantity: stock.position!.quantity,
-      cost: stock.position!.cost,
-      currency,
-      costExchangeRate: stock.position!.costExchangeRate,
-      costExchangeRateDate: stock.position!.costExchangeRateDate
-    }, ...current])
+    setPositionSnapshots((current) => [
+      {
+        id: crypto.randomUUID(),
+        name: defaultSnapshotName(createdAt),
+        createdAt,
+        quantity: stock.position!.quantity,
+        cost: stock.position!.cost,
+        currency,
+        costExchangeRate: stock.position!.costExchangeRate,
+        costExchangeRateDate: stock.position!.costExchangeRateDate
+      },
+      ...current
+    ])
   }
 
   const updateSnapshot = (
     snapshotId: string,
     changes: Partial<Pick<StockPositionSnapshot, 'quantity' | 'cost'>>
   ) => {
-    setPositionSnapshots((current) => current.map((snapshot) => (
-      snapshot.id === snapshotId ? { ...snapshot, ...changes } : snapshot
-    )))
+    setPositionSnapshots((current) =>
+      current.map((snapshot) =>
+        snapshot.id === snapshotId ? { ...snapshot, ...changes } : snapshot
+      )
+    )
   }
 
   const startEditingTradeRecord = (record: TTradeRecord) => {
@@ -584,6 +716,117 @@ export function PositionEditor({
     cancelEditingTradeRecord()
   }
 
+  const applyGlobalLedgerPosition = (nextAccount: TTradingAccount): boolean => {
+    if (market === 'CN') return true
+    const metrics = calculateMarketLedgerMetrics(nextAccount.tradeRecords, market, currency)
+    if (metrics.error) {
+      setTradeRecordError(metrics.error)
+      return false
+    }
+    setQuantity(metrics.position?.quantity.toString() ?? '')
+    setCost(metrics.position?.cost.toString() ?? '')
+    setCostExchangeRate(metrics.position?.costExchangeRate?.toString() ?? '')
+    setOpenedOn(metrics.position?.openedOn ?? currentMarketDateTime.slice(0, 10))
+    return true
+  }
+
+  const addTradeRecord = () => {
+    const price = Number(newTradeDraft.price)
+    const tradeQuantity = Number(newTradeDraft.quantity)
+    const manualFees =
+      newTradeDraft.actualFees.trim() === '' ? null : Number(newTradeDraft.actualFees)
+    const quantityError = marketTradeQuantityError(market, tradeQuantity)
+    if (
+      !newTradeDraft.tradedAt ||
+      !Number.isFinite(price) ||
+      price <= 0 ||
+      (manualFees !== null && (!Number.isFinite(manualFees) || manualFees < 0))
+    ) {
+      setNewTradeError('请填写有效的成交时间、价格和实际费用')
+      return
+    }
+    if (quantityError) {
+      setNewTradeError(quantityError)
+      return
+    }
+
+    const exchangeRate = currency === 'CNY' ? 1 : Number(newTradeDraft.exchangeRate)
+    if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) {
+      setNewTradeError('请填写有效的成交汇率')
+      return
+    }
+
+    let nextAccount = workingAccount ?? {
+      quoteId: stock.quoteId,
+      code: stock.code,
+      name: stock.name,
+      market,
+      currency,
+      history: [],
+      tradeRecords: []
+    }
+    if (nextAccount.tradeRecords.length === 0 && stock.position) {
+      nextAccount = createOpeningTradeAccount(
+        stock,
+        nextAccount,
+        stock.position.quantity,
+        stock.position.cost,
+        stock.position.openedOn ?? currentMarketDateTime.slice(0, 10),
+        market,
+        stock.position.costExchangeRate ?? effectiveExchangeRate,
+        stock.position.costExchangeRateDate ?? exchangeRates.rateDate
+      )
+    }
+
+    const marketDate = newTradeDraft.tradedAt.slice(0, 10)
+    const feeItems: TradeFeeItem[] =
+      manualFees === null
+        ? calculatedNewTradeFeeItems
+        : manualFees > 0
+          ? [{ code: 'manual', label: '券商实际费用', amount: roundMoney(manualFees) }]
+          : []
+    const trade: TTrade = {
+      id: crypto.randomUUID(),
+      side: newTradeDraft.side,
+      purpose: 'base',
+      tradedAt: newTradeDraft.tradedAt,
+      price,
+      quantity: tradeQuantity,
+      fees: emptyTradeFees(),
+      feeItems,
+      feeTemplate: market === 'HK' || market === 'US' ? MARKET_FEE_TEMPLATES[market] : undefined,
+      market,
+      currency,
+      marketDate,
+      exchangeRate,
+      exchangeRateDate: usesManualRate ? marketDate : (exchangeRates.rateDate ?? marketDate),
+      estimatedSettlementDate: estimateSettlementDate(market, marketDate, tradingCalendar),
+      settlementRule: settlementRuleForTradeDate(market, marketDate),
+      origin: 'execution',
+      note: newTradeDraft.note.trim()
+    }
+    nextAccount = {
+      ...nextAccount,
+      market,
+      currency,
+      tradeRecords: upsertTradeRecord(nextAccount.tradeRecords, trade)
+    }
+    if (!applyGlobalLedgerPosition(nextAccount)) {
+      setNewTradeError('卖出数量不能超过交易流水中的可用持仓数量')
+      return
+    }
+    setEditedAccount(nextAccount)
+    setNewTradeDraft((current) => ({
+      ...current,
+      tradedAt: marketDateTimeInput(market),
+      price: quote?.latest?.toString() ?? '',
+      quantity: market === 'CN' ? '100' : '1',
+      actualFees: '',
+      note: ''
+    }))
+    setNewTradeError('')
+  }
+
   const saveTradeRecord = () => {
     if (!workingAccount || !editingTradeId || !tradeRecordDraft) return
     const record = tradeRecords.find((item) => item.id === editingTradeId)
@@ -593,19 +836,51 @@ export function PositionEditor({
     const tradeQuantity = Number(tradeRecordDraft.quantity)
     const fees = Number(tradeRecordDraft.fees)
     if (
-      !tradeRecordDraft.tradedAt
-      || !Number.isFinite(price)
-      || price <= 0
-      || !Number.isFinite(fees)
-      || fees < 0
+      !tradeRecordDraft.tradedAt ||
+      !Number.isFinite(price) ||
+      price <= 0 ||
+      !Number.isFinite(fees) ||
+      fees < 0
     ) {
       setTradeRecordError('请填写有效的成交时间、价格和费用')
       return
     }
-    if (tradeQuantity <= 0 || !Number.isInteger(tradeQuantity) || tradeQuantity % 100 !== 0) {
-      setTradeRecordError('成交数量必须是 100 股的整数倍')
+    const quantityError = marketTradeQuantityError(market, tradeQuantity)
+    if (quantityError) {
+      setTradeRecordError(quantityError)
       return
     }
+
+    const exchangeRate = currency === 'CNY' ? 1 : Number(tradeRecordDraft.exchangeRate)
+    if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) {
+      setTradeRecordError('请填写有效的成交汇率')
+      return
+    }
+
+    const feeTotal = roundMoney(fees)
+    const marketDate = tradeRecordDraft.tradedAt.slice(0, 10)
+    const feeTotalChanged = feeTotal !== totalRecordedTradeFees(record)
+    const transactionChanged =
+      record.side !== tradeRecordDraft.side ||
+      record.price !== price ||
+      record.quantity !== tradeQuantity
+    const nextMarketFeeItems = feeTotalChanged
+      ? feeTotal > 0
+        ? [{ code: 'manual' as const, label: '券商实际费用', amount: feeTotal }]
+        : []
+      : transactionChanged && record.feeTemplate
+        ? calculateMarketTradeFeeItems(
+            market,
+            price * tradeQuantity,
+            tradeQuantity,
+            tradeRecordDraft.side,
+            marketTradeFees,
+            {
+              stampDutyExempt:
+                market === 'HK' && !record.feeItems?.some((item) => item.code === 'stamp-duty')
+            }
+          )
+        : record.feeItems
 
     const nextTrade: TTrade = {
       id: record.id,
@@ -614,12 +889,33 @@ export function PositionEditor({
       tradedAt: tradeRecordDraft.tradedAt,
       price,
       quantity: tradeQuantity,
-      fees: feesWithTotal(record.fees, roundMoney(fees)),
+      fees: market === 'CN' ? feesWithTotal(record.fees, feeTotal) : emptyTradeFees(),
+      feeItems: market === 'CN' ? record.feeItems : nextMarketFeeItems,
+      feeTemplate: market === 'CN' || !feeTotalChanged ? record.feeTemplate : undefined,
+      market,
+      currency,
+      marketDate,
+      exchangeRate,
+      exchangeRateDate:
+        record.exchangeRate === exchangeRate
+          ? record.exchangeRateDate
+          : usesManualRate
+            ? marketDate
+            : (exchangeRates.rateDate ?? marketDate),
+      estimatedSettlementDate: estimateSettlementDate(market, marketDate, tradingCalendar),
+      actualSettlementDate: tradeRecordDraft.actualSettlementDate || undefined,
+      settlementRule: settlementRuleForTradeDate(market, marketDate),
+      origin: record.origin,
       note: tradeRecordDraft.note.trim()
     }
     const result = updateTradeAccount(workingAccount, record, nextTrade, planDefaults)
     if (result.error) {
       setTradeRecordError(result.error)
+      return
+    }
+    if (!applyGlobalLedgerPosition(result.account)) {
+      setEditingTradeId(record.id)
+      setTradeRecordDraft(createTradeRecordDraft(record))
       return
     }
     setEditedAccount(result.account)
@@ -646,6 +942,11 @@ export function PositionEditor({
       setTradeRecordError(result.error)
       return
     }
+    if (!applyGlobalLedgerPosition(result.account)) {
+      setEditingTradeId(record.id)
+      setTradeRecordDraft(createTradeRecordDraft(record))
+      return
+    }
     setEditedAccount(result.account)
     if (result.updatesPosition) {
       setQuantity(result.position?.quantity.toString() ?? '')
@@ -655,12 +956,14 @@ export function PositionEditor({
   }
 
   const tradeRecordListProps = {
+    market,
+    currency,
     editingTradeId,
     draft: tradeRecordDraft,
     error: tradeRecordError,
     onStartEdit: startEditingTradeRecord,
     onDraftChange: (changes: Partial<TradeRecordDraft>) => {
-      setTradeRecordDraft((current) => current ? { ...current, ...changes } : current)
+      setTradeRecordDraft((current) => (current ? { ...current, ...changes } : current))
       setTradeRecordError('')
     },
     onSaveEdit: saveTradeRecord,
@@ -681,317 +984,550 @@ export function PositionEditor({
             if (event.key === 'Escape') onClose()
           }}
         >
-        <header className="position-dialog-header">
-          <div>
-            <span className="position-dialog-icon"><BriefcaseBusiness size={18} /></span>
-            <span>
-              <span className="position-dialog-title-line">
-                <strong id="position-dialog-title">编辑持仓</strong>
-                {capabilities.radar ? <label className="position-header-radar-switch">
-                  <span>显示异动数据</span>
-                  <input
-                    className="switch-input"
-                    type="checkbox"
-                    checked={showRadarSignals}
-                    onChange={(event) => setShowRadarSignals(event.target.checked)}
-                  />
-                </label> : null}
+          <header className="position-dialog-header">
+            <div>
+              <span className="position-dialog-icon">
+                <BriefcaseBusiness size={18} />
               </span>
-              <small>{stock.name} · {stock.code}</small>
-            </span>
-          </div>
-          <button className="icon-button dialog-close" type="button" onClick={onClose} aria-label="关闭">
-            <X size={18} />
-          </button>
-        </header>
+              <span>
+                <span className="position-dialog-title-line">
+                  <strong id="position-dialog-title">编辑持仓</strong>
+                  {capabilities.radar ? (
+                    <label className="position-header-radar-switch">
+                      <span>显示异动数据</span>
+                      <input
+                        className="switch-input"
+                        type="checkbox"
+                        checked={showRadarSignals}
+                        onChange={(event) => setShowRadarSignals(event.target.checked)}
+                      />
+                    </label>
+                  ) : null}
+                </span>
+                <small>
+                  {stock.name} · {stock.code}
+                </small>
+              </span>
+            </div>
+            <button
+              className="icon-button dialog-close"
+              type="button"
+              onClick={onClose}
+              aria-label="关闭"
+            >
+              <X size={18} />
+            </button>
+          </header>
 
-        <form
-          className="position-form"
-          onSubmit={(event) => {
-            event.preventDefault()
-            const nextRate = currency === 'CNY' ? 1 : Number(costExchangeRate)
-            const nextPosition = hasPositionInput ? {
-              quantity: Number(quantity),
-              cost: Number(cost),
-              openedToday: openedOn === currentDateKey(),
-              openedOn,
-              currency,
-              costExchangeRate: nextRate,
-              costExchangeRateDate:
-                stock.position?.costExchangeRate === nextRate
-                  ? stock.position.costExchangeRateDate
-                  : usesManualRate ? currentDateKey() : exchangeRates.rateDate ?? currentDateKey()
-            } : undefined
-            const updatedAccount = capabilities.tTrading && !stock.position && nextPosition
-              ? createOpeningTradeAccount(
+          <form
+            className="position-form"
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault()
+              const nextRate = currency === 'CNY' ? 1 : Number(costExchangeRate)
+              const nextQuantity = Number(quantity)
+              const nextCost = Number(cost)
+              const quantityError = hasPositionInput
+                ? marketTradeQuantityError(market, nextQuantity)
+                : undefined
+              if (
+                quantityError ||
+                (hasPositionInput && (!Number.isFinite(nextCost) || nextCost <= 0)) ||
+                (hasPositionInput && (!Number.isFinite(nextRate) || nextRate <= 0)) ||
+                (hasPositionInput && !openedOn)
+              ) {
+                setPositionError(quantityError ?? '请填写有效的成本价、建仓日期和成本汇率')
+                return
+              }
+              setPositionError('')
+              const nextPosition = hasPositionInput
+                ? {
+                    quantity: nextQuantity,
+                    cost: nextCost,
+                    openedToday: openedOn === currentMarketDateTime.slice(0, 10),
+                    openedOn,
+                    currency,
+                    costExchangeRate: nextRate,
+                    costExchangeRateDate:
+                      stock.position?.costExchangeRate === nextRate
+                        ? stock.position.costExchangeRateDate
+                        : usesManualRate
+                          ? currentMarketDateTime.slice(0, 10)
+                          : (exchangeRates.rateDate ?? currentMarketDateTime.slice(0, 10))
+                  }
+                : undefined
+              let updatedAccount = capabilities.tradeLedger ? editedAccount : undefined
+              if (
+                capabilities.tradeLedger &&
+                nextPosition &&
+                (workingAccount?.tradeRecords.length ?? 0) === 0
+              ) {
+                updatedAccount = createOpeningTradeAccount(
                   stock,
                   workingAccount,
                   nextPosition.quantity,
                   nextPosition.cost,
-                  nextPosition.openedOn
+                  nextPosition.openedOn,
+                  market,
+                  nextPosition.costExchangeRate ?? null,
+                  nextPosition.costExchangeRateDate ?? null
                 )
-              : capabilities.tTrading ? editedAccount : undefined
-            onSave(
-              nextPosition,
-              capabilities.radar ? showRadarSignals : stock.showRadarSignals,
-              positionSnapshots,
-              updatedAccount
-            )
-          }}
-        >
-          <div className="position-fields">
-            <label>
-              <span>持仓数量</span>
-              <span className="position-input-wrap">
-                <input
-                  type="number"
-                  min="100"
-                  step="100"
-                  required={hasPositionInput}
-                  autoFocus
-                  value={quantity}
-                  onChange={(event) => setQuantity(event.target.value)}
-                  placeholder="例如 1000"
-                />
-                <span>股</span>
-              </span>
-            </label>
-            <label>
-              <span>成本价</span>
-              <span className="position-input-wrap">
-                <input
-                  type="number"
-                  min="0.0001"
-                  step="0.0001"
-                  required={hasPositionInput}
-                  value={cost}
-                  onChange={(event) => setCost(event.target.value)}
-                  placeholder="例如 12.5800"
-                />
-                <span>{currency}</span>
-              </span>
-            </label>
-            {currency !== 'CNY' ? (
+              }
+              onSave(
+                nextPosition,
+                capabilities.radar ? showRadarSignals : stock.showRadarSignals,
+                positionSnapshots,
+                updatedAccount
+              )
+            }}
+          >
+            <div className="position-fields">
               <label>
-                <span>建仓汇率</span>
+                <span>持仓数量</span>
                 <span className="position-input-wrap">
                   <input
                     type="number"
-                    min="0.000001"
-                    step="0.000001"
+                    min={market === 'CN' ? 100 : 1}
+                    step="100"
                     required={hasPositionInput}
-                    value={costExchangeRate}
-                    onChange={(event) => setCostExchangeRate(event.target.value)}
-                    placeholder="兑人民币汇率"
+                    autoFocus
+                    value={quantity}
+                    onChange={(event) => setQuantity(event.target.value)}
+                    placeholder="例如 1000"
                   />
-                  <span>CNY</span>
+                  <span>股</span>
                 </span>
-                <small>
-                  1 {currency} = {effectiveExchangeRate?.toFixed(6) ?? '--'} CNY
-                  {usesManualRate
-                    ? '（手工覆盖）'
-                    : exchangeRates.rateDate ? `（官方 ${exchangeRates.rateDate}）` : ''}
-                </small>
               </label>
-            ) : null}
-            <label>
-              <span>建仓日期</span>
-              <span className="position-input-wrap">
-                <input
-                  type="date"
-                  max={currentDateKey()}
-                  required={hasPositionInput}
-                  value={openedOn}
-                  onChange={(event) => setOpenedOn(event.target.value)}
-                />
-              </span>
-            </label>
-          </div>
-          <section className="position-snapshot-panel">
-            <header>
-              <span>
-                <strong>持仓快照</strong>
-                <small>
-                  当前价 {formatPrice(quote?.latest)}，快照修改随“保存设置”一并保存
-                </small>
-              </span>
-              <button
-                className="secondary-button position-snapshot-add"
-                type="button"
-                disabled={!stock.position}
-                onClick={addSnapshot}
-              >
-                <Camera size={14} />
-                保存持仓快照
-              </button>
-            </header>
+              <label>
+                <span>成本价</span>
+                <span className="position-input-wrap">
+                  <input
+                    type="number"
+                    min="0.0001"
+                    step="0.0001"
+                    required={hasPositionInput}
+                    value={cost}
+                    onChange={(event) => setCost(event.target.value)}
+                    placeholder="例如 12.5800"
+                  />
+                  <span>{currency}</span>
+                </span>
+              </label>
+              {currency !== 'CNY' ? (
+                <label>
+                  <span>建仓汇率</span>
+                  <span className="position-input-wrap">
+                    <input
+                      type="number"
+                      min="0.000001"
+                      step="0.000001"
+                      required={hasPositionInput}
+                      value={costExchangeRate}
+                      onChange={(event) => setCostExchangeRate(event.target.value)}
+                      placeholder="兑人民币汇率"
+                    />
+                    <span>CNY</span>
+                  </span>
+                  <small>
+                    1 {currency} = {effectiveExchangeRate?.toFixed(6) ?? '--'} CNY
+                    {usesManualRate
+                      ? '（手工覆盖）'
+                      : exchangeRates.rateDate
+                        ? `（官方 ${exchangeRates.rateDate}）`
+                        : ''}
+                  </small>
+                </label>
+              ) : null}
+              <label>
+                <span>建仓日期</span>
+                <span className="position-input-wrap">
+                  <input
+                    type="date"
+                    max={currentMarketDateTime.slice(0, 10)}
+                    required={hasPositionInput}
+                    value={openedOn}
+                    onChange={(event) => setOpenedOn(event.target.value)}
+                  />
+                </span>
+              </label>
+            </div>
+            {positionError ? <div className="position-form-error">{positionError}</div> : null}
+            <section className="position-snapshot-panel">
+              <header>
+                <span>
+                  <strong>持仓快照</strong>
+                  <small>当前价 {formatPrice(quote?.latest)}，快照修改随“保存设置”一并保存</small>
+                </span>
+                <button
+                  className="secondary-button position-snapshot-add"
+                  type="button"
+                  disabled={!stock.position}
+                  onClick={addSnapshot}
+                >
+                  <Camera size={14} />
+                  保存持仓快照
+                </button>
+              </header>
 
-            <div className="position-snapshot-scroll">
-              <div className="position-snapshot-table">
-                <div className="position-snapshot-row position-snapshot-table-header">
-                  <span>持仓版本</span>
-                  <span>数量</span>
-                  <span>成本</span>
-                  <span>持仓市值</span>
-                  <span>持仓收益</span>
-                  <span>收益率</span>
-                  <span>较当前收益</span>
-                  <span />
+              <div className="position-snapshot-scroll">
+                <div className="position-snapshot-table">
+                  <div className="position-snapshot-row position-snapshot-table-header">
+                    <span>持仓版本</span>
+                    <span>数量</span>
+                    <span>成本</span>
+                    <span>持仓市值</span>
+                    <span>持仓收益</span>
+                    <span>收益率</span>
+                    <span>较当前收益</span>
+                    <span />
+                  </div>
+                  <div className="position-snapshot-row is-current">
+                    <span className="position-snapshot-name">
+                      <strong>当前持仓</strong>
+                      <small>按上方输入实时预览</small>
+                    </span>
+                    <strong>{formatShares(currentQuantity)}</strong>
+                    <strong>
+                      {currentCost > 0
+                        ? `${STOCK_CURRENCY_SYMBOLS[currency]}${formatCost(currentCost)}`
+                        : '--'}
+                    </strong>
+                    <span>{formatMoney(currentMetrics.marketValue, currency)}</span>
+                    <span className={valueClass(currentMetrics.totalProfit)}>
+                      {formatMoneyProfit(currentMetrics.totalProfit, currency)}
+                    </span>
+                    <span className={valueClass(currentMetrics.profitPercent)}>
+                      {formatPercent(currentMetrics.profitPercent)}
+                    </span>
+                    <span>--</span>
+                    <span />
+                  </div>
+                  {positionSnapshots.map((snapshot) => {
+                    const metrics = calculateVersionMetrics(
+                      snapshot.quantity,
+                      snapshot.cost,
+                      quote?.latest
+                    )
+                    const profitDifference =
+                      metrics.totalProfit === null || currentMetrics.totalProfit === null
+                        ? null
+                        : metrics.totalProfit - currentMetrics.totalProfit
+                    return (
+                      <div className="position-snapshot-row" key={snapshot.id}>
+                        <span className="position-snapshot-time">
+                          {formatSnapshotTime(snapshot.createdAt)}
+                        </span>
+                        <input
+                          className="position-snapshot-number"
+                          type="number"
+                          min={market === 'CN' ? 100 : 1}
+                          step="100"
+                          required
+                          value={snapshot.quantity}
+                          onChange={(event) =>
+                            updateSnapshot(snapshot.id, {
+                              quantity: Number(event.target.value)
+                            })
+                          }
+                          aria-label={`${formatSnapshotTime(snapshot.createdAt)}持仓数量`}
+                        />
+                        <input
+                          className="position-snapshot-number"
+                          type="number"
+                          min="0.0001"
+                          step="0.0001"
+                          required
+                          value={snapshot.cost}
+                          onChange={(event) =>
+                            updateSnapshot(snapshot.id, {
+                              cost: Number(event.target.value)
+                            })
+                          }
+                          aria-label={`${formatSnapshotTime(snapshot.createdAt)}成本价`}
+                        />
+                        <span>{formatMoney(metrics.marketValue, currency)}</span>
+                        <span className={valueClass(metrics.totalProfit)}>
+                          {formatMoneyProfit(metrics.totalProfit, currency)}
+                        </span>
+                        <span className={valueClass(metrics.profitPercent)}>
+                          {formatPercent(metrics.profitPercent)}
+                        </span>
+                        <span className={valueClass(profitDifference)}>
+                          {formatMoneyProfit(profitDifference, currency)}
+                        </span>
+                        <button
+                          className="icon-button position-snapshot-delete"
+                          type="button"
+                          onClick={() =>
+                            setPositionSnapshots((current) =>
+                              current.filter((item) => item.id !== snapshot.id)
+                            )
+                          }
+                          title={`删除${formatSnapshotTime(snapshot.createdAt)}快照`}
+                          aria-label={`删除${formatSnapshotTime(snapshot.createdAt)}快照`}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    )
+                  })}
+                  {positionSnapshots.length === 0 ? (
+                    <div className="position-snapshot-empty">
+                      保存一次当前持仓，之后即可和新持仓实时比较。
+                    </div>
+                  ) : null}
                 </div>
-                <div className="position-snapshot-row is-current">
-                  <span className="position-snapshot-name">
-                    <strong>当前持仓</strong>
-                    <small>按上方输入实时预览</small>
+              </div>
+            </section>
+
+            {capabilities.tradeLedger ? (
+              <section className="trade-record-panel">
+                <header>
+                  <span>
+                    <strong>交易记录</strong>
+                    <small>
+                      {tradeRecords.length > 0
+                        ? `显示最近 ${Math.min(5, tradeRecords.length)} 条，共 ${tradeRecords.length} 条；修改随“保存设置”保存`
+                        : market === 'CN'
+                          ? '做T交易和底仓增减会统一记录在这里'
+                          : `${STOCK_MARKET_LABELS[market]}买卖流水、费用和预计交收日会统一记录在这里`}
+                    </small>
+                    {ledgerMetrics ? (
+                      <small className="trade-ledger-summary">
+                        已实现收益{' '}
+                        <b className={valueClass(ledgerMetrics.realizedProfit)}>
+                          {formatMoneyProfit(ledgerMetrics.realizedProfit, currency)}
+                        </b>
+                        {' · '}累计费用 {formatMoney(ledgerMetrics.totalFees, currency)}
+                        {ledgerMetrics.realizedProfitCny !== null ? (
+                          <>
+                            {' · '}人民币已实现{' '}
+                            <b className={valueClass(ledgerMetrics.realizedProfitCny)}>
+                              {formatMoneyProfit(ledgerMetrics.realizedProfitCny, 'CNY')}
+                            </b>
+                          </>
+                        ) : null}
+                      </small>
+                    ) : null}
                   </span>
-                  <strong>{formatShares(currentQuantity)}</strong>
-                  <strong>
-                    {currentCost > 0
-                      ? `${STOCK_CURRENCY_SYMBOLS[currency]}${formatCost(currentCost)}`
-                      : '--'}
-                  </strong>
-                  <span>{formatMoney(currentMetrics.marketValue, currency)}</span>
-                  <span className={valueClass(currentMetrics.totalProfit)}>
-                    {formatMoneyProfit(currentMetrics.totalProfit, currency)}
-                  </span>
-                  <span className={valueClass(currentMetrics.profitPercent)}>
-                    {formatPercent(currentMetrics.profitPercent)}
-                  </span>
-                  <span>--</span>
-                  <span />
-                </div>
-                {positionSnapshots.map((snapshot) => {
-                  const metrics = calculateVersionMetrics(
-                    snapshot.quantity,
-                    snapshot.cost,
-                    quote?.latest
-                  )
-                  const profitDifference = metrics.totalProfit === null
-                    || currentMetrics.totalProfit === null
-                    ? null
-                    : metrics.totalProfit - currentMetrics.totalProfit
-                  return (
-                    <div className="position-snapshot-row" key={snapshot.id}>
-                      <span className="position-snapshot-time">{formatSnapshotTime(snapshot.createdAt)}</span>
-                      <input
-                        className="position-snapshot-number"
-                        type="number"
-                        min="100"
-                        step="100"
-                        required
-                        value={snapshot.quantity}
-                        onChange={(event) => updateSnapshot(snapshot.id, {
-                          quantity: Number(event.target.value)
-                        })}
-                        aria-label={`${formatSnapshotTime(snapshot.createdAt)}持仓数量`}
-                      />
-                      <input
-                        className="position-snapshot-number"
-                        type="number"
-                        min="0.0001"
-                        step="0.0001"
-                        required
-                        value={snapshot.cost}
-                        onChange={(event) => updateSnapshot(snapshot.id, {
-                          cost: Number(event.target.value)
-                        })}
-                        aria-label={`${formatSnapshotTime(snapshot.createdAt)}成本价`}
-                      />
-                      <span>{formatMoney(metrics.marketValue, currency)}</span>
-                      <span className={valueClass(metrics.totalProfit)}>
-                        {formatMoneyProfit(metrics.totalProfit, currency)}
-                      </span>
-                      <span className={valueClass(metrics.profitPercent)}>
-                        {formatPercent(metrics.profitPercent)}
-                      </span>
-                      <span className={valueClass(profitDifference)}>
-                        {formatMoneyProfit(profitDifference, currency)}
-                      </span>
+                  {tradeRecords.length > 5 ? (
+                    <button
+                      className="secondary-button trade-record-more"
+                      type="button"
+                      onClick={() => {
+                        setTradeRecordPage(0)
+                        setShowAllTradeRecords(true)
+                      }}
+                    >
+                      查看更多
+                    </button>
+                  ) : null}
+                </header>
+                {market !== 'CN' ? (
+                  <div
+                    className="trade-record-create"
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault()
+                        addTradeRecord()
+                      }
+                    }}
+                  >
+                    <div className="trade-record-create-fields">
+                      <label>
+                        <span>方向</span>
+                        <select
+                          value={newTradeDraft.side}
+                          onChange={(event) => {
+                            setNewTradeDraft((current) => ({
+                              ...current,
+                              side: event.target.value as TTradeSide
+                            }))
+                            setNewTradeError('')
+                          }}
+                        >
+                          <option value="buy">买入</option>
+                          <option value="sell">卖出</option>
+                        </select>
+                      </label>
+                      <label>
+                        <span>市场成交时间</span>
+                        <input
+                          type="datetime-local"
+                          value={newTradeDraft.tradedAt}
+                          onChange={(event) =>
+                            setNewTradeDraft((current) => ({
+                              ...current,
+                              tradedAt: event.target.value
+                            }))
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>数量</span>
+                        <input
+                          type="number"
+                          min="1"
+                          step="100"
+                          value={newTradeDraft.quantity}
+                          onChange={(event) =>
+                            setNewTradeDraft((current) => ({
+                              ...current,
+                              quantity: event.target.value
+                            }))
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>成交价</span>
+                        <input
+                          type="number"
+                          min="0.0001"
+                          step="0.0001"
+                          value={newTradeDraft.price}
+                          onChange={(event) =>
+                            setNewTradeDraft((current) => ({
+                              ...current,
+                              price: event.target.value
+                            }))
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>实际费用</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={newTradeDraft.actualFees}
+                          placeholder={`自动 ${calculatedNewTradeFees.toFixed(2)}`}
+                          onChange={(event) =>
+                            setNewTradeDraft((current) => ({
+                              ...current,
+                              actualFees: event.target.value
+                            }))
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>兑人民币汇率</span>
+                        <input
+                          type="number"
+                          min="0.000001"
+                          step="0.000001"
+                          value={newTradeDraft.exchangeRate}
+                          onChange={(event) =>
+                            setNewTradeDraft((current) => ({
+                              ...current,
+                              exchangeRate: event.target.value
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="trade-record-create-note">
+                        <span>备注</span>
+                        <input
+                          type="text"
+                          maxLength={100}
+                          value={newTradeDraft.note}
+                          onChange={(event) =>
+                            setNewTradeDraft((current) => ({
+                              ...current,
+                              note: event.target.value
+                            }))
+                          }
+                        />
+                      </label>
+                      {market === 'HK' ? (
+                        <label className="trade-record-create-check">
+                          <input
+                            type="checkbox"
+                            checked={newTradeDraft.stampDutyExempt}
+                            onChange={(event) =>
+                              setNewTradeDraft((current) => ({
+                                ...current,
+                                stampDutyExempt: event.target.checked
+                              }))
+                            }
+                          />
+                          <span>印花税豁免证券</span>
+                        </label>
+                      ) : null}
                       <button
-                        className="icon-button position-snapshot-delete"
+                        className="primary-button compact-button"
                         type="button"
-                        onClick={() => setPositionSnapshots((current) => (
-                          current.filter((item) => item.id !== snapshot.id)
-                        ))}
-                        title={`删除${formatSnapshotTime(snapshot.createdAt)}快照`}
-                        aria-label={`删除${formatSnapshotTime(snapshot.createdAt)}快照`}
+                        onClick={addTradeRecord}
                       >
-                        <Trash2 size={14} />
+                        添加交易
                       </button>
                     </div>
-                  )
-                })}
-                {positionSnapshots.length === 0 ? (
-                  <div className="position-snapshot-empty">
-                    保存一次当前持仓，之后即可和新持仓实时比较。
+                    <small className="trade-record-create-preview">
+                      自动费用：
+                      {calculatedNewTradeFeeItems.length > 0
+                        ? calculatedNewTradeFeeItems
+                            .map((item) => `${item.label} ${item.amount.toFixed(2)}`)
+                            .join(' · ')
+                        : '0.00'}
+                      {' · '}预计交收：
+                      {estimateSettlementDate(
+                        market,
+                        newTradeDraft.tradedAt.slice(0, 10),
+                        tradingCalendar
+                      ) || '--'}
+                      {' · '}留空实际费用时使用模板估算，券商账单优先
+                    </small>
+                    {newTradeError ? (
+                      <small className="trade-record-create-error">{newTradeError}</small>
+                    ) : null}
                   </div>
                 ) : null}
-              </div>
-            </div>
-          </section>
-
-          {capabilities.tTrading ? <section className="trade-record-panel">
-            <header>
-              <span>
-                <strong>交易记录</strong>
-                <small>
-                  {tradeRecords.length > 0
-                    ? `显示最近 ${Math.min(5, tradeRecords.length)} 条，共 ${tradeRecords.length} 条；修改随“保存设置”保存`
-                    : '做T交易和底仓增减会统一记录在这里'}
-                </small>
-              </span>
-              {tradeRecords.length > 5 ? (
-                <button
-                  className="secondary-button trade-record-more"
-                  type="button"
-                  onClick={() => {
-                    setTradeRecordPage(0)
-                    setShowAllTradeRecords(true)
-                  }}
-                >
-                  查看更多
-                </button>
-              ) : null}
-            </header>
-            {recentTradeRecords.length > 0 ? (
-              <TradeRecordList records={recentTradeRecords} {...tradeRecordListProps} />
-            ) : (
-              <div className="trade-record-empty">暂无交易记录</div>
-            )}
-          </section> : null}
-
-          <footer className="position-dialog-actions">
-            {stock.position ? (
-              <button
-                className="clear-position-button"
-                type="button"
-                disabled={editingTradeId !== null}
-                onClick={() => onSave(
-                  undefined,
-                  capabilities.radar ? showRadarSignals : stock.showRadarSignals,
-                  positionSnapshots,
-                  capabilities.tTrading ? editedAccount : undefined
+                {recentTradeRecords.length > 0 ? (
+                  <TradeRecordList records={recentTradeRecords} {...tradeRecordListProps} />
+                ) : (
+                  <div className="trade-record-empty">暂无交易记录</div>
                 )}
-              >
-                清空持仓
-              </button>
-            ) : <span />}
-            <span>
-              <button className="secondary-button compact-button" type="button" onClick={onClose}>取消</button>
-              <button
-                className="primary-button compact-button"
-                type="submit"
-                disabled={editingTradeId !== null}
-                title={editingTradeId ? '请先保存或取消当前交易记录编辑' : undefined}
-              >
-                保存设置
-              </button>
-            </span>
-          </footer>
-        </form>
+              </section>
+            ) : null}
+
+            <footer className="position-dialog-actions">
+              {stock.position ? (
+                <button
+                  className="clear-position-button"
+                  type="button"
+                  disabled={editingTradeId !== null}
+                  onClick={() =>
+                    onSave(
+                      undefined,
+                      capabilities.radar ? showRadarSignals : stock.showRadarSignals,
+                      positionSnapshots,
+                      capabilities.tradeLedger ? editedAccount : undefined
+                    )
+                  }
+                >
+                  清空持仓
+                </button>
+              ) : (
+                <span />
+              )}
+              <span>
+                <button className="secondary-button compact-button" type="button" onClick={onClose}>
+                  取消
+                </button>
+                <button
+                  className="primary-button compact-button"
+                  type="submit"
+                  disabled={editingTradeId !== null}
+                  title={editingTradeId ? '请先保存或取消当前交易记录编辑' : undefined}
+                >
+                  保存设置
+                </button>
+              </span>
+            </footer>
+          </form>
         </section>
       </div>
 
-      {capabilities.tTrading && showAllTradeRecords ? (
+      {capabilities.tradeLedger && showAllTradeRecords ? (
         <div
           className="trade-record-dialog-backdrop"
           role="presentation"
@@ -1009,10 +1545,14 @@ export function PositionEditor({
           >
             <header className="position-dialog-header">
               <div>
-                <span className="position-dialog-icon"><ReceiptText size={18} /></span>
+                <span className="position-dialog-icon">
+                  <ReceiptText size={18} />
+                </span>
                 <span>
                   <strong id="trade-record-dialog-title">全部交易记录</strong>
-                  <small>{stock.name} · {stock.code} · 共 {tradeRecords.length} 条</small>
+                  <small>
+                    {stock.name} · {stock.code} · 共 {tradeRecords.length} 条
+                  </small>
                 </span>
               </div>
               <button
@@ -1038,12 +1578,14 @@ export function PositionEditor({
                 >
                   上一页
                 </button>
-                <span>{currentTradeRecordPage + 1} / {tradeRecordPageCount}</span>
+                <span>
+                  {currentTradeRecordPage + 1} / {tradeRecordPageCount}
+                </span>
                 <button
                   type="button"
-                  onClick={() => setTradeRecordPage((current) => (
-                    Math.min(tradeRecordPageCount - 1, current + 1)
-                  ))}
+                  onClick={() =>
+                    setTradeRecordPage((current) => Math.min(tradeRecordPageCount - 1, current + 1))
+                  }
                   disabled={currentTradeRecordPage === tradeRecordPageCount - 1}
                 >
                   下一页

@@ -75,7 +75,7 @@ type SettingsTab = 'market' | 'trading' | 'system' | 'data'
 
 const SETTINGS_TABS = [
   { id: 'market', label: '行情' },
-  { id: 'trading', label: '做T' },
+  { id: 'trading', label: '交易' },
   { id: 'system', label: '系统' },
   { id: 'data', label: '数据' }
 ] as const satisfies readonly { id: SettingsTab; label: string }[]
@@ -252,6 +252,26 @@ export function SettingsMenu({
     })
   }
 
+  const updateHongKongTradeFee = (changes: Partial<AppSettings['marketTradeFees']['HK']>) => {
+    onChange({
+      ...settings,
+      marketTradeFees: {
+        ...settings.marketTradeFees,
+        HK: { ...settings.marketTradeFees.HK, ...changes }
+      }
+    })
+  }
+
+  const updateUnitedStatesTradeFee = (changes: Partial<AppSettings['marketTradeFees']['US']>) => {
+    onChange({
+      ...settings,
+      marketTradeFees: {
+        ...settings.marketTradeFees,
+        US: { ...settings.marketTradeFees.US, ...changes }
+      }
+    })
+  }
+
   const updateManualExchangeRate = (currency: 'HKD' | 'USD', value: string) => {
     const manualOverrides = { ...settings.exchangeRates.manualOverrides }
     const parsed = Number(value)
@@ -374,7 +394,153 @@ export function SettingsMenu({
           {activeTab === 'trading' ? (
             <>
               <fieldset className="trading-fee-setting">
-                <legend>做T费用</legend>
+                <legend>港股交易费用模板</legend>
+                <small>
+                  官方征费、交易费和印花税按当前港交所规则计算；佣金、平台费及交收费转收按券商账单配置
+                </small>
+                <div className="trading-fee-grid">
+                  <label>
+                    <span>佣金比例</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.001"
+                      value={settings.marketTradeFees.HK.brokerageRatePercent}
+                      onChange={(event) =>
+                        updateHongKongTradeFee({
+                          brokerageRatePercent: Math.max(0, Number(event.target.value) || 0)
+                        })
+                      }
+                    />
+                    <em>%</em>
+                  </label>
+                  <label>
+                    <span>最低佣金</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={settings.marketTradeFees.HK.minimumBrokerage}
+                      onChange={(event) =>
+                        updateHongKongTradeFee({
+                          minimumBrokerage: Math.max(0, Number(event.target.value) || 0)
+                        })
+                      }
+                    />
+                    <em>HKD</em>
+                  </label>
+                  <label>
+                    <span>平台费</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={settings.marketTradeFees.HK.platformFee}
+                      onChange={(event) =>
+                        updateHongKongTradeFee({
+                          platformFee: Math.max(0, Number(event.target.value) || 0)
+                        })
+                      }
+                    />
+                    <em>HKD</em>
+                  </label>
+                  <label className="trading-fee-switch-label">
+                    <span>计入交收费</span>
+                    <input
+                      className="switch-input"
+                      type="checkbox"
+                      checked={settings.marketTradeFees.HK.includeSettlementFee}
+                      onChange={(event) =>
+                        updateHongKongTradeFee({
+                          includeSettlementFee: event.target.checked
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+              </fieldset>
+              <fieldset className="trading-fee-setting">
+                <legend>美股交易费用模板</legend>
+                <small>
+                  SEC 与 FINRA 项按 2026
+                  年现行费率估算且仅用于卖出；券商实际成交单可在交易记录中覆盖
+                </small>
+                <div className="trading-fee-grid">
+                  <label>
+                    <span>每股佣金</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.0001"
+                      value={settings.marketTradeFees.US.commissionPerShare}
+                      onChange={(event) =>
+                        updateUnitedStatesTradeFee({
+                          commissionPerShare: Math.max(0, Number(event.target.value) || 0)
+                        })
+                      }
+                    />
+                    <em>USD</em>
+                  </label>
+                  <label>
+                    <span>最低佣金</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={settings.marketTradeFees.US.minimumCommission}
+                      onChange={(event) =>
+                        updateUnitedStatesTradeFee({
+                          minimumCommission: Math.max(0, Number(event.target.value) || 0)
+                        })
+                      }
+                    />
+                    <em>USD</em>
+                  </label>
+                  <label>
+                    <span>平台费</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={settings.marketTradeFees.US.platformFee}
+                      onChange={(event) =>
+                        updateUnitedStatesTradeFee({
+                          platformFee: Math.max(0, Number(event.target.value) || 0)
+                        })
+                      }
+                    />
+                    <em>USD</em>
+                  </label>
+                  <label className="trading-fee-switch-label">
+                    <span>SEC 费用</span>
+                    <input
+                      className="switch-input"
+                      type="checkbox"
+                      checked={settings.marketTradeFees.US.includeSecFee}
+                      onChange={(event) =>
+                        updateUnitedStatesTradeFee({
+                          includeSecFee: event.target.checked
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="trading-fee-switch-label">
+                    <span>FINRA TAF</span>
+                    <input
+                      className="switch-input"
+                      type="checkbox"
+                      checked={settings.marketTradeFees.US.includeFinraTaf}
+                      onChange={(event) =>
+                        updateUnitedStatesTradeFee({
+                          includeFinraTaf: event.target.checked
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+              </fieldset>
+              <fieldset className="trading-fee-setting">
+                <legend>A股做T费用</legend>
                 <small>
                   佣金按净佣金计算；深A将过户费计入最低 5 元，沪A过户费在最低 5 元外单独收取
                 </small>
@@ -615,9 +781,10 @@ export function SettingsMenu({
                       const calendar = settings.tradingCalendar.markets[market]
                       return (
                         <small className={calendar.lastError ? 'is-error' : ''} key={market}>
-                          {STOCK_MARKET_LABELS[market]} · {MARKET_CALENDAR_SOURCE_LABELS[calendar.source]}
-                          {' · '}覆盖至 {calendar.coveredThroughYear} 年
-                          {' · '}刷新 {formatCalendarRefreshTime(calendar.lastRefreshedAt)}
+                          {STOCK_MARKET_LABELS[market]} ·{' '}
+                          {MARKET_CALENDAR_SOURCE_LABELS[calendar.source]}
+                          {' · '}覆盖至 {calendar.coveredThroughYear} 年{' · '}刷新{' '}
+                          {formatCalendarRefreshTime(calendar.lastRefreshedAt)}
                           {calendar.lastError ? ` · ${calendar.lastError}` : ''}
                         </small>
                       )
@@ -642,7 +809,9 @@ export function SettingsMenu({
                   <small className={settings.exchangeRates.lastError ? 'is-error' : ''}>
                     汇率日期 {settings.exchangeRates.rateDate ?? '--'} · 最近获取{' '}
                     {formatCalendarRefreshTime(settings.exchangeRates.fetchedAt)}
-                    {settings.exchangeRates.lastError ? ` · ${settings.exchangeRates.lastError}` : ''}
+                    {settings.exchangeRates.lastError
+                      ? ` · ${settings.exchangeRates.lastError}`
+                      : ''}
                   </small>
                   <span className="exchange-rate-fields">
                     {(['HKD', 'USD'] as const).map((currency) => (
@@ -653,8 +822,12 @@ export function SettingsMenu({
                           min="0.000001"
                           step="0.000001"
                           value={settings.exchangeRates.manualOverrides[currency] ?? ''}
-                          placeholder={settings.exchangeRates.rates[currency]?.toFixed(6) ?? '等待官方数据'}
-                          onChange={(event) => updateManualExchangeRate(currency, event.target.value)}
+                          placeholder={
+                            settings.exchangeRates.rates[currency]?.toFixed(6) ?? '等待官方数据'
+                          }
+                          onChange={(event) =>
+                            updateManualExchangeRate(currency, event.target.value)
+                          }
                           aria-label={`${currency}兑人民币手工覆盖汇率`}
                         />
                         <small>

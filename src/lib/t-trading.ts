@@ -49,6 +49,15 @@ export function totalTradeFees(fees: TTradeFees): number {
   )
 }
 
+export function totalRecordedTradeFees(
+  trade: Pick<TTrade, 'fees' | 'feeItems'>
+): number {
+  return roundMoney(
+    totalTradeFees(trade.fees)
+    + (trade.feeItems ?? []).reduce((total, item) => total + item.amount, 0)
+  )
+}
+
 function feeByRate(amount: number, ratePerTenThousand: number): number {
   return roundMoney(amount * ratePerTenThousand / 10_000)
 }
@@ -101,7 +110,7 @@ export function calculateTBatchMetrics(
   for (const trade of trades) {
     if (trade.purpose !== 't') continue
     const amount = trade.price * trade.quantity
-    const fees = totalTradeFees(trade.fees)
+    const fees = totalRecordedTradeFees(trade)
 
     if (trade.side === openingSide) {
       remainingQuantity += trade.quantity
@@ -237,7 +246,7 @@ export function applyTradeToPosition(
   const previousQuantity = position?.quantity ?? 0
   const previousCostBasis = previousQuantity * (position?.cost ?? 0)
   const amount = trade.price * trade.quantity
-  const fees = totalTradeFees(trade.fees)
+  const fees = totalRecordedTradeFees(trade)
   const nextQuantity = trade.side === 'buy'
     ? previousQuantity + trade.quantity
     : previousQuantity - trade.quantity
@@ -285,7 +294,7 @@ export function calculateCostAdjustedProfit(
   for (const trade of trades) {
     if (trade.purpose !== 'base') continue
     const amount = trade.price * trade.quantity
-    const fees = totalTradeFees(trade.fees)
+    const fees = totalRecordedTradeFees(trade)
     referenceCostBasis += trade.side === 'buy'
       ? amount + fees
       : -amount + fees

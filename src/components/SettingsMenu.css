@@ -886,7 +886,7 @@
 
 .trading-fee-setting > small {
   color: #8a94a6;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.5;
 }
 
@@ -907,7 +907,7 @@
   background: #f8fafc;
   border: 1px solid #e5e9f0;
   border-radius: 6px;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .trading-fee-grid label > span {
@@ -931,6 +931,18 @@
   color: #8a94a6;
   font-style: normal;
   text-align: center;
+}
+
+.trading-fee-grid .trading-fee-switch-label {
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding-right: 8px;
+}
+
+.trading-fee-grid .trading-fee-switch-label .switch-input {
+  width: 34px;
+  height: 18px;
+  padding: 0;
+  border: 0;
 }
 
 .t-plan-default-setting {

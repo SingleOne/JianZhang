@@ -312,12 +312,10 @@ export function normalizeWatchlist(stocks: readonly WatchStock[]): WatchStock[] 
           ...stock.position,
           currency: identity.currency,
           costExchangeRate:
-            identity.currency === 'CNY'
-              ? 1
-              : normalizeCostRate(stock.position.costExchangeRate),
+            identity.currency === 'CNY' ? 1 : normalizeCostRate(stock.position.costExchangeRate),
           costExchangeRateDate:
             identity.currency === 'CNY'
-              ? stock.position.costExchangeRateDate ?? stock.position.openedOn
+              ? (stock.position.costExchangeRateDate ?? stock.position.openedOn)
               : stock.position.costExchangeRateDate
         }
       : undefined
@@ -327,7 +325,9 @@ export function normalizeWatchlist(stocks: readonly WatchStock[]): WatchStock[] 
       position,
       isPriority: Boolean(position || stock.isPriority),
       showRadarSignals: stock.showRadarSignals ?? true,
-      groupIds: [...new Set((stock.groupIds ?? []).filter((groupId) => typeof groupId === 'string'))],
+      groupIds: [
+        ...new Set((stock.groupIds ?? []).filter((groupId) => typeof groupId === 'string'))
+      ],
       positionSnapshots: Array.isArray(stock.positionSnapshots)
         ? stock.positionSnapshots
             .filter(
@@ -345,9 +345,7 @@ export function normalizeWatchlist(stocks: readonly WatchStock[]): WatchStock[] 
               ...snapshot,
               currency: identity.currency,
               costExchangeRate:
-                identity.currency === 'CNY'
-                  ? 1
-                  : normalizeCostRate(snapshot.costExchangeRate),
+                identity.currency === 'CNY' ? 1 : normalizeCostRate(snapshot.costExchangeRate),
               costExchangeRateDate: snapshot.costExchangeRateDate
             }))
         : [],
@@ -421,6 +419,26 @@ export interface TTradingFeeSettings {
   stampDutyRatePerTenThousand: number
 }
 
+export interface HongKongTradeFeeSettings {
+  brokerageRatePercent: number
+  minimumBrokerage: number
+  platformFee: number
+  includeSettlementFee: boolean
+}
+
+export interface UnitedStatesTradeFeeSettings {
+  commissionPerShare: number
+  minimumCommission: number
+  platformFee: number
+  includeSecFee: boolean
+  includeFinraTaf: boolean
+}
+
+export interface MarketTradeFeeSettings {
+  HK: HongKongTradeFeeSettings
+  US: UnitedStatesTradeFeeSettings
+}
+
 export const DEFAULT_T_TRADING_FEE_SETTINGS: TTradingFeeSettings = {
   commissionRatePerTenThousand: 5.313,
   minimumCommissionBundle: 5,
@@ -430,12 +448,53 @@ export const DEFAULT_T_TRADING_FEE_SETTINGS: TTradingFeeSettings = {
   stampDutyRatePerTenThousand: 5
 }
 
+export const DEFAULT_MARKET_TRADE_FEE_SETTINGS: MarketTradeFeeSettings = {
+  HK: {
+    brokerageRatePercent: 0,
+    minimumBrokerage: 0,
+    platformFee: 0,
+    includeSettlementFee: false
+  },
+  US: {
+    commissionPerShare: 0,
+    minimumCommission: 0,
+    platformFee: 0,
+    includeSecFee: true,
+    includeFinraTaf: true
+  }
+}
+
 export interface TTradeFees {
   commission: number
   handling: number
   regulatory: number
   transfer: number
   stampDuty: number
+}
+
+export type TradeFeeItemCode =
+  | 'brokerage'
+  | 'platform'
+  | 'sfc-levy'
+  | 'afrc-levy'
+  | 'hkex-trading'
+  | 'stamp-duty'
+  | 'settlement'
+  | 'sec-section-31'
+  | 'finra-taf'
+  | 'manual'
+
+export interface TradeFeeItem {
+  code: TradeFeeItemCode
+  label: string
+  amount: number
+}
+
+export interface TradeFeeTemplateSnapshot {
+  id: string
+  version: string
+  label: string
+  effectiveFrom: string
 }
 
 export type TTradeSide = 'buy' | 'sell'
@@ -450,6 +509,17 @@ export interface TTrade {
   price: number
   quantity: number
   fees: TTradeFees
+  feeItems?: TradeFeeItem[]
+  feeTemplate?: TradeFeeTemplateSnapshot
+  market?: import('./stock-market').StockMarket
+  currency?: import('./stock-market').StockCurrency
+  marketDate?: string
+  exchangeRate?: number
+  exchangeRateDate?: string
+  estimatedSettlementDate?: string
+  actualSettlementDate?: string
+  settlementRule?: TradeFeeTemplateSnapshot
+  origin?: 'execution' | 'opening-balance'
   note: string
 }
 
@@ -532,6 +602,8 @@ export interface TTradingAccount {
   quoteId: string
   code: string
   name: string
+  market?: import('./stock-market').StockMarket
+  currency?: import('./stock-market').StockCurrency
   activeBatch?: TTradingBatch
   history: TTradingBatch[]
   /** 账户内所有底仓及做T成交的唯一数据源。 */
@@ -722,6 +794,60 @@ export function normalizeTTradingAccounts(
   )
 }
 
+export function normalizeTradingAccountsForWatchlist(
+  watchlist: readonly WatchStock[],
+  accounts: TTradingAccounts | undefined
+): TTradingAccounts {
+  const normalized = normalizeTTradingAccounts(accounts)
+  for (const stock of watchlist) {
+    const identity = stockMarketIdentity(stock.quoteId, stock.instrumentType)
+    const existing = normalized[stock.quoteId]
+    const account: TTradingAccount = existing ?? {
+      quoteId: stock.quoteId,
+      code: stock.code,
+      name: stock.name,
+      history: [],
+      tradeRecords: []
+    }
+    const records = account.tradeRecords.map((record) => ({
+      ...record,
+      market: record.market ?? identity.market,
+      currency: record.currency ?? identity.currency,
+      marketDate: record.marketDate ?? record.tradedAt.slice(0, 10),
+      exchangeRate: record.exchangeRate ?? (identity.currency === 'CNY' ? 1 : undefined)
+    }))
+    if (records.length === 0 && stock.position) {
+      const openedOn = stock.position.openedOn ?? new Date().toISOString().slice(0, 10)
+      records.push({
+        id: `opening-balance:${stock.quoteId}`,
+        side: 'buy',
+        purpose: 'base',
+        tradedAt: `${openedOn}T09:30`,
+        price: stock.position.cost,
+        quantity: stock.position.quantity,
+        fees: { commission: 0, handling: 0, regulatory: 0, transfer: 0, stampDuty: 0 },
+        market: identity.market,
+        currency: stock.position.currency ?? identity.currency,
+        marketDate: openedOn,
+        exchangeRate:
+          stock.position.costExchangeRate ?? (identity.currency === 'CNY' ? 1 : undefined),
+        exchangeRateDate: stock.position.costExchangeRateDate,
+        origin: 'opening-balance',
+        note: '期初持仓'
+      })
+    }
+    if (existing || records.length > 0) {
+      normalized[stock.quoteId] = {
+        ...account,
+        market: account.market ?? identity.market,
+        currency: account.currency ?? identity.currency,
+        tradeRecords: records.sort((left, right) => right.tradedAt.localeCompare(left.tradedAt))
+      }
+    }
+  }
+  return normalized
+}
+
 export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
   'stock',
   'latest',
@@ -845,11 +971,7 @@ export interface StockQuote {
 }
 
 export type StockQuoteSource =
-  | 'eastmoney-primary'
-  | 'eastmoney-mirror'
-  | 'tencent'
-  | 'sina'
-  | 'demo'
+  'eastmoney-primary' | 'eastmoney-mirror' | 'tencent' | 'sina' | 'demo'
 
 export type StockQuoteDataState = 'live' | 'closed' | 'stale' | 'unknown'
 
@@ -1574,6 +1696,7 @@ export interface AppSettings {
   showBollingerBands: boolean
   taskbarPositionPercent: number
   tTradingFees: TTradingFeeSettings
+  marketTradeFees: MarketTradeFeeSettings
   tPlanDefaults: TPlanDefaultSettings
   tFloatingProfitAlertDefaultThreshold: number
   tradingCalendar: TradingCalendarSettings
@@ -1591,6 +1714,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   showBollingerBands: true,
   taskbarPositionPercent: 0,
   tTradingFees: { ...DEFAULT_T_TRADING_FEE_SETTINGS },
+  marketTradeFees: structuredClone(DEFAULT_MARKET_TRADE_FEE_SETTINGS),
   tPlanDefaults: structuredClone(DEFAULT_T_PLAN_SETTINGS),
   tFloatingProfitAlertDefaultThreshold: DEFAULT_T_FLOATING_PROFIT_ALERT_THRESHOLD,
   tradingCalendar: structuredClone(DEFAULT_TRADING_CALENDAR_SETTINGS),
@@ -1660,6 +1784,49 @@ function normalizeTTradingFeeSettings(
   }
 }
 
+function normalizeMarketTradeFeeSettings(
+  settings: Partial<MarketTradeFeeSettings> | undefined
+): MarketTradeFeeSettings {
+  return {
+    HK: {
+      brokerageRatePercent: Math.max(
+        0,
+        settings?.HK?.brokerageRatePercent ??
+          DEFAULT_MARKET_TRADE_FEE_SETTINGS.HK.brokerageRatePercent
+      ),
+      minimumBrokerage: Math.max(
+        0,
+        settings?.HK?.minimumBrokerage ?? DEFAULT_MARKET_TRADE_FEE_SETTINGS.HK.minimumBrokerage
+      ),
+      platformFee: Math.max(
+        0,
+        settings?.HK?.platformFee ?? DEFAULT_MARKET_TRADE_FEE_SETTINGS.HK.platformFee
+      ),
+      includeSettlementFee:
+        settings?.HK?.includeSettlementFee ??
+        DEFAULT_MARKET_TRADE_FEE_SETTINGS.HK.includeSettlementFee
+    },
+    US: {
+      commissionPerShare: Math.max(
+        0,
+        settings?.US?.commissionPerShare ?? DEFAULT_MARKET_TRADE_FEE_SETTINGS.US.commissionPerShare
+      ),
+      minimumCommission: Math.max(
+        0,
+        settings?.US?.minimumCommission ?? DEFAULT_MARKET_TRADE_FEE_SETTINGS.US.minimumCommission
+      ),
+      platformFee: Math.max(
+        0,
+        settings?.US?.platformFee ?? DEFAULT_MARKET_TRADE_FEE_SETTINGS.US.platformFee
+      ),
+      includeSecFee:
+        settings?.US?.includeSecFee ?? DEFAULT_MARKET_TRADE_FEE_SETTINGS.US.includeSecFee,
+      includeFinraTaf:
+        settings?.US?.includeFinraTaf ?? DEFAULT_MARKET_TRADE_FEE_SETTINGS.US.includeFinraTaf
+    }
+  }
+}
+
 function normalizeTPlanDefaultLevels(
   levels: readonly Partial<TPlanDefaultLevel>[] | undefined,
   fallbacks: readonly TPlanDefaultLevel[]
@@ -1688,8 +1855,7 @@ export function normalizeTradingCalendarSettings(
   const validDates = (dates: readonly string[] | undefined) =>
     [...new Set((dates ?? []).filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)))].sort()
   const storedMarkets = calendar?.markets as
-    | Partial<Record<StockMarket, Partial<MarketTradingCalendarSettings>>>
-    | undefined
+    Partial<Record<StockMarket, Partial<MarketTradingCalendarSettings>>> | undefined
   const normalizeMarket = (market: StockMarket): MarketTradingCalendarSettings => {
     const defaults = DEFAULT_MARKET_TRADING_CALENDARS[market]
     const stored = storedMarkets?.[market]
@@ -1699,10 +1865,7 @@ export function normalizeTradingCalendarSettings(
         ...defaults.closedDates,
         ...(stored?.closedDates ?? legacy?.closedDates ?? [])
       ]),
-      halfDayDates: validDates([
-        ...defaults.halfDayDates,
-        ...(stored?.halfDayDates ?? [])
-      ]),
+      halfDayDates: validDates([...defaults.halfDayDates, ...(stored?.halfDayDates ?? [])]),
       coveredThroughYear: Math.max(
         defaults.coveredThroughYear,
         stored?.coveredThroughYear ?? legacy?.coveredThroughYear ?? defaults.coveredThroughYear
@@ -1769,6 +1932,7 @@ export function normalizeAppSettings(
       Math.max(0, settings?.taskbarPositionPercent ?? DEFAULT_APP_SETTINGS.taskbarPositionPercent)
     ),
     tTradingFees: normalizeTTradingFeeSettings(settings?.tTradingFees),
+    marketTradeFees: normalizeMarketTradeFeeSettings(settings?.marketTradeFees),
     tPlanDefaults: normalizeTPlanDefaultSettings(settings?.tPlanDefaults),
     tFloatingProfitAlertDefaultThreshold: Math.max(
       1,
