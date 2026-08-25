@@ -15,6 +15,7 @@ import {
   FUNDS_FLOW_REFRESH_MILLISECONDS,
   INTRADAY_REFRESH_MILLISECONDS
 } from '../../src/shared/market-hours'
+import { marketFromQuoteId } from '../../src/shared/stock-market'
 import { formatStockAlertNotification, type TriggeredStockAlert } from '../../src/lib/stock-alerts'
 import {
   formatTFloatingProfitAlertNotification,
@@ -347,7 +348,7 @@ if (!hasSingleInstanceLock) {
     klineHub = new KlineHub(
       fetchKline,
       historicalKlineCache,
-      () => state.settings.tradingCalendar.closedDates,
+      (quoteId) => state.settings.tradingCalendar.markets[marketFromQuoteId(quoteId)],
       INTRADAY_REFRESH_MILLISECONDS
     )
     stockTrackingMetricsRuntime = new StockTrackingMetricsRuntime({

@@ -207,6 +207,7 @@ function makeDemoQuotes(watchlist: WatchStock[]): StockQuote[] {
         ...known,
         sector,
         radarSignals,
+        source: 'demo',
         updatedAt: now,
         dataAt: now
       }
@@ -228,6 +229,7 @@ function makeDemoQuotes(watchlist: WatchStock[]): StockQuote[] {
       turnoverRate: 1.26,
       sector,
       radarSignals,
+      source: 'demo',
       updatedAt: now,
       dataAt: now
     }
@@ -263,7 +265,10 @@ function makeDemoKline(quoteId: string, period: KlinePeriod, limit?: number): Kl
       quoteId,
       name: quote?.name ?? '',
       tradingDate: `${bars[0].time} 至 ${bars.at(-1)?.time ?? ''}`,
-      bars
+      bars,
+      source: 'demo',
+      adjustment: 'forward',
+      fetchedAt: new Date().toISOString()
     }
   }
 
@@ -302,7 +307,10 @@ function makeDemoKline(quoteId: string, period: KlinePeriod, limit?: number): Kl
     name: quote?.name ?? '',
     tradingDate: period === 'fiveDay' ? `${bars[0].time.slice(0, 10)} 至 ${date}` : date,
     bars,
-    intervalMinutes: period === 'intraday' ? 1 : period === 'fiveDay' ? 5 : undefined
+    intervalMinutes: period === 'intraday' ? 1 : period === 'fiveDay' ? 5 : undefined,
+    source: 'demo',
+    adjustment: 'none',
+    fetchedAt: new Date().toISOString()
   }
 }
 

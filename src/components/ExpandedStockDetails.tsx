@@ -35,6 +35,7 @@ import {
   type DcfUnavailableReason
 } from '../lib/dcf-analysis'
 import { formatAmount, formatPercent, formatPrice, formatVolume } from '../lib/format'
+import { STOCK_QUOTE_SOURCE_LABELS } from '../lib/quote-state'
 import {
   FINANCIAL_MINE_LEVEL_LABELS,
   evaluateFinancialMine,
@@ -64,7 +65,12 @@ import {
   isMarketOpen,
   millisecondsUntilNextMarketOpen
 } from '../shared/market-hours'
-import { marketFromQuoteId, volumeUnitForMarket } from '../shared/stock-market'
+import {
+  marketCapabilitiesForQuoteId,
+  marketFromQuoteId,
+  type StockMarketCapabilities,
+  volumeUnitForMarket
+} from '../shared/stock-market'
 import { LruCache } from '../shared/lru-cache'
 import type {
   DividendFinancingRankingItem,
@@ -74,6 +80,7 @@ import type {
   StockQuote,
   StockTrackingConclusionResult,
   StockTrackingProfile,
+  TradingCalendarSettings,
   WatchStock
 } from '../shared/types'
 import { FundsFlowPanel } from './FundsFlowPanel'
@@ -143,18 +150,6 @@ const PRICE_TABS: Array<{ id: PriceTab; label: string; description: string }> = 
 const LEADING_PRICE_TABS = PRICE_TABS.filter((tab) => tab.id === 'trend')
 const TRAILING_PRICE_TABS = PRICE_TABS.filter((tab) => tab.id !== 'trend')
 const PRICE_TAB_IDS = new Set<PriceTab>(PRICE_TABS.map((tab) => tab.id))
-const A_STOCK_ONLY_TABS = new Set<DetailTab>([
-  'dividendFinancing',
-  'fundamental',
-  'shareholders',
-  'reports',
-  'funds',
-  'sector',
-  'insight',
-  'ai',
-  't-advice'
-])
-const EMPTY_CLOSED_DATES: readonly string[] = []
 const EMPTY_KLINE_BARS: KlineBar[] = []
 const INITIAL_HISTORY_LIMITS: Record<HistoricalPeriod, number> = {
   daily: 120,
@@ -173,6 +168,19 @@ function isHistoricalTab(tab: PriceTab): tab is HistoricalPeriod {
 
 function isPriceTab(tab: DetailTab): tab is PriceTab {
   return PRICE_TAB_IDS.has(tab as PriceTab)
+}
+
+function supportsDetailTab(tab: DetailTab, capabilities: StockMarketCapabilities): boolean {
+  if (isPriceTab(tab) || tab === 'tracking') return true
+  if (tab === 'dividendFinancing') return capabilities.dividendFinancing
+  if (tab === 'fundamental') return capabilities.fundamentals
+  if (tab === 'shareholders') return capabilities.shareholders
+  if (tab === 'reports') return capabilities.companyReports
+  if (tab === 'funds') return capabilities.fundsFlow
+  if (tab === 'sector') return capabilities.sector
+  if (tab === 'insight') return capabilities.marketInsight
+  if (tab === 'ai') return capabilities.aiAnalysis
+  return capabilities.aiTAdvice
 }
 
 function apiPeriod(tab: PriceTab): KlinePeriod {
@@ -1277,7 +1285,7 @@ interface ExpandedStockDetailsProps {
   autoRefreshOrderBook: boolean
   chipDistributionEnabled: boolean
   bollingerBandsEnabled: boolean
-  tradingCalendarClosedDates: readonly string[]
+  tradingCalendar: TradingCalendarSettings
   trackingProfile?: StockTrackingProfile
   onStartTracking: (quoteId: string) => void
   onUpdateTracking: (profile: StockTrackingProfile) => void
@@ -1307,7 +1315,7 @@ export function ExpandedStockDetails({
   autoRefreshOrderBook,
   chipDistributionEnabled,
   bollingerBandsEnabled,
-  tradingCalendarClosedDates,
+  tradingCalendar,
   trackingProfile,
   onStartTracking,
   onUpdateTracking,
@@ -1318,7 +1326,8 @@ export function ExpandedStockDetails({
 }: ExpandedStockDetailsProps) {
   const market = marketFromQuoteId(stock.quoteId)
   const isAStock = market === 'CN'
-  const marketClosedDates = isAStock ? tradingCalendarClosedDates : EMPTY_CLOSED_DATES
+  const capabilities = marketCapabilitiesForQuoteId(stock.quoteId)
+  const marketCalendar = tradingCalendar.markets[market]
   const volumeUnit = volumeUnitForMarket(market)
   const initialTrend = klineCache.get(cacheKey(stock.quoteId, 'trend'))?.data
   const [activeTab, setActiveTab] = useState<DetailTab>('trend')
@@ -1346,14 +1355,14 @@ export function ExpandedStockDetails({
     isPriceTab(activeTab) && isHistoricalTab(activeTab) ? historyLimits[activeTab] : undefined
 
   useEffect(() => {
-    if (!fundamentalTabRequested || !isAStock) return
+    if (!fundamentalTabRequested || !capabilities.fundamentals) return
     setActiveTab('fundamental')
     onFundamentalTabRequestHandled?.()
-  }, [fundamentalTabRequested, isAStock, onFundamentalTabRequestHandled])
+  }, [capabilities.fundamentals, fundamentalTabRequested, onFundamentalTabRequestHandled])
 
   useEffect(() => {
-    if (!isAStock && A_STOCK_ONLY_TABS.has(activeTab)) setActiveTab('trend')
-  }, [activeTab, isAStock])
+    if (!supportsDetailTab(activeTab, capabilities)) setActiveTab('trend')
+  }, [activeTab, capabilities])
 
   useEffect(() => {
     if (!trackingTabRequested) return
@@ -1366,7 +1375,13 @@ export function ExpandedStockDetails({
 
   useEffect(() => {
     if (!detailNavigationId || !detailNavigationTarget) return
-    if (!isAStock) {
+    const targetSupported =
+      detailNavigationTarget === 'reports'
+        ? capabilities.companyReports
+        : detailNavigationTarget === 't-advice'
+          ? capabilities.aiTAdvice
+          : capabilities.aiAnalysis
+    if (!targetSupported) {
       onDetailNavigationHandled(detailNavigationId)
       return
     }
@@ -1392,7 +1407,7 @@ export function ExpandedStockDetails({
     aiStatusLoaded,
     detailNavigationId,
     detailNavigationTarget,
-    isAStock,
+    capabilities,
     onDetailNavigationHandled
   ])
 
@@ -1463,15 +1478,15 @@ export function ExpandedStockDetails({
       if (!isLiveChart) return
       refreshTimer = window.setTimeout(
         () => {
-          if (isMarketOpen(market, new Date(), marketClosedDates)) {
+          if (isMarketOpen(market, new Date(), marketCalendar)) {
             setRefreshVersion((current) => current + 1)
           } else {
             scheduleRefresh()
           }
         },
-        isMarketOpen(market, new Date(), marketClosedDates)
+        isMarketOpen(market, new Date(), marketCalendar)
           ? freshness
-          : millisecondsUntilNextMarketOpen(market, new Date(), marketClosedDates)
+          : millisecondsUntilNextMarketOpen(market, new Date(), marketCalendar)
       )
     }
 
@@ -1526,7 +1541,7 @@ export function ExpandedStockDetails({
       active = false
       window.clearTimeout(refreshTimer)
     }
-  }, [activeHistoricalLimit, activeTab, market, marketClosedDates, refreshVersion, stock.quoteId])
+  }, [activeHistoricalLimit, activeTab, market, marketCalendar, refreshVersion, stock.quoteId])
 
   const priceTab = isPriceTab(activeTab) ? activeTab : null
   const data = priceTab ? (dataByTab[priceTab] ?? null) : null
@@ -1698,49 +1713,53 @@ export function ExpandedStockDetails({
             {tab.label}
           </button>
         ))}
-        {isAStock ? (
-          <>
-            <button
-              className={activeTab === 'funds' ? 'is-active' : ''}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'funds'}
-              onClick={(event) => changeDetailTab('funds', event.currentTarget)}
-            >
-              <TrendingUp size={15} />
-              资金流向
-            </button>
-            <button
-              className={activeTab === 'dividendFinancing' ? 'is-active' : ''}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'dividendFinancing'}
-              onClick={(event) => changeDetailTab('dividendFinancing', event.currentTarget)}
-            >
-              <Trophy size={15} />
-              分红融资
-            </button>
-            <button
-              className={activeTab === 'fundamental' ? 'is-active' : ''}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'fundamental'}
-              onClick={(event) => changeDetailTab('fundamental', event.currentTarget)}
-            >
-              <Building2 size={15} />
-              基本面
-            </button>
-            <button
-              className={activeTab === 'reports' ? 'is-active' : ''}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'reports'}
-              onClick={(event) => changeDetailTab('reports', event.currentTarget)}
-            >
-              <BookOpen size={15} />
-              财报库
-            </button>
-          </>
+        {capabilities.fundsFlow ? (
+          <button
+            className={activeTab === 'funds' ? 'is-active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'funds'}
+            onClick={(event) => changeDetailTab('funds', event.currentTarget)}
+          >
+            <TrendingUp size={15} />
+            资金流向
+          </button>
+        ) : null}
+        {capabilities.dividendFinancing ? (
+          <button
+            className={activeTab === 'dividendFinancing' ? 'is-active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'dividendFinancing'}
+            onClick={(event) => changeDetailTab('dividendFinancing', event.currentTarget)}
+          >
+            <Trophy size={15} />
+            分红融资
+          </button>
+        ) : null}
+        {capabilities.fundamentals ? (
+          <button
+            className={activeTab === 'fundamental' ? 'is-active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'fundamental'}
+            onClick={(event) => changeDetailTab('fundamental', event.currentTarget)}
+          >
+            <Building2 size={15} />
+            基本面
+          </button>
+        ) : null}
+        {capabilities.companyReports ? (
+          <button
+            className={activeTab === 'reports' ? 'is-active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'reports'}
+            onClick={(event) => changeDetailTab('reports', event.currentTarget)}
+          >
+            <BookOpen size={15} />
+            财报库
+          </button>
         ) : null}
         <button
           className={activeTab === 'tracking' ? 'is-active' : ''}
@@ -1752,7 +1771,7 @@ export function ExpandedStockDetails({
           <Binoculars size={15} />
           选股追踪
         </button>
-        {MarketInsightPanel && isAStock ? (
+        {MarketInsightPanel && capabilities.marketInsight ? (
           <button
             className={activeTab === 'insight' ? 'is-active' : ''}
             type="button"
@@ -1777,31 +1796,31 @@ export function ExpandedStockDetails({
             {tab.label}
           </button>
         ))}
-        {isAStock ? (
-          <>
-            <button
-              className={activeTab === 'sector' ? 'is-active' : ''}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'sector'}
-              onClick={(event) => changeDetailTab('sector', event.currentTarget)}
-            >
-              <Layers size={15} />
-              板块
-            </button>
-            <button
-              className={activeTab === 'shareholders' ? 'is-active' : ''}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'shareholders'}
-              onClick={(event) => changeDetailTab('shareholders', event.currentTarget)}
-            >
-              <UsersRound size={15} />
-              股东
-            </button>
-          </>
+        {capabilities.sector ? (
+          <button
+            className={activeTab === 'sector' ? 'is-active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'sector'}
+            onClick={(event) => changeDetailTab('sector', event.currentTarget)}
+          >
+            <Layers size={15} />
+            板块
+          </button>
         ) : null}
-        {AiAnalysisPanel && aiEnabled && isAStock ? (
+        {capabilities.shareholders ? (
+          <button
+            className={activeTab === 'shareholders' ? 'is-active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'shareholders'}
+            onClick={(event) => changeDetailTab('shareholders', event.currentTarget)}
+          >
+            <UsersRound size={15} />
+            股东
+          </button>
+        ) : null}
+        {AiAnalysisPanel && aiEnabled && capabilities.aiAnalysis ? (
           <button
             className={activeTab === 'ai' ? 'is-active' : ''}
             type="button"
@@ -1813,7 +1832,7 @@ export function ExpandedStockDetails({
             AI 分析
           </button>
         ) : null}
-        {AiTAdvicePanel && aiEnabled && isAStock ? (
+        {AiTAdvicePanel && aiEnabled && capabilities.aiTAdvice ? (
           <button
             className={activeTab === 't-advice' ? 'is-active' : ''}
             type="button"
@@ -1827,14 +1846,14 @@ export function ExpandedStockDetails({
       </div>
 
       <div className="detail-tab-content" aria-hidden="true" />
-      {isAStock && activeTab === 'dividendFinancing' ? (
+      {capabilities.dividendFinancing && activeTab === 'dividendFinancing' ? (
         <div className="dividend-financing-tab-content" role="tabpanel">
           <DividendFinancingPanel
             item={dividendFinancing}
             snapshotDate={dividendFinancingSnapshotDate}
           />
         </div>
-      ) : isAStock && activeTab === 'fundamental' ? (
+      ) : capabilities.fundamentals && activeTab === 'fundamental' ? (
         <div className="fundamental-tab-content" role="tabpanel">
           <FundamentalPanel
             evaluation={fundamentalScreening}
@@ -1845,15 +1864,16 @@ export function ExpandedStockDetails({
             staleReason={fundamentalStaleReason}
           />
         </div>
-      ) : isAStock && activeTab === 'shareholders' ? (
+      ) : capabilities.shareholders && activeTab === 'shareholders' ? (
         <ShareholderPanel stock={stock} />
-      ) : isAStock && activeTab === 'reports' ? (
+      ) : capabilities.companyReports && activeTab === 'reports' ? (
         <CompanyReportLibrary stock={stock} />
       ) : activeTab === 'tracking' ? (
         <StockTrackingPanel
           stock={stock}
           quote={quote}
           profile={trackingProfile}
+          marketCalendar={marketCalendar}
           onStartTracking={onStartTracking}
           onUpdateProfile={onUpdateTracking}
           onStopTracking={onStopTracking}
@@ -1870,6 +1890,20 @@ export function ExpandedStockDetails({
               {isFiveMinuteFallback ? (
                 <em className="intraday-fallback-badge">5分钟备用行情</em>
               ) : null}
+              {data?.source ? (
+                <em
+                  className="overview-data-badge"
+                  title={data.fetchedAt ? `获取时间：${data.fetchedAt}` : undefined}
+                >
+                  {STOCK_QUOTE_SOURCE_LABELS[data.source]}
+                </em>
+              ) : null}
+              {data?.adjustment === 'forward' ? (
+                <em className="overview-data-badge">前复权</em>
+              ) : null}
+              {data?.fromCache ? (
+                <em className="overview-data-badge is-cache">本地缓存</em>
+              ) : null}
             </div>
             <div className="chart-legend" aria-label="图表图例">
               <span className={isHistorical ? 'legend-candlestick' : 'legend-price'}>
@@ -1880,7 +1914,7 @@ export function ExpandedStockDetails({
               ) : null}
               {priceTab === 'trend' ? <span className="legend-average-price">VWAP</span> : null}
               <span className="legend-volume">成交量</span>
-              {priceTab === 'daily' && isAStock ? (
+              {priceTab === 'daily' && capabilities.chipDistribution ? (
                 <button
                   className={`chip-distribution-toggle ${chipDistributionEnabled ? 'is-active' : ''}`}
                   type="button"
@@ -1905,7 +1939,7 @@ export function ExpandedStockDetails({
             ))}
           </div>
           <div
-            className={`chart-panel ${priceTab === 'trend' && isAStock ? 'has-order-book' : ''} ${historicalPeriod ? 'has-bollinger-toolbar' : ''} ${priceTab === 'daily' && chipDistributionEnabled && isAStock ? 'has-chip-distribution' : ''}`}
+            className={`chart-panel ${priceTab === 'trend' && capabilities.orderBook ? 'has-order-book' : ''} ${historicalPeriod ? 'has-bollinger-toolbar' : ''} ${priceTab === 'daily' && chipDistributionEnabled && capabilities.chipDistribution ? 'has-chip-distribution' : ''}`}
           >
             <div className="chart-content">
               {(error && data) || isFiveMinuteFallback ? (
@@ -2001,13 +2035,15 @@ export function ExpandedStockDetails({
                 <div className="chart-loading">最近交易日暂无{tabMeta?.label}数据</div>
               )}
             </div>
-            {priceTab === 'trend' && isAStock ? (
+            {priceTab === 'trend' && capabilities.orderBook ? (
               <OrderBookPanel
                 stock={stock}
                 refreshSeconds={refreshSeconds}
                 autoRefresh={autoRefreshOrderBook}
               />
-            ) : priceTab === 'daily' && chipDistributionEnabled && isAStock ? (
+            ) : priceTab === 'daily' &&
+              chipDistributionEnabled &&
+              capabilities.chipDistribution ? (
               <ChipDistributionPanel
                 quoteId={stock.quoteId}
                 quoteName={stock.name}
@@ -2020,17 +2056,17 @@ export function ExpandedStockDetails({
             ) : null}
           </div>
         </div>
-      ) : isAStock && activeTab === 'funds' ? (
+      ) : capabilities.fundsFlow && activeTab === 'funds' ? (
         <div className="funds-tab-panel" role="tabpanel">
           <FundsFlowPanel stock={stock} />
         </div>
-      ) : isAStock && activeTab === 'sector' ? (
+      ) : capabilities.sector && activeTab === 'sector' ? (
         <div className="sector-tab-panel" role="tabpanel">
           <Suspense fallback={<div className="chart-loading">正在加载板块详情…</div>}>
             <SectorIndexPanel stock={stock} />
           </Suspense>
         </div>
-      ) : isAStock && activeTab === 'ai' && AiAnalysisPanel ? (
+      ) : capabilities.aiAnalysis && activeTab === 'ai' && AiAnalysisPanel ? (
         <Suspense fallback={<div className="chart-loading">正在初始化 AI 分析…</div>}>
           <AiAnalysisPanel
             stock={stock}
@@ -2039,11 +2075,11 @@ export function ExpandedStockDetails({
             onAnalysisTypeChange={setAiAnalysisType}
           />
         </Suspense>
-      ) : isAStock && activeTab === 't-advice' && AiTAdvicePanel ? (
+      ) : capabilities.aiTAdvice && activeTab === 't-advice' && AiTAdvicePanel ? (
         <Suspense fallback={<div className="chart-loading">正在初始化做 T 参考…</div>}>
           <AiTAdvicePanel stock={stock} quote={quote} />
         </Suspense>
-      ) : isAStock && MarketInsightPanel ? (
+      ) : capabilities.marketInsight && MarketInsightPanel ? (
         <Suspense fallback={<div className="chart-loading">正在初始化市场观察…</div>}>
           <MarketInsightPanel
             stock={stock}

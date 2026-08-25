@@ -29,12 +29,17 @@ import type {
   TTradingAccount,
   TTradingAccounts,
   TTradingFeeSettings,
+  TradingCalendarSettings,
   StockMarket,
   WatchlistColumnId,
   WatchlistGroup,
   WatchStock
 } from '../shared/types'
-import { marketFromQuoteId, STOCK_MARKET_LABELS } from '../shared/stock-market'
+import {
+  marketCapabilitiesForQuoteId,
+  marketFromQuoteId,
+  STOCK_MARKET_LABELS
+} from '../shared/stock-market'
 import {
   hasFundamentalRisk,
   matchesFundamentalDividendFilter,
@@ -91,7 +96,7 @@ interface WatchlistTableProps {
   tTradingFees: TTradingFeeSettings
   tPlanDefaults: TPlanDefaultSettings
   tFloatingProfitAlertDefaultThreshold: number
-  tradingCalendarClosedDates: string[]
+  tradingCalendar: TradingCalendarSettings
   onSelect: (quoteId: string) => void
   onDetailNavigationHandled: (requestId: string) => void
   onToggleTaskbar: (quoteId: string) => void
@@ -208,7 +213,7 @@ export function WatchlistTable({
   tTradingFees,
   tPlanDefaults,
   tFloatingProfitAlertDefaultThreshold,
-  tradingCalendarClosedDates,
+  tradingCalendar,
   onSelect,
   onDetailNavigationHandled,
   onToggleTaskbar,
@@ -244,6 +249,7 @@ export function WatchlistTable({
   const [riskOnly, setRiskOnly] = useState(false)
   const [groupDialogOpen, setGroupDialogOpen] = useState(false)
   const [portfolioQualityOpen, setPortfolioQualityOpen] = useState(false)
+  const [quoteStatusNow, setQuoteStatusNow] = useState(() => new Date())
   const tableScrollerRef = useRef<HTMLDivElement>(null)
   const radarAnchorRef = useRef<HTMLButtonElement | null>(null)
   const radarPopoverRef = useRef<HTMLDivElement>(null)
@@ -251,6 +257,12 @@ export function WatchlistTable({
   const locateFrameRef = useRef<number | undefined>(undefined)
   const selectedQuoteIdRef = useRef(selectedQuoteId)
   selectedQuoteIdRef.current = selectedQuoteId
+  const tradingCalendarClosedDates = tradingCalendar.markets.CN.closedDates
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setQuoteStatusNow(new Date()), 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   const renderedColumnOrder = useMemo(
     () => normalizeWatchlistColumnOrder(columnOrder),
@@ -276,13 +288,17 @@ export function WatchlistTable({
     const quoteMap = new Map(quotes.map((quote) => [quote.quoteId, quote]))
     return watchlist.map((stock, manualIndex) => {
       const quote = quoteMap.get(stock.quoteId)
-      const isAStock = marketFromQuoteId(stock.quoteId) === 'CN'
+      const capabilities = marketCapabilitiesForQuoteId(stock.quoteId)
       return {
         stock,
         quote,
-        dividendFinancing: isAStock ? dividendFinancingByCode.get(stock.code) : undefined,
-        fundamentalScreening: isAStock ? fundamentalScreeningByCode.get(stock.code) : undefined,
-        fundamentalPeerComparison: isAStock
+        dividendFinancing: capabilities.dividendFinancing
+          ? dividendFinancingByCode.get(stock.code)
+          : undefined,
+        fundamentalScreening: capabilities.fundamentals
+          ? fundamentalScreeningByCode.get(stock.code)
+          : undefined,
+        fundamentalPeerComparison: capabilities.fundamentals
           ? fundamentalPeerComparisonsByCode.get(stock.code)
           : undefined,
         metrics: calculatePositionMetrics(stock.position, quote, tTradingAccounts[stock.quoteId]),
@@ -353,7 +369,7 @@ export function WatchlistTable({
     () =>
       summarizeFundamentalWatchlist(
         scopeRows
-          .filter(({ stock }) => marketFromQuoteId(stock.quoteId) === 'CN')
+          .filter(({ stock }) => marketCapabilitiesForQuoteId(stock.quoteId).fundamentals)
           .map(({ fundamentalScreening }) => fundamentalScreening)
       ),
     [scopeRows]
@@ -367,7 +383,9 @@ export function WatchlistTable({
       valueDataReady
         ? summarizeFundamentalDividendWatchlist(
             scopeRows
-              .filter(({ stock }) => marketFromQuoteId(stock.quoteId) === 'CN')
+              .filter(
+                ({ stock }) => marketCapabilitiesForQuoteId(stock.quoteId).dividendFinancing
+              )
               .map(({ fundamentalScreening, dividendFinancing }) => ({
                 evaluation: fundamentalScreening,
                 hasDividendLabel: Boolean(dividendFinancing)
@@ -385,7 +403,7 @@ export function WatchlistTable({
     () =>
       calculatePortfolioQualitySummary(
         rows.flatMap(({ stock, quote, metrics, fundamentalScreening, dividendFinancing }) =>
-          stock.position
+          marketCapabilitiesForQuoteId(stock.quoteId).position && stock.position
             ? [
                 {
                   quoteId: stock.quoteId,
@@ -407,7 +425,7 @@ export function WatchlistTable({
   const filteredRows = useMemo(
     () =>
       scopeRows.filter(({ stock, fundamentalScreening, dividendFinancing }) => {
-        if (marketFromQuoteId(stock.quoteId) !== 'CN') {
+        if (!marketCapabilitiesForQuoteId(stock.quoteId).fundamentals) {
           return fundamentalFilter === 'all' && valueFilter === 'all' && !riskOnly
         }
         return (
@@ -943,7 +961,8 @@ export function WatchlistTable({
                   tradingAccount={tTradingAccounts[stock.quoteId]}
                   manualIndex={manualIndex}
                   columnOrder={adjustableColumnOrder}
-                  tradingCalendarClosedDates={tradingCalendarClosedDates}
+                  tradingCalendar={tradingCalendar}
+                  quoteStatusNow={quoteStatusNow}
                   priorityRefreshSeconds={priorityRefreshSeconds}
                   regularRefreshSeconds={regularRefreshSeconds}
                   chipDistributionEnabled={chipDistributionEnabled}

@@ -1,6 +1,7 @@
 import { Binoculars, Play } from 'lucide-react'
 import { useMemo } from 'react'
 import { calculateStockTrackingPerformance } from '../lib/stock-tracking-performance'
+import type { MarketCalendarDates } from '../shared/market-calendar'
 import type {
   StockQuote,
   StockTrackingConclusionResult,
@@ -14,6 +15,7 @@ interface StockTrackingPanelProps {
   stock: WatchStock
   quote?: StockQuote
   profile?: StockTrackingProfile
+  marketCalendar: MarketCalendarDates
   onStartTracking: (quoteId: string) => void
   onUpdateProfile: (profile: StockTrackingProfile) => void
   onStopTracking: (quoteId: string, result: StockTrackingConclusionResult, summary: string) => void
@@ -24,13 +26,17 @@ export function StockTrackingPanel({
   stock,
   quote,
   profile,
+  marketCalendar,
   onStartTracking,
   onUpdateProfile,
   onStopTracking,
   onRestartTracking
 }: StockTrackingPanelProps) {
   const profileQuoteId = profile?.quoteId
-  const marketData = useStockTrackingMarketData(profileQuoteId ? stock.quoteId : undefined)
+  const marketData = useStockTrackingMarketData(
+    profileQuoteId ? stock.quoteId : undefined,
+    marketCalendar
+  )
 
   const performance = useMemo(
     () =>

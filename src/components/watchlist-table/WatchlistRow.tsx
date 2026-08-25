@@ -7,8 +7,14 @@ import {
   formatPercent,
   formatPrice,
   formatProfit,
-  formatShares
+  formatShares,
+  formatUpdateTime
 } from '../../lib/format'
+import {
+  STOCK_QUOTE_DATA_STATE_LABELS,
+  STOCK_QUOTE_SOURCE_LABELS,
+  stockQuoteDataState
+} from '../../lib/quote-state'
 import {
   calculatePositionMetrics,
   currentDateKey,
@@ -39,10 +45,11 @@ import type {
   StockTrackingProfile,
   StockRadarSignal,
   TTradingAccount,
+  TradingCalendarSettings,
   WatchlistColumnId,
   WatchStock
 } from '../../shared/types'
-import { marketFromQuoteId } from '../../shared/stock-market'
+import { marketCapabilitiesForQuoteId, marketFromQuoteId } from '../../shared/stock-market'
 import { ExpandedStockDetails } from '../ExpandedStockDetails'
 import { FiveLevelAlertBadges } from '../FiveLevelAlertBadges'
 import { TAlertBadges } from '../TAlertBadges'
@@ -106,7 +113,8 @@ interface WatchlistRowProps {
   tradingAccount: TTradingAccount | undefined
   manualIndex: number
   columnOrder: WatchlistColumnId[]
-  tradingCalendarClosedDates: string[]
+  tradingCalendar: TradingCalendarSettings
+  quoteStatusNow: Date
   priorityRefreshSeconds: number
   regularRefreshSeconds: number
   chipDistributionEnabled: boolean
@@ -156,7 +164,8 @@ export const WatchlistRow = memo(function WatchlistRow({
   tradingAccount,
   manualIndex,
   columnOrder,
-  tradingCalendarClosedDates,
+  tradingCalendar,
+  quoteStatusNow,
   priorityRefreshSeconds,
   regularRefreshSeconds,
   chipDistributionEnabled,
@@ -192,7 +201,15 @@ export const WatchlistRow = memo(function WatchlistRow({
   onRestartTracking,
   onRemove
 }: WatchlistRowProps) {
-  const isAStock = marketFromQuoteId(stock.quoteId) === 'CN'
+  const market = marketFromQuoteId(stock.quoteId)
+  const capabilities = marketCapabilitiesForQuoteId(stock.quoteId)
+  const isAStock = market === 'CN'
+  const quoteState = stockQuoteDataState(
+    quote,
+    quoteStatusNow,
+    tradingCalendar.markets[market]
+  )
+  const quoteSourceLabel = quote?.source ? STOCK_QUOTE_SOURCE_LABELS[quote.source] : '来源未知'
   const [fundamentalTabRequested, setFundamentalTabRequested] = useState(false)
   const [trackingTabRequested, setTrackingTabRequested] = useState(false)
   const fundamentalSummary = summarizeFundamentalScreening(fundamentalScreening)
@@ -206,9 +223,9 @@ export const WatchlistRow = memo(function WatchlistRow({
   const quoteDirection = valueClass(quote?.changePercent)
   const sectorDirection = valueClass(quote?.sector?.changePercent)
   const currentRadarSignals =
-    isAStock && stock.showRadarSignals ? todayRadarSignals(quote?.radarSignals) : []
+    capabilities.radar && stock.showRadarSignals ? todayRadarSignals(quote?.radarSignals) : []
   const latestRadarSignal = currentRadarSignals[0]
-  const activeTBatch = isAStock ? tradingAccount?.activeBatch : undefined
+  const activeTBatch = capabilities.tTrading ? tradingAccount?.activeBatch : undefined
   const activeTTrades = getBatchTrades(tradingAccount, activeTBatch)
   const tFloatingProfit = calculateTBatchMetrics(
     activeTBatch,
@@ -222,7 +239,10 @@ export const WatchlistRow = memo(function WatchlistRow({
   const stockAlertClass = stockAlertDirection
     ? `is-alert-triggered is-alert-${stockAlertDirection}`
     : ''
-  const holdingDays = getPositionHoldingDays(stock.position, tradingCalendarClosedDates)
+  const holdingDays = getPositionHoldingDays(
+    stock.position,
+    tradingCalendar.markets.CN.closedDates
+  )
   const availablePositionQuantity = getAvailablePositionQuantity(stock.position, tradingAccount)
   const tButtonState = !activeTBatch
     ? ''
@@ -339,34 +359,38 @@ export const WatchlistRow = memo(function WatchlistRow({
             >
               <BellRing size={15} />
             </button>
-            {isAStock ? (
+            {capabilities.position || capabilities.tTrading ? (
               <>
-                <button
-                  className={`row-action-button ${stock.position ? 'has-position' : ''}`}
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    onEditPosition(stock)
-                  }}
-                  aria-label={`编辑 ${stock.name} 的持仓`}
-                  title="编辑持仓数量和成本"
-                >
-                  <PencilLine size={15} />
-                </button>
-                <button
-                  className={`row-action-button ${tButtonState}`}
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    onOpenTTrading(stock)
-                  }}
-                  aria-label={`打开 ${stock.name} 的交易管理`}
-                  title={activeTBatch ? '继续记录当前交易批次' : '交易管理'}
-                >
-                  <span className="t-letter-icon" aria-hidden="true">
-                    T
-                  </span>
-                </button>
+                {capabilities.position ? (
+                  <button
+                    className={`row-action-button ${stock.position ? 'has-position' : ''}`}
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onEditPosition(stock)
+                    }}
+                    aria-label={`编辑 ${stock.name} 的持仓`}
+                    title="编辑持仓数量和成本"
+                  >
+                    <PencilLine size={15} />
+                  </button>
+                ) : null}
+                {capabilities.tTrading ? (
+                  <button
+                    className={`row-action-button ${tButtonState}`}
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onOpenTTrading(stock)
+                    }}
+                    aria-label={`打开 ${stock.name} 的交易管理`}
+                    title={activeTBatch ? '继续记录当前交易批次' : '交易管理'}
+                  >
+                    <span className="t-letter-icon" aria-hidden="true">
+                      T
+                    </span>
+                  </button>
+                ) : null}
               </>
             ) : null}
           </div>
@@ -430,6 +454,15 @@ export const WatchlistRow = memo(function WatchlistRow({
                       <small>
                         {stock.code} · {stock.marketLabel}
                       </small>
+                      {quote ? (
+                        <small
+                          className={`stock-quote-status is-${quoteState}`}
+                          title={`${quoteSourceLabel} · 行情时间 ${quote.dataAt ?? '未知'} · 请求时间 ${quote.updatedAt}`}
+                        >
+                          {quoteSourceLabel} · {STOCK_QUOTE_DATA_STATE_LABELS[quoteState]} ·{' '}
+                          {formatUpdateTime(quote.dataAt)}
+                        </small>
+                      ) : null}
                     </span>
                   </div>
                 </td>
@@ -717,7 +750,7 @@ export const WatchlistRow = memo(function WatchlistRow({
                   autoRefreshOrderBook={Boolean(activeTBatch)}
                   chipDistributionEnabled={chipDistributionEnabled}
                   bollingerBandsEnabled={bollingerBandsEnabled}
-                  tradingCalendarClosedDates={tradingCalendarClosedDates}
+                  tradingCalendar={tradingCalendar}
                   trackingProfile={trackingProfile}
                   onStartTracking={onStartTracking}
                   onUpdateTracking={onUpdateTracking}

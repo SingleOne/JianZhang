@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, utimesSync } from 'node:fs'
 import { join } from 'node:path'
 import { isAfterMarketClose, isMarketOpen, marketDateKey } from '../../src/shared/market-hours'
+import type { MarketCalendarDates } from '../../src/shared/market-calendar'
 import { marketFromQuoteId } from '../../src/shared/stock-market'
 import { LruCache } from '../../src/shared/lru-cache'
 import type { KlinePeriod, KlineResult } from '../../src/shared/types'
@@ -32,14 +33,13 @@ function cacheFileName(quoteId: string, period: HistoricalKlinePeriod): string {
 function isFresh(
   entry: HistoricalKlineCacheEntry,
   now: number,
-  closedDates: readonly string[]
+  calendar: MarketCalendarDates | readonly string[]
 ): boolean {
   const market = marketFromQuoteId(entry.quoteId)
-  const marketClosedDates = market === 'CN' ? closedDates : []
-  const currentTrading = isMarketOpen(market, new Date(now), marketClosedDates)
-  const cachedDuringTrading = isMarketOpen(market, new Date(entry.cachedAt), marketClosedDates)
+  const currentTrading = isMarketOpen(market, new Date(now), calendar)
+  const cachedDuringTrading = isMarketOpen(market, new Date(entry.cachedAt), calendar)
   if (
-    isAfterMarketClose(market, new Date(now), marketClosedDates) &&
+    isAfterMarketClose(market, new Date(now), calendar) &&
     cachedDuringTrading &&
     marketDateKey(new Date(entry.cachedAt), market) === marketDateKey(new Date(now), market)
   ) {
@@ -94,13 +94,13 @@ export class HistoricalKlineCache {
     quoteId: string,
     period: HistoricalKlinePeriod,
     requestedLimit: number,
-    closedDates: readonly string[]
+    calendar: MarketCalendarDates | readonly string[]
   ): KlineResult | null {
     const entry = this.read(quoteId, period)
     if (
       !entry ||
       entry.requestedLimit < requestedLimit ||
-      !isFresh(entry, this.now(), closedDates)
+      !isFresh(entry, this.now(), calendar)
     ) {
       return null
     }

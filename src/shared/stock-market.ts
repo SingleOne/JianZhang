@@ -12,10 +12,82 @@ export interface StockMarketIdentity {
   volumeUnit: StockVolumeUnit
 }
 
+export interface StockMarketCapabilities {
+  position: boolean
+  tTrading: boolean
+  profitAlert: boolean
+  radar: boolean
+  sector: boolean
+  fundamentals: boolean
+  dividendFinancing: boolean
+  companyReports: boolean
+  shareholders: boolean
+  fundsFlow: boolean
+  marketInsight: boolean
+  aiAnalysis: boolean
+  aiTAdvice: boolean
+  orderBook: boolean
+  chipDistribution: boolean
+}
+
 export const STOCK_MARKET_LABELS: Record<StockMarket, string> = {
   CN: 'A股',
   HK: '港股',
   US: '美股'
+}
+
+export const STOCK_MARKET_TIME_ZONES: Record<StockMarket, string> = {
+  CN: 'Asia/Shanghai',
+  HK: 'Asia/Hong_Kong',
+  US: 'America/New_York'
+}
+
+export const STOCK_CURRENCY_SYMBOLS: Record<StockCurrency, string> = {
+  CNY: '¥',
+  HKD: 'HK$',
+  USD: 'US$'
+}
+
+const A_STOCK_CAPABILITIES: StockMarketCapabilities = {
+  position: true,
+  tTrading: true,
+  profitAlert: true,
+  radar: true,
+  sector: true,
+  fundamentals: true,
+  dividendFinancing: true,
+  companyReports: true,
+  shareholders: true,
+  fundsFlow: true,
+  marketInsight: true,
+  aiAnalysis: true,
+  aiTAdvice: true,
+  orderBook: true,
+  chipDistribution: true
+}
+
+const GLOBAL_MARKET_CAPABILITIES: StockMarketCapabilities = {
+  position: false,
+  tTrading: false,
+  profitAlert: false,
+  radar: false,
+  sector: false,
+  fundamentals: false,
+  dividendFinancing: false,
+  companyReports: false,
+  shareholders: false,
+  fundsFlow: false,
+  marketInsight: false,
+  aiAnalysis: false,
+  aiTAdvice: false,
+  orderBook: false,
+  chipDistribution: false
+}
+
+export const STOCK_MARKET_CAPABILITIES: Record<StockMarket, StockMarketCapabilities> = {
+  CN: A_STOCK_CAPABILITIES,
+  HK: GLOBAL_MARKET_CAPABILITIES,
+  US: GLOBAL_MARKET_CAPABILITIES
 }
 
 export function marketFromQuoteId(quoteId: string): StockMarket {
@@ -72,4 +144,8 @@ export function stockMarketIdentity(
 
 export function isAStockQuoteId(quoteId: string): boolean {
   return marketFromQuoteId(quoteId) === 'CN'
+}
+
+export function marketCapabilitiesForQuoteId(quoteId: string): StockMarketCapabilities {
+  return STOCK_MARKET_CAPABILITIES[marketFromQuoteId(quoteId)]
 }

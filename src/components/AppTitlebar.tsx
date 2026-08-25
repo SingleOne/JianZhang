@@ -1,34 +1,61 @@
 import { Activity } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
-import { isMarketOpen } from '../shared/market-hours'
-import { STOCK_MARKET_LABELS, type StockMarket } from '../shared/stock-market'
+import { isMarketOpen, millisecondsUntilNextMarketOpen } from '../shared/market-hours'
+import {
+  STOCK_MARKET_LABELS,
+  STOCK_MARKET_TIME_ZONES,
+  type StockMarket
+} from '../shared/stock-market'
+import type { TradingCalendarSettings } from '../shared/types'
 
 interface AppTitlebarProps {
   children?: ReactNode
   markets: readonly StockMarket[]
-  tradingCalendarClosedDates: readonly string[]
+  tradingCalendar: TradingCalendarSettings
 }
 
 function marketState(
   date: Date,
   markets: readonly StockMarket[],
-  tradingCalendarClosedDates: readonly string[]
-): { open: boolean; label: string } {
-  const states = [...new Set(markets)].map((market) => ({
-    market,
-    open: isMarketOpen(market, date, market === 'CN' ? tradingCalendarClosedDates : [])
-  }))
+  tradingCalendar: TradingCalendarSettings
+): { open: boolean; label: string; detail: string } {
+  const states = [...new Set(markets)].map((market) => {
+    const calendar = tradingCalendar.markets[market]
+    const open = isMarketOpen(market, date, calendar)
+    const nextOpen = new Date(
+      date.getTime() + millisecondsUntilNextMarketOpen(market, date, calendar)
+    )
+    return {
+      market,
+      open,
+      nextOpenLabel: new Intl.DateTimeFormat('zh-CN', {
+        timeZone: STOCK_MARKET_TIME_ZONES[market],
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23'
+      }).format(nextOpen)
+    }
+  })
   return {
     open: states.some((state) => state.open),
     label: states
       .map((state) => `${STOCK_MARKET_LABELS[state.market]}${state.open ? '交易中' : '已休市'}`)
-      .join(' · ')
+      .join(' · '),
+    detail: states
+      .map((state) =>
+        state.open
+          ? `${STOCK_MARKET_LABELS[state.market]}正在自动刷新`
+          : `${STOCK_MARKET_LABELS[state.market]}下次开市 ${state.nextOpenLabel}`
+      )
+      .join('；')
   }
 }
 
-export function AppTitlebar({ children, markets, tradingCalendarClosedDates }: AppTitlebarProps) {
+export function AppTitlebar({ children, markets, tradingCalendar }: AppTitlebarProps) {
   const [now, setNow] = useState(() => new Date())
-  const market = marketState(now, markets, tradingCalendarClosedDates)
+  const market = marketState(now, markets, tradingCalendar)
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 30_000)
@@ -44,7 +71,7 @@ export function AppTitlebar({ children, markets, tradingCalendarClosedDates }: A
         </svg>
       </div>
       <div className="brand-name">见涨</div>
-      <div className={`market-state ${market.open ? 'is-open' : ''}`}>
+      <div className={`market-state ${market.open ? 'is-open' : ''}`} title={market.detail}>
         <Activity size={13} />
         <span>{market.label}</span>
       </div>

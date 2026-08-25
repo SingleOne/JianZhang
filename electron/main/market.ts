@@ -9,10 +9,12 @@ import type {
   SearchResult,
   StockOrderBook,
   StockQuote,
+  StockQuoteSource,
   StockRadarSignal,
   WatchStock
 } from '../../src/shared/types'
 import {
+  marketCapabilitiesForQuoteId,
   marketFromQuoteId,
   marketLabelForQuoteId,
   stockMarketIdentity,
@@ -252,7 +254,11 @@ function rawNumber(value: number | '-' | undefined): number | null {
   return typeof value === 'number' ? value : null
 }
 
-function toEastmoneyQuote(item: EastmoneyQuoteItem, updatedAt: string): StockQuote {
+function toEastmoneyQuote(
+  item: EastmoneyQuoteItem,
+  updatedAt: string,
+  source: StockQuoteSource = 'eastmoney-primary'
+): StockQuote {
   const quoteId = typeof item.f13 === 'number' && item.f12 ? `${item.f13}.${item.f12}` : ''
   const identity = stockMarketIdentity(quoteId)
   return {
@@ -262,6 +268,7 @@ function toEastmoneyQuote(item: EastmoneyQuoteItem, updatedAt: string): StockQuo
     market: identity.market,
     currency: identity.currency,
     volumeUnit: identity.volumeUnit,
+    source,
     latest: scaled(item.f2),
     changePercent: scaled(item.f3),
     change: scaled(item.f4),
@@ -423,8 +430,9 @@ async function fetchEastmoneyQuotes(
         returnedCount: (value) => value.data?.diff?.length ?? 0
       })
   const now = new Date().toISOString()
+  const source: StockQuoteSource = useDelayNode ? 'eastmoney-mirror' : 'eastmoney-primary'
 
-  return (payload.data?.diff ?? []).map((item) => toEastmoneyQuote(item, now))
+  return (payload.data?.diff ?? []).map((item) => toEastmoneyQuote(item, now, source))
 }
 
 interface EastmoneyMarketListPayload {
@@ -492,7 +500,7 @@ export async function fetchDailyMarketActiveQuotes(
     quotes.push(...items
       .filter((item) => typeof item.f6 === 'number' && item.f6 > minimumAmount)
       .map((item) => ({
-        ...toEastmoneyQuote(item, updatedAt),
+        ...toEastmoneyQuote(item, updatedAt, useDelayNode ? 'eastmoney-mirror' : 'eastmoney-primary'),
         tradingDate: typeof item.f124 === 'number'
           ? new Date((item.f124 + 8 * 60 * 60) * 1000).toISOString().slice(0, 10)
           : ''
@@ -555,6 +563,7 @@ async function fetchTencentQuotes(stocks: WatchStock[], caller: string): Promise
       market: identity.market,
       currency: identity.currency,
       volumeUnit: identity.volumeUnit,
+      source: 'tencent',
       latest: quoteNumber(fields[3]),
       changePercent: quoteNumber(fields[32]),
       change: quoteNumber(fields[31]),
@@ -607,6 +616,7 @@ async function fetchSinaQuotes(stocks: WatchStock[], caller: string): Promise<St
       market: identity.market,
       currency: identity.currency,
       volumeUnit: identity.volumeUnit,
+      source: 'sina',
       latest,
       changePercent: change !== null && previousClose
         ? change / previousClose * 100
@@ -636,7 +646,7 @@ export async function fetchQuotes(
   if (stocks.length === 0) return { quotes: [], source: 'none' }
 
   const radarSignals = currentRadarSignals(
-    radarStocks.filter((stock) => marketFromQuoteId(stock.quoteId) === 'CN'),
+    radarStocks.filter((stock) => marketCapabilitiesForQuoteId(stock.quoteId).radar),
     onRadarSignalsUpdated
   )
   const withRadarSignals = (quotes: StockQuote[]) => quotes.map((quote) => ({
@@ -649,6 +659,13 @@ export async function fetchQuotes(
     stocksByMarket.set(market, [...(stocksByMarket.get(market) ?? []), stock])
   }
   const groupedStocks = [...stocksByMarket]
+  const validateQuoteBatch = (marketStocks: readonly WatchStock[], quotes: readonly StockQuote[]) => {
+    const returnedQuoteIds = new Set(quotes.map((quote) => quote.quoteId))
+    const missing = marketStocks.filter((stock) => !returnedQuoteIds.has(stock.quoteId))
+    if (missing.length > 0) {
+      throw new Error(`缺少 ${missing.map((stock) => stock.code).join('、')} 的行情数据`)
+    }
+  }
   const groupResults = await Promise.allSettled(groupedStocks.map(async ([market, marketStocks]) => {
     const sources: Array<[string, string, () => Promise<StockQuote[]>]> = [
       ['东方财富主节点', 'eastmoney-primary', () => fetchEastmoneyQuotes(marketStocks, false, caller)],
@@ -662,7 +679,7 @@ export async function fetchQuotes(
     for (const [name, source, fetchSource] of sources) {
       try {
         const quotes = await fetchSource()
-        if (quotes.length === 0) throw new Error('未返回行情数据')
+        validateQuoteBatch(marketStocks, quotes)
         return { market, quotes, source }
       } catch (error) {
         failures.push(`${name}：${error instanceof Error ? error.message : '请求失败'}`)
@@ -1161,7 +1178,12 @@ async function fetchTencentKline(
     rows = source?.qfqmonth ?? source?.month ?? []
   }
 
-  const result = toTencentKlineResult(quoteId, quote?.[1], rows)
+  const result: KlineResult = {
+    ...toTencentKlineResult(quoteId, quote?.[1], rows),
+    source: 'tencent',
+    adjustment: period === 'fiveDay' || period === 'intraday' ? 'none' : 'forward',
+    fetchedAt: new Date().toISOString()
+  }
   if (period !== 'intraday') return result
 
   const tradingDate = result.bars.at(-1)?.time.slice(0, 10) ?? ''
@@ -1194,7 +1216,10 @@ async function fetchIntradayTrend(quoteId: string, caller: string): Promise<Klin
 
   return {
     ...toIntradayKlineResult(quoteId, payload.data?.name, payload.data?.trends ?? []),
-    intervalMinutes: 1
+    intervalMinutes: 1,
+    source: 'eastmoney-primary',
+    adjustment: 'none',
+    fetchedAt: new Date().toISOString()
   }
 }
 
@@ -1241,7 +1266,12 @@ async function fetchHistoricalKline(
           returnedCount: (value) => value.data?.klines?.length ?? 0
         })
 
-    return toHistoricalKlineResult(quoteId, payload.data?.name, payload.data?.klines ?? [])
+    return {
+      ...toHistoricalKlineResult(quoteId, payload.data?.name, payload.data?.klines ?? []),
+      source: source === 'eastmoney-delay' ? 'eastmoney-mirror' : 'eastmoney-primary',
+      adjustment: klt === '5' ? 'none' : 'forward',
+      fetchedAt: new Date().toISOString()
+    } satisfies KlineResult
   }
   const primaryUrl = createUrl('https://push2his.eastmoney.com')
 

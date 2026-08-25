@@ -283,6 +283,11 @@
   color: var(--red);
 }
 
+.trading-calendar-market-list {
+  display: grid;
+  gap: 2px;
+}
+
 .trading-calendar-setting button {
   height: 32px;
   display: inline-flex;

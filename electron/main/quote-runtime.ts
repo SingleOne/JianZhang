@@ -4,8 +4,13 @@ import {
 } from '../../src/lib/t-alerts'
 import { detectFiveLevelLargeOrders } from '../../src/lib/order-book-alerts'
 import { applyStockAlertTriggers, type TriggeredStockAlert } from '../../src/lib/stock-alerts'
+import { stockQuoteDataState } from '../../src/lib/quote-state'
 import { isMarketOpen } from '../../src/shared/market-hours'
-import { marketFromQuoteId, stockMarketIdentity } from '../../src/shared/stock-market'
+import {
+  marketCapabilitiesForQuoteId,
+  marketFromQuoteId,
+  stockMarketIdentity
+} from '../../src/shared/stock-market'
 import {
   getMarketIndexStocks,
   type AppState,
@@ -93,7 +98,7 @@ export class QuoteRuntime {
       .prime(
         this.dependencies
           .getState()
-          .watchlist.filter((stock) => marketFromQuoteId(stock.quoteId) === 'CN')
+          .watchlist.filter((stock) => marketCapabilitiesForQuoteId(stock.quoteId).sector)
       )
       .then((changed) => {
         if (!changed || !refreshWhenReady || !this.isAutoRefreshTime()) return
@@ -170,7 +175,7 @@ export class QuoteRuntime {
       isMarketOpen(
         market,
         new Date(),
-        market === 'CN' ? state.settings.tradingCalendar.closedDates : []
+        state.settings.tradingCalendar.markets[market]
       )
     )
   }
@@ -266,7 +271,7 @@ export class QuoteRuntime {
       isMarketOpen(
         marketFromQuoteId(stock.quoteId),
         now,
-        marketFromQuoteId(stock.quoteId) === 'CN' ? state.settings.tradingCalendar.closedDates : []
+        state.settings.tradingCalendar.markets[marketFromQuoteId(stock.quoteId)]
       )
     const refreshAllStocks = batch.scopes.has('all')
     const refreshPriority = refreshAllStocks || batch.scopes.has('priority')
@@ -286,17 +291,19 @@ export class QuoteRuntime {
     const radarStocks = state.watchlist.filter(
       (stock) =>
         stock.showRadarSignals &&
-        marketFromQuoteId(stock.quoteId) === 'CN' &&
+        marketCapabilitiesForQuoteId(stock.quoteId).radar &&
         (!batch.automatic || isOpen(stock))
     )
     const marketIndices =
       refreshRegular &&
-      (!batch.automatic || isMarketOpen('CN', now, state.settings.tradingCalendar.closedDates))
+      (!batch.automatic || isMarketOpen('CN', now, state.settings.tradingCalendar.markets.CN))
         ? getMarketIndexStocks(state.settings.marketIndexIds)
         : []
     const dueSectorStocks = this.dependencies.sectorMarketCache.dueBoardStocks(
       scopedStocks.filter(
-        (stock) => marketFromQuoteId(stock.quoteId) === 'CN' && (!batch.automatic || isOpen(stock))
+        (stock) =>
+          marketCapabilitiesForQuoteId(stock.quoteId).sector &&
+          (!batch.automatic || isOpen(stock))
       )
     )
     const requestedSectorStocks = [...batch.sectorQuoteIds].flatMap((quoteId) => {
@@ -334,13 +341,20 @@ export class QuoteRuntime {
       this.dependencies.publishQuotes(this.latestQuotes)
       if (result.warning) this.dependencies.sendToWindows('data:error', result.warning)
       const currentState = this.dependencies.getState()
+      const alertQuotes = this.latestQuotes.filter((quote) =>
+        stockQuoteDataState(
+          quote,
+          new Date(),
+          currentState.settings.tradingCalendar.markets[marketFromQuoteId(quote.quoteId)]
+        ) === 'live'
+      )
       const tAlertUpdate = applyTAlertTriggersToAccounts(
         currentState.tTradingAccounts,
-        this.latestQuotes
+        alertQuotes
       )
       const stockAlertUpdate = applyStockAlertTriggers(
         currentState.watchlist,
-        this.latestQuotes,
+        alertQuotes,
         tAlertUpdate.accounts
       )
       if (tAlertUpdate.changed || stockAlertUpdate.changed) {

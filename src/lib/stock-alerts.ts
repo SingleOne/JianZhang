@@ -7,6 +7,12 @@ import type {
 } from '../shared/types'
 import { calculatePositionMetrics } from './portfolio'
 import { formatPercent, formatPrice } from './format'
+import {
+  marketCapabilitiesForQuoteId,
+  stockMarketIdentity,
+  STOCK_CURRENCY_SYMBOLS
+} from '../shared/stock-market'
+import type { StockCurrency } from '../shared/stock-market'
 
 export const STOCK_ALERT_METRIC_LABELS: Record<StockAlertMetric, string> = {
   price: '股价',
@@ -69,9 +75,15 @@ export function applyStockAlertTriggers(
   const nextWatchlist = watchlist.map((stock) => {
     const quote = quoteMap.get(stock.quoteId)
     if (!quote || !stock.alertRules?.length) return stock
+    const capabilities = marketCapabilitiesForQuoteId(stock.quoteId)
 
     let stockChanged = false
     const alertRules = stock.alertRules.map((rule) => {
+      if (rule.metric === 'profitPercent' && !capabilities.profitAlert) {
+        if (rule.status !== 'triggered') return rule
+        stockChanged = true
+        return { ...rule, status: 'armed' as const, triggeredAt: undefined }
+      }
       if (!rule.enabled) {
         if (rule.status !== 'triggered') return rule
         stockChanged = true
@@ -107,8 +119,14 @@ export function applyStockAlertTriggers(
   return { watchlist: nextWatchlist, triggered, changed }
 }
 
-export function formatStockAlertValue(metric: StockAlertMetric, value: number): string {
-  return metric === 'price' ? formatPrice(value) : formatPercent(value)
+export function formatStockAlertValue(
+  metric: StockAlertMetric,
+  value: number,
+  currency: StockCurrency = 'CNY'
+): string {
+  return metric === 'price'
+    ? `${STOCK_CURRENCY_SYMBOLS[currency]}${formatPrice(value)}`
+    : formatPercent(value)
 }
 
 export function formatStockAlertNotification(alert: TriggeredStockAlert): {
@@ -117,8 +135,9 @@ export function formatStockAlertNotification(alert: TriggeredStockAlert): {
 } {
   const metricLabel = STOCK_ALERT_METRIC_LABELS[alert.rule.metric]
   const operatorLabel = alert.rule.operator === 'gte' ? '达到或高于' : '达到或低于'
+  const currency = alert.stock.currency ?? stockMarketIdentity(alert.stock.quoteId).currency
   return {
     title: `${alert.stock.name} ${metricLabel}提醒`,
-    body: `当前${metricLabel} ${formatStockAlertValue(alert.rule.metric, alert.actualValue)}，已${operatorLabel}设定值 ${formatStockAlertValue(alert.rule.metric, alert.rule.target)}`
+    body: `当前${metricLabel} ${formatStockAlertValue(alert.rule.metric, alert.actualValue, currency)}，已${operatorLabel}设定值 ${formatStockAlertValue(alert.rule.metric, alert.rule.target, currency)}`
   }
 }

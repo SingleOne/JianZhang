@@ -2432,11 +2432,29 @@
   white-space: nowrap;
 }
 
+.overview-header > div:first-child .overview-data-badge {
+  padding: 2px 6px;
+  color: #3f5f8f;
+  background: #eef4fb;
+  border: 1px solid #c9d9ee;
+  border-radius: 999px;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.overview-header > div:first-child .overview-data-badge.is-cache {
+  color: #6f5a2f;
+  background: #faf4e7;
+  border-color: #e4d4ad;
+}
+
 .chart-legend {
   display: flex;
   align-items: center;
   gap: 13px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 650;
 }
 

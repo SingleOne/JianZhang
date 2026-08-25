@@ -439,6 +439,18 @@ export default function App() {
       quote: quotesById.get(index.quoteId)
     }))
   }, [quotes, state.settings.marketIndexIds])
+  const activeMarkets = useMemo(
+    () => [
+      'CN' as const,
+      ...new Set([
+        ...state.watchlist.map((stock) => marketFromQuoteId(stock.quoteId)),
+        ...Object.values(state.stockTrackingProfiles).map((profile) =>
+          marketFromQuoteId(profile.quoteId)
+        )
+      ])
+    ],
+    [state.stockTrackingProfiles, state.watchlist]
+  )
   const lastUpdated = quotes.reduce<string | undefined>((latest, quote) => {
     const quoteDataAt = quote.dataAt ?? quote.updatedAt
     if (!latest || quoteDataAt > latest) return quoteDataAt
@@ -1133,7 +1145,14 @@ export default function App() {
         ...current,
         settings: { ...current.settings, tradingCalendar }
       }))
-      reportSuccess(`交易日历已更新至 ${tradingCalendar.coveredThroughYear} 年`)
+      const failedMarkets = (['CN', 'HK', 'US'] as const).filter(
+        (market) => tradingCalendar.markets[market].lastError
+      )
+      if (failedMarkets.length > 0) {
+        reportError(`交易日历部分更新失败：${failedMarkets.join('、')}`)
+      } else {
+        reportSuccess('A股、港股和美股交易日历已更新')
+      }
     } catch (reason) {
       reportError(reason instanceof Error ? reason.message : '交易日历刷新失败')
     } finally {
@@ -1155,16 +1174,8 @@ export default function App() {
   return (
     <div className="app-shell">
       <AppTitlebar
-        markets={[
-          'CN',
-          ...new Set([
-            ...state.watchlist.map((stock) => marketFromQuoteId(stock.quoteId)),
-            ...Object.values(state.stockTrackingProfiles).map((profile) =>
-              marketFromQuoteId(profile.quoteId)
-            )
-          ])
-        ]}
-        tradingCalendarClosedDates={state.settings.tradingCalendar.closedDates}
+        markets={activeMarkets}
+        tradingCalendar={state.settings.tradingCalendar}
       >
         <section className="titlebar-command-bar" aria-label="自选股操作">
           <div className="titlebar-command-main">
@@ -1413,7 +1424,7 @@ export default function App() {
                 tFloatingProfitAlertDefaultThreshold={
                   state.settings.tFloatingProfitAlertDefaultThreshold
                 }
-                tradingCalendarClosedDates={state.settings.tradingCalendar.closedDates}
+                tradingCalendar={state.settings.tradingCalendar}
                 onSelect={selectWatchlistStock}
                 onDetailNavigationHandled={handleDetailNavigationHandled}
                 onToggleTaskbar={toggleTaskbar}

@@ -1176,6 +1176,23 @@
   text-overflow: ellipsis;
 }
 
+.stock-identity small.stock-quote-status {
+  color: #667085;
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-identity small.stock-quote-status.is-live {
+  color: #087554;
+}
+
+.stock-identity small.stock-quote-status.is-stale {
+  color: #c2410c;
+}
+
+.stock-identity small.stock-quote-status.is-unknown {
+  color: #9a6700;
+}
+
 .stock-row td.stock-column.is-alert-triggered {
   animation: stock-alert-name-flash 900ms ease-in-out infinite;
 }

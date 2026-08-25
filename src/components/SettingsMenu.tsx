@@ -12,6 +12,8 @@ import {
   Upload
 } from 'lucide-react'
 import { lazy, Suspense, useState } from 'react'
+import { MARKET_CALENDAR_SOURCE_LABELS } from '../shared/market-calendar'
+import { STOCK_MARKET_LABELS } from '../shared/stock-market'
 import {
   MARKET_INDEX_OPTIONS,
   type AppSettings,
@@ -75,6 +77,8 @@ const SETTINGS_TABS = [
   { id: 'system', label: '系统' },
   { id: 'data', label: '数据' }
 ] as const satisfies readonly { id: SettingsTab; label: string }[]
+
+const STOCK_MARKETS = ['CN', 'HK', 'US'] as const
 
 function GitHubIcon({ size }: { size: number }) {
   return (
@@ -590,18 +594,20 @@ export function SettingsMenu({
               <div className="trading-calendar-setting">
                 <span>
                   <strong>交易日历</strong>
-                  <small>A股每年从上交所更新；港美股按各自交易时段、假日和半日市判断</small>
-                  <small>
-                    已覆盖至 {settings.tradingCalendar.coveredThroughYear} 年 · 最近刷新：
-                    {formatCalendarRefreshTime(settings.tradingCalendar.lastRefreshedAt)}
-                  </small>
-                  {settings.tradingCalendar.lastError ? (
-                    <small className="is-error">
-                      最近尝试 {formatCalendarRefreshTime(settings.tradingCalendar.lastAttemptedAt)}{' '}
-                      失败：
-                      {settings.tradingCalendar.lastError}
-                    </small>
-                  ) : null}
+                  <small>A股来自上交所，港股来自港交所，美股按纽交所年度规则生成</small>
+                  <span className="trading-calendar-market-list">
+                    {STOCK_MARKETS.map((market) => {
+                      const calendar = settings.tradingCalendar.markets[market]
+                      return (
+                        <small className={calendar.lastError ? 'is-error' : ''} key={market}>
+                          {STOCK_MARKET_LABELS[market]} · {MARKET_CALENDAR_SOURCE_LABELS[calendar.source]}
+                          {' · '}覆盖至 {calendar.coveredThroughYear} 年
+                          {' · '}刷新 {formatCalendarRefreshTime(calendar.lastRefreshedAt)}
+                          {calendar.lastError ? ` · ${calendar.lastError}` : ''}
+                        </small>
+                      )
+                    })}
+                  </span>
                 </span>
                 <button
                   type="button"

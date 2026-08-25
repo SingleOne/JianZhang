@@ -1,4 +1,9 @@
-import { stockMarketIdentity } from './stock-market'
+import {
+  BUILT_IN_MARKET_CALENDAR_END_YEARS,
+  builtInMarketCalendar,
+  type MarketCalendarSource
+} from './market-calendar'
+import { stockMarketIdentity, type StockMarket } from './stock-market'
 export type {
   StockCurrency,
   StockExchange,
@@ -783,6 +788,7 @@ export interface StockQuote {
   market?: import('./stock-market').StockMarket
   currency?: import('./stock-market').StockCurrency
   volumeUnit?: import('./stock-market').StockVolumeUnit
+  source?: StockQuoteSource
   latest: number | null
   change: number | null
   changePercent: number | null
@@ -801,6 +807,15 @@ export interface StockQuote {
   updatedAt: string
   dataAt?: string
 }
+
+export type StockQuoteSource =
+  | 'eastmoney-primary'
+  | 'eastmoney-mirror'
+  | 'tencent'
+  | 'sina'
+  | 'demo'
+
+export type StockQuoteDataState = 'live' | 'closed' | 'stale' | 'unknown'
 
 export interface OrderBookLevel {
   price: number | null
@@ -848,6 +863,10 @@ export interface KlineResult {
   bars: KlineBar[]
   intervalMinutes?: 1 | 5
   fallbackReason?: string
+  source?: StockQuoteSource
+  adjustment?: 'forward' | 'none'
+  fetchedAt?: string
+  fromCache?: boolean
 }
 
 export type DailyMarketScanSignalType =
@@ -1420,9 +1439,21 @@ export interface FundamentalUpdateResult {
   diagnosticsPath: string
 }
 
-export const BUILT_IN_TRADING_CALENDAR_END_YEAR = 2026
+export const BUILT_IN_TRADING_CALENDAR_END_YEAR = BUILT_IN_MARKET_CALENDAR_END_YEARS.CN
+
+export interface MarketTradingCalendarSettings {
+  closedDates: string[]
+  halfDayDates: string[]
+  coveredThroughYear: number
+  source: MarketCalendarSource
+  lastRefreshedAt: string | null
+  lastCheckedYear: number | null
+  lastAttemptedAt: string | null
+  lastError: string | null
+}
 
 export interface TradingCalendarSettings {
+  markets: Record<StockMarket, MarketTradingCalendarSettings>
   closedDates: string[]
   coveredThroughYear: number
   lastRefreshedAt: string | null
@@ -1431,7 +1462,28 @@ export interface TradingCalendarSettings {
   lastError: string | null
 }
 
+function defaultMarketTradingCalendar(market: StockMarket): MarketTradingCalendarSettings {
+  const calendar = builtInMarketCalendar(market)
+  return {
+    closedDates: [...calendar.closedDates],
+    halfDayDates: [...calendar.halfDayDates],
+    coveredThroughYear: BUILT_IN_MARKET_CALENDAR_END_YEARS[market],
+    source: market === 'US' ? 'nyse-rules' : 'built-in',
+    lastRefreshedAt: null,
+    lastCheckedYear: null,
+    lastAttemptedAt: null,
+    lastError: null
+  }
+}
+
+const DEFAULT_MARKET_TRADING_CALENDARS: Record<StockMarket, MarketTradingCalendarSettings> = {
+  CN: defaultMarketTradingCalendar('CN'),
+  HK: defaultMarketTradingCalendar('HK'),
+  US: defaultMarketTradingCalendar('US')
+}
+
 export const DEFAULT_TRADING_CALENDAR_SETTINGS: TradingCalendarSettings = {
+  markets: structuredClone(DEFAULT_MARKET_TRADING_CALENDARS),
   closedDates: [],
   coveredThroughYear: BUILT_IN_TRADING_CALENDAR_END_YEAR,
   lastRefreshedAt: null,
@@ -1480,7 +1532,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   tTradingFees: { ...DEFAULT_T_TRADING_FEE_SETTINGS },
   tPlanDefaults: structuredClone(DEFAULT_T_PLAN_SETTINGS),
   tFloatingProfitAlertDefaultThreshold: DEFAULT_T_FLOATING_PROFIT_ALERT_THRESHOLD,
-  tradingCalendar: { ...DEFAULT_TRADING_CALENDAR_SETTINGS }
+  tradingCalendar: structuredClone(DEFAULT_TRADING_CALENDAR_SETTINGS)
 }
 
 function normalizeTTradingFeeSettings(
@@ -1544,20 +1596,57 @@ function normalizeTPlanDefaultSettings(
 export function normalizeTradingCalendarSettings(
   calendar: Partial<TradingCalendarSettings> | undefined
 ): TradingCalendarSettings {
-  const closedDates = Array.isArray(calendar?.closedDates)
-    ? [...new Set(calendar.closedDates.filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)))].sort()
-    : []
-  return {
-    closedDates,
-    coveredThroughYear: Math.max(
-      BUILT_IN_TRADING_CALENDAR_END_YEAR,
-      calendar?.coveredThroughYear ?? BUILT_IN_TRADING_CALENDAR_END_YEAR
-    ),
-    lastRefreshedAt: calendar?.lastRefreshedAt ?? null,
-    lastCheckedYear: calendar?.lastCheckedYear ?? null,
-    lastAttemptedAt: calendar?.lastAttemptedAt ?? null,
-    lastError: calendar?.lastError ?? null
+  const validDates = (dates: readonly string[] | undefined) =>
+    [...new Set((dates ?? []).filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)))].sort()
+  const storedMarkets = calendar?.markets as
+    | Partial<Record<StockMarket, Partial<MarketTradingCalendarSettings>>>
+    | undefined
+  const normalizeMarket = (market: StockMarket): MarketTradingCalendarSettings => {
+    const defaults = DEFAULT_MARKET_TRADING_CALENDARS[market]
+    const stored = storedMarkets?.[market]
+    const legacy = market === 'CN' ? calendar : undefined
+    return {
+      closedDates: validDates([
+        ...defaults.closedDates,
+        ...(stored?.closedDates ?? legacy?.closedDates ?? [])
+      ]),
+      halfDayDates: validDates([
+        ...defaults.halfDayDates,
+        ...(stored?.halfDayDates ?? [])
+      ]),
+      coveredThroughYear: Math.max(
+        defaults.coveredThroughYear,
+        stored?.coveredThroughYear ?? legacy?.coveredThroughYear ?? defaults.coveredThroughYear
+      ),
+      source: stored?.source ?? defaults.source,
+      lastRefreshedAt: stored?.lastRefreshedAt ?? legacy?.lastRefreshedAt ?? null,
+      lastCheckedYear: stored?.lastCheckedYear ?? legacy?.lastCheckedYear ?? null,
+      lastAttemptedAt: stored?.lastAttemptedAt ?? legacy?.lastAttemptedAt ?? null,
+      lastError: stored?.lastError ?? legacy?.lastError ?? null
+    }
   }
+  const markets = {
+    CN: normalizeMarket('CN'),
+    HK: normalizeMarket('HK'),
+    US: normalizeMarket('US')
+  }
+  const cnCalendar = markets.CN
+  return {
+    markets,
+    closedDates: cnCalendar.closedDates,
+    coveredThroughYear: cnCalendar.coveredThroughYear,
+    lastRefreshedAt: cnCalendar.lastRefreshedAt,
+    lastCheckedYear: cnCalendar.lastCheckedYear,
+    lastAttemptedAt: cnCalendar.lastAttemptedAt,
+    lastError: cnCalendar.lastError
+  }
+}
+
+export function marketTradingCalendar(
+  settings: TradingCalendarSettings,
+  market: StockMarket
+): MarketTradingCalendarSettings {
+  return settings.markets[market]
 }
 
 export function normalizeAppSettings(

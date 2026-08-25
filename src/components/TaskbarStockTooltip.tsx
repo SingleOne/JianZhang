@@ -203,10 +203,10 @@ export function TaskbarStockTooltip() {
                     <span>
                       {STOCK_ALERT_METRIC_LABELS[rule.metric]}
                       {rule.operator === 'gte' ? ' ≥ ' : ' ≤ '}
-                      {formatStockAlertValue(rule.metric, rule.target)}，当前{' '}
+                      {formatStockAlertValue(rule.metric, rule.target, stock?.currency)}，当前{' '}
                       {actualValue === null || actualValue === undefined
                         ? '--'
-                        : formatStockAlertValue(rule.metric, actualValue)}
+                        : formatStockAlertValue(rule.metric, actualValue, stock?.currency)}
                     </span>
                   </li>
                 )
