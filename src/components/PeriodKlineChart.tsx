@@ -26,14 +26,15 @@ import {
   calculateBollingerBands,
   type BollingerBandPoint
 } from '../shared/bollinger'
-import { beijingDateKey } from '../shared/market-hours'
-import type { KlineBar, KlinePeriod } from '../shared/types'
+import { marketDateKey } from '../shared/market-hours'
+import type { KlineBar, KlinePeriod, StockMarket } from '../shared/types'
 
 type HistoricalPeriod = Extract<KlinePeriod, 'daily' | 'weekly' | 'monthly'>
 
 interface PeriodKlineChartProps {
   bars: KlineBar[]
   period: HistoricalPeriod
+  market: StockMarket
   onHoverBar?: (bar: KlineBar | null) => void
   onRequestMore?: (period: HistoricalPeriod) => void
   requestedVisibleBars?: number
@@ -75,13 +76,14 @@ function bollingerPrice(value: number | undefined): string {
 function trackingDateMarkers(
   bars: readonly KlineBar[],
   startedAt: string | undefined,
-  stoppedAt: string | undefined
+  stoppedAt: string | undefined,
+  market: StockMarket
 ): SeriesMarker<Time>[] {
   if (!startedAt || bars.length === 0) return []
 
   const firstDate = bars[0].time.slice(0, 10)
   const lastDate = bars.at(-1)!.time.slice(0, 10)
-  const startedDate = beijingDateKey(new Date(startedAt))
+  const startedDate = marketDateKey(new Date(startedAt), market)
   const markers: SeriesMarker<Time>[] = []
 
   if (startedDate >= firstDate && startedDate <= lastDate) {
@@ -99,7 +101,7 @@ function trackingDateMarkers(
   }
 
   if (stoppedAt) {
-    const stoppedDate = beijingDateKey(new Date(stoppedAt))
+    const stoppedDate = marketDateKey(new Date(stoppedAt), market)
     if (stoppedDate >= firstDate) {
       let stoppedBar: KlineBar | undefined
       for (let index = bars.length - 1; index >= 0; index -= 1) {
@@ -133,6 +135,7 @@ const INITIAL_VISIBLE_BARS: Record<HistoricalPeriod, number> = {
 export default function PeriodKlineChart({
   bars,
   period,
+  market,
   onHoverBar,
   onRequestMore,
   requestedVisibleBars,
@@ -285,7 +288,8 @@ export default function PeriodKlineChart({
       const trackingMarkers = trackingDateMarkers(
         currentBars,
         trackingDatesRef.current.startedAt,
-        trackingDatesRef.current.stoppedAt
+        trackingDatesRef.current.stoppedAt,
+        market
       )
       chartMarkers.setMarkers(
         [...extrema, ...trackingMarkers].sort(
@@ -402,7 +406,7 @@ export default function PeriodKlineChart({
       reportVisibleRangeRef.current = () => {}
       updateMarkersRef.current = () => {}
     }
-  }, [ctrlWheelZoomOnly, height, period])
+  }, [ctrlWheelZoomOnly, height, market, period])
 
   useEffect(() => {
     setHoveredBollinger(undefined)

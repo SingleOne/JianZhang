@@ -51,14 +51,25 @@ export function formatShares(value: number | null | undefined): string {
   return `${value.toLocaleString('zh-CN')} 股`
 }
 
-export function formatVolume(value: number | null | undefined): string {
+export function formatVolume(
+  value: number | null | undefined,
+  unit: 'lot' | 'share' = 'lot'
+): string {
   if (value === null || value === undefined) return '--'
+  if (unit === 'share') {
+    if (value >= 100_000_000) return `${(value / 100_000_000).toFixed(2)}亿股`
+    if (value >= 10_000) return `${(value / 10_000).toFixed(2)}万股`
+    return `${value.toLocaleString('zh-CN')}股`
+  }
   return `${(value / 10_000).toFixed(2)}万手`
 }
 
 export function formatUpdateTime(iso?: string): string {
   if (!iso) return '--:--:--'
   return new Intl.DateTimeFormat('zh-CN', {
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
   }).format(new Date(iso))
 }

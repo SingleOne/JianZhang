@@ -51,6 +51,7 @@ import {
   MARKET_INDEX_OPTIONS
 } from './shared/types'
 import packageInfo from '../package.json'
+import { marketFromQuoteId } from './shared/stock-market'
 import type {
   AppSettings,
   AppState,
@@ -439,7 +440,8 @@ export default function App() {
     }))
   }, [quotes, state.settings.marketIndexIds])
   const lastUpdated = quotes.reduce<string | undefined>((latest, quote) => {
-    if (!latest || quote.updatedAt > latest) return quote.updatedAt
+    const quoteDataAt = quote.dataAt ?? quote.updatedAt
+    if (!latest || quoteDataAt > latest) return quoteDataAt
     return latest
   }, undefined)
 
@@ -1152,7 +1154,18 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <AppTitlebar>
+      <AppTitlebar
+        markets={[
+          'CN',
+          ...new Set([
+            ...state.watchlist.map((stock) => marketFromQuoteId(stock.quoteId)),
+            ...Object.values(state.stockTrackingProfiles).map((profile) =>
+              marketFromQuoteId(profile.quoteId)
+            )
+          ])
+        ]}
+        tradingCalendarClosedDates={state.settings.tradingCalendar.closedDates}
+      >
         <section className="titlebar-command-bar" aria-label="自选股操作">
           <div className="titlebar-command-main">
             <SearchBar onAdd={addStock} existingQuoteIds={quoteIds} onError={reportError} />

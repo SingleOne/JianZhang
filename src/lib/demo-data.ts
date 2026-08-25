@@ -1,4 +1,5 @@
 import type { SearchResult, StockQuote } from '../shared/types'
+import { stockMarketIdentity } from '../shared/stock-market'
 
 export const DEMO_STOCKS: SearchResult[] = [
   { code: '600519', name: '贵州茅台', quoteId: '1.600519', marketLabel: '沪A' },
@@ -8,7 +9,7 @@ export const DEMO_STOCKS: SearchResult[] = [
   { code: '600036', name: '招商银行', quoteId: '1.600036', marketLabel: '沪A' },
   { code: '000858', name: '五粮液', quoteId: '0.000858', marketLabel: '深A' },
   { code: '601318', name: '中国平安', quoteId: '1.601318', marketLabel: '沪A' }
-]
+].map((stock) => ({ ...stock, ...stockMarketIdentity(stock.quoteId) }))
 
 export const DEMO_SECTORS: Record<string, { code: string; name: string; quoteId: string }> = {
   '1.600519': { code: 'BK0896', name: '白酒', quoteId: '90.BK0896' },

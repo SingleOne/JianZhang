@@ -7,6 +7,7 @@ export interface QuoteRefreshInput {
   reason: string
   stockQuoteIds?: readonly string[]
   sectorQuoteIds?: readonly string[]
+  automatic?: boolean
 }
 
 export interface QuoteRefreshBatch {
@@ -14,6 +15,7 @@ export interface QuoteRefreshBatch {
   reasons: ReadonlySet<string>
   stockQuoteIds: ReadonlySet<string>
   sectorQuoteIds: ReadonlySet<string>
+  automatic: boolean
 }
 
 interface PendingRefresh<T> {
@@ -21,6 +23,7 @@ interface PendingRefresh<T> {
   reasons: Set<string>
   stockQuoteIds: Set<string>
   sectorQuoteIds: Set<string>
+  automatic: boolean
   waiters: Array<{ resolve: (value: T) => void; reject: (reason: unknown) => void }>
 }
 
@@ -59,10 +62,12 @@ export class QuoteRefreshCoordinator<T> {
         reasons: new Set<string>(),
         stockQuoteIds: new Set<string>(),
         sectorQuoteIds: new Set<string>(),
+        automatic: true,
         waiters: []
       }
       if (input.scope) pending.scopes.add(input.scope)
       pending.reasons.add(input.reason)
+      pending.automatic = pending.automatic && Boolean(input.automatic)
       for (const quoteId of input.stockQuoteIds ?? []) pending.stockQuoteIds.add(quoteId)
       for (const quoteId of input.sectorQuoteIds ?? []) pending.sectorQuoteIds.add(quoteId)
       pending.waiters.push({ resolve, reject })
@@ -97,7 +102,7 @@ export class QuoteRefreshCoordinator<T> {
 
     if (!this.options.canAutoRefresh() || dueScopes.length === 0) return
     for (const scope of dueScopes) {
-      void this.request({ scope, reason: `timer:${scope}` })
+      void this.request({ scope, reason: `timer:${scope}`, automatic: true })
     }
   }
 
@@ -111,7 +116,8 @@ export class QuoteRefreshCoordinator<T> {
         scopes: current.scopes,
         reasons: current.reasons,
         stockQuoteIds: current.stockQuoteIds,
-        sectorQuoteIds: current.sectorQuoteIds
+        sectorQuoteIds: current.sectorQuoteIds,
+        automatic: current.automatic
       })
       for (const waiter of current.waiters) waiter.resolve(value)
     } catch (reason) {

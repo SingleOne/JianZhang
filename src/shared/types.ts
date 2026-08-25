@@ -1,3 +1,13 @@
+import { stockMarketIdentity } from './stock-market'
+export type {
+  StockCurrency,
+  StockExchange,
+  StockInstrumentType,
+  StockMarket,
+  StockMarketIdentity,
+  StockVolumeUnit
+} from './stock-market'
+
 export interface StockPositionSnapshot {
   id: string
   name: string
@@ -25,6 +35,10 @@ export interface WatchStock {
   name: string
   quoteId: string
   marketLabel: string
+  market?: import('./stock-market').StockMarket
+  exchange?: import('./stock-market').StockExchange
+  currency?: import('./stock-market').StockCurrency
+  instrumentType?: import('./stock-market').StockInstrumentType
   showInTaskbar: boolean
   isPriority: boolean
   showRadarSignals: boolean
@@ -92,6 +106,10 @@ export interface StockTrackingProfile {
   code: string
   name: string
   marketLabel: string
+  market?: import('./stock-market').StockMarket
+  exchange?: import('./stock-market').StockExchange
+  currency?: import('./stock-market').StockCurrency
+  instrumentType?: import('./stock-market').StockInstrumentType
   status: 'tracking' | 'stopped'
   tags: string[]
   thesis: string
@@ -247,6 +265,7 @@ export function normalizeStockTrackingProfiles(
           quoteId,
           {
             ...profile,
+            ...stockMarketIdentity(quoteId, profile.instrumentType),
             quoteId,
             status: profile.status === 'stopped' ? 'stopped' : 'tracking',
             tags: [...new Set((profile.tags ?? []).map((tag) => tag.trim()).filter(Boolean))],
@@ -278,6 +297,7 @@ export function synchronizeTrackingGroupMembership(
 export function normalizeWatchlist(stocks: readonly WatchStock[]): WatchStock[] {
   return stocks.map((stock) => ({
     ...stock,
+    ...stockMarketIdentity(stock.quoteId, stock.instrumentType),
     isPriority: Boolean(stock.position || stock.isPriority),
     showRadarSignals: stock.showRadarSignals ?? true,
     groupIds: [...new Set((stock.groupIds ?? []).filter((groupId) => typeof groupId === 'string'))],
@@ -760,6 +780,9 @@ export interface StockQuote {
   code: string
   name: string
   quoteId: string
+  market?: import('./stock-market').StockMarket
+  currency?: import('./stock-market').StockCurrency
+  volumeUnit?: import('./stock-market').StockVolumeUnit
   latest: number | null
   change: number | null
   changePercent: number | null
@@ -776,6 +799,7 @@ export interface StockQuote {
   radarSignals?: StockRadarSignal[]
   fiveLevelLargeOrders?: FiveLevelLargeOrderAlert[]
   updatedAt: string
+  dataAt?: string
 }
 
 export interface OrderBookLevel {
@@ -938,6 +962,10 @@ export interface SearchResult {
   name: string
   quoteId: string
   marketLabel: string
+  market: import('./stock-market').StockMarket
+  exchange: import('./stock-market').StockExchange
+  currency: import('./stock-market').StockCurrency
+  instrumentType: import('./stock-market').StockInstrumentType
 }
 
 export type ShareholderMarket = 'SH' | 'SZ' | 'BJ'

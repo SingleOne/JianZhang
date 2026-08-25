@@ -29,10 +29,12 @@ import type {
   TTradingAccount,
   TTradingAccounts,
   TTradingFeeSettings,
+  StockMarket,
   WatchlistColumnId,
   WatchlistGroup,
   WatchStock
 } from '../shared/types'
+import { marketFromQuoteId, STOCK_MARKET_LABELS } from '../shared/stock-market'
 import {
   hasFundamentalRisk,
   matchesFundamentalDividendFilter,
@@ -236,6 +238,7 @@ export function WatchlistTable({
   const [locatedQuoteId, setLocatedQuoteId] = useState<string | null>(null)
   const [customGroupFilter, setCustomGroupFilter] = useState(ALL_FILTER)
   const [sectorFilter, setSectorFilter] = useState(ALL_FILTER)
+  const [marketFilter, setMarketFilter] = useState<StockMarket | 'all'>('all')
   const [fundamentalFilter, setFundamentalFilter] = useState<FundamentalWatchlistFilter>('all')
   const [valueFilter, setValueFilter] = useState<FundamentalDividendFilter>('all')
   const [riskOnly, setRiskOnly] = useState(false)
@@ -273,12 +276,15 @@ export function WatchlistTable({
     const quoteMap = new Map(quotes.map((quote) => [quote.quoteId, quote]))
     return watchlist.map((stock, manualIndex) => {
       const quote = quoteMap.get(stock.quoteId)
+      const isAStock = marketFromQuoteId(stock.quoteId) === 'CN'
       return {
         stock,
         quote,
-        dividendFinancing: dividendFinancingByCode.get(stock.code),
-        fundamentalScreening: fundamentalScreeningByCode.get(stock.code),
-        fundamentalPeerComparison: fundamentalPeerComparisonsByCode.get(stock.code),
+        dividendFinancing: isAStock ? dividendFinancingByCode.get(stock.code) : undefined,
+        fundamentalScreening: isAStock ? fundamentalScreeningByCode.get(stock.code) : undefined,
+        fundamentalPeerComparison: isAStock
+          ? fundamentalPeerComparisonsByCode.get(stock.code)
+          : undefined,
         metrics: calculatePositionMetrics(stock.position, quote, tTradingAccounts[stock.quoteId]),
         manualIndex
       }
@@ -337,14 +343,18 @@ export function WatchlistTable({
           (sectorFilter === NO_SECTOR_FILTER
             ? !quote?.sector
             : quote?.sector?.quoteId === sectorFilter)
-        return matchesGroup && matchesSector
+        const matchesMarket =
+          marketFilter === ALL_FILTER || marketFromQuoteId(stock.quoteId) === marketFilter
+        return matchesGroup && matchesSector && matchesMarket
       }),
-    [customGroupFilter, rows, sectorFilter, watchlistGroups]
+    [customGroupFilter, marketFilter, rows, sectorFilter, watchlistGroups]
   )
   const fundamentalSummary = useMemo(
     () =>
       summarizeFundamentalWatchlist(
-        scopeRows.map(({ fundamentalScreening }) => fundamentalScreening)
+        scopeRows
+          .filter(({ stock }) => marketFromQuoteId(stock.quoteId) === 'CN')
+          .map(({ fundamentalScreening }) => fundamentalScreening)
       ),
     [scopeRows]
   )
@@ -356,10 +366,12 @@ export function WatchlistTable({
     () =>
       valueDataReady
         ? summarizeFundamentalDividendWatchlist(
-            scopeRows.map(({ fundamentalScreening, dividendFinancing }) => ({
-              evaluation: fundamentalScreening,
-              hasDividendLabel: Boolean(dividendFinancing)
-            }))
+            scopeRows
+              .filter(({ stock }) => marketFromQuoteId(stock.quoteId) === 'CN')
+              .map(({ fundamentalScreening, dividendFinancing }) => ({
+                evaluation: fundamentalScreening,
+                hasDividendLabel: Boolean(dividendFinancing)
+              }))
           )
         : null,
     [scopeRows, valueDataReady]
@@ -394,8 +406,11 @@ export function WatchlistTable({
   )
   const filteredRows = useMemo(
     () =>
-      scopeRows.filter(
-        ({ fundamentalScreening, dividendFinancing }) =>
+      scopeRows.filter(({ stock, fundamentalScreening, dividendFinancing }) => {
+        if (marketFromQuoteId(stock.quoteId) !== 'CN') {
+          return fundamentalFilter === 'all' && valueFilter === 'all' && !riskOnly
+        }
+        return (
           matchesFundamentalWatchlistFilter(fundamentalScreening, fundamentalFilter) &&
           (valueFilter === 'all' ||
             (valueDataReady &&
@@ -407,7 +422,8 @@ export function WatchlistTable({
                 valueFilter
               ))) &&
           (!riskOnly || hasFundamentalRisk(fundamentalScreening))
-      ),
+        )
+      }),
     [fundamentalFilter, riskOnly, scopeRows, valueDataReady, valueFilter]
   )
   const displayedRows = useMemo(
@@ -453,6 +469,17 @@ export function WatchlistTable({
         : [])
     ],
     [noSectorCount, rows.length, sectorOptions]
+  )
+  const marketFilterOptions = useMemo(
+    () => [
+      { value: ALL_FILTER, label: '全部市场', count: rows.length },
+      ...(['CN', 'HK', 'US'] as const).map((market) => ({
+        value: market,
+        label: STOCK_MARKET_LABELS[market],
+        count: rows.filter(({ stock }) => marketFromQuoteId(stock.quoteId) === market).length
+      }))
+    ],
+    [rows]
   )
   const selectedGroupName = watchlistGroups.find((group) => group.id === customGroupFilter)?.name
   const selectedSectorName = sectorOptions.find((sector) => sector.quoteId === sectorFilter)?.name
@@ -620,6 +647,7 @@ export function WatchlistTable({
   const resetFilters = useCallback(() => {
     setCustomGroupFilter(ALL_FILTER)
     setSectorFilter(ALL_FILTER)
+    setMarketFilter(ALL_FILTER)
     setFundamentalFilter('all')
     setValueFilter('all')
     setRiskOnly(false)
@@ -695,6 +723,7 @@ export function WatchlistTable({
           {sectorFilter === ALL_FILTER
             ? ''
             : ` · 板块：${sectorFilter === NO_SECTOR_FILTER ? '未获取板块' : selectedSectorName}`}
+          {marketFilter === ALL_FILTER ? '' : ` · 市场：${STOCK_MARKET_LABELS[marketFilter]}`}
           {fundamentalFilter === 'all'
             ? ''
             : ` · 基本面：${FUNDAMENTAL_FILTER_LABELS[fundamentalFilter]}`}
@@ -702,6 +731,7 @@ export function WatchlistTable({
           {riskOnly ? ' · 基本面：有风险' : ''}
           {customGroupFilter !== ALL_FILTER ||
           sectorFilter !== ALL_FILTER ||
+          marketFilter !== ALL_FILTER ||
           fundamentalFilter !== 'all' ||
           valueFilter !== 'all' ||
           riskOnly
@@ -714,9 +744,12 @@ export function WatchlistTable({
             customGroupOptions={customGroupFilterOptions}
             sectorFilter={sectorFilter}
             sectorOptions={sectorFilterOptions}
+            marketFilter={marketFilter}
+            marketOptions={marketFilterOptions}
             displayedStocks={displayedStocks}
             onCustomGroupChange={setCustomGroupFilter}
             onSectorChange={setSectorFilter}
+            onMarketChange={setMarketFilter}
             onManageGroups={openGroupDialog}
             onChooseStock={scrollToStock}
           />
@@ -815,6 +848,7 @@ export function WatchlistTable({
         filtersActive={
           customGroupFilter !== ALL_FILTER ||
           sectorFilter !== ALL_FILTER ||
+          marketFilter !== ALL_FILTER ||
           fundamentalFilter !== 'all' ||
           valueFilter !== 'all' ||
           riskOnly

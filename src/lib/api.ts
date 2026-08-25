@@ -40,6 +40,7 @@ import {
   parseUserDataBackupDocument
 } from '../shared/user-data-backup'
 import { DEMO_SECTORS, DEMO_STOCKS, DEMO_VALUES } from './demo-data'
+import { stockMarketIdentity } from '../shared/stock-market'
 
 function makeDemoSectorQuote(stockQuoteId: string): StockSectorQuote | undefined {
   const sector = DEMO_SECTORS[stockQuoteId]
@@ -200,12 +201,21 @@ function makeDemoQuotes(watchlist: WatchStock[]): StockQuote[] {
             }
           ]
         : undefined
-    if (known) return { ...known, sector, radarSignals, updatedAt: now }
+    if (known)
+      return {
+        ...stockMarketIdentity(stock.quoteId, stock.instrumentType),
+        ...known,
+        sector,
+        radarSignals,
+        updatedAt: now,
+        dataAt: now
+      }
     const base = 24 + index * 7.31
     return {
       code: stock.code,
       name: stock.name,
       quoteId: stock.quoteId,
+      ...stockMarketIdentity(stock.quoteId, stock.instrumentType),
       latest: base,
       change: 0.18,
       changePercent: 0.76,
@@ -218,7 +228,8 @@ function makeDemoQuotes(watchlist: WatchStock[]): StockQuote[] {
       turnoverRate: 1.26,
       sector,
       radarSignals,
-      updatedAt: now
+      updatedAt: now,
+      dataAt: now
     }
   })
 }

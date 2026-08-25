@@ -1,26 +1,34 @@
 import { Activity } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
+import { isMarketOpen } from '../shared/market-hours'
+import { STOCK_MARKET_LABELS, type StockMarket } from '../shared/stock-market'
 
 interface AppTitlebarProps {
   children?: ReactNode
+  markets: readonly StockMarket[]
+  tradingCalendarClosedDates: readonly string[]
 }
 
-function marketState(date: Date): { open: boolean; label: string } {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Shanghai', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
-  }).formatToParts(date)
-  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? ''
-  const weekday = part('weekday')
-  const minutes = Number(part('hour')) * 60 + Number(part('minute'))
-  const weekdayOpen = weekday !== 'Sat' && weekday !== 'Sun'
-  const sessionOpen = (minutes >= 570 && minutes <= 690) || (minutes >= 780 && minutes <= 900)
-  const open = weekdayOpen && sessionOpen
-  return { open, label: open ? 'A股交易中' : 'A股已休市' }
+function marketState(
+  date: Date,
+  markets: readonly StockMarket[],
+  tradingCalendarClosedDates: readonly string[]
+): { open: boolean; label: string } {
+  const states = [...new Set(markets)].map((market) => ({
+    market,
+    open: isMarketOpen(market, date, market === 'CN' ? tradingCalendarClosedDates : [])
+  }))
+  return {
+    open: states.some((state) => state.open),
+    label: states
+      .map((state) => `${STOCK_MARKET_LABELS[state.market]}${state.open ? '交易中' : '已休市'}`)
+      .join(' · ')
+  }
 }
 
-export function AppTitlebar({ children }: AppTitlebarProps) {
+export function AppTitlebar({ children, markets, tradingCalendarClosedDates }: AppTitlebarProps) {
   const [now, setNow] = useState(() => new Date())
-  const market = marketState(now)
+  const market = marketState(now, markets, tradingCalendarClosedDates)
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 30_000)

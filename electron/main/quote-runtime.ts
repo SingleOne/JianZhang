@@ -4,7 +4,8 @@ import {
 } from '../../src/lib/t-alerts'
 import { detectFiveLevelLargeOrders } from '../../src/lib/order-book-alerts'
 import { applyStockAlertTriggers, type TriggeredStockAlert } from '../../src/lib/stock-alerts'
-import { isBeijingAutoRefreshTime } from '../../src/shared/market-hours'
+import { isMarketOpen } from '../../src/shared/market-hours'
+import { marketFromQuoteId, stockMarketIdentity } from '../../src/shared/stock-market'
 import {
   getMarketIndexStocks,
   type AppState,
@@ -76,7 +77,9 @@ export class QuoteRuntime {
   }
 
   refreshAutomatically(reason = 'automatic'): Promise<StockQuote[]> {
-    return this.isAutoRefreshTime() ? this.refreshAll(reason) : Promise.resolve(this.latestQuotes)
+    return this.isAutoRefreshTime()
+      ? this.coordinator.request({ scope: 'all', reason, automatic: true })
+      : Promise.resolve(this.latestQuotes)
   }
 
   restartSchedule(): void {
@@ -87,14 +90,22 @@ export class QuoteRuntime {
     if (this.sectorBindingPrime) return this.sectorBindingPrime
     this.lastSectorBindingPrimeAt = Date.now()
     this.sectorBindingPrime = this.dependencies.sectorMarketCache
-      .prime(this.dependencies.getState().watchlist)
+      .prime(
+        this.dependencies
+          .getState()
+          .watchlist.filter((stock) => marketFromQuoteId(stock.quoteId) === 'CN')
+      )
       .then((changed) => {
         if (!changed || !refreshWhenReady || !this.isAutoRefreshTime()) return
         const sectorQuoteIds = this.dependencies.sectorMarketCache
           .dueBoardStocks(this.dependencies.getState().watchlist)
           .map((stock) => stock.quoteId)
         if (sectorQuoteIds.length > 0) {
-          void this.coordinator.request({ reason: 'sector-binding', sectorQuoteIds })
+          void this.coordinator.request({
+            reason: 'sector-binding',
+            sectorQuoteIds,
+            automatic: true
+          })
         }
       })
       .finally(() => {
@@ -147,9 +158,20 @@ export class QuoteRuntime {
   }
 
   private isAutoRefreshTime(): boolean {
-    return isBeijingAutoRefreshTime(
-      new Date(),
-      this.dependencies.getState().settings.tradingCalendar.closedDates
+    const state = this.dependencies.getState()
+    const markets = new Set([
+      ...state.watchlist.map((stock) => marketFromQuoteId(stock.quoteId)),
+      ...Object.values(state.stockTrackingProfiles).map((profile) =>
+        marketFromQuoteId(profile.quoteId)
+      ),
+      ...(state.settings.marketIndexIds.length > 0 ? ['CN' as const] : [])
+    ])
+    return [...markets].some((market) =>
+      isMarketOpen(
+        market,
+        new Date(),
+        market === 'CN' ? state.settings.tradingCalendar.closedDates : []
+      )
     )
   }
 
@@ -226,6 +248,7 @@ export class QuoteRuntime {
 
   private trackingProfileStocks(state: AppState): WatchStock[] {
     return Object.values(state.stockTrackingProfiles).map((profile) => ({
+      ...stockMarketIdentity(profile.quoteId, profile.instrumentType),
       code: profile.code,
       name: profile.name,
       quoteId: profile.quoteId,
@@ -238,6 +261,13 @@ export class QuoteRuntime {
 
   private async executeRefresh(batch: QuoteRefreshBatch): Promise<StockQuote[]> {
     const state = this.dependencies.getState()
+    const now = new Date()
+    const isOpen = (stock: WatchStock) =>
+      isMarketOpen(
+        marketFromQuoteId(stock.quoteId),
+        now,
+        marketFromQuoteId(stock.quoteId) === 'CN' ? state.settings.tradingCalendar.closedDates : []
+      )
     const refreshAllStocks = batch.scopes.has('all')
     const refreshPriority = refreshAllStocks || batch.scopes.has('priority')
     const refreshRegular = refreshAllStocks || batch.scopes.has('regular')
@@ -251,15 +281,31 @@ export class QuoteRuntime {
     const explicitlyRequestedStocks = requestableStocks.filter((stock) =>
       batch.stockQuoteIds.has(stock.quoteId)
     )
-    const stocks = this.uniqueStocks([...scopedStocks, ...explicitlyRequestedStocks])
-    const radarStocks = state.watchlist.filter((stock) => stock.showRadarSignals)
-    const marketIndices = refreshRegular ? getMarketIndexStocks(state.settings.marketIndexIds) : []
-    const dueSectorStocks = this.dependencies.sectorMarketCache.dueBoardStocks(scopedStocks)
+    const selectedStocks = this.uniqueStocks([...scopedStocks, ...explicitlyRequestedStocks])
+    const stocks = batch.automatic ? selectedStocks.filter(isOpen) : selectedStocks
+    const radarStocks = state.watchlist.filter(
+      (stock) =>
+        stock.showRadarSignals &&
+        marketFromQuoteId(stock.quoteId) === 'CN' &&
+        (!batch.automatic || isOpen(stock))
+    )
+    const marketIndices =
+      refreshRegular &&
+      (!batch.automatic || isMarketOpen('CN', now, state.settings.tradingCalendar.closedDates))
+        ? getMarketIndexStocks(state.settings.marketIndexIds)
+        : []
+    const dueSectorStocks = this.dependencies.sectorMarketCache.dueBoardStocks(
+      scopedStocks.filter(
+        (stock) => marketFromQuoteId(stock.quoteId) === 'CN' && (!batch.automatic || isOpen(stock))
+      )
+    )
     const requestedSectorStocks = [...batch.sectorQuoteIds].flatMap((quoteId) => {
       const stock = this.dependencies.sectorMarketCache.boardStockByQuoteId(quoteId)
       return stock ? [stock] : []
     })
-    const sectorStocks = this.uniqueStocks([...dueSectorStocks, ...requestedSectorStocks])
+    const sectorStocks = this.uniqueStocks([...dueSectorStocks, ...requestedSectorStocks]).filter(
+      (stock) => !batch.automatic || isOpen(stock)
+    )
     const requestedStocks = this.uniqueStocks([...stocks, ...marketIndices, ...sectorStocks])
     if (requestedStocks.length === 0) return this.latestQuotes
 
@@ -271,7 +317,11 @@ export class QuoteRuntime {
         radarStocks,
         `quote-cycle:${reasons.join('+')}`,
         () => {
-          void this.coordinator.request({ scope: 'all', reason: 'radar-updated' })
+          void this.coordinator.request({
+            scope: 'all',
+            reason: 'radar-updated',
+            automatic: true
+          })
         }
       )
       const sectorQuoteIds = new Set(sectorStocks.map((stock) => stock.quoteId))
@@ -282,6 +332,7 @@ export class QuoteRuntime {
       this.mergeQuotes(result.quotes.filter((quote) => displayedQuoteIds.has(quote.quoteId)))
       this.applyCachedSectorQuotes()
       this.dependencies.publishQuotes(this.latestQuotes)
+      if (result.warning) this.dependencies.sendToWindows('data:error', result.warning)
       const currentState = this.dependencies.getState()
       const tAlertUpdate = applyTAlertTriggersToAccounts(
         currentState.tTradingAccounts,

@@ -110,7 +110,7 @@ export function TaskbarStockTooltip() {
           </span>
           <span className="taskbar-tooltip-header-meta">
             <span className="taskbar-tooltip-update-time">
-              更新 {formatUpdateTime(quote?.updatedAt)}
+              行情 {formatUpdateTime(quote?.dataAt ?? quote?.updatedAt)}
             </span>
             <span className="taskbar-tooltip-market">{stock?.marketLabel ?? '实时行情'}</span>
           </span>

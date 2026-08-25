@@ -590,7 +590,7 @@ export function SettingsMenu({
               <div className="trading-calendar-setting">
                 <span>
                   <strong>交易日历</strong>
-                  <small>每年首次启动时自动从上交所更新，失败时可手动重试</small>
+                  <small>A股每年从上交所更新；港美股按各自交易时段、假日和半日市判断</small>
                   <small>
                     已覆盖至 {settings.tradingCalendar.coveredThroughYear} 年 · 最近刷新：
                     {formatCalendarRefreshTime(settings.tradingCalendar.lastRefreshedAt)}

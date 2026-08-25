@@ -156,7 +156,7 @@ export default function SectorIndexPanel({ stock }: SectorIndexPanelProps) {
       <div className="chart-panel">
         {data && trendBars.length > 0 ? (
           <Suspense fallback={<div className="chart-loading">正在初始化板块分时图…</div>}>
-            <CandlestickChart bars={trendBars} variant="sectorIntraday" />
+            <CandlestickChart bars={trendBars} market="CN" variant="sectorIntraday" />
           </Suspense>
         ) : (
           <div className="chart-loading">最近交易日暂无板块分时数据</div>

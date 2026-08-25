@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, utimesSync } from 'node:fs'
 import { join } from 'node:path'
-import { isBeijingAutoRefreshTime } from '../../src/shared/market-hours'
+import { isAfterMarketClose, isMarketOpen, marketDateKey } from '../../src/shared/market-hours'
+import { marketFromQuoteId } from '../../src/shared/stock-market'
 import { LruCache } from '../../src/shared/lru-cache'
 import type { KlinePeriod, KlineResult } from '../../src/shared/types'
 import { atomicWriteJsonSync } from './file-storage'
@@ -28,22 +29,19 @@ function cacheFileName(quoteId: string, period: HistoricalKlinePeriod): string {
   return `${quoteId.replaceAll('.', '_')}-${period}.json`
 }
 
-function beijingDateKey(timestamp: number): string {
-  return new Date(timestamp + 8 * 60 * 60 * 1000).toISOString().slice(0, 10)
-}
-
 function isFresh(
   entry: HistoricalKlineCacheEntry,
   now: number,
   closedDates: readonly string[]
 ): boolean {
-  const currentTrading = isBeijingAutoRefreshTime(new Date(now), closedDates)
-  const cachedDuringTrading = isBeijingAutoRefreshTime(new Date(entry.cachedAt), closedDates)
+  const market = marketFromQuoteId(entry.quoteId)
+  const marketClosedDates = market === 'CN' ? closedDates : []
+  const currentTrading = isMarketOpen(market, new Date(now), marketClosedDates)
+  const cachedDuringTrading = isMarketOpen(market, new Date(entry.cachedAt), marketClosedDates)
   if (
-    !currentTrading &&
+    isAfterMarketClose(market, new Date(now), marketClosedDates) &&
     cachedDuringTrading &&
-    beijingDateKey(entry.cachedAt) === beijingDateKey(now) &&
-    new Date(now + 8 * 60 * 60 * 1000).getUTCHours() >= 15
+    marketDateKey(new Date(entry.cachedAt), market) === marketDateKey(new Date(now), market)
   ) {
     return false
   }

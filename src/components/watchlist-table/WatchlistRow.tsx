@@ -42,6 +42,7 @@ import type {
   WatchlistColumnId,
   WatchStock
 } from '../../shared/types'
+import { marketFromQuoteId } from '../../shared/stock-market'
 import { ExpandedStockDetails } from '../ExpandedStockDetails'
 import { FiveLevelAlertBadges } from '../FiveLevelAlertBadges'
 import { TAlertBadges } from '../TAlertBadges'
@@ -191,6 +192,7 @@ export const WatchlistRow = memo(function WatchlistRow({
   onRestartTracking,
   onRemove
 }: WatchlistRowProps) {
+  const isAStock = marketFromQuoteId(stock.quoteId) === 'CN'
   const [fundamentalTabRequested, setFundamentalTabRequested] = useState(false)
   const [trackingTabRequested, setTrackingTabRequested] = useState(false)
   const fundamentalSummary = summarizeFundamentalScreening(fundamentalScreening)
@@ -203,9 +205,10 @@ export const WatchlistRow = memo(function WatchlistRow({
   const metrics = calculatePositionMetrics(stock.position, quote, tradingAccount)
   const quoteDirection = valueClass(quote?.changePercent)
   const sectorDirection = valueClass(quote?.sector?.changePercent)
-  const currentRadarSignals = stock.showRadarSignals ? todayRadarSignals(quote?.radarSignals) : []
+  const currentRadarSignals =
+    isAStock && stock.showRadarSignals ? todayRadarSignals(quote?.radarSignals) : []
   const latestRadarSignal = currentRadarSignals[0]
-  const activeTBatch = tradingAccount?.activeBatch
+  const activeTBatch = isAStock ? tradingAccount?.activeBatch : undefined
   const activeTTrades = getBatchTrades(tradingAccount, activeTBatch)
   const tFloatingProfit = calculateTBatchMetrics(
     activeTBatch,
@@ -336,32 +339,36 @@ export const WatchlistRow = memo(function WatchlistRow({
             >
               <BellRing size={15} />
             </button>
-            <button
-              className={`row-action-button ${stock.position ? 'has-position' : ''}`}
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation()
-                onEditPosition(stock)
-              }}
-              aria-label={`编辑 ${stock.name} 的持仓`}
-              title="编辑持仓数量和成本"
-            >
-              <PencilLine size={15} />
-            </button>
-            <button
-              className={`row-action-button ${tButtonState}`}
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation()
-                onOpenTTrading(stock)
-              }}
-              aria-label={`打开 ${stock.name} 的交易管理`}
-              title={activeTBatch ? '继续记录当前交易批次' : '交易管理'}
-            >
-              <span className="t-letter-icon" aria-hidden="true">
-                T
-              </span>
-            </button>
+            {isAStock ? (
+              <>
+                <button
+                  className={`row-action-button ${stock.position ? 'has-position' : ''}`}
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onEditPosition(stock)
+                  }}
+                  aria-label={`编辑 ${stock.name} 的持仓`}
+                  title="编辑持仓数量和成本"
+                >
+                  <PencilLine size={15} />
+                </button>
+                <button
+                  className={`row-action-button ${tButtonState}`}
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onOpenTTrading(stock)
+                  }}
+                  aria-label={`打开 ${stock.name} 的交易管理`}
+                  title={activeTBatch ? '继续记录当前交易批次' : '交易管理'}
+                >
+                  <span className="t-letter-icon" aria-hidden="true">
+                    T
+                  </span>
+                </button>
+              </>
+            ) : null}
           </div>
         </td>
         {columnOrder.map((columnId) => {
@@ -373,12 +380,12 @@ export const WatchlistRow = memo(function WatchlistRow({
                     <span>
                       <span className="stock-name-line">
                         <strong>{stock.name}</strong>
-                        {isChiNextStock(stock.code) ? (
+                        {isAStock && isChiNextStock(stock.code) ? (
                           <span className="stock-board-badge" title="创业板">
                             创
                           </span>
                         ) : null}
-                        {isStarMarketStock(stock.code) ? (
+                        {isAStock && isStarMarketStock(stock.code) ? (
                           <span className="stock-board-badge is-star" title="科创板">
                             科
                           </span>
@@ -710,6 +717,7 @@ export const WatchlistRow = memo(function WatchlistRow({
                   autoRefreshOrderBook={Boolean(activeTBatch)}
                   chipDistributionEnabled={chipDistributionEnabled}
                   bollingerBandsEnabled={bollingerBandsEnabled}
+                  tradingCalendarClosedDates={tradingCalendarClosedDates}
                   trackingProfile={trackingProfile}
                   onStartTracking={onStartTracking}
                   onUpdateTracking={onUpdateTracking}

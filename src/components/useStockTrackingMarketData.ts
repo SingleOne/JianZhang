@@ -6,9 +6,10 @@ import {
 } from '../lib/stock-tracking-metrics'
 import {
   INTRADAY_REFRESH_MILLISECONDS,
-  isBeijingAutoRefreshTime,
-  millisecondsUntilNextAutoRefreshWindow
+  isMarketOpen,
+  millisecondsUntilNextMarketOpen
 } from '../shared/market-hours'
+import { marketFromQuoteId } from '../shared/stock-market'
 import type { KlineBar, KlineResult } from '../shared/types'
 
 export interface StockTrackingMarketData {
@@ -47,21 +48,22 @@ export function useStockTrackingMarketData(quoteId?: string): StockTrackingMarke
 
   useEffect(() => {
     if (!quoteId) return
+    const market = marketFromQuoteId(quoteId)
     let active = true
     let refreshTimer: number | undefined
 
     const scheduleRefresh = () => {
       refreshTimer = window.setTimeout(
         () => {
-          if (isBeijingAutoRefreshTime()) {
+          if (isMarketOpen(market)) {
             setRefreshVersion((current) => current + 1)
           } else {
             scheduleRefresh()
           }
         },
-        isBeijingAutoRefreshTime()
+        isMarketOpen(market)
           ? INTRADAY_REFRESH_MILLISECONDS
-          : millisecondsUntilNextAutoRefreshWindow()
+          : millisecondsUntilNextMarketOpen(market)
       )
     }
 
@@ -106,7 +108,12 @@ export function useStockTrackingMarketData(quoteId?: string): StockTrackingMarke
     const dailyBars = currentState.daily?.bars ?? []
     const intraday = currentState.intraday
     const realtimeVolumeRatioPoints = intraday
-      ? calculateRealtimeVolumeRatio(intraday.bars, dailyBars, intraday.tradingDate)
+      ? calculateRealtimeVolumeRatio(
+          intraday.bars,
+          dailyBars,
+          intraday.tradingDate,
+          marketFromQuoteId(quoteId ?? '')
+        )
       : []
     return {
       dailyBars,
@@ -117,5 +124,5 @@ export function useStockTrackingMarketData(quoteId?: string): StockTrackingMarke
       realtimeLoading: currentState.loading,
       realtimeError: currentState.error
     }
-  }, [currentState])
+  }, [currentState, quoteId])
 }

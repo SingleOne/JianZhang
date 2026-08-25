@@ -17,6 +17,7 @@ import type {
   StockTrackingEntryType,
   StockTrackingProfile
 } from '../shared/types'
+import { marketFromQuoteId } from '../shared/stock-market'
 import { StockTrackingMetricsPanel } from './StockTrackingMetricsPanel'
 import type { StockTrackingMarketData } from './useStockTrackingMarketData'
 
@@ -227,6 +228,7 @@ export function StockTrackingEditor({
 
       <StockTrackingMetricsPanel
         snapshots={profile.metricSnapshots}
+        market={marketFromQuoteId(profile.quoteId)}
         marketData={marketData}
         showDailyKline={showDailyKline}
         trackingStartedAt={profile.startedAt}
