@@ -137,6 +137,38 @@ export function marketDateKey(date: Date, market: StockMarket): string {
   return marketClock(date, market).dateKey
 }
 
+export function isMarketTradingDate(
+  market: StockMarket,
+  dateKey: string,
+  calendarInput?: MarketCalendarInput
+): boolean {
+  const date = new Date(`${dateKey}T12:00:00Z`)
+  if (Number.isNaN(date.getTime())) return false
+  const weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getUTCDay()]
+  return isTradingDay(
+    market,
+    { dateKey, weekday, minutes: 12 * 60 },
+    resolveMarketCalendar(market, calendarInput)
+  )
+}
+
+export function countMarketTradingDays(
+  market: StockMarket,
+  startDateKey: string,
+  endDateKey: string,
+  calendarInput?: MarketCalendarInput
+): number {
+  const start = new Date(`${startDateKey}T00:00:00Z`)
+  const end = new Date(`${endDateKey}T00:00:00Z`)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return 0
+  let count = 0
+  for (let cursor = start.getTime(); cursor <= end.getTime(); cursor += DAY_MILLISECONDS) {
+    const dateKey = new Date(cursor).toISOString().slice(0, 10)
+    if (isMarketTradingDate(market, dateKey, calendarInput)) count += 1
+  }
+  return count
+}
+
 export function beijingDateKey(date = new Date()): string {
   return marketDateKey(date, 'CN')
 }

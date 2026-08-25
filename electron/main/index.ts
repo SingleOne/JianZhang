@@ -43,6 +43,7 @@ import { CacheMaintenanceService } from './cache-maintenance-service'
 import { CompletionNotificationStore } from './completion-notification-store'
 import { DailyMarketScanService } from './daily-market-scan-service'
 import { DividendFinancingService } from './dividend-financing-service'
+import { ExchangeRateRuntime } from './exchange-rate-runtime'
 import { FundsFlowHub } from './funds-flow-hub'
 import { FundamentalDataService } from './fundamental-data-service'
 import { GitHubSyncService } from './github-sync-service'
@@ -128,6 +129,7 @@ let windowManager: WindowManager | null = null
 let quoteRuntime: QuoteRuntime | null = null
 let stockTrackingMetricsRuntime: StockTrackingMetricsRuntime | null = null
 let tradingCalendarRuntime: TradingCalendarRuntime | null = null
+let exchangeRateRuntime: ExchangeRateRuntime | null = null
 let startupWarning: string | undefined
 let isQuitting = false
 let marketInsightRuntime: MarketInsightRuntime | null = null
@@ -261,6 +263,8 @@ function cleanupBeforeQuit(): void {
   marketInsightRuntime = null
   tradingCalendarRuntime?.dispose()
   tradingCalendarRuntime = null
+  exchangeRateRuntime?.dispose()
+  exchangeRateRuntime = null
   quoteRuntime?.dispose()
   quoteRuntime = null
   stockTrackingMetricsRuntime?.dispose()
@@ -399,6 +403,15 @@ if (!hasSingleInstanceLock) {
       },
       marketRequestLogger
     })
+    exchangeRateRuntime = new ExchangeRateRuntime({
+      getState: () => state,
+      saveState: (nextState) => {
+        state = nextState
+        persistState()
+        sendToWindows('state:updated', state)
+      },
+      marketRequestLogger
+    })
     disposeIpcHandlers = registerIpcHandlers({
       getState: () => state,
       setState: (nextState) => {
@@ -471,6 +484,7 @@ if (!hasSingleInstanceLock) {
           getKline(sectorQuoteId, 'intraday', undefined, 'detail:sector')
         ),
       refreshTradingCalendar: () => tradingCalendarRuntime!.refresh(),
+      refreshExchangeRates: () => exchangeRateRuntime!.refresh(),
       getCompletionNotifications: () => completionNotificationStore!.load(),
       saveCompletionNotifications: (notifications) =>
         completionNotificationStore!.save(notifications),
@@ -623,6 +637,7 @@ if (!hasSingleInstanceLock) {
     quoteRuntime.start()
     stockTrackingMetricsRuntime.start()
     tradingCalendarRuntime.start()
+    exchangeRateRuntime.start()
     void quoteRuntime.refreshAutomatically('startup')
     void quoteRuntime.primeSectorBindings(true)
   })

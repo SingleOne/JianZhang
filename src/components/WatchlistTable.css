@@ -77,11 +77,9 @@
 
 .panel-heading-side {
   flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 18px;
-  flex-wrap: wrap;
+  display: grid;
+  justify-items: end;
+  gap: 4px;
 }
 
 .market-index-summary {
@@ -177,13 +175,23 @@
 
 .portfolio-summary small {
   color: #8a94a6;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .portfolio-summary strong {
   font-size: 12px;
   font-weight: 720;
   font-variant-numeric: tabular-nums;
+}
+
+.portfolio-exposure-summary {
+  color: #7d899a;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.portfolio-exposure-summary.is-warning {
+  color: #9a6700;
 }
 
 .auto-refresh-state {

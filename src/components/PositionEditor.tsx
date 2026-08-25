@@ -9,8 +9,16 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { formatCost, formatCurrency, formatPercent, formatPrice, formatProfit, formatShares } from '../lib/format'
+import {
+  formatCost,
+  formatMoney,
+  formatMoneyProfit,
+  formatPercent,
+  formatPrice,
+  formatShares
+} from '../lib/format'
 import { currentDateKey } from '../lib/portfolio'
+import { exchangeRateForCurrency } from '../shared/exchange-rates'
 import {
   detachTradeRecordsFromBatch,
   sortTradeRecords,
@@ -28,6 +36,7 @@ import type {
   StockPosition,
   StockPositionSnapshot,
   StockQuote,
+  ExchangeRateSettings,
   TPlanDefaultSettings,
   TTradingAccount,
   TTradingBatch,
@@ -38,6 +47,10 @@ import type {
   TTradeSide,
   WatchStock
 } from '../shared/types'
+import {
+  marketCapabilitiesForQuoteId,
+  STOCK_CURRENCY_SYMBOLS
+} from '../shared/stock-market'
 import { useConfirmDialog } from './ConfirmDialog'
 
 interface PositionEditorProps {
@@ -45,6 +58,7 @@ interface PositionEditorProps {
   quote: StockQuote | undefined
   account: TTradingAccount | undefined
   planDefaults: TPlanDefaultSettings
+  exchangeRates: ExchangeRateSettings
   onSave: (
     position: StockPosition | undefined,
     showRadarSignals: boolean,
@@ -442,10 +456,10 @@ function TradeRecordList({
               </span>
               <span>
                 <strong>{formatShares(record.quantity)} × {formatPrice(record.price)}</strong>
-                <small>费用 {formatCurrency(fees)}</small>
+                <small>费用 {formatMoney(fees, 'CNY')}</small>
               </span>
               <strong className={valueClass(amountChange)}>
-                金额变动 {formatProfit(amountChange)}
+                金额变动 {formatMoneyProfit(amountChange, 'CNY')}
               </strong>
               <small title={record.note || undefined}>{record.note || '--'}</small>
               <span className="trade-record-actions">
@@ -481,12 +495,21 @@ export function PositionEditor({
   quote,
   account,
   planDefaults,
+  exchangeRates,
   onSave,
   onClose
 }: PositionEditorProps) {
   const confirm = useConfirmDialog()
+  const capabilities = marketCapabilitiesForQuoteId(stock.quoteId)
+  const currency = stock.currency ?? quote?.currency ?? 'CNY'
+  const effectiveExchangeRate = exchangeRateForCurrency(exchangeRates, currency)
+  const usesManualRate = currency !== 'CNY' &&
+    exchangeRates.manualOverrides[currency] !== undefined
   const [quantity, setQuantity] = useState(stock.position?.quantity.toString() ?? '')
   const [cost, setCost] = useState(stock.position?.cost.toString() ?? '')
+  const [costExchangeRate, setCostExchangeRate] = useState(
+    stock.position?.costExchangeRate?.toString() ?? effectiveExchangeRate?.toString() ?? ''
+  )
   const [openedOn, setOpenedOn] = useState(
     stock.position ? stock.position.openedOn ?? '' : currentDateKey()
   )
@@ -528,7 +551,10 @@ export function PositionEditor({
       name: defaultSnapshotName(createdAt),
       createdAt,
       quantity: stock.position!.quantity,
-      cost: stock.position!.cost
+      cost: stock.position!.cost,
+      currency,
+      costExchangeRate: stock.position!.costExchangeRate,
+      costExchangeRateDate: stock.position!.costExchangeRateDate
     }, ...current])
   }
 
@@ -661,7 +687,7 @@ export function PositionEditor({
             <span>
               <span className="position-dialog-title-line">
                 <strong id="position-dialog-title">编辑持仓</strong>
-                <label className="position-header-radar-switch">
+                {capabilities.radar ? <label className="position-header-radar-switch">
                   <span>显示异动数据</span>
                   <input
                     className="switch-input"
@@ -669,7 +695,7 @@ export function PositionEditor({
                     checked={showRadarSignals}
                     onChange={(event) => setShowRadarSignals(event.target.checked)}
                   />
-                </label>
+                </label> : null}
               </span>
               <small>{stock.name} · {stock.code}</small>
             </span>
@@ -683,13 +709,20 @@ export function PositionEditor({
           className="position-form"
           onSubmit={(event) => {
             event.preventDefault()
+            const nextRate = currency === 'CNY' ? 1 : Number(costExchangeRate)
             const nextPosition = hasPositionInput ? {
               quantity: Number(quantity),
               cost: Number(cost),
               openedToday: openedOn === currentDateKey(),
-              openedOn
+              openedOn,
+              currency,
+              costExchangeRate: nextRate,
+              costExchangeRateDate:
+                stock.position?.costExchangeRate === nextRate
+                  ? stock.position.costExchangeRateDate
+                  : usesManualRate ? currentDateKey() : exchangeRates.rateDate ?? currentDateKey()
             } : undefined
-            const updatedAccount = !stock.position && nextPosition
+            const updatedAccount = capabilities.tTrading && !stock.position && nextPosition
               ? createOpeningTradeAccount(
                   stock,
                   workingAccount,
@@ -697,8 +730,13 @@ export function PositionEditor({
                   nextPosition.cost,
                   nextPosition.openedOn
                 )
-              : editedAccount
-            onSave(nextPosition, showRadarSignals, positionSnapshots, updatedAccount)
+              : capabilities.tTrading ? editedAccount : undefined
+            onSave(
+              nextPosition,
+              capabilities.radar ? showRadarSignals : stock.showRadarSignals,
+              positionSnapshots,
+              updatedAccount
+            )
           }}
         >
           <div className="position-fields">
@@ -730,9 +768,32 @@ export function PositionEditor({
                   onChange={(event) => setCost(event.target.value)}
                   placeholder="例如 12.5800"
                 />
-                <span>元</span>
+                <span>{currency}</span>
               </span>
             </label>
+            {currency !== 'CNY' ? (
+              <label>
+                <span>建仓汇率</span>
+                <span className="position-input-wrap">
+                  <input
+                    type="number"
+                    min="0.000001"
+                    step="0.000001"
+                    required={hasPositionInput}
+                    value={costExchangeRate}
+                    onChange={(event) => setCostExchangeRate(event.target.value)}
+                    placeholder="兑人民币汇率"
+                  />
+                  <span>CNY</span>
+                </span>
+                <small>
+                  1 {currency} = {effectiveExchangeRate?.toFixed(6) ?? '--'} CNY
+                  {usesManualRate
+                    ? '（手工覆盖）'
+                    : exchangeRates.rateDate ? `（官方 ${exchangeRates.rateDate}）` : ''}
+                </small>
+              </label>
+            ) : null}
             <label>
               <span>建仓日期</span>
               <span className="position-input-wrap">
@@ -783,10 +844,14 @@ export function PositionEditor({
                     <small>按上方输入实时预览</small>
                   </span>
                   <strong>{formatShares(currentQuantity)}</strong>
-                  <strong>{currentCost > 0 ? formatCost(currentCost) : '--'}</strong>
-                  <span>{formatCurrency(currentMetrics.marketValue)}</span>
+                  <strong>
+                    {currentCost > 0
+                      ? `${STOCK_CURRENCY_SYMBOLS[currency]}${formatCost(currentCost)}`
+                      : '--'}
+                  </strong>
+                  <span>{formatMoney(currentMetrics.marketValue, currency)}</span>
                   <span className={valueClass(currentMetrics.totalProfit)}>
-                    {formatProfit(currentMetrics.totalProfit)}
+                    {formatMoneyProfit(currentMetrics.totalProfit, currency)}
                   </span>
                   <span className={valueClass(currentMetrics.profitPercent)}>
                     {formatPercent(currentMetrics.profitPercent)}
@@ -831,15 +896,15 @@ export function PositionEditor({
                         })}
                         aria-label={`${formatSnapshotTime(snapshot.createdAt)}成本价`}
                       />
-                      <span>{formatCurrency(metrics.marketValue)}</span>
+                      <span>{formatMoney(metrics.marketValue, currency)}</span>
                       <span className={valueClass(metrics.totalProfit)}>
-                        {formatProfit(metrics.totalProfit)}
+                        {formatMoneyProfit(metrics.totalProfit, currency)}
                       </span>
                       <span className={valueClass(metrics.profitPercent)}>
                         {formatPercent(metrics.profitPercent)}
                       </span>
                       <span className={valueClass(profitDifference)}>
-                        {formatProfit(profitDifference)}
+                        {formatMoneyProfit(profitDifference, currency)}
                       </span>
                       <button
                         className="icon-button position-snapshot-delete"
@@ -864,7 +929,7 @@ export function PositionEditor({
             </div>
           </section>
 
-          <section className="trade-record-panel">
+          {capabilities.tTrading ? <section className="trade-record-panel">
             <header>
               <span>
                 <strong>交易记录</strong>
@@ -892,7 +957,7 @@ export function PositionEditor({
             ) : (
               <div className="trade-record-empty">暂无交易记录</div>
             )}
-          </section>
+          </section> : null}
 
           <footer className="position-dialog-actions">
             {stock.position ? (
@@ -902,9 +967,9 @@ export function PositionEditor({
                 disabled={editingTradeId !== null}
                 onClick={() => onSave(
                   undefined,
-                  showRadarSignals,
+                  capabilities.radar ? showRadarSignals : stock.showRadarSignals,
                   positionSnapshots,
-                  editedAccount
+                  capabilities.tTrading ? editedAccount : undefined
                 )}
               >
                 清空持仓
@@ -926,7 +991,7 @@ export function PositionEditor({
         </section>
       </div>
 
-      {showAllTradeRecords ? (
+      {capabilities.tTrading && showAllTradeRecords ? (
         <div
           className="trade-record-dialog-backdrop"
           role="presentation"

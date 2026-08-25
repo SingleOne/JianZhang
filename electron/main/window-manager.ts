@@ -2,7 +2,7 @@ import { BrowserWindow, Menu, screen, Tray, type MenuItemConstructorOptions } fr
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { calculatePositionMetrics } from '../../src/lib/portfolio'
-import { formatPercent, formatPrice, formatProfit } from '../../src/lib/format'
+import { formatMoneyProfit, formatPercent, formatPrice } from '../../src/lib/format'
 import { getTaskbarVisibleStocks, shouldShowTaskbarTicker } from '../../src/lib/taskbar-visibility'
 import type {
   AppState,
@@ -175,13 +175,14 @@ export class WindowManager {
     const quotes = this.dependencies.getQuotes()
     const selectedItems: MenuItemConstructorOptions[] = this.taskbarVisibleStocks().map((stock) => {
       const quote = quotes.find((item) => item.quoteId === stock.quoteId)
-      const todayProfit = calculatePositionMetrics(
+      const metrics = calculatePositionMetrics(
         stock.position,
         quote,
-        state.tTradingAccounts[stock.quoteId]
-      ).todayProfit
+        state.tTradingAccounts[stock.quoteId],
+        state.settings.exchangeRates
+      )
       return {
-        label: `${stock.name}  ${formatPrice(quote?.latest ?? null)}  ${formatPercent(quote?.changePercent ?? null)}  ${formatProfit(todayProfit)}`,
+        label: `${stock.name}  ${formatPrice(quote?.latest ?? null)}  ${formatPercent(quote?.changePercent ?? null)}  ${formatMoneyProfit(metrics.todayProfit, metrics.currency)}`,
         click: () => this.showMainWindow(stock.quoteId)
       }
     })

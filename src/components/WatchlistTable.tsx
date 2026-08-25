@@ -17,6 +17,7 @@ import { calculatePortfolioQualitySummary } from '../lib/portfolio-quality'
 import type { StockDetailNavigationRequest } from '../lib/completion-notifications'
 import type {
   DividendFinancingRankingItem,
+  ExchangeRateSettings,
   StockAlertRule,
   StockPosition,
   StockPositionSnapshot,
@@ -97,6 +98,7 @@ interface WatchlistTableProps {
   tPlanDefaults: TPlanDefaultSettings
   tFloatingProfitAlertDefaultThreshold: number
   tradingCalendar: TradingCalendarSettings
+  exchangeRates: ExchangeRateSettings
   onSelect: (quoteId: string) => void
   onDetailNavigationHandled: (requestId: string) => void
   onToggleTaskbar: (quoteId: string) => void
@@ -214,6 +216,7 @@ export function WatchlistTable({
   tPlanDefaults,
   tFloatingProfitAlertDefaultThreshold,
   tradingCalendar,
+  exchangeRates,
   onSelect,
   onDetailNavigationHandled,
   onToggleTaskbar,
@@ -257,8 +260,6 @@ export function WatchlistTable({
   const locateFrameRef = useRef<number | undefined>(undefined)
   const selectedQuoteIdRef = useRef(selectedQuoteId)
   selectedQuoteIdRef.current = selectedQuoteId
-  const tradingCalendarClosedDates = tradingCalendar.markets.CN.closedDates
-
   useEffect(() => {
     const timer = window.setInterval(() => setQuoteStatusNow(new Date()), 30_000)
     return () => window.clearInterval(timer)
@@ -301,7 +302,12 @@ export function WatchlistTable({
         fundamentalPeerComparison: capabilities.fundamentals
           ? fundamentalPeerComparisonsByCode.get(stock.code)
           : undefined,
-        metrics: calculatePositionMetrics(stock.position, quote, tTradingAccounts[stock.quoteId]),
+        metrics: calculatePositionMetrics(
+          stock.position,
+          quote,
+          tTradingAccounts[stock.quoteId],
+          exchangeRates
+        ),
         manualIndex
       }
     })
@@ -309,6 +315,7 @@ export function WatchlistTable({
     dividendFinancingByCode,
     fundamentalPeerComparisonsByCode,
     fundamentalScreeningByCode,
+    exchangeRates,
     quotes,
     tTradingAccounts,
     watchlist
@@ -403,7 +410,7 @@ export function WatchlistTable({
     () =>
       calculatePortfolioQualitySummary(
         rows.flatMap(({ stock, quote, metrics, fundamentalScreening, dividendFinancing }) =>
-          marketCapabilitiesForQuoteId(stock.quoteId).position && stock.position
+          marketCapabilitiesForQuoteId(stock.quoteId).fundamentals && stock.position
             ? [
                 {
                   quoteId: stock.quoteId,
@@ -411,8 +418,8 @@ export function WatchlistTable({
                   name: stock.name,
                   industryName:
                     quote?.sector?.name ?? fundamentalScreening?.company.industryName ?? '行业待核',
-                  marketValue: metrics.marketValue,
-                  costValue: stock.position.cost * stock.position.quantity,
+                  marketValue: metrics.cnyMarketValue,
+                  costValue: metrics.cnyCostBasis ?? 0,
                   fundamentalEvaluation: fundamentalScreening,
                   hasDividendLabel: Boolean(dividendFinancing)
                 }
@@ -445,8 +452,8 @@ export function WatchlistTable({
     [fundamentalFilter, riskOnly, scopeRows, valueDataReady, valueFilter]
   )
   const displayedRows = useMemo(
-    () => (sort ? sortRows(filteredRows, sort, tradingCalendarClosedDates) : filteredRows),
-    [filteredRows, sort, tradingCalendarClosedDates]
+    () => (sort ? sortRows(filteredRows, sort, tradingCalendar) : filteredRows),
+    [filteredRows, sort, tradingCalendar]
   )
   const displayedStocks = useMemo(() => displayedRows.map(({ stock }) => stock), [displayedRows])
   const customGroupFilterOptions = useMemo(
@@ -962,6 +969,7 @@ export function WatchlistTable({
                   manualIndex={manualIndex}
                   columnOrder={adjustableColumnOrder}
                   tradingCalendar={tradingCalendar}
+                  exchangeRates={exchangeRates}
                   quoteStatusNow={quoteStatusNow}
                   priorityRefreshSeconds={priorityRefreshSeconds}
                   regularRefreshSeconds={regularRefreshSeconds}
@@ -1065,6 +1073,7 @@ export function WatchlistTable({
           quote={quotes.find((quote) => quote.quoteId === editingStock.quoteId)}
           account={tTradingAccounts[editingStock.quoteId]}
           planDefaults={tPlanDefaults}
+          exchangeRates={exchangeRates}
           onClose={() => setEditingStock(null)}
           onSave={(position, showRadarSignals, positionSnapshots, updatedAccount) => {
             onEditPosition(

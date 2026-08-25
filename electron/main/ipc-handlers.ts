@@ -35,6 +35,7 @@ import type {
   DividendFinancingChangeReport,
   DividendFinancingSnapshot,
   DividendFinancingUpdateResult,
+  ExchangeRateSettings,
   FundamentalChangeReport,
   FundamentalSnapshot,
   FundamentalUpdateResult,
@@ -101,6 +102,7 @@ interface IpcHandlerDependencies {
   getFundsFlow: (quoteId: string) => Promise<FundsFlowResult>
   getSectorIndex: (quoteId: string) => Promise<SectorIndexResult>
   refreshTradingCalendar: () => Promise<TradingCalendarSettings>
+  refreshExchangeRates: () => Promise<ExchangeRateSettings>
   getCompletionNotifications: () => AppCompletionNotification[]
   saveCompletionNotifications: (
     notifications: AppCompletionNotification[]
@@ -180,6 +182,7 @@ const CHANNELS = [
   'funds-flow:get',
   'sector-index:get',
   'trading-calendar:refresh',
+  'exchange-rates:refresh',
   'state:save',
   'completion-notifications:get',
   'completion-notifications:save',
@@ -280,6 +283,7 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
     dependencies.getSectorIndex(quoteId)
   )
   ipcMain.handle('trading-calendar:refresh', () => dependencies.refreshTradingCalendar())
+  ipcMain.handle('exchange-rates:refresh', () => dependencies.refreshExchangeRates())
   ipcMain.handle('state:save', async (_event, nextState: AppState) => {
     dependencies.assertStateRevision(nextState)
     const currentState = dependencies.getState()

@@ -46,6 +46,24 @@ export function formatProfit(value: number | null | undefined): string {
   return `${value >= 0 ? '+' : ''}${formatCurrency(value)}`
 }
 
+export function formatMoney(
+  value: number | null | undefined,
+  currency: import('../shared/stock-market').StockCurrency
+): string {
+  if (value === null || value === undefined) return '--'
+  const symbols = { CNY: '¥', HKD: 'HK$', USD: 'US$' } as const
+  return `${symbols[currency]}${formatCurrency(value)}`
+}
+
+export function formatMoneyProfit(
+  value: number | null | undefined,
+  currency: import('../shared/stock-market').StockCurrency
+): string {
+  if (value === null || value === undefined) return '--'
+  const symbols = { CNY: '¥', HKD: 'HK$', USD: 'US$' } as const
+  return `${value >= 0 ? '+' : '-'}${symbols[currency]}${formatCurrency(Math.abs(value))}`
+}
+
 export function formatShares(value: number | null | undefined): string {
   if (value === null || value === undefined) return '--'
   return `${value.toLocaleString('zh-CN')} 股`

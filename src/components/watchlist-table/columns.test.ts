@@ -5,12 +5,21 @@ import type { StockQuote, WatchStock } from '../../shared/types'
 import { sortRows, sortValue, type StockRowData } from './columns'
 
 const EMPTY_METRICS: PositionMetrics = {
+  currency: 'CNY',
+  exchangeRate: 1,
+  costExchangeRate: 1,
   marketValue: null,
   todayProfit: null,
   todayProfitPercent: null,
   todayCostBasis: null,
   totalProfit: null,
-  profitPercent: null
+  profitPercent: null,
+  cnyMarketValue: null,
+  cnyTodayProfit: null,
+  cnyTodayCostBasis: null,
+  cnyCostBasis: null,
+  cnyTotalProfit: null,
+  cnyProfitPercent: null
 }
 
 function stock(quoteId: string, name: string): WatchStock {

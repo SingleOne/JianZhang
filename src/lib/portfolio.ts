@@ -1,4 +1,5 @@
 import type {
+  ExchangeRateSettings,
   StockQuote,
   StockPosition,
   TTrade,
@@ -6,21 +7,36 @@ import type {
   TTradingAccounts,
   WatchStock
 } from '../shared/types'
-import { countAStockTradingDays } from '../shared/trading-calendar'
+import { DEFAULT_EXCHANGE_RATE_SETTINGS } from '../shared/types'
+import { exchangeRateForCurrency } from '../shared/exchange-rates'
+import { countMarketTradingDays, marketDateKey } from '../shared/market-hours'
+import { marketFromQuoteId, type StockCurrency, type StockMarket } from '../shared/stock-market'
 import { getAccountTrades } from './trade-records'
 
 export interface PositionMetrics {
+  currency: StockCurrency
+  exchangeRate: number | null
+  costExchangeRate: number | null
   marketValue: number | null
   todayProfit: number | null
   todayProfitPercent: number | null
   todayCostBasis: number | null
   totalProfit: number | null
   profitPercent: number | null
+  cnyMarketValue: number | null
+  cnyTodayProfit: number | null
+  cnyTodayCostBasis: number | null
+  cnyCostBasis: number | null
+  cnyTotalProfit: number | null
+  cnyProfitPercent: number | null
 }
 
 export interface PortfolioSummary extends PositionMetrics {
   costBasis: number | null
   positionCount: number
+  unconvertedPositionCount: number
+  marketValues: Partial<Record<StockMarket, number>>
+  currencyValues: Partial<Record<StockCurrency, number>>
 }
 
 export function currentDateKey(): string {
@@ -36,9 +52,11 @@ export function isPositionOpenedToday(position: StockPosition | undefined): bool
 
 export function getAvailablePositionQuantity(
   position: StockPosition | undefined,
-  account: TTradingAccount | undefined
+  account: TTradingAccount | undefined,
+  market: StockMarket = 'CN'
 ): number | null {
   if (!position) return null
+  if (market !== 'CN') return position.quantity
   if (isPositionOpenedToday(position)) return 0
 
   const today = currentDateKey()
@@ -54,11 +72,18 @@ export function getAvailablePositionQuantity(
 
 export function getPositionHoldingDays(
   position: StockPosition | undefined,
-  additionalClosedDates: readonly string[] = []
+  additionalClosedDates: readonly string[] = [],
+  market: StockMarket = 'CN',
+  halfDayDates: readonly string[] = []
 ): number | null {
   if (!position?.openedOn) return null
 
-  const holdingDays = countAStockTradingDays(position.openedOn, currentDateKey(), additionalClosedDates)
+  const holdingDays = countMarketTradingDays(
+    market,
+    position.openedOn,
+    marketDateKey(new Date(), market),
+    { closedDates: additionalClosedDates, halfDayDates }
+  )
   return holdingDays > 0 ? holdingDays : null
 }
 
@@ -73,8 +98,12 @@ function getTradeFees(trade: TTrade): number {
 export function calculatePositionMetrics(
   position: StockPosition | undefined,
   quote: StockQuote | undefined,
-  account?: TTradingAccount
+  account?: TTradingAccount,
+  exchangeRates: ExchangeRateSettings = DEFAULT_EXCHANGE_RATE_SETTINGS
 ): PositionMetrics {
+  const currency = position?.currency ?? quote?.currency ?? 'CNY'
+  const exchangeRate = exchangeRateForCurrency(exchangeRates, currency)
+  const costExchangeRate = position?.costExchangeRate ?? (currency === 'CNY' ? 1 : null)
   const latest = quote?.latest
   const marketValue = position && latest !== null && latest !== undefined
     ? latest * position.quantity
@@ -124,16 +153,44 @@ export function calculatePositionMetrics(
     }
   }
 
+  const todayProfitPercent = todayProfit !== null && todayCostBasis && todayCostBasis > 0
+    ? todayProfit / todayCostBasis * 100
+    : null
+  const profitPercent = position && latest !== null && latest !== undefined
+    ? (latest / position.cost - 1) * 100
+    : null
+  const cnyMarketValue = marketValue !== null && exchangeRate !== null
+    ? marketValue * exchangeRate
+    : null
+  const cnyTodayProfit = todayProfit !== null && exchangeRate !== null
+    ? todayProfit * exchangeRate
+    : null
+  const cnyTodayCostBasis = todayCostBasis !== null && exchangeRate !== null
+    ? todayCostBasis * exchangeRate
+    : null
+  const cnyCostBasis = position && costExchangeRate !== null
+    ? position.cost * position.quantity * costExchangeRate
+    : null
+  const cnyTotalProfit = cnyMarketValue !== null && cnyCostBasis !== null
+    ? cnyMarketValue - cnyCostBasis
+    : null
   return {
+    currency,
+    exchangeRate,
+    costExchangeRate,
     marketValue,
     todayProfit,
-    todayProfitPercent: todayProfit !== null && todayCostBasis && todayCostBasis > 0
-      ? todayProfit / todayCostBasis * 100
-      : null,
+    todayProfitPercent,
     todayCostBasis,
     totalProfit,
-    profitPercent: position && latest !== null && latest !== undefined
-      ? (latest / position.cost - 1) * 100
+    profitPercent,
+    cnyMarketValue,
+    cnyTodayProfit,
+    cnyTodayCostBasis,
+    cnyCostBasis,
+    cnyTotalProfit,
+    cnyProfitPercent: cnyCostBasis && cnyCostBasis > 0 && cnyTotalProfit !== null
+      ? cnyTotalProfit / cnyCostBasis * 100
       : null
   }
 }
@@ -141,7 +198,8 @@ export function calculatePositionMetrics(
 export function calculatePortfolioSummary(
   watchlist: WatchStock[],
   quotes: StockQuote[],
-  tTradingAccounts: TTradingAccounts
+  tTradingAccounts: TTradingAccounts,
+  exchangeRates: ExchangeRateSettings = DEFAULT_EXCHANGE_RATE_SETTINGS
 ): PortfolioSummary {
   const quoteMap = new Map(quotes.map((quote) => [quote.quoteId, quote]))
   let positionCount = 0
@@ -150,37 +208,67 @@ export function calculatePortfolioSummary(
   let todayProfit = 0
   let todayCostBasis = 0
   let totalProfit = 0
-  let pricedPositionCount = 0
+  let marketValuePositionCount = 0
+  let profitPositionCount = 0
   let todayPricedPositionCount = 0
+  let unconvertedPositionCount = 0
+  const marketValues: Partial<Record<StockMarket, number>> = {}
+  const currencyValues: Partial<Record<StockCurrency, number>> = {}
 
   for (const stock of watchlist) {
     if (stock.position) positionCount += 1
     const metrics = calculatePositionMetrics(
       stock.position,
       quoteMap.get(stock.quoteId),
-      tTradingAccounts[stock.quoteId]
+      tTradingAccounts[stock.quoteId],
+      exchangeRates
     )
-    if (stock.position && metrics.marketValue !== null && metrics.totalProfit !== null) {
-      pricedPositionCount += 1
-      costBasis += stock.position.cost * stock.position.quantity
-      marketValue += metrics.marketValue
-      totalProfit += metrics.totalProfit
+    if (stock.position && metrics.cnyMarketValue !== null) {
+      marketValuePositionCount += 1
+      marketValue += metrics.cnyMarketValue
+      const market = stock.market ?? marketFromQuoteId(stock.quoteId)
+      marketValues[market] = (marketValues[market] ?? 0) + metrics.cnyMarketValue
+      currencyValues[metrics.currency] =
+        (currencyValues[metrics.currency] ?? 0) + metrics.cnyMarketValue
     }
-    if (metrics.todayProfit !== null && metrics.todayCostBasis !== null) {
+    if (
+      stock.position &&
+      metrics.cnyCostBasis !== null &&
+      metrics.cnyTotalProfit !== null
+    ) {
+      profitPositionCount += 1
+      costBasis += metrics.cnyCostBasis
+      totalProfit += metrics.cnyTotalProfit
+    } else if (stock.position) {
+      unconvertedPositionCount += 1
+    }
+    if (metrics.cnyTodayProfit !== null && metrics.cnyTodayCostBasis !== null) {
       todayPricedPositionCount += 1
-      todayProfit += metrics.todayProfit
-      todayCostBasis += metrics.todayCostBasis
+      todayProfit += metrics.cnyTodayProfit
+      todayCostBasis += metrics.cnyTodayCostBasis
     }
   }
 
   return {
-    costBasis: pricedPositionCount > 0 ? costBasis : null,
-    marketValue: pricedPositionCount > 0 ? marketValue : null,
+    currency: 'CNY',
+    exchangeRate: 1,
+    costExchangeRate: 1,
+    costBasis: profitPositionCount > 0 ? costBasis : null,
+    marketValue: marketValuePositionCount > 0 ? marketValue : null,
     todayProfit: todayPricedPositionCount > 0 ? todayProfit : null,
     todayProfitPercent: todayCostBasis > 0 ? todayProfit / todayCostBasis * 100 : null,
     todayCostBasis: todayPricedPositionCount > 0 ? todayCostBasis : null,
-    totalProfit: pricedPositionCount > 0 ? totalProfit : null,
+    totalProfit: profitPositionCount > 0 ? totalProfit : null,
     profitPercent: costBasis > 0 ? totalProfit / costBasis * 100 : null,
-    positionCount
+    cnyMarketValue: marketValuePositionCount > 0 ? marketValue : null,
+    cnyTodayProfit: todayPricedPositionCount > 0 ? todayProfit : null,
+    cnyTodayCostBasis: todayPricedPositionCount > 0 ? todayCostBasis : null,
+    cnyCostBasis: profitPositionCount > 0 ? costBasis : null,
+    cnyTotalProfit: profitPositionCount > 0 ? totalProfit : null,
+    cnyProfitPercent: costBasis > 0 ? totalProfit / costBasis * 100 : null,
+    positionCount,
+    unconvertedPositionCount,
+    marketValues,
+    currencyValues
   }
 }

@@ -26,10 +26,10 @@ import {
   type StockDetailNavigationRequest
 } from './lib/completion-notifications'
 import {
-  formatCurrency,
+  formatMoney,
+  formatMoneyProfit,
   formatPercent,
   formatPrice,
-  formatProfit,
   formatUpdateTime
 } from './lib/format'
 import {
@@ -135,6 +135,7 @@ export default function App() {
   const [initializing, setInitializing] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [calendarRefreshing, setCalendarRefreshing] = useState(false)
+  const [exchangeRatesRefreshing, setExchangeRatesRefreshing] = useState(false)
   const [configBusy, setConfigBusy] = useState(false)
   const [cacheSummary, setCacheSummary] = useState<CacheSummary | null>(null)
   const [cacheBusy, setCacheBusy] = useState(false)
@@ -428,9 +429,32 @@ export default function App() {
     [fundamentalEvaluations]
   )
   const portfolioSummary = useMemo(
-    () => calculatePortfolioSummary(state.watchlist, quotes, state.tTradingAccounts),
-    [quotes, state.tTradingAccounts, state.watchlist]
+    () => calculatePortfolioSummary(
+      state.watchlist,
+      quotes,
+      state.tTradingAccounts,
+      state.settings.exchangeRates
+    ),
+    [quotes, state.settings.exchangeRates, state.tTradingAccounts, state.watchlist]
   )
+  const portfolioExposureText = useMemo(() => {
+    const total = portfolioSummary.marketValue ?? 0
+    if (total <= 0) return ''
+    const marketLabels = { CN: 'A股', HK: '港股', US: '美股' } as const
+    const marketText = (['CN', 'HK', 'US'] as const)
+      .filter((market) => (portfolioSummary.marketValues[market] ?? 0) > 0)
+      .map((market) =>
+        `${marketLabels[market]} ${((portfolioSummary.marketValues[market] ?? 0) / total * 100).toFixed(1)}%`
+      )
+      .join(' · ')
+    const currencyText = (['CNY', 'HKD', 'USD'] as const)
+      .filter((currency) => (portfolioSummary.currencyValues[currency] ?? 0) > 0)
+      .map((currency) =>
+        `${currency} ${((portfolioSummary.currencyValues[currency] ?? 0) / total * 100).toFixed(1)}%`
+      )
+      .join(' · ')
+    return [marketText, currencyText].filter(Boolean).join(' ｜ ')
+  }, [portfolioSummary])
   const marketIndexQuotes = useMemo(() => {
     const selectedIds = new Set(state.settings.marketIndexIds)
     const quotesById = new Map(quotes.map((quote) => [quote.quoteId, quote]))
@@ -1160,6 +1184,22 @@ export default function App() {
     }
   }
 
+  const refreshExchangeRates = async () => {
+    setExchangeRatesRefreshing(true)
+    try {
+      const exchangeRates = await stockApi.refreshExchangeRates()
+      setState((current) => ({
+        ...current,
+        settings: { ...current.settings, exchangeRates }
+      }))
+      reportSuccess(`人民币汇率中间价已更新至 ${exchangeRates.rateDate ?? '最新公布日'}`)
+    } catch (reason) {
+      reportError(reason instanceof Error ? reason.message : '官方汇率刷新失败')
+    } finally {
+      setExchangeRatesRefreshing(false)
+    }
+  }
+
   const updateFundamentalData = async () => {
     try {
       const result = await stockApi.runFundamentalUpdate()
@@ -1264,6 +1304,8 @@ export default function App() {
               onDownloadUserDataFromGitHub={downloadUserDataFromGitHub}
               onRefreshTradingCalendar={refreshTradingCalendar}
               calendarRefreshing={calendarRefreshing}
+              onRefreshExchangeRates={refreshExchangeRates}
+              exchangeRatesRefreshing={exchangeRatesRefreshing}
               fundamentalDataState={fundamentalDataState}
               onUpdateFundamentalData={updateFundamentalData}
               cacheSummary={cacheSummary}
@@ -1324,8 +1366,8 @@ export default function App() {
               <div className="panel-heading-side">
                 <div className="portfolio-summary" aria-label="全部持仓收益汇总">
                   <span>
-                    <small>持仓总市值</small>
-                    <strong>{formatCurrency(portfolioSummary.marketValue)}</strong>
+                    <small>持仓总市值（人民币）</small>
+                    <strong>{formatMoney(portfolioSummary.marketValue, 'CNY')}</strong>
                   </span>
                   <span className={cardDirectionClass(portfolioSummary.todayProfit)}>
                     <small>今日总收益</small>
@@ -1338,7 +1380,7 @@ export default function App() {
                             : 'is-down'
                       }
                     >
-                      {formatProfit(portfolioSummary.todayProfit)}
+                      {formatMoneyProfit(portfolioSummary.todayProfit, 'CNY')}
                     </strong>
                   </span>
                   <span className={cardDirectionClass(portfolioSummary.todayProfitPercent)}>
@@ -1366,7 +1408,7 @@ export default function App() {
                             : 'is-down'
                       }
                     >
-                      {formatProfit(portfolioSummary.totalProfit)}
+                      {formatMoneyProfit(portfolioSummary.totalProfit, 'CNY')}
                     </strong>
                   </span>
                   <span className={cardDirectionClass(portfolioSummary.profitPercent)}>
@@ -1384,6 +1426,16 @@ export default function App() {
                     </strong>
                   </span>
                 </div>
+                {portfolioExposureText ? (
+                  <small className="portfolio-exposure-summary">
+                    市场 / 币种分布：{portfolioExposureText}
+                  </small>
+                ) : null}
+                {portfolioSummary.unconvertedPositionCount > 0 ? (
+                  <small className="portfolio-exposure-summary is-warning">
+                    {portfolioSummary.unconvertedPositionCount} 只外币持仓缺少可用汇率或建仓汇率，未计入人民币收益汇总
+                  </small>
+                ) : null}
               </div>
             </div>
             {initializing ? (
@@ -1425,6 +1477,7 @@ export default function App() {
                   state.settings.tFloatingProfitAlertDefaultThreshold
                 }
                 tradingCalendar={state.settings.tradingCalendar}
+                exchangeRates={state.settings.exchangeRates}
                 onSelect={selectWatchlistStock}
                 onDetailNavigationHandled={handleDetailNavigationHandled}
                 onToggleTaskbar={toggleTaskbar}

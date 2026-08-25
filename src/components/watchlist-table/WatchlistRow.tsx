@@ -3,10 +3,10 @@ import { Fragment, memo, type DragEvent, useCallback, useState } from 'react'
 import {
   formatAmount,
   formatCost,
-  formatCurrency,
+  formatMoney,
+  formatMoneyProfit,
   formatPercent,
   formatPrice,
-  formatProfit,
   formatShares,
   formatUpdateTime
 } from '../../lib/format'
@@ -40,6 +40,7 @@ import {
 } from '../../lib/fundamental-screening'
 import type {
   DividendFinancingRankingItem,
+  ExchangeRateSettings,
   StockQuote,
   StockTrackingConclusionResult,
   StockTrackingProfile,
@@ -49,7 +50,11 @@ import type {
   WatchlistColumnId,
   WatchStock
 } from '../../shared/types'
-import { marketCapabilitiesForQuoteId, marketFromQuoteId } from '../../shared/stock-market'
+import {
+  marketCapabilitiesForQuoteId,
+  marketFromQuoteId,
+  STOCK_CURRENCY_SYMBOLS
+} from '../../shared/stock-market'
 import { ExpandedStockDetails } from '../ExpandedStockDetails'
 import { FiveLevelAlertBadges } from '../FiveLevelAlertBadges'
 import { TAlertBadges } from '../TAlertBadges'
@@ -114,6 +119,7 @@ interface WatchlistRowProps {
   manualIndex: number
   columnOrder: WatchlistColumnId[]
   tradingCalendar: TradingCalendarSettings
+  exchangeRates: ExchangeRateSettings
   quoteStatusNow: Date
   priorityRefreshSeconds: number
   regularRefreshSeconds: number
@@ -165,6 +171,7 @@ export const WatchlistRow = memo(function WatchlistRow({
   manualIndex,
   columnOrder,
   tradingCalendar,
+  exchangeRates,
   quoteStatusNow,
   priorityRefreshSeconds,
   regularRefreshSeconds,
@@ -219,7 +226,7 @@ export const WatchlistRow = memo(function WatchlistRow({
   const financialMine = fundamentalScreening
     ? evaluateFinancialMine(fundamentalScreening.company)
     : null
-  const metrics = calculatePositionMetrics(stock.position, quote, tradingAccount)
+  const metrics = calculatePositionMetrics(stock.position, quote, tradingAccount, exchangeRates)
   const quoteDirection = valueClass(quote?.changePercent)
   const sectorDirection = valueClass(quote?.sector?.changePercent)
   const currentRadarSignals =
@@ -241,9 +248,15 @@ export const WatchlistRow = memo(function WatchlistRow({
     : ''
   const holdingDays = getPositionHoldingDays(
     stock.position,
-    tradingCalendar.markets.CN.closedDates
+    tradingCalendar.markets[market].closedDates,
+    market,
+    tradingCalendar.markets[market].halfDayDates
   )
-  const availablePositionQuantity = getAvailablePositionQuantity(stock.position, tradingAccount)
+  const availablePositionQuantity = getAvailablePositionQuantity(
+    stock.position,
+    tradingAccount,
+    market
+  )
   const tButtonState = !activeTBatch
     ? ''
     : tFloatingProfit !== null && tFloatingProfit > 0
@@ -664,13 +677,15 @@ export const WatchlistRow = memo(function WatchlistRow({
             case 'cost':
               return (
                 <td className="position-value-cell" key={columnId}>
-                  {formatCost(stock.position?.cost)}
+                  {stock.position
+                    ? `${STOCK_CURRENCY_SYMBOLS[metrics.currency]}${formatCost(stock.position.cost)}`
+                    : '--'}
                 </td>
               )
             case 'marketValue':
               return (
                 <td className="position-value-cell" key={columnId}>
-                  {formatCurrency(metrics.marketValue)}
+                  {formatMoney(metrics.marketValue, metrics.currency)}
                 </td>
               )
             case 'todayProfit':
@@ -678,7 +693,7 @@ export const WatchlistRow = memo(function WatchlistRow({
                 <td key={columnId}>
                   <span className="combined-profit-cell">
                     <span className={valueClass(metrics.todayProfit)}>
-                      {formatProfit(metrics.todayProfit)}
+                      {formatMoneyProfit(metrics.todayProfit, metrics.currency)}
                     </span>
                     <span className={valueClass(metrics.todayProfitPercent)}>
                       {formatPercent(metrics.todayProfitPercent)}
@@ -691,7 +706,7 @@ export const WatchlistRow = memo(function WatchlistRow({
                 <td key={columnId}>
                   <span className="combined-profit-cell">
                     <span className={valueClass(metrics.totalProfit)}>
-                      {formatProfit(metrics.totalProfit)}
+                      {formatMoneyProfit(metrics.totalProfit, metrics.currency)}
                     </span>
                     <span className={valueClass(metrics.profitPercent)}>
                       {formatPercent(metrics.profitPercent)}

@@ -19,6 +19,9 @@ export interface StockPositionSnapshot {
   createdAt: string
   quantity: number
   cost: number
+  currency?: import('./stock-market').StockCurrency
+  costExchangeRate?: number
+  costExchangeRateDate?: string
 }
 
 export type StockAlertMetric = 'price' | 'changePercent' | 'profitPercent'
@@ -300,39 +303,69 @@ export function synchronizeTrackingGroupMembership(
 }
 
 export function normalizeWatchlist(stocks: readonly WatchStock[]): WatchStock[] {
-  return stocks.map((stock) => ({
-    ...stock,
-    ...stockMarketIdentity(stock.quoteId, stock.instrumentType),
-    isPriority: Boolean(stock.position || stock.isPriority),
-    showRadarSignals: stock.showRadarSignals ?? true,
-    groupIds: [...new Set((stock.groupIds ?? []).filter((groupId) => typeof groupId === 'string'))],
-    positionSnapshots: Array.isArray(stock.positionSnapshots)
-      ? stock.positionSnapshots.filter(
-          (snapshot) =>
-            snapshot &&
-            typeof snapshot.id === 'string' &&
-            typeof snapshot.name === 'string' &&
-            typeof snapshot.createdAt === 'string' &&
-            Number.isFinite(snapshot.quantity) &&
-            snapshot.quantity > 0 &&
-            Number.isFinite(snapshot.cost) &&
-            snapshot.cost > 0
-        )
-      : [],
-    alertRules: Array.isArray(stock.alertRules)
-      ? stock.alertRules
-          .filter((rule) => Number.isFinite(rule.target))
-          .map((rule) => ({
-            id: rule.id,
-            metric: rule.metric,
-            operator: rule.operator,
-            target: rule.target,
-            enabled: rule.enabled ?? true,
-            status: rule.status === 'triggered' ? 'triggered' : 'armed',
-            triggeredAt: rule.triggeredAt
-          }))
-      : []
-  }))
+  return stocks.map((stock) => {
+    const identity = stockMarketIdentity(stock.quoteId, stock.instrumentType)
+    const normalizeCostRate = (value: number | undefined) =>
+      typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
+    const position = stock.position
+      ? {
+          ...stock.position,
+          currency: identity.currency,
+          costExchangeRate:
+            identity.currency === 'CNY'
+              ? 1
+              : normalizeCostRate(stock.position.costExchangeRate),
+          costExchangeRateDate:
+            identity.currency === 'CNY'
+              ? stock.position.costExchangeRateDate ?? stock.position.openedOn
+              : stock.position.costExchangeRateDate
+        }
+      : undefined
+    return {
+      ...stock,
+      ...identity,
+      position,
+      isPriority: Boolean(position || stock.isPriority),
+      showRadarSignals: stock.showRadarSignals ?? true,
+      groupIds: [...new Set((stock.groupIds ?? []).filter((groupId) => typeof groupId === 'string'))],
+      positionSnapshots: Array.isArray(stock.positionSnapshots)
+        ? stock.positionSnapshots
+            .filter(
+              (snapshot) =>
+                snapshot &&
+                typeof snapshot.id === 'string' &&
+                typeof snapshot.name === 'string' &&
+                typeof snapshot.createdAt === 'string' &&
+                Number.isFinite(snapshot.quantity) &&
+                snapshot.quantity > 0 &&
+                Number.isFinite(snapshot.cost) &&
+                snapshot.cost > 0
+            )
+            .map((snapshot) => ({
+              ...snapshot,
+              currency: identity.currency,
+              costExchangeRate:
+                identity.currency === 'CNY'
+                  ? 1
+                  : normalizeCostRate(snapshot.costExchangeRate),
+              costExchangeRateDate: snapshot.costExchangeRateDate
+            }))
+        : [],
+      alertRules: Array.isArray(stock.alertRules)
+        ? stock.alertRules
+            .filter((rule) => Number.isFinite(rule.target))
+            .map((rule) => ({
+              id: rule.id,
+              metric: rule.metric,
+              operator: rule.operator,
+              target: rule.target,
+              enabled: rule.enabled ?? true,
+              status: rule.status === 'triggered' ? 'triggered' : 'armed',
+              triggeredAt: rule.triggeredAt
+            }))
+        : []
+    }
+  })
 }
 
 export const MARKET_INDEX_OPTIONS = [
@@ -374,6 +407,9 @@ export interface StockPosition {
   cost: number
   openedToday: boolean
   openedOn?: string
+  currency?: import('./stock-market').StockCurrency
+  costExchangeRate?: number
+  costExchangeRateDate?: string
 }
 
 export interface TTradingFeeSettings {
@@ -1462,6 +1498,30 @@ export interface TradingCalendarSettings {
   lastError: string | null
 }
 
+export interface ExchangeRateSettings {
+  baseCurrency: 'CNY'
+  rates: Record<import('./stock-market').StockCurrency, number | null>
+  manualOverrides: Partial<Record<'HKD' | 'USD', number>>
+  rateDate: string | null
+  fetchedAt: string | null
+  lastCheckedDate: string | null
+  lastAttemptedAt: string | null
+  lastError: string | null
+  source: 'safe-cfets'
+}
+
+export const DEFAULT_EXCHANGE_RATE_SETTINGS: ExchangeRateSettings = {
+  baseCurrency: 'CNY',
+  rates: { CNY: 1, HKD: null, USD: null },
+  manualOverrides: {},
+  rateDate: null,
+  fetchedAt: null,
+  lastCheckedDate: null,
+  lastAttemptedAt: null,
+  lastError: null,
+  source: 'safe-cfets'
+}
+
 function defaultMarketTradingCalendar(market: StockMarket): MarketTradingCalendarSettings {
   const calendar = builtInMarketCalendar(market)
   return {
@@ -1517,6 +1577,7 @@ export interface AppSettings {
   tPlanDefaults: TPlanDefaultSettings
   tFloatingProfitAlertDefaultThreshold: number
   tradingCalendar: TradingCalendarSettings
+  exchangeRates: ExchangeRateSettings
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -1532,7 +1593,35 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   tTradingFees: { ...DEFAULT_T_TRADING_FEE_SETTINGS },
   tPlanDefaults: structuredClone(DEFAULT_T_PLAN_SETTINGS),
   tFloatingProfitAlertDefaultThreshold: DEFAULT_T_FLOATING_PROFIT_ALERT_THRESHOLD,
-  tradingCalendar: structuredClone(DEFAULT_TRADING_CALENDAR_SETTINGS)
+  tradingCalendar: structuredClone(DEFAULT_TRADING_CALENDAR_SETTINGS),
+  exchangeRates: structuredClone(DEFAULT_EXCHANGE_RATE_SETTINGS)
+}
+
+export function normalizeExchangeRateSettings(
+  settings: Partial<ExchangeRateSettings> | undefined
+): ExchangeRateSettings {
+  const positiveRate = (value: number | null | undefined): number | null =>
+    typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null
+  const manualOverrides: ExchangeRateSettings['manualOverrides'] = {}
+  const manualHkd = positiveRate(settings?.manualOverrides?.HKD)
+  const manualUsd = positiveRate(settings?.manualOverrides?.USD)
+  if (manualHkd !== null) manualOverrides.HKD = manualHkd
+  if (manualUsd !== null) manualOverrides.USD = manualUsd
+  return {
+    baseCurrency: 'CNY',
+    rates: {
+      CNY: 1,
+      HKD: positiveRate(settings?.rates?.HKD),
+      USD: positiveRate(settings?.rates?.USD)
+    },
+    manualOverrides,
+    rateDate: settings?.rateDate ?? null,
+    fetchedAt: settings?.fetchedAt ?? null,
+    lastCheckedDate: settings?.lastCheckedDate ?? null,
+    lastAttemptedAt: settings?.lastAttemptedAt ?? null,
+    lastError: settings?.lastError ?? null,
+    source: 'safe-cfets'
+  }
 }
 
 function normalizeTTradingFeeSettings(
@@ -1685,7 +1774,8 @@ export function normalizeAppSettings(
       1,
       settings?.tFloatingProfitAlertDefaultThreshold ?? DEFAULT_T_FLOATING_PROFIT_ALERT_THRESHOLD
     ),
-    tradingCalendar: normalizeTradingCalendarSettings(settings?.tradingCalendar)
+    tradingCalendar: normalizeTradingCalendarSettings(settings?.tradingCalendar),
+    exchangeRates: normalizeExchangeRateSettings(settings?.exchangeRates)
   }
 }
 
@@ -1859,6 +1949,7 @@ export interface StockDesktopApi {
   getFundsFlow: (quoteId: string) => Promise<FundsFlowResult>
   getSectorIndex: (quoteId: string) => Promise<SectorIndexResult>
   refreshTradingCalendar: () => Promise<TradingCalendarSettings>
+  refreshExchangeRates: () => Promise<ExchangeRateSettings>
   saveState: (state: AppState) => Promise<AppState>
   getCompletionNotifications: () => Promise<AppCompletionNotification[]>
   saveCompletionNotifications: (

@@ -56,6 +56,8 @@ interface SettingsMenuProps {
   onDownloadUserDataFromGitHub: () => void
   onRefreshTradingCalendar: () => void
   calendarRefreshing: boolean
+  onRefreshExchangeRates: () => void
+  exchangeRatesRefreshing: boolean
   fundamentalDataState: DataSnapshotRuntimeState
   onUpdateFundamentalData: () => void
   cacheSummary: CacheSummary | null
@@ -147,6 +149,8 @@ export function SettingsMenu({
   onDownloadUserDataFromGitHub,
   onRefreshTradingCalendar,
   calendarRefreshing,
+  onRefreshExchangeRates,
+  exchangeRatesRefreshing,
   fundamentalDataState,
   onUpdateFundamentalData,
   cacheSummary,
@@ -245,6 +249,17 @@ export function SettingsMenu({
           levelIndex === index ? { ...level, [key]: Math.max(0, value || 0) } : level
         )
       }
+    })
+  }
+
+  const updateManualExchangeRate = (currency: 'HKD' | 'USD', value: string) => {
+    const manualOverrides = { ...settings.exchangeRates.manualOverrides }
+    const parsed = Number(value)
+    if (value.trim() && Number.isFinite(parsed) && parsed > 0) manualOverrides[currency] = parsed
+    else delete manualOverrides[currency]
+    onChange({
+      ...settings,
+      exchangeRates: { ...settings.exchangeRates, manualOverrides }
     })
   }
 
@@ -616,6 +631,49 @@ export function SettingsMenu({
                 >
                   <RefreshCw size={14} className={calendarRefreshing ? 'is-spinning' : ''} />
                   {calendarRefreshing ? '刷新中' : '手动刷新'}
+                </button>
+              </div>
+              <div className="trading-calendar-setting exchange-rate-setting">
+                <span>
+                  <strong>人民币汇率中间价</strong>
+                  <small>
+                    国家外汇管理局发布，数据来源为中国外汇交易中心；每日北京时间 09:20 后自动检查
+                  </small>
+                  <small className={settings.exchangeRates.lastError ? 'is-error' : ''}>
+                    汇率日期 {settings.exchangeRates.rateDate ?? '--'} · 最近获取{' '}
+                    {formatCalendarRefreshTime(settings.exchangeRates.fetchedAt)}
+                    {settings.exchangeRates.lastError ? ` · ${settings.exchangeRates.lastError}` : ''}
+                  </small>
+                  <span className="exchange-rate-fields">
+                    {(['HKD', 'USD'] as const).map((currency) => (
+                      <label key={currency}>
+                        <span>{currency}/CNY</span>
+                        <input
+                          type="number"
+                          min="0.000001"
+                          step="0.000001"
+                          value={settings.exchangeRates.manualOverrides[currency] ?? ''}
+                          placeholder={settings.exchangeRates.rates[currency]?.toFixed(6) ?? '等待官方数据'}
+                          onChange={(event) => updateManualExchangeRate(currency, event.target.value)}
+                          aria-label={`${currency}兑人民币手工覆盖汇率`}
+                        />
+                        <small>
+                          {settings.exchangeRates.manualOverrides[currency] === undefined
+                            ? `官方 ${settings.exchangeRates.rates[currency]?.toFixed(6) ?? '--'}`
+                            : '正在使用手工覆盖'}
+                        </small>
+                      </label>
+                    ))}
+                  </span>
+                  <small>留空使用官方中间价；该汇率仅用于组合估值，不代表券商实际结算汇率</small>
+                </span>
+                <button
+                  type="button"
+                  onClick={onRefreshExchangeRates}
+                  disabled={exchangeRatesRefreshing}
+                >
+                  <RefreshCw size={14} className={exchangeRatesRefreshing ? 'is-spinning' : ''} />
+                  {exchangeRatesRefreshing ? '刷新中' : '手动刷新'}
                 </button>
               </div>
               <div className={`fundamental-data-setting is-${fundamentalDataState.status}`}>

@@ -62,6 +62,7 @@ const api: StockDesktopApi = {
   getFundsFlow: (quoteId) => ipcRenderer.invoke('funds-flow:get', quoteId),
   getSectorIndex: (quoteId) => ipcRenderer.invoke('sector-index:get', quoteId),
   refreshTradingCalendar: () => ipcRenderer.invoke('trading-calendar:refresh'),
+  refreshExchangeRates: () => ipcRenderer.invoke('exchange-rates:refresh'),
   saveState: (state) => ipcRenderer.invoke('state:save', state),
   getCompletionNotifications: () => ipcRenderer.invoke('completion-notifications:get'),
   saveCompletionNotifications: (notifications) =>
