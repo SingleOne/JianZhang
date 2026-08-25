@@ -22,6 +22,7 @@ import {
   type DailyMarketScanResult,
   type DividendFinancingSnapshot,
   type FundamentalSnapshot,
+  type GlobalFundamentalSnapshot,
   type FundsFlowResult,
   type KlinePeriod,
   type KlineResult,
@@ -600,11 +601,36 @@ const demoApi: StockDesktopApi = {
   async runFundamentalUpdate() {
     throw new Error('基本面财务数据更新脚本仅能在 Windows 桌面版中运行')
   },
-  async getCompanyReports(code) {
+  async getCompanyReports(quoteId) {
+    const code = quoteId.includes('.') ? (quoteId.split('.')[1] ?? quoteId) : quoteId
     return {
       ...DEMO_COMPANY_REPORTS,
+      quoteId,
       code,
-      reports: DEMO_COMPANY_REPORTS.reports.map((report) => ({ ...report, code }))
+      reports: DEMO_COMPANY_REPORTS.reports.map((report) => ({ ...report, quoteId, code }))
+    }
+  },
+  async getGlobalFundamentals(quoteId): Promise<GlobalFundamentalSnapshot> {
+    const identity = stockMarketIdentity(quoteId)
+    const code = quoteId.split('.')[1] ?? quoteId
+    if (identity.market === 'CN') throw new Error('A 股使用本地全市场基本面快照')
+    return {
+      schemaVersion: 1,
+      quoteId,
+      market: identity.market,
+      code,
+      name: code,
+      officialIssuerId: code,
+      accountingStandard: identity.market === 'US' ? 'US GAAP' : 'HKFRS',
+      reportingCurrency: identity.currency,
+      fetchedAt: new Date().toISOString(),
+      fromCache: false,
+      warning: '浏览器预览不请求交易所官方财务数据。',
+      source: {
+        name: identity.market === 'US' ? 'SEC Company Facts' : 'HKEXnews',
+        url: identity.market === 'US' ? 'https://www.sec.gov/' : 'https://www.hkexnews.hk/'
+      },
+      periods: []
     }
   },
   async generateCompanyReportSummary(report) {

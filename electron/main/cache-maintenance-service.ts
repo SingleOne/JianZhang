@@ -82,10 +82,10 @@ export const CACHE_CATEGORY_DEFINITIONS: readonly CacheCategoryDefinition[] = [
   },
   {
     id: 'company-reports',
-    label: '财报目录缓存',
-    description: '按股票保存的巨潮资讯报告目录，不删除 AI 财报总结',
+    label: '官方财报缓存',
+    description: '按股票保存的巨潮、SEC、HKEXnews 报告目录和结构化概览，不删除 AI 财报总结',
     group: 'advanced',
-    roots: ['company-reports'],
+    roots: ['company-reports', 'global-fundamentals'],
     include: (relativePath) => relativePath.split('/').at(-1) !== 'summaries.json'
   },
   {

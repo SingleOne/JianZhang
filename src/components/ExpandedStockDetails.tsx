@@ -96,6 +96,7 @@ import type { AiAnalysisType } from '../modules/ai/shared/types'
 const CandlestickChart = lazy(() => import('./CandlestickChart'))
 const PeriodKlineChart = lazy(() => import('./PeriodKlineChart'))
 const SectorIndexPanel = lazy(() => import('./SectorIndexPanel'))
+const GlobalFundamentalPanel = lazy(() => import('./GlobalFundamentalPanel'))
 const MarketInsightPanel = __JIANZHANG_MARKET_INSIGHT_ENABLED__
   ? lazy(() =>
       import('../modules/market-insight/renderer/register').then((module) => ({
@@ -1855,14 +1856,24 @@ export function ExpandedStockDetails({
         </div>
       ) : capabilities.fundamentals && activeTab === 'fundamental' ? (
         <div className="fundamental-tab-content" role="tabpanel">
-          <FundamentalPanel
-            evaluation={fundamentalScreening}
-            currentPrice={quote?.latest}
-            peerComparison={fundamentalPeerComparison}
-            snapshotDate={fundamentalSnapshotDate}
-            generatedAt={fundamentalGeneratedAt}
-            staleReason={fundamentalStaleReason}
-          />
+          {isAStock ? (
+            <FundamentalPanel
+              evaluation={fundamentalScreening}
+              currentPrice={quote?.latest}
+              peerComparison={fundamentalPeerComparison}
+              snapshotDate={fundamentalSnapshotDate}
+              generatedAt={fundamentalGeneratedAt}
+              staleReason={fundamentalStaleReason}
+            />
+          ) : stock.instrumentType === 'etf' ? (
+            <div className="global-fundamental-empty">
+              ETF 不适用公司财务概览，请在财报库查看基金披露文件。
+            </div>
+          ) : (
+            <Suspense fallback={<div className="global-fundamental-empty">正在加载财务概览…</div>}>
+              <GlobalFundamentalPanel stock={stock} />
+            </Suspense>
+          )}
         </div>
       ) : capabilities.shareholders && activeTab === 'shareholders' ? (
         <ShareholderPanel stock={stock} />
@@ -1901,9 +1912,7 @@ export function ExpandedStockDetails({
               {data?.adjustment === 'forward' ? (
                 <em className="overview-data-badge">前复权</em>
               ) : null}
-              {data?.fromCache ? (
-                <em className="overview-data-badge is-cache">本地缓存</em>
-              ) : null}
+              {data?.fromCache ? <em className="overview-data-badge is-cache">本地缓存</em> : null}
             </div>
             <div className="chart-legend" aria-label="图表图例">
               <span className={isHistorical ? 'legend-candlestick' : 'legend-price'}>
@@ -2041,9 +2050,7 @@ export function ExpandedStockDetails({
                 refreshSeconds={refreshSeconds}
                 autoRefresh={autoRefreshOrderBook}
               />
-            ) : priceTab === 'daily' &&
-              chipDistributionEnabled &&
-              capabilities.chipDistribution ? (
+            ) : priceTab === 'daily' && chipDistributionEnabled && capabilities.chipDistribution ? (
               <ChipDistributionPanel
                 quoteId={stock.quoteId}
                 quoteName={stock.name}

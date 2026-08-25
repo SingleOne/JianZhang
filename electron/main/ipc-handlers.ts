@@ -39,6 +39,7 @@ import type {
   FundamentalChangeReport,
   FundamentalSnapshot,
   FundamentalUpdateResult,
+  GlobalFundamentalSnapshot,
   FundsFlowResult,
   GitHubDeviceAuthorization,
   GitHubLoginResult,
@@ -81,7 +82,14 @@ interface IpcHandlerDependencies {
   getFundamentalState: () => DataSnapshotRuntimeState
   getFundamentalChangeReport: () => FundamentalChangeReport | null
   runFundamentalUpdate: () => Promise<FundamentalUpdateResult>
-  getCompanyReports: (code: string, forceRefresh?: boolean) => Promise<CompanyReportLibraryResult>
+  getCompanyReports: (
+    quoteId: string,
+    forceRefresh?: boolean
+  ) => Promise<CompanyReportLibraryResult>
+  getGlobalFundamentals: (
+    quoteId: string,
+    forceRefresh?: boolean
+  ) => Promise<GlobalFundamentalSnapshot>
   generateCompanyReportSummary: (report: CompanyReportItem) => Promise<CompanyReportSummary>
   openCompanyReport: (url: string) => Promise<void>
   getShareholderSnapshot: (quoteId: string, forceRefresh?: boolean) => Promise<ShareholderSnapshot>
@@ -165,6 +173,7 @@ const CHANNELS = [
   'fundamentals:state:get',
   'fundamentals:changes:get',
   'fundamentals:update',
+  'global-fundamentals:get',
   'company-reports:get',
   'company-reports:summary:generate',
   'company-reports:open',
@@ -246,8 +255,11 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
   ipcMain.handle('fundamentals:state:get', () => dependencies.getFundamentalState())
   ipcMain.handle('fundamentals:changes:get', () => dependencies.getFundamentalChangeReport())
   ipcMain.handle('fundamentals:update', () => dependencies.runFundamentalUpdate())
-  ipcMain.handle('company-reports:get', (_event, code: string, forceRefresh?: boolean) =>
-    dependencies.getCompanyReports(code, forceRefresh)
+  ipcMain.handle('company-reports:get', (_event, quoteId: string, forceRefresh?: boolean) =>
+    dependencies.getCompanyReports(quoteId, forceRefresh)
+  )
+  ipcMain.handle('global-fundamentals:get', (_event, quoteId: string, forceRefresh?: boolean) =>
+    dependencies.getGlobalFundamentals(quoteId, forceRefresh)
   )
   ipcMain.handle('company-reports:summary:generate', (_event, report: CompanyReportItem) =>
     dependencies.generateCompanyReportSummary(report)

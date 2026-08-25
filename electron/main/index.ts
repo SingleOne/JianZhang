@@ -46,6 +46,7 @@ import { DividendFinancingService } from './dividend-financing-service'
 import { ExchangeRateRuntime } from './exchange-rate-runtime'
 import { FundsFlowHub } from './funds-flow-hub'
 import { FundamentalDataService } from './fundamental-data-service'
+import { GlobalFundamentalService } from './global-fundamental-service'
 import { GitHubSyncService } from './github-sync-service'
 import { HistoricalKlineCache } from './historical-kline-cache'
 import { registerIpcHandlers } from './ipc-handlers'
@@ -55,6 +56,7 @@ import { OrderBookHub } from './order-book-hub'
 import { PythonTaskQueue } from './python-task-queue'
 import { QuoteRuntime } from './quote-runtime'
 import { SectorMarketCache } from './sector-market-cache'
+import { SecEdgarClient } from './sec-edgar-client'
 import { ShareholderService } from './shareholder-service'
 import { StateStore } from './state-store'
 import { StockTrackingMetricsRuntime } from './stock-tracking-metrics-runtime'
@@ -142,6 +144,7 @@ let disposeIpcHandlers: (() => void) | null = null
 let dividendFinancingService: DividendFinancingService | null = null
 let fundamentalDataService: FundamentalDataService | null = null
 let companyReportService: CompanyReportService | null = null
+let globalFundamentalService: GlobalFundamentalService | null = null
 let valuationHistoryService: ValuationHistoryService | null = null
 let shareholderService: ShareholderService | null = null
 let dailyMarketScanService: DailyMarketScanService | null = null
@@ -343,7 +346,13 @@ if (!hasSingleInstanceLock) {
       (progress) => sendToWindows('fundamentals:update-progress', progress),
       (snapshotState) => sendToWindows('fundamentals:state-updated', snapshotState)
     )
-    companyReportService = new CompanyReportService(app.getPath('userData'))
+    const secEdgarClient = new SecEdgarClient()
+    companyReportService = new CompanyReportService(app.getPath('userData'), secEdgarClient)
+    globalFundamentalService = new GlobalFundamentalService(
+      app.getPath('userData'),
+      companyReportService,
+      secEdgarClient
+    )
     marketRequestLogger = new MarketRequestLogger(join(app.getPath('userData'), 'logs'))
     setMarketRequestLogger(marketRequestLogger)
     chipDistributionCache = new ChipDistributionCache(marketCacheDirectory)
@@ -444,7 +453,10 @@ if (!hasSingleInstanceLock) {
       getFundamentalState: () => fundamentalDataService!.getState(),
       getFundamentalChangeReport: () => fundamentalDataService!.getChangeReport(),
       runFundamentalUpdate: () => fundamentalDataService!.runUpdate(),
-      getCompanyReports: (code, forceRefresh) => companyReportService!.get(code, forceRefresh),
+      getCompanyReports: (quoteId, forceRefresh) =>
+        companyReportService!.get(quoteId, forceRefresh),
+      getGlobalFundamentals: (quoteId, forceRefresh) =>
+        globalFundamentalService!.get(quoteId, forceRefresh),
       generateCompanyReportSummary: (report) => {
         if (!aiRuntime) throw new Error('当前构建未启用 AI 功能')
         return companyReportService!.generateSummary(report, (request, signal) =>

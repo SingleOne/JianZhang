@@ -8,15 +8,19 @@ import type {
 export const COMPANY_REPORT_TYPE_LABELS: Record<CompanyReportType, string> = {
   annual: '年报',
   semiannual: '半年报',
+  quarterly: '季度报告',
   firstQuarter: '一季报',
-  thirdQuarter: '三季报'
+  thirdQuarter: '三季报',
+  current: '业绩公告'
 }
 
 export const COMPANY_REPORT_READING_HINTS: Record<CompanyReportType, string> = {
   annual: '信息最完整且经过审计，优先阅读经营情况、审计意见、三张主表和附注。',
   semiannual: '用于检查上半年经营趋势、现金流和资产负债变化，通常未经审计。',
+  quarterly: '适合检查最新季度或阶段性趋势，并与上一财年和同期口径对照。',
   firstQuarter: '适合观察开年趋势，但单季度波动较大，应与行业季节性一起判断。',
-  thirdQuarter: '用于确认全年趋势是否延续，并留意年末前的现金流和负债压力。'
+  thirdQuarter: '用于确认全年趋势是否延续，并留意年末前的现金流和负债压力。',
+  current: '业绩公告通常早于完整报告发布，适合先看主要数字，最终应以正式报告为准。'
 }
 
 export function normalizeCompanyReportTitle(value: string): string {
@@ -44,7 +48,7 @@ export function companyReportYear(
   reportType: CompanyReportType,
   publishedAt: string
 ): number {
-  const matched = title.match(/((?:19|20)\d{2})\s*年/)
+  const matched = title.match(/((?:19|20)\d{2})(?:\s*年|\b)/)
   if (matched) return Number(matched[1])
   const publishedYear = new Date(publishedAt).getFullYear()
   return reportType === 'annual' ? publishedYear - 1 : publishedYear
@@ -92,18 +96,31 @@ export function createCompanyReportSummaryExcerpt(text: string, maxCharacters = 
     '合并资产负债表',
     '合并利润表',
     '合并现金流量表',
-    '财务报表附注'
+    '财务报表附注',
+    "Management's Discussion and Analysis",
+    'Management Discussion and Analysis',
+    "Auditor's Report",
+    'Report of Independent Registered Public Accounting Firm',
+    'Consolidated Balance Sheets',
+    'Consolidated Statements of Operations',
+    'Consolidated Statements of Cash Flows',
+    'Notes to the Financial Statements'
   ]
   const matchedSections = headings.flatMap((heading) => {
     const index = normalized.indexOf(heading)
     return index >= 0 ? [index] : []
   })
   const openingCharacters = Math.min(8_000, Math.floor(maxCharacters / 2))
-  const sectionCharacters = matchedSections.length > 0
-    ? Math.max(1, Math.floor(
-      (maxCharacters - openingCharacters - matchedSections.length * 2) / matchedSections.length
-    ))
-    : 0
+  const sectionCharacters =
+    matchedSections.length > 0
+      ? Math.max(
+          1,
+          Math.floor(
+            (maxCharacters - openingCharacters - matchedSections.length * 2) /
+              matchedSections.length
+          )
+        )
+      : 0
   const sections = [
     normalized.slice(0, openingCharacters),
     ...matchedSections.map((index) => normalized.slice(index, index + sectionCharacters))
@@ -112,7 +129,10 @@ export function createCompanyReportSummaryExcerpt(text: string, maxCharacters = 
 }
 
 export function parseCompanyReportSummary(content: string): CompanyReportSummarySections {
-  const json = content.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
+  const json = content
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/, '')
   let raw: unknown
   try {
     raw = JSON.parse(json)

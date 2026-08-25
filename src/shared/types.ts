@@ -1383,9 +1383,12 @@ export interface FundamentalValuationSnapshot {
   priceBookIndustrySampleSize: number
 }
 
-export type CompanyReportType = 'annual' | 'semiannual' | 'firstQuarter' | 'thirdQuarter'
+export type CompanyReportType =
+  'annual' | 'semiannual' | 'quarterly' | 'firstQuarter' | 'thirdQuarter' | 'current'
 
 export type CompanyReportVariant = 'full' | 'summary' | 'english'
+export type CompanyReportSource = '巨潮资讯' | 'SEC EDGAR' | 'HKEXnews'
+export type CompanyReportFormat = 'pdf' | 'html'
 
 export interface CompanyReportSummarySections {
   managementDiscussion: string | null
@@ -1397,6 +1400,7 @@ export interface CompanyReportSummarySections {
 export interface CompanyReportSummary {
   reportId: string
   code: string
+  quoteId?: string
   content: string
   managementDiscussion?: string | null
   auditOpinion?: string | null
@@ -1414,6 +1418,9 @@ export interface CompanyReportSummary {
 export interface CompanyReportItem {
   id: string
   code: string
+  quoteId?: string
+  market?: StockMarket
+  source?: CompanyReportSource
   title: string
   reportType: CompanyReportType
   reportYear: number
@@ -1421,18 +1428,86 @@ export interface CompanyReportItem {
   amended: boolean
   publishedAt: string
   url: string
+  format?: CompanyReportFormat
+  formType?: string
+  fiscalPeriod?: string
+  periodEnd?: string
   summary?: CompanyReportSummary
 }
 
 export interface CompanyReportLibraryResult {
   code: string
-  source: '巨潮资讯'
+  quoteId?: string
+  market?: StockMarket
+  source: CompanyReportSource
   periodStart: string
   periodEnd: string
   fetchedAt: string
   fromCache: boolean
   warning?: string
   reports: CompanyReportItem[]
+}
+
+export type GlobalFinancialMetricId =
+  | 'revenue'
+  | 'grossProfit'
+  | 'operatingIncome'
+  | 'netIncome'
+  | 'dilutedEps'
+  | 'totalAssets'
+  | 'totalLiabilities'
+  | 'stockholdersEquity'
+  | 'cashAndEquivalents'
+  | 'totalDebt'
+  | 'operatingCashFlow'
+  | 'capitalExpenditure'
+  | 'freeCashFlow'
+  | 'grossMargin'
+  | 'netMargin'
+  | 'roe'
+  | 'debtAssetRatio'
+
+export interface GlobalFinancialMetric {
+  id: GlobalFinancialMetricId
+  label: string
+  value: number
+  unit: 'currency' | 'perShare' | 'percent'
+  currency?: string
+  derivation: 'reported' | 'calculated'
+  rawConcept?: string
+}
+
+export interface GlobalFinancialPeriod {
+  id: string
+  periodType: 'annual' | 'interim' | 'ttm'
+  fiscalYear: number
+  fiscalPeriod: string
+  periodStart?: string
+  periodEnd: string
+  filedAt: string
+  formType: string
+  sourceUrl: string
+  metrics: GlobalFinancialMetric[]
+}
+
+export interface GlobalFundamentalSnapshot {
+  schemaVersion: 1
+  quoteId: string
+  market: 'HK' | 'US'
+  code: string
+  name: string
+  officialIssuerId: string
+  accountingStandard: 'US GAAP' | 'IFRS' | 'HKFRS' | '未识别'
+  reportingCurrency: string | null
+  fiscalYearEnd?: string
+  fetchedAt: string
+  fromCache: boolean
+  warning?: string
+  source: {
+    name: 'SEC Company Facts' | 'HKEXnews'
+    url: string
+  }
+  periods: GlobalFinancialPeriod[]
 }
 
 export interface FundamentalCompany {
@@ -2094,7 +2169,14 @@ export interface StockDesktopApi {
   getFundamentalState: () => Promise<DataSnapshotRuntimeState>
   getFundamentalChangeReport: () => Promise<FundamentalChangeReport | null>
   runFundamentalUpdate: () => Promise<FundamentalUpdateResult>
-  getCompanyReports: (code: string, forceRefresh?: boolean) => Promise<CompanyReportLibraryResult>
+  getCompanyReports: (
+    quoteId: string,
+    forceRefresh?: boolean
+  ) => Promise<CompanyReportLibraryResult>
+  getGlobalFundamentals: (
+    quoteId: string,
+    forceRefresh?: boolean
+  ) => Promise<GlobalFundamentalSnapshot>
   generateCompanyReportSummary: (report: CompanyReportItem) => Promise<CompanyReportSummary>
   openCompanyReport: (url: string) => Promise<void>
   getShareholderSnapshot: (quoteId: string, forceRefresh?: boolean) => Promise<ShareholderSnapshot>

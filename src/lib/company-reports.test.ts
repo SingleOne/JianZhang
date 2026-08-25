@@ -17,9 +17,8 @@ describe('company report helpers', () => {
     expect(title).toBe('贵州茅台2025年年度报告&摘要')
     expect(companyReportYear(title, 'annual', '2026-04-03T00:00:00.000Z')).toBe(2025)
     expect(companyReportYear('年度报告', 'annual', '2026-04-03T00:00:00.000Z')).toBe(2025)
-    expect(companyReportYear('第一季度报告', 'firstQuarter', '2026-04-30T00:00:00.000Z')).toBe(
-      2026
-    )
+    expect(companyReportYear('ANNUAL REPORT 2025', 'annual', '2026-04-03T00:00:00.000Z')).toBe(2025)
+    expect(companyReportYear('第一季度报告', 'firstQuarter', '2026-04-30T00:00:00.000Z')).toBe(2026)
   })
 
   it('classifies full, summary, English and amended reports', () => {

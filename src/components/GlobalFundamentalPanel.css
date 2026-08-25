@@ -1,0 +1,202 @@
+.global-fundamental-panel {
+  display: grid;
+  gap: 12px;
+  color: var(--text-primary);
+}
+
+.global-fundamental-header,
+.global-fundamental-meta,
+.global-fundamental-cards {
+  display: flex;
+  gap: 10px;
+}
+
+.global-fundamental-header {
+  align-items: center;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 12px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 9%, var(--surface)),
+    var(--surface)
+  );
+}
+
+.global-fundamental-header > span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.global-fundamental-header small,
+.global-fundamental-meta small,
+.global-fundamental-cards small,
+.global-fundamental-table-wrap small {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.global-fundamental-header strong {
+  font-size: 16px;
+}
+
+.global-fundamental-header button,
+.global-fundamental-source button,
+.global-fundamental-table-wrap button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 32px;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
+  border-radius: 8px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.global-fundamental-header button {
+  padding: 0 11px;
+  font-weight: 700;
+}
+
+.global-fundamental-header button:disabled {
+  opacity: 0.62;
+  cursor: wait;
+}
+
+.global-fundamental-warning,
+.global-fundamental-error {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.global-fundamental-warning {
+  color: #d98b17;
+  border: 1px solid color-mix(in srgb, #d98b17 35%, var(--border));
+  background: color-mix(in srgb, #d98b17 8%, var(--surface));
+}
+
+.global-fundamental-error {
+  color: var(--red);
+  border: 1px solid color-mix(in srgb, var(--red) 35%, var(--border));
+  background: color-mix(in srgb, var(--red) 8%, var(--surface));
+}
+
+.global-fundamental-meta,
+.global-fundamental-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.global-fundamental-meta > span,
+.global-fundamental-cards > article {
+  display: grid;
+  gap: 5px;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.global-fundamental-meta strong,
+.global-fundamental-cards strong {
+  font-size: 14px;
+}
+
+.global-fundamental-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.global-fundamental-table-wrap table {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: collapse;
+}
+
+.global-fundamental-table-wrap th,
+.global-fundamental-table-wrap td {
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.global-fundamental-table-wrap th:first-child,
+.global-fundamental-table-wrap td:first-child {
+  text-align: left;
+}
+
+.global-fundamental-table-wrap tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.global-fundamental-table-wrap td:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.global-fundamental-table-wrap button {
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+}
+
+.global-fundamental-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 140px;
+  padding: 18px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  color: var(--text-secondary);
+  background: var(--surface);
+  font-size: 13px;
+  text-align: center;
+}
+
+.global-fundamental-source {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.global-fundamental-source button {
+  min-height: 26px;
+  padding: 0 8px;
+}
+
+.global-fundamental-panel .is-positive {
+  color: var(--red);
+}
+
+.global-fundamental-panel .is-negative {
+  color: var(--green);
+}
+
+.global-fundamental-panel .is-zero {
+  color: var(--text-secondary);
+}
+
+@media (max-width: 900px) {
+  .global-fundamental-meta,
+  .global-fundamental-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
