@@ -8,7 +8,7 @@ vi.mock('electron', () => ({
   net: { fetch: netFetch }
 }))
 
-import { fetchDailyMarketActiveQuotes, fetchOrderBook, fetchQuotes } from './market'
+import { fetchDailyMarketActiveQuotes, fetchOrderBook, fetchQuotes, searchStocks } from './market'
 
 function jsonResponse(value: unknown): Response {
   return {
@@ -56,6 +56,61 @@ function orderBookPayload(name = '测试股票') {
     }
   }
 }
+
+describe('searchStocks', () => {
+  beforeEach(() => {
+    netFetch.mockReset()
+  })
+
+  it('保留沪深 A 股和 ETF，过滤指数', async () => {
+    netFetch.mockResolvedValueOnce(jsonResponse({
+      QuotationCodeTable: {
+        Data: [
+          {
+            Code: '600362',
+            Name: '江西铜业',
+            QuoteID: '1.600362',
+            SecurityType: '1',
+            SecurityTypeName: '沪A',
+            TypeUS: '2'
+          },
+          {
+            Code: '300750',
+            Name: '宁德时代',
+            QuoteID: '0.300750',
+            SecurityType: '2',
+            SecurityTypeName: '深A',
+            TypeUS: '80'
+          },
+          {
+            Code: '510300',
+            Name: '沪深300ETF华泰柏瑞',
+            QuoteID: '1.510300',
+            SecurityType: '8',
+            SecurityTypeName: '基金',
+            TypeUS: '9'
+          },
+          {
+            Code: '000001',
+            Name: '上证指数',
+            QuoteID: '1.000001',
+            SecurityType: '5',
+            SecurityTypeName: '指数',
+            TypeUS: '1'
+          }
+        ]
+      }
+    }))
+
+    const result = await searchStocks('600362')
+
+    expect(result.map(({ code, quoteId, instrumentType }) => ({ code, quoteId, instrumentType }))).toEqual([
+      { code: '600362', quoteId: '1.600362', instrumentType: 'stock' },
+      { code: '300750', quoteId: '0.300750', instrumentType: 'stock' },
+      { code: '510300', quoteId: '1.510300', instrumentType: 'etf' }
+    ])
+  })
+})
 
 describe('fetchOrderBook', () => {
   beforeEach(() => {

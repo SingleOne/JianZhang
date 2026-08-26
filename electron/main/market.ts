@@ -302,7 +302,7 @@ function isSupportedSearchItem(item: EastmoneySearchItem): boolean {
   const marketId = item.QuoteID.split('.')[0]
   if (market === 'CN') {
     return (marketId === '0' || marketId === '1')
-      && ['2', '8'].includes(String(item.SecurityType ?? ''))
+      && ['1', '2', '8'].includes(String(item.SecurityType ?? ''))
   }
   if (market === 'HK') {
     return marketId === '116' && ['1', '3'].includes(String(item.TypeUS ?? ''))
