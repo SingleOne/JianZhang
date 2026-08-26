@@ -179,7 +179,7 @@ tr:focus-visible {
 
 .titlebar-command-main .search-composer {
   width: 100%;
-  grid-template-columns: minmax(200px, 1fr) auto;
+  grid-template-columns: minmax(200px, 1fr);
 }
 
 .titlebar-command-actions {
@@ -274,24 +274,18 @@ tr:focus-visible {
 }
 
 .titlebar-command-bar .search-field,
-.titlebar-command-bar .primary-button,
 .titlebar-command-bar .secondary-button {
   height: 34px;
 }
 
-.titlebar-command-bar .primary-button,
 .titlebar-command-bar .secondary-button {
   padding-right: 11px;
   padding-left: 11px;
 }
 
-.titlebar-command-bar .primary-button {
-  min-width: 92px;
-}
-
 .titlebar-command-bar .search-results {
   top: 38px;
-  right: 101px;
+  right: 0;
 }
 
 .status-spacer {
@@ -319,8 +313,7 @@ tr:focus-visible {
 .search-composer {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) auto;
-  gap: 9px;
+  grid-template-columns: minmax(280px, 1fr);
 }
 
 .search-field {
@@ -445,7 +438,7 @@ tr:focus-visible {
 .search-results {
   position: absolute;
   top: 48px;
-  right: 115px;
+  right: 0;
   left: 0;
   z-index: 50;
   overflow: hidden;

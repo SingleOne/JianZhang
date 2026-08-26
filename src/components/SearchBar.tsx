@@ -1,4 +1,4 @@
-import { Plus, Search, X } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import { useDeferredValue, useEffect, useState } from 'react'
 import { stockApi } from '../lib/api'
 import type { SearchResult } from '../shared/types'
@@ -26,7 +26,8 @@ export function SearchBar({ onAdd, existingQuoteIds, onError }: SearchBarProps) 
 
     setSearching(true)
     const timer = window.setTimeout(() => {
-      stockApi.searchStocks(normalized)
+      stockApi
+        .searchStocks(normalized)
         .then((items) => {
           setResults(items)
           setOpen(true)
@@ -71,26 +72,30 @@ export function SearchBar({ onAdd, existingQuoteIds, onError }: SearchBarProps) 
           </button>
         ) : null}
       </div>
-      <button className="primary-button" onClick={addFirst} disabled={!results[0]}>
-        <Plus size={17} />
-        添加自选
-      </button>
-
       {open && query ? (
         <div className="search-results" role="listbox">
-          {results.length > 0 ? results.map((stock) => {
-            const exists = existingQuoteIds.has(stock.quoteId)
-            return (
-              <button key={stock.quoteId} className="search-result" onClick={() => choose(stock)} role="option">
-                <span className="search-result-main">
-                  <strong>{stock.name}</strong>
-                  <span>{stock.code}</span>
-                </span>
-                <span className="search-result-market">{stock.marketLabel}</span>
-                <span className={exists ? 'already-added' : 'result-action'}>{exists ? '已添加' : '添加'}</span>
-              </button>
-            )
-          }) : (
+          {results.length > 0 ? (
+            results.map((stock) => {
+              const exists = existingQuoteIds.has(stock.quoteId)
+              return (
+                <button
+                  key={stock.quoteId}
+                  className="search-result"
+                  onClick={() => choose(stock)}
+                  role="option"
+                >
+                  <span className="search-result-main">
+                    <strong>{stock.name}</strong>
+                    <span>{stock.code}</span>
+                  </span>
+                  <span className="search-result-market">{stock.marketLabel}</span>
+                  <span className={exists ? 'already-added' : 'result-action'}>
+                    {exists ? '已添加' : '添加'}
+                  </span>
+                </button>
+              )
+            })
+          ) : (
             <div className="empty-search">未找到匹配的 A 股、港股或美股</div>
           )}
         </div>
