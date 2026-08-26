@@ -15,14 +15,9 @@ import {
   formatMoneyProfit,
   formatPercent,
   formatPrice,
-  formatShares,
-  formatUpdateTime
+  formatShares
 } from '../../lib/format'
-import {
-  STOCK_QUOTE_DATA_STATE_LABELS,
-  STOCK_QUOTE_SOURCE_LABELS,
-  stockQuoteDataState
-} from '../../lib/quote-state'
+import { isStockQuoteExpired, STOCK_QUOTE_SOURCE_LABELS } from '../../lib/quote-state'
 import {
   calculatePositionMetrics,
   currentDateKey,
@@ -233,11 +228,7 @@ export const WatchlistRow = memo(function WatchlistRow({
   const market = marketFromQuoteId(stock.quoteId)
   const capabilities = marketCapabilitiesForQuoteId(stock.quoteId)
   const isAStock = market === 'CN'
-  const quoteState = stockQuoteDataState(
-    quote,
-    quoteStatusNow,
-    tradingCalendar.markets[market]
-  )
+  const quoteExpired = isStockQuoteExpired(quote, quoteStatusNow, tradingCalendar.markets[market])
   const quoteSourceLabel = quote?.source ? STOCK_QUOTE_SOURCE_LABELS[quote.source] : '来源未知'
   const [fundamentalTabRequested, setFundamentalTabRequested] = useState(false)
   const [trackingTabRequested, setTrackingTabRequested] = useState(false)
@@ -449,6 +440,14 @@ export const WatchlistRow = memo(function WatchlistRow({
                             科
                           </span>
                         ) : null}
+                        {quoteExpired ? (
+                          <span
+                            className="stock-quote-expired-badge"
+                            title={`${quoteSourceLabel}行情已超过 5 分钟未更新 · 行情时间 ${quote?.dataAt ?? '未知'} · 请求时间 ${quote?.updatedAt ?? '未知'}`}
+                          >
+                            过期
+                          </span>
+                        ) : null}
                         {trackingProfile?.status === 'tracking' ? (
                           <button
                             className="stock-tracking-row-badge"
@@ -489,15 +488,6 @@ export const WatchlistRow = memo(function WatchlistRow({
                       <small>
                         {stock.code} · {stock.marketLabel}
                       </small>
-                      {quote ? (
-                        <small
-                          className={`stock-quote-status is-${quoteState}`}
-                          title={`${quoteSourceLabel} · 行情时间 ${quote.dataAt ?? '未知'} · 请求时间 ${quote.updatedAt}`}
-                        >
-                          {quoteSourceLabel} · {STOCK_QUOTE_DATA_STATE_LABELS[quoteState]} ·{' '}
-                          {formatUpdateTime(quote.dataAt)}
-                        </small>
-                      ) : null}
                     </span>
                   </div>
                 </td>

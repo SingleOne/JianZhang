@@ -1,14 +1,8 @@
 import {
-  Activity,
-  Binoculars,
   Bot,
-  ChartPie,
   CircleCheck,
-  CircleDollarSign,
-  Filter,
   RefreshCw,
   Signal,
-  Trophy,
   WifiOff
 } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
@@ -20,6 +14,7 @@ import { FundamentalScreeningDialog } from './components/FundamentalScreeningDia
 import { SearchBar } from './components/SearchBar'
 import { SettingsMenu } from './components/SettingsMenu'
 import { StockTrackingDialog } from './components/StockTrackingDialog'
+import { TitlebarToolsMenu } from './components/TitlebarToolsMenu'
 import { WatchlistTable } from './components/WatchlistTable'
 import { initialState, isDesktopRuntime, stockApi } from './lib/api'
 import {
@@ -52,7 +47,6 @@ import {
   MARKET_INDEX_OPTIONS
 } from './shared/types'
 import packageInfo from '../package.json'
-import { marketFromQuoteId } from './shared/stock-market'
 import type {
   AppSettings,
   AppState,
@@ -472,18 +466,6 @@ export default function App() {
       quote: quotesById.get(index.quoteId)
     }))
   }, [quotes, state.settings.marketIndexIds])
-  const activeMarkets = useMemo(
-    () => [
-      'CN' as const,
-      ...new Set([
-        ...state.watchlist.map((stock) => marketFromQuoteId(stock.quoteId)),
-        ...Object.values(state.stockTrackingProfiles).map((profile) =>
-          marketFromQuoteId(profile.quoteId)
-        )
-      ])
-    ],
-    [state.stockTrackingProfiles, state.watchlist]
-  )
   const lastUpdated = quotes.reduce<string | undefined>((latest, quote) => {
     const quoteDataAt = quote.dataAt ?? quote.updatedAt
     if (!latest || quoteDataAt > latest) return quoteDataAt
@@ -1366,7 +1348,23 @@ export default function App() {
       <AppTitlebar>
         <section className="titlebar-command-bar" aria-label="自选股操作">
           <div className="titlebar-command-main">
-            <SearchBar onAdd={addStock} existingQuoteIds={quoteIds} onError={reportError} />
+            <SearchBar
+              onAdd={addStock}
+              existingQuoteIds={quoteIds}
+              onError={reportError}
+              renderAction={({ addFirst, canAdd }) => (
+                <TitlebarToolsMenu
+                  canAddStock={canAdd}
+                  onAddStock={addFirst}
+                  onOpenDividendRanking={() => setDividendRankingOpen(true)}
+                  onOpenFundamentalScreening={() => setFundamentalScreeningOpen(true)}
+                  onOpenDailyMarketScan={() => setDailyMarketScanOpen(true)}
+                  onOpenStockTracking={() => setStockTrackingOpen(true)}
+                  onOpenCorporateActionCenter={() => setCorporateActionCenterOpen(true)}
+                  onOpenPortfolioPerformance={() => setPortfolioPerformanceOpen(true)}
+                />
+              )}
+            />
           </div>
           <div className="titlebar-command-actions">
             <button
@@ -1377,60 +1375,6 @@ export default function App() {
             >
               <RefreshCw size={17} className={refreshing ? 'is-spinning' : ''} />
               <span>立即刷新</span>
-            </button>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => setDividendRankingOpen(true)}
-              title="分红融资榜"
-            >
-              <Trophy size={17} />
-              <span>分红融资榜</span>
-            </button>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => setFundamentalScreeningOpen(true)}
-              title="基本面初筛"
-            >
-              <Filter size={17} />
-              <span>基本面初筛</span>
-            </button>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => setDailyMarketScanOpen(true)}
-              title="A 股收盘扫描"
-            >
-              <Activity size={17} />
-              <span>收盘扫描</span>
-            </button>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => setStockTrackingOpen(true)}
-              title="追踪复盘"
-            >
-              <Binoculars size={17} />
-              <span>追踪复盘</span>
-            </button>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => setCorporateActionCenterOpen(true)}
-              title="公司行动待确认中心"
-            >
-              <CircleDollarSign size={17} />
-              <span>公司行动</span>
-            </button>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => setPortfolioPerformanceOpen(true)}
-              title="跨市场收益分析"
-            >
-              <ChartPie size={17} />
-              <span>收益分析</span>
             </button>
             {aiRuntimeAvailable ? (
               <button
@@ -1652,10 +1596,7 @@ export default function App() {
           <span>{source === 'eastmoney' ? '东方财富公开行情' : '浏览器预览数据'}</span>
         </div>
         <span className="status-separator" />
-        <MarketTradingState
-          markets={activeMarkets}
-          tradingCalendar={state.settings.tradingCalendar}
-        />
+        <MarketTradingState tradingCalendar={state.settings.tradingCalendar} />
         <span className="status-separator" />
         <span>
           {error ? '行情连接异常，保留最近数据' : `最近更新 ${formatUpdateTime(lastUpdated)}`}

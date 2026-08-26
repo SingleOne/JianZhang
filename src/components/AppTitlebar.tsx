@@ -13,52 +13,42 @@ interface AppTitlebarProps {
 }
 
 interface MarketTradingStateProps {
-  markets: readonly StockMarket[]
   tradingCalendar: TradingCalendarSettings
 }
 
 function marketState(
   date: Date,
-  markets: readonly StockMarket[],
+  market: StockMarket,
   tradingCalendar: TradingCalendarSettings
-): { open: boolean; label: string; detail: string } {
-  const states = [...new Set(markets)].map((market) => {
-    const calendar = tradingCalendar.markets[market]
-    const open = isMarketOpen(market, date, calendar)
-    const nextOpen = new Date(
-      date.getTime() + millisecondsUntilNextMarketOpen(market, date, calendar)
-    )
-    return {
-      market,
-      open,
-      nextOpenLabel: new Intl.DateTimeFormat('zh-CN', {
-        timeZone: STOCK_MARKET_TIME_ZONES[market],
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hourCycle: 'h23'
-      }).format(nextOpen)
-    }
-  })
+): { market: StockMarket; open: boolean; label: string; detail: string } {
+  const calendar = tradingCalendar.markets[market]
+  const open = isMarketOpen(market, date, calendar)
+  const nextOpen = new Date(
+    date.getTime() + millisecondsUntilNextMarketOpen(market, date, calendar)
+  )
+  const nextOpenLabel = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: STOCK_MARKET_TIME_ZONES[market],
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23'
+  }).format(nextOpen)
   return {
-    open: states.some((state) => state.open),
-    label: states
-      .map((state) => `${STOCK_MARKET_LABELS[state.market]}${state.open ? '交易中' : '已休市'}`)
-      .join(' · '),
-    detail: states
-      .map((state) =>
-        state.open
-          ? `${STOCK_MARKET_LABELS[state.market]}正在自动刷新`
-          : `${STOCK_MARKET_LABELS[state.market]}下次开市 ${state.nextOpenLabel}`
-      )
-      .join('；')
+    market,
+    open,
+    label: `${STOCK_MARKET_LABELS[market]}${open ? '交易中' : '已休市'}`,
+    detail: open
+      ? `${STOCK_MARKET_LABELS[market]}正在自动刷新`
+      : `${STOCK_MARKET_LABELS[market]}下次开市 ${nextOpenLabel}`
   }
 }
 
-export function MarketTradingState({ markets, tradingCalendar }: MarketTradingStateProps) {
+const STATUS_MARKETS = ['CN', 'HK', 'US'] as const
+
+export function MarketTradingState({ tradingCalendar }: MarketTradingStateProps) {
   const [now, setNow] = useState(() => new Date())
-  const market = marketState(now, markets, tradingCalendar)
+  const markets = STATUS_MARKETS.map((market) => marketState(now, market, tradingCalendar))
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 30_000)
@@ -66,9 +56,17 @@ export function MarketTradingState({ markets, tradingCalendar }: MarketTradingSt
   }, [])
 
   return (
-    <div className={`market-state ${market.open ? 'is-open' : ''}`} title={market.detail}>
-      <Activity size={13} />
-      <span>{market.label}</span>
+    <div className="market-state-list" aria-label="市场交易状态">
+      {markets.map((market) => (
+        <div
+          className={`market-state ${market.open ? 'is-open' : ''}`}
+          title={market.detail}
+          key={market.market}
+        >
+          <Activity size={13} />
+          <span>{market.label}</span>
+        </div>
+      ))}
     </div>
   )
 }

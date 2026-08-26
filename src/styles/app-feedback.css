@@ -56,6 +56,10 @@
   color: #15946a;
 }
 
+.statusbar .market-state-list {
+  flex: 0 0 auto;
+}
+
 .statusbar .market-state {
   height: 24px;
   margin-left: 0;

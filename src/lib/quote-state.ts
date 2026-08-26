@@ -10,6 +10,7 @@ import type {
 } from '../shared/types'
 
 const LIVE_QUOTE_MAX_AGE_MILLISECONDS = 2 * 60_000
+const EXPIRED_QUOTE_AGE_MILLISECONDS = 5 * 60_000
 const FUTURE_QUOTE_TOLERANCE_MILLISECONDS = 5 * 60_000
 
 export const STOCK_QUOTE_SOURCE_LABELS: Record<StockQuoteSource, string> = {
@@ -41,6 +42,19 @@ export function stockQuoteDataState(
   return age >= -FUTURE_QUOTE_TOLERANCE_MILLISECONDS && age <= LIVE_QUOTE_MAX_AGE_MILLISECONDS
     ? 'live'
     : 'stale'
+}
+
+export function isStockQuoteExpired(
+  quote: StockQuote | undefined,
+  now = new Date(),
+  calendar?: MarketCalendarDates
+): boolean {
+  if (!quote?.dataAt) return false
+  const dataTime = new Date(quote.dataAt).getTime()
+  if (!Number.isFinite(dataTime)) return false
+  const market = marketFromQuoteId(quote.quoteId)
+  if (!isMarketOpen(market, now, calendar)) return false
+  return now.getTime() - dataTime > EXPIRED_QUOTE_AGE_MILLISECONDS
 }
 
 function radarSignalEqual(left: StockRadarSignal, right: StockRadarSignal): boolean {

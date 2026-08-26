@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { StockQuote } from '../shared/types'
-import { reconcileStockQuotes } from './quote-state'
+import { isStockQuoteExpired, reconcileStockQuotes } from './quote-state'
 
 function quote(quoteId: string, latest: number): StockQuote {
   return {
@@ -79,5 +79,16 @@ describe('quote state reconciliation', () => {
     const sectorChanged = structuredClone(current)
     sectorChanged[0].sector!.changePercent = 1
     expect(reconcileStockQuotes(current, sectorChanged)[0]).toBe(sectorChanged[0])
+  })
+})
+
+describe('quote expiry indicator', () => {
+  it('marks a quote expired only after five minutes while its market is open', () => {
+    const current = quote('1.600000', 10)
+    current.dataAt = '2026-07-31T01:55:00.000Z'
+
+    expect(isStockQuoteExpired(current, new Date('2026-07-31T02:00:00.000Z'))).toBe(false)
+    expect(isStockQuoteExpired(current, new Date('2026-07-31T02:00:00.001Z'))).toBe(true)
+    expect(isStockQuoteExpired(current, new Date('2026-07-31T04:00:00.000Z'))).toBe(false)
   })
 })
