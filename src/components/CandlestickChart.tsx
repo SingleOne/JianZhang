@@ -17,6 +17,8 @@ import {
 import { useEffect, useRef } from 'react'
 import { formatAmount, formatPrice, formatVolume } from '../lib/format'
 import type { KlineBar } from '../shared/types'
+import type { StockMarket } from '../shared/stock-market'
+import { volumeUnitForMarket } from '../shared/stock-market'
 
 interface ChartReferenceOverlay {
   openingRange15: { high: number | null; low: number | null }
@@ -26,6 +28,7 @@ interface ChartReferenceOverlay {
 
 interface CandlestickChartProps {
   bars: KlineBar[]
+  market: StockMarket
   variant?: 'intraday' | 'sectorIntraday' | 'fiveDay'
   onHoverBar?: (bar: KlineBar | null) => void
   marketInsightOverlay?: ChartReferenceOverlay | null
@@ -69,21 +72,28 @@ function isRegularBar(bar: KlineBar): boolean {
   return minuteOfDay(bar) >= 9 * 60 + 30
 }
 
-function intradaySessionSlots(bars: KlineBar[], includeAuction: boolean): UTCTimestamp[] {
+function intradaySessionSlots(
+  bars: KlineBar[],
+  market: StockMarket,
+  includeAuction: boolean
+): UTCTimestamp[] {
   const date = bars[0].time.slice(0, 10)
   const slots: UTCTimestamp[] = []
-
-  for (let minute = includeAuction ? 9 * 60 + 15 : 9 * 60 + 30; minute <= 11 * 60 + 30; minute += 1) {
-    slots.push(timestampAtMinute(date, minute))
-  }
-  for (let minute = 13 * 60; minute <= 15 * 60; minute += 1) {
-    slots.push(timestampAtMinute(date, minute))
+  const sessions = market === 'US'
+    ? [[9 * 60 + 30, 16 * 60]]
+    : market === 'HK'
+      ? [[9 * 60 + 30, 12 * 60], [13 * 60, 16 * 60 + 10]]
+      : [[includeAuction ? 9 * 60 + 15 : 9 * 60 + 30, 11 * 60 + 30], [13 * 60, 15 * 60]]
+  for (const [start, end] of sessions) {
+    for (let minute = start; minute <= end; minute += 1) {
+      slots.push(timestampAtMinute(date, minute))
+    }
   }
 
   return slots
 }
 
-function intradayAveragePrice(bars: KlineBar[]): Map<UTCTimestamp, number> {
+function intradayAveragePrice(bars: KlineBar[], market: StockMarket): Map<UTCTimestamp, number> {
   const result = new Map<UTCTimestamp, number>()
   let cumulativeAmount = 0
   let cumulativeShares = 0
@@ -91,7 +101,7 @@ function intradayAveragePrice(bars: KlineBar[]): Map<UTCTimestamp, number> {
   for (const bar of bars) {
     if (!isRegularBar(bar)) continue
     cumulativeAmount += bar.amount
-    cumulativeShares += bar.volume * 100
+    cumulativeShares += bar.volume * (market === 'CN' ? 100 : 1)
     if (cumulativeShares > 0) {
       result.set(toTimestamp(bar.time), cumulativeAmount / cumulativeShares)
     }
@@ -111,8 +121,12 @@ function intradayLineData(
   })
 }
 
-function intradayAverageData(slots: UTCTimestamp[], bars: KlineBar[]): LinePoint[] {
-  const averages = intradayAveragePrice(bars.slice(0, -1))
+function intradayAverageData(
+  slots: UTCTimestamp[],
+  bars: KlineBar[],
+  market: StockMarket
+): LinePoint[] {
+  const averages = intradayAveragePrice(bars.slice(0, -1), market)
   return slots.map((time) => {
     const value = averages.get(time)
     return value === undefined ? { time } : { time, value }
@@ -175,6 +189,7 @@ function intradayExtremaMarkers(bars: KlineBar[]): SeriesMarker<Time>[] {
 
 export default function CandlestickChart({
   bars,
+  market,
   variant = 'intraday',
   onHoverBar,
   marketInsightOverlay = null
@@ -186,7 +201,8 @@ export default function CandlestickChart({
   const auctionZoneRef = useRef<HTMLDivElement>(null)
   const auctionBoundaryRef = useRef<HTMLDivElement>(null)
   const isIntraday = variant !== 'fiveDay'
-  const showAuction = variant === 'intraday'
+  const showAuction = variant === 'intraday' && market === 'CN'
+  const volumeUnit = volumeUnitForMarket(market)
 
   useEffect(() => {
     const priceContainer = priceContainerRef.current
@@ -197,7 +213,7 @@ export default function CandlestickChart({
     if (chartBars.length === 0) return
 
     const barsByTime = new Map(chartBars.map((bar) => [toTimestamp(bar.time), bar]))
-    const sessionSlots = isIntraday ? intradaySessionSlots(chartBars, showAuction) : []
+    const sessionSlots = isIntraday ? intradaySessionSlots(chartBars, market, showAuction) : []
     const fixedTimeRange = isIntraday
       ? { from: sessionSlots[0], to: sessionSlots.at(-1)! }
       : null
@@ -296,16 +312,16 @@ export default function CandlestickChart({
           crosshairMarkerBackgroundColor: '#ffffff'
         })
         auctionLine.setData(intradayLineData(sessionSlots, barsByTime, isAuctionBar))
-
-        const averagePriceLine = priceChart.addSeries(LineSeries, {
-          color: '#d89414',
-          lineWidth: 1,
-          priceLineVisible: false,
-          lastValueVisible: false,
-          crosshairMarkerVisible: false
-        })
-        averagePriceLine.setData(intradayAverageData(sessionSlots, chartBars))
       }
+
+      const averagePriceLine = priceChart.addSeries(LineSeries, {
+        color: '#d89414',
+        lineWidth: 1,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false
+      })
+      averagePriceLine.setData(intradayAverageData(sessionSlots, chartBars, market))
 
       if (marketInsightOverlay) {
         const priceLines = [
@@ -491,7 +507,7 @@ export default function CandlestickChart({
         return
       }
 
-      tooltip.textContent = `${bar.time.slice(11, 16)}  成交量 ${formatVolume(bar.volume)}  成交额 ${formatAmount(bar.amount)}`
+      tooltip.textContent = `${bar.time.slice(11, 16)}  成交量 ${formatVolume(bar.volume, volumeUnit)}  成交额 ${formatAmount(bar.amount)}`
       placeTooltip(tooltip, point, volumeContainer)
     }
     priceChart.subscribeCrosshairMove(handleCrosshairMove)
@@ -553,7 +569,7 @@ export default function CandlestickChart({
       priceChart.remove()
       volumeChart?.remove()
     }
-  }, [bars, isIntraday, marketInsightOverlay, onHoverBar, showAuction, variant])
+  }, [bars, isIntraday, market, marketInsightOverlay, onHoverBar, showAuction, variant, volumeUnit])
 
   return (
     <div className={`candlestick-chart ${isIntraday ? 'is-intraday' : 'is-five-day'}`}>
@@ -563,9 +579,9 @@ export default function CandlestickChart({
           <>
             <div className="auction-zone" ref={auctionZoneRef}><span>集合竞价</span></div>
             <div className="auction-boundary" ref={auctionBoundaryRef} />
-            <div className="intraday-price-tooltip" ref={tooltipRef} />
           </>
         ) : null}
+        {isIntraday ? <div className="intraday-price-tooltip" ref={tooltipRef} /> : null}
       </div>
       {isIntraday ? (
         <div className="intraday-volume-chart">

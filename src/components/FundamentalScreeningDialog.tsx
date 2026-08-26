@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { stockMarketIdentity } from '../shared/stock-market'
 import {
   DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA,
   FUNDAMENTAL_QUALITY_TAG_LABELS,
@@ -836,7 +837,8 @@ export function FundamentalScreeningDialog({
         code: company.code,
         name: company.name,
         quoteId: company.quoteId,
-        marketLabel: MARKET_LABELS[company.market]
+        marketLabel: MARKET_LABELS[company.market],
+        ...stockMarketIdentity(company.quoteId)
       },
       evaluation,
       snapshot?.snapshotDate

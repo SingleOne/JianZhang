@@ -1,4 +1,9 @@
-import type { KlineBar, StockTrackingMetricSnapshot, StockTrackingProfile } from '../shared/types'
+import type {
+  KlineBar,
+  StockMarket,
+  StockTrackingMetricSnapshot,
+  StockTrackingProfile
+} from '../shared/types'
 
 export const STOCK_TRACKING_BASE_METRICS = {
   close: 'close',
@@ -90,22 +95,34 @@ function average(values: readonly number[]): number {
   return values.reduce((total, value) => total + value, 0) / values.length
 }
 
-function tradingMinutesAt(time: string): number | null {
+function tradingProgressAt(
+  time: string,
+  market: StockMarket
+): { elapsed: number; total: number } | null {
   const timeText = time.slice(11, 16)
   const [hour, minute] = timeText.split(':').map(Number)
   if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null
   const minutes = hour * 60 + minute
-  const auction = 9 * 60 + 25
   const morningStart = 9 * 60 + 30
-  const morningEnd = 11 * 60 + 30
+  if (market === 'US') {
+    return minutes >= morningStart && minutes <= 16 * 60
+      ? { elapsed: Math.min(390, minutes - morningStart + 1), total: 390 }
+      : null
+  }
+  const morningEnd = market === 'HK' ? 12 * 60 : 11 * 60 + 30
   const afternoonStart = 13 * 60
-  const afternoonEnd = 15 * 60
-  if (minutes === auction) return 1
+  const afternoonEnd = market === 'HK' ? 16 * 60 : 15 * 60
+  const morningMinutes = market === 'HK' ? 150 : 120
+  const totalMinutes = market === 'HK' ? 330 : 240
+  if (market === 'CN' && minutes === 9 * 60 + 25) return { elapsed: 1, total: totalMinutes }
   if (minutes >= morningStart && minutes <= morningEnd) {
-    return Math.min(120, minutes - morningStart + 1)
+    return { elapsed: Math.min(morningMinutes, minutes - morningStart + 1), total: totalMinutes }
   }
   if (minutes >= afternoonStart && minutes <= afternoonEnd) {
-    return Math.min(240, minutes - afternoonStart + 121)
+    return {
+      elapsed: Math.min(totalMinutes, minutes - afternoonStart + morningMinutes + 1),
+      total: totalMinutes
+    }
   }
   return null
 }
@@ -113,7 +130,8 @@ function tradingMinutesAt(time: string): number | null {
 export function calculateRealtimeVolumeRatio(
   intradayBars: readonly KlineBar[],
   dailyBars: readonly KlineBar[],
-  tradingDate: string
+  tradingDate: string,
+  market: StockMarket = 'CN'
 ): RealtimeVolumeRatioPoint[] {
   const previousDailyBars = [...dailyBars]
     .filter((bar) => dateKey(bar.time) < tradingDate)
@@ -128,10 +146,10 @@ export function calculateRealtimeVolumeRatio(
   const points: RealtimeVolumeRatioPoint[] = []
   for (const bar of [...intradayBars].sort((left, right) => left.time.localeCompare(right.time))) {
     if (dateKey(bar.time) !== tradingDate) continue
-    const tradedMinutes = tradingMinutesAt(bar.time)
-    if (tradedMinutes === null || !Number.isFinite(bar.volume)) continue
+    const progress = tradingProgressAt(bar.time, market)
+    if (progress === null || !Number.isFinite(bar.volume)) continue
     cumulativeVolume += bar.volume
-    const expectedVolume = (averageDailyVolume * tradedMinutes) / 240
+    const expectedVolume = (averageDailyVolume * progress.elapsed) / progress.total
     points.push({
       time: bar.time,
       ratio: cumulativeVolume / expectedVolume,

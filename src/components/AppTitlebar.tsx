@@ -1,32 +1,77 @@
 import { Activity } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
+import { isMarketOpen, millisecondsUntilNextMarketOpen } from '../shared/market-hours'
+import {
+  STOCK_MARKET_LABELS,
+  STOCK_MARKET_TIME_ZONES,
+  type StockMarket
+} from '../shared/stock-market'
+import type { TradingCalendarSettings } from '../shared/types'
 
 interface AppTitlebarProps {
   children?: ReactNode
 }
 
-function marketState(date: Date): { open: boolean; label: string } {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Shanghai', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
-  }).formatToParts(date)
-  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? ''
-  const weekday = part('weekday')
-  const minutes = Number(part('hour')) * 60 + Number(part('minute'))
-  const weekdayOpen = weekday !== 'Sat' && weekday !== 'Sun'
-  const sessionOpen = (minutes >= 570 && minutes <= 690) || (minutes >= 780 && minutes <= 900)
-  const open = weekdayOpen && sessionOpen
-  return { open, label: open ? 'A股交易中' : 'A股已休市' }
+interface MarketTradingStateProps {
+  tradingCalendar: TradingCalendarSettings
 }
 
-export function AppTitlebar({ children }: AppTitlebarProps) {
+function marketState(
+  date: Date,
+  market: StockMarket,
+  tradingCalendar: TradingCalendarSettings
+): { market: StockMarket; open: boolean; label: string; detail: string } {
+  const calendar = tradingCalendar.markets[market]
+  const open = isMarketOpen(market, date, calendar)
+  const nextOpen = new Date(
+    date.getTime() + millisecondsUntilNextMarketOpen(market, date, calendar)
+  )
+  const nextOpenLabel = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: STOCK_MARKET_TIME_ZONES[market],
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23'
+  }).format(nextOpen)
+  return {
+    market,
+    open,
+    label: `${STOCK_MARKET_LABELS[market]}${open ? '交易中' : '已休市'}`,
+    detail: open
+      ? `${STOCK_MARKET_LABELS[market]}正在自动刷新`
+      : `${STOCK_MARKET_LABELS[market]}下次开市 ${nextOpenLabel}`
+  }
+}
+
+const STATUS_MARKETS = ['CN', 'HK', 'US'] as const
+
+export function MarketTradingState({ tradingCalendar }: MarketTradingStateProps) {
   const [now, setNow] = useState(() => new Date())
-  const market = marketState(now)
+  const markets = STATUS_MARKETS.map((market) => marketState(now, market, tradingCalendar))
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 30_000)
     return () => window.clearInterval(timer)
   }, [])
 
+  return (
+    <div className="market-state-list" aria-label="市场交易状态">
+      {markets.map((market) => (
+        <div
+          className={`market-state ${market.open ? 'is-open' : ''}`}
+          title={market.detail}
+          key={market.market}
+        >
+          <Activity size={13} />
+          <span>{market.label}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export function AppTitlebar({ children }: AppTitlebarProps) {
   return (
     <header className="titlebar">
       <div className={`brand-mark is-${__JIANZHANG_ICON_VARIANT__}`} aria-hidden="true">
@@ -36,10 +81,6 @@ export function AppTitlebar({ children }: AppTitlebarProps) {
         </svg>
       </div>
       <div className="brand-name">见涨</div>
-      <div className={`market-state ${market.open ? 'is-open' : ''}`}>
-        <Activity size={13} />
-        <span>{market.label}</span>
-      </div>
       {children ? <div className="titlebar-command-slot">{children}</div> : null}
     </header>
   )

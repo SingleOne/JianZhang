@@ -29,10 +29,12 @@ import {
   stockTrackingPriceVolumeDivergence,
   stockTrackingPriceVolumeState
 } from '../lib/stock-tracking-metrics'
-import type { StockTrackingMetricSnapshot } from '../shared/types'
+import type { StockMarket, StockTrackingMetricSnapshot } from '../shared/types'
+import { volumeUnitForMarket } from '../shared/stock-market'
 
 interface StockTrackingPriceVolumeChartProps {
   snapshots: StockTrackingMetricSnapshot[]
+  market: StockMarket
 }
 
 const PRICE_AVERAGES = [
@@ -109,8 +111,10 @@ function stateMarker(snapshot: StockTrackingMetricSnapshot): SeriesMarker<Time> 
 }
 
 export default function StockTrackingPriceVolumeChart({
-  snapshots
+  snapshots,
+  market
 }: StockTrackingPriceVolumeChartProps) {
+  const volumeUnit = volumeUnitForMarket(market)
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const closeSeriesRef = useRef<ISeriesApi<'Line'> | null>(null)
@@ -316,7 +320,8 @@ export default function StockTrackingPriceVolumeChart({
           </em>
         </span>
         <span>
-          成交量 {formatVolume(displayedMetrics?.[STOCK_TRACKING_BASE_METRICS.volume] ?? null)}
+          成交量{' '}
+          {formatVolume(displayedMetrics?.[STOCK_TRACKING_BASE_METRICS.volume] ?? null, volumeUnit)}
         </span>
         <span>
           成交额 {formatAmount(displayedMetrics?.[STOCK_TRACKING_BASE_METRICS.amount] ?? null)}

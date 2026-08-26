@@ -2,10 +2,11 @@ import { BrowserWindow, Menu, screen, Tray, type MenuItemConstructorOptions } fr
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { calculatePositionMetrics } from '../../src/lib/portfolio'
-import { formatPercent, formatPrice, formatProfit } from '../../src/lib/format'
+import { formatMoneyProfit, formatPercent, formatPrice } from '../../src/lib/format'
 import { getTaskbarVisibleStocks, shouldShowTaskbarTicker } from '../../src/lib/taskbar-visibility'
 import type {
   AppState,
+  StockSelectionRequest,
   StockQuote,
   TaskbarLayout,
   TaskbarTooltipAnchor,
@@ -38,6 +39,7 @@ export class WindowManager {
   private taskbarTooltipHeight = TASKBAR_TOOLTIP_DEFAULT_HEIGHT
   private trayHovered = false
   private disposed = false
+  private stockSelectionSequence = 0
   private readonly windowStatePath: string
   private mainWindowVisible: boolean
   private mainWindowHasBeenShown = false
@@ -119,7 +121,10 @@ export class WindowManager {
     if (this.taskbarTooltipWindow?.isVisible()) this.positionTaskbarTooltipWindow()
   }
 
-  showMainWindow(quoteId?: string): void {
+  showMainWindow(
+    quoteId?: string,
+    scrollAlignment?: StockSelectionRequest['scrollAlignment']
+  ): void {
     const window = this.getMainWindow()
     if (!window) return
     if (!this.mainWindowHasBeenShown) {
@@ -130,7 +135,14 @@ export class WindowManager {
     window.show()
     window.focus()
     this.saveMainWindowVisible(true)
-    if (quoteId) window.webContents.send('stock:selected', quoteId)
+    if (quoteId) {
+      this.stockSelectionSequence += 1
+      window.webContents.send('stock:selected', {
+        id: `${Date.now()}-${this.stockSelectionSequence}`,
+        quoteId,
+        scrollAlignment
+      } satisfies StockSelectionRequest)
+    }
   }
 
   hideMainWindow(): void {
@@ -163,13 +175,14 @@ export class WindowManager {
     const quotes = this.dependencies.getQuotes()
     const selectedItems: MenuItemConstructorOptions[] = this.taskbarVisibleStocks().map((stock) => {
       const quote = quotes.find((item) => item.quoteId === stock.quoteId)
-      const todayProfit = calculatePositionMetrics(
+      const metrics = calculatePositionMetrics(
         stock.position,
         quote,
-        state.tTradingAccounts[stock.quoteId]
-      ).todayProfit
+        state.tTradingAccounts[stock.quoteId],
+        state.settings.exchangeRates
+      )
       return {
-        label: `${stock.name}  ${formatPrice(quote?.latest ?? null)}  ${formatPercent(quote?.changePercent ?? null)}  ${formatProfit(todayProfit)}`,
+        label: `${stock.name}  ${formatPrice(quote?.latest ?? null)}  ${formatPercent(quote?.changePercent ?? null)}  ${formatMoneyProfit(metrics.todayProfit, metrics.currency)}`,
         click: () => this.showMainWindow(stock.quoteId)
       }
     })

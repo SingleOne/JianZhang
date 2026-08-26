@@ -1,4 +1,5 @@
 import type { KlinePeriod, KlineResult } from '../../src/shared/types'
+import type { MarketCalendarDates } from '../../src/shared/market-calendar'
 import { LruCache } from '../../src/shared/lru-cache'
 import type { HistoricalKlineCache } from './historical-kline-cache'
 
@@ -40,7 +41,7 @@ export class KlineHub {
       caller: string
     ) => Promise<KlineResult>,
     private readonly historicalCache: HistoricalKlineCache,
-    private readonly getClosedDates: () => readonly string[],
+    private readonly getCalendar: (quoteId: string) => MarketCalendarDates | readonly string[],
     private readonly liveCacheMaxAgeMilliseconds: number,
     liveCacheMaxEntries = 100
   ) {
@@ -55,7 +56,7 @@ export class KlineHub {
   ): Promise<KlineResult> {
     const normalizedLimit = requestedLimit(period, limit)
     const cached = this.getCached(quoteId, period, normalizedLimit)
-    if (cached) return Promise.resolve(cached)
+    if (cached) return Promise.resolve({ ...cached, fromCache: true })
 
     const key = requestKey(quoteId, period, normalizedLimit)
     return (
@@ -65,7 +66,7 @@ export class KlineHub {
 
   private getCached(quoteId: string, period: KlinePeriod, limit: number): KlineResult | null {
     if (isHistoricalPeriod(period)) {
-      return this.historicalCache.get(quoteId, period, limit, this.getClosedDates())
+      return this.historicalCache.get(quoteId, period, limit, this.getCalendar(quoteId))
     }
 
     const cached = this.liveCache.get(liveCacheKey(quoteId, period))
@@ -98,7 +99,7 @@ export class KlineHub {
     caller: string
   ): Promise<KlineResult> {
     const cached = this.getCached(quoteId, period, limit)
-    if (cached) return cached
+    if (cached) return { ...cached, fromCache: true }
 
     if (!isHistoricalPeriod(period)) {
       const data = await this.fetchKline(quoteId, period, undefined, caller)
@@ -109,10 +110,12 @@ export class KlineHub {
     const fallback = this.historicalCache.getFallback(quoteId, period)
     try {
       const data = await this.fetchKline(quoteId, period, limit, caller)
-      if (this.historicalCache.shouldKeepFallback(period, data)) return fallback ?? data
+      if (this.historicalCache.shouldKeepFallback(period, data)) {
+        return fallback ? { ...fallback, fromCache: true } : data
+      }
       return this.historicalCache.save(quoteId, period, limit, data)
     } catch (reason) {
-      if (fallback) return fallback
+      if (fallback) return { ...fallback, fromCache: true }
       throw reason
     }
   }

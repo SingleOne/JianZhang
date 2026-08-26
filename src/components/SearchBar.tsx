@@ -91,7 +91,7 @@ export function SearchBar({ onAdd, existingQuoteIds, onError }: SearchBarProps) 
               </button>
             )
           }) : (
-            <div className="empty-search">未找到匹配的 A 股</div>
+            <div className="empty-search">未找到匹配的 A 股、港股或美股</div>
           )}
         </div>
       ) : null}

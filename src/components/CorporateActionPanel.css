@@ -1,0 +1,255 @@
+.corporate-action-panel {
+  display: grid;
+  gap: 14px;
+  min-height: 260px;
+  color: var(--text-primary);
+}
+
+.corporate-action-header,
+.corporate-action-editor > header,
+.corporate-action-card-heading,
+.corporate-action-card-actions,
+.corporate-action-actions,
+.corporate-action-preview-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.corporate-action-header > div:first-child,
+.corporate-action-editor > header > div {
+  display: grid;
+  gap: 3px;
+}
+
+.corporate-action-header strong,
+.corporate-action-editor strong {
+  font-size: 14px;
+}
+
+.corporate-action-header span,
+.corporate-action-editor header span,
+.corporate-action-card time,
+.corporate-action-dates,
+.corporate-action-form-grid small {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.corporate-action-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.corporate-action-actions select,
+.corporate-action-form-grid input,
+.corporate-action-form-grid select {
+  min-height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 5px 8px;
+}
+
+.corporate-action-warning,
+.corporate-action-error,
+.corporate-action-empty {
+  border-radius: 8px;
+  padding: 11px 12px;
+  font-size: 12px;
+}
+
+.corporate-action-warning {
+  background: color-mix(in srgb, #d99514 10%, transparent);
+  color: #a96800;
+}
+
+.corporate-action-error {
+  background: color-mix(in srgb, #d84b4b 10%, transparent);
+  color: #c13b3b;
+}
+
+.corporate-action-empty {
+  border: 1px dashed var(--border);
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.corporate-action-timeline {
+  display: grid;
+  gap: 9px;
+}
+
+.corporate-action-card,
+.corporate-action-editor {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 12px;
+}
+
+.corporate-action-card-heading > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.corporate-action-card-heading strong {
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.corporate-action-status {
+  flex: none;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-size: 12px;
+  line-height: 22px;
+  padding: 0 8px;
+}
+
+.corporate-action-status.is-applied,
+.corporate-action-status.is-confirmed {
+  background: color-mix(in srgb, #d84b4b 10%, transparent);
+  color: #c13b3b;
+}
+
+.corporate-action-status.is-ignored,
+.corporate-action-status.is-reversed {
+  background: color-mix(in srgb, #78828c 12%, transparent);
+  color: var(--text-secondary);
+}
+
+.corporate-action-status.is-revised,
+.corporate-action-status.is-needsReview {
+  background: color-mix(in srgb, #d99514 12%, transparent);
+  color: #a96800;
+}
+
+.corporate-action-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 14px;
+  margin: 9px 0;
+}
+
+.corporate-action-card-actions {
+  justify-content: flex-end;
+}
+
+.corporate-action-card-actions button,
+.corporate-action-preview-actions button {
+  min-height: 30px;
+  font-size: 12px;
+}
+
+.corporate-action-card-actions .text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.corporate-action-card-actions .is-danger {
+  color: #c13b3b;
+}
+
+.corporate-action-editor {
+  display: grid;
+  gap: 13px;
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.corporate-action-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.corporate-action-form-grid label {
+  display: grid;
+  gap: 5px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.corporate-action-form-grid .is-wide {
+  grid-column: 1 / -1;
+}
+
+.corporate-action-preview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(140px, 1fr));
+  gap: 9px;
+}
+
+.corporate-action-preview > div {
+  display: grid;
+  gap: 3px;
+  border-radius: 8px;
+  background: var(--surface-muted);
+  padding: 9px;
+}
+
+.corporate-action-preview span,
+.corporate-action-preview p {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.corporate-action-ledger-preview {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 5px;
+  margin: 0;
+  padding: 9px 9px 9px 28px;
+  border-radius: 8px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.corporate-action-confirmation-note {
+  color: var(--text-secondary) !important;
+}
+
+.corporate-action-preview strong {
+  font-size: 13px;
+}
+
+.corporate-action-preview .is-up {
+  color: var(--stock-up-color, #d84b4b);
+}
+
+.corporate-action-preview .is-down {
+  color: var(--stock-down-color, #1f9d68);
+}
+
+.corporate-action-preview .is-flat {
+  color: var(--text-secondary);
+}
+
+.corporate-action-preview p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #a96800;
+}
+
+@media (max-width: 980px) {
+  .corporate-action-header,
+  .corporate-action-editor > header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .corporate-action-form-grid,
+  .corporate-action-preview {
+    grid-template-columns: 1fr 1fr;
+  }
+}

@@ -6,13 +6,15 @@ import {
   hasLegacyTTradingData,
   migrateWatchlistColumnOrder,
   normalizeAppSettings,
+  normalizeTradingAccountsForWatchlist,
   normalizeTTradingAccounts,
   normalizeStockTrackingProfiles,
   normalizeWatchlist,
   normalizeWatchlistGroups,
   synchronizeTrackingGroupMembership,
   type TTrade,
-  type TTradingAccounts
+  type TTradingAccounts,
+  type WatchStock
 } from './types'
 
 const EMPTY_FEES = {
@@ -171,6 +173,7 @@ describe('settings and column migration', () => {
           sellLevels: []
         },
         history: [],
+        ledger: { schemaVersion: 1, entries: [] },
         tradeRecords: []
       }
     })
@@ -184,6 +187,37 @@ describe('settings and column migration', () => {
 })
 
 describe('unified trade record migration', () => {
+  it('creates a market-aware opening balance for an existing global position', () => {
+    const stock: WatchStock = {
+      quoteId: '105.AAPL',
+      code: 'AAPL',
+      name: 'Apple',
+      marketLabel: '纳斯达克',
+      market: 'US',
+      currency: 'USD',
+      showInTaskbar: false,
+      isPriority: true,
+      showRadarSignals: false,
+      position: {
+        quantity: 5,
+        cost: 200,
+        openedToday: false,
+        openedOn: '2026-08-20',
+        currency: 'USD',
+        costExchangeRate: 7,
+        costExchangeRateDate: '2026-08-20'
+      }
+    }
+    const account = normalizeTradingAccountsForWatchlist([stock], {})[stock.quoteId]
+    expect(account.market).toBe('US')
+    expect(account.tradeRecords[0]).toMatchObject({
+      origin: 'opening-balance',
+      quantity: 5,
+      currency: 'USD',
+      exchangeRate: 7
+    })
+  })
+
   it('detects and migrates legacy base and batch trades without duplicates', () => {
     const legacyAccounts = {
       '1.600000': {

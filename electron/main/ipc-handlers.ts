@@ -22,19 +22,29 @@ import {
 import type {
   AppState,
   AppCompletionNotification,
+  CacheCategoryId,
+  CacheClearResult,
+  CacheSummary,
   ChipDistributionCacheEntry,
   CompanyReportItem,
   CompanyReportLibraryResult,
   CompanyReportSummary,
+  CorporateActionCandidate,
+  CorporateActionImpactPreview,
+  CorporateActionListResult,
+  CorporateActionPreviewRequest,
+  CorporateActionRecord,
   DataSnapshotRuntimeState,
   DailyMarketScanResult,
   DailyMarketScanState,
   DividendFinancingChangeReport,
   DividendFinancingSnapshot,
   DividendFinancingUpdateResult,
+  ExchangeRateSettings,
   FundamentalChangeReport,
   FundamentalSnapshot,
   FundamentalUpdateResult,
+  GlobalFundamentalSnapshot,
   FundsFlowResult,
   GitHubDeviceAuthorization,
   GitHubLoginResult,
@@ -42,6 +52,9 @@ import type {
   GitHubSyncUploadResult,
   KlinePeriod,
   KlineResult,
+  ManualCorporateActionRequest,
+  PortfolioLedgerEntry,
+  ReversalLedgerEntry,
   SearchResult,
   SectorIndexResult,
   ShareholderSnapshot,
@@ -51,6 +64,7 @@ import type {
   TaskbarLayout,
   TaskbarTooltipAnchor,
   TradingCalendarSettings,
+  TTradingAccount,
   UserDataBackupSummary
 } from '../../src/shared/types'
 
@@ -77,9 +91,34 @@ interface IpcHandlerDependencies {
   getFundamentalState: () => DataSnapshotRuntimeState
   getFundamentalChangeReport: () => FundamentalChangeReport | null
   runFundamentalUpdate: () => Promise<FundamentalUpdateResult>
-  getCompanyReports: (code: string, forceRefresh?: boolean) => Promise<CompanyReportLibraryResult>
+  getCompanyReports: (
+    quoteId: string,
+    forceRefresh?: boolean
+  ) => Promise<CompanyReportLibraryResult>
+  getGlobalFundamentals: (
+    quoteId: string,
+    forceRefresh?: boolean
+  ) => Promise<GlobalFundamentalSnapshot>
   generateCompanyReportSummary: (report: CompanyReportItem) => Promise<CompanyReportSummary>
   openCompanyReport: (url: string) => Promise<void>
+  listCorporateActions: (
+    quoteId: string,
+    forceRefresh?: boolean
+  ) => Promise<CorporateActionListResult>
+  previewCorporateAction: (
+    request: CorporateActionPreviewRequest
+  ) => Promise<CorporateActionImpactPreview>
+  ignoreCorporateAction: (candidate: CorporateActionCandidate) => CorporateActionRecord
+  reverseCorporateAction: (
+    candidate: CorporateActionCandidate,
+    account: TTradingAccount
+  ) => ReversalLedgerEntry[]
+  createManualCorporateAction: (
+    request: ManualCorporateActionRequest,
+    account: TTradingAccount
+  ) => { candidate: CorporateActionCandidate; preview: CorporateActionImpactPreview }
+  openCorporateAction: (url: string) => Promise<void>
+  listPortfolioLedger: (account: TTradingAccount) => PortfolioLedgerEntry[]
   getShareholderSnapshot: (quoteId: string, forceRefresh?: boolean) => Promise<ShareholderSnapshot>
   getValuationHistory: (quoteId: string) => Promise<StockValuationHistory>
   refreshQuotes: (reason?: string) => Promise<StockQuote[]>
@@ -98,10 +137,13 @@ interface IpcHandlerDependencies {
   getFundsFlow: (quoteId: string) => Promise<FundsFlowResult>
   getSectorIndex: (quoteId: string) => Promise<SectorIndexResult>
   refreshTradingCalendar: () => Promise<TradingCalendarSettings>
+  refreshExchangeRates: () => Promise<ExchangeRateSettings>
   getCompletionNotifications: () => AppCompletionNotification[]
   saveCompletionNotifications: (
     notifications: AppCompletionNotification[]
   ) => AppCompletionNotification[]
+  getCacheSummary: () => Promise<CacheSummary>
+  clearCaches: (categoryIds: CacheCategoryId[]) => Promise<CacheClearResult>
   createUserDataBackup: (
     state: AppState,
     applicationVersion: string
@@ -158,9 +200,19 @@ const CHANNELS = [
   'fundamentals:state:get',
   'fundamentals:changes:get',
   'fundamentals:update',
+  'global-fundamentals:get',
   'company-reports:get',
   'company-reports:summary:generate',
   'company-reports:open',
+  'corporate-actions:list',
+  'corporate-actions:refresh',
+  'corporate-actions:preview',
+  'corporate-actions:confirm',
+  'corporate-actions:ignore',
+  'corporate-actions:reverse',
+  'corporate-actions:manual',
+  'corporate-actions:open',
+  'portfolio-ledger:list',
   'shareholders:get',
   'valuation-history:get',
   'quotes:refresh',
@@ -175,9 +227,12 @@ const CHANNELS = [
   'funds-flow:get',
   'sector-index:get',
   'trading-calendar:refresh',
+  'exchange-rates:refresh',
   'state:save',
   'completion-notifications:get',
   'completion-notifications:save',
+  'cache:summary',
+  'cache:clear',
   'config:export',
   'config:import',
   'config:import:apply',
@@ -236,14 +291,48 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
   ipcMain.handle('fundamentals:state:get', () => dependencies.getFundamentalState())
   ipcMain.handle('fundamentals:changes:get', () => dependencies.getFundamentalChangeReport())
   ipcMain.handle('fundamentals:update', () => dependencies.runFundamentalUpdate())
-  ipcMain.handle('company-reports:get', (_event, code: string, forceRefresh?: boolean) =>
-    dependencies.getCompanyReports(code, forceRefresh)
+  ipcMain.handle('company-reports:get', (_event, quoteId: string, forceRefresh?: boolean) =>
+    dependencies.getCompanyReports(quoteId, forceRefresh)
+  )
+  ipcMain.handle('global-fundamentals:get', (_event, quoteId: string, forceRefresh?: boolean) =>
+    dependencies.getGlobalFundamentals(quoteId, forceRefresh)
   )
   ipcMain.handle('company-reports:summary:generate', (_event, report: CompanyReportItem) =>
     dependencies.generateCompanyReportSummary(report)
   )
   ipcMain.handle('company-reports:open', (_event, url: string) =>
     dependencies.openCompanyReport(url)
+  )
+  ipcMain.handle('corporate-actions:list', (_event, quoteId: string) =>
+    dependencies.listCorporateActions(quoteId)
+  )
+  ipcMain.handle('corporate-actions:refresh', (_event, quoteId: string) =>
+    dependencies.listCorporateActions(quoteId, true)
+  )
+  ipcMain.handle('corporate-actions:preview', (_event, request: CorporateActionPreviewRequest) =>
+    dependencies.previewCorporateAction(request)
+  )
+  ipcMain.handle('corporate-actions:confirm', (_event, request: CorporateActionPreviewRequest) =>
+    dependencies.previewCorporateAction(request)
+  )
+  ipcMain.handle('corporate-actions:ignore', (_event, candidate: CorporateActionCandidate) =>
+    dependencies.ignoreCorporateAction(candidate)
+  )
+  ipcMain.handle(
+    'corporate-actions:reverse',
+    (_event, candidate: CorporateActionCandidate, account: TTradingAccount) =>
+      dependencies.reverseCorporateAction(candidate, account)
+  )
+  ipcMain.handle(
+    'corporate-actions:manual',
+    (_event, request: ManualCorporateActionRequest, account: TTradingAccount) =>
+      dependencies.createManualCorporateAction(request, account)
+  )
+  ipcMain.handle('corporate-actions:open', (_event, url: string) =>
+    dependencies.openCorporateAction(url)
+  )
+  ipcMain.handle('portfolio-ledger:list', (_event, account: TTradingAccount) =>
+    dependencies.listPortfolioLedger(account)
   )
   ipcMain.handle('shareholders:get', (_event, quoteId: string, forceRefresh?: boolean) =>
     dependencies.getShareholderSnapshot(quoteId, forceRefresh)
@@ -273,6 +362,7 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
     dependencies.getSectorIndex(quoteId)
   )
   ipcMain.handle('trading-calendar:refresh', () => dependencies.refreshTradingCalendar())
+  ipcMain.handle('exchange-rates:refresh', () => dependencies.refreshExchangeRates())
   ipcMain.handle('state:save', async (_event, nextState: AppState) => {
     dependencies.assertStateRevision(nextState)
     const currentState = dependencies.getState()
@@ -338,6 +428,10 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
     'completion-notifications:save',
     (_event, notifications: AppCompletionNotification[]) =>
       dependencies.saveCompletionNotifications(notifications)
+  )
+  ipcMain.handle('cache:summary', () => dependencies.getCacheSummary())
+  ipcMain.handle('cache:clear', (_event, categoryIds: CacheCategoryId[]) =>
+    dependencies.clearCaches(categoryIds)
   )
   ipcMain.handle('config:export', async (_event, _stateToExport: AppState) => {
     const options: SaveDialogOptions = {

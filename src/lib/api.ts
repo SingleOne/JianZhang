@@ -6,19 +6,23 @@ import {
   getMarketIndexStocks,
   migrateWatchlistColumnOrder,
   normalizeAppSettings,
-  normalizeTTradingAccounts,
+  normalizeTradingAccountsForWatchlist,
   normalizeStockTrackingProfiles,
   normalizeWatchlist,
   normalizeWatchlistGroups,
   synchronizeTrackingGroupMembership,
   type AppState,
   type BootstrapResult,
+  type CacheCategoryId,
+  type CacheClearResult,
+  type CacheSummary,
   type CompanyReportLibraryResult,
   type ConfigImportResult,
   type DataSnapshotRuntimeState,
   type DailyMarketScanResult,
   type DividendFinancingSnapshot,
   type FundamentalSnapshot,
+  type GlobalFundamentalSnapshot,
   type FundsFlowResult,
   type KlinePeriod,
   type KlineResult,
@@ -37,6 +41,8 @@ import {
   parseUserDataBackupDocument
 } from '../shared/user-data-backup'
 import { DEMO_SECTORS, DEMO_STOCKS, DEMO_VALUES } from './demo-data'
+import { stockMarketIdentity } from '../shared/stock-market'
+import { previewCorporateAction, reversalEntries } from './portfolio-ledger'
 
 function makeDemoSectorQuote(stockQuoteId: string): StockSectorQuote | undefined {
   const sector = DEMO_SECTORS[stockQuoteId]
@@ -64,7 +70,8 @@ const DEFAULT_STATE: AppState = {
   columnOrder: [...DEFAULT_WATCHLIST_COLUMN_ORDER],
   columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
   settings: { ...DEFAULT_APP_SETTINGS },
-  tTradingAccounts: {}
+  tTradingAccounts: {},
+  corporateActionRecords: {}
 }
 
 const DEMO_DAILY_MARKET_SCAN_RESULT: DailyMarketScanResult = {
@@ -163,19 +170,21 @@ function loadDemoState(): AppState {
   const parsed = JSON.parse(saved) as AppState
   const watchlistGroups = normalizeWatchlistGroups(parsed.watchlistGroups)
   const stockTrackingProfiles = normalizeStockTrackingProfiles(parsed.stockTrackingProfiles)
+  const watchlist = synchronizeTrackingGroupMembership(
+    normalizeWatchlist(parsed.watchlist),
+    watchlistGroups,
+    stockTrackingProfiles
+  )
   return {
     revision: parsed.revision,
-    watchlist: synchronizeTrackingGroupMembership(
-      normalizeWatchlist(parsed.watchlist),
-      watchlistGroups,
-      stockTrackingProfiles
-    ),
+    watchlist,
     watchlistGroups,
     stockTrackingProfiles,
     settings: normalizeAppSettings(parsed.settings),
     columnOrder: migrateWatchlistColumnOrder(parsed.columnOrder, parsed.columnOrderVersion),
     columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
-    tTradingAccounts: normalizeTTradingAccounts(parsed.tTradingAccounts)
+    tTradingAccounts: normalizeTradingAccountsForWatchlist(watchlist, parsed.tTradingAccounts),
+    corporateActionRecords: parsed.corporateActionRecords ?? {}
   }
 }
 
@@ -197,12 +206,22 @@ function makeDemoQuotes(watchlist: WatchStock[]): StockQuote[] {
             }
           ]
         : undefined
-    if (known) return { ...known, sector, radarSignals, updatedAt: now }
+    if (known)
+      return {
+        ...stockMarketIdentity(stock.quoteId, stock.instrumentType),
+        ...known,
+        sector,
+        radarSignals,
+        source: 'demo',
+        updatedAt: now,
+        dataAt: now
+      }
     const base = 24 + index * 7.31
     return {
       code: stock.code,
       name: stock.name,
       quoteId: stock.quoteId,
+      ...stockMarketIdentity(stock.quoteId, stock.instrumentType),
       latest: base,
       change: 0.18,
       changePercent: 0.76,
@@ -215,7 +234,9 @@ function makeDemoQuotes(watchlist: WatchStock[]): StockQuote[] {
       turnoverRate: 1.26,
       sector,
       radarSignals,
-      updatedAt: now
+      source: 'demo',
+      updatedAt: now,
+      dataAt: now
     }
   })
 }
@@ -249,7 +270,10 @@ function makeDemoKline(quoteId: string, period: KlinePeriod, limit?: number): Kl
       quoteId,
       name: quote?.name ?? '',
       tradingDate: `${bars[0].time} 至 ${bars.at(-1)?.time ?? ''}`,
-      bars
+      bars,
+      source: 'demo',
+      adjustment: 'forward',
+      fetchedAt: new Date().toISOString()
     }
   }
 
@@ -288,7 +312,10 @@ function makeDemoKline(quoteId: string, period: KlinePeriod, limit?: number): Kl
     name: quote?.name ?? '',
     tradingDate: period === 'fiveDay' ? `${bars[0].time.slice(0, 10)} 至 ${date}` : date,
     bars,
-    intervalMinutes: period === 'intraday' ? 1 : period === 'fiveDay' ? 5 : undefined
+    intervalMinutes: period === 'intraday' ? 1 : period === 'fiveDay' ? 5 : undefined,
+    source: 'demo',
+    adjustment: 'none',
+    fetchedAt: new Date().toISOString()
   }
 }
 
@@ -577,11 +604,95 @@ const demoApi: StockDesktopApi = {
   async runFundamentalUpdate() {
     throw new Error('基本面财务数据更新脚本仅能在 Windows 桌面版中运行')
   },
-  async getCompanyReports(code) {
+  async getCompanyReports(quoteId) {
+    const code = quoteId.includes('.') ? (quoteId.split('.')[1] ?? quoteId) : quoteId
     return {
       ...DEMO_COMPANY_REPORTS,
+      quoteId,
       code,
-      reports: DEMO_COMPANY_REPORTS.reports.map((report) => ({ ...report, code }))
+      reports: DEMO_COMPANY_REPORTS.reports.map((report) => ({ ...report, quoteId, code }))
+    }
+  },
+  async listCorporateActions(quoteId) {
+    const market = stockMarketIdentity(quoteId).market
+    return {
+      quoteId,
+      market,
+      source: market === 'HK' ? 'HKEXnews' : market === 'US' ? 'SEC EDGAR' : '演示数据',
+      fetchedAt: new Date().toISOString(),
+      fromCache: false,
+      candidates: [],
+      warning: '浏览器预览不请求官方公司行动数据，可使用手工录入验证账本流程。'
+    }
+  },
+  async previewCorporateAction(request) {
+    return previewCorporateAction(request.candidate, request.account, request.confirmation)
+  },
+  async confirmCorporateAction(request) {
+    return previewCorporateAction(request.candidate, request.account, request.confirmation)
+  },
+  async ignoreCorporateAction(candidate) {
+    return { ...candidate, status: 'ignored', reviewedAt: new Date().toISOString() }
+  },
+  async reverseCorporateAction(candidate, account) {
+    return reversalEntries(candidate, account)
+  },
+  async listPortfolioLedger(account) {
+    return account.ledger.entries
+  },
+  async createManualCorporateAction(request, account) {
+    const id = `manual:${crypto.randomUUID()}`
+    const candidate = {
+      id,
+      quoteId: request.quoteId,
+      market: request.market,
+      type: request.type,
+      status: 'needsReview' as const,
+      title: request.title,
+      announcementDate: request.announcementDate,
+      effectiveDate: request.effectiveDate,
+      terms:
+        request.type === 'manualCash'
+          ? ({ kind: 'manualCash' } as const)
+          : ({ kind: 'unsupported' } as const),
+      evidence: [],
+      providerId: 'manual',
+      providerEventId: id,
+      contentHash: id,
+      detectedAt: new Date().toISOString()
+    }
+    return {
+      candidate,
+      preview: previewCorporateAction(candidate, account, {
+        ...request.confirmation,
+        currency: request.currency
+      })
+    }
+  },
+  async openCorporateAction(url) {
+    window.open(url, '_blank', 'noopener,noreferrer')
+  },
+  async getGlobalFundamentals(quoteId): Promise<GlobalFundamentalSnapshot> {
+    const identity = stockMarketIdentity(quoteId)
+    const code = quoteId.split('.')[1] ?? quoteId
+    if (identity.market === 'CN') throw new Error('A 股使用本地全市场基本面快照')
+    return {
+      schemaVersion: 1,
+      quoteId,
+      market: identity.market,
+      code,
+      name: code,
+      officialIssuerId: code,
+      accountingStandard: identity.market === 'US' ? 'US GAAP' : 'HKFRS',
+      reportingCurrency: identity.currency,
+      fetchedAt: new Date().toISOString(),
+      fromCache: false,
+      warning: '浏览器预览不请求交易所官方财务数据。',
+      source: {
+        name: identity.market === 'US' ? 'SEC Company Facts' : 'HKEXnews',
+        url: identity.market === 'US' ? 'https://www.sec.gov/' : 'https://www.hkexnews.hk/'
+      },
+      periods: []
     }
   },
   async generateCompanyReportSummary(report) {
@@ -681,6 +792,9 @@ const demoApi: StockDesktopApi = {
   async refreshTradingCalendar() {
     throw new Error('交易日历在线刷新仅在 Windows 桌面版中可用')
   },
+  async refreshExchangeRates() {
+    throw new Error('官方汇率在线刷新仅在 Windows 桌面版中可用')
+  },
   async saveState(state) {
     localStorage.setItem('jianzhang-demo-state-v1', JSON.stringify(state))
     return state
@@ -750,6 +864,21 @@ const demoApi: StockDesktopApi = {
     })
   },
   async applyConfigImport() {},
+  async getCacheSummary(): Promise<CacheSummary> {
+    return {
+      generatedAt: new Date().toISOString(),
+      categories: []
+    }
+  },
+  async clearCaches(categoryIds: CacheCategoryId[]): Promise<CacheClearResult> {
+    return {
+      categoryIds,
+      clearedFileCount: 0,
+      clearedBytes: 0,
+      webCacheCleared: false,
+      failedPaths: []
+    }
+  },
   async getGitHubSyncSettings() {
     return {
       oauthAvailable: false,

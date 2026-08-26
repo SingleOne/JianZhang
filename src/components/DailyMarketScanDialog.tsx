@@ -26,6 +26,7 @@ import type {
   StockTrackingProfiles,
   WatchStock
 } from '../shared/types'
+import { stockMarketIdentity } from '../shared/stock-market'
 import './DailyMarketScanDialog.css'
 
 const PAGE_SIZE = 100
@@ -275,7 +276,8 @@ export function DailyMarketScanDialog({
         code: row.code,
         name: row.name,
         quoteId: row.quoteId,
-        marketLabel: dailyMarketScanBoardLabel(row.code) ?? row.marketLabel
+        marketLabel: dailyMarketScanBoardLabel(row.code) ?? row.marketLabel,
+        ...stockMarketIdentity(row.quoteId)
       },
       row
     )

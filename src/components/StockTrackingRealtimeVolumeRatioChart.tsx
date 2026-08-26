@@ -17,9 +17,12 @@ import {
   enableCtrlWheelZoom
 } from '../lib/lightweight-chart-interactions'
 import type { RealtimeVolumeRatioPoint } from '../lib/stock-tracking-metrics'
+import type { StockMarket } from '../shared/types'
+import { volumeUnitForMarket } from '../shared/stock-market'
 
 interface StockTrackingRealtimeVolumeRatioChartProps {
   points: RealtimeVolumeRatioPoint[]
+  market: StockMarket
   intervalMinutes?: 1 | 5
   fallbackReason?: string
 }
@@ -43,9 +46,11 @@ function pointTimeLabel(point: RealtimeVolumeRatioPoint | undefined): string {
 
 export default function StockTrackingRealtimeVolumeRatioChart({
   points,
+  market,
   intervalMinutes,
   fallbackReason
 }: StockTrackingRealtimeVolumeRatioChartProps) {
+  const volumeUnit = volumeUnitForMarket(market)
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<ISeriesApi<'Line'> | null>(null)
@@ -155,8 +160,8 @@ export default function StockTrackingRealtimeVolumeRatioChart({
         <span>
           实时量比 <em>{displayedPoint ? `${displayedPoint.ratio.toFixed(2)}x` : '--'}</em>
         </span>
-        <span>累计量 {formatVolume(displayedPoint?.cumulativeVolume)}</span>
-        <span>进度预期量 {formatVolume(displayedPoint?.expectedVolume)}</span>
+        <span>累计量 {formatVolume(displayedPoint?.cumulativeVolume, volumeUnit)}</span>
+        <span>进度预期量 {formatVolume(displayedPoint?.expectedVolume, volumeUnit)}</span>
         {intervalMinutes === 5 ? <i title={fallbackReason}>5分钟备用行情</i> : null}
       </div>
       <div ref={containerRef} />

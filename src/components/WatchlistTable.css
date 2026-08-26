@@ -19,7 +19,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 14px 20px;
+  padding: 4px 20px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -77,11 +77,9 @@
 
 .panel-heading-side {
   flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 18px;
-  flex-wrap: wrap;
+  display: grid;
+  justify-items: end;
+  gap: 4px;
 }
 
 .market-index-summary {
@@ -96,8 +94,6 @@
   flex: 0 0 auto;
   flex-wrap: nowrap;
   justify-content: flex-start;
-  padding-left: 12px;
-  border-left: 1px solid #d8dee8;
 }
 
 .panel-market-index-summary .market-index-card {
@@ -150,6 +146,8 @@
   display: flex;
   align-items: center;
   gap: 4px;
+  padding-left: 12px;
+  border-left: 1px solid #d8dee8;
 }
 
 .portfolio-summary > span {
@@ -177,7 +175,7 @@
 
 .portfolio-summary small {
   color: #8a94a6;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .portfolio-summary strong {
@@ -262,12 +260,12 @@
 }
 
 .portfolio-quality-trigger {
-  min-width: 190px;
-  min-height: 42px;
+  min-width: 285px;
+  min-height: 58px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
-  padding: 5px 10px;
+  padding: 7px 10px;
   color: #6941c6;
   background: #f5f1ff;
   border: 1px solid #d7c8fa;
@@ -277,21 +275,73 @@
   text-align: left;
 }
 
-.portfolio-quality-trigger > span {
+.portfolio-card-content {
+  min-width: 0;
+  flex: 1;
   display: grid;
-  gap: 2px;
+  gap: 3px;
 }
 
-.portfolio-quality-trigger strong {
+.portfolio-card-heading,
+.portfolio-card-metrics,
+.portfolio-card-metrics > span {
+  display: flex;
+  align-items: baseline;
+}
+
+.portfolio-card-heading {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.portfolio-card-heading strong {
   color: #4c2f8f;
   font-size: 13px;
 }
 
-.portfolio-quality-trigger small {
+.portfolio-card-heading small,
+.portfolio-card-exposure,
+.portfolio-card-warning,
+.portfolio-card-metrics small,
+.portfolio-card-metrics b {
   color: #76619e;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.portfolio-card-metrics {
+  gap: 12px;
+}
+
+.portfolio-card-metrics > span {
+  gap: 5px;
+}
+
+.portfolio-card-metrics b {
+  color: #4c2f8f;
+}
+
+.portfolio-card-metrics b.is-up {
+  color: var(--red);
+}
+
+.portfolio-card-metrics b.is-down {
+  color: var(--green);
+}
+
+.portfolio-card-metrics b.is-flat {
+  color: var(--muted);
+}
+
+.portfolio-card-exposure,
+.portfolio-card-warning {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.portfolio-card-warning {
+  color: #9a6700;
 }
 
 .portfolio-quality-trigger:hover:not(:disabled) {
@@ -329,10 +379,7 @@
   gap: 5px;
 }
 
-.fundamental-overview-values {
-  padding-left: 12px;
-  border-left: 1px solid #dce2ea;
-}
+.fundamental-overview-values {}
 
 .fundamental-overview-group-label {
   min-width: 64px;
@@ -1152,6 +1199,19 @@
   border-color: #bfdbfe;
 }
 
+.stock-quote-expired-badge {
+  flex: 0 0 auto;
+  padding: 1px 4px;
+  color: #c2410c;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
 .stock-name-line .five-level-alert-badges {
   flex: 0 0 auto;
 }
@@ -1234,23 +1294,6 @@
   align-items: center;
   justify-content: center;
   gap: 3px;
-}
-
-.row-pin-button {
-  width: 25px;
-  height: 28px;
-  color: #8c96a7;
-  border-radius: 6px;
-}
-
-.row-pin-button:hover:not(:disabled) {
-  color: var(--blue);
-  background: var(--blue-soft);
-}
-
-.row-pin-button:disabled {
-  color: #d5dae2;
-  cursor: default;
 }
 
 .latest-price {
@@ -1482,6 +1525,13 @@ button.value-screening-badge:focus-visible {
   border-color: #a9c3f8;
 }
 
+.row-action-button:disabled {
+  color: #d5dae2;
+  background: transparent;
+  border-color: transparent;
+  cursor: default;
+}
+
 .row-action-button.is-active,
 .row-action-button.has-position {
   color: var(--blue);
@@ -1572,8 +1622,33 @@ button.value-screening-badge:focus-visible {
 .row-actions {
   display: inline-grid;
   grid-template-columns: repeat(3, 25px);
+  grid-template-rows: repeat(2, 25px);
   place-content: center;
   gap: 3px;
+}
+
+.row-actions .is-pin-action {
+  grid-area: 1 / 1;
+}
+
+.row-actions .is-priority-action {
+  grid-area: 1 / 2;
+}
+
+.row-actions .is-taskbar-action {
+  grid-area: 1 / 3;
+}
+
+.row-actions .is-position-action {
+  grid-area: 2 / 1;
+}
+
+.row-actions .is-t-action {
+  grid-area: 2 / 2;
+}
+
+.row-actions .is-alert-action {
+  grid-area: 2 / 3;
 }
 
 .settings-column .row-action-button {

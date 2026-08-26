@@ -1,16 +1,12 @@
 import {
-  Activity,
-  Binoculars,
   Bot,
   CircleCheck,
-  Filter,
   RefreshCw,
   Signal,
-  Trophy,
   WifiOff
 } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
-import { AppTitlebar } from './components/AppTitlebar'
+import { AppTitlebar, MarketTradingState } from './components/AppTitlebar'
 import { useConfirmDialog } from './components/ConfirmDialog'
 import { DailyMarketScanDialog } from './components/DailyMarketScanDialog'
 import { DividendFinancingRankingDialog } from './components/DividendFinancingRankingDialog'
@@ -18,6 +14,7 @@ import { FundamentalScreeningDialog } from './components/FundamentalScreeningDia
 import { SearchBar } from './components/SearchBar'
 import { SettingsMenu } from './components/SettingsMenu'
 import { StockTrackingDialog } from './components/StockTrackingDialog'
+import { TitlebarToolsMenu } from './components/TitlebarToolsMenu'
 import { WatchlistTable } from './components/WatchlistTable'
 import { initialState, isDesktopRuntime, stockApi } from './lib/api'
 import {
@@ -26,10 +23,9 @@ import {
   type StockDetailNavigationRequest
 } from './lib/completion-notifications'
 import {
-  formatCurrency,
+  formatMoneyProfit,
   formatPercent,
   formatPrice,
-  formatProfit,
   formatUpdateTime
 } from './lib/format'
 import {
@@ -54,7 +50,11 @@ import packageInfo from '../package.json'
 import type {
   AppSettings,
   AppState,
+  CacheCategoryId,
+  CacheClearResult,
+  CacheSummary,
   ConfigImportResult,
+  CorporateActionRecord,
   DataSnapshotRuntimeState,
   DividendFinancingChangeReport,
   DividendFinancingRankingItem,
@@ -72,10 +72,16 @@ import type {
   StockTrackingProfile,
   StockTrackingSource,
   StockQuote,
+  StockSelectionRequest,
   TTradingAccount,
   WatchlistGroup,
   WatchlistColumnId
 } from './shared/types'
+
+const CorporateActionCenterDialog = lazy(() => import('./components/CorporateActionCenterDialog'))
+const PortfolioPerformanceDialog = lazy(
+  () => import('./components/PortfolioPerformanceDialog')
+)
 
 interface StockAddOptions {
   startTracking?: boolean
@@ -118,6 +124,9 @@ export default function App() {
   const [state, setState] = useState<AppState>(initialState)
   const [quotes, setQuotes] = useState<StockQuote[]>([])
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null)
+  const [stockSelectionRequest, setStockSelectionRequest] = useState<StockSelectionRequest | null>(
+    null
+  )
   const [completionNotifications, setCompletionNotifications] = useState<
     AppCompletionNotification[]
   >([])
@@ -127,7 +136,10 @@ export default function App() {
   const [initializing, setInitializing] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [calendarRefreshing, setCalendarRefreshing] = useState(false)
+  const [exchangeRatesRefreshing, setExchangeRatesRefreshing] = useState(false)
   const [configBusy, setConfigBusy] = useState(false)
+  const [cacheSummary, setCacheSummary] = useState<CacheSummary | null>(null)
+  const [cacheBusy, setCacheBusy] = useState(false)
   const [githubSyncBusy, setGitHubSyncBusy] = useState(false)
   const [githubSyncUploading, setGitHubSyncUploading] = useState(false)
   const [githubSyncDownloading, setGitHubSyncDownloading] = useState(false)
@@ -151,6 +163,8 @@ export default function App() {
   const [fundamentalScreeningOpen, setFundamentalScreeningOpen] = useState(false)
   const [dailyMarketScanOpen, setDailyMarketScanOpen] = useState(false)
   const [stockTrackingOpen, setStockTrackingOpen] = useState(false)
+  const [corporateActionCenterOpen, setCorporateActionCenterOpen] = useState(false)
+  const [portfolioPerformanceOpen, setPortfolioPerformanceOpen] = useState(false)
   const [dividendFinancingSnapshot, setDividendFinancingSnapshot] =
     useState<DividendFinancingSnapshot | null>(null)
   const [dividendFinancingChangeReport, setDividendFinancingChangeReport] =
@@ -180,6 +194,11 @@ export default function App() {
   const reportSuccess = useCallback((message: string) => {
     setError('')
     setNotice(message)
+  }, [])
+
+  const handleStockSelection = useCallback((request: StockSelectionRequest) => {
+    setSelectedQuoteId(request.quoteId)
+    if (request.scrollAlignment === 'sticky-top') setStockSelectionRequest(request)
   }, [])
 
   const refreshGitHubGist = useCallback(
@@ -243,7 +262,7 @@ export default function App() {
 
     const unsubscribeQuotes = stockApi.onQuotesUpdated(updateQuotes)
     const unsubscribeState = stockApi.onStateUpdated(setState)
-    const unsubscribeSelection = stockApi.onSelectStock(setSelectedQuoteId)
+    const unsubscribeSelection = stockApi.onSelectStock(handleStockSelection)
     const unsubscribeError = stockApi.onDataError(reportError)
     return () => {
       unsubscribeQuotes()
@@ -251,7 +270,14 @@ export default function App() {
       unsubscribeSelection()
       unsubscribeError()
     }
-  }, [refreshGitHubGist, reportError, updateQuotes])
+  }, [handleStockSelection, refreshGitHubGist, reportError, updateQuotes])
+
+  useEffect(() => {
+    stockApi
+      .getCacheSummary()
+      .then(setCacheSummary)
+      .catch(() => undefined)
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -406,9 +432,32 @@ export default function App() {
     [fundamentalEvaluations]
   )
   const portfolioSummary = useMemo(
-    () => calculatePortfolioSummary(state.watchlist, quotes, state.tTradingAccounts),
-    [quotes, state.tTradingAccounts, state.watchlist]
+    () => calculatePortfolioSummary(
+      state.watchlist,
+      quotes,
+      state.tTradingAccounts,
+      state.settings.exchangeRates
+    ),
+    [quotes, state.settings.exchangeRates, state.tTradingAccounts, state.watchlist]
   )
+  const portfolioExposureText = useMemo(() => {
+    const total = portfolioSummary.marketValue ?? 0
+    if (total <= 0) return ''
+    const marketLabels = { CN: 'A股', HK: '港股', US: '美股' } as const
+    const marketText = (['CN', 'HK', 'US'] as const)
+      .filter((market) => (portfolioSummary.marketValues[market] ?? 0) > 0)
+      .map((market) =>
+        `${marketLabels[market]} ${((portfolioSummary.marketValues[market] ?? 0) / total * 100).toFixed(1)}%`
+      )
+      .join(' · ')
+    const currencyText = (['CNY', 'HKD', 'USD'] as const)
+      .filter((currency) => (portfolioSummary.currencyValues[currency] ?? 0) > 0)
+      .map((currency) =>
+        `${currency} ${((portfolioSummary.currencyValues[currency] ?? 0) / total * 100).toFixed(1)}%`
+      )
+      .join(' · ')
+    return [marketText, currencyText].filter(Boolean).join(' ｜ ')
+  }, [portfolioSummary])
   const marketIndexQuotes = useMemo(() => {
     const selectedIds = new Set(state.settings.marketIndexIds)
     const quotesById = new Map(quotes.map((quote) => [quote.quoteId, quote]))
@@ -418,7 +467,8 @@ export default function App() {
     }))
   }, [quotes, state.settings.marketIndexIds])
   const lastUpdated = quotes.reduce<string | undefined>((latest, quote) => {
-    if (!latest || quote.updatedAt > latest) return quote.updatedAt
+    const quoteDataAt = quote.dataAt ?? quote.updatedAt
+    if (!latest || quoteDataAt > latest) return quoteDataAt
     return latest
   }, undefined)
 
@@ -661,6 +711,41 @@ export default function App() {
     [persist, state]
   )
 
+  const removeTrackedStock = useCallback(
+    async (quoteId: string) => {
+      const stock = state.watchlist.find((item) => item.quoteId === quoteId)
+      const profile = state.stockTrackingProfiles[quoteId]
+      if (!stock || !profile) return
+      const confirmed = await confirm({
+        title: '删除股票并停止追踪',
+        message: `将从股票列表中删除“${stock.name}（${stock.code}）”，并停止追踪。历史档案和复盘记录仍会保留。`,
+        confirmLabel: '删除并停止',
+        tone: 'danger'
+      })
+      if (!confirmed) return
+      const nextProfile =
+        profile.status === 'tracking'
+          ? stopStockTracking(
+              profile,
+              'unverified',
+              '从股票列表中删除时停止追踪',
+              quotes.find((quote) => quote.quoteId === quoteId)
+            )
+          : profile
+      setSelectedQuoteId((current) => (current === quoteId ? null : current))
+      setQuotes((current) => current.filter((quote) => quote.quoteId !== quoteId))
+      void persist({
+        ...state,
+        watchlist: state.watchlist.filter((item) => item.quoteId !== quoteId),
+        stockTrackingProfiles: {
+          ...state.stockTrackingProfiles,
+          [quoteId]: nextProfile
+        }
+      })
+    },
+    [confirm, persist, quotes, state]
+  )
+
   const toggleTaskbar = useCallback(
     (quoteId: string) => {
       const nextWatchlist = state.watchlist.map((stock) =>
@@ -732,6 +817,112 @@ export default function App() {
     [persist, state]
   )
 
+  const applyCorporateAction = useCallback(
+    (
+      quoteId: string,
+      account: TTradingAccount,
+      position: StockPosition | undefined,
+      record: CorporateActionRecord
+    ) => {
+      const conversion = account.ledger.entries.find(
+        (entry) =>
+          entry.kind === 'securityConversion' &&
+          entry.corporateActionId === record.id &&
+          entry.targetQuoteId
+      )
+      const targetQuoteId =
+        conversion?.kind === 'securityConversion'
+          ? record.status === 'reversed'
+            ? conversion.sourceQuoteId
+            : conversion.targetQuoteId
+          : undefined
+      const finalQuoteId = targetQuoteId && targetQuoteId !== quoteId ? targetQuoteId : quoteId
+      if (
+        finalQuoteId !== quoteId &&
+        (state.tTradingAccounts[finalQuoteId] ||
+          state.watchlist.some((stock) => stock.quoteId === finalQuoteId))
+      ) {
+        return `目标证券 ${finalQuoteId} 已存在，为避免覆盖账户或自选数据，本次未入账。请先处理目标证券后重试。`
+      }
+      const finalCode = finalQuoteId.includes('.')
+        ? finalQuoteId.split('.').slice(1).join('.') || account.code
+        : account.code
+      const normalizedAccount =
+        finalQuoteId === quoteId
+          ? account
+          : {
+              ...account,
+              quoteId: finalQuoteId,
+              code: finalCode,
+              ledger: {
+                ...account.ledger,
+                entries: account.ledger.entries.map((entry) => ({
+                  ...entry,
+                  accountId: finalQuoteId,
+                  quoteId: finalQuoteId
+                }))
+              }
+            }
+      const { [quoteId]: _previousAccount, ...otherAccounts } = state.tTradingAccounts
+      const migratedRecords = Object.fromEntries(
+        Object.entries(state.corporateActionRecords).map(([id, saved]) => [
+          id,
+          saved.quoteId === quoteId ? { ...saved, quoteId: finalQuoteId } : saved
+        ])
+      )
+      const trackingProfile = state.stockTrackingProfiles[quoteId]
+      const { [quoteId]: _previousTracking, ...otherTrackingProfiles } = state.stockTrackingProfiles
+      void persist({
+        ...state,
+        watchlist: state.watchlist.map((stock) =>
+          stock.quoteId === quoteId
+            ? {
+                ...stock,
+                quoteId: finalQuoteId,
+                code: finalCode,
+                position,
+                isPriority: position ? true : stock.isPriority
+              }
+            : stock
+        ),
+        tTradingAccounts: { ...otherAccounts, [finalQuoteId]: normalizedAccount },
+        stockTrackingProfiles:
+          finalQuoteId !== quoteId && trackingProfile
+            ? {
+                ...otherTrackingProfiles,
+                [finalQuoteId]: { ...trackingProfile, quoteId: finalQuoteId, code: finalCode }
+              }
+            : state.stockTrackingProfiles,
+        corporateActionRecords: {
+          ...migratedRecords,
+          [record.id]: { ...record, quoteId: finalQuoteId }
+        }
+      })
+      if (finalQuoteId !== quoteId) setSelectedQuoteId(finalQuoteId)
+    },
+    [persist, state]
+  )
+
+  const updateCorporateActionRecord = useCallback(
+    (record: CorporateActionRecord) => {
+      void persist({
+        ...state,
+        corporateActionRecords: { ...state.corporateActionRecords, [record.id]: record }
+      })
+    },
+    [persist, state]
+  )
+
+  const viewCorporateActionStock = useCallback((quoteId: string) => {
+    setCorporateActionCenterOpen(false)
+    setSelectedQuoteId(quoteId)
+    setDetailNavigationRequest({
+      id: `corporate-action:${quoteId}:${Date.now()}`,
+      quoteId,
+      target: 'corporate-actions'
+    })
+  }, [])
+
   const updateStockAlerts = useCallback(
     (quoteId: string, alertRules: StockAlertRule[]) => {
       const nextWatchlist = state.watchlist.map((stock) =>
@@ -790,6 +981,52 @@ export default function App() {
       void persist({ ...state, settings })
     },
     [persist, state]
+  )
+
+  const refreshCacheSummary = useCallback(() => {
+    if (!isDesktopRuntime || cacheBusy) return
+    setCacheBusy(true)
+    stockApi
+      .getCacheSummary()
+      .then(setCacheSummary)
+      .catch((reason) => reportError(reason instanceof Error ? reason.message : '缓存统计读取失败'))
+      .finally(() => setCacheBusy(false))
+  }, [cacheBusy, reportError])
+
+  const clearCaches = useCallback(
+    async (categoryIds: CacheCategoryId[]) => {
+      if (!isDesktopRuntime || categoryIds.length === 0 || cacheBusy) return
+      setCacheBusy(true)
+      try {
+        const categories = categoryIds
+          .map((id) => cacheSummary?.categories.find((category) => category.id === id))
+          .filter((category): category is NonNullable<typeof category> => Boolean(category))
+        const includesSnapshots = categories.some((category) => category.group === 'separate')
+        const categoryLabels = categories.map((category) => category.label).join('、')
+        const confirmed = await confirm({
+          title: includesSnapshots ? '清理数据并重启' : '清理缓存并重启',
+          message: includesSnapshots
+            ? `将删除 ${categoryLabels || '选中的运行数据'}。相关数据需要重新运行更新或联网获取；不会删除自选、持仓、设置、AI 对话、API Key 和 GitHub 同步凭证。应用会自动重启。`
+            : `将删除 ${categoryLabels || '选中的临时缓存'}。相关页面下次打开时会重新获取；不会删除用户配置、AI 数据或同步凭证。应用会自动重启。`,
+          confirmLabel: includesSnapshots ? '清理并重启' : '清理并重启',
+          tone: includesSnapshots ? 'danger' : 'default'
+        })
+        if (!confirmed) return
+        const result: CacheClearResult = await stockApi.clearCaches(categoryIds)
+        const sizeInMegabytes = (result.clearedBytes / (1024 * 1024)).toFixed(1)
+        const failureMessage = result.failedPaths.length
+          ? `，${result.failedPaths.length} 项未能删除`
+          : ''
+        reportSuccess(
+          `已清理 ${result.clearedFileCount} 个文件，释放 ${sizeInMegabytes} MB${failureMessage}，应用正在重启`
+        )
+      } catch (reason) {
+        reportError(reason instanceof Error ? reason.message : '缓存清理失败')
+      } finally {
+        setCacheBusy(false)
+      }
+    },
+    [cacheBusy, cacheSummary, confirm, reportError, reportSuccess]
   )
 
   const selectWatchlistStock = useCallback((quoteId: string) => {
@@ -1064,11 +1301,34 @@ export default function App() {
         ...current,
         settings: { ...current.settings, tradingCalendar }
       }))
-      reportSuccess(`交易日历已更新至 ${tradingCalendar.coveredThroughYear} 年`)
+      const failedMarkets = (['CN', 'HK', 'US'] as const).filter(
+        (market) => tradingCalendar.markets[market].lastError
+      )
+      if (failedMarkets.length > 0) {
+        reportError(`交易日历部分更新失败：${failedMarkets.join('、')}`)
+      } else {
+        reportSuccess('A股、港股和美股交易日历已更新')
+      }
     } catch (reason) {
       reportError(reason instanceof Error ? reason.message : '交易日历刷新失败')
     } finally {
       setCalendarRefreshing(false)
+    }
+  }
+
+  const refreshExchangeRates = async () => {
+    setExchangeRatesRefreshing(true)
+    try {
+      const exchangeRates = await stockApi.refreshExchangeRates()
+      setState((current) => ({
+        ...current,
+        settings: { ...current.settings, exchangeRates }
+      }))
+      reportSuccess(`人民币汇率中间价已更新至 ${exchangeRates.rateDate ?? '最新公布日'}`)
+    } catch (reason) {
+      reportError(reason instanceof Error ? reason.message : '官方汇率刷新失败')
+    } finally {
+      setExchangeRatesRefreshing(false)
     }
   }
 
@@ -1100,42 +1360,14 @@ export default function App() {
               <RefreshCw size={17} className={refreshing ? 'is-spinning' : ''} />
               <span>立即刷新</span>
             </button>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => setDividendRankingOpen(true)}
-              title="分红融资榜"
-            >
-              <Trophy size={17} />
-              <span>分红融资榜</span>
-            </button>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => setFundamentalScreeningOpen(true)}
-              title="基本面初筛"
-            >
-              <Filter size={17} />
-              <span>基本面初筛</span>
-            </button>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => setDailyMarketScanOpen(true)}
-              title="A 股收盘扫描"
-            >
-              <Activity size={17} />
-              <span>收盘扫描</span>
-            </button>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => setStockTrackingOpen(true)}
-              title="追踪复盘"
-            >
-              <Binoculars size={17} />
-              <span>追踪复盘</span>
-            </button>
+            <TitlebarToolsMenu
+              onOpenDividendRanking={() => setDividendRankingOpen(true)}
+              onOpenFundamentalScreening={() => setFundamentalScreeningOpen(true)}
+              onOpenDailyMarketScan={() => setDailyMarketScanOpen(true)}
+              onOpenStockTracking={() => setStockTrackingOpen(true)}
+              onOpenCorporateActionCenter={() => setCorporateActionCenterOpen(true)}
+              onOpenPortfolioPerformance={() => setPortfolioPerformanceOpen(true)}
+            />
             {aiRuntimeAvailable ? (
               <button
                 className="secondary-button ai-assistant-trigger"
@@ -1173,8 +1405,14 @@ export default function App() {
               onDownloadUserDataFromGitHub={downloadUserDataFromGitHub}
               onRefreshTradingCalendar={refreshTradingCalendar}
               calendarRefreshing={calendarRefreshing}
+              onRefreshExchangeRates={refreshExchangeRates}
+              exchangeRatesRefreshing={exchangeRatesRefreshing}
               fundamentalDataState={fundamentalDataState}
               onUpdateFundamentalData={updateFundamentalData}
+              cacheSummary={cacheSummary}
+              cacheBusy={cacheBusy}
+              onRefreshCacheSummary={refreshCacheSummary}
+              onClearCaches={clearCaches}
             />
           </div>
         </section>
@@ -1228,10 +1466,6 @@ export default function App() {
               </div>
               <div className="panel-heading-side">
                 <div className="portfolio-summary" aria-label="全部持仓收益汇总">
-                  <span>
-                    <small>持仓总市值</small>
-                    <strong>{formatCurrency(portfolioSummary.marketValue)}</strong>
-                  </span>
                   <span className={cardDirectionClass(portfolioSummary.todayProfit)}>
                     <small>今日总收益</small>
                     <strong
@@ -1243,7 +1477,7 @@ export default function App() {
                             : 'is-down'
                       }
                     >
-                      {formatProfit(portfolioSummary.todayProfit)}
+                      {formatMoneyProfit(portfolioSummary.todayProfit, 'CNY')}
                     </strong>
                   </span>
                   <span className={cardDirectionClass(portfolioSummary.todayProfitPercent)}>
@@ -1258,20 +1492,6 @@ export default function App() {
                       }
                     >
                       {formatPercent(portfolioSummary.todayProfitPercent)}
-                    </strong>
-                  </span>
-                  <span className={cardDirectionClass(portfolioSummary.totalProfit)}>
-                    <small>持仓总收益</small>
-                    <strong
-                      className={
-                        portfolioSummary.totalProfit === null
-                          ? 'is-flat'
-                          : portfolioSummary.totalProfit >= 0
-                            ? 'is-up'
-                            : 'is-down'
-                      }
-                    >
-                      {formatProfit(portfolioSummary.totalProfit)}
                     </strong>
                   </span>
                   <span className={cardDirectionClass(portfolioSummary.profitPercent)}>
@@ -1321,20 +1541,28 @@ export default function App() {
                 chipDistributionEnabled={state.settings.showChipDistribution}
                 bollingerBandsEnabled={state.settings.showBollingerBands}
                 selectedQuoteId={selectedQuoteId}
+                stockSelectionRequest={stockSelectionRequest}
                 detailNavigationRequest={detailNavigationRequest}
                 tTradingAccounts={state.tTradingAccounts}
+                corporateActionRecords={state.corporateActionRecords}
                 tTradingFees={state.settings.tTradingFees}
+                marketTradeFees={state.settings.marketTradeFees}
                 tPlanDefaults={state.settings.tPlanDefaults}
                 tFloatingProfitAlertDefaultThreshold={
                   state.settings.tFloatingProfitAlertDefaultThreshold
                 }
-                tradingCalendarClosedDates={state.settings.tradingCalendar.closedDates}
+                portfolioSummary={portfolioSummary}
+                portfolioExposureText={portfolioExposureText}
+                tradingCalendar={state.settings.tradingCalendar}
+                exchangeRates={state.settings.exchangeRates}
                 onSelect={selectWatchlistStock}
                 onDetailNavigationHandled={handleDetailNavigationHandled}
                 onToggleTaskbar={toggleTaskbar}
                 onTogglePriority={togglePriority}
                 onEditPosition={updatePosition}
                 onUpdateTTrading={updateTTrading}
+                onApplyCorporateAction={applyCorporateAction}
+                onUpdateCorporateActionRecord={updateCorporateActionRecord}
                 onUpdateStockAlerts={updateStockAlerts}
                 stockTrackingProfiles={state.stockTrackingProfiles}
                 onStartTracking={startManualTracking}
@@ -1359,6 +1587,8 @@ export default function App() {
           {error ? <WifiOff size={14} /> : <Signal size={14} />}
           <span>{source === 'eastmoney' ? '东方财富公开行情' : '浏览器预览数据'}</span>
         </div>
+        <span className="status-separator" />
+        <MarketTradingState tradingCalendar={state.settings.tradingCalendar} />
         <span className="status-separator" />
         <span>
           {error ? '行情连接异常，保留最近数据' : `最近更新 ${formatUpdateTime(lastUpdated)}`}
@@ -1440,11 +1670,34 @@ export default function App() {
         onUpdateProfile={saveTrackingProfile}
         onStopTracking={stopTracking}
         onRestartTracking={restartTracking}
+        onDeleteStock={removeTrackedStock}
         onViewStock={viewWatchlistStockFromDailyScan}
         bollingerBandsEnabled={state.settings.showBollingerBands}
         onBollingerBandsEnabledChange={updateBollingerBandsEnabled}
         onClose={() => setStockTrackingOpen(false)}
       />
+      {corporateActionCenterOpen ? (
+        <Suspense fallback={null}>
+          <CorporateActionCenterDialog
+            open
+            watchlist={state.watchlist}
+            records={state.corporateActionRecords}
+            onViewStock={viewCorporateActionStock}
+            onClose={() => setCorporateActionCenterOpen(false)}
+          />
+        </Suspense>
+      ) : null}
+      {portfolioPerformanceOpen ? (
+        <Suspense fallback={null}>
+          <PortfolioPerformanceDialog
+            watchlist={state.watchlist}
+            quotes={quotes}
+            accounts={state.tTradingAccounts}
+            exchangeRates={state.settings.exchangeRates}
+            onClose={() => setPortfolioPerformanceOpen(false)}
+          />
+        </Suspense>
+      ) : null}
       {AiAssistantDrawer ? (
         <Suspense fallback={null}>
           <AiAssistantDrawer

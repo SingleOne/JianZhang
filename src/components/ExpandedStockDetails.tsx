@@ -7,6 +7,7 @@ import {
   Building2,
   Calculator,
   CircleCheck,
+  CircleDollarSign,
   CircleMinus,
   CircleX,
   Database,
@@ -35,6 +36,7 @@ import {
   type DcfUnavailableReason
 } from '../lib/dcf-analysis'
 import { formatAmount, formatPercent, formatPrice, formatVolume } from '../lib/format'
+import { STOCK_QUOTE_SOURCE_LABELS } from '../lib/quote-state'
 import {
   FINANCIAL_MINE_LEVEL_LABELS,
   evaluateFinancialMine,
@@ -61,18 +63,30 @@ import {
 } from '../lib/fundamental-screening'
 import {
   INTRADAY_REFRESH_MILLISECONDS,
-  isBeijingAutoRefreshTime,
-  millisecondsUntilNextAutoRefreshWindow
+  isMarketOpen,
+  millisecondsUntilNextMarketOpen
 } from '../shared/market-hours'
+import {
+  marketCapabilitiesForQuoteId,
+  marketFromQuoteId,
+  type StockMarketCapabilities,
+  volumeUnitForMarket
+} from '../shared/stock-market'
 import { LruCache } from '../shared/lru-cache'
 import type {
   DividendFinancingRankingItem,
+  CorporateActionRecord,
+  CorporateActionRecords,
+  ExchangeRateSettings,
   KlineBar,
   KlinePeriod,
   KlineResult,
   StockQuote,
+  StockPosition,
   StockTrackingConclusionResult,
   StockTrackingProfile,
+  TTradingAccount,
+  TradingCalendarSettings,
   WatchStock
 } from '../shared/types'
 import { FundsFlowPanel } from './FundsFlowPanel'
@@ -88,6 +102,8 @@ import type { AiAnalysisType } from '../modules/ai/shared/types'
 const CandlestickChart = lazy(() => import('./CandlestickChart'))
 const PeriodKlineChart = lazy(() => import('./PeriodKlineChart'))
 const SectorIndexPanel = lazy(() => import('./SectorIndexPanel'))
+const GlobalFundamentalPanel = lazy(() => import('./GlobalFundamentalPanel'))
+const CorporateActionPanel = lazy(() => import('./CorporateActionPanel'))
 const MarketInsightPanel = __JIANZHANG_MARKET_INSIGHT_ENABLED__
   ? lazy(() =>
       import('../modules/market-insight/renderer/register').then((module) => ({
@@ -117,6 +133,7 @@ type DetailTab =
   | 'fundamental'
   | 'shareholders'
   | 'reports'
+  | 'corporateActions'
   | 'tracking'
   | 'funds'
   | 'sector'
@@ -142,6 +159,7 @@ const PRICE_TABS: Array<{ id: PriceTab; label: string; description: string }> = 
 const LEADING_PRICE_TABS = PRICE_TABS.filter((tab) => tab.id === 'trend')
 const TRAILING_PRICE_TABS = PRICE_TABS.filter((tab) => tab.id !== 'trend')
 const PRICE_TAB_IDS = new Set<PriceTab>(PRICE_TABS.map((tab) => tab.id))
+const EMPTY_KLINE_BARS: KlineBar[] = []
 const INITIAL_HISTORY_LIMITS: Record<HistoricalPeriod, number> = {
   daily: 120,
   weekly: 104,
@@ -159,6 +177,20 @@ function isHistoricalTab(tab: PriceTab): tab is HistoricalPeriod {
 
 function isPriceTab(tab: DetailTab): tab is PriceTab {
   return PRICE_TAB_IDS.has(tab as PriceTab)
+}
+
+function supportsDetailTab(tab: DetailTab, capabilities: StockMarketCapabilities): boolean {
+  if (isPriceTab(tab) || tab === 'tracking') return true
+  if (tab === 'dividendFinancing') return capabilities.dividendFinancing
+  if (tab === 'fundamental') return capabilities.fundamentals
+  if (tab === 'shareholders') return capabilities.shareholders
+  if (tab === 'reports') return capabilities.companyReports
+  if (tab === 'corporateActions') return capabilities.corporateActions
+  if (tab === 'funds') return capabilities.fundsFlow
+  if (tab === 'sector') return capabilities.sector
+  if (tab === 'insight') return capabilities.marketInsight
+  if (tab === 'ai') return capabilities.aiAnalysis
+  return capabilities.aiTAdvice
 }
 
 function apiPeriod(tab: PriceTab): KlinePeriod {
@@ -1263,6 +1295,16 @@ interface ExpandedStockDetailsProps {
   autoRefreshOrderBook: boolean
   chipDistributionEnabled: boolean
   bollingerBandsEnabled: boolean
+  tradingCalendar: TradingCalendarSettings
+  exchangeRates: ExchangeRateSettings
+  tradingAccount?: TTradingAccount
+  corporateActionRecords: CorporateActionRecords
+  onApplyCorporateAction: (
+    account: TTradingAccount,
+    position: StockPosition | undefined,
+    record: CorporateActionRecord
+  ) => string | void
+  onUpdateCorporateActionRecord: (record: CorporateActionRecord) => void
   trackingProfile?: StockTrackingProfile
   onStartTracking: (quoteId: string) => void
   onUpdateTracking: (profile: StockTrackingProfile) => void
@@ -1292,6 +1334,12 @@ export function ExpandedStockDetails({
   autoRefreshOrderBook,
   chipDistributionEnabled,
   bollingerBandsEnabled,
+  tradingCalendar,
+  exchangeRates,
+  tradingAccount,
+  corporateActionRecords,
+  onApplyCorporateAction,
+  onUpdateCorporateActionRecord,
   trackingProfile,
   onStartTracking,
   onUpdateTracking,
@@ -1300,6 +1348,11 @@ export function ExpandedStockDetails({
   onChipDistributionEnabledChange,
   onBollingerBandsEnabledChange
 }: ExpandedStockDetailsProps) {
+  const market = marketFromQuoteId(stock.quoteId)
+  const isAStock = market === 'CN'
+  const capabilities = marketCapabilitiesForQuoteId(stock.quoteId)
+  const marketCalendar = tradingCalendar.markets[market]
+  const volumeUnit = volumeUnitForMarket(market)
   const initialTrend = klineCache.get(cacheKey(stock.quoteId, 'trend'))?.data
   const [activeTab, setActiveTab] = useState<DetailTab>('trend')
   const [aiAnalysisType, setAiAnalysisType] = useState<AiAnalysisType>('short-term')
@@ -1326,10 +1379,14 @@ export function ExpandedStockDetails({
     isPriceTab(activeTab) && isHistoricalTab(activeTab) ? historyLimits[activeTab] : undefined
 
   useEffect(() => {
-    if (!fundamentalTabRequested) return
+    if (!fundamentalTabRequested || !capabilities.fundamentals) return
     setActiveTab('fundamental')
     onFundamentalTabRequestHandled?.()
-  }, [fundamentalTabRequested, onFundamentalTabRequestHandled])
+  }, [capabilities.fundamentals, fundamentalTabRequested, onFundamentalTabRequestHandled])
+
+  useEffect(() => {
+    if (!supportsDetailTab(activeTab, capabilities)) setActiveTab('trend')
+  }, [activeTab, capabilities])
 
   useEffect(() => {
     if (!trackingTabRequested) return
@@ -1342,6 +1399,18 @@ export function ExpandedStockDetails({
 
   useEffect(() => {
     if (!detailNavigationId || !detailNavigationTarget) return
+    const targetSupported =
+      detailNavigationTarget === 'reports'
+        ? capabilities.companyReports
+        : detailNavigationTarget === 'corporate-actions'
+          ? capabilities.corporateActions
+          : detailNavigationTarget === 't-advice'
+            ? capabilities.aiTAdvice
+            : capabilities.aiAnalysis
+    if (!targetSupported) {
+      onDetailNavigationHandled(detailNavigationId)
+      return
+    }
     if (
       (detailNavigationTarget === 'ai-short-term' ||
         detailNavigationTarget === 'ai-long-term' ||
@@ -1352,6 +1421,8 @@ export function ExpandedStockDetails({
     }
     if (detailNavigationTarget === 'reports') {
       setActiveTab('reports')
+    } else if (detailNavigationTarget === 'corporate-actions') {
+      setActiveTab('corporateActions')
     } else if (detailNavigationTarget === 't-advice') {
       setActiveTab('t-advice')
     } else {
@@ -1364,6 +1435,7 @@ export function ExpandedStockDetails({
     aiStatusLoaded,
     detailNavigationId,
     detailNavigationTarget,
+    capabilities,
     onDetailNavigationHandled
   ])
 
@@ -1434,13 +1506,15 @@ export function ExpandedStockDetails({
       if (!isLiveChart) return
       refreshTimer = window.setTimeout(
         () => {
-          if (isBeijingAutoRefreshTime()) {
+          if (isMarketOpen(market, new Date(), marketCalendar)) {
             setRefreshVersion((current) => current + 1)
           } else {
             scheduleRefresh()
           }
         },
-        isBeijingAutoRefreshTime() ? freshness : millisecondsUntilNextAutoRefreshWindow()
+        isMarketOpen(market, new Date(), marketCalendar)
+          ? freshness
+          : millisecondsUntilNextMarketOpen(market, new Date(), marketCalendar)
       )
     }
 
@@ -1495,7 +1569,7 @@ export function ExpandedStockDetails({
       active = false
       window.clearTimeout(refreshTimer)
     }
-  }, [activeHistoricalLimit, activeTab, refreshVersion, stock.quoteId])
+  }, [activeHistoricalLimit, activeTab, market, marketCalendar, refreshVersion, stock.quoteId])
 
   const priceTab = isPriceTab(activeTab) ? activeTab : null
   const data = priceTab ? (dataByTab[priceTab] ?? null) : null
@@ -1504,7 +1578,10 @@ export function ExpandedStockDetails({
   const isLoading = priceTab !== null && loadingTab === priceTab
   const historicalPeriod = priceTab && isHistoricalTab(priceTab) ? priceTab : null
   const isHistorical = historicalPeriod !== null
-  const dailyBars = dataByTab.daily?.bars ?? []
+  const dailyBars = useMemo(
+    () => dataByTab.daily?.bars ?? EMPTY_KLINE_BARS,
+    [dataByTab.daily?.bars]
+  )
   const chipAutoRange = useMemo(() => findChipAutoRange(dailyBars), [dailyBars])
   const chipDataStatus =
     dailyBars.length > 0
@@ -1558,7 +1635,7 @@ export function ExpandedStockDetails({
           : []),
         ['最高', formatPrice(overviewBar.high)],
         ['最低', formatPrice(overviewBar.low)],
-        ['成交量', formatVolume(overviewBar.volume)],
+        ['成交量', formatVolume(overviewBar.volume, volumeUnit)],
         ['成交额', formatAmount(overviewBar.amount)],
         ['换手率', formatPercent(overviewBar.turnoverRate)]
       ]
@@ -1567,7 +1644,7 @@ export function ExpandedStockDetails({
         ['昨收', formatPrice(quote?.previousClose)],
         ['最高', formatPrice(quote?.high)],
         ['最低', formatPrice(quote?.low)],
-        ['成交量', formatVolume(quote?.volume)],
+        ['成交量', formatVolume(quote?.volume, volumeUnit)],
         ['成交额', formatAmount(quote?.amount)],
         ['换手率', formatPercent(quote?.turnoverRate)]
       ]
@@ -1664,46 +1741,66 @@ export function ExpandedStockDetails({
             {tab.label}
           </button>
         ))}
-        <button
-          className={activeTab === 'funds' ? 'is-active' : ''}
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'funds'}
-          onClick={(event) => changeDetailTab('funds', event.currentTarget)}
-        >
-          <TrendingUp size={15} />
-          资金流向
-        </button>
-        <button
-          className={activeTab === 'dividendFinancing' ? 'is-active' : ''}
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'dividendFinancing'}
-          onClick={(event) => changeDetailTab('dividendFinancing', event.currentTarget)}
-        >
-          <Trophy size={15} />
-          分红融资
-        </button>
-        <button
-          className={activeTab === 'fundamental' ? 'is-active' : ''}
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'fundamental'}
-          onClick={(event) => changeDetailTab('fundamental', event.currentTarget)}
-        >
-          <Building2 size={15} />
-          基本面
-        </button>
-        <button
-          className={activeTab === 'reports' ? 'is-active' : ''}
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'reports'}
-          onClick={(event) => changeDetailTab('reports', event.currentTarget)}
-        >
-          <BookOpen size={15} />
-          财报库
-        </button>
+        {capabilities.fundsFlow ? (
+          <button
+            className={activeTab === 'funds' ? 'is-active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'funds'}
+            onClick={(event) => changeDetailTab('funds', event.currentTarget)}
+          >
+            <TrendingUp size={15} />
+            资金流向
+          </button>
+        ) : null}
+        {capabilities.dividendFinancing ? (
+          <button
+            className={activeTab === 'dividendFinancing' ? 'is-active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'dividendFinancing'}
+            onClick={(event) => changeDetailTab('dividendFinancing', event.currentTarget)}
+          >
+            <Trophy size={15} />
+            分红融资
+          </button>
+        ) : null}
+        {capabilities.fundamentals ? (
+          <button
+            className={activeTab === 'fundamental' ? 'is-active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'fundamental'}
+            onClick={(event) => changeDetailTab('fundamental', event.currentTarget)}
+          >
+            <Building2 size={15} />
+            基本面
+          </button>
+        ) : null}
+        {capabilities.companyReports ? (
+          <button
+            className={activeTab === 'reports' ? 'is-active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'reports'}
+            onClick={(event) => changeDetailTab('reports', event.currentTarget)}
+          >
+            <BookOpen size={15} />
+            财报库
+          </button>
+        ) : null}
+        {capabilities.corporateActions ? (
+          <button
+            className={activeTab === 'corporateActions' ? 'is-active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'corporateActions'}
+            onClick={(event) => changeDetailTab('corporateActions', event.currentTarget)}
+          >
+            <CircleDollarSign size={15} />
+            公司行动
+          </button>
+        ) : null}
         <button
           className={activeTab === 'tracking' ? 'is-active' : ''}
           type="button"
@@ -1714,7 +1811,7 @@ export function ExpandedStockDetails({
           <Binoculars size={15} />
           选股追踪
         </button>
-        {MarketInsightPanel ? (
+        {MarketInsightPanel && capabilities.marketInsight ? (
           <button
             className={activeTab === 'insight' ? 'is-active' : ''}
             type="button"
@@ -1739,27 +1836,31 @@ export function ExpandedStockDetails({
             {tab.label}
           </button>
         ))}
-        <button
-          className={activeTab === 'sector' ? 'is-active' : ''}
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'sector'}
-          onClick={(event) => changeDetailTab('sector', event.currentTarget)}
-        >
-          <Layers size={15} />
-          板块
-        </button>
-        <button
-          className={activeTab === 'shareholders' ? 'is-active' : ''}
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'shareholders'}
-          onClick={(event) => changeDetailTab('shareholders', event.currentTarget)}
-        >
-          <UsersRound size={15} />
-          股东
-        </button>
-        {AiAnalysisPanel && aiEnabled ? (
+        {capabilities.sector ? (
+          <button
+            className={activeTab === 'sector' ? 'is-active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'sector'}
+            onClick={(event) => changeDetailTab('sector', event.currentTarget)}
+          >
+            <Layers size={15} />
+            板块
+          </button>
+        ) : null}
+        {capabilities.shareholders ? (
+          <button
+            className={activeTab === 'shareholders' ? 'is-active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'shareholders'}
+            onClick={(event) => changeDetailTab('shareholders', event.currentTarget)}
+          >
+            <UsersRound size={15} />
+            股东
+          </button>
+        ) : null}
+        {AiAnalysisPanel && aiEnabled && capabilities.aiAnalysis ? (
           <button
             className={activeTab === 'ai' ? 'is-active' : ''}
             type="button"
@@ -1771,7 +1872,7 @@ export function ExpandedStockDetails({
             AI 分析
           </button>
         ) : null}
-        {AiTAdvicePanel && aiEnabled ? (
+        {AiTAdvicePanel && aiEnabled && capabilities.aiTAdvice ? (
           <button
             className={activeTab === 't-advice' ? 'is-active' : ''}
             type="button"
@@ -1785,33 +1886,55 @@ export function ExpandedStockDetails({
       </div>
 
       <div className="detail-tab-content" aria-hidden="true" />
-      {activeTab === 'dividendFinancing' ? (
+      {capabilities.dividendFinancing && activeTab === 'dividendFinancing' ? (
         <div className="dividend-financing-tab-content" role="tabpanel">
           <DividendFinancingPanel
             item={dividendFinancing}
             snapshotDate={dividendFinancingSnapshotDate}
           />
         </div>
-      ) : activeTab === 'fundamental' ? (
+      ) : capabilities.fundamentals && activeTab === 'fundamental' ? (
         <div className="fundamental-tab-content" role="tabpanel">
-          <FundamentalPanel
-            evaluation={fundamentalScreening}
-            currentPrice={quote?.latest}
-            peerComparison={fundamentalPeerComparison}
-            snapshotDate={fundamentalSnapshotDate}
-            generatedAt={fundamentalGeneratedAt}
-            staleReason={fundamentalStaleReason}
-          />
+          {isAStock ? (
+            <FundamentalPanel
+              evaluation={fundamentalScreening}
+              currentPrice={quote?.latest}
+              peerComparison={fundamentalPeerComparison}
+              snapshotDate={fundamentalSnapshotDate}
+              generatedAt={fundamentalGeneratedAt}
+              staleReason={fundamentalStaleReason}
+            />
+          ) : stock.instrumentType === 'etf' ? (
+            <div className="global-fundamental-empty">
+              ETF 不适用公司财务概览，请在财报库查看基金披露文件。
+            </div>
+          ) : (
+            <Suspense fallback={<div className="global-fundamental-empty">正在加载财务概览…</div>}>
+              <GlobalFundamentalPanel stock={stock} />
+            </Suspense>
+          )}
         </div>
-      ) : activeTab === 'shareholders' ? (
+      ) : capabilities.shareholders && activeTab === 'shareholders' ? (
         <ShareholderPanel stock={stock} />
-      ) : activeTab === 'reports' ? (
+      ) : capabilities.companyReports && activeTab === 'reports' ? (
         <CompanyReportLibrary stock={stock} />
+      ) : capabilities.corporateActions && activeTab === 'corporateActions' ? (
+        <Suspense fallback={<div className="corporate-action-empty">正在加载公司行动…</div>}>
+          <CorporateActionPanel
+            stock={stock}
+            account={tradingAccount}
+            records={corporateActionRecords}
+            exchangeRates={exchangeRates}
+            onCommit={onApplyCorporateAction}
+            onRecordChange={onUpdateCorporateActionRecord}
+          />
+        </Suspense>
       ) : activeTab === 'tracking' ? (
         <StockTrackingPanel
           stock={stock}
           quote={quote}
           profile={trackingProfile}
+          marketCalendar={marketCalendar}
           onStartTracking={onStartTracking}
           onUpdateProfile={onUpdateTracking}
           onStopTracking={onStopTracking}
@@ -1828,15 +1951,29 @@ export function ExpandedStockDetails({
               {isFiveMinuteFallback ? (
                 <em className="intraday-fallback-badge">5分钟备用行情</em>
               ) : null}
+              {data?.source ? (
+                <em
+                  className="overview-data-badge"
+                  title={data.fetchedAt ? `获取时间：${data.fetchedAt}` : undefined}
+                >
+                  {STOCK_QUOTE_SOURCE_LABELS[data.source]}
+                </em>
+              ) : null}
+              {data?.adjustment === 'forward' ? (
+                <em className="overview-data-badge">前复权</em>
+              ) : null}
+              {data?.fromCache ? <em className="overview-data-badge is-cache">本地缓存</em> : null}
             </div>
             <div className="chart-legend" aria-label="图表图例">
               <span className={isHistorical ? 'legend-candlestick' : 'legend-price'}>
                 {isHistorical ? 'K线' : '价格'}
               </span>
-              {priceTab === 'trend' ? <span className="legend-auction-price">集合竞价</span> : null}
+              {priceTab === 'trend' && isAStock ? (
+                <span className="legend-auction-price">集合竞价</span>
+              ) : null}
               {priceTab === 'trend' ? <span className="legend-average-price">VWAP</span> : null}
               <span className="legend-volume">成交量</span>
-              {priceTab === 'daily' ? (
+              {priceTab === 'daily' && capabilities.chipDistribution ? (
                 <button
                   className={`chip-distribution-toggle ${chipDistributionEnabled ? 'is-active' : ''}`}
                   type="button"
@@ -1861,7 +1998,7 @@ export function ExpandedStockDetails({
             ))}
           </div>
           <div
-            className={`chart-panel ${priceTab === 'trend' ? 'has-order-book' : ''} ${historicalPeriod ? 'has-bollinger-toolbar' : ''} ${priceTab === 'daily' && chipDistributionEnabled ? 'has-chip-distribution' : ''}`}
+            className={`chart-panel ${priceTab === 'trend' && capabilities.orderBook ? 'has-order-book' : ''} ${historicalPeriod ? 'has-bollinger-toolbar' : ''} ${priceTab === 'daily' && chipDistributionEnabled && capabilities.chipDistribution ? 'has-chip-distribution' : ''}`}
           >
             <div className="chart-content">
               {(error && data) || isFiveMinuteFallback ? (
@@ -1917,6 +2054,7 @@ export function ExpandedStockDetails({
                     <PeriodKlineChart
                       bars={data.bars}
                       period={historicalPeriod}
+                      market={market}
                       onHoverBar={handleHoverBar}
                       onRequestMore={requestMoreHistory}
                       requestedVisibleBars={
@@ -1941,6 +2079,7 @@ export function ExpandedStockDetails({
                   ) : (
                     <CandlestickChart
                       bars={data.bars}
+                      market={market}
                       variant={priceTab === 'fiveDay' ? 'fiveDay' : 'intraday'}
                       onHoverBar={priceTab === 'trend' ? undefined : handleHoverBar}
                       marketInsightOverlay={
@@ -1955,13 +2094,13 @@ export function ExpandedStockDetails({
                 <div className="chart-loading">最近交易日暂无{tabMeta?.label}数据</div>
               )}
             </div>
-            {priceTab === 'trend' ? (
+            {priceTab === 'trend' && capabilities.orderBook ? (
               <OrderBookPanel
                 stock={stock}
                 refreshSeconds={refreshSeconds}
                 autoRefresh={autoRefreshOrderBook}
               />
-            ) : priceTab === 'daily' && chipDistributionEnabled ? (
+            ) : priceTab === 'daily' && chipDistributionEnabled && capabilities.chipDistribution ? (
               <ChipDistributionPanel
                 quoteId={stock.quoteId}
                 quoteName={stock.name}
@@ -1974,17 +2113,17 @@ export function ExpandedStockDetails({
             ) : null}
           </div>
         </div>
-      ) : activeTab === 'funds' ? (
+      ) : capabilities.fundsFlow && activeTab === 'funds' ? (
         <div className="funds-tab-panel" role="tabpanel">
           <FundsFlowPanel stock={stock} />
         </div>
-      ) : activeTab === 'sector' ? (
+      ) : capabilities.sector && activeTab === 'sector' ? (
         <div className="sector-tab-panel" role="tabpanel">
           <Suspense fallback={<div className="chart-loading">正在加载板块详情…</div>}>
             <SectorIndexPanel stock={stock} />
           </Suspense>
         </div>
-      ) : activeTab === 'ai' && AiAnalysisPanel ? (
+      ) : capabilities.aiAnalysis && activeTab === 'ai' && AiAnalysisPanel ? (
         <Suspense fallback={<div className="chart-loading">正在初始化 AI 分析…</div>}>
           <AiAnalysisPanel
             stock={stock}
@@ -1993,11 +2132,11 @@ export function ExpandedStockDetails({
             onAnalysisTypeChange={setAiAnalysisType}
           />
         </Suspense>
-      ) : activeTab === 't-advice' && AiTAdvicePanel ? (
+      ) : capabilities.aiTAdvice && activeTab === 't-advice' && AiTAdvicePanel ? (
         <Suspense fallback={<div className="chart-loading">正在初始化做 T 参考…</div>}>
           <AiTAdvicePanel stock={stock} quote={quote} />
         </Suspense>
-      ) : MarketInsightPanel ? (
+      ) : capabilities.marketInsight && MarketInsightPanel ? (
         <Suspense fallback={<div className="chart-loading">正在初始化市场观察…</div>}>
           <MarketInsightPanel
             stock={stock}

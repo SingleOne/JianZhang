@@ -2,7 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { initialState, stockApi } from '../lib/api'
 import {
   formatCost,
-  formatCurrency,
+  formatMoney,
+  formatMoneyProfit,
   formatPercent,
   formatPrice,
   formatProfit,
@@ -82,7 +83,12 @@ export function TaskbarStockTooltip() {
     ? calculateTBatchMetrics(account.activeBatch, activeTrades, quote?.latest)
     : null
   const floatingProfitAlert = getTriggeredTFloatingProfitAlert(account?.activeBatch)
-  const positionMetrics = calculatePositionMetrics(stock?.position, quote, account)
+  const positionMetrics = calculatePositionMetrics(
+    stock?.position,
+    quote,
+    account,
+    state.settings.exchangeRates
+  )
   const triggeredStockAlerts =
     stock?.alertRules?.filter((rule) => rule.enabled && rule.status === 'triggered') ?? []
   const fiveLevelAlerts = account?.activeBatch ? (quote?.fiveLevelLargeOrders ?? []) : []
@@ -110,7 +116,7 @@ export function TaskbarStockTooltip() {
           </span>
           <span className="taskbar-tooltip-header-meta">
             <span className="taskbar-tooltip-update-time">
-              更新 {formatUpdateTime(quote?.updatedAt)}
+              行情 {formatUpdateTime(quote?.dataAt ?? quote?.updatedAt)}
             </span>
             <span className="taskbar-tooltip-market">{stock?.marketLabel ?? '实时行情'}</span>
           </span>
@@ -124,7 +130,7 @@ export function TaskbarStockTooltip() {
           <span
             className={`taskbar-tooltip-today-profit ${valueClass(positionMetrics.todayProfit)}`}
           >
-            {formatProfit(positionMetrics.todayProfit)}
+            {formatMoneyProfit(positionMetrics.todayProfit, positionMetrics.currency)}
           </span>
         </div>
 
@@ -155,16 +161,20 @@ export function TaskbarStockTooltip() {
             </span>
             <span>
               <small>持仓成本</small>
-              <b>{formatCost(stock?.position?.cost)}</b>
+              <b>
+                {stock?.position
+                  ? formatMoney(stock.position.cost, positionMetrics.currency)
+                  : '--'}
+              </b>
             </span>
             <span>
               <small>持仓市值</small>
-              <b>{formatCurrency(positionMetrics.marketValue)}</b>
+              <b>{formatMoney(positionMetrics.marketValue, positionMetrics.currency)}</b>
             </span>
             <span>
               <small>持仓收益</small>
               <b className={valueClass(positionMetrics.totalProfit)}>
-                {formatProfit(positionMetrics.totalProfit)}
+                {formatMoneyProfit(positionMetrics.totalProfit, positionMetrics.currency)}
               </b>
             </span>
           </div>
@@ -203,10 +213,10 @@ export function TaskbarStockTooltip() {
                     <span>
                       {STOCK_ALERT_METRIC_LABELS[rule.metric]}
                       {rule.operator === 'gte' ? ' ≥ ' : ' ≤ '}
-                      {formatStockAlertValue(rule.metric, rule.target)}，当前{' '}
+                      {formatStockAlertValue(rule.metric, rule.target, stock?.currency)}，当前{' '}
                       {actualValue === null || actualValue === undefined
                         ? '--'
-                        : formatStockAlertValue(rule.metric, actualValue)}
+                        : formatStockAlertValue(rule.metric, actualValue, stock?.currency)}
                     </span>
                   </li>
                 )

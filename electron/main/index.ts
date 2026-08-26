@@ -15,6 +15,7 @@ import {
   FUNDS_FLOW_REFRESH_MILLISECONDS,
   INTRADAY_REFRESH_MILLISECONDS
 } from '../../src/shared/market-hours'
+import { marketFromQuoteId } from '../../src/shared/stock-market'
 import { formatStockAlertNotification, type TriggeredStockAlert } from '../../src/lib/stock-alerts'
 import {
   formatTFloatingProfitAlertNotification,
@@ -38,11 +39,15 @@ import {
 } from './market'
 import { ChipDistributionCache } from './chip-distribution-cache'
 import { CompanyReportService } from './company-report-service'
+import { CorporateActionService } from './corporate-action-service'
+import { CacheMaintenanceService } from './cache-maintenance-service'
 import { CompletionNotificationStore } from './completion-notification-store'
 import { DailyMarketScanService } from './daily-market-scan-service'
 import { DividendFinancingService } from './dividend-financing-service'
+import { ExchangeRateRuntime } from './exchange-rate-runtime'
 import { FundsFlowHub } from './funds-flow-hub'
 import { FundamentalDataService } from './fundamental-data-service'
+import { GlobalFundamentalService } from './global-fundamental-service'
 import { GitHubSyncService } from './github-sync-service'
 import { HistoricalKlineCache } from './historical-kline-cache'
 import { registerIpcHandlers } from './ipc-handlers'
@@ -52,6 +57,7 @@ import { OrderBookHub } from './order-book-hub'
 import { PythonTaskQueue } from './python-task-queue'
 import { QuoteRuntime } from './quote-runtime'
 import { SectorMarketCache } from './sector-market-cache'
+import { SecEdgarClient } from './sec-edgar-client'
 import { ShareholderService } from './shareholder-service'
 import { StateStore } from './state-store'
 import { StockTrackingMetricsRuntime } from './stock-tracking-metrics-runtime'
@@ -117,7 +123,8 @@ const DEFAULT_STATE: AppState = {
   columnOrder: [...DEFAULT_WATCHLIST_COLUMN_ORDER],
   columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
   settings: { ...DEFAULT_APP_SETTINGS },
-  tTradingAccounts: {}
+  tTradingAccounts: {},
+  corporateActionRecords: {}
 }
 
 let state: AppState = DEFAULT_STATE
@@ -126,6 +133,7 @@ let windowManager: WindowManager | null = null
 let quoteRuntime: QuoteRuntime | null = null
 let stockTrackingMetricsRuntime: StockTrackingMetricsRuntime | null = null
 let tradingCalendarRuntime: TradingCalendarRuntime | null = null
+let exchangeRateRuntime: ExchangeRateRuntime | null = null
 let startupWarning: string | undefined
 let isQuitting = false
 let marketInsightRuntime: MarketInsightRuntime | null = null
@@ -138,6 +146,8 @@ let disposeIpcHandlers: (() => void) | null = null
 let dividendFinancingService: DividendFinancingService | null = null
 let fundamentalDataService: FundamentalDataService | null = null
 let companyReportService: CompanyReportService | null = null
+let corporateActionService: CorporateActionService | null = null
+let globalFundamentalService: GlobalFundamentalService | null = null
 let valuationHistoryService: ValuationHistoryService | null = null
 let shareholderService: ShareholderService | null = null
 let dailyMarketScanService: DailyMarketScanService | null = null
@@ -146,6 +156,7 @@ let githubSyncService: GitHubSyncService | null = null
 let aiSecrets: AiSecrets | null = null
 let completionNotificationStore: CompletionNotificationStore | null = null
 let marketRequestLogger: MarketRequestLogger | null = null
+let cacheMaintenanceService: CacheMaintenanceService | null = null
 
 const marketDataHub = new (class MarketDataHub {
   private readonly listeners = new Set<(quotes: readonly StockQuote[]) => void>()
@@ -160,6 +171,8 @@ const marketDataHub = new (class MarketDataHub {
   }
 })()
 const orderBookHub = new OrderBookHub(fetchOrderBook)
+const RETAINED_SYSTEM_NOTIFICATION_LIMIT = 100
+const retainedSystemNotifications: Notification[] = []
 
 async function getKline(quoteId: string, period: KlinePeriod, limit?: number, caller = 'kline') {
   return klineHub?.get(quoteId, period, limit, caller) ?? fetchKline(quoteId, period, limit, caller)
@@ -182,6 +195,29 @@ function sendToWindows(channel: string, payload: unknown): void {
   windowManager?.sendToWindows(channel, payload)
 }
 
+function showStockNavigationNotification(notification: Notification, quoteId: string): void {
+  retainedSystemNotifications.push(notification)
+  if (retainedSystemNotifications.length > RETAINED_SYSTEM_NOTIFICATION_LIMIT) {
+    retainedSystemNotifications.shift()
+  }
+
+  const releaseNotification = (): void => {
+    const index = retainedSystemNotifications.indexOf(notification)
+    if (index >= 0) retainedSystemNotifications.splice(index, 1)
+  }
+  notification.once('click', () => {
+    windowManager?.showMainWindow(quoteId, 'sticky-top')
+    releaseNotification()
+  })
+  notification.once('failed', releaseNotification)
+  notification.show()
+}
+
+function closeRetainedSystemNotifications(): void {
+  for (const notification of retainedSystemNotifications) notification.close()
+  retainedSystemNotifications.length = 0
+}
+
 function showStockAlertNotification(alert: TriggeredStockAlert): void {
   if (!Notification.isSupported()) return
   const notification = new Notification({
@@ -189,8 +225,7 @@ function showStockAlertNotification(alert: TriggeredStockAlert): void {
     icon: createAppIcon(),
     timeoutType: 'default'
   })
-  notification.on('click', () => windowManager?.showMainWindow(alert.stock.quoteId))
-  notification.show()
+  showStockNavigationNotification(notification, alert.stock.quoteId)
 }
 
 function showTFloatingProfitAlertNotification(alert: TriggeredTFloatingProfitAlert): void {
@@ -200,8 +235,7 @@ function showTFloatingProfitAlertNotification(alert: TriggeredTFloatingProfitAle
     icon: createAppIcon(),
     timeoutType: 'default'
   })
-  notification.on('click', () => windowManager?.showMainWindow(alert.quoteId))
-  notification.show()
+  showStockNavigationNotification(notification, alert.quoteId)
 }
 
 function showPriceVolumeDivergenceNotification(
@@ -216,8 +250,7 @@ function showPriceVolumeDivergenceNotification(
     icon: createAppIcon(),
     timeoutType: 'default'
   })
-  notification.on('click', () => windowManager?.showMainWindow(profile.quoteId))
-  notification.show()
+  showStockNavigationNotification(notification, profile.quoteId)
 }
 
 function syncWindowSurfaces(): void {
@@ -227,6 +260,7 @@ function syncWindowSurfaces(): void {
 function cleanupBeforeQuit(): void {
   if (isQuitting) return
   isQuitting = true
+  closeRetainedSystemNotifications()
   aiTAdviceRuntime?.dispose()
   aiTAdviceRuntime = null
   aiRuntime?.dispose()
@@ -235,12 +269,15 @@ function cleanupBeforeQuit(): void {
   marketInsightRuntime = null
   tradingCalendarRuntime?.dispose()
   tradingCalendarRuntime = null
+  exchangeRateRuntime?.dispose()
+  exchangeRateRuntime = null
   quoteRuntime?.dispose()
   quoteRuntime = null
   stockTrackingMetricsRuntime?.dispose()
   stockTrackingMetricsRuntime = null
   marketRequestLogger?.dispose()
   marketRequestLogger = null
+  cacheMaintenanceService = null
   disposeIpcHandlers?.()
   disposeIpcHandlers = null
   windowManager?.dispose()
@@ -280,6 +317,7 @@ if (!hasSingleInstanceLock) {
     }
 
     userDataBackupService = new UserDataBackupService(app.getPath('userData'))
+    cacheMaintenanceService = new CacheMaintenanceService(app.getPath('userData'))
     completionNotificationStore = new CompletionNotificationStore(app.getPath('userData'))
     githubSyncService = new GitHubSyncService(
       app.getPath('userData'),
@@ -311,7 +349,14 @@ if (!hasSingleInstanceLock) {
       (progress) => sendToWindows('fundamentals:update-progress', progress),
       (snapshotState) => sendToWindows('fundamentals:state-updated', snapshotState)
     )
-    companyReportService = new CompanyReportService(app.getPath('userData'))
+    const secEdgarClient = new SecEdgarClient()
+    companyReportService = new CompanyReportService(app.getPath('userData'), secEdgarClient)
+    corporateActionService = new CorporateActionService(app.getPath('userData'), secEdgarClient)
+    globalFundamentalService = new GlobalFundamentalService(
+      app.getPath('userData'),
+      companyReportService,
+      secEdgarClient
+    )
     marketRequestLogger = new MarketRequestLogger(join(app.getPath('userData'), 'logs'))
     setMarketRequestLogger(marketRequestLogger)
     chipDistributionCache = new ChipDistributionCache(marketCacheDirectory)
@@ -320,7 +365,7 @@ if (!hasSingleInstanceLock) {
     klineHub = new KlineHub(
       fetchKline,
       historicalKlineCache,
-      () => state.settings.tradingCalendar.closedDates,
+      (quoteId) => state.settings.tradingCalendar.markets[marketFromQuoteId(quoteId)],
       INTRADAY_REFRESH_MILLISECONDS
     )
     stockTrackingMetricsRuntime = new StockTrackingMetricsRuntime({
@@ -371,6 +416,15 @@ if (!hasSingleInstanceLock) {
       },
       marketRequestLogger
     })
+    exchangeRateRuntime = new ExchangeRateRuntime({
+      getState: () => state,
+      saveState: (nextState) => {
+        state = nextState
+        persistState()
+        sendToWindows('state:updated', state)
+      },
+      marketRequestLogger
+    })
     disposeIpcHandlers = registerIpcHandlers({
       getState: () => state,
       setState: (nextState) => {
@@ -403,7 +457,10 @@ if (!hasSingleInstanceLock) {
       getFundamentalState: () => fundamentalDataService!.getState(),
       getFundamentalChangeReport: () => fundamentalDataService!.getChangeReport(),
       runFundamentalUpdate: () => fundamentalDataService!.runUpdate(),
-      getCompanyReports: (code, forceRefresh) => companyReportService!.get(code, forceRefresh),
+      getCompanyReports: (quoteId, forceRefresh) =>
+        companyReportService!.get(quoteId, forceRefresh),
+      getGlobalFundamentals: (quoteId, forceRefresh) =>
+        globalFundamentalService!.get(quoteId, forceRefresh),
       generateCompanyReportSummary: (report) => {
         if (!aiRuntime) throw new Error('当前构建未启用 AI 功能')
         return companyReportService!.generateSummary(report, (request, signal) =>
@@ -411,6 +468,16 @@ if (!hasSingleInstanceLock) {
         )
       },
       openCompanyReport: (url) => companyReportService!.open(url),
+      listCorporateActions: (quoteId, forceRefresh) =>
+        corporateActionService!.get(quoteId, forceRefresh),
+      previewCorporateAction: (request) => corporateActionService!.preview(request),
+      ignoreCorporateAction: (candidate) => corporateActionService!.ignore(candidate),
+      reverseCorporateAction: (candidate, account) =>
+        corporateActionService!.reverse(candidate, account),
+      createManualCorporateAction: (request, account) =>
+        corporateActionService!.createManual(request, account),
+      openCorporateAction: (url) => corporateActionService!.open(url),
+      listPortfolioLedger: (account) => account.ledger.entries,
       getShareholderSnapshot: (quoteId, forceRefresh) =>
         shareholderService!.get(quoteId, forceRefresh),
       getValuationHistory: (quoteId) => valuationHistoryService!.get(quoteId),
@@ -443,9 +510,19 @@ if (!hasSingleInstanceLock) {
           getKline(sectorQuoteId, 'intraday', undefined, 'detail:sector')
         ),
       refreshTradingCalendar: () => tradingCalendarRuntime!.refresh(),
+      refreshExchangeRates: () => exchangeRateRuntime!.refresh(),
       getCompletionNotifications: () => completionNotificationStore!.load(),
       saveCompletionNotifications: (notifications) =>
         completionNotificationStore!.save(notifications),
+      getCacheSummary: () => cacheMaintenanceService!.getSummary(),
+      clearCaches: async (categoryIds) => {
+        const result = await cacheMaintenanceService!.clear(categoryIds)
+        setTimeout(() => {
+          app.relaunch()
+          quitApp()
+        }, 300)
+        return result
+      },
       createUserDataBackup: (stateToExport, applicationVersion) =>
         userDataBackupService!.create(stateToExport, applicationVersion, aiSecrets!.exportAll()),
       prepareUserDataBackup: (value) => userDataBackupService!.prepare(value),
@@ -573,8 +650,12 @@ if (!hasSingleInstanceLock) {
     quoteRuntime.start()
     stockTrackingMetricsRuntime.start()
     tradingCalendarRuntime.start()
+    exchangeRateRuntime.start()
     void quoteRuntime.refreshAutomatically('startup')
     void quoteRuntime.primeSectorBindings(true)
+    setTimeout(() => {
+      void corporateActionService?.refreshWatchlist(state.watchlist.map((stock) => stock.quoteId))
+    }, 15_000)
   })
 }
 

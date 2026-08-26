@@ -40,6 +40,19 @@ function account(tradeRecords: TTradeRecord[]): TTradingAccount {
     code: '600000',
     name: '浦发银行',
     history: [],
+    ledger: {
+      schemaVersion: 1,
+      entries: tradeRecords.map((record) => ({
+        id: `trade:${record.id}`,
+        accountId: '1.600000',
+        quoteId: '1.600000',
+        occurredAt: record.tradedAt,
+        marketDate: record.tradedAt.slice(0, 10),
+        source: 'trade' as const,
+        kind: 'trade' as const,
+        record
+      }))
+    },
     tradeRecords
   }
 }

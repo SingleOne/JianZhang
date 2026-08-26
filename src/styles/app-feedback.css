@@ -56,6 +56,15 @@
   color: #15946a;
 }
 
+.statusbar .market-state-list {
+  flex: 0 0 auto;
+}
+
+.statusbar .market-state {
+  height: 24px;
+  margin-left: 0;
+}
+
 .status-separator {
   width: 1px;
   height: 13px;
@@ -342,16 +351,8 @@
     padding-left: 10px;
   }
 
-  .brand-name,
-  .market-state > span {
+  .brand-name {
     display: none;
-  }
-
-  .market-state {
-    width: 28px;
-    justify-content: center;
-    margin-left: 0;
-    padding: 0;
   }
 
   .titlebar-command-main {

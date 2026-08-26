@@ -12,15 +12,20 @@ import {
   X
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { calculatePositionMetrics } from '../lib/portfolio'
+import { calculatePositionMetrics, type PortfolioSummary } from '../lib/portfolio'
 import { calculatePortfolioQualitySummary } from '../lib/portfolio-quality'
 import type { StockDetailNavigationRequest } from '../lib/completion-notifications'
 import type {
+  CorporateActionRecord,
+  CorporateActionRecords,
   DividendFinancingRankingItem,
+  ExchangeRateSettings,
+  MarketTradeFeeSettings,
   StockAlertRule,
   StockPosition,
   StockPositionSnapshot,
   StockQuote,
+  StockSelectionRequest,
   StockTrackingConclusionResult,
   StockTrackingProfile,
   StockTrackingProfiles,
@@ -28,10 +33,17 @@ import type {
   TTradingAccount,
   TTradingAccounts,
   TTradingFeeSettings,
+  TradingCalendarSettings,
+  StockMarket,
   WatchlistColumnId,
   WatchlistGroup,
   WatchStock
 } from '../shared/types'
+import {
+  marketCapabilitiesForQuoteId,
+  marketFromQuoteId,
+  STOCK_MARKET_LABELS
+} from '../shared/stock-market'
 import {
   hasFundamentalRisk,
   matchesFundamentalDividendFilter,
@@ -82,12 +94,18 @@ interface WatchlistTableProps {
   chipDistributionEnabled: boolean
   bollingerBandsEnabled: boolean
   selectedQuoteId: string | null
+  stockSelectionRequest: StockSelectionRequest | null
   detailNavigationRequest: StockDetailNavigationRequest | null
   tTradingAccounts: TTradingAccounts
+  corporateActionRecords: CorporateActionRecords
   tTradingFees: TTradingFeeSettings
+  marketTradeFees: MarketTradeFeeSettings
   tPlanDefaults: TPlanDefaultSettings
   tFloatingProfitAlertDefaultThreshold: number
-  tradingCalendarClosedDates: string[]
+  portfolioSummary: PortfolioSummary
+  portfolioExposureText: string
+  tradingCalendar: TradingCalendarSettings
+  exchangeRates: ExchangeRateSettings
   onSelect: (quoteId: string) => void
   onDetailNavigationHandled: (requestId: string) => void
   onToggleTaskbar: (quoteId: string) => void
@@ -104,6 +122,13 @@ interface WatchlistTableProps {
     account: TTradingAccount,
     position: StockPosition | undefined
   ) => void
+  onApplyCorporateAction: (
+    quoteId: string,
+    account: TTradingAccount,
+    position: StockPosition | undefined,
+    record: CorporateActionRecord
+  ) => string | void
+  onUpdateCorporateActionRecord: (record: CorporateActionRecord) => void
   onUpdateStockAlerts: (quoteId: string, rules: StockAlertRule[]) => void
   stockTrackingProfiles: StockTrackingProfiles
   onStartTracking: (quoteId: string) => void
@@ -198,18 +223,26 @@ export function WatchlistTable({
   chipDistributionEnabled,
   bollingerBandsEnabled,
   selectedQuoteId,
+  stockSelectionRequest,
   detailNavigationRequest,
   tTradingAccounts,
+  corporateActionRecords,
   tTradingFees,
+  marketTradeFees,
   tPlanDefaults,
   tFloatingProfitAlertDefaultThreshold,
-  tradingCalendarClosedDates,
+  portfolioSummary,
+  portfolioExposureText,
+  tradingCalendar,
+  exchangeRates,
   onSelect,
   onDetailNavigationHandled,
   onToggleTaskbar,
   onTogglePriority,
   onEditPosition,
   onUpdateTTrading,
+  onApplyCorporateAction,
+  onUpdateCorporateActionRecord,
   onUpdateStockAlerts,
   stockTrackingProfiles,
   onStartTracking,
@@ -233,11 +266,13 @@ export function WatchlistTable({
   const [locatedQuoteId, setLocatedQuoteId] = useState<string | null>(null)
   const [customGroupFilter, setCustomGroupFilter] = useState(ALL_FILTER)
   const [sectorFilter, setSectorFilter] = useState(ALL_FILTER)
+  const [marketFilter, setMarketFilter] = useState<StockMarket | 'all'>('all')
   const [fundamentalFilter, setFundamentalFilter] = useState<FundamentalWatchlistFilter>('all')
   const [valueFilter, setValueFilter] = useState<FundamentalDividendFilter>('all')
   const [riskOnly, setRiskOnly] = useState(false)
   const [groupDialogOpen, setGroupDialogOpen] = useState(false)
   const [portfolioQualityOpen, setPortfolioQualityOpen] = useState(false)
+  const [quoteStatusNow, setQuoteStatusNow] = useState(() => new Date())
   const tableScrollerRef = useRef<HTMLDivElement>(null)
   const radarAnchorRef = useRef<HTMLButtonElement | null>(null)
   const radarPopoverRef = useRef<HTMLDivElement>(null)
@@ -245,6 +280,10 @@ export function WatchlistTable({
   const locateFrameRef = useRef<number | undefined>(undefined)
   const selectedQuoteIdRef = useRef(selectedQuoteId)
   selectedQuoteIdRef.current = selectedQuoteId
+  useEffect(() => {
+    const timer = window.setInterval(() => setQuoteStatusNow(new Date()), 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   const renderedColumnOrder = useMemo(
     () => normalizeWatchlistColumnOrder(columnOrder),
@@ -270,13 +309,25 @@ export function WatchlistTable({
     const quoteMap = new Map(quotes.map((quote) => [quote.quoteId, quote]))
     return watchlist.map((stock, manualIndex) => {
       const quote = quoteMap.get(stock.quoteId)
+      const capabilities = marketCapabilitiesForQuoteId(stock.quoteId)
       return {
         stock,
         quote,
-        dividendFinancing: dividendFinancingByCode.get(stock.code),
-        fundamentalScreening: fundamentalScreeningByCode.get(stock.code),
-        fundamentalPeerComparison: fundamentalPeerComparisonsByCode.get(stock.code),
-        metrics: calculatePositionMetrics(stock.position, quote, tTradingAccounts[stock.quoteId]),
+        dividendFinancing: capabilities.dividendFinancing
+          ? dividendFinancingByCode.get(stock.code)
+          : undefined,
+        fundamentalScreening: capabilities.fundamentals
+          ? fundamentalScreeningByCode.get(stock.code)
+          : undefined,
+        fundamentalPeerComparison: capabilities.fundamentals
+          ? fundamentalPeerComparisonsByCode.get(stock.code)
+          : undefined,
+        metrics: calculatePositionMetrics(
+          stock.position,
+          quote,
+          tTradingAccounts[stock.quoteId],
+          exchangeRates
+        ),
         manualIndex
       }
     })
@@ -284,6 +335,7 @@ export function WatchlistTable({
     dividendFinancingByCode,
     fundamentalPeerComparisonsByCode,
     fundamentalScreeningByCode,
+    exchangeRates,
     quotes,
     tTradingAccounts,
     watchlist
@@ -334,14 +386,18 @@ export function WatchlistTable({
           (sectorFilter === NO_SECTOR_FILTER
             ? !quote?.sector
             : quote?.sector?.quoteId === sectorFilter)
-        return matchesGroup && matchesSector
+        const matchesMarket =
+          marketFilter === ALL_FILTER || marketFromQuoteId(stock.quoteId) === marketFilter
+        return matchesGroup && matchesSector && matchesMarket
       }),
-    [customGroupFilter, rows, sectorFilter, watchlistGroups]
+    [customGroupFilter, marketFilter, rows, sectorFilter, watchlistGroups]
   )
   const fundamentalSummary = useMemo(
     () =>
       summarizeFundamentalWatchlist(
-        scopeRows.map(({ fundamentalScreening }) => fundamentalScreening)
+        scopeRows
+          .filter(({ stock }) => marketCapabilitiesForQuoteId(stock.quoteId).fundamentals)
+          .map(({ fundamentalScreening }) => fundamentalScreening)
       ),
     [scopeRows]
   )
@@ -353,10 +409,14 @@ export function WatchlistTable({
     () =>
       valueDataReady
         ? summarizeFundamentalDividendWatchlist(
-            scopeRows.map(({ fundamentalScreening, dividendFinancing }) => ({
-              evaluation: fundamentalScreening,
-              hasDividendLabel: Boolean(dividendFinancing)
-            }))
+            scopeRows
+              .filter(
+                ({ stock }) => marketCapabilitiesForQuoteId(stock.quoteId).dividendFinancing
+              )
+              .map(({ fundamentalScreening, dividendFinancing }) => ({
+                evaluation: fundamentalScreening,
+                hasDividendLabel: Boolean(dividendFinancing)
+              }))
           )
         : null,
     [scopeRows, valueDataReady]
@@ -370,7 +430,7 @@ export function WatchlistTable({
     () =>
       calculatePortfolioQualitySummary(
         rows.flatMap(({ stock, quote, metrics, fundamentalScreening, dividendFinancing }) =>
-          stock.position
+          marketCapabilitiesForQuoteId(stock.quoteId).fundamentals && stock.position
             ? [
                 {
                   quoteId: stock.quoteId,
@@ -378,8 +438,8 @@ export function WatchlistTable({
                   name: stock.name,
                   industryName:
                     quote?.sector?.name ?? fundamentalScreening?.company.industryName ?? '行业待核',
-                  marketValue: metrics.marketValue,
-                  costValue: stock.position.cost * stock.position.quantity,
+                  marketValue: metrics.cnyMarketValue,
+                  costValue: metrics.cnyCostBasis ?? 0,
                   fundamentalEvaluation: fundamentalScreening,
                   hasDividendLabel: Boolean(dividendFinancing)
                 }
@@ -391,8 +451,11 @@ export function WatchlistTable({
   )
   const filteredRows = useMemo(
     () =>
-      scopeRows.filter(
-        ({ fundamentalScreening, dividendFinancing }) =>
+      scopeRows.filter(({ stock, fundamentalScreening, dividendFinancing }) => {
+        if (!marketCapabilitiesForQuoteId(stock.quoteId).fundamentals) {
+          return fundamentalFilter === 'all' && valueFilter === 'all' && !riskOnly
+        }
+        return (
           matchesFundamentalWatchlistFilter(fundamentalScreening, fundamentalFilter) &&
           (valueFilter === 'all' ||
             (valueDataReady &&
@@ -404,12 +467,13 @@ export function WatchlistTable({
                 valueFilter
               ))) &&
           (!riskOnly || hasFundamentalRisk(fundamentalScreening))
-      ),
+        )
+      }),
     [fundamentalFilter, riskOnly, scopeRows, valueDataReady, valueFilter]
   )
   const displayedRows = useMemo(
-    () => (sort ? sortRows(filteredRows, sort, tradingCalendarClosedDates) : filteredRows),
-    [filteredRows, sort, tradingCalendarClosedDates]
+    () => (sort ? sortRows(filteredRows, sort, tradingCalendar) : filteredRows),
+    [filteredRows, sort, tradingCalendar]
   )
   const displayedStocks = useMemo(() => displayedRows.map(({ stock }) => stock), [displayedRows])
   const customGroupFilterOptions = useMemo(
@@ -450,6 +514,17 @@ export function WatchlistTable({
         : [])
     ],
     [noSectorCount, rows.length, sectorOptions]
+  )
+  const marketFilterOptions = useMemo(
+    () => [
+      { value: ALL_FILTER, label: '全部市场', count: rows.length },
+      ...(['CN', 'HK', 'US'] as const).map((market) => ({
+        value: market,
+        label: STOCK_MARKET_LABELS[market],
+        count: rows.filter(({ stock }) => marketFromQuoteId(stock.quoteId) === market).length
+      }))
+    ],
+    [rows]
   )
   const selectedGroupName = watchlistGroups.find((group) => group.id === customGroupFilter)?.name
   const selectedSectorName = sectorOptions.find((sector) => sector.quoteId === sectorFilter)?.name
@@ -560,28 +635,33 @@ export function WatchlistTable({
     })
   }, [])
 
-  const scrollToStock = useCallback((quoteId: string) => {
-    const scroller = tableScrollerRef.current
-    const row = scroller?.querySelector<HTMLTableRowElement>(`tr[data-quote-id="${quoteId}"]`)
-    if (!scroller || !row) return
+  const scrollToStock = useCallback(
+    (quoteId: string, alignment: 'center' | 'sticky-top' = 'center') => {
+      const scroller = tableScrollerRef.current
+      const row = scroller?.querySelector<HTMLTableRowElement>(`tr[data-quote-id="${quoteId}"]`)
+      if (!scroller || !row) return
 
-    const scrollerRect = scroller.getBoundingClientRect()
-    const rowRect = row.getBoundingClientRect()
-    const targetTop =
-      scroller.scrollTop +
-      rowRect.top -
-      scrollerRect.top -
-      (scroller.clientHeight - rowRect.height) / 2
-    scroller.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' })
-    row.focus({ preventScroll: true })
-    window.clearTimeout(locateTimerRef.current)
-    window.cancelAnimationFrame(locateFrameRef.current ?? 0)
-    setLocatedQuoteId(null)
-    locateFrameRef.current = window.requestAnimationFrame(() => {
-      setLocatedQuoteId(quoteId)
-      locateTimerRef.current = window.setTimeout(() => setLocatedQuoteId(null), 2000)
-    })
-  }, [])
+      const scrollerRect = scroller.getBoundingClientRect()
+      const rowRect = row.getBoundingClientRect()
+      const stickyTop =
+        alignment === 'sticky-top' ? Number.parseFloat(window.getComputedStyle(row).top) || 0 : 0
+      const targetTop =
+        scroller.scrollTop +
+        rowRect.top -
+        scrollerRect.top -
+        (alignment === 'sticky-top' ? stickyTop : (scroller.clientHeight - rowRect.height) / 2)
+      scroller.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' })
+      row.focus({ preventScroll: true })
+      window.clearTimeout(locateTimerRef.current)
+      window.cancelAnimationFrame(locateFrameRef.current ?? 0)
+      setLocatedQuoteId(null)
+      locateFrameRef.current = window.requestAnimationFrame(() => {
+        setLocatedQuoteId(quoteId)
+        locateTimerRef.current = window.setTimeout(() => setLocatedQuoteId(null), 2000)
+      })
+    },
+    []
+  )
 
   const openRadar = useCallback((quoteId: string, anchor: HTMLButtonElement) => {
     radarAnchorRef.current = anchor
@@ -612,6 +692,7 @@ export function WatchlistTable({
   const resetFilters = useCallback(() => {
     setCustomGroupFilter(ALL_FILTER)
     setSectorFilter(ALL_FILTER)
+    setMarketFilter(ALL_FILTER)
     setFundamentalFilter('all')
     setValueFilter('all')
     setRiskOnly(false)
@@ -634,6 +715,27 @@ export function WatchlistTable({
 
   const detailNavigationRequestId = detailNavigationRequest?.id
   const detailNavigationQuoteId = detailNavigationRequest?.quoteId
+  const stockSelectionRequestId = stockSelectionRequest?.id
+  const stockSelectionQuoteId = stockSelectionRequest?.quoteId
+  const stockSelectionScrollAlignment = stockSelectionRequest?.scrollAlignment
+
+  useEffect(() => {
+    if (
+      !stockSelectionRequestId ||
+      !stockSelectionQuoteId ||
+      stockSelectionScrollAlignment !== 'sticky-top'
+    ) {
+      return
+    }
+    resetFilters()
+    window.requestAnimationFrame(() => scrollToStock(stockSelectionQuoteId, 'sticky-top'))
+  }, [
+    resetFilters,
+    scrollToStock,
+    stockSelectionQuoteId,
+    stockSelectionRequestId,
+    stockSelectionScrollAlignment
+  ])
 
   useEffect(() => {
     if (!detailNavigationRequestId || !detailNavigationQuoteId) return
@@ -659,13 +761,14 @@ export function WatchlistTable({
         <span>
           {sort
             ? `当前按“${COLUMN_META[sort.column].label}”${sort.direction === 'asc' ? '升序' : '降序'}排列`
-            : '当前为手动排序 · 使用最左侧的拖动手柄或置顶按钮调整顺序'}
+            : '当前为手动排序 · 使用排序列拖动手柄或设置列首位按钮调整顺序'}
           {customGroupFilter === ALL_FILTER
             ? ''
             : ` · 分组：${customGroupFilter === UNGROUPED_FILTER ? '未分组' : selectedGroupName}`}
           {sectorFilter === ALL_FILTER
             ? ''
             : ` · 板块：${sectorFilter === NO_SECTOR_FILTER ? '未获取板块' : selectedSectorName}`}
+          {marketFilter === ALL_FILTER ? '' : ` · 市场：${STOCK_MARKET_LABELS[marketFilter]}`}
           {fundamentalFilter === 'all'
             ? ''
             : ` · 基本面：${FUNDAMENTAL_FILTER_LABELS[fundamentalFilter]}`}
@@ -673,6 +776,7 @@ export function WatchlistTable({
           {riskOnly ? ' · 基本面：有风险' : ''}
           {customGroupFilter !== ALL_FILTER ||
           sectorFilter !== ALL_FILTER ||
+          marketFilter !== ALL_FILTER ||
           fundamentalFilter !== 'all' ||
           valueFilter !== 'all' ||
           riskOnly
@@ -685,9 +789,12 @@ export function WatchlistTable({
             customGroupOptions={customGroupFilterOptions}
             sectorFilter={sectorFilter}
             sectorOptions={sectorFilterOptions}
+            marketFilter={marketFilter}
+            marketOptions={marketFilterOptions}
             displayedStocks={displayedStocks}
             onCustomGroupChange={setCustomGroupFilter}
             onSectorChange={setSectorFilter}
+            onMarketChange={setMarketFilter}
             onManageGroups={openGroupDialog}
             onChooseStock={scrollToStock}
           />
@@ -777,6 +884,8 @@ export function WatchlistTable({
         summary={fundamentalSummary}
         valueSummary={valueSummary}
         portfolioQuality={portfolioQualitySummary}
+        portfolioSummary={portfolioSummary}
+        portfolioExposureText={portfolioExposureText}
         activeFilter={fundamentalFilter}
         activeValueFilter={valueFilter}
         riskOnly={riskOnly}
@@ -786,6 +895,7 @@ export function WatchlistTable({
         filtersActive={
           customGroupFilter !== ALL_FILTER ||
           sectorFilter !== ALL_FILTER ||
+          marketFilter !== ALL_FILTER ||
           fundamentalFilter !== 'all' ||
           valueFilter !== 'all' ||
           riskOnly
@@ -878,9 +988,12 @@ export function WatchlistTable({
                   fundamentalGeneratedAt={fundamentalGeneratedAt}
                   fundamentalStaleReason={fundamentalStaleReason}
                   tradingAccount={tTradingAccounts[stock.quoteId]}
+                  corporateActionRecords={corporateActionRecords}
                   manualIndex={manualIndex}
                   columnOrder={adjustableColumnOrder}
-                  tradingCalendarClosedDates={tradingCalendarClosedDates}
+                  tradingCalendar={tradingCalendar}
+                  exchangeRates={exchangeRates}
+                  quoteStatusNow={quoteStatusNow}
                   priorityRefreshSeconds={priorityRefreshSeconds}
                   regularRefreshSeconds={regularRefreshSeconds}
                   chipDistributionEnabled={chipDistributionEnabled}
@@ -916,6 +1029,8 @@ export function WatchlistTable({
                   onBollingerBandsEnabledChange={onBollingerBandsEnabledChange}
                   onStartTracking={onStartTracking}
                   onUpdateTracking={onUpdateTracking}
+                  onApplyCorporateAction={onApplyCorporateAction}
+                  onUpdateCorporateActionRecord={onUpdateCorporateActionRecord}
                   onStopTracking={onStopTracking}
                   onRestartTracking={onRestartTracking}
                   onRemove={onRemove}
@@ -983,6 +1098,9 @@ export function WatchlistTable({
           quote={quotes.find((quote) => quote.quoteId === editingStock.quoteId)}
           account={tTradingAccounts[editingStock.quoteId]}
           planDefaults={tPlanDefaults}
+          exchangeRates={exchangeRates}
+          marketTradeFees={marketTradeFees}
+          tradingCalendar={tradingCalendar}
           onClose={() => setEditingStock(null)}
           onSave={(position, showRadarSignals, positionSnapshots, updatedAccount) => {
             onEditPosition(

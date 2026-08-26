@@ -1,12 +1,16 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AppState,
+  CacheCategoryId,
+  CacheClearResult,
+  CacheSummary,
   DataSnapshotRuntimeState,
   DailyMarketScanState,
   DividendFinancingUpdateProgress,
   FundamentalUpdateProgress,
   StockDesktopApi,
   StockQuote,
+  StockSelectionRequest,
   TaskbarLayout,
   TaskbarTooltipAnchor
 } from '../../src/shared/types'
@@ -38,8 +42,24 @@ const api: StockDesktopApi = {
   getFundamentalState: () => ipcRenderer.invoke('fundamentals:state:get'),
   getFundamentalChangeReport: () => ipcRenderer.invoke('fundamentals:changes:get'),
   runFundamentalUpdate: () => ipcRenderer.invoke('fundamentals:update'),
-  getCompanyReports: (code, forceRefresh) =>
-    ipcRenderer.invoke('company-reports:get', code, forceRefresh),
+  getCompanyReports: (quoteId, forceRefresh) =>
+    ipcRenderer.invoke('company-reports:get', quoteId, forceRefresh),
+  listCorporateActions: (quoteId, forceRefresh) =>
+    ipcRenderer.invoke(
+      forceRefresh ? 'corporate-actions:refresh' : 'corporate-actions:list',
+      quoteId
+    ),
+  previewCorporateAction: (request) => ipcRenderer.invoke('corporate-actions:preview', request),
+  confirmCorporateAction: (request) => ipcRenderer.invoke('corporate-actions:confirm', request),
+  ignoreCorporateAction: (candidate) => ipcRenderer.invoke('corporate-actions:ignore', candidate),
+  reverseCorporateAction: (candidate, account) =>
+    ipcRenderer.invoke('corporate-actions:reverse', candidate, account),
+  listPortfolioLedger: (account) => ipcRenderer.invoke('portfolio-ledger:list', account),
+  createManualCorporateAction: (request, account) =>
+    ipcRenderer.invoke('corporate-actions:manual', request, account),
+  openCorporateAction: (url) => ipcRenderer.invoke('corporate-actions:open', url),
+  getGlobalFundamentals: (quoteId, forceRefresh) =>
+    ipcRenderer.invoke('global-fundamentals:get', quoteId, forceRefresh),
   generateCompanyReportSummary: (report) =>
     ipcRenderer.invoke('company-reports:summary:generate', report),
   openCompanyReport: (url) => ipcRenderer.invoke('company-reports:open', url),
@@ -58,6 +78,7 @@ const api: StockDesktopApi = {
   getFundsFlow: (quoteId) => ipcRenderer.invoke('funds-flow:get', quoteId),
   getSectorIndex: (quoteId) => ipcRenderer.invoke('sector-index:get', quoteId),
   refreshTradingCalendar: () => ipcRenderer.invoke('trading-calendar:refresh'),
+  refreshExchangeRates: () => ipcRenderer.invoke('exchange-rates:refresh'),
   saveState: (state) => ipcRenderer.invoke('state:save', state),
   getCompletionNotifications: () => ipcRenderer.invoke('completion-notifications:get'),
   saveCompletionNotifications: (notifications) =>
@@ -65,6 +86,9 @@ const api: StockDesktopApi = {
   exportConfig: (state) => ipcRenderer.invoke('config:export', state),
   importConfig: () => ipcRenderer.invoke('config:import'),
   applyConfigImport: (importId) => ipcRenderer.invoke('config:import:apply', importId),
+  getCacheSummary: () => ipcRenderer.invoke('cache:summary') as Promise<CacheSummary>,
+  clearCaches: (categoryIds: CacheCategoryId[]) =>
+    ipcRenderer.invoke('cache:clear', categoryIds) as Promise<CacheClearResult>,
   getGitHubSyncSettings: () => ipcRenderer.invoke('github-sync:settings:get'),
   startGitHubLogin: () => ipcRenderer.invoke('github-sync:login:start'),
   completeGitHubLogin: (loginId) => ipcRenderer.invoke('github-sync:login:complete', loginId),
@@ -84,7 +108,7 @@ const api: StockDesktopApi = {
   onStateUpdated: (callback) => subscribe<AppState>('state:updated', callback),
   onTaskbarLayout: (callback) => subscribe<TaskbarLayout>('taskbar:layout', callback),
   onTaskbarTooltipStock: (callback) => subscribe<string>('taskbar:tooltip-stock', callback),
-  onSelectStock: (callback) => subscribe<string>('stock:selected', callback),
+  onSelectStock: (callback) => subscribe<StockSelectionRequest>('stock:selected', callback),
   onDataError: (callback) => subscribe<string>('data:error', callback),
   onDividendFinancingUpdateProgress: (callback) =>
     subscribe<DividendFinancingUpdateProgress>('dividend-financing:update-progress', callback),

@@ -30,7 +30,7 @@ export function createStockValuationAnalysis(
 
   return {
     quoteId,
-    quoteDataAt: quote?.updatedAt ?? null,
+    quoteDataAt: quote?.dataAt ?? quote?.updatedAt ?? null,
     historyFetchedAt: history?.fetchedAt ?? null,
     historyPeriodStart: history?.periodStart ?? null,
     historyPeriodEnd: history?.periodEnd ?? null,

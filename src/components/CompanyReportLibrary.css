@@ -180,6 +180,16 @@
   background: color-mix(in srgb, #d98b17 10%, var(--surface));
 }
 
+.company-report-file.is-quarterly {
+  color: #2b9a68;
+  background: color-mix(in srgb, #2b9a68 10%, var(--surface));
+}
+
+.company-report-file.is-current {
+  color: #d98b17;
+  background: color-mix(in srgb, #d98b17 10%, var(--surface));
+}
+
 .company-report-copy {
   display: grid;
   gap: 4px;

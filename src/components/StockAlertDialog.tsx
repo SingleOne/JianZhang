@@ -4,6 +4,11 @@ import { createPortal } from 'react-dom'
 import { formatPercent, formatPrice } from '../lib/format'
 import { calculatePositionMetrics } from '../lib/portfolio'
 import { STOCK_ALERT_METRIC_LABELS } from '../lib/stock-alerts'
+import {
+  marketCapabilitiesForQuoteId,
+  stockMarketIdentity,
+  STOCK_CURRENCY_SYMBOLS
+} from '../shared/stock-market'
 import type {
   StockAlertMetric,
   StockAlertRule,
@@ -34,11 +39,21 @@ export function StockAlertDialog({
   onSave,
   onClose
 }: StockAlertDialogProps) {
+  const capabilities = marketCapabilitiesForQuoteId(stock.quoteId)
+  const currency = stock.currency ?? stockMarketIdentity(stock.quoteId).currency
+  const currencySymbol = STOCK_CURRENCY_SYMBOLS[currency]
   const metrics = calculatePositionMetrics(stock.position, quote, account)
-  const [rules, setRules] = useState<DraftRule[]>(() => (stock.alertRules ?? []).map((rule) => ({
-    ...rule,
-    target: String(rule.target)
-  })))
+  const availableMetrics = Object.entries(STOCK_ALERT_METRIC_LABELS).filter(
+    ([metric]) => metric !== 'profitPercent' || capabilities.profitAlert
+  )
+  const [rules, setRules] = useState<DraftRule[]>(() =>
+    (stock.alertRules ?? [])
+      .filter((rule) => rule.metric !== 'profitPercent' || capabilities.profitAlert)
+      .map((rule) => ({
+        ...rule,
+        target: String(rule.target)
+      }))
+  )
 
   const currentValue = (metric: StockAlertMetric): number | null => {
     if (metric === 'price') return quote?.latest ?? null
@@ -109,10 +124,12 @@ export function StockAlertDialog({
               <small>当日涨幅</small>
               <strong className={valueClass(quote?.changePercent)}>{formatPercent(quote?.changePercent)}</strong>
             </span>
-            <span>
-              <small>持仓收益率</small>
-              <strong className={valueClass(metrics.profitPercent)}>{formatPercent(metrics.profitPercent)}</strong>
-            </span>
+            {capabilities.profitAlert ? (
+              <span>
+                <small>持仓收益率</small>
+                <strong className={valueClass(metrics.profitPercent)}>{formatPercent(metrics.profitPercent)}</strong>
+              </span>
+            ) : null}
           </div>
 
           <div className="stock-alert-list-heading">
@@ -153,7 +170,7 @@ export function StockAlertDialog({
                     }}
                     aria-label={`提醒条件 ${index + 1} 指标`}
                   >
-                    {Object.entries(STOCK_ALERT_METRIC_LABELS).map(([metric, label]) => (
+                    {availableMetrics.map(([metric, label]) => (
                       <option value={metric} key={metric}>{label}</option>
                     ))}
                   </select>
@@ -179,7 +196,7 @@ export function StockAlertDialog({
                       onChange={(event) => updateRule(rule.id, { target: event.target.value })}
                       aria-label={`提醒条件 ${index + 1} 设定值`}
                     />
-                    <span>{rule.metric === 'price' ? '元' : '%'}</span>
+                    <span>{rule.metric === 'price' ? currencySymbol : '%'}</span>
                   </label>
                   <span className={`stock-alert-status ${rule.status === 'triggered' && rule.enabled ? `is-triggered is-triggered-${rule.operator}` : ''}`}>
                     {statusLabel}
@@ -211,7 +228,9 @@ export function StockAlertDialog({
             })}
             {rules.length === 0 ? (
               <div className="stock-alert-empty">
-                还没有提醒条件。点击“添加条件”后，可分别设置股价、当日涨幅或持仓收益率阈值。
+                {capabilities.profitAlert
+                  ? '还没有提醒条件。点击“添加条件”后，可分别设置股价、当日涨幅或持仓收益率阈值。'
+                  : '还没有提醒条件。点击“添加条件”后，可设置股价或当日涨跌幅阈值。'}
               </div>
             ) : null}
           </div>

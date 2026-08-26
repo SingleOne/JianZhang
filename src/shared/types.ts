@@ -1,9 +1,27 @@
+import {
+  BUILT_IN_MARKET_CALENDAR_END_YEARS,
+  builtInMarketCalendar,
+  type MarketCalendarSource
+} from './market-calendar'
+import { stockMarketIdentity, type StockMarket } from './stock-market'
+export type {
+  StockCurrency,
+  StockExchange,
+  StockInstrumentType,
+  StockMarket,
+  StockMarketIdentity,
+  StockVolumeUnit
+} from './stock-market'
+
 export interface StockPositionSnapshot {
   id: string
   name: string
   createdAt: string
   quantity: number
   cost: number
+  currency?: import('./stock-market').StockCurrency
+  costExchangeRate?: number
+  costExchangeRateDate?: string
 }
 
 export type StockAlertMetric = 'price' | 'changePercent' | 'profitPercent'
@@ -25,6 +43,10 @@ export interface WatchStock {
   name: string
   quoteId: string
   marketLabel: string
+  market?: import('./stock-market').StockMarket
+  exchange?: import('./stock-market').StockExchange
+  currency?: import('./stock-market').StockCurrency
+  instrumentType?: import('./stock-market').StockInstrumentType
   showInTaskbar: boolean
   isPriority: boolean
   showRadarSignals: boolean
@@ -92,6 +114,10 @@ export interface StockTrackingProfile {
   code: string
   name: string
   marketLabel: string
+  market?: import('./stock-market').StockMarket
+  exchange?: import('./stock-market').StockExchange
+  currency?: import('./stock-market').StockCurrency
+  instrumentType?: import('./stock-market').StockInstrumentType
   status: 'tracking' | 'stopped'
   tags: string[]
   thesis: string
@@ -247,6 +273,7 @@ export function normalizeStockTrackingProfiles(
           quoteId,
           {
             ...profile,
+            ...stockMarketIdentity(quoteId, profile.instrumentType),
             quoteId,
             status: profile.status === 'stopped' ? 'stopped' : 'tracking',
             tags: [...new Set((profile.tags ?? []).map((tag) => tag.trim()).filter(Boolean))],
@@ -276,38 +303,67 @@ export function synchronizeTrackingGroupMembership(
 }
 
 export function normalizeWatchlist(stocks: readonly WatchStock[]): WatchStock[] {
-  return stocks.map((stock) => ({
-    ...stock,
-    isPriority: Boolean(stock.position || stock.isPriority),
-    showRadarSignals: stock.showRadarSignals ?? true,
-    groupIds: [...new Set((stock.groupIds ?? []).filter((groupId) => typeof groupId === 'string'))],
-    positionSnapshots: Array.isArray(stock.positionSnapshots)
-      ? stock.positionSnapshots.filter(
-          (snapshot) =>
-            snapshot &&
-            typeof snapshot.id === 'string' &&
-            typeof snapshot.name === 'string' &&
-            typeof snapshot.createdAt === 'string' &&
-            Number.isFinite(snapshot.quantity) &&
-            snapshot.quantity > 0 &&
-            Number.isFinite(snapshot.cost) &&
-            snapshot.cost > 0
-        )
-      : [],
-    alertRules: Array.isArray(stock.alertRules)
-      ? stock.alertRules
-          .filter((rule) => Number.isFinite(rule.target))
-          .map((rule) => ({
-            id: rule.id,
-            metric: rule.metric,
-            operator: rule.operator,
-            target: rule.target,
-            enabled: rule.enabled ?? true,
-            status: rule.status === 'triggered' ? 'triggered' : 'armed',
-            triggeredAt: rule.triggeredAt
-          }))
-      : []
-  }))
+  return stocks.map((stock) => {
+    const identity = stockMarketIdentity(stock.quoteId, stock.instrumentType)
+    const normalizeCostRate = (value: number | undefined) =>
+      typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
+    const position = stock.position
+      ? {
+          ...stock.position,
+          currency: identity.currency,
+          costExchangeRate:
+            identity.currency === 'CNY' ? 1 : normalizeCostRate(stock.position.costExchangeRate),
+          costExchangeRateDate:
+            identity.currency === 'CNY'
+              ? (stock.position.costExchangeRateDate ?? stock.position.openedOn)
+              : stock.position.costExchangeRateDate
+        }
+      : undefined
+    return {
+      ...stock,
+      ...identity,
+      position,
+      isPriority: Boolean(position || stock.isPriority),
+      showRadarSignals: stock.showRadarSignals ?? true,
+      groupIds: [
+        ...new Set((stock.groupIds ?? []).filter((groupId) => typeof groupId === 'string'))
+      ],
+      positionSnapshots: Array.isArray(stock.positionSnapshots)
+        ? stock.positionSnapshots
+            .filter(
+              (snapshot) =>
+                snapshot &&
+                typeof snapshot.id === 'string' &&
+                typeof snapshot.name === 'string' &&
+                typeof snapshot.createdAt === 'string' &&
+                Number.isFinite(snapshot.quantity) &&
+                snapshot.quantity > 0 &&
+                Number.isFinite(snapshot.cost) &&
+                snapshot.cost > 0
+            )
+            .map((snapshot) => ({
+              ...snapshot,
+              currency: identity.currency,
+              costExchangeRate:
+                identity.currency === 'CNY' ? 1 : normalizeCostRate(snapshot.costExchangeRate),
+              costExchangeRateDate: snapshot.costExchangeRateDate
+            }))
+        : [],
+      alertRules: Array.isArray(stock.alertRules)
+        ? stock.alertRules
+            .filter((rule) => Number.isFinite(rule.target))
+            .map((rule) => ({
+              id: rule.id,
+              metric: rule.metric,
+              operator: rule.operator,
+              target: rule.target,
+              enabled: rule.enabled ?? true,
+              status: rule.status === 'triggered' ? 'triggered' : 'armed',
+              triggeredAt: rule.triggeredAt
+            }))
+        : []
+    }
+  })
 }
 
 export const MARKET_INDEX_OPTIONS = [
@@ -349,6 +405,9 @@ export interface StockPosition {
   cost: number
   openedToday: boolean
   openedOn?: string
+  currency?: import('./stock-market').StockCurrency
+  costExchangeRate?: number
+  costExchangeRateDate?: string
 }
 
 export interface TTradingFeeSettings {
@@ -360,6 +419,26 @@ export interface TTradingFeeSettings {
   stampDutyRatePerTenThousand: number
 }
 
+export interface HongKongTradeFeeSettings {
+  brokerageRatePercent: number
+  minimumBrokerage: number
+  platformFee: number
+  includeSettlementFee: boolean
+}
+
+export interface UnitedStatesTradeFeeSettings {
+  commissionPerShare: number
+  minimumCommission: number
+  platformFee: number
+  includeSecFee: boolean
+  includeFinraTaf: boolean
+}
+
+export interface MarketTradeFeeSettings {
+  HK: HongKongTradeFeeSettings
+  US: UnitedStatesTradeFeeSettings
+}
+
 export const DEFAULT_T_TRADING_FEE_SETTINGS: TTradingFeeSettings = {
   commissionRatePerTenThousand: 5.313,
   minimumCommissionBundle: 5,
@@ -369,12 +448,53 @@ export const DEFAULT_T_TRADING_FEE_SETTINGS: TTradingFeeSettings = {
   stampDutyRatePerTenThousand: 5
 }
 
+export const DEFAULT_MARKET_TRADE_FEE_SETTINGS: MarketTradeFeeSettings = {
+  HK: {
+    brokerageRatePercent: 0,
+    minimumBrokerage: 0,
+    platformFee: 0,
+    includeSettlementFee: false
+  },
+  US: {
+    commissionPerShare: 0,
+    minimumCommission: 0,
+    platformFee: 0,
+    includeSecFee: true,
+    includeFinraTaf: true
+  }
+}
+
 export interface TTradeFees {
   commission: number
   handling: number
   regulatory: number
   transfer: number
   stampDuty: number
+}
+
+export type TradeFeeItemCode =
+  | 'brokerage'
+  | 'platform'
+  | 'sfc-levy'
+  | 'afrc-levy'
+  | 'hkex-trading'
+  | 'stamp-duty'
+  | 'settlement'
+  | 'sec-section-31'
+  | 'finra-taf'
+  | 'manual'
+
+export interface TradeFeeItem {
+  code: TradeFeeItemCode
+  label: string
+  amount: number
+}
+
+export interface TradeFeeTemplateSnapshot {
+  id: string
+  version: string
+  label: string
+  effectiveFrom: string
 }
 
 export type TTradeSide = 'buy' | 'sell'
@@ -389,6 +509,17 @@ export interface TTrade {
   price: number
   quantity: number
   fees: TTradeFees
+  feeItems?: TradeFeeItem[]
+  feeTemplate?: TradeFeeTemplateSnapshot
+  market?: import('./stock-market').StockMarket
+  currency?: import('./stock-market').StockCurrency
+  marketDate?: string
+  exchangeRate?: number
+  exchangeRateDate?: string
+  estimatedSettlementDate?: string
+  actualSettlementDate?: string
+  settlementRule?: TradeFeeTemplateSnapshot
+  origin?: 'execution' | 'opening-balance'
   note: string
 }
 
@@ -397,6 +528,265 @@ export interface TTradeRecord extends TTrade {
   batchId?: string
   batchSequence?: number
   batchDirection?: TTradingDirection
+}
+
+export type CorporateActionType =
+  | 'cashDividend'
+  | 'stockDividend'
+  | 'split'
+  | 'reverseSplit'
+  | 'rightsIssue'
+  | 'spinOff'
+  | 'mergerExchange'
+  | 'symbolChange'
+  | 'delistingCash'
+  | 'returnOfCapital'
+  | 'manualCash'
+
+export type CorporateActionStatus =
+  'detected' | 'needsReview' | 'confirmed' | 'applied' | 'ignored' | 'revised' | 'reversed'
+
+export interface CorporateActionMarketRules {
+  market: StockMarket
+  quantityPrecision: number
+  cashPrecision: number
+  supportsFractionalShares: boolean
+  defaultWithholdingTaxMode: 'brokerActual' | 'manual'
+  dateTimeZone: string
+  settlementRuleIds: string[]
+}
+
+export interface CorporateActionExtractedField<T> {
+  value?: T
+  confidence: 'high' | 'medium' | 'low'
+  evidenceText?: string
+}
+
+export type CorporateActionTerms =
+  | {
+      kind: 'cashDividend'
+      amountPerShare: CorporateActionExtractedField<number>
+      currency: CorporateActionExtractedField<import('./stock-market').StockCurrency>
+    }
+  | {
+      kind: 'shareRatio'
+      oldShares: CorporateActionExtractedField<number>
+      newShares: CorporateActionExtractedField<number>
+      fractionalTreatment?: CorporateActionExtractedField<'keep' | 'cash' | 'discard'>
+    }
+  | {
+      kind: 'rightsIssue'
+      heldShares: CorporateActionExtractedField<number>
+      entitlementShares: CorporateActionExtractedField<number>
+      subscriptionPrice: CorporateActionExtractedField<number>
+      currency: CorporateActionExtractedField<import('./stock-market').StockCurrency>
+    }
+  | {
+      kind: 'securityConversion'
+      oldShares: CorporateActionExtractedField<number>
+      newShares: CorporateActionExtractedField<number>
+      targetQuoteId?: CorporateActionExtractedField<string>
+    }
+  | {
+      kind: 'symbolChange'
+      oldQuoteId: CorporateActionExtractedField<string>
+      newQuoteId: CorporateActionExtractedField<string>
+      newCode?: CorporateActionExtractedField<string>
+    }
+  | { kind: 'manualCash' }
+  | { kind: 'unsupported' }
+
+export interface CorporateActionEvidence {
+  source: string
+  title: string
+  url: string
+  publishedAt: string
+  excerpt?: string
+}
+
+export interface CorporateActionCandidate {
+  id: string
+  quoteId: string
+  market: StockMarket
+  type: CorporateActionType
+  status: CorporateActionStatus
+  title: string
+  announcementDate: string
+  exDate?: string
+  recordDate?: string
+  electionDeadline?: string
+  effectiveDate?: string
+  payableDate?: string
+  terms: CorporateActionTerms
+  evidence: CorporateActionEvidence[]
+  providerId: string
+  providerEventId: string
+  contentHash: string
+  detectedAt: string
+  reviewedAt?: string
+  appliedEntryIds?: string[]
+  warning?: string
+}
+
+export interface CorporateActionRecord extends CorporateActionCandidate {
+  status: Exclude<CorporateActionStatus, 'detected'>
+}
+
+export type CorporateActionRecords = Record<string, CorporateActionRecord>
+
+export interface PortfolioLedgerEntryBase {
+  id: string
+  accountId: string
+  quoteId: string
+  occurredAt: string
+  marketDate: string
+  recordedAt?: string
+  source: 'manual' | 'corporateAction' | 'brokerImport' | 'trade'
+  externalId?: string
+  corporateActionId?: string
+  currency?: import('./stock-market').StockCurrency
+  exchangeRate?: number
+  exchangeRateDate?: string
+  exchangeRateEstimated?: boolean
+  note?: string
+}
+
+export interface TradeLedgerEntry extends PortfolioLedgerEntryBase {
+  kind: 'trade'
+  record: TTradeRecord
+}
+
+export interface CashDividendLedgerEntry extends PortfolioLedgerEntryBase {
+  kind: 'cashDividend'
+  eligibleQuantity: number
+  amountPerShare: number
+  amount: number
+}
+
+export interface WithholdingTaxLedgerEntry extends PortfolioLedgerEntryBase {
+  kind: 'withholdingTax'
+  amount: number
+}
+
+export interface CorporateActionFeeLedgerEntry extends PortfolioLedgerEntryBase {
+  kind: 'corporateActionFee'
+  amount: number
+}
+
+export interface ShareAdjustmentLedgerEntry extends PortfolioLedgerEntryBase {
+  kind: 'shareAdjustment'
+  actionType: 'stockDividend' | 'split' | 'reverseSplit'
+  quantityBefore: number
+  quantityAfter: number
+  oldShares: number
+  newShares: number
+}
+
+export interface RightsSubscriptionLedgerEntry extends PortfolioLedgerEntryBase {
+  kind: 'rightsSubscription'
+  quantity: number
+  price: number
+  cost?: number
+  fees: number
+}
+
+export interface SecurityConversionLedgerEntry extends PortfolioLedgerEntryBase {
+  kind: 'securityConversion'
+  quantityBefore: number
+  quantityAfter: number
+  sourceQuoteId?: string
+  targetQuoteId?: string
+}
+
+export interface CashAdjustmentLedgerEntry extends PortfolioLedgerEntryBase {
+  kind: 'cashAdjustment'
+  amount: number
+  reason: 'fractionalShare' | 'manual' | 'rightsSale' | 'delisting' | 'capitalReturn'
+}
+
+export interface ReversalLedgerEntry extends PortfolioLedgerEntryBase {
+  kind: 'reversal'
+  reversesEntryId: string
+}
+
+export type PortfolioLedgerEntry =
+  | TradeLedgerEntry
+  | CashDividendLedgerEntry
+  | WithholdingTaxLedgerEntry
+  | CorporateActionFeeLedgerEntry
+  | ShareAdjustmentLedgerEntry
+  | RightsSubscriptionLedgerEntry
+  | SecurityConversionLedgerEntry
+  | CashAdjustmentLedgerEntry
+  | ReversalLedgerEntry
+
+export interface PortfolioLedger {
+  schemaVersion: 1
+  entries: PortfolioLedgerEntry[]
+}
+
+export interface CorporateActionConfirmation {
+  eligibleQuantity?: number
+  amountPerShare?: number
+  oldShares?: number
+  newShares?: number
+  subscribedQuantity?: number
+  subscriptionPrice?: number
+  withholdingTax?: number
+  fees?: number
+  cashAmount?: number
+  currency?: import('./stock-market').StockCurrency
+  exchangeRate?: number
+  exchangeRateDate?: string
+  exchangeRateEstimated?: boolean
+  targetQuoteId?: string
+  occurredAt?: string
+  note?: string
+}
+
+export interface CorporateActionPreviewRequest {
+  candidate: CorporateActionCandidate
+  account: TTradingAccount
+  confirmation: CorporateActionConfirmation
+}
+
+export interface CorporateActionImpactPreview {
+  candidateId: string
+  resolvedCandidate?: CorporateActionCandidate
+  quantityBefore: number
+  quantityAfter: number
+  costBefore: number | null
+  costAfter: number | null
+  totalCostBefore: number | null
+  totalCostAfter: number | null
+  grossCash: number
+  withholdingTax: number
+  fees: number
+  netCash: number
+  netCashCny: number | null
+  entries: PortfolioLedgerEntry[]
+  missingFields: string[]
+}
+
+export interface CorporateActionListResult {
+  quoteId: string
+  market: StockMarket
+  source: string
+  fetchedAt: string
+  fromCache: boolean
+  candidates: CorporateActionCandidate[]
+  warning?: string
+}
+
+export interface ManualCorporateActionRequest {
+  quoteId: string
+  market: StockMarket
+  type: CorporateActionType
+  title: string
+  announcementDate: string
+  effectiveDate?: string
+  currency: import('./stock-market').StockCurrency
+  confirmation: CorporateActionConfirmation
 }
 
 export interface TPositionSnapshot {
@@ -471,9 +861,13 @@ export interface TTradingAccount {
   quoteId: string
   code: string
   name: string
+  market?: import('./stock-market').StockMarket
+  currency?: import('./stock-market').StockCurrency
   activeBatch?: TTradingBatch
   history: TTradingBatch[]
-  /** 账户内所有底仓及做T成交的唯一数据源。 */
+  /** 统一组合账本是新写入和公司行动计算的唯一数据源。 */
+  ledger: PortfolioLedger
+  /** 由账本中 trade 条目派生的旧版兼容镜像。 */
   tradeRecords: TTradeRecord[]
 }
 
@@ -579,16 +973,101 @@ export function normalizeActiveTTradingBatch(
   }
 }
 
+export function tradeLedgerEntry(
+  accountId: string,
+  quoteId: string,
+  record: TTradeRecord
+): TradeLedgerEntry {
+  return {
+    id: `trade:${record.id}`,
+    accountId,
+    quoteId,
+    occurredAt: record.tradedAt,
+    marketDate: record.marketDate ?? record.tradedAt.slice(0, 10),
+    recordedAt: record.tradedAt,
+    source: 'trade',
+    externalId: record.id,
+    currency: record.currency,
+    exchangeRate: record.exchangeRate,
+    exchangeRateDate: record.exchangeRateDate,
+    record,
+    kind: 'trade'
+  }
+}
+
+export function tradeRecordsFromLedger(ledger: PortfolioLedger | undefined): TTradeRecord[] {
+  return (ledger?.entries ?? [])
+    .filter((entry): entry is TradeLedgerEntry => entry.kind === 'trade')
+    .map((entry) => entry.record)
+    .sort((left, right) => right.tradedAt.localeCompare(left.tradedAt))
+}
+
+function normalizedPortfolioLedger(
+  accountId: string,
+  quoteId: string,
+  ledger: PortfolioLedger | undefined,
+  tradeRecords: readonly TTradeRecord[]
+): PortfolioLedger {
+  const nonTradeEntries = (ledger?.entries ?? []).filter((entry) => entry.kind !== 'trade')
+  return {
+    schemaVersion: 1,
+    entries: [
+      ...tradeRecords.map((record) => tradeLedgerEntry(accountId, quoteId, record)),
+      ...nonTradeEntries
+    ].sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
+  }
+}
+
+export function withLedgerTradeRecords(
+  account: TTradingAccount,
+  tradeRecords: readonly TTradeRecord[]
+): TTradingAccount {
+  const records = [...tradeRecords].sort((left, right) =>
+    right.tradedAt.localeCompare(left.tradedAt)
+  )
+  return {
+    ...account,
+    ledger: normalizedPortfolioLedger(account.quoteId, account.quoteId, account.ledger, records),
+    tradeRecords: records
+  }
+}
+
+export function appendPortfolioLedgerEntries(
+  account: TTradingAccount,
+  entries: readonly PortfolioLedgerEntry[]
+): TTradingAccount {
+  const ids = new Set(entries.map((entry) => entry.id))
+  const ledger = {
+    schemaVersion: 1 as const,
+    entries: [...account.ledger.entries.filter((entry) => !ids.has(entry.id)), ...entries].sort(
+      (left, right) => right.occurredAt.localeCompare(left.occurredAt)
+    )
+  }
+  return { ...account, ledger, tradeRecords: tradeRecordsFromLedger(ledger) }
+}
+
+export function normalizeCorporateActionRecords(
+  records: CorporateActionRecords | undefined
+): CorporateActionRecords {
+  return Object.fromEntries(
+    Object.entries(records ?? {}).filter(([, record]) => Boolean(record?.id && record.quoteId))
+  )
+}
+
 export function normalizeTTradingAccounts(
   accounts: TTradingAccounts | undefined
 ): TTradingAccounts {
   return Object.fromEntries(
     Object.entries(accounts ?? {}).map(([quoteId, account]) => {
       type LegacyBatch = TTradingBatch & { trades?: TTrade[] }
-      type LegacyAccount = Omit<TTradingAccount, 'activeBatch' | 'history' | 'tradeRecords'> & {
+      type LegacyAccount = Omit<
+        TTradingAccount,
+        'activeBatch' | 'history' | 'ledger' | 'tradeRecords'
+      > & {
         activeBatch?: LegacyBatch
         history?: LegacyBatch[]
         baseTrades?: TTrade[]
+        ledger?: PortfolioLedger
         tradeRecords?: TTradeRecord[]
       }
       const legacyAccount = account as LegacyAccount
@@ -597,8 +1076,11 @@ export function normalizeTTradingAccounts(
         const { trades: _legacyTrades, ...normalizedBatch } = batch
         return normalizedBatch
       }
+      const ledgerTrades = tradeRecordsFromLedger(legacyAccount.ledger)
       const records = new Map(
-        (legacyAccount.tradeRecords ?? []).map((record) => [record.id, record])
+        (ledgerTrades.length > 0 ? ledgerTrades : (legacyAccount.tradeRecords ?? [])).map(
+          (record) => [record.id, record]
+        )
       )
       const addLegacyBatchTrades = (batch: LegacyBatch) => {
         const legacyTrades = batch.trades ?? []
@@ -642,9 +1124,12 @@ export function normalizeTTradingAccounts(
         activeBatch: _legacyActiveBatch,
         history: _legacyHistory,
         baseTrades: _legacyBaseTrades,
+        ledger: _legacyLedger,
         tradeRecords: _legacyTradeRecords,
         ...accountFields
       } = legacyAccount
+
+      const ledger = normalizedPortfolioLedger(quoteId, quoteId, legacyAccount.ledger, tradeRecords)
 
       return [
         quoteId,
@@ -654,11 +1139,69 @@ export function normalizeTTradingAccounts(
           activeBatch: activeBatch
             ? normalizeActiveTTradingBatch(activeBatch, activeTrades)
             : undefined,
-          tradeRecords
+          ledger,
+          tradeRecords: tradeRecordsFromLedger(ledger)
         }
       ]
     })
   )
+}
+
+export function normalizeTradingAccountsForWatchlist(
+  watchlist: readonly WatchStock[],
+  accounts: TTradingAccounts | undefined
+): TTradingAccounts {
+  const normalized = normalizeTTradingAccounts(accounts)
+  for (const stock of watchlist) {
+    const identity = stockMarketIdentity(stock.quoteId, stock.instrumentType)
+    const existing = normalized[stock.quoteId]
+    const account: TTradingAccount = existing ?? {
+      quoteId: stock.quoteId,
+      code: stock.code,
+      name: stock.name,
+      history: [],
+      ledger: { schemaVersion: 1, entries: [] },
+      tradeRecords: []
+    }
+    const records = account.tradeRecords.map((record) => ({
+      ...record,
+      market: record.market ?? identity.market,
+      currency: record.currency ?? identity.currency,
+      marketDate: record.marketDate ?? record.tradedAt.slice(0, 10),
+      exchangeRate: record.exchangeRate ?? (identity.currency === 'CNY' ? 1 : undefined)
+    }))
+    if (records.length === 0 && stock.position) {
+      const openedOn = stock.position.openedOn ?? new Date().toISOString().slice(0, 10)
+      records.push({
+        id: `opening-balance:${stock.quoteId}`,
+        side: 'buy',
+        purpose: 'base',
+        tradedAt: `${openedOn}T09:30`,
+        price: stock.position.cost,
+        quantity: stock.position.quantity,
+        fees: { commission: 0, handling: 0, regulatory: 0, transfer: 0, stampDuty: 0 },
+        market: identity.market,
+        currency: stock.position.currency ?? identity.currency,
+        marketDate: openedOn,
+        exchangeRate:
+          stock.position.costExchangeRate ?? (identity.currency === 'CNY' ? 1 : undefined),
+        exchangeRateDate: stock.position.costExchangeRateDate,
+        origin: 'opening-balance',
+        note: '期初持仓'
+      })
+    }
+    if (existing || records.length > 0) {
+      normalized[stock.quoteId] = withLedgerTradeRecords(
+        {
+          ...account,
+          market: account.market ?? identity.market,
+          currency: account.currency ?? identity.currency
+        },
+        records.sort((left, right) => right.tradedAt.localeCompare(left.tradedAt))
+      )
+    }
+  }
+  return normalized
 }
 
 export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
@@ -760,6 +1303,10 @@ export interface StockQuote {
   code: string
   name: string
   quoteId: string
+  market?: import('./stock-market').StockMarket
+  currency?: import('./stock-market').StockCurrency
+  volumeUnit?: import('./stock-market').StockVolumeUnit
+  source?: StockQuoteSource
   latest: number | null
   change: number | null
   changePercent: number | null
@@ -776,7 +1323,13 @@ export interface StockQuote {
   radarSignals?: StockRadarSignal[]
   fiveLevelLargeOrders?: FiveLevelLargeOrderAlert[]
   updatedAt: string
+  dataAt?: string
 }
+
+export type StockQuoteSource =
+  'eastmoney-primary' | 'eastmoney-mirror' | 'tencent' | 'sina' | 'demo'
+
+export type StockQuoteDataState = 'live' | 'closed' | 'stale' | 'unknown'
 
 export interface OrderBookLevel {
   price: number | null
@@ -824,6 +1377,10 @@ export interface KlineResult {
   bars: KlineBar[]
   intervalMinutes?: 1 | 5
   fallbackReason?: string
+  source?: StockQuoteSource
+  adjustment?: 'forward' | 'none'
+  fetchedAt?: string
+  fromCache?: boolean
 }
 
 export type DailyMarketScanSignalType =
@@ -938,6 +1495,10 @@ export interface SearchResult {
   name: string
   quoteId: string
   marketLabel: string
+  market: import('./stock-market').StockMarket
+  exchange: import('./stock-market').StockExchange
+  currency: import('./stock-market').StockCurrency
+  instrumentType: import('./stock-market').StockInstrumentType
 }
 
 export type ShareholderMarket = 'SH' | 'SZ' | 'BJ'
@@ -1178,9 +1739,12 @@ export interface FundamentalValuationSnapshot {
   priceBookIndustrySampleSize: number
 }
 
-export type CompanyReportType = 'annual' | 'semiannual' | 'firstQuarter' | 'thirdQuarter'
+export type CompanyReportType =
+  'annual' | 'semiannual' | 'quarterly' | 'firstQuarter' | 'thirdQuarter' | 'current'
 
 export type CompanyReportVariant = 'full' | 'summary' | 'english'
+export type CompanyReportSource = '巨潮资讯' | 'SEC EDGAR' | 'HKEXnews'
+export type CompanyReportFormat = 'pdf' | 'html'
 
 export interface CompanyReportSummarySections {
   managementDiscussion: string | null
@@ -1192,6 +1756,7 @@ export interface CompanyReportSummarySections {
 export interface CompanyReportSummary {
   reportId: string
   code: string
+  quoteId?: string
   content: string
   managementDiscussion?: string | null
   auditOpinion?: string | null
@@ -1209,6 +1774,9 @@ export interface CompanyReportSummary {
 export interface CompanyReportItem {
   id: string
   code: string
+  quoteId?: string
+  market?: StockMarket
+  source?: CompanyReportSource
   title: string
   reportType: CompanyReportType
   reportYear: number
@@ -1216,18 +1784,86 @@ export interface CompanyReportItem {
   amended: boolean
   publishedAt: string
   url: string
+  format?: CompanyReportFormat
+  formType?: string
+  fiscalPeriod?: string
+  periodEnd?: string
   summary?: CompanyReportSummary
 }
 
 export interface CompanyReportLibraryResult {
   code: string
-  source: '巨潮资讯'
+  quoteId?: string
+  market?: StockMarket
+  source: CompanyReportSource
   periodStart: string
   periodEnd: string
   fetchedAt: string
   fromCache: boolean
   warning?: string
   reports: CompanyReportItem[]
+}
+
+export type GlobalFinancialMetricId =
+  | 'revenue'
+  | 'grossProfit'
+  | 'operatingIncome'
+  | 'netIncome'
+  | 'dilutedEps'
+  | 'totalAssets'
+  | 'totalLiabilities'
+  | 'stockholdersEquity'
+  | 'cashAndEquivalents'
+  | 'totalDebt'
+  | 'operatingCashFlow'
+  | 'capitalExpenditure'
+  | 'freeCashFlow'
+  | 'grossMargin'
+  | 'netMargin'
+  | 'roe'
+  | 'debtAssetRatio'
+
+export interface GlobalFinancialMetric {
+  id: GlobalFinancialMetricId
+  label: string
+  value: number
+  unit: 'currency' | 'perShare' | 'percent'
+  currency?: string
+  derivation: 'reported' | 'calculated'
+  rawConcept?: string
+}
+
+export interface GlobalFinancialPeriod {
+  id: string
+  periodType: 'annual' | 'interim' | 'ttm'
+  fiscalYear: number
+  fiscalPeriod: string
+  periodStart?: string
+  periodEnd: string
+  filedAt: string
+  formType: string
+  sourceUrl: string
+  metrics: GlobalFinancialMetric[]
+}
+
+export interface GlobalFundamentalSnapshot {
+  schemaVersion: 1
+  quoteId: string
+  market: 'HK' | 'US'
+  code: string
+  name: string
+  officialIssuerId: string
+  accountingStandard: 'US GAAP' | 'IFRS' | 'HKFRS' | '未识别'
+  reportingCurrency: string | null
+  fiscalYearEnd?: string
+  fetchedAt: string
+  fromCache: boolean
+  warning?: string
+  source: {
+    name: 'SEC Company Facts' | 'HKEXnews'
+    url: string
+  }
+  periods: GlobalFinancialPeriod[]
 }
 
 export interface FundamentalCompany {
@@ -1392,9 +2028,21 @@ export interface FundamentalUpdateResult {
   diagnosticsPath: string
 }
 
-export const BUILT_IN_TRADING_CALENDAR_END_YEAR = 2026
+export const BUILT_IN_TRADING_CALENDAR_END_YEAR = BUILT_IN_MARKET_CALENDAR_END_YEARS.CN
+
+export interface MarketTradingCalendarSettings {
+  closedDates: string[]
+  halfDayDates: string[]
+  coveredThroughYear: number
+  source: MarketCalendarSource
+  lastRefreshedAt: string | null
+  lastCheckedYear: number | null
+  lastAttemptedAt: string | null
+  lastError: string | null
+}
 
 export interface TradingCalendarSettings {
+  markets: Record<StockMarket, MarketTradingCalendarSettings>
   closedDates: string[]
   coveredThroughYear: number
   lastRefreshedAt: string | null
@@ -1403,7 +2051,52 @@ export interface TradingCalendarSettings {
   lastError: string | null
 }
 
+export interface ExchangeRateSettings {
+  baseCurrency: 'CNY'
+  rates: Record<import('./stock-market').StockCurrency, number | null>
+  manualOverrides: Partial<Record<'HKD' | 'USD', number>>
+  rateDate: string | null
+  fetchedAt: string | null
+  lastCheckedDate: string | null
+  lastAttemptedAt: string | null
+  lastError: string | null
+  source: 'safe-cfets'
+}
+
+export const DEFAULT_EXCHANGE_RATE_SETTINGS: ExchangeRateSettings = {
+  baseCurrency: 'CNY',
+  rates: { CNY: 1, HKD: null, USD: null },
+  manualOverrides: {},
+  rateDate: null,
+  fetchedAt: null,
+  lastCheckedDate: null,
+  lastAttemptedAt: null,
+  lastError: null,
+  source: 'safe-cfets'
+}
+
+function defaultMarketTradingCalendar(market: StockMarket): MarketTradingCalendarSettings {
+  const calendar = builtInMarketCalendar(market)
+  return {
+    closedDates: [...calendar.closedDates],
+    halfDayDates: [...calendar.halfDayDates],
+    coveredThroughYear: BUILT_IN_MARKET_CALENDAR_END_YEARS[market],
+    source: market === 'US' ? 'nyse-rules' : 'built-in',
+    lastRefreshedAt: null,
+    lastCheckedYear: null,
+    lastAttemptedAt: null,
+    lastError: null
+  }
+}
+
+const DEFAULT_MARKET_TRADING_CALENDARS: Record<StockMarket, MarketTradingCalendarSettings> = {
+  CN: defaultMarketTradingCalendar('CN'),
+  HK: defaultMarketTradingCalendar('HK'),
+  US: defaultMarketTradingCalendar('US')
+}
+
 export const DEFAULT_TRADING_CALENDAR_SETTINGS: TradingCalendarSettings = {
+  markets: structuredClone(DEFAULT_MARKET_TRADING_CALENDARS),
   closedDates: [],
   coveredThroughYear: BUILT_IN_TRADING_CALENDAR_END_YEAR,
   lastRefreshedAt: null,
@@ -1434,9 +2127,11 @@ export interface AppSettings {
   showBollingerBands: boolean
   taskbarPositionPercent: number
   tTradingFees: TTradingFeeSettings
+  marketTradeFees: MarketTradeFeeSettings
   tPlanDefaults: TPlanDefaultSettings
   tFloatingProfitAlertDefaultThreshold: number
   tradingCalendar: TradingCalendarSettings
+  exchangeRates: ExchangeRateSettings
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -1450,9 +2145,38 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   showBollingerBands: true,
   taskbarPositionPercent: 0,
   tTradingFees: { ...DEFAULT_T_TRADING_FEE_SETTINGS },
+  marketTradeFees: structuredClone(DEFAULT_MARKET_TRADE_FEE_SETTINGS),
   tPlanDefaults: structuredClone(DEFAULT_T_PLAN_SETTINGS),
   tFloatingProfitAlertDefaultThreshold: DEFAULT_T_FLOATING_PROFIT_ALERT_THRESHOLD,
-  tradingCalendar: { ...DEFAULT_TRADING_CALENDAR_SETTINGS }
+  tradingCalendar: structuredClone(DEFAULT_TRADING_CALENDAR_SETTINGS),
+  exchangeRates: structuredClone(DEFAULT_EXCHANGE_RATE_SETTINGS)
+}
+
+export function normalizeExchangeRateSettings(
+  settings: Partial<ExchangeRateSettings> | undefined
+): ExchangeRateSettings {
+  const positiveRate = (value: number | null | undefined): number | null =>
+    typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null
+  const manualOverrides: ExchangeRateSettings['manualOverrides'] = {}
+  const manualHkd = positiveRate(settings?.manualOverrides?.HKD)
+  const manualUsd = positiveRate(settings?.manualOverrides?.USD)
+  if (manualHkd !== null) manualOverrides.HKD = manualHkd
+  if (manualUsd !== null) manualOverrides.USD = manualUsd
+  return {
+    baseCurrency: 'CNY',
+    rates: {
+      CNY: 1,
+      HKD: positiveRate(settings?.rates?.HKD),
+      USD: positiveRate(settings?.rates?.USD)
+    },
+    manualOverrides,
+    rateDate: settings?.rateDate ?? null,
+    fetchedAt: settings?.fetchedAt ?? null,
+    lastCheckedDate: settings?.lastCheckedDate ?? null,
+    lastAttemptedAt: settings?.lastAttemptedAt ?? null,
+    lastError: settings?.lastError ?? null,
+    source: 'safe-cfets'
+  }
 }
 
 function normalizeTTradingFeeSettings(
@@ -1491,6 +2215,49 @@ function normalizeTTradingFeeSettings(
   }
 }
 
+function normalizeMarketTradeFeeSettings(
+  settings: Partial<MarketTradeFeeSettings> | undefined
+): MarketTradeFeeSettings {
+  return {
+    HK: {
+      brokerageRatePercent: Math.max(
+        0,
+        settings?.HK?.brokerageRatePercent ??
+          DEFAULT_MARKET_TRADE_FEE_SETTINGS.HK.brokerageRatePercent
+      ),
+      minimumBrokerage: Math.max(
+        0,
+        settings?.HK?.minimumBrokerage ?? DEFAULT_MARKET_TRADE_FEE_SETTINGS.HK.minimumBrokerage
+      ),
+      platformFee: Math.max(
+        0,
+        settings?.HK?.platformFee ?? DEFAULT_MARKET_TRADE_FEE_SETTINGS.HK.platformFee
+      ),
+      includeSettlementFee:
+        settings?.HK?.includeSettlementFee ??
+        DEFAULT_MARKET_TRADE_FEE_SETTINGS.HK.includeSettlementFee
+    },
+    US: {
+      commissionPerShare: Math.max(
+        0,
+        settings?.US?.commissionPerShare ?? DEFAULT_MARKET_TRADE_FEE_SETTINGS.US.commissionPerShare
+      ),
+      minimumCommission: Math.max(
+        0,
+        settings?.US?.minimumCommission ?? DEFAULT_MARKET_TRADE_FEE_SETTINGS.US.minimumCommission
+      ),
+      platformFee: Math.max(
+        0,
+        settings?.US?.platformFee ?? DEFAULT_MARKET_TRADE_FEE_SETTINGS.US.platformFee
+      ),
+      includeSecFee:
+        settings?.US?.includeSecFee ?? DEFAULT_MARKET_TRADE_FEE_SETTINGS.US.includeSecFee,
+      includeFinraTaf:
+        settings?.US?.includeFinraTaf ?? DEFAULT_MARKET_TRADE_FEE_SETTINGS.US.includeFinraTaf
+    }
+  }
+}
+
 function normalizeTPlanDefaultLevels(
   levels: readonly Partial<TPlanDefaultLevel>[] | undefined,
   fallbacks: readonly TPlanDefaultLevel[]
@@ -1516,20 +2283,53 @@ function normalizeTPlanDefaultSettings(
 export function normalizeTradingCalendarSettings(
   calendar: Partial<TradingCalendarSettings> | undefined
 ): TradingCalendarSettings {
-  const closedDates = Array.isArray(calendar?.closedDates)
-    ? [...new Set(calendar.closedDates.filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)))].sort()
-    : []
-  return {
-    closedDates,
-    coveredThroughYear: Math.max(
-      BUILT_IN_TRADING_CALENDAR_END_YEAR,
-      calendar?.coveredThroughYear ?? BUILT_IN_TRADING_CALENDAR_END_YEAR
-    ),
-    lastRefreshedAt: calendar?.lastRefreshedAt ?? null,
-    lastCheckedYear: calendar?.lastCheckedYear ?? null,
-    lastAttemptedAt: calendar?.lastAttemptedAt ?? null,
-    lastError: calendar?.lastError ?? null
+  const validDates = (dates: readonly string[] | undefined) =>
+    [...new Set((dates ?? []).filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)))].sort()
+  const storedMarkets = calendar?.markets as
+    Partial<Record<StockMarket, Partial<MarketTradingCalendarSettings>>> | undefined
+  const normalizeMarket = (market: StockMarket): MarketTradingCalendarSettings => {
+    const defaults = DEFAULT_MARKET_TRADING_CALENDARS[market]
+    const stored = storedMarkets?.[market]
+    const legacy = market === 'CN' ? calendar : undefined
+    return {
+      closedDates: validDates([
+        ...defaults.closedDates,
+        ...(stored?.closedDates ?? legacy?.closedDates ?? [])
+      ]),
+      halfDayDates: validDates([...defaults.halfDayDates, ...(stored?.halfDayDates ?? [])]),
+      coveredThroughYear: Math.max(
+        defaults.coveredThroughYear,
+        stored?.coveredThroughYear ?? legacy?.coveredThroughYear ?? defaults.coveredThroughYear
+      ),
+      source: stored?.source ?? defaults.source,
+      lastRefreshedAt: stored?.lastRefreshedAt ?? legacy?.lastRefreshedAt ?? null,
+      lastCheckedYear: stored?.lastCheckedYear ?? legacy?.lastCheckedYear ?? null,
+      lastAttemptedAt: stored?.lastAttemptedAt ?? legacy?.lastAttemptedAt ?? null,
+      lastError: stored?.lastError ?? legacy?.lastError ?? null
+    }
   }
+  const markets = {
+    CN: normalizeMarket('CN'),
+    HK: normalizeMarket('HK'),
+    US: normalizeMarket('US')
+  }
+  const cnCalendar = markets.CN
+  return {
+    markets,
+    closedDates: cnCalendar.closedDates,
+    coveredThroughYear: cnCalendar.coveredThroughYear,
+    lastRefreshedAt: cnCalendar.lastRefreshedAt,
+    lastCheckedYear: cnCalendar.lastCheckedYear,
+    lastAttemptedAt: cnCalendar.lastAttemptedAt,
+    lastError: cnCalendar.lastError
+  }
+}
+
+export function marketTradingCalendar(
+  settings: TradingCalendarSettings,
+  market: StockMarket
+): MarketTradingCalendarSettings {
+  return settings.markets[market]
 }
 
 export function normalizeAppSettings(
@@ -1563,12 +2363,14 @@ export function normalizeAppSettings(
       Math.max(0, settings?.taskbarPositionPercent ?? DEFAULT_APP_SETTINGS.taskbarPositionPercent)
     ),
     tTradingFees: normalizeTTradingFeeSettings(settings?.tTradingFees),
+    marketTradeFees: normalizeMarketTradeFeeSettings(settings?.marketTradeFees),
     tPlanDefaults: normalizeTPlanDefaultSettings(settings?.tPlanDefaults),
     tFloatingProfitAlertDefaultThreshold: Math.max(
       1,
       settings?.tFloatingProfitAlertDefaultThreshold ?? DEFAULT_T_FLOATING_PROFIT_ALERT_THRESHOLD
     ),
-    tradingCalendar: normalizeTradingCalendarSettings(settings?.tradingCalendar)
+    tradingCalendar: normalizeTradingCalendarSettings(settings?.tradingCalendar),
+    exchangeRates: normalizeExchangeRateSettings(settings?.exchangeRates)
   }
 }
 
@@ -1581,9 +2383,11 @@ export interface AppState {
   columnOrder: WatchlistColumnId[]
   columnOrderVersion?: number
   tTradingAccounts: TTradingAccounts
+  corporateActionRecords: CorporateActionRecords
 }
 
-export type CompletionNotificationTarget = 'reports' | 'ai-short-term' | 'ai-long-term' | 't-advice'
+export type CompletionNotificationTarget =
+  'reports' | 'corporate-actions' | 'ai-short-term' | 'ai-long-term' | 't-advice'
 
 export interface AppCompletionNotification {
   id: string
@@ -1648,6 +2452,42 @@ export interface ConfigImportResult extends ConfigExportResult {
   githubGistVersion?: string
 }
 
+export type CacheCategoryId =
+  | 'temporary-market'
+  | 'diagnostic-logs'
+  | 'shareholders'
+  | 'valuations'
+  | 'market-insight'
+  | 'company-reports'
+  | 'corporate-actions'
+  | 'data-snapshots'
+  | 'electron-web'
+
+export type CacheCategoryGroup = 'default' | 'advanced' | 'separate'
+
+export interface CacheCategorySummary {
+  id: CacheCategoryId
+  label: string
+  description: string
+  group: CacheCategoryGroup
+  fileCount: number | null
+  sizeBytes: number
+  latestModifiedAt: string | null
+}
+
+export interface CacheSummary {
+  generatedAt: string
+  categories: CacheCategorySummary[]
+}
+
+export interface CacheClearResult {
+  categoryIds: CacheCategoryId[]
+  clearedFileCount: number
+  clearedBytes: number
+  webCacheCleared: boolean
+  failedPaths: string[]
+}
+
 export interface BootstrapResult {
   state: AppState
   quotes: StockQuote[]
@@ -1666,6 +2506,12 @@ export interface TaskbarTooltipAnchor {
   width: number
 }
 
+export interface StockSelectionRequest {
+  id: string
+  quoteId: string
+  scrollAlignment?: 'sticky-top'
+}
+
 export interface StockDesktopApi {
   getBootstrap: () => Promise<BootstrapResult>
   getTaskbarLayout: () => Promise<TaskbarLayout>
@@ -1682,7 +2528,35 @@ export interface StockDesktopApi {
   getFundamentalState: () => Promise<DataSnapshotRuntimeState>
   getFundamentalChangeReport: () => Promise<FundamentalChangeReport | null>
   runFundamentalUpdate: () => Promise<FundamentalUpdateResult>
-  getCompanyReports: (code: string, forceRefresh?: boolean) => Promise<CompanyReportLibraryResult>
+  getCompanyReports: (
+    quoteId: string,
+    forceRefresh?: boolean
+  ) => Promise<CompanyReportLibraryResult>
+  listCorporateActions: (
+    quoteId: string,
+    forceRefresh?: boolean
+  ) => Promise<CorporateActionListResult>
+  previewCorporateAction: (
+    request: CorporateActionPreviewRequest
+  ) => Promise<CorporateActionImpactPreview>
+  confirmCorporateAction: (
+    request: CorporateActionPreviewRequest
+  ) => Promise<CorporateActionImpactPreview>
+  ignoreCorporateAction: (candidate: CorporateActionCandidate) => Promise<CorporateActionRecord>
+  reverseCorporateAction: (
+    candidate: CorporateActionCandidate,
+    account: TTradingAccount
+  ) => Promise<ReversalLedgerEntry[]>
+  listPortfolioLedger: (account: TTradingAccount) => Promise<PortfolioLedgerEntry[]>
+  createManualCorporateAction: (
+    request: ManualCorporateActionRequest,
+    account: TTradingAccount
+  ) => Promise<{ candidate: CorporateActionCandidate; preview: CorporateActionImpactPreview }>
+  openCorporateAction: (url: string) => Promise<void>
+  getGlobalFundamentals: (
+    quoteId: string,
+    forceRefresh?: boolean
+  ) => Promise<GlobalFundamentalSnapshot>
   generateCompanyReportSummary: (report: CompanyReportItem) => Promise<CompanyReportSummary>
   openCompanyReport: (url: string) => Promise<void>
   getShareholderSnapshot: (quoteId: string, forceRefresh?: boolean) => Promise<ShareholderSnapshot>
@@ -1701,6 +2575,7 @@ export interface StockDesktopApi {
   getFundsFlow: (quoteId: string) => Promise<FundsFlowResult>
   getSectorIndex: (quoteId: string) => Promise<SectorIndexResult>
   refreshTradingCalendar: () => Promise<TradingCalendarSettings>
+  refreshExchangeRates: () => Promise<ExchangeRateSettings>
   saveState: (state: AppState) => Promise<AppState>
   getCompletionNotifications: () => Promise<AppCompletionNotification[]>
   saveCompletionNotifications: (
@@ -1709,6 +2584,8 @@ export interface StockDesktopApi {
   exportConfig: (state: AppState) => Promise<ConfigExportResult>
   importConfig: () => Promise<ConfigImportResult>
   applyConfigImport: (importId: string) => Promise<void>
+  getCacheSummary: () => Promise<CacheSummary>
+  clearCaches: (categoryIds: CacheCategoryId[]) => Promise<CacheClearResult>
   getGitHubSyncSettings: () => Promise<GitHubSyncSettings>
   startGitHubLogin: () => Promise<GitHubDeviceAuthorization>
   completeGitHubLogin: (loginId: string) => Promise<GitHubLoginResult>
@@ -1729,7 +2606,7 @@ export interface StockDesktopApi {
   onStateUpdated: (callback: (state: AppState) => void) => () => void
   onTaskbarLayout: (callback: (layout: TaskbarLayout) => void) => () => void
   onTaskbarTooltipStock: (callback: (quoteId: string) => void) => () => void
-  onSelectStock: (callback: (quoteId: string) => void) => () => void
+  onSelectStock: (callback: (request: StockSelectionRequest) => void) => () => void
   onDataError: (callback: (message: string) => void) => () => void
   onDividendFinancingUpdateProgress: (
     callback: (progress: DividendFinancingUpdateProgress) => void

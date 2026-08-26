@@ -7,6 +7,7 @@ import {
 import type {
   DividendFinancingRankingItem,
   StockQuote,
+  TradingCalendarSettings,
   WatchlistColumnId,
   WatchStock
 } from '../../shared/types'
@@ -68,7 +69,7 @@ export const TABLE_MIN_WIDTH =
 export function sortValue(
   row: StockRowData,
   column: WatchlistColumnId,
-  tradingCalendarClosedDates: string[]
+  tradingCalendar: TradingCalendarSettings | string[]
 ): string | number | null | undefined {
   switch (column) {
     case 'stock':
@@ -96,8 +97,18 @@ export function sortValue(
       return row.quote?.open
     case 'trading':
       return row.quote?.amount
-    case 'amount':
-      return getPositionHoldingDays(row.stock.position, tradingCalendarClosedDates)
+    case 'amount': {
+      const market = row.stock.market ?? 'CN'
+      const calendar = Array.isArray(tradingCalendar)
+        ? { closedDates: tradingCalendar, halfDayDates: [] }
+        : tradingCalendar.markets[market]
+      return getPositionHoldingDays(
+        row.stock.position,
+        calendar.closedDates,
+        market,
+        calendar.halfDayDates
+      )
+    }
     case 'radar': {
       if (!row.stock.showRadarSignals) return null
       const today = currentDateKey().replaceAll('-', '')
@@ -122,11 +133,11 @@ export function sortValue(
 export function sortRows(
   rows: StockRowData[],
   sort: SortState,
-  tradingCalendarClosedDates: string[]
+  tradingCalendar: TradingCalendarSettings | string[]
 ): StockRowData[] {
   return [...rows].sort((left, right) => {
-    const leftValue = sortValue(left, sort.column, tradingCalendarClosedDates)
-    const rightValue = sortValue(right, sort.column, tradingCalendarClosedDates)
+    const leftValue = sortValue(left, sort.column, tradingCalendar)
+    const rightValue = sortValue(right, sort.column, tradingCalendar)
     const leftMissing = leftValue === null || leftValue === undefined
     const rightMissing = rightValue === null || rightValue === undefined
 

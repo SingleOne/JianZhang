@@ -6,6 +6,19 @@ export interface SseTradingCalendar {
   closedDates: string[]
 }
 
+export interface HkexTradingCalendar {
+  year: number
+  closedDates: string[]
+  halfDayDates: string[]
+}
+
+interface HkexCalendarEvent {
+  name?: string
+  description?: string
+  startdate?: string
+  holidayIcon?: string
+}
+
 function plainText(html: string): string {
   return html
     .replace(/<[^>]+>/g, '')
@@ -73,4 +86,44 @@ export async function fetchSseTradingCalendar(expectedYear: number): Promise<Sse
   if (closedDates.length === 0) throw new Error('未能从上交所页面识别休市日期')
 
   return { year: expectedYear, closedDates }
+}
+
+export async function fetchHkexTradingCalendar(expectedYear: number): Promise<HkexTradingCalendar> {
+  const url = new URL('https://www.hkex.com.hk/News/HKEX-Calendar')
+  url.searchParams.set('sc_lang', 'en')
+  url.searchParams.set('currenttab', 'search-result')
+  url.searchParams.set('datefrom', `${expectedYear}-01-01`)
+  url.searchParams.set('dateto', `${expectedYear}-12-31`)
+  url.searchParams.set('defaultdate', `${expectedYear}-01-01`)
+  url.searchParams.set('order', 'asc')
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': 'Jianzhang Stock Desktop',
+      Referer: 'https://www.hkex.com.hk/'
+    },
+    signal: AbortSignal.timeout(20_000)
+  })
+  if (!response.ok) throw new Error(`港交所返回 HTTP ${response.status}`)
+
+  const html = await response.text()
+  const encoded = html.match(/calendarDataSource\s*=\s*'([\s\S]*?)';/)?.[1]
+  if (!encoded) throw new Error('未能从港交所页面识别日历数据')
+  const events = (JSON.parse(encoded) as { monthly?: HkexCalendarEvent[] }).monthly ?? []
+  const annualEvents = events.filter((event) => event.startdate?.startsWith(`${expectedYear}-`))
+  const closedDates = [...new Set(
+    annualEvents
+      .filter((event) => event.holidayIcon === 'HongKongPublicHolidays')
+      .flatMap((event) => event.startdate ? [event.startdate] : [])
+  )].sort()
+  const halfDayDates = [...new Set(
+    annualEvents
+      .filter((event) =>
+        `${event.name ?? ''} ${event.description ?? ''}`.includes('Half-Day Trading Day')
+      )
+      .flatMap((event) => event.startdate ? [event.startdate] : [])
+  )].sort()
+  if (closedDates.length === 0 || halfDayDates.length === 0) {
+    throw new Error(`港交所 ${expectedYear} 年日历数据不完整`)
+  }
+  return { year: expectedYear, closedDates, halfDayDates }
 }

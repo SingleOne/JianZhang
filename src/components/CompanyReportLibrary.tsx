@@ -12,11 +12,7 @@ import { COMPANY_REPORT_TYPE_LABELS } from '../lib/company-reports'
 import { stockApi } from '../lib/api'
 import { emitCompletionNotification } from '../lib/completion-notifications'
 import type { FundamentalScreeningEvaluation } from '../lib/fundamental-screening'
-import type {
-  CompanyReportItem,
-  CompanyReportLibraryResult,
-  WatchStock
-} from '../shared/types'
+import type { CompanyReportItem, CompanyReportLibraryResult, WatchStock } from '../shared/types'
 import './CompanyReportLibrary.css'
 
 const reportLibraryCache = new Map<string, CompanyReportLibraryResult>()
@@ -238,7 +234,10 @@ function ReportRow({
         <small className={report.summary ? 'has-summary' : ''}>
           {report.summary?.content ?? '尚未生成财报总结，可点击右侧“AI 总结”。'}
         </small>
-        <span>公告日期 {formatDate(report.publishedAt)}</span>
+        <span>
+          公告日期 {formatDate(report.publishedAt)}
+          {report.formType ? ` · ${report.formType}` : ''}
+        </span>
       </span>
       <span className="company-report-badges">
         <em>{COMPANY_REPORT_TYPE_LABELS[report.reportType]}</em>
@@ -259,7 +258,7 @@ function ReportRow({
         type="button"
         onClick={onSummarize}
         disabled={summarizing}
-        title="下载巨潮财报原文，使用当前 AI 模型生成总结并保存到本地"
+        title="下载官方财报原文，使用当前 AI 模型生成总结并保存到本地"
       >
         {summarizing ? <RefreshCw size={14} className="is-spinning" /> : <Sparkles size={14} />}
         {summarizing ? '总结中' : report.summary ? '重新总结' : 'AI 总结'}
@@ -270,7 +269,7 @@ function ReportRow({
 
 export function CompanyReportLibrary({ stock }: { stock: WatchStock }) {
   const [snapshot, setSnapshot] = useState<CompanyReportLibraryResult | null>(
-    () => reportLibraryCache.get(stock.code) ?? null
+    () => reportLibraryCache.get(stock.quoteId) ?? null
   )
   const [loading, setLoading] = useState(!snapshot)
   const [error, setError] = useState('')
@@ -281,8 +280,8 @@ export function CompanyReportLibrary({ stock }: { stock: WatchStock }) {
       setLoading(true)
       setError('')
       try {
-        const result = await stockApi.getCompanyReports(stock.code, forceRefresh)
-        reportLibraryCache.set(stock.code, result)
+        const result = await stockApi.getCompanyReports(stock.quoteId, forceRefresh)
+        reportLibraryCache.set(stock.quoteId, result)
         setSnapshot(result)
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : '公司财报目录获取失败')
@@ -290,14 +289,14 @@ export function CompanyReportLibrary({ stock }: { stock: WatchStock }) {
         setLoading(false)
       }
     },
-    [stock.code]
+    [stock.quoteId]
   )
 
   useEffect(() => {
-    const cached = reportLibraryCache.get(stock.code)
+    const cached = reportLibraryCache.get(stock.quoteId)
     setSnapshot(cached ?? null)
     if (!cached) void loadReports()
-  }, [loadReports, stock.code])
+  }, [loadReports, stock.quoteId])
 
   const baseReports = useMemo(
     () => snapshot?.reports.filter((report) => report.variant === 'full') ?? [],
@@ -330,7 +329,7 @@ export function CompanyReportLibrary({ stock }: { stock: WatchStock }) {
             item.id === report.id ? { ...item, summary } : item
           )
         }
-        reportLibraryCache.set(stock.code, next)
+        reportLibraryCache.set(stock.quoteId, next)
         return next
       })
       emitCompletionNotification({
@@ -352,7 +351,9 @@ export function CompanyReportLibrary({ stock }: { stock: WatchStock }) {
           <BookOpen size={24} />
         </span>
         <span>
-          <small>{stock.code} · 上市公司定期报告</small>
+          <small>
+            {stock.code} · {snapshot?.source ?? '官方定期报告'}
+          </small>
           <strong>{stock.name}财报库</strong>
         </span>
         <button type="button" onClick={() => void loadReports(true)} disabled={loading}>

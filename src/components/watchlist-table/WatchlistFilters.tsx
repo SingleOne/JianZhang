@@ -1,6 +1,6 @@
 import { Folders, Search, X } from 'lucide-react'
 import { Fragment, useMemo, useState } from 'react'
-import type { WatchStock } from '../../shared/types'
+import type { StockMarket, WatchStock } from '../../shared/types'
 import { TableFilterDropdown, type TableFilterOption } from '../TableFilterDropdown'
 
 interface TableStockSearchProps {
@@ -95,9 +95,12 @@ interface WatchlistFiltersProps {
   customGroupOptions: TableFilterOption[]
   sectorFilter: string
   sectorOptions: TableFilterOption[]
+  marketFilter: StockMarket | 'all'
+  marketOptions: TableFilterOption[]
   displayedStocks: WatchStock[]
   onCustomGroupChange: (value: string) => void
   onSectorChange: (value: string) => void
+  onMarketChange: (value: StockMarket | 'all') => void
   onManageGroups: () => void
   onChooseStock: (quoteId: string) => void
 }
@@ -107,14 +110,23 @@ export function WatchlistFilters({
   customGroupOptions,
   sectorFilter,
   sectorOptions,
+  marketFilter,
+  marketOptions,
   displayedStocks,
   onCustomGroupChange,
   onSectorChange,
+  onMarketChange,
   onManageGroups,
   onChooseStock
 }: WatchlistFiltersProps) {
   return (
     <Fragment>
+      <TableFilterDropdown
+        label="市场筛选"
+        value={marketFilter}
+        options={marketOptions}
+        onChange={(value) => onMarketChange(value as StockMarket | 'all')}
+      />
       <TableFilterDropdown
         label="自定义分组"
         value={customGroupFilter}

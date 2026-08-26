@@ -147,6 +147,12 @@ tr:focus-visible {
   animation: live-pulse 1.8s ease-in-out infinite;
 }
 
+.market-state-list {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
 .titlebar-command-slot {
   min-width: 0;
   flex: 1 1 auto;
@@ -182,6 +188,89 @@ tr:focus-visible {
   align-items: center;
   gap: 7px;
   margin-left: auto;
+}
+
+.titlebar-tools-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.titlebar-tools-menu summary {
+  list-style: none;
+}
+
+.titlebar-tools-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.titlebar-tools-menu[open] summary {
+  color: var(--blue);
+  background: #f7faff;
+  border-color: #a9c3f8;
+}
+
+.titlebar-tools-popover {
+  position: absolute;
+  top: 39px;
+  right: 0;
+  z-index: 70;
+  width: 242px;
+  display: grid;
+  gap: 3px;
+  padding: 6px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-menu);
+}
+
+.titlebar-tools-popover > button {
+  width: 100%;
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
+  color: #475467;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.titlebar-tools-popover > button:hover {
+  color: #243b64;
+  background: #f3f6fb;
+}
+
+.titlebar-tools-popover > button > svg {
+  color: #5f76a0;
+}
+
+.titlebar-tools-popover > button > span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.titlebar-tools-popover strong,
+.titlebar-tools-popover small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.titlebar-tools-popover strong {
+  color: inherit;
+  font-size: 13px;
+}
+
+.titlebar-tools-popover small {
+  color: #8490a3;
+  font-size: 12px;
 }
 
 .titlebar-command-bar .search-field,
@@ -224,7 +313,7 @@ tr:focus-visible {
   display: flex;
   flex-direction: column;
   margin: 0;
-  padding: 16px 0 0;
+  padding: 0;
 }
 
 .search-composer {

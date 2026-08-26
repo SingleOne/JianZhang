@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { initialState, stockApi } from '../lib/api'
 import {
   formatCost,
-  formatCurrency,
+  formatMoney,
+  formatMoneyProfit,
   formatPercent,
   formatPrice,
   formatProfit,
@@ -10,11 +11,8 @@ import {
   formatShares
 } from '../lib/format'
 import { calculatePositionMetrics } from '../lib/portfolio'
-import {
-  getTriggeredTAlertBadges,
-  getTriggeredTFloatingProfitAlert
-} from '../lib/t-alerts'
 import { calculateTBatchMetrics } from '../lib/t-trading'
+import { getTaskbarVisibleStocks } from '../lib/taskbar-visibility'
 import { getBatchTrades } from '../lib/trade-records'
 import type { AppState, StockQuote } from '../shared/types'
 
@@ -47,32 +45,30 @@ export function TrayHoverSummary() {
 
   const selectedStocks = useMemo(() => {
     const quoteMap = new Map(quotes.map((quote) => [quote.quoteId, quote]))
-    return state.watchlist
+    return getTaskbarVisibleStocks(state.watchlist)
       .map((stock) => {
         const quote = quoteMap.get(stock.quoteId)
         const account = state.tTradingAccounts[stock.quoteId]
         const activeTrades = getBatchTrades(account, account?.activeBatch)
-        const alertBadges = getTriggeredTAlertBadges(account?.activeBatch, activeTrades)
         return {
           stock,
           quote,
-          alertBadges,
-          hasFiveLevelAlert: Boolean(account?.activeBatch) && Boolean(quote?.fiveLevelLargeOrders?.length),
-          positionMetrics: calculatePositionMetrics(stock.position, quote, account),
+          positionMetrics: calculatePositionMetrics(
+            stock.position,
+            quote,
+            account,
+            state.settings.exchangeRates
+          ),
           tMetrics: account?.activeBatch
             ? calculateTBatchMetrics(account.activeBatch, activeTrades, quote?.latest)
-            : null,
-          floatingProfitAlert: getTriggeredTFloatingProfitAlert(account?.activeBatch)
+            : null
         }
       })
-      .filter(({ stock, alertBadges, hasFiveLevelAlert, floatingProfitAlert }) => (
-        stock.showInTaskbar || alertBadges.length > 0 || hasFiveLevelAlert || Boolean(floatingProfitAlert)
-      ))
-  }, [quotes, state.tTradingAccounts, state.watchlist])
+  }, [quotes, state.settings.exchangeRates, state.tTradingAccounts, state.watchlist])
   const todayProfitTotal = selectedStocks.reduce<number | null>((total, { positionMetrics }) => (
-    positionMetrics.todayProfit === null
+    positionMetrics.cnyTodayProfit === null
       ? total
-      : (total ?? 0) + positionMetrics.todayProfit
+      : (total ?? 0) + positionMetrics.cnyTodayProfit
   ), null)
 
   return (
@@ -81,7 +77,7 @@ export function TrayHoverSummary() {
         <span>今日收益与 T 仓概览</span>
         <span className="tray-summary-total">
           今日收益合计
-          <b className={valueClass(todayProfitTotal)}>{formatProfit(todayProfitTotal)}</b>
+          <b className={valueClass(todayProfitTotal)}>{formatMoneyProfit(todayProfitTotal, 'CNY')}</b>
         </span>
       </header>
       <div className="tray-summary-list">
@@ -97,7 +93,7 @@ export function TrayHoverSummary() {
               <span>
                 今日收益
                 <b className={valueClass(positionMetrics.todayProfit)}>
-                  {formatProfit(positionMetrics.todayProfit)}
+                  {formatMoneyProfit(positionMetrics.todayProfit, positionMetrics.currency)}
                 </b>
                 <b className={valueClass(positionMetrics.todayProfitPercent)}>
                   {formatPercent(positionMetrics.todayProfitPercent)}
@@ -105,11 +101,13 @@ export function TrayHoverSummary() {
               </span>
             </div>
             <div className="tray-summary-profit">
-              <span>持仓市值 <b>{formatCurrency(positionMetrics.marketValue)}</b></span>
+              <span>
+                持仓市值 <b>{formatMoney(positionMetrics.marketValue, positionMetrics.currency)}</b>
+              </span>
               <span>
                 持仓收益
                 <b className={valueClass(positionMetrics.totalProfit)}>
-                  {formatProfit(positionMetrics.totalProfit)}
+                  {formatMoneyProfit(positionMetrics.totalProfit, positionMetrics.currency)}
                 </b>
                 <b className={valueClass(positionMetrics.profitPercent)}>
                   {formatPercent(positionMetrics.profitPercent)}

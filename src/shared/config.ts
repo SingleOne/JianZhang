@@ -2,8 +2,9 @@ import {
   WATCHLIST_COLUMN_ORDER_VERSION,
   migrateWatchlistColumnOrder,
   normalizeAppSettings,
+  normalizeCorporateActionRecords,
   normalizeStockTrackingProfiles,
-  normalizeTTradingAccounts,
+  normalizeTradingAccountsForWatchlist,
   normalizeWatchlist,
   normalizeWatchlistGroups,
   synchronizeTrackingGroupMembership,
@@ -95,13 +96,14 @@ export function parseImportedAppState(value: unknown): AppState {
 
   const watchlistGroups = normalizeWatchlistGroups(importedState.watchlistGroups)
   const stockTrackingProfiles = normalizeStockTrackingProfiles(importedState.stockTrackingProfiles)
+  const watchlist = synchronizeTrackingGroupMembership(
+    normalizeWatchlist(importedState.watchlist),
+    watchlistGroups,
+    stockTrackingProfiles
+  )
   return {
     revision: undefined,
-    watchlist: synchronizeTrackingGroupMembership(
-      normalizeWatchlist(importedState.watchlist),
-      watchlistGroups,
-      stockTrackingProfiles
-    ),
+    watchlist,
     watchlistGroups,
     stockTrackingProfiles,
     settings: normalizeAppSettings(importedState.settings),
@@ -110,6 +112,10 @@ export function parseImportedAppState(value: unknown): AppState {
       importedState.columnOrderVersion
     ),
     columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
-    tTradingAccounts: normalizeTTradingAccounts(importedState.tTradingAccounts)
+    tTradingAccounts: normalizeTradingAccountsForWatchlist(
+      watchlist,
+      importedState.tTradingAccounts
+    ),
+    corporateActionRecords: normalizeCorporateActionRecords(importedState.corporateActionRecords)
   }
 }

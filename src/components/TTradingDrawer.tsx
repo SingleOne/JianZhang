@@ -56,6 +56,7 @@ import type {
   TTradeSide,
   WatchStock
 } from '../shared/types'
+import { withLedgerTradeRecords } from '../shared/types'
 import { useConfirmDialog } from './ConfirmDialog'
 
 interface TTradingDrawerProps {
@@ -125,6 +126,7 @@ export function TTradingDrawer({
     code: stock.code,
     name: stock.name,
     history: [],
+    ledger: { schemaVersion: 1, entries: [] },
     tradeRecords: []
   }
   const [side, setSide] = useState<TTradeSide>('buy')
@@ -151,10 +153,7 @@ export function TTradingDrawer({
   const [showAllActiveTrades, setShowAllActiveTrades] = useState(false)
   const [historyPage, setHistoryPage] = useState(0)
 
-  const activeTrades = useMemo(
-    () => getBatchTrades(currentAccount, currentAccount.activeBatch),
-    [currentAccount.activeBatch, currentAccount.tradeRecords]
-  )
+  const activeTrades = getBatchTrades(currentAccount, currentAccount.activeBatch)
   const activeMetrics = useMemo(
     () => calculateTBatchMetrics(currentAccount.activeBatch, activeTrades, quote?.latest),
     [activeTrades, currentAccount.activeBatch, quote?.latest]
@@ -289,10 +288,10 @@ export function TTradingDrawer({
         return
       }
       applyAccount(
-        {
-          ...currentAccount,
-          tradeRecords: upsertTradeRecord(currentAccount.tradeRecords, trade)
-        },
+        withLedgerTradeRecords(
+          currentAccount,
+          upsertTradeRecord(currentAccount.tradeRecords, trade)
+        ),
         applyTradeToPosition(stock.position, trade)
       )
       resetTradeForm()
@@ -346,13 +345,15 @@ export function TTradingDrawer({
     const hasTTrades = nextTrades.some((trade) => trade.purpose === 't')
     const nextRecords = upsertTradeRecord(currentAccount.tradeRecords, trade, plannedBatch)
     applyAccount(
-      {
-        ...currentAccount,
-        activeBatch: hasTTrades ? plannedBatch : undefined,
-        tradeRecords: hasTTrades
+      withLedgerTradeRecords(
+        {
+          ...currentAccount,
+          activeBatch: hasTTrades ? plannedBatch : undefined
+        },
+        hasTTrades
           ? nextRecords
           : detachTradeRecordsFromBatch(nextRecords, plannedBatch.id)
-      },
+      ),
       recalculatePositionFromBatch(plannedBatch, nextTrades)
     )
     resetTradeForm()
@@ -384,13 +385,15 @@ export function TTradingDrawer({
     const hasTTrades = nextTrades.some((trade) => trade.purpose === 't')
     const nextRecords = currentAccount.tradeRecords.filter((record) => record.id !== tradeId)
     applyAccount(
-      {
-        ...currentAccount,
-        activeBatch: hasTTrades ? plannedBatch : undefined,
-        tradeRecords: hasTTrades
+      withLedgerTradeRecords(
+        {
+          ...currentAccount,
+          activeBatch: hasTTrades ? plannedBatch : undefined
+        },
+        hasTTrades
           ? nextRecords
           : detachTradeRecordsFromBatch(nextRecords, plannedBatch.id)
-      },
+      ),
       recalculatePositionFromBatch(plannedBatch, nextTrades)
     )
     if (editingTradeId === tradeId) resetTradeForm()
@@ -596,11 +599,16 @@ export function TTradingDrawer({
     })
     if (!confirmed) return
 
-    applyAccount({
-      ...currentAccount,
-      history: currentAccount.history.filter((item) => item.id !== batch.id),
-      tradeRecords: currentAccount.tradeRecords.filter((record) => record.batchId !== batch.id)
-    }, stock.position)
+    applyAccount(
+      withLedgerTradeRecords(
+        {
+          ...currentAccount,
+          history: currentAccount.history.filter((item) => item.id !== batch.id)
+        },
+        currentAccount.tradeRecords.filter((record) => record.batchId !== batch.id)
+      ),
+      stock.position
+    )
 
     if (editingHistoryBatchId === batch.id) cancelEditingHistoryProfit()
   }

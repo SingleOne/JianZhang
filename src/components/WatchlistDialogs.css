@@ -142,6 +142,7 @@
   border: 0;
   outline: 0;
   font-variant-numeric: tabular-nums;
+  font-size: 12px;
 }
 
 .position-input-wrap > span {
@@ -152,8 +153,15 @@
   color: #7b8493;
   background: #f7f8fa;
   border-left: 1px solid var(--border);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
+}
+
+.position-fields > label > small {
+  color: #8a94a6;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
 }
 
 .position-snapshot-panel {
@@ -342,6 +350,89 @@
   font-size: 12px;
 }
 
+.trade-ledger-summary b {
+  font-size: 12px;
+}
+
+.trade-ledger-summary b.is-up {
+  color: var(--red);
+}
+
+.trade-ledger-summary b.is-down {
+  color: var(--green);
+}
+
+.trade-record-create {
+  display: grid;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 10px 12px;
+  background: #fbfcfe;
+  border-bottom: 1px solid #e4e9f0;
+}
+
+.trade-record-create-fields {
+  min-width: 1060px;
+  display: grid;
+  grid-template-columns: 80px 170px 80px 105px 105px 120px minmax(120px, 1fr) 130px 86px;
+  align-items: end;
+  gap: 8px;
+}
+
+.trade-record-create-fields > .primary-button {
+  grid-column: -2 / -1;
+}
+
+.trade-record-create-fields label {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  color: #6f7c8f;
+  font-size: 12px;
+}
+
+.trade-record-create-fields input,
+.trade-record-create-fields select {
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  color: #344054;
+  background: #ffffff;
+  border: 1px solid #d6deea;
+  border-radius: 6px;
+  outline: 0;
+  font-size: 12px;
+}
+
+.trade-record-create-fields input:focus,
+.trade-record-create-fields select:focus {
+  border-color: #8cb1ff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+
+.trade-record-create-fields .trade-record-create-check {
+  grid-auto-flow: column;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  align-self: center;
+}
+
+.trade-record-create-fields .trade-record-create-check input {
+  width: 16px;
+  height: 16px;
+}
+
+.trade-record-create-preview,
+.trade-record-create-error {
+  color: #7b8799;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.trade-record-create-error {
+  color: #c93643;
+}
+
 .trade-record-more {
   height: 32px;
   flex: none;
@@ -418,7 +509,7 @@
 
 .trade-record-row.is-editing {
   position: relative;
-  min-height: 96px;
+  min-height: 132px;
   align-items: start;
   padding-block: 10px;
   background: #f8fbff;
@@ -451,7 +542,7 @@
 
 .trade-record-edit-numbers {
   display: grid !important;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px !important;
 }
 
@@ -470,6 +561,19 @@
 .trade-record-edit-hint {
   align-self: center;
   color: #8a94a6;
+  font-size: 12px;
+}
+
+.trade-record-edit-hint label {
+  display: grid;
+  gap: 4px;
+  color: #7b8799;
+  font-size: 12px;
+}
+
+.position-form-error {
+  margin-top: -4px;
+  color: #c93643;
   font-size: 12px;
 }
 
@@ -641,7 +745,7 @@
 
 .stock-alert-current-values {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 10px;
 }
 

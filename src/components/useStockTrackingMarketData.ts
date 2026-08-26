@@ -6,9 +6,11 @@ import {
 } from '../lib/stock-tracking-metrics'
 import {
   INTRADAY_REFRESH_MILLISECONDS,
-  isBeijingAutoRefreshTime,
-  millisecondsUntilNextAutoRefreshWindow
+  isMarketOpen,
+  millisecondsUntilNextMarketOpen
 } from '../shared/market-hours'
+import { marketFromQuoteId } from '../shared/stock-market'
+import type { MarketCalendarDates } from '../shared/market-calendar'
 import type { KlineBar, KlineResult } from '../shared/types'
 
 export interface StockTrackingMarketData {
@@ -41,27 +43,31 @@ function errorMessage(reason: unknown, fallback: string): string {
   return reason instanceof Error ? reason.message : fallback
 }
 
-export function useStockTrackingMarketData(quoteId?: string): StockTrackingMarketData {
+export function useStockTrackingMarketData(
+  quoteId?: string,
+  marketCalendar?: MarketCalendarDates
+): StockTrackingMarketData {
   const [refreshVersion, setRefreshVersion] = useState(0)
   const [state, setState] = useState<MarketDataState>(EMPTY_STATE)
 
   useEffect(() => {
     if (!quoteId) return
+    const market = marketFromQuoteId(quoteId)
     let active = true
     let refreshTimer: number | undefined
 
     const scheduleRefresh = () => {
       refreshTimer = window.setTimeout(
         () => {
-          if (isBeijingAutoRefreshTime()) {
+          if (isMarketOpen(market, new Date(), marketCalendar)) {
             setRefreshVersion((current) => current + 1)
           } else {
             scheduleRefresh()
           }
         },
-        isBeijingAutoRefreshTime()
+        isMarketOpen(market, new Date(), marketCalendar)
           ? INTRADAY_REFRESH_MILLISECONDS
-          : millisecondsUntilNextAutoRefreshWindow()
+          : millisecondsUntilNextMarketOpen(market, new Date(), marketCalendar)
       )
     }
 
@@ -99,14 +105,19 @@ export function useStockTrackingMarketData(quoteId?: string): StockTrackingMarke
       active = false
       window.clearTimeout(refreshTimer)
     }
-  }, [quoteId, refreshVersion])
+  }, [marketCalendar, quoteId, refreshVersion])
 
   const currentState = state.quoteId === quoteId ? state : EMPTY_STATE
   return useMemo(() => {
     const dailyBars = currentState.daily?.bars ?? []
     const intraday = currentState.intraday
     const realtimeVolumeRatioPoints = intraday
-      ? calculateRealtimeVolumeRatio(intraday.bars, dailyBars, intraday.tradingDate)
+      ? calculateRealtimeVolumeRatio(
+          intraday.bars,
+          dailyBars,
+          intraday.tradingDate,
+          marketFromQuoteId(quoteId ?? '')
+        )
       : []
     return {
       dailyBars,
@@ -117,5 +128,5 @@ export function useStockTrackingMarketData(quoteId?: string): StockTrackingMarke
       realtimeLoading: currentState.loading,
       realtimeError: currentState.error
     }
-  }, [currentState])
+  }, [currentState, quoteId])
 }

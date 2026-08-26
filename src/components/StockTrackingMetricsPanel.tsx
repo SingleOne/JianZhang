@@ -8,7 +8,8 @@ import {
   latestStockTrackingMetric,
   stockTrackingPriceVolumeState
 } from '../lib/stock-tracking-metrics'
-import type { KlineBar, StockTrackingMetricSnapshot } from '../shared/types'
+import type { KlineBar, StockMarket, StockTrackingMetricSnapshot } from '../shared/types'
+import { volumeUnitForMarket } from '../shared/stock-market'
 import type { StockTrackingMarketData } from './useStockTrackingMarketData'
 
 const StockTrackingMetricsChart = lazy(() => import('./StockTrackingMetricsChart'))
@@ -22,6 +23,7 @@ type TrackingChart = 'priceVolume' | 'volumeRatio' | 'realtimeVolumeRatio' | 'da
 
 interface StockTrackingMetricsPanelProps {
   snapshots: StockTrackingMetricSnapshot[]
+  market: StockMarket
   marketData?: StockTrackingMarketData
   showDailyKline?: boolean
   trackingStartedAt?: string
@@ -56,6 +58,7 @@ function dailyChangePercent(bars: readonly KlineBar[], bar: KlineBar | undefined
 
 export function StockTrackingMetricsPanel({
   snapshots,
+  market,
   marketData,
   showDailyKline = false,
   trackingStartedAt,
@@ -63,6 +66,7 @@ export function StockTrackingMetricsPanel({
   bollingerBandsEnabled = false,
   onBollingerBandsEnabledChange
 }: StockTrackingMetricsPanelProps) {
+  const volumeUnit = volumeUnitForMarket(market)
   const [activeChart, setActiveChart] = useState<TrackingChart>('priceVolume')
   const [hoveredDailyBar, setHoveredDailyBar] = useState<KlineBar | null>(null)
   const latestSnapshot = snapshots.at(-1)
@@ -185,7 +189,7 @@ export function StockTrackingMetricsPanel({
                 </span>
                 <span>
                   <small>成交量</small>
-                  <strong>{formatVolume(displayedDailyBar?.volume)}</strong>
+                  <strong>{formatVolume(displayedDailyBar?.volume, volumeUnit)}</strong>
                 </span>
                 <span>
                   <small>成交额</small>
@@ -199,6 +203,7 @@ export function StockTrackingMetricsPanel({
               <PeriodKlineChart
                 bars={dailyBars}
                 period="daily"
+                market={market}
                 onHoverBar={setHoveredDailyBar}
                 bollingerBandsEnabled={bollingerBandsEnabled}
                 onBollingerBandsEnabledChange={
@@ -221,6 +226,7 @@ export function StockTrackingMetricsPanel({
           marketData?.realtimeVolumeRatioPoints.length ? (
             <StockTrackingRealtimeVolumeRatioChart
               points={marketData.realtimeVolumeRatioPoints}
+              market={market}
               intervalMinutes={marketData.realtimeIntervalMinutes}
               fallbackReason={marketData.realtimeFallbackReason}
             />
@@ -237,7 +243,7 @@ export function StockTrackingMetricsPanel({
           </div>
         ) : activeChart === 'priceVolume' ? (
           hasPriceVolumeData ? (
-            <StockTrackingPriceVolumeChart snapshots={snapshots} />
+            <StockTrackingPriceVolumeChart snapshots={snapshots} market={market} />
           ) : (
             <div className="stock-tracking-metrics-empty">正在补齐量价历史数据…</div>
           )
@@ -247,8 +253,9 @@ export function StockTrackingMetricsPanel({
       </Suspense>
       <p className="stock-tracking-metrics-note">
         图表请按住 Ctrl 并滚动鼠标滚轮进行横轴缩放。 日级追踪每 30 分钟更新；实时量比按交易时段每 30
-        秒刷新，计算口径为累计成交量 ÷
-        近5日平均成交量按已交易分钟折算值，午休不计时。连续三日量价背离会写入时间线并发送系统提醒。
+        秒刷新，计算口径为累计成交量 ÷ 近5日平均成交量按已交易分钟折算值，
+        {market === 'US' ? '按美股连续交易时段计算' : '午休不计时'}。
+        连续三日量价背离会写入时间线并发送系统提醒。
       </p>
     </section>
   )

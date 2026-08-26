@@ -39,7 +39,8 @@ function state(): AppState {
     settings: structuredClone(DEFAULT_APP_SETTINGS),
     columnOrder: [...DEFAULT_WATCHLIST_COLUMN_ORDER],
     columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
-    tTradingAccounts: {}
+    tTradingAccounts: {},
+    corporateActionRecords: {}
   }
 }
 

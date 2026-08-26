@@ -37,6 +37,7 @@
 | [`electron/main/quote-refresh-coordinator.ts`](../../electron/main/quote-refresh-coordinator.ts) | `QuoteRefreshCoordinator` | 合并重点/普通/手动刷新范围并保证主行情单队列执行 |
 | [`electron/main/sector-market-cache.ts`](../../electron/main/sector-market-cache.ts) | `SectorMarketCache` | 板块绑定持久化、并发补取、失败冷却和 60 秒板块报价缓存 |
 | [`electron/main/market-request-logger.ts`](../../electron/main/market-request-logger.ts) | `MarketRequestLogger` | 行情请求/报价轮次 JSONL 日志和启动时 7 天清理 |
+| [`electron/main/cache-maintenance-service.ts`](../../electron/main/cache-maintenance-service.ts) | `CacheMaintenanceService` | 缓存分类统计、默认/高级白名单清理和 Electron HTTP 缓存清理 |
 | [`electron/main/dividend-financing-service.ts`](../../electron/main/dividend-financing-service.ts) | `DividendFinancingService` | 分红融资用户快照、首次缺失更新、变化报告和过期状态 |
 | [`electron/main/fundamental-data-service.ts`](../../electron/main/fundamental-data-service.ts) | `FundamentalDataService` | 基本面用户快照、首次缺失更新、最近一次变化报告、过期状态和四阶段脚本调度 |
 | [`electron/main/company-report-service.ts`](../../electron/main/company-report-service.ts) | `CompanyReportService` | 巨潮最近五个报告年度查询、按股目录缓存、官方 PDF 安全打开及 AI 总结生成和保存 |

@@ -12,9 +12,13 @@ import {
   Upload
 } from 'lucide-react'
 import { lazy, Suspense, useState } from 'react'
+import { MARKET_CALENDAR_SOURCE_LABELS } from '../shared/market-calendar'
+import { STOCK_MARKET_LABELS } from '../shared/stock-market'
 import {
   MARKET_INDEX_OPTIONS,
   type AppSettings,
+  type CacheCategoryId,
+  type CacheSummary,
   type DataSnapshotRuntimeState,
   type GitHubDeviceAuthorization,
   type GitHubSyncSettings,
@@ -52,8 +56,14 @@ interface SettingsMenuProps {
   onDownloadUserDataFromGitHub: () => void
   onRefreshTradingCalendar: () => void
   calendarRefreshing: boolean
+  onRefreshExchangeRates: () => void
+  exchangeRatesRefreshing: boolean
   fundamentalDataState: DataSnapshotRuntimeState
   onUpdateFundamentalData: () => void
+  cacheSummary: CacheSummary | null
+  cacheBusy: boolean
+  onRefreshCacheSummary: () => void
+  onClearCaches: (categoryIds: CacheCategoryId[]) => void
 }
 
 const T_PLAN_DEFAULT_GROUPS = [
@@ -65,10 +75,12 @@ type SettingsTab = 'market' | 'trading' | 'system' | 'data'
 
 const SETTINGS_TABS = [
   { id: 'market', label: '行情' },
-  { id: 'trading', label: '做T' },
+  { id: 'trading', label: '交易' },
   { id: 'system', label: '系统' },
   { id: 'data', label: '数据' }
 ] as const satisfies readonly { id: SettingsTab; label: string }[]
+
+const STOCK_MARKETS = ['CN', 'HK', 'US'] as const
 
 function GitHubIcon({ size }: { size: number }) {
   return (
@@ -107,6 +119,13 @@ function dataStatusLabel(state: DataSnapshotRuntimeState): string {
   return '尚无数据'
 }
 
+function formatCacheSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
+}
+
 export function SettingsMenu({
   settings,
   onChange,
@@ -130,8 +149,14 @@ export function SettingsMenu({
   onDownloadUserDataFromGitHub,
   onRefreshTradingCalendar,
   calendarRefreshing,
+  onRefreshExchangeRates,
+  exchangeRatesRefreshing,
   fundamentalDataState,
-  onUpdateFundamentalData
+  onUpdateFundamentalData,
+  cacheSummary,
+  cacheBusy,
+  onRefreshCacheSummary,
+  onClearCaches
 }: SettingsMenuProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('market')
   const [githubPasswordEditing, setGitHubPasswordEditing] = useState(false)
@@ -139,7 +164,23 @@ export function SettingsMenu({
   const [githubPasswordDraft, setGitHubPasswordDraft] = useState('')
   const [githubPasswordConfirmation, setGitHubPasswordConfirmation] = useState('')
   const [githubPasswordMessage, setGitHubPasswordMessage] = useState('')
+  const [cacheAdvancedOpen, setCacheAdvancedOpen] = useState(false)
+  const [selectedCacheIds, setSelectedCacheIds] = useState<CacheCategoryId[]>([])
   const githubControlsDisabled = githubSyncBusy || githubGistLoading
+
+  const defaultCacheIds =
+    cacheSummary?.categories
+      .filter((category) => category.group === 'default')
+      .map((category) => category.id) ?? []
+  const advancedCacheCategories =
+    cacheSummary?.categories.filter((category) => category.group !== 'default') ?? []
+
+  const toggleCacheSelection = (categoryId: CacheCategoryId, selected: boolean) => {
+    setSelectedCacheIds((current) => {
+      if (selected) return current.includes(categoryId) ? current : [...current, categoryId]
+      return current.filter((id) => id !== categoryId)
+    })
+  }
 
   const editGitHubPassword = () => {
     setGitHubPasswordDraft(githubSyncPassword ?? '')
@@ -208,6 +249,37 @@ export function SettingsMenu({
           levelIndex === index ? { ...level, [key]: Math.max(0, value || 0) } : level
         )
       }
+    })
+  }
+
+  const updateHongKongTradeFee = (changes: Partial<AppSettings['marketTradeFees']['HK']>) => {
+    onChange({
+      ...settings,
+      marketTradeFees: {
+        ...settings.marketTradeFees,
+        HK: { ...settings.marketTradeFees.HK, ...changes }
+      }
+    })
+  }
+
+  const updateUnitedStatesTradeFee = (changes: Partial<AppSettings['marketTradeFees']['US']>) => {
+    onChange({
+      ...settings,
+      marketTradeFees: {
+        ...settings.marketTradeFees,
+        US: { ...settings.marketTradeFees.US, ...changes }
+      }
+    })
+  }
+
+  const updateManualExchangeRate = (currency: 'HKD' | 'USD', value: string) => {
+    const manualOverrides = { ...settings.exchangeRates.manualOverrides }
+    const parsed = Number(value)
+    if (value.trim() && Number.isFinite(parsed) && parsed > 0) manualOverrides[currency] = parsed
+    else delete manualOverrides[currency]
+    onChange({
+      ...settings,
+      exchangeRates: { ...settings.exchangeRates, manualOverrides }
     })
   }
 
@@ -322,7 +394,153 @@ export function SettingsMenu({
           {activeTab === 'trading' ? (
             <>
               <fieldset className="trading-fee-setting">
-                <legend>做T费用</legend>
+                <legend>港股交易费用模板</legend>
+                <small>
+                  官方征费、交易费和印花税按当前港交所规则计算；佣金、平台费及交收费转收按券商账单配置
+                </small>
+                <div className="trading-fee-grid">
+                  <label>
+                    <span>佣金比例</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.001"
+                      value={settings.marketTradeFees.HK.brokerageRatePercent}
+                      onChange={(event) =>
+                        updateHongKongTradeFee({
+                          brokerageRatePercent: Math.max(0, Number(event.target.value) || 0)
+                        })
+                      }
+                    />
+                    <em>%</em>
+                  </label>
+                  <label>
+                    <span>最低佣金</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={settings.marketTradeFees.HK.minimumBrokerage}
+                      onChange={(event) =>
+                        updateHongKongTradeFee({
+                          minimumBrokerage: Math.max(0, Number(event.target.value) || 0)
+                        })
+                      }
+                    />
+                    <em>HKD</em>
+                  </label>
+                  <label>
+                    <span>平台费</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={settings.marketTradeFees.HK.platformFee}
+                      onChange={(event) =>
+                        updateHongKongTradeFee({
+                          platformFee: Math.max(0, Number(event.target.value) || 0)
+                        })
+                      }
+                    />
+                    <em>HKD</em>
+                  </label>
+                  <label className="trading-fee-switch-label">
+                    <span>计入交收费</span>
+                    <input
+                      className="switch-input"
+                      type="checkbox"
+                      checked={settings.marketTradeFees.HK.includeSettlementFee}
+                      onChange={(event) =>
+                        updateHongKongTradeFee({
+                          includeSettlementFee: event.target.checked
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+              </fieldset>
+              <fieldset className="trading-fee-setting">
+                <legend>美股交易费用模板</legend>
+                <small>
+                  SEC 与 FINRA 项按 2026
+                  年现行费率估算且仅用于卖出；券商实际成交单可在交易记录中覆盖
+                </small>
+                <div className="trading-fee-grid">
+                  <label>
+                    <span>每股佣金</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.0001"
+                      value={settings.marketTradeFees.US.commissionPerShare}
+                      onChange={(event) =>
+                        updateUnitedStatesTradeFee({
+                          commissionPerShare: Math.max(0, Number(event.target.value) || 0)
+                        })
+                      }
+                    />
+                    <em>USD</em>
+                  </label>
+                  <label>
+                    <span>最低佣金</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={settings.marketTradeFees.US.minimumCommission}
+                      onChange={(event) =>
+                        updateUnitedStatesTradeFee({
+                          minimumCommission: Math.max(0, Number(event.target.value) || 0)
+                        })
+                      }
+                    />
+                    <em>USD</em>
+                  </label>
+                  <label>
+                    <span>平台费</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={settings.marketTradeFees.US.platformFee}
+                      onChange={(event) =>
+                        updateUnitedStatesTradeFee({
+                          platformFee: Math.max(0, Number(event.target.value) || 0)
+                        })
+                      }
+                    />
+                    <em>USD</em>
+                  </label>
+                  <label className="trading-fee-switch-label">
+                    <span>SEC 费用</span>
+                    <input
+                      className="switch-input"
+                      type="checkbox"
+                      checked={settings.marketTradeFees.US.includeSecFee}
+                      onChange={(event) =>
+                        updateUnitedStatesTradeFee({
+                          includeSecFee: event.target.checked
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="trading-fee-switch-label">
+                    <span>FINRA TAF</span>
+                    <input
+                      className="switch-input"
+                      type="checkbox"
+                      checked={settings.marketTradeFees.US.includeFinraTaf}
+                      onChange={(event) =>
+                        updateUnitedStatesTradeFee({
+                          includeFinraTaf: event.target.checked
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+              </fieldset>
+              <fieldset className="trading-fee-setting">
+                <legend>A股做T费用</legend>
                 <small>
                   佣金按净佣金计算；深A将过户费计入最低 5 元，沪A过户费在最低 5 元外单独收取
                 </small>
@@ -557,18 +775,21 @@ export function SettingsMenu({
               <div className="trading-calendar-setting">
                 <span>
                   <strong>交易日历</strong>
-                  <small>每年首次启动时自动从上交所更新，失败时可手动重试</small>
-                  <small>
-                    已覆盖至 {settings.tradingCalendar.coveredThroughYear} 年 · 最近刷新：
-                    {formatCalendarRefreshTime(settings.tradingCalendar.lastRefreshedAt)}
-                  </small>
-                  {settings.tradingCalendar.lastError ? (
-                    <small className="is-error">
-                      最近尝试 {formatCalendarRefreshTime(settings.tradingCalendar.lastAttemptedAt)}{' '}
-                      失败：
-                      {settings.tradingCalendar.lastError}
-                    </small>
-                  ) : null}
+                  <small>A股来自上交所，港股来自港交所，美股按纽交所年度规则生成</small>
+                  <span className="trading-calendar-market-list">
+                    {STOCK_MARKETS.map((market) => {
+                      const calendar = settings.tradingCalendar.markets[market]
+                      return (
+                        <small className={calendar.lastError ? 'is-error' : ''} key={market}>
+                          {STOCK_MARKET_LABELS[market]} ·{' '}
+                          {MARKET_CALENDAR_SOURCE_LABELS[calendar.source]}
+                          {' · '}覆盖至 {calendar.coveredThroughYear} 年{' · '}刷新{' '}
+                          {formatCalendarRefreshTime(calendar.lastRefreshedAt)}
+                          {calendar.lastError ? ` · ${calendar.lastError}` : ''}
+                        </small>
+                      )
+                    })}
+                  </span>
                 </span>
                 <button
                   type="button"
@@ -577,6 +798,55 @@ export function SettingsMenu({
                 >
                   <RefreshCw size={14} className={calendarRefreshing ? 'is-spinning' : ''} />
                   {calendarRefreshing ? '刷新中' : '手动刷新'}
+                </button>
+              </div>
+              <div className="trading-calendar-setting exchange-rate-setting">
+                <span>
+                  <strong>人民币汇率中间价</strong>
+                  <small>
+                    国家外汇管理局发布，数据来源为中国外汇交易中心；每日北京时间 09:20 后自动检查
+                  </small>
+                  <small className={settings.exchangeRates.lastError ? 'is-error' : ''}>
+                    汇率日期 {settings.exchangeRates.rateDate ?? '--'} · 最近获取{' '}
+                    {formatCalendarRefreshTime(settings.exchangeRates.fetchedAt)}
+                    {settings.exchangeRates.lastError
+                      ? ` · ${settings.exchangeRates.lastError}`
+                      : ''}
+                  </small>
+                  <span className="exchange-rate-fields">
+                    {(['HKD', 'USD'] as const).map((currency) => (
+                      <label key={currency}>
+                        <span>{currency}/CNY</span>
+                        <input
+                          type="number"
+                          min="0.000001"
+                          step="0.000001"
+                          value={settings.exchangeRates.manualOverrides[currency] ?? ''}
+                          placeholder={
+                            settings.exchangeRates.rates[currency]?.toFixed(6) ?? '等待官方数据'
+                          }
+                          onChange={(event) =>
+                            updateManualExchangeRate(currency, event.target.value)
+                          }
+                          aria-label={`${currency}兑人民币手工覆盖汇率`}
+                        />
+                        <small>
+                          {settings.exchangeRates.manualOverrides[currency] === undefined
+                            ? `官方 ${settings.exchangeRates.rates[currency]?.toFixed(6) ?? '--'}`
+                            : '正在使用手工覆盖'}
+                        </small>
+                      </label>
+                    ))}
+                  </span>
+                  <small>留空使用官方中间价；该汇率仅用于组合估值，不代表券商实际结算汇率</small>
+                </span>
+                <button
+                  type="button"
+                  onClick={onRefreshExchangeRates}
+                  disabled={exchangeRatesRefreshing}
+                >
+                  <RefreshCw size={14} className={exchangeRatesRefreshing ? 'is-spinning' : ''} />
+                  {exchangeRatesRefreshing ? '刷新中' : '手动刷新'}
                 </button>
               </div>
               <div className={`fundamental-data-setting is-${fundamentalDataState.status}`}>
@@ -620,6 +890,82 @@ export function SettingsMenu({
                       ? '更新中'
                       : '立即更新'}
                 </button>
+              </div>
+              <div className="cache-management">
+                <span className="cache-management-heading">
+                  <span>
+                    <strong>缓存管理</strong>
+                    <small>默认只清理行情临时缓存和诊断日志；清理后应用会自动重启</small>
+                  </span>
+                  <button type="button" onClick={onRefreshCacheSummary} disabled={cacheBusy}>
+                    {cacheBusy ? '处理中…' : '刷新统计'}
+                  </button>
+                </span>
+                <div className="cache-management-summary">
+                  {cacheSummary ? (
+                    <>
+                      {cacheSummary.categories
+                        .filter((category) => category.group === 'default')
+                        .map((category) => (
+                          <span key={category.id}>
+                            {category.label} {formatCacheSize(category.sizeBytes)}
+                          </span>
+                        ))}
+                    </>
+                  ) : (
+                    <span>正在读取缓存占用…</span>
+                  )}
+                </div>
+                <div className="cache-management-actions">
+                  <button
+                    type="button"
+                    onClick={() => onClearCaches(defaultCacheIds)}
+                    disabled={cacheBusy || defaultCacheIds.length === 0}
+                  >
+                    {cacheBusy ? '清理中…' : '清理临时缓存和日志'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCacheAdvancedOpen((open) => !open)}
+                    disabled={cacheBusy || !cacheSummary}
+                  >
+                    {cacheAdvancedOpen ? '收起高级清理' : '高级清理'}
+                  </button>
+                </div>
+                {cacheAdvancedOpen ? (
+                  <div className="cache-advanced-panel">
+                    <small>以下数据按股票或模块保存，清理后相关页面需要重新获取。</small>
+                    {advancedCacheCategories.map((category) => (
+                      <label key={category.id} className="cache-category-option">
+                        <input
+                          type="checkbox"
+                          checked={selectedCacheIds.includes(category.id)}
+                          onChange={(event) =>
+                            toggleCacheSelection(category.id, event.target.checked)
+                          }
+                          disabled={cacheBusy}
+                        />
+                        <span>
+                          <strong>
+                            {category.label}
+                            {category.group === 'separate' ? ' · 需单独确认' : ''}
+                          </strong>
+                          <small>
+                            {category.description} · {formatCacheSize(category.sizeBytes)}
+                          </small>
+                        </span>
+                      </label>
+                    ))}
+                    <button
+                      type="button"
+                      className="cache-advanced-clear-button"
+                      onClick={() => onClearCaches(selectedCacheIds)}
+                      disabled={cacheBusy || selectedCacheIds.length === 0}
+                    >
+                      清理选中数据
+                    </button>
+                  </div>
+                ) : null}
               </div>
               <div className="config-management">
                 <span>

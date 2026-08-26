@@ -1,14 +1,23 @@
-import { BellRing, GripVertical, MonitorUp, PencilLine, Pin, Star, Trash2 } from 'lucide-react'
+import {
+  ArrowUpToLine,
+  BellRing,
+  GripVertical,
+  MonitorUp,
+  PencilLine,
+  Star,
+  Trash2
+} from 'lucide-react'
 import { Fragment, memo, type DragEvent, useCallback, useState } from 'react'
 import {
   formatAmount,
   formatCost,
-  formatCurrency,
+  formatMoney,
+  formatMoneyProfit,
   formatPercent,
   formatPrice,
-  formatProfit,
   formatShares
 } from '../../lib/format'
+import { isStockQuoteExpired, STOCK_QUOTE_SOURCE_LABELS } from '../../lib/quote-state'
 import {
   calculatePositionMetrics,
   currentDateKey,
@@ -33,15 +42,25 @@ import {
   type FundamentalScreeningSummary
 } from '../../lib/fundamental-screening'
 import type {
+  CorporateActionRecord,
+  CorporateActionRecords,
   DividendFinancingRankingItem,
+  ExchangeRateSettings,
   StockQuote,
+  StockPosition,
   StockTrackingConclusionResult,
   StockTrackingProfile,
   StockRadarSignal,
   TTradingAccount,
+  TradingCalendarSettings,
   WatchlistColumnId,
   WatchStock
 } from '../../shared/types'
+import {
+  marketCapabilitiesForQuoteId,
+  marketFromQuoteId,
+  STOCK_CURRENCY_SYMBOLS
+} from '../../shared/stock-market'
 import { ExpandedStockDetails } from '../ExpandedStockDetails'
 import { FiveLevelAlertBadges } from '../FiveLevelAlertBadges'
 import { TAlertBadges } from '../TAlertBadges'
@@ -103,9 +122,12 @@ interface WatchlistRowProps {
   fundamentalGeneratedAt: string | undefined
   fundamentalStaleReason: string | null | undefined
   tradingAccount: TTradingAccount | undefined
+  corporateActionRecords: CorporateActionRecords
   manualIndex: number
   columnOrder: WatchlistColumnId[]
-  tradingCalendarClosedDates: string[]
+  tradingCalendar: TradingCalendarSettings
+  exchangeRates: ExchangeRateSettings
+  quoteStatusNow: Date
   priorityRefreshSeconds: number
   regularRefreshSeconds: number
   chipDistributionEnabled: boolean
@@ -137,6 +159,13 @@ interface WatchlistRowProps {
   onBollingerBandsEnabledChange: (enabled: boolean) => void
   onStartTracking: (quoteId: string) => void
   onUpdateTracking: (profile: StockTrackingProfile) => void
+  onApplyCorporateAction: (
+    quoteId: string,
+    account: TTradingAccount,
+    position: StockPosition | undefined,
+    record: CorporateActionRecord
+  ) => string | void
+  onUpdateCorporateActionRecord: (record: CorporateActionRecord) => void
   onStopTracking: (quoteId: string, result: StockTrackingConclusionResult, summary: string) => void
   onRestartTracking: (quoteId: string) => void
   onRemove: (quoteId: string) => void
@@ -153,9 +182,12 @@ export const WatchlistRow = memo(function WatchlistRow({
   fundamentalGeneratedAt,
   fundamentalStaleReason,
   tradingAccount,
+  corporateActionRecords,
   manualIndex,
   columnOrder,
-  tradingCalendarClosedDates,
+  tradingCalendar,
+  exchangeRates,
+  quoteStatusNow,
   priorityRefreshSeconds,
   regularRefreshSeconds,
   chipDistributionEnabled,
@@ -187,10 +219,17 @@ export const WatchlistRow = memo(function WatchlistRow({
   onBollingerBandsEnabledChange,
   onStartTracking,
   onUpdateTracking,
+  onApplyCorporateAction,
+  onUpdateCorporateActionRecord,
   onStopTracking,
   onRestartTracking,
   onRemove
 }: WatchlistRowProps) {
+  const market = marketFromQuoteId(stock.quoteId)
+  const capabilities = marketCapabilitiesForQuoteId(stock.quoteId)
+  const isAStock = market === 'CN'
+  const quoteExpired = isStockQuoteExpired(quote, quoteStatusNow, tradingCalendar.markets[market])
+  const quoteSourceLabel = quote?.source ? STOCK_QUOTE_SOURCE_LABELS[quote.source] : '来源未知'
   const [fundamentalTabRequested, setFundamentalTabRequested] = useState(false)
   const [trackingTabRequested, setTrackingTabRequested] = useState(false)
   const fundamentalSummary = summarizeFundamentalScreening(fundamentalScreening)
@@ -200,12 +239,13 @@ export const WatchlistRow = memo(function WatchlistRow({
   const financialMine = fundamentalScreening
     ? evaluateFinancialMine(fundamentalScreening.company)
     : null
-  const metrics = calculatePositionMetrics(stock.position, quote, tradingAccount)
+  const metrics = calculatePositionMetrics(stock.position, quote, tradingAccount, exchangeRates)
   const quoteDirection = valueClass(quote?.changePercent)
   const sectorDirection = valueClass(quote?.sector?.changePercent)
-  const currentRadarSignals = stock.showRadarSignals ? todayRadarSignals(quote?.radarSignals) : []
+  const currentRadarSignals =
+    capabilities.radar && stock.showRadarSignals ? todayRadarSignals(quote?.radarSignals) : []
   const latestRadarSignal = currentRadarSignals[0]
-  const activeTBatch = tradingAccount?.activeBatch
+  const activeTBatch = capabilities.tTrading ? tradingAccount?.activeBatch : undefined
   const activeTTrades = getBatchTrades(tradingAccount, activeTBatch)
   const tFloatingProfit = calculateTBatchMetrics(
     activeTBatch,
@@ -219,8 +259,17 @@ export const WatchlistRow = memo(function WatchlistRow({
   const stockAlertClass = stockAlertDirection
     ? `is-alert-triggered is-alert-${stockAlertDirection}`
     : ''
-  const holdingDays = getPositionHoldingDays(stock.position, tradingCalendarClosedDates)
-  const availablePositionQuantity = getAvailablePositionQuantity(stock.position, tradingAccount)
+  const holdingDays = getPositionHoldingDays(
+    stock.position,
+    tradingCalendar.markets[market].closedDates,
+    market,
+    tradingCalendar.markets[market].halfDayDates
+  )
+  const availablePositionQuantity = getAvailablePositionQuantity(
+    stock.position,
+    tradingAccount,
+    market
+  )
   const tButtonState = !activeTBatch
     ? ''
     : tFloatingProfit !== null && tFloatingProfit > 0
@@ -264,8 +313,12 @@ export const WatchlistRow = memo(function WatchlistRow({
             >
               <GripVertical size={15} />
             </span>
+          </div>
+        </td>
+        <td className="settings-column">
+          <div className="row-actions">
             <button
-              className="icon-button row-pin-button"
+              className="row-action-button is-pin-action"
               type="button"
               disabled={!dragDisabled && manualIndex === 0}
               onClick={(event) => {
@@ -275,14 +328,10 @@ export const WatchlistRow = memo(function WatchlistRow({
               aria-label={`置顶 ${stock.name}`}
               title={dragDisabled ? '置顶并恢复手动排序' : '置顶'}
             >
-              <Pin size={13} />
+              <ArrowUpToLine size={15} />
             </button>
-          </div>
-        </td>
-        <td className="settings-column">
-          <div className="row-actions">
             <button
-              className={`row-action-button ${stock.isPriority ? 'is-active' : ''} ${stock.position ? 'is-locked' : ''}`}
+              className={`row-action-button is-priority-action ${stock.isPriority ? 'is-active' : ''} ${stock.position ? 'is-locked' : ''}`}
               type="button"
               onClick={(event) => {
                 event.stopPropagation()
@@ -304,7 +353,7 @@ export const WatchlistRow = memo(function WatchlistRow({
               <Star size={15} fill={stock.isPriority ? 'currentColor' : 'none'} />
             </button>
             <button
-              className={`row-action-button ${stock.showInTaskbar ? 'is-active' : ''}`}
+              className={`row-action-button is-taskbar-action ${stock.showInTaskbar ? 'is-active' : ''}`}
               type="button"
               onClick={(event) => {
                 event.stopPropagation()
@@ -320,8 +369,42 @@ export const WatchlistRow = memo(function WatchlistRow({
             >
               <MonitorUp size={15} />
             </button>
+            {capabilities.position || capabilities.tTrading ? (
+              <>
+                {capabilities.position ? (
+                  <button
+                    className={`row-action-button is-position-action ${stock.position ? 'has-position' : ''}`}
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onEditPosition(stock)
+                    }}
+                    aria-label={`编辑 ${stock.name} 的持仓`}
+                    title="编辑持仓数量和成本"
+                  >
+                    <PencilLine size={15} />
+                  </button>
+                ) : null}
+                {capabilities.tTrading ? (
+                  <button
+                    className={`row-action-button is-t-action ${tButtonState}`}
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onOpenTTrading(stock)
+                    }}
+                    aria-label={`打开 ${stock.name} 的交易管理`}
+                    title={activeTBatch ? '继续记录当前交易批次' : '交易管理'}
+                  >
+                    <span className="t-letter-icon" aria-hidden="true">
+                      T
+                    </span>
+                  </button>
+                ) : null}
+              </>
+            ) : null}
             <button
-              className={`row-action-button ${stockAlertClass || (enabledStockAlertCount > 0 ? 'is-active' : '')}`}
+              className={`row-action-button is-alert-action ${stockAlertClass || (enabledStockAlertCount > 0 ? 'is-active' : '')}`}
               type="button"
               onClick={(event) => {
                 event.stopPropagation()
@@ -336,32 +419,6 @@ export const WatchlistRow = memo(function WatchlistRow({
             >
               <BellRing size={15} />
             </button>
-            <button
-              className={`row-action-button ${stock.position ? 'has-position' : ''}`}
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation()
-                onEditPosition(stock)
-              }}
-              aria-label={`编辑 ${stock.name} 的持仓`}
-              title="编辑持仓数量和成本"
-            >
-              <PencilLine size={15} />
-            </button>
-            <button
-              className={`row-action-button ${tButtonState}`}
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation()
-                onOpenTTrading(stock)
-              }}
-              aria-label={`打开 ${stock.name} 的交易管理`}
-              title={activeTBatch ? '继续记录当前交易批次' : '交易管理'}
-            >
-              <span className="t-letter-icon" aria-hidden="true">
-                T
-              </span>
-            </button>
           </div>
         </td>
         {columnOrder.map((columnId) => {
@@ -373,14 +430,22 @@ export const WatchlistRow = memo(function WatchlistRow({
                     <span>
                       <span className="stock-name-line">
                         <strong>{stock.name}</strong>
-                        {isChiNextStock(stock.code) ? (
+                        {isAStock && isChiNextStock(stock.code) ? (
                           <span className="stock-board-badge" title="创业板">
                             创
                           </span>
                         ) : null}
-                        {isStarMarketStock(stock.code) ? (
+                        {isAStock && isStarMarketStock(stock.code) ? (
                           <span className="stock-board-badge is-star" title="科创板">
                             科
+                          </span>
+                        ) : null}
+                        {quoteExpired ? (
+                          <span
+                            className="stock-quote-expired-badge"
+                            title={`${quoteSourceLabel}行情已超过 5 分钟未更新 · 行情时间 ${quote?.dataAt ?? '未知'} · 请求时间 ${quote?.updatedAt ?? '未知'}`}
+                          >
+                            过期
                           </span>
                         ) : null}
                         {trackingProfile?.status === 'tracking' ? (
@@ -624,13 +689,15 @@ export const WatchlistRow = memo(function WatchlistRow({
             case 'cost':
               return (
                 <td className="position-value-cell" key={columnId}>
-                  {formatCost(stock.position?.cost)}
+                  {stock.position
+                    ? `${STOCK_CURRENCY_SYMBOLS[metrics.currency]}${formatCost(stock.position.cost)}`
+                    : '--'}
                 </td>
               )
             case 'marketValue':
               return (
                 <td className="position-value-cell" key={columnId}>
-                  {formatCurrency(metrics.marketValue)}
+                  {formatMoney(metrics.marketValue, metrics.currency)}
                 </td>
               )
             case 'todayProfit':
@@ -638,7 +705,7 @@ export const WatchlistRow = memo(function WatchlistRow({
                 <td key={columnId}>
                   <span className="combined-profit-cell">
                     <span className={valueClass(metrics.todayProfit)}>
-                      {formatProfit(metrics.todayProfit)}
+                      {formatMoneyProfit(metrics.todayProfit, metrics.currency)}
                     </span>
                     <span className={valueClass(metrics.todayProfitPercent)}>
                       {formatPercent(metrics.todayProfitPercent)}
@@ -651,7 +718,7 @@ export const WatchlistRow = memo(function WatchlistRow({
                 <td key={columnId}>
                   <span className="combined-profit-cell">
                     <span className={valueClass(metrics.totalProfit)}>
-                      {formatProfit(metrics.totalProfit)}
+                      {formatMoneyProfit(metrics.totalProfit, metrics.currency)}
                     </span>
                     <span className={valueClass(metrics.profitPercent)}>
                       {formatPercent(metrics.profitPercent)}
@@ -710,6 +777,14 @@ export const WatchlistRow = memo(function WatchlistRow({
                   autoRefreshOrderBook={Boolean(activeTBatch)}
                   chipDistributionEnabled={chipDistributionEnabled}
                   bollingerBandsEnabled={bollingerBandsEnabled}
+                  tradingCalendar={tradingCalendar}
+                  exchangeRates={exchangeRates}
+                  tradingAccount={tradingAccount}
+                  corporateActionRecords={corporateActionRecords}
+                  onApplyCorporateAction={(account, position, record) =>
+                    onApplyCorporateAction(stock.quoteId, account, position, record)
+                  }
+                  onUpdateCorporateActionRecord={onUpdateCorporateActionRecord}
                   trackingProfile={trackingProfile}
                   onStartTracking={onStartTracking}
                   onUpdateTracking={onUpdateTracking}
