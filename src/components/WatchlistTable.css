@@ -19,7 +19,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 14px 20px;
+  padding: 4px 20px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -94,8 +94,6 @@
   flex: 0 0 auto;
   flex-wrap: nowrap;
   justify-content: flex-start;
-  padding-left: 12px;
-  border-left: 1px solid #d8dee8;
 }
 
 .panel-market-index-summary .market-index-card {
@@ -148,6 +146,8 @@
   display: flex;
   align-items: center;
   gap: 4px;
+  padding-left: 12px;
+  border-left: 1px solid #d8dee8;
 }
 
 .portfolio-summary > span {
