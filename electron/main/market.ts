@@ -250,6 +250,11 @@ function scaled(value: number | '-' | undefined): number | null {
   return typeof value === 'number' ? value / 100 : null
 }
 
+function scaledPrice(value: number | '-' | undefined, market: StockMarket): number | null {
+  if (typeof value !== 'number') return null
+  return value / (market === 'CN' ? 100 : 1_000)
+}
+
 function rawNumber(value: number | '-' | undefined): number | null {
   return typeof value === 'number' ? value : null
 }
@@ -269,13 +274,13 @@ function toEastmoneyQuote(
     currency: identity.currency,
     volumeUnit: identity.volumeUnit,
     source,
-    latest: scaled(item.f2),
+    latest: scaledPrice(item.f2, identity.market),
     changePercent: scaled(item.f3),
-    change: scaled(item.f4),
-    open: scaled(item.f17),
-    high: scaled(item.f15),
-    low: scaled(item.f16),
-    previousClose: scaled(item.f18),
+    change: scaledPrice(item.f4, identity.market),
+    open: scaledPrice(item.f17, identity.market),
+    high: scaledPrice(item.f15, identity.market),
+    low: scaledPrice(item.f16, identity.market),
+    previousClose: scaledPrice(item.f18, identity.market),
     volume: rawNumber(item.f5),
     amount: rawNumber(item.f6),
     turnoverRate: scaled(item.f8),

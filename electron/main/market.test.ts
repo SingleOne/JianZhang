@@ -198,6 +198,52 @@ describe('fetchQuotes investment valuation fields', () => {
     netFetch.mockReset()
   })
 
+  it('uses the three-decimal Eastmoney scale for US prices', async () => {
+    netFetch.mockResolvedValueOnce(jsonResponse({
+      data: {
+        diff: [{
+          f2: 311335,
+          f3: 46,
+          f4: 1435,
+          f5: 2_010_856,
+          f6: 623_959_088,
+          f8: 93,
+          f12: 'AAPL',
+          f13: 105,
+          f14: '苹果',
+          f15: 311680,
+          f16: 308800,
+          f17: 310245,
+          f18: 309900,
+          f23: 4227,
+          f115: 3525
+        }]
+      }
+    }))
+
+    const result = await fetchQuotes([{
+      code: 'AAPL',
+      name: '苹果',
+      quoteId: '105.AAPL',
+      marketLabel: '纳斯达克',
+      showInTaskbar: false,
+      isPriority: false,
+      showRadarSignals: false
+    }], [], 'test')
+
+    expect(result.quotes[0]).toMatchObject({
+      latest: 311.335,
+      changePercent: 0.46,
+      change: 1.435,
+      open: 310.245,
+      high: 311.68,
+      low: 308.8,
+      previousClose: 309.9,
+      priceEarningsRatioTtm: 35.25,
+      priceBookRatio: 42.27
+    })
+  })
+
   it('maps Eastmoney PE TTM and PB using the quote field scale', async () => {
     netFetch.mockResolvedValueOnce(jsonResponse({
       data: {
