@@ -42,7 +42,20 @@
   justify-content: flex-end;
 }
 
-.corporate-action-actions select,
+.corporate-action-manual-type-select {
+  min-width: 150px;
+}
+
+.corporate-action-manual-type-select .app-select-trigger {
+  min-height: 32px;
+}
+
+.corporate-action-manual-type-select .app-select-menu {
+  min-width: 190px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
 .corporate-action-form-grid input,
 .corporate-action-form-grid select {
   min-height: 32px;

@@ -1115,7 +1115,7 @@
   cursor: pointer;
 }
 
-.watchlist-stock-group.is-expanded > .stock-row {
+.watchlist-stock-group.is-expanded.is-sticky-active > .stock-row {
   position: sticky;
   top: 0;
   z-index: 12;

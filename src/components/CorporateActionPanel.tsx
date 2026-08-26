@@ -9,6 +9,7 @@ import { appendPortfolioLedgerEntries } from '../shared/types'
 import { exchangeRateForCurrency } from '../shared/exchange-rates'
 import { stockApi } from '../lib/api'
 import { calculatePortfolioLedgerMetrics } from '../lib/portfolio-ledger'
+import { AppSelect, type AppSelectOption } from './AppSelect'
 import type {
   CorporateActionCandidate,
   CorporateActionConfirmation,
@@ -68,6 +69,11 @@ const MANUAL_TYPES: CorporateActionType[] = [
   'delistingCash',
   'returnOfCapital'
 ]
+
+const MANUAL_TYPE_OPTIONS = MANUAL_TYPES.map((value) => ({
+  value,
+  label: CORPORATE_ACTION_TYPE_LABELS[value]
+})) satisfies readonly AppSelectOption<CorporateActionType>[]
 
 function localDateTimeInput(date = new Date()): string {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
@@ -452,16 +458,13 @@ export default function CorporateActionPanel({
           </span>
         </div>
         <div className="corporate-action-actions">
-          <select
+          <AppSelect
+            className="corporate-action-manual-type-select"
             value={manualType}
-            onChange={(event) => setManualType(event.target.value as CorporateActionType)}
-          >
-            {MANUAL_TYPES.map((type) => (
-              <option value={type} key={type}>
-                {CORPORATE_ACTION_TYPE_LABELS[type]}
-              </option>
-            ))}
-          </select>
+            options={MANUAL_TYPE_OPTIONS}
+            label="手工录入公司行动类型"
+            onChange={setManualType}
+          />
           <button className="secondary-button" type="button" onClick={startManual}>
             <Plus size={15} />
             手工录入

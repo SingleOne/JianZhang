@@ -289,16 +289,16 @@
 
 .exchange-rate-fields {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   margin: 5px 0 2px;
 }
 
 .exchange-rate-fields label {
   display: grid;
-  grid-template-columns: auto minmax(110px, 1fr);
+  grid-template-columns: max-content minmax(150px, 220px) minmax(0, 1fr);
   align-items: center;
-  gap: 4px 8px;
+  gap: 8px;
   color: #586579;
   font-size: 12px;
 }
@@ -316,7 +316,8 @@
 }
 
 .exchange-rate-fields small {
-  grid-column: 2;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .trading-calendar-market-list {

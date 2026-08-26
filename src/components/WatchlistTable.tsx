@@ -264,6 +264,7 @@ export function WatchlistTable({
   const [closingQuoteIds, setClosingQuoteIds] = useState<Set<string>>(() => new Set())
   const [radarPopover, setRadarPopover] = useState<RadarPopoverState | null>(null)
   const [locatedQuoteId, setLocatedQuoteId] = useState<string | null>(null)
+  const [stickyDisabledQuoteId, setStickyDisabledQuoteId] = useState<string | null>(null)
   const [customGroupFilter, setCustomGroupFilter] = useState(ALL_FILTER)
   const [sectorFilter, setSectorFilter] = useState(ALL_FILTER)
   const [marketFilter, setMarketFilter] = useState<StockMarket | 'all'>('all')
@@ -278,12 +279,55 @@ export function WatchlistTable({
   const radarPopoverRef = useRef<HTMLDivElement>(null)
   const locateTimerRef = useRef<number | undefined>(undefined)
   const locateFrameRef = useRef<number | undefined>(undefined)
+  const stickyDisabledQuoteIdRef = useRef<string | null>(null)
   const selectedQuoteIdRef = useRef(selectedQuoteId)
   selectedQuoteIdRef.current = selectedQuoteId
   useEffect(() => {
     const timer = window.setInterval(() => setQuoteStatusNow(new Date()), 30_000)
     return () => window.clearInterval(timer)
   }, [])
+
+  useEffect(() => {
+    const scroller = tableScrollerRef.current
+    const setDisabledQuoteId = (quoteId: string | null) => {
+      if (stickyDisabledQuoteIdRef.current === quoteId) return
+      stickyDisabledQuoteIdRef.current = quoteId
+      setStickyDisabledQuoteId(quoteId)
+    }
+
+    setDisabledQuoteId(null)
+    if (!scroller || !selectedQuoteId) return
+
+    let frameId: number | undefined
+    const updateStickyState = () => {
+      frameId = undefined
+      const row = scroller.querySelector<HTMLTableRowElement>(
+        `tr[data-quote-id="${selectedQuoteId}"]`
+      )
+      const expandedRow = row?.nextElementSibling
+      if (!(expandedRow instanceof HTMLTableRowElement)) {
+        setDisabledQuoteId(null)
+        return
+      }
+
+      const scrollerTop = scroller.getBoundingClientRect().top
+      const expandedBottom = expandedRow.getBoundingClientRect().bottom
+      setDisabledQuoteId(expandedBottom <= scrollerTop ? selectedQuoteId : null)
+    }
+    const scheduleStickyUpdate = () => {
+      if (frameId !== undefined) return
+      frameId = window.requestAnimationFrame(updateStickyState)
+    }
+
+    scheduleStickyUpdate()
+    scroller.addEventListener('scroll', scheduleStickyUpdate, { passive: true })
+    window.addEventListener('resize', scheduleStickyUpdate)
+    return () => {
+      scroller.removeEventListener('scroll', scheduleStickyUpdate)
+      window.removeEventListener('resize', scheduleStickyUpdate)
+      if (frameId !== undefined) window.cancelAnimationFrame(frameId)
+    }
+  }, [selectedQuoteId])
 
   const renderedColumnOrder = useMemo(
     () => normalizeWatchlistColumnOrder(columnOrder),
@@ -615,6 +659,8 @@ export function WatchlistTable({
 
   const toggleStockDetails = useCallback(
     (quoteId: string) => {
+      stickyDisabledQuoteIdRef.current = null
+      setStickyDisabledQuoteId(null)
       const currentSelectedQuoteId = selectedQuoteIdRef.current
       setClosingQuoteIds((current) => {
         const next = new Set(current)
@@ -973,7 +1019,9 @@ export function WatchlistTable({
             }) => (
               <tbody
                 className={`watchlist-stock-group ${
-                  selectedQuoteId === stock.quoteId ? 'is-expanded' : ''
+                  selectedQuoteId === stock.quoteId
+                    ? `is-expanded ${stickyDisabledQuoteId === stock.quoteId ? '' : 'is-sticky-active'}`
+                    : ''
                 }`}
                 key={stock.quoteId}
               >
