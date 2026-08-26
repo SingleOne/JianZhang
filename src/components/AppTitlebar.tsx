@@ -10,6 +10,9 @@ import type { TradingCalendarSettings } from '../shared/types'
 
 interface AppTitlebarProps {
   children?: ReactNode
+}
+
+interface MarketTradingStateProps {
   markets: readonly StockMarket[]
   tradingCalendar: TradingCalendarSettings
 }
@@ -53,7 +56,7 @@ function marketState(
   }
 }
 
-export function AppTitlebar({ children, markets, tradingCalendar }: AppTitlebarProps) {
+export function MarketTradingState({ markets, tradingCalendar }: MarketTradingStateProps) {
   const [now, setNow] = useState(() => new Date())
   const market = marketState(now, markets, tradingCalendar)
 
@@ -63,6 +66,15 @@ export function AppTitlebar({ children, markets, tradingCalendar }: AppTitlebarP
   }, [])
 
   return (
+    <div className={`market-state ${market.open ? 'is-open' : ''}`} title={market.detail}>
+      <Activity size={13} />
+      <span>{market.label}</span>
+    </div>
+  )
+}
+
+export function AppTitlebar({ children }: AppTitlebarProps) {
+  return (
     <header className="titlebar">
       <div className={`brand-mark is-${__JIANZHANG_ICON_VARIANT__}`} aria-hidden="true">
         <svg viewBox="0 0 24 24" role="img">
@@ -71,10 +83,6 @@ export function AppTitlebar({ children, markets, tradingCalendar }: AppTitlebarP
         </svg>
       </div>
       <div className="brand-name">见涨</div>
-      <div className={`market-state ${market.open ? 'is-open' : ''}`} title={market.detail}>
-        <Activity size={13} />
-        <span>{market.label}</span>
-      </div>
       {children ? <div className="titlebar-command-slot">{children}</div> : null}
     </header>
   )

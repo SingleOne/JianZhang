@@ -1,5 +1,5 @@
-import { Binoculars, Eye, Search, X } from 'lucide-react'
-import { useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { Binoculars, Search, X } from 'lucide-react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { stockApi } from '../lib/api'
 import { STOCK_TRACKING_SOURCE_LABELS } from '../lib/stock-tracking'
@@ -13,11 +13,35 @@ import type {
   StockTrackingSourceType,
   WatchStock
 } from '../shared/types'
+import { AppSelect, type AppSelectOption } from './AppSelect'
 import { StockTrackingEditor } from './StockTrackingEditor'
 import { useStockTrackingMarketData } from './useStockTrackingMarketData'
 
 type StatusFilter = 'all' | 'tracking' | 'stopped'
 type SourceFilter = 'all' | StockTrackingSourceType
+type ProfileSort = 'updated-desc' | 'started-desc' | 'return-desc' | 'return-asc' | 'name-asc'
+
+const STATUS_FILTER_OPTIONS: readonly AppSelectOption<StatusFilter>[] = [
+  { value: 'all', label: '全部状态' },
+  { value: 'tracking', label: '追踪中' },
+  { value: 'stopped', label: '已停止' }
+]
+
+const SOURCE_FILTER_OPTIONS: readonly AppSelectOption<SourceFilter>[] = [
+  { value: 'all', label: '全部来源' },
+  ...Object.entries(STOCK_TRACKING_SOURCE_LABELS).map(([value, label]) => ({
+    value: value as StockTrackingSourceType,
+    label
+  }))
+]
+
+const PROFILE_SORT_OPTIONS: readonly AppSelectOption<ProfileSort>[] = [
+  { value: 'updated-desc', label: '最近更新' },
+  { value: 'started-desc', label: '最近开始追踪' },
+  { value: 'return-desc', label: '追踪收益从高到低' },
+  { value: 'return-asc', label: '追踪收益从低到高' },
+  { value: 'name-asc', label: '股票名称' }
+]
 
 interface StockTrackingDialogProps {
   open: boolean
@@ -27,6 +51,7 @@ interface StockTrackingDialogProps {
   onUpdateProfile: (profile: StockTrackingProfile) => void
   onStopTracking: (quoteId: string, result: StockTrackingConclusionResult, summary: string) => void
   onRestartTracking: (quoteId: string) => void
+  onDeleteStock: (quoteId: string) => void
   onViewStock: (quoteId: string) => void
   bollingerBandsEnabled: boolean
   onBollingerBandsEnabledChange: (enabled: boolean) => void
@@ -38,6 +63,17 @@ function valueClass(value: number | null): string {
   return value > 0 ? 'is-up' : 'is-down'
 }
 
+function compareTrackingReturn(
+  left: number | null,
+  right: number | null,
+  direction: 'asc' | 'desc'
+): number {
+  if (left === null && right === null) return 0
+  if (left === null) return 1
+  if (right === null) return -1
+  return direction === 'asc' ? left - right : right - left
+}
+
 export function StockTrackingDialog({
   open,
   profiles,
@@ -46,6 +82,7 @@ export function StockTrackingDialog({
   onUpdateProfile,
   onStopTracking,
   onRestartTracking,
+  onDeleteStock,
   onViewStock,
   bollingerBandsEnabled,
   onBollingerBandsEnabledChange,
@@ -55,16 +92,26 @@ export function StockTrackingDialog({
   const deferredQuery = useDeferredValue(query)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all')
+  const [profileSort, setProfileSort] = useState<ProfileSort>('updated-desc')
   const [selectedQuoteId, setSelectedQuoteId] = useState('')
+  const [profileSnapshot, setProfileSnapshot] = useState<StockTrackingProfile[]>([])
   const [trackingQuotes, setTrackingQuotes] = useState<StockQuote[]>([])
-  const trackingQuoteIdsKey = Object.keys(profiles).sort().join(',')
+  const profilesRef = useRef(profiles)
+  const quotesRef = useRef(quotes)
+  profilesRef.current = profiles
+  quotesRef.current = quotes
 
   useEffect(() => {
     if (!open) return
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (
+        event.key === 'Escape' &&
+        !document.querySelector('.app-select-menu, .confirm-dialog-backdrop')
+      ) {
+        onClose()
+      }
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => {
@@ -74,20 +121,39 @@ export function StockTrackingDialog({
   }, [onClose, open])
 
   useEffect(() => {
-    if (!open || !trackingQuoteIdsKey) return
+    if (!open) return
+    const nextProfiles = Object.values(profilesRef.current)
+    const openingQuotes = quotesRef.current
+    const quoteIds = nextProfiles.map((profile) => profile.quoteId)
+    setProfileSnapshot(nextProfiles)
+    setTrackingQuotes(openingQuotes)
+    setSelectedQuoteId((current) =>
+      nextProfiles.some((profile) => profile.quoteId === current)
+        ? current
+        : (nextProfiles[0]?.quoteId ?? '')
+    )
+    if (quoteIds.length === 0) return
     let active = true
     void stockApi
-      .refreshQuotesByIds(trackingQuoteIdsKey.split(','))
+      .refreshQuotesByIds(quoteIds)
       .then((refreshedQuotes) => {
-        if (active) setTrackingQuotes(refreshedQuotes)
+        if (!active) return
+        const quoteMap = new Map(
+          [...openingQuotes, ...refreshedQuotes].map((quote) => [quote.quoteId, quote] as const)
+        )
+        setTrackingQuotes([...quoteMap.values()])
       })
       .catch(() => undefined)
     return () => {
       active = false
     }
-  }, [open, trackingQuoteIdsKey])
+  }, [open])
 
-  const quoteMap = useMemo(
+  const snapshotQuoteMap = useMemo(
+    () => new Map(trackingQuotes.map((quote) => [quote.quoteId, quote] as const)),
+    [trackingQuotes]
+  )
+  const detailQuoteMap = useMemo(
     () => new Map([...trackingQuotes, ...quotes].map((quote) => [quote.quoteId, quote] as const)),
     [quotes, trackingQuotes]
   )
@@ -95,10 +161,24 @@ export function StockTrackingDialog({
     () => new Set(watchlist.map((stock) => stock.quoteId)),
     [watchlist]
   )
+  const trackingReturns = useMemo(
+    () =>
+      new Map(
+        profileSnapshot.map(
+          (profile) =>
+            [
+              profile.quoteId,
+              calculateStockTrackingPerformance(profile, snapshotQuoteMap.get(profile.quoteId), [])
+                .trackingReturn
+            ] as const
+        )
+      ),
+    [profileSnapshot, snapshotQuoteMap]
+  )
   const normalizedQuery = deferredQuery.trim().toLocaleLowerCase('zh-CN')
   const filteredProfiles = useMemo(
     () =>
-      Object.values(profiles)
+      profileSnapshot
         .filter((profile) => statusFilter === 'all' || profile.status === statusFilter)
         .filter(
           (profile) =>
@@ -121,25 +201,46 @@ export function StockTrackingDialog({
             .toLocaleLowerCase('zh-CN')
             .includes(normalizedQuery)
         })
-        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
-    [normalizedQuery, profiles, sourceFilter, statusFilter]
+        .sort((left, right) => {
+          switch (profileSort) {
+            case 'started-desc':
+              return right.startedAt.localeCompare(left.startedAt)
+            case 'return-desc':
+              return compareTrackingReturn(
+                trackingReturns.get(left.quoteId) ?? null,
+                trackingReturns.get(right.quoteId) ?? null,
+                'desc'
+              )
+            case 'return-asc':
+              return compareTrackingReturn(
+                trackingReturns.get(left.quoteId) ?? null,
+                trackingReturns.get(right.quoteId) ?? null,
+                'asc'
+              )
+            case 'name-asc':
+              return left.name.localeCompare(right.name, 'zh-CN', { numeric: true })
+            case 'updated-desc':
+              return right.updatedAt.localeCompare(left.updatedAt)
+          }
+        }),
+    [normalizedQuery, profileSnapshot, profileSort, sourceFilter, statusFilter, trackingReturns]
   )
-  const selectedProfile =
-    profiles[selectedQuoteId] &&
-    filteredProfiles.some((profile) => profile.quoteId === selectedQuoteId)
-      ? profiles[selectedQuoteId]
-      : filteredProfiles[0]
+  const selectedSnapshotProfile =
+    filteredProfiles.find((profile) => profile.quoteId === selectedQuoteId) ?? filteredProfiles[0]
+  const selectedProfile = selectedSnapshotProfile
+    ? (profiles[selectedSnapshotProfile.quoteId] ?? selectedSnapshotProfile)
+    : undefined
   const marketData = useStockTrackingMarketData(open ? selectedProfile?.quoteId : undefined)
   const selectedPerformance = useMemo(
     () =>
       selectedProfile
         ? calculateStockTrackingPerformance(
             selectedProfile,
-            quoteMap.get(selectedProfile.quoteId),
+            detailQuoteMap.get(selectedProfile.quoteId),
             marketData.dailyBars
           )
         : undefined,
-    [marketData.dailyBars, quoteMap, selectedProfile]
+    [detailQuoteMap, marketData.dailyBars, selectedProfile]
   )
 
   if (!open) return null
@@ -182,25 +283,25 @@ export function StockTrackingDialog({
               aria-label="筛选追踪档案"
             />
           </label>
-          <select
+          <AppSelect
             value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
-          >
-            <option value="all">全部状态</option>
-            <option value="tracking">追踪中</option>
-            <option value="stopped">已停止</option>
-          </select>
-          <select
+            options={STATUS_FILTER_OPTIONS}
+            label="追踪状态"
+            onChange={setStatusFilter}
+          />
+          <AppSelect
             value={sourceFilter}
-            onChange={(event) => setSourceFilter(event.target.value as SourceFilter)}
-          >
-            <option value="all">全部来源</option>
-            {Object.entries(STOCK_TRACKING_SOURCE_LABELS).map(([value, label]) => (
-              <option value={value} key={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+            options={SOURCE_FILTER_OPTIONS}
+            label="追踪来源"
+            onChange={setSourceFilter}
+          />
+          <AppSelect
+            className="stock-tracking-sort-select"
+            value={profileSort}
+            options={PROFILE_SORT_OPTIONS}
+            label="列表排序"
+            onChange={setProfileSort}
+          />
         </div>
 
         {filteredProfiles.length === 0 ? (
@@ -213,12 +314,7 @@ export function StockTrackingDialog({
           <div className="stock-tracking-dialog-layout">
             <aside className="stock-tracking-profile-list">
               {filteredProfiles.map((profile) => {
-                const quote = quoteMap.get(profile.quoteId)
-                const trackingReturn = calculateStockTrackingPerformance(
-                  profile,
-                  quote,
-                  []
-                ).trackingReturn
+                const trackingReturn = trackingReturns.get(profile.quoteId) ?? null
                 const lastEntry = profile.entries[0]
                 return (
                   <button
@@ -257,27 +353,15 @@ export function StockTrackingDialog({
 
             {selectedProfile ? (
               <main className="stock-tracking-dialog-content">
-                <div className="stock-tracking-dialog-content-actions">
-                  {watchlistQuoteIds.has(selectedProfile.quoteId) ? (
-                    <button
-                      className="secondary-button"
-                      type="button"
-                      onClick={() => {
-                        onViewStock(selectedProfile.quoteId)
-                        onClose()
-                      }}
-                    >
-                      <Eye size={14} />
-                      查看股票详情
-                    </button>
-                  ) : (
-                    <span>该股票已不在自选中，历史档案仍保留。</span>
-                  )}
-                </div>
+                {!watchlistQuoteIds.has(selectedProfile.quoteId) ? (
+                  <div className="stock-tracking-dialog-content-note">
+                    该股票已不在自选中，历史档案仍保留。
+                  </div>
+                ) : null}
                 <StockTrackingEditor
                   key={`${selectedProfile.quoteId}:${selectedProfile.updatedAt}`}
                   profile={selectedProfile}
-                  quote={quoteMap.get(selectedProfile.quoteId)}
+                  quote={detailQuoteMap.get(selectedProfile.quoteId)}
                   performance={selectedPerformance}
                   marketData={marketData}
                   showDailyKline
@@ -287,6 +371,19 @@ export function StockTrackingDialog({
                   onStopTracking={onStopTracking}
                   onRestartTracking={onRestartTracking}
                   canRestart={watchlistQuoteIds.has(selectedProfile.quoteId)}
+                  onViewStock={
+                    watchlistQuoteIds.has(selectedProfile.quoteId)
+                      ? () => {
+                          onViewStock(selectedProfile.quoteId)
+                          onClose()
+                        }
+                      : undefined
+                  }
+                  onDeleteStock={
+                    watchlistQuoteIds.has(selectedProfile.quoteId)
+                      ? () => onDeleteStock(selectedProfile.quoteId)
+                      : undefined
+                  }
                 />
               </main>
             ) : null}

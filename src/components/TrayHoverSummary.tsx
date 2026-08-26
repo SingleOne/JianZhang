@@ -11,11 +11,8 @@ import {
   formatShares
 } from '../lib/format'
 import { calculatePositionMetrics } from '../lib/portfolio'
-import {
-  getTriggeredTAlertBadges,
-  getTriggeredTFloatingProfitAlert
-} from '../lib/t-alerts'
 import { calculateTBatchMetrics } from '../lib/t-trading'
+import { getTaskbarVisibleStocks } from '../lib/taskbar-visibility'
 import { getBatchTrades } from '../lib/trade-records'
 import type { AppState, StockQuote } from '../shared/types'
 
@@ -48,17 +45,14 @@ export function TrayHoverSummary() {
 
   const selectedStocks = useMemo(() => {
     const quoteMap = new Map(quotes.map((quote) => [quote.quoteId, quote]))
-    return state.watchlist
+    return getTaskbarVisibleStocks(state.watchlist)
       .map((stock) => {
         const quote = quoteMap.get(stock.quoteId)
         const account = state.tTradingAccounts[stock.quoteId]
         const activeTrades = getBatchTrades(account, account?.activeBatch)
-        const alertBadges = getTriggeredTAlertBadges(account?.activeBatch, activeTrades)
         return {
           stock,
           quote,
-          alertBadges,
-          hasFiveLevelAlert: Boolean(account?.activeBatch) && Boolean(quote?.fiveLevelLargeOrders?.length),
           positionMetrics: calculatePositionMetrics(
             stock.position,
             quote,
@@ -67,13 +61,9 @@ export function TrayHoverSummary() {
           ),
           tMetrics: account?.activeBatch
             ? calculateTBatchMetrics(account.activeBatch, activeTrades, quote?.latest)
-            : null,
-          floatingProfitAlert: getTriggeredTFloatingProfitAlert(account?.activeBatch)
+            : null
         }
       })
-      .filter(({ stock, alertBadges, hasFiveLevelAlert, floatingProfitAlert }) => (
-        stock.showInTaskbar || alertBadges.length > 0 || hasFiveLevelAlert || Boolean(floatingProfitAlert)
-      ))
   }, [quotes, state.settings.exchangeRates, state.tTradingAccounts, state.watchlist])
   const todayProfitTotal = selectedStocks.reduce<number | null>((total, { positionMetrics }) => (
     positionMetrics.cnyTodayProfit === null

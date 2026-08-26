@@ -1,4 +1,15 @@
-import { BookOpenText, CircleStop, History, Play, Plus, Save, Tag, X } from 'lucide-react'
+import {
+  BookOpenText,
+  CircleStop,
+  Eye,
+  History,
+  Play,
+  Plus,
+  Save,
+  Tag,
+  Trash2,
+  X
+} from 'lucide-react'
 import { useState } from 'react'
 import {
   STOCK_TRACKING_CONCLUSION_LABELS,
@@ -18,6 +29,7 @@ import type {
   StockTrackingProfile
 } from '../shared/types'
 import { marketFromQuoteId } from '../shared/stock-market'
+import { AppSelect, type AppSelectOption } from './AppSelect'
 import { StockTrackingMetricsPanel } from './StockTrackingMetricsPanel'
 import type { StockTrackingMarketData } from './useStockTrackingMarketData'
 
@@ -33,7 +45,20 @@ interface StockTrackingEditorProps {
   onStopTracking: (quoteId: string, result: StockTrackingConclusionResult, summary: string) => void
   onRestartTracking: (quoteId: string) => void
   canRestart?: boolean
+  onViewStock?: () => void
+  onDeleteStock?: () => void
 }
+
+const CONCLUSION_OPTIONS = Object.entries(STOCK_TRACKING_CONCLUSION_LABELS).map(
+  ([value, label]) => ({ value: value as StockTrackingConclusionResult, label })
+) satisfies readonly AppSelectOption<StockTrackingConclusionResult>[]
+
+type EditableEntryType = Exclude<StockTrackingEntryType, 'system'>
+
+const ENTRY_TYPE_OPTIONS = (['note', 'thesis', 'review'] as const).map((value) => ({
+  value,
+  label: STOCK_TRACKING_ENTRY_LABELS[value]
+})) satisfies readonly AppSelectOption<EditableEntryType>[]
 
 function valueClass(value: number | null | undefined): string {
   if (value === null || value === undefined || value === 0) return 'is-flat'
@@ -62,11 +87,13 @@ export function StockTrackingEditor({
   onUpdateProfile,
   onStopTracking,
   onRestartTracking,
-  canRestart = true
+  canRestart = true,
+  onViewStock,
+  onDeleteStock
 }: StockTrackingEditorProps) {
   const [thesis, setThesis] = useState(profile.thesis)
   const [tagInput, setTagInput] = useState('')
-  const [entryType, setEntryType] = useState<Exclude<StockTrackingEntryType, 'system'>>('note')
+  const [entryType, setEntryType] = useState<EditableEntryType>('note')
   const [entryContent, setEntryContent] = useState('')
   const [showStopForm, setShowStopForm] = useState(false)
   const [conclusionResult, setConclusionResult] =
@@ -115,7 +142,7 @@ export function StockTrackingEditor({
   return (
     <div className="stock-tracking-editor">
       <header className="stock-tracking-editor-header">
-        <div>
+        <div className="stock-tracking-editor-identity">
           <span className={`stock-tracking-status is-${profile.status}`}>
             {profile.status === 'tracking' ? '追踪中' : '已停止'}
           </span>
@@ -124,46 +151,61 @@ export function StockTrackingEditor({
             {profile.code} · {profile.marketLabel}
           </small>
         </div>
-        {profile.status === 'tracking' ? (
-          <button
-            className="secondary-button stock-tracking-stop-trigger"
-            type="button"
-            onClick={() => setShowStopForm((current) => !current)}
-          >
-            <CircleStop size={15} />
-            停止追踪
-          </button>
-        ) : (
-          <button
-            className="primary-button stock-tracking-restart"
-            type="button"
-            onClick={() => onRestartTracking(profile.quoteId)}
-            disabled={!canRestart}
-            title={canRestart ? undefined : '请先重新加入自选，再恢复追踪'}
-          >
-            <Play size={15} />
-            重新追踪
-          </button>
-        )}
+        <div className="stock-tracking-editor-actions">
+          {onViewStock ? (
+            <button className="secondary-button" type="button" onClick={onViewStock}>
+              <Eye size={14} />
+              查看股票详情
+            </button>
+          ) : null}
+          {profile.status === 'tracking' ? (
+            <>
+              <button
+                className="secondary-button stock-tracking-stop-trigger"
+                type="button"
+                onClick={() => setShowStopForm((current) => !current)}
+              >
+                <CircleStop size={15} />
+                停止追踪
+              </button>
+              {onDeleteStock ? (
+                <button
+                  className="icon-button stock-tracking-delete-stock"
+                  type="button"
+                  onClick={onDeleteStock}
+                  aria-label={`从股票列表中删除 ${profile.name} 并停止追踪`}
+                  title="从股票列表中删除并停止追踪"
+                >
+                  <Trash2 size={16} />
+                </button>
+              ) : null}
+            </>
+          ) : (
+            <button
+              className="primary-button stock-tracking-restart"
+              type="button"
+              onClick={() => onRestartTracking(profile.quoteId)}
+              disabled={!canRestart}
+              title={canRestart ? undefined : '请先重新加入自选，再恢复追踪'}
+            >
+              <Play size={15} />
+              重新追踪
+            </button>
+          )}
+        </div>
       </header>
 
       {showStopForm && profile.status === 'tracking' ? (
         <section className="stock-tracking-stop-form">
-          <label>
+          <div className="stock-tracking-field">
             <span>追踪结论</span>
-            <select
+            <AppSelect
               value={conclusionResult}
-              onChange={(event) =>
-                setConclusionResult(event.target.value as StockTrackingConclusionResult)
-              }
-            >
-              {Object.entries(STOCK_TRACKING_CONCLUSION_LABELS).map(([value, label]) => (
-                <option value={value} key={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
+              options={CONCLUSION_OPTIONS}
+              label="追踪结论"
+              onChange={setConclusionResult}
+            />
+          </div>
           <label>
             <span>停止原因与复盘总结</span>
             <textarea
@@ -172,7 +214,7 @@ export function StockTrackingEditor({
               placeholder="记录逻辑是否兑现、为什么停止，以及后续需要改进的地方"
             />
           </label>
-          <div>
+          <div className="stock-tracking-stop-actions">
             <button
               className="secondary-button"
               type="button"
@@ -342,19 +384,13 @@ export function StockTrackingEditor({
               placeholder="记录今天观察到的变化、判断和后续计划"
             />
             <div className="stock-tracking-save-row">
-              <select
+              <AppSelect
+                className="stock-tracking-entry-type-select"
                 value={entryType}
-                onChange={(event) =>
-                  setEntryType(event.target.value as Exclude<StockTrackingEntryType, 'system'>)
-                }
-                aria-label="跟踪记录类型"
-              >
-                {(['note', 'thesis', 'review'] as const).map((type) => (
-                  <option value={type} key={type}>
-                    {STOCK_TRACKING_ENTRY_LABELS[type]}
-                  </option>
-                ))}
-              </select>
+                options={ENTRY_TYPE_OPTIONS}
+                label="跟踪记录类型"
+                onChange={setEntryType}
+              />
               <button
                 className="primary-button"
                 type="button"

@@ -12,7 +12,7 @@ import {
   X
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { calculatePositionMetrics } from '../lib/portfolio'
+import { calculatePositionMetrics, type PortfolioSummary } from '../lib/portfolio'
 import { calculatePortfolioQualitySummary } from '../lib/portfolio-quality'
 import type { StockDetailNavigationRequest } from '../lib/completion-notifications'
 import type {
@@ -102,6 +102,8 @@ interface WatchlistTableProps {
   marketTradeFees: MarketTradeFeeSettings
   tPlanDefaults: TPlanDefaultSettings
   tFloatingProfitAlertDefaultThreshold: number
+  portfolioSummary: PortfolioSummary
+  portfolioExposureText: string
   tradingCalendar: TradingCalendarSettings
   exchangeRates: ExchangeRateSettings
   onSelect: (quoteId: string) => void
@@ -229,6 +231,8 @@ export function WatchlistTable({
   marketTradeFees,
   tPlanDefaults,
   tFloatingProfitAlertDefaultThreshold,
+  portfolioSummary,
+  portfolioExposureText,
   tradingCalendar,
   exchangeRates,
   onSelect,
@@ -757,7 +761,7 @@ export function WatchlistTable({
         <span>
           {sort
             ? `当前按“${COLUMN_META[sort.column].label}”${sort.direction === 'asc' ? '升序' : '降序'}排列`
-            : '当前为手动排序 · 使用最左侧的拖动手柄或置顶按钮调整顺序'}
+            : '当前为手动排序 · 使用排序列拖动手柄或设置列首位按钮调整顺序'}
           {customGroupFilter === ALL_FILTER
             ? ''
             : ` · 分组：${customGroupFilter === UNGROUPED_FILTER ? '未分组' : selectedGroupName}`}
@@ -880,6 +884,8 @@ export function WatchlistTable({
         summary={fundamentalSummary}
         valueSummary={valueSummary}
         portfolioQuality={portfolioQualitySummary}
+        portfolioSummary={portfolioSummary}
+        portfolioExposureText={portfolioExposureText}
         activeFilter={fundamentalFilter}
         activeValueFilter={valueFilter}
         riskOnly={riskOnly}

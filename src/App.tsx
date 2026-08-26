@@ -11,7 +11,7 @@ import {
   WifiOff
 } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
-import { AppTitlebar } from './components/AppTitlebar'
+import { AppTitlebar, MarketTradingState } from './components/AppTitlebar'
 import { useConfirmDialog } from './components/ConfirmDialog'
 import { DailyMarketScanDialog } from './components/DailyMarketScanDialog'
 import { DividendFinancingRankingDialog } from './components/DividendFinancingRankingDialog'
@@ -27,7 +27,6 @@ import {
   type StockDetailNavigationRequest
 } from './lib/completion-notifications'
 import {
-  formatMoney,
   formatMoneyProfit,
   formatPercent,
   formatPrice,
@@ -725,6 +724,41 @@ export default function App() {
     [persist, state]
   )
 
+  const removeTrackedStock = useCallback(
+    async (quoteId: string) => {
+      const stock = state.watchlist.find((item) => item.quoteId === quoteId)
+      const profile = state.stockTrackingProfiles[quoteId]
+      if (!stock || !profile) return
+      const confirmed = await confirm({
+        title: '删除股票并停止追踪',
+        message: `将从股票列表中删除“${stock.name}（${stock.code}）”，并停止追踪。历史档案和复盘记录仍会保留。`,
+        confirmLabel: '删除并停止',
+        tone: 'danger'
+      })
+      if (!confirmed) return
+      const nextProfile =
+        profile.status === 'tracking'
+          ? stopStockTracking(
+              profile,
+              'unverified',
+              '从股票列表中删除时停止追踪',
+              quotes.find((quote) => quote.quoteId === quoteId)
+            )
+          : profile
+      setSelectedQuoteId((current) => (current === quoteId ? null : current))
+      setQuotes((current) => current.filter((quote) => quote.quoteId !== quoteId))
+      void persist({
+        ...state,
+        watchlist: state.watchlist.filter((item) => item.quoteId !== quoteId),
+        stockTrackingProfiles: {
+          ...state.stockTrackingProfiles,
+          [quoteId]: nextProfile
+        }
+      })
+    },
+    [confirm, persist, quotes, state]
+  )
+
   const toggleTaskbar = useCallback(
     (quoteId: string) => {
       const nextWatchlist = state.watchlist.map((stock) =>
@@ -1324,10 +1358,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <AppTitlebar
-        markets={activeMarkets}
-        tradingCalendar={state.settings.tradingCalendar}
-      >
+      <AppTitlebar>
         <section className="titlebar-command-bar" aria-label="自选股操作">
           <div className="titlebar-command-main">
             <SearchBar onAdd={addStock} existingQuoteIds={quoteIds} onError={reportError} />
@@ -1485,10 +1516,6 @@ export default function App() {
               </div>
               <div className="panel-heading-side">
                 <div className="portfolio-summary" aria-label="全部持仓收益汇总">
-                  <span>
-                    <small>持仓总市值（人民币）</small>
-                    <strong>{formatMoney(portfolioSummary.marketValue, 'CNY')}</strong>
-                  </span>
                   <span className={cardDirectionClass(portfolioSummary.todayProfit)}>
                     <small>今日总收益</small>
                     <strong
@@ -1517,20 +1544,6 @@ export default function App() {
                       {formatPercent(portfolioSummary.todayProfitPercent)}
                     </strong>
                   </span>
-                  <span className={cardDirectionClass(portfolioSummary.totalProfit)}>
-                    <small>持仓总收益</small>
-                    <strong
-                      className={
-                        portfolioSummary.totalProfit === null
-                          ? 'is-flat'
-                          : portfolioSummary.totalProfit >= 0
-                            ? 'is-up'
-                            : 'is-down'
-                      }
-                    >
-                      {formatMoneyProfit(portfolioSummary.totalProfit, 'CNY')}
-                    </strong>
-                  </span>
                   <span className={cardDirectionClass(portfolioSummary.profitPercent)}>
                     <small>总收益率</small>
                     <strong
@@ -1546,16 +1559,6 @@ export default function App() {
                     </strong>
                   </span>
                 </div>
-                {portfolioExposureText ? (
-                  <small className="portfolio-exposure-summary">
-                    市场 / 币种分布：{portfolioExposureText}
-                  </small>
-                ) : null}
-                {portfolioSummary.unconvertedPositionCount > 0 ? (
-                  <small className="portfolio-exposure-summary is-warning">
-                    {portfolioSummary.unconvertedPositionCount} 只外币持仓缺少可用汇率或建仓汇率，未计入人民币收益汇总
-                  </small>
-                ) : null}
               </div>
             </div>
             {initializing ? (
@@ -1598,6 +1601,8 @@ export default function App() {
                 tFloatingProfitAlertDefaultThreshold={
                   state.settings.tFloatingProfitAlertDefaultThreshold
                 }
+                portfolioSummary={portfolioSummary}
+                portfolioExposureText={portfolioExposureText}
                 tradingCalendar={state.settings.tradingCalendar}
                 exchangeRates={state.settings.exchangeRates}
                 onSelect={selectWatchlistStock}
@@ -1632,6 +1637,11 @@ export default function App() {
           {error ? <WifiOff size={14} /> : <Signal size={14} />}
           <span>{source === 'eastmoney' ? '东方财富公开行情' : '浏览器预览数据'}</span>
         </div>
+        <span className="status-separator" />
+        <MarketTradingState
+          markets={activeMarkets}
+          tradingCalendar={state.settings.tradingCalendar}
+        />
         <span className="status-separator" />
         <span>
           {error ? '行情连接异常，保留最近数据' : `最近更新 ${formatUpdateTime(lastUpdated)}`}
@@ -1713,6 +1723,7 @@ export default function App() {
         onUpdateProfile={saveTrackingProfile}
         onStopTracking={stopTracking}
         onRestartTracking={restartTracking}
+        onDeleteStock={removeTrackedStock}
         onViewStock={viewWatchlistStockFromDailyScan}
         bollingerBandsEnabled={state.settings.showBollingerBands}
         onBollingerBandsEnabledChange={updateBollingerBandsEnabled}

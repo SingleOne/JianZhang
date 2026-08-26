@@ -1,6 +1,8 @@
 import { ArrowDown, ArrowUp, ChartPie, RotateCcw, ScanSearch } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { formatMoney, formatMoneyProfit } from '../../lib/format'
+import type { PortfolioSummary } from '../../lib/portfolio'
 import type {
   FundamentalDividendFilter,
   FundamentalDividendWatchlistSummary,
@@ -13,6 +15,8 @@ interface FundamentalWatchlistOverviewProps {
   summary: FundamentalWatchlistSummary
   valueSummary: FundamentalDividendWatchlistSummary | null
   portfolioQuality: PortfolioQualitySummary
+  portfolioSummary: PortfolioSummary
+  portfolioExposureText: string
   activeFilter: FundamentalWatchlistFilter
   activeValueFilter: FundamentalDividendFilter
   riskOnly: boolean
@@ -74,6 +78,8 @@ export function FundamentalWatchlistOverview({
   summary,
   valueSummary,
   portfolioQuality,
+  portfolioSummary,
+  portfolioExposureText,
   activeFilter,
   activeValueFilter,
   riskOnly,
@@ -113,15 +119,47 @@ export function FundamentalWatchlistOverview({
       title={portfolioQuality.positionCount > 0 ? '查看全部持仓的质量与风险市值分布' : '当前没有持仓'}
     >
       <ChartPie size={18} />
-      <span>
-        <strong>持仓质量</strong>
-        <small>
-          {portfolioQuality.positionCount === 0
-            ? '暂无持仓'
-            : portfolioQuality.totalMarketValue === null
-              ? `${portfolioQuality.positionCount} 只 · 暂无计价`
-              : `双优 ${shareText(dualPercent)} · 风险 ${shareText(riskPercent)}`}
-        </small>
+      <span className="portfolio-card-content">
+        <span className="portfolio-card-heading">
+          <strong>持仓</strong>
+          <small>
+            {portfolioQuality.positionCount === 0
+              ? '暂无持仓'
+              : portfolioQuality.totalMarketValue === null
+                ? `${portfolioQuality.positionCount} 只 · 暂无计价`
+                : `${portfolioQuality.positionCount} 只 · 双优 ${shareText(dualPercent)} · 风险 ${shareText(riskPercent)}`}
+          </small>
+        </span>
+        {portfolioQuality.positionCount > 0 ? (
+          <span className="portfolio-card-metrics">
+            <span>
+              <small>总市值</small>
+              <b>{formatMoney(portfolioSummary.marketValue, 'CNY')}</b>
+            </span>
+            <span>
+              <small>总收益</small>
+              <b
+                className={
+                  portfolioSummary.totalProfit === null || portfolioSummary.totalProfit === 0
+                    ? 'is-flat'
+                    : portfolioSummary.totalProfit > 0
+                      ? 'is-up'
+                      : 'is-down'
+                }
+              >
+                {formatMoneyProfit(portfolioSummary.totalProfit, 'CNY')}
+              </b>
+            </span>
+          </span>
+        ) : null}
+        {portfolioExposureText ? (
+          <small className="portfolio-card-exposure">市场 / 币种：{portfolioExposureText}</small>
+        ) : null}
+        {portfolioSummary.unconvertedPositionCount > 0 ? (
+          <small className="portfolio-card-warning">
+            {portfolioSummary.unconvertedPositionCount} 只外币持仓未计入人民币收益
+          </small>
+        ) : null}
       </span>
     </button>
   )

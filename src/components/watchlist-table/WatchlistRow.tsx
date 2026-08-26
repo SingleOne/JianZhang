@@ -1,4 +1,12 @@
-import { BellRing, GripVertical, MonitorUp, PencilLine, Pin, Star, Trash2 } from 'lucide-react'
+import {
+  ArrowUpToLine,
+  BellRing,
+  GripVertical,
+  MonitorUp,
+  PencilLine,
+  Star,
+  Trash2
+} from 'lucide-react'
 import { Fragment, memo, type DragEvent, useCallback, useState } from 'react'
 import {
   formatAmount,
@@ -314,8 +322,12 @@ export const WatchlistRow = memo(function WatchlistRow({
             >
               <GripVertical size={15} />
             </span>
+          </div>
+        </td>
+        <td className="settings-column">
+          <div className="row-actions">
             <button
-              className="icon-button row-pin-button"
+              className="row-action-button is-pin-action"
               type="button"
               disabled={!dragDisabled && manualIndex === 0}
               onClick={(event) => {
@@ -325,14 +337,10 @@ export const WatchlistRow = memo(function WatchlistRow({
               aria-label={`置顶 ${stock.name}`}
               title={dragDisabled ? '置顶并恢复手动排序' : '置顶'}
             >
-              <Pin size={13} />
+              <ArrowUpToLine size={15} />
             </button>
-          </div>
-        </td>
-        <td className="settings-column">
-          <div className="row-actions">
             <button
-              className={`row-action-button ${stock.isPriority ? 'is-active' : ''} ${stock.position ? 'is-locked' : ''}`}
+              className={`row-action-button is-priority-action ${stock.isPriority ? 'is-active' : ''} ${stock.position ? 'is-locked' : ''}`}
               type="button"
               onClick={(event) => {
                 event.stopPropagation()
@@ -354,7 +362,7 @@ export const WatchlistRow = memo(function WatchlistRow({
               <Star size={15} fill={stock.isPriority ? 'currentColor' : 'none'} />
             </button>
             <button
-              className={`row-action-button ${stock.showInTaskbar ? 'is-active' : ''}`}
+              className={`row-action-button is-taskbar-action ${stock.showInTaskbar ? 'is-active' : ''}`}
               type="button"
               onClick={(event) => {
                 event.stopPropagation()
@@ -370,27 +378,11 @@ export const WatchlistRow = memo(function WatchlistRow({
             >
               <MonitorUp size={15} />
             </button>
-            <button
-              className={`row-action-button ${stockAlertClass || (enabledStockAlertCount > 0 ? 'is-active' : '')}`}
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation()
-                onOpenStockAlert(stock)
-              }}
-              aria-label={`设置 ${stock.name} 的股价提醒`}
-              title={
-                enabledStockAlertCount > 0
-                  ? `已启用 ${enabledStockAlertCount} 条股价提醒`
-                  : '设置股价、涨幅或收益率提醒'
-              }
-            >
-              <BellRing size={15} />
-            </button>
             {capabilities.position || capabilities.tTrading ? (
               <>
                 {capabilities.position ? (
                   <button
-                    className={`row-action-button ${stock.position ? 'has-position' : ''}`}
+                    className={`row-action-button is-position-action ${stock.position ? 'has-position' : ''}`}
                     type="button"
                     onClick={(event) => {
                       event.stopPropagation()
@@ -404,7 +396,7 @@ export const WatchlistRow = memo(function WatchlistRow({
                 ) : null}
                 {capabilities.tTrading ? (
                   <button
-                    className={`row-action-button ${tButtonState}`}
+                    className={`row-action-button is-t-action ${tButtonState}`}
                     type="button"
                     onClick={(event) => {
                       event.stopPropagation()
@@ -420,6 +412,22 @@ export const WatchlistRow = memo(function WatchlistRow({
                 ) : null}
               </>
             ) : null}
+            <button
+              className={`row-action-button is-alert-action ${stockAlertClass || (enabledStockAlertCount > 0 ? 'is-active' : '')}`}
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                onOpenStockAlert(stock)
+              }}
+              aria-label={`设置 ${stock.name} 的股价提醒`}
+              title={
+                enabledStockAlertCount > 0
+                  ? `已启用 ${enabledStockAlertCount} 条股价提醒`
+                  : '设置股价、涨幅或收益率提醒'
+              }
+            >
+              <BellRing size={15} />
+            </button>
           </div>
         </td>
         {columnOrder.map((columnId) => {
