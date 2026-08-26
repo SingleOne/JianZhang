@@ -1348,23 +1348,7 @@ export default function App() {
       <AppTitlebar>
         <section className="titlebar-command-bar" aria-label="自选股操作">
           <div className="titlebar-command-main">
-            <SearchBar
-              onAdd={addStock}
-              existingQuoteIds={quoteIds}
-              onError={reportError}
-              renderAction={({ addFirst, canAdd }) => (
-                <TitlebarToolsMenu
-                  canAddStock={canAdd}
-                  onAddStock={addFirst}
-                  onOpenDividendRanking={() => setDividendRankingOpen(true)}
-                  onOpenFundamentalScreening={() => setFundamentalScreeningOpen(true)}
-                  onOpenDailyMarketScan={() => setDailyMarketScanOpen(true)}
-                  onOpenStockTracking={() => setStockTrackingOpen(true)}
-                  onOpenCorporateActionCenter={() => setCorporateActionCenterOpen(true)}
-                  onOpenPortfolioPerformance={() => setPortfolioPerformanceOpen(true)}
-                />
-              )}
-            />
+            <SearchBar onAdd={addStock} existingQuoteIds={quoteIds} onError={reportError} />
           </div>
           <div className="titlebar-command-actions">
             <button
@@ -1376,6 +1360,14 @@ export default function App() {
               <RefreshCw size={17} className={refreshing ? 'is-spinning' : ''} />
               <span>立即刷新</span>
             </button>
+            <TitlebarToolsMenu
+              onOpenDividendRanking={() => setDividendRankingOpen(true)}
+              onOpenFundamentalScreening={() => setFundamentalScreeningOpen(true)}
+              onOpenDailyMarketScan={() => setDailyMarketScanOpen(true)}
+              onOpenStockTracking={() => setStockTrackingOpen(true)}
+              onOpenCorporateActionCenter={() => setCorporateActionCenterOpen(true)}
+              onOpenPortfolioPerformance={() => setPortfolioPerformanceOpen(true)}
+            />
             {aiRuntimeAvailable ? (
               <button
                 className="secondary-button ai-assistant-trigger"

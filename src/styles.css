@@ -241,14 +241,9 @@ tr:focus-visible {
   cursor: pointer;
 }
 
-.titlebar-tools-popover > button:hover:not(:disabled) {
+.titlebar-tools-popover > button:hover {
   color: #243b64;
   background: #f3f6fb;
-}
-
-.titlebar-tools-popover > button:disabled {
-  opacity: 0.48;
-  cursor: default;
 }
 
 .titlebar-tools-popover > button > svg {

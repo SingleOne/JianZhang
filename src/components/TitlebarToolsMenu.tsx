@@ -5,14 +5,11 @@ import {
   CircleDollarSign,
   Filter,
   Menu,
-  Plus,
   Trophy
 } from 'lucide-react'
 import { useRef, type ReactNode } from 'react'
 
 interface TitlebarToolsMenuProps {
-  canAddStock: boolean
-  onAddStock: () => void
   onOpenDividendRanking: () => void
   onOpenFundamentalScreening: () => void
   onOpenDailyMarketScan: () => void
@@ -25,13 +22,12 @@ interface ToolButtonProps {
   icon: ReactNode
   label: string
   description: string
-  disabled?: boolean
   onClick: () => void
 }
 
-function ToolButton({ icon, label, description, disabled = false, onClick }: ToolButtonProps) {
+function ToolButton({ icon, label, description, onClick }: ToolButtonProps) {
   return (
-    <button type="button" role="menuitem" disabled={disabled} onClick={onClick}>
+    <button type="button" role="menuitem" onClick={onClick}>
       {icon}
       <span>
         <strong>{label}</strong>
@@ -42,8 +38,6 @@ function ToolButton({ icon, label, description, disabled = false, onClick }: Too
 }
 
 export function TitlebarToolsMenu({
-  canAddStock,
-  onAddStock,
   onOpenDividendRanking,
   onOpenFundamentalScreening,
   onOpenDailyMarketScan,
@@ -64,13 +58,6 @@ export function TitlebarToolsMenu({
         <span>功能</span>
       </summary>
       <div className="titlebar-tools-popover" role="menu" aria-label="更多功能">
-        <ToolButton
-          icon={<Plus size={17} />}
-          label="添加自选"
-          description={canAddStock ? '添加当前第一个搜索结果' : '请先输入股票代码或名称'}
-          disabled={!canAddStock}
-          onClick={() => openTool(onAddStock)}
-        />
         <ToolButton
           icon={<Trophy size={17} />}
           label="分红融资榜"

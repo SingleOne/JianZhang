@@ -1,5 +1,5 @@
 import { Plus, Search, X } from 'lucide-react'
-import { useDeferredValue, useEffect, useState, type ReactNode } from 'react'
+import { useDeferredValue, useEffect, useState } from 'react'
 import { stockApi } from '../lib/api'
 import type { SearchResult } from '../shared/types'
 
@@ -7,10 +7,9 @@ interface SearchBarProps {
   onAdd: (stock: SearchResult) => void
   existingQuoteIds: Set<string>
   onError: (message: string) => void
-  renderAction?: (state: { addFirst: () => void; canAdd: boolean }) => ReactNode
 }
 
-export function SearchBar({ onAdd, existingQuoteIds, onError, renderAction }: SearchBarProps) {
+export function SearchBar({ onAdd, existingQuoteIds, onError }: SearchBarProps) {
   const [query, setQuery] = useState('')
   const deferredQuery = useDeferredValue(query)
   const [results, setResults] = useState<SearchResult[]>([])
@@ -72,14 +71,10 @@ export function SearchBar({ onAdd, existingQuoteIds, onError, renderAction }: Se
           </button>
         ) : null}
       </div>
-      {renderAction ? (
-        renderAction({ addFirst, canAdd: Boolean(results[0]) })
-      ) : (
-        <button className="primary-button" onClick={addFirst} disabled={!results[0]}>
-          <Plus size={17} />
-          添加自选
-        </button>
-      )}
+      <button className="primary-button" onClick={addFirst} disabled={!results[0]}>
+        <Plus size={17} />
+        添加自选
+      </button>
 
       {open && query ? (
         <div className="search-results" role="listbox">
