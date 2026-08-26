@@ -51,7 +51,12 @@ export function SearchBar({ onAdd, existingQuoteIds, onError }: SearchBarProps) 
   }
 
   return (
-    <div className="search-composer" onBlur={() => window.setTimeout(() => setOpen(false), 120)}>
+    <div
+      className="search-composer"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false)
+      }}
+    >
       <div className={`search-field ${open && query ? 'is-open' : ''}`}>
         <Search size={18} aria-hidden="true" />
         <input
@@ -67,7 +72,12 @@ export function SearchBar({ onAdd, existingQuoteIds, onError }: SearchBarProps) 
         />
         {searching ? <span className="search-loader" aria-label="正在搜索" /> : null}
         {query && !searching ? (
-          <button className="clear-search" onClick={() => setQuery('')} aria-label="清空搜索">
+          <button
+            className="clear-search"
+            type="button"
+            onClick={() => setQuery('')}
+            aria-label="清空搜索"
+          >
             <X size={15} />
           </button>
         ) : null}
@@ -81,6 +91,7 @@ export function SearchBar({ onAdd, existingQuoteIds, onError }: SearchBarProps) 
                 <button
                   key={stock.quoteId}
                   className="search-result"
+                  type="button"
                   onClick={() => choose(stock)}
                   role="option"
                 >
