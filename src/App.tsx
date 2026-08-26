@@ -2,6 +2,7 @@ import {
   Activity,
   Binoculars,
   Bot,
+  ChartPie,
   CircleCheck,
   CircleDollarSign,
   Filter,
@@ -84,6 +85,9 @@ import type {
 } from './shared/types'
 
 const CorporateActionCenterDialog = lazy(() => import('./components/CorporateActionCenterDialog'))
+const PortfolioPerformanceDialog = lazy(
+  () => import('./components/PortfolioPerformanceDialog')
+)
 
 interface StockAddOptions {
   startTracking?: boolean
@@ -166,6 +170,7 @@ export default function App() {
   const [dailyMarketScanOpen, setDailyMarketScanOpen] = useState(false)
   const [stockTrackingOpen, setStockTrackingOpen] = useState(false)
   const [corporateActionCenterOpen, setCorporateActionCenterOpen] = useState(false)
+  const [portfolioPerformanceOpen, setPortfolioPerformanceOpen] = useState(false)
   const [dividendFinancingSnapshot, setDividendFinancingSnapshot] =
     useState<DividendFinancingSnapshot | null>(null)
   const [dividendFinancingChangeReport, setDividendFinancingChangeReport] =
@@ -1418,6 +1423,15 @@ export default function App() {
               <CircleDollarSign size={17} />
               <span>公司行动</span>
             </button>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => setPortfolioPerformanceOpen(true)}
+              title="跨市场收益分析"
+            >
+              <ChartPie size={17} />
+              <span>收益分析</span>
+            </button>
             {aiRuntimeAvailable ? (
               <button
                 className="secondary-button ai-assistant-trigger"
@@ -1737,6 +1751,17 @@ export default function App() {
             records={state.corporateActionRecords}
             onViewStock={viewCorporateActionStock}
             onClose={() => setCorporateActionCenterOpen(false)}
+          />
+        </Suspense>
+      ) : null}
+      {portfolioPerformanceOpen ? (
+        <Suspense fallback={null}>
+          <PortfolioPerformanceDialog
+            watchlist={state.watchlist}
+            quotes={quotes}
+            accounts={state.tTradingAccounts}
+            exchangeRates={state.settings.exchangeRates}
+            onClose={() => setPortfolioPerformanceOpen(false)}
           />
         </Suspense>
       ) : null}

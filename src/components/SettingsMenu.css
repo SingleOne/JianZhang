@@ -887,7 +887,6 @@
 .trading-fee-setting > small {
   color: #8a94a6;
   font-size: 12px;
-  line-height: 1.5;
 }
 
 .trading-fee-grid {
@@ -963,8 +962,7 @@
 
 .t-plan-default-setting > small {
   color: #8a94a6;
-  font-size: 10px;
-  line-height: 1.5;
+  font-size: 12px;
 }
 
 .t-plan-default-groups {

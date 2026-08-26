@@ -69,7 +69,7 @@ function tradeDate(record: TTradeRecord): string {
   )
 }
 
-function activeLedgerEntries(account: TTradingAccount): PortfolioLedgerEntry[] {
+export function activePortfolioLedgerEntries(account: TTradingAccount): PortfolioLedgerEntry[] {
   const reversedIds = new Set(
     account.ledger.entries.flatMap((entry) =>
       entry.kind === 'reversal' ? [entry.reversesEntryId] : []
@@ -104,7 +104,7 @@ export function calculatePortfolioLedgerMetrics(
   let cashIncomeCny = 0
   let completeCashCny = true
 
-  for (const entry of activeLedgerEntries(account)) {
+  for (const entry of activePortfolioLedgerEntries(account)) {
     if (entry.kind === 'trade') {
       const record = entry.record
       const fees = totalRecordedTradeFees(record)
@@ -190,7 +190,7 @@ export function calculatePortfolioLedgerMetrics(
 export function eligibleQuantityOn(account: TTradingAccount, date: string | undefined): number {
   if (!date) return calculatePortfolioLedgerMetrics(account, account.currency ?? 'CNY').quantity
   let quantity = 0
-  for (const entry of activeLedgerEntries(account)) {
+  for (const entry of activePortfolioLedgerEntries(account)) {
     if (entry.kind === 'trade') {
       if (tradeDate(entry.record) > date) continue
       quantity += entry.record.side === 'buy' ? entry.record.quantity : -entry.record.quantity
