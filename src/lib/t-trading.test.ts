@@ -5,6 +5,9 @@ import {
   calculateCostAdjustedProfit,
   calculateTBatchMetrics,
   calculateTradeFees,
+  getTradeBatchAllocationAmounts,
+  recalculatePositionFromBatch,
+  validateTBatchTrades,
   totalTradeFees
 } from './t-trading'
 
@@ -83,7 +86,7 @@ describe('T batch metrics', () => {
     expect(metrics.averageCost).toBeCloseTo(10.01)
     expect(metrics.realizedProfit).toBeCloseTo(78.6)
     expect(metrics.floatingProfit).toBeCloseTo(59.4)
-    expect(metrics.floatingProfitRate).toBeCloseTo(59.4 / 600.6 * 100)
+    expect(metrics.floatingProfitRate).toBeCloseTo((59.4 / 600.6) * 100)
   })
 
   it('calculates reverse-T realized and floating profit', () => {
@@ -97,7 +100,134 @@ describe('T batch metrics', () => {
     expect(metrics.averageCost).toBeCloseTo(11.99)
     expect(metrics.realizedProfit).toBeCloseTo(78.6)
     expect(metrics.floatingProfit).toBeCloseTo(59.4)
-    expect(metrics.floatingProfitRate).toBeCloseTo(59.4 / metrics.remainingCostBasis * 100)
+    expect(metrics.floatingProfitRate).toBeCloseTo((59.4 / metrics.remainingCostBasis) * 100)
+  })
+
+  it('uses one execution fee and splits an oversized sell between T and base holdings', () => {
+    const currentBatch = {
+      ...batch(),
+      openingPosition: { quantity: 2_000, cost: 8, openedOn: '2026-07-01' }
+    }
+    const closingTrade: TTrade = {
+      ...trade('sell-1000', 'sell', 12, 1_000, 10.01),
+      allocations: [
+        {
+          purpose: 't',
+          quantity: 400,
+          batchId: currentBatch.id,
+          batchSequence: currentBatch.sequence,
+          batchDirection: 'forward'
+        },
+        {
+          purpose: 'base',
+          quantity: 600,
+          batchId: currentBatch.id,
+          batchSequence: currentBatch.sequence,
+          batchDirection: 'forward'
+        }
+      ]
+    }
+    const trades = [trade('buy-400', 'buy', 10, 400), closingTrade]
+
+    expect(validateTBatchTrades(currentBatch, trades)).toBeUndefined()
+    expect(getTradeBatchAllocationAmounts(closingTrade, currentBatch)).toEqual({
+      quantity: 1_000,
+      fees: 10.01,
+      tQuantity: 400,
+      tFees: 4,
+      baseQuantity: 600,
+      baseFees: 6.01
+    })
+    expect(calculateTBatchMetrics(currentBatch, trades).realizedProfit).toBe(796)
+    expect(recalculatePositionFromBatch(currentBatch, trades)?.quantity).toBe(1_400)
+  })
+
+  it('allocates one sell execution across the closing forward batch and a new reverse batch', () => {
+    const forwardBatch = {
+      ...batch(),
+      openingPosition: { quantity: 2_000, cost: 8, openedOn: '2026-07-01' }
+    }
+    const reverseBatch: TTradingBatch = {
+      ...batch('reverse'),
+      id: 'batch-2',
+      sequence: 2,
+      openingPosition: { quantity: 2_000, cost: 8, openedOn: '2026-07-01' }
+    }
+    const transitionTrade: TTrade = {
+      ...trade('sell-1000', 'sell', 12, 1_000, 10),
+      allocations: [
+        {
+          purpose: 't',
+          quantity: 400,
+          batchId: forwardBatch.id,
+          batchSequence: forwardBatch.sequence,
+          batchDirection: 'forward'
+        },
+        {
+          purpose: 't',
+          quantity: 600,
+          batchId: reverseBatch.id,
+          batchSequence: reverseBatch.sequence,
+          batchDirection: 'reverse'
+        }
+      ]
+    }
+    const forwardTrades = [trade('buy-400', 'buy', 10, 400), transitionTrade]
+
+    expect(validateTBatchTrades(forwardBatch, forwardTrades)).toBeUndefined()
+    expect(validateTBatchTrades(reverseBatch, [transitionTrade])).toBeUndefined()
+    expect(calculateTBatchMetrics(forwardBatch, forwardTrades).realizedProfit).toBe(796)
+    expect(calculateTBatchMetrics(reverseBatch, [transitionTrade])).toMatchObject({
+      direction: 'reverse',
+      remainingQuantity: 600,
+      remainingCostBasis: 7_194,
+      averageCost: 11.99
+    })
+    expect(recalculatePositionFromBatch(reverseBatch, [transitionTrade])?.quantity).toBe(1_400)
+  })
+
+  it('allocates an oversized buy across the closing reverse batch and a new forward batch', () => {
+    const reverseBatch = {
+      ...batch('reverse'),
+      openingPosition: { quantity: 2_000, cost: 8, openedOn: '2026-07-01' }
+    }
+    const forwardBatch: TTradingBatch = {
+      ...batch(),
+      id: 'batch-2',
+      sequence: 2,
+      openingPosition: { quantity: 2_000, cost: 8, openedOn: '2026-07-01' }
+    }
+    const transitionTrade: TTrade = {
+      ...trade('buy-1000', 'buy', 10, 1_000, 10),
+      allocations: [
+        {
+          purpose: 't',
+          quantity: 400,
+          batchId: reverseBatch.id,
+          batchSequence: reverseBatch.sequence,
+          batchDirection: 'reverse'
+        },
+        {
+          purpose: 't',
+          quantity: 600,
+          batchId: forwardBatch.id,
+          batchSequence: forwardBatch.sequence,
+          batchDirection: 'forward'
+        }
+      ]
+    }
+    const reverseTrades = [trade('sell-400', 'sell', 12, 400), transitionTrade]
+
+    expect(validateTBatchTrades(reverseBatch, reverseTrades)).toBeUndefined()
+    expect(validateTBatchTrades(forwardBatch, [transitionTrade])).toBeUndefined()
+    expect(calculateTBatchMetrics(reverseBatch, reverseTrades).realizedProfit).toBe(796)
+    expect(calculateTBatchMetrics(forwardBatch, [transitionTrade])).toMatchObject({
+      direction: 'forward',
+      remainingQuantity: 600,
+      remainingCostBasis: 6_006,
+      averageCost: 10.01
+    })
+    expect(recalculatePositionFromBatch(forwardBatch, [transitionTrade])?.quantity).toBe(2_600)
   })
 })
 

@@ -267,4 +267,64 @@ describe('unified trade record migration', () => {
     expect(account.activeBatch?.sellLevels[0].targetPercent).toBe(1)
     expect(hasLegacyTTradingData(normalizeTTradingAccounts(legacyAccounts))).toBe(false)
   })
+
+  it('normalizes an active batch from the quantity allocated by a cross-batch execution', () => {
+    const transitionTrade = {
+      ...trade('transition', '2026-08-26T10:00'),
+      side: 'sell' as const,
+      quantity: 1_000,
+      allocations: [
+        {
+          purpose: 't' as const,
+          quantity: 400,
+          batchId: 'batch-1',
+          batchSequence: 1,
+          batchDirection: 'forward' as const
+        },
+        {
+          purpose: 't' as const,
+          quantity: 600,
+          batchId: 'batch-2',
+          batchSequence: 2,
+          batchDirection: 'reverse' as const
+        }
+      ]
+    }
+    const accounts = normalizeTTradingAccounts({
+      '1.600000': {
+        quoteId: '1.600000',
+        code: '600000',
+        name: '浦发银行',
+        activeBatch: {
+          id: 'batch-2',
+          sequence: 2,
+          openedAt: transitionTrade.tradedAt,
+          direction: 'reverse',
+          openingPosition: { quantity: 2_000, cost: 8, openedOn: '2026-07-01' },
+          buyLevels: [],
+          sellLevels: []
+        },
+        history: [
+          {
+            id: 'batch-1',
+            sequence: 1,
+            openedAt: transitionTrade.tradedAt,
+            direction: 'forward',
+            buyLevels: [],
+            sellLevels: []
+          }
+        ],
+        ledger: { schemaVersion: 1, entries: [] },
+        tradeRecords: [transitionTrade]
+      }
+    })
+
+    expect(
+      accounts['1.600000'].activeBatch?.buyLevels?.reduce(
+        (total, level) => total + level.quantity,
+        0
+      )
+    ).toBe(600)
+    expect(accounts['1.600000'].tradeRecords).toHaveLength(1)
+  })
 })

@@ -13,7 +13,10 @@ import { exchangeRateForCurrency } from '../shared/exchange-rates'
 import { calculatePortfolioLedgerMetrics } from '../lib/portfolio-ledger'
 import {
   detachTradeRecordsFromBatch,
+  getTradeAllocations,
+  hasTAllocationForBatch,
   sortTradeRecords,
+  tradeReferencesBatch,
   upsertTradeRecord
 } from '../lib/trade-records'
 import {
@@ -229,8 +232,17 @@ function formatTradeTime(value: string): string {
 
 function tradeRecordLabel(record: TTradeRecord): string {
   if (record.origin === 'opening-balance') return '期初持仓'
-  if (record.purpose === 'base') return record.side === 'buy' ? '底仓买入' : '底仓卖出'
-  if ((record.batchDirection ?? 'forward') === 'reverse') {
+  const allocations = getTradeAllocations(record)
+  const purposes = new Set(allocations.map((allocation) => allocation.purpose))
+  const batchIds = new Set(allocations.map((allocation) => allocation.batchId).filter(Boolean))
+  if (purposes.size > 1) return record.side === 'buy' ? 'T仓 / 底仓买入' : 'T仓 / 底仓卖出'
+  if (batchIds.size > 1) return record.side === 'buy' ? '跨批次买入' : '跨批次卖出'
+  if (purposes.has('base')) return record.side === 'buy' ? '底仓买入' : '底仓卖出'
+  const direction =
+    allocations.find((allocation) => allocation.batchDirection)?.batchDirection ??
+    record.batchDirection ??
+    'forward'
+  if (direction === 'reverse') {
     return record.side === 'sell' ? '反T卖出' : '回补买入'
   }
   return record.side === 'buy' ? 'T仓买入' : 'T仓卖出'
@@ -238,8 +250,24 @@ function tradeRecordLabel(record: TTradeRecord): string {
 
 function tradeRecordContext(record: TTradeRecord): string {
   if (record.origin === 'opening-balance') return '期初余额'
-  if (record.batchSequence === undefined) return '独立交易'
-  return `${(record.batchDirection ?? 'forward') === 'reverse' ? '反T' : '正T'}批次 #${record.batchSequence}`
+  const contexts = getTradeAllocations(record)
+    .filter((allocation) => allocation.batchSequence !== undefined)
+    .map(
+      (allocation) =>
+        `${(allocation.batchDirection ?? 'forward') === 'reverse' ? '反T' : '正T'}批次 #${allocation.batchSequence}`
+    )
+  const uniqueContexts = [...new Set(contexts)]
+  return uniqueContexts.length > 0 ? uniqueContexts.join(' / ') : '独立交易'
+}
+
+function spansMultipleBatches(record: TTradeRecord): boolean {
+  return (
+    new Set(
+      getTradeAllocations(record)
+        .map((allocation) => allocation.batchId)
+        .filter(Boolean)
+    ).size > 1
+  )
 }
 
 function createTradeRecordDraft(record: TTradeRecord): TradeRecordDraft {
@@ -293,10 +321,10 @@ function updateTradeAccount(
     : account.tradeRecords.filter((item) => item.id !== record.id)
 
   const activeBatch = account.activeBatch
-  if (activeBatch && activeBatch.id === record.batchId) {
+  if (activeBatch && tradeReferencesBatch(record, activeBatch.id)) {
     const nextBatch = activeBatch
     const nextBatchTrades = sortTradeRecords(
-      nextRecords.filter((item) => item.batchId === nextBatch.id),
+      nextRecords.filter((item) => tradeReferencesBatch(item, nextBatch.id)),
       'ascending'
     )
     const validationError = validateTBatchTrades(nextBatch, nextBatchTrades)
@@ -304,7 +332,7 @@ function updateTradeAccount(
       return { account, updatesPosition: false, error: validationError }
     }
     const plannedBatch = rebalanceTBatchPlans(nextBatch, nextBatchTrades, planDefaults)
-    const hasTTrades = nextBatchTrades.some((trade) => trade.purpose === 't')
+    const hasTTrades = nextBatchTrades.some((trade) => hasTAllocationForBatch(trade, nextBatch.id))
     const finalRecords = hasTTrades
       ? nextRecords
       : detachTradeRecordsFromBatch(nextRecords, nextBatch.id)
@@ -318,11 +346,11 @@ function updateTradeAccount(
     }
   }
 
-  const historyIndex = account.history.findIndex((batch) => batch.id === record.batchId)
+  const historyIndex = account.history.findIndex((batch) => tradeReferencesBatch(record, batch.id))
   if (historyIndex >= 0) {
     const batch = account.history[historyIndex]
     const nextBatchTrades = sortTradeRecords(
-      nextRecords.filter((item) => item.batchId === batch.id),
+      nextRecords.filter((item) => tradeReferencesBatch(item, batch.id)),
       'ascending'
     )
     const validationError = validateTBatchTrades(batch, nextBatchTrades)
@@ -383,6 +411,14 @@ function TradeRecordList({
           <span>操作</span>
         </div>
         {records.map((record) => {
+          const allocations = getTradeAllocations(record)
+          const hasFixedAllocations = allocations.length > 1
+          const isCrossBatch = spansMultipleBatches(record)
+          const batchDirection =
+            allocations.find((allocation) => allocation.batchDirection)?.batchDirection ??
+            record.batchDirection ??
+            'forward'
+          const hasBatchAllocation = allocations.some((allocation) => allocation.batchId)
           const fees = totalRecordedTradeFees(record)
           const feeDetails = record.feeItems
             ?.map((item) => `${item.label} ${item.amount.toFixed(2)}`)
@@ -393,10 +429,8 @@ function TradeRecordList({
               : record.price * record.quantity - fees
           const isEditing = editingTradeId === record.id && draft
           if (isEditing) {
-            const tBuyLabel =
-              (record.batchDirection ?? 'forward') === 'reverse' ? '回补买入' : 'T仓买入'
-            const tSellLabel =
-              (record.batchDirection ?? 'forward') === 'reverse' ? '反T卖出' : 'T仓卖出'
+            const tBuyLabel = batchDirection === 'reverse' ? '回补买入' : 'T仓买入'
+            const tSellLabel = batchDirection === 'reverse' ? '反T卖出' : 'T仓卖出'
             return (
               <div
                 className="trade-record-row is-editing"
@@ -414,6 +448,7 @@ function TradeRecordList({
               >
                 <select
                   value={`${draft.purpose}:${draft.side}`}
+                  disabled={hasFixedAllocations}
                   onChange={(event) => {
                     const [purpose, side] = event.target.value.split(':') as [
                       TTradePurpose,
@@ -425,8 +460,8 @@ function TradeRecordList({
                 >
                   <option value="base:buy">底仓买入</option>
                   <option value="base:sell">底仓卖出</option>
-                  {record.batchId ? <option value="t:buy">{tBuyLabel}</option> : null}
-                  {record.batchId ? <option value="t:sell">{tSellLabel}</option> : null}
+                  {hasBatchAllocation ? <option value="t:buy">{tBuyLabel}</option> : null}
+                  {hasBatchAllocation ? <option value="t:sell">{tSellLabel}</option> : null}
                 </select>
                 <span className="trade-record-edit-context">
                   <strong>{tradeRecordContext(record)}</strong>
@@ -445,6 +480,7 @@ function TradeRecordList({
                       min={market === 'CN' ? 100 : 1}
                       step="100"
                       value={draft.quantity}
+                      disabled={hasFixedAllocations}
                       onChange={(event) => onDraftChange({ quantity: event.target.value })}
                       aria-label="成交数量"
                     />
@@ -569,8 +605,9 @@ function TradeRecordList({
                 <button
                   className="icon-button"
                   type="button"
+                  disabled={isCrossBatch}
                   onClick={() => onStartEdit(record)}
-                  title="编辑本条交易"
+                  title={isCrossBatch ? '请在交易管理中处理跨批次成交' : '编辑本条交易'}
                   aria-label="编辑本条交易"
                 >
                   <PencilLine size={14} />
@@ -578,8 +615,9 @@ function TradeRecordList({
                 <button
                   className="icon-button is-delete"
                   type="button"
+                  disabled={isCrossBatch}
                   onClick={() => onDelete(record)}
-                  title="删除本条交易"
+                  title={isCrossBatch ? '请在交易管理中处理跨批次成交' : '删除本条交易'}
                   aria-label="删除本条交易"
                 >
                   <Trash2 size={14} />
@@ -659,7 +697,9 @@ export function PositionEditor({
     Number.isFinite(newTradeQuantity) ? newTradeQuantity : 0,
     newTradeDraft.side,
     marketTradeFees,
-    { stampDutyExempt: newTradeDraft.stampDutyExempt }
+    {
+      stampDutyExempt: newTradeDraft.stampDutyExempt
+    }
   )
   const calculatedNewTradeFees = totalTradeFeeItems(calculatedNewTradeFeeItems)
   const recentTradeRecords = tradeRecords.slice(0, 5)
@@ -909,6 +949,17 @@ export function PositionEditor({
       actualSettlementDate: tradeRecordDraft.actualSettlementDate || undefined,
       settlementRule: settlementRuleForTradeDate(market, marketDate),
       origin: record.origin,
+      allocations: record.allocations?.length
+        ? record.allocations.length > 1
+          ? record.allocations
+          : [
+              {
+                ...record.allocations[0],
+                purpose: tradeRecordDraft.purpose,
+                quantity: tradeQuantity
+              }
+            ]
+        : undefined,
       note: tradeRecordDraft.note.trim()
     }
     const result = updateTradeAccount(workingAccount, record, nextTrade, planDefaults)

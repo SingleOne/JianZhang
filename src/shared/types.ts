@@ -501,6 +501,14 @@ export type TTradeSide = 'buy' | 'sell'
 export type TTradePurpose = 't' | 'base'
 export type TTradingDirection = 'forward' | 'reverse'
 
+export interface TTradeAllocation {
+  purpose: TTradePurpose
+  quantity: number
+  batchId?: string
+  batchSequence?: number
+  batchDirection?: TTradingDirection
+}
+
 export interface TTrade {
   id: string
   side: TTradeSide
@@ -520,6 +528,8 @@ export interface TTrade {
   actualSettlementDate?: string
   settlementRule?: TradeFeeTemplateSnapshot
   origin?: 'execution' | 'opening-balance'
+  /** 一笔真实成交在底仓及一个或多个 T 批次之间的数量分配。 */
+  allocations?: TTradeAllocation[]
   note: string
 }
 
@@ -894,14 +904,23 @@ function activeTQuantity(batch: TTradingBatch, trades: readonly TTrade[]): numbe
   const openingSide: TTradeSide = (batch.direction ?? 'forward') === 'reverse' ? 'sell' : 'buy'
   return Math.max(
     0,
-    trades.reduce(
-      (total, trade) =>
-        trade.purpose !== 't'
-          ? total
-          : total + (trade.side === openingSide ? trade.quantity : -trade.quantity),
-      0
-    )
+    trades.reduce((total, trade) => {
+      const quantity = trade.allocations?.length
+        ? trade.allocations
+            .filter((allocation) => allocation.purpose === 't' && allocation.batchId === batch.id)
+            .reduce((sum, allocation) => sum + allocation.quantity, 0)
+        : trade.purpose === 't'
+          ? trade.quantity
+          : 0
+      return total + (trade.side === openingSide ? quantity : -quantity)
+    }, 0)
   )
+}
+
+function tradeReferencesTradingBatch(trade: TTradeRecord, batchId: string): boolean {
+  return trade.allocations?.length
+    ? trade.allocations.some((allocation) => allocation.batchId === batchId)
+    : trade.batchId === batchId
 }
 
 export function createDefaultTPlanLevels(quantity: number): TPlanLevel[] {
@@ -1107,18 +1126,31 @@ export function normalizeTTradingAccounts(
       )
       const tradeRecords = [...records.values()]
         .map((record) => {
+          const allocations = record.allocations?.map((allocation) => {
+            const allocationBatch = allocation.batchId
+              ? batchesById.get(allocation.batchId)
+              : undefined
+            return allocationBatch
+              ? {
+                  ...allocation,
+                  batchSequence: allocationBatch.sequence,
+                  batchDirection: allocationBatch.direction ?? 'forward'
+                }
+              : allocation
+          })
           const batch = record.batchId ? batchesById.get(record.batchId) : undefined
           return batch
             ? {
                 ...record,
+                allocations,
                 batchSequence: batch.sequence,
                 batchDirection: batch.direction ?? 'forward'
               }
-            : record
+            : { ...record, allocations }
         })
         .sort((left, right) => right.tradedAt.localeCompare(left.tradedAt))
       const activeTrades = activeBatch
-        ? tradeRecords.filter((record) => record.batchId === activeBatch.id)
+        ? tradeRecords.filter((record) => tradeReferencesTradingBatch(record, activeBatch.id))
         : []
       const {
         activeBatch: _legacyActiveBatch,

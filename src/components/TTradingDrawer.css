@@ -239,6 +239,11 @@
   border-color: #b9d0fb;
 }
 
+.t-segmented button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 .t-form-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -288,6 +293,54 @@
 .t-trade-entry .t-form-grid input,
 .t-trade-entry .t-fee-inputs input {
   font-size: 12px;
+}
+
+.t-overflow-allocation {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px;
+  color: #596579;
+  background: #f5f8ff;
+  border: 1px solid #cfddfb;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.t-overflow-allocation > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.t-overflow-allocation small {
+  color: #748094;
+  font-size: 12px;
+}
+
+.t-overflow-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.t-overflow-options button {
+  min-height: 34px;
+  padding: 6px 10px;
+  color: #516078;
+  background: #ffffff;
+  border: 1px solid #ccd6e6;
+  border-radius: 7px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.t-overflow-options button.is-selected {
+  color: var(--blue);
+  background: #edf4ff;
+  border-color: #8cb1ff;
+  font-weight: 700;
 }
 
 .t-fee-summary {
@@ -910,7 +963,8 @@
 }
 
 @keyframes t-alert-flash {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
     box-shadow: 0 0 0 0 var(--t-alert-ring, rgba(201, 39, 51, 0.42));
   }
