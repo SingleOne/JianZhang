@@ -5,6 +5,7 @@ import {
   hasLegacyTTradingData,
   migrateWatchlistColumnOrder,
   normalizeAppSettings,
+  normalizeCorporateActionRecords,
   normalizeStockTrackingProfiles,
   normalizeTradingAccountsForWatchlist,
   normalizeWatchlist,
@@ -123,7 +124,8 @@ export class StateStore {
       settings: normalizeAppSettings(state.settings),
       columnOrder: normalizeWatchlistColumnOrder(state.columnOrder),
       columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
-      tTradingAccounts: normalizeTradingAccountsForWatchlist(watchlist, state.tTradingAccounts)
+      tTradingAccounts: normalizeTradingAccountsForWatchlist(watchlist, state.tTradingAccounts),
+      corporateActionRecords: normalizeCorporateActionRecords(state.corporateActionRecords)
     }
   }
 
@@ -171,7 +173,8 @@ export class StateStore {
       settings: normalizeAppSettings(saved.settings),
       columnOrder: migrateWatchlistColumnOrder(saved.columnOrder, saved.columnOrderVersion),
       columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
-      tTradingAccounts: normalizeTradingAccountsForWatchlist(watchlist, saved.tTradingAccounts)
+      tTradingAccounts: normalizeTradingAccountsForWatchlist(watchlist, saved.tTradingAccounts),
+      corporateActionRecords: normalizeCorporateActionRecords(saved.corporateActionRecords)
     }
   }
 

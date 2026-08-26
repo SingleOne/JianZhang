@@ -89,6 +89,13 @@ export const CACHE_CATEGORY_DEFINITIONS: readonly CacheCategoryDefinition[] = [
     include: (relativePath) => relativePath.split('/').at(-1) !== 'summaries.json'
   },
   {
+    id: 'corporate-actions',
+    label: '公司行动候选缓存',
+    description: 'HKEXnews 与 SEC 候选索引，删除后按需重新发现，不删除已确认账本和忽略状态',
+    group: 'advanced',
+    roots: ['corporate-actions']
+  },
+  {
     id: 'data-snapshots',
     label: '数据运行快照',
     description: '基本面、分红融资和收盘扫描结果，清理后需要重新运行更新',

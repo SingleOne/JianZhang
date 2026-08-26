@@ -42,6 +42,7 @@ import {
 } from '../shared/user-data-backup'
 import { DEMO_SECTORS, DEMO_STOCKS, DEMO_VALUES } from './demo-data'
 import { stockMarketIdentity } from '../shared/stock-market'
+import { previewCorporateAction, reversalEntries } from './portfolio-ledger'
 
 function makeDemoSectorQuote(stockQuoteId: string): StockSectorQuote | undefined {
   const sector = DEMO_SECTORS[stockQuoteId]
@@ -69,7 +70,8 @@ const DEFAULT_STATE: AppState = {
   columnOrder: [...DEFAULT_WATCHLIST_COLUMN_ORDER],
   columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
   settings: { ...DEFAULT_APP_SETTINGS },
-  tTradingAccounts: {}
+  tTradingAccounts: {},
+  corporateActionRecords: {}
 }
 
 const DEMO_DAILY_MARKET_SCAN_RESULT: DailyMarketScanResult = {
@@ -181,7 +183,8 @@ function loadDemoState(): AppState {
     settings: normalizeAppSettings(parsed.settings),
     columnOrder: migrateWatchlistColumnOrder(parsed.columnOrder, parsed.columnOrderVersion),
     columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
-    tTradingAccounts: normalizeTradingAccountsForWatchlist(watchlist, parsed.tTradingAccounts)
+    tTradingAccounts: normalizeTradingAccountsForWatchlist(watchlist, parsed.tTradingAccounts),
+    corporateActionRecords: parsed.corporateActionRecords ?? {}
   }
 }
 
@@ -609,6 +612,65 @@ const demoApi: StockDesktopApi = {
       code,
       reports: DEMO_COMPANY_REPORTS.reports.map((report) => ({ ...report, quoteId, code }))
     }
+  },
+  async listCorporateActions(quoteId) {
+    const market = stockMarketIdentity(quoteId).market
+    return {
+      quoteId,
+      market,
+      source: market === 'HK' ? 'HKEXnews' : market === 'US' ? 'SEC EDGAR' : '演示数据',
+      fetchedAt: new Date().toISOString(),
+      fromCache: false,
+      candidates: [],
+      warning: '浏览器预览不请求官方公司行动数据，可使用手工录入验证账本流程。'
+    }
+  },
+  async previewCorporateAction(request) {
+    return previewCorporateAction(request.candidate, request.account, request.confirmation)
+  },
+  async confirmCorporateAction(request) {
+    return previewCorporateAction(request.candidate, request.account, request.confirmation)
+  },
+  async ignoreCorporateAction(candidate) {
+    return { ...candidate, status: 'ignored', reviewedAt: new Date().toISOString() }
+  },
+  async reverseCorporateAction(candidate, account) {
+    return reversalEntries(candidate, account)
+  },
+  async listPortfolioLedger(account) {
+    return account.ledger.entries
+  },
+  async createManualCorporateAction(request, account) {
+    const id = `manual:${crypto.randomUUID()}`
+    const candidate = {
+      id,
+      quoteId: request.quoteId,
+      market: request.market,
+      type: request.type,
+      status: 'needsReview' as const,
+      title: request.title,
+      announcementDate: request.announcementDate,
+      effectiveDate: request.effectiveDate,
+      terms:
+        request.type === 'manualCash'
+          ? ({ kind: 'manualCash' } as const)
+          : ({ kind: 'unsupported' } as const),
+      evidence: [],
+      providerId: 'manual',
+      providerEventId: id,
+      contentHash: id,
+      detectedAt: new Date().toISOString()
+    }
+    return {
+      candidate,
+      preview: previewCorporateAction(candidate, account, {
+        ...request.confirmation,
+        currency: request.currency
+      })
+    }
+  },
+  async openCorporateAction(url) {
+    window.open(url, '_blank', 'noopener,noreferrer')
   },
   async getGlobalFundamentals(quoteId): Promise<GlobalFundamentalSnapshot> {
     const identity = stockMarketIdentity(quoteId)

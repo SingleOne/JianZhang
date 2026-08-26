@@ -44,6 +44,20 @@ const api: StockDesktopApi = {
   runFundamentalUpdate: () => ipcRenderer.invoke('fundamentals:update'),
   getCompanyReports: (quoteId, forceRefresh) =>
     ipcRenderer.invoke('company-reports:get', quoteId, forceRefresh),
+  listCorporateActions: (quoteId, forceRefresh) =>
+    ipcRenderer.invoke(
+      forceRefresh ? 'corporate-actions:refresh' : 'corporate-actions:list',
+      quoteId
+    ),
+  previewCorporateAction: (request) => ipcRenderer.invoke('corporate-actions:preview', request),
+  confirmCorporateAction: (request) => ipcRenderer.invoke('corporate-actions:confirm', request),
+  ignoreCorporateAction: (candidate) => ipcRenderer.invoke('corporate-actions:ignore', candidate),
+  reverseCorporateAction: (candidate, account) =>
+    ipcRenderer.invoke('corporate-actions:reverse', candidate, account),
+  listPortfolioLedger: (account) => ipcRenderer.invoke('portfolio-ledger:list', account),
+  createManualCorporateAction: (request, account) =>
+    ipcRenderer.invoke('corporate-actions:manual', request, account),
+  openCorporateAction: (url) => ipcRenderer.invoke('corporate-actions:open', url),
   getGlobalFundamentals: (quoteId, forceRefresh) =>
     ipcRenderer.invoke('global-fundamentals:get', quoteId, forceRefresh),
   generateCompanyReportSummary: (report) =>

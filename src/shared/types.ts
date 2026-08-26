@@ -530,6 +530,265 @@ export interface TTradeRecord extends TTrade {
   batchDirection?: TTradingDirection
 }
 
+export type CorporateActionType =
+  | 'cashDividend'
+  | 'stockDividend'
+  | 'split'
+  | 'reverseSplit'
+  | 'rightsIssue'
+  | 'spinOff'
+  | 'mergerExchange'
+  | 'symbolChange'
+  | 'delistingCash'
+  | 'returnOfCapital'
+  | 'manualCash'
+
+export type CorporateActionStatus =
+  'detected' | 'needsReview' | 'confirmed' | 'applied' | 'ignored' | 'revised' | 'reversed'
+
+export interface CorporateActionMarketRules {
+  market: StockMarket
+  quantityPrecision: number
+  cashPrecision: number
+  supportsFractionalShares: boolean
+  defaultWithholdingTaxMode: 'brokerActual' | 'manual'
+  dateTimeZone: string
+  settlementRuleIds: string[]
+}
+
+export interface CorporateActionExtractedField<T> {
+  value?: T
+  confidence: 'high' | 'medium' | 'low'
+  evidenceText?: string
+}
+
+export type CorporateActionTerms =
+  | {
+      kind: 'cashDividend'
+      amountPerShare: CorporateActionExtractedField<number>
+      currency: CorporateActionExtractedField<import('./stock-market').StockCurrency>
+    }
+  | {
+      kind: 'shareRatio'
+      oldShares: CorporateActionExtractedField<number>
+      newShares: CorporateActionExtractedField<number>
+      fractionalTreatment?: CorporateActionExtractedField<'keep' | 'cash' | 'discard'>
+    }
+  | {
+      kind: 'rightsIssue'
+      heldShares: CorporateActionExtractedField<number>
+      entitlementShares: CorporateActionExtractedField<number>
+      subscriptionPrice: CorporateActionExtractedField<number>
+      currency: CorporateActionExtractedField<import('./stock-market').StockCurrency>
+    }
+  | {
+      kind: 'securityConversion'
+      oldShares: CorporateActionExtractedField<number>
+      newShares: CorporateActionExtractedField<number>
+      targetQuoteId?: CorporateActionExtractedField<string>
+    }
+  | {
+      kind: 'symbolChange'
+      oldQuoteId: CorporateActionExtractedField<string>
+      newQuoteId: CorporateActionExtractedField<string>
+      newCode?: CorporateActionExtractedField<string>
+    }
+  | { kind: 'manualCash' }
+  | { kind: 'unsupported' }
+
+export interface CorporateActionEvidence {
+  source: string
+  title: string
+  url: string
+  publishedAt: string
+  excerpt?: string
+}
+
+export interface CorporateActionCandidate {
+  id: string
+  quoteId: string
+  market: StockMarket
+  type: CorporateActionType
+  status: CorporateActionStatus
+  title: string
+  announcementDate: string
+  exDate?: string
+  recordDate?: string
+  electionDeadline?: string
+  effectiveDate?: string
+  payableDate?: string
+  terms: CorporateActionTerms
+  evidence: CorporateActionEvidence[]
+  providerId: string
+  providerEventId: string
+  contentHash: string
+  detectedAt: string
+  reviewedAt?: string
+  appliedEntryIds?: string[]
+  warning?: string
+}
+
+export interface CorporateActionRecord extends CorporateActionCandidate {
+  status: Exclude<CorporateActionStatus, 'detected'>
+}
+
+export type CorporateActionRecords = Record<string, CorporateActionRecord>
+
+export interface PortfolioLedgerEntryBase {
+  id: string
+  accountId: string
+  quoteId: string
+  occurredAt: string
+  marketDate: string
+  recordedAt?: string
+  source: 'manual' | 'corporateAction' | 'brokerImport' | 'trade'
+  externalId?: string
+  corporateActionId?: string
+  currency?: import('./stock-market').StockCurrency
+  exchangeRate?: number
+  exchangeRateDate?: string
+  exchangeRateEstimated?: boolean
+  note?: string
+}
+
+export interface TradeLedgerEntry extends PortfolioLedgerEntryBase {
+  kind: 'trade'
+  record: TTradeRecord
+}
+
+export interface CashDividendLedgerEntry extends PortfolioLedgerEntryBase {
+  kind: 'cashDividend'
+  eligibleQuantity: number
+  amountPerShare: number
+  amount: number
+}
+
+export interface WithholdingTaxLedgerEntry extends PortfolioLedgerEntryBase {
+  kind: 'withholdingTax'
+  amount: number
+}
+
+export interface CorporateActionFeeLedgerEntry extends PortfolioLedgerEntryBase {
+  kind: 'corporateActionFee'
+  amount: number
+}
+
+export interface ShareAdjustmentLedgerEntry extends PortfolioLedgerEntryBase {
+  kind: 'shareAdjustment'
+  actionType: 'stockDividend' | 'split' | 'reverseSplit'
+  quantityBefore: number
+  quantityAfter: number
+  oldShares: number
+  newShares: number
+}
+
+export interface RightsSubscriptionLedgerEntry extends PortfolioLedgerEntryBase {
+  kind: 'rightsSubscription'
+  quantity: number
+  price: number
+  cost?: number
+  fees: number
+}
+
+export interface SecurityConversionLedgerEntry extends PortfolioLedgerEntryBase {
+  kind: 'securityConversion'
+  quantityBefore: number
+  quantityAfter: number
+  sourceQuoteId?: string
+  targetQuoteId?: string
+}
+
+export interface CashAdjustmentLedgerEntry extends PortfolioLedgerEntryBase {
+  kind: 'cashAdjustment'
+  amount: number
+  reason: 'fractionalShare' | 'manual' | 'rightsSale' | 'delisting' | 'capitalReturn'
+}
+
+export interface ReversalLedgerEntry extends PortfolioLedgerEntryBase {
+  kind: 'reversal'
+  reversesEntryId: string
+}
+
+export type PortfolioLedgerEntry =
+  | TradeLedgerEntry
+  | CashDividendLedgerEntry
+  | WithholdingTaxLedgerEntry
+  | CorporateActionFeeLedgerEntry
+  | ShareAdjustmentLedgerEntry
+  | RightsSubscriptionLedgerEntry
+  | SecurityConversionLedgerEntry
+  | CashAdjustmentLedgerEntry
+  | ReversalLedgerEntry
+
+export interface PortfolioLedger {
+  schemaVersion: 1
+  entries: PortfolioLedgerEntry[]
+}
+
+export interface CorporateActionConfirmation {
+  eligibleQuantity?: number
+  amountPerShare?: number
+  oldShares?: number
+  newShares?: number
+  subscribedQuantity?: number
+  subscriptionPrice?: number
+  withholdingTax?: number
+  fees?: number
+  cashAmount?: number
+  currency?: import('./stock-market').StockCurrency
+  exchangeRate?: number
+  exchangeRateDate?: string
+  exchangeRateEstimated?: boolean
+  targetQuoteId?: string
+  occurredAt?: string
+  note?: string
+}
+
+export interface CorporateActionPreviewRequest {
+  candidate: CorporateActionCandidate
+  account: TTradingAccount
+  confirmation: CorporateActionConfirmation
+}
+
+export interface CorporateActionImpactPreview {
+  candidateId: string
+  resolvedCandidate?: CorporateActionCandidate
+  quantityBefore: number
+  quantityAfter: number
+  costBefore: number | null
+  costAfter: number | null
+  totalCostBefore: number | null
+  totalCostAfter: number | null
+  grossCash: number
+  withholdingTax: number
+  fees: number
+  netCash: number
+  netCashCny: number | null
+  entries: PortfolioLedgerEntry[]
+  missingFields: string[]
+}
+
+export interface CorporateActionListResult {
+  quoteId: string
+  market: StockMarket
+  source: string
+  fetchedAt: string
+  fromCache: boolean
+  candidates: CorporateActionCandidate[]
+  warning?: string
+}
+
+export interface ManualCorporateActionRequest {
+  quoteId: string
+  market: StockMarket
+  type: CorporateActionType
+  title: string
+  announcementDate: string
+  effectiveDate?: string
+  currency: import('./stock-market').StockCurrency
+  confirmation: CorporateActionConfirmation
+}
+
 export interface TPositionSnapshot {
   quantity: number
   cost: number
@@ -606,7 +865,9 @@ export interface TTradingAccount {
   currency?: import('./stock-market').StockCurrency
   activeBatch?: TTradingBatch
   history: TTradingBatch[]
-  /** 账户内所有底仓及做T成交的唯一数据源。 */
+  /** 统一组合账本是新写入和公司行动计算的唯一数据源。 */
+  ledger: PortfolioLedger
+  /** 由账本中 trade 条目派生的旧版兼容镜像。 */
   tradeRecords: TTradeRecord[]
 }
 
@@ -712,16 +973,101 @@ export function normalizeActiveTTradingBatch(
   }
 }
 
+export function tradeLedgerEntry(
+  accountId: string,
+  quoteId: string,
+  record: TTradeRecord
+): TradeLedgerEntry {
+  return {
+    id: `trade:${record.id}`,
+    accountId,
+    quoteId,
+    occurredAt: record.tradedAt,
+    marketDate: record.marketDate ?? record.tradedAt.slice(0, 10),
+    recordedAt: record.tradedAt,
+    source: 'trade',
+    externalId: record.id,
+    currency: record.currency,
+    exchangeRate: record.exchangeRate,
+    exchangeRateDate: record.exchangeRateDate,
+    record,
+    kind: 'trade'
+  }
+}
+
+export function tradeRecordsFromLedger(ledger: PortfolioLedger | undefined): TTradeRecord[] {
+  return (ledger?.entries ?? [])
+    .filter((entry): entry is TradeLedgerEntry => entry.kind === 'trade')
+    .map((entry) => entry.record)
+    .sort((left, right) => right.tradedAt.localeCompare(left.tradedAt))
+}
+
+function normalizedPortfolioLedger(
+  accountId: string,
+  quoteId: string,
+  ledger: PortfolioLedger | undefined,
+  tradeRecords: readonly TTradeRecord[]
+): PortfolioLedger {
+  const nonTradeEntries = (ledger?.entries ?? []).filter((entry) => entry.kind !== 'trade')
+  return {
+    schemaVersion: 1,
+    entries: [
+      ...tradeRecords.map((record) => tradeLedgerEntry(accountId, quoteId, record)),
+      ...nonTradeEntries
+    ].sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
+  }
+}
+
+export function withLedgerTradeRecords(
+  account: TTradingAccount,
+  tradeRecords: readonly TTradeRecord[]
+): TTradingAccount {
+  const records = [...tradeRecords].sort((left, right) =>
+    right.tradedAt.localeCompare(left.tradedAt)
+  )
+  return {
+    ...account,
+    ledger: normalizedPortfolioLedger(account.quoteId, account.quoteId, account.ledger, records),
+    tradeRecords: records
+  }
+}
+
+export function appendPortfolioLedgerEntries(
+  account: TTradingAccount,
+  entries: readonly PortfolioLedgerEntry[]
+): TTradingAccount {
+  const ids = new Set(entries.map((entry) => entry.id))
+  const ledger = {
+    schemaVersion: 1 as const,
+    entries: [...account.ledger.entries.filter((entry) => !ids.has(entry.id)), ...entries].sort(
+      (left, right) => right.occurredAt.localeCompare(left.occurredAt)
+    )
+  }
+  return { ...account, ledger, tradeRecords: tradeRecordsFromLedger(ledger) }
+}
+
+export function normalizeCorporateActionRecords(
+  records: CorporateActionRecords | undefined
+): CorporateActionRecords {
+  return Object.fromEntries(
+    Object.entries(records ?? {}).filter(([, record]) => Boolean(record?.id && record.quoteId))
+  )
+}
+
 export function normalizeTTradingAccounts(
   accounts: TTradingAccounts | undefined
 ): TTradingAccounts {
   return Object.fromEntries(
     Object.entries(accounts ?? {}).map(([quoteId, account]) => {
       type LegacyBatch = TTradingBatch & { trades?: TTrade[] }
-      type LegacyAccount = Omit<TTradingAccount, 'activeBatch' | 'history' | 'tradeRecords'> & {
+      type LegacyAccount = Omit<
+        TTradingAccount,
+        'activeBatch' | 'history' | 'ledger' | 'tradeRecords'
+      > & {
         activeBatch?: LegacyBatch
         history?: LegacyBatch[]
         baseTrades?: TTrade[]
+        ledger?: PortfolioLedger
         tradeRecords?: TTradeRecord[]
       }
       const legacyAccount = account as LegacyAccount
@@ -730,8 +1076,11 @@ export function normalizeTTradingAccounts(
         const { trades: _legacyTrades, ...normalizedBatch } = batch
         return normalizedBatch
       }
+      const ledgerTrades = tradeRecordsFromLedger(legacyAccount.ledger)
       const records = new Map(
-        (legacyAccount.tradeRecords ?? []).map((record) => [record.id, record])
+        (ledgerTrades.length > 0 ? ledgerTrades : (legacyAccount.tradeRecords ?? [])).map(
+          (record) => [record.id, record]
+        )
       )
       const addLegacyBatchTrades = (batch: LegacyBatch) => {
         const legacyTrades = batch.trades ?? []
@@ -775,9 +1124,12 @@ export function normalizeTTradingAccounts(
         activeBatch: _legacyActiveBatch,
         history: _legacyHistory,
         baseTrades: _legacyBaseTrades,
+        ledger: _legacyLedger,
         tradeRecords: _legacyTradeRecords,
         ...accountFields
       } = legacyAccount
+
+      const ledger = normalizedPortfolioLedger(quoteId, quoteId, legacyAccount.ledger, tradeRecords)
 
       return [
         quoteId,
@@ -787,7 +1139,8 @@ export function normalizeTTradingAccounts(
           activeBatch: activeBatch
             ? normalizeActiveTTradingBatch(activeBatch, activeTrades)
             : undefined,
-          tradeRecords
+          ledger,
+          tradeRecords: tradeRecordsFromLedger(ledger)
         }
       ]
     })
@@ -807,6 +1160,7 @@ export function normalizeTradingAccountsForWatchlist(
       code: stock.code,
       name: stock.name,
       history: [],
+      ledger: { schemaVersion: 1, entries: [] },
       tradeRecords: []
     }
     const records = account.tradeRecords.map((record) => ({
@@ -837,12 +1191,14 @@ export function normalizeTradingAccountsForWatchlist(
       })
     }
     if (existing || records.length > 0) {
-      normalized[stock.quoteId] = {
-        ...account,
-        market: account.market ?? identity.market,
-        currency: account.currency ?? identity.currency,
-        tradeRecords: records.sort((left, right) => right.tradedAt.localeCompare(left.tradedAt))
-      }
+      normalized[stock.quoteId] = withLedgerTradeRecords(
+        {
+          ...account,
+          market: account.market ?? identity.market,
+          currency: account.currency ?? identity.currency
+        },
+        records.sort((left, right) => right.tradedAt.localeCompare(left.tradedAt))
+      )
     }
   }
   return normalized
@@ -2027,9 +2383,11 @@ export interface AppState {
   columnOrder: WatchlistColumnId[]
   columnOrderVersion?: number
   tTradingAccounts: TTradingAccounts
+  corporateActionRecords: CorporateActionRecords
 }
 
-export type CompletionNotificationTarget = 'reports' | 'ai-short-term' | 'ai-long-term' | 't-advice'
+export type CompletionNotificationTarget =
+  'reports' | 'corporate-actions' | 'ai-short-term' | 'ai-long-term' | 't-advice'
 
 export interface AppCompletionNotification {
   id: string
@@ -2101,6 +2459,7 @@ export type CacheCategoryId =
   | 'valuations'
   | 'market-insight'
   | 'company-reports'
+  | 'corporate-actions'
   | 'data-snapshots'
   | 'electron-web'
 
@@ -2173,6 +2532,27 @@ export interface StockDesktopApi {
     quoteId: string,
     forceRefresh?: boolean
   ) => Promise<CompanyReportLibraryResult>
+  listCorporateActions: (
+    quoteId: string,
+    forceRefresh?: boolean
+  ) => Promise<CorporateActionListResult>
+  previewCorporateAction: (
+    request: CorporateActionPreviewRequest
+  ) => Promise<CorporateActionImpactPreview>
+  confirmCorporateAction: (
+    request: CorporateActionPreviewRequest
+  ) => Promise<CorporateActionImpactPreview>
+  ignoreCorporateAction: (candidate: CorporateActionCandidate) => Promise<CorporateActionRecord>
+  reverseCorporateAction: (
+    candidate: CorporateActionCandidate,
+    account: TTradingAccount
+  ) => Promise<ReversalLedgerEntry[]>
+  listPortfolioLedger: (account: TTradingAccount) => Promise<PortfolioLedgerEntry[]>
+  createManualCorporateAction: (
+    request: ManualCorporateActionRequest,
+    account: TTradingAccount
+  ) => Promise<{ candidate: CorporateActionCandidate; preview: CorporateActionImpactPreview }>
+  openCorporateAction: (url: string) => Promise<void>
   getGlobalFundamentals: (
     quoteId: string,
     forceRefresh?: boolean

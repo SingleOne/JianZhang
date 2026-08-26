@@ -173,6 +173,7 @@ describe('settings and column migration', () => {
           sellLevels: []
         },
         history: [],
+        ledger: { schemaVersion: 1, entries: [] },
         tradeRecords: []
       }
     })

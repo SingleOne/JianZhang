@@ -7,6 +7,7 @@ import {
   Building2,
   Calculator,
   CircleCheck,
+  CircleDollarSign,
   CircleMinus,
   CircleX,
   Database,
@@ -74,12 +75,17 @@ import {
 import { LruCache } from '../shared/lru-cache'
 import type {
   DividendFinancingRankingItem,
+  CorporateActionRecord,
+  CorporateActionRecords,
+  ExchangeRateSettings,
   KlineBar,
   KlinePeriod,
   KlineResult,
   StockQuote,
+  StockPosition,
   StockTrackingConclusionResult,
   StockTrackingProfile,
+  TTradingAccount,
   TradingCalendarSettings,
   WatchStock
 } from '../shared/types'
@@ -97,6 +103,7 @@ const CandlestickChart = lazy(() => import('./CandlestickChart'))
 const PeriodKlineChart = lazy(() => import('./PeriodKlineChart'))
 const SectorIndexPanel = lazy(() => import('./SectorIndexPanel'))
 const GlobalFundamentalPanel = lazy(() => import('./GlobalFundamentalPanel'))
+const CorporateActionPanel = lazy(() => import('./CorporateActionPanel'))
 const MarketInsightPanel = __JIANZHANG_MARKET_INSIGHT_ENABLED__
   ? lazy(() =>
       import('../modules/market-insight/renderer/register').then((module) => ({
@@ -126,6 +133,7 @@ type DetailTab =
   | 'fundamental'
   | 'shareholders'
   | 'reports'
+  | 'corporateActions'
   | 'tracking'
   | 'funds'
   | 'sector'
@@ -177,6 +185,7 @@ function supportsDetailTab(tab: DetailTab, capabilities: StockMarketCapabilities
   if (tab === 'fundamental') return capabilities.fundamentals
   if (tab === 'shareholders') return capabilities.shareholders
   if (tab === 'reports') return capabilities.companyReports
+  if (tab === 'corporateActions') return capabilities.corporateActions
   if (tab === 'funds') return capabilities.fundsFlow
   if (tab === 'sector') return capabilities.sector
   if (tab === 'insight') return capabilities.marketInsight
@@ -1287,6 +1296,15 @@ interface ExpandedStockDetailsProps {
   chipDistributionEnabled: boolean
   bollingerBandsEnabled: boolean
   tradingCalendar: TradingCalendarSettings
+  exchangeRates: ExchangeRateSettings
+  tradingAccount?: TTradingAccount
+  corporateActionRecords: CorporateActionRecords
+  onApplyCorporateAction: (
+    account: TTradingAccount,
+    position: StockPosition | undefined,
+    record: CorporateActionRecord
+  ) => string | void
+  onUpdateCorporateActionRecord: (record: CorporateActionRecord) => void
   trackingProfile?: StockTrackingProfile
   onStartTracking: (quoteId: string) => void
   onUpdateTracking: (profile: StockTrackingProfile) => void
@@ -1317,6 +1335,11 @@ export function ExpandedStockDetails({
   chipDistributionEnabled,
   bollingerBandsEnabled,
   tradingCalendar,
+  exchangeRates,
+  tradingAccount,
+  corporateActionRecords,
+  onApplyCorporateAction,
+  onUpdateCorporateActionRecord,
   trackingProfile,
   onStartTracking,
   onUpdateTracking,
@@ -1379,9 +1402,11 @@ export function ExpandedStockDetails({
     const targetSupported =
       detailNavigationTarget === 'reports'
         ? capabilities.companyReports
-        : detailNavigationTarget === 't-advice'
-          ? capabilities.aiTAdvice
-          : capabilities.aiAnalysis
+        : detailNavigationTarget === 'corporate-actions'
+          ? capabilities.corporateActions
+          : detailNavigationTarget === 't-advice'
+            ? capabilities.aiTAdvice
+            : capabilities.aiAnalysis
     if (!targetSupported) {
       onDetailNavigationHandled(detailNavigationId)
       return
@@ -1396,6 +1421,8 @@ export function ExpandedStockDetails({
     }
     if (detailNavigationTarget === 'reports') {
       setActiveTab('reports')
+    } else if (detailNavigationTarget === 'corporate-actions') {
+      setActiveTab('corporateActions')
     } else if (detailNavigationTarget === 't-advice') {
       setActiveTab('t-advice')
     } else {
@@ -1762,6 +1789,18 @@ export function ExpandedStockDetails({
             财报库
           </button>
         ) : null}
+        {capabilities.corporateActions ? (
+          <button
+            className={activeTab === 'corporateActions' ? 'is-active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'corporateActions'}
+            onClick={(event) => changeDetailTab('corporateActions', event.currentTarget)}
+          >
+            <CircleDollarSign size={15} />
+            公司行动
+          </button>
+        ) : null}
         <button
           className={activeTab === 'tracking' ? 'is-active' : ''}
           type="button"
@@ -1879,6 +1918,17 @@ export function ExpandedStockDetails({
         <ShareholderPanel stock={stock} />
       ) : capabilities.companyReports && activeTab === 'reports' ? (
         <CompanyReportLibrary stock={stock} />
+      ) : capabilities.corporateActions && activeTab === 'corporateActions' ? (
+        <Suspense fallback={<div className="corporate-action-empty">正在加载公司行动…</div>}>
+          <CorporateActionPanel
+            stock={stock}
+            account={tradingAccount}
+            records={corporateActionRecords}
+            exchangeRates={exchangeRates}
+            onCommit={onApplyCorporateAction}
+            onRecordChange={onUpdateCorporateActionRecord}
+          />
+        </Suspense>
       ) : activeTab === 'tracking' ? (
         <StockTrackingPanel
           stock={stock}

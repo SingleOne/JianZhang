@@ -16,6 +16,8 @@ import { calculatePositionMetrics } from '../lib/portfolio'
 import { calculatePortfolioQualitySummary } from '../lib/portfolio-quality'
 import type { StockDetailNavigationRequest } from '../lib/completion-notifications'
 import type {
+  CorporateActionRecord,
+  CorporateActionRecords,
   DividendFinancingRankingItem,
   ExchangeRateSettings,
   MarketTradeFeeSettings,
@@ -95,6 +97,7 @@ interface WatchlistTableProps {
   stockSelectionRequest: StockSelectionRequest | null
   detailNavigationRequest: StockDetailNavigationRequest | null
   tTradingAccounts: TTradingAccounts
+  corporateActionRecords: CorporateActionRecords
   tTradingFees: TTradingFeeSettings
   marketTradeFees: MarketTradeFeeSettings
   tPlanDefaults: TPlanDefaultSettings
@@ -117,6 +120,13 @@ interface WatchlistTableProps {
     account: TTradingAccount,
     position: StockPosition | undefined
   ) => void
+  onApplyCorporateAction: (
+    quoteId: string,
+    account: TTradingAccount,
+    position: StockPosition | undefined,
+    record: CorporateActionRecord
+  ) => string | void
+  onUpdateCorporateActionRecord: (record: CorporateActionRecord) => void
   onUpdateStockAlerts: (quoteId: string, rules: StockAlertRule[]) => void
   stockTrackingProfiles: StockTrackingProfiles
   onStartTracking: (quoteId: string) => void
@@ -214,6 +224,7 @@ export function WatchlistTable({
   stockSelectionRequest,
   detailNavigationRequest,
   tTradingAccounts,
+  corporateActionRecords,
   tTradingFees,
   marketTradeFees,
   tPlanDefaults,
@@ -226,6 +237,8 @@ export function WatchlistTable({
   onTogglePriority,
   onEditPosition,
   onUpdateTTrading,
+  onApplyCorporateAction,
+  onUpdateCorporateActionRecord,
   onUpdateStockAlerts,
   stockTrackingProfiles,
   onStartTracking,
@@ -969,6 +982,7 @@ export function WatchlistTable({
                   fundamentalGeneratedAt={fundamentalGeneratedAt}
                   fundamentalStaleReason={fundamentalStaleReason}
                   tradingAccount={tTradingAccounts[stock.quoteId]}
+                  corporateActionRecords={corporateActionRecords}
                   manualIndex={manualIndex}
                   columnOrder={adjustableColumnOrder}
                   tradingCalendar={tradingCalendar}
@@ -1009,6 +1023,8 @@ export function WatchlistTable({
                   onBollingerBandsEnabledChange={onBollingerBandsEnabledChange}
                   onStartTracking={onStartTracking}
                   onUpdateTracking={onUpdateTracking}
+                  onApplyCorporateAction={onApplyCorporateAction}
+                  onUpdateCorporateActionRecord={onUpdateCorporateActionRecord}
                   onStopTracking={onStopTracking}
                   onRestartTracking={onRestartTracking}
                   onRemove={onRemove}

@@ -39,9 +39,12 @@ import {
   type FundamentalScreeningSummary
 } from '../../lib/fundamental-screening'
 import type {
+  CorporateActionRecord,
+  CorporateActionRecords,
   DividendFinancingRankingItem,
   ExchangeRateSettings,
   StockQuote,
+  StockPosition,
   StockTrackingConclusionResult,
   StockTrackingProfile,
   StockRadarSignal,
@@ -116,6 +119,7 @@ interface WatchlistRowProps {
   fundamentalGeneratedAt: string | undefined
   fundamentalStaleReason: string | null | undefined
   tradingAccount: TTradingAccount | undefined
+  corporateActionRecords: CorporateActionRecords
   manualIndex: number
   columnOrder: WatchlistColumnId[]
   tradingCalendar: TradingCalendarSettings
@@ -152,6 +156,13 @@ interface WatchlistRowProps {
   onBollingerBandsEnabledChange: (enabled: boolean) => void
   onStartTracking: (quoteId: string) => void
   onUpdateTracking: (profile: StockTrackingProfile) => void
+  onApplyCorporateAction: (
+    quoteId: string,
+    account: TTradingAccount,
+    position: StockPosition | undefined,
+    record: CorporateActionRecord
+  ) => string | void
+  onUpdateCorporateActionRecord: (record: CorporateActionRecord) => void
   onStopTracking: (quoteId: string, result: StockTrackingConclusionResult, summary: string) => void
   onRestartTracking: (quoteId: string) => void
   onRemove: (quoteId: string) => void
@@ -168,6 +179,7 @@ export const WatchlistRow = memo(function WatchlistRow({
   fundamentalGeneratedAt,
   fundamentalStaleReason,
   tradingAccount,
+  corporateActionRecords,
   manualIndex,
   columnOrder,
   tradingCalendar,
@@ -204,6 +216,8 @@ export const WatchlistRow = memo(function WatchlistRow({
   onBollingerBandsEnabledChange,
   onStartTracking,
   onUpdateTracking,
+  onApplyCorporateAction,
+  onUpdateCorporateActionRecord,
   onStopTracking,
   onRestartTracking,
   onRemove
@@ -766,6 +780,13 @@ export const WatchlistRow = memo(function WatchlistRow({
                   chipDistributionEnabled={chipDistributionEnabled}
                   bollingerBandsEnabled={bollingerBandsEnabled}
                   tradingCalendar={tradingCalendar}
+                  exchangeRates={exchangeRates}
+                  tradingAccount={tradingAccount}
+                  corporateActionRecords={corporateActionRecords}
+                  onApplyCorporateAction={(account, position, record) =>
+                    onApplyCorporateAction(stock.quoteId, account, position, record)
+                  }
+                  onUpdateCorporateActionRecord={onUpdateCorporateActionRecord}
                   trackingProfile={trackingProfile}
                   onStartTracking={onStartTracking}
                   onUpdateTracking={onUpdateTracking}

@@ -10,6 +10,7 @@ import {
   formatShares
 } from '../lib/format'
 import { exchangeRateForCurrency } from '../shared/exchange-rates'
+import { calculatePortfolioLedgerMetrics } from '../lib/portfolio-ledger'
 import {
   detachTradeRecordsFromBatch,
   sortTradeRecords,
@@ -53,6 +54,7 @@ import type {
   TradingCalendarSettings,
   WatchStock
 } from '../shared/types'
+import { withLedgerTradeRecords } from '../shared/types'
 import {
   currencyForMarket,
   marketCapabilitiesForQuoteId,
@@ -209,15 +211,14 @@ function createOpeningTradeAccount(
     market,
     currency,
     history: [],
+    ledger: { schemaVersion: 1, entries: [] },
     tradeRecords: []
   }
 
-  return {
-    ...currentAccount,
-    market,
-    currency,
-    tradeRecords: upsertTradeRecord(currentAccount.tradeRecords, trade)
-  }
+  return withLedgerTradeRecords(
+    { ...currentAccount, market, currency },
+    upsertTradeRecord(currentAccount.tradeRecords, trade)
+  )
 }
 
 const TRADE_RECORD_PAGE_SIZE = 15
@@ -308,11 +309,10 @@ function updateTradeAccount(
       ? nextRecords
       : detachTradeRecordsFromBatch(nextRecords, nextBatch.id)
     return {
-      account: {
-        ...account,
-        activeBatch: hasTTrades ? plannedBatch : undefined,
-        tradeRecords: finalRecords
-      },
+      account: withLedgerTradeRecords(
+        { ...account, activeBatch: hasTTrades ? plannedBatch : undefined },
+        finalRecords
+      ),
       position: recalculatePositionFromBatch(plannedBatch, nextBatchTrades),
       updatesPosition: true
     }
@@ -333,13 +333,13 @@ function updateTradeAccount(
       index === historyIndex ? refreshBatchSettlement(batch, nextBatchTrades) : item
     )
     return {
-      account: { ...account, history, tradeRecords: nextRecords },
+      account: withLedgerTradeRecords({ ...account, history }, nextRecords),
       updatesPosition: false
     }
   }
 
   return {
-    account: { ...account, tradeRecords: nextRecords },
+    account: withLedgerTradeRecords(account, nextRecords),
     updatesPosition: false
   }
 }
@@ -718,15 +718,19 @@ export function PositionEditor({
 
   const applyGlobalLedgerPosition = (nextAccount: TTradingAccount): boolean => {
     if (market === 'CN') return true
-    const metrics = calculateMarketLedgerMetrics(nextAccount.tradeRecords, market, currency)
+    const metrics = calculatePortfolioLedgerMetrics(nextAccount, currency)
     if (metrics.error) {
       setTradeRecordError(metrics.error)
       return false
     }
-    setQuantity(metrics.position?.quantity.toString() ?? '')
-    setCost(metrics.position?.cost.toString() ?? '')
-    setCostExchangeRate(metrics.position?.costExchangeRate?.toString() ?? '')
-    setOpenedOn(metrics.position?.openedOn ?? currentMarketDateTime.slice(0, 10))
+    setQuantity(metrics.quantity > 0 ? metrics.quantity.toString() : '')
+    setCost(metrics.averageCost?.toString() ?? '')
+    setCostExchangeRate(
+      metrics.cnyCostBasis !== null && metrics.nativeCostBasis > 0
+        ? (metrics.cnyCostBasis / metrics.nativeCostBasis).toString()
+        : ''
+    )
+    setOpenedOn(stock.position?.openedOn ?? currentMarketDateTime.slice(0, 10))
     return true
   }
 
@@ -763,6 +767,7 @@ export function PositionEditor({
       market,
       currency,
       history: [],
+      ledger: { schemaVersion: 1, entries: [] },
       tradeRecords: []
     }
     if (nextAccount.tradeRecords.length === 0 && stock.position) {
@@ -805,12 +810,10 @@ export function PositionEditor({
       origin: 'execution',
       note: newTradeDraft.note.trim()
     }
-    nextAccount = {
-      ...nextAccount,
-      market,
-      currency,
-      tradeRecords: upsertTradeRecord(nextAccount.tradeRecords, trade)
-    }
+    nextAccount = withLedgerTradeRecords(
+      { ...nextAccount, market, currency },
+      upsertTradeRecord(nextAccount.tradeRecords, trade)
+    )
     if (!applyGlobalLedgerPosition(nextAccount)) {
       setNewTradeError('卖出数量不能超过交易流水中的可用持仓数量')
       return

@@ -22,6 +22,7 @@ export interface StockMarketCapabilities {
   fundamentals: boolean
   dividendFinancing: boolean
   companyReports: boolean
+  corporateActions: boolean
   shareholders: boolean
   fundsFlow: boolean
   marketInsight: boolean
@@ -59,6 +60,7 @@ const A_STOCK_CAPABILITIES: StockMarketCapabilities = {
   fundamentals: true,
   dividendFinancing: true,
   companyReports: true,
+  corporateActions: false,
   shareholders: true,
   fundsFlow: true,
   marketInsight: true,
@@ -78,6 +80,7 @@ const GLOBAL_MARKET_CAPABILITIES: StockMarketCapabilities = {
   fundamentals: true,
   dividendFinancing: false,
   companyReports: true,
+  corporateActions: true,
   shareholders: false,
   fundsFlow: false,
   marketInsight: false,

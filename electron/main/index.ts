@@ -39,6 +39,7 @@ import {
 } from './market'
 import { ChipDistributionCache } from './chip-distribution-cache'
 import { CompanyReportService } from './company-report-service'
+import { CorporateActionService } from './corporate-action-service'
 import { CacheMaintenanceService } from './cache-maintenance-service'
 import { CompletionNotificationStore } from './completion-notification-store'
 import { DailyMarketScanService } from './daily-market-scan-service'
@@ -122,7 +123,8 @@ const DEFAULT_STATE: AppState = {
   columnOrder: [...DEFAULT_WATCHLIST_COLUMN_ORDER],
   columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
   settings: { ...DEFAULT_APP_SETTINGS },
-  tTradingAccounts: {}
+  tTradingAccounts: {},
+  corporateActionRecords: {}
 }
 
 let state: AppState = DEFAULT_STATE
@@ -144,6 +146,7 @@ let disposeIpcHandlers: (() => void) | null = null
 let dividendFinancingService: DividendFinancingService | null = null
 let fundamentalDataService: FundamentalDataService | null = null
 let companyReportService: CompanyReportService | null = null
+let corporateActionService: CorporateActionService | null = null
 let globalFundamentalService: GlobalFundamentalService | null = null
 let valuationHistoryService: ValuationHistoryService | null = null
 let shareholderService: ShareholderService | null = null
@@ -348,6 +351,7 @@ if (!hasSingleInstanceLock) {
     )
     const secEdgarClient = new SecEdgarClient()
     companyReportService = new CompanyReportService(app.getPath('userData'), secEdgarClient)
+    corporateActionService = new CorporateActionService(app.getPath('userData'), secEdgarClient)
     globalFundamentalService = new GlobalFundamentalService(
       app.getPath('userData'),
       companyReportService,
@@ -464,6 +468,16 @@ if (!hasSingleInstanceLock) {
         )
       },
       openCompanyReport: (url) => companyReportService!.open(url),
+      listCorporateActions: (quoteId, forceRefresh) =>
+        corporateActionService!.get(quoteId, forceRefresh),
+      previewCorporateAction: (request) => corporateActionService!.preview(request),
+      ignoreCorporateAction: (candidate) => corporateActionService!.ignore(candidate),
+      reverseCorporateAction: (candidate, account) =>
+        corporateActionService!.reverse(candidate, account),
+      createManualCorporateAction: (request, account) =>
+        corporateActionService!.createManual(request, account),
+      openCorporateAction: (url) => corporateActionService!.open(url),
+      listPortfolioLedger: (account) => account.ledger.entries,
       getShareholderSnapshot: (quoteId, forceRefresh) =>
         shareholderService!.get(quoteId, forceRefresh),
       getValuationHistory: (quoteId) => valuationHistoryService!.get(quoteId),
@@ -652,6 +666,9 @@ if (!hasSingleInstanceLock) {
     exchangeRateRuntime.start()
     void quoteRuntime.refreshAutomatically('startup')
     void quoteRuntime.primeSectorBindings(true)
+    setTimeout(() => {
+      void corporateActionService?.refreshWatchlist(state.watchlist.map((stock) => stock.quoteId))
+    }, 15_000)
   })
 }
 

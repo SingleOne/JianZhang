@@ -3,6 +3,7 @@ import {
   Binoculars,
   Bot,
   CircleCheck,
+  CircleDollarSign,
   Filter,
   RefreshCw,
   Signal,
@@ -59,6 +60,7 @@ import type {
   CacheClearResult,
   CacheSummary,
   ConfigImportResult,
+  CorporateActionRecord,
   DataSnapshotRuntimeState,
   DividendFinancingChangeReport,
   DividendFinancingRankingItem,
@@ -81,6 +83,8 @@ import type {
   WatchlistGroup,
   WatchlistColumnId
 } from './shared/types'
+
+const CorporateActionCenterDialog = lazy(() => import('./components/CorporateActionCenterDialog'))
 
 interface StockAddOptions {
   startTracking?: boolean
@@ -162,6 +166,7 @@ export default function App() {
   const [fundamentalScreeningOpen, setFundamentalScreeningOpen] = useState(false)
   const [dailyMarketScanOpen, setDailyMarketScanOpen] = useState(false)
   const [stockTrackingOpen, setStockTrackingOpen] = useState(false)
+  const [corporateActionCenterOpen, setCorporateActionCenterOpen] = useState(false)
   const [dividendFinancingSnapshot, setDividendFinancingSnapshot] =
     useState<DividendFinancingSnapshot | null>(null)
   const [dividendFinancingChangeReport, setDividendFinancingChangeReport] =
@@ -791,6 +796,112 @@ export default function App() {
     [persist, state]
   )
 
+  const applyCorporateAction = useCallback(
+    (
+      quoteId: string,
+      account: TTradingAccount,
+      position: StockPosition | undefined,
+      record: CorporateActionRecord
+    ) => {
+      const conversion = account.ledger.entries.find(
+        (entry) =>
+          entry.kind === 'securityConversion' &&
+          entry.corporateActionId === record.id &&
+          entry.targetQuoteId
+      )
+      const targetQuoteId =
+        conversion?.kind === 'securityConversion'
+          ? record.status === 'reversed'
+            ? conversion.sourceQuoteId
+            : conversion.targetQuoteId
+          : undefined
+      const finalQuoteId = targetQuoteId && targetQuoteId !== quoteId ? targetQuoteId : quoteId
+      if (
+        finalQuoteId !== quoteId &&
+        (state.tTradingAccounts[finalQuoteId] ||
+          state.watchlist.some((stock) => stock.quoteId === finalQuoteId))
+      ) {
+        return `目标证券 ${finalQuoteId} 已存在，为避免覆盖账户或自选数据，本次未入账。请先处理目标证券后重试。`
+      }
+      const finalCode = finalQuoteId.includes('.')
+        ? finalQuoteId.split('.').slice(1).join('.') || account.code
+        : account.code
+      const normalizedAccount =
+        finalQuoteId === quoteId
+          ? account
+          : {
+              ...account,
+              quoteId: finalQuoteId,
+              code: finalCode,
+              ledger: {
+                ...account.ledger,
+                entries: account.ledger.entries.map((entry) => ({
+                  ...entry,
+                  accountId: finalQuoteId,
+                  quoteId: finalQuoteId
+                }))
+              }
+            }
+      const { [quoteId]: _previousAccount, ...otherAccounts } = state.tTradingAccounts
+      const migratedRecords = Object.fromEntries(
+        Object.entries(state.corporateActionRecords).map(([id, saved]) => [
+          id,
+          saved.quoteId === quoteId ? { ...saved, quoteId: finalQuoteId } : saved
+        ])
+      )
+      const trackingProfile = state.stockTrackingProfiles[quoteId]
+      const { [quoteId]: _previousTracking, ...otherTrackingProfiles } = state.stockTrackingProfiles
+      void persist({
+        ...state,
+        watchlist: state.watchlist.map((stock) =>
+          stock.quoteId === quoteId
+            ? {
+                ...stock,
+                quoteId: finalQuoteId,
+                code: finalCode,
+                position,
+                isPriority: position ? true : stock.isPriority
+              }
+            : stock
+        ),
+        tTradingAccounts: { ...otherAccounts, [finalQuoteId]: normalizedAccount },
+        stockTrackingProfiles:
+          finalQuoteId !== quoteId && trackingProfile
+            ? {
+                ...otherTrackingProfiles,
+                [finalQuoteId]: { ...trackingProfile, quoteId: finalQuoteId, code: finalCode }
+              }
+            : state.stockTrackingProfiles,
+        corporateActionRecords: {
+          ...migratedRecords,
+          [record.id]: { ...record, quoteId: finalQuoteId }
+        }
+      })
+      if (finalQuoteId !== quoteId) setSelectedQuoteId(finalQuoteId)
+    },
+    [persist, state]
+  )
+
+  const updateCorporateActionRecord = useCallback(
+    (record: CorporateActionRecord) => {
+      void persist({
+        ...state,
+        corporateActionRecords: { ...state.corporateActionRecords, [record.id]: record }
+      })
+    },
+    [persist, state]
+  )
+
+  const viewCorporateActionStock = useCallback((quoteId: string) => {
+    setCorporateActionCenterOpen(false)
+    setSelectedQuoteId(quoteId)
+    setDetailNavigationRequest({
+      id: `corporate-action:${quoteId}:${Date.now()}`,
+      quoteId,
+      target: 'corporate-actions'
+    })
+  }, [])
+
   const updateStockAlerts = useCallback(
     (quoteId: string, alertRules: StockAlertRule[]) => {
       const nextWatchlist = state.watchlist.map((stock) =>
@@ -1267,6 +1378,15 @@ export default function App() {
               <Binoculars size={17} />
               <span>追踪复盘</span>
             </button>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => setCorporateActionCenterOpen(true)}
+              title="公司行动待确认中心"
+            >
+              <CircleDollarSign size={17} />
+              <span>公司行动</span>
+            </button>
             {aiRuntimeAvailable ? (
               <button
                 className="secondary-button ai-assistant-trigger"
@@ -1471,6 +1591,7 @@ export default function App() {
                 stockSelectionRequest={stockSelectionRequest}
                 detailNavigationRequest={detailNavigationRequest}
                 tTradingAccounts={state.tTradingAccounts}
+                corporateActionRecords={state.corporateActionRecords}
                 tTradingFees={state.settings.tTradingFees}
                 marketTradeFees={state.settings.marketTradeFees}
                 tPlanDefaults={state.settings.tPlanDefaults}
@@ -1485,6 +1606,8 @@ export default function App() {
                 onTogglePriority={togglePriority}
                 onEditPosition={updatePosition}
                 onUpdateTTrading={updateTTrading}
+                onApplyCorporateAction={applyCorporateAction}
+                onUpdateCorporateActionRecord={updateCorporateActionRecord}
                 onUpdateStockAlerts={updateStockAlerts}
                 stockTrackingProfiles={state.stockTrackingProfiles}
                 onStartTracking={startManualTracking}
@@ -1595,6 +1718,17 @@ export default function App() {
         onBollingerBandsEnabledChange={updateBollingerBandsEnabled}
         onClose={() => setStockTrackingOpen(false)}
       />
+      {corporateActionCenterOpen ? (
+        <Suspense fallback={null}>
+          <CorporateActionCenterDialog
+            open
+            watchlist={state.watchlist}
+            records={state.corporateActionRecords}
+            onViewStock={viewCorporateActionStock}
+            onClose={() => setCorporateActionCenterOpen(false)}
+          />
+        </Suspense>
+      ) : null}
       {AiAssistantDrawer ? (
         <Suspense fallback={null}>
           <AiAssistantDrawer

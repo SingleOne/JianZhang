@@ -29,6 +29,11 @@ import type {
   CompanyReportItem,
   CompanyReportLibraryResult,
   CompanyReportSummary,
+  CorporateActionCandidate,
+  CorporateActionImpactPreview,
+  CorporateActionListResult,
+  CorporateActionPreviewRequest,
+  CorporateActionRecord,
   DataSnapshotRuntimeState,
   DailyMarketScanResult,
   DailyMarketScanState,
@@ -47,6 +52,9 @@ import type {
   GitHubSyncUploadResult,
   KlinePeriod,
   KlineResult,
+  ManualCorporateActionRequest,
+  PortfolioLedgerEntry,
+  ReversalLedgerEntry,
   SearchResult,
   SectorIndexResult,
   ShareholderSnapshot,
@@ -56,6 +64,7 @@ import type {
   TaskbarLayout,
   TaskbarTooltipAnchor,
   TradingCalendarSettings,
+  TTradingAccount,
   UserDataBackupSummary
 } from '../../src/shared/types'
 
@@ -92,6 +101,24 @@ interface IpcHandlerDependencies {
   ) => Promise<GlobalFundamentalSnapshot>
   generateCompanyReportSummary: (report: CompanyReportItem) => Promise<CompanyReportSummary>
   openCompanyReport: (url: string) => Promise<void>
+  listCorporateActions: (
+    quoteId: string,
+    forceRefresh?: boolean
+  ) => Promise<CorporateActionListResult>
+  previewCorporateAction: (
+    request: CorporateActionPreviewRequest
+  ) => Promise<CorporateActionImpactPreview>
+  ignoreCorporateAction: (candidate: CorporateActionCandidate) => CorporateActionRecord
+  reverseCorporateAction: (
+    candidate: CorporateActionCandidate,
+    account: TTradingAccount
+  ) => ReversalLedgerEntry[]
+  createManualCorporateAction: (
+    request: ManualCorporateActionRequest,
+    account: TTradingAccount
+  ) => { candidate: CorporateActionCandidate; preview: CorporateActionImpactPreview }
+  openCorporateAction: (url: string) => Promise<void>
+  listPortfolioLedger: (account: TTradingAccount) => PortfolioLedgerEntry[]
   getShareholderSnapshot: (quoteId: string, forceRefresh?: boolean) => Promise<ShareholderSnapshot>
   getValuationHistory: (quoteId: string) => Promise<StockValuationHistory>
   refreshQuotes: (reason?: string) => Promise<StockQuote[]>
@@ -177,6 +204,15 @@ const CHANNELS = [
   'company-reports:get',
   'company-reports:summary:generate',
   'company-reports:open',
+  'corporate-actions:list',
+  'corporate-actions:refresh',
+  'corporate-actions:preview',
+  'corporate-actions:confirm',
+  'corporate-actions:ignore',
+  'corporate-actions:reverse',
+  'corporate-actions:manual',
+  'corporate-actions:open',
+  'portfolio-ledger:list',
   'shareholders:get',
   'valuation-history:get',
   'quotes:refresh',
@@ -266,6 +302,37 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
   )
   ipcMain.handle('company-reports:open', (_event, url: string) =>
     dependencies.openCompanyReport(url)
+  )
+  ipcMain.handle('corporate-actions:list', (_event, quoteId: string) =>
+    dependencies.listCorporateActions(quoteId)
+  )
+  ipcMain.handle('corporate-actions:refresh', (_event, quoteId: string) =>
+    dependencies.listCorporateActions(quoteId, true)
+  )
+  ipcMain.handle('corporate-actions:preview', (_event, request: CorporateActionPreviewRequest) =>
+    dependencies.previewCorporateAction(request)
+  )
+  ipcMain.handle('corporate-actions:confirm', (_event, request: CorporateActionPreviewRequest) =>
+    dependencies.previewCorporateAction(request)
+  )
+  ipcMain.handle('corporate-actions:ignore', (_event, candidate: CorporateActionCandidate) =>
+    dependencies.ignoreCorporateAction(candidate)
+  )
+  ipcMain.handle(
+    'corporate-actions:reverse',
+    (_event, candidate: CorporateActionCandidate, account: TTradingAccount) =>
+      dependencies.reverseCorporateAction(candidate, account)
+  )
+  ipcMain.handle(
+    'corporate-actions:manual',
+    (_event, request: ManualCorporateActionRequest, account: TTradingAccount) =>
+      dependencies.createManualCorporateAction(request, account)
+  )
+  ipcMain.handle('corporate-actions:open', (_event, url: string) =>
+    dependencies.openCorporateAction(url)
+  )
+  ipcMain.handle('portfolio-ledger:list', (_event, account: TTradingAccount) =>
+    dependencies.listPortfolioLedger(account)
   )
   ipcMain.handle('shareholders:get', (_event, quoteId: string, forceRefresh?: boolean) =>
     dependencies.getShareholderSnapshot(quoteId, forceRefresh)
