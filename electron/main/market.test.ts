@@ -244,6 +244,45 @@ describe('fetchQuotes investment valuation fields', () => {
     })
   })
 
+  it('uses the three-decimal Eastmoney scale for Hong Kong prices', async () => {
+    netFetch.mockResolvedValueOnce(jsonResponse({
+      data: {
+        diff: [{
+          f2: 445400,
+          f3: 77,
+          f4: 3400,
+          f12: '00700',
+          f13: 116,
+          f14: '腾讯控股',
+          f15: 450000,
+          f16: 443000,
+          f17: 448000,
+          f18: 442000
+        }]
+      }
+    }))
+
+    const result = await fetchQuotes([{
+      code: '00700',
+      name: '腾讯控股',
+      quoteId: '116.00700',
+      marketLabel: '港股',
+      showInTaskbar: false,
+      isPriority: false,
+      showRadarSignals: false
+    }], [], 'test')
+
+    expect(result.quotes[0]).toMatchObject({
+      latest: 445.4,
+      changePercent: 0.77,
+      change: 3.4,
+      open: 448,
+      high: 450,
+      low: 443,
+      previousClose: 442
+    })
+  })
+
   it('maps Eastmoney PE TTM and PB using the quote field scale', async () => {
     netFetch.mockResolvedValueOnce(jsonResponse({
       data: {
