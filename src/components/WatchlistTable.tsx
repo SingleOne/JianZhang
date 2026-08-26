@@ -279,6 +279,7 @@ export function WatchlistTable({
   const radarPopoverRef = useRef<HTMLDivElement>(null)
   const locateTimerRef = useRef<number | undefined>(undefined)
   const locateFrameRef = useRef<number | undefined>(undefined)
+  const collapseScrollFrameRef = useRef<number | undefined>(undefined)
   const stickyDisabledQuoteIdRef = useRef<string | null>(null)
   const selectedQuoteIdRef = useRef(selectedQuoteId)
   selectedQuoteIdRef.current = selectedQuoteId
@@ -600,6 +601,7 @@ export function WatchlistTable({
     () => () => {
       window.clearTimeout(locateTimerRef.current)
       window.cancelAnimationFrame(locateFrameRef.current ?? 0)
+      window.cancelAnimationFrame(collapseScrollFrameRef.current ?? 0)
     },
     []
   )
@@ -659,6 +661,22 @@ export function WatchlistTable({
 
   const toggleStockDetails = useCallback(
     (quoteId: string) => {
+      window.cancelAnimationFrame(collapseScrollFrameRef.current ?? 0)
+      collapseScrollFrameRef.current = undefined
+      const scroller = tableScrollerRef.current
+      const row = scroller?.querySelector<HTMLTableRowElement>(`tr[data-quote-id="${quoteId}"]`)
+      const rowStyles = row ? window.getComputedStyle(row) : null
+      const stickyTop = rowStyles ? Number.parseFloat(rowStyles.top) || 0 : 0
+      const keepCollapsedRowAtTop = Boolean(
+        selectedQuoteIdRef.current === quoteId &&
+        scroller &&
+        row &&
+        rowStyles?.position === 'sticky' &&
+        Math.abs(
+          row.getBoundingClientRect().top - scroller.getBoundingClientRect().top - stickyTop
+        ) <= 1
+      )
+
       stickyDisabledQuoteIdRef.current = null
       setStickyDisabledQuoteId(null)
       const currentSelectedQuoteId = selectedQuoteIdRef.current
@@ -669,6 +687,18 @@ export function WatchlistTable({
         return next
       })
       onSelect(quoteId)
+      if (keepCollapsedRowAtTop && scroller) {
+        window.cancelAnimationFrame(collapseScrollFrameRef.current ?? 0)
+        collapseScrollFrameRef.current = window.requestAnimationFrame(() => {
+          collapseScrollFrameRef.current = undefined
+          const collapsedRow = scroller.querySelector<HTMLTableRowElement>(
+            `tr[data-quote-id="${quoteId}"]`
+          )
+          if (!collapsedRow) return
+          scroller.scrollTop +=
+            collapsedRow.getBoundingClientRect().top - scroller.getBoundingClientRect().top
+        })
+      }
     },
     [onSelect]
   )
