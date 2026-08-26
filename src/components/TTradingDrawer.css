@@ -256,7 +256,7 @@
   display: grid;
   gap: 5px;
   color: #687386;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .t-form-grid label.is-wide {
@@ -395,7 +395,7 @@
 
 .t-entry-actions > span {
   color: #8490a3;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .t-entry-actions .primary-button {
@@ -431,7 +431,7 @@
   background: #f7faff;
   border: 0;
   border-top: 1px solid #e3e9f3;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 650;
   cursor: pointer;
 }
@@ -483,7 +483,7 @@
 
 .t-trade-amount small {
   color: #7b8799;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -564,7 +564,7 @@
 .t-sell-level label span {
   padding: 0 6px;
   color: #8a94a6;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .t-dual-plan-card {
@@ -784,7 +784,7 @@
   min-width: 0;
   overflow: hidden;
   color: #8993a3;
-  font-size: 10px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -792,7 +792,7 @@
 .t-plan-table-heading .text-button {
   flex: 0 0 auto;
   padding: 2px;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .t-plan-levels {
@@ -825,7 +825,7 @@
   min-height: 28px;
   color: #7b8493;
   background: #f8fafc;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 650;
 }
 
@@ -867,7 +867,7 @@
   color: #ffffff;
   border: 0;
   border-radius: 5px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 750;
   cursor: pointer;
 }
@@ -1118,7 +1118,7 @@
 
 .t-history-list summary small {
   color: #8a94a6;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .t-history-list details > div {
@@ -1135,7 +1135,7 @@
   align-items: center;
   gap: 8px;
   color: #687386;
-  font-size: 10px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1159,7 +1159,7 @@
 .t-history-list p {
   margin: 3px 0 0;
   color: #586579;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .t-history-list p strong {
@@ -1206,7 +1206,7 @@
   display: grid;
   gap: 4px;
   color: #687386;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .t-history-profit-editor input {
@@ -1228,7 +1228,7 @@
 .t-history-profit-editor > small {
   align-self: center;
   color: #c93643;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 @keyframes t-drawer-in {
