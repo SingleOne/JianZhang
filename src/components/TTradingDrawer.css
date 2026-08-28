@@ -64,7 +64,7 @@
   display: grid;
   align-content: start;
   gap: 8px;
-  padding: 14px;
+  padding: 8px 14px;
   overflow-y: auto;
 }
 
@@ -128,7 +128,7 @@
 .t-card-heading {
   min-height: 34px;
   display: flex;
-  align-items: flex-start;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 11px;
@@ -1136,7 +1136,7 @@
 
 .t-history-list details > div > .t-history-trade {
   display: grid;
-  grid-template-columns: 0.8fr 1.5fr 1fr 0.9fr 1.35fr;
+  grid-template-columns: 0.8fr 1.5fr 1.5fr 0.9fr 1.35fr;
   align-items: center;
   gap: 8px;
   color: #687386;
