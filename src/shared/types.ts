@@ -472,14 +472,6 @@ export const MARKET_INDEX_OPTIONS = [
     market: 'HK'
   },
   {
-    id: 'dow-jones',
-    code: 'DJIA',
-    name: '道琼斯',
-    quoteId: '100.DJIA',
-    marketLabel: '美股指数',
-    market: 'US'
-  },
-  {
     id: 'nasdaq',
     code: 'NDX',
     name: '纳斯达克',
@@ -492,6 +484,14 @@ export const MARKET_INDEX_OPTIONS = [
     code: 'SPX',
     name: '标普500',
     quoteId: '100.SPX',
+    marketLabel: '美股指数',
+    market: 'US'
+  },
+  {
+    id: 'dow-jones',
+    code: 'DJIA',
+    name: '道琼斯',
+    quoteId: '100.DJIA',
     marketLabel: '美股指数',
     market: 'US'
   }
