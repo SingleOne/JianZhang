@@ -3,6 +3,7 @@ import {
   migrateWatchlistColumnOrder,
   normalizeAppSettings,
   normalizeCorporateActionRecords,
+  normalizePortfolioPerformanceAdjustments,
   normalizeStockTrackingProfiles,
   normalizeTradingAccountsForWatchlist,
   normalizeWatchlist,
@@ -116,6 +117,10 @@ export function parseImportedAppState(value: unknown): AppState {
       watchlist,
       importedState.tTradingAccounts
     ),
-    corporateActionRecords: normalizeCorporateActionRecords(importedState.corporateActionRecords)
+    corporateActionRecords: normalizeCorporateActionRecords(importedState.corporateActionRecords),
+    portfolioPerformanceAdjustments: normalizePortfolioPerformanceAdjustments(
+      importedState.portfolioPerformanceAdjustments,
+      watchlist
+    )
   }
 }

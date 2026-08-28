@@ -40,11 +40,64 @@ export interface SectorFilterOption {
   count: number
 }
 
+export interface SinceAddedPerformance {
+  change: number
+  changePercent: number
+}
+
+export interface PreviousCloseDividendYield {
+  dividendPerShare: number
+  dividendYear: number
+  yieldPercent: number
+}
+
+export function calculateSinceAddedPerformance(
+  stock: WatchStock,
+  quote: StockQuote | undefined
+): SinceAddedPerformance | null {
+  if (!stock.addedPrice || quote?.latest === null || quote?.latest === undefined) return null
+  const change = quote.latest - stock.addedPrice
+  return { change, changePercent: (change / stock.addedPrice) * 100 }
+}
+
+export function calculatePreviousCloseDividendYield(
+  dividend: DividendFinancingRankingItem | undefined,
+  quote: StockQuote | undefined
+): PreviousCloseDividendYield | null {
+  const annualDividend = dividend?.annualDividends?.find(
+    (point) => point.year === dividend.lastDividendYear
+  )
+  const latest = quote?.latest
+  const previousClose = quote?.previousClose
+  const totalMarketValue = quote?.totalMarketValue
+  if (
+    !annualDividend ||
+    latest === null ||
+    latest === undefined ||
+    latest <= 0 ||
+    previousClose === null ||
+    previousClose === undefined ||
+    previousClose <= 0 ||
+    totalMarketValue === null ||
+    totalMarketValue === undefined ||
+    totalMarketValue <= 0
+  ) {
+    return null
+  }
+  const totalShares = totalMarketValue / latest
+  const dividendPerShare = (annualDividend.amountYi * 100_000_000) / totalShares
+  return {
+    dividendPerShare,
+    dividendYear: annualDividend.year,
+    yieldPercent: (dividendPerShare / previousClose) * 100
+  }
+}
+
 export const COLUMN_META: Record<WatchlistColumnId, ColumnMeta> = {
   stock: { label: '名称 / 代码', width: 220, sortable: true, className: 'stock-column' },
   latest: { label: '最新价', width: 72, sortable: true },
-  changePercent: { label: '涨跌幅', width: 76, sortable: true },
-  sectorChangePercent: { label: '板块涨跌幅', width: 94, sortable: true },
+  changePercent: { label: '涨跌幅', width: 100, sortable: true },
+  sinceAddedChange: { label: '添加以来', width: 118, sortable: true },
   dividendFinancingRatio: { label: '分红融资比', width: 108, sortable: true },
   valueTags: { label: '价值标签', width: 112, sortable: true },
   open: { label: '今日概览', width: 190, sortable: true },
@@ -78,8 +131,8 @@ export function sortValue(
       return row.quote?.latest
     case 'changePercent':
       return row.quote?.changePercent
-    case 'sectorChangePercent':
-      return row.quote?.sector?.changePercent
+    case 'sinceAddedChange':
+      return calculateSinceAddedPerformance(row.stock, row.quote)?.changePercent
     case 'dividendFinancingRatio':
       return row.dividendFinancing?.ratio
     case 'valueTags': {

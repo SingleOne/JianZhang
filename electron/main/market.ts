@@ -58,6 +58,7 @@ interface EastmoneyQuoteItem {
   f16?: number | '-'
   f17?: number | '-'
   f18?: number | '-'
+  f20?: number | '-'
   f23?: number | '-'
   f115?: number | '-'
   f124?: number | '-'
@@ -284,6 +285,7 @@ function toEastmoneyQuote(
     volume: rawNumber(item.f5),
     amount: rawNumber(item.f6),
     turnoverRate: scaled(item.f8),
+    totalMarketValue: rawNumber(item.f20),
     priceEarningsRatioTtm: scaled(item.f115),
     priceBookRatio: scaled(item.f23),
     updatedAt,

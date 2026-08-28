@@ -300,6 +300,7 @@ describe('fetchQuotes investment valuation fields', () => {
           f16: 130350,
           f17: 132700,
           f18: 132230,
+          f20: 1_633_169_107_626,
           f23: 692,
           f115: 1973
         }]
@@ -317,7 +318,9 @@ describe('fetchQuotes investment valuation fields', () => {
     }], [], 'test')
 
     expect(new URL(netFetch.mock.calls[0][0]).searchParams.get('fields')).toContain('f115')
+    expect(new URL(netFetch.mock.calls[0][0]).searchParams.get('fields')).toContain('f20')
     expect(result.quotes[0]).toMatchObject({
+      totalMarketValue: 1_633_169_107_626,
       priceEarningsRatioTtm: 19.73,
       priceBookRatio: 6.92
     })

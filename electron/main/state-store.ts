@@ -6,6 +6,7 @@ import {
   migrateWatchlistColumnOrder,
   normalizeAppSettings,
   normalizeCorporateActionRecords,
+  normalizePortfolioPerformanceAdjustments,
   normalizeStockTrackingProfiles,
   normalizeTradingAccountsForWatchlist,
   normalizeWatchlist,
@@ -125,7 +126,11 @@ export class StateStore {
       columnOrder: normalizeWatchlistColumnOrder(state.columnOrder),
       columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
       tTradingAccounts: normalizeTradingAccountsForWatchlist(watchlist, state.tTradingAccounts),
-      corporateActionRecords: normalizeCorporateActionRecords(state.corporateActionRecords)
+      corporateActionRecords: normalizeCorporateActionRecords(state.corporateActionRecords),
+      portfolioPerformanceAdjustments: normalizePortfolioPerformanceAdjustments(
+        state.portfolioPerformanceAdjustments,
+        watchlist
+      )
     }
   }
 
@@ -174,7 +179,11 @@ export class StateStore {
       columnOrder: migrateWatchlistColumnOrder(saved.columnOrder, saved.columnOrderVersion),
       columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
       tTradingAccounts: normalizeTradingAccountsForWatchlist(watchlist, saved.tTradingAccounts),
-      corporateActionRecords: normalizeCorporateActionRecords(saved.corporateActionRecords)
+      corporateActionRecords: normalizeCorporateActionRecords(saved.corporateActionRecords),
+      portfolioPerformanceAdjustments: normalizePortfolioPerformanceAdjustments(
+        saved.portfolioPerformanceAdjustments,
+        watchlist
+      )
     }
   }
 

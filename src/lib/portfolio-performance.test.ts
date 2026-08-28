@@ -267,4 +267,21 @@ describe('portfolio performance report', () => {
     expect(report.portfolioRow.label).toBe('全部组合')
     expect(report.accountReturnAvailable).toBe(false)
   })
+
+  it('applies a per-stock CNY adjustment to every aggregate without changing native profit', () => {
+    const report = calculatePortfolioPerformanceReport(
+      [stock(100)],
+      [quote()],
+      { '116.00700': account([trade('buy', 'buy', 100, 10, 0.9, 0)]) },
+      exchangeRates(),
+      { '116.00700': 25.5 }
+    )
+
+    expect(report.stocks[0].native[0].totalProfit).toBe(200)
+    expect(report.stocks[0].cny.manualAdjustment).toBe(25.5)
+    expect(report.stockRows[0].cny.manualAdjustment).toBe(25.5)
+    expect(report.currencyRows[0].cny.manualAdjustment).toBe(25.5)
+    expect(report.portfolioRow.cny.manualAdjustment).toBe(25.5)
+    expect(report.portfolioRow.cny.totalProfit).toBe(229.5)
+  })
 })

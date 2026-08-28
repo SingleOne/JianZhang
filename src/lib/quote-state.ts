@@ -106,6 +106,7 @@ export function stockQuoteEqual(left: StockQuote, right: StockQuote): boolean {
     left.volume === right.volume &&
     left.amount === right.amount &&
     left.turnoverRate === right.turnoverRate &&
+    left.totalMarketValue === right.totalMarketValue &&
     left.market === right.market &&
     left.currency === right.currency &&
     left.volumeUnit === right.volumeUnit &&

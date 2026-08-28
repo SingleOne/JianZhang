@@ -64,6 +64,7 @@ import type {
   FundamentalSnapshot,
   GitHubDeviceAuthorization,
   GitHubSyncSettings,
+  PortfolioPerformanceAdjustments,
   SearchResult,
   StockPosition,
   StockPositionSnapshot,
@@ -506,6 +507,8 @@ export default function App() {
       ]
       const groupIds = new Set(existing?.groupIds ?? [])
       targetGroups.forEach((group) => groupIds.add(group.id))
+      const knownQuote = quotes.find((quote) => quote.quoteId === result.quoteId)
+      const addedAt = new Date().toISOString()
       const nextStock = existing
         ? { ...existing, groupIds: [...groupIds] }
         : {
@@ -513,7 +516,12 @@ export default function App() {
             showInTaskbar: false,
             isPriority: false,
             showRadarSignals: true,
-            groupIds: [...groupIds]
+            groupIds: [...groupIds],
+            addedAt,
+            addedPrice:
+              knownQuote?.latest !== null && knownQuote?.latest !== undefined
+                ? knownQuote.latest
+                : undefined
           }
       const nextTrackingProfiles = { ...state.stockTrackingProfiles }
       if (options.startTracking && options.source) {
@@ -541,28 +549,34 @@ export default function App() {
           const refreshedQuote = incoming.find((quote) => quote.quoteId === result.quoteId)
           const refreshedPrice = refreshedQuote?.latest
           const profile = saved.stockTrackingProfiles[result.quoteId]
-          if (
-            !options.source ||
-            !profile ||
-            refreshedPrice === null ||
-            refreshedPrice === undefined
-          )
-            return
-          const sources = profile.sources.map((source) =>
+          if (refreshedPrice === null || refreshedPrice === undefined) return
+          const savedStock = saved.watchlist.find((stock) => stock.quoteId === result.quoteId)
+          const shouldSaveAddedPrice = Boolean(savedStock && !savedStock.addedPrice)
+          const shouldSaveTrackingPrice = Boolean(options.source && profile)
+          if (!shouldSaveAddedPrice && !shouldSaveTrackingPrice) return
+          const sources = profile?.sources.map((source) =>
             source.id === options.source?.id && !source.detail?.startPrice
               ? { ...source, detail: { ...source.detail, startPrice: refreshedPrice } }
               : source
           )
-          await persist(
-            {
-              ...saved,
-              stockTrackingProfiles: {
-                ...saved.stockTrackingProfiles,
-                [result.quoteId]: { ...profile, sources }
-              }
-            },
-            false
-          )
+          const nextSaved = {
+            ...saved,
+            watchlist: shouldSaveAddedPrice
+              ? saved.watchlist.map((stock) =>
+                  stock.quoteId === result.quoteId
+                    ? { ...stock, addedPrice: refreshedPrice }
+                    : stock
+                )
+              : saved.watchlist,
+            stockTrackingProfiles:
+              profile && sources
+                ? {
+                    ...saved.stockTrackingProfiles,
+                    [result.quoteId]: { ...profile, sources }
+                  }
+                : saved.stockTrackingProfiles
+          }
+          await persist(nextSaved, false)
         })
         .catch((reason: unknown) => {
           reportError(reason instanceof Error ? reason.message : '新股票行情获取失败')
@@ -706,7 +720,15 @@ export default function App() {
       const nextWatchlist = state.watchlist.filter((stock) => stock.quoteId !== quoteId)
       setSelectedQuoteId((current) => (current === quoteId ? null : current))
       setQuotes((current) => current.filter((quote) => quote.quoteId !== quoteId))
-      void persist({ ...state, watchlist: nextWatchlist })
+      void persist({
+        ...state,
+        watchlist: nextWatchlist,
+        portfolioPerformanceAdjustments: Object.fromEntries(
+          Object.entries(state.portfolioPerformanceAdjustments ?? {}).filter(
+            ([adjustedQuoteId]) => adjustedQuoteId !== quoteId
+          )
+        )
+      })
     },
     [persist, state]
   )
@@ -737,6 +759,11 @@ export default function App() {
       void persist({
         ...state,
         watchlist: state.watchlist.filter((item) => item.quoteId !== quoteId),
+        portfolioPerformanceAdjustments: Object.fromEntries(
+          Object.entries(state.portfolioPerformanceAdjustments ?? {}).filter(
+            ([adjustedQuoteId]) => adjustedQuoteId !== quoteId
+          )
+        ),
         stockTrackingProfiles: {
           ...state.stockTrackingProfiles,
           [quoteId]: nextProfile
@@ -744,6 +771,20 @@ export default function App() {
       })
     },
     [confirm, persist, quotes, state]
+  )
+
+  const savePortfolioPerformanceAdjustments = useCallback(
+    async (adjustments: PortfolioPerformanceAdjustments) =>
+      Boolean(
+        await persist(
+          {
+            ...state,
+            portfolioPerformanceAdjustments: adjustments
+          },
+          false
+        )
+      ),
+    [persist, state]
   )
 
   const toggleTaskbar = useCallback(
@@ -1694,6 +1735,8 @@ export default function App() {
             quotes={quotes}
             accounts={state.tTradingAccounts}
             exchangeRates={state.settings.exchangeRates}
+            adjustments={state.portfolioPerformanceAdjustments ?? {}}
+            onSaveAdjustments={savePortfolioPerformanceAdjustments}
             onClose={() => setPortfolioPerformanceOpen(false)}
           />
         </Suspense>

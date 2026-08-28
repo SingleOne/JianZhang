@@ -65,7 +65,7 @@ export const EASTMONEY_FIXED_PARAMS = {
 } as const
 
 export const EASTMONEY_FIELDS = {
-  quotes: 'f2,f3,f4,f5,f6,f8,f12,f13,f14,f15,f16,f17,f18,f23,f115,f124',
+  quotes: 'f2,f3,f4,f5,f6,f8,f12,f13,f14,f15,f16,f17,f18,f20,f23,f115,f124',
   dailyMarketScanQuotes: 'f2,f3,f4,f5,f6,f8,f12,f13,f14,f15,f16,f17,f18,f124',
   orderBook:
     'f43,f58,f60,f531,f11,f12,f13,f14,f15,f16,f17,f18,f19,f20,f31,f32,f33,f34,f35,f36,f37,f38,f39,f40',

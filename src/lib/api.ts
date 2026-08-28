@@ -6,6 +6,7 @@ import {
   getMarketIndexStocks,
   migrateWatchlistColumnOrder,
   normalizeAppSettings,
+  normalizePortfolioPerformanceAdjustments,
   normalizeTradingAccountsForWatchlist,
   normalizeStockTrackingProfiles,
   normalizeWatchlist,
@@ -71,7 +72,8 @@ const DEFAULT_STATE: AppState = {
   columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
   settings: { ...DEFAULT_APP_SETTINGS },
   tTradingAccounts: {},
-  corporateActionRecords: {}
+  corporateActionRecords: {},
+  portfolioPerformanceAdjustments: {}
 }
 
 const DEMO_DAILY_MARKET_SCAN_RESULT: DailyMarketScanResult = {
@@ -184,7 +186,11 @@ function loadDemoState(): AppState {
     columnOrder: migrateWatchlistColumnOrder(parsed.columnOrder, parsed.columnOrderVersion),
     columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
     tTradingAccounts: normalizeTradingAccountsForWatchlist(watchlist, parsed.tTradingAccounts),
-    corporateActionRecords: parsed.corporateActionRecords ?? {}
+    corporateActionRecords: parsed.corporateActionRecords ?? {},
+    portfolioPerformanceAdjustments: normalizePortfolioPerformanceAdjustments(
+      parsed.portfolioPerformanceAdjustments,
+      watchlist
+    )
   }
 }
 
@@ -210,6 +216,7 @@ function makeDemoQuotes(watchlist: WatchStock[]): StockQuote[] {
       return {
         ...stockMarketIdentity(stock.quoteId, stock.instrumentType),
         ...known,
+        totalMarketValue: known.latest === null ? null : known.latest * 1_000_000_000,
         sector,
         radarSignals,
         source: 'demo',
@@ -232,6 +239,7 @@ function makeDemoQuotes(watchlist: WatchStock[]): StockQuote[] {
       volume: 182300,
       amount: 486320000,
       turnoverRate: 1.26,
+      totalMarketValue: base * 1_000_000_000,
       sector,
       radarSignals,
       source: 'demo',

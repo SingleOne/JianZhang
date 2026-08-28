@@ -54,6 +54,8 @@ export interface WatchStock {
   positionSnapshots?: StockPositionSnapshot[]
   alertRules?: StockAlertRule[]
   groupIds?: string[]
+  addedAt?: string
+  addedPrice?: number
 }
 
 export type StockTrackingSourceType =
@@ -322,6 +324,13 @@ export function normalizeWatchlist(stocks: readonly WatchStock[]): WatchStock[] 
     return {
       ...stock,
       ...identity,
+      addedAt: typeof stock.addedAt === 'string' && stock.addedAt ? stock.addedAt : undefined,
+      addedPrice:
+        typeof stock.addedPrice === 'number' &&
+        Number.isFinite(stock.addedPrice) &&
+        stock.addedPrice > 0
+          ? stock.addedPrice
+          : undefined,
       position,
       isPriority: Boolean(position || stock.isPriority),
       showRadarSignals: stock.showRadarSignals ?? true,
@@ -1255,7 +1264,7 @@ export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
   'stock',
   'latest',
   'changePercent',
-  'sectorChangePercent',
+  'sinceAddedChange',
   'dividendFinancingRatio',
   'valueTags',
   'open',
@@ -1271,7 +1280,7 @@ export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
 ] as const
 
 export type WatchlistColumnId = (typeof DEFAULT_WATCHLIST_COLUMN_ORDER)[number]
-export const WATCHLIST_COLUMN_ORDER_VERSION = 8
+export const WATCHLIST_COLUMN_ORDER_VERSION = 9
 
 export function normalizeWatchlistColumnOrder(
   columnOrder: readonly string[] | undefined
@@ -1302,12 +1311,6 @@ export function migrateWatchlistColumnOrder(
     migrated.splice(totalProfitIndex + 1, 0, 'todayProfit')
   }
 
-  if ((version ?? 0) < 4) {
-    migrated = migrated.filter((columnId) => columnId !== 'sectorChangePercent')
-    const changePercentIndex = migrated.indexOf('changePercent')
-    migrated.splice(changePercentIndex + 1, 0, 'sectorChangePercent')
-  }
-
   if ((version ?? 0) < 5) {
     migrated = migrated.filter((columnId) => columnId !== 'trading')
     const openIndex = migrated.indexOf('open')
@@ -1316,14 +1319,20 @@ export function migrateWatchlistColumnOrder(
 
   if ((version ?? 0) < 7) {
     migrated = migrated.filter((columnId) => columnId !== 'dividendFinancingRatio')
-    const sectorChangePercentIndex = migrated.indexOf('sectorChangePercent')
-    migrated.splice(sectorChangePercentIndex + 1, 0, 'dividendFinancingRatio')
+    const changePercentIndex = migrated.indexOf('changePercent')
+    migrated.splice(changePercentIndex + 1, 0, 'dividendFinancingRatio')
   }
 
   if ((version ?? 0) < 8) {
     migrated = migrated.filter((columnId) => columnId !== 'valueTags')
     const dividendFinancingIndex = migrated.indexOf('dividendFinancingRatio')
     migrated.splice(dividendFinancingIndex + 1, 0, 'valueTags')
+  }
+
+  if ((version ?? 0) < 9) {
+    migrated = migrated.filter((columnId) => columnId !== 'sinceAddedChange')
+    const changePercentIndex = migrated.indexOf('changePercent')
+    migrated.splice(changePercentIndex + 1, 0, 'sinceAddedChange')
   }
 
   return migrated
@@ -1364,6 +1373,7 @@ export interface StockQuote {
   volume: number | null
   amount: number | null
   turnoverRate: number | null
+  totalMarketValue?: number | null
   priceEarningsRatioTtm?: number | null
   priceBookRatio?: number | null
   sector?: StockSectorQuote
@@ -2431,6 +2441,21 @@ export interface AppState {
   columnOrderVersion?: number
   tTradingAccounts: TTradingAccounts
   corporateActionRecords: CorporateActionRecords
+  portfolioPerformanceAdjustments?: PortfolioPerformanceAdjustments
+}
+
+export type PortfolioPerformanceAdjustments = Record<string, number>
+
+export function normalizePortfolioPerformanceAdjustments(
+  adjustments: PortfolioPerformanceAdjustments | undefined,
+  watchlist: readonly WatchStock[]
+): PortfolioPerformanceAdjustments {
+  const quoteIds = new Set(watchlist.map((stock) => stock.quoteId))
+  return Object.fromEntries(
+    Object.entries(adjustments ?? {}).filter(
+      ([quoteId, value]) => quoteIds.has(quoteId) && Number.isFinite(value) && value !== 0
+    )
+  )
 }
 
 export type CompletionNotificationTarget =

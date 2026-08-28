@@ -1,4 +1,4 @@
-import { ChartPie, CircleAlert, X } from 'lucide-react'
+import { ChartPie, CircleAlert, PencilLine, Save, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { formatMoneyProfit } from '../lib/format'
@@ -12,6 +12,7 @@ import {
 } from '../lib/portfolio-performance'
 import type {
   ExchangeRateSettings,
+  PortfolioPerformanceAdjustments,
   StockQuote,
   TTradingAccounts,
   WatchStock
@@ -23,6 +24,8 @@ interface PortfolioPerformanceDialogProps {
   quotes: StockQuote[]
   accounts: TTradingAccounts
   exchangeRates: ExchangeRateSettings
+  adjustments: PortfolioPerformanceAdjustments
+  onSaveAdjustments: (adjustments: PortfolioPerformanceAdjustments) => Promise<boolean>
   onClose: () => void
 }
 
@@ -118,12 +121,19 @@ export default function PortfolioPerformanceDialog({
   quotes,
   accounts,
   exchangeRates,
+  adjustments,
+  onSaveAdjustments,
   onClose
 }: PortfolioPerformanceDialogProps) {
   const [dimension, setDimension] = useState<PerformanceDimension>('stock')
+  const [adjustmentEditorOpen, setAdjustmentEditorOpen] = useState(false)
+  const [adjustmentDrafts, setAdjustmentDrafts] = useState<Record<string, string>>({})
+  const [adjustmentError, setAdjustmentError] = useState('')
+  const [savingAdjustments, setSavingAdjustments] = useState(false)
   const report = useMemo(
-    () => calculatePortfolioPerformanceReport(watchlist, quotes, accounts, exchangeRates),
-    [accounts, exchangeRates, quotes, watchlist]
+    () =>
+      calculatePortfolioPerformanceReport(watchlist, quotes, accounts, exchangeRates, adjustments),
+    [accounts, adjustments, exchangeRates, quotes, watchlist]
   )
   const rows = useMemo(() => {
     if (dimension === 'stock') return report.stockRows
@@ -134,6 +144,49 @@ export default function PortfolioPerformanceDialog({
   }, [dimension, report])
   const portfolio = report.portfolioRow
   const taxFees = expenseValue(portfolio.cny)
+  const rawPortfolioProfit =
+    portfolio.cny.totalProfit === null
+      ? null
+      : portfolio.cny.totalProfit - portfolio.cny.manualAdjustment
+
+  const openAdjustmentEditor = () => {
+    setAdjustmentDrafts(
+      Object.fromEntries(
+        report.stocks.map((stock) => [
+          stock.quoteId,
+          stock.cny.totalProfit !== null && stock.cny.manualAdjustment !== 0
+            ? stock.cny.totalProfit.toFixed(2)
+            : ''
+        ])
+      )
+    )
+    setAdjustmentError('')
+    setAdjustmentEditorOpen(true)
+  }
+
+  const saveAdjustments = async () => {
+    const next = { ...adjustments }
+    for (const stock of report.stocks) {
+      delete next[stock.quoteId]
+      const draft = adjustmentDrafts[stock.quoteId]?.trim() ?? ''
+      if (!draft) continue
+      const targetProfit = Number(draft)
+      const rawProfit =
+        stock.cny.totalProfit === null ? null : stock.cny.totalProfit - stock.cny.manualAdjustment
+      if (!Number.isFinite(targetProfit) || rawProfit === null) {
+        setAdjustmentError(`${stock.name}的券商收益无效或当前计算不完整`)
+        return
+      }
+      const adjustment = Math.round((targetProfit - rawProfit) * 100) / 100
+      if (adjustment !== 0) next[stock.quoteId] = adjustment
+    }
+    setSavingAdjustments(true)
+    setAdjustmentError('')
+    const saved = await onSaveAdjustments(next)
+    setSavingAdjustments(false)
+    if (saved) setAdjustmentEditorOpen(false)
+    else setAdjustmentError('收益调整保存失败，请重试')
+  }
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow
@@ -166,12 +219,26 @@ export default function PortfolioPerformanceDialog({
           <span className="portfolio-performance-title-icon" aria-hidden="true">
             <ChartPie size={21} />
           </span>
-          <span>
-            <h2 id="portfolio-performance-title">跨市场收益分析</h2>
+          <span className="portfolio-performance-title-copy">
+            <span className="portfolio-performance-title-row">
+              <h2 id="portfolio-performance-title">跨市场收益分析</h2>
+              <span className="portfolio-performance-title-notice">
+                <CircleAlert size={15} />
+                <strong>当前展示持仓收益，不是账户收益</strong>
+              </span>
+            </span>
             <small>
-              原币与人民币并列 · 汇率日期 {report.exchangeRateDate ?? '缺失'} · 默认账户
+              {report.accountReturnReason} · 汇率日期 {report.exchangeRateDate ?? '缺失'}
             </small>
           </span>
+          <button
+            className="portfolio-performance-adjust-button"
+            type="button"
+            onClick={openAdjustmentEditor}
+          >
+            <PencilLine size={15} />
+            调整收益
+          </button>
           <button
             className="icon-button portfolio-performance-close"
             type="button"
@@ -184,22 +251,83 @@ export default function PortfolioPerformanceDialog({
         </header>
 
         <div className="portfolio-performance-body">
-          <div className="portfolio-performance-account-notice">
-            <CircleAlert size={17} />
-            <span>
-              <strong>当前展示持仓收益，不是账户收益</strong>
-              <small>{report.accountReturnReason}</small>
-            </span>
-          </div>
+          {adjustmentEditorOpen ? (
+            <section className="portfolio-performance-adjustment-panel">
+              <header>
+                <span>
+                  <strong>按股票校准人民币持仓收益</strong>
+                  <small>填写券商显示的累计持仓收益；留空即使用账本计算值。</small>
+                </span>
+                <button type="button" onClick={() => setAdjustmentEditorOpen(false)}>
+                  取消
+                </button>
+              </header>
+              <div className="portfolio-performance-adjustment-list">
+                {report.stocks.map((stock) => {
+                  const rawProfit =
+                    stock.cny.totalProfit === null
+                      ? null
+                      : stock.cny.totalProfit - stock.cny.manualAdjustment
+                  const targetProfit = Number(adjustmentDrafts[stock.quoteId])
+                  const draftAdjustment =
+                    adjustmentDrafts[stock.quoteId]?.trim() &&
+                    rawProfit !== null &&
+                    Number.isFinite(targetProfit)
+                      ? targetProfit - rawProfit
+                      : null
+                  return (
+                    <label key={stock.quoteId}>
+                      <span>
+                        <strong>{stock.name}</strong>
+                        <small className={valueClass(rawProfit)}>
+                          {stock.code} · 计算 {formatMoneyProfit(rawProfit, 'CNY')}
+                        </small>
+                      </span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={adjustmentDrafts[stock.quoteId] ?? ''}
+                        disabled={rawProfit === null}
+                        placeholder={rawProfit === null ? '计算不完整' : rawProfit.toFixed(2)}
+                        aria-label={`${stock.name}券商人民币持仓收益`}
+                        onChange={(event) =>
+                          setAdjustmentDrafts((current) => ({
+                            ...current,
+                            [stock.quoteId]: event.target.value
+                          }))
+                        }
+                      />
+                      <small className={valueClass(draftAdjustment)}>
+                        调整 {formatMoneyProfit(draftAdjustment, 'CNY')}
+                      </small>
+                    </label>
+                  )
+                })}
+              </div>
+              <footer>
+                <small>{adjustmentError}</small>
+                <button
+                  type="button"
+                  disabled={savingAdjustments}
+                  onClick={() => void saveAdjustments()}
+                >
+                  <Save size={15} />
+                  {savingAdjustments ? '保存中…' : '保存调整'}
+                </button>
+              </footer>
+            </section>
+          ) : null}
 
           <div className="portfolio-performance-summary">
             <SummaryValue
               label="人民币收益小计"
               value={portfolio.cny.totalProfit}
               note={
-                portfolio.excludedStockCount > 0
-                  ? `仅含 ${portfolio.includedStockCount} 只，排除 ${portfolio.excludedStockCount} 只`
-                  : `${portfolio.includedStockCount} 只数据完整`
+                portfolio.cny.manualAdjustment !== 0 && rawPortfolioProfit !== null
+                  ? `计算 ${formatMoneyProfit(rawPortfolioProfit, 'CNY')} · 调整 ${formatMoneyProfit(portfolio.cny.manualAdjustment, 'CNY')}`
+                  : portfolio.excludedStockCount > 0
+                    ? `仅含 ${portfolio.includedStockCount} 只，排除 ${portfolio.excludedStockCount} 只`
+                    : `${portfolio.includedStockCount} 只数据完整`
               }
             />
             <SummaryValue label="已实现收益" value={portfolio.cny.realizedProfit} />
@@ -212,7 +340,7 @@ export default function PortfolioPerformanceDialog({
           </div>
 
           <div className="portfolio-performance-attribution-note">
-            证券价格贡献按历史加权购入汇率折算；汇率贡献按当前或卖出证券价值的汇率变化计算。分红、税费和公司行动现金单独列示。
+            证券价格贡献按历史加权购入汇率折算；汇率贡献按当前或卖出证券价值的汇率变化计算。分红、税费和公司行动现金单独列示；手动调整只计入人民币收益小计。
           </div>
 
           <nav className="portfolio-performance-dimensions" aria-label="收益汇总维度">
@@ -260,7 +388,14 @@ export default function PortfolioPerformanceDialog({
                         <NativeProfitCell slices={row.native} />
                       </td>
                       <td className={valueClass(row.cny.totalProfit)}>
-                        {formatMoneyProfit(row.cny.totalProfit, 'CNY')}
+                        <span className="performance-adjusted-total">
+                          {formatMoneyProfit(row.cny.totalProfit, 'CNY')}
+                          {row.cny.manualAdjustment !== 0 ? (
+                            <small>
+                              含调整 {formatMoneyProfit(row.cny.manualAdjustment, 'CNY')}
+                            </small>
+                          ) : null}
+                        </span>
                       </td>
                       <td className={valueClass(row.cny.realizedProfit)}>
                         {formatMoneyProfit(row.cny.realizedProfit, 'CNY')}

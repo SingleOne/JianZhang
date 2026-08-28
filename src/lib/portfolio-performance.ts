@@ -2,6 +2,7 @@ import { exchangeRateForCurrency } from '../shared/exchange-rates'
 import { marketFromQuoteId, type StockCurrency, type StockMarket } from '../shared/stock-market'
 import type {
   ExchangeRateSettings,
+  PortfolioPerformanceAdjustments,
   PortfolioLedgerEntry,
   StockQuote,
   TTradingAccount,
@@ -60,6 +61,7 @@ export interface CnyProfitComponents {
   totalProfit: number | null
   priceContribution: number | null
   exchangeRateContribution: number | null
+  manualAdjustment: number
 }
 
 export interface PortfolioPerformanceCurrencySlice {
@@ -260,7 +262,10 @@ function finalizeCny(slice: MutableCnySlice, forceIncomplete = false): CnyProfit
     priceContribution:
       slice.attributionComplete && !forceIncomplete ? rounded(slice.priceContribution) : null,
     exchangeRateContribution:
-      slice.attributionComplete && !forceIncomplete ? rounded(slice.exchangeRateContribution) : null
+      slice.attributionComplete && !forceIncomplete
+        ? rounded(slice.exchangeRateContribution)
+        : null,
+    manualAdjustment: 0
   }
 }
 
@@ -294,7 +299,8 @@ function combineCny(components: readonly CnyProfitComponents[]): CnyProfitCompon
     corporateActionIncome: values.corporateActionIncome,
     totalProfit,
     priceContribution,
-    exchangeRateContribution
+    exchangeRateContribution,
+    manualAdjustment: rounded(components.reduce((total, item) => total + item.manualAdjustment, 0))
   }
 }
 
@@ -309,7 +315,8 @@ function emptyIncompleteCny(): CnyProfitComponents {
     corporateActionIncome: null,
     totalProfit: null,
     priceContribution: null,
-    exchangeRateContribution: null
+    exchangeRateContribution: null,
+    manualAdjustment: 0
   }
 }
 
@@ -333,7 +340,8 @@ function stockPerformance(
   stock: WatchStock,
   quote: StockQuote | undefined,
   account: TTradingAccount | undefined,
-  exchangeRates: ExchangeRateSettings
+  exchangeRates: ExchangeRateSettings,
+  manualAdjustment: number
 ): PortfolioPerformanceStockResult | null {
   const market = stock.market ?? marketFromQuoteId(stock.quoteId)
   const securityCurrency =
@@ -526,7 +534,18 @@ function stockPerformance(
   const currencySlices = [...slices.values()]
     .map((slice): PortfolioPerformanceCurrencySlice => {
       const native = finalizeNative(slice.native, forceIncomplete)
-      const cny = finalizeCny(slice.cny, forceIncomplete)
+      const calculatedCny = finalizeCny(slice.cny, forceIncomplete)
+      const adjustment = rounded(manualAdjustment)
+      const cny =
+        native.currency === securityCurrency &&
+        calculatedCny.totalProfit !== null &&
+        adjustment !== 0
+          ? {
+              ...calculatedCny,
+              totalProfit: rounded(calculatedCny.totalProfit + adjustment),
+              manualAdjustment: adjustment
+            }
+          : calculatedCny
       return { currency: native.currency, native, cny, complete: cny.totalProfit !== null }
     })
     .sort((left, right) => left.currency.localeCompare(right.currency))
@@ -646,12 +665,19 @@ export function calculatePortfolioPerformanceReport(
   watchlist: readonly WatchStock[],
   quotes: readonly StockQuote[],
   accounts: TTradingAccounts,
-  exchangeRates: ExchangeRateSettings
+  exchangeRates: ExchangeRateSettings,
+  adjustments: Readonly<PortfolioPerformanceAdjustments> = {}
 ): PortfolioPerformanceReport {
   const quoteMap = new Map(quotes.map((quote) => [quote.quoteId, quote]))
   const stocks = watchlist
     .map((stock) =>
-      stockPerformance(stock, quoteMap.get(stock.quoteId), accounts[stock.quoteId], exchangeRates)
+      stockPerformance(
+        stock,
+        quoteMap.get(stock.quoteId),
+        accounts[stock.quoteId],
+        exchangeRates,
+        Number.isFinite(adjustments[stock.quoteId]) ? adjustments[stock.quoteId] : 0
+      )
     )
     .filter((stock): stock is PortfolioPerformanceStockResult => stock !== null)
     .sort(

@@ -15,6 +15,7 @@ import {
   formatMoneyProfit,
   formatPercent,
   formatPrice,
+  formatSigned,
   formatShares
 } from '../../lib/format'
 import { isStockQuoteExpired, STOCK_QUOTE_SOURCE_LABELS } from '../../lib/quote-state'
@@ -65,6 +66,7 @@ import { ExpandedStockDetails } from '../ExpandedStockDetails'
 import { FiveLevelAlertBadges } from '../FiveLevelAlertBadges'
 import { TAlertBadges } from '../TAlertBadges'
 import { TFloatingProfitAlertBadge } from '../TFloatingProfitAlertBadge'
+import { calculatePreviousCloseDividendYield, calculateSinceAddedPerformance } from './columns'
 
 function valueClass(value: number | null | undefined): string {
   if (value === null || value === undefined || value === 0) return 'is-flat'
@@ -242,6 +244,9 @@ export const WatchlistRow = memo(function WatchlistRow({
   const metrics = calculatePositionMetrics(stock.position, quote, tradingAccount, exchangeRates)
   const quoteDirection = valueClass(quote?.changePercent)
   const sectorDirection = valueClass(quote?.sector?.changePercent)
+  const sinceAddedPerformance = calculateSinceAddedPerformance(stock, quote)
+  const sinceAddedDirection = valueClass(sinceAddedPerformance?.changePercent)
+  const dividendYield = calculatePreviousCloseDividendYield(dividendFinancing, quote)
   const currentRadarSignals =
     capabilities.radar && stock.showRadarSignals ? todayRadarSignals(quote?.radarSignals) : []
   const latestRadarSignal = currentRadarSignals[0]
@@ -507,14 +512,6 @@ export const WatchlistRow = memo(function WatchlistRow({
               )
             case 'changePercent':
               return (
-                <td key={columnId}>
-                  <strong className={`change-percent ${quoteDirection}`}>
-                    {formatPercent(quote?.changePercent)}
-                  </strong>
-                </td>
-              )
-            case 'sectorChangePercent':
-              return (
                 <td
                   key={columnId}
                   title={
@@ -523,9 +520,34 @@ export const WatchlistRow = memo(function WatchlistRow({
                       : '暂无所属行业板块行情'
                   }
                 >
-                  <strong className={sectorDirection}>
-                    {formatPercent(quote?.sector?.changePercent)}
-                  </strong>
+                  <span className="change-percent-cell">
+                    <strong className={`change-percent ${quoteDirection}`}>
+                      {formatPercent(quote?.changePercent)}
+                    </strong>
+                    <small className={sectorDirection}>
+                      板块 {formatPercent(quote?.sector?.changePercent)}
+                    </small>
+                  </span>
+                </td>
+              )
+            case 'sinceAddedChange':
+              return (
+                <td
+                  key={columnId}
+                  title={
+                    sinceAddedPerformance
+                      ? `添加时间 ${stock.addedAt ?? '--'}，添加基准价 ${formatPrice(stock.addedPrice)}`
+                      : '旧数据未记录添加时价格；新添加股票会自动记录'
+                  }
+                >
+                  <span className="since-added-change-cell">
+                    <strong className={sinceAddedDirection}>
+                      {formatPercent(sinceAddedPerformance?.changePercent)}
+                    </strong>
+                    <small className={sinceAddedDirection}>
+                      {formatSigned(sinceAddedPerformance?.change, 3)}
+                    </small>
+                  </span>
                 </td>
               )
             case 'dividendFinancingRatio':
@@ -534,19 +556,21 @@ export const WatchlistRow = memo(function WatchlistRow({
                   key={columnId}
                   title={
                     dividendFinancing
-                      ? `榜单第 ${dividendFinancing.rank} 名；累计A股分红 ${dividendFinancing.dividendYi.toLocaleString('zh-CN')} 亿元，累计A股融资 ${dividendFinancing.financingYi.toLocaleString('zh-CN')} 亿元；净回报 ${(dividendFinancing.netReturnYi ?? dividendFinancing.dividendYi - dividendFinancing.financingYi).toLocaleString('zh-CN')} 亿元；连续分红 ${dividendFinancing.consecutiveDividendYears ?? '--'} 年；质量评分 ${dividendFinancing.qualityScore?.toFixed(1) ?? '--'}；快照 ${dividendFinancingSnapshotDate ?? '--'}`
+                      ? `累计A股分红 ${dividendFinancing.dividendYi.toLocaleString('zh-CN')} 亿元，累计A股融资 ${dividendFinancing.financingYi.toLocaleString('zh-CN')} 亿元；净回报 ${(dividendFinancing.netReturnYi ?? dividendFinancing.dividendYi - dividendFinancing.financingYi).toLocaleString('zh-CN')} 亿元；${dividendYield ? `${dividendYield.dividendYear} 年每股分红约 ${formatPrice(dividendYield.dividendPerShare)} 元，按昨收 ${formatPrice(quote?.previousClose)} 计算股息率` : '缺少年度分红、总市值或昨收数据，暂不能计算股息率'}；快照 ${dividendFinancingSnapshotDate ?? '--'}`
                       : `未进入分红融资比大于100%榜单或暂无完整数据；快照 ${dividendFinancingSnapshotDate ?? '--'}`
                   }
                 >
                   {dividendFinancing ? (
                     <span className="dividend-financing-cell">
                       <strong>{dividendFinancing.ratio.toFixed(2)}%</strong>
-                      <small>第 {dividendFinancing.rank} 名</small>
+                      <small className={valueClass(dividendYield?.yieldPercent)}>
+                        股息率 {formatPercent(dividendYield?.yieldPercent)}
+                      </small>
                     </span>
                   ) : (
                     <span className="dividend-financing-cell is-empty">
                       <strong>--</strong>
-                      <small>未入榜</small>
+                      <small>股息率 --</small>
                     </span>
                   )}
                 </td>

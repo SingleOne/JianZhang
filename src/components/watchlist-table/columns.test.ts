@@ -2,7 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FundamentalScreeningEvaluation } from '../../lib/fundamental-screening'
 import type { PositionMetrics } from '../../lib/portfolio'
 import type { StockQuote, WatchStock } from '../../shared/types'
-import { sortRows, sortValue, type StockRowData } from './columns'
+import {
+  calculatePreviousCloseDividendYield,
+  calculateSinceAddedPerformance,
+  sortRows,
+  sortValue,
+  type StockRowData
+} from './columns'
 
 const EMPTY_METRICS: PositionMetrics = {
   currency: 'CNY',
@@ -171,6 +177,47 @@ describe('watchlist column sorting', () => {
         []
       ).map(({ stock }) => stock.quoteId)
     ).toEqual(['higher', 'lower', 'missing'])
+  })
+
+  it('calculates price performance from the recorded add price', () => {
+    const added = stock('added', 'Added')
+    added.addedAt = '2026-07-01T02:00:00.000Z'
+    added.addedPrice = 8
+
+    expect(calculateSinceAddedPerformance(added, quote('added', 10))).toEqual({
+      change: 2,
+      changePercent: 25
+    })
+    expect(
+      calculateSinceAddedPerformance(stock('legacy', 'Legacy'), quote('legacy', 10))
+    ).toBeNull()
+  })
+
+  it('calculates the last annual dividend yield from previous close', () => {
+    const currentQuote = quote('yield', 10)
+    currentQuote.previousClose = 8
+    currentQuote.totalMarketValue = 10_000_000_000
+
+    expect(
+      calculatePreviousCloseDividendYield(
+        {
+          rank: 1,
+          code: 'yield',
+          name: 'Yield',
+          market: 'SH',
+          dividendYi: 10,
+          financingYi: 5,
+          ratio: 200,
+          lastDividendYear: 2025,
+          annualDividends: [{ year: 2025, amountYi: 2, eventCount: 1 }]
+        },
+        currentQuote
+      )
+    ).toEqual({
+      dividendPerShare: 0.2,
+      dividendYear: 2025,
+      yieldPercent: 2.5
+    })
   })
 
   it('sorts value tags by the number of passed screening badges', () => {

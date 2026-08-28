@@ -124,7 +124,8 @@ const DEFAULT_STATE: AppState = {
   columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
   settings: { ...DEFAULT_APP_SETTINGS },
   tTradingAccounts: {},
-  corporateActionRecords: {}
+  corporateActionRecords: {},
+  portfolioPerformanceAdjustments: {}
 }
 
 let state: AppState = DEFAULT_STATE

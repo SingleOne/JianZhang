@@ -1062,7 +1062,7 @@
   color: #8490a3;
   background: #f8fafc;
   border-bottom: 1px solid var(--border);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -1445,6 +1445,24 @@ button.value-screening-badge:focus-visible {
 
 .change-percent {
   font-size: 16px;
+  font-weight: 700;
+}
+
+.change-percent-cell,
+.since-added-change-cell {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+}
+
+.change-percent-cell small,
+.since-added-change-cell small {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.since-added-change-cell strong {
+  font-size: 14px;
   font-weight: 700;
 }
 
