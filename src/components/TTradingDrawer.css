@@ -1016,31 +1016,6 @@
   margin-left: 5px;
 }
 
-.t-empty-batch {
-  min-height: 112px;
-  display: grid;
-  place-items: center;
-  align-content: center;
-  gap: 6px;
-  color: #8a94a6;
-  background: #ffffff;
-  border: 1px dashed #cfd6e1;
-  border-radius: 10px;
-}
-
-.t-empty-batch svg {
-  color: #82a7ed;
-}
-
-.t-empty-batch strong {
-  color: #586579;
-  font-size: 12px;
-}
-
-.t-empty-batch span {
-  font-size: 11px;
-}
-
 .t-history-list {
   display: grid;
   gap: 6px;

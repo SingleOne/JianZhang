@@ -18,7 +18,7 @@
 | 删除、拖拽、置顶、排序、调整列 | `WatchlistTable.tsx` | `normalizeWatchlistColumnOrder`、`migrateWatchlistColumnOrder` | `state:save` |
 | 自定义分组与板块组合筛选 | `WatchlistTable.tsx`、`WatchlistGroupDialog.tsx`、`TableFilterDropdown.tsx` | `WatchlistGroup`、`WatchStock.groupIds` | 分组随 `AppState` 保存；板块筛选使用实时报价 |
 | 重点关注 | `WatchlistTable.tsx` | 有持仓时自动锁定重点；`App.togglePriority` | `QuoteRefreshCoordinator` 统一调度重点/普通范围 |
-| 大盘指数卡片 | `App.tsx`、`SettingsMenu.tsx` | `MARKET_INDEX_OPTIONS`、`getMarketIndexStocks` | 和普通报价一起刷新 |
+| A 股、港股和美股大盘指数卡片 | `App.tsx`、`SettingsMenu.tsx` | `MARKET_INDEX_OPTIONS`、`getMarketIndexStocks` | 和普通报价一起刷新，默认每个市场一个 |
 | 最新价、涨跌、成交等主表行情 | `WatchlistTable.tsx` | `StockQuote`、格式化函数 | `fetchQuotes` |
 | 持仓编辑和快照对比 | `PositionEditor.tsx` | `StockPosition`、`StockPositionSnapshot` | 随 `AppState` 保存 |
 | 持仓天数 | `WatchlistTable.tsx` | `getPositionHoldingDays` | 内置/在线交易日历 |

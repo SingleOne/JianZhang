@@ -256,6 +256,17 @@ function scaledPrice(value: number | '-' | undefined, market: StockMarket): numb
   return value / (market === 'CN' ? 100 : 1_000)
 }
 
+function scaledQuotePrice(
+  value: number | '-' | undefined,
+  market: StockMarket,
+  quoteId: string
+): number | null {
+  if (MARKET_INDEX_QUOTE_IDS.has(quoteId)) {
+    return typeof value === 'number' ? value / 100 : null
+  }
+  return scaledPrice(value, market)
+}
+
 function rawNumber(value: number | '-' | undefined): number | null {
   return typeof value === 'number' ? value : null
 }
@@ -275,13 +286,13 @@ function toEastmoneyQuote(
     currency: identity.currency,
     volumeUnit: identity.volumeUnit,
     source,
-    latest: scaledPrice(item.f2, identity.market),
+    latest: scaledQuotePrice(item.f2, identity.market, quoteId),
     changePercent: scaled(item.f3),
-    change: scaledPrice(item.f4, identity.market),
-    open: scaledPrice(item.f17, identity.market),
-    high: scaledPrice(item.f15, identity.market),
-    low: scaledPrice(item.f16, identity.market),
-    previousClose: scaledPrice(item.f18, identity.market),
+    change: scaledQuotePrice(item.f4, identity.market, quoteId),
+    open: scaledQuotePrice(item.f17, identity.market, quoteId),
+    high: scaledQuotePrice(item.f15, identity.market, quoteId),
+    low: scaledQuotePrice(item.f16, identity.market, quoteId),
+    previousClose: scaledQuotePrice(item.f18, identity.market, quoteId),
     volume: rawNumber(item.f5),
     amount: rawNumber(item.f6),
     turnoverRate: scaled(item.f8),
@@ -1081,7 +1092,18 @@ interface TencentKlineData {
   m5?: TencentKlineRow[]
 }
 
+const TENCENT_INDEX_SYMBOLS = new Map([
+  ['100.HSI', 'hkHSI'],
+  ['124.HSTECH', 'hkHSTECH'],
+  ['100.HSCEI', 'hkHSCEI'],
+  ['100.DJIA', 'usDJI'],
+  ['100.NDX', 'usIXIC'],
+  ['100.SPX', 'usINX']
+])
+
 function toTencentSymbol(quoteId: string): string {
+  const indexSymbol = TENCENT_INDEX_SYMBOLS.get(quoteId.toUpperCase())
+  if (indexSymbol) return indexSymbol
   const [market, code] = quoteId.split('.')
   if (market === '116') return `hk${code}`
   if (market === '105' || market === '106' || market === '107') return `us${code}`

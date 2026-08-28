@@ -33,6 +33,11 @@ const MarketInsightSettingsToggle = __JIANZHANG_MARKET_INSIGHT_ENABLED__
     )
   : null
 
+const MARKET_INDEX_GROUPS = (['CN', 'HK', 'US'] as const).map((market) => ({
+  market,
+  options: MARKET_INDEX_OPTIONS.filter((index) => index.market === market)
+}))
+
 interface SettingsMenuProps {
   settings: AppSettings
   onChange: (settings: AppSettings) => void
@@ -374,17 +379,26 @@ export function SettingsMenu({
               ) : null}
               <fieldset className="market-index-setting">
                 <legend>大盘指数</legend>
-                <small>选择显示在总收益左侧的指数，按其余股票间隔刷新</small>
-                <div className="market-index-options">
-                  {MARKET_INDEX_OPTIONS.map((index) => (
-                    <label key={index.id}>
-                      <input
-                        type="checkbox"
-                        checked={settings.marketIndexIds.includes(index.id)}
-                        onChange={(event) => toggleMarketIndex(index.id, event.target.checked)}
-                      />
-                      <span>{index.name}</span>
-                    </label>
+                <small>选择显示在总收益左侧的指数，默认每个市场一个</small>
+                <div className="market-index-groups">
+                  {MARKET_INDEX_GROUPS.map((group) => (
+                    <div className="market-index-market" key={group.market}>
+                      <strong>{STOCK_MARKET_LABELS[group.market]}</strong>
+                      <div className="market-index-options">
+                        {group.options.map((index) => (
+                          <label key={index.id}>
+                            <input
+                              type="checkbox"
+                              checked={settings.marketIndexIds.includes(index.id)}
+                              onChange={(event) =>
+                                toggleMarketIndex(index.id, event.target.checked)
+                              }
+                            />
+                            <span>{index.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </fieldset>

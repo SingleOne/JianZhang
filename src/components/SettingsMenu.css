@@ -835,6 +835,24 @@
   font-size: 12px;
 }
 
+.market-index-groups {
+  display: grid;
+  gap: 6px;
+}
+
+.market-index-market {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+}
+
+.market-index-market > strong {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .market-index-options {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

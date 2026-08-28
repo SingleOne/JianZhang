@@ -198,6 +198,56 @@ describe('fetchQuotes investment valuation fields', () => {
     netFetch.mockReset()
   })
 
+  it('uses the index scale and market identity for global indexes', async () => {
+    netFetch.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          diff: [
+            {
+              f2: 2_640_242,
+              f3: -52,
+              f4: -13_893,
+              f12: 'NDX',
+              f13: 100,
+              f14: '纳斯达克',
+              f15: 2_670_068,
+              f16: 2_635_927,
+              f17: 2_651_599,
+              f18: 2_654_135
+            }
+          ]
+        }
+      })
+    )
+
+    const result = await fetchQuotes(
+      [
+        {
+          code: 'NDX',
+          name: '纳斯达克',
+          quoteId: '100.NDX',
+          marketLabel: '美股指数',
+          showInTaskbar: false,
+          isPriority: false,
+          showRadarSignals: false
+        }
+      ],
+      [],
+      'test'
+    )
+
+    expect(result.quotes[0]).toMatchObject({
+      market: 'US',
+      currency: 'USD',
+      latest: 26_402.42,
+      change: -138.93,
+      open: 26_515.99,
+      high: 26_700.68,
+      low: 26_359.27,
+      previousClose: 26_541.35
+    })
+  })
+
   it('uses the three-decimal Eastmoney scale for US prices', async () => {
     netFetch.mockResolvedValueOnce(jsonResponse({
       data: {

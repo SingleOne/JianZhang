@@ -10,8 +10,7 @@
   grid-column: 1 / -1;
 }
 
-.t-active-batch-card,
-.t-empty-batch {
+.t-active-batch-card {
   min-width: 0;
   grid-column: 1;
   grid-row: 3;
@@ -24,7 +23,7 @@
 }
 
 .t-active-batch-card.is-full-width,
-.t-empty-batch.is-full-width {
+.t-base-ledger-card.is-full-width {
   grid-column: 1 / -1;
 }
 

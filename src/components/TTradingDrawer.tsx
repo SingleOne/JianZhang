@@ -101,6 +101,13 @@ function valueClass(value: number | null | undefined): string {
   return value > 0 ? 'is-up' : 'is-down'
 }
 
+function formatOverviewValue(
+  value: number | null | undefined,
+  formatter: (value: number) => string
+): string {
+  return value ? formatter(value) : '-'
+}
+
 function formatTradeTime(value: string): string {
   return value.replace('T', ' ').slice(0, 16)
 }
@@ -994,29 +1001,29 @@ export function TTradingDrawer({
           <section className="t-overview-grid">
             <span>
               <small>总持仓</small>
-              <strong>{formatShares(stock.position?.quantity)}</strong>
+              <strong>{formatOverviewValue(stock.position?.quantity, formatShares)}</strong>
             </span>
             <span>
               <small>{isReverseBatch ? '待回补数量' : '当前T仓'}</small>
-              <strong>{formatShares(activeMetrics.remainingQuantity)}</strong>
+              <strong>{formatOverviewValue(activeMetrics.remainingQuantity, formatShares)}</strong>
             </span>
             <span>
               <small>{isReverseBatch ? '反T基准价' : 'T仓成本'}</small>
-              <strong>{formatCost(activeMetrics.averageCost)}</strong>
+              <strong>{formatOverviewValue(activeMetrics.averageCost, formatCost)}</strong>
             </span>
             <span>
               <small>当前价格</small>
-              <strong>{formatPrice(quote?.latest)}</strong>
+              <strong>{formatOverviewValue(quote?.latest, formatPrice)}</strong>
             </span>
             <span>
               <small>做T总收益</small>
               <strong className={valueClass(totalHistoryProfit)}>
-                {formatProfit(totalHistoryProfit)}
+                {formatOverviewValue(totalHistoryProfit, formatProfit)}
               </strong>
             </span>
             <span className="t-overview-fee">
               <small>做T总费用</small>
-              <strong>{formatCurrency(totalHistoryFees)}</strong>
+              <strong>{formatOverviewValue(totalHistoryFees, formatCurrency)}</strong>
             </span>
           </section>
 
@@ -1188,7 +1195,11 @@ export function TTradingDrawer({
           </section>
 
           {independentBaseTradesDescending.length > 0 ? (
-            <section className="t-card t-base-ledger-card">
+            <section
+              className={`t-card t-base-ledger-card${
+                currentAccount.activeBatch ? '' : ' is-full-width'
+              }`}
+            >
               <div className="t-card-heading">
                 <span>
                   <strong>底仓流水</strong>
@@ -1555,17 +1566,7 @@ export function TTradingDrawer({
                 </section>
               ) : null}
             </>
-          ) : (
-            <section
-              className={`t-empty-batch ${
-                independentBaseTradesDescending.length === 0 ? 'is-full-width' : ''
-              }`}
-            >
-              <Repeat2 size={24} />
-              <strong>当前没有进行中的T批次</strong>
-              <span>首笔计入T仓的买入开启正T，卖出开启反T</span>
-            </section>
-          )}
+          ) : null}
 
           {currentAccount.history.length > 0 ? (
             <section className="t-card t-history-card">

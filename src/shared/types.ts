@@ -375,24 +375,145 @@ export function normalizeWatchlist(stocks: readonly WatchStock[]): WatchStock[] 
 }
 
 export const MARKET_INDEX_OPTIONS = [
-  { id: 'shanghai', code: '000001', name: '上证指数', quoteId: '1.000001', marketLabel: '沪指' },
-  { id: 'shenzhen', code: '399001', name: '深证成指', quoteId: '0.399001', marketLabel: '深指' },
-  { id: 'chinext', code: '399006', name: '创业板指', quoteId: '0.399006', marketLabel: '创业板' },
-  { id: 'sse50', code: '000016', name: '上证50', quoteId: '1.000016', marketLabel: '沪指' },
-  { id: 'csi300', code: '000300', name: '沪深300', quoteId: '1.000300', marketLabel: '沪深' },
-  { id: 'star50', code: '000688', name: '科创50', quoteId: '1.000688', marketLabel: '科创板' },
-  { id: 'csi500', code: '000905', name: '中证500', quoteId: '1.000905', marketLabel: '中证' },
-  { id: 'csi1000', code: '000852', name: '中证1000', quoteId: '1.000852', marketLabel: '中证' },
-  { id: 'bse50', code: '899050', name: '北证50', quoteId: '0.899050', marketLabel: '北交所' }
+  {
+    id: 'shanghai',
+    code: '000001',
+    name: '上证指数',
+    quoteId: '1.000001',
+    marketLabel: '沪指',
+    market: 'CN'
+  },
+  {
+    id: 'shenzhen',
+    code: '399001',
+    name: '深证成指',
+    quoteId: '0.399001',
+    marketLabel: '深指',
+    market: 'CN'
+  },
+  {
+    id: 'chinext',
+    code: '399006',
+    name: '创业板指',
+    quoteId: '0.399006',
+    marketLabel: '创业板',
+    market: 'CN'
+  },
+  {
+    id: 'sse50',
+    code: '000016',
+    name: '上证50',
+    quoteId: '1.000016',
+    marketLabel: '沪指',
+    market: 'CN'
+  },
+  {
+    id: 'csi300',
+    code: '000300',
+    name: '沪深300',
+    quoteId: '1.000300',
+    marketLabel: '沪深',
+    market: 'CN'
+  },
+  {
+    id: 'star50',
+    code: '000688',
+    name: '科创50',
+    quoteId: '1.000688',
+    marketLabel: '科创板',
+    market: 'CN'
+  },
+  {
+    id: 'csi500',
+    code: '000905',
+    name: '中证500',
+    quoteId: '1.000905',
+    marketLabel: '中证',
+    market: 'CN'
+  },
+  {
+    id: 'csi1000',
+    code: '000852',
+    name: '中证1000',
+    quoteId: '1.000852',
+    marketLabel: '中证',
+    market: 'CN'
+  },
+  {
+    id: 'bse50',
+    code: '899050',
+    name: '北证50',
+    quoteId: '0.899050',
+    marketLabel: '北交所',
+    market: 'CN'
+  },
+  {
+    id: 'hsi',
+    code: 'HSI',
+    name: '恒生指数',
+    quoteId: '100.HSI',
+    marketLabel: '港股指数',
+    market: 'HK'
+  },
+  {
+    id: 'hstech',
+    code: 'HSTECH',
+    name: '恒生科技指数',
+    quoteId: '124.HSTECH',
+    marketLabel: '港股指数',
+    market: 'HK'
+  },
+  {
+    id: 'hscei',
+    code: 'HSCEI',
+    name: '国企指数',
+    quoteId: '100.HSCEI',
+    marketLabel: '港股指数',
+    market: 'HK'
+  },
+  {
+    id: 'dow-jones',
+    code: 'DJIA',
+    name: '道琼斯',
+    quoteId: '100.DJIA',
+    marketLabel: '美股指数',
+    market: 'US'
+  },
+  {
+    id: 'nasdaq',
+    code: 'NDX',
+    name: '纳斯达克',
+    quoteId: '100.NDX',
+    marketLabel: '美股指数',
+    market: 'US'
+  },
+  {
+    id: 'sp500',
+    code: 'SPX',
+    name: '标普500',
+    quoteId: '100.SPX',
+    marketLabel: '美股指数',
+    market: 'US'
+  }
 ] as const
 
 export type MarketIndexId = (typeof MARKET_INDEX_OPTIONS)[number]['id']
 
-export const DEFAULT_MARKET_INDEX_IDS: MarketIndexId[] = ['shanghai', 'shenzhen', 'chinext']
+export const DEFAULT_MARKET_INDEX_IDS: MarketIndexId[] = ['shanghai', 'hsi', 'nasdaq']
+const LEGACY_DEFAULT_MARKET_INDEX_IDS: MarketIndexId[] = ['shanghai', 'shenzhen', 'chinext']
 
 export function normalizeMarketIndexIds(indexIds: readonly string[] | undefined): MarketIndexId[] {
   const selectedIds = new Set(indexIds ?? DEFAULT_MARKET_INDEX_IDS)
-  return MARKET_INDEX_OPTIONS.filter((index) => selectedIds.has(index.id)).map((index) => index.id)
+  const normalized = MARKET_INDEX_OPTIONS.filter((index) => selectedIds.has(index.id)).map(
+    (index) => index.id
+  )
+  if (
+    normalized.length === LEGACY_DEFAULT_MARKET_INDEX_IDS.length &&
+    LEGACY_DEFAULT_MARKET_INDEX_IDS.every((indexId) => selectedIds.has(indexId))
+  ) {
+    return [...DEFAULT_MARKET_INDEX_IDS]
+  }
+  return normalized
 }
 
 export function getMarketIndexStocks(indexIds: readonly MarketIndexId[]): WatchStock[] {
@@ -402,6 +523,7 @@ export function getMarketIndexStocks(indexIds: readonly MarketIndexId[]): WatchS
     name: index.name,
     quoteId: index.quoteId,
     marketLabel: index.marketLabel,
+    market: index.market,
     showInTaskbar: false,
     isPriority: false,
     showRadarSignals: false

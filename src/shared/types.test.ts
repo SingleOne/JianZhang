@@ -3,6 +3,7 @@ import {
   DEFAULT_APP_SETTINGS,
   DEFAULT_WATCHLIST_GROUPS,
   WATCHLIST_COLUMN_ORDER_VERSION,
+  getMarketIndexStocks,
   hasLegacyTTradingData,
   migrateWatchlistColumnOrder,
   normalizeAppSettings,
@@ -131,6 +132,24 @@ describe('watchlist normalization', () => {
 })
 
 describe('settings and column migration', () => {
+  it('uses one default index for each supported market', () => {
+    expect(DEFAULT_APP_SETTINGS.marketIndexIds).toEqual(['shanghai', 'hsi', 'nasdaq'])
+    expect(getMarketIndexStocks(DEFAULT_APP_SETTINGS.marketIndexIds)).toMatchObject([
+      { quoteId: '1.000001', market: 'CN' },
+      { quoteId: '100.HSI', market: 'HK' },
+      { quoteId: '100.NDX', market: 'US' }
+    ])
+    expect(
+      normalizeAppSettings({
+        marketIndexIds: [
+          'shanghai',
+          'shenzhen',
+          'chinext'
+        ] as typeof DEFAULT_APP_SETTINGS.marketIndexIds
+      }).marketIndexIds
+    ).toEqual(DEFAULT_APP_SETTINGS.marketIndexIds)
+  })
+
   it('clamps refresh intervals and plan defaults to supported ranges', () => {
     const settings = normalizeAppSettings({
       priorityRefreshSeconds: 1,

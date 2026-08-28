@@ -50,6 +50,9 @@ export const STOCK_CURRENCY_SYMBOLS: Record<StockCurrency, string> = {
   USD: 'US$'
 }
 
+const HONG_KONG_INDEX_QUOTE_IDS = new Set(['100.HSI', '100.HSCEI', '124.HSTECH'])
+const US_INDEX_QUOTE_IDS = new Set(['100.DJIA', '100.NDX', '100.SPX'])
+
 const A_STOCK_CAPABILITIES: StockMarketCapabilities = {
   position: true,
   tradeLedger: true,
@@ -97,6 +100,9 @@ export const STOCK_MARKET_CAPABILITIES: Record<StockMarket, StockMarketCapabilit
 }
 
 export function marketFromQuoteId(quoteId: string): StockMarket {
+  const normalizedQuoteId = quoteId.toUpperCase()
+  if (HONG_KONG_INDEX_QUOTE_IDS.has(normalizedQuoteId)) return 'HK'
+  if (US_INDEX_QUOTE_IDS.has(normalizedQuoteId)) return 'US'
   const marketId = quoteId.split('.')[0]
   if (marketId === '116') return 'HK'
   if (marketId === '105' || marketId === '106' || marketId === '107') return 'US'
@@ -104,6 +110,10 @@ export function marketFromQuoteId(quoteId: string): StockMarket {
 }
 
 export function exchangeFromQuoteId(quoteId: string): StockExchange {
+  const normalizedQuoteId = quoteId.toUpperCase()
+  if (HONG_KONG_INDEX_QUOTE_IDS.has(normalizedQuoteId)) return 'HKEX'
+  if (normalizedQuoteId === '100.NDX') return 'NASDAQ'
+  if (US_INDEX_QUOTE_IDS.has(normalizedQuoteId)) return 'NYSE'
   const [marketId, code = ''] = quoteId.split('.')
   if (marketId === '116') return 'HKEX'
   if (marketId === '105') return 'NASDAQ'

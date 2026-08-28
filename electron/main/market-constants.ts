@@ -28,7 +28,13 @@ export const MARKET_INDEX_QUOTE_IDS = new Set([
   '1.000688',
   '1.000905',
   '1.000852',
-  '0.899050'
+  '0.899050',
+  '100.HSI',
+  '124.HSTECH',
+  '100.HSCEI',
+  '100.DJIA',
+  '100.NDX',
+  '100.SPX'
 ])
 
 export const EASTMONEY_FIXED_PARAMS = {
