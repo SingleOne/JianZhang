@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { TTradingAccount, TTradeRecord } from '../shared/types'
-import { getBatchTrades, getTradeAllocationsForBatch } from './trade-records'
+import {
+  getBatchTrades,
+  getTradeAllocations,
+  getTradeAllocationsForBatch,
+  isIndependentBaseTrade
+} from './trade-records'
 
 const EMPTY_FEES = {
   commission: 0,
@@ -68,5 +73,50 @@ describe('allocated trade records', () => {
     expect(getBatchTrades(account, 'batch-2')).toEqual([record])
     expect(getTradeAllocationsForBatch(record, 'batch-1')[0].quantity).toBe(400)
     expect(getTradeAllocationsForBatch(record, 'batch-2')[0].quantity).toBe(600)
+  })
+
+  it('treats legacy base allocations as account-level trades outside T batches', () => {
+    const record: TTradeRecord = {
+      id: 'legacy-base',
+      side: 'buy',
+      purpose: 'base',
+      tradedAt: '2026-08-27T10:00',
+      price: 12,
+      quantity: 500,
+      fees: EMPTY_FEES,
+      batchId: 'batch-1',
+      batchSequence: 1,
+      batchDirection: 'forward',
+      allocations: [
+        {
+          purpose: 'base',
+          quantity: 500,
+          batchId: 'batch-1',
+          batchSequence: 1,
+          batchDirection: 'forward'
+        }
+      ],
+      note: ''
+    }
+    const account: TTradingAccount = {
+      quoteId: '1.600000',
+      code: '600000',
+      name: '浦发银行',
+      activeBatch: {
+        id: 'batch-1',
+        sequence: 1,
+        openedAt: record.tradedAt,
+        direction: 'forward',
+        buyLevels: [],
+        sellLevels: []
+      },
+      history: [],
+      ledger: { schemaVersion: 1, entries: [] },
+      tradeRecords: [record]
+    }
+
+    expect(getTradeAllocations(record)).toEqual([{ purpose: 'base', quantity: 500 }])
+    expect(getBatchTrades(account, 'batch-1')).toEqual([])
+    expect(isIndependentBaseTrade(record)).toBe(true)
   })
 })

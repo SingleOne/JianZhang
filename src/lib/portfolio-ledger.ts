@@ -1,4 +1,5 @@
 import { roundMoney, totalRecordedTradeFees } from './t-trading'
+import { marketDateKey } from '../shared/market-hours'
 import type {
   CashAdjustmentLedgerEntry,
   CorporateActionCandidate,
@@ -9,6 +10,7 @@ import type {
   ReversalLedgerEntry,
   StockCurrency,
   StockMarket,
+  StockPosition,
   TTradingAccount,
   TTradeRecord
 } from '../shared/types'
@@ -53,6 +55,12 @@ export interface PortfolioLedgerMetrics {
   realizedProfitCny: number | null
   cashIncome: number
   cashIncomeCny: number | null
+  openedOn?: string
+  error?: string
+}
+
+export interface PortfolioLedgerPositionResult {
+  position?: StockPosition
   error?: string
 }
 
@@ -103,6 +111,7 @@ export function calculatePortfolioLedgerMetrics(
   let cashIncome = 0
   let cashIncomeCny = 0
   let completeCashCny = true
+  let openedOn: string | undefined
 
   for (const entry of activePortfolioLedgerEntries(account)) {
     if (entry.kind === 'trade') {
@@ -111,6 +120,7 @@ export function calculatePortfolioLedgerMetrics(
       const amount = record.price * record.quantity
       const rate = entryRate(entry, currency)
       if (record.side === 'buy') {
+        if (quantity === 0) openedOn = entryDate(entry)
         quantity += record.quantity
         nativeCostBasis += amount + fees
         if (rate === null) completeCnyCost = false
@@ -128,6 +138,7 @@ export function calculatePortfolioLedgerMetrics(
           realizedProfitCny: completeCnyCost ? realizedProfitCny : null,
           cashIncome,
           cashIncomeCny: completeCashCny ? cashIncomeCny : null,
+          openedOn,
           error: '卖出数量不能超过组合账本中的可用持仓数量'
         }
       }
@@ -139,17 +150,21 @@ export function calculatePortfolioLedgerMetrics(
       quantity -= record.quantity
       nativeCostBasis -= nativeAllocated
       cnyCostBasis -= cnyAllocated
+      if (quantity === 0) openedOn = undefined
       continue
     }
 
     if (entry.kind === 'shareAdjustment' || entry.kind === 'securityConversion') {
+      if (quantity === 0 && entry.quantityAfter > 0) openedOn = entryDate(entry)
       quantity = entry.quantityAfter
+      if (quantity === 0) openedOn = undefined
       continue
     }
 
     if (entry.kind === 'rightsSubscription') {
       const cost = (entry.cost ?? entry.quantity * entry.price) + entry.fees
       const rate = entryRate(entry, currency)
+      if (quantity === 0 && entry.quantity > 0) openedOn = entryDate(entry)
       quantity += entry.quantity
       nativeCostBasis += cost
       if (rate === null) completeCnyCost = false
@@ -183,7 +198,38 @@ export function calculatePortfolioLedgerMetrics(
     realizedProfit: roundMoney(realizedProfit),
     realizedProfitCny: completeCnyCost ? roundMoney(realizedProfitCny) : null,
     cashIncome: roundMoney(cashIncome),
-    cashIncomeCny: completeCashCny ? roundMoney(cashIncomeCny) : null
+    cashIncomeCny: completeCashCny ? roundMoney(cashIncomeCny) : null,
+    openedOn
+  }
+}
+
+export function calculatePortfolioLedgerPosition(
+  account: TTradingAccount,
+  market: StockMarket,
+  currency: StockCurrency
+): PortfolioLedgerPositionResult {
+  const metrics = calculatePortfolioLedgerMetrics(account, currency)
+  if (metrics.error) return { error: metrics.error }
+  if (metrics.quantity <= 0 || metrics.averageCost === null) return {}
+
+  const latestTrade = [...activePortfolioLedgerEntries(account)]
+    .reverse()
+    .find((entry) => entry.kind === 'trade')
+
+  return {
+    position: {
+      quantity: metrics.quantity,
+      cost: metrics.averageCost,
+      openedToday: metrics.openedOn === marketDateKey(new Date(), market),
+      openedOn: metrics.openedOn,
+      currency,
+      costExchangeRate:
+        metrics.cnyCostBasis !== null && metrics.nativeCostBasis > 0
+          ? metrics.cnyCostBasis / metrics.nativeCostBasis
+          : undefined,
+      costExchangeRateDate:
+        latestTrade?.kind === 'trade' ? latestTrade.record.exchangeRateDate : undefined
+    }
   }
 }
 

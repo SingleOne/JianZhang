@@ -10,11 +10,12 @@ import {
   formatShares
 } from '../lib/format'
 import { exchangeRateForCurrency } from '../shared/exchange-rates'
-import { calculatePortfolioLedgerMetrics } from '../lib/portfolio-ledger'
+import { calculatePortfolioLedgerPosition } from '../lib/portfolio-ledger'
 import {
   detachTradeRecordsFromBatch,
   getTradeAllocations,
   hasTAllocationForBatch,
+  isIndependentBaseTrade,
   sortTradeRecords,
   tradeReferencesBatch,
   upsertTradeRecord
@@ -756,21 +757,20 @@ export function PositionEditor({
     cancelEditingTradeRecord()
   }
 
-  const applyGlobalLedgerPosition = (nextAccount: TTradingAccount): boolean => {
-    if (market === 'CN') return true
-    const metrics = calculatePortfolioLedgerMetrics(nextAccount, currency)
-    if (metrics.error) {
-      setTradeRecordError(metrics.error)
+  const applyGlobalLedgerPosition = (
+    nextAccount: TTradingAccount,
+    includeAStock = false
+  ): boolean => {
+    if (market === 'CN' && !includeAStock) return true
+    const replay = calculatePortfolioLedgerPosition(nextAccount, market, currency)
+    if (replay.error) {
+      setTradeRecordError(replay.error)
       return false
     }
-    setQuantity(metrics.quantity > 0 ? metrics.quantity.toString() : '')
-    setCost(metrics.averageCost?.toString() ?? '')
-    setCostExchangeRate(
-      metrics.cnyCostBasis !== null && metrics.nativeCostBasis > 0
-        ? (metrics.cnyCostBasis / metrics.nativeCostBasis).toString()
-        : ''
-    )
-    setOpenedOn(stock.position?.openedOn ?? currentMarketDateTime.slice(0, 10))
+    setQuantity(replay.position?.quantity.toString() ?? '')
+    setCost(replay.position?.cost.toString() ?? '')
+    setCostExchangeRate(replay.position?.costExchangeRate?.toString() ?? '')
+    setOpenedOn(replay.position?.openedOn ?? currentMarketDateTime.slice(0, 10))
     return true
   }
 
@@ -967,7 +967,7 @@ export function PositionEditor({
       setTradeRecordError(result.error)
       return
     }
-    if (!applyGlobalLedgerPosition(result.account)) {
+    if (!applyGlobalLedgerPosition(result.account, isIndependentBaseTrade(record))) {
       setEditingTradeId(record.id)
       setTradeRecordDraft(createTradeRecordDraft(record))
       return
@@ -996,7 +996,7 @@ export function PositionEditor({
       setTradeRecordError(result.error)
       return
     }
-    if (!applyGlobalLedgerPosition(result.account)) {
+    if (!applyGlobalLedgerPosition(result.account, isIndependentBaseTrade(record))) {
       setEditingTradeId(record.id)
       setTradeRecordDraft(createTradeRecordDraft(record))
       return

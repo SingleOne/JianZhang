@@ -104,7 +104,7 @@ describe('T batch metrics', () => {
     expect(metrics.floatingProfitRate).toBeCloseTo((59.4 / metrics.remainingCostBasis) * 100)
   })
 
-  it('uses one execution fee and splits an oversized sell between T and base holdings', () => {
+  it('keeps the base portion of an oversized sell outside the T batch', () => {
     const currentBatch = {
       ...batch(),
       openingPosition: { quantity: 2_000, cost: 8, openedOn: '2026-07-01' }
@@ -121,10 +121,7 @@ describe('T batch metrics', () => {
         },
         {
           purpose: 'base',
-          quantity: 600,
-          batchId: currentBatch.id,
-          batchSequence: currentBatch.sequence,
-          batchDirection: 'forward'
+          quantity: 600
         }
       ]
     }
@@ -132,15 +129,15 @@ describe('T batch metrics', () => {
 
     expect(validateTBatchTrades(currentBatch, trades)).toBeUndefined()
     expect(getTradeBatchAllocationAmounts(closingTrade, currentBatch)).toEqual({
-      quantity: 1_000,
-      fees: 10.01,
+      quantity: 400,
+      fees: 4,
       tQuantity: 400,
       tFees: 4,
-      baseQuantity: 600,
-      baseFees: 6.01
+      baseQuantity: 0,
+      baseFees: 0
     })
     expect(calculateTBatchMetrics(currentBatch, trades).realizedProfit).toBe(796)
-    expect(recalculatePositionFromBatch(currentBatch, trades)?.quantity).toBe(1_400)
+    expect(recalculatePositionFromBatch(currentBatch, trades)?.quantity).toBe(2_000)
   })
 
   it('allocates one sell execution across the closing forward batch and a new reverse batch', () => {

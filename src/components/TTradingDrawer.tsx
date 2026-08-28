@@ -22,7 +22,6 @@ import {
   type TAlertSide
 } from '../lib/t-alerts'
 import {
-  applyTradeToPosition,
   calculateCostAdjustedProfit,
   calculateTBatchMetrics,
   calculateTradeFees,
@@ -42,9 +41,12 @@ import {
   getTradeAllocations,
   getBatchTrades,
   hasTAllocationForBatch,
+  isIndependentBaseTrade,
   tradeReferencesBatch,
   upsertTradeRecord
 } from '../lib/trade-records'
+import { calculatePortfolioLedgerPosition } from '../lib/portfolio-ledger'
+import { deleteIndependentBaseTrade, upsertIndependentBaseTrade } from '../lib/base-trades'
 import { TPlanTable } from './TPlanTable'
 import { TFloatingProfitAlertBadge } from './TFloatingProfitAlertBadge'
 import type {
@@ -62,6 +64,7 @@ import type {
   WatchStock
 } from '../shared/types'
 import { withLedgerTradeRecords } from '../shared/types'
+import { currencyForMarket, marketFromQuoteId } from '../shared/stock-market'
 import { useConfirmDialog } from './ConfirmDialog'
 
 interface TTradingDrawerProps {
@@ -183,7 +186,11 @@ export function TTradingDrawer({
   const [historyProfitDraft, setHistoryProfitDraft] = useState('')
   const [historyProfitError, setHistoryProfitError] = useState('')
   const [showAllActiveTrades, setShowAllActiveTrades] = useState(false)
+  const [showAllIndependentTrades, setShowAllIndependentTrades] = useState(false)
   const [historyPage, setHistoryPage] = useState(0)
+
+  const market = stock.market ?? marketFromQuoteId(stock.quoteId)
+  const currency = stock.currency ?? currencyForMarket(market)
 
   const activeTrades = getBatchTrades(currentAccount, currentAccount.activeBatch)
   const activeMetrics = useMemo(
@@ -223,11 +230,14 @@ export function TTradingDrawer({
       ? '开启正T'
       : '开启反T'
   const basePurposeLabel = side === 'buy' ? '增加底仓' : '减持底仓'
-  const entryHint = currentAccount.activeBatch
-    ? isReverseBatch
-      ? '反T批次：卖出建立待回补数量，买入用于回补反T'
-      : '正T批次：买入建立T仓，卖出用于清空T仓'
-    : '计入T仓的首笔买入开启正T，首笔卖出开启反T'
+  const entryHint =
+    purpose === 'base'
+      ? '底仓交易独立于 T 批次，保存后按全部历史流水重算当前持仓'
+      : currentAccount.activeBatch
+        ? isReverseBatch
+          ? '反T批次：卖出建立待回补数量，买入用于回补反T'
+          : '正T批次：买入建立T仓，卖出用于清空T仓'
+        : '计入T仓的首笔买入开启正T，首笔卖出开启反T'
   const totalHistoryProfit = currentAccount.history.reduce(
     (total, batch) => total + (batch.settlement?.finalProfit ?? 0),
     0
@@ -332,6 +342,16 @@ export function TTradingDrawer({
   const visibleActiveTrades = showAllActiveTrades
     ? activeTradesDescending
     : activeTradesDescending.slice(0, 5)
+  const independentBaseTradesDescending = useMemo(
+    () =>
+      currentAccount.tradeRecords
+        .filter(isIndependentBaseTrade)
+        .sort((left, right) => right.tradedAt.localeCompare(left.tradedAt)),
+    [currentAccount.tradeRecords]
+  )
+  const visibleIndependentBaseTrades = showAllIndependentTrades
+    ? independentBaseTradesDescending
+    : independentBaseTradesDescending.slice(0, 5)
 
   const resetTradeForm = () => {
     setSide('buy')
@@ -349,6 +369,14 @@ export function TTradingDrawer({
 
   const applyAccount = (nextAccount: TTradingAccount, nextPosition: StockPosition | undefined) => {
     onApply(nextAccount, nextPosition)
+  }
+
+  const applyTradeAccount = (
+    nextAccount: TTradingAccount,
+    fallbackPosition: StockPosition | undefined
+  ) => {
+    const replay = calculatePortfolioLedgerPosition(nextAccount, market, currency)
+    applyAccount(nextAccount, replay.error ? fallbackPosition : replay.position)
   }
 
   const createBatch = (
@@ -402,21 +430,22 @@ export function TTradingDrawer({
       price: numericPrice,
       quantity: numericQuantity,
       fees: tradeFees,
+      market,
+      currency,
+      marketDate: tradedAt.slice(0, 10),
+      exchangeRate: currency === 'CNY' ? 1 : editingTrade?.exchangeRate,
+      exchangeRateDate: editingTrade?.exchangeRateDate,
+      origin: editingTrade?.origin ?? 'execution',
       note: note.trim()
     }
 
-    if (purpose === 'base' && !currentAccount.activeBatch) {
-      if (side === 'sell' && numericQuantity > (stock.position?.quantity ?? 0)) {
-        setError('减持数量不能超过当前持仓数量')
+    if (purpose === 'base') {
+      const result = upsertIndependentBaseTrade(currentAccount, baseTrade, market, currency)
+      if (result.error) {
+        setError(`完整账本校验失败：${result.error}`)
         return
       }
-      applyAccount(
-        withLedgerTradeRecords(
-          currentAccount,
-          upsertTradeRecord(currentAccount.tradeRecords, baseTrade)
-        ),
-        applyTradeToPosition(stock.position, baseTrade)
-      )
+      applyAccount(result.account, result.position)
       resetTradeForm()
       return
     }
@@ -510,7 +539,7 @@ export function TTradingDrawer({
       }
       const nextBatch = rebalanceTBatchPlans(nextBatchBase, nextBatchTrades, planDefaults)
       const nextRecords = upsertTradeRecord(currentAccount.tradeRecords, trade)
-      applyAccount(
+      applyTradeAccount(
         withLedgerTradeRecords(
           {
             ...currentAccount,
@@ -534,7 +563,7 @@ export function TTradingDrawer({
           : isOverflow
             ? [
                 allocationForBatch('t', entryMetrics.remainingQuantity, batch),
-                allocationForBatch('base', overflowQuantity, batch)
+                { purpose: 'base', quantity: overflowQuantity }
               ]
             : [allocationForBatch(purpose, numericQuantity, batch)]
     }
@@ -553,7 +582,7 @@ export function TTradingDrawer({
     }
     const hasTTrades = nextTrades.some((item) => hasTAllocationForBatch(item, plannedBatch.id))
     const nextRecords = upsertTradeRecord(currentAccount.tradeRecords, trade)
-    applyAccount(
+    applyTradeAccount(
       withLedgerTradeRecords(
         {
           ...currentAccount,
@@ -584,9 +613,20 @@ export function TTradingDrawer({
   }
 
   const deleteTrade = (tradeId: string) => {
+    const record = currentAccount.tradeRecords.find((item) => item.id === tradeId)
+    if (record && isIndependentBaseTrade(record)) {
+      const result = deleteIndependentBaseTrade(currentAccount, tradeId, market, currency)
+      if (result.error) {
+        setError(`删除后账本不完整：${result.error}`)
+        return
+      }
+      applyAccount(result.account, result.position)
+      if (editingTradeId === tradeId) resetTradeForm()
+      return
+    }
+
     const batch = currentAccount.activeBatch
     if (!batch) return
-    const record = currentAccount.tradeRecords.find((item) => item.id === tradeId)
     if (record && spansMultipleBatches(record)) {
       const otherActiveTrades = activeTrades.filter((trade) => trade.id !== tradeId)
       if (otherActiveTrades.length > 0) {
@@ -612,7 +652,7 @@ export function TTradingDrawer({
       }
       const { settlement: _settlement, ...unsettledBatch } = previousBatch
       const restoredBatch = rebalanceTBatchPlans(unsettledBatch, previousTrades, planDefaults)
-      applyAccount(
+      applyTradeAccount(
         withLedgerTradeRecords(
           {
             ...currentAccount,
@@ -635,7 +675,7 @@ export function TTradingDrawer({
     const plannedBatch = rebalanceTBatchPlans(batch, nextTrades, planDefaults)
     const hasTTrades = nextTrades.some((trade) => hasTAllocationForBatch(trade, plannedBatch.id))
     const nextRecords = currentAccount.tradeRecords.filter((record) => record.id !== tradeId)
-    applyAccount(
+    applyTradeAccount(
       withLedgerTradeRecords(
         {
           ...currentAccount,
@@ -1128,6 +1168,73 @@ export function TTradingDrawer({
               </button>
             </div>
           </section>
+
+          {independentBaseTradesDescending.length > 0 ? (
+            <section className="t-card">
+              <div className="t-card-heading">
+                <span>
+                  <strong>底仓流水</strong>
+                  <small>账户级交易，不归属任何 T 批次，用于完整账本持仓重算</small>
+                </span>
+                <div className="t-batch-summary">
+                  <em>{independentBaseTradesDescending.length} 笔流水</em>
+                </div>
+              </div>
+              <div className="t-trade-list">
+                {visibleIndependentBaseTrades.map((trade) => {
+                  const fees = totalTradeFees(trade.fees)
+                  return (
+                    <div className="t-trade-row" key={trade.id}>
+                      <span className={`t-trade-side is-${trade.side}`}>
+                        {trade.side === 'buy' ? '底仓买入' : '底仓卖出'}
+                      </span>
+                      <span>
+                        <strong>
+                          {formatShares(trade.quantity)} × {formatPrice(trade.price)}
+                        </strong>
+                        <small>
+                          {formatTradeTime(trade.tradedAt)} · 费用 {formatCurrency(fees)}
+                        </small>
+                      </span>
+                      <span className="t-trade-amount">
+                        <span>{formatCurrency(trade.price * trade.quantity)}</span>
+                        <small>{trade.note || '独立底仓流水'}</small>
+                      </span>
+                      <span className="t-trade-actions">
+                        <button
+                          className="icon-button"
+                          type="button"
+                          onClick={() => editTrade(trade)}
+                          title="修改底仓交易"
+                        >
+                          <PencilLine size={14} />
+                        </button>
+                        <button
+                          className="icon-button"
+                          type="button"
+                          onClick={() => deleteTrade(trade.id)}
+                          title="删除底仓交易"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </span>
+                    </div>
+                  )
+                })}
+                {independentBaseTradesDescending.length > 5 ? (
+                  <button
+                    className="t-trade-more-button"
+                    type="button"
+                    onClick={() => setShowAllIndependentTrades((current) => !current)}
+                  >
+                    {showAllIndependentTrades
+                      ? '收起底仓流水'
+                      : `显示更多底仓流水（其余 ${independentBaseTradesDescending.length - 5} 条）`}
+                  </button>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
 
           {currentAccount.activeBatch ? (
             <>

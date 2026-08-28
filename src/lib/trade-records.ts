@@ -10,14 +10,25 @@ type TradeWithLegacyBatch = TTrade &
   Partial<Pick<TTradeRecord, 'batchId' | 'batchSequence' | 'batchDirection'>>
 
 export function getTradeAllocations(trade: TradeWithLegacyBatch): TTradeAllocation[] {
-  if (trade.allocations?.length) return trade.allocations
+  if (trade.allocations?.length) {
+    return trade.allocations.map((allocation) => {
+      if (allocation.purpose === 't') return allocation
+      const {
+        batchId: _batchId,
+        batchSequence: _batchSequence,
+        batchDirection: _batchDirection,
+        ...independentAllocation
+      } = allocation
+      return independentAllocation
+    })
+  }
   return [
     {
       purpose: trade.purpose,
       quantity: trade.quantity,
-      batchId: trade.batchId,
-      batchSequence: trade.batchSequence,
-      batchDirection: trade.batchDirection
+      batchId: trade.purpose === 't' ? trade.batchId : undefined,
+      batchSequence: trade.purpose === 't' ? trade.batchSequence : undefined,
+      batchDirection: trade.purpose === 't' ? trade.batchDirection : undefined
     }
   ]
 }
@@ -26,21 +37,26 @@ export function getTradeAllocationsForBatch(
   trade: TradeWithLegacyBatch,
   batchId: string
 ): TTradeAllocation[] {
-  if (trade.allocations?.length) {
-    return trade.allocations.filter((allocation) => allocation.batchId === batchId)
-  }
-  return trade.batchId === undefined || trade.batchId === batchId ? getTradeAllocations(trade) : []
+  return getTradeAllocations(trade).filter(
+    (allocation) => allocation.purpose === 't' && allocation.batchId === batchId
+  )
 }
 
 export function tradeReferencesBatch(trade: TradeWithLegacyBatch, batchId: string): boolean {
-  return trade.allocations?.length
-    ? trade.allocations.some((allocation) => allocation.batchId === batchId)
-    : trade.batchId === batchId
+  return getTradeAllocations(trade).some(
+    (allocation) => allocation.purpose === 't' && allocation.batchId === batchId
+  )
 }
 
 export function hasTAllocationForBatch(trade: TradeWithLegacyBatch, batchId: string): boolean {
   return getTradeAllocationsForBatch(trade, batchId).some(
     (allocation) => allocation.purpose === 't' && allocation.quantity > 0
+  )
+}
+
+export function isIndependentBaseTrade(trade: TradeWithLegacyBatch): boolean {
+  return (
+    trade.purpose === 'base' && !getTradeAllocations(trade).some((item) => item.purpose === 't')
   )
 }
 
