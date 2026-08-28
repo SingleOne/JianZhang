@@ -1070,17 +1070,17 @@ export function TTradingDrawer({
                 <span>过户 {formatCurrency(tradeFees.transfer)}</span>
                 <span>印花税 {formatCurrency(tradeFees.stampDuty)}</span>
                 <strong>合计 {formatCurrency(totalTradeFees(tradeFees))}</strong>
-                <button
-                  type="button"
-                  className="text-button"
-                  onClick={() => {
-                    if (!manualFees) setFeeOverrides(calculatedFees)
-                    setManualFees((current) => !current)
-                  }}
-                >
-                  {manualFees ? '恢复自动计算' : '手动修改费用'}
-                </button>
               </div>
+              <button
+                type="button"
+                className="bordered-text-button text-button"
+                onClick={() => {
+                  if (!manualFees) setFeeOverrides(calculatedFees)
+                  setManualFees((current) => !current)
+                }}
+              >
+                {manualFees ? '恢复自动计算' : '手动修改费用'}
+              </button>
             </div>
 
             <div className="t-entry-input-row">

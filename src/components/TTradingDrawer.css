@@ -155,14 +155,13 @@
   display: flex;
   align-items: flex-start;
   justify-content: flex-end;
-  gap: 16px;
+  gap: 24px;
   font-variant-numeric: tabular-nums;
 }
 
 .t-batch-summary > span {
-  display: grid;
-  gap: 3px;
   text-align: right;
+  white-space: nowrap;
 }
 
 .t-batch-summary small,
@@ -173,8 +172,9 @@
 }
 
 .t-batch-summary strong {
-  color: #29364a;
+  color: var(--green);
   font-size: 13px;
+  margin-left: .5em;
 }
 
 .t-batch-summary strong.is-up {
@@ -195,6 +195,8 @@
 .t-batch-summary em {
   align-self: center;
   white-space: nowrap;
+  text-align: right;
+  flex: 1;
 }
 
 .text-button {
@@ -352,15 +354,13 @@
   margin-top: 10px;
   padding: 6px 9px;
   color: #748094;
-  background: #f8fafc;
-  border: 1px solid #edf0f4;
   border-radius: 7px;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
 
 .t-fee-summary strong {
-  color: #445268;
+  color: var(--green);
 }
 
 .t-fee-summary .text-button {
@@ -414,7 +414,7 @@
 .t-trade-row {
   min-height: 48px;
   display: grid;
-  grid-template-columns: 72px minmax(190px, 1fr) 100px 62px;
+  grid-template-columns: 96px minmax(190px, 1fr) 100px 62px;
   align-items: center;
   gap: 8px;
   padding: 6px 9px;
@@ -456,6 +456,10 @@
   background: var(--green-soft);
 }
 
+.t-trade-row>span:nth-child(1) {
+  justify-self: center;
+}
+
 .t-trade-row > span:nth-child(2) {
   display: grid;
   gap: 3px;
@@ -485,6 +489,7 @@
   color: #7b8799;
   font-size: 12px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .t-trade-actions {

@@ -435,6 +435,21 @@ tr:focus-visible {
   justify-self: end;
 }
 
+.text-button.bordered-text-button {
+  width: max-content;
+    padding: 3px 8px;
+    color: var(--blue);
+    background: #edf4ff;
+    border: 1px solid #b9d0fb;
+    border-radius: 5px;
+}
+
+.text-button.bordered-text-button:hover {
+  color: #1d4ed8;
+  background: #d4e4fe;
+  border-color: #1d4ed8;
+}
+
 .search-results {
   position: absolute;
   top: 48px;
