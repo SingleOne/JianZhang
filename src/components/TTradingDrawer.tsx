@@ -480,7 +480,7 @@ export function TTradingDrawer({
       isClosingTTrade &&
       entryMetrics.remainingQuantity > 0 &&
       numericQuantity > entryMetrics.remainingQuantity &&
-      !editingTradeId
+      (!editingTradeId || Boolean(editingTrade && isIndependentBaseTrade(editingTrade)))
     )
 
     if (isOverflow && overflowDisposition === 'opposite-t') {
