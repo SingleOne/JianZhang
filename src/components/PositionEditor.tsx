@@ -10,6 +10,7 @@ import {
   formatShares
 } from '../lib/format'
 import { exchangeRateForCurrency } from '../shared/exchange-rates'
+import { deleteIndependentBaseTrade, upsertIndependentBaseTrade } from '../lib/base-trades'
 import { calculatePortfolioLedgerPosition } from '../lib/portfolio-ledger'
 import {
   detachTradeRecordsFromBatch,
@@ -774,6 +775,38 @@ export function PositionEditor({
     return true
   }
 
+  const currentPositionFallback = (): StockPosition | undefined => {
+    const nextQuantity = Number(quantity)
+    const nextCost = Number(cost)
+    const nextRate = currency === 'CNY' ? 1 : Number(costExchangeRate)
+    if (
+      !hasPositionInput ||
+      !Number.isFinite(nextQuantity) ||
+      !Number.isFinite(nextCost) ||
+      !Number.isFinite(nextRate) ||
+      nextRate <= 0 ||
+      !openedOn
+    ) {
+      return stock.position
+    }
+    return {
+      quantity: nextQuantity,
+      cost: nextCost,
+      openedToday: openedOn === currentMarketDateTime.slice(0, 10),
+      openedOn,
+      currency,
+      costExchangeRate: nextRate,
+      costExchangeRateDate: stock.position?.costExchangeRateDate
+    }
+  }
+
+  const applyResolvedPosition = (nextPosition: StockPosition | undefined) => {
+    setQuantity(nextPosition?.quantity.toString() ?? '')
+    setCost(nextPosition?.cost.toString() ?? '')
+    setCostExchangeRate(nextPosition?.costExchangeRate?.toString() ?? '')
+    setOpenedOn(nextPosition?.openedOn ?? currentMarketDateTime.slice(0, 10))
+  }
+
   const addTradeRecord = () => {
     const price = Number(newTradeDraft.price)
     const tradeQuantity = Number(newTradeDraft.quantity)
@@ -962,6 +995,23 @@ export function PositionEditor({
         : undefined,
       note: tradeRecordDraft.note.trim()
     }
+    if (isIndependentBaseTrade(record) && isIndependentBaseTrade(nextTrade)) {
+      const result = upsertIndependentBaseTrade(
+        workingAccount,
+        nextTrade,
+        market,
+        currency,
+        currentPositionFallback()
+      )
+      if (result.error) {
+        setTradeRecordError(result.error)
+        return
+      }
+      setEditedAccount(result.account)
+      applyResolvedPosition(result.position)
+      cancelEditingTradeRecord()
+      return
+    }
     const result = updateTradeAccount(workingAccount, record, nextTrade, planDefaults)
     if (result.error) {
       setTradeRecordError(result.error)
@@ -989,6 +1039,25 @@ export function PositionEditor({
       tone: 'danger'
     })
     if (!confirmed) return
+    if (isIndependentBaseTrade(record)) {
+      const result = deleteIndependentBaseTrade(
+        workingAccount,
+        record.id,
+        market,
+        currency,
+        currentPositionFallback()
+      )
+      if (result.error) {
+        setEditingTradeId(record.id)
+        setTradeRecordDraft(createTradeRecordDraft(record))
+        setTradeRecordError(result.error)
+        return
+      }
+      setEditedAccount(result.account)
+      applyResolvedPosition(result.position)
+      if (editingTradeId === record.id) cancelEditingTradeRecord()
+      return
+    }
     const result = updateTradeAccount(workingAccount, record, undefined, planDefaults)
     if (result.error) {
       setEditingTradeId(record.id)

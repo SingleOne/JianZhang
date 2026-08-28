@@ -56,11 +56,15 @@ export interface PortfolioLedgerMetrics {
   cashIncome: number
   cashIncomeCny: number | null
   openedOn?: string
+  errorEntryId?: string
+  errorQuantity?: number
   error?: string
 }
 
 export interface PortfolioLedgerPositionResult {
   position?: StockPosition
+  errorEntryId?: string
+  errorQuantity?: number
   error?: string
 }
 
@@ -139,6 +143,8 @@ export function calculatePortfolioLedgerMetrics(
           cashIncome,
           cashIncomeCny: completeCashCny ? cashIncomeCny : null,
           openedOn,
+          errorEntryId: entry.id,
+          errorQuantity: quantity,
           error: '卖出数量不能超过组合账本中的可用持仓数量'
         }
       }
@@ -209,7 +215,13 @@ export function calculatePortfolioLedgerPosition(
   currency: StockCurrency
 ): PortfolioLedgerPositionResult {
   const metrics = calculatePortfolioLedgerMetrics(account, currency)
-  if (metrics.error) return { error: metrics.error }
+  if (metrics.error) {
+    return {
+      error: metrics.error,
+      errorEntryId: metrics.errorEntryId,
+      errorQuantity: metrics.errorQuantity
+    }
+  }
   if (metrics.quantity <= 0 || metrics.averageCost === null) return {}
 
   const latestTrade = [...activePortfolioLedgerEntries(account)]

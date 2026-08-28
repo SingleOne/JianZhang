@@ -440,7 +440,13 @@ export function TTradingDrawer({
     }
 
     if (purpose === 'base') {
-      const result = upsertIndependentBaseTrade(currentAccount, baseTrade, market, currency)
+      const result = upsertIndependentBaseTrade(
+        currentAccount,
+        baseTrade,
+        market,
+        currency,
+        stock.position
+      )
       if (result.error) {
         setError(`完整账本校验失败：${result.error}`)
         return
@@ -615,7 +621,13 @@ export function TTradingDrawer({
   const deleteTrade = (tradeId: string) => {
     const record = currentAccount.tradeRecords.find((item) => item.id === tradeId)
     if (record && isIndependentBaseTrade(record)) {
-      const result = deleteIndependentBaseTrade(currentAccount, tradeId, market, currency)
+      const result = deleteIndependentBaseTrade(
+        currentAccount,
+        tradeId,
+        market,
+        currency,
+        stock.position
+      )
       if (result.error) {
         setError(`删除后账本不完整：${result.error}`)
         return
