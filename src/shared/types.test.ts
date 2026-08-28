@@ -110,6 +110,13 @@ describe('watchlist normalization', () => {
         position: { quantity: 100, cost: 10, openedToday: false },
         positionSnapshots: [
           { id: 'valid', name: '初始持仓', createdAt: '2026-07-01', quantity: 100, cost: 10 },
+          {
+            id: 'negative',
+            name: '负成本持仓',
+            createdAt: '2026-08-28',
+            quantity: 100,
+            cost: -0.9378
+          },
           { id: 'invalid', name: '无效持仓', createdAt: '2026-07-01', quantity: 0, cost: 10 }
         ]
       }
@@ -118,7 +125,8 @@ describe('watchlist normalization', () => {
     expect(stock.isPriority).toBe(true)
     expect(stock.showRadarSignals).toBe(true)
     expect(stock.groupIds).toEqual(['bank'])
-    expect(stock.positionSnapshots).toHaveLength(1)
+    expect(stock.positionSnapshots).toHaveLength(2)
+    expect(stock.positionSnapshots?.[1]?.cost).toBe(-0.9378)
   })
 })
 

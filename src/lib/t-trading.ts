@@ -238,6 +238,19 @@ export function validateTBatchTrades(
   return undefined
 }
 
+export function validateTBatchSettlementPosition(
+  latestPositionQuantity: number,
+  latestPositionCost: number | undefined
+): string | undefined {
+  if (
+    latestPositionQuantity > 0 &&
+    (latestPositionCost === undefined || !Number.isFinite(latestPositionCost))
+  ) {
+    return '仍有持仓时，请填写券商最新持仓成本'
+  }
+  return undefined
+}
+
 export function createDefaultSellLevels(quantity: number): TSellPlanLevel[] {
   return createDefaultTPlanLevels(quantity)
 }

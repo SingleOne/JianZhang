@@ -7,6 +7,7 @@ import {
   calculateTradeFees,
   getTradeBatchAllocationAmounts,
   recalculatePositionFromBatch,
+  validateTBatchSettlementPosition,
   validateTBatchTrades,
   totalTradeFees
 } from './t-trading'
@@ -263,5 +264,13 @@ describe('position cost changes', () => {
     )
 
     expect(result).toBe(351)
+  })
+
+  it('accepts zero and negative broker costs when settling a remaining position', () => {
+    expect(validateTBatchSettlementPosition(100, -0.9378)).toBeUndefined()
+    expect(validateTBatchSettlementPosition(100, 0)).toBeUndefined()
+    expect(validateTBatchSettlementPosition(100, undefined)).toBe(
+      '仍有持仓时，请填写券商最新持仓成本'
+    )
   })
 })

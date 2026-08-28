@@ -92,6 +92,17 @@ describe('portfolio calculations', () => {
     expect(loss.todayProfitPercent).toBe(-10)
   })
 
+  it('calculates profit for a negative diluted cost without reporting a misleading rate', () => {
+    const metrics = calculatePositionMetrics(
+      { quantity: 100, cost: -0.9378, openedToday: false, openedOn: '2026-07-01' },
+      quote({ latest: 4.4, previousClose: 4.35 })
+    )
+
+    expect(metrics.marketValue).toBe(440)
+    expect(metrics.totalProfit).toBeCloseTo(533.78)
+    expect(metrics.profitPercent).toBeNull()
+  })
+
   it('includes same-day buy fees in intraday profit and available quantity', () => {
     const buy: TTradeRecord = {
       id: 'buy-today',

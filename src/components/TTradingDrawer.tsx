@@ -34,6 +34,7 @@ import {
   roundMoney,
   getTradeBatchAllocationAmounts,
   totalTradeFees,
+  validateTBatchSettlementPosition,
   validateTBatchTrades
 } from '../lib/t-trading'
 import {
@@ -772,8 +773,9 @@ export function TTradingDrawer({
     const finalQuantity = Math.max(0, Number(latestPositionQuantity) || 0)
     const hasLatestCost = latestPositionCost.trim() !== ''
     const finalCost = hasLatestCost ? Number(latestPositionCost) : undefined
-    if (finalQuantity > 0 && (!finalCost || finalCost <= 0)) {
-      setError('仍有持仓时，请填写券商最新持仓成本')
+    const settlementPositionError = validateTBatchSettlementPosition(finalQuantity, finalCost)
+    if (settlementPositionError) {
+      setError(settlementPositionError)
       return
     }
 
@@ -1373,7 +1375,6 @@ export function TTradingDrawer({
                       <span>最新持仓成本</span>
                       <input
                         type="number"
-                        min="0.0001"
                         step="0.0001"
                         value={latestPositionCost}
                         onChange={(event) => setLatestPositionCost(event.target.value)}

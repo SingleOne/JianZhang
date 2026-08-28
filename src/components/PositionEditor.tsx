@@ -129,13 +129,13 @@ function calculateVersionMetrics(
   if (latest === null || latest === undefined) {
     return { marketValue: null, totalProfit: null, profitPercent: null }
   }
-  if (quantity <= 0 || cost <= 0) {
+  if (quantity <= 0) {
     return { marketValue: 0, totalProfit: 0, profitPercent: null }
   }
   return {
     marketValue: latest * quantity,
     totalProfit: (latest - cost) * quantity,
-    profitPercent: (latest / cost - 1) * 100
+    profitPercent: cost > 0 ? (latest / cost - 1) * 100 : null
   }
 }
 
@@ -1086,7 +1086,7 @@ export function PositionEditor({
                 : undefined
               if (
                 quantityError ||
-                (hasPositionInput && (!Number.isFinite(nextCost) || nextCost <= 0)) ||
+                (hasPositionInput && (cost.trim() === '' || !Number.isFinite(nextCost))) ||
                 (hasPositionInput && (!Number.isFinite(nextRate) || nextRate <= 0)) ||
                 (hasPositionInput && !openedOn)
               ) {
@@ -1157,7 +1157,6 @@ export function PositionEditor({
                 <span className="position-input-wrap">
                   <input
                     type="number"
-                    min="0.0001"
                     step="0.0001"
                     required={hasPositionInput}
                     value={cost}
@@ -1288,7 +1287,6 @@ export function PositionEditor({
                         <input
                           className="position-snapshot-number"
                           type="number"
-                          min="0.0001"
                           step="0.0001"
                           required
                           value={snapshot.cost}

@@ -161,7 +161,7 @@ export function calculatePositionMetrics(
   const todayProfitPercent = todayProfit !== null && todayCostBasis && todayCostBasis > 0
     ? todayProfit / todayCostBasis * 100
     : null
-  const profitPercent = position && latest !== null && latest !== undefined
+  const profitPercent = position && position.cost > 0 && latest !== null && latest !== undefined
     ? (latest / position.cost - 1) * 100
     : null
   const cnyMarketValue = marketValue !== null && exchangeRate !== null

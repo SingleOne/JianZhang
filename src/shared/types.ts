@@ -338,8 +338,7 @@ export function normalizeWatchlist(stocks: readonly WatchStock[]): WatchStock[] 
                 typeof snapshot.createdAt === 'string' &&
                 Number.isFinite(snapshot.quantity) &&
                 snapshot.quantity > 0 &&
-                Number.isFinite(snapshot.cost) &&
-                snapshot.cost > 0
+                Number.isFinite(snapshot.cost)
             )
             .map((snapshot) => ({
               ...snapshot,
