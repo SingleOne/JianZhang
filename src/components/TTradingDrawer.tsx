@@ -1011,7 +1011,7 @@ export function TTradingDrawer({
           <section className="t-card t-trade-entry">
             <div className="t-card-heading">
               <span>
-                <strong>{editingTradeId ? '修改交易' : '快速录入交易'}</strong>
+                <strong>{editingTradeId ? '修改交易' : '录入交易'}</strong>
                 <small>{entryHint}</small>
               </span>
               {editingTradeId ? (
@@ -1021,85 +1021,116 @@ export function TTradingDrawer({
               ) : null}
             </div>
 
-            <div className="t-segmented">
-              <button
-                className={side === 'buy' ? 'is-active' : ''}
-                type="button"
-                disabled={hasFixedAllocations}
-                onClick={() => {
-                  setSide('buy')
-                  setPurpose('t')
-                }}
-              >
-                买入
-              </button>
-              <button
-                className={side === 'sell' ? 'is-active' : ''}
-                type="button"
-                disabled={hasFixedAllocations}
-                onClick={() => {
-                  setSide('sell')
-                  setPurpose('t')
-                }}
-              >
-                卖出
-              </button>
-              <button
-                className={purpose === 't' ? 'is-purpose-active' : ''}
-                type="button"
-                disabled={hasFixedAllocations}
-                onClick={() => setPurpose('t')}
-              >
-                {tPurposeLabel}
-              </button>
-              <button
-                className={purpose === 'base' ? 'is-purpose-active' : ''}
-                type="button"
-                disabled={hasFixedAllocations}
-                onClick={() => setPurpose('base')}
-              >
-                {basePurposeLabel}
-              </button>
+            <div className="t-entry-top-row">
+              <div className="t-segmented">
+                <button
+                  className={side === 'buy' ? 'is-active' : ''}
+                  type="button"
+                  disabled={hasFixedAllocations}
+                  onClick={() => {
+                    setSide('buy')
+                    setPurpose('t')
+                  }}
+                >
+                  买入
+                </button>
+                <button
+                  className={side === 'sell' ? 'is-active' : ''}
+                  type="button"
+                  disabled={hasFixedAllocations}
+                  onClick={() => {
+                    setSide('sell')
+                    setPurpose('t')
+                  }}
+                >
+                  卖出
+                </button>
+                <button
+                  className={purpose === 't' ? 'is-purpose-active' : ''}
+                  type="button"
+                  disabled={hasFixedAllocations}
+                  onClick={() => setPurpose('t')}
+                >
+                  {tPurposeLabel}
+                </button>
+                <button
+                  className={purpose === 'base' ? 'is-purpose-active' : ''}
+                  type="button"
+                  disabled={hasFixedAllocations}
+                  onClick={() => setPurpose('base')}
+                >
+                  {basePurposeLabel}
+                </button>
+              </div>
+
+              <div className="t-fee-summary">
+                <span>佣金 {formatCurrency(tradeFees.commission)}</span>
+                <span>经手 {formatCurrency(tradeFees.handling)}</span>
+                <span>证管 {formatCurrency(tradeFees.regulatory)}</span>
+                <span>过户 {formatCurrency(tradeFees.transfer)}</span>
+                <span>印花税 {formatCurrency(tradeFees.stampDuty)}</span>
+                <strong>合计 {formatCurrency(totalTradeFees(tradeFees))}</strong>
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() => {
+                    if (!manualFees) setFeeOverrides(calculatedFees)
+                    setManualFees((current) => !current)
+                  }}
+                >
+                  {manualFees ? '恢复自动计算' : '手动修改费用'}
+                </button>
+              </div>
             </div>
 
-            <div className="t-form-grid">
-              <label>
-                <span>成交价格</span>
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={price}
-                  onChange={(event) => setPrice(event.target.value)}
-                />
-              </label>
-              <label>
-                <span>成交数量</span>
-                <input
-                  type="number"
-                  min="100"
-                  step="100"
-                  value={quantity}
-                  disabled={hasFixedAllocations}
-                  onChange={(event) => setQuantity(event.target.value)}
-                />
-              </label>
-              <label>
-                <span>成交时间</span>
-                <input
-                  type="datetime-local"
-                  value={tradedAt}
-                  onChange={(event) => setTradedAt(event.target.value)}
-                />
-              </label>
-              <label>
-                <span>备注</span>
-                <input
-                  value={note}
-                  onChange={(event) => setNote(event.target.value)}
-                  placeholder="可选"
-                />
-              </label>
+            <div className="t-entry-input-row">
+              <div className="t-form-grid">
+                <label>
+                  <span>成交价格</span>
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={price}
+                    onChange={(event) => setPrice(event.target.value)}
+                  />
+                </label>
+                <label>
+                  <span>成交数量</span>
+                  <input
+                    type="number"
+                    min="100"
+                    step="100"
+                    value={quantity}
+                    disabled={hasFixedAllocations}
+                    onChange={(event) => setQuantity(event.target.value)}
+                  />
+                </label>
+                <label>
+                  <span>成交时间</span>
+                  <input
+                    type="datetime-local"
+                    value={tradedAt}
+                    onChange={(event) => setTradedAt(event.target.value)}
+                  />
+                </label>
+                <label>
+                  <span>备注</span>
+                  <input
+                    value={note}
+                    onChange={(event) => setNote(event.target.value)}
+                    placeholder="可选"
+                  />
+                </label>
+              </div>
+
+              <div className="t-entry-actions">
+                <span>成交额 {formatCurrency(numericPrice * numericQuantity)}</span>
+                <button className="primary-button compact-button" type="button" onClick={saveTrade}>
+                  <Plus size={15} />
+                  {editingTradeId ? '保存修改' : '记录交易'}
+                </button>
+              </div>
             </div>
 
             {overflowQuantity > 0 ? (
@@ -1131,24 +1162,6 @@ export function TTradingDrawer({
               </div>
             ) : null}
 
-            <div className="t-fee-summary">
-              <span>佣金 {formatCurrency(tradeFees.commission)}</span>
-              <span>经手 {formatCurrency(tradeFees.handling)}</span>
-              <span>证管 {formatCurrency(tradeFees.regulatory)}</span>
-              <span>过户 {formatCurrency(tradeFees.transfer)}</span>
-              <span>印花税 {formatCurrency(tradeFees.stampDuty)}</span>
-              <strong>合计 {formatCurrency(totalTradeFees(tradeFees))}</strong>
-              <button
-                type="button"
-                className="text-button"
-                onClick={() => {
-                  if (!manualFees) setFeeOverrides(calculatedFees)
-                  setManualFees((current) => !current)
-                }}
-              >
-                {manualFees ? '恢复自动计算' : '手动修改费用'}
-              </button>
-            </div>
             {manualFees ? (
               <div className="t-fee-inputs">
                 {feeInput('commission', '佣金')}
@@ -1160,17 +1173,10 @@ export function TTradingDrawer({
             ) : null}
 
             {error ? <div className="t-form-error">{error}</div> : null}
-            <div className="t-entry-actions">
-              <span>成交额 {formatCurrency(numericPrice * numericQuantity)}</span>
-              <button className="primary-button compact-button" type="button" onClick={saveTrade}>
-                <Plus size={15} />
-                {editingTradeId ? '保存修改' : '记录交易'}
-              </button>
-            </div>
           </section>
 
           {independentBaseTradesDescending.length > 0 ? (
-            <section className="t-card">
+            <section className="t-card t-base-ledger-card">
               <div className="t-card-heading">
                 <span>
                   <strong>底仓流水</strong>
@@ -1238,7 +1244,11 @@ export function TTradingDrawer({
 
           {currentAccount.activeBatch ? (
             <>
-              <section className="t-card">
+              <section
+                className={`t-card t-active-batch-card ${
+                  independentBaseTradesDescending.length === 0 ? 'is-full-width' : ''
+                }`}
+              >
                 <div className="t-card-heading">
                   <span>
                     <strong>
@@ -1534,7 +1544,11 @@ export function TTradingDrawer({
               ) : null}
             </>
           ) : (
-            <section className="t-empty-batch">
+            <section
+              className={`t-empty-batch ${
+                independentBaseTradesDescending.length === 0 ? 'is-full-width' : ''
+              }`}
+            >
               <Repeat2 size={24} />
               <strong>当前没有进行中的T批次</strong>
               <span>首笔计入T仓的买入开启正T，卖出开启反T</span>
@@ -1542,7 +1556,7 @@ export function TTradingDrawer({
           )}
 
           {currentAccount.history.length > 0 ? (
-            <section className="t-card">
+            <section className="t-card t-history-card">
               <div className="t-card-heading">
                 <span>
                   <strong>做T历史</strong>

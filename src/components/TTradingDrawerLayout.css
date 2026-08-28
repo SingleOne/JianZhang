@@ -1,0 +1,88 @@
+.t-trading-content {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.t-overview-grid,
+.t-trade-entry,
+.t-dual-plan-card,
+.t-settlement-card,
+.t-history-card {
+  grid-column: 1 / -1;
+}
+
+.t-active-batch-card,
+.t-empty-batch {
+  min-width: 0;
+  grid-column: 1;
+  grid-row: 3;
+}
+
+.t-base-ledger-card {
+  min-width: 0;
+  grid-column: 2;
+  grid-row: 3;
+}
+
+.t-active-batch-card.is-full-width,
+.t-empty-batch.is-full-width {
+  grid-column: 1 / -1;
+}
+
+.t-active-batch-card .t-card-heading,
+.t-base-ledger-card .t-card-heading {
+  flex-wrap: wrap;
+}
+
+.t-active-batch-card .t-batch-summary {
+  flex: 1 1 100%;
+  justify-content: flex-start;
+}
+
+.t-active-batch-card .t-batch-summary > span {
+  text-align: left;
+}
+
+.t-entry-top-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.t-entry-top-row .t-segmented {
+  flex: 0 0 auto;
+  margin-bottom: 0;
+}
+
+.t-entry-top-row .t-fee-summary {
+  flex: 1 1 auto;
+  margin-top: 0;
+}
+
+.t-entry-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.t-entry-input-row .t-form-grid {
+  min-width: 0;
+}
+
+.t-trade-entry .t-entry-actions {
+  min-height: 34px;
+  align-items: center;
+  gap: 10px;
+  margin-top: 0;
+  white-space: nowrap;
+}
+
+.t-trade-entry .t-segmented button,
+.t-trade-entry .t-fee-summary,
+.t-trade-entry .text-button,
+.t-trade-entry .t-form-grid label,
+.t-trade-entry .t-fee-inputs label,
+.t-trade-entry .t-form-error {
+  font-size: 12px;
+}
