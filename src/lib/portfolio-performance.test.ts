@@ -220,6 +220,38 @@ describe('portfolio performance report', () => {
     expect(missingQuote.stocks[0].native[0].unrealizedProfit).toBeNull()
   })
 
+  it('uses a manual position adjustment as the new quantity and cost basis', () => {
+    const adjustment: PortfolioLedgerEntry = {
+      id: 'position-adjustment:manual',
+      accountId: '116.00700',
+      quoteId: '116.00700',
+      occurredAt: '2026-04-02T02:00:00.000Z',
+      marketDate: '2026-04-02',
+      source: 'manual',
+      currency: 'HKD',
+      exchangeRate: 0.9,
+      kind: 'positionAdjustment',
+      quantityBefore: 100,
+      quantityAfter: 80,
+      costBefore: 10,
+      costAfter: 11,
+      openedOnAfter: '2026-01-02'
+    }
+    const report = calculatePortfolioPerformanceReport(
+      [stock(80)],
+      [quote()],
+      { '116.00700': account([trade('buy', 'buy', 100, 10, 0.9, 0), adjustment]) },
+      exchangeRates()
+    )
+
+    expect(report.stocks[0].native[0]).toMatchObject({
+      realizedProfit: 0,
+      unrealizedProfit: 80,
+      totalProfit: 80
+    })
+    expect(report.stocks[0].issues).not.toContain('positionMismatch')
+  })
+
   it('provides stock, market, default-account, currency and portfolio groups', () => {
     const report = calculatePortfolioPerformanceReport(
       [stock(100)],

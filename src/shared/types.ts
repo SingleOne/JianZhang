@@ -691,6 +691,16 @@ export interface ShareAdjustmentLedgerEntry extends PortfolioLedgerEntryBase {
   newShares: number
 }
 
+export interface PositionAdjustmentLedgerEntry extends PortfolioLedgerEntryBase {
+  kind: 'positionAdjustment'
+  quantityBefore: number
+  quantityAfter: number
+  costBefore: number | null
+  costAfter: number | null
+  openedOnBefore?: string
+  openedOnAfter?: string
+}
+
 export interface RightsSubscriptionLedgerEntry extends PortfolioLedgerEntryBase {
   kind: 'rightsSubscription'
   quantity: number
@@ -724,6 +734,7 @@ export type PortfolioLedgerEntry =
   | WithholdingTaxLedgerEntry
   | CorporateActionFeeLedgerEntry
   | ShareAdjustmentLedgerEntry
+  | PositionAdjustmentLedgerEntry
   | RightsSubscriptionLedgerEntry
   | SecurityConversionLedgerEntry
   | CashAdjustmentLedgerEntry
@@ -1125,6 +1136,10 @@ export function normalizeTTradingAccounts(
       )
       const tradeRecords = [...records.values()]
         .map((record) => {
+          const note =
+            record.origin === 'opening-balance' && record.note === '期初持仓'
+              ? '初始持仓'
+              : record.note
           const allocations = record.allocations?.map((allocation) => {
             const allocationBatch = allocation.batchId
               ? batchesById.get(allocation.batchId)
@@ -1141,11 +1156,12 @@ export function normalizeTTradingAccounts(
           return batch
             ? {
                 ...record,
+                note,
                 allocations,
                 batchSequence: batch.sequence,
                 batchDirection: batch.direction ?? 'forward'
               }
-            : { ...record, allocations }
+            : { ...record, note, allocations }
         })
         .sort((left, right) => right.tradedAt.localeCompare(left.tradedAt))
       const activeTrades = activeBatch
@@ -1207,7 +1223,7 @@ export function normalizeTradingAccountsForWatchlist(
         id: `opening-balance:${stock.quoteId}`,
         side: 'buy',
         purpose: 'base',
-        tradedAt: `${openedOn}T09:30`,
+        tradedAt: `${openedOn}T00:00`,
         price: stock.position.cost,
         quantity: stock.position.quantity,
         fees: { commission: 0, handling: 0, regulatory: 0, transfer: 0, stampDuty: 0 },
@@ -1218,7 +1234,7 @@ export function normalizeTradingAccountsForWatchlist(
           stock.position.costExchangeRate ?? (identity.currency === 'CNY' ? 1 : undefined),
         exchangeRateDate: stock.position.costExchangeRateDate,
         origin: 'opening-balance',
-        note: '期初持仓'
+        note: '初始持仓'
       })
     }
     if (existing || records.length > 0) {

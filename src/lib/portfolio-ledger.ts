@@ -160,6 +160,16 @@ export function calculatePortfolioLedgerMetrics(
       continue
     }
 
+    if (entry.kind === 'positionAdjustment') {
+      quantity = entry.quantityAfter
+      nativeCostBasis = quantity > 0 ? quantity * (entry.costAfter ?? 0) : 0
+      const rate = entryRate(entry, currency)
+      completeCnyCost = nativeCostBasis === 0 || rate !== null
+      cnyCostBasis = rate === null ? 0 : nativeCostBasis * rate
+      openedOn = quantity > 0 ? (entry.openedOnAfter ?? entryDate(entry)) : undefined
+      continue
+    }
+
     if (entry.kind === 'shareAdjustment' || entry.kind === 'securityConversion') {
       if (quantity === 0 && entry.quantityAfter > 0) openedOn = entryDate(entry)
       quantity = entry.quantityAfter
@@ -224,9 +234,9 @@ export function calculatePortfolioLedgerPosition(
   }
   if (metrics.quantity <= 0 || metrics.averageCost === null) return {}
 
-  const latestTrade = [...activePortfolioLedgerEntries(account)]
+  const latestCostEntry = [...activePortfolioLedgerEntries(account)]
     .reverse()
-    .find((entry) => entry.kind === 'trade')
+    .find((entry) => entry.kind === 'trade' || entry.kind === 'positionAdjustment')
 
   return {
     position: {
@@ -240,7 +250,9 @@ export function calculatePortfolioLedgerPosition(
           ? metrics.cnyCostBasis / metrics.nativeCostBasis
           : undefined,
       costExchangeRateDate:
-        latestTrade?.kind === 'trade' ? latestTrade.record.exchangeRateDate : undefined
+        latestCostEntry?.kind === 'trade'
+          ? latestCostEntry.record.exchangeRateDate
+          : latestCostEntry?.exchangeRateDate
     }
   }
 }
@@ -253,7 +265,9 @@ export function eligibleQuantityOn(account: TTradingAccount, date: string | unde
       if (tradeDate(entry.record) > date) continue
       quantity += entry.record.side === 'buy' ? entry.record.quantity : -entry.record.quantity
     } else if (
-      (entry.kind === 'shareAdjustment' || entry.kind === 'securityConversion') &&
+      (entry.kind === 'positionAdjustment' ||
+        entry.kind === 'shareAdjustment' ||
+        entry.kind === 'securityConversion') &&
       entryDate(entry) <= date
     ) {
       quantity = entry.quantityAfter

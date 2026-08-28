@@ -13,6 +13,12 @@ import { exchangeRateForCurrency } from '../shared/exchange-rates'
 import { deleteIndependentBaseTrade, upsertIndependentBaseTrade } from '../lib/base-trades'
 import { calculatePortfolioLedgerPosition } from '../lib/portfolio-ledger'
 import {
+  appendPositionAdjustment,
+  createInitialPositionAccount,
+  hasInitialPositionRecord,
+  positionsMatch
+} from '../lib/position-ledger'
+import {
   detachTradeRecordsFromBatch,
   getTradeAllocations,
   hasTAllocationForBatch,
@@ -177,53 +183,12 @@ function marketDateTimeInput(market: StockMarket, date = new Date()): string {
   return `${part('year')}-${part('month')}-${part('day')}T${part('hour')}:${part('minute')}`
 }
 
-function emptyTradeFees(): TTradeFees {
-  return { commission: 0, handling: 0, regulatory: 0, transfer: 0, stampDuty: 0 }
+function marketLedgerDateTime(market: StockMarket, date = new Date()): string {
+  return `${marketDateTimeInput(market, date)}:${date.getSeconds().toString().padStart(2, '0')}.${date.getMilliseconds().toString().padStart(3, '0')}`
 }
 
-function createOpeningTradeAccount(
-  stock: WatchStock,
-  account: TTradingAccount | undefined,
-  quantity: number,
-  cost: number,
-  openedOn: string,
-  market: StockMarket,
-  exchangeRate: number | null,
-  exchangeRateDate: string | null
-): TTradingAccount {
-  const currency = stock.currency ?? currencyForMarket(market)
-  const marketNow = marketDateTimeInput(market)
-  const trade: TTrade = {
-    id: crypto.randomUUID(),
-    side: 'buy',
-    purpose: 'base',
-    tradedAt: openedOn === marketNow.slice(0, 10) ? marketNow : `${openedOn}T09:30`,
-    price: cost,
-    quantity,
-    fees: emptyTradeFees(),
-    market,
-    currency,
-    marketDate: openedOn,
-    exchangeRate: exchangeRate ?? undefined,
-    exchangeRateDate: exchangeRateDate ?? undefined,
-    origin: 'opening-balance',
-    note: '期初持仓'
-  }
-  const currentAccount: TTradingAccount = account ?? {
-    quoteId: stock.quoteId,
-    code: stock.code,
-    name: stock.name,
-    market,
-    currency,
-    history: [],
-    ledger: { schemaVersion: 1, entries: [] },
-    tradeRecords: []
-  }
-
-  return withLedgerTradeRecords(
-    { ...currentAccount, market, currency },
-    upsertTradeRecord(currentAccount.tradeRecords, trade)
-  )
+function emptyTradeFees(): TTradeFees {
+  return { commission: 0, handling: 0, regulatory: 0, transfer: 0, stampDuty: 0 }
 }
 
 const TRADE_RECORD_PAGE_SIZE = 15
@@ -233,7 +198,7 @@ function formatTradeTime(value: string): string {
 }
 
 function tradeRecordLabel(record: TTradeRecord): string {
-  if (record.origin === 'opening-balance') return '期初持仓'
+  if (record.origin === 'opening-balance') return '初始持仓'
   const allocations = getTradeAllocations(record)
   const purposes = new Set(allocations.map((allocation) => allocation.purpose))
   const batchIds = new Set(allocations.map((allocation) => allocation.batchId).filter(Boolean))
@@ -251,7 +216,7 @@ function tradeRecordLabel(record: TTradeRecord): string {
 }
 
 function tradeRecordContext(record: TTradeRecord): string {
-  if (record.origin === 'opening-balance') return '期初余额'
+  if (record.origin === 'opening-balance') return '初始余额'
   const contexts = getTradeAllocations(record)
     .filter((allocation) => allocation.batchSequence !== undefined)
     .map(
@@ -807,6 +772,51 @@ export function PositionEditor({
     setOpenedOn(nextPosition?.openedOn ?? currentMarketDateTime.slice(0, 10))
   }
 
+  const savePosition = (nextPosition: StockPosition | undefined) => {
+    let resolvedPosition = nextPosition
+    let updatedAccount = capabilities.tradeLedger ? editedAccount : undefined
+    if (capabilities.tradeLedger && nextPosition && !hasInitialPositionRecord(workingAccount)) {
+      updatedAccount = createInitialPositionAccount(
+        workingAccount,
+        {
+          quoteId: stock.quoteId,
+          code: stock.code,
+          name: stock.name,
+          market,
+          currency
+        },
+        nextPosition,
+        marketDateTimeInput(market)
+      )
+      const replay = calculatePortfolioLedgerPosition(updatedAccount, market, currency)
+      if (replay.error) {
+        setPositionError(`初始持仓不足以覆盖现有交易流水：${replay.error}`)
+        return
+      }
+      resolvedPosition = replay.position
+    } else if (capabilities.tradeLedger && workingAccount) {
+      const replay = calculatePortfolioLedgerPosition(workingAccount, market, currency)
+      const previousPosition = replay.error ? stock.position : replay.position
+      const positionWasEdited = !positionsMatch(stock.position, nextPosition)
+      if (positionWasEdited && !positionsMatch(previousPosition, nextPosition)) {
+        const recordedAt = new Date()
+        updatedAccount = appendPositionAdjustment(
+          workingAccount,
+          previousPosition,
+          nextPosition,
+          marketLedgerDateTime(market, recordedAt),
+          recordedAt.toISOString()
+        )
+      }
+    }
+    onSave(
+      resolvedPosition,
+      capabilities.radar ? showRadarSignals : stock.showRadarSignals,
+      positionSnapshots,
+      updatedAccount
+    )
+  }
+
   const addTradeRecord = () => {
     const price = Number(newTradeDraft.price)
     const tradeQuantity = Number(newTradeDraft.quantity)
@@ -844,15 +854,17 @@ export function PositionEditor({
       tradeRecords: []
     }
     if (nextAccount.tradeRecords.length === 0 && stock.position) {
-      nextAccount = createOpeningTradeAccount(
-        stock,
+      nextAccount = createInitialPositionAccount(
         nextAccount,
-        stock.position.quantity,
-        stock.position.cost,
-        stock.position.openedOn ?? currentMarketDateTime.slice(0, 10),
-        market,
-        stock.position.costExchangeRate ?? effectiveExchangeRate,
-        stock.position.costExchangeRateDate ?? exchangeRates.rateDate
+        {
+          quoteId: stock.quoteId,
+          code: stock.code,
+          name: stock.name,
+          market,
+          currency
+        },
+        stock.position,
+        marketDateTimeInput(market)
       )
     }
 
@@ -1179,29 +1191,7 @@ export function PositionEditor({
                           : (exchangeRates.rateDate ?? currentMarketDateTime.slice(0, 10))
                   }
                 : undefined
-              let updatedAccount = capabilities.tradeLedger ? editedAccount : undefined
-              if (
-                capabilities.tradeLedger &&
-                nextPosition &&
-                (workingAccount?.tradeRecords.length ?? 0) === 0
-              ) {
-                updatedAccount = createOpeningTradeAccount(
-                  stock,
-                  workingAccount,
-                  nextPosition.quantity,
-                  nextPosition.cost,
-                  nextPosition.openedOn,
-                  market,
-                  nextPosition.costExchangeRate ?? null,
-                  nextPosition.costExchangeRateDate ?? null
-                )
-              }
-              onSave(
-                nextPosition,
-                capabilities.radar ? showRadarSignals : stock.showRadarSignals,
-                positionSnapshots,
-                updatedAccount
-              )
+              savePosition(nextPosition)
             }}
           >
             <div className="position-fields">
@@ -1616,14 +1606,7 @@ export function PositionEditor({
                   className="clear-position-button"
                   type="button"
                   disabled={editingTradeId !== null}
-                  onClick={() =>
-                    onSave(
-                      undefined,
-                      capabilities.radar ? showRadarSignals : stock.showRadarSignals,
-                      positionSnapshots,
-                      capabilities.tradeLedger ? editedAccount : undefined
-                    )
-                  }
+                  onClick={() => savePosition(undefined)}
                 >
                   清空持仓
                 </button>

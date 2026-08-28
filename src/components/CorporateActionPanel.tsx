@@ -156,6 +156,8 @@ function ledgerEntryDescription(entry: PortfolioLedgerEntry, currency: StockCurr
       return `公司行动费用 ${formatMoney(entry.amount, currency)}`
     case 'shareAdjustment':
       return `股份调整 ${formatShares(entry.quantityBefore)} → ${formatShares(entry.quantityAfter)}`
+    case 'positionAdjustment':
+      return `持仓调整 ${formatShares(entry.quantityBefore)} → ${formatShares(entry.quantityAfter)}`
     case 'rightsSubscription':
       return `供股认购 ${formatShares(entry.quantity)} 股，单价 ${formatMoney(entry.price, currency)}`
     case 'securityConversion':

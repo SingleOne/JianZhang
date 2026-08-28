@@ -26,7 +26,7 @@ function trade(changes: Partial<TTrade> = {}): TTrade {
     marketDate: '2026-07-01',
     exchangeRate: 1,
     origin: 'opening-balance',
-    note: '期初持仓',
+    note: '初始持仓',
     ...changes
   }
 }

@@ -437,6 +437,23 @@ function stockPerformance(
       continue
     }
 
+    if (entry.kind === 'positionAdjustment') {
+      quantity = entry.quantityAfter
+      nativeCost = quantity > 0 ? quantity * (entry.costAfter ?? 0) : 0
+      if (nativeCost === 0) {
+        cnyCost = 0
+        cnyCostComplete = true
+      } else if (rate === null) {
+        cnyCost = 0
+        cnyCostComplete = false
+        issues.add('missingHistoricalRate')
+      } else {
+        cnyCost = nativeCost * rate
+        cnyCostComplete = true
+      }
+      continue
+    }
+
     if (entry.kind === 'shareAdjustment' || entry.kind === 'securityConversion') {
       quantity = entry.quantityAfter
       continue

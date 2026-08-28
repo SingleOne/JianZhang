@@ -26,6 +26,7 @@ function trade(id: string, quantity = 100, price = 20): TTradeRecord {
     actualSettlementDate: '2026-01-06',
     exchangeRate: 0.92,
     exchangeRateDate: '2026-01-02',
+    origin: 'opening-balance',
     note: '期初持仓'
   }
 }
@@ -75,6 +76,7 @@ describe('portfolio ledger corporate actions', () => {
     expect(normalized.ledger.entries).toHaveLength(1)
     expect(normalized.ledger.entries[0]).toMatchObject({ kind: 'trade', externalId: 'opening' })
     expect(normalized.tradeRecords[0].id).toBe('opening')
+    expect(normalized.tradeRecords[0].note).toBe('初始持仓')
   })
 
   it('previews a cash dividend with withholding tax, fees and CNY conversion', () => {
