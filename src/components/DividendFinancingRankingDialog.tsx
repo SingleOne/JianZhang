@@ -751,31 +751,29 @@ export function DividendFinancingRankingDialog({
                 : dataState.progressMessage || '尚无分红融资榜快照'}
             </span>
           </div>
-          <div className="dividend-ranking-header-actions">
-            {snapshot && (dataState.status === 'stale' || dataState.status === 'failed') ? (
-              <div className={`dividend-ranking-header-notice is-${dataState.status}`}>
-                <span>
-                  <strong>
-                    {dataState.status === 'stale' ? '当前数据已过期' : '最近一次更新失败'}
-                  </strong>
-                  <small>{dataState.staleReason || dataState.error}</small>
-                </span>
-                <button type="button" onClick={runUpdate} disabled={updateRunning}>
-                  <RefreshCw size={14} className={updateRunning ? 'is-spinning' : ''} />
-                  {updateRunning ? '更新中' : '立即更新'}
-                </button>
+          {snapshot ? (
+            <div className="dividend-ranking-summary">
+              <div>
+                <span>入选股票</span>
+                <strong>{snapshot.rows.length}</strong>
               </div>
-            ) : null}
-            <button
-              className="icon-button dividend-ranking-close"
-              type="button"
-              onClick={closeDialog}
-              aria-label="关闭分红融资榜"
-              title="关闭"
-            >
-              <X size={18} />
-            </button>
-          </div>
+              {tierCounts.map((item) => (
+                <div key={item.value}>
+                  <span>{item.value}% 以上</span>
+                  <strong>{item.count}</strong>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          <button
+            className="icon-button dividend-ranking-close"
+            type="button"
+            onClick={closeDialog}
+            aria-label="关闭分红融资榜"
+            title="关闭"
+          >
+            <X size={18} />
+          </button>
         </header>
 
         {loading ? (
@@ -811,18 +809,20 @@ export function DividendFinancingRankingDialog({
           </div>
         ) : (
           <>
-            <div className="dividend-ranking-summary">
-              <div>
-                <span>入选股票</span>
-                <strong>{snapshot.rows.length}</strong>
+            {dataState.status === 'stale' || dataState.status === 'failed' ? (
+              <div className={`dividend-ranking-data-notice is-${dataState.status}`}>
+                <span>
+                  <strong>
+                    {dataState.status === 'stale' ? '当前数据已过期' : '最近一次更新失败'}
+                  </strong>
+                  <small>{dataState.staleReason || dataState.error}</small>
+                </span>
+                <button type="button" onClick={runUpdate} disabled={updateRunning}>
+                  <RefreshCw size={14} className={updateRunning ? 'is-spinning' : ''} />
+                  {updateRunning ? '更新中' : '立即更新'}
+                </button>
               </div>
-              {tierCounts.map((item) => (
-                <div key={item.value}>
-                  <span>{item.value}% 以上</span>
-                  <strong>{item.count}</strong>
-                </div>
-              ))}
-            </div>
+            ) : null}
 
             <div className="dividend-ranking-tabs">
               <div

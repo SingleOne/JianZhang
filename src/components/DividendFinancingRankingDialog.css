@@ -26,7 +26,7 @@
 
 .dividend-ranking-header {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) auto;
+  grid-template-columns: 42px minmax(180px, 1fr) auto 34px;
   align-items: center;
   gap: 12px;
   padding: 17px 20px;
@@ -54,6 +54,7 @@
 }
 
 .dividend-ranking-close {
+  grid-column: 4;
   width: 34px;
   height: 34px;
   color: #7b8798;
@@ -63,60 +64,6 @@
 .dividend-ranking-close:hover {
   color: #334155;
   background: #f0f3f7;
-}
-
-.dividend-ranking-header-actions,
-.dividend-ranking-header-notice {
-  display: flex;
-  align-items: center;
-}
-
-.dividend-ranking-header-actions {
-  min-width: 0;
-  gap: 12px;
-}
-
-.dividend-ranking-header-notice {
-  gap: 10px;
-  color: #7a5200;
-}
-
-.dividend-ranking-header-notice.is-failed {
-  color: #9f2634;
-}
-
-.dividend-ranking-header-notice > span {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-}
-
-.dividend-ranking-header-notice strong,
-.dividend-ranking-header-notice small,
-.dividend-ranking-header-notice button {
-  font-size: 12px;
-}
-
-.dividend-ranking-header-notice small {
-  max-width: 360px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.dividend-ranking-header-notice button {
-  min-height: 32px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 0 10px;
-  color: inherit;
-  background: #ffffff;
-  border: 1px solid currentColor;
-  border-radius: 7px;
-  font-weight: 650;
-  white-space: nowrap;
-  cursor: pointer;
 }
 
 .dividend-ranking-loading,
@@ -162,12 +109,53 @@
   color: var(--red);
 }
 
+.dividend-ranking-data-notice {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 20px;
+  color: #7a5200;
+  background: #fff9e8;
+  border-bottom: 1px solid #f1d58a;
+}
+
+.dividend-ranking-data-notice.is-failed {
+  color: #9f2634;
+  background: #fff3f4;
+  border-color: #f1c2c8;
+}
+
+.dividend-ranking-data-notice > span {
+  display: grid;
+  gap: 2px;
+}
+
+.dividend-ranking-data-notice strong,
+.dividend-ranking-data-notice small,
+.dividend-ranking-data-notice button {
+  font-size: 12px;
+}
+
+.dividend-ranking-data-notice button {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  color: inherit;
+  background: #ffffff;
+  border: 1px solid currentColor;
+  border-radius: 7px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
 .dividend-ranking-summary {
   display: grid;
-  grid-template-columns: repeat(4, minmax(100px, 140px));
-  gap: 9px;
-  padding: 13px 20px 11px;
-  background: #fbfcfe;
+  grid-template-columns: repeat(4, minmax(92px, 118px));
+  gap: 7px;
 }
 
 .dividend-ranking-tabs {
@@ -219,8 +207,8 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 8px;
+  padding: 7px 9px;
   background: #ffffff;
   border: 1px solid var(--border);
   border-radius: 9px;
@@ -1061,11 +1049,7 @@
 
 @media (max-width: 1160px) {
   .dividend-ranking-summary {
-    grid-template-columns: repeat(4, minmax(90px, 1fr));
-  }
-
-  .dividend-ranking-header-notice small {
-    display: none;
+    grid-template-columns: repeat(4, minmax(82px, 105px));
   }
 
   .dividend-ranking-toolbar {
@@ -1081,14 +1065,12 @@
   .dividend-ranking-dialog,
   .dividend-ranking-summary > div,
   .dividend-ranking-methodology,
-  .dividend-ranking-header-notice button,
   .dividend-ranking-search,
   .dividend-ranking-toolbar > label:not(.dividend-ranking-search) {
     background: #1e2938;
     border-color: #3b485a;
   }
 
-  .dividend-ranking-summary,
   .dividend-ranking-toolbar,
   .dividend-ranking-footer {
     background: #192332;
