@@ -2,6 +2,7 @@ import { copyFileSync, existsSync, readFileSync, readdirSync, rmSync } from 'nod
 import { basename, join } from 'node:path'
 import {
   WATCHLIST_COLUMN_ORDER_VERSION,
+  WATCHLIST_PERFORMANCE_BASELINE_VERSION,
   hasLegacyTTradingData,
   migrateWatchlistColumnOrder,
   normalizeAppSettings,
@@ -130,7 +131,10 @@ export class StateStore {
       portfolioPerformanceAdjustments: normalizePortfolioPerformanceAdjustments(
         state.portfolioPerformanceAdjustments,
         watchlist
-      )
+      ),
+      ...(state.performanceBaselineMigrationVersion === WATCHLIST_PERFORMANCE_BASELINE_VERSION
+        ? { performanceBaselineMigrationVersion: WATCHLIST_PERFORMANCE_BASELINE_VERSION }
+        : {})
     }
   }
 
@@ -183,7 +187,10 @@ export class StateStore {
       portfolioPerformanceAdjustments: normalizePortfolioPerformanceAdjustments(
         saved.portfolioPerformanceAdjustments,
         watchlist
-      )
+      ),
+      ...(saved.performanceBaselineMigrationVersion === WATCHLIST_PERFORMANCE_BASELINE_VERSION
+        ? { performanceBaselineMigrationVersion: WATCHLIST_PERFORMANCE_BASELINE_VERSION }
+        : {})
     }
   }
 

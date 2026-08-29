@@ -1399,6 +1399,7 @@ export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
 
 export type WatchlistColumnId = (typeof DEFAULT_WATCHLIST_COLUMN_ORDER)[number]
 export const WATCHLIST_COLUMN_ORDER_VERSION = 9
+export const WATCHLIST_PERFORMANCE_BASELINE_VERSION = 1
 
 export function normalizeWatchlistColumnOrder(
   columnOrder: readonly string[] | undefined
@@ -2558,6 +2559,7 @@ export interface AppState {
   tTradingAccounts: TTradingAccounts
   corporateActionRecords: CorporateActionRecords
   portfolioPerformanceAdjustments?: PortfolioPerformanceAdjustments
+  performanceBaselineMigrationVersion?: number
 }
 
 export type PortfolioPerformanceAdjustments = Record<string, number>

@@ -1,5 +1,6 @@
 import {
   WATCHLIST_COLUMN_ORDER_VERSION,
+  WATCHLIST_PERFORMANCE_BASELINE_VERSION,
   migrateWatchlistColumnOrder,
   normalizeAppSettings,
   normalizeCorporateActionRecords,
@@ -121,6 +122,9 @@ export function parseImportedAppState(value: unknown): AppState {
     portfolioPerformanceAdjustments: normalizePortfolioPerformanceAdjustments(
       importedState.portfolioPerformanceAdjustments,
       watchlist
-    )
+    ),
+    ...(importedState.performanceBaselineMigrationVersion === WATCHLIST_PERFORMANCE_BASELINE_VERSION
+      ? { performanceBaselineMigrationVersion: WATCHLIST_PERFORMANCE_BASELINE_VERSION }
+      : {})
   }
 }
