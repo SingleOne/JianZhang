@@ -139,6 +139,12 @@ describe('settings and column migration', () => {
       { quoteId: '100.HSI', market: 'HK' },
       { quoteId: '100.NDX', market: 'US' }
     ])
+    expect(normalizeAppSettings(undefined).marketIndexIds).toEqual(
+      DEFAULT_APP_SETTINGS.marketIndexIds
+    )
+  })
+
+  it('preserves every valid saved market index selection, including none', () => {
     expect(
       normalizeAppSettings({
         marketIndexIds: [
@@ -147,7 +153,13 @@ describe('settings and column migration', () => {
           'chinext'
         ] as typeof DEFAULT_APP_SETTINGS.marketIndexIds
       }).marketIndexIds
-    ).toEqual(DEFAULT_APP_SETTINGS.marketIndexIds)
+    ).toEqual(['shanghai', 'shenzhen', 'chinext'])
+    expect(normalizeAppSettings({ marketIndexIds: [] }).marketIndexIds).toEqual([])
+    expect(
+      normalizeAppSettings({
+        marketIndexIds: ['nasdaq', 'shanghai']
+      }).marketIndexIds
+    ).toEqual(['nasdaq', 'shanghai'])
   })
 
   it('clamps refresh intervals and plan defaults to supported ranges', () => {
@@ -163,7 +175,7 @@ describe('settings and column migration', () => {
 
     expect(settings.priorityRefreshSeconds).toBe(3)
     expect(settings.regularRefreshSeconds).toBe(300)
-    expect(settings.marketIndexIds).toEqual(['shanghai'])
+    expect(settings.marketIndexIds).toEqual(DEFAULT_APP_SETTINGS.marketIndexIds)
     expect(settings.tPlanDefaults.buyLevels[0]).toEqual({ targetPercent: 0, quantity: 0 })
     expect(settings.tPlanDefaults.sellLevels[0]).toEqual({ targetPercent: 2, quantity: 300 })
     expect(settings.tPlanDefaults.buyLevels).toHaveLength(5)

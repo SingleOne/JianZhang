@@ -500,20 +500,16 @@ export const MARKET_INDEX_OPTIONS = [
 export type MarketIndexId = (typeof MARKET_INDEX_OPTIONS)[number]['id']
 
 export const DEFAULT_MARKET_INDEX_IDS: MarketIndexId[] = ['shanghai', 'hsi', 'nasdaq']
-const LEGACY_DEFAULT_MARKET_INDEX_IDS: MarketIndexId[] = ['shanghai', 'shenzhen', 'chinext']
+const MARKET_INDEX_IDS = new Set<string>(MARKET_INDEX_OPTIONS.map((index) => index.id))
 
-export function normalizeMarketIndexIds(indexIds: readonly string[] | undefined): MarketIndexId[] {
-  const selectedIds = new Set(indexIds ?? DEFAULT_MARKET_INDEX_IDS)
-  const normalized = MARKET_INDEX_OPTIONS.filter((index) => selectedIds.has(index.id)).map(
-    (index) => index.id
-  )
+export function normalizeMarketIndexIds(indexIds: unknown): MarketIndexId[] {
   if (
-    normalized.length === LEGACY_DEFAULT_MARKET_INDEX_IDS.length &&
-    LEGACY_DEFAULT_MARKET_INDEX_IDS.every((indexId) => selectedIds.has(indexId))
+    !Array.isArray(indexIds) ||
+    !indexIds.every((indexId) => typeof indexId === 'string' && MARKET_INDEX_IDS.has(indexId))
   ) {
     return [...DEFAULT_MARKET_INDEX_IDS]
   }
-  return normalized
+  return [...indexIds] as MarketIndexId[]
 }
 
 export function getMarketIndexStocks(indexIds: readonly MarketIndexId[]): WatchStock[] {
@@ -2528,9 +2524,7 @@ export function normalizeAppSettings(
       300,
       Math.max(3, settings?.regularRefreshSeconds ?? regularFallback)
     ),
-    marketIndexIds: normalizeMarketIndexIds(
-      Array.isArray(settings?.marketIndexIds) ? settings.marketIndexIds : undefined
-    ),
+    marketIndexIds: normalizeMarketIndexIds(settings?.marketIndexIds),
     startWithWindows: settings?.startWithWindows ?? DEFAULT_APP_SETTINGS.startWithWindows,
     minimizeToTray: settings?.minimizeToTray ?? DEFAULT_APP_SETTINGS.minimizeToTray,
     showTaskbarTicker: settings?.showTaskbarTicker ?? DEFAULT_APP_SETTINGS.showTaskbarTicker,
