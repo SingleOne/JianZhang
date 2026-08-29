@@ -47,6 +47,7 @@ export interface ProfitComponents {
 
 export interface NativePerformanceSlice extends ProfitComponents {
   currency: StockCurrency
+  manualAdjustment: number
   complete: boolean
 }
 
@@ -235,6 +236,7 @@ function finalizeNative(
     corporateActionFees: rounded(slice.values.corporateActionFees),
     corporateActionIncome: rounded(slice.values.corporateActionIncome),
     totalProfit: complete ? rounded(totalFromComponents(slice.values)) : null,
+    manualAdjustment: 0,
     complete
   }
 }
@@ -535,18 +537,36 @@ function stockPerformance(
     .map((slice): PortfolioPerformanceCurrencySlice => {
       const native = finalizeNative(slice.native, forceIncomplete)
       const calculatedCny = finalizeCny(slice.cny, forceIncomplete)
+      const calculatedCnyTotalProfit = calculatedCny.totalProfit
       const adjustment = rounded(manualAdjustment)
-      const cny =
+      const appliesAdjustment =
         native.currency === securityCurrency &&
-        calculatedCny.totalProfit !== null &&
+        calculatedCnyTotalProfit !== null &&
         adjustment !== 0
+      const currentRate = exchangeRateForCurrency(exchangeRates, native.currency)
+      const nativeAdjustment =
+        appliesAdjustment && currentRate !== null ? rounded(adjustment / currentRate) : 0
+      const adjustedNative =
+        native.totalProfit !== null && nativeAdjustment !== 0
           ? {
-              ...calculatedCny,
-              totalProfit: rounded(calculatedCny.totalProfit + adjustment),
-              manualAdjustment: adjustment
+              ...native,
+              totalProfit: rounded(native.totalProfit + nativeAdjustment),
+              manualAdjustment: nativeAdjustment
             }
-          : calculatedCny
-      return { currency: native.currency, native, cny, complete: cny.totalProfit !== null }
+          : native
+      const cny = appliesAdjustment
+        ? {
+            ...calculatedCny,
+            totalProfit: rounded(calculatedCnyTotalProfit + adjustment),
+            manualAdjustment: adjustment
+          }
+        : calculatedCny
+      return {
+        currency: adjustedNative.currency,
+        native: adjustedNative,
+        cny,
+        complete: cny.totalProfit !== null
+      }
     })
     .sort((left, right) => left.currency.localeCompare(right.currency))
   const native = currencySlices.map((slice) => slice.native)
@@ -594,6 +614,7 @@ function mergeNativeSlices(slices: readonly NativePerformanceSlice[]): NativePer
         totalProfit: complete
           ? rounded(items.reduce((total, item) => total + (item.totalProfit ?? 0), 0))
           : null,
+        manualAdjustment: rounded(items.reduce((total, item) => total + item.manualAdjustment, 0)),
         complete
       }
     })

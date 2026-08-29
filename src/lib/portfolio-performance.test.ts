@@ -268,7 +268,7 @@ describe('portfolio performance report', () => {
     expect(report.accountReturnAvailable).toBe(false)
   })
 
-  it('applies a per-stock CNY adjustment to every aggregate without changing native profit', () => {
+  it('applies a per-stock CNY adjustment to CNY and native aggregates', () => {
     const report = calculatePortfolioPerformanceReport(
       [stock(100)],
       [quote()],
@@ -277,10 +277,17 @@ describe('portfolio performance report', () => {
       { '116.00700': 25.5 }
     )
 
-    expect(report.stocks[0].native[0].totalProfit).toBe(200)
+    expect(report.stocks[0].native[0].manualAdjustment).toBe(27.72)
+    expect(report.stocks[0].native[0].totalProfit).toBe(227.72)
     expect(report.stocks[0].cny.manualAdjustment).toBe(25.5)
+    expect(report.stockRows[0].native[0].manualAdjustment).toBe(27.72)
+    expect(report.stockRows[0].native[0].totalProfit).toBe(227.72)
     expect(report.stockRows[0].cny.manualAdjustment).toBe(25.5)
+    expect(report.currencyRows[0].native[0].manualAdjustment).toBe(27.72)
+    expect(report.currencyRows[0].native[0].totalProfit).toBe(227.72)
     expect(report.currencyRows[0].cny.manualAdjustment).toBe(25.5)
+    expect(report.portfolioRow.native[0].manualAdjustment).toBe(27.72)
+    expect(report.portfolioRow.native[0].totalProfit).toBe(227.72)
     expect(report.portfolioRow.cny.manualAdjustment).toBe(25.5)
     expect(report.portfolioRow.cny.totalProfit).toBe(229.5)
   })

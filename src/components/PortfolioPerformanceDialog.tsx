@@ -70,6 +70,14 @@ function NativeProfitCell({ slices }: { slices: NativePerformanceSlice[] }) {
             {formatMoneyProfit(slice.dividendIncome, slice.currency)} · 税费{' '}
             {formatMoneyProfit(nativeExpense(slice), slice.currency)} · 行动{' '}
             {formatMoneyProfit(slice.corporateActionIncome, slice.currency)}
+            {slice.manualAdjustment !== 0 ? (
+              <>
+                {' · 调整 '}
+                <span className={valueClass(slice.manualAdjustment)}>
+                  {formatMoneyProfit(slice.manualAdjustment, slice.currency)}
+                </span>
+              </>
+            ) : null}
           </small>
         </span>
       ))}
@@ -283,7 +291,7 @@ export default function PortfolioPerformanceDialog({
           </div>
 
           <div className="portfolio-performance-attribution-note">
-            证券价格贡献按历史加权购入汇率折算；汇率贡献按当前或卖出证券价值的汇率变化计算。分红、税费和公司行动现金单独列示；手动调整只计入人民币收益小计。
+            证券价格贡献按历史加权购入汇率折算；汇率贡献按当前或卖出证券价值的汇率变化计算。分红、税费和公司行动现金单独列示；手动调整计入人民币收益小计，并按当前汇率同步到原币收益。
           </div>
 
           <nav className="portfolio-performance-dimensions" aria-label="收益汇总维度">
@@ -397,7 +405,10 @@ export default function PortfolioPerformanceDialog({
                             </span>
                             {row.cny.manualAdjustment !== 0 ? (
                               <small>
-                                含调整 {formatMoneyProfit(row.cny.manualAdjustment, 'CNY')}
+                                含调整{' '}
+                                <span className={valueClass(row.cny.manualAdjustment)}>
+                                  {formatMoneyProfit(row.cny.manualAdjustment, 'CNY')}
+                                </span>
                               </small>
                             ) : null}
                           </span>
