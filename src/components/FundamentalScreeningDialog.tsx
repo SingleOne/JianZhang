@@ -185,6 +185,16 @@ function formatGeneratedAt(value: string | null): string {
   }).format(date)
 }
 
+function hasRecentThreeYearWeightedRoeGrowth(company: FundamentalCompany): boolean {
+  const recentRoe = company.annualReports.slice(-3).map((report) => report.weightedAverageRoe)
+  return (
+    recentRoe.length === 3 &&
+    recentRoe.every((value): value is number => value !== null) &&
+    recentRoe[0] < recentRoe[1] &&
+    recentRoe[1] < recentRoe[2]
+  )
+}
+
 function evaluationSortValue(
   evaluation: FundamentalScreeningEvaluation,
   sortKey: FundamentalSortKey
@@ -620,6 +630,7 @@ export function FundamentalScreeningDialog({
   )
   const [query, setQuery] = useState('')
   const [onlyPassed, setOnlyPassed] = useState(true)
+  const [onlyRecentRoeGrowth, setOnlyRecentRoeGrowth] = useState(false)
   const [qualityTags, setQualityTags] = useState<FundamentalQualityTag[]>([])
   const [riskTags, setRiskTags] = useState<FundamentalRiskTag[]>([])
   const [sortKey, setSortKey] = useState<FundamentalSortKey>('minimumRoe')
@@ -679,7 +690,16 @@ export function FundamentalScreeningDialog({
   useEffect(() => {
     setPage(1)
     setExpandedCode('')
-  }, [criteria, onlyPassed, qualityTags, query, riskTags, sortDirection, sortKey])
+  }, [
+    criteria,
+    onlyPassed,
+    onlyRecentRoeGrowth,
+    qualityTags,
+    query,
+    riskTags,
+    sortDirection,
+    sortKey
+  ])
 
   const evaluations = useMemo(
     () => (snapshot ? screenFundamentalCompanies(snapshot, criteria) : []),
@@ -748,6 +768,9 @@ export function FundamentalScreeningDialog({
   const filteredEvaluations = useMemo(() => {
     const rows = evaluations.filter((evaluation) => {
       if (onlyPassed && !evaluation.passed) return false
+      if (onlyRecentRoeGrowth && !hasRecentThreeYearWeightedRoeGrowth(evaluation.company)) {
+        return false
+      }
       const qualityProfile = qualityProfilesByCode.get(evaluation.company.code)
       if (qualityTags.some((tag) => !qualityProfile?.tags.includes(tag))) return false
       const riskProfile = riskProfilesByCode.get(evaluation.company.code)
@@ -772,6 +795,7 @@ export function FundamentalScreeningDialog({
     evaluations,
     normalizedQuery,
     onlyPassed,
+    onlyRecentRoeGrowth,
     qualityProfilesByCode,
     qualityTags,
     riskProfilesByCode,
@@ -893,6 +917,30 @@ export function FundamentalScreeningDialog({
                 : dataState.progressMessage || '尚无基本面财务快照'}
             </span>
           </div>
+          {snapshot && viewMode === 'screening' ? (
+            <div className="fundamental-screening-summary">
+              <span>
+                <small>满足全部条件</small>
+                <strong>{summary.passed.toLocaleString('zh-CN')}</strong>
+              </span>
+              <span>
+                <small>五年 ROE 通过</small>
+                <strong>{summary.roe.toLocaleString('zh-CN')}</strong>
+              </span>
+              <span>
+                <small>现金质量通过</small>
+                <strong>{summary.cash.toLocaleString('zh-CN')}</strong>
+              </span>
+              <span>
+                <small>行业杠杆通过</small>
+                <strong>{summary.debt.toLocaleString('zh-CN')}</strong>
+              </span>
+              <span className="fundamental-screening-generated">
+                <small>数据生成时间</small>
+                <strong>{formatGeneratedAt(snapshot.generatedAt)}</strong>
+              </span>
+            </div>
+          ) : null}
           <button
             className="icon-button fundamental-screening-close"
             type="button"
@@ -973,16 +1021,51 @@ export function FundamentalScreeningDialog({
                   更新变化
                 </button>
               </div>
-              <button
-                className="secondary-button fundamental-screening-update"
-                type="button"
-                onClick={runUpdate}
-                disabled={!isDesktopRuntime || updateRunning}
-                title={isDesktopRuntime ? '手动更新基本面数据' : '仅桌面版支持运行更新脚本'}
-              >
-                <RefreshCw size={14} className={updateRunning ? 'is-spinning' : ''} />
-                {updateRunning ? '数据更新中' : '更新数据'}
-              </button>
+              <div className="fundamental-screening-tab-actions">
+                {viewMode === 'screening' ? (
+                  <div className="fundamental-screening-toolbar">
+                    <label className="fundamental-screening-search">
+                      <Search size={16} />
+                      <input
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                        placeholder="搜索股票代码、名称或行业"
+                        aria-label="搜索基本面公司"
+                        autoFocus
+                      />
+                    </label>
+                    <label className="fundamental-only-passed">
+                      <input
+                        type="checkbox"
+                        checked={onlyPassed}
+                        onChange={(event) => setOnlyPassed(event.target.checked)}
+                      />
+                      仅显示全部通过
+                    </label>
+                    <label className="fundamental-only-passed">
+                      <input
+                        type="checkbox"
+                        checked={onlyRecentRoeGrowth}
+                        onChange={(event) => setOnlyRecentRoeGrowth(event.target.checked)}
+                      />
+                      最近三年加权 ROE 持续增长
+                    </label>
+                    <span className="fundamental-result-count">
+                      当前显示 {filteredEvaluations.length.toLocaleString('zh-CN')} 家
+                    </span>
+                  </div>
+                ) : null}
+                <button
+                  className="secondary-button fundamental-screening-update"
+                  type="button"
+                  onClick={runUpdate}
+                  disabled={!isDesktopRuntime || updateRunning}
+                  title={isDesktopRuntime ? '手动更新基本面数据' : '仅桌面版支持运行更新脚本'}
+                >
+                  <RefreshCw size={14} className={updateRunning ? 'is-spinning' : ''} />
+                  {updateRunning ? '数据更新中' : '更新数据'}
+                </button>
+              </div>
             </div>
 
             {actionMessage ? (
@@ -991,29 +1074,6 @@ export function FundamentalScreeningDialog({
 
             {viewMode === 'screening' ? (
               <>
-                <div className="fundamental-screening-summary">
-                  <span>
-                    <small>满足全部条件</small>
-                    <strong>{summary.passed.toLocaleString('zh-CN')}</strong>
-                  </span>
-                  <span>
-                    <small>五年 ROE 通过</small>
-                    <strong>{summary.roe.toLocaleString('zh-CN')}</strong>
-                  </span>
-                  <span>
-                    <small>现金质量通过</small>
-                    <strong>{summary.cash.toLocaleString('zh-CN')}</strong>
-                  </span>
-                  <span>
-                    <small>行业杠杆通过</small>
-                    <strong>{summary.debt.toLocaleString('zh-CN')}</strong>
-                  </span>
-                  <span className="fundamental-screening-generated">
-                    <small>数据生成时间</small>
-                    <strong>{formatGeneratedAt(snapshot.generatedAt)}</strong>
-                  </span>
-                </div>
-
                 <div className="fundamental-screening-rules">
                   <div className="fundamental-rule-heading">
                     <span>
@@ -1165,30 +1225,6 @@ export function FundamentalScreeningDialog({
                       </button>
                     ) : null}
                   </div>
-                </div>
-
-                <div className="fundamental-screening-toolbar">
-                  <label className="fundamental-screening-search">
-                    <Search size={16} />
-                    <input
-                      value={query}
-                      onChange={(event) => setQuery(event.target.value)}
-                      placeholder="搜索股票代码、名称或行业"
-                      aria-label="搜索基本面公司"
-                      autoFocus
-                    />
-                  </label>
-                  <label className="fundamental-only-passed">
-                    <input
-                      type="checkbox"
-                      checked={onlyPassed}
-                      onChange={(event) => setOnlyPassed(event.target.checked)}
-                    />
-                    仅显示全部通过
-                  </label>
-                  <span className="fundamental-result-count">
-                    当前显示 {filteredEvaluations.length.toLocaleString('zh-CN')} 家
-                  </span>
                 </div>
 
                 <div className="fundamental-screening-table-wrap">
