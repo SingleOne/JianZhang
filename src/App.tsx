@@ -34,7 +34,7 @@ import {
   screenFundamentalCompanies,
   type FundamentalScreeningEvaluation
 } from './lib/fundamental-screening'
-import { calculatePortfolioSummary, currentDateKey } from './lib/portfolio'
+import { calculatePortfolioSummary } from './lib/portfolio'
 import { reconcileStockQuotes } from './lib/quote-state'
 import {
   createStockTrackingSource,
@@ -44,8 +44,7 @@ import {
 import {
   getDailyScanWatchlistGroup,
   getTrackingWatchlistGroup,
-  MARKET_INDEX_OPTIONS,
-  WATCHLIST_PERFORMANCE_BASELINE_VERSION
+  MARKET_INDEX_OPTIONS
 } from './shared/types'
 import packageInfo from '../package.json'
 import type {
@@ -136,7 +135,6 @@ export default function App() {
     useState<StockDetailNavigationRequest | null>(null)
   const [source, setSource] = useState<'eastmoney' | 'demo'>('eastmoney')
   const [initializing, setInitializing] = useState(true)
-  const [bootstrapLoaded, setBootstrapLoaded] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [calendarRefreshing, setCalendarRefreshing] = useState(false)
   const [exchangeRatesRefreshing, setExchangeRatesRefreshing] = useState(false)
@@ -241,7 +239,6 @@ export default function App() {
         setState(bootstrap.state)
         setQuotes(bootstrap.quotes)
         setSource(bootstrap.source)
-        setBootstrapLoaded(true)
         if (bootstrap.warning) reportError(bootstrap.warning)
         setSelectedQuoteId((current) =>
           current && bootstrap.state.watchlist.some((stock) => stock.quoteId === current)
@@ -494,47 +491,6 @@ export default function App() {
     },
     [reportError, updateQuotes]
   )
-
-  useEffect(() => {
-    if (
-      initializing ||
-      !bootstrapLoaded ||
-      state.watchlist.length === 0 ||
-      state.performanceBaselineMigrationVersion === WATCHLIST_PERFORMANCE_BASELINE_VERSION
-    ) {
-      return
-    }
-
-    const quotesById = new Map(quotes.map((quote) => [quote.quoteId, quote]))
-    const today = currentDateKey()
-    let hasChanges = false
-    let allLatestAvailable = true
-    const watchlist = state.watchlist.map((stock) => {
-      const latest = quotesById.get(stock.quoteId)?.latest
-      const hasLatest = typeof latest === 'number' && Number.isFinite(latest) && latest > 0
-      if (!hasLatest) {
-        allLatestAvailable = false
-        if (stock.addedAt === today) return stock
-        hasChanges = true
-        return { ...stock, addedAt: today }
-      }
-      if (stock.addedAt === today && stock.addedPrice === latest) return stock
-      hasChanges = true
-      return { ...stock, addedAt: today, addedPrice: latest }
-    })
-
-    if (!hasChanges && !allLatestAvailable) return
-    void persist(
-      {
-        ...state,
-        watchlist,
-        performanceBaselineMigrationVersion: allLatestAvailable
-          ? WATCHLIST_PERFORMANCE_BASELINE_VERSION
-          : undefined
-      },
-      false
-    )
-  }, [bootstrapLoaded, initializing, persist, quotes, state])
 
   const addStock = useCallback(
     (result: SearchResult, options: StockAddOptions = {}) => {

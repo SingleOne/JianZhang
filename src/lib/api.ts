@@ -12,7 +12,6 @@ import {
   normalizeWatchlist,
   normalizeWatchlistGroups,
   synchronizeTrackingGroupMembership,
-  WATCHLIST_PERFORMANCE_BASELINE_VERSION,
   type AppState,
   type BootstrapResult,
   type CacheCategoryId,
@@ -191,10 +190,7 @@ function loadDemoState(): AppState {
     portfolioPerformanceAdjustments: normalizePortfolioPerformanceAdjustments(
       parsed.portfolioPerformanceAdjustments,
       watchlist
-    ),
-    ...(parsed.performanceBaselineMigrationVersion === WATCHLIST_PERFORMANCE_BASELINE_VERSION
-      ? { performanceBaselineMigrationVersion: WATCHLIST_PERFORMANCE_BASELINE_VERSION }
-      : {})
+    )
   }
 }
 
