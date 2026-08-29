@@ -28,14 +28,16 @@ type EventDraft = Omit<AiTAdviceObjectiveEvent, 'significance'> & {
 
 function indicatorMap(snapshot: MarketInsightSnapshot): Map<string, IndicatorValue> {
   const indicators = snapshot.indicators
-  return new Map([
-    ...indicators.intraday,
-    ...indicators.trend,
-    ...indicators.momentum,
-    ...indicators.volatility,
-    ...indicators.orderBook,
-    ...indicators.relativeStrength
-  ].map((item) => [item.id, item]))
+  return new Map(
+    [
+      ...indicators.intraday,
+      ...indicators.trend,
+      ...indicators.momentum,
+      ...indicators.volatility,
+      ...indicators.orderBook,
+      ...indicators.relativeStrength
+    ].map((item) => [item.id, item])
+  )
 }
 
 function value(indicators: Map<string, IndicatorValue>, id: string): number | null {
@@ -116,7 +118,11 @@ function addBollingerEvents(
   const facts = [
     `最新价 ${formatPrice(latest)}`,
     `布林上轨 ${formatPrice(upper)}，相对上轨 ${formatPercent(upperDeviation)}`,
-    ...(middle === null ? [] : [`布林中轨 ${formatPrice(middle)}，相对中轨 ${formatPercent(deviationPercent(latest, middle)!)}`]),
+    ...(middle === null
+      ? []
+      : [
+          `布林中轨 ${formatPrice(middle)}，相对中轨 ${formatPercent(deviationPercent(latest, middle)!)}`
+        ]),
     `布林下轨 ${formatPrice(lower)}，相对下轨 ${formatPercent(lowerDeviation)}`
   ]
   if (latest > upper) {
@@ -211,7 +217,10 @@ function addIntradayEvents(
   })
   const allPositive = returns.length >= 3 && returns.every((item) => item.value > 0)
   const allNegative = returns.length >= 3 && returns.every((item) => item.value < 0)
-  const largestReturn = returns.reduce((largest, item) => Math.max(largest, Math.abs(item.value)), 0)
+  const largestReturn = returns.reduce(
+    (largest, item) => Math.max(largest, Math.abs(item.value)),
+    0
+  )
   if ((allPositive || allNegative) && largestReturn >= 0.5) {
     add(events, {
       id: 'aligned-short-returns',
@@ -248,8 +257,10 @@ function addIntradayEvents(
   for (const minutes of [15, 30] as const) {
     const high = value(indicators, `opening-range-${minutes}-high`)
     const low = value(indicators, `opening-range-${minutes}-low`)
-    if (high !== null && latest > high) aboveRanges.push(`高于开盘 ${minutes} 分钟高点 ${formatPrice(high)}`)
-    if (low !== null && latest < low) belowRanges.push(`低于开盘 ${minutes} 分钟低点 ${formatPrice(low)}`)
+    if (high !== null && latest > high)
+      aboveRanges.push(`高于开盘 ${minutes} 分钟高点 ${formatPrice(high)}`)
+    if (low !== null && latest < low)
+      belowRanges.push(`低于开盘 ${minutes} 分钟低点 ${formatPrice(low)}`)
   }
   if (aboveRanges.length > 0 || belowRanges.length > 0) {
     const facts = aboveRanges.length > 0 ? aboveRanges : belowRanges
@@ -301,15 +312,20 @@ function addTrendEvents(
     const below = movingAverages.filter((item) => latest < item.value)
     const aligned = above.length === movingAverages.length || below.length === movingAverages.length
     add(events, {
-      id: aligned ? (above.length > 0 ? 'above-all-moving-averages' : 'below-all-moving-averages') : 'mixed-moving-average-position',
+      id: aligned
+        ? above.length > 0
+          ? 'above-all-moving-averages'
+          : 'below-all-moving-averages'
+        : 'mixed-moving-average-position',
       category: 'trend',
       significance: aligned && movingAverages.length >= 3 ? 'strong' : 'notable',
       title: aligned
         ? `当前价格位于全部可用均线${above.length > 0 ? '上方' : '下方'}`
         : '当前价格相对长短期均线位置分化',
-      facts: movingAverages.map((item) => (
-        `${item.label} ${formatPrice(item.value)}，当前价相对该均线 ${formatPercent(deviationPercent(latest, item.value)!)}`
-      )),
+      facts: movingAverages.map(
+        (item) =>
+          `${item.label} ${formatPrice(item.value)}，当前价相对该均线 ${formatPercent(deviationPercent(latest, item.value)!)}`
+      ),
       sourceIds: ['quote.latest', ...movingAverages.map((item) => item.id)]
     })
   }
@@ -323,7 +339,11 @@ function addTrendEvents(
         id: ema12 > ema26 ? 'ema12-above-ema26' : 'ema12-below-ema26',
         category: 'trend',
         title: `EMA12 位于 EMA26 ${ema12 > ema26 ? '上方' : '下方'}`,
-        facts: [`EMA12 ${formatPrice(ema12)}`, `EMA26 ${formatPrice(ema26)}`, `两者偏离 ${formatPercent(gap)}`],
+        facts: [
+          `EMA12 ${formatPrice(ema12)}`,
+          `EMA26 ${formatPrice(ema26)}`,
+          `两者偏离 ${formatPercent(gap)}`
+        ],
         sourceIds: ['ema12', 'ema26']
       })
     }
@@ -337,7 +357,11 @@ function addTrendEvents(
       id: histogram > 0 ? 'macd-above-signal' : 'macd-below-signal',
       category: 'trend',
       title: `MACD 位于信号线${histogram > 0 ? '上方' : '下方'}`,
-      facts: [`MACD ${macd.toFixed(4)}`, `信号线 ${signal.toFixed(4)}`, `MACD 柱 ${histogram.toFixed(4)}`],
+      facts: [
+        `MACD ${macd.toFixed(4)}`,
+        `信号线 ${signal.toFixed(4)}`,
+        `MACD 柱 ${histogram.toFixed(4)}`
+      ],
       sourceIds: ['macd', 'macd-signal', 'macd-histogram']
     })
   }
@@ -360,8 +384,14 @@ function addTrendEvents(
   }
 }
 
-function addMomentumEvents(events: AiTAdviceObjectiveEvent[], indicators: Map<string, IndicatorValue>): void {
-  for (const [id, label] of [['rsi6', 'RSI6'], ['rsi14', 'RSI14']] as const) {
+function addMomentumEvents(
+  events: AiTAdviceObjectiveEvent[],
+  indicators: Map<string, IndicatorValue>
+): void {
+  for (const [id, label] of [
+    ['rsi6', 'RSI6'],
+    ['rsi14', 'RSI14']
+  ] as const) {
     const current = value(indicators, id)
     if (current !== null && (current >= 70 || current <= 30)) {
       add(events, {
@@ -392,7 +422,12 @@ function addMomentumEvents(events: AiTAdviceObjectiveEvent[], indicators: Map<st
         : low
           ? 'KDJ 的 K、D 同时进入低值区间'
           : `KDJ J 值越过${j >= 100 ? ' 100' : ' 0'}边界`,
-      facts: [`K ${k.toFixed(2)}`, `D ${d.toFixed(2)}`, `J ${j.toFixed(2)}`, `K-D ${(k - d).toFixed(2)}`],
+      facts: [
+        `K ${k.toFixed(2)}`,
+        `D ${d.toFixed(2)}`,
+        `J ${j.toFixed(2)}`,
+        `K-D ${(k - d).toFixed(2)}`
+      ],
       sourceIds: ['kdj-k', 'kdj-d', 'kdj-j']
     })
   }
@@ -406,7 +441,7 @@ function addVolatilityEvents(
   const latest = context.quote?.latest
   const atr = value(indicators, 'atr14')
   if (latest !== null && latest !== undefined && atr !== null && latest > 0) {
-    const atrPercent = atr / latest * 100
+    const atrPercent = (atr / latest) * 100
     if (atrPercent >= 3) {
       add(events, {
         id: 'atr-relative-range',
@@ -431,7 +466,10 @@ function addVolatilityEvents(
   }
 }
 
-function addOrderBookEvents(events: AiTAdviceObjectiveEvent[], indicators: Map<string, IndicatorValue>): void {
+function addOrderBookEvents(
+  events: AiTAdviceObjectiveEvent[],
+  indicators: Map<string, IndicatorValue>
+): void {
   const imbalance = value(indicators, 'order-book-imbalance')
   const change = value(indicators, 'order-book-imbalance-change')
   const hasImbalance = imbalance !== null && Math.abs(imbalance) >= 0.2
@@ -441,12 +479,15 @@ function addOrderBookEvents(events: AiTAdviceObjectiveEvent[], indicators: Map<s
   const askVolume = value(indicators, 'ask-volume')
   add(events, {
     id: hasImbalance
-      ? (imbalance! > 0 ? 'visible-bid-imbalance' : 'visible-ask-imbalance')
+      ? imbalance! > 0
+        ? 'visible-bid-imbalance'
+        : 'visible-ask-imbalance'
       : 'order-book-imbalance-change',
     category: 'order-book',
-    significance: (hasImbalance && Math.abs(imbalance!) >= 0.4) || (hasChange && Math.abs(change!) >= 0.35)
-      ? 'strong'
-      : 'notable',
+    significance:
+      (hasImbalance && Math.abs(imbalance!) >= 0.4) || (hasChange && Math.abs(change!) >= 0.35)
+        ? 'strong'
+        : 'notable',
     title: hasImbalance
       ? `五档可见委托量明显偏向${imbalance! > 0 ? '买方' : '卖方'}`
       : '五档委托不平衡较上一快照明显变化',
@@ -460,11 +501,17 @@ function addOrderBookEvents(events: AiTAdviceObjectiveEvent[], indicators: Map<s
   })
 }
 
-function addRelativeStrengthEvents(events: AiTAdviceObjectiveEvent[], indicators: Map<string, IndicatorValue>): void {
+function addRelativeStrengthEvents(
+  events: AiTAdviceObjectiveEvent[],
+  indicators: Map<string, IndicatorValue>
+): void {
   const relativeFacts: string[] = []
   const sourceIds: string[] = []
   let strongest = 0
-  for (const [id, label] of [['relative-sector', '相对行业'], ['relative-index', '相对大盘']] as const) {
+  for (const [id, label] of [
+    ['relative-sector', '相对行业'],
+    ['relative-index', '相对大盘']
+  ] as const) {
     const current = value(indicators, id)
     if (current === null || Math.abs(current) < 0.5) continue
     relativeFacts.push(`${label} ${formatPercent(current)}`)
@@ -490,10 +537,7 @@ function addRelativeStrengthEvents(events: AiTAdviceObjectiveEvent[], indicators
       id: aligned ? 'funds-flow-aligned' : 'funds-flow-divergent',
       category: 'relative-strength',
       title: aligned ? '主力资金净额与短窗变化方向一致' : '主力资金净额与短窗变化方向分化',
-      facts: [
-        `当前主力资金净额 ${amountText(funds)}`,
-        `短窗变化 ${amountText(slope)}`
-      ],
+      facts: [`当前主力资金净额 ${amountText(funds)}`, `短窗变化 ${amountText(slope)}`],
       sourceIds: ['funds-main-net', 'funds-main-slope']
     })
   }
@@ -515,7 +559,10 @@ function addPositionAndPlanEvents(
         category: 'position',
         significance: Math.abs(deviation) >= 5 ? 'strong' : 'notable',
         title: `当前价格位于持仓成本${deviation > 0 ? '上方' : '下方'}`,
-        facts: [`持仓成本 ${formatPrice(positionCost)}`, `最新价相对持仓成本 ${formatPercent(deviation)}`],
+        facts: [
+          `持仓成本 ${formatPrice(positionCost)}`,
+          `最新价相对持仓成本 ${formatPercent(deviation)}`
+        ],
         sourceIds: ['position.cost', 'quote.latest']
       })
     }
@@ -524,7 +571,11 @@ function addPositionAndPlanEvents(
   const nearest = [...snapshot.existingTPlanDistances]
     .filter((item) => item.side !== 'position' && item.distancePercent !== null)
     .sort((left, right) => Math.abs(left.distancePercent!) - Math.abs(right.distancePercent!))[0]
-  if (nearest?.distancePercent !== null && nearest !== undefined && Math.abs(nearest.distancePercent) <= 1) {
+  if (
+    nearest?.distancePercent !== null &&
+    nearest !== undefined &&
+    Math.abs(nearest.distancePercent) <= 1
+  ) {
     add(events, {
       id: 'near-t-plan-level',
       category: 't-plan',
@@ -555,7 +606,8 @@ export function buildAiTAdviceObjectiveEvents(
   addOrderBookEvents(events, indicators)
   addRelativeStrengthEvents(events, indicators)
   addPositionAndPlanEvents(events, snapshot, context)
-  return events.sort((left, right) => (
-    Number(right.significance === 'strong') - Number(left.significance === 'strong')
-  ))
+  return events.sort(
+    (left, right) =>
+      Number(right.significance === 'strong') - Number(left.significance === 'strong')
+  )
 }

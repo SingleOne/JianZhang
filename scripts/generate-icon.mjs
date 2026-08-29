@@ -53,17 +53,32 @@ function renderIcon(background, foreground) {
   }
 
   const points = [
-    [64, 174], [105, 139], [135, 158], [192, 91]
+    [64, 174],
+    [105, 139],
+    [135, 158],
+    [192, 91]
   ].map(([x, y]) => [x * scale, y * scale])
   const stroke = 9 * scale
 
   for (let y = 0; y < size; y += 1) {
     for (let x = 0; x < size; x += 1) {
-      const onLine = points.slice(0, -1).some((point, index) =>
-        distanceToSegment(x, y, point[0], point[1], points[index + 1][0], points[index + 1][1]) <= stroke
-      )
-      const onArrowA = distanceToSegment(x, y, 192 * scale, 91 * scale, 158 * scale, 94 * scale) <= stroke
-      const onArrowB = distanceToSegment(x, y, 192 * scale, 91 * scale, 189 * scale, 125 * scale) <= stroke
+      const onLine = points
+        .slice(0, -1)
+        .some(
+          (point, index) =>
+            distanceToSegment(
+              x,
+              y,
+              point[0],
+              point[1],
+              points[index + 1][0],
+              points[index + 1][1]
+            ) <= stroke
+        )
+      const onArrowA =
+        distanceToSegment(x, y, 192 * scale, 91 * scale, 158 * scale, 94 * scale) <= stroke
+      const onArrowB =
+        distanceToSegment(x, y, 192 * scale, 91 * scale, 189 * scale, 125 * scale) <= stroke
       if (onLine || onArrowA || onArrowB) setPixel(x, y, foreground)
     }
   }
@@ -74,12 +89,14 @@ function renderIcon(background, foreground) {
       const totals = [0, 0, 0, 0]
       for (let sy = 0; sy < scale; sy += 1) {
         for (let sx = 0; sx < scale; sx += 1) {
-          const source = (((y * scale + sy) * size) + (x * scale + sx)) * 4
-          for (let channel = 0; channel < 4; channel += 1) totals[channel] += pixels[source + channel]
+          const source = ((y * scale + sy) * size + (x * scale + sx)) * 4
+          for (let channel = 0; channel < 4; channel += 1)
+            totals[channel] += pixels[source + channel]
         }
       }
       const destination = (y * outputSize + x) * 4
-      for (let channel = 0; channel < 4; channel += 1) png.data[destination + channel] = totals[channel] / (scale * scale)
+      for (let channel = 0; channel < 4; channel += 1)
+        png.data[destination + channel] = totals[channel] / (scale * scale)
     }
   }
 

@@ -53,38 +53,42 @@ export class ExchangeRateRuntime {
     if (this.refreshRequest) return this.refreshRequest
     const attemptedAt = new Date().toISOString()
     const checkedDate = beijingMinutes() >= 9 * 60 + 20 ? beijingDateKey() : null
-    this.refreshRequest = this.dependencies.marketRequestLogger.track(
-      {
-        dataType: 'exchange-rate',
-        caller: 'exchange-rate:safe-cfets',
-        source: 'safe-cfets',
-        requestedCount: 2
-      },
-      fetchSafeExchangeRates,
-      () => 2
-    ).then((snapshot) => {
-      const latest = this.dependencies.getState().settings.exchangeRates
-      return this.save({
-        ...latest,
-        rates: { CNY: 1, HKD: snapshot.rates.HKD, USD: snapshot.rates.USD },
-        rateDate: snapshot.rateDate,
-        fetchedAt: new Date().toISOString(),
-        lastCheckedDate: checkedDate,
-        lastAttemptedAt: attemptedAt,
-        lastError: null
+    this.refreshRequest = this.dependencies.marketRequestLogger
+      .track(
+        {
+          dataType: 'exchange-rate',
+          caller: 'exchange-rate:safe-cfets',
+          source: 'safe-cfets',
+          requestedCount: 2
+        },
+        fetchSafeExchangeRates,
+        () => 2
+      )
+      .then((snapshot) => {
+        const latest = this.dependencies.getState().settings.exchangeRates
+        return this.save({
+          ...latest,
+          rates: { CNY: 1, HKD: snapshot.rates.HKD, USD: snapshot.rates.USD },
+          rateDate: snapshot.rateDate,
+          fetchedAt: new Date().toISOString(),
+          lastCheckedDate: checkedDate,
+          lastAttemptedAt: attemptedAt,
+          lastError: null
+        })
       })
-    }).catch((reason) => {
-      const latest = this.dependencies.getState().settings.exchangeRates
-      this.save({
-        ...latest,
-        lastCheckedDate: checkedDate,
-        lastAttemptedAt: attemptedAt,
-        lastError: errorMessage(reason)
+      .catch((reason) => {
+        const latest = this.dependencies.getState().settings.exchangeRates
+        this.save({
+          ...latest,
+          lastCheckedDate: checkedDate,
+          lastAttemptedAt: attemptedAt,
+          lastError: errorMessage(reason)
+        })
+        throw reason
       })
-      throw reason
-    }).finally(() => {
-      this.refreshRequest = null
-    })
+      .finally(() => {
+        this.refreshRequest = null
+      })
     return this.refreshRequest
   }
 

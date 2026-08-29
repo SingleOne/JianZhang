@@ -71,28 +71,29 @@ export function calculateShortTermTechnicalIndicators(
   const rsi6 = calculateRsi(closes, 6)
   const rsi14 = calculateRsi(closes, 14)
   const momentum = rsi14 === null ? null : clampScore((rsi14 - 50) * 2)
-  const reversal = rsi6 === null || rsi14 === null
-    ? null
-    : (rsi14 < 50 && rsi6 > rsi14) || (rsi14 > 50 && rsi6 < rsi14)
-      ? clampScore((rsi6 - rsi14) * 4)
-      : 0
+  const reversal =
+    rsi6 === null || rsi14 === null
+      ? null
+      : (rsi14 < 50 && rsi6 > rsi14) || (rsi14 > 50 && rsi6 < rsi14)
+        ? clampScore((rsi6 - rsi14) * 4)
+        : 0
 
   const returns: number[] = []
   for (let index = Math.max(1, closes.length - 20); index < closes.length; index += 1) {
     if (closes[index - 1] !== 0) returns.push((closes[index] / closes[index - 1] - 1) * 100)
   }
-  const volatility = returns.length === 20
-    ? (standardDeviation(returns) ?? 0) * Math.sqrt(252)
-    : null
+  const volatility =
+    returns.length === 20 ? (standardDeviation(returns) ?? 0) * Math.sqrt(252) : null
 
-  const turnoverWindow = bars.slice(-20).flatMap((bar) => (
-    bar.turnoverRate === undefined ? [] : [bar.turnoverRate]
-  ))
+  const turnoverWindow = bars
+    .slice(-20)
+    .flatMap((bar) => (bar.turnoverRate === undefined ? [] : [bar.turnoverRate]))
   const currentTurnover = turnoverWindow.at(-1) ?? null
   const averageTurnover = turnoverWindow.length === 20 ? average(turnoverWindow) : null
-  const liquidity = currentTurnover !== null && averageTurnover !== null && averageTurnover > 0
-    ? currentTurnover / averageTurnover
-    : null
+  const liquidity =
+    currentTurnover !== null && averageTurnover !== null && averageTurnover > 0
+      ? currentTurnover / averageTurnover
+      : null
 
   return [
     metric(

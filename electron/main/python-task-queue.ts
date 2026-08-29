@@ -42,7 +42,10 @@ export class PythonTaskQueue {
         runtime = await this.findRuntime()
         this.lastEnvironmentMessage = ''
       } catch (reason) {
-        if (reason instanceof PythonEnvironmentError && reason.message !== this.lastEnvironmentMessage) {
+        if (
+          reason instanceof PythonEnvironmentError &&
+          reason.message !== this.lastEnvironmentMessage
+        ) {
           this.lastEnvironmentMessage = reason.message
           this.notifyEnvironmentError(reason.message)
         }
@@ -55,7 +58,10 @@ export class PythonTaskQueue {
         onOutput
       )
     })
-    this.tail = task.then(() => undefined, () => undefined)
+    this.tail = task.then(
+      () => undefined,
+      () => undefined
+    )
     return task
   }
 
@@ -75,11 +81,9 @@ export class PythonTaskQueue {
 
   private probe(runtime: PythonRuntime): Promise<ProbeResult> {
     return new Promise((resolve) => {
-      const child = spawn(
-        runtime.command,
-        [...runtime.prefixArgs, '-c', 'import requests'],
-        { windowsHide: true }
-      )
+      const child = spawn(runtime.command, [...runtime.prefixArgs, '-c', 'import requests'], {
+        windowsHide: true
+      })
       let settled = false
       child.on('error', (reason: NodeJS.ErrnoException) => {
         if (settled) return

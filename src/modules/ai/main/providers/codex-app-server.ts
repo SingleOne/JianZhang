@@ -54,7 +54,10 @@ export class CodexAppServer {
   readonly workspaceDirectory: string
   private readonly codexHomeDirectory: string
 
-  constructor(private readonly rootDirectory: string, private readonly clientVersion: string) {
+  constructor(
+    private readonly rootDirectory: string,
+    private readonly clientVersion: string
+  ) {
     this.workspaceDirectory = join(rootDirectory, 'codex-workspace')
     this.codexHomeDirectory = join(rootDirectory, 'codex-runtime')
     mkdirSync(this.workspaceDirectory, { recursive: true })
@@ -97,7 +100,10 @@ export class CodexAppServer {
       const failureListener: FailureListener = (error) => finish(() => reject(error))
       this.failureListeners.add(failureListener)
       const removeFailure = () => this.failureListeners.delete(failureListener)
-      const timeout = setTimeout(() => finish(() => reject(new Error('Codex 运行时等待响应超时'))), timeoutMs)
+      const timeout = setTimeout(
+        () => finish(() => reject(new Error('Codex 运行时等待响应超时'))),
+        timeoutMs
+      )
     })
   }
 
@@ -192,7 +198,10 @@ export class CodexAppServer {
       return
     }
     if (message.method && message.id !== undefined) {
-      this.write({ id: message.id, error: { code: -32601, message: '见涨不提供 Codex 工具调用能力' } })
+      this.write({
+        id: message.id,
+        error: { code: -32601, message: '见涨不提供 Codex 工具调用能力' }
+      })
     }
   }
 

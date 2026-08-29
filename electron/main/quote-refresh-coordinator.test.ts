@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import {
-  QuoteRefreshCoordinator,
-  type QuoteRefreshBatch
-} from './quote-refresh-coordinator'
+import { QuoteRefreshCoordinator, type QuoteRefreshBatch } from './quote-refresh-coordinator'
 
 describe('QuoteRefreshCoordinator', () => {
   it('coalesces targeted stock refreshes without adding a full-market scope', async () => {

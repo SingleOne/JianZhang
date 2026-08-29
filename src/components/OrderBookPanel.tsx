@@ -2,7 +2,10 @@ import { AlertCircle, RefreshCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { stockApi } from '../lib/api'
 import { formatPrice, formatUpdateTime } from '../lib/format'
-import { isBeijingAutoRefreshTime, millisecondsUntilNextAutoRefreshWindow } from '../shared/market-hours'
+import {
+  isBeijingAutoRefreshTime,
+  millisecondsUntilNextAutoRefreshWindow
+} from '../shared/market-hours'
 import type { OrderBookLevel, StockOrderBook, WatchStock } from '../shared/types'
 
 interface OrderBookPanelProps {
@@ -53,18 +56,22 @@ export function OrderBookPanel({ stock, refreshSeconds, autoRefresh }: OrderBook
 
     const scheduleRefresh = () => {
       if (!autoRefresh) return
-      refreshTimer = window.setTimeout(() => {
-        if (isBeijingAutoRefreshTime()) {
-          setRefreshVersion((current) => current + 1)
-        } else {
-          scheduleRefresh()
-        }
-      }, isBeijingAutoRefreshTime() ? refreshMilliseconds : millisecondsUntilNextAutoRefreshWindow())
+      refreshTimer = window.setTimeout(
+        () => {
+          if (isBeijingAutoRefreshTime()) {
+            setRefreshVersion((current) => current + 1)
+          } else {
+            scheduleRefresh()
+          }
+        },
+        isBeijingAutoRefreshTime() ? refreshMilliseconds : millisecondsUntilNextAutoRefreshWindow()
+      )
     }
 
     setLoading(true)
     setError('')
-    stockApi.getOrderBook(stock.quoteId)
+    stockApi
+      .getOrderBook(stock.quoteId)
       .then((result) => {
         if (!active) return
         setData(result)

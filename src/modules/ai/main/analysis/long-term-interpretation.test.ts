@@ -53,18 +53,16 @@ describe('long-term AI interpretation validator', () => {
   it('rejects output missing a fixed analysis section', () => {
     const payload = completeResult()
     payload.sections.pop()
-    expect(() => parseLongTermInterpretation(
-      JSON.stringify(payload),
-      '2026-08-05T15:00:00+08:00'
-    )).toThrow('缺少企业质量、财务安全或当前价格')
+    expect(() =>
+      parseLongTermInterpretation(JSON.stringify(payload), '2026-08-05T15:00:00+08:00')
+    ).toThrow('缺少企业质量、财务安全或当前价格')
   })
 
   it('rejects output without separate value and timing conclusions', () => {
     const payload = completeResult()
     payload.conclusion.priceTiming.level = 'invented'
-    expect(() => parseLongTermInterpretation(
-      JSON.stringify(payload),
-      '2026-08-05T15:00:00+08:00'
-    )).toThrow('缺少长期价值或当前时机结论')
+    expect(() =>
+      parseLongTermInterpretation(JSON.stringify(payload), '2026-08-05T15:00:00+08:00')
+    ).toThrow('缺少长期价值或当前时机结论')
   })
 })

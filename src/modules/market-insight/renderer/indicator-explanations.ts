@@ -59,7 +59,9 @@ function openingRangeExplanation(minutes: 15 | 30, side: 'high' | 'low'): Indica
   }
 }
 
-export const SHORT_TERM_TECHNICAL_INDICATOR_EXPLANATIONS: Readonly<Record<string, IndicatorExplanation>> = {
+export const SHORT_TERM_TECHNICAL_INDICATOR_EXPLANATIONS: Readonly<
+  Record<string, IndicatorExplanation>
+> = {
   'momentum-strength': {
     definition: '动量值描述最近一段时间上涨或下跌力量的方向和强弱，范围为−100至+100。',
     formula: '动量值 =（RSI14 − 50）× 2；RSI14使用最近14个已完成交易日的涨跌幅度计算。',
@@ -71,8 +73,10 @@ export const SHORT_TERM_TECHNICAL_INDICATOR_EXPLANATIONS: Readonly<Record<string
     note: '动量描述当前方向的力量，不等于未来收益率；强动量可能延续，也可能在极端区域逐渐衰减。'
   },
   'reversal-strength': {
-    definition: '反转值观察快速动量是否正在逆转原有方向，正值表示向上反转迹象，负值表示向下反转迹象。',
-    formula: '当RSI14低于50且RSI6高于RSI14，或RSI14高于50且RSI6低于RSI14时，反转值 =（RSI6 − RSI14）× 4，并限制在−100至+100；其他情况记为0。',
+    definition:
+      '反转值观察快速动量是否正在逆转原有方向，正值表示向上反转迹象，负值表示向下反转迹象。',
+    formula:
+      '当RSI14低于50且RSI6高于RSI14，或RSI14高于50且RSI6低于RSI14时，反转值 =（RSI6 − RSI14）× 4，并限制在−100至+100；其他情况记为0。',
     interpretation: [
       '正值表示原有下跌动量中出现短窗改善，负值表示原有上涨动量中出现短窗转弱。',
       '绝对值达到15表示开始出现反转迹象，达到40表示快速与慢速动量的背离较明显。',
@@ -142,7 +146,8 @@ export const INTRADAY_INDICATOR_EXPLANATIONS: Readonly<Record<string, IndicatorE
   'opening-range-30-high': openingRangeExplanation(30, 'high'),
   'opening-range-30-low': openingRangeExplanation(30, 'low'),
   'volume-ratio-5m': {
-    definition: '5 分钟成交量倍数衡量最近 5 根已完成分时柱的成交量，相对于此前短窗常态水平放大或缩小了多少。',
+    definition:
+      '5 分钟成交量倍数衡量最近 5 根已完成分时柱的成交量，相对于此前短窗常态水平放大或缩小了多少。',
     formula: '最近5根已完成1分钟柱成交量之和 ÷ 此前最多20个互不重叠5分钟窗口成交量的中位数。',
     interpretation: [
       '大于1倍表示最近5分钟成交量高于此前窗口中位水平，小于1倍表示相对缩量。',
@@ -153,7 +158,9 @@ export const INTRADAY_INDICATOR_EXPLANATIONS: Readonly<Record<string, IndicatorE
   }
 }
 
-export const ORDER_BOOK_AND_RELATIVE_STRENGTH_INDICATOR_EXPLANATIONS: Readonly<Record<string, IndicatorExplanation>> = {
+export const ORDER_BOOK_AND_RELATIVE_STRENGTH_INDICATOR_EXPLANATIONS: Readonly<
+  Record<string, IndicatorExplanation>
+> = {
   'bid-volume': {
     definition: '买五档委托量是当前盘口买一至买五可见委托数量的合计。',
     formula: '买一、买二、买三、买四、买五委托量相加。',
@@ -175,7 +182,8 @@ export const ORDER_BOOK_AND_RELATIVE_STRENGTH_INDICATOR_EXPLANATIONS: Readonly<R
     note: '挂单可以撤销、移动或隐藏，卖方可见委托量不等于真实卖出意愿，也不必然形成价格压力。'
   },
   'order-book-imbalance': {
-    definition: '五档委托不平衡把买卖五档委托量的差异标准化，用来观察当前可见盘口偏向买方还是卖方。',
+    definition:
+      '五档委托不平衡把买卖五档委托量的差异标准化，用来观察当前可见盘口偏向买方还是卖方。',
     formula: '（买五档委托量 − 卖五档委托量）÷（买五档委托量 + 卖五档委托量）。',
     interpretation: [
       '结果范围通常在−1至1之间；正值表示可见买量更多，负值表示可见卖量更多，0附近表示较均衡。',
@@ -225,7 +233,8 @@ export const ORDER_BOOK_AND_RELATIVE_STRENGTH_INDICATOR_EXPLANATIONS: Readonly<R
     note: '当前卡片直接展示行情源换手率，不对流通股本口径进行二次修正，也不等同于主力资金进出。'
   },
   'funds-main-net': {
-    definition: '主力资金净流入是资金流序列最新采样点的主力净额，表示主力口径资金流入与流出的差额。',
+    definition:
+      '主力资金净流入是资金流序列最新采样点的主力净额，表示主力口径资金流入与流出的差额。',
     formula: '最新资金流采样点中的主力流入额 − 主力流出额，由行情数据源提供。',
     interpretation: [
       '正值表示当前主力口径为净流入，负值表示净流出，绝对值表示净额规模。',
@@ -328,7 +337,8 @@ export const MOMENTUM_INDICATOR_EXPLANATIONS: Readonly<Record<string, IndicatorE
   },
   'kdj-k': {
     definition: 'KDJ 的 K 线是经过平滑的快速随机指标，反映收盘价在最近 9 日高低区间中的相对位置。',
-    formula: '先算 RSV =（收盘价 − 9日最低价）÷（9日最高价 − 9日最低价）×100；再算 K = 前K×2/3 + RSV×1/3。',
+    formula:
+      '先算 RSV =（收盘价 − 9日最低价）÷（9日最高价 − 9日最低价）×100；再算 K = 前K×2/3 + RSV×1/3。',
     interpretation: [
       'K值越高，表示收盘价越接近近期区间上部；K值越低，表示越接近区间下部。',
       'K向上穿越D通常表示短期动量改善，向下穿越D通常表示短期动量转弱。',
@@ -410,7 +420,8 @@ export const VOLATILITY_INDICATOR_EXPLANATIONS: Readonly<Record<string, Indicato
     note: 'ATR单位是价格，受股价高低影响；跨股票比较时应换算为ATR占股价比例，当前卡片展示的是绝对值。'
   },
   'realized-volatility-20': {
-    definition: '根据最近 20 个交易日实际涨跌幅计算出的年化历史波动水平，描述近期收益率的不稳定程度。',
+    definition:
+      '根据最近 20 个交易日实际涨跌幅计算出的年化历史波动水平，描述近期收益率的不稳定程度。',
     formula: '最近20个日收益率的标准差 × √252；日收益率使用“今日收盘价 ÷ 前日收盘价 − 1”。',
     interpretation: [
       '数值越高表示近期每日涨跌更剧烈、结果不确定性更大；数值越低表示走势相对平稳。',

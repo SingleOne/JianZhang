@@ -8,8 +8,10 @@ interface FundsFlowCacheEntry {
 
 function hasClosingData(data: FundsFlowResult): boolean {
   const lastPointTime = data.points.at(-1)?.time
-  return data.tradingDate === beijingDateKey()
-    && Boolean(lastPointTime && lastPointTime.slice(11, 16) >= '15:00')
+  return (
+    data.tradingDate === beijingDateKey() &&
+    Boolean(lastPointTime && lastPointTime.slice(11, 16) >= '15:00')
+  )
 }
 
 export class FundsFlowHub {
@@ -24,10 +26,10 @@ export class FundsFlowHub {
 
   get(quoteId: string, caller: string): Promise<FundsFlowResult> {
     const cached = this.cache.get(quoteId)
-    if (cached && (
-      hasClosingData(cached.data)
-      || Date.now() - cached.cachedAt < this.maxAgeMilliseconds
-    )) {
+    if (
+      cached &&
+      (hasClosingData(cached.data) || Date.now() - cached.cachedAt < this.maxAgeMilliseconds)
+    ) {
       return Promise.resolve(cached.data)
     }
 
@@ -35,11 +37,10 @@ export class FundsFlowHub {
   }
 
   private startRequest(quoteId: string, caller: string): Promise<FundsFlowResult> {
-    const request = this.enqueue(() => this.fetchFundsFlow(quoteId, caller))
-      .then((data) => {
-        this.cache.set(quoteId, { data, cachedAt: Date.now() })
-        return data
-      })
+    const request = this.enqueue(() => this.fetchFundsFlow(quoteId, caller)).then((data) => {
+      this.cache.set(quoteId, { data, cachedAt: Date.now() })
+      return data
+    })
 
     this.requests.set(quoteId, request)
     request.then(
@@ -51,7 +52,10 @@ export class FundsFlowHub {
 
   private enqueue(load: () => Promise<FundsFlowResult>): Promise<FundsFlowResult> {
     const request = this.requestQueue.then(load)
-    this.requestQueue = request.then(() => undefined, () => undefined)
+    this.requestQueue = request.then(
+      () => undefined,
+      () => undefined
+    )
     return request
   }
 

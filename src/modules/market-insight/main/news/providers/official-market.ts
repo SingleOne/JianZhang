@@ -20,10 +20,11 @@ abstract class MarketOnlyProvider implements MarketNewsProvider {
 
   fetchMarketNews(input: NewsQuery): Promise<MarketNewsItem[]> {
     if (
-      this.cache
-      && this.cache.expiresAt > Date.now()
-      && this.cache.lookbackDays >= input.newsLookbackDays
-    ) return Promise.resolve(this.cache.items)
+      this.cache &&
+      this.cache.expiresAt > Date.now() &&
+      this.cache.lookbackDays >= input.newsLookbackDays
+    )
+      return Promise.resolve(this.cache.items)
     if (this.refresh) {
       return this.refresh.lookbackDays >= input.newsLookbackDays
         ? this.refresh.task
@@ -72,17 +73,19 @@ export class CsrcNewsProvider extends MarketOnlyProvider {
       const itemUrl = absoluteUrl(item.url, 'https://www.csrc.gov.cn/')
       const publishedAt = chinaDateTimeToIso(item.publishedTimeStr)
       if (!publishedAt) return []
-      return [{
-        id: sourceId('csrc', itemUrl),
-        title: decodeHtml(item.title),
-        source: '中国证监会',
-        publishedAt,
-        url: itemUrl,
-        category: 'policy',
-        scope: 'market',
-        relatedQuoteIds: [],
-        fetchedAt: input.fetchedAt
-      }]
+      return [
+        {
+          id: sourceId('csrc', itemUrl),
+          title: decodeHtml(item.title),
+          source: '中国证监会',
+          publishedAt,
+          url: itemUrl,
+          category: 'policy',
+          scope: 'market',
+          relatedQuoteIds: [],
+          fetchedAt: input.fetchedAt
+        }
+      ]
     })
   }
 }
@@ -95,7 +98,8 @@ export class SseNoticeProvider extends MarketOnlyProvider {
     const html = await requestText(pageUrl, {
       headers: { Referer: 'https://www.sse.com.cn/disclosure/announcement/general/' }
     })
-    const pattern = /<dd>\s*<span>\s*(\d{4}-\d{2}-\d{2})\s*<\/span>\s*<a[^>]+href="([^"]+)"[^>]+title="([^"]+)"/gi
+    const pattern =
+      /<dd>\s*<span>\s*(\d{4}-\d{2}-\d{2})\s*<\/span>\s*<a[^>]+href="([^"]+)"[^>]+title="([^"]+)"/gi
     const limit = input.newsLookbackDays > 7 ? 100 : 20
     return [...html.matchAll(pattern)].slice(0, limit).map((match): MarketNewsItem => {
       const itemUrl = absoluteUrl(match[2], pageUrl)
@@ -122,7 +126,8 @@ export class SzseNoticeProvider extends MarketOnlyProvider {
     const html = await requestText(pageUrl, {
       headers: { Referer: 'https://www.szse.cn/' }
     })
-    const pattern = /var curHref\s*=\s*'([^']+)'[\s\S]{0,500}?var curTitle\s*=\s*'([^']+)'[\s\S]{0,1800}?<span class="time">\s*(\d{4}-\d{2}-\d{2})\s*<\/span>/gi
+    const pattern =
+      /var curHref\s*=\s*'([^']+)'[\s\S]{0,500}?var curTitle\s*=\s*'([^']+)'[\s\S]{0,1800}?<span class="time">\s*(\d{4}-\d{2}-\d{2})\s*<\/span>/gi
     const limit = input.newsLookbackDays > 7 ? 100 : 20
     return [...html.matchAll(pattern)].slice(0, limit).map((match): MarketNewsItem => {
       const itemUrl = absoluteUrl(match[1], pageUrl)
@@ -169,21 +174,23 @@ export class BseNoticeProvider extends MarketOnlyProvider {
     return (payload[0]?.listInfo?.content ?? []).flatMap((item): MarketNewsItem[] => {
       if (!item.disclosureTitle || !item.destFilePath || !item.publishDate) return []
       const itemUrl = absoluteUrl(item.destFilePath, pageUrl)
-      return [{
-        id: item.disclosureCode
-          ? `bse:${item.disclosureCode}`
-          : item.infoId
-            ? `bse:${item.infoId}`
-            : sourceId('bse', itemUrl),
-        title: decodeHtml(`${item.disclosureTitle}${item.disclosurePostTitle ?? ''}`),
-        source: '北京证券交易所',
-        publishedAt: chinaDateTimeToIso(item.publishDate),
-        url: itemUrl,
-        category: 'announcement',
-        scope: 'market',
-        relatedQuoteIds: [],
-        fetchedAt: input.fetchedAt
-      }]
+      return [
+        {
+          id: item.disclosureCode
+            ? `bse:${item.disclosureCode}`
+            : item.infoId
+              ? `bse:${item.infoId}`
+              : sourceId('bse', itemUrl),
+          title: decodeHtml(`${item.disclosureTitle}${item.disclosurePostTitle ?? ''}`),
+          source: '北京证券交易所',
+          publishedAt: chinaDateTimeToIso(item.publishDate),
+          url: itemUrl,
+          category: 'announcement',
+          scope: 'market',
+          relatedQuoteIds: [],
+          fetchedAt: input.fetchedAt
+        }
+      ]
     })
   }
 }

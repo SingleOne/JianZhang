@@ -25,14 +25,19 @@ function timeWindow(value: string): string {
 }
 
 export function newsFingerprint(item: MarketNewsItem): string {
-  return item.id || normalizeUrl(item.url) || `${item.source}:${normalizeTitle(item.title)}:${timeWindow(item.publishedAt)}`
+  return (
+    item.id ||
+    normalizeUrl(item.url) ||
+    `${item.source}:${normalizeTitle(item.title)}:${timeWindow(item.publishedAt)}`
+  )
 }
 
 export function normalizeNews(items: readonly MarketNewsItem[]): MarketNewsItem[] {
   const found = new Set<string>()
   const valid: MarketNewsItem[] = []
   for (const item of items) {
-    if (!item.title.trim() || !item.source.trim() || !item.url.trim() || !item.publishedAt.trim()) continue
+    if (!item.title.trim() || !item.source.trim() || !item.url.trim() || !item.publishedAt.trim())
+      continue
     const normalized = { ...item, url: normalizeUrl(item.url) }
     const fingerprint = newsFingerprint(normalized)
     if (found.has(fingerprint)) continue

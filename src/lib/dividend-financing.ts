@@ -114,10 +114,11 @@ export function createDividendFinancingChangeReport(
     if (item.changeTypes.includes('dividend')) return 3
     return 4
   }
-  rows.sort((left, right) =>
-    priority(left) - priority(right)
-    || Math.abs(right.rankChange ?? 0) - Math.abs(left.rankChange ?? 0)
-    || (left.currentRank ?? left.previousRank ?? 0) - (right.currentRank ?? right.previousRank ?? 0)
+  rows.sort(
+    (left, right) =>
+      priority(left) - priority(right) ||
+      Math.abs(right.rankChange ?? 0) - Math.abs(left.rankChange ?? 0) ||
+      (left.currentRank ?? left.previousRank ?? 0) - (right.currentRank ?? right.previousRank ?? 0)
   )
 
   return {

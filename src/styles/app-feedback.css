@@ -148,7 +148,9 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes locate-stock-row {
@@ -158,7 +160,8 @@
 }
 
 @keyframes stock-alert-name-flash {
-  0%, 100% {
+  0%,
+  100% {
     background: #fff1f2;
   }
   50% {
@@ -167,7 +170,8 @@
 }
 
 @keyframes stock-alert-name-flash-lte {
-  0%, 100% {
+  0%,
+  100% {
     background: #ecfdf5;
   }
   50% {
@@ -176,7 +180,8 @@
 }
 
 @keyframes stock-alert-name-flash-both {
-  0%, 100% {
+  0%,
+  100% {
     background: #fff1f2;
   }
   25% {
@@ -191,7 +196,8 @@
 }
 
 @keyframes stock-alert-name-text-flash {
-  0%, 100% {
+  0%,
+  100% {
     color: #b4232f;
   }
   50% {
@@ -200,7 +206,8 @@
 }
 
 @keyframes stock-alert-name-text-flash-lte {
-  0%, 100% {
+  0%,
+  100% {
     color: #087c57;
   }
   50% {
@@ -209,10 +216,12 @@
 }
 
 @keyframes stock-alert-name-text-flash-both {
-  0%, 100% {
+  0%,
+  100% {
     color: #b4232f;
   }
-  25%, 75% {
+  25%,
+  75% {
     color: #ffffff;
   }
   50% {
@@ -221,7 +230,8 @@
 }
 
 @keyframes stock-alert-button-both {
-  0%, 100% {
+  0%,
+  100% {
     color: var(--red);
     background: var(--red-soft);
     border-color: rgba(220, 55, 66, 0.35);
@@ -234,12 +244,25 @@
 }
 
 @keyframes stock-alert-bell-shake {
-  0%, 100% { transform: rotate(0deg); }
-  16% { transform: rotate(-18deg); }
-  32% { transform: rotate(15deg); }
-  48% { transform: rotate(-12deg); }
-  64% { transform: rotate(8deg); }
-  80% { transform: rotate(-4deg); }
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  16% {
+    transform: rotate(-18deg);
+  }
+  32% {
+    transform: rotate(15deg);
+  }
+  48% {
+    transform: rotate(-12deg);
+  }
+  64% {
+    transform: rotate(8deg);
+  }
+  80% {
+    transform: rotate(-4deg);
+  }
 }
 
 @keyframes stock-details-open {
@@ -271,18 +294,35 @@
 }
 
 @keyframes live-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.45; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
 }
 
 @keyframes toast-in {
-  from { opacity: 0; transform: translateY(5px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes dialog-in {
-  from { opacity: 0; transform: translateY(6px) scale(0.985); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 @media (max-width: 1180px) {
@@ -312,7 +352,6 @@
   .investment-value-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-
 }
 
 @media (max-width: 900px) {

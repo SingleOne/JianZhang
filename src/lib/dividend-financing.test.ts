@@ -19,7 +19,10 @@ function item(overrides: Partial<DividendFinancingRankingItem>): DividendFinanci
   }
 }
 
-function snapshot(snapshotDate: string, rows: DividendFinancingRankingItem[]): DividendFinancingSnapshot {
+function snapshot(
+  snapshotDate: string,
+  rows: DividendFinancingRankingItem[]
+): DividendFinancingSnapshot {
   return {
     schemaVersion: 2,
     scoreMethodologyVersion: 1,
@@ -48,7 +51,11 @@ describe('createDividendFinancingChangeReport', () => {
       item({ code: '600004', rank: 3, ratio: 150 })
     ])
 
-    const report = createDividendFinancingChangeReport(previous, current, '2026-08-03T13:00:00+08:00')
+    const report = createDividendFinancingChangeReport(
+      previous,
+      current,
+      '2026-08-03T13:00:00+08:00'
+    )
 
     expect(report.summary).toEqual({
       addedCount: 1,

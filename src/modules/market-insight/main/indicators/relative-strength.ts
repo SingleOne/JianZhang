@@ -20,9 +20,11 @@ export function calculateRelativeStrengthIndicators(
 ): RelativeStrengthResult {
   const sectorChange = input.quote.sector?.changePercent ?? null
   const stockChange = input.quote.changePercent
-  const sectorRelative = stockChange !== null && sectorChange !== null ? stockChange - sectorChange : null
+  const sectorRelative =
+    stockChange !== null && sectorChange !== null ? stockChange - sectorChange : null
   const indexChange = input.marketIndexQuote?.changePercent ?? null
-  const indexRelative = stockChange !== null && indexChange !== null ? stockChange - indexChange : null
+  const indexRelative =
+    stockChange !== null && indexChange !== null ? stockChange - indexChange : null
   const funds = input.fundsFlow?.points ?? []
   const latestFund = funds.at(-1)?.main ?? null
   const previousFund = funds.at(-6)?.main ?? null
@@ -32,11 +34,50 @@ export function calculateRelativeStrengthIndicators(
     relativeStrength,
     fundsDirection: latestFund,
     values: [
-      indicator('relative-sector', '相对行业强弱', sectorRelative, 'percent', calculatedAt, '行情/行业', directionState(sectorRelative)),
-      indicator('relative-index', '相对大盘强弱', indexRelative, 'percent', calculatedAt, '行情/大盘', directionState(indexRelative)),
-      indicator('turnover-rate', '换手率', input.quote.turnoverRate, 'percent', calculatedAt, '行情'),
-      indicator('funds-main-net', '主力资金净流入', latestFund, 'amount', calculatedAt, '资金流', directionState(latestFund)),
-      indicator('funds-main-slope', '主力资金短窗变化', fundsSlope, 'amount', calculatedAt, '资金流', directionState(fundsSlope))
+      indicator(
+        'relative-sector',
+        '相对行业强弱',
+        sectorRelative,
+        'percent',
+        calculatedAt,
+        '行情/行业',
+        directionState(sectorRelative)
+      ),
+      indicator(
+        'relative-index',
+        '相对大盘强弱',
+        indexRelative,
+        'percent',
+        calculatedAt,
+        '行情/大盘',
+        directionState(indexRelative)
+      ),
+      indicator(
+        'turnover-rate',
+        '换手率',
+        input.quote.turnoverRate,
+        'percent',
+        calculatedAt,
+        '行情'
+      ),
+      indicator(
+        'funds-main-net',
+        '主力资金净流入',
+        latestFund,
+        'amount',
+        calculatedAt,
+        '资金流',
+        directionState(latestFund)
+      ),
+      indicator(
+        'funds-main-slope',
+        '主力资金短窗变化',
+        fundsSlope,
+        'amount',
+        calculatedAt,
+        '资金流',
+        directionState(fundsSlope)
+      )
     ]
   }
 }

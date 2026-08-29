@@ -186,10 +186,7 @@ export type AiLongTermDimensionId =
   | 'shareholderReturn'
   | 'priceTiming'
 
-export type AiLongTermSectionId =
-  | 'enterpriseQuality'
-  | 'financialSafety'
-  | 'currentPrice'
+export type AiLongTermSectionId = 'enterpriseQuality' | 'financialSafety' | 'currentPrice'
 
 export type AiLongTermValueLevel = 'high' | 'medium' | 'low' | 'insufficient'
 export type AiLongTermPriceTimingLevel = 'favorable' | 'neutral' | 'unfavorable' | 'insufficient'
@@ -240,11 +237,7 @@ export interface AiLongTermInterpretationResult {
 export type AiAnalysisType = 'short-term' | 'long-term'
 
 export type AiAnalysisProgressPhase =
-  | 'preparing'
-  | 'loading-snapshot'
-  | 'checking-cache'
-  | 'analyzing'
-  | 'validating'
+  'preparing' | 'loading-snapshot' | 'checking-cache' | 'analyzing' | 'validating'
 
 export interface AiAnalysisProgressEvent {
   quoteId: string
@@ -265,7 +258,9 @@ export interface AiApi {
   logoutCodexAccount: () => Promise<AiCodexAccountStatus>
   testConnection: (providerId: AiProviderId) => Promise<AiConnectionResult>
   listConversations: (query?: string) => Promise<AiConversation[]>
-  getConversation: (conversationId: string) => Promise<{ conversation: AiConversation; messages: AiMessage[] } | null>
+  getConversation: (
+    conversationId: string
+  ) => Promise<{ conversation: AiConversation; messages: AiMessage[] } | null>
   createConversation: (input?: AiCreateConversationInput) => Promise<AiConversation>
   renameConversation: (conversationId: string, title: string) => Promise<AiConversation>
   deleteConversation: (conversationId: string) => Promise<void>
@@ -277,7 +272,9 @@ export interface AiApi {
   retryChat: (conversationId: string, messageId: string) => Promise<AiChatStartResult>
   getLatestInterpretation: (quoteId: string) => Promise<AiInterpretationResult | null>
   interpret: (quoteId: string) => Promise<AiInterpretationResult>
-  getLatestLongTermInterpretation: (quoteId: string) => Promise<AiLongTermInterpretationResult | null>
+  getLatestLongTermInterpretation: (
+    quoteId: string
+  ) => Promise<AiLongTermInterpretationResult | null>
   interpretLongTerm: (quoteId: string) => Promise<AiLongTermInterpretationResult>
   onAnalysisProgress: (listener: (event: AiAnalysisProgressEvent) => void) => () => void
   onChatDelta: (listener: (event: AiChatDeltaEvent) => void) => () => void

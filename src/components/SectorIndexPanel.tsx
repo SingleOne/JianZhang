@@ -42,16 +42,25 @@ export default function SectorIndexPanel({ stock }: SectorIndexPanelProps) {
     let active = true
 
     const scheduleRefresh = () => {
-      refreshTimer = window.setTimeout(() => {
-        if (isBeijingAutoRefreshTime()) {
-          setRefreshVersion((current) => current + 1)
-        } else {
-          scheduleRefresh()
-        }
-      }, isBeijingAutoRefreshTime() ? SECTOR_INDEX_REFRESH_MILLISECONDS : millisecondsUntilNextAutoRefreshWindow())
+      refreshTimer = window.setTimeout(
+        () => {
+          if (isBeijingAutoRefreshTime()) {
+            setRefreshVersion((current) => current + 1)
+          } else {
+            scheduleRefresh()
+          }
+        },
+        isBeijingAutoRefreshTime()
+          ? SECTOR_INDEX_REFRESH_MILLISECONDS
+          : millisecondsUntilNextAutoRefreshWindow()
+      )
     }
 
-    if (refreshVersion === 0 && cached && Date.now() - cached.cachedAt < SECTOR_INDEX_REFRESH_MILLISECONDS) {
+    if (
+      refreshVersion === 0 &&
+      cached &&
+      Date.now() - cached.cachedAt < SECTOR_INDEX_REFRESH_MILLISECONDS
+    ) {
       setData(cached.data)
       setError('')
       setLoading(false)
@@ -61,7 +70,8 @@ export default function SectorIndexPanel({ stock }: SectorIndexPanelProps) {
 
     if (!cached) setLoading(true)
     setError('')
-    stockApi.getSectorIndex(stock.quoteId)
+    stockApi
+      .getSectorIndex(stock.quoteId)
       .then((result) => {
         if (!active) return
         sectorIndexCache.set(stock.quoteId, { data: result, cachedAt: Date.now() })
@@ -83,7 +93,12 @@ export default function SectorIndexPanel({ stock }: SectorIndexPanelProps) {
   }, [refreshVersion, stock.quoteId])
 
   if (loading && !data) {
-    return <div className="chart-loading"><BarChart3 size={28} /><span>正在加载所属板块指数…</span></div>
+    return (
+      <div className="chart-loading">
+        <BarChart3 size={28} />
+        <span>正在加载所属板块指数…</span>
+      </div>
+    )
   }
 
   if (error && !data) {
@@ -122,7 +137,9 @@ export default function SectorIndexPanel({ stock }: SectorIndexPanelProps) {
         <div className="funds-flow-warning">
           <AlertCircle size={14} />
           <span>板块指数刷新失败，当前显示最近一次数据</span>
-          <button type="button" onClick={() => setRefreshVersion((current) => current + 1)}>重试</button>
+          <button type="button" onClick={() => setRefreshVersion((current) => current + 1)}>
+            重试
+          </button>
         </div>
       ) : null}
       <div className="sector-index-heading">
@@ -132,7 +149,9 @@ export default function SectorIndexPanel({ stock }: SectorIndexPanelProps) {
         </div>
         <div className="sector-index-latest">
           <strong className={valueClass(quote?.change)}>{formatPrice(quote?.latest)}</strong>
-          <span className={valueClass(quote?.changePercent)}>{formatPercent(quote?.changePercent)}</span>
+          <span className={valueClass(quote?.changePercent)}>
+            {formatPercent(quote?.changePercent)}
+          </span>
         </div>
       </div>
       <div className="overview-grid sector-index-summary">

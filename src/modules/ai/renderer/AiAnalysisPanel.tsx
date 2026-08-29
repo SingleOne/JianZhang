@@ -1,4 +1,13 @@
-import { AlertCircle, Bot, ChartNoAxesCombined, Landmark, LoaderCircle, MessageSquare, RefreshCw, Sparkles } from 'lucide-react'
+import {
+  AlertCircle,
+  Bot,
+  ChartNoAxesCombined,
+  Landmark,
+  LoaderCircle,
+  MessageSquare,
+  RefreshCw,
+  Sparkles
+} from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { emitCompletionNotification } from '../../../lib/completion-notifications'
 import type { StockQuote, WatchStock } from '../../../shared/types'
@@ -53,17 +62,25 @@ const PRICE_TIMING_LABELS: Record<AiLongTermPriceTimingLevel, string> = {
 }
 
 function analysisStep(phase: AiAnalysisProgressEvent['phase']): number {
-  return ANALYSIS_STEPS.findIndex((_, index) => (
-    index === 0 ? phase === 'preparing'
-      : index === 1 ? phase === 'loading-snapshot'
-      : index === 2 ? phase === 'checking-cache'
-      : index === 3 ? phase === 'analyzing'
-      : phase === 'validating'
-  ))
+  return ANALYSIS_STEPS.findIndex((_, index) =>
+    index === 0
+      ? phase === 'preparing'
+      : index === 1
+        ? phase === 'loading-snapshot'
+        : index === 2
+          ? phase === 'checking-cache'
+          : index === 3
+            ? phase === 'analyzing'
+            : phase === 'validating'
+  )
 }
 
 function openAssistant(stock: WatchStock): void {
-  window.dispatchEvent(new CustomEvent('ai:open-assistant', { detail: { quoteId: stock.quoteId, quoteName: stock.name } }))
+  window.dispatchEvent(
+    new CustomEvent('ai:open-assistant', {
+      detail: { quoteId: stock.quoteId, quoteName: stock.name }
+    })
+  )
 }
 
 function formatSnapshotTime(value: string): string {
@@ -91,50 +108,153 @@ function ShortTermResult({ result }: { result: AiInterpretationResult }) {
     <div className="ai-analysis-result">
       <div className="ai-result-time-banner">
         <span>最近生成时间</span>
-        <strong><time dateTime={result.interpretation.generatedAt}>{formatSnapshotTime(result.interpretation.generatedAt)}</time></strong>
-        <small>市场快照 <time dateTime={result.snapshotGeneratedAt}>{formatSnapshotTime(result.snapshotGeneratedAt)}</time></small>
+        <strong>
+          <time dateTime={result.interpretation.generatedAt}>
+            {formatSnapshotTime(result.interpretation.generatedAt)}
+          </time>
+        </strong>
+        <small>
+          市场快照{' '}
+          <time dateTime={result.snapshotGeneratedAt}>
+            {formatSnapshotTime(result.snapshotGeneratedAt)}
+          </time>
+        </small>
       </div>
-      <section className="ai-analysis-summary"><div><strong>短期行情解读</strong><small>{result.cached ? '相同快照缓存结果' : '最近一次生成结果'}</small></div><p>{result.interpretation.summary}</p></section>
-      {result.interpretation.indicatorFacts.length > 0 ? <section><h4>指标事实与解读</h4><div className="ai-analysis-facts">{result.interpretation.indicatorFacts.map((fact) => <article key={`${fact.name}-${fact.interpretation}`}><strong>{fact.name}</strong><p>{fact.interpretation}</p>{fact.evidence.length > 0 ? <small>{fact.evidence.join(' · ')}</small> : null}</article>)}</div></section> : null}
-      {references.length > 0 ? <section><h4>要闻参考</h4><div className="ai-analysis-news">{references.map((reference) => <article key={reference.sourceId}><div><strong>{reference.source.title}</strong><small>{reference.source.source} · {new Date(reference.source.publishedAt).toLocaleString('zh-CN')}</small></div><p>{reference.summary}</p><span>{reference.relevance}</span><a href={reference.source.url} target="_blank" rel="noreferrer" onClick={(event) => { if (!window.marketInsightApi) return; event.preventDefault(); void window.marketInsightApi.openSource(reference.source.url) }}>查看原始来源</a></article>)}</div></section> : null}
-      {result.interpretation.uncertainties.length > 0 ? <section><h4>不确定性</h4><ul className="ai-analysis-uncertainties">{result.interpretation.uncertainties.map((item) => <li key={item}>{item}</li>)}</ul></section> : null}
+      <section className="ai-analysis-summary">
+        <div>
+          <strong>短期行情解读</strong>
+          <small>{result.cached ? '相同快照缓存结果' : '最近一次生成结果'}</small>
+        </div>
+        <p>{result.interpretation.summary}</p>
+      </section>
+      {result.interpretation.indicatorFacts.length > 0 ? (
+        <section>
+          <h4>指标事实与解读</h4>
+          <div className="ai-analysis-facts">
+            {result.interpretation.indicatorFacts.map((fact) => (
+              <article key={`${fact.name}-${fact.interpretation}`}>
+                <strong>{fact.name}</strong>
+                <p>{fact.interpretation}</p>
+                {fact.evidence.length > 0 ? <small>{fact.evidence.join(' · ')}</small> : null}
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+      {references.length > 0 ? (
+        <section>
+          <h4>要闻参考</h4>
+          <div className="ai-analysis-news">
+            {references.map((reference) => (
+              <article key={reference.sourceId}>
+                <div>
+                  <strong>{reference.source.title}</strong>
+                  <small>
+                    {reference.source.source} ·{' '}
+                    {new Date(reference.source.publishedAt).toLocaleString('zh-CN')}
+                  </small>
+                </div>
+                <p>{reference.summary}</p>
+                <span>{reference.relevance}</span>
+                <a
+                  href={reference.source.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(event) => {
+                    if (!window.marketInsightApi) return
+                    event.preventDefault()
+                    void window.marketInsightApi.openSource(reference.source.url)
+                  }}
+                >
+                  查看原始来源
+                </a>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+      {result.interpretation.uncertainties.length > 0 ? (
+        <section>
+          <h4>不确定性</h4>
+          <ul className="ai-analysis-uncertainties">
+            {result.interpretation.uncertainties.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </div>
   )
 }
 
 function LongTermResult({ result }: { result: AiLongTermInterpretationResult }) {
   const interpretation = result.interpretation
-  const sections = interpretation.sections ?? ([
-    {
-      id: 'enterpriseQuality' as const,
-      dimensions: ['businessQuality', 'cashFlow', 'capitalEfficiency', 'shareholderReturn'] as AiLongTermDimensionId[]
-    },
-    { id: 'financialSafety' as const, dimensions: ['balanceSheet'] as AiLongTermDimensionId[] },
-    { id: 'currentPrice' as const, dimensions: ['valuation', 'priceTiming'] as AiLongTermDimensionId[] }
-  ].map(({ id, dimensions }) => {
-    const legacy = (interpretation.dimensions ?? []).filter((item) => dimensions.includes(item.id))
-    return {
-      id,
-      conclusion: legacy.map((item) => `${LONG_TERM_DIMENSION_LABELS[item.id]}：${item.conclusion}`).join('；') || '旧版结果未提供该部分',
-      evidence: legacy.flatMap((item) => item.evidence)
-    }
-  }))
+  const sections =
+    interpretation.sections ??
+    [
+      {
+        id: 'enterpriseQuality' as const,
+        dimensions: [
+          'businessQuality',
+          'cashFlow',
+          'capitalEfficiency',
+          'shareholderReturn'
+        ] as AiLongTermDimensionId[]
+      },
+      { id: 'financialSafety' as const, dimensions: ['balanceSheet'] as AiLongTermDimensionId[] },
+      {
+        id: 'currentPrice' as const,
+        dimensions: ['valuation', 'priceTiming'] as AiLongTermDimensionId[]
+      }
+    ].map(({ id, dimensions }) => {
+      const legacy = (interpretation.dimensions ?? []).filter((item) =>
+        dimensions.includes(item.id)
+      )
+      return {
+        id,
+        conclusion:
+          legacy
+            .map((item) => `${LONG_TERM_DIMENSION_LABELS[item.id]}：${item.conclusion}`)
+            .join('；') || '旧版结果未提供该部分',
+        evidence: legacy.flatMap((item) => item.evidence)
+      }
+    })
   const conclusion = interpretation.conclusion
 
   return (
     <div className="ai-analysis-result is-long-term">
       <div className="ai-result-time-banner is-long-term">
         <span>最近生成时间</span>
-        <strong><time dateTime={result.interpretation.generatedAt}>{formatSnapshotTime(result.interpretation.generatedAt)}</time></strong>
+        <strong>
+          <time dateTime={result.interpretation.generatedAt}>
+            {formatSnapshotTime(result.interpretation.generatedAt)}
+          </time>
+        </strong>
         <small>
-          财报截止 {result.fundamentalReportDate ?? '--'} · 基本面快照生成 {result.fundamentalGeneratedAt ? formatSnapshotTime(result.fundamentalGeneratedAt) : '--'}
-          {' · '}五年财务 {result.fundamentalFiscalYears?.length ? `${result.fundamentalFiscalYears[0]}—${result.fundamentalFiscalYears.at(-1)}` : '--'}
+          财报截止 {result.fundamentalReportDate ?? '--'} · 基本面快照生成{' '}
+          {result.fundamentalGeneratedAt ? formatSnapshotTime(result.fundamentalGeneratedAt) : '--'}
+          {' · '}五年财务{' '}
+          {result.fundamentalFiscalYears?.length
+            ? `${result.fundamentalFiscalYears[0]}—${result.fundamentalFiscalYears.at(-1)}`
+            : '--'}
           {' · '}分红融资 {result.dividendSnapshotDate ?? '--'}
-          {' · '}历史估值 {result.valuationHistoryPeriodStart && result.valuationHistoryPeriodEnd ? `${result.valuationHistoryPeriodStart}—${result.valuationHistoryPeriodEnd}` : '--'}
+          {' · '}历史估值{' '}
+          {result.valuationHistoryPeriodStart && result.valuationHistoryPeriodEnd
+            ? `${result.valuationHistoryPeriodStart}—${result.valuationHistoryPeriodEnd}`
+            : '--'}
           {' · '}行业估值 {result.valuationIndustryDataAt ?? '--'}
         </small>
       </div>
-      <section className="ai-analysis-summary"><div><strong>长期价值结论</strong><small>{result.cached ? '相同数据缓存结果' : '最近一次生成结果'} · 价格数据 {result.priceDataAt ? formatSnapshotTime(result.priceDataAt) : '--'}</small></div><p>{result.interpretation.summary}</p></section>
+      <section className="ai-analysis-summary">
+        <div>
+          <strong>长期价值结论</strong>
+          <small>
+            {result.cached ? '相同数据缓存结果' : '最近一次生成结果'} · 价格数据{' '}
+            {result.priceDataAt ? formatSnapshotTime(result.priceDataAt) : '--'}
+          </small>
+        </div>
+        <p>{result.interpretation.summary}</p>
+      </section>
       <section>
         <h4>企业、财务与价格</h4>
         <div className="ai-long-term-dimensions">
@@ -162,10 +282,30 @@ function LongTermResult({ result }: { result: AiLongTermInterpretationResult }) 
               <p>{conclusion.priceTiming.reason}</p>
             </article>
           </div>
-        ) : <p>{interpretation.summary}</p>}
+        ) : (
+          <p>{interpretation.summary}</p>
+        )}
       </section>
-      {result.interpretation.risks.length > 0 ? <section><h4>长期风险</h4><ul className="ai-analysis-risks">{result.interpretation.risks.map((item) => <li key={item}>{item}</li>)}</ul></section> : null}
-      {result.interpretation.uncertainties.length > 0 ? <section><h4>数据边界与不确定性</h4><ul className="ai-analysis-uncertainties">{result.interpretation.uncertainties.map((item) => <li key={item}>{item}</li>)}</ul></section> : null}
+      {result.interpretation.risks.length > 0 ? (
+        <section>
+          <h4>长期风险</h4>
+          <ul className="ai-analysis-risks">
+            {result.interpretation.risks.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {result.interpretation.uncertainties.length > 0 ? (
+        <section>
+          <h4>数据边界与不确定性</h4>
+          <ul className="ai-analysis-uncertainties">
+            {result.interpretation.uncertainties.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </div>
   )
 }
@@ -212,7 +352,9 @@ export function AiAnalysisPanel({
       .finally(() => {
         if (active) setRestoring(false)
       })
-    return () => { active = false }
+    return () => {
+      active = false
+    }
   }, [api, stock.quoteId])
 
   useEffect(() => {
@@ -249,8 +391,7 @@ export function AiAnalysisPanel({
       }
       emitCompletionNotification({
         quoteId: stock.quoteId,
-        target:
-          requestedAnalysisType === 'short-term' ? 'ai-short-term' : 'ai-long-term',
+        target: requestedAnalysisType === 'short-term' ? 'ai-short-term' : 'ai-long-term',
         message: `${stock.name} ${requestedAnalysisType === 'short-term' ? '短期行情' : '长期价值'}已生成`
       })
     } catch (reason) {
@@ -269,35 +410,97 @@ export function AiAnalysisPanel({
       <header>
         <div>
           <Bot size={18} />
-          <span><h3>AI 分析</h3></span>
+          <span>
+            <h3>AI 分析</h3>
+          </span>
           <span className="ai-analysis-disclaimer">
             {analysisType === 'short-term'
               ? '短期行情只读取日 K 指标、新闻、公告事件和筹码，不使用分时、盘口或基本面结论。'
               : '长期价值分别判断经营质量、估值和价格时机；股价强弱不会改变企业质量结论。'}
-            {quote?.updatedAt ? ` 当前行情更新时间：${new Date(quote.updatedAt).toLocaleString('zh-CN')}` : ''}
+            {quote?.updatedAt
+              ? ` 当前行情更新时间：${new Date(quote.updatedAt).toLocaleString('zh-CN')}`
+              : ''}
           </span>
         </div>
         <div>
-          <button className="secondary-button" type="button" onClick={() => openAssistant(stock)}><MessageSquare size={15} />问 AI</button>
-          <button className="primary-button" type="button" disabled={Boolean(loadingType)} onClick={() => void interpret()}>{loading ? <LoaderCircle size={15} className="is-spinning" /> : currentResult ? <RefreshCw size={15} /> : <Sparkles size={15} />}{currentResult ? '重新生成' : '开始分析'}</button>
+          <button className="secondary-button" type="button" onClick={() => openAssistant(stock)}>
+            <MessageSquare size={15} />问 AI
+          </button>
+          <button
+            className="primary-button"
+            type="button"
+            disabled={Boolean(loadingType)}
+            onClick={() => void interpret()}
+          >
+            {loading ? (
+              <LoaderCircle size={15} className="is-spinning" />
+            ) : currentResult ? (
+              <RefreshCw size={15} />
+            ) : (
+              <Sparkles size={15} />
+            )}
+            {currentResult ? '重新生成' : '开始分析'}
+          </button>
         </div>
       </header>
 
       <div className="ai-analysis-mode-tabs" role="tablist" aria-label="AI 分析周期">
-        <button className={analysisType === 'short-term' ? 'is-active' : ''} type="button" role="tab" aria-selected={analysisType === 'short-term'} onClick={() => onAnalysisTypeChange('short-term')}><ChartNoAxesCombined size={16} /><span><strong>短期行情</strong><small>日 K、新闻、公告与筹码</small></span></button>
-        <button className={analysisType === 'long-term' ? 'is-active' : ''} type="button" role="tab" aria-selected={analysisType === 'long-term'} onClick={() => onAnalysisTypeChange('long-term')}><Landmark size={16} /><span><strong>长期价值</strong><small>财务、估值、股东回报与价格时机</small></span></button>
+        <button
+          className={analysisType === 'short-term' ? 'is-active' : ''}
+          type="button"
+          role="tab"
+          aria-selected={analysisType === 'short-term'}
+          onClick={() => onAnalysisTypeChange('short-term')}
+        >
+          <ChartNoAxesCombined size={16} />
+          <span>
+            <strong>短期行情</strong>
+            <small>日 K、新闻、公告与筹码</small>
+          </span>
+        </button>
+        <button
+          className={analysisType === 'long-term' ? 'is-active' : ''}
+          type="button"
+          role="tab"
+          aria-selected={analysisType === 'long-term'}
+          onClick={() => onAnalysisTypeChange('long-term')}
+        >
+          <Landmark size={16} />
+          <span>
+            <strong>长期价值</strong>
+            <small>财务、估值、股东回报与价格时机</small>
+          </span>
+        </button>
       </div>
 
-      {errors[analysisType] ? <div className="ai-analysis-error"><AlertCircle size={16} />{errors[analysisType]}</div> : null}
+      {errors[analysisType] ? (
+        <div className="ai-analysis-error">
+          <AlertCircle size={16} />
+          {errors[analysisType]}
+        </div>
+      ) : null}
       {loading ? (
         <div className={`ai-analysis-loading${currentResult ? ' has-previous' : ''}`}>
           <LoaderCircle size={22} className="is-spinning" />
           <strong>{currentProgress?.message ?? '正在检查 AI 配置'}</strong>
-          <span>{currentResult ? '上一次结果保留显示；完成后将自动替换。' : currentProgress?.detail ?? '确认功能开关、模型与账号凭据。'}</span>
+          <span>
+            {currentResult
+              ? '上一次结果保留显示；完成后将自动替换。'
+              : (currentProgress?.detail ?? '确认功能开关、模型与账号凭据。')}
+          </span>
           <div className="ai-process-steps is-five" aria-label="AI 分析进度">
             {ANALYSIS_STEPS.map((step, index) => {
               const currentStep = analysisStep(currentProgress?.phase ?? 'preparing')
-              return <span className={index < currentStep ? 'is-complete' : index === currentStep ? 'is-current' : ''} key={step}>{step}</span>
+              return (
+                <span
+                  className={
+                    index < currentStep ? 'is-complete' : index === currentStep ? 'is-current' : ''
+                  }
+                  key={step}
+                >
+                  {step}
+                </span>
+              )
             })}
           </div>
         </div>
@@ -308,13 +511,23 @@ export function AiAnalysisPanel({
         </div>
       ) : null}
 
-      {currentResult
-        ? analysisType === 'short-term'
-          ? <ShortTermResult result={currentResult as AiInterpretationResult} />
-          : <LongTermResult result={currentResult as AiLongTermInterpretationResult} />
-        : !loading && !restoring
-          ? <div className="ai-analysis-empty"><Sparkles size={26} /><strong>按需分析，不自动调用模型</strong><span>{analysisType === 'short-term' ? '短期行情按日 K 尺度读取技术、新闻、公告和筹码，不使用分时或盘口。' : '长期价值读取财务、估值和长期价格位置，不使用分时、盘口或筹码。'}</span></div>
-          : null}
+      {currentResult ? (
+        analysisType === 'short-term' ? (
+          <ShortTermResult result={currentResult as AiInterpretationResult} />
+        ) : (
+          <LongTermResult result={currentResult as AiLongTermInterpretationResult} />
+        )
+      ) : !loading && !restoring ? (
+        <div className="ai-analysis-empty">
+          <Sparkles size={26} />
+          <strong>按需分析，不自动调用模型</strong>
+          <span>
+            {analysisType === 'short-term'
+              ? '短期行情按日 K 尺度读取技术、新闻、公告和筹码，不使用分时或盘口。'
+              : '长期价值读取财务、估值和长期价格位置，不使用分时、盘口或筹码。'}
+          </span>
+        </div>
+      ) : null}
     </section>
   )
 }

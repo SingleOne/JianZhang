@@ -13,7 +13,8 @@ export function installAiPreload(): void {
     getStatus: () => ipcRenderer.invoke(AI_IPC.statusGet),
     getSettings: () => ipcRenderer.invoke(AI_IPC.settingsGet),
     saveSettings: (settings) => ipcRenderer.invoke(AI_IPC.settingsSave, settings),
-    setCredential: (providerId, apiKey) => ipcRenderer.invoke(AI_IPC.credentialSet, providerId, apiKey),
+    setCredential: (providerId, apiKey) =>
+      ipcRenderer.invoke(AI_IPC.credentialSet, providerId, apiKey),
     clearCredential: (providerId) => ipcRenderer.invoke(AI_IPC.credentialClear, providerId),
     loginCodexAccount: () => ipcRenderer.invoke(AI_IPC.codexLogin),
     logoutCodexAccount: () => ipcRenderer.invoke(AI_IPC.codexLogout),
@@ -21,17 +22,22 @@ export function installAiPreload(): void {
     listConversations: (query) => ipcRenderer.invoke(AI_IPC.conversationsList, query),
     getConversation: (conversationId) => ipcRenderer.invoke(AI_IPC.conversationGet, conversationId),
     createConversation: (input) => ipcRenderer.invoke(AI_IPC.conversationCreate, input),
-    renameConversation: (conversationId, title) => ipcRenderer.invoke(AI_IPC.conversationRename, conversationId, title),
-    deleteConversation: (conversationId) => ipcRenderer.invoke(AI_IPC.conversationDelete, conversationId),
+    renameConversation: (conversationId, title) =>
+      ipcRenderer.invoke(AI_IPC.conversationRename, conversationId, title),
+    deleteConversation: (conversationId) =>
+      ipcRenderer.invoke(AI_IPC.conversationDelete, conversationId),
     clearConversations: () => ipcRenderer.invoke(AI_IPC.conversationsClear),
-    exportConversation: (conversationId) => ipcRenderer.invoke(AI_IPC.conversationExport, conversationId),
+    exportConversation: (conversationId) =>
+      ipcRenderer.invoke(AI_IPC.conversationExport, conversationId),
     exportAllConversations: () => ipcRenderer.invoke(AI_IPC.conversationsExportAll),
     sendChat: (input) => ipcRenderer.invoke(AI_IPC.chatSend, input),
     cancelChat: (conversationId) => ipcRenderer.invoke(AI_IPC.chatCancel, conversationId),
-    retryChat: (conversationId, messageId) => ipcRenderer.invoke(AI_IPC.chatRetry, conversationId, messageId),
+    retryChat: (conversationId, messageId) =>
+      ipcRenderer.invoke(AI_IPC.chatRetry, conversationId, messageId),
     getLatestInterpretation: (quoteId) => ipcRenderer.invoke(AI_IPC.analysisLatestGet, quoteId),
     interpret: (quoteId) => ipcRenderer.invoke(AI_IPC.analysisInterpret, quoteId),
-    getLatestLongTermInterpretation: (quoteId) => ipcRenderer.invoke(AI_IPC.analysisLongTermLatestGet, quoteId),
+    getLatestLongTermInterpretation: (quoteId) =>
+      ipcRenderer.invoke(AI_IPC.analysisLongTermLatestGet, quoteId),
     interpretLongTerm: (quoteId) => ipcRenderer.invoke(AI_IPC.analysisLongTermInterpret, quoteId),
     onAnalysisProgress: (listener) => subscribe(AI_IPC.analysisProgress, listener),
     onChatDelta: (listener) => subscribe(AI_IPC.chatDelta, listener),

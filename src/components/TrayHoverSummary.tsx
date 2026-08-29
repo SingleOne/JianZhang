@@ -45,31 +45,32 @@ export function TrayHoverSummary() {
 
   const selectedStocks = useMemo(() => {
     const quoteMap = new Map(quotes.map((quote) => [quote.quoteId, quote]))
-    return getTaskbarVisibleStocks(state.watchlist)
-      .map((stock) => {
-        const quote = quoteMap.get(stock.quoteId)
-        const account = state.tTradingAccounts[stock.quoteId]
-        const activeTrades = getBatchTrades(account, account?.activeBatch)
-        return {
-          stock,
+    return getTaskbarVisibleStocks(state.watchlist).map((stock) => {
+      const quote = quoteMap.get(stock.quoteId)
+      const account = state.tTradingAccounts[stock.quoteId]
+      const activeTrades = getBatchTrades(account, account?.activeBatch)
+      return {
+        stock,
+        quote,
+        positionMetrics: calculatePositionMetrics(
+          stock.position,
           quote,
-          positionMetrics: calculatePositionMetrics(
-            stock.position,
-            quote,
-            account,
-            state.settings.exchangeRates
-          ),
-          tMetrics: account?.activeBatch
-            ? calculateTBatchMetrics(account.activeBatch, activeTrades, quote?.latest)
-            : null
-        }
-      })
+          account,
+          state.settings.exchangeRates
+        ),
+        tMetrics: account?.activeBatch
+          ? calculateTBatchMetrics(account.activeBatch, activeTrades, quote?.latest)
+          : null
+      }
+    })
   }, [quotes, state.settings.exchangeRates, state.tTradingAccounts, state.watchlist])
-  const todayProfitTotal = selectedStocks.reduce<number | null>((total, { positionMetrics }) => (
-    positionMetrics.cnyTodayProfit === null
-      ? total
-      : (total ?? 0) + positionMetrics.cnyTodayProfit
-  ), null)
+  const todayProfitTotal = selectedStocks.reduce<number | null>(
+    (total, { positionMetrics }) =>
+      positionMetrics.cnyTodayProfit === null
+        ? total
+        : (total ?? 0) + positionMetrics.cnyTodayProfit,
+    null
+  )
 
   return (
     <aside className="tray-summary-panel">
@@ -77,7 +78,9 @@ export function TrayHoverSummary() {
         <span>今日收益与 T 仓概览</span>
         <span className="tray-summary-total">
           今日收益合计
-          <b className={valueClass(todayProfitTotal)}>{formatMoneyProfit(todayProfitTotal, 'CNY')}</b>
+          <b className={valueClass(todayProfitTotal)}>
+            {formatMoneyProfit(todayProfitTotal, 'CNY')}
+          </b>
         </span>
       </header>
       <div className="tray-summary-list">
@@ -116,8 +119,14 @@ export function TrayHoverSummary() {
             </div>
             {tMetrics ? (
               <div className="tray-summary-t">
-                <span>{tMetrics.direction === 'reverse' ? '反T' : '正T'} {formatShares(tMetrics.remainingQuantity)}</span>
-                <span>{tMetrics.direction === 'reverse' ? '基准' : '成本'} {formatCost(tMetrics.averageCost)}</span>
+                <span>
+                  {tMetrics.direction === 'reverse' ? '反T' : '正T'}{' '}
+                  {formatShares(tMetrics.remainingQuantity)}
+                </span>
+                <span>
+                  {tMetrics.direction === 'reverse' ? '基准' : '成本'}{' '}
+                  {formatCost(tMetrics.averageCost)}
+                </span>
                 <span className={valueClass(tMetrics.floatingProfit)}>
                   浮动 {formatProfit(tMetrics.floatingProfit)}
                   {tMetrics.floatingProfitRate === null ? null : (

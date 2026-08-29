@@ -42,13 +42,16 @@ export function FundsFlowPanel({ stock }: FundsFlowPanelProps) {
     let active = true
 
     const scheduleRefresh = () => {
-      refreshTimer = window.setTimeout(() => {
-        if (isBeijingAutoRefreshTime()) {
-          setRefreshVersion((current) => current + 1)
-        } else {
-          scheduleRefresh()
-        }
-      }, isBeijingAutoRefreshTime() ? refreshMilliseconds : millisecondsUntilNextAutoRefreshWindow())
+      refreshTimer = window.setTimeout(
+        () => {
+          if (isBeijingAutoRefreshTime()) {
+            setRefreshVersion((current) => current + 1)
+          } else {
+            scheduleRefresh()
+          }
+        },
+        isBeijingAutoRefreshTime() ? refreshMilliseconds : millisecondsUntilNextAutoRefreshWindow()
+      )
     }
 
     if (refreshVersion === 0 && cached && Date.now() - cached.cachedAt < refreshMilliseconds) {
@@ -61,7 +64,8 @@ export function FundsFlowPanel({ stock }: FundsFlowPanelProps) {
 
     if (!cached) setLoading(true)
     setError('')
-    stockApi.getFundsFlow(stock.quoteId)
+    stockApi
+      .getFundsFlow(stock.quoteId)
       .then((result) => {
         if (!active) return
         fundsFlowCache.set(stock.quoteId, { data: result, cachedAt: Date.now() })
@@ -93,7 +97,12 @@ export function FundsFlowPanel({ stock }: FundsFlowPanelProps) {
   const recentPoints = data?.points.slice(-8).reverse() ?? []
 
   if (loading && !data) {
-    return <div className="chart-loading"><TrendingUp size={28} /><span>正在加载资金流向…</span></div>
+    return (
+      <div className="chart-loading">
+        <TrendingUp size={28} />
+        <span>正在加载资金流向…</span>
+      </div>
+    )
   }
 
   if (error && !data) {
@@ -119,7 +128,9 @@ export function FundsFlowPanel({ stock }: FundsFlowPanelProps) {
         <div className="funds-flow-warning">
           <AlertCircle size={14} />
           <span>资金流刷新失败，当前显示最近一次数据</span>
-          <button type="button" onClick={() => setRefreshVersion((current) => current + 1)}>重试</button>
+          <button type="button" onClick={() => setRefreshVersion((current) => current + 1)}>
+            重试
+          </button>
         </div>
       ) : null}
       <div className="funds-flow-heading">
@@ -147,14 +158,23 @@ export function FundsFlowPanel({ stock }: FundsFlowPanelProps) {
           <div className="funds-flow-table-wrap">
             <table className="funds-flow-table">
               <thead>
-                <tr><th>时间</th><th>主力</th><th>超大单</th><th>大单</th><th>中单</th><th>小单</th></tr>
+                <tr>
+                  <th>时间</th>
+                  <th>主力</th>
+                  <th>超大单</th>
+                  <th>大单</th>
+                  <th>中单</th>
+                  <th>小单</th>
+                </tr>
               </thead>
               <tbody>
                 {recentPoints.map((point) => (
                   <tr key={point.time}>
                     <td>{point.time.slice(11, 16)}</td>
                     <td className={valueClass(point.main)}>{formatSignedAmount(point.main)}</td>
-                    <td className={valueClass(point.superLarge)}>{formatSignedAmount(point.superLarge)}</td>
+                    <td className={valueClass(point.superLarge)}>
+                      {formatSignedAmount(point.superLarge)}
+                    </td>
                     <td className={valueClass(point.large)}>{formatSignedAmount(point.large)}</td>
                     <td className={valueClass(point.medium)}>{formatSignedAmount(point.medium)}</td>
                     <td className={valueClass(point.small)}>{formatSignedAmount(point.small)}</td>
@@ -164,7 +184,9 @@ export function FundsFlowPanel({ stock }: FundsFlowPanelProps) {
             </table>
           </div>
         </div>
-      ) : <div className="chart-loading">最近交易日暂无资金流向数据</div>}
+      ) : (
+        <div className="chart-loading">最近交易日暂无资金流向数据</div>
+      )}
     </div>
   )
 }

@@ -24,8 +24,9 @@ describe('dividend financing ranking snapshot', () => {
       expect(item.financingCount).toBe(item.financingEvents.length)
       expect(item.qualityScore).toBeGreaterThanOrEqual(0)
       expect(item.qualityScore).toBeLessThanOrEqual(100)
-      expect(Object.values(item.qualityScoreBreakdown).reduce((total, value) => total + value, 0))
-        .toBeCloseTo(item.qualityScore, 1)
+      expect(
+        Object.values(item.qualityScoreBreakdown).reduce((total, value) => total + value, 0)
+      ).toBeCloseTo(item.qualityScore, 1)
       if (index > 0) expect(item.ratio).toBeLessThanOrEqual(snapshot.rows[index - 1].ratio)
     })
   })

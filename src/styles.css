@@ -1,5 +1,5 @@
 :root {
-  font-family: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  font-family: 'Segoe UI', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif;
   color: #172033;
   background: #f4f7fb;
   font-synthesis: none;
@@ -327,7 +327,9 @@ tr:focus-visible {
   border: 1px solid var(--border-strong);
   border-radius: 9px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
-  transition: border-color 140ms ease, box-shadow 140ms ease;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease;
 }
 
 .search-field:focus-within,
@@ -392,7 +394,10 @@ tr:focus-visible {
   font-weight: 650;
   white-space: nowrap;
   cursor: pointer;
-  transition: background 140ms ease, border-color 140ms ease, transform 80ms ease;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    transform 80ms ease;
 }
 
 .primary-button {
@@ -437,11 +442,11 @@ tr:focus-visible {
 
 .text-button.bordered-text-button {
   width: max-content;
-    padding: 3px 8px;
-    color: var(--blue);
-    background: #edf4ff;
-    border: 1px solid #b9d0fb;
-    border-radius: 5px;
+  padding: 3px 8px;
+  color: var(--blue);
+  background: #edf4ff;
+  border: 1px solid #b9d0fb;
+  border-radius: 5px;
 }
 
 .text-button.bordered-text-button:hover {

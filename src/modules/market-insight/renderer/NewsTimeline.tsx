@@ -26,31 +26,27 @@ export function NewsTimeline({
     () => news.filter((item) => item.category === 'announcement' && item.scope === 'market'),
     [news]
   )
-  const headlines = useMemo(
-    () => news.filter((item) => item.category !== 'announcement'),
-    [news]
-  )
-  const visibleItems = activeTab === 'announcement'
-    ? companyAnnouncements
-    : activeTab === 'exchange'
-      ? exchangeNotices
-      : headlines
+  const headlines = useMemo(() => news.filter((item) => item.category !== 'announcement'), [news])
+  const visibleItems =
+    activeTab === 'announcement'
+      ? companyAnnouncements
+      : activeTab === 'exchange'
+        ? exchangeNotices
+        : headlines
 
   return (
     <section className="insight-section">
       <div className="insight-section-heading">
         <h3>市场资讯</h3>
         <label className="insight-news-range-toggle">
-          <input
-            type="checkbox"
-            checked={includeOlderNews}
-            onChange={onToggleOlderNews}
-          />
+          <input type="checkbox" checked={includeOlderNews} onChange={onToggleOlderNews} />
           查询近 30 天要闻及交易所通知
           <span>下次查询生效</span>
         </label>
       </div>
-      {news.length > 0 && status ? <p className="insight-news-status">{status.newsMessage}</p> : null}
+      {news.length > 0 && status ? (
+        <p className="insight-news-status">{status.newsMessage}</p>
+      ) : null}
       <div className="insight-news-tabs" role="tablist" aria-label="要闻、公告与交易所通知分类">
         <button
           className={activeTab === 'news' ? 'is-active' : ''}
@@ -83,7 +79,7 @@ export function NewsTimeline({
       {visibleItems.length === 0 ? (
         <p className="insight-empty">
           {news.length === 0
-            ? status?.newsMessage ?? '正在读取新闻状态…'
+            ? (status?.newsMessage ?? '正在读取新闻状态…')
             : activeTab === 'announcement'
               ? '当前没有公司公告。'
               : activeTab === 'exchange'
@@ -93,10 +89,19 @@ export function NewsTimeline({
       ) : (
         <div className="insight-news-list">
           {visibleItems.map((item) => (
-            <button className="insight-news-item" type="button" onClick={() => onOpenSource(item.url)} key={item.id}>
+            <button
+              className="insight-news-item"
+              type="button"
+              onClick={() => onOpenSource(item.url)}
+              key={item.id}
+            >
               <div>
                 <strong>{item.title}</strong>
-                <span>{item.source} · {new Date(item.publishedAt).toLocaleString('zh-CN', { hour12: false })} · {item.category}</span>
+                <span>
+                  {item.source} ·{' '}
+                  {new Date(item.publishedAt).toLocaleString('zh-CN', { hour12: false })} ·{' '}
+                  {item.category}
+                </span>
               </div>
               <ExternalLink size={14} />
             </button>

@@ -17,7 +17,8 @@ export function installMarketInsightPreload(): void {
     refresh: (quoteId) => ipcRenderer.invoke(MARKET_INSIGHT_IPC.refresh, quoteId),
     listEvents: (quoteId) => ipcRenderer.invoke(MARKET_INSIGHT_IPC.eventsList, quoteId),
     acknowledgeEvent: (eventId) => ipcRenderer.invoke(MARKET_INSIGHT_IPC.eventAcknowledge, eventId),
-    clearExpiredEvents: (quoteId) => ipcRenderer.invoke(MARKET_INSIGHT_IPC.eventsClearExpired, quoteId),
+    clearExpiredEvents: (quoteId) =>
+      ipcRenderer.invoke(MARKET_INSIGHT_IPC.eventsClearExpired, quoteId),
     openSource: (url) => ipcRenderer.invoke(MARKET_INSIGHT_IPC.sourceOpen, url),
     onUpdated: (listener) => subscribe<string>(MARKET_INSIGHT_IPC.updated, listener)
   }

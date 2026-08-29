@@ -14,6 +14,7 @@ export class LayeredRefreshScheduler {
       this.nextRefreshAt.clear()
       return
     }
-    for (const key of this.nextRefreshAt.keys()) if (key.startsWith(`${quoteId}:`)) this.nextRefreshAt.delete(key)
+    for (const key of this.nextRefreshAt.keys())
+      if (key.startsWith(`${quoteId}:`)) this.nextRefreshAt.delete(key)
   }
 }

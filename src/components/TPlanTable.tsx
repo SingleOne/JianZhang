@@ -35,11 +35,17 @@ export function TPlanTable({
   const triggeredCount = rows.filter((row) => row.alertStatus === 'triggered').length
   const sideLabel = isBuy ? '买入五档' : '卖出五档'
   const planHint = openingPlan
-    ? isBuy ? '目标买入后的T仓仓位与成本' : '目标卖出后的反T仓位与成本'
-    : isBuy ? '目标跌幅 -1% 至 -5%' : '目标涨幅 +1% 至 +5%'
+    ? isBuy
+      ? '目标买入后的T仓仓位与成本'
+      : '目标卖出后的反T仓位与成本'
+    : isBuy
+      ? '目标跌幅 -1% 至 -5%'
+      : '目标涨幅 +1% 至 +5%'
 
   return (
-    <section className={`t-plan-table is-${side} ${emphasized ? 'is-emphasized' : ''} ${openingPlan ? 'is-opening-plan' : ''}`}>
+    <section
+      className={`t-plan-table is-${side} ${emphasized ? 'is-emphasized' : ''} ${openingPlan ? 'is-opening-plan' : ''}`}
+    >
       <header className="t-plan-table-heading">
         <span>
           <strong>{sideLabel}</strong>
@@ -82,18 +88,26 @@ export function TPlanTable({
                     if (status === 'triggered') onHandleAlert(level.index)
                     else onRestoreAlert(level.index)
                   }}
-                  title={status === 'triggered' ? `标记 T${level.index + 1} 已处理` : `恢复 T${level.index + 1} 提醒`}
+                  title={
+                    status === 'triggered'
+                      ? `标记 T${level.index + 1} 已处理`
+                      : `恢复 T${level.index + 1} 提醒`
+                  }
                 >
                   T{level.index + 1}
                 </button>
-              ) : <strong>T{level.index + 1}</strong>}
+              ) : (
+                <strong>T{level.index + 1}</strong>
+              )}
               <label>
                 <input
                   type="number"
                   min="0"
                   step="0.1"
                   value={level.targetPercent}
-                  onChange={(event) => onUpdateLevel(level.index, 'targetPercent', Number(event.target.value))}
+                  onChange={(event) =>
+                    onUpdateLevel(level.index, 'targetPercent', Number(event.target.value))
+                  }
                 />
                 <span>%</span>
               </label>
@@ -104,7 +118,9 @@ export function TPlanTable({
                   min="100"
                   step="100"
                   value={level.quantity || ''}
-                  onChange={(event) => onUpdateLevel(level.index, 'quantity', Number(event.target.value))}
+                  onChange={(event) =>
+                    onUpdateLevel(level.index, 'quantity', Number(event.target.value))
+                  }
                 />
                 <span>股</span>
               </label>
@@ -115,9 +131,15 @@ export function TPlanTable({
                 </>
               ) : (
                 <>
-                  <span className={valueClass(level.expectedProfit)}>{formatProfit(level.expectedProfit)}</span>
-                  <span className={valueClass(level.cumulativeProfit)}>{formatProfit(level.cumulativeProfit)}</span>
-                  <span className={valueClass(level.fullPositionProfit)}>{formatProfit(level.fullPositionProfit)}</span>
+                  <span className={valueClass(level.expectedProfit)}>
+                    {formatProfit(level.expectedProfit)}
+                  </span>
+                  <span className={valueClass(level.cumulativeProfit)}>
+                    {formatProfit(level.cumulativeProfit)}
+                  </span>
+                  <span className={valueClass(level.fullPositionProfit)}>
+                    {formatProfit(level.fullPositionProfit)}
+                  </span>
                 </>
               )}
             </div>

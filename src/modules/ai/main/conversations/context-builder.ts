@@ -11,8 +11,22 @@ export interface CompactMarketSnapshot {
   dataCutoffAt: string
   dataState: MarketInsightSnapshot['dataState']
   chipDistribution: ChipDistributionCacheEntry | null
-  indicators: Array<{ group: string; name: string; value: number | null; unit: string; state: string; sourcePeriod: string }>
-  news: Array<{ id: string; title: string; source: string; publishedAt: string; url: string; category: string }>
+  indicators: Array<{
+    group: string
+    name: string
+    value: number | null
+    unit: string
+    state: string
+    sourcePeriod: string
+  }>
+  news: Array<{
+    id: string
+    title: string
+    source: string
+    publishedAt: string
+    url: string
+    category: string
+  }>
   events: Array<{ title: string; facts: string[]; occurredAt: string; severity: string }>
 }
 
@@ -34,14 +48,16 @@ function snapshotId(
 function compactIndicators(
   groups: ReadonlyArray<readonly [string, MarketInsightSnapshot['indicators']['technical']]>
 ): CompactMarketSnapshot['indicators'] {
-  return groups.flatMap(([group, values]) => values.map((value) => ({
-    group,
-    name: value.label,
-    value: value.value,
-    unit: value.unit,
-    state: value.state,
-    sourcePeriod: value.sourcePeriod
-  })))
+  return groups.flatMap(([group, values]) =>
+    values.map((value) => ({
+      group,
+      name: value.label,
+      value: value.value,
+      unit: value.unit,
+      state: value.state,
+      sourcePeriod: value.sourcePeriod
+    }))
+  )
 }
 
 function compactNews(snapshot: MarketInsightSnapshot): CompactMarketSnapshot['news'] {
@@ -55,9 +71,7 @@ function compactNews(snapshot: MarketInsightSnapshot): CompactMarketSnapshot['ne
   }))
 }
 
-function compactEvents(
-  events: MarketInsightSnapshot['events']
-): CompactMarketSnapshot['events'] {
+function compactEvents(events: MarketInsightSnapshot['events']): CompactMarketSnapshot['events'] {
   return events.map((item) => ({
     title: item.title,
     facts: item.facts,
@@ -106,18 +120,22 @@ export function compactShortTermSnapshot(
   const events = compactEvents(snapshot.events.filter((event) => event.type === 'new_announcement'))
   const dailySource = snapshot.sourceStates?.find((source) => source.id === 'daily')
   const dataCutoffAt = dailySource?.dataCutoffAt ?? snapshot.dataCutoffAt
-  const dataState = dailySource && dailySource.state !== 'unavailable'
-    ? dailySource.state
-    : snapshot.dataState
-  const fingerprint = createHash('sha256').update(JSON.stringify({
-    quoteId: snapshot.quoteId,
-    dataCutoffAt,
-    dataState,
-    indicators,
-    news,
-    events,
-    chipDistribution
-  })).digest('hex').slice(0, 20)
+  const dataState =
+    dailySource && dailySource.state !== 'unavailable' ? dailySource.state : snapshot.dataState
+  const fingerprint = createHash('sha256')
+    .update(
+      JSON.stringify({
+        quoteId: snapshot.quoteId,
+        dataCutoffAt,
+        dataState,
+        indicators,
+        news,
+        events,
+        chipDistribution
+      })
+    )
+    .digest('hex')
+    .slice(0, 20)
   return {
     snapshotId: `${snapshot.quoteId}:short-term:${fingerprint}`,
     quoteId: snapshot.quoteId,
@@ -135,9 +153,10 @@ export function toProviderMessages(
   messages: AiMessage[],
   contexts: AiChatStockContext[]
 ): AiProviderRequestMessage[] {
-  const policy = contexts.length > 0
-    ? `${GENERAL_CHAT_POLICY}\n\n本条消息附带以下只读股票上下文。source=mention 表示用户通过 @ 明确引用的股票，source=conversation 表示当前股票会话的默认上下文。每只股票的快照时间可能不同；回答时必须分别注明数据时间，且只能引用对应快照中的事实：\n${JSON.stringify(contexts)}`
-    : GENERAL_CHAT_POLICY
+  const policy =
+    contexts.length > 0
+      ? `${GENERAL_CHAT_POLICY}\n\n本条消息附带以下只读股票上下文。source=mention 表示用户通过 @ 明确引用的股票，source=conversation 表示当前股票会话的默认上下文。每只股票的快照时间可能不同；回答时必须分别注明数据时间，且只能引用对应快照中的事实：\n${JSON.stringify(contexts)}`
+      : GENERAL_CHAT_POLICY
   return [
     { role: 'system', content: policy },
     ...messages

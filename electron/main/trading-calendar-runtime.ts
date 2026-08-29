@@ -104,8 +104,7 @@ export class TradingCalendarRuntime {
     if (
       (['CN', 'HK', 'US'] as const).every(
         (market) =>
-          calendar.markets[market].lastCheckedYear === year &&
-          !calendar.markets[market].lastError
+          calendar.markets[market].lastCheckedYear === year && !calendar.markets[market].lastError
       )
     ) {
       return Promise.resolve(calendar)
@@ -148,18 +147,20 @@ export class TradingCalendarRuntime {
     attemptedAt: string
   ): Promise<MarketTradingCalendarSettings> {
     const years = [year, year + 1]
-    const calendars = await Promise.all(years.map((calendarYear) =>
-      this.dependencies.marketRequestLogger.track(
-        {
-          dataType: 'trading-calendar',
-          caller: 'trading-calendar:hk',
-          source: 'hkex',
-          requestedCount: 1
-        },
-        () => fetchHkexTradingCalendar(calendarYear),
-        (calendar) => calendar.closedDates.length + calendar.halfDayDates.length
+    const calendars = await Promise.all(
+      years.map((calendarYear) =>
+        this.dependencies.marketRequestLogger.track(
+          {
+            dataType: 'trading-calendar',
+            caller: 'trading-calendar:hk',
+            source: 'hkex',
+            requestedCount: 1
+          },
+          () => fetchHkexTradingCalendar(calendarYear),
+          (calendar) => calendar.closedDates.length + calendar.halfDayDates.length
+        )
       )
-    ))
+    )
     return this.hkCalendarSettings(current, calendars, year, attemptedAt)
   }
 

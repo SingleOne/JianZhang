@@ -68,24 +68,60 @@ function AdviceSummary({ advice }: { advice: AiTAdvice }) {
     <div className="ai-t-advice-content">
       <div className="ai-result-time-banner is-t-advice">
         <span>最近生成时间</span>
-        <strong><time dateTime={advice.generatedAt}>{formatTime(advice.generatedAt)}</time></strong>
-        <small>快照时间 <time dateTime={advice.snapshotGeneratedAt}>{formatTime(advice.snapshotGeneratedAt)}</time></small>
+        <strong>
+          <time dateTime={advice.generatedAt}>{formatTime(advice.generatedAt)}</time>
+        </strong>
+        <small>
+          快照时间{' '}
+          <time dateTime={advice.snapshotGeneratedAt}>
+            {formatTime(advice.snapshotGeneratedAt)}
+          </time>
+        </small>
       </div>
       <div className="ai-t-advice-overview">
         <span className={`ai-t-action is-${advice.action}`}>{ACTION_LABELS[advice.action]}</span>
-        <span className={`ai-t-confidence is-${advice.confidence}`}>{CONFIDENCE_LABELS[advice.confidence]}</span>
-        <small>{advice.providerId} · {advice.model}</small>
+        <span className={`ai-t-confidence is-${advice.confidence}`}>
+          {CONFIDENCE_LABELS[advice.confidence]}
+        </span>
+        <small>
+          {advice.providerId} · {advice.model}
+        </small>
       </div>
       {advice.action !== 'hold' && advice.priceZone ? (
         <div className="ai-t-metrics">
-          <div><span>参考区间</span><strong>{formatPrice(advice.priceZone.lower)} – {formatPrice(advice.priceZone.upper)}</strong></div>
-          <div><span>参考数量</span><strong>{advice.quantity} 股</strong></div>
-          <div><span>失效价格</span><strong>{formatPrice(advice.invalidationPrice)}</strong></div>
+          <div>
+            <span>参考区间</span>
+            <strong>
+              {formatPrice(advice.priceZone.lower)} – {formatPrice(advice.priceZone.upper)}
+            </strong>
+          </div>
+          <div>
+            <span>参考数量</span>
+            <strong>{advice.quantity} 股</strong>
+          </div>
+          <div>
+            <span>失效价格</span>
+            <strong>{formatPrice(advice.invalidationPrice)}</strong>
+          </div>
         </div>
       ) : null}
       <div className="ai-t-reason-grid">
-        <section><h4>判断依据</h4><ul>{advice.rationale.map((item) => <li key={item}>{item}</li>)}</ul></section>
-        <section className="is-risk"><h4>风险与限制</h4><ul>{advice.risks.map((item) => <li key={item}>{item}</li>)}</ul></section>
+        <section>
+          <h4>判断依据</h4>
+          <ul>
+            {advice.rationale.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+        <section className="is-risk">
+          <h4>风险与限制</h4>
+          <ul>
+            {advice.risks.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
       </div>
       {advice.snapshotDataState ? (
         <div className={`ai-t-snapshot-state is-${advice.snapshotDataState}`}>
@@ -121,7 +157,9 @@ export function TAdvicePanel({ stock, quote }: TAdvicePanelProps) {
   useEffect(() => {
     setError('')
     setProgress(null)
-    void load().catch((reason) => setError(reason instanceof Error ? reason.message : '做 T 参考加载失败'))
+    void load().catch((reason) =>
+      setError(reason instanceof Error ? reason.message : '做 T 参考加载失败')
+    )
   }, [load])
 
   useEffect(() => {
@@ -160,7 +198,10 @@ export function TAdvicePanel({ stock, quote }: TAdvicePanelProps) {
     setError('')
     try {
       const result = await api.generate(stock.quoteId)
-      setHistory((current) => [result.advice, ...current.filter((item) => item.id !== result.advice.id)])
+      setHistory((current) => [
+        result.advice,
+        ...current.filter((item) => item.id !== result.advice.id)
+      ])
       emitCompletionNotification({
         quoteId: stock.quoteId,
         target: 't-advice',
@@ -182,7 +223,7 @@ export function TAdvicePanel({ stock, quote }: TAdvicePanelProps) {
     setError('')
     try {
       const dismissed = await api.dismiss(adviceId)
-      setHistory((current) => current.map((item) => item.id === dismissed.id ? dismissed : item))
+      setHistory((current) => current.map((item) => (item.id === dismissed.id ? dismissed : item)))
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '忽略参考失败')
     }
@@ -193,31 +234,67 @@ export function TAdvicePanel({ stock, quote }: TAdvicePanelProps) {
       <header>
         <div className="ai-t-heading">
           <ShieldAlert size={18} />
-          <span><h3>做 T 参考</h3><small>独立私用模块 · 默认不进入分享构建</small></span>
+          <span>
+            <h3>做 T 参考</h3>
+            <small>独立私用模块 · 默认不进入分享构建</small>
+          </span>
           <span className="ai-t-private-badge">私用功能</span>
         </div>
         <div className="ai-t-header-actions">
-          <label className="ai-t-switch"><input type="checkbox" checked={settings.enabled} disabled={saving} onChange={() => void toggleEnabled()} /><span>启用</span></label>
+          <label className="ai-t-switch">
+            <input
+              type="checkbox"
+              checked={settings.enabled}
+              disabled={saving}
+              onChange={() => void toggleEnabled()}
+            />
+            <span>启用</span>
+          </label>
           {settings.enabled ? (
-            loading
-              ? <button type="button" className="secondary-button" onClick={() => void cancel()}><CirclePause size={15} />停止</button>
-              : <button type="button" className="primary-button" onClick={() => void generate()}>{latest ? <RefreshCw size={15} /> : <Sparkles size={15} />}{latest ? '重新生成' : '生成参考'}</button>
+            loading ? (
+              <button type="button" className="secondary-button" onClick={() => void cancel()}>
+                <CirclePause size={15} />
+                停止
+              </button>
+            ) : (
+              <button type="button" className="primary-button" onClick={() => void generate()}>
+                {latest ? <RefreshCw size={15} /> : <Sparkles size={15} />}
+                {latest ? '重新生成' : '生成参考'}
+              </button>
+            )
           ) : null}
         </div>
       </header>
 
       {!settings.enabled ? (
-        <div className="ai-t-disabled"><Ban size={24} /><strong>做 T 参考当前已关闭</strong><span>开启后也只会在你主动点击“生成参考”时调用模型。</span></div>
+        <div className="ai-t-disabled">
+          <Ban size={24} />
+          <strong>做 T 参考当前已关闭</strong>
+          <span>开启后也只会在你主动点击“生成参考”时调用模型。</span>
+        </div>
       ) : null}
       {settings.enabled && loading ? (
         <div className={`ai-t-loading${latest ? ' has-previous' : ''}`}>
           <LoaderCircle size={22} className="is-spinning" />
           <strong>{progress?.message ?? '正在准备做 T 分析'}</strong>
-          <span>{latest ? '上一次参考保留显示；完成后将自动替换。' : progress?.detail ?? '检查当前股票、持仓与活动 T 计划。'}</span>
+          <span>
+            {latest
+              ? '上一次参考保留显示；完成后将自动替换。'
+              : (progress?.detail ?? '检查当前股票、持仓与活动 T 计划。')}
+          </span>
           <div className="ai-process-steps" aria-label="做 T 参考生成进度">
             {GENERATION_STEPS.map((step, index) => {
               const currentStep = generationStep(progress?.phase ?? 'preparing')
-              return <span className={index < currentStep ? 'is-complete' : index === currentStep ? 'is-current' : ''} key={step}>{step}</span>
+              return (
+                <span
+                  className={
+                    index < currentStep ? 'is-complete' : index === currentStep ? 'is-current' : ''
+                  }
+                  key={step}
+                >
+                  {step}
+                </span>
+              )
             })}
           </div>
         </div>
@@ -227,22 +304,54 @@ export function TAdvicePanel({ stock, quote }: TAdvicePanelProps) {
           <AdviceSummary advice={latest} />
           {latest.status === 'active' ? (
             <footer>
-              <button type="button" className="ai-text-button" disabled={loading} onClick={() => void dismiss(latest.id)}>忽略本次</button>
+              <button
+                type="button"
+                className="ai-text-button"
+                disabled={loading}
+                onClick={() => void dismiss(latest.id)}
+              >
+                忽略本次
+              </button>
             </footer>
-          ) : <p className="ai-t-record-status">本次参考已处理</p>}
+          ) : (
+            <p className="ai-t-record-status">本次参考已处理</p>
+          )}
         </article>
       ) : settings.enabled && !loading ? (
-        <div className="ai-t-empty"><Sparkles size={26} /><strong>按需生成，不自动调用模型</strong><span>当前最新价：{formatPrice(quote?.latest)}。请先确保市场观察已有最新快照。</span></div>
+        <div className="ai-t-empty">
+          <Sparkles size={26} />
+          <strong>按需生成，不自动调用模型</strong>
+          <span>当前最新价：{formatPrice(quote?.latest)}。请先确保市场观察已有最新快照。</span>
+        </div>
       ) : null}
 
-      {error ? <div className="ai-t-error"><AlertCircle size={16} />{error}</div> : null}
+      {error ? (
+        <div className="ai-t-error">
+          <AlertCircle size={16} />
+          {error}
+        </div>
+      ) : null}
       {olderHistory.length > 0 ? (
         <details className="ai-t-history">
-          <summary><History size={15} />最近记录（{olderHistory.length}）</summary>
-          <div>{olderHistory.map((item) => <article key={item.id}><span>{ACTION_LABELS[item.action]}</span><small>{formatTime(item.generatedAt)} · {item.status === 'active' ? '未处理' : '已处理'}</small></article>)}</div>
+          <summary>
+            <History size={15} />
+            最近记录（{olderHistory.length}）
+          </summary>
+          <div>
+            {olderHistory.map((item) => (
+              <article key={item.id}>
+                <span>{ACTION_LABELS[item.action]}</span>
+                <small>
+                  {formatTime(item.generatedAt)} · {item.status === 'active' ? '未处理' : '已处理'}
+                </small>
+              </article>
+            ))}
+          </div>
         </details>
       ) : null}
-      <p className="ai-t-disclaimer">模型输出仅供个人复核，不保证收益。不会修改 T 计划或自动下单。</p>
+      <p className="ai-t-disclaimer">
+        模型输出仅供个人复核，不保证收益。不会修改 T 计划或自动下单。
+      </p>
     </section>
   )
 }

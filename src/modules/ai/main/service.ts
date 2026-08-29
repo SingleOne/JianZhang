@@ -105,45 +105,53 @@ function asText(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null
 }
 
-function parseInterpretation(content: string, generatedAt: string, snapshot: CompactMarketSnapshot): AiInterpretation {
-  const json = content.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
+function parseInterpretation(
+  content: string,
+  generatedAt: string,
+  snapshot: CompactMarketSnapshot
+): AiInterpretation {
+  const json = content
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/, '')
   let raw: unknown
   try {
     raw = JSON.parse(json)
   } catch {
     throw new Error('模型没有返回符合要求的解读格式，请重试')
   }
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('模型解读格式无效，请重试')
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    throw new Error('模型解读格式无效，请重试')
   const record = raw as Record<string, unknown>
   const summary = asText(record.summary)
   if (!summary) throw new Error('模型解读缺少摘要，请重试')
   const validSourceIds = new Set(snapshot.news.map((item) => item.id))
   const indicatorFacts = Array.isArray(record.indicatorFacts)
     ? record.indicatorFacts.flatMap((item) => {
-      if (!item || typeof item !== 'object' || Array.isArray(item)) return []
-      const fact = item as Record<string, unknown>
-      const name = asText(fact.name)
-      const interpretation = asText(fact.interpretation)
-      const evidence = Array.isArray(fact.evidence)
-        ? fact.evidence.flatMap((entry) => asText(entry) ? [asText(entry) as string] : [])
-        : []
-      return name && interpretation ? [{ name, interpretation, evidence }] : []
-    })
+        if (!item || typeof item !== 'object' || Array.isArray(item)) return []
+        const fact = item as Record<string, unknown>
+        const name = asText(fact.name)
+        const interpretation = asText(fact.interpretation)
+        const evidence = Array.isArray(fact.evidence)
+          ? fact.evidence.flatMap((entry) => (asText(entry) ? [asText(entry) as string] : []))
+          : []
+        return name && interpretation ? [{ name, interpretation, evidence }] : []
+      })
     : []
   const newsReferences = Array.isArray(record.newsReferences)
     ? record.newsReferences.flatMap((item) => {
-      if (!item || typeof item !== 'object' || Array.isArray(item)) return []
-      const reference = item as Record<string, unknown>
-      const sourceId = asText(reference.sourceId)
-      const relevance = asText(reference.relevance)
-      const itemSummary = asText(reference.summary)
-      return sourceId && relevance && itemSummary && validSourceIds.has(sourceId)
-        ? [{ sourceId, relevance, summary: itemSummary }]
-        : []
-    })
+        if (!item || typeof item !== 'object' || Array.isArray(item)) return []
+        const reference = item as Record<string, unknown>
+        const sourceId = asText(reference.sourceId)
+        const relevance = asText(reference.relevance)
+        const itemSummary = asText(reference.summary)
+        return sourceId && relevance && itemSummary && validSourceIds.has(sourceId)
+          ? [{ sourceId, relevance, summary: itemSummary }]
+          : []
+      })
     : []
   const uncertainties = Array.isArray(record.uncertainties)
-    ? record.uncertainties.flatMap((item) => asText(item) ? [asText(item) as string] : [])
+    ? record.uncertainties.flatMap((item) => (asText(item) ? [asText(item) as string] : []))
     : []
   return { summary, indicatorFacts, newsReferences, uncertainties, generatedAt }
 }
@@ -191,9 +199,10 @@ export class AiService {
     const settings: AiSettings = {
       enabled: input.enabled,
       providerId: input.providerId,
-      model: input.providerId === 'openai-codex'
-        ? normalizeOpenAiCodexModelId(input.model.trim() || provider.defaultModel)
-        : input.model.trim() || provider.defaultModel,
+      model:
+        input.providerId === 'openai-codex'
+          ? normalizeOpenAiCodexModelId(input.model.trim() || provider.defaultModel)
+          : input.model.trim() || provider.defaultModel,
       maxContextMessages: Math.max(4, Math.min(40, Math.round(input.maxContextMessages)))
     }
     const saved = this.storage.saveSettings(settings)
@@ -228,15 +237,24 @@ export class AiService {
   listConversations(query?: string): AiConversation[] {
     const normalizedQuery = query?.trim().toLocaleLowerCase()
     if (!normalizedQuery) return this.storage.listConversations()
-    return this.storage.listConversations().filter((conversation) => (
-      conversation.title.toLocaleLowerCase().includes(normalizedQuery)
-      || this.storage.getMessages(conversation.id).some((message) => message.content.toLocaleLowerCase().includes(normalizedQuery))
-    ))
+    return this.storage
+      .listConversations()
+      .filter(
+        (conversation) =>
+          conversation.title.toLocaleLowerCase().includes(normalizedQuery) ||
+          this.storage
+            .getMessages(conversation.id)
+            .some((message) => message.content.toLocaleLowerCase().includes(normalizedQuery))
+      )
   }
 
-  getConversation(conversationId: string): { conversation: AiConversation; messages: AiMessage[] } | null {
+  getConversation(
+    conversationId: string
+  ): { conversation: AiConversation; messages: AiMessage[] } | null {
     const conversation = this.storage.getConversation(conversationId)
-    return conversation ? { conversation, messages: this.storage.getMessages(conversationId) } : null
+    return conversation
+      ? { conversation, messages: this.storage.getMessages(conversationId) }
+      : null
   }
 
   createConversation(input: AiCreateConversationInput = {}): AiConversation {
@@ -261,7 +279,11 @@ export class AiService {
     const conversation = this.requireConversation(conversationId)
     const nextTitle = title.trim()
     if (!nextTitle) throw new Error('会话标题不能为空')
-    return this.storage.saveConversation({ ...conversation, title: nextTitle.slice(0, 80), updatedAt: now() })
+    return this.storage.saveConversation({
+      ...conversation,
+      title: nextTitle.slice(0, 80),
+      updatedAt: now()
+    })
   }
 
   deleteConversation(conversationId: string): void {
@@ -279,7 +301,9 @@ export class AiService {
   }
 
   exportAllConversations() {
-    return this.storage.listConversations().map((conversation) => this.storage.exportConversation(conversation.id))
+    return this.storage
+      .listConversations()
+      .map((conversation) => this.storage.exportConversation(conversation.id))
   }
 
   async sendChat(webContents: WebContents, input: AiChatSendInput): Promise<AiChatStartResult> {
@@ -327,7 +351,8 @@ export class AiService {
     this.storage.appendMessage(userMessage)
     this.storage.saveConversation({
       ...conversation,
-      title: conversation.title === '新对话' ? createConversationTitle(content) : conversation.title,
+      title:
+        conversation.title === '新对话' ? createConversationTitle(content) : conversation.title,
       updatedAt: createdAt,
       providerId: settings.providerId,
       model: settings.model,
@@ -342,21 +367,30 @@ export class AiService {
     this.activeChats.get(conversationId)?.abort()
   }
 
-  async retryChat(webContents: WebContents, conversationId: string, messageId: string): Promise<AiChatStartResult> {
+  async retryChat(
+    webContents: WebContents,
+    conversationId: string,
+    messageId: string
+  ): Promise<AiChatStartResult> {
     const messages = this.storage.getMessages(conversationId)
     const messageIndex = messages.findIndex((message) => message.id === messageId)
     if (messageIndex === -1) throw new Error('未找到要重试的消息')
-    const userMessage = [...messages.slice(0, messageIndex)].reverse().find((message) => message.role === 'user')
+    const userMessage = [...messages.slice(0, messageIndex)]
+      .reverse()
+      .find((message) => message.role === 'user')
     if (!userMessage) throw new Error('未找到可重试的提问')
     const conversation = this.requireConversation(conversationId)
     const contextRefs = messageContextRefs(userMessage)
     return this.sendChat(webContents, {
       conversationId,
       content: userMessage.content,
-      includeStockContext: contextRefs.some((context) => (
-        context.source === 'conversation'
-        || (!context.source && conversation.scope === 'stock' && context.quoteId === conversation.quoteId)
-      )),
+      includeStockContext: contextRefs.some(
+        (context) =>
+          context.source === 'conversation' ||
+          (!context.source &&
+            conversation.scope === 'stock' &&
+            context.quoteId === conversation.quoteId)
+      ),
       mentionedStocks: contextRefs
         .filter((context) => context.source === 'mention')
         .map((context) => ({
@@ -379,7 +413,11 @@ export class AiService {
     const settings = this.storage.getSettings()
     if (!settings.enabled) throw new Error('AI 助手当前已关闭')
     const credential = this.getCredential(settings.providerId)
-    report('loading-snapshot', '正在读取日 K 行情快照', '加载当前股票的日 K 指标、新闻、公告事件与最后一次筹码分布。')
+    report(
+      'loading-snapshot',
+      '正在读取日 K 行情快照',
+      '加载当前股票的日 K 指标、新闻、公告事件与最后一次筹码分布。'
+    )
     const snapshot = await this.dependencies.getMarketInsightSnapshot(quoteId)
     if (!snapshot) throw new Error('当前还没有可解读的市场观察快照，请先打开市场观察并刷新')
     const compact = this.persistShortTermSnapshot(snapshot)
@@ -406,14 +444,23 @@ export class AiService {
     }
     const provider = this.requireProvider(settings.providerId)
     const controller = new AbortController()
-    report('analyzing', 'AI 正在生成短期行情解读', `正在调用 ${settings.model} 按日 K 尺度分析技术指标、新闻、公告事件与筹码分布。`)
-    const result = await provider.streamChat(credential, {
-      model: settings.model,
-      messages: [
-        { role: 'system', content: MARKET_INTERPRETATION_PROMPT },
-        { role: 'user', content: JSON.stringify(compact) }
-      ]
-    }, () => undefined, controller.signal)
+    report(
+      'analyzing',
+      'AI 正在生成短期行情解读',
+      `正在调用 ${settings.model} 按日 K 尺度分析技术指标、新闻、公告事件与筹码分布。`
+    )
+    const result = await provider.streamChat(
+      credential,
+      {
+        model: settings.model,
+        messages: [
+          { role: 'system', content: MARKET_INTERPRETATION_PROMPT },
+          { role: 'user', content: JSON.stringify(compact) }
+        ]
+      },
+      () => undefined,
+      controller.signal
+    )
     report('validating', 'AI 已返回，正在校验结果', '检查解读结构、引用来源并保存本次结果。')
     const interpretation = parseInterpretation(result.content, now(), compact)
     this.storage.saveInterpretation(cacheKey, interpretation)
@@ -443,7 +490,11 @@ export class AiService {
     const settings = this.storage.getSettings()
     if (!settings.enabled) throw new Error('AI 助手当前已关闭')
     const credential = this.getCredential(settings.providerId)
-    report('loading-snapshot', '正在读取长期价值数据', '加载五年财务、财报 AI 总结、DCF、分红融资、当前估值和长期价格强弱。')
+    report(
+      'loading-snapshot',
+      '正在读取长期价值数据',
+      '加载五年财务、财报 AI 总结、DCF、分红融资、当前估值和长期价格强弱。'
+    )
     const fundamentalSnapshot = this.dependencies.getFundamentalSnapshot()
     const dividendSnapshot = this.dependencies.getDividendFinancingSnapshot()
     if (!fundamentalSnapshot && !dividendSnapshot) {
@@ -463,14 +514,16 @@ export class AiService {
       fundamentalState: this.dependencies.getFundamentalState(),
       dividendSnapshot,
       dividendState: this.dependencies.getDividendFinancingState(),
-      companyReportSummaries: quote
-        ? this.dependencies.getCompanyReportSummaries(quote.code)
-        : [],
+      companyReportSummaries: quote ? this.dependencies.getCompanyReportSummaries(quote.code) : [],
       generatedAt: now()
     })
     this.storage.saveSnapshot(context.snapshotId, context)
     const cacheKey = `${context.snapshotId}:${settings.providerId}:${settings.model}:${AI_LONG_TERM_PROMPT_VERSION}`
-    report('checking-cache', '正在检查长期分析缓存', '财务、DCF、估值和价格强弱均相同时直接使用本地结果。')
+    report(
+      'checking-cache',
+      '正在检查长期分析缓存',
+      '财务、DCF、估值和价格强弱均相同时直接使用本地结果。'
+    )
     const cached = this.storage.getInterpretation<AiLongTermInterpretation>(cacheKey)
     if (cached) {
       const cachedResult: AiLongTermInterpretationResult = {
@@ -493,14 +546,23 @@ export class AiService {
     }
     const provider = this.requireProvider(settings.providerId)
     const controller = new AbortController()
-    report('analyzing', 'AI 正在分析长期价值', `正在调用 ${settings.model} 分析经营质量、估值与价格时机。`)
-    const result = await provider.streamChat(credential, {
-      model: settings.model,
-      messages: [
-        { role: 'system', content: LONG_TERM_VALUE_PROMPT },
-        { role: 'user', content: JSON.stringify(context) }
-      ]
-    }, () => undefined, controller.signal)
+    report(
+      'analyzing',
+      'AI 正在分析长期价值',
+      `正在调用 ${settings.model} 分析经营质量、估值与价格时机。`
+    )
+    const result = await provider.streamChat(
+      credential,
+      {
+        model: settings.model,
+        messages: [
+          { role: 'system', content: LONG_TERM_VALUE_PROMPT },
+          { role: 'user', content: JSON.stringify(context) }
+        ]
+      },
+      () => undefined,
+      controller.signal
+    )
     report('validating', 'AI 已返回，正在校验结果', '检查长期价值维度、证据和风险边界并保存结果。')
     const interpretation = parseLongTermInterpretation(result.content, now())
     this.storage.saveInterpretation(cacheKey, interpretation)
@@ -524,7 +586,9 @@ export class AiService {
   }
 
   getLatestLongTermInterpretation(quoteId: string): AiLongTermInterpretationResult | null {
-    return this.storage.getLatestInterpretation<AiLongTermInterpretationResult>(`${quoteId}:long-term`)
+    return this.storage.getLatestInterpretation<AiLongTermInterpretationResult>(
+      `${quoteId}:long-term`
+    )
   }
 
   async runStructuredTask(
@@ -569,18 +633,25 @@ export class AiService {
     let streamedContent = ''
     try {
       const credential = this.getCredential(settings.providerId)
-      const messages = this.storage.getMessages(pendingMessage.conversationId).slice(-settings.maxContextMessages)
-      const result = await this.requireProvider(settings.providerId).streamChat(credential, {
-        model: settings.model,
-        messages: toProviderMessages(messages, contexts)
-      }, (delta) => {
-        streamedContent = `${streamedContent}${delta}`
-        this.send(webContents, 'ai:chat:delta', {
-          conversationId: pendingMessage.conversationId,
-          messageId: pendingMessage.id,
-          delta
-        })
-      }, controller.signal)
+      const messages = this.storage
+        .getMessages(pendingMessage.conversationId)
+        .slice(-settings.maxContextMessages)
+      const result = await this.requireProvider(settings.providerId).streamChat(
+        credential,
+        {
+          model: settings.model,
+          messages: toProviderMessages(messages, contexts)
+        },
+        (delta) => {
+          streamedContent = `${streamedContent}${delta}`
+          this.send(webContents, 'ai:chat:delta', {
+            conversationId: pendingMessage.conversationId,
+            messageId: pendingMessage.id,
+            delta
+          })
+        },
+        controller.signal
+      )
       const content = result.content.trim() || '模型未返回可显示的内容。'
       this.completeMessage(webContents, {
         ...pendingMessage,
@@ -615,7 +686,11 @@ export class AiService {
   private touchConversation(conversationId: string): void {
     const conversation = this.storage.getConversation(conversationId)
     if (!conversation) return
-    this.storage.saveConversation({ ...conversation, updatedAt: now(), messageCount: conversation.messageCount + 1 })
+    this.storage.saveConversation({
+      ...conversation,
+      updatedAt: now(),
+      messageCount: conversation.messageCount + 1
+    })
   }
 
   private async getConversationContexts(
@@ -623,13 +698,16 @@ export class AiService {
     includeStockContext: boolean,
     mentionedStocks: AiStockMention[]
   ): Promise<AiChatStockContext[]> {
-    const requested = new Map<string, {
-      source: AiChatStockContext['source']
-      quoteId: string
-      quoteName?: string
-      code?: string
-      marketLabel?: string
-    }>()
+    const requested = new Map<
+      string,
+      {
+        source: AiChatStockContext['source']
+        quoteId: string
+        quoteName?: string
+        code?: string
+        marketLabel?: string
+      }
+    >()
     if (includeStockContext && conversation.scope === 'stock' && conversation.quoteId) {
       requested.set(conversation.quoteId, {
         source: 'conversation',
@@ -647,23 +725,26 @@ export class AiService {
       })
     }
 
-    const contexts = await Promise.all([...requested.values()].map(async (request): Promise<AiChatStockContext | null> => {
-      let snapshot = await this.dependencies.getMarketInsightSnapshot(request.quoteId)
-      if (!snapshot && request.source === 'mention') {
-        snapshot = await this.dependencies.refreshMarketInsightSnapshot(request.quoteId)
-      }
-      if (!snapshot) {
-        if (request.source === 'mention') throw new Error(`暂时无法取得 @${request.quoteName ?? request.quoteId} 的市场快照`)
-        return null
-      }
-      return {
-        source: request.source,
-        quoteName: request.quoteName,
-        code: request.code,
-        marketLabel: request.marketLabel,
-        snapshot: this.persistCompactSnapshot(snapshot)
-      }
-    }))
+    const contexts = await Promise.all(
+      [...requested.values()].map(async (request): Promise<AiChatStockContext | null> => {
+        let snapshot = await this.dependencies.getMarketInsightSnapshot(request.quoteId)
+        if (!snapshot && request.source === 'mention') {
+          snapshot = await this.dependencies.refreshMarketInsightSnapshot(request.quoteId)
+        }
+        if (!snapshot) {
+          if (request.source === 'mention')
+            throw new Error(`暂时无法取得 @${request.quoteName ?? request.quoteId} 的市场快照`)
+          return null
+        }
+        return {
+          source: request.source,
+          quoteName: request.quoteName,
+          code: request.code,
+          marketLabel: request.marketLabel,
+          snapshot: this.persistCompactSnapshot(snapshot)
+        }
+      })
+    )
     return contexts.filter((context): context is AiChatStockContext => context !== null)
   }
 
@@ -698,6 +779,6 @@ export class AiService {
   }
 
   private getCredential(providerId: AiProviderId): string | undefined {
-    return providerId === 'openai-codex' ? undefined : this.secrets.get(providerId) ?? undefined
+    return providerId === 'openai-codex' ? undefined : (this.secrets.get(providerId) ?? undefined)
   }
 }

@@ -19,9 +19,10 @@ function detectSideLargeOrder(
 
   const largest = fiveLevels[largestIndex]
   const volume = largest.volume!
-  const otherLevelsVolume = fiveLevels.reduce((total, level, index) => (
-    index === largestIndex ? total : total + level.volume!
-  ), 0)
+  const otherLevelsVolume = fiveLevels.reduce(
+    (total, level, index) => (index === largestIndex ? total : total + level.volume!),
+    0
+  )
   if (volume <= otherLevelsVolume) return null
 
   return {
@@ -33,9 +34,7 @@ function detectSideLargeOrder(
   }
 }
 
-export function detectFiveLevelLargeOrders(
-  orderBook: StockOrderBook
-): FiveLevelLargeOrderAlert[] {
+export function detectFiveLevelLargeOrders(orderBook: StockOrderBook): FiveLevelLargeOrderAlert[] {
   return [
     detectSideLargeOrder('buy', orderBook.bids),
     detectSideLargeOrder('sell', orderBook.asks)

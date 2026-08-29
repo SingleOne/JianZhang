@@ -63,19 +63,9 @@ export interface PortfolioQualitySummary {
   holdings: PortfolioQualityHolding[]
 }
 
-const VALUE_CATEGORIES: PortfolioValueCategory[] = [
-  'dual',
-  'fundamental',
-  'dividend',
-  'unlabeled'
-]
+const VALUE_CATEGORIES: PortfolioValueCategory[] = ['dual', 'fundamental', 'dividend', 'unlabeled']
 
-const RISK_CATEGORIES: PortfolioRiskCategory[] = [
-  'critical',
-  'warning',
-  'clear',
-  'unassessed'
-]
+const RISK_CATEGORIES: PortfolioRiskCategory[] = ['critical', 'warning', 'clear', 'unassessed']
 
 export const PORTFOLIO_RISK_TAGS: FundamentalRiskTag[] = [
   'cashDivergence',
@@ -98,23 +88,23 @@ function createBuckets<T extends string>(categories: T[]): Record<T, PortfolioQu
 }
 
 function valueCategory(input: PortfolioQualityInput): PortfolioValueCategory {
-  return classifyFundamentalDividendCategory(
-    input.fundamentalEvaluation,
-    input.hasDividendLabel
-  )
+  return classifyFundamentalDividendCategory(input.fundamentalEvaluation, input.hasDividendLabel)
 }
 
 function hasCompleteRiskInputs(evaluation: FundamentalScreeningEvaluation): boolean {
   const { company } = evaluation
-  return company.organizationType === 'general'
-    && company.annualReports.length === 5
-    && company.annualReports.every((report) => (
-      report.weightedAverageRoe !== null
-      && report.deductedWeightedAverageRoe !== null
-      && report.netProfit !== null
-      && report.operatingCashFlow !== null
-    ))
-    && company.latestBalanceSheet.industryPercentile !== null
+  return (
+    company.organizationType === 'general' &&
+    company.annualReports.length === 5 &&
+    company.annualReports.every(
+      (report) =>
+        report.weightedAverageRoe !== null &&
+        report.deductedWeightedAverageRoe !== null &&
+        report.netProfit !== null &&
+        report.operatingCashFlow !== null
+    ) &&
+    company.latestBalanceSheet.industryPercentile !== null
+  )
 }
 
 function riskProfile(input: PortfolioQualityInput): {
@@ -139,9 +129,8 @@ function applyPercentages<T extends string>(
   totalMarketValue: number
 ): void {
   for (const category of categories) {
-    buckets[category].percent = totalMarketValue > 0
-      ? buckets[category].marketValue / totalMarketValue * 100
-      : null
+    buckets[category].percent =
+      totalMarketValue > 0 ? (buckets[category].marketValue / totalMarketValue) * 100 : null
   }
 }
 
@@ -218,24 +207,23 @@ export function calculatePortfolioQualitySummary(
   applyPercentages(riskTagBuckets, PORTFOLIO_RISK_TAGS, totalMarketValue)
   const industries = [...industriesByName.values()]
   for (const industry of industries) {
-    industry.percent = totalMarketValue > 0
-      ? industry.marketValue / totalMarketValue * 100
-      : null
+    industry.percent = totalMarketValue > 0 ? (industry.marketValue / totalMarketValue) * 100 : null
     applyPercentages(industry.valueBuckets, VALUE_CATEGORIES, industry.marketValue)
     applyPercentages(industry.riskBuckets, RISK_CATEGORIES, industry.marketValue)
   }
-  industries.sort((left, right) => (
-    right.marketValue - left.marketValue || left.name.localeCompare(right.name, 'zh-CN')
-  ))
+  industries.sort(
+    (left, right) =>
+      right.marketValue - left.marketValue || left.name.localeCompare(right.name, 'zh-CN')
+  )
   for (const holding of holdings) {
-    holding.weight = holding.marketValue !== null && totalMarketValue > 0
-      ? holding.marketValue / totalMarketValue * 100
-      : null
+    holding.weight =
+      holding.marketValue !== null && totalMarketValue > 0
+        ? (holding.marketValue / totalMarketValue) * 100
+        : null
   }
   holdings.sort((left, right) => {
-    if (left.marketValue === null) return right.marketValue === null
-      ? left.name.localeCompare(right.name, 'zh-CN')
-      : 1
+    if (left.marketValue === null)
+      return right.marketValue === null ? left.name.localeCompare(right.name, 'zh-CN') : 1
     if (right.marketValue === null) return -1
     return right.marketValue - left.marketValue
   })

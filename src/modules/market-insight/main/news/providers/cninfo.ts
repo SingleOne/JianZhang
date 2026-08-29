@@ -68,13 +68,14 @@ export class CninfoAnnouncementProvider implements MarketNewsProvider {
     })
 
     return (payload.announcements ?? [])
-      .filter((item) => (
-        item.secCode === input.code
-        && item.announcementId
-        && item.announcementTitle
-        && typeof item.announcementTime === 'number'
-        && item.adjunctUrl
-      ))
+      .filter(
+        (item) =>
+          item.secCode === input.code &&
+          item.announcementId &&
+          item.announcementTitle &&
+          typeof item.announcementTime === 'number' &&
+          item.adjunctUrl
+      )
       .map((item): MarketNewsItem => ({
         id: `cninfo:${item.announcementId}`,
         title: decodeHtml(item.announcementTitle!),
@@ -92,16 +93,22 @@ export class CninfoAnnouncementProvider implements MarketNewsProvider {
     if (!this.stockOrganizations) {
       this.stockOrganizations = requestJson<{ stockList?: CninfoStock[] }>(STOCK_LIST_URL, {
         headers: REQUEST_HEADERS
-      }).then((payload) => new Map(
-        (payload.stockList ?? [])
-          .filter((item): item is Required<Pick<CninfoStock, 'code' | 'orgId'>> & CninfoStock => (
-            item.category === 'A股' && Boolean(item.code && item.orgId)
-          ))
-          .map((item) => [item.code, item.orgId])
-      )).catch((error) => {
-        this.stockOrganizations = null
-        throw error
       })
+        .then(
+          (payload) =>
+            new Map(
+              (payload.stockList ?? [])
+                .filter(
+                  (item): item is Required<Pick<CninfoStock, 'code' | 'orgId'>> & CninfoStock =>
+                    item.category === 'A股' && Boolean(item.code && item.orgId)
+                )
+                .map((item) => [item.code, item.orgId])
+            )
+        )
+        .catch((error) => {
+          this.stockOrganizations = null
+          throw error
+        })
     }
     return this.stockOrganizations
   }

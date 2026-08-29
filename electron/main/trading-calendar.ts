@@ -82,7 +82,9 @@ export async function fetchSseTradingCalendar(expectedYear: number): Promise<Sse
   const section = html.slice(heading.index)
   const table = section.match(/<table\b[^>]*>([\s\S]*?)<\/table>/i)?.[1] ?? ''
   const rows = [...table.matchAll(/<tr\b[^>]*>[\s\S]*?<\/tr>/gi)]
-  const closedDates = [...new Set(rows.flatMap((row) => closedDatesFromRow(row[0], expectedYear)))].sort()
+  const closedDates = [
+    ...new Set(rows.flatMap((row) => closedDatesFromRow(row[0], expectedYear)))
+  ].sort()
   if (closedDates.length === 0) throw new Error('未能从上交所页面识别休市日期')
 
   return { year: expectedYear, closedDates }
@@ -110,18 +112,22 @@ export async function fetchHkexTradingCalendar(expectedYear: number): Promise<Hk
   if (!encoded) throw new Error('未能从港交所页面识别日历数据')
   const events = (JSON.parse(encoded) as { monthly?: HkexCalendarEvent[] }).monthly ?? []
   const annualEvents = events.filter((event) => event.startdate?.startsWith(`${expectedYear}-`))
-  const closedDates = [...new Set(
-    annualEvents
-      .filter((event) => event.holidayIcon === 'HongKongPublicHolidays')
-      .flatMap((event) => event.startdate ? [event.startdate] : [])
-  )].sort()
-  const halfDayDates = [...new Set(
-    annualEvents
-      .filter((event) =>
-        `${event.name ?? ''} ${event.description ?? ''}`.includes('Half-Day Trading Day')
-      )
-      .flatMap((event) => event.startdate ? [event.startdate] : [])
-  )].sort()
+  const closedDates = [
+    ...new Set(
+      annualEvents
+        .filter((event) => event.holidayIcon === 'HongKongPublicHolidays')
+        .flatMap((event) => (event.startdate ? [event.startdate] : []))
+    )
+  ].sort()
+  const halfDayDates = [
+    ...new Set(
+      annualEvents
+        .filter((event) =>
+          `${event.name ?? ''} ${event.description ?? ''}`.includes('Half-Day Trading Day')
+        )
+        .flatMap((event) => (event.startdate ? [event.startdate] : []))
+    )
+  ].sort()
   if (closedDates.length === 0 || halfDayDates.length === 0) {
     throw new Error(`港交所 ${expectedYear} 年日历数据不完整`)
   }

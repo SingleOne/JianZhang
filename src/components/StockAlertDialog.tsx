@@ -62,22 +62,25 @@ export function StockAlertDialog({
   }
 
   const addRule = () => {
-    setRules((current) => [...current, {
-      id: crypto.randomUUID(),
-      metric: 'price',
-      operator: 'gte',
-      target: quote?.latest?.toString() ?? '',
-      enabled: true,
-      status: 'armed'
-    }])
+    setRules((current) => [
+      ...current,
+      {
+        id: crypto.randomUUID(),
+        metric: 'price',
+        operator: 'gte',
+        target: quote?.latest?.toString() ?? '',
+        enabled: true,
+        status: 'armed'
+      }
+    ])
   }
 
   const updateRule = (ruleId: string, changes: Partial<DraftRule>) => {
-    setRules((current) => current.map((rule) => (
-      rule.id === ruleId
-        ? { ...rule, ...changes, status: 'armed', triggeredAt: undefined }
-        : rule
-    )))
+    setRules((current) =>
+      current.map((rule) =>
+        rule.id === ruleId ? { ...rule, ...changes, status: 'armed', triggeredAt: undefined } : rule
+      )
+    )
   }
 
   return createPortal(
@@ -94,13 +97,22 @@ export function StockAlertDialog({
       >
         <header className="position-dialog-header">
           <div>
-            <span className="position-dialog-icon"><BellRing size={18} /></span>
+            <span className="position-dialog-icon">
+              <BellRing size={18} />
+            </span>
             <span>
               <strong id="stock-alert-dialog-title">股价提醒</strong>
-              <small>{stock.name} · {stock.code} · 可同时设置多条规则</small>
+              <small>
+                {stock.name} · {stock.code} · 可同时设置多条规则
+              </small>
             </span>
           </div>
-          <button className="icon-button dialog-close" type="button" onClick={onClose} aria-label="关闭">
+          <button
+            className="icon-button dialog-close"
+            type="button"
+            onClick={onClose}
+            aria-label="关闭"
+          >
             <X size={18} />
           </button>
         </header>
@@ -109,10 +121,12 @@ export function StockAlertDialog({
           className="stock-alert-form"
           onSubmit={(event) => {
             event.preventDefault()
-            onSave(rules.map(({ target, ...rule }) => ({
-              ...rule,
-              target: Number(target)
-            })))
+            onSave(
+              rules.map(({ target, ...rule }) => ({
+                ...rule,
+                target: Number(target)
+              }))
+            )
           }}
         >
           <div className="stock-alert-current-values">
@@ -122,12 +136,16 @@ export function StockAlertDialog({
             </span>
             <span>
               <small>当日涨幅</small>
-              <strong className={valueClass(quote?.changePercent)}>{formatPercent(quote?.changePercent)}</strong>
+              <strong className={valueClass(quote?.changePercent)}>
+                {formatPercent(quote?.changePercent)}
+              </strong>
             </span>
             {capabilities.profitAlert ? (
               <span>
                 <small>持仓收益率</small>
-                <strong className={valueClass(metrics.profitPercent)}>{formatPercent(metrics.profitPercent)}</strong>
+                <strong className={valueClass(metrics.profitPercent)}>
+                  {formatPercent(metrics.profitPercent)}
+                </strong>
               </span>
             ) : null}
           </div>
@@ -156,7 +174,10 @@ export function StockAlertDialog({
                     ? '当前已达到'
                     : '监控中'
               return (
-                <div className={`stock-alert-rule ${rule.enabled ? 'is-enabled' : ''}`} key={rule.id}>
+                <div
+                  className={`stock-alert-rule ${rule.enabled ? 'is-enabled' : ''}`}
+                  key={rule.id}
+                >
                   <span className="stock-alert-rule-index">{index + 1}</span>
                   <select
                     value={rule.metric}
@@ -171,15 +192,19 @@ export function StockAlertDialog({
                     aria-label={`提醒条件 ${index + 1} 指标`}
                   >
                     {availableMetrics.map(([metric, label]) => (
-                      <option value={metric} key={metric}>{label}</option>
+                      <option value={metric} key={metric}>
+                        {label}
+                      </option>
                     ))}
                   </select>
                   <select
                     className={`stock-alert-operator is-${rule.operator}`}
                     value={rule.operator}
-                    onChange={(event) => updateRule(rule.id, {
-                      operator: event.target.value as StockAlertRule['operator']
-                    })}
+                    onChange={(event) =>
+                      updateRule(rule.id, {
+                        operator: event.target.value as StockAlertRule['operator']
+                      })
+                    }
                     aria-label={`提醒条件 ${index + 1} 比较方式`}
                   >
                     <option value="gte">达到或高于</option>
@@ -187,7 +212,11 @@ export function StockAlertDialog({
                   </select>
                   <label className="stock-alert-target">
                     <input
-                      className={percentageRule ? valueClass(Number.isFinite(targetValue) ? targetValue : 0) : ''}
+                      className={
+                        percentageRule
+                          ? valueClass(Number.isFinite(targetValue) ? targetValue : 0)
+                          : ''
+                      }
                       type="number"
                       min={rule.metric === 'price' ? '0.001' : undefined}
                       step={rule.metric === 'price' ? '0.001' : '0.1'}
@@ -198,11 +227,16 @@ export function StockAlertDialog({
                     />
                     <span>{rule.metric === 'price' ? currencySymbol : '%'}</span>
                   </label>
-                  <span className={`stock-alert-status ${rule.status === 'triggered' && rule.enabled ? `is-triggered is-triggered-${rule.operator}` : ''}`}>
+                  <span
+                    className={`stock-alert-status ${rule.status === 'triggered' && rule.enabled ? `is-triggered is-triggered-${rule.operator}` : ''}`}
+                  >
                     {statusLabel}
                     {actualValue !== null ? (
                       <small className={percentageRule ? valueClass(actualValue) : ''}>
-                        当前 {rule.metric === 'price' ? formatPrice(actualValue) : formatPercent(actualValue)}
+                        当前{' '}
+                        {rule.metric === 'price'
+                          ? formatPrice(actualValue)
+                          : formatPercent(actualValue)}
                       </small>
                     ) : null}
                   </span>
@@ -217,7 +251,9 @@ export function StockAlertDialog({
                   <button
                     className="icon-button stock-alert-delete"
                     type="button"
-                    onClick={() => setRules((current) => current.filter((item) => item.id !== rule.id))}
+                    onClick={() =>
+                      setRules((current) => current.filter((item) => item.id !== rule.id))
+                    }
                     title="删除提醒条件"
                     aria-label={`删除提醒条件 ${index + 1}`}
                   >
@@ -238,8 +274,12 @@ export function StockAlertDialog({
           <footer className="position-dialog-actions stock-alert-actions">
             <small>提醒依赖实时行情刷新，应用最小化到托盘后仍会继续监控。</small>
             <span>
-              <button className="secondary-button compact-button" type="button" onClick={onClose}>取消</button>
-              <button className="primary-button compact-button" type="submit">保存提醒</button>
+              <button className="secondary-button compact-button" type="button" onClick={onClose}>
+                取消
+              </button>
+              <button className="primary-button compact-button" type="submit">
+                保存提醒
+              </button>
             </span>
           </footer>
         </form>

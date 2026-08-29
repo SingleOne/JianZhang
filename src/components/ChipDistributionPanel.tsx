@@ -35,16 +35,19 @@ export function ChipDistributionPanel({
   const peakIndexes = useMemo(() => {
     if (!distribution) return { highest: -1, firstAboveCurrent: -1 }
     const buckets = distribution.buckets
-    const highest = buckets.reduce((highestIndex, bucket, index) => (
-      bucket.percent > buckets[highestIndex].percent ? index : highestIndex
-    ), 0)
-    const firstAboveCurrent = buckets.findIndex((bucket, index) => (
-      bucket.price > distribution.currentPrice
-      && index > 0
-      && index < buckets.length - 1
-      && bucket.percent > buckets[index - 1].percent
-      && bucket.percent >= buckets[index + 1].percent
-    ))
+    const highest = buckets.reduce(
+      (highestIndex, bucket, index) =>
+        bucket.percent > buckets[highestIndex].percent ? index : highestIndex,
+      0
+    )
+    const firstAboveCurrent = buckets.findIndex(
+      (bucket, index) =>
+        bucket.price > distribution.currentPrice &&
+        index > 0 &&
+        index < buckets.length - 1 &&
+        bucket.percent > buckets[index - 1].percent &&
+        bucket.percent >= buckets[index + 1].percent
+    )
     return { highest, firstAboveCurrent }
   }, [distribution])
   const [highlightedBucketIndex, setHighlightedBucketIndex] = useState<number | null>(null)
@@ -52,12 +55,14 @@ export function ChipDistributionPanel({
   useEffect(() => {
     if (!distribution) return
     const timer = window.setTimeout(() => {
-      void stockApi.saveChipDistributionCache({
-        ...distribution,
-        quoteId,
-        name: quoteName,
-        calculatedAt: new Date().toISOString()
-      }).catch(() => undefined)
+      void stockApi
+        .saveChipDistributionCache({
+          ...distribution,
+          quoteId,
+          name: quoteName,
+          calculatedAt: new Date().toISOString()
+        })
+        .catch(() => undefined)
     }, 300)
     return () => window.clearTimeout(timer)
   }, [distribution, quoteId, quoteName])
@@ -83,9 +88,12 @@ export function ChipDistributionPanel({
       {distribution ? (
         <>
           <div className="chip-range-meta">
-            <span>{distribution.startDate} 至 {distribution.endDate}</span>
+            <span>
+              {distribution.startDate} 至 {distribution.endDate}
+            </span>
             <strong className={distribution.cumulativeTurnover >= 100 ? 'is-complete' : ''}>
-              {distribution.barCount}日 · 累计换手 {formatChipPercent(distribution.cumulativeTurnover)}
+              {distribution.barCount}日 · 累计换手{' '}
+              {formatChipPercent(distribution.cumulativeTurnover)}
             </strong>
           </div>
 
@@ -114,28 +122,40 @@ export function ChipDistributionPanel({
             </button>
             <span title={`70%筹码集中度 ${formatChipPercent(distribution.cost70.concentration)}`}>
               <small>70%成本</small>
-              <strong>{formatChipPrice(distribution.cost70.low)}–{formatChipPrice(distribution.cost70.high)}</strong>
+              <strong>
+                {formatChipPrice(distribution.cost70.low)}–
+                {formatChipPrice(distribution.cost70.high)}
+              </strong>
             </span>
             <span title={`90%筹码集中度 ${formatChipPercent(distribution.cost90.concentration)}`}>
               <small>90%成本</small>
-              <strong>{formatChipPrice(distribution.cost90.low)}–{formatChipPrice(distribution.cost90.high)}</strong>
+              <strong>
+                {formatChipPrice(distribution.cost90.low)}–
+                {formatChipPrice(distribution.cost90.high)}
+              </strong>
             </span>
             <button
-              className={highlightedBucketIndex === peakIndexes.firstAboveCurrent ? 'is-active' : ''}
+              className={
+                highlightedBucketIndex === peakIndexes.firstAboveCurrent ? 'is-active' : ''
+              }
               type="button"
               disabled={peakIndexes.firstAboveCurrent < 0}
               onPointerEnter={() => setHighlightedBucketIndex(peakIndexes.firstAboveCurrent)}
               onPointerLeave={() => setHighlightedBucketIndex(null)}
               onFocus={() => setHighlightedBucketIndex(peakIndexes.firstAboveCurrent)}
               onBlur={() => setHighlightedBucketIndex(null)}
-              title={peakIndexes.firstAboveCurrent < 0
-                ? '当前价格上方没有形成局部峰值'
-                : `筹码占比 ${formatChipPercent(distribution.buckets[peakIndexes.firstAboveCurrent].percent)}`}
+              title={
+                peakIndexes.firstAboveCurrent < 0
+                  ? '当前价格上方没有形成局部峰值'
+                  : `筹码占比 ${formatChipPercent(distribution.buckets[peakIndexes.firstAboveCurrent].percent)}`
+              }
             >
               <small>现价上方首峰</small>
-              <strong>{peakIndexes.firstAboveCurrent < 0
-                ? '—'
-                : formatChipPrice(distribution.buckets[peakIndexes.firstAboveCurrent].price)}</strong>
+              <strong>
+                {peakIndexes.firstAboveCurrent < 0
+                  ? '—'
+                  : formatChipPrice(distribution.buckets[peakIndexes.firstAboveCurrent].price)}
+              </strong>
             </button>
           </div>
 
@@ -150,11 +170,7 @@ export function ChipDistributionPanel({
           <footer>基于可视日K价格与换手率估算</footer>
         </>
       ) : (
-        <ChipDistributionStatus
-          status={dataStatus}
-          detail={statusDetail}
-          bars={bars}
-        />
+        <ChipDistributionStatus status={dataStatus} detail={statusDetail} bars={bars} />
       )}
     </aside>
   )
@@ -221,8 +237,8 @@ function ChipDistributionChart({
   const minPrice = buckets[0]?.price ?? 0
   const maxPrice = buckets.at(-1)?.price ?? 0
   const priceSpan = Math.max(0.01, maxPrice - minPrice)
-  const yForPrice = (price: number) => bottom - (price - minPrice) / priceSpan * chartHeight
-  const bucketHeight = Math.max(0.7, chartHeight / buckets.length * 0.74)
+  const yForPrice = (price: number) => bottom - ((price - minPrice) / priceSpan) * chartHeight
+  const bucketHeight = Math.max(0.7, (chartHeight / buckets.length) * 0.74)
   const currentY = yForPrice(currentPrice)
   const averageY = yForPrice(averageCost)
   const activeIndex = highlightedBucketIndex ?? 0
@@ -280,8 +296,12 @@ function ChipDistributionChart({
             <line className="chip-hover-line" x1={left} y1={activeY} x2={right} y2={activeY} />
             <g className="chip-hover-tooltip" transform={`translate(${tooltipX} ${tooltipY})`}>
               <rect width={tooltipWidth} height={tooltipHeight} rx="5" />
-              <text x="7" y="14">价位 {formatChipPrice(activeBucket.price)}</text>
-              <text x="7" y="30">筹码 {formatChipPercent(activeBucket.percent)}</text>
+              <text x="7" y="14">
+                价位 {formatChipPrice(activeBucket.price)}
+              </text>
+              <text x="7" y="30">
+                筹码 {formatChipPercent(activeBucket.percent)}
+              </text>
             </g>
           </>
         ) : null}

@@ -172,11 +172,7 @@ export class QuoteRuntime {
       ...(state.settings.marketIndexIds.length > 0 ? ['CN' as const] : [])
     ])
     return [...markets].some((market) =>
-      isMarketOpen(
-        market,
-        new Date(),
-        state.settings.tradingCalendar.markets[market]
-      )
+      isMarketOpen(market, new Date(), state.settings.tradingCalendar.markets[market])
     )
   }
 
@@ -302,8 +298,7 @@ export class QuoteRuntime {
     const dueSectorStocks = this.dependencies.sectorMarketCache.dueBoardStocks(
       scopedStocks.filter(
         (stock) =>
-          marketCapabilitiesForQuoteId(stock.quoteId).sector &&
-          (!batch.automatic || isOpen(stock))
+          marketCapabilitiesForQuoteId(stock.quoteId).sector && (!batch.automatic || isOpen(stock))
       )
     )
     const requestedSectorStocks = [...batch.sectorQuoteIds].flatMap((quoteId) => {
@@ -341,17 +336,15 @@ export class QuoteRuntime {
       this.dependencies.publishQuotes(this.latestQuotes)
       if (result.warning) this.dependencies.sendToWindows('data:error', result.warning)
       const currentState = this.dependencies.getState()
-      const alertQuotes = this.latestQuotes.filter((quote) =>
-        stockQuoteDataState(
-          quote,
-          new Date(),
-          currentState.settings.tradingCalendar.markets[marketFromQuoteId(quote.quoteId)]
-        ) === 'live'
+      const alertQuotes = this.latestQuotes.filter(
+        (quote) =>
+          stockQuoteDataState(
+            quote,
+            new Date(),
+            currentState.settings.tradingCalendar.markets[marketFromQuoteId(quote.quoteId)]
+          ) === 'live'
       )
-      const tAlertUpdate = applyTAlertTriggersToAccounts(
-        currentState.tTradingAccounts,
-        alertQuotes
-      )
+      const tAlertUpdate = applyTAlertTriggersToAccounts(currentState.tTradingAccounts, alertQuotes)
       const stockAlertUpdate = applyStockAlertTriggers(
         currentState.watchlist,
         alertQuotes,

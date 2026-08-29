@@ -92,10 +92,16 @@ export class OpenAiCodexProvider implements AiProvider {
 
   async getAccountStatus(): Promise<AiCodexAccountStatus> {
     if (!this.runtime.isAvailable()) {
-      return { runtimeAvailable: false, loggedIn: false, message: 'Codex 官方运行时未包含在当前构建中' }
+      return {
+        runtimeAvailable: false,
+        loggedIn: false,
+        message: 'Codex 官方运行时未包含在当前构建中'
+      }
     }
     try {
-      const result = await this.runtime.request<AccountReadResult>('account/read', { refreshToken: false })
+      const result = await this.runtime.request<AccountReadResult>('account/read', {
+        refreshToken: false
+      })
       if (result.account?.type !== 'chatgpt') {
         return { runtimeAvailable: true, loggedIn: false }
       }
@@ -125,7 +131,9 @@ export class OpenAiCodexProvider implements AiProvider {
       await shell.openExternal(started.authUrl)
       result = await completion
     } catch (error) {
-      await this.runtime.request('account/login/cancel', { loginId: started.loginId }).catch(() => undefined)
+      await this.runtime
+        .request('account/login/cancel', { loginId: started.loginId })
+        .catch(() => undefined)
       throw error
     }
     if (!result.success) throw new Error(result.error || 'Codex 账号登录失败')
@@ -139,10 +147,16 @@ export class OpenAiCodexProvider implements AiProvider {
 
   async testConnection(): Promise<AiConnectionResult> {
     const status = await this.getAccountStatus()
-    if (!status.runtimeAvailable) return { ok: false, kind: 'provider', message: status.message ?? 'Codex 运行时不可用' }
-    if (!status.loggedIn) return { ok: false, kind: 'authentication', message: status.message ?? '请先登录 Codex 账号' }
+    if (!status.runtimeAvailable)
+      return { ok: false, kind: 'provider', message: status.message ?? 'Codex 运行时不可用' }
+    if (!status.loggedIn)
+      return { ok: false, kind: 'authentication', message: status.message ?? '请先登录 Codex 账号' }
     const account = [status.email, status.planType].filter(Boolean).join(' · ')
-    return { ok: true, kind: 'success', message: account ? `Codex 账号已连接：${account}` : 'Codex 账号已连接' }
+    return {
+      ok: true,
+      kind: 'success',
+      message: account ? `Codex 账号已连接：${account}` : 'Codex 账号已连接'
+    }
   }
 
   async streamChat(
@@ -152,7 +166,8 @@ export class OpenAiCodexProvider implements AiProvider {
     signal: AbortSignal
   ): Promise<AiProviderTurnResult> {
     const account = await this.getAccountStatus()
-    if (!account.loggedIn) throw new Error(account.message ?? '请先在 AI 助手的服务设置中登录 Codex 账号')
+    if (!account.loggedIn)
+      throw new Error(account.message ?? '请先在 AI 助手的服务设置中登录 Codex 账号')
     signal.throwIfAborted()
     const developerInstructions = request.messages
       .filter((message) => message.role === 'system')
@@ -174,7 +189,8 @@ export class OpenAiCodexProvider implements AiProvider {
     let turnId = ''
     let streamError: unknown
     const abort = () => {
-      if (turnId) void this.runtime.request('turn/interrupt', { threadId, turnId }).catch(() => undefined)
+      if (turnId)
+        void this.runtime.request('turn/interrupt', { threadId, turnId }).catch(() => undefined)
     }
     const removeNotifications = this.runtime.onNotification((method, params) => {
       if (method !== 'item/agentMessage/delta') return
@@ -203,11 +219,14 @@ export class OpenAiCodexProvider implements AiProvider {
       if (streamError) abort()
       const result = await completed
       if (streamError) throw streamError
-      if (signal.aborted || result.turn.status === 'interrupted') throw new DOMException('已停止生成', 'AbortError')
-      if (result.turn.status === 'failed') throw new Error(result.turn.error?.message ?? 'Codex 生成失败')
+      if (signal.aborted || result.turn.status === 'interrupted')
+        throw new DOMException('已停止生成', 'AbortError')
+      if (result.turn.status === 'failed')
+        throw new Error(result.turn.error?.message ?? 'Codex 生成失败')
       const finalMessage = [...result.turn.items]
         .reverse()
-        .find((item) => item.type === 'agentMessage' && item.phase !== 'commentary')?.text?.trim()
+        .find((item) => item.type === 'agentMessage' && item.phase !== 'commentary')
+        ?.text?.trim()
       if (finalMessage && finalMessage.startsWith(content)) emit(finalMessage.slice(content.length))
       return { content: finalMessage || content, responseId: result.turn.id }
     } finally {
@@ -221,12 +240,16 @@ export class OpenAiCodexProvider implements AiProvider {
   }
 
   private async resolveModel(requestedModel: string): Promise<string> {
-    const result = await this.runtime.request<ModelListResult>('model/list', { includeHidden: false })
+    const result = await this.runtime.request<ModelListResult>('model/list', {
+      includeHidden: false
+    })
     const normalizedRequestedModel = normalizeOpenAiCodexModelId(requestedModel)
-    const selected = result.data.find((item) => (
-      [item.id, item.model, item.displayName]
-        .some((value) => normalizeOpenAiCodexModelId(value) === normalizedRequestedModel)
-    )) ?? result.data.find((item) => item.isDefault)
+    const selected =
+      result.data.find((item) =>
+        [item.id, item.model, item.displayName].some(
+          (value) => normalizeOpenAiCodexModelId(value) === normalizedRequestedModel
+        )
+      ) ?? result.data.find((item) => item.isDefault)
     return selected?.model ?? normalizedRequestedModel
   }
 }

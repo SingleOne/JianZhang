@@ -50,10 +50,7 @@ const VALUE_CATEGORY_META: Record<
   }
 }
 
-const RISK_CATEGORY_META: Record<
-  PortfolioRiskCategory,
-  { label: string; description: string }
-> = {
+const RISK_CATEGORY_META: Record<PortfolioRiskCategory, { label: string; description: string }> = {
   critical: {
     label: '严重风险',
     description: '至少触发现金背离或利润现金背离'
@@ -79,12 +76,7 @@ const VALUE_CATEGORY_ORDER: PortfolioValueCategory[] = [
   'unlabeled'
 ]
 
-const RISK_CATEGORY_ORDER: PortfolioRiskCategory[] = [
-  'critical',
-  'warning',
-  'clear',
-  'unassessed'
-]
+const RISK_CATEGORY_ORDER: PortfolioRiskCategory[] = ['critical', 'warning', 'clear', 'unassessed']
 
 function formatShare(value: number | null): string {
   return value === null ? '--' : `${value.toFixed(1)}%`
@@ -115,21 +107,23 @@ export function PortfolioQualityDialog({
     return () => document.removeEventListener('keydown', closeOnEscape)
   }, [onClose])
   const filteredHoldings = useMemo(
-    () => summary.holdings.filter((holding) => (
-      (!valueFilter || holding.valueCategory === valueFilter)
-      && (!riskFilter || holding.riskCategory === riskFilter)
-      && (!riskTagFilter || holding.riskTags.includes(riskTagFilter))
-      && (!industryFilter || holding.industryName === industryFilter)
-    )),
+    () =>
+      summary.holdings.filter(
+        (holding) =>
+          (!valueFilter || holding.valueCategory === valueFilter) &&
+          (!riskFilter || holding.riskCategory === riskFilter) &&
+          (!riskTagFilter || holding.riskTags.includes(riskTagFilter)) &&
+          (!industryFilter || holding.industryName === industryFilter)
+      ),
     [industryFilter, riskFilter, riskTagFilter, summary.holdings, valueFilter]
   )
   const hasHoldingFilters = Boolean(valueFilter || riskFilter || riskTagFilter || industryFilter)
   const pricedIndustries = summary.industries.filter((industry) => industry.marketValue > 0)
   const topIndustryPercent = pricedIndustries[0]?.percent ?? null
-  const topThreeIndustryPercent = summary.totalMarketValue === null
-    ? null
-    : pricedIndustries.slice(0, 3)
-      .reduce((total, industry) => total + (industry.percent ?? 0), 0)
+  const topThreeIndustryPercent =
+    summary.totalMarketValue === null
+      ? null
+      : pricedIndustries.slice(0, 3).reduce((total, industry) => total + (industry.percent ?? 0), 0)
   const clearHoldingFilters = () => {
     setValueFilter(null)
     setRiskFilter(null)
@@ -153,7 +147,8 @@ export function PortfolioQualityDialog({
           <span>
             <h2 id="portfolio-quality-title">持仓质量概览</h2>
             <small>
-              基本面快照 {fundamentalSnapshotDate ?? '暂无'} · 分红融资快照 {dividendSnapshotDate ?? '暂无'}
+              基本面快照 {fundamentalSnapshotDate ?? '暂无'} · 分红融资快照{' '}
+              {dividendSnapshotDate ?? '暂无'}
             </small>
           </span>
           <button
@@ -177,9 +172,18 @@ export function PortfolioQualityDialog({
           ) : null}
 
           <div className="portfolio-quality-summary">
-            <span><small>全部持仓</small><strong>{summary.positionCount} 只</strong></span>
-            <span><small>纳入市值计算</small><strong>{summary.pricedPositionCount} 只</strong></span>
-            <span><small>可计价总市值</small><strong>{formatCurrency(summary.totalMarketValue)}</strong></span>
+            <span>
+              <small>全部持仓</small>
+              <strong>{summary.positionCount} 只</strong>
+            </span>
+            <span>
+              <small>纳入市值计算</small>
+              <strong>{summary.pricedPositionCount} 只</strong>
+            </span>
+            <span>
+              <small>可计价总市值</small>
+              <strong>{formatCurrency(summary.totalMarketValue)}</strong>
+            </span>
             <span className={summary.unpricedPositionCount > 0 ? 'is-warning' : ''}>
               <small>未计价持仓</small>
               <strong>{summary.unpricedPositionCount} 只</strong>
@@ -212,7 +216,9 @@ export function PortfolioQualityDialog({
                 })}
               </div>
             ) : (
-              <div className="portfolio-quality-no-price">当前持仓均未取得最新价格，暂不能计算市值占比。</div>
+              <div className="portfolio-quality-no-price">
+                当前持仓均未取得最新价格，暂不能计算市值占比。
+              </div>
             )}
             <div className="portfolio-quality-buckets">
               {VALUE_CATEGORY_ORDER.map((category) => {
@@ -226,8 +232,13 @@ export function PortfolioQualityDialog({
                     onClick={() => setValueFilter(valueFilter === category ? null : category)}
                     key={category}
                   >
-                    <span><strong>{meta.label}</strong><b>{formatShare(bucket.percent)}</b></span>
-                    <small>{bucket.count} 只 · 市值 {formatCurrency(bucket.marketValue)}</small>
+                    <span>
+                      <strong>{meta.label}</strong>
+                      <b>{formatShare(bucket.percent)}</b>
+                    </span>
+                    <small>
+                      {bucket.count} 只 · 市值 {formatCurrency(bucket.marketValue)}
+                    </small>
                     <p>{meta.description}</p>
                   </button>
                 )
@@ -258,8 +269,13 @@ export function PortfolioQualityDialog({
                     }}
                     key={category}
                   >
-                    <span><strong>{meta.label}</strong><b>{formatShare(bucket.percent)}</b></span>
-                    <small>{bucket.count} 只 · 市值 {formatCurrency(bucket.marketValue)}</small>
+                    <span>
+                      <strong>{meta.label}</strong>
+                      <b>{formatShare(bucket.percent)}</b>
+                    </span>
+                    <small>
+                      {bucket.count} 只 · 市值 {formatCurrency(bucket.marketValue)}
+                    </small>
                     <p>{meta.description}</p>
                   </button>
                 )
@@ -294,35 +310,49 @@ export function PortfolioQualityDialog({
             </div>
           </section>
 
-          <section className="portfolio-quality-section" aria-labelledby="portfolio-industry-heading">
+          <section
+            className="portfolio-quality-section"
+            aria-labelledby="portfolio-industry-heading"
+          >
             <div className="portfolio-quality-section-heading">
               <span>
                 <strong id="portfolio-industry-heading">行业集中度</strong>
               </span>
               <small>
-                {summary.industries.length} 个行业 · 第一大行业 {formatShare(topIndustryPercent)} · 前三大 {formatShare(topThreeIndustryPercent)}
+                {summary.industries.length} 个行业 · 第一大行业 {formatShare(topIndustryPercent)} ·
+                前三大 {formatShare(topThreeIndustryPercent)}
               </small>
             </div>
             <div className="portfolio-industry-list">
               {summary.industries.map((industry) => {
-                const riskPercent = industry.marketValue > 0
-                  ? (industry.riskBuckets.critical.percent ?? 0)
-                    + (industry.riskBuckets.warning.percent ?? 0)
-                  : null
+                const riskPercent =
+                  industry.marketValue > 0
+                    ? (industry.riskBuckets.critical.percent ?? 0) +
+                      (industry.riskBuckets.warning.percent ?? 0)
+                    : null
                 return (
                   <button
                     className={`portfolio-industry-row ${industryFilter === industry.name ? 'is-active' : ''}`}
                     type="button"
                     aria-pressed={industryFilter === industry.name}
-                    onClick={() => setIndustryFilter(industryFilter === industry.name ? null : industry.name)}
+                    onClick={() =>
+                      setIndustryFilter(industryFilter === industry.name ? null : industry.name)
+                    }
                     key={industry.name}
                   >
                     <span className="portfolio-industry-name">
                       <strong>{industry.name}</strong>
-                      <small>{industry.count} 只 · 市值 {formatCurrency(industry.marketValue)}</small>
+                      <small>
+                        {industry.count} 只 · 市值 {formatCurrency(industry.marketValue)}
+                      </small>
                     </span>
-                    <strong className="portfolio-industry-percent">{formatShare(industry.percent)}</strong>
-                    <span className="portfolio-industry-value-bar" aria-label={`${industry.name}行业内价值类型分布`}>
+                    <strong className="portfolio-industry-percent">
+                      {formatShare(industry.percent)}
+                    </strong>
+                    <span
+                      className="portfolio-industry-value-bar"
+                      aria-label={`${industry.name}行业内价值类型分布`}
+                    >
                       {VALUE_CATEGORY_ORDER.map((category) => {
                         const percent = industry.valueBuckets[category].percent
                         return percent && percent > 0 ? (
@@ -335,7 +365,9 @@ export function PortfolioQualityDialog({
                         ) : null
                       })}
                     </span>
-                    <span className={`portfolio-industry-risk ${riskPercent && riskPercent > 0 ? 'has-risk' : ''}`}>
+                    <span
+                      className={`portfolio-industry-risk ${riskPercent && riskPercent > 0 ? 'has-risk' : ''}`}
+                    >
                       风险 {formatShare(riskPercent)}
                     </span>
                   </button>
@@ -347,7 +379,10 @@ export function PortfolioQualityDialog({
             </small>
           </section>
 
-          <section className="portfolio-quality-holdings" aria-labelledby="portfolio-holdings-heading">
+          <section
+            className="portfolio-quality-holdings"
+            aria-labelledby="portfolio-holdings-heading"
+          >
             <div className="portfolio-quality-section-heading">
               <span>
                 <strong id="portfolio-holdings-heading">持仓明细</strong>
@@ -393,7 +428,9 @@ export function PortfolioQualityDialog({
                             <strong>未计价</strong>
                             <small>成本 {formatCurrency(holding.costValue)}</small>
                           </span>
-                        ) : formatCurrency(holding.marketValue)}
+                        ) : (
+                          formatCurrency(holding.marketValue)
+                        )}
                       </td>
                       <td>{formatShare(holding.weight)}</td>
                       <td>

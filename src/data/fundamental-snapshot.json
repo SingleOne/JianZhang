@@ -3,13 +3,7 @@
   "snapshotDate": "2026-08-06",
   "generatedAt": "2026-08-06T08:29:06+08:00",
   "currency": "CNY",
-  "fiscalYears": [
-    2021,
-    2022,
-    2023,
-    2024,
-    2025
-  ],
+  "fiscalYears": [2021, 2022, 2023, 2024, 2025],
   "latestAnnualReportDate": "2025-12-31",
   "sources": [
     {

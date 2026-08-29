@@ -24,7 +24,10 @@ import type {
 const DEMO_TIME = '2026-07-20T06:30:00.000Z'
 const listeners = new Set<(quoteId: string) => void>()
 const snapshots = new Map<string, MarketInsightSnapshot>()
-let settings: MarketInsightSettings = { ...DEFAULT_MARKET_INSIGHT_SETTINGS, watchedQuoteIds: ['1.600519'] }
+let settings: MarketInsightSettings = {
+  ...DEFAULT_MARKET_INSIGHT_SETTINGS,
+  watchedQuoteIds: ['1.600519']
+}
 
 function quoteSeed(quoteId: string): number {
   return [...quoteId].reduce((total, character) => total + character.charCodeAt(0), 0)
@@ -32,7 +35,7 @@ function quoteSeed(quoteId: string): number {
 
 function fixedDailyBars(quoteId: string): KlineBar[] {
   const seed = quoteSeed(quoteId)
-  const base = 12 + seed % 80
+  const base = 12 + (seed % 80)
   return Array.from({ length: 100 }, (_, index) => {
     const price = base + Math.sin(index / 5 + seed) * 1.8 + index * 0.035
     const open = price - Math.sin(index * 1.7) * 0.28
@@ -54,7 +57,7 @@ function fixedDailyBars(quoteId: string): KlineBar[] {
 
 function fixedIntradayBars(quoteId: string): KlineBar[] {
   const seed = quoteSeed(quoteId)
-  const base = 12 + seed % 80 + 3.2
+  const base = 12 + (seed % 80) + 3.2
   const minutes = [
     ...Array.from({ length: 121 }, (_, index) => 9 * 60 + 30 + index),
     ...Array.from({ length: 121 }, (_, index) => 13 * 60 + index)
@@ -103,8 +106,14 @@ function createSnapshot(quoteId: string): MarketInsightSnapshot {
     name: quote.name,
     latest,
     previousClose: quote.previousClose,
-    bids: Array.from({ length: 5 }, (_, index) => ({ price: (latest ?? 0) - (index + 1) * 0.01, volume: 6_500 - index * 550 })),
-    asks: Array.from({ length: 5 }, (_, index) => ({ price: (latest ?? 0) + (index + 1) * 0.01, volume: 3_400 + index * 430 })),
+    bids: Array.from({ length: 5 }, (_, index) => ({
+      price: (latest ?? 0) - (index + 1) * 0.01,
+      volume: 6_500 - index * 550
+    })),
+    asks: Array.from({ length: 5 }, (_, index) => ({
+      price: (latest ?? 0) + (index + 1) * 0.01,
+      volume: 3_400 + index * 430
+    })),
     updatedAt: DEMO_TIME
   }
   const fundsFlow: FundsFlowResult = {
@@ -124,9 +133,33 @@ function createSnapshot(quoteId: string): MarketInsightSnapshot {
   const orderBookResult = calculateOrderBookIndicators(orderBook, DEMO_TIME)
   const relative = calculateRelativeStrengthIndicators({ quote, fundsFlow }, DEMO_TIME)
   const distances = [
-    { id: 'position-cost', label: 'T 仓均价', side: 'position' as const, price: (latest ?? 0) * 0.992, distancePercent: 0.81, quantity: 1_000, isNearest: false },
-    { id: 'buy-1', label: 'T1 买入档', side: 'buy' as const, price: (latest ?? 0) * 0.996, distancePercent: 0.4, quantity: 100, isNearest: true },
-    { id: 'sell-1', label: 'T1 卖出档', side: 'sell' as const, price: (latest ?? 0) * 1.012, distancePercent: -1.19, quantity: 100, isNearest: false }
+    {
+      id: 'position-cost',
+      label: 'T 仓均价',
+      side: 'position' as const,
+      price: (latest ?? 0) * 0.992,
+      distancePercent: 0.81,
+      quantity: 1_000,
+      isNearest: false
+    },
+    {
+      id: 'buy-1',
+      label: 'T1 买入档',
+      side: 'buy' as const,
+      price: (latest ?? 0) * 0.996,
+      distancePercent: 0.4,
+      quantity: 100,
+      isNearest: true
+    },
+    {
+      id: 'sell-1',
+      label: 'T1 卖出档',
+      side: 'sell' as const,
+      price: (latest ?? 0) * 1.012,
+      distancePercent: -1.19,
+      quantity: 100,
+      isNearest: false
+    }
   ]
   const snapshot: MarketInsightSnapshot = {
     version: MARKET_INSIGHT_MODULE_VERSION,
@@ -186,12 +219,14 @@ function createSnapshot(quoteId: string): MarketInsightSnapshot {
     chartOverlay: {
       vwap: intraday.vwap,
       openingRange15: intraday.openingRange15,
-      tPlanLevels: distances.filter((item) => item.side !== 'position').map((item) => ({
-        id: item.id,
-        label: item.label,
-        price: item.price,
-        side: item.side as 'buy' | 'sell'
-      })),
+      tPlanLevels: distances
+        .filter((item) => item.side !== 'position')
+        .map((item) => ({
+          id: item.id,
+          label: item.label,
+          price: item.price,
+          side: item.side as 'buy' | 'sell'
+        })),
       eventMarkers: []
     }
   }
@@ -199,7 +234,9 @@ function createSnapshot(quoteId: string): MarketInsightSnapshot {
     ...snapshot,
     indicators: {
       ...snapshot.indicators,
-      intraday: snapshot.indicators.intraday.map((item) => item.id === 'vwap-deviation' ? { ...item, value: -0.2, state: 'down' as const } : item)
+      intraday: snapshot.indicators.intraday.map((item) =>
+        item.id === 'vwap-deviation' ? { ...item, value: -0.2, state: 'down' as const } : item
+      )
     }
   }
   const detection = detectWatchEvents(previous, snapshot, settings)
@@ -233,7 +270,10 @@ export const marketInsightDemoApi: MarketInsightApi = {
       newsMessage: '浏览器预览正在使用固定 K 线、新闻与事件 Fixture。',
       performance: {
         snapshotCount: snapshots.size,
-        eventCount: [...snapshots.values()].reduce((total, snapshot) => total + snapshot.events.length, 0),
+        eventCount: [...snapshots.values()].reduce(
+          (total, snapshot) => total + snapshot.events.length,
+          0
+        ),
         lastBuildMilliseconds: 0
       },
       resourceLimits: {
@@ -262,11 +302,14 @@ export const marketInsightDemoApi: MarketInsightApi = {
   },
   async acknowledgeEvent(eventId) {
     for (const [quoteId, snapshot] of snapshots) {
-      const events: WatchEvent[] = snapshot.events.map((event) => event.id === eventId && event.status === 'active'
-        ? { ...event, status: 'acknowledged' }
-        : event)
+      const events: WatchEvent[] = snapshot.events.map((event) =>
+        event.id === eventId && event.status === 'active'
+          ? { ...event, status: 'acknowledged' }
+          : event
+      )
       snapshots.set(quoteId, { ...snapshot, events })
-      if (events.some((event) => event.id === eventId)) for (const listener of listeners) listener(quoteId)
+      if (events.some((event) => event.id === eventId))
+        for (const listener of listeners) listener(quoteId)
     }
   },
   async clearExpiredEvents(quoteId) {

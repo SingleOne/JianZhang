@@ -1,0 +1,1076 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>简账 · 夜间模式配色预览</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+        font-size: 14px;
+        font-synthesis: none;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-width: 320px;
+        margin: 0;
+        color: #e6edf7;
+        background:
+          radial-gradient(circle at 50% -30%, rgba(91, 140, 255, 0.14), transparent 42%), #070c16;
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      svg {
+        display: block;
+      }
+
+      .review-page {
+        width: min(1540px, 100%);
+        margin: 0 auto;
+        padding: 28px;
+      }
+
+      .review-header {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 18px;
+      }
+
+      .review-heading h1 {
+        margin: 0 0 6px;
+        color: #f3f7fc;
+        font-size: clamp(22px, 2.4vw, 30px);
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+
+      .review-heading p {
+        margin: 0;
+        color: #94a3b8;
+        font-size: 13px;
+        line-height: 1.6;
+      }
+
+      .theme-switch {
+        display: inline-flex;
+        flex: 0 0 auto;
+        gap: 4px;
+        padding: 4px;
+        border: 1px solid #263449;
+        border-radius: 9px;
+        background: #111827;
+      }
+
+      .theme-switch button {
+        min-height: 34px;
+        padding: 0 13px;
+        color: #94a3b8;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        font-size: 13px;
+        font-weight: 500;
+      }
+
+      .theme-switch button[aria-pressed='true'] {
+        color: #f4f7fb;
+        background: #284d88;
+        box-shadow: 0 1px 8px rgba(1, 6, 16, 0.28);
+      }
+
+      .app-preview {
+        --canvas: #0b1220;
+        --surface: #111827;
+        --surface-muted: #162033;
+        --surface-raised: #1b2638;
+        --surface-hover: #17243a;
+        --surface-selected: #142a4d;
+        --text: #e6edf7;
+        --muted: #98a6ba;
+        --subtle: #7b899c;
+        --border: #263449;
+        --border-strong: #34445d;
+        --blue: #5b8cff;
+        --blue-hover: #78a2ff;
+        --blue-soft: rgba(91, 140, 255, 0.14);
+        --red: #ff6b75;
+        --red-soft: rgba(255, 107, 117, 0.14);
+        --green: #35c98b;
+        --green-soft: rgba(53, 201, 139, 0.14);
+        --amber: #f3b85b;
+        --amber-soft: rgba(243, 184, 91, 0.14);
+        --purple: #a78bfa;
+        --purple-soft: rgba(167, 139, 250, 0.14);
+        --shadow: 0 28px 80px rgba(0, 4, 13, 0.46);
+        overflow: hidden;
+        color: var(--text);
+        border: 1px solid var(--border-strong);
+        border-radius: 12px;
+        background: var(--canvas);
+        box-shadow: var(--shadow);
+        transition:
+          color 180ms ease,
+          border-color 180ms ease,
+          background-color 180ms ease;
+      }
+
+      .app-preview[data-theme='light'] {
+        --canvas: #f4f7fb;
+        --surface: #ffffff;
+        --surface-muted: #f7f9fc;
+        --surface-raised: #ffffff;
+        --surface-hover: #fafcff;
+        --surface-selected: #f1f6ff;
+        --text: #172033;
+        --muted: #667085;
+        --subtle: #8490a3;
+        --border: #e4e9f1;
+        --border-strong: #d6dde8;
+        --blue: #2563eb;
+        --blue-hover: #1d4ed8;
+        --blue-soft: #eaf1ff;
+        --red: #dc3742;
+        --red-soft: #fff0f1;
+        --green: #189266;
+        --green-soft: #eaf8f2;
+        --amber: #9a6700;
+        --amber-soft: #fff7df;
+        --purple: #6941c6;
+        --purple-soft: #f5f1ff;
+        --shadow: 0 24px 70px rgba(15, 23, 42, 0.2);
+      }
+
+      .app-titlebar {
+        display: flex;
+        align-items: center;
+        min-height: 42px;
+        padding: 0 12px 0 14px;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface);
+        user-select: none;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .brand-mark {
+        display: inline-grid;
+        width: 22px;
+        height: 22px;
+        place-items: center;
+        color: #ffffff;
+        border-radius: 6px;
+        background: var(--blue);
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .titlebar-spacer,
+      .status-spacer {
+        flex: 1;
+      }
+
+      .window-controls {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        color: var(--subtle);
+      }
+
+      .window-controls span {
+        display: grid;
+        width: 18px;
+        height: 18px;
+        place-items: center;
+        font-size: 13px;
+      }
+
+      .command-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--border);
+        background: var(--canvas);
+      }
+
+      .search-box {
+        display: flex;
+        flex: 1 1 520px;
+        align-items: center;
+        gap: 8px;
+        min-width: 220px;
+        min-height: 36px;
+        padding: 0 11px;
+        color: var(--subtle);
+        border: 1px solid var(--border-strong);
+        border-radius: 7px;
+        background: var(--surface);
+        transition:
+          border-color 160ms ease,
+          box-shadow 160ms ease;
+      }
+
+      .search-box:focus-within {
+        border-color: var(--blue);
+        box-shadow: 0 0 0 3px var(--blue-soft);
+      }
+
+      .search-box input {
+        width: 100%;
+        min-width: 0;
+        color: var(--text);
+        border: 0;
+        outline: 0;
+        background: transparent;
+        font-size: 13px;
+      }
+
+      .search-box input::placeholder {
+        color: var(--subtle);
+      }
+
+      .command-actions {
+        display: flex;
+        flex: 0 0 auto;
+        gap: 6px;
+      }
+
+      .secondary-button,
+      .table-tool-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-height: 36px;
+        padding: 0 10px;
+        color: var(--muted);
+        border: 1px solid var(--border-strong);
+        border-radius: 7px;
+        background: var(--surface);
+        font-size: 13px;
+        font-weight: 500;
+        transition:
+          color 150ms ease,
+          border-color 150ms ease,
+          background-color 150ms ease;
+      }
+
+      .secondary-button:hover,
+      .table-tool-button:hover {
+        color: var(--blue);
+        border-color: var(--blue);
+        background: var(--blue-soft);
+      }
+
+      .icon {
+        width: 16px;
+        height: 16px;
+        flex: 0 0 auto;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        fill: none;
+      }
+
+      .workspace {
+        padding: 14px;
+      }
+
+      .panel-heading {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 16px;
+        align-items: end;
+        margin-bottom: 12px;
+      }
+
+      .panel-title-line {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 4px;
+      }
+
+      .panel-title-line h2 {
+        margin: 0;
+        color: var(--text);
+        font-size: 20px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+
+      .auto-refresh-state {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .live-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--green);
+        box-shadow: 0 0 0 3px var(--green-soft);
+      }
+
+      .panel-subtitle {
+        color: var(--subtle);
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
+      .market-index-summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        margin-top: 9px;
+      }
+
+      .market-index-card {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 5px 8px;
+        color: var(--muted);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--surface);
+        font-size: 12px;
+      }
+
+      .market-index-card strong {
+        color: var(--text);
+        font-weight: 500;
+      }
+
+      .portfolio-summary {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(100px, 1fr));
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+      }
+
+      .portfolio-summary > span {
+        min-width: 0;
+        padding: 9px 11px;
+        border-left: 1px solid var(--border);
+        text-align: right;
+      }
+
+      .portfolio-summary > span:first-child {
+        border-left: 0;
+      }
+
+      .portfolio-summary small {
+        display: block;
+        margin-bottom: 3px;
+        color: var(--subtle);
+        font-size: 12px;
+      }
+
+      .portfolio-summary strong {
+        font-size: 15px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .table-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 44px;
+        padding: 6px 9px 6px 12px;
+        color: var(--muted);
+        border: 1px solid var(--border);
+        border-bottom: 0;
+        border-radius: 9px 9px 0 0;
+        background: var(--surface);
+        font-size: 12px;
+      }
+
+      .table-toolbar-actions {
+        display: flex;
+        gap: 6px;
+      }
+
+      .table-tool-button {
+        min-height: 30px;
+        padding: 0 8px;
+        background: transparent;
+        font-size: 12px;
+      }
+
+      .table-scroller {
+        overflow-x: auto;
+        border: 1px solid var(--border);
+        border-radius: 0 0 9px 9px;
+        background: var(--surface);
+      }
+
+      .watchlist-table {
+        width: 100%;
+        min-width: 1180px;
+        border-collapse: collapse;
+        table-layout: fixed;
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .watchlist-table col.stock-column {
+        width: 184px;
+      }
+
+      .watchlist-table col.value-column {
+        width: 82px;
+      }
+
+      .watchlist-table col.wide-column {
+        width: 106px;
+      }
+
+      .watchlist-table thead {
+        color: var(--muted);
+        background: var(--surface-muted);
+      }
+
+      .watchlist-table th,
+      .watchlist-table td {
+        height: 46px;
+        padding: 7px 8px;
+        border-bottom: 1px solid var(--border);
+        text-align: right;
+        vertical-align: middle;
+        white-space: nowrap;
+      }
+
+      .watchlist-table th {
+        height: 40px;
+        font-weight: 500;
+      }
+
+      .watchlist-table th:first-child,
+      .watchlist-table td:first-child {
+        padding-left: 13px;
+        text-align: left;
+      }
+
+      .watchlist-table tbody tr {
+        color: var(--text);
+        background: var(--surface);
+        transition: background-color 120ms ease;
+      }
+
+      .watchlist-table tbody tr:hover {
+        background: var(--surface-hover);
+      }
+
+      .watchlist-table tbody tr.is-selected {
+        background: var(--surface-selected);
+        box-shadow: inset 3px 0 0 var(--blue);
+      }
+
+      .watchlist-table tbody tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .stock-name {
+        display: block;
+        overflow: hidden;
+        color: var(--text);
+        font-weight: 600;
+        text-overflow: ellipsis;
+      }
+
+      .stock-code,
+      .cell-note {
+        display: block;
+        overflow: hidden;
+        margin-top: 3px;
+        color: var(--subtle);
+        text-overflow: ellipsis;
+      }
+
+      .direction-up {
+        color: var(--red) !important;
+      }
+
+      .direction-down {
+        color: var(--green) !important;
+      }
+
+      .direction-flat {
+        color: var(--muted) !important;
+      }
+
+      .value-tag {
+        display: inline-flex;
+        align-items: center;
+        min-height: 22px;
+        padding: 0 6px;
+        border-radius: 5px;
+        font-weight: 500;
+      }
+
+      .value-tag.is-purple {
+        color: var(--purple);
+        background: var(--purple-soft);
+      }
+
+      .value-tag.is-blue {
+        color: var(--blue);
+        background: var(--blue-soft);
+      }
+
+      .value-tag.is-amber {
+        color: var(--amber);
+        background: var(--amber-soft);
+      }
+
+      .row-action {
+        min-width: 54px;
+        min-height: 28px;
+        color: var(--muted);
+        border: 1px solid var(--border-strong);
+        border-radius: 6px;
+        background: transparent;
+        font-size: 12px;
+      }
+
+      .row-action:hover {
+        color: var(--blue);
+        border-color: var(--blue);
+        background: var(--blue-soft);
+      }
+
+      .statusbar {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        min-height: 34px;
+        padding: 0 13px;
+        color: var(--subtle);
+        border-top: 1px solid var(--border);
+        background: var(--surface);
+        font-size: 12px;
+      }
+
+      .status-source {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--muted);
+      }
+
+      .status-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--green);
+      }
+
+      .status-separator {
+        width: 1px;
+        height: 13px;
+        background: var(--border-strong);
+      }
+
+      .palette-section {
+        margin-top: 22px;
+      }
+
+      .palette-section h2 {
+        margin: 0 0 10px;
+        color: #f3f7fc;
+        font-size: 16px;
+        font-weight: 600;
+      }
+
+      .palette-grid {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(120px, 1fr));
+        gap: 8px;
+      }
+
+      .color-swatch {
+        overflow: hidden;
+        border: 1px solid #263449;
+        border-radius: 8px;
+        background: #111827;
+      }
+
+      .swatch-color {
+        height: 38px;
+      }
+
+      .swatch-caption {
+        padding: 8px 9px 9px;
+        color: #98a6ba;
+        font-size: 12px;
+      }
+
+      .swatch-caption strong {
+        display: block;
+        margin-bottom: 3px;
+        color: #e6edf7;
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .review-note {
+        margin: 12px 0 0;
+        color: #7b899c;
+        font-size: 12px;
+        line-height: 1.7;
+      }
+
+      @media (max-width: 980px) {
+        .review-page {
+          padding: 20px;
+        }
+
+        .review-header,
+        .panel-heading {
+          align-items: stretch;
+          grid-template-columns: 1fr;
+        }
+
+        .review-header {
+          flex-direction: column;
+        }
+
+        .theme-switch {
+          align-self: flex-start;
+        }
+
+        .panel-heading {
+          display: grid;
+        }
+
+        .portfolio-summary > span {
+          text-align: left;
+        }
+
+        .palette-grid {
+          grid-template-columns: repeat(3, minmax(120px, 1fr));
+        }
+      }
+
+      @media (max-width: 720px) {
+        .review-page {
+          padding: 14px;
+        }
+
+        .command-bar {
+          align-items: stretch;
+          flex-direction: column;
+        }
+
+        .search-box {
+          flex-basis: auto;
+        }
+
+        .command-actions {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .secondary-button {
+          padding: 0 6px;
+        }
+
+        .secondary-button span {
+          display: none;
+        }
+
+        .portfolio-summary {
+          grid-template-columns: 1fr;
+        }
+
+        .portfolio-summary > span,
+        .portfolio-summary > span:first-child {
+          border-top: 1px solid var(--border);
+          border-left: 0;
+        }
+
+        .portfolio-summary > span:first-child {
+          border-top: 0;
+        }
+
+        .table-toolbar {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .statusbar {
+          align-items: flex-start;
+          flex-wrap: wrap;
+          padding-block: 8px;
+        }
+
+        .status-spacer,
+        .statusbar .status-separator:last-of-type,
+        .statusbar .status-version {
+          display: none;
+        }
+
+        .palette-grid {
+          grid-template-columns: repeat(2, minmax(120px, 1fr));
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          scroll-behavior: auto !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <svg width="0" height="0" aria-hidden="true" style="position: absolute">
+      <symbol id="icon-search" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="7"></circle>
+        <path d="m20 20-4-4"></path>
+      </symbol>
+      <symbol id="icon-refresh" viewBox="0 0 24 24">
+        <path d="M20 11a8 8 0 0 0-14.8-4"></path>
+        <path d="M4 4v5h5"></path>
+        <path d="M4 13a8 8 0 0 0 14.8 4"></path>
+        <path d="M20 20v-5h-5"></path>
+      </symbol>
+      <symbol id="icon-tools" viewBox="0 0 24 24">
+        <path d="M14.5 6.5 17.5 3.5l3 3-3 3"></path>
+        <path d="m13 8 3 3-8.5 8.5a2.1 2.1 0 0 1-3-3Z"></path>
+        <path d="m5 3 3 3"></path>
+      </symbol>
+      <symbol id="icon-bot" viewBox="0 0 24 24">
+        <rect x="4" y="7" width="16" height="12" rx="3"></rect>
+        <path d="M12 3v4M8 12h.01M16 12h.01M8 16h8"></path>
+      </symbol>
+      <symbol id="icon-settings" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path
+          d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"
+        ></path>
+      </symbol>
+    </svg>
+
+    <main class="review-page">
+      <header class="review-header">
+        <div class="review-heading">
+          <h1>简账夜间模式配色预览</h1>
+          <p>默认展示候选夜间方案，可切换当前浅色主题直接对比。点击任意股票行可查看选中态。</p>
+        </div>
+        <div class="theme-switch" role="group" aria-label="预览主题">
+          <button type="button" data-theme-option="dark" aria-pressed="true">候选夜间</button>
+          <button type="button" data-theme-option="light" aria-pressed="false">当前浅色</button>
+        </div>
+      </header>
+
+      <section class="app-preview" data-theme="dark" aria-label="简账应用主题预览">
+        <header class="app-titlebar">
+          <div class="brand"><span class="brand-mark">简</span><span>简账</span></div>
+          <div class="titlebar-spacer"></div>
+          <div class="window-controls" aria-hidden="true">
+            <span>—</span><span>□</span><span>×</span>
+          </div>
+        </header>
+
+        <div class="command-bar">
+          <label class="search-box">
+            <svg class="icon" aria-hidden="true"><use href="#icon-search"></use></svg>
+            <input type="text" aria-label="搜索股票" placeholder="输入代码、名称或拼音" />
+          </label>
+          <div class="command-actions">
+            <button class="secondary-button" type="button">
+              <svg class="icon" aria-hidden="true"><use href="#icon-refresh"></use></svg
+              ><span>立即刷新</span>
+            </button>
+            <button class="secondary-button" type="button">
+              <svg class="icon" aria-hidden="true"><use href="#icon-tools"></use></svg
+              ><span>工具</span>
+            </button>
+            <button class="secondary-button" type="button">
+              <svg class="icon" aria-hidden="true"><use href="#icon-bot"></use></svg
+              ><span>AI 助手</span>
+            </button>
+            <button class="secondary-button" type="button">
+              <svg class="icon" aria-hidden="true"><use href="#icon-settings"></use></svg
+              ><span>设置</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="workspace">
+          <section aria-label="我的自选">
+            <div class="panel-heading">
+              <div>
+                <div class="panel-title-line">
+                  <h2>我的自选</h2>
+                  <span class="auto-refresh-state"
+                    ><span class="live-dot"></span>重点 5 秒 · 其余 15 秒刷新</span
+                  >
+                </div>
+                <div class="panel-subtitle">
+                  18 只股票 · 6 只重点 · 8 只有持仓 · 点击股票行展开行情详情
+                </div>
+                <div class="market-index-summary" aria-label="大盘指数行情">
+                  <span class="market-index-card"
+                    >上证 <strong>3,638.21</strong> <em class="direction-up">+0.62%</em></span
+                  >
+                  <span class="market-index-card"
+                    >恒生 <strong>25,248.10</strong> <em class="direction-down">-0.31%</em></span
+                  >
+                  <span class="market-index-card"
+                    >纳指 <strong>21,705.16</strong> <em class="direction-up">+0.14%</em></span
+                  >
+                </div>
+              </div>
+              <div class="portfolio-summary" aria-label="全部持仓收益汇总">
+                <span
+                  ><small>今日总收益</small><strong class="direction-up">+¥1,286.40</strong></span
+                >
+                <span><small>今日收益率</small><strong class="direction-up">+0.73%</strong></span>
+                <span><small>总收益率</small><strong class="direction-down">-2.18%</strong></span>
+              </div>
+            </div>
+
+            <div class="table-toolbar">
+              <span>全部分组 · 全部市场 · 价值筛选 · 当前按“涨跌幅”降序排列</span>
+              <div class="table-toolbar-actions">
+                <button class="table-tool-button" type="button">重置排序</button>
+                <button class="table-tool-button" type="button">调整列</button>
+              </div>
+            </div>
+
+            <div class="table-scroller">
+              <table class="watchlist-table" aria-label="自选股行情">
+                <colgroup>
+                  <col class="stock-column" />
+                  <col class="value-column" />
+                  <col class="value-column" />
+                  <col class="wide-column" />
+                  <col class="wide-column" />
+                  <col class="wide-column" />
+                  <col class="value-column" />
+                  <col class="value-column" />
+                  <col class="wide-column" />
+                  <col class="wide-column" />
+                  <col class="value-column" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>名称 / 代码</th>
+                    <th>最新价</th>
+                    <th>涨跌幅</th>
+                    <th>添加以来</th>
+                    <th>分红融资比</th>
+                    <th>价值标签</th>
+                    <th>持仓数量</th>
+                    <th>成本价</th>
+                    <th>今日收益</th>
+                    <th>持仓收益</th>
+                    <th>设置</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <span class="stock-name">贵州茅台</span
+                      ><span class="stock-code">600519 · 沪</span>
+                    </td>
+                    <td>1,451.80</td>
+                    <td class="direction-up">+1.26%</td>
+                    <td class="direction-up">+8.42%</td>
+                    <td>168.3%</td>
+                    <td><span class="value-tag is-purple">双优</span></td>
+                    <td>200</td>
+                    <td>1,386.20</td>
+                    <td class="direction-up">+¥718</td>
+                    <td class="direction-up">+4.73%</td>
+                    <td><button class="row-action" type="button">编辑</button></td>
+                  </tr>
+                  <tr class="is-selected">
+                    <td>
+                      <span class="stock-name">招商银行</span
+                      ><span class="stock-code">600036 · 沪 · 已选中</span>
+                    </td>
+                    <td>41.62</td>
+                    <td class="direction-up">+0.84%</td>
+                    <td class="direction-up">+12.06%</td>
+                    <td>126.8%</td>
+                    <td><span class="value-tag is-blue">基本</span></td>
+                    <td>2,000</td>
+                    <td>37.13</td>
+                    <td class="direction-up">+¥690</td>
+                    <td class="direction-up">+12.09%</td>
+                    <td><button class="row-action" type="button">编辑</button></td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <span class="stock-name">宁德时代</span
+                      ><span class="stock-code">300750 · 深</span>
+                    </td>
+                    <td>286.30</td>
+                    <td class="direction-down">-1.37%</td>
+                    <td class="direction-down">-4.56%</td>
+                    <td>42.1%</td>
+                    <td><span class="value-tag is-amber">待核</span></td>
+                    <td>300</td>
+                    <td>301.50</td>
+                    <td class="direction-down">-¥1,194</td>
+                    <td class="direction-down">-5.04%</td>
+                    <td><button class="row-action" type="button">编辑</button></td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <span class="stock-name">中国平安</span
+                      ><span class="stock-code">601318 · 沪</span>
+                    </td>
+                    <td>58.74</td>
+                    <td class="direction-flat">0.00%</td>
+                    <td class="direction-up">+3.12%</td>
+                    <td>201.6%</td>
+                    <td><span class="value-tag is-blue">分红</span></td>
+                    <td>1,000</td>
+                    <td>56.96</td>
+                    <td class="direction-flat">¥0</td>
+                    <td class="direction-up">+3.12%</td>
+                    <td><button class="row-action" type="button">编辑</button></td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <span class="stock-name">腾讯控股</span
+                      ><span class="stock-code">00700 · 港</span>
+                    </td>
+                    <td>612.50</td>
+                    <td class="direction-down">-0.65%</td>
+                    <td class="direction-up">+16.43%</td>
+                    <td>--</td>
+                    <td><span class="value-tag is-purple">双优</span></td>
+                    <td>100</td>
+                    <td>526.10</td>
+                    <td class="direction-down">-HK$400</td>
+                    <td class="direction-up">+16.42%</td>
+                    <td><button class="row-action" type="button">编辑</button></td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <span class="stock-name">苹果</span><span class="stock-code">AAPL · 美</span>
+                    </td>
+                    <td>231.59</td>
+                    <td class="direction-up">+0.43%</td>
+                    <td class="direction-down">-1.26%</td>
+                    <td>--</td>
+                    <td><span class="value-tag is-amber">缺数</span></td>
+                    <td>50</td>
+                    <td>234.55</td>
+                    <td class="direction-up">+$49</td>
+                    <td class="direction-down">-1.26%</td>
+                    <td><button class="row-action" type="button">编辑</button></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <footer class="statusbar">
+          <span class="status-source"><span class="status-dot"></span>东方财富公开行情</span
+          ><span class="status-separator"></span><span>交易中</span
+          ><span class="status-separator"></span><span>最近更新 14:36:08</span
+          ><span class="status-spacer"></span><span class="status-version">版本 v0.8.0</span
+          ><span class="status-separator"></span><span>红涨绿跌 · 行情仅供参考</span>
+        </footer>
+      </section>
+
+      <section class="palette-section" aria-labelledby="palette-heading">
+        <h2 id="palette-heading">候选夜间模式核心颜色</h2>
+        <div class="palette-grid">
+          <article class="color-swatch">
+            <div class="swatch-color" style="background: #0b1220"></div>
+            <div class="swatch-caption"><strong>画布</strong>#0B1220</div>
+          </article>
+          <article class="color-swatch">
+            <div class="swatch-color" style="background: #111827"></div>
+            <div class="swatch-caption"><strong>主表面</strong>#111827</div>
+          </article>
+          <article class="color-swatch">
+            <div class="swatch-color" style="background: #1b2638"></div>
+            <div class="swatch-caption"><strong>浮层</strong>#1B2638</div>
+          </article>
+          <article class="color-swatch">
+            <div class="swatch-color" style="background: #5b8cff"></div>
+            <div class="swatch-caption"><strong>交互蓝</strong>#5B8CFF</div>
+          </article>
+          <article class="color-swatch">
+            <div class="swatch-color" style="background: #ff6b75"></div>
+            <div class="swatch-caption"><strong>上涨红</strong>#FF6B75</div>
+          </article>
+          <article class="color-swatch">
+            <div class="swatch-color" style="background: #35c98b"></div>
+            <div class="swatch-caption"><strong>下跌绿</strong>#35C98B</div>
+          </article>
+        </div>
+        <p class="review-note">
+          这份页面只用于颜色评审，不会读取或修改你的真实自选股数据。收益颜色继续遵循红涨、绿跌、零值中性。
+        </p>
+      </section>
+    </main>
+
+    <script>
+      const preview = document.querySelector('.app-preview')
+      const themeButtons = document.querySelectorAll('[data-theme-option]')
+      const tableRows = document.querySelectorAll('.watchlist-table tbody tr')
+
+      function setPreviewTheme(theme) {
+        preview.dataset.theme = theme
+        themeButtons.forEach((button) => {
+          button.setAttribute('aria-pressed', String(button.dataset.themeOption === theme))
+        })
+      }
+
+      themeButtons.forEach((button) => {
+        button.addEventListener('click', () => setPreviewTheme(button.dataset.themeOption))
+      })
+
+      tableRows.forEach((row) => {
+        row.addEventListener('click', (event) => {
+          if (event.target.closest('button')) return
+          tableRows.forEach((candidate) => candidate.classList.remove('is-selected'))
+          row.classList.add('is-selected')
+        })
+      })
+    </script>
+  </body>
+</html>

@@ -166,10 +166,9 @@ describe('QuoteRuntime tracking review quotes', () => {
     onRadarSignalsUpdated?.()
     await vi.waitFor(() => expect(fetchQuotes).toHaveBeenCalledTimes(2))
 
-    expect(vi.mocked(fetchQuotes).mock.calls[1][0]).toEqual(expect.arrayContaining([
-      priority,
-      regular
-    ]))
+    expect(vi.mocked(fetchQuotes).mock.calls[1][0]).toEqual(
+      expect.arrayContaining([priority, regular])
+    )
     expect(vi.mocked(fetchQuotes).mock.calls[1][1]).toEqual([priority, regular])
     expect(vi.mocked(fetchQuotes).mock.calls[1][2]).toBe('quote-cycle:radar-updated')
   })
@@ -181,14 +180,16 @@ describe('QuoteRuntime tracking review quotes', () => {
     state.watchlist = [stock]
     const withRadar: StockQuote = {
       ...stockQuote(stock),
-      radarSignals: [{
-        type: '8201',
-        label: '火箭发射',
-        date: '20260818',
-        time: '10:15:30',
-        info: '快速拉升',
-        direction: 'up'
-      }]
+      radarSignals: [
+        {
+          type: '8201',
+          label: '火箭发射',
+          date: '20260818',
+          time: '10:15:30',
+          info: '快速拉升',
+          direction: 'up'
+        }
+      ]
     }
     vi.mocked(fetchQuotes)
       .mockResolvedValueOnce({ quotes: [withRadar], source: 'eastmoney-primary' })

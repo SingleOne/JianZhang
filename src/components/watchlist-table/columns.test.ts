@@ -237,8 +237,9 @@ describe('watchlist column sorting', () => {
     both.fundamentalScreening = screeningEvaluation()
 
     expect(
-      sortRows([none, dividend, both], { column: 'valueTags', direction: 'desc' }, [])
-        .map(({ stock }) => stock.quoteId)
+      sortRows([none, dividend, both], { column: 'valueTags', direction: 'desc' }, []).map(
+        ({ stock }) => stock.quoteId
+      )
     ).toEqual(['both', 'dividend', 'none'])
   })
 
@@ -255,18 +256,13 @@ describe('watchlist column sorting', () => {
     missing.fundamentalScreening = screeningEvaluation({ roe: false, missingRoe: true })
     const unavailable = row('unavailable', 'Unavailable', 10, 5)
 
-    expect(sortRows(
-      [missing, twoReviews, unavailable, passed, financial, oneReview],
-      { column: 'valueTags', direction: 'desc' },
-      []
-    ).map(({ stock }) => stock.quoteId)).toEqual([
-      'passed',
-      'one-review',
-      'two-reviews',
-      'financial',
-      'missing',
-      'unavailable'
-    ])
+    expect(
+      sortRows(
+        [missing, twoReviews, unavailable, passed, financial, oneReview],
+        { column: 'valueTags', direction: 'desc' },
+        []
+      ).map(({ stock }) => stock.quoteId)
+    ).toEqual(['passed', 'one-review', 'two-reviews', 'financial', 'missing', 'unavailable'])
   })
 
   it('uses only current-day radar signals as the radar sort value', () => {

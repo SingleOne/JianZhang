@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { MarketInsightSnapshot, IndicatorValue, WatchEvent } from '../../../market-insight/shared/types'
+import type {
+  MarketInsightSnapshot,
+  IndicatorValue,
+  WatchEvent
+} from '../../../market-insight/shared/types'
 import type { ChipDistributionCacheEntry } from '../../../../shared/types'
 import { compactShortTermSnapshot } from './context-builder'
 
@@ -72,30 +76,31 @@ function snapshot(): MarketInsightSnapshot {
       orderBook: [indicator('order-book', '盘口失衡', 6)],
       relativeStrength: [indicator('relative-strength', '即时相对强弱', 7)]
     },
-    news: [{
-      id: 'news-1',
-      title: '公司公告摘要',
-      source: '交易所',
-      publishedAt: '2026-08-07T12:00:00+08:00',
-      url: 'https://example.com/announcement',
-      category: 'announcement',
-      scope: 'stock',
-      relatedQuoteIds: ['1.600000'],
-      fetchedAt: '2026-08-07T14:00:00+08:00'
-    }],
-    events: [
-      event('new_announcement', '新增公告'),
-      event('vwap_cross', '盘中穿越 VWAP')
+    news: [
+      {
+        id: 'news-1',
+        title: '公司公告摘要',
+        source: '交易所',
+        publishedAt: '2026-08-07T12:00:00+08:00',
+        url: 'https://example.com/announcement',
+        category: 'announcement',
+        scope: 'stock',
+        relatedQuoteIds: ['1.600000'],
+        fetchedAt: '2026-08-07T14:00:00+08:00'
+      }
     ],
-    existingTPlanDistances: [{
-      id: 'plan-1',
-      label: '做 T 买入档',
-      side: 'buy',
-      price: 12,
-      distancePercent: -2.4,
-      quantity: 100,
-      isNearest: true
-    }],
+    events: [event('new_announcement', '新增公告'), event('vwap_cross', '盘中穿越 VWAP')],
+    existingTPlanDistances: [
+      {
+        id: 'plan-1',
+        label: '做 T 买入档',
+        side: 'buy',
+        price: 12,
+        distancePercent: -2.4,
+        quantity: 100,
+        isNearest: true
+      }
+    ],
     chartOverlay: {
       vwap: 12.1,
       openingRange15: { high: 12.4, low: 11.9 },
@@ -149,7 +154,8 @@ describe('compactShortTermSnapshot', () => {
       }
     }
 
-    expect(compactShortTermSnapshot(refreshed, chipDistribution).snapshotId)
-      .toBe(compactShortTermSnapshot(original, chipDistribution).snapshotId)
+    expect(compactShortTermSnapshot(refreshed, chipDistribution).snapshotId).toBe(
+      compactShortTermSnapshot(original, chipDistribution).snapshotId
+    )
   })
 })

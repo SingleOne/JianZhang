@@ -101,11 +101,12 @@ export function FundamentalWatchlistOverview({
     onValueFilterChange(activeValueFilter === filter ? 'all' : filter)
   }
   const dualPercent = portfolioQuality.valueBuckets.dual.percent
-  const riskPercent = portfolioQuality.totalMarketValue === null
-    ? null
-    : (portfolioQuality.riskBuckets.critical.percent ?? 0)
-      + (portfolioQuality.riskBuckets.warning.percent ?? 0)
-  const shareText = (value: number | null) => value === null ? '--' : `${value.toFixed(1)}%`
+  const riskPercent =
+    portfolioQuality.totalMarketValue === null
+      ? null
+      : (portfolioQuality.riskBuckets.critical.percent ?? 0) +
+        (portfolioQuality.riskBuckets.warning.percent ?? 0)
+  const shareText = (value: number | null) => (value === null ? '--' : `${value.toFixed(1)}%`)
   const [portfolioQualitySlot, setPortfolioQualitySlot] = useState<HTMLElement | null>(null)
   useEffect(() => {
     setPortfolioQualitySlot(document.getElementById('portfolio-quality-slot'))
@@ -116,7 +117,9 @@ export function FundamentalWatchlistOverview({
       type="button"
       disabled={portfolioQuality.positionCount === 0}
       onClick={onOpenPortfolioQuality}
-      title={portfolioQuality.positionCount > 0 ? '查看全部持仓的质量与风险市值分布' : '当前没有持仓'}
+      title={
+        portfolioQuality.positionCount > 0 ? '查看全部持仓的质量与风险市值分布' : '当前没有持仓'
+      }
     >
       <ChartPie size={18} />
       <span className="portfolio-card-content">
@@ -165,13 +168,17 @@ export function FundamentalWatchlistOverview({
   )
   return (
     <section className="fundamental-watchlist-overview" aria-label="当前列表价值与基本面概览">
-      {portfolioQualitySlot ? createPortal(portfolioQualityTrigger, portfolioQualitySlot) : portfolioQualityTrigger}
+      {portfolioQualitySlot
+        ? createPortal(portfolioQualityTrigger, portfolioQualitySlot)
+        : portfolioQualityTrigger}
       <div className="fundamental-overview-row">
         <div
           className={`fundamental-overview-values ${valueDataReady ? '' : 'is-pending'}`}
-          title={valueDataReady
-            ? valueDataStaleReason || '数量基于当前分组与板块，不受价值组合、基本面和风险筛选影响'
-            : '基本面和分红融资两份快照均就绪后才计算价值组合'}
+          title={
+            valueDataReady
+              ? valueDataStaleReason || '数量基于当前分组与板块，不受价值组合、基本面和风险筛选影响'
+              : '基本面和分红融资两份快照均就绪后才计算价值组合'
+          }
         >
           <span className="fundamental-overview-group-label">
             <strong>{valueDataReady ? '价值组合' : '价值待数'}</strong>
@@ -201,7 +208,9 @@ export function FundamentalWatchlistOverview({
           <ScanSearch size={17} />
           <span>
             <strong>基本面概览</strong>
-            <small>快照覆盖 {summary.covered} / {summary.total}</small>
+            <small>
+              快照覆盖 {summary.covered} / {summary.total}
+            </small>
           </span>
         </div>
         <div className="fundamental-overview-statuses" aria-label="按基本面状态筛选">
@@ -264,12 +273,15 @@ export function FundamentalWatchlistOverview({
           type="button"
           disabled={!valueDataReady}
           onClick={onValueTagSortToggle}
-          title={valueDataReady
-            ? '依次切换：正面标签数量降序、升序、恢复手动排序'
-            : '价值组合数据尚未就绪'}
+          title={
+            valueDataReady
+              ? '依次切换：正面标签数量降序、升序、恢复手动排序'
+              : '价值组合数据尚未就绪'
+          }
         >
           {valueTagSortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
-          标签数{valueTagSortDirection === 'desc' ? '↓' : valueTagSortDirection === 'asc' ? '↑' : ''}
+          标签数
+          {valueTagSortDirection === 'desc' ? '↓' : valueTagSortDirection === 'asc' ? '↑' : ''}
         </button>
         <button
           className="fundamental-overview-reset"

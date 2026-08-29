@@ -11,16 +11,20 @@ export async function ensureResponse(response: Response): Promise<void> {
 
 export function connectionResultFromError(error: unknown): AiConnectionResult {
   const status = error instanceof Error && 'status' in error ? Number(error.status) : undefined
-  if (status === 401 || status === 403) return { ok: false, kind: 'authentication', message: '认证失败，请检查 API Key' }
-  if (status === 429) return { ok: false, kind: 'rate_limit', message: '请求受限，请稍后重试或检查额度' }
-  if (error instanceof TypeError) return { ok: false, kind: 'network', message: '网络连接失败，请检查网络后重试' }
-  return { ok: false, kind: 'provider', message: error instanceof Error ? error.message : 'Provider 连接失败' }
+  if (status === 401 || status === 403)
+    return { ok: false, kind: 'authentication', message: '认证失败，请检查 API Key' }
+  if (status === 429)
+    return { ok: false, kind: 'rate_limit', message: '请求受限，请稍后重试或检查额度' }
+  if (error instanceof TypeError)
+    return { ok: false, kind: 'network', message: '网络连接失败，请检查网络后重试' }
+  return {
+    ok: false,
+    kind: 'provider',
+    message: error instanceof Error ? error.message : 'Provider 连接失败'
+  }
 }
 
-export async function readSse(
-  response: Response,
-  onData: (data: string) => void
-): Promise<void> {
+export async function readSse(response: Response, onData: (data: string) => void): Promise<void> {
   if (!response.body) throw new Error('Provider 未返回流式响应')
   const reader = response.body.getReader()
   const decoder = new TextDecoder()

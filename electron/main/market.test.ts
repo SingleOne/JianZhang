@@ -23,7 +23,9 @@ function textResponse(value: string): Response {
   return {
     ok: true,
     status: 200,
-    arrayBuffer: vi.fn(async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength))
+    arrayBuffer: vi.fn(async () =>
+      bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
+    )
   } as unknown as Response
 }
 
@@ -63,48 +65,52 @@ describe('searchStocks', () => {
   })
 
   it('保留沪深 A 股和 ETF，过滤指数', async () => {
-    netFetch.mockResolvedValueOnce(jsonResponse({
-      QuotationCodeTable: {
-        Data: [
-          {
-            Code: '600362',
-            Name: '江西铜业',
-            QuoteID: '1.600362',
-            SecurityType: '1',
-            SecurityTypeName: '沪A',
-            TypeUS: '2'
-          },
-          {
-            Code: '300750',
-            Name: '宁德时代',
-            QuoteID: '0.300750',
-            SecurityType: '2',
-            SecurityTypeName: '深A',
-            TypeUS: '80'
-          },
-          {
-            Code: '510300',
-            Name: '沪深300ETF华泰柏瑞',
-            QuoteID: '1.510300',
-            SecurityType: '8',
-            SecurityTypeName: '基金',
-            TypeUS: '9'
-          },
-          {
-            Code: '000001',
-            Name: '上证指数',
-            QuoteID: '1.000001',
-            SecurityType: '5',
-            SecurityTypeName: '指数',
-            TypeUS: '1'
-          }
-        ]
-      }
-    }))
+    netFetch.mockResolvedValueOnce(
+      jsonResponse({
+        QuotationCodeTable: {
+          Data: [
+            {
+              Code: '600362',
+              Name: '江西铜业',
+              QuoteID: '1.600362',
+              SecurityType: '1',
+              SecurityTypeName: '沪A',
+              TypeUS: '2'
+            },
+            {
+              Code: '300750',
+              Name: '宁德时代',
+              QuoteID: '0.300750',
+              SecurityType: '2',
+              SecurityTypeName: '深A',
+              TypeUS: '80'
+            },
+            {
+              Code: '510300',
+              Name: '沪深300ETF华泰柏瑞',
+              QuoteID: '1.510300',
+              SecurityType: '8',
+              SecurityTypeName: '基金',
+              TypeUS: '9'
+            },
+            {
+              Code: '000001',
+              Name: '上证指数',
+              QuoteID: '1.000001',
+              SecurityType: '5',
+              SecurityTypeName: '指数',
+              TypeUS: '1'
+            }
+          ]
+        }
+      })
+    )
 
     const result = await searchStocks('600362')
 
-    expect(result.map(({ code, quoteId, instrumentType }) => ({ code, quoteId, instrumentType }))).toEqual([
+    expect(
+      result.map(({ code, quoteId, instrumentType }) => ({ code, quoteId, instrumentType }))
+    ).toEqual([
       { code: '600362', quoteId: '1.600362', instrumentType: 'stock' },
       { code: '300750', quoteId: '0.300750', instrumentType: 'stock' },
       { code: '510300', quoteId: '1.510300', instrumentType: 'etf' }
@@ -141,7 +147,9 @@ describe('fetchOrderBook', () => {
       .mockResolvedValueOnce(jsonResponse(orderBookPayload('主节点恢复')))
 
     await expect(fetchOrderBook('1.600000', 'first')).resolves.toMatchObject({ name: 'Delay 数据' })
-    await expect(fetchOrderBook('1.600000', 'second')).resolves.toMatchObject({ name: '主节点恢复' })
+    await expect(fetchOrderBook('1.600000', 'second')).resolves.toMatchObject({
+      name: '主节点恢复'
+    })
 
     expect(netFetch.mock.calls.map(([url]) => new URL(url).hostname)).toEqual([
       'push2.eastmoney.com',
@@ -155,9 +163,29 @@ describe('fetchOrderBook', () => {
     fields[1] = 'Tencent Stock'
     fields[3] = '10.50'
     fields[4] = '10.20'
-    fields.splice(9, 20,
-      '10.01', '500', '10.02', '400', '10.03', '300', '10.04', '200', '10.05', '100',
-      '10.11', '600', '10.12', '700', '10.13', '800', '10.14', '900', '10.15', '1000'
+    fields.splice(
+      9,
+      20,
+      '10.01',
+      '500',
+      '10.02',
+      '400',
+      '10.03',
+      '300',
+      '10.04',
+      '200',
+      '10.05',
+      '100',
+      '10.11',
+      '600',
+      '10.12',
+      '700',
+      '10.13',
+      '800',
+      '10.14',
+      '900',
+      '10.15',
+      '1000'
     )
     netFetch
       .mockRejectedValueOnce(new Error('主节点连接失败'))
@@ -249,37 +277,47 @@ describe('fetchQuotes investment valuation fields', () => {
   })
 
   it('uses the three-decimal Eastmoney scale for US prices', async () => {
-    netFetch.mockResolvedValueOnce(jsonResponse({
-      data: {
-        diff: [{
-          f2: 311335,
-          f3: 46,
-          f4: 1435,
-          f5: 2_010_856,
-          f6: 623_959_088,
-          f8: 93,
-          f12: 'AAPL',
-          f13: 105,
-          f14: '苹果',
-          f15: 311680,
-          f16: 308800,
-          f17: 310245,
-          f18: 309900,
-          f23: 4227,
-          f115: 3525
-        }]
-      }
-    }))
+    netFetch.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          diff: [
+            {
+              f2: 311335,
+              f3: 46,
+              f4: 1435,
+              f5: 2_010_856,
+              f6: 623_959_088,
+              f8: 93,
+              f12: 'AAPL',
+              f13: 105,
+              f14: '苹果',
+              f15: 311680,
+              f16: 308800,
+              f17: 310245,
+              f18: 309900,
+              f23: 4227,
+              f115: 3525
+            }
+          ]
+        }
+      })
+    )
 
-    const result = await fetchQuotes([{
-      code: 'AAPL',
-      name: '苹果',
-      quoteId: '105.AAPL',
-      marketLabel: '纳斯达克',
-      showInTaskbar: false,
-      isPriority: false,
-      showRadarSignals: false
-    }], [], 'test')
+    const result = await fetchQuotes(
+      [
+        {
+          code: 'AAPL',
+          name: '苹果',
+          quoteId: '105.AAPL',
+          marketLabel: '纳斯达克',
+          showInTaskbar: false,
+          isPriority: false,
+          showRadarSignals: false
+        }
+      ],
+      [],
+      'test'
+    )
 
     expect(result.quotes[0]).toMatchObject({
       latest: 311.335,
@@ -295,32 +333,42 @@ describe('fetchQuotes investment valuation fields', () => {
   })
 
   it('uses the three-decimal Eastmoney scale for Hong Kong prices', async () => {
-    netFetch.mockResolvedValueOnce(jsonResponse({
-      data: {
-        diff: [{
-          f2: 445400,
-          f3: 77,
-          f4: 3400,
-          f12: '00700',
-          f13: 116,
-          f14: '腾讯控股',
-          f15: 450000,
-          f16: 443000,
-          f17: 448000,
-          f18: 442000
-        }]
-      }
-    }))
+    netFetch.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          diff: [
+            {
+              f2: 445400,
+              f3: 77,
+              f4: 3400,
+              f12: '00700',
+              f13: 116,
+              f14: '腾讯控股',
+              f15: 450000,
+              f16: 443000,
+              f17: 448000,
+              f18: 442000
+            }
+          ]
+        }
+      })
+    )
 
-    const result = await fetchQuotes([{
-      code: '00700',
-      name: '腾讯控股',
-      quoteId: '116.00700',
-      marketLabel: '港股',
-      showInTaskbar: false,
-      isPriority: false,
-      showRadarSignals: false
-    }], [], 'test')
+    const result = await fetchQuotes(
+      [
+        {
+          code: '00700',
+          name: '腾讯控股',
+          quoteId: '116.00700',
+          marketLabel: '港股',
+          showInTaskbar: false,
+          isPriority: false,
+          showRadarSignals: false
+        }
+      ],
+      [],
+      'test'
+    )
 
     expect(result.quotes[0]).toMatchObject({
       latest: 445.4,
@@ -334,38 +382,48 @@ describe('fetchQuotes investment valuation fields', () => {
   })
 
   it('maps Eastmoney PE TTM and PB using the quote field scale', async () => {
-    netFetch.mockResolvedValueOnce(jsonResponse({
-      data: {
-        diff: [{
-          f2: 130580,
-          f3: -125,
-          f4: -1650,
-          f5: 33375,
-          f6: 4382903655,
-          f8: 27,
-          f12: '600519',
-          f13: 1,
-          f14: '贵州茅台',
-          f15: 133380,
-          f16: 130350,
-          f17: 132700,
-          f18: 132230,
-          f20: 1_633_169_107_626,
-          f23: 692,
-          f115: 1973
-        }]
-      }
-    }))
+    netFetch.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          diff: [
+            {
+              f2: 130580,
+              f3: -125,
+              f4: -1650,
+              f5: 33375,
+              f6: 4382903655,
+              f8: 27,
+              f12: '600519',
+              f13: 1,
+              f14: '贵州茅台',
+              f15: 133380,
+              f16: 130350,
+              f17: 132700,
+              f18: 132230,
+              f20: 1_633_169_107_626,
+              f23: 692,
+              f115: 1973
+            }
+          ]
+        }
+      })
+    )
 
-    const result = await fetchQuotes([{
-      code: '600519',
-      name: '贵州茅台',
-      quoteId: '1.600519',
-      marketLabel: '沪A',
-      showInTaskbar: false,
-      isPriority: false,
-      showRadarSignals: false
-    }], [], 'test')
+    const result = await fetchQuotes(
+      [
+        {
+          code: '600519',
+          name: '贵州茅台',
+          quoteId: '1.600519',
+          marketLabel: '沪A',
+          showInTaskbar: false,
+          isPriority: false,
+          showRadarSignals: false
+        }
+      ],
+      [],
+      'test'
+    )
 
     expect(new URL(netFetch.mock.calls[0][0]).searchParams.get('fields')).toContain('f115')
     expect(new URL(netFetch.mock.calls[0][0]).searchParams.get('fields')).toContain('f20')
@@ -388,31 +446,35 @@ describe('fetchQuotes investment valuation fields', () => {
     }
     const quotePayload = {
       data: {
-        diff: [{
-          f2: 1050,
-          f3: 200,
-          f4: 21,
-          f5: 10_000,
-          f6: 60_000_000,
-          f8: 120,
-          f12: stock.code,
-          f13: 1,
-          f14: stock.name,
-          f15: 1060,
-          f16: 1020,
-          f17: 1030,
-          f18: 1029
-        }]
+        diff: [
+          {
+            f2: 1050,
+            f3: 200,
+            f4: 21,
+            f5: 10_000,
+            f6: 60_000_000,
+            f8: 120,
+            f12: stock.code,
+            f13: 1,
+            f14: stock.name,
+            f15: 1060,
+            f16: 1020,
+            f17: 1030,
+            f18: 1029
+          }
+        ]
       }
     }
     const now = new Date()
     const date = [now.getFullYear(), now.getMonth() + 1, now.getDate()]
-      .map((part, index) => index === 0 ? String(part) : String(part).padStart(2, '0'))
+      .map((part, index) => (index === 0 ? String(part) : String(part).padStart(2, '0')))
       .join('')
     netFetch
-      .mockResolvedValueOnce(jsonResponse({
-        data: { allstock: [{ tm: 101530, c: stock.code, m: 1, t: 8201, i: '快速拉升,测试' }] }
-      }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: { allstock: [{ tm: 101530, c: stock.code, m: 1, t: 8201, i: '快速拉升,测试' }] }
+        })
+      )
       .mockResolvedValueOnce(jsonResponse({ data: { data: [] } }))
       .mockResolvedValueOnce(jsonResponse(quotePayload))
     const onRadarSignalsUpdated = vi.fn()
@@ -425,14 +487,16 @@ describe('fetchQuotes investment valuation fields', () => {
     netFetch.mockResolvedValueOnce(jsonResponse(quotePayload))
     const refreshed = await fetchQuotes([stock], [stock], 'radar-test', onRadarSignalsUpdated)
 
-    expect(refreshed.quotes[0].radarSignals).toEqual([{
-      type: '8201',
-      label: '火箭发射',
-      date,
-      time: '10:15:30',
-      info: '快速拉升',
-      direction: 'up'
-    }])
+    expect(refreshed.quotes[0].radarSignals).toEqual([
+      {
+        type: '8201',
+        label: '火箭发射',
+        date,
+        time: '10:15:30',
+        info: '快速拉升',
+        direction: 'up'
+      }
+    ])
   })
 })
 
@@ -458,18 +522,22 @@ describe('fetchDailyMarketActiveQuotes', () => {
       f18: 1029
     })
     netFetch
-      .mockResolvedValueOnce(jsonResponse({
-        data: {
-          total: 5_891,
-          diff: Array.from({ length: 100 }, (_, index) => quoteItem(index, 60_000_000))
-        }
-      }))
-      .mockResolvedValueOnce(jsonResponse({
-        data: {
-          total: 5_891,
-          diff: [quoteItem(100, 55_000_000), quoteItem(101, 50_000_000)]
-        }
-      }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            total: 5_891,
+            diff: Array.from({ length: 100 }, (_, index) => quoteItem(index, 60_000_000))
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            total: 5_891,
+            diff: [quoteItem(100, 55_000_000), quoteItem(101, 50_000_000)]
+          }
+        })
+      )
 
     const result = await fetchDailyMarketActiveQuotes(50_000_000)
 
@@ -484,7 +552,10 @@ describe('fetchDailyMarketActiveQuotes', () => {
       amount: 60_000_000
     })
     expect(netFetch).toHaveBeenCalledTimes(2)
-    expect(netFetch.mock.calls.map(([url]) => new URL(url).searchParams.get('pn'))).toEqual(['1', '2'])
+    expect(netFetch.mock.calls.map(([url]) => new URL(url).searchParams.get('pn'))).toEqual([
+      '1',
+      '2'
+    ])
     expect(new URL(netFetch.mock.calls[0][0]).searchParams.get('fid')).toBe('f6')
   })
 })

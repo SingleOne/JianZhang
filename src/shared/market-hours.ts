@@ -76,9 +76,7 @@ function resolveMarketCalendar(
   const additionalClosedDates = isMarketCalendarDateArray(calendar)
     ? calendar
     : calendar.closedDates
-  const additionalHalfDayDates = isMarketCalendarDateArray(calendar)
-    ? []
-    : calendar.halfDayDates
+  const additionalHalfDayDates = isMarketCalendarDateArray(calendar) ? [] : calendar.halfDayDates
   const closedDates = [...new Set([...builtIn.closedDates, ...additionalClosedDates])]
   const resolved = {
     closedDates,

@@ -78,7 +78,9 @@ function formatMessageTime(value: string): string {
 }
 
 function downloadJson(filename: string, value: unknown): void {
-  const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' }))
+  const url = URL.createObjectURL(
+    new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' })
+  )
   const link = document.createElement('a')
   link.href = url
   link.download = filename
@@ -119,27 +121,62 @@ function ConversationList({
       </button>
       <label className="ai-conversation-search">
         <Search size={14} />
-        <input value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder="搜索对话和消息" />
+        <input
+          value={search}
+          onChange={(event) => onSearchChange(event.target.value)}
+          placeholder="搜索对话和消息"
+        />
       </label>
       <div className="ai-conversation-items">
-        {conversations.length > 0 ? conversations.map((conversation) => (
-          <div className={`ai-conversation-item ${activeId === conversation.id ? 'is-active' : ''}`} key={conversation.id}>
-            <button type="button" onClick={() => onSelect(conversation.id)}>
-              <strong>{conversation.title}</strong>
-              <span>{conversation.scope === 'stock' ? conversation.quoteName ?? conversation.quoteId : '普通对话'} · {formatMessageTime(conversation.updatedAt)}</span>
-            </button>
-            <div className="ai-conversation-item-actions">
-              <button type="button" title="重命名" aria-label={`重命名${conversation.title}`} onClick={() => onRename(conversation)}>
-                <Pencil size={13} />
+        {conversations.length > 0 ? (
+          conversations.map((conversation) => (
+            <div
+              className={`ai-conversation-item ${activeId === conversation.id ? 'is-active' : ''}`}
+              key={conversation.id}
+            >
+              <button type="button" onClick={() => onSelect(conversation.id)}>
+                <strong>{conversation.title}</strong>
+                <span>
+                  {conversation.scope === 'stock'
+                    ? (conversation.quoteName ?? conversation.quoteId)
+                    : '普通对话'}{' '}
+                  · {formatMessageTime(conversation.updatedAt)}
+                </span>
               </button>
-              <button type="button" title="删除" aria-label={`删除${conversation.title}`} onClick={() => onDelete(conversation)}>
-                <Trash2 size={13} />
-              </button>
+              <div className="ai-conversation-item-actions">
+                <button
+                  type="button"
+                  title="重命名"
+                  aria-label={`重命名${conversation.title}`}
+                  onClick={() => onRename(conversation)}
+                >
+                  <Pencil size={13} />
+                </button>
+                <button
+                  type="button"
+                  title="删除"
+                  aria-label={`删除${conversation.title}`}
+                  onClick={() => onDelete(conversation)}
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
             </div>
-          </div>
-        )) : <p className="ai-empty-list">还没有匹配的本地对话</p>}
+          ))
+        ) : (
+          <p className="ai-empty-list">还没有匹配的本地对话</p>
+        )}
       </div>
-      <footer className="ai-conversation-list-footer"><button type="button" onClick={onExportAll}><Download size={13} />导出全部</button><button type="button" onClick={onClear}><Trash2 size={13} />清空全部</button></footer>
+      <footer className="ai-conversation-list-footer">
+        <button type="button" onClick={onExportAll}>
+          <Download size={13} />
+          导出全部
+        </button>
+        <button type="button" onClick={onClear}>
+          <Trash2 size={13} />
+          清空全部
+        </button>
+      </footer>
     </aside>
   )
 }
@@ -153,7 +190,11 @@ interface ChatThreadProps {
 }
 
 function ChatThread({ conversation, messages, onCancel, onRetry, onExport }: ChatThreadProps) {
-  const isGenerating = messages.some((message) => message.role === 'assistant' && (message.status === 'pending' || message.status === 'streaming'))
+  const isGenerating = messages.some(
+    (message) =>
+      message.role === 'assistant' &&
+      (message.status === 'pending' || message.status === 'streaming')
+  )
   return (
     <section className="ai-chat-thread" aria-label="AI 对话内容">
       <header className="ai-chat-heading">
@@ -162,45 +203,106 @@ function ChatThread({ conversation, messages, onCancel, onRetry, onExport }: Cha
           <h2>{conversation?.title ?? '选择或创建一个对话'}</h2>
         </div>
         {conversation ? (
-          <button className="icon-button ai-thread-export" type="button" title="导出此对话" aria-label="导出此对话" onClick={onExport}>
+          <button
+            className="icon-button ai-thread-export"
+            type="button"
+            title="导出此对话"
+            aria-label="导出此对话"
+            onClick={onExport}
+          >
             <Download size={16} />
           </button>
         ) : null}
       </header>
       <div className="ai-message-stream">
-        {conversation ? messages.length > 0 ? messages.map((message) => (
-          <article className={`ai-message is-${message.role} is-${message.status}`} key={message.id}>
-            <div className="ai-message-avatar">{message.role === 'assistant' ? <Bot size={15} /> : '我'}</div>
-            <div className="ai-message-content">
-              <div className="ai-message-meta">
-                <span>{message.role === 'assistant' ? 'AI 助手' : '你'}</span>
-                <time>{formatMessageTime(message.createdAt)}</time>
-                {messageContextRefs(message).map((context) => (
-                  <small key={`${context.source ?? 'legacy'}:${context.snapshotId}`}>
-                    {context.source === 'mention' ? '@' : '上下文：'}{context.quoteName ?? context.quoteId}
-                  </small>
-                ))}
-              </div>
-              <p>{message.content || (message.status === 'pending' || message.status === 'streaming' ? '正在生成…' : '')}</p>
-              {message.status === 'error' ? (
-                <div className="ai-message-error">
-                  <AlertCircle size={13} />
-                  <span>{message.errorMessage ?? '生成失败'}</span>
-                  <button type="button" onClick={() => onRetry(message.id)}><RotateCcw size={13} />重试</button>
+        {conversation ? (
+          messages.length > 0 ? (
+            messages.map((message) => (
+              <article
+                className={`ai-message is-${message.role} is-${message.status}`}
+                key={message.id}
+              >
+                <div className="ai-message-avatar">
+                  {message.role === 'assistant' ? <Bot size={15} /> : '我'}
                 </div>
-              ) : null}
-              {message.status === 'stopped' ? (
-                <button className="ai-message-retry" type="button" onClick={() => onRetry(message.id)}><RotateCcw size={13} />重新生成</button>
-              ) : null}
-              {message.status === 'completed' && message.role === 'assistant' && !isGenerating ? (
-                <button className="ai-message-retry" type="button" onClick={() => onRetry(message.id)}><RotateCcw size={13} />重新生成</button>
-              ) : null}
+                <div className="ai-message-content">
+                  <div className="ai-message-meta">
+                    <span>{message.role === 'assistant' ? 'AI 助手' : '你'}</span>
+                    <time>{formatMessageTime(message.createdAt)}</time>
+                    {messageContextRefs(message).map((context) => (
+                      <small key={`${context.source ?? 'legacy'}:${context.snapshotId}`}>
+                        {context.source === 'mention' ? '@' : '上下文：'}
+                        {context.quoteName ?? context.quoteId}
+                      </small>
+                    ))}
+                  </div>
+                  <p>
+                    {message.content ||
+                      (message.status === 'pending' || message.status === 'streaming'
+                        ? '正在生成…'
+                        : '')}
+                  </p>
+                  {message.status === 'error' ? (
+                    <div className="ai-message-error">
+                      <AlertCircle size={13} />
+                      <span>{message.errorMessage ?? '生成失败'}</span>
+                      <button type="button" onClick={() => onRetry(message.id)}>
+                        <RotateCcw size={13} />
+                        重试
+                      </button>
+                    </div>
+                  ) : null}
+                  {message.status === 'stopped' ? (
+                    <button
+                      className="ai-message-retry"
+                      type="button"
+                      onClick={() => onRetry(message.id)}
+                    >
+                      <RotateCcw size={13} />
+                      重新生成
+                    </button>
+                  ) : null}
+                  {message.status === 'completed' &&
+                  message.role === 'assistant' &&
+                  !isGenerating ? (
+                    <button
+                      className="ai-message-retry"
+                      type="button"
+                      onClick={() => onRetry(message.id)}
+                    >
+                      <RotateCcw size={13} />
+                      重新生成
+                    </button>
+                  ) : null}
+                </div>
+              </article>
+            ))
+          ) : (
+            <div className="ai-thread-empty">
+              <Bot size={25} />
+              <strong>开始一段对话</strong>
+              <span>可以询问应用功能、指标定义或新闻背景。</span>
             </div>
-          </article>
-        )) : <div className="ai-thread-empty"><Bot size={25} /><strong>开始一段对话</strong><span>可以询问应用功能、指标定义或新闻背景。</span></div> : <div className="ai-thread-empty"><MessageSquare size={25} /><strong>还未选择对话</strong><span>从左侧创建一个新对话即可开始。</span></div>}
+          )
+        ) : (
+          <div className="ai-thread-empty">
+            <MessageSquare size={25} />
+            <strong>还未选择对话</strong>
+            <span>从左侧创建一个新对话即可开始。</span>
+          </div>
+        )}
       </div>
       {isGenerating ? (
-        <div className="ai-generation-controls"><span><LoaderCircle size={14} className="is-spinning" />正在生成</span><button type="button" onClick={onCancel}><Square size={12} />停止</button></div>
+        <div className="ai-generation-controls">
+          <span>
+            <LoaderCircle size={14} className="is-spinning" />
+            正在生成
+          </span>
+          <button type="button" onClick={onCancel}>
+            <Square size={12} />
+            停止
+          </button>
+        </div>
       ) : null}
     </section>
   )
@@ -233,7 +335,8 @@ function AiSettingsPanel({
 }: AiSettingsPanelProps) {
   const [draft, setDraft] = useState(settings)
   const [apiKey, setApiKey] = useState('')
-  const activeProvider = status.providers.find((item) => item.id === draft.providerId) ?? status.providers[0]
+  const activeProvider =
+    status.providers.find((item) => item.id === draft.providerId) ?? status.providers[0]
   const usesCodexAccount = activeProvider?.authMode === 'codexAccount'
   const credential = usesCodexAccount
     ? null
@@ -244,68 +347,194 @@ function AiSettingsPanel({
 
   const selectProvider = (providerId: AiProviderId) => {
     const provider = status.providers.find((item) => item.id === providerId)
-    setDraft((current) => ({ ...current, providerId, model: provider?.defaultModel ?? current.model }))
+    setDraft((current) => ({
+      ...current,
+      providerId,
+      model: provider?.defaultModel ?? current.model
+    }))
     setApiKey('')
   }
 
   return (
     <section className="ai-settings-panel">
-      <header><Settings2 size={17} /><div><h2>服务设置</h2><p>API Key 由主进程加密保存；Codex 登录凭证由官方运行时管理。</p></div></header>
+      <header>
+        <Settings2 size={17} />
+        <div>
+          <h2>服务设置</h2>
+          <p>API Key 由主进程加密保存；Codex 登录凭证由官方运行时管理。</p>
+        </div>
+      </header>
       <div className="ai-settings-content">
         <div className="ai-settings-column">
           <label className="ai-settings-toggle">
-            <span><strong>启用 AI 助手</strong><small>关闭后停止发送 Provider 请求，仍可通过 AI 助手入口重新开启。</small></span>
-            <input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft((current) => ({ ...current, enabled: event.target.checked }))} />
+            <span>
+              <strong>启用 AI 助手</strong>
+              <small>关闭后停止发送 Provider 请求，仍可通过 AI 助手入口重新开启。</small>
+            </span>
+            <input
+              type="checkbox"
+              checked={draft.enabled}
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, enabled: event.target.checked }))
+              }
+            />
           </label>
           <div className="ai-settings-fields">
             <label>
               <span>Provider</span>
-              <select value={draft.providerId} onChange={(event) => selectProvider(event.target.value as AiProviderId)}>
-                {status.providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
+              <select
+                value={draft.providerId}
+                onChange={(event) => selectProvider(event.target.value as AiProviderId)}
+              >
+                {status.providers.map((provider) => (
+                  <option key={provider.id} value={provider.id}>
+                    {provider.label}
+                  </option>
+                ))}
               </select>
               <small>{activeProvider?.billingHint}</small>
             </label>
             <label>
               <span>模型 ID</span>
-              <input value={draft.model} onChange={(event) => setDraft((current) => ({ ...current, model: event.target.value }))} placeholder={activeProvider?.defaultModel} />
+              <input
+                value={draft.model}
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, model: event.target.value }))
+                }
+                placeholder={activeProvider?.defaultModel}
+              />
             </label>
             <label>
               <span>本地上下文消息数</span>
-              <input type="number" min="4" max="40" value={draft.maxContextMessages} onChange={(event) => setDraft((current) => ({ ...current, maxContextMessages: Number(event.target.value) || 4 }))} />
+              <input
+                type="number"
+                min="4"
+                max="40"
+                value={draft.maxContextMessages}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    maxContextMessages: Number(event.target.value) || 4
+                  }))
+                }
+              />
             </label>
           </div>
         </div>
         <div className="ai-settings-column">
           {usesCodexAccount ? (
             <div className="ai-credential-card ai-codex-account-card">
-              <div><UserRound size={16} /><span><strong>Codex 账号</strong><small>{codexAccount.loggedIn ? `${codexAccount.email ?? '已登录'}${codexAccount.planType ? ` · ${codexAccount.planType}` : ''}` : codexAccount.message ?? '尚未登录'}</small></span></div>
+              <div>
+                <UserRound size={16} />
+                <span>
+                  <strong>Codex 账号</strong>
+                  <small>
+                    {codexAccount.loggedIn
+                      ? `${codexAccount.email ?? '已登录'}${codexAccount.planType ? ` · ${codexAccount.planType}` : ''}`
+                      : (codexAccount.message ?? '尚未登录')}
+                  </small>
+                </span>
+              </div>
               <div className="ai-account-actions">
                 {codexAccount.loggedIn ? (
-                  <button className="secondary-button" type="button" disabled={busy} onClick={onCodexLogout}><LogOut size={14} />退出登录</button>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    disabled={busy}
+                    onClick={onCodexLogout}
+                  >
+                    <LogOut size={14} />
+                    退出登录
+                  </button>
                 ) : (
-                  <button className="primary-button" type="button" disabled={busy || !codexAccount.runtimeAvailable} onClick={onCodexLogin}><LogIn size={14} />登录 Codex 账号</button>
+                  <button
+                    className="primary-button"
+                    type="button"
+                    disabled={busy || !codexAccount.runtimeAvailable}
+                    onClick={onCodexLogin}
+                  >
+                    <LogIn size={14} />
+                    登录 Codex 账号
+                  </button>
                 )}
                 <small>登录页面由 OpenAI 在系统浏览器中打开，见涨不会读取或复制登录令牌。</small>
               </div>
             </div>
           ) : (
             <div className="ai-credential-card">
-              <div><KeyRound size={16} /><span><strong>API Key</strong><small>{credential?.configured ? `已配置 · 尾号 ${credential.maskedSuffix}` : '尚未配置'}</small></span></div>
+              <div>
+                <KeyRound size={16} />
+                <span>
+                  <strong>API Key</strong>
+                  <small>
+                    {credential?.configured
+                      ? `已配置 · 尾号 ${credential.maskedSuffix}`
+                      : '尚未配置'}
+                  </small>
+                </span>
+              </div>
               <div className="ai-credential-actions">
-                <input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="粘贴新的 API Key" autoComplete="off" />
-                <button className="secondary-button" type="button" disabled={!apiKey.trim() || busy} onClick={() => onSaveCredential(draft.providerId as AiApiKeyProviderId, apiKey)}>保存 Key</button>
-                {credential?.configured ? <button className="ai-text-button danger" type="button" disabled={busy} onClick={() => onClearCredential(draft.providerId as AiApiKeyProviderId)}>清除</button> : null}
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={(event) => setApiKey(event.target.value)}
+                  placeholder="粘贴新的 API Key"
+                  autoComplete="off"
+                />
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={!apiKey.trim() || busy}
+                  onClick={() => onSaveCredential(draft.providerId as AiApiKeyProviderId, apiKey)}
+                >
+                  保存 Key
+                </button>
+                {credential?.configured ? (
+                  <button
+                    className="ai-text-button danger"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => onClearCredential(draft.providerId as AiApiKeyProviderId)}
+                  >
+                    清除
+                  </button>
+                ) : null}
               </div>
             </div>
           )}
           <div className="ai-settings-footer">
-            <button className="secondary-button" type="button" disabled={busy || (usesCodexAccount ? !codexAccount.loggedIn : !credential?.configured)} onClick={() => onTestConnection(draft.providerId)}>{busy ? <LoaderCircle size={14} className="is-spinning" /> : <Check size={14} />}测试连接</button>
-            <button className="primary-button" type="button" disabled={busy} onClick={() => onSave(draft)}>保存设置</button>
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={
+                busy || (usesCodexAccount ? !codexAccount.loggedIn : !credential?.configured)
+              }
+              onClick={() => onTestConnection(draft.providerId)}
+            >
+              {busy ? <LoaderCircle size={14} className="is-spinning" /> : <Check size={14} />}
+              测试连接
+            </button>
+            <button
+              className="primary-button"
+              type="button"
+              disabled={busy}
+              onClick={() => onSave(draft)}
+            >
+              保存设置
+            </button>
           </div>
-          {connectionResult ? <p className={`ai-connection-result is-${connectionResult.kind}`}><span>{connectionResult.ok ? <Check size={14} /> : <AlertCircle size={14} />}</span>{connectionResult.message}</p> : null}
+          {connectionResult ? (
+            <p className={`ai-connection-result is-${connectionResult.kind}`}>
+              <span>{connectionResult.ok ? <Check size={14} /> : <AlertCircle size={14} />}</span>
+              {connectionResult.message}
+            </p>
+          ) : null}
         </div>
       </div>
-      <p className="ai-settings-note">Codex 账号模式使用 ChatGPT 订阅权限；OpenAI API Key 模式使用 Platform API 额度，两种计费与账号状态相互独立。</p>
+      <p className="ai-settings-note">
+        Codex 账号模式使用 ChatGPT 订阅权限；OpenAI API Key 模式使用 Platform API
+        额度，两种计费与账号状态相互独立。
+      </p>
     </section>
   )
 }
@@ -338,23 +567,35 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
     const query = mentionTrigger.query.trim().toLocaleLowerCase()
     return stocks
       .filter((stock) => !mentionedStocks.some((item) => item.quoteId === stock.quoteId))
-      .filter((stock) => !query
-        || stock.name.toLocaleLowerCase().includes(query)
-        || stock.code.toLocaleLowerCase().includes(query))
+      .filter(
+        (stock) =>
+          !query ||
+          stock.name.toLocaleLowerCase().includes(query) ||
+          stock.code.toLocaleLowerCase().includes(query)
+      )
       .sort((left, right) => {
-        const leftStarts = left.name.toLocaleLowerCase().startsWith(query) || left.code.startsWith(query)
-        const rightStarts = right.name.toLocaleLowerCase().startsWith(query) || right.code.startsWith(query)
+        const leftStarts =
+          left.name.toLocaleLowerCase().startsWith(query) || left.code.startsWith(query)
+        const rightStarts =
+          right.name.toLocaleLowerCase().startsWith(query) || right.code.startsWith(query)
         return Number(rightStarts) - Number(leftStarts)
       })
       .slice(0, 8)
   }, [mentionTrigger, mentionedStocks, stocks])
 
-  const loadConversations = useCallback(async (query = '') => {
-    if (!api) return
-    const next = await api.listConversations(query)
-    setConversations(next)
-    setActiveConversationId((current) => current && next.some((conversation) => conversation.id === current) ? current : next[0]?.id ?? null)
-  }, [api])
+  const loadConversations = useCallback(
+    async (query = '') => {
+      if (!api) return
+      const next = await api.listConversations(query)
+      setConversations(next)
+      setActiveConversationId((current) =>
+        current && next.some((conversation) => conversation.id === current)
+          ? current
+          : (next[0]?.id ?? null)
+      )
+    },
+    [api]
+  )
 
   useEffect(() => {
     if (!api || !open) return
@@ -366,10 +607,19 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
         setSettings(nextSettings)
         setConversations(nextConversations)
         if (!nextStatus.enabled) setActiveTab('settings')
-        setActiveConversationId((current) => current && nextConversations.some((conversation) => conversation.id === current) ? current : nextConversations[0]?.id ?? null)
+        setActiveConversationId((current) =>
+          current && nextConversations.some((conversation) => conversation.id === current)
+            ? current
+            : (nextConversations[0]?.id ?? null)
+        )
       })
-      .catch((reason: unknown) => alive && setError(reason instanceof Error ? reason.message : '无法加载 AI 助手'))
-    return () => { alive = false }
+      .catch(
+        (reason: unknown) =>
+          alive && setError(reason instanceof Error ? reason.message : '无法加载 AI 助手')
+      )
+    return () => {
+      alive = false
+    }
   }, [api, open, search])
 
   useEffect(() => {
@@ -377,14 +627,24 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
     const contextKey = `${context.quoteId}:${context.quoteName ?? ''}`
     if (openedContextRef.current === contextKey) return
     openedContextRef.current = contextKey
-    void api.createConversation({ scope: 'stock', quoteId: context.quoteId, quoteName: context.quoteName })
+    void api
+      .createConversation({
+        scope: 'stock',
+        quoteId: context.quoteId,
+        quoteName: context.quoteName
+      })
       .then((conversation) => {
-        setConversations((current) => [conversation, ...current.filter((item) => item.id !== conversation.id)])
+        setConversations((current) => [
+          conversation,
+          ...current.filter((item) => item.id !== conversation.id)
+        ])
         setActiveConversationId(conversation.id)
         setIncludeStockContext(true)
         setActiveTab('chat')
       })
-      .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : '无法创建股票对话'))
+      .catch((reason: unknown) =>
+        setError(reason instanceof Error ? reason.message : '无法创建股票对话')
+      )
   }, [api, context, open])
 
   useEffect(() => {
@@ -398,15 +658,21 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
       return
     }
     let alive = true
-    void api.getConversation(activeConversationId)
+    void api
+      .getConversation(activeConversationId)
       .then((result) => {
         if (!alive) return
         setActiveConversation(result?.conversation ?? null)
         setMessages(result?.messages ?? [])
         setIncludeStockContext(result?.conversation?.scope === 'stock')
       })
-      .catch((reason: unknown) => alive && setError(reason instanceof Error ? reason.message : '无法加载对话'))
-    return () => { alive = false }
+      .catch(
+        (reason: unknown) =>
+          alive && setError(reason instanceof Error ? reason.message : '无法加载对话')
+      )
+    return () => {
+      alive = false
+    }
   }, [activeConversationId, api])
 
   useEffect(() => {
@@ -423,20 +689,30 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
     if (!api) return
     const mergeMessage = (message: AiMessage) => {
       if (message.conversationId !== activeConversationId) return
-      setMessages((current) => current.some((item) => item.id === message.id)
-        ? current.map((item) => item.id === message.id ? message : item)
-        : [...current, message])
+      setMessages((current) =>
+        current.some((item) => item.id === message.id)
+          ? current.map((item) => (item.id === message.id ? message : item))
+          : [...current, message]
+      )
       void loadConversations(search)
     }
     const unDelta = api.onChatDelta(({ conversationId, messageId, delta }) => {
       if (conversationId !== activeConversationId) return
-      setMessages((current) => current.map((message) => message.id === messageId
-        ? { ...message, content: `${message.content}${delta}`, status: 'streaming' }
-        : message))
+      setMessages((current) =>
+        current.map((message) =>
+          message.id === messageId
+            ? { ...message, content: `${message.content}${delta}`, status: 'streaming' }
+            : message
+        )
+      )
     })
     const unCompleted = api.onChatCompleted(({ message }) => mergeMessage(message))
     const unError = api.onChatError(({ message }) => mergeMessage(message))
-    return () => { unDelta(); unCompleted(); unError() }
+    return () => {
+      unDelta()
+      unCompleted()
+      unError()
+    }
   }, [activeConversationId, api, loadConversations, search])
 
   const createConversation = async () => {
@@ -457,8 +733,10 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
     if (!title?.trim()) return
     try {
       const renamed = await api.renameConversation(conversation.id, title)
-      setConversations((current) => current.map((item) => item.id === renamed.id ? renamed : item))
-      setActiveConversation((current) => current?.id === renamed.id ? renamed : current)
+      setConversations((current) =>
+        current.map((item) => (item.id === renamed.id ? renamed : item))
+      )
+      setActiveConversation((current) => (current?.id === renamed.id ? renamed : current))
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '无法重命名对话')
     }
@@ -574,9 +852,11 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault()
         const direction = event.key === 'ArrowDown' ? 1 : -1
-        setActiveMentionIndex((current) => mentionResults.length > 0
-          ? (current + direction + mentionResults.length) % mentionResults.length
-          : 0)
+        setActiveMentionIndex((current) =>
+          mentionResults.length > 0
+            ? (current + direction + mentionResults.length) % mentionResults.length
+            : 0
+        )
         return
       }
       if ((event.key === 'Enter' || event.key === 'Tab') && mentionResults[activeMentionIndex]) {
@@ -680,7 +960,7 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
       setConnectionResult({
         ok: account.loggedIn,
         kind: account.loggedIn ? 'success' : 'authentication',
-        message: account.loggedIn ? 'Codex 账号登录成功' : account.message ?? 'Codex 账号登录失败'
+        message: account.loggedIn ? 'Codex 账号登录成功' : (account.message ?? 'Codex 账号登录失败')
       })
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Codex 账号登录失败')
@@ -723,7 +1003,10 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
     if (!api) return
     try {
       const exported = await api.exportAllConversations()
-      downloadJson('见涨-AI全部对话.json', { conversations: exported, exportedAt: new Date().toISOString() })
+      downloadJson('见涨-AI全部对话.json', {
+        conversations: exported,
+        exportedAt: new Date().toISOString()
+      })
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '无法导出全部对话')
     }
@@ -732,65 +1015,219 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
   if (!open || !api) return null
   return (
     <div className="ai-drawer-backdrop" role="presentation" onMouseDown={onClose}>
-      <section className={`ai-assistant-drawer${error ? ' has-error' : ''}`} role="dialog" aria-modal="true" aria-label="AI 助手" onMouseDown={(event) => event.stopPropagation()}>
+      <section
+        className={`ai-assistant-drawer${error ? ' has-error' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="AI 助手"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
         <header className="ai-drawer-header">
-          <div><Bot size={19} /><span><strong>AI 助手</strong><small>指标解读、要闻参考与本地对话</small></span></div>
-          <nav aria-label="AI 助手页面"><button className={activeTab === 'chat' ? 'is-active' : ''} type="button" onClick={() => setActiveTab('chat')}><MessageSquare size={15} />对话</button><button className={activeTab === 'settings' ? 'is-active' : ''} type="button" onClick={() => setActiveTab('settings')}><Settings2 size={15} />服务设置</button></nav>
-          <button className="icon-button ai-drawer-close" type="button" title="关闭 AI 助手" aria-label="关闭 AI 助手" onClick={onClose}><X size={18} /></button>
+          <div>
+            <Bot size={19} />
+            <span>
+              <strong>AI 助手</strong>
+              <small>指标解读、要闻参考与本地对话</small>
+            </span>
+          </div>
+          <nav aria-label="AI 助手页面">
+            <button
+              className={activeTab === 'chat' ? 'is-active' : ''}
+              type="button"
+              onClick={() => setActiveTab('chat')}
+            >
+              <MessageSquare size={15} />
+              对话
+            </button>
+            <button
+              className={activeTab === 'settings' ? 'is-active' : ''}
+              type="button"
+              onClick={() => setActiveTab('settings')}
+            >
+              <Settings2 size={15} />
+              服务设置
+            </button>
+          </nav>
+          <button
+            className="icon-button ai-drawer-close"
+            type="button"
+            title="关闭 AI 助手"
+            aria-label="关闭 AI 助手"
+            onClick={onClose}
+          >
+            <X size={18} />
+          </button>
         </header>
-        {error ? <div className="ai-drawer-error"><AlertCircle size={15} /><span>{error}</span><button type="button" onClick={() => setError('')}><X size={14} /></button></div> : null}
+        {error ? (
+          <div className="ai-drawer-error">
+            <AlertCircle size={15} />
+            <span>{error}</span>
+            <button type="button" onClick={() => setError('')}>
+              <X size={14} />
+            </button>
+          </div>
+        ) : null}
         {activeTab === 'chat' ? (
           <div className="ai-chat-layout">
-            <ConversationList conversations={conversations} activeId={activeConversationId} search={search} onSearchChange={setSearch} onCreate={() => void createConversation()} onSelect={setActiveConversationId} onRename={(conversation) => void renameConversation(conversation)} onDelete={(conversation) => void deleteConversation(conversation)} onClear={() => void clearConversations()} onExportAll={() => void exportAllConversations()} />
+            <ConversationList
+              conversations={conversations}
+              activeId={activeConversationId}
+              search={search}
+              onSearchChange={setSearch}
+              onCreate={() => void createConversation()}
+              onSelect={setActiveConversationId}
+              onRename={(conversation) => void renameConversation(conversation)}
+              onDelete={(conversation) => void deleteConversation(conversation)}
+              onClear={() => void clearConversations()}
+              onExportAll={() => void exportAllConversations()}
+            />
             <div className="ai-chat-main">
-              <ChatThread conversation={activeConversation} messages={messages} onCancel={() => activeConversation && void api.cancelChat(activeConversation.id)} onRetry={(messageId) => void retryMessage(messageId)} onExport={() => void exportConversation()} />
+              <ChatThread
+                conversation={activeConversation}
+                messages={messages}
+                onCancel={() => activeConversation && void api.cancelChat(activeConversation.id)}
+                onRetry={(messageId) => void retryMessage(messageId)}
+                onExport={() => void exportConversation()}
+              />
               {activeConversation ? (
                 <footer className="ai-composer">
                   <div className="ai-composer-contexts">
                     {activeConversation.scope === 'stock' ? (
-                      <span className={`ai-context-chip${includeStockContext ? '' : ' is-disabled'}`}>上下文：{activeConversation.quoteName ?? activeConversation.quoteId}<button type="button" title={includeStockContext ? '移除本次消息的股票上下文' : '恢复本次消息的股票上下文'} aria-label={includeStockContext ? '移除本次消息的股票上下文' : '恢复本次消息的股票上下文'} onClick={() => setIncludeStockContext((current) => !current)}>{includeStockContext ? <X size={13} /> : <Plus size={13} />}</button></span>
+                      <span
+                        className={`ai-context-chip${includeStockContext ? '' : ' is-disabled'}`}
+                      >
+                        上下文：{activeConversation.quoteName ?? activeConversation.quoteId}
+                        <button
+                          type="button"
+                          title={
+                            includeStockContext
+                              ? '移除本次消息的股票上下文'
+                              : '恢复本次消息的股票上下文'
+                          }
+                          aria-label={
+                            includeStockContext
+                              ? '移除本次消息的股票上下文'
+                              : '恢复本次消息的股票上下文'
+                          }
+                          onClick={() => setIncludeStockContext((current) => !current)}
+                        >
+                          {includeStockContext ? <X size={13} /> : <Plus size={13} />}
+                        </button>
+                      </span>
                     ) : null}
                     {mentionedStocks.map((stock) => (
-                      <span className="ai-context-chip is-mention" key={stock.quoteId}>@{stock.name}<small>{stock.code}</small><button type="button" title={`移除${stock.name}引用`} aria-label={`移除${stock.name}引用`} onClick={() => removeMention(stock)}><X size={13} /></button></span>
+                      <span className="ai-context-chip is-mention" key={stock.quoteId}>
+                        @{stock.name}
+                        <small>{stock.code}</small>
+                        <button
+                          type="button"
+                          title={`移除${stock.name}引用`}
+                          aria-label={`移除${stock.name}引用`}
+                          onClick={() => removeMention(stock)}
+                        >
+                          <X size={13} />
+                        </button>
+                      </span>
                     ))}
-                    <button className="ai-mention-open" type="button" disabled={sendingMessage || mentionedStocks.length >= 5} onClick={openMentionPicker}><AtSign size={14} />股票</button>
+                    <button
+                      className="ai-mention-open"
+                      type="button"
+                      disabled={sendingMessage || mentionedStocks.length >= 5}
+                      onClick={openMentionPicker}
+                    >
+                      <AtSign size={14} />
+                      股票
+                    </button>
                   </div>
                   <div className="ai-composer-editor">
                     <textarea
                       ref={composerRef}
                       value={composer}
                       disabled={sendingMessage}
-                      onChange={(event) => updateComposer(event.target.value, event.target.selectionStart)}
+                      onChange={(event) =>
+                        updateComposer(event.target.value, event.target.selectionStart)
+                      }
                       onKeyDown={handleComposerKeyDown}
                       onBlur={() => window.setTimeout(() => setMentionTrigger(null), 120)}
-                      placeholder={activeConversation.scope === 'stock' && includeStockContext ? '围绕当前股票提问，也可以输入 @ 引用其他自选股票…' : '输入问题，使用 @ 引用自选股票，Enter 发送'}
+                      placeholder={
+                        activeConversation.scope === 'stock' && includeStockContext
+                          ? '围绕当前股票提问，也可以输入 @ 引用其他自选股票…'
+                          : '输入问题，使用 @ 引用自选股票，Enter 发送'
+                      }
                     />
                     {mentionTrigger ? (
-                      <div className="ai-mention-picker" role="listbox" aria-label="选择要引用的股票">
-                        <header><span>引用自选股票</span><small>{mentionedStocks.length}/5</small></header>
-                        {mentionResults.length > 0 ? mentionResults.map((stock, index) => (
-                          <button
-                            className={index === activeMentionIndex ? 'is-active' : ''}
-                            type="button"
-                            role="option"
-                            aria-selected={index === activeMentionIndex}
-                            key={stock.quoteId}
-                            onMouseEnter={() => setActiveMentionIndex(index)}
-                            onMouseDown={(event) => { event.preventDefault(); chooseMention(stock) }}
-                          >
-                            <span><strong>{stock.name}</strong><small>{stock.code}</small></span>
-                            <em>{stock.marketLabel}</em>
-                          </button>
-                        )) : <div className="ai-mention-empty">没有匹配的自选股票</div>}
+                      <div
+                        className="ai-mention-picker"
+                        role="listbox"
+                        aria-label="选择要引用的股票"
+                      >
+                        <header>
+                          <span>引用自选股票</span>
+                          <small>{mentionedStocks.length}/5</small>
+                        </header>
+                        {mentionResults.length > 0 ? (
+                          mentionResults.map((stock, index) => (
+                            <button
+                              className={index === activeMentionIndex ? 'is-active' : ''}
+                              type="button"
+                              role="option"
+                              aria-selected={index === activeMentionIndex}
+                              key={stock.quoteId}
+                              onMouseEnter={() => setActiveMentionIndex(index)}
+                              onMouseDown={(event) => {
+                                event.preventDefault()
+                                chooseMention(stock)
+                              }}
+                            >
+                              <span>
+                                <strong>{stock.name}</strong>
+                                <small>{stock.code}</small>
+                              </span>
+                              <em>{stock.marketLabel}</em>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="ai-mention-empty">没有匹配的自选股票</div>
+                        )}
                       </div>
                     ) : null}
                   </div>
-                  <button className="primary-button" type="button" disabled={sendingMessage || !composer.trim()} onClick={() => void sendMessage()}>{sendingMessage ? <LoaderCircle size={15} className="is-spinning" /> : <Send size={15} />}{sendingMessage ? '读取数据' : '发送'}</button>
+                  <button
+                    className="primary-button"
+                    type="button"
+                    disabled={sendingMessage || !composer.trim()}
+                    onClick={() => void sendMessage()}
+                  >
+                    {sendingMessage ? (
+                      <LoaderCircle size={15} className="is-spinning" />
+                    ) : (
+                      <Send size={15} />
+                    )}
+                    {sendingMessage ? '读取数据' : '发送'}
+                  </button>
                 </footer>
               ) : null}
             </div>
           </div>
-        ) : status && settings ? <AiSettingsPanel status={status} settings={settings} onSave={(nextSettings) => void saveSettings(nextSettings)} onSaveCredential={(providerId, key) => void saveCredential(providerId, key)} onClearCredential={(providerId) => void clearCredential(providerId)} onCodexLogin={() => void loginCodexAccount()} onCodexLogout={() => void logoutCodexAccount()} onTestConnection={(providerId) => void testConnection(providerId)} busy={busy} connectionResult={connectionResult} /> : <div className="ai-loading-panel"><LoaderCircle size={20} className="is-spinning" />正在读取服务设置…</div>}
+        ) : status && settings ? (
+          <AiSettingsPanel
+            status={status}
+            settings={settings}
+            onSave={(nextSettings) => void saveSettings(nextSettings)}
+            onSaveCredential={(providerId, key) => void saveCredential(providerId, key)}
+            onClearCredential={(providerId) => void clearCredential(providerId)}
+            onCodexLogin={() => void loginCodexAccount()}
+            onCodexLogout={() => void logoutCodexAccount()}
+            onTestConnection={(providerId) => void testConnection(providerId)}
+            busy={busy}
+            connectionResult={connectionResult}
+          />
+        ) : (
+          <div className="ai-loading-panel">
+            <LoaderCircle size={20} className="is-spinning" />
+            正在读取服务设置…
+          </div>
+        )}
       </section>
     </div>
   )

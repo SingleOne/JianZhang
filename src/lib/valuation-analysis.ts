@@ -9,13 +9,18 @@ import type {
 export function usesOrdinaryCorporateInvestmentMetrics(
   organizationType: FundamentalOrganizationType | undefined
 ): boolean {
-  return organizationType === undefined || organizationType === 'general' || organizationType === 'other'
+  return (
+    organizationType === undefined || organizationType === 'general' || organizationType === 'other'
+  )
 }
 
-export function valuationPercentile(values: readonly number[], current: number | null): number | null {
+export function valuationPercentile(
+  values: readonly number[],
+  current: number | null
+): number | null {
   if (current === null || current <= 0 || values.length === 0) return null
   const lessOrEqual = values.reduce((count, value) => count + (value <= current ? 1 : 0), 0)
-  return lessOrEqual / values.length * 100
+  return (lessOrEqual / values.length) * 100
 }
 
 export function createStockValuationAnalysis(

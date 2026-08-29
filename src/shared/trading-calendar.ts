@@ -80,9 +80,9 @@ export function isAStockTradingDay(
 ): boolean {
   const date = new Date(utcTime(dateKey))
   const dayOfWeek = date.getUTCDay()
-  return dayOfWeek !== 0
-    && dayOfWeek !== 6
-    && !marketClosedDates(additionalClosedDates).has(dateKey)
+  return (
+    dayOfWeek !== 0 && dayOfWeek !== 6 && !marketClosedDates(additionalClosedDates).has(dateKey)
+  )
 }
 
 export function countAStockTradingDays(

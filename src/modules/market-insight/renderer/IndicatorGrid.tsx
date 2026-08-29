@@ -16,7 +16,12 @@ interface IndicatorGridProps {
 
 function formatIndicator(value: IndicatorValue): string {
   if (value.value === null) return '--'
-  if (value.id === 'price-volume-state') return value.state === 'up' ? '量价同向走强' : value.state === 'down' ? '量价同向走弱' : '量价平衡'
+  if (value.id === 'price-volume-state')
+    return value.state === 'up'
+      ? '量价同向走强'
+      : value.state === 'down'
+        ? '量价同向走弱'
+        : '量价平衡'
   if (value.id === 'momentum-strength' || value.id === 'reversal-strength') {
     return `${value.value > 0 ? '+' : ''}${Math.round(value.value)} / 100`
   }
@@ -24,9 +29,8 @@ function formatIndicator(value: IndicatorValue): string {
   if (value.unit === 'price') return formatPrice(value.value)
   if (value.unit === 'percent') return formatPercent(value.value)
   if (value.unit === 'amount') return formatAmount(value.value)
-  if (value.unit === 'ratio') return value.id.includes('imbalance')
-    ? value.value.toFixed(2)
-    : `${value.value.toFixed(2)} 倍`
+  if (value.unit === 'ratio')
+    return value.id.includes('imbalance') ? value.value.toFixed(2) : `${value.value.toFixed(2)} 倍`
   return value.value.toFixed(2)
 }
 
@@ -58,10 +62,18 @@ function IndicatorExplanationPopover({
       >
         <header>
           <div>
-            <small>{groupTitle} · {value.sourcePeriod}指标说明</small>
+            <small>
+              {groupTitle} · {value.sourcePeriod}指标说明
+            </small>
             <h4 id={titleId}>{value.label}</h4>
           </div>
-          <button type="button" autoFocus onClick={onClose} aria-label={`关闭${value.label}说明`} title="关闭">
+          <button
+            type="button"
+            autoFocus
+            onClick={onClose}
+            aria-label={`关闭${value.label}说明`}
+            title="关闭"
+          >
             <X size={16} />
           </button>
         </header>
@@ -74,7 +86,9 @@ function IndicatorExplanationPopover({
           <section>
             <strong>如何理解</strong>
             <ul>
-              {explanation.interpretation.map((item) => <li key={item}>{item}</li>)}
+              {explanation.interpretation.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
             </ul>
           </section>
           <section>
@@ -93,15 +107,20 @@ function IndicatorExplanationPopover({
   )
 }
 
-export function IndicatorGrid({ title, titleHint, values, headingValueId, explanations, variant = 'default' }: IndicatorGridProps) {
+export function IndicatorGrid({
+  title,
+  titleHint,
+  values,
+  headingValueId,
+  explanations,
+  variant = 'default'
+}: IndicatorGridProps) {
   const [explainedIndicatorId, setExplainedIndicatorId] = useState<string | null>(null)
   if (values.length === 0) return null
   const headingValue = headingValueId
     ? values.find((value) => value.id === headingValueId)
     : undefined
-  const gridValues = headingValue
-    ? values.filter((value) => value.id !== headingValue.id)
-    : values
+  const gridValues = headingValue ? values.filter((value) => value.id !== headingValue.id) : values
   const explainedValue = explainedIndicatorId
     ? gridValues.find((value) => value.id === explainedIndicatorId)
     : undefined
@@ -115,7 +134,14 @@ export function IndicatorGrid({ title, titleHint, values, headingValueId, explan
           aria-label={titleHint ? `${title}：${titleHint}` : undefined}
         >
           <h3>{title}</h3>
-          {titleHint ? <><CircleHelp size={13} /><span className="insight-group-tooltip" role="tooltip">{titleHint}</span></> : null}
+          {titleHint ? (
+            <>
+              <CircleHelp size={13} />
+              <span className="insight-group-tooltip" role="tooltip">
+                {titleHint}
+              </span>
+            </>
+          ) : null}
         </div>
         {headingValue ? (
           <span className="insight-heading-value" title={`数据周期：${headingValue.sourcePeriod}`}>
@@ -127,7 +153,11 @@ export function IndicatorGrid({ title, titleHint, values, headingValueId, explan
       {gridValues.length > 0 ? (
         <div className="insight-indicator-grid">
           {gridValues.map((value) => (
-            <div className={`insight-indicator ${explanations?.[value.id] ? 'has-description' : ''}`} key={value.id} title={`数据周期：${value.sourcePeriod}`}>
+            <div
+              className={`insight-indicator ${explanations?.[value.id] ? 'has-description' : ''}`}
+              key={value.id}
+              title={`数据周期：${value.sourcePeriod}`}
+            >
               {explanations?.[value.id] ? (
                 <button
                   className="insight-indicator-label-button"
@@ -140,9 +170,15 @@ export function IndicatorGrid({ title, titleHint, values, headingValueId, explan
                   <span>{value.label}</span>
                   <CircleHelp size={11} />
                 </button>
-              ) : <span>{value.label}</span>}
+              ) : (
+                <span>{value.label}</span>
+              )}
               <strong className={`is-${value.state}`}>{formatIndicator(value)}</strong>
-              {value.status ? <small className={`insight-indicator-status is-${value.state}`}>{value.status}</small> : null}
+              {value.status ? (
+                <small className={`insight-indicator-status is-${value.state}`}>
+                  {value.status}
+                </small>
+              ) : null}
             </div>
           ))}
         </div>

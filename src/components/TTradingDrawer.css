@@ -174,7 +174,7 @@
 .t-batch-summary strong {
   color: var(--green);
   font-size: 13px;
-  margin-left: .5em;
+  margin-left: 0.5em;
 }
 
 .t-batch-summary strong.is-up {
@@ -456,7 +456,7 @@
   background: var(--green-soft);
 }
 
-.t-trade-row>span:nth-child(1) {
+.t-trade-row > span:nth-child(1) {
   justify-self: center;
 }
 

@@ -17,33 +17,43 @@ export function reconcileWatchEvents(
     'volume_spike',
     'intraday_extreme'
   ])
-  const active = existing.map((event) => (
-    (
-      new Date(event.expiresAt).getTime() <= timestamp
-      || (continuousTypes.has(event.type) && !activeFingerprints.has(event.fingerprint))
-    ) && event.status !== 'expired'
+  const active = existing.map((event) =>
+    (new Date(event.expiresAt).getTime() <= timestamp ||
+      (continuousTypes.has(event.type) && !activeFingerprints.has(event.fingerprint))) &&
+    event.status !== 'expired'
       ? { ...event, status: 'expired' as const }
       : event
-  ))
+  )
   const additions = deduplicateEventDrafts(drafts)
     .filter((item) => !hasEventFingerprint(active, item.fingerprint))
-    .filter((item) => !active.some((event) => {
-      const sameEvent = event.quoteId === item.quoteId && event.fingerprint === item.fingerprint
-      const inCooldown = timestamp - new Date(event.occurredAt).getTime() < cooldownMinutes * 60_000
-      return sameEvent && event.status !== 'expired' && inCooldown
-    }))
+    .filter(
+      (item) =>
+        !active.some((event) => {
+          const sameEvent = event.quoteId === item.quoteId && event.fingerprint === item.fingerprint
+          const inCooldown =
+            timestamp - new Date(event.occurredAt).getTime() < cooldownMinutes * 60_000
+          return sameEvent && event.status !== 'expired' && inCooldown
+        })
+    )
     .map((item): WatchEvent => ({
       ...item,
       id: `${item.fingerprint}:${item.occurredAt}`,
       status: 'active'
     }))
-  return [...additions, ...active].sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
+  return [...additions, ...active].sort((left, right) =>
+    right.occurredAt.localeCompare(left.occurredAt)
+  )
 }
 
-export function acknowledgeWatchEvent(events: readonly WatchEvent[], eventId: string): WatchEvent[] {
-  return events.map((event) => event.id === eventId && event.status === 'active'
-    ? { ...event, status: 'acknowledged' as const }
-    : event)
+export function acknowledgeWatchEvent(
+  events: readonly WatchEvent[],
+  eventId: string
+): WatchEvent[] {
+  return events.map((event) =>
+    event.id === eventId && event.status === 'active'
+      ? { ...event, status: 'acknowledged' as const }
+      : event
+  )
 }
 
 export function pruneWatchEvents(

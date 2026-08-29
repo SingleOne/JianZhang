@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { FundamentalCompany } from '../shared/types'
-import {
-  DCF_LOW_VALUE_THRESHOLD_PERCENT,
-  createDcfAnalysis
-} from './dcf-analysis'
+import { DCF_LOW_VALUE_THRESHOLD_PERCENT, createDcfAnalysis } from './dcf-analysis'
 
 function company(overrides: Partial<FundamentalCompany> = {}): FundamentalCompany {
   return {

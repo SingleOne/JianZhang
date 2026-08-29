@@ -18,8 +18,9 @@ function plainText(html: string): string {
 export function parseSafeExchangeRateHtml(html: string): SafeExchangeRateSnapshot {
   const rows = [...html.matchAll(/<tr\b[^>]*>[\s\S]*?<\/tr>/gi)]
   for (const row of rows) {
-    const cells = [...row[0].matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)]
-      .map((cell) => plainText(cell[1]))
+    const cells = [...row[0].matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)].map((cell) =>
+      plainText(cell[1])
+    )
     if (!/^\d{4}-\d{2}-\d{2}$/.test(cells[0] ?? '')) continue
     const usdPerHundred = Number(cells[1])
     const hkdPerHundred = Number(cells[4])

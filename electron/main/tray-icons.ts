@@ -16,8 +16,10 @@ function fillRoundedSquare(png: PNG, color: Color): void {
   const radius = 6
   for (let y = 0; y < png.height; y += 1) {
     for (let x = 0; x < png.width; x += 1) {
-      const dx = x < radius ? radius - x : x >= png.width - radius ? x - (png.width - radius - 1) : 0
-      const dy = y < radius ? radius - y : y >= png.height - radius ? y - (png.height - radius - 1) : 0
+      const dx =
+        x < radius ? radius - x : x >= png.width - radius ? x - (png.width - radius - 1) : 0
+      const dy =
+        y < radius ? radius - y : y >= png.height - radius ? y - (png.height - radius - 1) : 0
       if (dx * dx + dy * dy <= radius * radius) setPixel(png, x, y, color)
     }
   }
@@ -36,9 +38,24 @@ export function createAppIcon(): NativeImage {
 
   for (let x = 7; x <= 24; x += 1) setPixel(png, x, 24, guide)
   const points = [
-    [7, 22], [8, 21], [9, 20], [10, 19], [11, 20], [12, 21], [13, 19],
-    [14, 17], [15, 18], [16, 16], [17, 14], [18, 15], [19, 13], [20, 11],
-    [21, 12], [22, 9], [23, 8], [24, 7]
+    [7, 22],
+    [8, 21],
+    [9, 20],
+    [10, 19],
+    [11, 20],
+    [12, 21],
+    [13, 19],
+    [14, 17],
+    [15, 18],
+    [16, 16],
+    [17, 14],
+    [18, 15],
+    [19, 13],
+    [20, 11],
+    [21, 12],
+    [22, 9],
+    [23, 8],
+    [24, 7]
   ]
   for (const [x, y] of points) {
     setPixel(png, x, y, foreground)

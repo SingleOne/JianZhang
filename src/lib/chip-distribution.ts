@@ -51,7 +51,7 @@ export function estimateChipHistoryLimit(
   if (range.cumulativeTurnover === 0) return maximumLimit
 
   const averageTurnover = range.cumulativeTurnover / range.barCount
-  const estimatedBars = CHIP_TURNOVER_THRESHOLD / averageTurnover * CHIP_HISTORY_ESTIMATE_MARGIN
+  const estimatedBars = (CHIP_TURNOVER_THRESHOLD / averageTurnover) * CHIP_HISTORY_ESTIMATE_MARGIN
   const roundedLimit = Math.ceil(estimatedBars / CHIP_HISTORY_LIMIT_STEP) * CHIP_HISTORY_LIMIT_STEP
   return Math.min(maximumLimit, Math.max(bars.length + CHIP_HISTORY_LIMIT_STEP, roundedLimit))
 }
@@ -86,13 +86,11 @@ function costRange(
   return {
     low,
     high,
-    concentration: low + high === 0 ? 0 : (high - low) / (high + low) * 100
+    concentration: low + high === 0 ? 0 : ((high - low) / (high + low)) * 100
   }
 }
 
-export function calculateChipDistribution(
-  bars: readonly KlineBar[]
-): ChipDistributionData | null {
+export function calculateChipDistribution(bars: readonly KlineBar[]): ChipDistributionData | null {
   if (bars.length === 0 || bars.some((bar) => turnoverRate(bar) === null)) return null
 
   const minPrice = Math.min(...bars.map((bar) => bar.low))
@@ -120,18 +118,23 @@ export function calculateChipDistribution(
     let totalWeight = 0
 
     if (bar.high === bar.low) {
-      const index = Math.max(0, Math.min(
-        CHIP_PRICE_BUCKET_COUNT - 1,
-        Math.round((bar.close - minPrice) / accuracy)
-      ))
+      const index = Math.max(
+        0,
+        Math.min(CHIP_PRICE_BUCKET_COUNT - 1, Math.round((bar.close - minPrice) / accuracy))
+      )
       weights.push({ index, value: 1 })
       totalWeight = 1
     } else {
       for (let index = lowIndex; index <= highIndex; index += 1) {
         const price = minPrice + accuracy * index
-        const weight = price <= averagePrice
-          ? averagePrice === bar.low ? 1 : (price - bar.low) / (averagePrice - bar.low)
-          : averagePrice === bar.high ? 1 : (bar.high - price) / (bar.high - averagePrice)
+        const weight =
+          price <= averagePrice
+            ? averagePrice === bar.low
+              ? 1
+              : (price - bar.low) / (averagePrice - bar.low)
+            : averagePrice === bar.high
+              ? 1
+              : (bar.high - price) / (bar.high - averagePrice)
         const normalizedWeight = Math.max(0, weight)
         weights.push({ index, value: normalizedWeight })
         totalWeight += normalizedWeight
@@ -139,16 +142,16 @@ export function calculateChipDistribution(
     }
 
     if (totalWeight === 0) {
-      const index = Math.max(0, Math.min(
-        CHIP_PRICE_BUCKET_COUNT - 1,
-        Math.round((averagePrice - minPrice) / accuracy)
-      ))
+      const index = Math.max(
+        0,
+        Math.min(CHIP_PRICE_BUCKET_COUNT - 1, Math.round((averagePrice - minPrice) / accuracy))
+      )
       weights.push({ index, value: 1 })
       totalWeight = 1
     }
 
     for (const weight of weights) {
-      chips[weight.index] += turnover * weight.value / totalWeight
+      chips[weight.index] += (turnover * weight.value) / totalWeight
     }
   }
 
@@ -156,9 +159,10 @@ export function calculateChipDistribution(
   if (totalChips === 0) return null
 
   const currentPrice = bars.at(-1)?.close ?? 0
-  const profitChips = chips.reduce((sum, value, index) => (
-    minPrice + accuracy * index <= currentPrice ? sum + value : sum
-  ), 0)
+  const profitChips = chips.reduce(
+    (sum, value, index) => (minPrice + accuracy * index <= currentPrice ? sum + value : sum),
+    0
+  )
 
   return {
     startDate: bars[0].time.slice(0, 10),
@@ -167,12 +171,12 @@ export function calculateChipDistribution(
     cumulativeTurnover,
     currentPrice,
     averageCost: quantilePrice(chips, minPrice, accuracy, 0.5),
-    profitPercent: profitChips / totalChips * 100,
+    profitPercent: (profitChips / totalChips) * 100,
     cost70: costRange(chips, minPrice, accuracy, 0.7),
     cost90: costRange(chips, minPrice, accuracy, 0.9),
     buckets: chips.map((value, index) => ({
       price: minPrice + accuracy * index,
-      percent: value / totalChips * 100
+      percent: (value / totalChips) * 100
     }))
   }
 }

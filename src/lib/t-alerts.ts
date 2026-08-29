@@ -1,9 +1,4 @@
-import {
-  calculateTBatchMetrics,
-  calculateTradeFees,
-  roundMoney,
-  totalTradeFees
-} from './t-trading'
+import { calculateTBatchMetrics, calculateTradeFees, roundMoney, totalTradeFees } from './t-trading'
 import { getBatchTrades } from './trade-records'
 import { formatProfit } from './format'
 import type {
@@ -78,47 +73,59 @@ export function getTPlanRows(
   const metrics = calculateTBatchMetrics(batch, trades)
   const averageCost = metrics.averageCost
   let cumulativeProfit = metrics.realizedProfit
-  const isOpeningPlan = (
-    (metrics.direction === 'forward' && side === 'buy')
-    || (metrics.direction === 'reverse' && side === 'sell')
-  )
+  const isOpeningPlan =
+    (metrics.direction === 'forward' && side === 'buy') ||
+    (metrics.direction === 'reverse' && side === 'sell')
 
   return levelsForSide(batch, side).map((level, index) => {
     const targetPrice = tPlanTargetPrice(averageCost, side, level.targetPercent)
     const hasQuantity = level.quantity >= 100
-    const fees = targetPrice === null || !hasQuantity
-      ? 0
-      : totalTradeFees(calculateTradeFees(targetPrice * level.quantity, side, feeSettings, marketLabel))
-    const difference = targetPrice === null || averageCost === null
-      ? null
-      : side === 'buy' ? averageCost - targetPrice : targetPrice - averageCost
-    const expectedProfit = isOpeningPlan || difference === null || !hasQuantity
-      ? null
-      : difference * level.quantity - fees
-    const fullPositionFees = targetPrice === null
-      ? 0
-      : totalTradeFees(calculateTradeFees(
-        targetPrice * metrics.remainingQuantity,
-        side,
-        feeSettings,
-        marketLabel
-      ))
-    const fullPositionProfit = isOpeningPlan || difference === null
-      ? null
-      : metrics.realizedProfit + difference * metrics.remainingQuantity - fullPositionFees
-    const projectedQuantity = isOpeningPlan && targetPrice !== null && hasQuantity
-      ? metrics.remainingQuantity + level.quantity
-      : null
-    const projectedCostBasis = projectedQuantity === null || targetPrice === null
-      ? null
-      : metrics.remainingCostBasis + (
-          side === 'buy'
+    const fees =
+      targetPrice === null || !hasQuantity
+        ? 0
+        : totalTradeFees(
+            calculateTradeFees(targetPrice * level.quantity, side, feeSettings, marketLabel)
+          )
+    const difference =
+      targetPrice === null || averageCost === null
+        ? null
+        : side === 'buy'
+          ? averageCost - targetPrice
+          : targetPrice - averageCost
+    const expectedProfit =
+      isOpeningPlan || difference === null || !hasQuantity
+        ? null
+        : difference * level.quantity - fees
+    const fullPositionFees =
+      targetPrice === null
+        ? 0
+        : totalTradeFees(
+            calculateTradeFees(
+              targetPrice * metrics.remainingQuantity,
+              side,
+              feeSettings,
+              marketLabel
+            )
+          )
+    const fullPositionProfit =
+      isOpeningPlan || difference === null
+        ? null
+        : metrics.realizedProfit + difference * metrics.remainingQuantity - fullPositionFees
+    const projectedQuantity =
+      isOpeningPlan && targetPrice !== null && hasQuantity
+        ? metrics.remainingQuantity + level.quantity
+        : null
+    const projectedCostBasis =
+      projectedQuantity === null || targetPrice === null
+        ? null
+        : metrics.remainingCostBasis +
+          (side === 'buy'
             ? targetPrice * level.quantity + fees
-            : targetPrice * level.quantity - fees
-        )
-    const projectedCost = projectedQuantity && projectedCostBasis !== null
-      ? projectedCostBasis / projectedQuantity
-      : null
+            : targetPrice * level.quantity - fees)
+    const projectedCost =
+      projectedQuantity && projectedCostBasis !== null
+        ? projectedCostBasis / projectedQuantity
+        : null
 
     if (expectedProfit !== null) cumulativeProfit += expectedProfit
     return {
@@ -147,12 +154,14 @@ export function getTriggeredTAlertBadges(
     if (index < 0) return []
 
     const level = levels[index]
-    return [{
-      side,
-      index,
-      label: `T${index + 1}`,
-      targetPrice: tPlanTargetPrice(averageCost, side, level.targetPercent)
-    }]
+    return [
+      {
+        side,
+        index,
+        label: `T${index + 1}`,
+        targetPrice: tPlanTargetPrice(averageCost, side, level.targetPercent)
+      }
+    ]
   })
 }
 
@@ -163,11 +172,7 @@ export function hasTriggeredTAlerts(
   return getTriggeredTAlertBadges(batch, trades).length > 0
 }
 
-function priceTriggersLevel(
-  latest: number,
-  targetPrice: number | null,
-  side: TAlertSide
-): boolean {
+function priceTriggersLevel(latest: number, targetPrice: number | null, side: TAlertSide): boolean {
   if (targetPrice === null) return false
   return side === 'buy' ? latest <= targetPrice : latest >= targetPrice
 }
@@ -251,9 +256,7 @@ export function applyTFloatingProfitAlert(
       : floatingProfit <= -alert.threshold
         ? 'loss'
         : null
-  const status: TFloatingProfitAlertStatus = direction
-    ? `${direction}-triggered`
-    : 'armed'
+  const status: TFloatingProfitAlertStatus = direction ? `${direction}-triggered` : 'armed'
   if (status === alert.status) return { batch, changed: false }
 
   const triggeredAt = direction ? new Date().toISOString() : undefined
@@ -316,11 +319,12 @@ export function applyTAlertTriggersToAccounts(
 export function setTAlertEnabled(batch: TTradingBatch, enabled: boolean): TTradingBatch {
   if (!enabled) return { ...batch, alertEnabled: false }
 
-  const rearm = (levels: TPlanLevel[]) => levels.map((level) => (
-    level.alertStatus === 'handled'
-      ? level
-      : { ...level, alertStatus: 'armed' as const, triggeredAt: undefined }
-  ))
+  const rearm = (levels: TPlanLevel[]) =>
+    levels.map((level) =>
+      level.alertStatus === 'handled'
+        ? level
+        : { ...level, alertStatus: 'armed' as const, triggeredAt: undefined }
+    )
   return {
     ...batch,
     alertEnabled: true,
@@ -363,9 +367,10 @@ export function setTFloatingProfitAlertThreshold(
   }
 }
 
-export function formatTFloatingProfitAlertNotification(
-  alert: TriggeredTFloatingProfitAlert
-): { title: string; body: string } {
+export function formatTFloatingProfitAlertNotification(alert: TriggeredTFloatingProfitAlert): {
+  title: string
+  body: string
+} {
   const label = alert.direction === 'profit' ? '浮盈' : '浮亏'
   const target = alert.direction === 'profit' ? alert.threshold : -alert.threshold
   return {
@@ -381,7 +386,7 @@ export function updateTPlanLevel(
   key: 'targetPercent' | 'quantity',
   value: number
 ): TTradingBatch {
-  const levels = levelsForSide(batch, side).map((level, levelIndex) => (
+  const levels = levelsForSide(batch, side).map((level, levelIndex) =>
     levelIndex === index
       ? {
           ...level,
@@ -390,7 +395,7 @@ export function updateTPlanLevel(
           triggeredAt: undefined
         }
       : level
-  ))
+  )
   return replaceLevels(batch, side, levels)
 }
 
@@ -399,11 +404,11 @@ export function handleTPlanAlert(
   side: TAlertSide,
   index?: number
 ): TTradingBatch {
-  const levels = levelsForSide(batch, side).map((level, levelIndex) => (
+  const levels = levelsForSide(batch, side).map((level, levelIndex) =>
     level.alertStatus === 'triggered' && (index === undefined || index === levelIndex)
       ? { ...level, alertStatus: 'handled' as const }
       : level
-  ))
+  )
   return replaceLevels(batch, side, levels)
 }
 
@@ -412,11 +417,11 @@ export function restoreTPlanAlert(
   side: TAlertSide,
   index: number
 ): TTradingBatch {
-  const levels = levelsForSide(batch, side).map((level, levelIndex) => (
+  const levels = levelsForSide(batch, side).map((level, levelIndex) =>
     levelIndex === index
       ? { ...level, alertStatus: 'armed' as const, triggeredAt: undefined }
       : level
-  ))
+  )
   return replaceLevels(batch, side, levels)
 }
 
@@ -428,6 +433,8 @@ export function handleTriggeredTPlanAlertsForTrade(
 }
 
 export function accountHasTriggeredTAlerts(account: TTradingAccount | undefined): boolean {
-  return hasTriggeredTAlerts(account?.activeBatch, getBatchTrades(account, account?.activeBatch))
-    || getTriggeredTFloatingProfitAlert(account?.activeBatch) !== null
+  return (
+    hasTriggeredTAlerts(account?.activeBatch, getBatchTrades(account, account?.activeBatch)) ||
+    getTriggeredTFloatingProfitAlert(account?.activeBatch) !== null
+  )
 }

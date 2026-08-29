@@ -13,7 +13,8 @@ export function installAiTAdvicePreload(): void {
     listHistory: (quoteId) => ipcRenderer.invoke('ai-t:advice:history', quoteId),
     dismiss: (adviceId) => ipcRenderer.invoke('ai-t:advice:dismiss', adviceId),
     onProgress: (listener) => {
-      const handler = (_event: Electron.IpcRendererEvent, payload: AiTAdviceProgressEvent): void => listener(payload)
+      const handler = (_event: Electron.IpcRendererEvent, payload: AiTAdviceProgressEvent): void =>
+        listener(payload)
       ipcRenderer.on(PROGRESS_CHANNEL, handler)
       return () => ipcRenderer.removeListener(PROGRESS_CHANNEL, handler)
     }

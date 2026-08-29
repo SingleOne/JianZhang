@@ -25,7 +25,9 @@ export class OrderBookHub {
   private requestQueue: Promise<void> = Promise.resolve()
   private nextRequestAt = 0
 
-  constructor(private readonly fetchOrderBook: (quoteId: string, caller: string) => Promise<StockOrderBook>) {}
+  constructor(
+    private readonly fetchOrderBook: (quoteId: string, caller: string) => Promise<StockOrderBook>
+  ) {}
 
   async get(quoteId: string, options: OrderBookRequestOptions = {}): Promise<StockOrderBook> {
     const cached = this.cache.get(quoteId)
@@ -35,7 +37,8 @@ export class OrderBookHub {
     }
 
     try {
-      const data = await (this.requests.get(quoteId) ?? this.startRequest(quoteId, options.caller ?? 'order-book'))
+      const data = await (this.requests.get(quoteId) ??
+        this.startRequest(quoteId, options.caller ?? 'order-book'))
       return { ...data, dataState: 'live' }
     } catch (reason) {
       return this.staleOrThrow(cached, errorMessage(reason), options.allowStaleOnError)
@@ -43,11 +46,10 @@ export class OrderBookHub {
   }
 
   private startRequest(quoteId: string, caller: string): Promise<StockOrderBook> {
-    const request = this.enqueue(() => this.fetchOrderBook(quoteId, caller))
-      .then((data) => {
-        this.cache.set(quoteId, { data, cachedAt: Date.now() })
-        return data
-      })
+    const request = this.enqueue(() => this.fetchOrderBook(quoteId, caller)).then((data) => {
+      this.cache.set(quoteId, { data, cachedAt: Date.now() })
+      return data
+    })
 
     this.requests.set(quoteId, request)
     request.then(
@@ -70,7 +72,10 @@ export class OrderBookHub {
       this.nextRequestAt = Date.now() + MINIMUM_REQUEST_INTERVAL_MILLISECONDS
       return load()
     })
-    this.requestQueue = request.then(() => undefined, () => undefined)
+    this.requestQueue = request.then(
+      () => undefined,
+      () => undefined
+    )
     return request
   }
 

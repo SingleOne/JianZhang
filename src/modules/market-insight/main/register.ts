@@ -1,6 +1,12 @@
 import { app, ipcMain, shell } from 'electron'
 import { join } from 'node:path'
-import type { AppState, FundsFlowResult, KlineResult, StockOrderBook, StockQuote } from '../../../shared/types'
+import type {
+  AppState,
+  FundsFlowResult,
+  KlineResult,
+  StockOrderBook,
+  StockQuote
+} from '../../../shared/types'
 import { MARKET_INSIGHT_IPC } from '../shared/constants'
 import type { MarketInsightSettings } from '../shared/types'
 import { normalizeMarketInsightSettings } from '../shared/normalize'
@@ -34,36 +40,57 @@ export interface MarketInsightRuntime {
   refreshSnapshot: (quoteId: string) => ReturnType<MarketInsightService['refresh']>
 }
 
-export function installMarketInsight(dependencies: MarketInsightDependencies): MarketInsightRuntime {
-  const storage = new MarketInsightStorage(join(app.getPath('userData'), 'modules', 'market-insight'))
-  const service = new MarketInsightService(storage, new MarketNewsRegistry([
-    new CninfoAnnouncementProvider(),
-    new CsrcNewsProvider(),
-    new SseNoticeProvider(),
-    new SzseNoticeProvider(),
-    new BseNoticeProvider()
-  ]), {
-    getState: dependencies.getState,
-    getKline: dependencies.getKline,
-    getOrderBook: dependencies.getOrderBook,
-    getFundsFlow: dependencies.getFundsFlow,
-    onUpdated: dependencies.notifyUpdated
-  })
-  const unsubscribe = dependencies.marketDataHub.subscribe((quotes) => service.onMarketDataUpdated(quotes))
+export function installMarketInsight(
+  dependencies: MarketInsightDependencies
+): MarketInsightRuntime {
+  const storage = new MarketInsightStorage(
+    join(app.getPath('userData'), 'modules', 'market-insight')
+  )
+  const service = new MarketInsightService(
+    storage,
+    new MarketNewsRegistry([
+      new CninfoAnnouncementProvider(),
+      new CsrcNewsProvider(),
+      new SseNoticeProvider(),
+      new SzseNoticeProvider(),
+      new BseNoticeProvider()
+    ]),
+    {
+      getState: dependencies.getState,
+      getKline: dependencies.getKline,
+      getOrderBook: dependencies.getOrderBook,
+      getFundsFlow: dependencies.getFundsFlow,
+      onUpdated: dependencies.notifyUpdated
+    }
+  )
+  const unsubscribe = dependencies.marketDataHub.subscribe((quotes) =>
+    service.onMarketDataUpdated(quotes)
+  )
 
   ipcMain.handle(MARKET_INSIGHT_IPC.statusGet, () => service.getStatus())
   ipcMain.handle(MARKET_INSIGHT_IPC.settingsGet, () => service.getSettings())
   ipcMain.handle(MARKET_INSIGHT_IPC.settingsSave, (_event, settings: MarketInsightSettings) => {
     service.saveSettings(normalizeMarketInsightSettings(settings))
   })
-  ipcMain.handle(MARKET_INSIGHT_IPC.snapshotGet, (_event, quoteId: string) => service.getSnapshot(quoteId))
-  ipcMain.handle(MARKET_INSIGHT_IPC.refresh, (_event, quoteId: string) => service.refresh(quoteId, true))
-  ipcMain.handle(MARKET_INSIGHT_IPC.eventsList, (_event, quoteId: string) => service.listEvents(quoteId))
-  ipcMain.handle(MARKET_INSIGHT_IPC.eventAcknowledge, (_event, eventId: string) => service.acknowledgeEvent(eventId))
-  ipcMain.handle(MARKET_INSIGHT_IPC.eventsClearExpired, (_event, quoteId: string) => service.clearExpiredEvents(quoteId))
+  ipcMain.handle(MARKET_INSIGHT_IPC.snapshotGet, (_event, quoteId: string) =>
+    service.getSnapshot(quoteId)
+  )
+  ipcMain.handle(MARKET_INSIGHT_IPC.refresh, (_event, quoteId: string) =>
+    service.refresh(quoteId, true)
+  )
+  ipcMain.handle(MARKET_INSIGHT_IPC.eventsList, (_event, quoteId: string) =>
+    service.listEvents(quoteId)
+  )
+  ipcMain.handle(MARKET_INSIGHT_IPC.eventAcknowledge, (_event, eventId: string) =>
+    service.acknowledgeEvent(eventId)
+  )
+  ipcMain.handle(MARKET_INSIGHT_IPC.eventsClearExpired, (_event, quoteId: string) =>
+    service.clearExpiredEvents(quoteId)
+  )
   ipcMain.handle(MARKET_INSIGHT_IPC.sourceOpen, (_event, url: string) => {
     const protocol = new URL(url).protocol
-    if (protocol !== 'https:' && protocol !== 'http:') throw new Error('仅支持打开 HTTP 或 HTTPS 原始来源')
+    if (protocol !== 'https:' && protocol !== 'http:')
+      throw new Error('仅支持打开 HTTP 或 HTTPS 原始来源')
     return shell.openExternal(url)
   })
 

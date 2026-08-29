@@ -1,4 +1,9 @@
-import type { AiConnectionResult, AiProvider, AiProviderRequest, AiProviderTurnResult } from '../../shared/types'
+import type {
+  AiConnectionResult,
+  AiProvider,
+  AiProviderRequest,
+  AiProviderTurnResult
+} from '../../shared/types'
 import { completed, connectionResultFromError, ensureResponse, readSse } from './provider'
 
 const OPENAI_API_BASE = 'https://api.openai.com/v1'

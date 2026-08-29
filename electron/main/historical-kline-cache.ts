@@ -97,11 +97,7 @@ export class HistoricalKlineCache {
     calendar: MarketCalendarDates | readonly string[]
   ): KlineResult | null {
     const entry = this.read(quoteId, period)
-    if (
-      !entry ||
-      entry.requestedLimit < requestedLimit ||
-      !isFresh(entry, this.now(), calendar)
-    ) {
+    if (!entry || entry.requestedLimit < requestedLimit || !isFresh(entry, this.now(), calendar)) {
       return null
     }
     return entry.data

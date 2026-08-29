@@ -58,9 +58,7 @@ function getMetricValue(
 }
 
 function isConditionMet(rule: StockAlertRule, actualValue: number): boolean {
-  return rule.operator === 'gte'
-    ? actualValue >= rule.target
-    : actualValue <= rule.target
+  return rule.operator === 'gte' ? actualValue >= rule.target : actualValue <= rule.target
 }
 
 export function applyStockAlertTriggers(

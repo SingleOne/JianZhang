@@ -22,10 +22,12 @@ function barsFromChanges(changes: readonly number[]): KlineBar[] {
 }
 
 function values(changes: readonly number[]) {
-  return new Map(calculateShortTermTechnicalIndicators(
-    barsFromChanges(changes),
-    CALCULATED_AT
-  ).map((item) => [item.id, item]))
+  return new Map(
+    calculateShortTermTechnicalIndicators(barsFromChanges(changes), CALCULATED_AT).map((item) => [
+      item.id,
+      item
+    ])
+  )
 }
 
 describe('calculateShortTermTechnicalIndicators', () => {

@@ -140,11 +140,7 @@ export function sortValue(
         row.fundamentalScreening,
         Boolean(row.dividendFinancing)
       )
-      return category === 'dual'
-        ? 2
-        : category === 'fundamental' || category === 'dividend'
-          ? 1
-          : 0
+      return category === 'dual' ? 2 : category === 'fundamental' || category === 'dividend' ? 1 : 0
     }
     case 'open':
       return row.quote?.open

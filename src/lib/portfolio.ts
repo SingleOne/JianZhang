@@ -42,7 +42,7 @@ export interface PortfolioSummary extends PositionMetrics {
 export function currentDateKey(): string {
   const now = new Date()
   return [now.getFullYear(), now.getMonth() + 1, now.getDate()]
-    .map((part, index) => index === 0 ? String(part) : String(part).padStart(2, '0'))
+    .map((part, index) => (index === 0 ? String(part) : String(part).padStart(2, '0')))
     .join('-')
 }
 
@@ -64,11 +64,13 @@ export function getAvailablePositionQuantity(
 
   const today = currentDateKey()
   const trades = getAccountTrades(account)
-  const todayPurchasedQuantity = trades.reduce((total, trade) => (
-    trade.side === 'buy' && trade.tradedAt.slice(0, 10) === today
-      ? total + trade.quantity
-      : total
-  ), 0)
+  const todayPurchasedQuantity = trades.reduce(
+    (total, trade) =>
+      trade.side === 'buy' && trade.tradedAt.slice(0, 10) === today
+        ? total + trade.quantity
+        : total,
+    0
+  )
 
   return Math.max(0, position.quantity - todayPurchasedQuantity)
 }
@@ -91,12 +93,14 @@ export function getPositionHoldingDays(
 }
 
 function getTradeFees(trade: TTrade): number {
-  return trade.fees.commission
-    + trade.fees.handling
-    + trade.fees.regulatory
-    + trade.fees.transfer
-    + trade.fees.stampDuty
-    + (trade.feeItems ?? []).reduce((total, item) => total + item.amount, 0)
+  return (
+    trade.fees.commission +
+    trade.fees.handling +
+    trade.fees.regulatory +
+    trade.fees.transfer +
+    trade.fees.stampDuty +
+    (trade.feeItems ?? []).reduce((total, item) => total + item.amount, 0)
+  )
 }
 
 export function calculatePositionMetrics(
@@ -110,15 +114,16 @@ export function calculatePositionMetrics(
   const exchangeRate = exchangeRateForCurrency(exchangeRates, currency)
   const costExchangeRate = position?.costExchangeRate ?? (currency === 'CNY' ? 1 : null)
   const latest = quote?.latest
-  const marketValue = position && latest !== null && latest !== undefined
-    ? latest * position.quantity
-    : null
-  const totalProfit = position && latest !== null && latest !== undefined
-    ? (latest - position.cost) * position.quantity
-    : null
+  const marketValue =
+    position && latest !== null && latest !== undefined ? latest * position.quantity : null
+  const totalProfit =
+    position && latest !== null && latest !== undefined
+      ? (latest - position.cost) * position.quantity
+      : null
   const today = marketDateKey(new Date(), market)
-  const todayTrades = getAccountTrades(account)
-    .filter((trade) => trade.tradedAt.slice(0, 10) === today)
+  const todayTrades = getAccountTrades(account).filter(
+    (trade) => trade.tradedAt.slice(0, 10) === today
+  )
 
   let todayProfit: number | null = null
   let todayCostBasis: number | null = null
@@ -143,14 +148,13 @@ export function calculatePositionMetrics(
 
     const openingQuantity = Math.max(0, currentQuantity - buyQuantity + sellQuantity)
     const openedToday = isPositionOpenedToday(position, market)
-    const openingValue = openedToday && position
-      ? position.cost * currentQuantity - buyCost + sellProceeds
-      : quote?.previousClose === null || quote?.previousClose === undefined
-        ? null
-        : openingQuantity * quote.previousClose
-    const currentValue = currentQuantity === 0
-      ? 0
-      : marketValue
+    const openingValue =
+      openedToday && position
+        ? position.cost * currentQuantity - buyCost + sellProceeds
+        : quote?.previousClose === null || quote?.previousClose === undefined
+          ? null
+          : openingQuantity * quote.previousClose
+    const currentValue = currentQuantity === 0 ? 0 : marketValue
 
     if (openingValue !== null && currentValue !== null) {
       todayCostBasis = openingValue + buyCost
@@ -158,27 +162,26 @@ export function calculatePositionMetrics(
     }
   }
 
-  const todayProfitPercent = todayProfit !== null && todayCostBasis && todayCostBasis > 0
-    ? todayProfit / todayCostBasis * 100
-    : null
-  const profitPercent = position && position.cost > 0 && latest !== null && latest !== undefined
-    ? (latest / position.cost - 1) * 100
-    : null
-  const cnyMarketValue = marketValue !== null && exchangeRate !== null
-    ? marketValue * exchangeRate
-    : null
-  const cnyTodayProfit = todayProfit !== null && exchangeRate !== null
-    ? todayProfit * exchangeRate
-    : null
-  const cnyTodayCostBasis = todayCostBasis !== null && exchangeRate !== null
-    ? todayCostBasis * exchangeRate
-    : null
-  const cnyCostBasis = position && costExchangeRate !== null
-    ? position.cost * position.quantity * costExchangeRate
-    : null
-  const cnyTotalProfit = cnyMarketValue !== null && cnyCostBasis !== null
-    ? cnyMarketValue - cnyCostBasis
-    : null
+  const todayProfitPercent =
+    todayProfit !== null && todayCostBasis && todayCostBasis > 0
+      ? (todayProfit / todayCostBasis) * 100
+      : null
+  const profitPercent =
+    position && position.cost > 0 && latest !== null && latest !== undefined
+      ? (latest / position.cost - 1) * 100
+      : null
+  const cnyMarketValue =
+    marketValue !== null && exchangeRate !== null ? marketValue * exchangeRate : null
+  const cnyTodayProfit =
+    todayProfit !== null && exchangeRate !== null ? todayProfit * exchangeRate : null
+  const cnyTodayCostBasis =
+    todayCostBasis !== null && exchangeRate !== null ? todayCostBasis * exchangeRate : null
+  const cnyCostBasis =
+    position && costExchangeRate !== null
+      ? position.cost * position.quantity * costExchangeRate
+      : null
+  const cnyTotalProfit =
+    cnyMarketValue !== null && cnyCostBasis !== null ? cnyMarketValue - cnyCostBasis : null
   return {
     currency,
     exchangeRate,
@@ -194,9 +197,10 @@ export function calculatePositionMetrics(
     cnyTodayCostBasis,
     cnyCostBasis,
     cnyTotalProfit,
-    cnyProfitPercent: cnyCostBasis && cnyCostBasis > 0 && cnyTotalProfit !== null
-      ? cnyTotalProfit / cnyCostBasis * 100
-      : null
+    cnyProfitPercent:
+      cnyCostBasis && cnyCostBasis > 0 && cnyTotalProfit !== null
+        ? (cnyTotalProfit / cnyCostBasis) * 100
+        : null
   }
 }
 
@@ -236,11 +240,7 @@ export function calculatePortfolioSummary(
       currencyValues[metrics.currency] =
         (currencyValues[metrics.currency] ?? 0) + metrics.cnyMarketValue
     }
-    if (
-      stock.position &&
-      metrics.cnyCostBasis !== null &&
-      metrics.cnyTotalProfit !== null
-    ) {
+    if (stock.position && metrics.cnyCostBasis !== null && metrics.cnyTotalProfit !== null) {
       profitPositionCount += 1
       costBasis += metrics.cnyCostBasis
       totalProfit += metrics.cnyTotalProfit
@@ -261,16 +261,16 @@ export function calculatePortfolioSummary(
     costBasis: profitPositionCount > 0 ? costBasis : null,
     marketValue: marketValuePositionCount > 0 ? marketValue : null,
     todayProfit: todayPricedPositionCount > 0 ? todayProfit : null,
-    todayProfitPercent: todayCostBasis > 0 ? todayProfit / todayCostBasis * 100 : null,
+    todayProfitPercent: todayCostBasis > 0 ? (todayProfit / todayCostBasis) * 100 : null,
     todayCostBasis: todayPricedPositionCount > 0 ? todayCostBasis : null,
     totalProfit: profitPositionCount > 0 ? totalProfit : null,
-    profitPercent: costBasis > 0 ? totalProfit / costBasis * 100 : null,
+    profitPercent: costBasis > 0 ? (totalProfit / costBasis) * 100 : null,
     cnyMarketValue: marketValuePositionCount > 0 ? marketValue : null,
     cnyTodayProfit: todayPricedPositionCount > 0 ? todayProfit : null,
     cnyTodayCostBasis: todayPricedPositionCount > 0 ? todayCostBasis : null,
     cnyCostBasis: profitPositionCount > 0 ? costBasis : null,
     cnyTotalProfit: profitPositionCount > 0 ? totalProfit : null,
-    cnyProfitPercent: costBasis > 0 ? totalProfit / costBasis * 100 : null,
+    cnyProfitPercent: costBasis > 0 ? (totalProfit / costBasis) * 100 : null,
     positionCount,
     unconvertedPositionCount,
     marketValues,

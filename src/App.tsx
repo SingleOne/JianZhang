@@ -1,10 +1,4 @@
-import {
-  Bot,
-  CircleCheck,
-  RefreshCw,
-  Signal,
-  WifiOff
-} from 'lucide-react'
+import { Bot, CircleCheck, RefreshCw, Signal, WifiOff } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { AppTitlebar, MarketTradingState } from './components/AppTitlebar'
 import { useConfirmDialog } from './components/ConfirmDialog'
@@ -22,12 +16,7 @@ import {
   type AppCompletionNotification,
   type StockDetailNavigationRequest
 } from './lib/completion-notifications'
-import {
-  formatMoneyProfit,
-  formatPercent,
-  formatPrice,
-  formatUpdateTime
-} from './lib/format'
+import { formatMoneyProfit, formatPercent, formatPrice, formatUpdateTime } from './lib/format'
 import {
   createFundamentalPeerComparisonMap,
   DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA,
@@ -80,9 +69,7 @@ import type {
 } from './shared/types'
 
 const CorporateActionCenterDialog = lazy(() => import('./components/CorporateActionCenterDialog'))
-const PortfolioPerformanceDialog = lazy(
-  () => import('./components/PortfolioPerformanceDialog')
-)
+const PortfolioPerformanceDialog = lazy(() => import('./components/PortfolioPerformanceDialog'))
 
 interface StockAddOptions {
   startTracking?: boolean
@@ -433,12 +420,13 @@ export default function App() {
     [fundamentalEvaluations]
   )
   const portfolioSummary = useMemo(
-    () => calculatePortfolioSummary(
-      state.watchlist,
-      quotes,
-      state.tTradingAccounts,
-      state.settings.exchangeRates
-    ),
+    () =>
+      calculatePortfolioSummary(
+        state.watchlist,
+        quotes,
+        state.tTradingAccounts,
+        state.settings.exchangeRates
+      ),
     [quotes, state.settings.exchangeRates, state.tTradingAccounts, state.watchlist]
   )
   const portfolioExposureText = useMemo(() => {
@@ -447,14 +435,16 @@ export default function App() {
     const marketLabels = { CN: 'A股', HK: '港股', US: '美股' } as const
     const marketText = (['CN', 'HK', 'US'] as const)
       .filter((market) => (portfolioSummary.marketValues[market] ?? 0) > 0)
-      .map((market) =>
-        `${marketLabels[market]} ${((portfolioSummary.marketValues[market] ?? 0) / total * 100).toFixed(1)}%`
+      .map(
+        (market) =>
+          `${marketLabels[market]} ${(((portfolioSummary.marketValues[market] ?? 0) / total) * 100).toFixed(1)}%`
       )
       .join(' · ')
     const currencyText = (['CNY', 'HKD', 'USD'] as const)
       .filter((currency) => (portfolioSummary.currencyValues[currency] ?? 0) > 0)
-      .map((currency) =>
-        `${currency} ${((portfolioSummary.currencyValues[currency] ?? 0) / total * 100).toFixed(1)}%`
+      .map(
+        (currency) =>
+          `${currency} ${(((portfolioSummary.currencyValues[currency] ?? 0) / total) * 100).toFixed(1)}%`
       )
       .join(' · ')
     return [marketText, currencyText].filter(Boolean).join(' ｜ ')

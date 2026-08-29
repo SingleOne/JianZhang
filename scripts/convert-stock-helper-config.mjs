@@ -2,7 +2,9 @@ import { readFileSync, writeFileSync } from 'node:fs'
 
 const [sourcePath, targetPath] = process.argv.slice(2)
 if (!sourcePath || !targetPath) {
-  throw new Error('用法：node scripts/convert-stock-helper-config.mjs <原配置.json> <见涨配置.json>')
+  throw new Error(
+    '用法：node scripts/convert-stock-helper-config.mjs <原配置.json> <见涨配置.json>'
+  )
 }
 
 const source = JSON.parse(readFileSync(sourcePath, 'utf8'))
@@ -16,16 +18,17 @@ const skippedStocks = allStocks
 
 const today = new Date()
 const todayKey = [today.getFullYear(), today.getMonth() + 1, today.getDate()]
-  .map((part, index) => index === 0 ? String(part) : String(part).padStart(2, '0'))
+  .map((part, index) => (index === 0 ? String(part) : String(part).padStart(2, '0')))
   .join('-')
 
 const watchlist = supportedStocks.map((stock) => {
   const quantity = Number(stock.num)
   const cost = Number(stock.initPrice)
   const openedOn = typeof stock.isTodybuy === 'string' ? stock.isTodybuy : undefined
-  const position = quantity > 0 && cost > 0
-    ? { quantity, cost, openedToday: openedOn === todayKey, ...(openedOn ? { openedOn } : {}) }
-    : undefined
+  const position =
+    quantity > 0 && cost > 0
+      ? { quantity, cost, openedToday: openedOn === todayKey, ...(openedOn ? { openedOn } : {}) }
+      : undefined
 
   return {
     code: stock.code,
@@ -55,9 +58,22 @@ const document = {
       taskbarPositionPercent: 0
     },
     columnOrder: [
-      'stock', 'latest', 'changePercent', 'open', 'high', 'low', 'amount',
-      'radar', 'positionQuantity', 'cost', 'marketValue', 'todayProfit',
-      'todayProfitPercent', 'totalProfit', 'profitPercent', 'operation'
+      'stock',
+      'latest',
+      'changePercent',
+      'open',
+      'high',
+      'low',
+      'amount',
+      'radar',
+      'positionQuantity',
+      'cost',
+      'marketValue',
+      'todayProfit',
+      'todayProfitPercent',
+      'totalProfit',
+      'profitPercent',
+      'operation'
     ]
   },
   source: {

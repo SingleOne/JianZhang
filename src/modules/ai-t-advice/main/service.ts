@@ -55,7 +55,10 @@ function waitForRetry(signal: AbortSignal): Promise<void> {
 }
 
 function hasLiveOrderBook(snapshot: MarketInsightSnapshot): boolean {
-  return snapshot.sourceStates?.some((source) => source.id === 'orderBook' && source.state === 'live') ?? false
+  return (
+    snapshot.sourceStates?.some((source) => source.id === 'orderBook' && source.state === 'live') ??
+    false
+  )
 }
 
 function buildPromptContext(
@@ -65,9 +68,7 @@ function buildPromptContext(
 ) {
   const batch = context.account?.activeBatch
   const batchTrades = getBatchTrades(context.account, batch)
-  const metrics = batch
-    ? calculateTBatchMetrics(batch, batchTrades, context.quote?.latest)
-    : null
+  const metrics = batch ? calculateTBatchMetrics(batch, batchTrades, context.quote?.latest) : null
   const positionQuantity = context.position?.quantity ?? 0
   const sourceStates = snapshot.sourceStates ?? []
   const staleSources = sourceStates
@@ -80,7 +81,10 @@ function buildPromptContext(
       generatedAt: snapshot.generatedAt,
       dataCutoffAt: snapshot.dataCutoffAt,
       dataState: snapshot.dataState,
-      ageSeconds: Math.max(0, Math.round((Date.now() - new Date(snapshot.generatedAt).getTime()) / 1000)),
+      ageSeconds: Math.max(
+        0,
+        Math.round((Date.now() - new Date(snapshot.generatedAt).getTime()) / 1000)
+      ),
       sourceStates,
       staleSources,
       objectiveEvents: buildAiTAdviceObjectiveEvents(snapshot, context),
@@ -101,30 +105,37 @@ function buildPromptContext(
       name: context.stock.name,
       marketLabel: context.stock.marketLabel
     },
-    quote: context.quote ? {
-      latest: context.quote.latest,
-      previousClose: context.quote.previousClose,
-      open: context.quote.open,
-      high: context.quote.high,
-      low: context.quote.low,
-      changePercent: context.quote.changePercent,
-      updatedAt: context.quote.updatedAt
-    } : null,
+    quote: context.quote
+      ? {
+          latest: context.quote.latest,
+          previousClose: context.quote.previousClose,
+          open: context.quote.open,
+          high: context.quote.high,
+          low: context.quote.low,
+          changePercent: context.quote.changePercent,
+          updatedAt: context.quote.updatedAt
+        }
+      : null,
     chipDistribution,
-    position: context.position ? {
-      quantity: context.position.quantity,
-      cost: context.position.cost,
-      openedToday: context.position.openedToday
-    } : null,
-    activeTBatch: batch && metrics ? {
-      id: batch.id,
-      direction: batch.direction ?? 'forward',
-      openedAt: batch.openedAt,
-      remainingQuantity: metrics.remainingQuantity,
-      averageCost: metrics.averageCost,
-      realizedProfit: metrics.realizedProfit,
-      floatingProfit: metrics.floatingProfit
-    } : null,
+    position: context.position
+      ? {
+          quantity: context.position.quantity,
+          cost: context.position.cost,
+          openedToday: context.position.openedToday
+        }
+      : null,
+    activeTBatch:
+      batch && metrics
+        ? {
+            id: batch.id,
+            direction: batch.direction ?? 'forward',
+            openedAt: batch.openedAt,
+            remainingQuantity: metrics.remainingQuantity,
+            averageCost: metrics.averageCost,
+            realizedProfit: metrics.realizedProfit,
+            floatingProfit: metrics.floatingProfit
+          }
+        : null,
     maxTradableQuantity: Math.floor(positionQuantity / 100) * 100
   }
 }
@@ -177,7 +188,8 @@ export class AiTAdviceService {
     ) => onProgress({ quoteId, phase, message, detail, attempt, updatedAt: now() })
     try {
       report('preparing', '正在准备做 T 分析', '检查当前股票、持仓与活动 T 计划。')
-      if (!this.dependencies.getTradingContext(quoteId)) throw new Error('未找到当前股票或持仓上下文')
+      if (!this.dependencies.getTradingContext(quoteId))
+        throw new Error('未找到当前股票或持仓上下文')
 
       let snapshot: MarketInsightSnapshot | null = null
       let attempt = 0
@@ -213,12 +225,25 @@ export class AiTAdviceService {
         tradingContext,
         this.dependencies.getChipDistributionCache(quoteId)
       )
-      report('analyzing', '最新盘口已获取，AI 正在分析', '结合市场快照、筹码分布、持仓和 T 计划生成操作参考。', attempt)
-      const result = await this.dependencies.runStructuredTask({
-        systemPrompt: T_ADVICE_PROMPT,
-        userContent: JSON.stringify(promptContext)
-      }, controller.signal)
-      report('validating', 'AI 已返回，正在校验建议', '核对价格区间、股票数量、持仓约束与输出格式。', attempt)
+      report(
+        'analyzing',
+        '最新盘口已获取，AI 正在分析',
+        '结合市场快照、筹码分布、持仓和 T 计划生成操作参考。',
+        attempt
+      )
+      const result = await this.dependencies.runStructuredTask(
+        {
+          systemPrompt: T_ADVICE_PROMPT,
+          userContent: JSON.stringify(promptContext)
+        },
+        controller.signal
+      )
+      report(
+        'validating',
+        'AI 已返回，正在校验建议',
+        '核对价格区间、股票数量、持仓约束与输出格式。',
+        attempt
+      )
       const generatedAt = now()
       const advice = parseAiTAdvice(result.content, {
         quoteId,

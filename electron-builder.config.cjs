@@ -1,8 +1,9 @@
 const aiModuleEnabled = process.env.JIANZHANG_AI_MODULE !== '0'
 const requestedIconVariant = process.env.JIANZHANG_ICON_VARIANT
-const iconVariant = requestedIconVariant === 'red' || requestedIconVariant === 'black'
-  ? requestedIconVariant
-  : 'white'
+const iconVariant =
+  requestedIconVariant === 'red' || requestedIconVariant === 'black'
+    ? requestedIconVariant
+    : 'white'
 const iconFiles = {
   white: 'build/icon-white.png',
   red: 'build/icon.png',

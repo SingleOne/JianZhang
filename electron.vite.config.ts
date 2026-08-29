@@ -6,9 +6,10 @@ const marketInsightModuleEnabled = process.env.JIANZHANG_MARKET_INSIGHT_MODULE !
 const aiModuleEnabled = process.env.JIANZHANG_AI_MODULE !== '0'
 const aiTAdviceModuleEnabled = aiModuleEnabled && process.env.JIANZHANG_AI_T_ADVICE_MODULE !== '0'
 const requestedIconVariant = process.env.JIANZHANG_ICON_VARIANT
-const iconVariant = requestedIconVariant === 'red' || requestedIconVariant === 'black'
-  ? requestedIconVariant
-  : 'white'
+const iconVariant =
+  requestedIconVariant === 'red' || requestedIconVariant === 'black'
+    ? requestedIconVariant
+    : 'white'
 const defaultGitHubOauthClientId = 'Ov23liCYRkPi2M4mnbYh'
 const githubOauthClientId =
   process.env.JIANZHANG_GITHUB_OAUTH_CLIENT_ID?.trim() || defaultGitHubOauthClientId

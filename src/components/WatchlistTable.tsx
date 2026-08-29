@@ -455,9 +455,7 @@ export function WatchlistTable({
       valueDataReady
         ? summarizeFundamentalDividendWatchlist(
             scopeRows
-              .filter(
-                ({ stock }) => marketCapabilitiesForQuoteId(stock.quoteId).dividendFinancing
-              )
+              .filter(({ stock }) => marketCapabilitiesForQuoteId(stock.quoteId).dividendFinancing)
               .map(({ fundamentalScreening, dividendFinancing }) => ({
                 evaluation: fundamentalScreening,
                 hasDividendLabel: Boolean(dividendFinancing)

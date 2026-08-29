@@ -15,11 +15,7 @@ export interface AiTAdviceStatus {
 }
 
 export type AiTAdviceProgressPhase =
-  | 'preparing'
-  | 'refreshing-snapshot'
-  | 'waiting-order-book'
-  | 'analyzing'
-  | 'validating'
+  'preparing' | 'refreshing-snapshot' | 'waiting-order-book' | 'analyzing' | 'validating'
 
 export interface AiTAdviceProgressEvent {
   quoteId: string

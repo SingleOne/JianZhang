@@ -34,10 +34,11 @@ export function TableFilterDropdown({
   const filteredOptions = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase('zh-CN')
     if (!normalized) return options
-    return options.filter((option) => (
-      option.label.toLocaleLowerCase('zh-CN').includes(normalized)
-      || option.description?.toLocaleLowerCase('zh-CN').includes(normalized)
-    ))
+    return options.filter(
+      (option) =>
+        option.label.toLocaleLowerCase('zh-CN').includes(normalized) ||
+        option.description?.toLocaleLowerCase('zh-CN').includes(normalized)
+    )
   }, [options, query])
 
   useEffect(() => {
@@ -64,7 +65,10 @@ export function TableFilterDropdown({
   }
 
   return (
-    <div className={`table-filter-dropdown ${searchable ? 'is-searchable' : 'is-lightweight'}`} ref={rootRef}>
+    <div
+      className={`table-filter-dropdown ${searchable ? 'is-searchable' : 'is-lightweight'}`}
+      ref={rootRef}
+    >
       <button
         className={`table-filter-trigger ${open ? 'is-open' : ''}`}
         type="button"

@@ -34,5 +34,8 @@ export const AI_LONG_TERM_PROMPT_VERSION = '2026-08-07.2'
 export const OPENAI_CODEX_DEFAULT_MODEL = 'gpt-5.6-sol'
 
 export function normalizeOpenAiCodexModelId(model: string): string {
-  return model.trim().toLowerCase().replace(/[\s_]+/g, '-')
+  return model
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_]+/g, '-')
 }

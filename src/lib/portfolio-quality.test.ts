@@ -8,10 +8,7 @@ import {
   DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA,
   evaluateFundamentalCompany
 } from './fundamental-screening'
-import {
-  calculatePortfolioQualitySummary,
-  type PortfolioQualityInput
-} from './portfolio-quality'
+import { calculatePortfolioQualitySummary, type PortfolioQualityInput } from './portfolio-quality'
 
 const benchmark: FundamentalIndustryBenchmark = {
   code: '1001',
@@ -86,8 +83,9 @@ describe('portfolio quality summary', () => {
     )
     const failed = evaluateFundamentalCompany(
       company({
-        annualReports: [2021, 2022, 2023, 2024, 2025]
-          .map((year) => annualReport(year, { weightedAverageRoe: 10 }))
+        annualReports: [2021, 2022, 2023, 2024, 2025].map((year) =>
+          annualReport(year, { weightedAverageRoe: 10 })
+        )
       }),
       benchmark,
       DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA
@@ -110,8 +108,9 @@ describe('portfolio quality summary', () => {
   it('separates critical, warning, clear and unassessed risk exposure', () => {
     const critical = evaluateFundamentalCompany(
       company({
-        annualReports: [2021, 2022, 2023, 2024, 2025]
-          .map((year) => annualReport(year, { operatingCashFlow: 70 }))
+        annualReports: [2021, 2022, 2023, 2024, 2025].map((year) =>
+          annualReport(year, { operatingCashFlow: 70 })
+        )
       }),
       benchmark,
       DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA
@@ -133,10 +132,11 @@ describe('portfolio quality summary', () => {
     )
     const incomplete = evaluateFundamentalCompany(
       company({
-        annualReports: [2021, 2022, 2023, 2024, 2025]
-          .map((year, index) => annualReport(year, {
+        annualReports: [2021, 2022, 2023, 2024, 2025].map((year, index) =>
+          annualReport(year, {
             deductedWeightedAverageRoe: index === 0 ? null : 17
-          }))
+          })
+        )
       }),
       benchmark,
       DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA
@@ -179,11 +179,7 @@ describe('portfolio quality summary', () => {
       input('1.600004', null, { industryName: '行业待核' })
     ])
 
-    expect(result.industries.map((industry) => industry.name)).toEqual([
-      '消费',
-      '制造',
-      '行业待核'
-    ])
+    expect(result.industries.map((industry) => industry.name)).toEqual(['消费', '制造', '行业待核'])
     expect(result.industries[0]).toMatchObject({
       count: 2,
       pricedCount: 2,
