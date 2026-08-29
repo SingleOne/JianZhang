@@ -150,13 +150,14 @@ def quote_symbol(secucode: str) -> str:
 
 def filter_active_stocks(
     events: list[dict], fallback_names: dict[str, str]
-) -> tuple[dict[str, str], dict[str, str]]:
+) -> tuple[dict[str, str], dict[str, str], dict[str, float]]:
     secucodes: dict[str, str] = {}
     for row in events:
         code = str(row["SECURITY_CODE"])
         secucodes[code] = str(row["SECUCODE"])
     symbols = [(code, quote_symbol(secucode)) for code, secucode in secucodes.items()]
     active_names: dict[str, str] = {}
+    previous_closes: dict[str, float] = {}
 
     session = requests.Session()
     headers = {"User-Agent": USER_AGENT, "Referer": "https://finance.sina.com.cn/"}
@@ -174,15 +175,22 @@ def filter_active_stocks(
             code = mapping.get(symbol)
             if not code or not payload:
                 continue
-            name = payload.split(",", 1)[0].strip() or fallback_names.get(code, code)
+            fields = payload.split(",")
+            name = fields[0].strip() or fallback_names.get(code, code)
             if "退市" in name or name.startswith("退"):
                 continue
             active_names[code] = name
+            try:
+                previous_close = float(fields[2])
+            except (IndexError, TypeError, ValueError):
+                previous_close = 0.0
+            if previous_close > 0 and math.isfinite(previous_close):
+                previous_closes[code] = previous_close
         if (offset // 100 + 1) % 10 == 0:
             log(f"Active quote batches checked: {offset + len(batch):,}/{len(symbols):,}")
     active_secucodes = {code: secucodes[code] for code in active_names}
     log(f"Active dividend-paying A-share securities: {len(active_names):,}")
-    return active_names, active_secucodes
+    return active_names, active_secucodes, previous_closes
 
 
 def fetch_financing(
@@ -270,13 +278,22 @@ def fetch_financing(
 
 def aggregate_approx_dividends(
     events: list[dict], active_names: dict[str, str]
-) -> tuple[dict[str, float], dict[str, dict[int, float]], dict[str, dict[int, int]], set[str]]:
+) -> tuple[
+    dict[str, float],
+    dict[str, dict[int, float]],
+    dict[str, dict[int, int]],
+    dict[str, dict[int, float]],
+    set[str],
+]:
     totals: defaultdict[str, float] = defaultdict(float)
     annual_totals: defaultdict[str, defaultdict[int, float]] = defaultdict(
         lambda: defaultdict(float)
     )
     annual_event_counts: defaultdict[str, defaultdict[int, int]] = defaultdict(
         lambda: defaultdict(int)
+    )
+    annual_dividends_per_share: defaultdict[str, defaultdict[int, float]] = defaultdict(
+        lambda: defaultdict(float)
     )
     incomplete: set[str] = set()
     for row in events:
@@ -305,10 +322,12 @@ def aggregate_approx_dividends(
                 year = int(report_date[:4])
                 annual_totals[code][year] += amount
                 annual_event_counts[code][year] += 1
+                annual_dividends_per_share[code][year] += cash_per_ten / 10.0
     return (
         dict(totals),
         {code: dict(values) for code, values in annual_totals.items()},
         {code: dict(values) for code, values in annual_event_counts.items()},
+        {code: dict(values) for code, values in annual_dividends_per_share.items()},
         incomplete,
     )
 
@@ -382,6 +401,8 @@ def enrich_ranked_items(
     approx_dividends: dict[str, float],
     annual_dividends: dict[str, dict[int, float]],
     annual_event_counts: dict[str, dict[int, int]],
+    annual_dividends_per_share: dict[str, dict[int, float]],
+    previous_closes: dict[str, float],
     financing_events: dict[str, list[dict]],
 ) -> None:
     snapshot_day = dt.date.fromisoformat(snapshot_date)
@@ -405,6 +426,21 @@ def enrich_ranked_items(
             }
             for year, amount in sorted(annual_yi.items())
         ]
+        completed_dividend_years = [year for year in annual_yi if year <= completed_year]
+        last_dividend_year = (
+            max(completed_dividend_years) if completed_dividend_years else None
+        )
+        dividend_per_share = (
+            annual_dividends_per_share.get(code, {}).get(last_dividend_year, 0.0) * scale
+            if last_dividend_year is not None
+            else 0.0
+        )
+        previous_close = previous_closes.get(code, 0.0)
+        dividend_yield = (
+            dividend_per_share / previous_close * 100.0
+            if dividend_per_share > 0 and previous_close > 0
+            else None
+        )
         events = financing_events.get(code, [])
         normalized_events = [
             {
@@ -474,7 +510,8 @@ def enrich_ranked_items(
                 "listed_years": listed_years,
                 "dividend_years": dividend_years,
                 "consecutive_dividend_years": consecutive_years,
-                "last_dividend_year": max(annual_yi) if annual_yi else None,
+                "last_dividend_year": last_dividend_year,
+                "dividend_yield": dividend_yield,
                 "recent_3_year_dividend_yi": recent_3,
                 "recent_5_year_dividend_yi": recent_5,
                 "recent_dividend_trend_percent": trend_percent,
@@ -624,6 +661,11 @@ def write_json_snapshot(
                 "financingYi": round(item["financing_yi"], 4),
                 "netReturnYi": round(item["net_return_yi"], 4),
                 "ratio": round(item["ratio"], 2),
+                "dividendYield": (
+                    round(item["dividend_yield"], 4)
+                    if item["dividend_yield"] is not None
+                    else None
+                ),
                 "listingYear": item["listing_year"],
                 "listedYears": item["listed_years"],
                 "dividendYears": item["dividend_years"],
@@ -709,7 +751,9 @@ def main() -> int:
     json_output = Path(args.json_output).resolve()
 
     events, fallback_names, progress_values = fetch_dividend_events()
-    active_names, active_secucodes = filter_active_stocks(events, fallback_names)
+    active_names, active_secucodes, previous_closes = filter_active_stocks(
+        events, fallback_names
+    )
     (
         financing,
         financing_events,
@@ -721,6 +765,7 @@ def main() -> int:
         approx_dividends,
         annual_dividends,
         annual_event_counts,
+        annual_dividends_per_share,
         incomplete_dividends,
     ) = aggregate_approx_dividends(events, active_names)
 
@@ -756,6 +801,8 @@ def main() -> int:
         approx_dividends=approx_dividends,
         annual_dividends=annual_dividends,
         annual_event_counts=annual_event_counts,
+        annual_dividends_per_share=annual_dividends_per_share,
+        previous_closes=previous_closes,
         financing_events=financing_events,
     )
 

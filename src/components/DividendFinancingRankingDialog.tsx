@@ -9,7 +9,7 @@ import {
   Trophy,
   X
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { isDesktopRuntime, stockApi } from '../lib/api'
 import type {
@@ -42,6 +42,7 @@ type SortKey =
   | 'financingYi'
   | 'netReturnYi'
   | 'ratio'
+  | 'dividendYield'
   | 'recent5YearDividendYi'
   | 'consecutiveDividendYears'
   | 'qualityScore'
@@ -516,6 +517,7 @@ export function DividendFinancingRankingDialog({
   const [minNetReturn, setMinNetReturn] = useState(0)
   const [minDividend, setMinDividend] = useState(0)
   const [minFinancing, setMinFinancing] = useState(0)
+  const [minDividendYield, setMinDividendYield] = useState(0)
   const [minConsecutiveYears, setMinConsecutiveYears] = useState(0)
   const [minQualityScore, setMinQualityScore] = useState(0)
   const [sortKey, setSortKey] = useState<SortKey>('qualityScore')
@@ -525,6 +527,13 @@ export function DividendFinancingRankingDialog({
   const [actionMessage, setActionMessage] = useState('')
   const [updating, setUpdating] = useState(false)
   const [updateProgress, setUpdateProgress] = useState<DividendFinancingUpdateProgress | null>(null)
+  const [methodologyOpen, setMethodologyOpen] = useState(false)
+  const methodologyRef = useRef<HTMLDivElement>(null)
+
+  const closeDialog = useCallback(() => {
+    setMethodologyOpen(false)
+    onClose()
+  }, [onClose])
 
   useEffect(() => stockApi.onDividendFinancingUpdateProgress(setUpdateProgress), [])
 
@@ -567,14 +576,24 @@ export function DividendFinancingRankingDialog({
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !document.querySelector('.confirm-dialog-backdrop')) onClose()
+      if (event.key === 'Escape' && !document.querySelector('.confirm-dialog-backdrop'))
+        closeDialog()
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => {
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [onClose, open])
+  }, [closeDialog, open])
+
+  useEffect(() => {
+    if (!open || !methodologyOpen) return
+    const handleMouseDown = (event: MouseEvent) => {
+      if (!methodologyRef.current?.contains(event.target as Node)) setMethodologyOpen(false)
+    }
+    document.addEventListener('mousedown', handleMouseDown)
+    return () => document.removeEventListener('mousedown', handleMouseDown)
+  }, [methodologyOpen, open])
 
   useEffect(
     () => setPage(1),
@@ -582,6 +601,7 @@ export function DividendFinancingRankingDialog({
       market,
       minConsecutiveYears,
       minDividend,
+      minDividendYield,
       minFinancing,
       minNetReturn,
       minQualityScore,
@@ -602,6 +622,14 @@ export function DividendFinancingRankingDialog({
       if (item.ratio < threshold) return false
       if (netReturn(item) < minNetReturn) return false
       if (item.dividendYi < minDividend || item.financingYi < minFinancing) return false
+      if (
+        minDividendYield > 0 &&
+        (item.dividendYield === null ||
+          item.dividendYield === undefined ||
+          item.dividendYield < minDividendYield)
+      ) {
+        return false
+      }
       if ((item.consecutiveDividendYears ?? 0) < minConsecutiveYears) return false
       if ((item.qualityScore ?? 0) < minQualityScore) return false
       if (market !== 'ALL' && item.market !== market) return false
@@ -610,8 +638,12 @@ export function DividendFinancingRankingDialog({
       return `${item.code}${item.name.replaceAll(' ', '')}`.toLowerCase().includes(normalizedQuery)
     })
     return rows.sort((left, right) => {
-      const leftValue = sortKey === 'netReturnYi' ? netReturn(left) : (left[sortKey] ?? 0)
-      const rightValue = sortKey === 'netReturnYi' ? netReturn(right) : (right[sortKey] ?? 0)
+      const leftValue = sortKey === 'netReturnYi' ? netReturn(left) : left[sortKey]
+      const rightValue = sortKey === 'netReturnYi' ? netReturn(right) : right[sortKey]
+      if (leftValue === null || leftValue === undefined) {
+        return rightValue === null || rightValue === undefined ? 0 : 1
+      }
+      if (rightValue === null || rightValue === undefined) return -1
       const value = leftValue - rightValue
       return sortDirection === 'asc' ? value : -value
     })
@@ -619,6 +651,7 @@ export function DividendFinancingRankingDialog({
     market,
     minConsecutiveYears,
     minDividend,
+    minDividendYield,
     minFinancing,
     minNetReturn,
     minQualityScore,
@@ -698,7 +731,7 @@ export function DividendFinancingRankingDialog({
   if (!open) return null
 
   return createPortal(
-    <div className="dividend-ranking-backdrop" role="presentation" onMouseDown={onClose}>
+    <div className="dividend-ranking-backdrop" role="presentation" onMouseDown={closeDialog}>
       <section
         className="dividend-ranking-dialog"
         role="dialog"
@@ -718,15 +751,31 @@ export function DividendFinancingRankingDialog({
                 : dataState.progressMessage || '尚无分红融资榜快照'}
             </span>
           </div>
-          <button
-            className="icon-button dividend-ranking-close"
-            type="button"
-            onClick={onClose}
-            aria-label="关闭分红融资榜"
-            title="关闭"
-          >
-            <X size={18} />
-          </button>
+          <div className="dividend-ranking-header-actions">
+            {snapshot && (dataState.status === 'stale' || dataState.status === 'failed') ? (
+              <div className={`dividend-ranking-header-notice is-${dataState.status}`}>
+                <span>
+                  <strong>
+                    {dataState.status === 'stale' ? '当前数据已过期' : '最近一次更新失败'}
+                  </strong>
+                  <small>{dataState.staleReason || dataState.error}</small>
+                </span>
+                <button type="button" onClick={runUpdate} disabled={updateRunning}>
+                  <RefreshCw size={14} className={updateRunning ? 'is-spinning' : ''} />
+                  {updateRunning ? '更新中' : '立即更新'}
+                </button>
+              </div>
+            ) : null}
+            <button
+              className="icon-button dividend-ranking-close"
+              type="button"
+              onClick={closeDialog}
+              aria-label="关闭分红融资榜"
+              title="关闭"
+            >
+              <X size={18} />
+            </button>
+          </div>
         </header>
 
         {loading ? (
@@ -762,20 +811,6 @@ export function DividendFinancingRankingDialog({
           </div>
         ) : (
           <>
-            {dataState.status === 'stale' || dataState.status === 'failed' ? (
-              <div className={`dividend-ranking-data-notice is-${dataState.status}`}>
-                <span>
-                  <strong>
-                    {dataState.status === 'stale' ? '当前数据已过期' : '最近一次更新失败'}
-                  </strong>
-                  <small>{dataState.staleReason || dataState.error}</small>
-                </span>
-                <button type="button" onClick={runUpdate} disabled={updateRunning}>
-                  <RefreshCw size={14} className={updateRunning ? 'is-spinning' : ''} />
-                  {updateRunning ? '更新中' : '立即更新'}
-                </button>
-              </div>
-            ) : null}
             <div className="dividend-ranking-summary">
               <div>
                 <span>入选股票</span>
@@ -787,36 +822,14 @@ export function DividendFinancingRankingDialog({
                   <strong>{item.count}</strong>
                 </div>
               ))}
-              <details>
-                <summary>
-                  <Database size={14} />
-                  统计口径与评分
-                </summary>
-                <div className="dividend-ranking-methodology">
-                  <p>
-                    净回报额 = 上市以来累计A股现金分红 − 累计A股股权融资；分红融资比 = 分红 ÷ 融资 ×
-                    100%。
-                  </p>
-                  <p>
-                    年度分红按已实施事件拆分，再按精确累计分红总额等比例校准；融资只统计IPO、增发和配股的募集净额。
-                  </p>
-                  <p>
-                    回报质量评分：比例分位30分、净回报分位25分、连续性25分、近期增长10分、融资纪律10分，只在当前“超过100%”样本内比较。
-                  </p>
-                  <p>
-                    融资额很小会放大比例，请结合“最低融资额”、净回报额和累计分红筛选，避免只看极端比例。
-                  </p>
-                  <p>
-                    识别有效股票 {snapshot.activeStockCount} 只，精确复核{' '}
-                    {snapshot.exactCandidateCount} 只；接口失败：融资 {snapshot.financingErrorCount}{' '}
-                    只、分红 {snapshot.dividendErrorCount} 只。数据不构成投资建议。
-                  </p>
-                </div>
-              </details>
             </div>
 
             <div className="dividend-ranking-tabs">
-              <div role="tablist" aria-label="分红融资分析类型">
+              <div
+                className="dividend-ranking-tab-list"
+                role="tablist"
+                aria-label="分红融资分析类型"
+              >
                 <button
                   className={viewMode === 'ranking' ? 'is-active' : ''}
                   type="button"
@@ -845,18 +858,62 @@ export function DividendFinancingRankingDialog({
                   可视化选股
                 </button>
               </div>
-              <button
-                className="secondary-button dividend-ranking-update"
-                type="button"
-                onClick={runUpdate}
-                disabled={!isDesktopRuntime || updateRunning}
-                title={
-                  isDesktopRuntime ? '手动运行 Python 数据更新脚本' : '仅桌面版支持运行更新脚本'
-                }
-              >
-                <RefreshCw size={15} className={updateRunning ? 'is-spinning' : ''} />
-                {updateRunning ? '脚本运行中' : '运行更新脚本'}
-              </button>
+              <div className="dividend-ranking-tab-actions">
+                <div className="dividend-ranking-methodology-control" ref={methodologyRef}>
+                  <button
+                    className="dividend-ranking-methodology-trigger"
+                    type="button"
+                    aria-expanded={methodologyOpen}
+                    onClick={() => setMethodologyOpen((current) => !current)}
+                  >
+                    <Database size={14} />
+                    统计口径与评分
+                  </button>
+                  {methodologyOpen ? (
+                    <div
+                      className="dividend-ranking-methodology"
+                      role="dialog"
+                      aria-label="统计口径与评分"
+                    >
+                      <p>
+                        净回报额 = 上市以来累计A股现金分红 − 累计A股股权融资；分红融资比 = 分红 ÷
+                        融资 × 100%。
+                      </p>
+                      <p>
+                        年度分红按已实施事件拆分，再按精确累计分红总额等比例校准；融资只统计IPO、增发和配股的募集净额。
+                      </p>
+                      <p>
+                        股息率 = 最近完整年度每股分红 ÷ 更新时前收盘价 ×
+                        100%；年度分红或前收盘价缺失时显示“--”。
+                      </p>
+                      <p>
+                        回报质量评分：比例分位30分、净回报分位25分、连续性25分、近期增长10分、融资纪律10分，只在当前“超过100%”样本内比较。
+                      </p>
+                      <p>
+                        融资额很小会放大比例，请结合“最低融资额”、净回报额和累计分红筛选，避免只看极端比例。
+                      </p>
+                      <p>
+                        识别有效股票 {snapshot.activeStockCount} 只，精确复核{' '}
+                        {snapshot.exactCandidateCount} 只；接口失败：融资{' '}
+                        {snapshot.financingErrorCount} 只、分红 {snapshot.dividendErrorCount}{' '}
+                        只。数据不构成投资建议。
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
+                <button
+                  className="secondary-button dividend-ranking-update"
+                  type="button"
+                  onClick={runUpdate}
+                  disabled={!isDesktopRuntime || updateRunning}
+                  title={
+                    isDesktopRuntime ? '手动运行 Python 数据更新脚本' : '仅桌面版支持运行更新脚本'
+                  }
+                >
+                  <RefreshCw size={15} className={updateRunning ? 'is-spinning' : ''} />
+                  {updateRunning ? '脚本运行中' : '运行更新脚本'}
+                </button>
+              </div>
             </div>
 
             {updateProgress || actionMessage ? (
@@ -950,6 +1007,17 @@ export function DividendFinancingRankingDialog({
                     />{' '}
                     亿
                   </label>
+                  <label>
+                    股息率 ≥{' '}
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={minDividendYield}
+                      onChange={(event) => setMinDividendYield(Number(event.target.value))}
+                    />{' '}
+                    %
+                  </label>
                   <label title="适当提高此值可排除小融资分母造成的极端比例">
                     累计融资 ≥{' '}
                     <input
@@ -1033,6 +1101,11 @@ export function DividendFinancingRankingDialog({
                           </button>
                         </th>
                         <th>
+                          <button type="button" onClick={() => changeSort('dividendYield')}>
+                            股息率{sortIndicator('dividendYield')}
+                          </button>
+                        </th>
+                        <th>
                           <button type="button" onClick={() => changeSort('recent5YearDividendYi')}>
                             近5年分红{sortIndicator('recent5YearDividendYi')}
                           </button>
@@ -1084,6 +1157,22 @@ export function DividendFinancingRankingDialog({
                             <strong className={`dividend-ranking-ratio ${ratioTier(item.ratio)}`}>
                               {item.ratio.toFixed(2)}%
                             </strong>
+                          </td>
+                          <td
+                            className={`dividend-ranking-number ${
+                              item.dividendYield === null || item.dividendYield === undefined
+                                ? ''
+                                : signedClass(item.dividendYield)
+                            }`}
+                          >
+                            {item.dividendYield === null || item.dividendYield === undefined
+                              ? '--'
+                              : item.dividendYield.toFixed(2)}
+                            <small>
+                              {item.dividendYield === null || item.dividendYield === undefined
+                                ? ''
+                                : `% · ${item.lastDividendYear ?? '--'}年`}
+                            </small>
                           </td>
                           <td className="dividend-ranking-number">
                             {item.recent5YearDividendYi === undefined
@@ -1145,7 +1234,7 @@ export function DividendFinancingRankingDialog({
                       ))}
                       {visibleRows.length === 0 ? (
                         <tr>
-                          <td className="dividend-ranking-empty" colSpan={10}>
+                          <td className="dividend-ranking-empty" colSpan={11}>
                             当前筛选条件下没有股票
                           </td>
                         </tr>

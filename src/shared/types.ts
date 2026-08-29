@@ -1757,6 +1757,7 @@ export interface DividendFinancingRankingItem {
   dividendYi: number
   financingYi: number
   ratio: number
+  dividendYield?: number | null
   netReturnYi?: number
   listingYear?: number
   listedYears?: number
