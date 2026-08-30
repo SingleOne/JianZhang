@@ -1,4 +1,11 @@
-import { BrowserWindow, Menu, screen, Tray, type MenuItemConstructorOptions } from 'electron'
+import {
+  BrowserWindow,
+  Menu,
+  nativeTheme,
+  screen,
+  Tray,
+  type MenuItemConstructorOptions
+} from 'electron'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { calculatePositionMetrics } from '../../src/lib/portfolio'
@@ -17,6 +24,19 @@ import { createAppIcon } from './tray-icons'
 
 const TASKBAR_TOOLTIP_WIDTH = 380
 const TASKBAR_TOOLTIP_DEFAULT_HEIGHT = 260
+const MAIN_WINDOW_TITLEBAR_HEIGHT = 44
+const MAIN_WINDOW_THEME_COLORS = {
+  light: {
+    background: '#ffffff',
+    titleBar: '#ffffff',
+    symbols: '#334155'
+  },
+  dark: {
+    background: '#0b1220',
+    titleBar: '#111827',
+    symbols: '#e6edf7'
+  }
+} as const
 
 interface WindowManagerDependencies {
   getState: () => AppState
@@ -53,6 +73,10 @@ export class WindowManager {
     this.syncTaskbarWindow()
   }
 
+  private readonly handleNativeThemeUpdated = (): void => {
+    this.syncMainWindowTheme()
+  }
+
   constructor(
     private readonly dependencies: WindowManagerDependencies,
     userDataDirectory: string
@@ -62,9 +86,11 @@ export class WindowManager {
   }
 
   create(): void {
+    this.syncNativeThemeSource()
     this.createMainWindow()
     this.syncTaskbarWindow()
     this.createTray()
+    nativeTheme.on('updated', this.handleNativeThemeUpdated)
     screen.on('display-metrics-changed', this.handleDisplayMetricsChanged)
     screen.on('display-added', this.handleDisplayChanged)
     screen.on('display-removed', this.handleDisplayChanged)
@@ -164,6 +190,7 @@ export class WindowManager {
   }
 
   sync(): void {
+    this.syncMainWindowTheme()
     this.updateTrayMenu()
     this.syncTaskbarWindow()
     this.positionTrayPopupIfVisible()
@@ -229,6 +256,7 @@ export class WindowManager {
     screen.removeListener('display-metrics-changed', this.handleDisplayMetricsChanged)
     screen.removeListener('display-added', this.handleDisplayChanged)
     screen.removeListener('display-removed', this.handleDisplayChanged)
+    nativeTheme.removeListener('updated', this.handleNativeThemeUpdated)
     if (this.trayPopupShowTimer) clearTimeout(this.trayPopupShowTimer)
     this.trayPopupShowTimer = null
     this.appTray?.destroy()
@@ -243,6 +271,31 @@ export class WindowManager {
 
   private taskbarVisibleStocks(): WatchStock[] {
     return getTaskbarVisibleStocks(this.dependencies.getState().watchlist)
+  }
+
+  private syncNativeThemeSource(): void {
+    const theme = this.dependencies.getState().settings.theme
+    if (nativeTheme.themeSource !== theme) nativeTheme.themeSource = theme
+  }
+
+  private mainWindowThemeColors() {
+    const preference = this.dependencies.getState().settings.theme
+    const dark =
+      preference === 'dark' || (preference === 'system' && nativeTheme.shouldUseDarkColors)
+    return MAIN_WINDOW_THEME_COLORS[dark ? 'dark' : 'light']
+  }
+
+  private syncMainWindowTheme(): void {
+    this.syncNativeThemeSource()
+    const window = this.getMainWindow()
+    if (!window) return
+    const colors = this.mainWindowThemeColors()
+    window.setBackgroundColor(colors.background)
+    window.setTitleBarOverlay({
+      color: colors.titleBar,
+      symbolColor: colors.symbols,
+      height: MAIN_WINDOW_TITLEBAR_HEIGHT
+    })
   }
 
   private loadMainWindowVisible(): boolean {
@@ -571,19 +624,20 @@ export class WindowManager {
   }
 
   private createMainWindow(): void {
+    const colors = this.mainWindowThemeColors()
     const window = new BrowserWindow({
       width: 1380,
       height: 860,
       minWidth: 1080,
       minHeight: 700,
       show: false,
-      backgroundColor: '#ffffff',
+      backgroundColor: colors.background,
       backgroundMaterial: 'mica',
       titleBarStyle: 'hidden',
       titleBarOverlay: {
-        color: '#ffffff',
-        symbolColor: '#334155',
-        height: 44
+        color: colors.titleBar,
+        symbolColor: colors.symbols,
+        height: MAIN_WINDOW_TITLEBAR_HEIGHT
       },
       icon: createAppIcon(),
       webPreferences: {

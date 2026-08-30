@@ -353,7 +353,7 @@ App
 
 当前未引入 CSS Modules，也未批量重命名现有 class。
 
-`AppThemeController` 将持久化主题同步到所有渲染窗口；“跟随系统”模式监听系统配色变化。启动阶段先读取本地轻量缓存应用 `data-theme`，避免等待完整状态时出现明显的浅色闪烁。Lightweight Charts 通过 `useResolvedAppTheme` 获取最终主题，并在主题变化时重建画布、重新装载数据。
+`AppThemeController` 将持久化主题同步到所有渲染窗口；“跟随系统”模式监听系统配色变化。启动阶段先读取本地轻量缓存应用 `data-theme`，避免等待完整状态时出现明显的浅色闪烁。`WindowManager` 同步 Electron `nativeTheme` 和 `titleBarOverlay`，让 Windows 原生最小化、最大化、关闭按钮跟随当前主题。Lightweight Charts 通过 `useResolvedAppTheme` 获取最终主题，并在主题变化时重建画布、重新装载数据。
 
 ### 基础变量
 
