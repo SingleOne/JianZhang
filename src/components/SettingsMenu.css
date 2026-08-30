@@ -856,23 +856,27 @@
   font-size: 12px;
 }
 
-.market-index-setting {
+.market-index-setting,
+.trading-fee-setting,
+.t-plan-default-setting {
   display: grid;
-  gap: 7px;
-  margin: 0;
+  gap: 8px;
   padding: 12px 0 13px;
-  border: 0;
   border-bottom: 1px solid #f0f2f6;
 }
 
-.market-index-setting legend {
-  padding: 0;
+.settings-section-heading {
+  display: grid;
+  gap: 3px;
+}
+
+.settings-section-heading strong {
   color: #344054;
   font-size: 12px;
   font-weight: 650;
 }
 
-.market-index-setting > small {
+.settings-section-heading small {
   color: #8a94a6;
   font-size: 12px;
 }
@@ -929,27 +933,6 @@
   white-space: nowrap;
 }
 
-.trading-fee-setting {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-  padding: 12px 0 13px;
-  border: 0;
-  border-bottom: 1px solid #f0f2f6;
-}
-
-.trading-fee-setting legend {
-  padding: 0;
-  color: #344054;
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.trading-fee-setting > small {
-  color: #8a94a6;
-  font-size: 12px;
-}
-
 .trading-fee-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1003,27 +986,6 @@
   height: 18px;
   padding: 0;
   border: 0;
-}
-
-.t-plan-default-setting {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-  padding: 12px 0 13px;
-  border: 0;
-  border-bottom: 1px solid #f0f2f6;
-}
-
-.t-plan-default-setting legend {
-  padding: 0;
-  color: #344054;
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.t-plan-default-setting > small {
-  color: #8a94a6;
-  font-size: 12px;
 }
 
 .t-plan-default-groups {

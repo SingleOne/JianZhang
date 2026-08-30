@@ -392,9 +392,11 @@ export function SettingsMenu({
                   <MarketInsightSettingsToggle />
                 </Suspense>
               ) : null}
-              <fieldset className="market-index-setting">
-                <legend>大盘指数</legend>
-                <small>选择显示在总收益左侧的指数，默认每个市场一个</small>
+              <section className="market-index-setting">
+                <span className="settings-section-heading">
+                  <strong>大盘指数</strong>
+                  <small>选择显示在总收益左侧的指数，默认每个市场一个</small>
+                </span>
                 <div className="market-index-groups">
                   {MARKET_INDEX_GROUPS.map((group) => (
                     <div className="market-index-market" key={group.market}>
@@ -416,17 +418,19 @@ export function SettingsMenu({
                     </div>
                   ))}
                 </div>
-              </fieldset>
+              </section>
             </>
           ) : null}
 
           {activeTab === 'trading' ? (
             <>
-              <fieldset className="trading-fee-setting">
-                <legend>港股交易费用模板</legend>
-                <small>
-                  官方征费、交易费和印花税按当前港交所规则计算；佣金、平台费及交收费转收按券商账单配置
-                </small>
+              <section className="trading-fee-setting">
+                <span className="settings-section-heading">
+                  <strong>港股交易费用模板</strong>
+                  <small>
+                    官方征费、交易费和印花税按当前港交所规则计算；佣金、平台费及交收费转收按券商账单配置
+                  </small>
+                </span>
                 <div className="trading-fee-grid">
                   <label>
                     <span>佣金比例</span>
@@ -487,13 +491,15 @@ export function SettingsMenu({
                     />
                   </label>
                 </div>
-              </fieldset>
-              <fieldset className="trading-fee-setting">
-                <legend>美股交易费用模板</legend>
-                <small>
-                  SEC 与 FINRA 项按 2026
-                  年现行费率估算且仅用于卖出；券商实际成交单可在交易记录中覆盖
-                </small>
+              </section>
+              <section className="trading-fee-setting">
+                <span className="settings-section-heading">
+                  <strong>美股交易费用模板</strong>
+                  <small>
+                    SEC 与 FINRA 项按 2026
+                    年现行费率估算且仅用于卖出；券商实际成交单可在交易记录中覆盖
+                  </small>
+                </span>
                 <div className="trading-fee-grid">
                   <label>
                     <span>每股佣金</span>
@@ -567,12 +573,14 @@ export function SettingsMenu({
                     />
                   </label>
                 </div>
-              </fieldset>
-              <fieldset className="trading-fee-setting">
-                <legend>A股做T费用</legend>
-                <small>
-                  佣金按净佣金计算；深A将过户费计入最低 5 元，沪A过户费在最低 5 元外单独收取
-                </small>
+              </section>
+              <section className="trading-fee-setting">
+                <span className="settings-section-heading">
+                  <strong>A股做T费用</strong>
+                  <small>
+                    佣金按净佣金计算；深A将过户费计入最低 5 元，沪A过户费在最低 5 元外单独收取
+                  </small>
+                </span>
                 <div className="trading-fee-grid">
                   <label>
                     <span>佣金</span>
@@ -653,10 +661,12 @@ export function SettingsMenu({
                     <em>万分</em>
                   </label>
                 </div>
-              </fieldset>
-              <fieldset className="t-plan-default-setting">
-                <legend>双五档默认值</legend>
-                <small>新建 T 仓、交易后重排以及“重置双五档”时使用</small>
+              </section>
+              <section className="t-plan-default-setting">
+                <span className="settings-section-heading">
+                  <strong>双五档默认值</strong>
+                  <small>新建 T 仓、交易后重排以及“重置双五档”时使用</small>
+                </span>
                 <div className="t-plan-default-groups">
                   {T_PLAN_DEFAULT_GROUPS.map((group) => (
                     <section className="t-plan-default-group" key={group.key}>
@@ -704,7 +714,7 @@ export function SettingsMenu({
                     </section>
                   ))}
                 </div>
-              </fieldset>
+              </section>
               <label className="setting-row setting-row-input t-floating-profit-alert-default-setting">
                 <span>
                   <strong>浮动盈亏提醒默认值</strong>
