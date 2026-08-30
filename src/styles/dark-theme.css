@@ -2801,10 +2801,13 @@
   color: #cbd5e3;
 }
 :root[data-theme='dark'] .switch-input {
-  background: #1b2638;
+  background: #34445d;
+}
+:root[data-theme='dark'] .switch-input:checked {
+  background: #5b8cff;
 }
 :root[data-theme='dark'] .switch-input::after {
-  background: #111827;
+  background: #f8fafc;
   box-shadow: 0 1px 3px rgba(0, 4, 13, 0.38);
 }
 /*  src/components/ShareholderPanel.css  */
