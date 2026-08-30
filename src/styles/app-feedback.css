@@ -486,24 +486,3 @@
     animation-iteration-count: infinite !important;
   }
 }
-
-html.taskbar-mode,
-html.taskbar-mode body,
-html.taskbar-mode #root,
-html.taskbar-tooltip-mode,
-html.taskbar-tooltip-mode body,
-html.taskbar-tooltip-mode #root,
-html.tray-mode,
-html.tray-mode body,
-html.tray-mode #root {
-  min-width: 0;
-  overflow: hidden;
-  color: #111827;
-  background: transparent !important;
-}
-
-html.taskbar-tooltip-mode,
-html.taskbar-tooltip-mode body,
-html.taskbar-tooltip-mode #root {
-  height: auto;
-}

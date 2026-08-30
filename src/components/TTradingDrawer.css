@@ -891,71 +891,6 @@
   background: #e9eef5;
 }
 
-.t-alert-badges {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 3px;
-}
-
-.t-alert-badge {
-  min-width: 25px;
-  height: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  padding: 2px 4px;
-  color: #ffffff;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 750;
-  line-height: 1;
-  text-align: center;
-  animation: t-alert-flash 850ms ease-in-out infinite;
-}
-
-.t-alert-badge.is-buy {
-  --t-alert-ring: rgba(8, 124, 87, 0.42);
-  background: #087c57;
-}
-
-.t-alert-badge.is-sell {
-  --t-alert-ring: rgba(201, 39, 51, 0.42);
-  background: #c92733;
-}
-
-.t-alert-badge.is-profit {
-  --t-alert-ring: rgba(201, 39, 51, 0.42);
-  background: #c92733;
-}
-
-.t-alert-badge.is-loss {
-  --t-alert-ring: rgba(8, 124, 87, 0.42);
-  background: #087c57;
-}
-
-.t-alert-badges.is-compact {
-  flex-wrap: nowrap;
-  gap: 2px;
-}
-
-.t-alert-badges.is-compact .t-alert-badge {
-  min-width: 23px;
-  height: 18px;
-  padding: 0 3px;
-  font-size: 12px;
-}
-
-.t-alert-badges.five-level-alert-badges .five-level-alert-badge,
-.t-alert-badges.five-level-alert-badges.is-compact .five-level-alert-badge {
-  min-width: 21px;
-  height: 18px;
-  padding: 1px 4px;
-  font-size: 12px;
-}
-
 .t-alert-cell-button {
   display: inline-flex;
   align-items: center;
@@ -965,18 +900,6 @@
   background: transparent;
   border: 0;
   cursor: pointer;
-}
-
-@keyframes t-alert-flash {
-  0%,
-  100% {
-    opacity: 1;
-    box-shadow: 0 0 0 0 var(--t-alert-ring, rgba(201, 39, 51, 0.42));
-  }
-  50% {
-    opacity: 0.42;
-    box-shadow: 0 0 0 4px transparent;
-  }
 }
 
 .t-settlement-card {

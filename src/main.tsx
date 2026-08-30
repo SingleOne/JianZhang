@@ -1,30 +1,4 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import App from './App'
-import { TaskbarStockTooltip } from './components/TaskbarStockTooltip'
-import { TaskbarTicker } from './components/TaskbarTicker'
-import { TrayHoverSummary } from './components/TrayHoverSummary'
-import { ConfirmDialogProvider } from './components/ConfirmDialog'
-import { AppThemeController } from './components/AppThemeController'
 import { initializeAppTheme } from './lib/theme'
-import './styles.css'
-import './components/SettingsMenu.css'
-import './components/WatchlistTable.css'
-import './components/WatchlistDialogs.css'
-import './components/ConfirmDialog.css'
-import './components/TTradingDrawer.css'
-import './components/TTradingDrawerLayout.css'
-import './components/PositionDialogResponsive.css'
-import './components/ExpandedStockDetails.css'
-import './components/ShareholderPanel.css'
-import './components/DividendFinancingRankingDialog.css'
-import './components/FundamentalScreeningDialog.css'
-import './components/PortfolioQualityDialog.css'
-import './components/StockTracking.css'
-import './styles/app-feedback.css'
-import './components/TaskbarTicker.css'
-import './modules/ai/renderer/AiAssistantDrawer.css'
-import './styles/dark-theme.css'
 
 initializeAppTheme()
 
@@ -36,19 +10,16 @@ document.documentElement.classList.toggle('taskbar-mode', taskbarMode)
 document.documentElement.classList.toggle('taskbar-tooltip-mode', taskbarTooltipMode)
 document.documentElement.classList.toggle('tray-mode', trayMode)
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <ConfirmDialogProvider>
-      <AppThemeController />
-      {taskbarMode ? (
-        <TaskbarTicker />
-      ) : taskbarTooltipMode ? (
-        <TaskbarStockTooltip />
-      ) : trayMode ? (
-        <TrayHoverSummary />
-      ) : (
-        <App />
-      )}
-    </ConfirmDialogProvider>
-  </StrictMode>
-)
+if (taskbarMode) {
+  void import('./entries/taskbar-ticker').then(({ renderTaskbarTicker }) => renderTaskbarTicker())
+} else if (taskbarTooltipMode) {
+  void import('./entries/taskbar-tooltip').then(({ renderTaskbarTooltip }) =>
+    renderTaskbarTooltip()
+  )
+} else if (trayMode) {
+  void import('./entries/tray-hover-summary').then(({ renderTrayHoverSummary }) =>
+    renderTrayHoverSummary()
+  )
+} else {
+  void import('./entries/main-window').then(({ renderMainWindow }) => renderMainWindow())
+}
