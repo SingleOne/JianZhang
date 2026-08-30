@@ -82,9 +82,9 @@
 .portfolio-performance-body {
   display: grid;
   min-height: 0;
-  gap: 14px;
+  gap: 8px;
   overflow-y: auto;
-  padding: 16px 20px 20px;
+  padding: 8px 16px 16px;
 }
 
 .portfolio-performance-attribution-note {
@@ -159,7 +159,6 @@
 
 .portfolio-performance-table {
   width: 100%;
-  min-width: 1500px;
   border-collapse: collapse;
   font-size: 12px;
 }
