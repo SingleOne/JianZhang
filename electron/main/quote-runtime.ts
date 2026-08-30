@@ -37,16 +37,21 @@ interface QuoteRuntimeDependencies {
   orderBookHub: OrderBookHub
   sectorMarketCache: SectorMarketCache
   marketRequestLogger: MarketRequestLogger
+  initialQuotes: readonly StockQuote[]
+  scheduleQuoteSnapshot: (quotes: readonly StockQuote[]) => void
+  disposeQuoteSnapshotCache: () => void
 }
 
 export class QuoteRuntime {
-  private latestQuotes: StockQuote[] = []
+  private latestQuotes: StockQuote[]
   private fiveLevelRefreshCursor = 0
   private sectorBindingPrime: Promise<void> | null = null
   private lastSectorBindingPrimeAt = 0
   private readonly coordinator: QuoteRefreshCoordinator<StockQuote[]>
 
   constructor(private readonly dependencies: QuoteRuntimeDependencies) {
+    this.latestQuotes = []
+    this.mergeQuotes([...dependencies.initialQuotes])
     this.coordinator = new QuoteRefreshCoordinator<StockQuote[]>({
       getPriorityIntervalMilliseconds: () =>
         this.dependencies.getState().settings.priorityRefreshSeconds * 1000,
@@ -63,6 +68,7 @@ export class QuoteRuntime {
 
   dispose(): void {
     this.coordinator.dispose()
+    this.dependencies.disposeQuoteSnapshotCache()
   }
 
   getQuotes(): StockQuote[] {
@@ -333,6 +339,7 @@ export class QuoteRuntime {
       const displayedQuoteIds = new Set([...stocks, ...marketIndices].map((stock) => stock.quoteId))
       this.mergeQuotes(result.quotes.filter((quote) => displayedQuoteIds.has(quote.quoteId)))
       this.applyCachedSectorQuotes()
+      this.dependencies.scheduleQuoteSnapshot(this.latestQuotes)
       this.dependencies.publishQuotes(this.latestQuotes)
       if (result.warning) this.dependencies.sendToWindows('data:error', result.warning)
       const currentState = this.dependencies.getState()

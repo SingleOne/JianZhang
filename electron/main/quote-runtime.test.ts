@@ -93,7 +93,10 @@ function createRuntime(state: AppState, publishQuotes = vi.fn()): QuoteRuntime {
       sectorQuote: () => undefined,
       prime: async () => false
     } as never,
-    marketRequestLogger: { logQuoteCycle: vi.fn() } as never
+    marketRequestLogger: { logQuoteCycle: vi.fn() } as never,
+    initialQuotes: [],
+    scheduleQuoteSnapshot: vi.fn(),
+    disposeQuoteSnapshotCache: vi.fn()
   })
 }
 

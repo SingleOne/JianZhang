@@ -56,6 +56,7 @@ import { MarketRequestLogger } from './market-request-logger'
 import { OrderBookHub } from './order-book-hub'
 import { PythonTaskQueue } from './python-task-queue'
 import { QuoteRuntime } from './quote-runtime'
+import { QuoteSnapshotCache } from './quote-snapshot-cache'
 import { SectorMarketCache } from './sector-market-cache'
 import { SecEdgarClient } from './sec-edgar-client'
 import { ShareholderService } from './shareholder-service'
@@ -328,6 +329,7 @@ if (!hasSingleInstanceLock) {
     aiSecrets = new AiSecrets(join(app.getPath('userData'), 'modules', 'ai'))
 
     const marketCacheDirectory = join(app.getPath('userData'), 'market-cache')
+    const quoteSnapshotCache = new QuoteSnapshotCache(app.getPath('userData'))
     valuationHistoryService = new ValuationHistoryService(marketCacheDirectory)
     shareholderService = new ShareholderService(marketCacheDirectory)
     const pythonTaskQueue = new PythonTaskQueue((message) => {
@@ -406,7 +408,10 @@ if (!hasSingleInstanceLock) {
       showTFloatingProfitAlertNotification,
       orderBookHub,
       sectorMarketCache,
-      marketRequestLogger
+      marketRequestLogger,
+      initialQuotes: quoteSnapshotCache.load(),
+      scheduleQuoteSnapshot: (quotes) => quoteSnapshotCache.scheduleSave(quotes),
+      disposeQuoteSnapshotCache: () => quoteSnapshotCache.dispose()
     })
     tradingCalendarRuntime = new TradingCalendarRuntime({
       getState: () => state,
