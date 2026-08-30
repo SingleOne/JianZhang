@@ -326,9 +326,9 @@ export interface AiModuleDependencies {
   getLatestQuote: (quoteId: string) => StockQuote | null
   getDailyKline: (quoteId: string, limit: number) => Promise<KlineResult>
   getValuationHistory: (quoteId: string) => Promise<StockValuationHistory>
-  getFundamentalSnapshot: () => FundamentalSnapshot | null
+  getFundamentalSnapshot: () => Promise<FundamentalSnapshot | null>
   getFundamentalState: () => DataSnapshotRuntimeState
-  getDividendFinancingSnapshot: () => DividendFinancingSnapshot | null
+  getDividendFinancingSnapshot: () => Promise<DividendFinancingSnapshot | null>
   getDividendFinancingState: () => DataSnapshotRuntimeState
   getCompanyReportSummaries: (code: string) => CompanyReportSummary[]
 }

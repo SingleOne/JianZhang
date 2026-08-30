@@ -1792,6 +1792,14 @@ export interface DividendFinancingSnapshot {
   rows: DividendFinancingRankingItem[]
 }
 
+export interface DividendFinancingOverview {
+  schemaVersion: 1
+  snapshotDate: string
+  generatedAt: string
+  recordCount: number
+  rows: DividendFinancingRankingItem[]
+}
+
 export type DividendFinancingChangeType =
   'added' | 'removed' | 'rank' | 'ratio' | 'dividend' | 'financing'
 
@@ -2096,6 +2104,40 @@ export interface FundamentalSnapshot {
   }
   industries: FundamentalIndustryBenchmark[]
   rows: FundamentalCompany[]
+}
+
+export interface FundamentalPeerMetricComparison {
+  value: number | null
+  sampleSize: number
+  rank: number | null
+  topPercent: number | null
+  betterThanPercent: number | null
+}
+
+export interface FundamentalPeerComparison {
+  industryCode: string
+  industryName: string
+  roe: FundamentalPeerMetricComparison
+  cash: FundamentalPeerMetricComparison
+  debt: FundamentalPeerMetricComparison
+}
+
+export interface FundamentalOverviewRecord {
+  company: FundamentalCompany
+  industryBenchmark: FundamentalIndustryBenchmark | null
+  peerComparison: FundamentalPeerComparison | null
+}
+
+export interface FundamentalOverview {
+  schemaVersion: 1
+  snapshotSchemaVersion: FundamentalSnapshot['schemaVersion']
+  snapshotDate: string
+  generatedAt: string
+  fiscalYears: number[]
+  latestAnnualReportDate: string
+  latestQuarterlyReportDate?: string
+  recordCount: number
+  rows: FundamentalOverviewRecord[]
 }
 
 export interface StockValuationHistory {
@@ -2714,10 +2756,12 @@ export interface StockDesktopApi {
   setTaskbarTooltip: (anchor: TaskbarTooltipAnchor | null) => Promise<void>
   resizeTaskbarTooltip: (height: number) => Promise<void>
   searchStocks: (query: string) => Promise<SearchResult[]>
+  getDividendFinancingOverview: (codes: string[]) => Promise<DividendFinancingOverview | null>
   getDividendFinancingSnapshot: () => Promise<DividendFinancingSnapshot | null>
   getDividendFinancingState: () => Promise<DataSnapshotRuntimeState>
   getDividendFinancingChangeReport: () => Promise<DividendFinancingChangeReport | null>
   runDividendFinancingUpdate: () => Promise<DividendFinancingUpdateResult>
+  getFundamentalOverview: (codes: string[]) => Promise<FundamentalOverview | null>
   getFundamentalSnapshot: () => Promise<FundamentalSnapshot | null>
   getFundamentalState: () => Promise<DataSnapshotRuntimeState>
   getFundamentalChangeReport: () => Promise<FundamentalChangeReport | null>

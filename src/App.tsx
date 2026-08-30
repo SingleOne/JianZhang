@@ -14,9 +14,8 @@ import {
 } from './lib/completion-notifications'
 import { formatMoneyProfit, formatPercent, formatPrice, formatUpdateTime } from './lib/format'
 import {
-  createFundamentalPeerComparisonMap,
   DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA,
-  screenFundamentalCompanies,
+  evaluateFundamentalCompany,
   type FundamentalScreeningEvaluation
 } from './lib/fundamental-screening'
 import { calculatePortfolioSummary } from './lib/portfolio'
@@ -42,10 +41,12 @@ import type {
   CorporateActionRecord,
   DataSnapshotRuntimeState,
   DividendFinancingChangeReport,
+  DividendFinancingOverview,
   DividendFinancingRankingItem,
   DividendFinancingSnapshot,
   DailyMarketScanRow,
   FundamentalChangeReport,
+  FundamentalOverview,
   FundamentalSnapshot,
   GitHubDeviceAuthorization,
   GitHubSyncSettings,
@@ -174,9 +175,12 @@ export default function App() {
   const [portfolioPerformanceOpen, setPortfolioPerformanceOpen] = useState(false)
   const [dividendFinancingSnapshot, setDividendFinancingSnapshot] =
     useState<DividendFinancingSnapshot | null>(null)
+  const [dividendFinancingOverview, setDividendFinancingOverview] =
+    useState<DividendFinancingOverview | null>(null)
   const [dividendFinancingChangeReport, setDividendFinancingChangeReport] =
     useState<DividendFinancingChangeReport | null>(null)
   const [fundamentalSnapshot, setFundamentalSnapshot] = useState<FundamentalSnapshot | null>(null)
+  const [fundamentalOverview, setFundamentalOverview] = useState<FundamentalOverview | null>(null)
   const [fundamentalChangeReport, setFundamentalChangeReport] =
     useState<FundamentalChangeReport | null>(null)
   const [dividendFinancingState, setDividendFinancingState] =
@@ -297,68 +301,20 @@ export default function App() {
 
   useEffect(() => {
     let active = true
-    const syncDividendSnapshot = () => {
-      Promise.all([
-        stockApi.getDividendFinancingSnapshot(),
-        stockApi.getDividendFinancingChangeReport()
-      ])
-        .then(([snapshot, changeReport]) => {
-          if (!active) return
-          setDividendFinancingSnapshot(snapshot)
-          setDividendFinancingChangeReport(changeReport)
-        })
-        .catch(() => undefined)
-    }
-    const syncFundamentalSnapshot = () => {
-      Promise.all([stockApi.getFundamentalSnapshot(), stockApi.getFundamentalChangeReport()])
-        .then(([snapshot, changeReport]) => {
-          if (!active) return
-          setFundamentalSnapshot(snapshot)
-          setFundamentalChangeReport(changeReport)
-        })
-        .catch(() => undefined)
-    }
     const unsubscribeDividendState = stockApi.onDividendFinancingStateUpdated((snapshotState) => {
       if (!active) return
       setDividendFinancingState(snapshotState)
-      if (snapshotState.status === 'ready' || snapshotState.status === 'stale') {
-        syncDividendSnapshot()
-      }
     })
     const unsubscribeFundamentalState = stockApi.onFundamentalStateUpdated((snapshotState) => {
       if (!active) return
       setFundamentalDataState(snapshotState)
-      if (snapshotState.status === 'ready' || snapshotState.status === 'stale') {
-        syncFundamentalSnapshot()
-      }
     })
-    Promise.all([
-      stockApi.getDividendFinancingSnapshot(),
-      stockApi.getDividendFinancingChangeReport(),
-      stockApi.getDividendFinancingState(),
-      stockApi.getFundamentalState(),
-      stockApi.getFundamentalSnapshot(),
-      stockApi.getFundamentalChangeReport()
-    ])
-      .then(
-        ([
-          snapshot,
-          changeReport,
-          dividendState,
-          fundamentalState,
-          fundamentalData,
-          fundamentalChanges
-        ]) => {
-          if (active) {
-            setDividendFinancingSnapshot(snapshot)
-            setDividendFinancingChangeReport(changeReport)
-            setDividendFinancingState(dividendState)
-            setFundamentalDataState(fundamentalState)
-            setFundamentalSnapshot(fundamentalData)
-            setFundamentalChangeReport(fundamentalChanges)
-          }
-        }
-      )
+    Promise.all([stockApi.getDividendFinancingState(), stockApi.getFundamentalState()])
+      .then(([dividendState, fundamentalState]) => {
+        if (!active) return
+        setDividendFinancingState(dividendState)
+        setFundamentalDataState(fundamentalState)
+      })
       .catch(() => undefined)
     return () => {
       active = false
@@ -366,6 +322,32 @@ export default function App() {
       unsubscribeFundamentalState()
     }
   }, [])
+
+  useEffect(() => {
+    if (initializing) return
+    let active = true
+    const codes = state.watchlist.map((stock) => stock.code)
+    Promise.all([
+      stockApi.getDividendFinancingOverview(codes),
+      stockApi.getFundamentalOverview(codes)
+    ])
+      .then(([dividendOverview, nextFundamentalOverview]) => {
+        if (!active) return
+        setDividendFinancingOverview(dividendOverview)
+        setFundamentalOverview(nextFundamentalOverview)
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [
+    dividendFinancingState.generatedAt,
+    dividendFinancingState.status,
+    fundamentalDataState.generatedAt,
+    fundamentalDataState.status,
+    initializing,
+    state.watchlist
+  ])
 
   useEffect(() => {
     if (!error) return
@@ -425,27 +407,33 @@ export default function App() {
     [state.watchlist]
   )
   const dividendFinancingByCode = useMemo(
-    () => new Map(dividendFinancingSnapshot?.rows.map((item) => [item.code, item]) ?? []),
-    [dividendFinancingSnapshot]
+    () => new Map(dividendFinancingOverview?.rows.map((item) => [item.code, item]) ?? []),
+    [dividendFinancingOverview]
   )
   const fundamentalEvaluations = useMemo(
     () =>
-      fundamentalSnapshot
-        ? screenFundamentalCompanies(fundamentalSnapshot, DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA)
-        : [],
-    [fundamentalSnapshot]
+      fundamentalOverview?.rows.map((record) =>
+        evaluateFundamentalCompany(
+          record.company,
+          record.industryBenchmark,
+          DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA
+        )
+      ) ?? [],
+    [fundamentalOverview]
   )
   const fundamentalScreeningByCode = useMemo(() => {
-    const watchlistCodes = new Set(state.watchlist.map((stock) => stock.code))
     return new Map(
-      fundamentalEvaluations
-        .filter((evaluation) => watchlistCodes.has(evaluation.company.code))
-        .map((evaluation) => [evaluation.company.code, evaluation])
+      fundamentalEvaluations.map((evaluation) => [evaluation.company.code, evaluation])
     )
-  }, [fundamentalEvaluations, state.watchlist])
+  }, [fundamentalEvaluations])
   const fundamentalPeerComparisonsByCode = useMemo(
-    () => createFundamentalPeerComparisonMap(fundamentalEvaluations),
-    [fundamentalEvaluations]
+    () =>
+      new Map(
+        fundamentalOverview?.rows.flatMap((record) =>
+          record.peerComparison ? [[record.company.code, record.peerComparison] as const] : []
+        ) ?? []
+      ),
+    [fundamentalOverview]
   )
   const portfolioSummary = useMemo(
     () =>
@@ -1593,7 +1581,7 @@ export default function App() {
                 watchlistGroups={state.watchlistGroups}
                 quotes={quotes}
                 dividendFinancingByCode={dividendFinancingByCode}
-                dividendFinancingSnapshotDate={dividendFinancingSnapshot?.snapshotDate}
+                dividendFinancingSnapshotDate={dividendFinancingOverview?.snapshotDate}
                 dividendFinancingStaleReason={
                   dividendFinancingState.status === 'stale'
                     ? dividendFinancingState.staleReason
@@ -1601,8 +1589,8 @@ export default function App() {
                 }
                 fundamentalScreeningByCode={fundamentalScreeningByCode}
                 fundamentalPeerComparisonsByCode={fundamentalPeerComparisonsByCode}
-                fundamentalSnapshotDate={fundamentalSnapshot?.snapshotDate}
-                fundamentalGeneratedAt={fundamentalSnapshot?.generatedAt}
+                fundamentalSnapshotDate={fundamentalOverview?.snapshotDate}
+                fundamentalGeneratedAt={fundamentalOverview?.generatedAt}
                 fundamentalStaleReason={
                   fundamentalDataState.status === 'stale' ? fundamentalDataState.staleReason : null
                 }

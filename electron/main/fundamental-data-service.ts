@@ -8,10 +8,14 @@ import { parseFundamentalSnapshot } from '../../src/lib/fundamentals'
 import type {
   DataSnapshotRuntimeState,
   FundamentalChangeReport,
+  FundamentalOverview,
   FundamentalSnapshot,
   FundamentalUpdateProgress,
   FundamentalUpdateResult
 } from '../../src/shared/types'
+import { createFundamentalOverviewStore, type FundamentalOverviewMetadata } from './data-overview'
+import { generateDataOverviewInWorker } from './data-overview-worker-client'
+import type { IndexedOverviewManifest } from './indexed-overview-store'
 import type { PythonTaskQueue } from './python-task-queue'
 
 const EMPTY_STATE: DataSnapshotRuntimeState = {
@@ -30,11 +34,15 @@ export class FundamentalDataService {
   private readonly snapshotPath: string
   private readonly diagnosticsPath: string
   private readonly changeReportPath: string
+  private readonly overviewStore: ReturnType<typeof createFundamentalOverviewStore>
+  private overviewManifest: IndexedOverviewManifest<FundamentalOverviewMetadata> | null = null
   private snapshotCache: FundamentalSnapshot | null = null
   private changeReportCache: FundamentalChangeReport | null | undefined
   private runtimeState: DataSnapshotRuntimeState = EMPTY_STATE
   private updating = false
-  private initialization: Promise<void> | null = null
+  private snapshotLoading: Promise<FundamentalSnapshot | null> | null = null
+  private overviewGeneration: Promise<void> | null = null
+  private overviewGenerationTimer: ReturnType<typeof setTimeout> | null = null
   private initialized = false
 
   constructor(
@@ -47,17 +55,54 @@ export class FundamentalDataService {
     this.snapshotPath = join(this.dataDirectory, 'snapshot.json')
     this.diagnosticsPath = join(this.dataDirectory, 'diagnostics.json')
     this.changeReportPath = join(this.dataDirectory, 'change-report.json')
-    if (existsSync(this.snapshotPath)) {
+    this.overviewStore = createFundamentalOverviewStore(this.dataDirectory)
+    this.overviewManifest = this.overviewStore.load(this.snapshotPath)
+    if (this.overviewManifest) {
+      this.runtimeState = this.snapshotState(this.overviewManifest.metadata)
+    } else if (existsSync(this.snapshotPath)) {
       this.runtimeState = {
         ...EMPTY_STATE,
         status: 'queued',
-        progressMessage: '正在加载本地基本面财务数据。'
+        progressMessage: '正在准备基本面轻量概览。'
       }
     }
   }
 
-  getSnapshot(): FundamentalSnapshot | null {
-    return this.snapshotCache
+  getOverview(codes: readonly string[]): FundamentalOverview | null {
+    if (!this.overviewManifest) return null
+    try {
+      return {
+        ...this.overviewManifest.metadata,
+        rows: this.overviewStore.read(this.overviewManifest, codes)
+      }
+    } catch {
+      this.overviewManifest = null
+      this.setState({
+        ...this.runtimeState,
+        status: 'queued',
+        progressMessage: '正在修复基本面轻量概览。'
+      })
+      void this.generateOverview(true).catch((reason) => {
+        this.setState({
+          ...this.runtimeState,
+          status: 'failed',
+          progressMessage: null,
+          error: reason instanceof Error ? reason.message : '基本面轻量概览修复失败'
+        })
+      })
+      return null
+    }
+  }
+
+  async getSnapshot(): Promise<FundamentalSnapshot | null> {
+    if (this.snapshotCache) return this.snapshotCache
+    if (!existsSync(this.snapshotPath)) return null
+    if (!this.snapshotLoading) {
+      this.snapshotLoading = this.loadSnapshot().finally(() => {
+        this.snapshotLoading = null
+      })
+    }
+    return this.snapshotLoading
   }
 
   getState(): DataSnapshotRuntimeState {
@@ -65,7 +110,6 @@ export class FundamentalDataService {
   }
 
   getChangeReport(): FundamentalChangeReport | null {
-    if (!this.snapshotCache) return null
     if (this.changeReportCache !== undefined) return this.changeReportCache
     if (!existsSync(this.changeReportPath)) {
       this.changeReportCache = null
@@ -85,20 +129,34 @@ export class FundamentalDataService {
   }
 
   initializeIfMissing(): void {
-    if (!this.initialization) this.initialization = this.loadSnapshot().catch(() => undefined)
     if (this.initialized) return
     this.initialized = true
-    void this.initialization.then(() => {
-      if (this.runtimeState.status === 'missing') void this.runUpdate().catch(() => undefined)
-    })
+    if (this.overviewManifest) return
+    if (!existsSync(this.snapshotPath)) {
+      void this.runUpdate().catch(() => undefined)
+      return
+    }
+    this.overviewGenerationTimer = setTimeout(() => {
+      this.overviewGenerationTimer = null
+      void this.generateOverview().catch((reason) => {
+        this.setState({
+          ...EMPTY_STATE,
+          status: 'failed',
+          error: reason instanceof Error ? reason.message : '基本面轻量概览生成失败'
+        })
+      })
+    }, 1_500)
+    this.overviewGenerationTimer.unref()
   }
 
   async runUpdate(): Promise<FundamentalUpdateResult> {
-    if (this.initialization) await this.initialization
+    if (this.overviewGenerationTimer) clearTimeout(this.overviewGenerationTimer)
+    this.overviewGenerationTimer = null
+    if (this.overviewGeneration) await this.overviewGeneration
     if (this.updating) throw new Error('基本面财务数据更新脚本正在运行')
     this.updating = true
     mkdirSync(this.dataDirectory, { recursive: true })
-    const previousSnapshot = this.snapshotCache
+    const previousSnapshot = await this.getSnapshot()
     const nextSnapshotPath = join(this.dataDirectory, 'snapshot.next.json')
     const nextDiagnosticsPath = join(this.dataDirectory, 'diagnostics.next.json')
     const nextChangeReportPath = join(this.dataDirectory, 'change-report.next.json')
@@ -145,6 +203,7 @@ export class FundamentalDataService {
       renameSync(nextSnapshotPath, this.snapshotPath)
       this.snapshotCache = snapshot
       this.changeReportCache = changeReport
+      await this.generateOverview()
       this.setState(this.snapshotState(snapshot))
       this.notifyProgress({
         stage: 'completed',
@@ -171,29 +230,63 @@ export class FundamentalDataService {
     }
   }
 
-  private async loadSnapshot(): Promise<void> {
-    if (!existsSync(this.snapshotPath)) return
+  private async loadSnapshot(): Promise<FundamentalSnapshot | null> {
     try {
       this.snapshotCache = parseFundamentalSnapshot(await readFile(this.snapshotPath, 'utf8'))
-      this.setState(this.snapshotState(this.snapshotCache))
+      return this.snapshotCache
     } catch (reason) {
       this.setState({
         ...EMPTY_STATE,
         error: reason instanceof Error ? reason.message : '基本面财务快照无法读取'
       })
+      return null
     }
   }
 
-  private snapshotState(snapshot: FundamentalSnapshot | null): DataSnapshotRuntimeState {
+  private async generateOverview(force = false): Promise<void> {
+    if (this.overviewGeneration) await this.overviewGeneration
+    if (!force) {
+      const existingManifest = this.overviewStore.load(this.snapshotPath)
+      if (existingManifest) {
+        this.overviewManifest = existingManifest
+        this.setState(this.snapshotState(existingManifest.metadata))
+        return
+      }
+    }
+
+    this.overviewManifest = null
+    const generation = generateDataOverviewInWorker(
+      'fundamental',
+      this.dataDirectory,
+      this.snapshotPath
+    )
+    this.overviewGeneration = generation
+    try {
+      await generation
+      this.overviewManifest = this.overviewStore.load(this.snapshotPath)
+      if (!this.overviewManifest) throw new Error('基本面轻量概览无法读取')
+      this.setState(this.snapshotState(this.overviewManifest.metadata))
+    } finally {
+      if (this.overviewGeneration === generation) this.overviewGeneration = null
+    }
+  }
+
+  private snapshotState(
+    snapshot: FundamentalSnapshot | FundamentalOverviewMetadata | null
+  ): DataSnapshotRuntimeState {
     if (!snapshot) return { ...EMPTY_STATE }
-    const staleReason = fundamentalStaleReason(snapshot)
+    const staleReason = fundamentalStaleReason(
+      'snapshotSchemaVersion' in snapshot
+        ? { ...snapshot, schemaVersion: snapshot.snapshotSchemaVersion }
+        : snapshot
+    )
     return {
       status: staleReason ? 'stale' : 'ready',
       progressMessage: null,
       error: null,
       snapshotDate: snapshot.snapshotDate,
       generatedAt: snapshot.generatedAt,
-      recordCount: snapshot.rows.length,
+      recordCount: 'recordCount' in snapshot ? snapshot.recordCount : snapshot.rows.length,
       periodLabel: `${snapshot.fiscalYears[0]}—${snapshot.fiscalYears.at(-1)} 年`,
       staleReason
     }

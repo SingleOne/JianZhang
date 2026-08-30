@@ -495,8 +495,10 @@ export class AiService {
       '正在读取长期价值数据',
       '加载五年财务、财报 AI 总结、DCF、分红融资、当前估值和长期价格强弱。'
     )
-    const fundamentalSnapshot = this.dependencies.getFundamentalSnapshot()
-    const dividendSnapshot = this.dependencies.getDividendFinancingSnapshot()
+    const [fundamentalSnapshot, dividendSnapshot] = await Promise.all([
+      this.dependencies.getFundamentalSnapshot(),
+      this.dependencies.getDividendFinancingSnapshot()
+    ])
     if (!fundamentalSnapshot && !dividendSnapshot) {
       throw new Error('当前还没有基本面或分红融资快照，长期价值分析暂不可用')
     }

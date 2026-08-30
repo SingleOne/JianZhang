@@ -27,7 +27,10 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
-        input: resolve(__dirname, 'electron/main/index.ts')
+        input: {
+          index: resolve(__dirname, 'electron/main/index.ts'),
+          'data-overview-worker': resolve(__dirname, 'electron/main/data-overview-worker.ts')
+        }
       }
     }
   },

@@ -38,10 +38,12 @@ import type {
   DailyMarketScanResult,
   DailyMarketScanState,
   DividendFinancingChangeReport,
+  DividendFinancingOverview,
   DividendFinancingSnapshot,
   DividendFinancingUpdateResult,
   ExchangeRateSettings,
   FundamentalChangeReport,
+  FundamentalOverview,
   FundamentalSnapshot,
   FundamentalUpdateResult,
   GlobalFundamentalSnapshot,
@@ -83,11 +85,13 @@ interface IpcHandlerDependencies {
   resizeTaskbarTooltip: (height: number) => void
   getMainWindow: () => BrowserWindow | null
   searchStocks: (query: string) => Promise<SearchResult[]>
-  getDividendFinancingSnapshot: () => DividendFinancingSnapshot | null
+  getDividendFinancingOverview: (codes: string[]) => DividendFinancingOverview | null
+  getDividendFinancingSnapshot: () => Promise<DividendFinancingSnapshot | null>
   getDividendFinancingState: () => DataSnapshotRuntimeState
   getDividendFinancingChangeReport: () => DividendFinancingChangeReport | null
   runDividendFinancingUpdate: () => Promise<DividendFinancingUpdateResult>
-  getFundamentalSnapshot: () => FundamentalSnapshot | null
+  getFundamentalOverview: (codes: string[]) => FundamentalOverview | null
+  getFundamentalSnapshot: () => Promise<FundamentalSnapshot | null>
   getFundamentalState: () => DataSnapshotRuntimeState
   getFundamentalChangeReport: () => FundamentalChangeReport | null
   runFundamentalUpdate: () => Promise<FundamentalUpdateResult>
@@ -281,12 +285,18 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
     dependencies.resizeTaskbarTooltip(height)
   )
   ipcMain.handle('stocks:search', (_event, query: string) => dependencies.searchStocks(query))
+  ipcMain.handle('dividend-financing:overview:get', (_event, codes: string[]) =>
+    dependencies.getDividendFinancingOverview(codes)
+  )
   ipcMain.handle('dividend-financing:get', () => dependencies.getDividendFinancingSnapshot())
   ipcMain.handle('dividend-financing:state:get', () => dependencies.getDividendFinancingState())
   ipcMain.handle('dividend-financing:changes:get', () =>
     dependencies.getDividendFinancingChangeReport()
   )
   ipcMain.handle('dividend-financing:update', () => dependencies.runDividendFinancingUpdate())
+  ipcMain.handle('fundamentals:overview:get', (_event, codes: string[]) =>
+    dependencies.getFundamentalOverview(codes)
+  )
   ipcMain.handle('fundamentals:get', () => dependencies.getFundamentalSnapshot())
   ipcMain.handle('fundamentals:state:get', () => dependencies.getFundamentalState())
   ipcMain.handle('fundamentals:changes:get', () => dependencies.getFundamentalChangeReport())

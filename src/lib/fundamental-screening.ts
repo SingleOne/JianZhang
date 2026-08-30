@@ -5,9 +5,12 @@ import type {
   FundamentalChangeType,
   FundamentalCompany,
   FundamentalIndustryBenchmark,
+  FundamentalPeerComparison,
+  FundamentalPeerMetricComparison,
   FundamentalRuleChange,
   FundamentalSnapshot
 } from '../shared/types'
+export type { FundamentalPeerComparison, FundamentalPeerMetricComparison } from '../shared/types'
 import { hasFinancialMineRisk } from './financial-mine-detector'
 
 export type FundamentalRoeMetric = 'weighted' | 'deducted'
@@ -131,22 +134,6 @@ export const FUNDAMENTAL_RISK_TAG_SEVERITY: Record<FundamentalRiskTag, Fundament
   profitCashDivergence: 'critical',
   roeDecline: 'warning',
   singleYearCashWeak: 'warning'
-}
-
-export interface FundamentalPeerMetricComparison {
-  value: number | null
-  sampleSize: number
-  rank: number | null
-  topPercent: number | null
-  betterThanPercent: number | null
-}
-
-export interface FundamentalPeerComparison {
-  industryCode: string
-  industryName: string
-  roe: FundamentalPeerMetricComparison
-  cash: FundamentalPeerMetricComparison
-  debt: FundamentalPeerMetricComparison
 }
 
 export type FundamentalWatchlistFilter =

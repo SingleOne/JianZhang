@@ -8,7 +8,7 @@ function olderThanDays(generatedAt: string, days: number, now: Date): boolean {
 }
 
 export function dividendFinancingStaleReason(
-  snapshot: DividendFinancingSnapshot,
+  snapshot: Pick<DividendFinancingSnapshot, 'generatedAt'>,
   now = new Date()
 ): string | null {
   return olderThanDays(snapshot.generatedAt, 7, now)
@@ -22,7 +22,7 @@ export function expectedCompletedFiscalYear(now = new Date()): number {
 }
 
 export function fundamentalStaleReason(
-  snapshot: FundamentalSnapshot,
+  snapshot: Pick<FundamentalSnapshot, 'schemaVersion' | 'fiscalYears' | 'generatedAt'>,
   now = new Date()
 ): string | null {
   if (snapshot.schemaVersion < 5) {

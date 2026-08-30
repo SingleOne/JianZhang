@@ -21,7 +21,9 @@ import {
   type ConfigImportResult,
   type DataSnapshotRuntimeState,
   type DailyMarketScanResult,
+  type DividendFinancingOverview,
   type DividendFinancingSnapshot,
+  type FundamentalOverview,
   type FundamentalSnapshot,
   type GlobalFundamentalSnapshot,
   type FundsFlowResult,
@@ -590,6 +592,16 @@ const demoApi: StockDesktopApi = {
       (stock) => stock.code.includes(normalized) || stock.name.toLowerCase().includes(normalized)
     )
   },
+  async getDividendFinancingOverview(codes): Promise<DividendFinancingOverview> {
+    const requestedCodes = new Set(codes)
+    return {
+      schemaVersion: 1,
+      snapshotDate: DEMO_DIVIDEND_FINANCING_SNAPSHOT.snapshotDate,
+      generatedAt: DEMO_DIVIDEND_FINANCING_SNAPSHOT.generatedAt,
+      recordCount: DEMO_DIVIDEND_FINANCING_SNAPSHOT.rows.length,
+      rows: DEMO_DIVIDEND_FINANCING_SNAPSHOT.rows.filter((row) => requestedCodes.has(row.code))
+    }
+  },
   async getDividendFinancingSnapshot() {
     return DEMO_DIVIDEND_FINANCING_SNAPSHOT
   },
@@ -601,6 +613,22 @@ const demoApi: StockDesktopApi = {
   },
   async runDividendFinancingUpdate() {
     throw new Error('分红融资榜更新脚本仅能在 Windows 桌面版中运行')
+  },
+  async getFundamentalOverview(codes): Promise<FundamentalOverview> {
+    const requestedCodes = new Set(codes)
+    return {
+      schemaVersion: 1,
+      snapshotSchemaVersion: DEMO_FUNDAMENTAL_SNAPSHOT.schemaVersion,
+      snapshotDate: DEMO_FUNDAMENTAL_SNAPSHOT.snapshotDate,
+      generatedAt: DEMO_FUNDAMENTAL_SNAPSHOT.generatedAt,
+      fiscalYears: DEMO_FUNDAMENTAL_SNAPSHOT.fiscalYears,
+      latestAnnualReportDate: DEMO_FUNDAMENTAL_SNAPSHOT.latestAnnualReportDate,
+      latestQuarterlyReportDate: DEMO_FUNDAMENTAL_SNAPSHOT.latestQuarterlyReportDate,
+      recordCount: DEMO_FUNDAMENTAL_SNAPSHOT.rows.length,
+      rows: DEMO_FUNDAMENTAL_SNAPSHOT.rows
+        .filter((company) => requestedCodes.has(company.code))
+        .map((company) => ({ company, industryBenchmark: null, peerComparison: null }))
+    }
   },
   async getFundamentalSnapshot() {
     return DEMO_FUNDAMENTAL_SNAPSHOT
