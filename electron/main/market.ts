@@ -1161,6 +1161,7 @@ type TencentKlineRow = [string, string, string, string, string, string, ...unkno
 
 interface TencentKlineData {
   qt?: Record<string, string[]>
+  m1?: TencentKlineRow[]
   qfqday?: TencentKlineRow[]
   qfqweek?: TencentKlineRow[]
   qfqmonth?: TencentKlineRow[]
@@ -1168,6 +1169,21 @@ interface TencentKlineData {
   week?: TencentKlineRow[]
   month?: TencentKlineRow[]
   m5?: TencentKlineRow[]
+}
+
+interface TencentMinuteTrendData {
+  qt?: Record<string, string[]>
+  data?: { date?: string; data?: string[] }
+}
+
+interface SinaMinuteKlineRow {
+  day: string
+  open: string
+  high: string
+  low: string
+  close: string
+  volume: string
+  amount: string
 }
 
 const TENCENT_INDEX_SYMBOLS = new Map([
@@ -1245,7 +1261,8 @@ async function fetchTencentKline(
       : new URL('https://ifzq.gtimg.cn/appstock/app/fqkline/get')
 
   if (period === 'fiveDay' || period === 'intraday') {
-    url.searchParams.set('param', `${symbol},m5,,${period === 'fiveDay' ? 240 : 120}`)
+    const minutePeriod = period === 'intraday' ? 'm1' : 'm5'
+    url.searchParams.set('param', `${symbol},${minutePeriod},,${period === 'fiveDay' ? 240 : 480}`)
   } else {
     const tencentPeriod = period === 'daily' ? 'day' : period === 'weekly' ? 'week' : 'month'
     url.searchParams.set('param', `${symbol},${tencentPeriod},,,${limit},qfq`)
@@ -1259,12 +1276,13 @@ async function fetchTencentKline(
     dataType: `kline:${period}`,
     caller,
     source: 'tencent',
-    fallbackFrom: 'eastmoney',
+    fallbackFrom: 'eastmoney-delay',
     requestedCount: 1,
     headers: TENCENT_HEADERS,
     returnedCount: (value) => {
       const source = value.data?.[symbol]
-      if (period === 'fiveDay' || period === 'intraday') return source?.m5?.length ?? 0
+      if (period === 'intraday') return source?.m1?.length ?? 0
+      if (period === 'fiveDay') return source?.m5?.length ?? 0
       if (period === 'daily') return (source?.qfqday ?? source?.day)?.length ?? 0
       if (period === 'weekly') return (source?.qfqweek ?? source?.week)?.length ?? 0
       return (source?.qfqmonth ?? source?.month)?.length ?? 0
@@ -1275,7 +1293,9 @@ async function fetchTencentKline(
   const source = payload.data?.[symbol]
   const quote = source?.qt?.[symbol]
   let rows: TencentKlineRow[] = []
-  if (period === 'fiveDay' || period === 'intraday') {
+  if (period === 'intraday') {
+    rows = source?.m1 ?? []
+  } else if (period === 'fiveDay') {
     rows = source?.m5 ?? []
   } else if (period === 'daily') {
     rows = source?.qfqday ?? source?.day ?? []
@@ -1296,14 +1316,144 @@ async function fetchTencentKline(
   const tradingDate = result.bars.at(-1)?.time.slice(0, 10) ?? ''
   return {
     ...result,
-    intervalMinutes: 5,
+    intervalMinutes: 1,
     tradingDate,
     bars: result.bars.filter((bar) => bar.time.startsWith(tradingDate))
   }
 }
 
-async function fetchIntradayTrend(quoteId: string, caller: string): Promise<KlineResult> {
-  const url = new URL('https://push2.eastmoney.com/api/qt/stock/trends2/get')
+async function fetchTencentIntradayKline(quoteId: string, caller: string): Promise<KlineResult> {
+  if (marketFromQuoteId(quoteId) === 'CN') {
+    return fetchTencentKline(quoteId, 'intraday', 480, caller)
+  }
+
+  const symbol = toTencentSymbol(quoteId)
+  const url = new URL('https://web.ifzq.gtimg.cn/appstock/app/minute/query')
+  url.searchParams.set('code', symbol)
+  const payload = await requestJson<{
+    code?: number
+    msg?: string
+    data?: Record<string, TencentMinuteTrendData>
+  }>(url.toString(), {
+    dataType: 'kline:intraday',
+    caller,
+    source: 'tencent',
+    fallbackFrom: 'eastmoney-delay',
+    requestedCount: 1,
+    headers: TENCENT_HEADERS,
+    returnedCount: (value) => value.data?.[symbol]?.data?.data?.length ?? 0
+  })
+  if (payload.code !== 0) throw new Error(payload.msg || '腾讯行情分时请求失败')
+
+  const source = payload.data?.[symbol]
+  const rows = source?.data?.data ?? []
+  if (rows.length < 2) throw new Error('腾讯行情未返回完整分时数据')
+  const date = source?.data?.date
+  if (!date || !/^\d{8}$/.test(date)) throw new Error('腾讯行情未返回分时交易日期')
+
+  const amountUnit = marketFromQuoteId(quoteId) === 'CN' ? 100 : 1
+  let previousClose: number | null = null
+  let previousVolume = 0
+  let previousAmount = 0
+  const bars = rows.map((row) => {
+    const [time, closeText, cumulativeVolumeText, cumulativeAmountText] = row.split(' ')
+    const close = Number(closeText)
+    const cumulativeVolume = Number(cumulativeVolumeText)
+    const cumulativeAmount =
+      cumulativeAmountText === undefined ? null : Number(cumulativeAmountText)
+    const open = previousClose ?? close
+    const volume = cumulativeVolume - previousVolume
+    const amount =
+      cumulativeAmount === null
+        ? ((open + close) / 2) * volume * amountUnit
+        : cumulativeAmount - previousAmount
+    previousClose = close
+    previousVolume = cumulativeVolume
+    if (cumulativeAmount !== null) previousAmount = cumulativeAmount
+    return {
+      time: normalizeTencentKlineTime(`${date}${time}`),
+      open,
+      close,
+      high: Math.max(open, close),
+      low: Math.min(open, close),
+      volume,
+      amount
+    }
+  })
+  const tradingDate = bars.at(-1)?.time.slice(0, 10) ?? ''
+  return {
+    quoteId,
+    name: source?.qt?.[symbol]?.[1] ?? '',
+    tradingDate,
+    bars,
+    intervalMinutes: 1,
+    source: 'tencent',
+    adjustment: 'none',
+    fetchedAt: new Date().toISOString()
+  }
+}
+
+async function fetchSinaMinuteKline(
+  quoteId: string,
+  intervalMinutes: 1 | 5,
+  caller: string
+): Promise<KlineResult> {
+  const symbol = toTencentSymbol(quoteId)
+  const url = new URL('https://quotes.sina.cn/cn/api/openapi.php/CN_MarketDataService.getKLineData')
+  url.searchParams.set('symbol', symbol)
+  url.searchParams.set('scale', String(intervalMinutes))
+  url.searchParams.set('ma', 'no')
+  url.searchParams.set('datalen', '480')
+
+  const payload = await requestJson<{
+    result?: { status?: { code?: number; msg?: string }; data?: SinaMinuteKlineRow[] }
+  }>(url.toString(), {
+    dataType: 'kline:intraday',
+    caller,
+    source: 'sina',
+    fallbackFrom: 'tencent',
+    requestedCount: 1,
+    maxAttempts: 1,
+    headers: SINA_HEADERS,
+    returnedCount: (value) => value.result?.data?.length ?? 0
+  })
+  if (payload.result?.status?.code !== 0) {
+    throw new Error(payload.result?.status?.msg || '新浪行情分时请求失败')
+  }
+  const rows = payload.result.data ?? []
+  if (rows.length === 0) throw new Error('新浪行情未返回分时数据')
+
+  const volumeScale = MARKET_INDEX_QUOTE_IDS.has(quoteId) ? 1 : 100
+  const bars = rows.map((row) => ({
+    time: row.day.slice(0, 16),
+    open: Number(row.open),
+    close: Number(row.close),
+    high: Number(row.high),
+    low: Number(row.low),
+    volume: Number(row.volume) / volumeScale,
+    amount: Number(row.amount)
+  }))
+  const tradingDate = bars.at(-1)?.time.slice(0, 10) ?? ''
+  return {
+    quoteId,
+    name: '',
+    tradingDate,
+    bars: bars.filter((bar) => bar.time.startsWith(tradingDate)),
+    intervalMinutes,
+    source: 'sina',
+    adjustment: 'none',
+    fetchedAt: new Date().toISOString()
+  }
+}
+
+async function fetchIntradayTrend(
+  quoteId: string,
+  caller: string,
+  useDelayNode = false
+): Promise<KlineResult> {
+  const url = new URL(
+    `https://${useDelayNode ? 'push2delay.eastmoney.com' : 'push2.eastmoney.com'}/api/qt/stock/trends2/get`
+  )
   url.searchParams.set('secid', quoteId)
   url.searchParams.set('ndays', EASTMONEY_FIXED_PARAMS.intraday.ndays)
   url.searchParams.set('iscr', EASTMONEY_FIXED_PARAMS.intraday.iscr)
@@ -1316,18 +1466,86 @@ async function fetchIntradayTrend(quoteId: string, caller: string): Promise<Klin
   }>(url.toString(), {
     dataType: 'kline:intraday',
     caller,
-    source: 'eastmoney-primary',
+    source: useDelayNode ? 'eastmoney-delay' : 'eastmoney-primary',
+    fallbackFrom: useDelayNode ? 'eastmoney-primary' : undefined,
     requestedCount: 1,
+    maxAttempts: useDelayNode ? 1 : undefined,
     returnedCount: (value) => value.data?.trends?.length ?? 0
   })
 
   return {
     ...toIntradayKlineResult(quoteId, payload.data?.name, payload.data?.trends ?? []),
     intervalMinutes: 1,
-    source: 'eastmoney-primary',
+    source: useDelayNode ? 'eastmoney-mirror' : 'eastmoney-primary',
     adjustment: 'none',
     fetchedAt: new Date().toISOString()
   }
+}
+
+function latestTradingDayKline(
+  result: KlineResult,
+  intervalMinutes: 1 | 5,
+  fallbackReason?: string
+): KlineResult {
+  const tradingDate = result.bars.at(-1)?.time.slice(0, 10) ?? ''
+  return {
+    ...result,
+    intervalMinutes,
+    fallbackReason,
+    tradingDate,
+    bars: result.bars.filter((bar) => bar.time.startsWith(tradingDate))
+  }
+}
+
+async function fetchIntradayKline(quoteId: string, caller: string): Promise<KlineResult> {
+  const market = marketFromQuoteId(quoteId)
+  const sources: Array<[string, () => Promise<KlineResult>]> = [
+    ['东方财富主节点', () => fetchIntradayTrend(quoteId, caller)],
+    ['东方财富镜像节点', () => fetchIntradayTrend(quoteId, caller, true)],
+    ['腾讯行情', () => fetchTencentIntradayKline(quoteId, caller)]
+  ]
+  if (market === 'CN') {
+    sources.push(['新浪行情', () => fetchSinaMinuteKline(quoteId, 1, caller)])
+  }
+
+  const failures: string[] = []
+  for (const [name, fetchSource] of sources) {
+    try {
+      const result = await fetchSource()
+      return failures.length > 0
+        ? { ...result, fallbackReason: `${failures.join('；')}；当前使用${name}` }
+        : result
+    } catch (error) {
+      failures.push(`${name}：${error instanceof Error ? error.message : '请求失败'}`)
+    }
+  }
+
+  const oneMinuteFailure = `1分钟分时数据源均不可用（${failures.join('；')}）`
+  const fiveMinuteSources: Array<[string, () => Promise<KlineResult>]> = [
+    ['东方财富5分钟行情', () => fetchHistoricalKline(quoteId, '5', 120, caller)],
+    ['腾讯5分钟行情', () => fetchTencentKline(quoteId, 'fiveDay', 120, caller)]
+  ]
+  if (market === 'CN') {
+    fiveMinuteSources.push(['新浪5分钟行情', () => fetchSinaMinuteKline(quoteId, 5, caller)])
+  }
+
+  const fiveMinuteFailures: string[] = []
+  for (const [name, fetchSource] of fiveMinuteSources) {
+    try {
+      const result = await fetchSource()
+      return latestTradingDayKline(
+        result,
+        5,
+        [oneMinuteFailure, result.fallbackReason, ...fiveMinuteFailures, `当前使用${name}`]
+          .filter(Boolean)
+          .join('；')
+      )
+    } catch (error) {
+      fiveMinuteFailures.push(`${name}：${error instanceof Error ? error.message : '请求失败'}`)
+    }
+  }
+
+  throw new Error(`${oneMinuteFailure}；5分钟备用行情也不可用（${fiveMinuteFailures.join('；')}）`)
 }
 
 async function fetchHistoricalKline(
@@ -1401,9 +1619,11 @@ async function fetchHistoricalKline(
   }
 }
 
+type NonIntradayKlinePeriod = Exclude<KlinePeriod, 'intraday'>
+
 async function fetchEastmoneyKline(
   quoteId: string,
-  period: KlinePeriod = 'intraday',
+  period: NonIntradayKlinePeriod,
   limit?: number,
   caller = 'kline'
 ): Promise<KlineResult> {
@@ -1417,20 +1637,6 @@ async function fetchEastmoneyKline(
       return fetchHistoricalKline(quoteId, '102', requestedLimit || 104, caller)
     case 'monthly':
       return fetchHistoricalKline(quoteId, '103', requestedLimit || 60, caller)
-    case 'intraday':
-      try {
-        return await fetchIntradayTrend(quoteId, caller)
-      } catch (reason) {
-        const fallback = await fetchHistoricalKline(quoteId, '5', 120, caller)
-        const tradingDate = fallback.bars.at(-1)?.time.slice(0, 10) ?? ''
-        return {
-          ...fallback,
-          intervalMinutes: 5,
-          fallbackReason: reason instanceof Error ? reason.message : '1分钟分时数据加载失败',
-          tradingDate,
-          bars: fallback.bars.filter((bar) => bar.time.startsWith(tradingDate))
-        }
-      }
   }
 }
 
@@ -1440,6 +1646,8 @@ export async function fetchKline(
   limit?: number,
   caller = 'kline'
 ): Promise<KlineResult> {
+  if (period === 'intraday') return fetchIntradayKline(quoteId, caller)
+
   const requestedLimit =
     limit === undefined
       ? period === 'weekly'

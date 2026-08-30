@@ -8,7 +8,13 @@ vi.mock('electron', () => ({
   net: { fetch: netFetch }
 }))
 
-import { fetchDailyMarketActiveQuotes, fetchOrderBook, fetchQuotes, searchStocks } from './market'
+import {
+  fetchDailyMarketActiveQuotes,
+  fetchKline,
+  fetchOrderBook,
+  fetchQuotes,
+  searchStocks
+} from './market'
 
 function jsonResponse(value: unknown): Response {
   return {
@@ -58,6 +64,201 @@ function orderBookPayload(name = '测试股票') {
     }
   }
 }
+
+function intradayPayload(name = '测试股票') {
+  return {
+    data: {
+      name,
+      trends: [
+        '2026-08-28 09:30,10.00,10.10,10.20,9.90,100,101000.00,10.100',
+        '2026-08-28 09:31,10.10,10.20,10.30,10.00,200,204000.00,10.150'
+      ]
+    }
+  }
+}
+
+function tencentMinutePayload() {
+  return {
+    code: 0,
+    data: {
+      sh600000: {
+        qt: { sh600000: ['', '测试股票'] },
+        m1: [
+          ['202608280930', '10.00', '10.10', '10.20', '9.90', '100'],
+          ['202608280931', '10.10', '10.20', '10.30', '10.00', '200']
+        ]
+      }
+    }
+  }
+}
+
+function tencentGlobalMinutePayload() {
+  return {
+    code: 0,
+    data: {
+      hk00700: {
+        qt: { hk00700: ['', '腾讯控股'] },
+        data: {
+          date: '20260828',
+          data: ['0930 444.000 1000 444000.00', '0931 445.000 1500 666500.00']
+        }
+      }
+    }
+  }
+}
+
+function sinaMinutePayload() {
+  return {
+    result: {
+      status: { code: 0 },
+      data: [
+        {
+          day: '2026-08-28 09:30:00',
+          open: '10.00',
+          high: '10.20',
+          low: '9.90',
+          close: '10.10',
+          volume: '10000',
+          amount: '101000.00'
+        },
+        {
+          day: '2026-08-28 09:31:00',
+          open: '10.10',
+          high: '10.30',
+          low: '10.00',
+          close: '10.20',
+          volume: '20000',
+          amount: '204000.00'
+        }
+      ]
+    }
+  }
+}
+
+describe('fetchKline intraday sources', () => {
+  beforeEach(() => {
+    netFetch.mockReset()
+  })
+
+  it('uses the Eastmoney primary intraday endpoint first', async () => {
+    netFetch.mockResolvedValueOnce(jsonResponse(intradayPayload()))
+
+    const result = await fetchKline('1.600000', 'intraday', undefined, 'test')
+
+    expect(netFetch).toHaveBeenCalledTimes(1)
+    expect(new URL(netFetch.mock.calls[0][0]).hostname).toBe('push2.eastmoney.com')
+    expect(result).toMatchObject({ source: 'eastmoney-primary', intervalMinutes: 1 })
+  })
+
+  it('falls back from Eastmoney primary to its mirror before Tencent', async () => {
+    netFetch
+      .mockResolvedValueOnce(jsonResponse({ data: null }))
+      .mockResolvedValueOnce(jsonResponse(intradayPayload('镜像数据')))
+
+    const result = await fetchKline('1.600000', 'intraday', undefined, 'test')
+
+    expect(netFetch.mock.calls.map(([url]) => new URL(url).hostname)).toEqual([
+      'push2.eastmoney.com',
+      'push2delay.eastmoney.com'
+    ])
+    expect(result).toMatchObject({
+      name: '镜像数据',
+      source: 'eastmoney-mirror',
+      intervalMinutes: 1
+    })
+  })
+
+  it('uses Tencent one-minute data after both Eastmoney endpoints fail', async () => {
+    netFetch
+      .mockResolvedValueOnce(jsonResponse({ data: null }))
+      .mockResolvedValueOnce(jsonResponse({ data: null }))
+      .mockResolvedValueOnce(jsonResponse(tencentMinutePayload()))
+
+    const result = await fetchKline('1.600000', 'intraday', undefined, 'test')
+
+    expect(netFetch.mock.calls.map(([url]) => new URL(url).hostname)).toEqual([
+      'push2.eastmoney.com',
+      'push2delay.eastmoney.com',
+      'ifzq.gtimg.cn'
+    ])
+    expect(new URL(netFetch.mock.calls[2][0]).searchParams.get('param')).toContain(',m1,,480')
+    expect(result).toMatchObject({ source: 'tencent', intervalMinutes: 1 })
+  })
+
+  it('uses Sina one-minute data last for A shares', async () => {
+    netFetch
+      .mockResolvedValueOnce(jsonResponse({ data: null }))
+      .mockResolvedValueOnce(jsonResponse({ data: null }))
+      .mockResolvedValueOnce(jsonResponse({ code: 1, msg: '腾讯分时不可用' }))
+      .mockResolvedValueOnce(jsonResponse(sinaMinutePayload()))
+
+    const result = await fetchKline('1.600000', 'intraday', undefined, 'test')
+
+    expect(netFetch.mock.calls.map(([url]) => new URL(url).hostname)).toEqual([
+      'push2.eastmoney.com',
+      'push2delay.eastmoney.com',
+      'ifzq.gtimg.cn',
+      'quotes.sina.cn'
+    ])
+    expect(result).toMatchObject({ source: 'sina', intervalMinutes: 1 })
+    expect(result.bars[0].volume).toBe(100)
+  })
+
+  it('uses the Tencent minute endpoint for Hong Kong stocks', async () => {
+    netFetch
+      .mockResolvedValueOnce(jsonResponse({ data: null }))
+      .mockResolvedValueOnce(jsonResponse({ data: null }))
+      .mockResolvedValueOnce(jsonResponse(tencentGlobalMinutePayload()))
+
+    const result = await fetchKline('116.00700', 'intraday', undefined, 'test')
+
+    expect(netFetch.mock.calls.map(([url]) => new URL(url).hostname)).toEqual([
+      'push2.eastmoney.com',
+      'push2delay.eastmoney.com',
+      'web.ifzq.gtimg.cn'
+    ])
+    expect(result).toMatchObject({
+      name: '腾讯控股',
+      source: 'tencent',
+      intervalMinutes: 1
+    })
+    expect(result.bars[1]).toMatchObject({ volume: 500, amount: 222500 })
+  })
+
+  it('keeps the five-minute fallback after every one-minute source fails', async () => {
+    netFetch
+      .mockResolvedValueOnce(jsonResponse({ data: null }))
+      .mockResolvedValueOnce(jsonResponse({ data: null }))
+      .mockResolvedValueOnce(jsonResponse({ code: 1, msg: '腾讯分时不可用' }))
+      .mockResolvedValueOnce(
+        jsonResponse({ result: { status: { code: 1, msg: '新浪分时不可用' } } })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            name: '测试股票',
+            klines: [
+              '2026-08-27 15:00,9.90,10.00,10.10,9.80,100,100000,0,0,0,1.00',
+              '2026-08-28 09:30,10.00,10.10,10.20,9.90,200,202000,0,0,0,1.10'
+            ]
+          }
+        })
+      )
+
+    const result = await fetchKline('1.600000', 'intraday', undefined, 'test')
+
+    expect(netFetch.mock.calls.map(([url]) => new URL(url).hostname)).toEqual([
+      'push2.eastmoney.com',
+      'push2delay.eastmoney.com',
+      'ifzq.gtimg.cn',
+      'quotes.sina.cn',
+      'push2his.eastmoney.com'
+    ])
+    expect(result).toMatchObject({ source: 'eastmoney-primary', intervalMinutes: 5 })
+    expect(result.bars).toHaveLength(1)
+    expect(result.fallbackReason).toContain('1分钟分时数据源均不可用')
+  })
+})
 
 describe('searchStocks', () => {
   beforeEach(() => {
