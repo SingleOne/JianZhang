@@ -2292,7 +2292,10 @@ export const DEFAULT_T_PLAN_SETTINGS: TPlanDefaultSettings = {
   }))
 }
 
+export type AppThemePreference = 'system' | 'light' | 'dark'
+
 export interface AppSettings {
+  theme: AppThemePreference
   priorityRefreshSeconds: number
   regularRefreshSeconds: number
   marketIndexIds: MarketIndexId[]
@@ -2311,6 +2314,7 @@ export interface AppSettings {
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
+  theme: 'system',
   priorityRefreshSeconds: 5,
   regularRefreshSeconds: 10,
   marketIndexIds: [...DEFAULT_MARKET_INDEX_IDS],
@@ -2517,6 +2521,7 @@ export function normalizeAppSettings(
       ? legacyRefreshSeconds
       : DEFAULT_APP_SETTINGS.regularRefreshSeconds
   return {
+    theme: settings?.theme === 'light' || settings?.theme === 'dark' ? settings.theme : 'system',
     priorityRefreshSeconds: Math.min(
       300,
       Math.max(3, settings?.priorityRefreshSeconds ?? DEFAULT_APP_SETTINGS.priorityRefreshSeconds)

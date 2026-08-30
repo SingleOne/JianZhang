@@ -1633,180 +1633,211 @@
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  .ai-assistant-drawer,
-  .ai-chat-main,
-  .ai-drawer-header,
-  .ai-composer,
-  .ai-analysis-panel,
-  .ai-t-panel {
-    color: #dbe5f0;
-    background: #182231;
-    border-color: #4b4538;
-  }
-  .ai-conversation-list {
-    background: #202c3c;
-    border-color: #344357;
-  }
-  .ai-drawer-header strong,
-  .ai-chat-heading h2,
-  .ai-settings-panel h2,
-  .ai-analysis-panel > header h3,
-  .ai-t-heading h3,
-  .ai-t-empty strong,
-  .ai-t-disabled strong,
-  .ai-t-loading strong,
-  .ai-analysis-summary strong,
-  .ai-analysis-facts strong,
-  .ai-analysis-news strong,
-  .ai-t-metrics strong {
-    color: #eef4fb;
-  }
-  .ai-conversation-search,
-  .ai-conversation-search input,
-  .ai-conversation-item:hover,
-  .ai-settings-toggle,
-  .ai-credential-card,
-  .ai-settings-fields input,
-  .ai-settings-fields select,
-  .ai-credential-actions input,
-  .ai-composer textarea,
-  .ai-mention-picker,
-  .ai-mention-open,
-  .ai-analysis-mode-tabs button,
-  .ai-analysis-summary,
-  .ai-analysis-facts article,
-  .ai-analysis-news article,
-  .ai-long-term-dimensions article,
-  .ai-t-advice-card {
-    color: #dbe5f0;
-    background: #202d3d;
-    border-color: #4a4b49;
-  }
-  .ai-result-time-banner {
-    color: #b9d1f5;
-    background: linear-gradient(90deg, #243a5a, #223044);
-    border-color: #3d5f8d;
-  }
-  .ai-result-time-banner > strong {
-    color: #8bb9ff;
-  }
-  .ai-result-time-banner > small {
-    color: #a7b8cf;
-  }
-  .ai-result-time-banner.is-t-advice {
-    color: #f0d39a;
-    background: linear-gradient(90deg, #46391f, #302d27);
-    border-color: #6f5930;
-  }
-  .ai-result-time-banner.is-t-advice > strong {
-    color: #ffc45c;
-  }
-  .ai-result-time-banner.is-t-advice > small {
-    color: #d5c19d;
-  }
-  .ai-result-time-banner.is-long-term {
-    color: #c2dcb9;
-    background: linear-gradient(90deg, #2b422b, #263528);
-    border-color: #49684a;
-  }
-  .ai-result-time-banner.is-long-term > strong {
-    color: #9bd58d;
-  }
-  .ai-result-time-banner.is-long-term > small {
-    color: #b1c5aa;
-  }
-  .ai-analysis-mode-tabs button.is-active {
-    color: #b8d5f7;
-    background: #294261;
-    border-color: #486b96;
-    box-shadow: inset 0 0 0 1px #355579;
-  }
-  .ai-long-term-dimensions article.is-valuation,
-  .ai-long-term-dimensions article.is-priceTiming,
-  .ai-long-term-dimensions article.is-currentPrice {
-    background: #3a3324;
-    border-color: #655633;
-  }
-  .ai-long-term-dimensions strong {
-    color: #c2deb9;
-  }
-  .ai-long-term-dimensions article.is-valuation strong,
-  .ai-long-term-dimensions article.is-priceTiming strong,
-  .ai-long-term-dimensions article.is-currentPrice strong {
-    color: #efd083;
-  }
-  .ai-long-term-dimensions p {
-    color: #c4d0c0;
-  }
-  .ai-long-term-dimensions small {
-    color: #aab8a6;
-  }
-  .ai-long-term-conclusions article {
-    background: #253348;
-    border-color: #4a4b49;
-  }
-  .ai-long-term-conclusions article > span,
-  .ai-long-term-conclusions article > p {
-    color: #aab8c8;
-  }
-  .ai-long-term-conclusions article > strong {
-    color: #dbe5f0;
-  }
-  .ai-t-metrics > div {
-    color: #dbe5f0;
-    background: #253348;
-    border-color: #4a4b49;
-  }
-  .ai-t-reason-grid section {
-    background: #253348;
-    border-color: #3b4b60;
-  }
-  .ai-t-reason-grid section.is-risk {
-    background: #3a3022;
-    border-color: #604f31;
-  }
-  .ai-t-history article {
-    color: #d5dfeb;
-    background: rgba(37, 51, 72, 0.72);
-  }
-  .ai-message-content > p {
-    color: #d6e1ee;
-    background: #253348;
-    border-color: #3b4b60;
-  }
-  .ai-message-meta span,
-  .ai-analysis-summary p,
-  .ai-analysis-facts p,
-  .ai-analysis-news p {
-    color: #c0cede;
-  }
-  .ai-context-chip {
-    color: #b9d2f5;
-    background: #253b58;
-    border-color: #3c587d;
-  }
-  .ai-context-chip.is-disabled {
-    color: #929dac;
-    background: #293441;
-    border-color: #3b4858;
-  }
-  .ai-context-chip.is-mention {
-    color: #8edcca;
-    background: #203f3b;
-    border-color: #34655c;
-  }
-  .ai-mention-picker > button {
-    color: #d5dfeb;
-  }
-  .ai-mention-picker > button:hover,
-  .ai-mention-picker > button.is-active {
-    color: #b9d2ff;
-    background: #29466d;
-  }
-  .ai-chat-heading,
-  .ai-composer,
-  .ai-generation-controls {
-    border-color: #344357;
-  }
+:root[data-theme='dark'] .ai-assistant-drawer,
+:root[data-theme='dark'] .ai-chat-main,
+:root[data-theme='dark'] .ai-drawer-header,
+:root[data-theme='dark'] .ai-composer,
+:root[data-theme='dark'] .ai-analysis-panel,
+:root[data-theme='dark'] .ai-t-panel {
+  color: #dbe5f0;
+  background: #182231;
+  border-color: #4b4538;
+}
+
+:root[data-theme='dark'] .ai-conversation-list {
+  background: #202c3c;
+  border-color: #344357;
+}
+
+:root[data-theme='dark'] .ai-drawer-header strong,
+:root[data-theme='dark'] .ai-chat-heading h2,
+:root[data-theme='dark'] .ai-settings-panel h2,
+:root[data-theme='dark'] .ai-analysis-panel > header h3,
+:root[data-theme='dark'] .ai-t-heading h3,
+:root[data-theme='dark'] .ai-t-empty strong,
+:root[data-theme='dark'] .ai-t-disabled strong,
+:root[data-theme='dark'] .ai-t-loading strong,
+:root[data-theme='dark'] .ai-analysis-summary strong,
+:root[data-theme='dark'] .ai-analysis-facts strong,
+:root[data-theme='dark'] .ai-analysis-news strong,
+:root[data-theme='dark'] .ai-t-metrics strong {
+  color: #eef4fb;
+}
+
+:root[data-theme='dark'] .ai-conversation-search,
+:root[data-theme='dark'] .ai-conversation-search input,
+:root[data-theme='dark'] .ai-conversation-item:hover,
+:root[data-theme='dark'] .ai-settings-toggle,
+:root[data-theme='dark'] .ai-credential-card,
+:root[data-theme='dark'] .ai-settings-fields input,
+:root[data-theme='dark'] .ai-settings-fields select,
+:root[data-theme='dark'] .ai-credential-actions input,
+:root[data-theme='dark'] .ai-composer textarea,
+:root[data-theme='dark'] .ai-mention-picker,
+:root[data-theme='dark'] .ai-mention-open,
+:root[data-theme='dark'] .ai-analysis-mode-tabs button,
+:root[data-theme='dark'] .ai-analysis-summary,
+:root[data-theme='dark'] .ai-analysis-facts article,
+:root[data-theme='dark'] .ai-analysis-news article,
+:root[data-theme='dark'] .ai-long-term-dimensions article,
+:root[data-theme='dark'] .ai-t-advice-card {
+  color: #dbe5f0;
+  background: #202d3d;
+  border-color: #4a4b49;
+}
+
+:root[data-theme='dark'] .ai-result-time-banner {
+  color: #b9d1f5;
+  background: linear-gradient(90deg, #243a5a, #223044);
+  border-color: #3d5f8d;
+}
+
+:root[data-theme='dark'] .ai-result-time-banner > strong {
+  color: #8bb9ff;
+}
+
+:root[data-theme='dark'] .ai-result-time-banner > small {
+  color: #a7b8cf;
+}
+
+:root[data-theme='dark'] .ai-result-time-banner.is-t-advice {
+  color: #f0d39a;
+  background: linear-gradient(90deg, #46391f, #302d27);
+  border-color: #6f5930;
+}
+
+:root[data-theme='dark'] .ai-result-time-banner.is-t-advice > strong {
+  color: #ffc45c;
+}
+
+:root[data-theme='dark'] .ai-result-time-banner.is-t-advice > small {
+  color: #d5c19d;
+}
+
+:root[data-theme='dark'] .ai-result-time-banner.is-long-term {
+  color: #c2dcb9;
+  background: linear-gradient(90deg, #2b422b, #263528);
+  border-color: #49684a;
+}
+
+:root[data-theme='dark'] .ai-result-time-banner.is-long-term > strong {
+  color: #9bd58d;
+}
+
+:root[data-theme='dark'] .ai-result-time-banner.is-long-term > small {
+  color: #b1c5aa;
+}
+
+:root[data-theme='dark'] .ai-analysis-mode-tabs button.is-active {
+  color: #b8d5f7;
+  background: #294261;
+  border-color: #486b96;
+  box-shadow: inset 0 0 0 1px #355579;
+}
+
+:root[data-theme='dark'] .ai-long-term-dimensions article.is-valuation,
+:root[data-theme='dark'] .ai-long-term-dimensions article.is-priceTiming,
+:root[data-theme='dark'] .ai-long-term-dimensions article.is-currentPrice {
+  background: #3a3324;
+  border-color: #655633;
+}
+
+:root[data-theme='dark'] .ai-long-term-dimensions strong {
+  color: #c2deb9;
+}
+
+:root[data-theme='dark'] .ai-long-term-dimensions article.is-valuation strong,
+:root[data-theme='dark'] .ai-long-term-dimensions article.is-priceTiming strong,
+:root[data-theme='dark'] .ai-long-term-dimensions article.is-currentPrice strong {
+  color: #efd083;
+}
+
+:root[data-theme='dark'] .ai-long-term-dimensions p {
+  color: #c4d0c0;
+}
+
+:root[data-theme='dark'] .ai-long-term-dimensions small {
+  color: #aab8a6;
+}
+
+:root[data-theme='dark'] .ai-long-term-conclusions article {
+  background: #253348;
+  border-color: #4a4b49;
+}
+
+:root[data-theme='dark'] .ai-long-term-conclusions article > span,
+:root[data-theme='dark'] .ai-long-term-conclusions article > p {
+  color: #aab8c8;
+}
+
+:root[data-theme='dark'] .ai-long-term-conclusions article > strong {
+  color: #dbe5f0;
+}
+
+:root[data-theme='dark'] .ai-t-metrics > div {
+  color: #dbe5f0;
+  background: #253348;
+  border-color: #4a4b49;
+}
+
+:root[data-theme='dark'] .ai-t-reason-grid section {
+  background: #253348;
+  border-color: #3b4b60;
+}
+
+:root[data-theme='dark'] .ai-t-reason-grid section.is-risk {
+  background: #3a3022;
+  border-color: #604f31;
+}
+
+:root[data-theme='dark'] .ai-t-history article {
+  color: #d5dfeb;
+  background: rgba(37, 51, 72, 0.72);
+}
+
+:root[data-theme='dark'] .ai-message-content > p {
+  color: #d6e1ee;
+  background: #253348;
+  border-color: #3b4b60;
+}
+
+:root[data-theme='dark'] .ai-message-meta span,
+:root[data-theme='dark'] .ai-analysis-summary p,
+:root[data-theme='dark'] .ai-analysis-facts p,
+:root[data-theme='dark'] .ai-analysis-news p {
+  color: #c0cede;
+}
+
+:root[data-theme='dark'] .ai-context-chip {
+  color: #b9d2f5;
+  background: #253b58;
+  border-color: #3c587d;
+}
+
+:root[data-theme='dark'] .ai-context-chip.is-disabled {
+  color: #929dac;
+  background: #293441;
+  border-color: #3b4858;
+}
+
+:root[data-theme='dark'] .ai-context-chip.is-mention {
+  color: #8edcca;
+  background: #203f3b;
+  border-color: #34655c;
+}
+
+:root[data-theme='dark'] .ai-mention-picker > button {
+  color: #d5dfeb;
+}
+
+:root[data-theme='dark'] .ai-mention-picker > button:hover,
+:root[data-theme='dark'] .ai-mention-picker > button.is-active {
+  color: #b9d2ff;
+  background: #29466d;
+}
+
+:root[data-theme='dark'] .ai-chat-heading,
+:root[data-theme='dark'] .ai-composer,
+:root[data-theme='dark'] .ai-generation-controls {
+  border-color: #344357;
 }

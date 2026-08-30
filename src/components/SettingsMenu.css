@@ -807,7 +807,49 @@
 
 .setting-row small {
   color: #8a94a6;
-  font-size: 11px;
+  font-size: 12px;
+}
+
+.theme-setting-row {
+  align-items: center;
+}
+
+.theme-option-group {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 3px;
+  background: #f1f4f8;
+  border: 1px solid #e5e9f0;
+  border-radius: 8px;
+}
+
+.theme-option-group button {
+  min-width: 78px;
+  height: 31px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 8px;
+  color: #667085;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.theme-option-group button:hover {
+  color: #344054;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.theme-option-group button.is-selected {
+  color: var(--blue);
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.14);
 }
 
 .market-insight-setting-row small {

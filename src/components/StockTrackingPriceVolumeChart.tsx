@@ -13,6 +13,7 @@ import {
   type UTCTimestamp
 } from 'lightweight-charts'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useResolvedAppTheme } from '../hooks/useResolvedAppTheme'
 import { formatAmount, formatPercent, formatPrice, formatVolume } from '../lib/format'
 import {
   CTRL_WHEEL_HANDLE_SCALE,
@@ -29,6 +30,7 @@ import {
   stockTrackingPriceVolumeDivergence,
   stockTrackingPriceVolumeState
 } from '../lib/stock-tracking-metrics'
+import { getChartThemeColors, type ChartThemeColors } from '../lib/theme'
 import type { StockMarket, StockTrackingMetricSnapshot } from '../shared/types'
 import { volumeUnitForMarket } from '../shared/stock-market'
 
@@ -38,15 +40,15 @@ interface StockTrackingPriceVolumeChartProps {
 }
 
 const PRICE_AVERAGES = [
-  { period: 5, metricId: STOCK_TRACKING_PRICE_AVERAGE_METRICS[5], color: '#dc3742' },
-  { period: 10, metricId: STOCK_TRACKING_PRICE_AVERAGE_METRICS[10], color: '#d97706' },
-  { period: 20, metricId: STOCK_TRACKING_PRICE_AVERAGE_METRICS[20], color: '#3f7fd3' }
+  { period: 5, metricId: STOCK_TRACKING_PRICE_AVERAGE_METRICS[5], colorKey: 'red' },
+  { period: 10, metricId: STOCK_TRACKING_PRICE_AVERAGE_METRICS[10], colorKey: 'amber' },
+  { period: 20, metricId: STOCK_TRACKING_PRICE_AVERAGE_METRICS[20], colorKey: 'accent' }
 ] as const
 
 const VOLUME_AVERAGES = [
-  { period: 5, metricId: STOCK_TRACKING_VOLUME_AVERAGE_METRICS[5], color: '#e87982' },
-  { period: 10, metricId: STOCK_TRACKING_VOLUME_AVERAGE_METRICS[10], color: '#e7a846' },
-  { period: 20, metricId: STOCK_TRACKING_VOLUME_AVERAGE_METRICS[20], color: '#77a2dc' }
+  { period: 5, metricId: STOCK_TRACKING_VOLUME_AVERAGE_METRICS[5], colorKey: 'red' },
+  { period: 10, metricId: STOCK_TRACKING_VOLUME_AVERAGE_METRICS[10], colorKey: 'amber' },
+  { period: 20, metricId: STOCK_TRACKING_VOLUME_AVERAGE_METRICS[20], colorKey: 'accent' }
 ] as const
 
 function toTimestamp(value: string): UTCTimestamp {
@@ -65,7 +67,10 @@ function directionClass(value: number | undefined): string {
   return value > 0 ? 'is-up' : 'is-down'
 }
 
-function stateMarker(snapshot: StockTrackingMetricSnapshot): SeriesMarker<Time> | null {
+function stateMarker(
+  snapshot: StockTrackingMetricSnapshot,
+  theme: ChartThemeColors
+): SeriesMarker<Time> | null {
   const time = toTimestamp(snapshot.tradingDate)
   const divergence = stockTrackingPriceVolumeDivergence(snapshot)
   if (divergence) {
@@ -73,7 +78,7 @@ function stateMarker(snapshot: StockTrackingMetricSnapshot): SeriesMarker<Time> 
       time,
       position: 'aboveBar',
       shape: 'arrowDown',
-      color: '#7c3aed',
+      color: theme.purple,
       text: STOCK_TRACKING_PRICE_VOLUME_DIVERGENCE_LABELS[divergence],
       size: 1
     }
@@ -93,18 +98,7 @@ function stateMarker(snapshot: StockTrackingMetricSnapshot): SeriesMarker<Time> 
     time,
     position: rising ? 'belowBar' : 'aboveBar',
     shape: expanded ? (rising ? 'arrowUp' : 'arrowDown') : 'circle',
-    color:
-      state === 'volumeSurgePriceRise'
-        ? '#a80f1e'
-        : state === 'volumeSurgePriceFall'
-          ? '#086841'
-          : state === 'volumeRisePriceRise'
-            ? '#dc3742'
-            : state === 'volumeRisePriceFall'
-              ? '#189266'
-              : state === 'volumeFallPriceRise'
-                ? '#d97706'
-                : '#3f7fd3',
+    color: rising ? (expanded ? theme.red : theme.amber) : expanded ? theme.green : theme.accent,
     text: STOCK_TRACKING_PRICE_VOLUME_STATE_LABELS[state],
     size: 0.8
   }
@@ -124,6 +118,7 @@ export default function StockTrackingPriceVolumeChart({
   const setMarkersRef = useRef<(markers: SeriesMarker<Time>[]) => void>(() => {})
   const snapshotsByTimeRef = useRef(new Map<UTCTimestamp, StockTrackingMetricSnapshot>())
   const [hoveredSnapshot, setHoveredSnapshot] = useState<StockTrackingMetricSnapshot | null>(null)
+  const resolvedTheme = useResolvedAppTheme()
   const chartSnapshots = useMemo(
     () =>
       [...snapshots]
@@ -132,6 +127,7 @@ export default function StockTrackingPriceVolumeChart({
     [snapshots]
   )
   const displayedSnapshot = hoveredSnapshot ?? chartSnapshots.at(-1)
+  const legendTheme = getChartThemeColors(resolvedTheme)
   const displayedMetrics = displayedSnapshot?.metrics
   const displayedState = stockTrackingPriceVolumeState(displayedSnapshot)
   snapshotsByTimeRef.current = new Map(
@@ -141,25 +137,26 @@ export default function StockTrackingPriceVolumeChart({
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
+    const theme = getChartThemeColors(resolvedTheme)
     const chart = createChart(container, {
       width: container.clientWidth,
       height: 350,
       layout: {
-        background: { type: ColorType.Solid, color: '#ffffff' },
-        textColor: '#64748b',
+        background: { type: ColorType.Solid, color: theme.background },
+        textColor: theme.text,
         fontFamily: 'Segoe UI, Microsoft YaHei, sans-serif',
         fontSize: 12
       },
       grid: {
-        vertLines: { color: '#edf1f7' },
-        horzLines: { color: '#edf1f7' }
+        vertLines: { color: theme.grid },
+        horzLines: { color: theme.grid }
       },
       rightPriceScale: {
-        borderColor: '#e2e8f0',
+        borderColor: theme.border,
         scaleMargins: { top: 0.1, bottom: 0.3 }
       },
       timeScale: {
-        borderColor: '#e2e8f0',
+        borderColor: theme.border,
         rightOffset: 1,
         barSpacing: 8,
         fixRightEdge: true,
@@ -169,8 +166,8 @@ export default function StockTrackingPriceVolumeChart({
       handleScale: CTRL_WHEEL_HANDLE_SCALE,
       crosshair: {
         mode: CrosshairMode.Normal,
-        vertLine: { color: '#94a3b8', width: 1, labelBackgroundColor: '#334155' },
-        horzLine: { color: '#94a3b8', width: 1, labelBackgroundColor: '#334155' }
+        vertLine: { color: theme.text, width: 1, labelBackgroundColor: theme.border },
+        horzLine: { color: theme.text, width: 1, labelBackgroundColor: theme.border }
       },
       localization: {
         timeFormatter: dateLabel,
@@ -180,7 +177,7 @@ export default function StockTrackingPriceVolumeChart({
     chartRef.current = chart
 
     const closeSeries = chart.addSeries(LineSeries, {
-      color: '#334155',
+      color: theme.text,
       lineWidth: 2,
       priceLineVisible: true,
       lastValueVisible: true,
@@ -194,7 +191,7 @@ export default function StockTrackingPriceVolumeChart({
     priceAverageSeriesRef.current = priceAverageSeries
     for (const definition of PRICE_AVERAGES) {
       const series = chart.addSeries(LineSeries, {
-        color: definition.color,
+        color: theme[definition.colorKey],
         lineWidth: 1,
         lineStyle: LineStyle.Dashed,
         priceLineVisible: false,
@@ -217,7 +214,7 @@ export default function StockTrackingPriceVolumeChart({
     volumeAverageSeriesRef.current = volumeAverageSeries
     for (const definition of VOLUME_AVERAGES) {
       const series = chart.addSeries(LineSeries, {
-        color: definition.color,
+        color: theme[definition.colorKey],
         lineWidth: 1,
         priceScaleId: 'volume',
         priceFormat: { type: 'volume' },
@@ -255,9 +252,10 @@ export default function StockTrackingPriceVolumeChart({
       chartRef.current = null
       setMarkersRef.current = () => {}
     }
-  }, [])
+  }, [resolvedTheme])
 
   useEffect(() => {
+    const theme = getChartThemeColors(resolvedTheme)
     closeSeriesRef.current?.setData(
       chartSnapshots.map((snapshot) => ({
         time: toTimestamp(snapshot.tradingDate),
@@ -270,8 +268,8 @@ export default function StockTrackingPriceVolumeChart({
         value: snapshot.metrics[STOCK_TRACKING_BASE_METRICS.volume] ?? 0,
         color:
           (snapshot.metrics[STOCK_TRACKING_BASE_METRICS.changePercent] ?? 0) >= 0
-            ? 'rgba(220, 55, 66, 0.52)'
-            : 'rgba(24, 146, 102, 0.52)'
+            ? `${theme.red}85`
+            : `${theme.green}85`
       }))
     )
     for (const definition of PRICE_AVERAGES) {
@@ -292,7 +290,7 @@ export default function StockTrackingPriceVolumeChart({
     }
     setMarkersRef.current(
       chartSnapshots.slice(-120).flatMap((snapshot) => {
-        const marker = stateMarker(snapshot)
+        const marker = stateMarker(snapshot, theme)
         return marker ? [marker] : []
       })
     )
@@ -303,7 +301,7 @@ export default function StockTrackingPriceVolumeChart({
         to: lastIndex + 1
       })
     }
-  }, [chartSnapshots])
+  }, [chartSnapshots, resolvedTheme])
 
   return (
     <div className="stock-tracking-metrics-chart stock-tracking-price-volume-chart">
@@ -332,7 +330,7 @@ export default function StockTrackingPriceVolumeChart({
       </div>
       <div className="stock-tracking-price-average-legend">
         {PRICE_AVERAGES.map((definition) => (
-          <span style={{ color: definition.color }} key={definition.period}>
+          <span style={{ color: legendTheme[definition.colorKey] }} key={definition.period}>
             MA{definition.period} {formatPrice(displayedMetrics?.[definition.metricId] ?? null)}
           </span>
         ))}

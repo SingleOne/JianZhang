@@ -10,12 +10,14 @@ import {
   type UTCTimestamp
 } from 'lightweight-charts'
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useResolvedAppTheme } from '../hooks/useResolvedAppTheme'
 import {
   CTRL_WHEEL_HANDLE_SCALE,
   CTRL_WHEEL_HANDLE_SCROLL,
   enableCtrlWheelZoom
 } from '../lib/lightweight-chart-interactions'
 import { STOCK_TRACKING_VOLUME_RATIO_METRICS } from '../lib/stock-tracking-metrics'
+import { getChartThemeColors } from '../lib/theme'
 import type { StockTrackingMetricSnapshot } from '../shared/types'
 
 interface StockTrackingMetricsChartProps {
@@ -23,9 +25,9 @@ interface StockTrackingMetricsChartProps {
 }
 
 const SERIES = [
-  { period: 5, metricId: STOCK_TRACKING_VOLUME_RATIO_METRICS[5], color: '#dc3742' },
-  { period: 10, metricId: STOCK_TRACKING_VOLUME_RATIO_METRICS[10], color: '#d97706' },
-  { period: 20, metricId: STOCK_TRACKING_VOLUME_RATIO_METRICS[20], color: '#3f7fd3' }
+  { period: 5, metricId: STOCK_TRACKING_VOLUME_RATIO_METRICS[5], colorKey: 'red' },
+  { period: 10, metricId: STOCK_TRACKING_VOLUME_RATIO_METRICS[10], colorKey: 'amber' },
+  { period: 20, metricId: STOCK_TRACKING_VOLUME_RATIO_METRICS[20], colorKey: 'accent' }
 ] as const
 
 function toTimestamp(value: string): UTCTimestamp {
@@ -49,11 +51,13 @@ export default function StockTrackingMetricsChart({ snapshots }: StockTrackingMe
   const seriesRef = useRef(new Map<string, ISeriesApi<'Line'>>())
   const snapshotsByTimeRef = useRef(new Map<UTCTimestamp, StockTrackingMetricSnapshot>())
   const [hoveredSnapshot, setHoveredSnapshot] = useState<StockTrackingMetricSnapshot | null>(null)
+  const resolvedTheme = useResolvedAppTheme()
   const chartSnapshots = useMemo(
     () => [...snapshots].sort((left, right) => left.tradingDate.localeCompare(right.tradingDate)),
     [snapshots]
   )
   const displayedSnapshot = hoveredSnapshot ?? chartSnapshots.at(-1)
+  const legendTheme = getChartThemeColors(resolvedTheme)
   snapshotsByTimeRef.current = new Map(
     chartSnapshots.map((snapshot) => [toTimestamp(snapshot.tradingDate), snapshot])
   )
@@ -61,25 +65,26 @@ export default function StockTrackingMetricsChart({ snapshots }: StockTrackingMe
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
+    const theme = getChartThemeColors(resolvedTheme)
     const chart = createChart(container, {
       width: container.clientWidth,
       height: 250,
       layout: {
-        background: { type: ColorType.Solid, color: '#ffffff' },
-        textColor: '#64748b',
+        background: { type: ColorType.Solid, color: theme.background },
+        textColor: theme.text,
         fontFamily: 'Segoe UI, Microsoft YaHei, sans-serif',
         fontSize: 12
       },
       grid: {
-        vertLines: { color: '#edf1f7' },
-        horzLines: { color: '#edf1f7' }
+        vertLines: { color: theme.grid },
+        horzLines: { color: theme.grid }
       },
       rightPriceScale: {
-        borderColor: '#e2e8f0',
+        borderColor: theme.border,
         scaleMargins: { top: 0.14, bottom: 0.14 }
       },
       timeScale: {
-        borderColor: '#e2e8f0',
+        borderColor: theme.border,
         rightOffset: 1,
         barSpacing: 9,
         fixRightEdge: true,
@@ -89,8 +94,8 @@ export default function StockTrackingMetricsChart({ snapshots }: StockTrackingMe
       handleScale: CTRL_WHEEL_HANDLE_SCALE,
       crosshair: {
         mode: CrosshairMode.Normal,
-        vertLine: { color: '#94a3b8', width: 1, labelBackgroundColor: '#334155' },
-        horzLine: { color: '#94a3b8', width: 1, labelBackgroundColor: '#334155' }
+        vertLine: { color: theme.text, width: 1, labelBackgroundColor: theme.border },
+        horzLine: { color: theme.text, width: 1, labelBackgroundColor: theme.border }
       },
       localization: {
         timeFormatter: dateLabel,
@@ -103,7 +108,7 @@ export default function StockTrackingMetricsChart({ snapshots }: StockTrackingMe
 
     for (const definition of SERIES) {
       const series = chart.addSeries(LineSeries, {
-        color: definition.color,
+        color: theme[definition.colorKey],
         lineWidth: 2,
         priceFormat: { type: 'custom', formatter: (value: number) => `${value.toFixed(2)}x` },
         priceLineVisible: false,
@@ -114,7 +119,7 @@ export default function StockTrackingMetricsChart({ snapshots }: StockTrackingMe
     }
     seriesByMetric.get(STOCK_TRACKING_VOLUME_RATIO_METRICS[20])?.createPriceLine({
       price: 1,
-      color: '#94a3b8',
+      color: theme.text,
       lineWidth: 1,
       lineStyle: LineStyle.Dashed,
       axisLabelVisible: true,
@@ -144,7 +149,7 @@ export default function StockTrackingMetricsChart({ snapshots }: StockTrackingMe
       chart.remove()
       chartRef.current = null
     }
-  }, [])
+  }, [resolvedTheme])
 
   useEffect(() => {
     for (const definition of SERIES) {
@@ -156,7 +161,7 @@ export default function StockTrackingMetricsChart({ snapshots }: StockTrackingMe
       )
     }
     chartRef.current?.timeScale().fitContent()
-  }, [chartSnapshots])
+  }, [chartSnapshots, resolvedTheme])
 
   return (
     <div className="stock-tracking-metrics-chart">
@@ -164,7 +169,7 @@ export default function StockTrackingMetricsChart({ snapshots }: StockTrackingMe
         <strong>{displayedSnapshot?.tradingDate ?? '暂无日期'}</strong>
         {SERIES.map((definition) => (
           <span
-            style={{ '--metric-color': definition.color } as CSSProperties}
+            style={{ '--metric-color': legendTheme[definition.colorKey] } as CSSProperties}
             key={definition.period}
           >
             {definition.period}日 {ratioText(displayedSnapshot?.metrics[definition.metricId])}

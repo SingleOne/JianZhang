@@ -101,22 +101,20 @@
   border-color: #b83240;
 }
 
-@media (prefers-color-scheme: dark) {
-  .confirm-dialog {
-    background: #1e2938;
-    border-color: #3b485a;
-  }
+:root[data-theme='dark'] .confirm-dialog {
+  background: #1e2938;
+  border-color: #3b485a;
+}
 
-  .confirm-dialog h2 {
-    color: #eef4fb;
-  }
+:root[data-theme='dark'] .confirm-dialog h2 {
+  color: #eef4fb;
+}
 
-  .confirm-dialog p {
-    color: #aebaca;
-  }
+:root[data-theme='dark'] .confirm-dialog p {
+  color: #aebaca;
+}
 
-  .confirm-dialog > footer {
-    background: #192332;
-    border-color: #354255;
-  }
+:root[data-theme='dark'] .confirm-dialog > footer {
+  background: #192332;
+  border-color: #354255;
 }

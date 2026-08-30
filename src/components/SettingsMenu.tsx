@@ -6,9 +6,12 @@ import {
   Eye,
   EyeOff,
   KeyRound,
+  Monitor,
+  Moon,
   RefreshCw,
   Sparkles,
   Settings2,
+  Sun,
   Upload
 } from 'lucide-react'
 import { lazy, Suspense, useState } from 'react'
@@ -17,6 +20,7 @@ import { STOCK_MARKET_LABELS } from '../shared/stock-market'
 import {
   MARKET_INDEX_OPTIONS,
   type AppSettings,
+  type AppThemePreference,
   type CacheCategoryId,
   type CacheSummary,
   type DataSnapshotRuntimeState,
@@ -24,6 +28,7 @@ import {
   type GitHubSyncSettings,
   type MarketIndexId
 } from '../shared/types'
+import { applyAppThemePreference } from '../lib/theme'
 
 const MarketInsightSettingsToggle = __JIANZHANG_MARKET_INSIGHT_ENABLED__
   ? lazy(() =>
@@ -86,6 +91,16 @@ const SETTINGS_TABS = [
 ] as const satisfies readonly { id: SettingsTab; label: string }[]
 
 const STOCK_MARKETS = ['CN', 'HK', 'US'] as const
+
+const THEME_OPTIONS = [
+  { value: 'system', label: '跟随系统', icon: Monitor },
+  { value: 'light', label: '浅色', icon: Sun },
+  { value: 'dark', label: '夜间', icon: Moon }
+] as const satisfies readonly {
+  value: AppThemePreference
+  label: string
+  icon: typeof Monitor
+}[]
 
 function GitHubIcon({ size }: { size: number }) {
   return (
@@ -715,6 +730,34 @@ export function SettingsMenu({
 
           {activeTab === 'system' ? (
             <>
+              <div className="setting-row theme-setting-row">
+                <span>
+                  <strong>界面主题</strong>
+                  <small>夜间模式使用深海军蓝背景，并保持红涨绿跌</small>
+                </span>
+                <div className="theme-option-group" role="radiogroup" aria-label="界面主题">
+                  {THEME_OPTIONS.map((option) => {
+                    const Icon = option.icon
+                    const selected = settings.theme === option.value
+                    return (
+                      <button
+                        className={selected ? 'is-selected' : ''}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        onClick={() => {
+                          applyAppThemePreference(option.value)
+                          onChange({ ...settings, theme: option.value })
+                        }}
+                        key={option.value}
+                      >
+                        <Icon size={14} />
+                        {option.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
               <label className="setting-row">
                 <span>
                   <strong>任务栏行情</strong>

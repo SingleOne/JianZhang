@@ -9,7 +9,9 @@ import {
   type UTCTimestamp
 } from 'lightweight-charts'
 import { useEffect, useRef, useState } from 'react'
+import { useResolvedAppTheme } from '../hooks/useResolvedAppTheme'
 import { formatAmount } from '../lib/format'
+import { getChartThemeColors } from '../lib/theme'
 import type { ShareholderCountPoint } from '../shared/types'
 
 function toTimestamp(value: string): UTCTimestamp {
@@ -34,31 +36,33 @@ export default function ShareholderCountChart({ points }: { points: ShareholderC
   const seriesRef = useRef<ISeriesApi<'Line'> | null>(null)
   const pointsByTimeRef = useRef(new Map<UTCTimestamp, ShareholderCountPoint>())
   const [hoveredPoint, setHoveredPoint] = useState<ShareholderCountPoint | null>(null)
+  const resolvedTheme = useResolvedAppTheme()
   const displayedPoint = hoveredPoint ?? points.at(-1)
   pointsByTimeRef.current = new Map(points.map((point) => [toTimestamp(point.reportDate), point]))
 
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
+    const theme = getChartThemeColors(resolvedTheme)
     const chart = createChart(container, {
       width: container.clientWidth,
       height: 230,
       layout: {
-        background: { type: ColorType.Solid, color: '#ffffff' },
-        textColor: '#64748b',
+        background: { type: ColorType.Solid, color: theme.background },
+        textColor: theme.text,
         fontFamily: 'Segoe UI, Microsoft YaHei, sans-serif',
         fontSize: 12
       },
       grid: {
-        vertLines: { color: '#edf1f7' },
-        horzLines: { color: '#edf1f7' }
+        vertLines: { color: theme.grid },
+        horzLines: { color: theme.grid }
       },
       rightPriceScale: {
-        borderColor: '#e2e8f0',
+        borderColor: theme.border,
         scaleMargins: { top: 0.16, bottom: 0.16 }
       },
       timeScale: {
-        borderColor: '#e2e8f0',
+        borderColor: theme.border,
         rightOffset: 1,
         barSpacing: 24,
         fixRightEdge: true,
@@ -66,8 +70,8 @@ export default function ShareholderCountChart({ points }: { points: ShareholderC
       },
       crosshair: {
         mode: CrosshairMode.Normal,
-        vertLine: { color: '#94a3b8', width: 1, labelBackgroundColor: '#334155' },
-        horzLine: { color: '#94a3b8', width: 1, labelBackgroundColor: '#334155' }
+        vertLine: { color: theme.text, width: 1, labelBackgroundColor: theme.border },
+        horzLine: { color: theme.text, width: 1, labelBackgroundColor: theme.border }
       },
       localization: {
         timeFormatter: dateLabel,
@@ -76,7 +80,7 @@ export default function ShareholderCountChart({ points }: { points: ShareholderC
     })
     chartRef.current = chart
     seriesRef.current = chart.addSeries(LineSeries, {
-      color: '#3f7fd3',
+      color: theme.accent,
       lineWidth: 2,
       priceFormat: {
         type: 'custom',
@@ -104,14 +108,14 @@ export default function ShareholderCountChart({ points }: { points: ShareholderC
       chartRef.current = null
       seriesRef.current = null
     }
-  }, [])
+  }, [resolvedTheme])
 
   useEffect(() => {
     seriesRef.current?.setData(
       points.map((point) => ({ time: toTimestamp(point.reportDate), value: point.holderCount }))
     )
     chartRef.current?.timeScale().fitContent()
-  }, [points])
+  }, [points, resolvedTheme])
 
   return (
     <div className="shareholder-count-chart">

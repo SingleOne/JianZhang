@@ -14,12 +14,14 @@ import {
   type UTCTimestamp
 } from 'lightweight-charts'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useResolvedAppTheme } from '../hooks/useResolvedAppTheme'
 import { formatPrice } from '../lib/format'
 import {
   CTRL_WHEEL_HANDLE_SCALE,
   CTRL_WHEEL_HANDLE_SCROLL,
   enableCtrlWheelZoom
 } from '../lib/lightweight-chart-interactions'
+import { getChartThemeColors, type ChartThemeColors } from '../lib/theme'
 import {
   BOLLINGER_MULTIPLIER,
   BOLLINGER_PERIOD,
@@ -77,7 +79,8 @@ function trackingDateMarkers(
   bars: readonly KlineBar[],
   startedAt: string | undefined,
   stoppedAt: string | undefined,
-  market: StockMarket
+  market: StockMarket,
+  theme: ChartThemeColors
 ): SeriesMarker<Time>[] {
   if (!startedAt || bars.length === 0) return []
 
@@ -93,7 +96,7 @@ function trackingDateMarkers(
         time: toTimestamp(startedBar.time),
         position: 'belowBar',
         shape: 'arrowUp',
-        color: '#2563eb',
+        color: theme.accent,
         text: '开始追踪',
         size: 1
       })
@@ -115,7 +118,7 @@ function trackingDateMarkers(
           time: toTimestamp(stoppedBar.time),
           position: 'aboveBar',
           shape: 'arrowDown',
-          color: '#d97706',
+          color: theme.amber,
           text: '结束追踪',
           size: 1
         })
@@ -171,6 +174,7 @@ export default function PeriodKlineChart({
   const trackingDatesRef = useRef({ startedAt: trackingStartedAt, stoppedAt: trackingStoppedAt })
   const bollingerBands = useMemo(() => calculateBollingerBands(bars), [bars])
   const [hoveredBollinger, setHoveredBollinger] = useState<BollingerBandPoint | null | undefined>()
+  const resolvedTheme = useResolvedAppTheme()
   const displayedBollinger =
     hoveredBollinger === undefined ? bollingerBands.at(-1) : hoveredBollinger
   barsRef.current = bars
@@ -185,26 +189,27 @@ export default function PeriodKlineChart({
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
+    const theme = getChartThemeColors(resolvedTheme)
 
     const chart = createChart(container, {
       width: container.clientWidth,
       height,
       layout: {
-        background: { type: ColorType.Solid, color: '#ffffff' },
-        textColor: '#64748b',
+        background: { type: ColorType.Solid, color: theme.background },
+        textColor: theme.text,
         fontFamily: 'Segoe UI, Microsoft YaHei, sans-serif',
         fontSize: 12
       },
       grid: {
-        vertLines: { color: '#edf1f7' },
-        horzLines: { color: '#edf1f7' }
+        vertLines: { color: theme.grid },
+        horzLines: { color: theme.grid }
       },
       rightPriceScale: {
-        borderColor: '#e2e8f0',
+        borderColor: theme.border,
         scaleMargins: { top: 0.16, bottom: 0.32 }
       },
       timeScale: {
-        borderColor: '#e2e8f0',
+        borderColor: theme.border,
         rightOffset: 0,
         barSpacing: period === 'monthly' ? 9 : 7,
         fixRightEdge: true,
@@ -215,8 +220,8 @@ export default function PeriodKlineChart({
       handleScale: ctrlWheelZoomOnly ? CTRL_WHEEL_HANDLE_SCALE : true,
       crosshair: {
         mode: CrosshairMode.Normal,
-        vertLine: { color: '#94a3b8', width: 1, labelBackgroundColor: '#334155' },
-        horzLine: { color: '#94a3b8', width: 1, labelBackgroundColor: '#334155' }
+        vertLine: { color: theme.text, width: 1, labelBackgroundColor: theme.border },
+        horzLine: { color: theme.text, width: 1, labelBackgroundColor: theme.border }
       },
       localization: {
         timeFormatter: (time: Time) => dateLabel(time, period),
@@ -226,12 +231,12 @@ export default function PeriodKlineChart({
     chartRef.current = chart
 
     const candles = chart.addSeries(CandlestickSeries, {
-      upColor: '#dc3742',
-      downColor: '#189266',
-      borderUpColor: '#dc3742',
-      borderDownColor: '#189266',
-      wickUpColor: '#dc3742',
-      wickDownColor: '#189266',
+      upColor: theme.red,
+      downColor: theme.green,
+      borderUpColor: theme.red,
+      borderDownColor: theme.green,
+      wickUpColor: theme.red,
+      wickDownColor: theme.green,
       priceLineVisible: true,
       lastValueVisible: true
     })
@@ -268,7 +273,7 @@ export default function PeriodKlineChart({
         position: 'atPriceTop',
         price: highestBar.high,
         shape: 'arrowDown',
-        color: '#dc3742',
+        color: theme.red,
         text: `最高 ${formatPrice(highestBar.high)}`,
         size: 1
       }
@@ -277,7 +282,7 @@ export default function PeriodKlineChart({
         position: 'atPriceBottom',
         price: lowestBar.low,
         shape: 'arrowUp',
-        color: '#189266',
+        color: theme.green,
         text: `最低 ${formatPrice(lowestBar.low)}`,
         size: 1
       }
@@ -289,7 +294,8 @@ export default function PeriodKlineChart({
         currentBars,
         trackingDatesRef.current.startedAt,
         trackingDatesRef.current.stoppedAt,
-        market
+        market,
+        theme
       )
       chartMarkers.setMarkers(
         [...extrema, ...trackingMarkers].sort(
@@ -321,21 +327,21 @@ export default function PeriodKlineChart({
     volumeRef.current = volume
 
     const bollingerUpper = chart.addSeries(LineSeries, {
-      color: '#d97706',
+      color: theme.amber,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: false,
       crosshairMarkerVisible: false
     })
     const bollingerMiddle = chart.addSeries(LineSeries, {
-      color: '#3f7fd3',
+      color: theme.accent,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: false,
       crosshairMarkerVisible: false
     })
     const bollingerLower = chart.addSeries(LineSeries, {
-      color: '#7c3aed',
+      color: theme.purple,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: false,
@@ -406,7 +412,7 @@ export default function PeriodKlineChart({
       reportVisibleRangeRef.current = () => {}
       updateMarkersRef.current = () => {}
     }
-  }, [ctrlWheelZoomOnly, height, market, period])
+  }, [ctrlWheelZoomOnly, height, market, period, resolvedTheme])
 
   useEffect(() => {
     setHoveredBollinger(undefined)
@@ -432,11 +438,12 @@ export default function PeriodKlineChart({
         close: bar.close
       }))
     )
+    const theme = getChartThemeColors(resolvedTheme)
     volume.setData(
       bars.map((bar) => ({
         time: toTimestamp(bar.time),
         value: bar.volume,
-        color: bar.close >= bar.open ? 'rgba(220, 55, 66, 0.34)' : 'rgba(24, 146, 102, 0.34)'
+        color: bar.close >= bar.open ? `${theme.red}57` : `${theme.green}57`
       }))
     )
 
@@ -450,7 +457,7 @@ export default function PeriodKlineChart({
     requestAnimationFrame(() => {
       isAligningRangeRef.current = false
     })
-  }, [bars, height, period])
+  }, [bars, height, period, resolvedTheme])
 
   useEffect(() => {
     const chart = chartRef.current
@@ -488,7 +495,7 @@ export default function PeriodKlineChart({
           }))
         : []
     )
-  }, [bollingerBands, bollingerBandsEnabled, height, period])
+  }, [bollingerBands, bollingerBandsEnabled, height, period, resolvedTheme])
 
   useEffect(() => {
     const chart = chartRef.current

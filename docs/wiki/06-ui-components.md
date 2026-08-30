@@ -99,7 +99,7 @@ App
 
 ### `SettingsMenu.tsx`
 
-一个 `<details>` 弹层，内部有行情、做 T、系统与数据三个标签。所有变更立即调用 `onChange`，由 `App` 保存完整设置。弹窗采用分类标签而不是单列长表单。
+一个 `<details>` 弹层，内部有行情、做 T、系统、数据四个标签。所有变更立即调用 `onChange`，由 `App` 保存完整设置。系统页提供跟随系统、浅色和夜间三种主题，选择后立即应用并同步持久化。弹窗采用分类标签而不是单列长表单。
 
 ### `FundamentalScreeningDialog.tsx`
 
@@ -135,14 +135,14 @@ App
 
 已提取的子职责：
 
-| 文件 | 职责 |
-| --- | --- |
-| `watchlist-table/WatchlistRow.tsx` | 单只股票指标计算、单元格、提醒标识、操作按钮和展开详情；使用 `React.memo` |
-| `watchlist-table/WatchlistFilters.tsx` | 表内搜索、分组/板块筛选和分组管理入口 |
-| `watchlist-table/FundamentalWatchlistOverview.tsx` | 当前列表价值组合、基本面状态、待核构成、风险统计、组合过滤及标签数排序 |
-| `PortfolioQualityDialog.tsx` | 全部持仓的价值与风险市值分布、行业集中度、组合筛选、快照状态、未计价说明和逐股定位 |
-| `watchlist-table/columns.ts` | 列元信息、排序值和列渲染模型 |
-| `watchlist-table/useDragReorder.ts` | 行拖拽状态和顺序更新 |
+| 文件                                               | 职责                                                                               |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `watchlist-table/WatchlistRow.tsx`                 | 单只股票指标计算、单元格、提醒标识、操作按钮和展开详情；使用 `React.memo`          |
+| `watchlist-table/WatchlistFilters.tsx`             | 表内搜索、分组/板块筛选和分组管理入口                                              |
+| `watchlist-table/FundamentalWatchlistOverview.tsx` | 当前列表价值组合、基本面状态、待核构成、风险统计、组合过滤及标签数排序             |
+| `PortfolioQualityDialog.tsx`                       | 全部持仓的价值与风险市值分布、行业集中度、组合筛选、快照状态、未计价说明和逐股定位 |
+| `watchlist-table/columns.ts`                       | 列元信息、排序值和列渲染模型                                                       |
+| `watchlist-table/useDragReorder.ts`                | 行拖拽状态和顺序更新                                                               |
 
 固定列关系：
 
@@ -349,8 +349,11 @@ App
 - `styles/app-feedback.css`
 - `TaskbarTicker.css`
 - `modules/ai/renderer/AiAssistantDrawer.css`
+- `styles/dark-theme.css`（最后加载的夜间模式覆盖层）
 
 当前未引入 CSS Modules，也未批量重命名现有 class。
+
+`AppThemeController` 将持久化主题同步到所有渲染窗口；“跟随系统”模式监听系统配色变化。启动阶段先读取本地轻量缓存应用 `data-theme`，避免等待完整状态时出现明显的浅色闪烁。Lightweight Charts 通过 `useResolvedAppTheme` 获取最终主题，并在主题变化时重建画布、重新装载数据。
 
 ### 基础变量
 
@@ -414,11 +417,11 @@ Lightweight Charts 实例保存在 ref 中，并在 effect cleanup 中：
 
 ## 新增组件的建议落点
 
-| 组件类型 | 目录/模式 |
-| --- | --- |
-| 纯展示小组件 | `src/components`，props 接收已计算数据 |
-| 可复用业务计算 | `src/lib` 纯函数 |
-| 主/渲染共享类型 | `src/shared/types.ts` |
-| 行情请求面板 | 参考 `FundsFlowPanel` 的缓存、旧数据和定时刷新 |
-| 新图表 | 参考现有 chart ref + ResizeObserver 生命周期 |
-| 新窗口模式 | `src/main.tsx` 分流 + `electron/main/window-manager.ts` 创建窗口 |
+| 组件类型        | 目录/模式                                                        |
+| --------------- | ---------------------------------------------------------------- |
+| 纯展示小组件    | `src/components`，props 接收已计算数据                           |
+| 可复用业务计算  | `src/lib` 纯函数                                                 |
+| 主/渲染共享类型 | `src/shared/types.ts`                                            |
+| 行情请求面板    | 参考 `FundsFlowPanel` 的缓存、旧数据和定时刷新                   |
+| 新图表          | 参考现有 chart ref + ResizeObserver 生命周期                     |
+| 新窗口模式      | `src/main.tsx` 分流 + `electron/main/window-manager.ts` 创建窗口 |

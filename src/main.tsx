@@ -5,6 +5,8 @@ import { TaskbarStockTooltip } from './components/TaskbarStockTooltip'
 import { TaskbarTicker } from './components/TaskbarTicker'
 import { TrayHoverSummary } from './components/TrayHoverSummary'
 import { ConfirmDialogProvider } from './components/ConfirmDialog'
+import { AppThemeController } from './components/AppThemeController'
+import { initializeAppTheme } from './lib/theme'
 import './styles.css'
 import './components/SettingsMenu.css'
 import './components/WatchlistTable.css'
@@ -22,6 +24,9 @@ import './components/StockTracking.css'
 import './styles/app-feedback.css'
 import './components/TaskbarTicker.css'
 import './modules/ai/renderer/AiAssistantDrawer.css'
+import './styles/dark-theme.css'
+
+initializeAppTheme()
 
 const windowMode = new URLSearchParams(window.location.search).get('mode')
 const taskbarMode = windowMode === 'taskbar'
@@ -34,6 +39,7 @@ document.documentElement.classList.toggle('tray-mode', trayMode)
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ConfirmDialogProvider>
+      <AppThemeController />
       {taskbarMode ? (
         <TaskbarTicker />
       ) : taskbarTooltipMode ? (

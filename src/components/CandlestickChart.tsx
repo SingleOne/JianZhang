@@ -15,7 +15,9 @@ import {
   type WhitespaceData
 } from 'lightweight-charts'
 import { useEffect, useRef } from 'react'
+import { useResolvedAppTheme } from '../hooks/useResolvedAppTheme'
 import { formatAmount, formatPrice, formatVolume } from '../lib/format'
+import { getChartThemeColors, type ChartThemeColors } from '../lib/theme'
 import type { KlineBar } from '../shared/types'
 import type { StockMarket } from '../shared/stock-market'
 import { volumeUnitForMarket } from '../shared/stock-market'
@@ -142,7 +144,8 @@ function intradayAverageData(
 
 function intradayVolumeData(
   slots: UTCTimestamp[],
-  barsByTime: Map<UTCTimestamp, KlineBar>
+  barsByTime: Map<UTCTimestamp, KlineBar>,
+  theme: ChartThemeColors
 ): VolumePoint[] {
   return slots.map((time) => {
     const bar = barsByTime.get(time)
@@ -151,15 +154,15 @@ function intradayVolumeData(
       time,
       value: bar.volume,
       color: isAuctionBar(bar)
-        ? 'rgba(139, 92, 246, 0.48)'
+        ? `${theme.purple}7a`
         : bar.close >= bar.open
-          ? 'rgba(220, 55, 66, 0.48)'
-          : 'rgba(24, 146, 102, 0.48)'
+          ? `${theme.red}7a`
+          : `${theme.green}7a`
     }
   })
 }
 
-function intradayExtremaMarkers(bars: KlineBar[]): SeriesMarker<Time>[] {
+function intradayExtremaMarkers(bars: KlineBar[], theme: ChartThemeColors): SeriesMarker<Time>[] {
   const regularBars = bars.filter(isRegularBar)
   if (regularBars.length === 0) return []
 
@@ -177,7 +180,7 @@ function intradayExtremaMarkers(bars: KlineBar[]): SeriesMarker<Time>[] {
     position: 'atPriceTop',
     price: highestBar.high,
     shape: 'arrowDown',
-    color: '#dc3742',
+    color: theme.red,
     text: `最高 ${formatPrice(highestBar.high)}`,
     size: 1
   }
@@ -186,7 +189,7 @@ function intradayExtremaMarkers(bars: KlineBar[]): SeriesMarker<Time>[] {
     position: 'atPriceBottom',
     price: lowestBar.low,
     shape: 'arrowUp',
-    color: '#189266',
+    color: theme.green,
     text: `最低 ${formatPrice(lowestBar.low)}`,
     size: 1
   }
@@ -212,6 +215,7 @@ export default function CandlestickChart({
   const isIntraday = variant !== 'fiveDay'
   const showAuction = variant === 'intraday' && market === 'CN'
   const volumeUnit = volumeUnitForMarket(market)
+  const resolvedTheme = useResolvedAppTheme()
 
   useEffect(() => {
     const priceContainer = priceContainerRef.current
@@ -220,6 +224,7 @@ export default function CandlestickChart({
     const volumeContainer = volumeContainerRef.current
     const chartBars = showAuction ? bars : bars.filter(isRegularBar)
     if (chartBars.length === 0) return
+    const theme = getChartThemeColors(resolvedTheme)
 
     const barsByTime = new Map(chartBars.map((bar) => [toTimestamp(bar.time), bar]))
     const sessionSlots = isIntraday ? intradaySessionSlots(chartBars, market, showAuction) : []
@@ -229,23 +234,23 @@ export default function CandlestickChart({
       width: priceContainer.clientWidth,
       height: priceContainer.clientHeight,
       layout: {
-        background: { type: ColorType.Solid, color: '#ffffff' },
-        textColor: '#64748b',
+        background: { type: ColorType.Solid, color: theme.background },
+        textColor: theme.text,
         fontFamily: 'Segoe UI, Microsoft YaHei, sans-serif',
-        fontSize: 11
+        fontSize: 12
       },
       grid: {
-        vertLines: { color: '#edf1f7' },
-        horzLines: { color: '#edf1f7' }
+        vertLines: { color: theme.grid },
+        horzLines: { color: theme.grid }
       },
       rightPriceScale: {
-        borderColor: '#e2e8f0',
+        borderColor: theme.border,
         minimumWidth: 72,
         scaleMargins: isIntraday ? { top: 0.18, bottom: 0.18 } : { top: 0.08, bottom: 0.32 }
       },
       timeScale: {
         visible: !isIntraday,
-        borderColor: '#e2e8f0',
+        borderColor: theme.border,
         timeVisible: true,
         secondsVisible: false,
         rightOffset: 0,
@@ -260,16 +265,16 @@ export default function CandlestickChart({
       crosshair: {
         mode: CrosshairMode.Normal,
         vertLine: {
-          color: '#94a3b8',
+          color: theme.text,
           width: 1,
           labelVisible: !isIntraday,
-          labelBackgroundColor: '#334155'
+          labelBackgroundColor: theme.border
         },
         horzLine: {
-          color: '#94a3b8',
+          color: theme.text,
           width: 1,
           labelVisible: !isIntraday,
-          labelBackgroundColor: '#334155'
+          labelBackgroundColor: theme.border
         }
       },
       localization: {
@@ -279,15 +284,15 @@ export default function CandlestickChart({
     })
 
     const priceLine = priceChart.addSeries(LineSeries, {
-      color: '#3f7fd3',
+      color: theme.accent,
       lineWidth: 2,
       priceLineVisible: true,
-      priceLineColor: '#64748b',
+      priceLineColor: theme.text,
       lastValueVisible: true,
       crosshairMarkerVisible: true,
       crosshairMarkerRadius: 3,
-      crosshairMarkerBorderColor: '#3f7fd3',
-      crosshairMarkerBackgroundColor: '#ffffff'
+      crosshairMarkerBorderColor: theme.accent,
+      crosshairMarkerBackgroundColor: theme.background
     })
     priceLine.setData(
       isIntraday
@@ -311,20 +316,20 @@ export default function CandlestickChart({
 
       if (showAuction) {
         const auctionLine = priceChart.addSeries(LineSeries, {
-          color: '#8b5cf6',
+          color: theme.purple,
           lineWidth: 2,
           priceLineVisible: false,
           lastValueVisible: false,
           crosshairMarkerVisible: true,
           crosshairMarkerRadius: 3,
-          crosshairMarkerBorderColor: '#8b5cf6',
-          crosshairMarkerBackgroundColor: '#ffffff'
+          crosshairMarkerBorderColor: theme.purple,
+          crosshairMarkerBackgroundColor: theme.background
         })
         auctionLine.setData(intradayLineData(sessionSlots, barsByTime, isAuctionBar))
       }
 
       const averagePriceLine = priceChart.addSeries(LineSeries, {
-        color: '#d89414',
+        color: theme.amber,
         lineWidth: 1,
         priceLineVisible: false,
         lastValueVisible: false,
@@ -338,7 +343,7 @@ export default function CandlestickChart({
             ? null
             : {
                 price: marketInsightOverlay.openingRange15.high,
-                color: '#8b5cf6',
+                color: theme.purple,
                 lineWidth: 1 as const,
                 lineStyle: LineStyle.Dashed,
                 axisLabelVisible: true,
@@ -348,7 +353,7 @@ export default function CandlestickChart({
             ? null
             : {
                 price: marketInsightOverlay.openingRange15.low,
-                color: '#8b5cf6',
+                color: theme.purple,
                 lineWidth: 1 as const,
                 lineStyle: LineStyle.Dashed,
                 axisLabelVisible: true,
@@ -356,7 +361,7 @@ export default function CandlestickChart({
               },
           ...marketInsightOverlay.tPlanLevels.map((level) => ({
             price: level.price,
-            color: level.side === 'buy' ? '#189266' : '#dc3742',
+            color: level.side === 'buy' ? theme.green : theme.red,
             lineWidth: 1 as const,
             lineStyle: LineStyle.LargeDashed,
             axisLabelVisible: true,
@@ -389,7 +394,7 @@ export default function CandlestickChart({
               position:
                 event.severity === 'attention' ? ('aboveBar' as const) : ('belowBar' as const),
               shape: event.severity === 'attention' ? ('circle' as const) : ('square' as const),
-              color: event.severity === 'attention' ? '#d89414' : '#3f7fd3',
+              color: event.severity === 'attention' ? theme.amber : theme.accent,
               text: event.title,
               size: 1
             } satisfies SeriesMarker<Time>
@@ -397,7 +402,7 @@ export default function CandlestickChart({
         }) ?? []
       createSeriesMarkers(
         extremaAnchor,
-        [...intradayExtremaMarkers(chartBars), ...insightMarkers],
+        [...intradayExtremaMarkers(chartBars, theme), ...insightMarkers],
         {
           autoScale: true,
           zOrder: 'aboveSeries'
@@ -411,22 +416,22 @@ export default function CandlestickChart({
         width: volumeContainer.clientWidth,
         height: volumeContainer.clientHeight,
         layout: {
-          background: { type: ColorType.Solid, color: '#ffffff' },
-          textColor: '#64748b',
+          background: { type: ColorType.Solid, color: theme.background },
+          textColor: theme.text,
           fontFamily: 'Segoe UI, Microsoft YaHei, sans-serif',
-          fontSize: 10
+          fontSize: 12
         },
         grid: {
-          vertLines: { color: '#edf1f7' },
-          horzLines: { color: '#f3f5f8' }
+          vertLines: { color: theme.grid },
+          horzLines: { color: theme.grid }
         },
         rightPriceScale: {
-          borderColor: '#e2e8f0',
+          borderColor: theme.border,
           minimumWidth: 72,
           scaleMargins: { top: 0.12, bottom: 0 }
         },
         timeScale: {
-          borderColor: '#e2e8f0',
+          borderColor: theme.border,
           timeVisible: true,
           secondsVisible: false,
           rightOffset: 0,
@@ -447,7 +452,7 @@ export default function CandlestickChart({
         lastValueVisible: false,
         priceLineVisible: false
       })
-      volume.setData(intradayVolumeData(sessionSlots, barsByTime))
+      volume.setData(intradayVolumeData(sessionSlots, barsByTime, theme))
       const timeRangeAnchor = volumeChart.addSeries(LineSeries, {
         priceScaleId: '',
         color: 'transparent',
@@ -473,7 +478,7 @@ export default function CandlestickChart({
         chartBars.map((bar) => ({
           time: toTimestamp(bar.time),
           value: bar.volume,
-          color: bar.close >= bar.open ? 'rgba(220, 55, 66, 0.34)' : 'rgba(24, 146, 102, 0.34)'
+          color: bar.close >= bar.open ? `${theme.red}57` : `${theme.green}57`
         }))
       )
     }
@@ -592,7 +597,17 @@ export default function CandlestickChart({
       priceChart.remove()
       volumeChart?.remove()
     }
-  }, [bars, isIntraday, market, marketInsightOverlay, onHoverBar, showAuction, variant, volumeUnit])
+  }, [
+    bars,
+    isIntraday,
+    market,
+    marketInsightOverlay,
+    onHoverBar,
+    resolvedTheme,
+    showAuction,
+    variant,
+    volumeUnit
+  ])
 
   return (
     <div className={`candlestick-chart ${isIntraday ? 'is-intraday' : 'is-five-day'}`}>

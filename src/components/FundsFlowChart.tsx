@@ -8,6 +8,8 @@ import {
   type UTCTimestamp
 } from 'lightweight-charts'
 import { useEffect, useRef } from 'react'
+import { useResolvedAppTheme } from '../hooks/useResolvedAppTheme'
+import { getChartThemeColors } from '../lib/theme'
 import type { FundsFlowPoint } from '../shared/types'
 
 interface FundsFlowChartProps {
@@ -36,27 +38,29 @@ function flowLabel(value: number): string {
 
 export default function FundsFlowChart({ points }: FundsFlowChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const resolvedTheme = useResolvedAppTheme()
 
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
+    const theme = getChartThemeColors(resolvedTheme)
 
     const chart = createChart(container, {
       width: container.clientWidth,
       height: 240,
       layout: {
-        background: { type: ColorType.Solid, color: '#ffffff' },
-        textColor: '#64748b',
+        background: { type: ColorType.Solid, color: theme.background },
+        textColor: theme.text,
         fontFamily: 'Segoe UI, Microsoft YaHei, sans-serif',
-        fontSize: 11
+        fontSize: 12
       },
       grid: {
-        vertLines: { color: '#edf1f7' },
-        horzLines: { color: '#edf1f7' }
+        vertLines: { color: theme.grid },
+        horzLines: { color: theme.grid }
       },
-      rightPriceScale: { borderColor: '#e2e8f0' },
+      rightPriceScale: { borderColor: theme.border },
       timeScale: {
-        borderColor: '#e2e8f0',
+        borderColor: theme.border,
         timeVisible: true,
         secondsVisible: false,
         rightOffset: 2,
@@ -65,14 +69,14 @@ export default function FundsFlowChart({ points }: FundsFlowChartProps) {
       },
       crosshair: {
         mode: CrosshairMode.Normal,
-        vertLine: { color: '#94a3b8', width: 1, labelBackgroundColor: '#334155' },
-        horzLine: { color: '#94a3b8', width: 1, labelBackgroundColor: '#334155' }
+        vertLine: { color: theme.text, width: 1, labelBackgroundColor: theme.border },
+        horzLine: { color: theme.text, width: 1, labelBackgroundColor: theme.border }
       },
       localization: { timeFormatter: timeLabel, priceFormatter: flowLabel }
     })
 
     const mainFlow = chart.addSeries(LineSeries, {
-      color: '#6f62d9',
+      color: theme.purple,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: true,
@@ -82,7 +86,7 @@ export default function FundsFlowChart({ points }: FundsFlowChartProps) {
     mainFlow.setData(points.map((point) => ({ time: toTimestamp(point.time), value: point.main })))
     mainFlow.createPriceLine({
       price: 0,
-      color: '#aab2c0',
+      color: theme.text,
       lineWidth: 1,
       lineStyle: LineStyle.Dashed,
       axisLabelVisible: false,
@@ -99,7 +103,7 @@ export default function FundsFlowChart({ points }: FundsFlowChartProps) {
       resizeObserver.disconnect()
       chart.remove()
     }
-  }, [points])
+  }, [points, resolvedTheme])
 
   return <div className="funds-flow-chart" ref={containerRef} />
 }

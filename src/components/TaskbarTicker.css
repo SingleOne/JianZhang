@@ -511,144 +511,142 @@
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  html.taskbar-mode,
-  html.taskbar-mode body,
-  html.taskbar-mode #root,
-  html.taskbar-tooltip-mode,
-  html.taskbar-tooltip-mode body,
-  html.taskbar-tooltip-mode #root,
-  html.tray-mode,
-  html.tray-mode body,
-  html.tray-mode #root {
-    color: #f8fafc;
-  }
+html[data-theme='dark'].taskbar-mode,
+html[data-theme='dark'].taskbar-mode body,
+html[data-theme='dark'].taskbar-mode #root,
+html[data-theme='dark'].taskbar-tooltip-mode,
+html[data-theme='dark'].taskbar-tooltip-mode body,
+html[data-theme='dark'].taskbar-tooltip-mode #root,
+html[data-theme='dark'].tray-mode,
+html[data-theme='dark'].tray-mode body,
+html[data-theme='dark'].tray-mode #root {
+  color: #f8fafc;
+}
 
-  .taskbar-stock-name {
-    color: #f8fafc;
-  }
+:root[data-theme='dark'] .taskbar-stock-name {
+  color: #f8fafc;
+}
 
-  .taskbar-quote {
-    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.55);
-  }
+:root[data-theme='dark'] .taskbar-quote {
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.55);
+}
 
-  .tray-summary-panel {
-    color: #e2e8f0;
-    background: rgba(24, 32, 46, 0.97);
-    border-color: rgba(96, 111, 132, 0.88);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.48);
-  }
+:root[data-theme='dark'] .tray-summary-panel {
+  color: #e2e8f0;
+  background: rgba(24, 32, 46, 0.97);
+  border-color: rgba(96, 111, 132, 0.88);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.48);
+}
 
-  .tray-summary-panel > header,
-  .tray-summary-item {
-    border-color: rgba(96, 111, 132, 0.38);
-  }
+:root[data-theme='dark'] .tray-summary-panel > header,
+:root[data-theme='dark'] .tray-summary-item {
+  border-color: rgba(96, 111, 132, 0.38);
+}
 
-  .tray-summary-panel > header,
-  .tray-summary-heading > span,
-  .tray-summary-t {
-    color: #b6c0ce;
-  }
+:root[data-theme='dark'] .tray-summary-panel > header,
+:root[data-theme='dark'] .tray-summary-heading > span,
+:root[data-theme='dark'] .tray-summary-t {
+  color: #b6c0ce;
+}
 
-  .tray-summary-t.is-empty,
-  .tray-summary-panel .is-flat {
-    color: #98a6b8;
-  }
+:root[data-theme='dark'] .tray-summary-t.is-empty,
+:root[data-theme='dark'] .tray-summary-panel .is-flat {
+  color: #98a6b8;
+}
 
-  .tray-summary-panel .is-up {
-    color: #ff6b75;
-  }
+:root[data-theme='dark'] .tray-summary-panel .is-up {
+  color: #ff6b75;
+}
 
-  .tray-summary-panel .is-down {
-    color: #51d39e;
-  }
+:root[data-theme='dark'] .tray-summary-panel .is-down {
+  color: #51d39e;
+}
 
-  .taskbar-quote.is-up {
-    color: #ff6b75;
-  }
+:root[data-theme='dark'] .taskbar-quote.is-up {
+  color: #ff6b75;
+}
 
-  .taskbar-quote.is-down {
-    color: #51d39e;
-  }
+:root[data-theme='dark'] .taskbar-quote.is-down {
+  color: #51d39e;
+}
 
-  .taskbar-quote.is-flat {
-    color: #e2e8f0;
-  }
+:root[data-theme='dark'] .taskbar-quote.is-flat {
+  color: #e2e8f0;
+}
 
-  .taskbar-stock-tooltip {
-    color: #d7deea;
-    background: rgba(24, 32, 46, 0.98);
-    border-color: rgba(96, 111, 132, 0.9);
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
-  }
+:root[data-theme='dark'] .taskbar-stock-tooltip {
+  color: #d7deea;
+  background: rgba(24, 32, 46, 0.98);
+  border-color: rgba(96, 111, 132, 0.9);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+}
 
-  .taskbar-stock-tooltip::after {
-    border-color: rgba(96, 111, 132, 0.9);
-  }
+:root[data-theme='dark'] .taskbar-stock-tooltip::after {
+  border-color: rgba(96, 111, 132, 0.9);
+}
 
-  .taskbar-tooltip-identity strong {
-    color: #f8fafc;
-  }
+:root[data-theme='dark'] .taskbar-tooltip-identity strong {
+  color: #f8fafc;
+}
 
-  .taskbar-tooltip-identity span,
-  .taskbar-tooltip-market,
-  .taskbar-tooltip-update-time,
-  .taskbar-tooltip-details dt {
-    color: #a8b3c3;
-  }
+:root[data-theme='dark'] .taskbar-tooltip-identity span,
+:root[data-theme='dark'] .taskbar-tooltip-market,
+:root[data-theme='dark'] .taskbar-tooltip-update-time,
+:root[data-theme='dark'] .taskbar-tooltip-details dt {
+  color: #a8b3c3;
+}
 
-  .taskbar-tooltip-market {
-    background: #303b4d;
-  }
+:root[data-theme='dark'] .taskbar-tooltip-market {
+  background: #303b4d;
+}
 
-  .taskbar-tooltip-details dd {
-    color: #e2e8f0;
-  }
+:root[data-theme='dark'] .taskbar-tooltip-details dd {
+  color: #e2e8f0;
+}
 
-  .taskbar-tooltip-section {
-    border-color: rgba(96, 111, 132, 0.38);
-  }
+:root[data-theme='dark'] .taskbar-tooltip-section {
+  border-color: rgba(96, 111, 132, 0.38);
+}
 
-  .taskbar-tooltip-position-grid b,
-  .taskbar-tooltip-t-summary strong,
-  .taskbar-tooltip-alert-list b {
-    color: #e2e8f0;
-  }
+:root[data-theme='dark'] .taskbar-tooltip-position-grid b,
+:root[data-theme='dark'] .taskbar-tooltip-t-summary strong,
+:root[data-theme='dark'] .taskbar-tooltip-alert-list b {
+  color: #e2e8f0;
+}
 
-  .taskbar-tooltip-position-grid small,
-  .taskbar-tooltip-t-summary,
-  .taskbar-tooltip-alert-list li {
-    color: #a8b3c3;
-  }
+:root[data-theme='dark'] .taskbar-tooltip-position-grid small,
+:root[data-theme='dark'] .taskbar-tooltip-t-summary,
+:root[data-theme='dark'] .taskbar-tooltip-alert-list li {
+  color: #a8b3c3;
+}
 
-  .taskbar-tooltip-alert-list li {
-    background: #253043;
-  }
+:root[data-theme='dark'] .taskbar-tooltip-alert-list li {
+  background: #253043;
+}
 
-  .taskbar-tooltip-price-row.is-up,
-  .taskbar-tooltip-price-row .taskbar-tooltip-today-profit.is-up,
-  .taskbar-tooltip-position-grid b.is-up,
-  .taskbar-tooltip-t-summary .is-up,
-  .taskbar-tooltip-alert-list .is-gte b,
-  .taskbar-tooltip-alert-list .is-sell b,
-  .taskbar-tooltip-alert-list .is-profit b {
-    color: #ff6b75;
-  }
+:root[data-theme='dark'] .taskbar-tooltip-price-row.is-up,
+:root[data-theme='dark'] .taskbar-tooltip-price-row .taskbar-tooltip-today-profit.is-up,
+:root[data-theme='dark'] .taskbar-tooltip-position-grid b.is-up,
+:root[data-theme='dark'] .taskbar-tooltip-t-summary .is-up,
+:root[data-theme='dark'] .taskbar-tooltip-alert-list .is-gte b,
+:root[data-theme='dark'] .taskbar-tooltip-alert-list .is-sell b,
+:root[data-theme='dark'] .taskbar-tooltip-alert-list .is-profit b {
+  color: #ff6b75;
+}
 
-  .taskbar-tooltip-price-row.is-down,
-  .taskbar-tooltip-price-row .taskbar-tooltip-today-profit.is-down,
-  .taskbar-tooltip-position-grid b.is-down,
-  .taskbar-tooltip-t-summary .is-down,
-  .taskbar-tooltip-alert-list .is-lte b,
-  .taskbar-tooltip-alert-list .is-buy b,
-  .taskbar-tooltip-alert-list .is-loss b {
-    color: #51d39e;
-  }
+:root[data-theme='dark'] .taskbar-tooltip-price-row.is-down,
+:root[data-theme='dark'] .taskbar-tooltip-price-row .taskbar-tooltip-today-profit.is-down,
+:root[data-theme='dark'] .taskbar-tooltip-position-grid b.is-down,
+:root[data-theme='dark'] .taskbar-tooltip-t-summary .is-down,
+:root[data-theme='dark'] .taskbar-tooltip-alert-list .is-lte b,
+:root[data-theme='dark'] .taskbar-tooltip-alert-list .is-buy b,
+:root[data-theme='dark'] .taskbar-tooltip-alert-list .is-loss b {
+  color: #51d39e;
+}
 
-  .taskbar-tooltip-price-row.is-flat,
-  .taskbar-tooltip-price-row .taskbar-tooltip-today-profit.is-flat,
-  .taskbar-tooltip-position-grid b.is-flat,
-  .taskbar-tooltip-t-summary .is-flat {
-    color: #c5cedb;
-  }
+:root[data-theme='dark'] .taskbar-tooltip-price-row.is-flat,
+:root[data-theme='dark'] .taskbar-tooltip-price-row .taskbar-tooltip-today-profit.is-flat,
+:root[data-theme='dark'] .taskbar-tooltip-position-grid b.is-flat,
+:root[data-theme='dark'] .taskbar-tooltip-t-summary .is-flat {
+  color: #c5cedb;
 }

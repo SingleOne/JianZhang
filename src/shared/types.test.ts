@@ -132,6 +132,16 @@ describe('watchlist normalization', () => {
 })
 
 describe('settings and column migration', () => {
+  it('preserves supported themes and defaults legacy or invalid values to system', () => {
+    expect(DEFAULT_APP_SETTINGS.theme).toBe('system')
+    expect(normalizeAppSettings(undefined).theme).toBe('system')
+    expect(normalizeAppSettings({ theme: 'light' }).theme).toBe('light')
+    expect(normalizeAppSettings({ theme: 'dark' }).theme).toBe('dark')
+    expect(
+      normalizeAppSettings({ theme: 'invalid' as typeof DEFAULT_APP_SETTINGS.theme }).theme
+    ).toBe('system')
+  })
+
   it('uses one default index for each supported market', () => {
     expect(DEFAULT_APP_SETTINGS.marketIndexIds).toEqual(['shanghai', 'hsi', 'nasdaq'])
     expect(getMarketIndexStocks(DEFAULT_APP_SETTINGS.marketIndexIds)).toMatchObject([

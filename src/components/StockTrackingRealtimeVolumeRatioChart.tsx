@@ -10,6 +10,7 @@ import {
   type UTCTimestamp
 } from 'lightweight-charts'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useResolvedAppTheme } from '../hooks/useResolvedAppTheme'
 import { formatVolume } from '../lib/format'
 import {
   CTRL_WHEEL_HANDLE_SCALE,
@@ -17,6 +18,7 @@ import {
   enableCtrlWheelZoom
 } from '../lib/lightweight-chart-interactions'
 import type { RealtimeVolumeRatioPoint } from '../lib/stock-tracking-metrics'
+import { getChartThemeColors } from '../lib/theme'
 import type { StockMarket } from '../shared/types'
 import { volumeUnitForMarket } from '../shared/stock-market'
 
@@ -56,6 +58,7 @@ export default function StockTrackingRealtimeVolumeRatioChart({
   const seriesRef = useRef<ISeriesApi<'Line'> | null>(null)
   const pointsByTimeRef = useRef(new Map<UTCTimestamp, RealtimeVolumeRatioPoint>())
   const [hoveredPoint, setHoveredPoint] = useState<RealtimeVolumeRatioPoint | null>(null)
+  const resolvedTheme = useResolvedAppTheme()
   const chartPoints = useMemo(
     () => [...points].sort((left, right) => left.time.localeCompare(right.time)),
     [points]
@@ -66,25 +69,26 @@ export default function StockTrackingRealtimeVolumeRatioChart({
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
+    const theme = getChartThemeColors(resolvedTheme)
     const chart = createChart(container, {
       width: container.clientWidth,
       height: 250,
       layout: {
-        background: { type: ColorType.Solid, color: '#ffffff' },
-        textColor: '#64748b',
+        background: { type: ColorType.Solid, color: theme.background },
+        textColor: theme.text,
         fontFamily: 'Segoe UI, Microsoft YaHei, sans-serif',
         fontSize: 12
       },
       grid: {
-        vertLines: { color: '#edf1f7' },
-        horzLines: { color: '#edf1f7' }
+        vertLines: { color: theme.grid },
+        horzLines: { color: theme.grid }
       },
       rightPriceScale: {
-        borderColor: '#e2e8f0',
+        borderColor: theme.border,
         scaleMargins: { top: 0.14, bottom: 0.14 }
       },
       timeScale: {
-        borderColor: '#e2e8f0',
+        borderColor: theme.border,
         rightOffset: 1,
         barSpacing: 5,
         fixRightEdge: true,
@@ -96,8 +100,8 @@ export default function StockTrackingRealtimeVolumeRatioChart({
       handleScale: CTRL_WHEEL_HANDLE_SCALE,
       crosshair: {
         mode: CrosshairMode.Normal,
-        vertLine: { color: '#94a3b8', width: 1, labelBackgroundColor: '#334155' },
-        horzLine: { color: '#94a3b8', width: 1, labelBackgroundColor: '#334155' }
+        vertLine: { color: theme.text, width: 1, labelBackgroundColor: theme.border },
+        horzLine: { color: theme.text, width: 1, labelBackgroundColor: theme.border }
       },
       localization: {
         timeFormatter: timeLabel,
@@ -106,7 +110,7 @@ export default function StockTrackingRealtimeVolumeRatioChart({
     })
     chartRef.current = chart
     const series = chart.addSeries(LineSeries, {
-      color: '#7c3aed',
+      color: theme.purple,
       lineWidth: 2,
       priceFormat: { type: 'custom', formatter: (value: number) => `${value.toFixed(2)}x` },
       priceLineVisible: false,
@@ -115,7 +119,7 @@ export default function StockTrackingRealtimeVolumeRatioChart({
     })
     series.createPriceLine({
       price: 1,
-      color: '#94a3b8',
+      color: theme.text,
       lineWidth: 1,
       lineStyle: LineStyle.Dashed,
       axisLabelVisible: true,
@@ -144,14 +148,14 @@ export default function StockTrackingRealtimeVolumeRatioChart({
       chartRef.current = null
       seriesRef.current = null
     }
-  }, [])
+  }, [resolvedTheme])
 
   useEffect(() => {
     seriesRef.current?.setData(
       chartPoints.map((point) => ({ time: toTimestamp(point.time), value: point.ratio }))
     )
     chartRef.current?.timeScale().fitContent()
-  }, [chartPoints])
+  }, [chartPoints, resolvedTheme])
 
   return (
     <div className="stock-tracking-metrics-chart stock-tracking-realtime-volume-ratio-chart">

@@ -1061,34 +1061,32 @@
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  .dividend-ranking-dialog,
-  .dividend-ranking-summary > div,
-  .dividend-ranking-methodology,
-  .dividend-ranking-search,
-  .dividend-ranking-toolbar > label:not(.dividend-ranking-search) {
-    background: #1e2938;
-    border-color: #3b485a;
-  }
+:root[data-theme='dark'] .dividend-ranking-dialog,
+:root[data-theme='dark'] .dividend-ranking-summary > div,
+:root[data-theme='dark'] .dividend-ranking-methodology,
+:root[data-theme='dark'] .dividend-ranking-search,
+:root[data-theme='dark'] .dividend-ranking-toolbar > label:not(.dividend-ranking-search) {
+  background: #1e2938;
+  border-color: #3b485a;
+}
 
-  .dividend-ranking-toolbar,
-  .dividend-ranking-footer {
-    background: #192332;
-  }
+:root[data-theme='dark'] .dividend-ranking-toolbar,
+:root[data-theme='dark'] .dividend-ranking-footer {
+  background: #192332;
+}
 
-  .dividend-ranking-table th {
-    color: #b6c1d0;
-    background: #202c3c;
-  }
+:root[data-theme='dark'] .dividend-ranking-table th {
+  color: #b6c1d0;
+  background: #202c3c;
+}
 
-  .dividend-ranking-table tbody tr:hover td {
-    background: #223146;
-  }
+:root[data-theme='dark'] .dividend-ranking-table tbody tr:hover td {
+  background: #223146;
+}
 
-  .dividend-ranking-stock strong,
-  .dividend-ranking-number,
-  .dividend-ranking-toolbar select,
-  .dividend-ranking-toolbar .dividend-ranking-watchlist-filter {
-    color: #e6edf6;
-  }
+:root[data-theme='dark'] .dividend-ranking-stock strong,
+:root[data-theme='dark'] .dividend-ranking-number,
+:root[data-theme='dark'] .dividend-ranking-toolbar select,
+:root[data-theme='dark'] .dividend-ranking-toolbar .dividend-ranking-watchlist-filter {
+  color: #e6edf6;
 }
