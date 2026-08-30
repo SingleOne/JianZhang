@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { stockApi } from '../lib/api'
+import { getInitialBootstrap, stockApi } from '../lib/api'
 import { applyAppThemePreference, readCachedAppThemePreference } from '../lib/theme'
 
 export function AppThemeController() {
@@ -15,7 +15,7 @@ export function AppThemeController() {
     })
 
     media.addEventListener('change', handleSystemThemeChange)
-    void stockApi.getBootstrap().then((bootstrap) => {
+    void getInitialBootstrap().then((bootstrap) => {
       if (active) applyAppThemePreference(bootstrap.state.settings.theme)
     })
 

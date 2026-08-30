@@ -989,3 +989,15 @@ const demoApi: StockDesktopApi = {
 export const stockApi = window.stockApi ?? demoApi
 export const isDesktopRuntime = Boolean(window.stockApi)
 export const initialState = DEFAULT_STATE
+
+let initialBootstrapPromise: Promise<BootstrapResult> | null = null
+
+export function getInitialBootstrap(): Promise<BootstrapResult> {
+  if (!initialBootstrapPromise) {
+    initialBootstrapPromise = stockApi.getBootstrap().catch((reason) => {
+      initialBootstrapPromise = null
+      throw reason
+    })
+  }
+  return initialBootstrapPromise
+}

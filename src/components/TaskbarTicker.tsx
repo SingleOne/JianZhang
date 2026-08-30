@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { initialState, stockApi } from '../lib/api'
+import { getInitialBootstrap, initialState, stockApi } from '../lib/api'
 import { formatPercent, formatPrice } from '../lib/format'
 import { getTriggeredTAlertBadges, getTriggeredTFloatingProfitAlert } from '../lib/t-alerts'
 import { calculateTBatchMetrics } from '../lib/t-trading'
@@ -27,7 +27,7 @@ export function TaskbarTicker() {
     const unsubscribeQuotes = stockApi.onQuotesUpdated(setQuotes)
     const unsubscribeState = stockApi.onStateUpdated(setState)
 
-    void stockApi.getBootstrap().then((bootstrap) => {
+    void getInitialBootstrap().then((bootstrap) => {
       if (!active) return
       setState(bootstrap.state)
       setQuotes(bootstrap.quotes)

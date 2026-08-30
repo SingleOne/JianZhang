@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { initialState, stockApi } from '../lib/api'
+import { getInitialBootstrap, initialState, stockApi } from '../lib/api'
 import {
   formatCost,
   formatMoney,
@@ -54,7 +54,7 @@ export function TaskbarStockTooltip() {
     })
 
     void Promise.all([
-      stockApi.getBootstrap(),
+      getInitialBootstrap(),
       stockApi.getTaskbarTooltipQuoteId(),
       stockApi.getTaskbarLayout()
     ]).then(([bootstrap, currentQuoteId, taskbarLayout]) => {

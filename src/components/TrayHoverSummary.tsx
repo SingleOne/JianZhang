@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { initialState, stockApi } from '../lib/api'
+import { getInitialBootstrap, initialState, stockApi } from '../lib/api'
 import {
   formatCost,
   formatMoney,
@@ -30,7 +30,7 @@ export function TrayHoverSummary() {
     const unsubscribeQuotes = stockApi.onQuotesUpdated(setQuotes)
     const unsubscribeState = stockApi.onStateUpdated(setState)
 
-    void stockApi.getBootstrap().then((bootstrap) => {
+    void getInitialBootstrap().then((bootstrap) => {
       if (!active) return
       setState(bootstrap.state)
       setQuotes(bootstrap.quotes)

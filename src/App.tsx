@@ -6,7 +6,7 @@ import { SearchBar } from './components/SearchBar'
 import { SettingsMenu } from './components/SettingsMenu'
 import { TitlebarToolsMenu } from './components/TitlebarToolsMenu'
 import { WatchlistTable } from './components/WatchlistTable'
-import { initialState, isDesktopRuntime, stockApi } from './lib/api'
+import { getInitialBootstrap, initialState, isDesktopRuntime, stockApi } from './lib/api'
 import {
   APP_COMPLETION_NOTIFICATION_EVENT,
   type AppCompletionNotification,
@@ -269,8 +269,7 @@ export default function App() {
   )
 
   useEffect(() => {
-    stockApi
-      .getBootstrap()
+    getInitialBootstrap()
       .then((bootstrap) => {
         setState(bootstrap.state)
         setQuotes(bootstrap.quotes)
