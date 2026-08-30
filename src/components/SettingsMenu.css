@@ -22,8 +22,8 @@
   top: 50px;
   right: 14px;
   z-index: 60;
-  width: min(500px, calc(100vw - 28px));
-  height: min(682px, calc(100vh - 72px));
+  width: min(580px, calc(100vw - 28px));
+  height: min(712px, calc(100vh - 72px));
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
   padding: 9px 14px 12px;
@@ -943,7 +943,7 @@
   min-width: 0;
   height: 32px;
   display: grid;
-  grid-template-columns: 52px minmax(0, 1fr) 28px;
+  grid-template-columns: 60px minmax(0, 1fr) 28px;
   align-items: center;
   overflow: hidden;
   color: #586579;

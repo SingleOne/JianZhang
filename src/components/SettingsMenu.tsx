@@ -870,9 +870,8 @@ export function SettingsMenu({
               <div className="trading-calendar-setting exchange-rate-setting">
                 <span>
                   <strong>人民币汇率中间价</strong>
-                  <small>
-                    国家外汇管理局发布，数据来源为中国外汇交易中心；每日北京时间 09:20 后自动检查
-                  </small>
+                  <small>数据来源为从中国外汇交易中心获取的的国家外汇管理局发布的数据</small>
+                  <small>每日北京时间 09:20 后自动检查</small>
                   <small className={settings.exchangeRates.lastError ? 'is-error' : ''}>
                     汇率日期 {settings.exchangeRates.rateDate ?? '--'} · 最近获取{' '}
                     {formatCalendarRefreshTime(settings.exchangeRates.fetchedAt)}
