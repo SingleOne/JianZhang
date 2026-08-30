@@ -1213,6 +1213,26 @@
   white-space: nowrap;
 }
 
+.stock-tracking-row-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(37, 99, 235, 0.24);
+  border-radius: 999px;
+  padding: 1px 5px;
+  background: var(--blue-soft);
+  color: var(--blue);
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 700;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.stock-tracking-row-badge:hover {
+  border-color: rgba(37, 99, 235, 0.48);
+  background: rgba(37, 99, 235, 0.16);
+}
+
 .stock-name-line .five-level-alert-badges {
   flex: 0 0 auto;
 }
