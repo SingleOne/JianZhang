@@ -2733,10 +2733,10 @@
 :root[data-theme='dark'] .market-index-setting {
   border-bottom: 1px solid #263449;
 }
-:root[data-theme='dark'] .market-index-setting legend {
+:root[data-theme='dark'] .settings-section-heading strong {
   color: #e6edf7;
 }
-:root[data-theme='dark'] .market-index-setting > small {
+:root[data-theme='dark'] .settings-section-heading small {
   color: #cbd5e3;
 }
 :root[data-theme='dark'] .market-index-market > strong {
@@ -2749,12 +2749,6 @@
 }
 :root[data-theme='dark'] .trading-fee-setting {
   border-bottom: 1px solid #263449;
-}
-:root[data-theme='dark'] .trading-fee-setting legend {
-  color: #e6edf7;
-}
-:root[data-theme='dark'] .trading-fee-setting > small {
-  color: #cbd5e3;
 }
 :root[data-theme='dark'] .trading-fee-grid label {
   color: #cbd5e3;
@@ -2772,12 +2766,6 @@
 }
 :root[data-theme='dark'] .t-plan-default-setting {
   border-bottom: 1px solid #263449;
-}
-:root[data-theme='dark'] .t-plan-default-setting legend {
-  color: #e6edf7;
-}
-:root[data-theme='dark'] .t-plan-default-setting > small {
-  color: #cbd5e3;
 }
 :root[data-theme='dark'] .t-plan-default-group {
   background: #111827;
