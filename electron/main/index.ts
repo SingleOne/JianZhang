@@ -54,6 +54,7 @@ import { registerIpcHandlers } from './ipc-handlers'
 import { KlineHub } from './kline-hub'
 import { MarketRequestLogger } from './market-request-logger'
 import { OrderBookHub } from './order-book-hub'
+import { OptionalModuleRuntime } from './optional-module-runtime'
 import { PythonTaskQueue } from './python-task-queue'
 import { QuoteRuntime } from './quote-runtime'
 import { QuoteSnapshotCache } from './quote-snapshot-cache'
@@ -160,6 +161,15 @@ let completionNotificationStore: CompletionNotificationStore | null = null
 let marketRequestLogger: MarketRequestLogger | null = null
 let cacheMaintenanceService: CacheMaintenanceService | null = null
 
+const optionalModuleRuntime = new OptionalModuleRuntime(
+  {
+    marketInsight: __JIANZHANG_MARKET_INSIGHT_ENABLED__,
+    ai: __JIANZHANG_AI_MODULE_ENABLED__,
+    aiTAdvice: __JIANZHANG_AI_T_ADVICE_MODULE_ENABLED__
+  },
+  (moduleState) => sendToWindows('app:optional-modules:updated', moduleState)
+)
+
 const marketDataHub = new (class MarketDataHub {
   private readonly listeners = new Set<(quotes: readonly StockQuote[]) => void>()
 
@@ -259,10 +269,127 @@ function syncWindowSurfaces(): void {
   windowManager?.sync()
 }
 
+async function initializeMarketInsightModule(): Promise<boolean> {
+  if (!__JIANZHANG_MARKET_INSIGHT_ENABLED__) return false
+  try {
+    const { installMarketInsight } = await import('../../src/modules/market-insight/main/register')
+    if (isQuitting) return false
+    const runtime = installMarketInsight({
+      marketDataHub,
+      getState: () => state,
+      getKline: (quoteId, period, limit) => getKline(quoteId, period, limit, 'market-insight'),
+      getOrderBook: (quoteId) =>
+        orderBookHub.get(quoteId, {
+          maxAgeMilliseconds: 3_000,
+          allowStaleOnError: false,
+          caller: 'market-insight'
+        }),
+      getFundsFlow: (quoteId) => getFundsFlow(quoteId, 'market-insight'),
+      notifyUpdated: (quoteId) => sendToWindows('insight:updated', quoteId)
+    })
+    if (isQuitting) {
+      runtime.dispose()
+      return false
+    }
+    marketInsightRuntime = runtime
+    optionalModuleRuntime.markReady('marketInsight')
+    return true
+  } catch (reason) {
+    if (!isQuitting) optionalModuleRuntime.markFailed('marketInsight', reason)
+    return false
+  }
+}
+
+async function initializeAiModule(marketInsightReady: Promise<boolean>): Promise<boolean> {
+  if (!__JIANZHANG_AI_MODULE_ENABLED__) return false
+  try {
+    const { installAi } = await import('../../src/modules/ai/main/register')
+    if (isQuitting) return false
+    const runtime = installAi({
+      getMarketInsightSnapshot: async (quoteId) => {
+        await marketInsightReady
+        return marketInsightRuntime?.getSnapshot(quoteId) ?? null
+      },
+      refreshMarketInsightSnapshot: async (quoteId) => {
+        await marketInsightReady
+        return marketInsightRuntime?.refreshSnapshot(quoteId) ?? null
+      },
+      getChipDistributionCache: (quoteId) => chipDistributionCache?.get(quoteId) ?? null,
+      getLatestQuote: (quoteId) =>
+        getLatestQuotes().find((quote) => quote.quoteId === quoteId) ?? null,
+      getDailyKline: (quoteId, limit) => getKline(quoteId, 'daily', limit, 'ai:long-term'),
+      getValuationHistory: (quoteId) => valuationHistoryService!.get(quoteId),
+      getFundamentalSnapshot: () => fundamentalDataService!.getSnapshot(),
+      getFundamentalState: () => fundamentalDataService!.getState(),
+      getDividendFinancingSnapshot: () => dividendFinancingService!.getSnapshot(),
+      getDividendFinancingState: () => dividendFinancingService!.getState(),
+      getCompanyReportSummaries: (code) => companyReportService?.getSummaries(code) ?? []
+    })
+    if (isQuitting) {
+      runtime.dispose()
+      return false
+    }
+    aiRuntime = runtime
+    optionalModuleRuntime.markReady('ai')
+    return true
+  } catch (reason) {
+    if (!isQuitting) optionalModuleRuntime.markFailed('ai', reason)
+    return false
+  }
+}
+
+async function initializeAiTAdviceModule(
+  aiReady: Promise<boolean>,
+  marketInsightReady: Promise<boolean>
+): Promise<void> {
+  if (!__JIANZHANG_AI_T_ADVICE_MODULE_ENABLED__) return
+  try {
+    const [module, aiAvailable] = await Promise.all([
+      import('../../src/modules/ai-t-advice/main/register'),
+      aiReady
+    ])
+    if (!aiAvailable) throw new Error('AI 模块初始化失败，做 T 参考不可用')
+    if (isQuitting) return
+    const runtime = module.installAiTAdvice({
+      refreshMarketInsightSnapshot: async (quoteId) => {
+        await marketInsightReady
+        return marketInsightRuntime?.refreshSnapshot(quoteId) ?? null
+      },
+      getChipDistributionCache: (quoteId) => chipDistributionCache?.get(quoteId) ?? null,
+      getTradingContext: (quoteId) => {
+        const stock = state.watchlist.find((item) => item.quoteId === quoteId)
+        if (!stock) return null
+        return {
+          stock,
+          quote: getLatestQuotes().find((item) => item.quoteId === quoteId),
+          position: stock.position,
+          account: state.tTradingAccounts[quoteId]
+        }
+      },
+      runStructuredTask: (request, signal) => aiRuntime!.runStructuredTask(request, signal)
+    })
+    if (isQuitting) {
+      runtime.dispose()
+      return
+    }
+    aiTAdviceRuntime = runtime
+    optionalModuleRuntime.markReady('aiTAdvice')
+  } catch (reason) {
+    if (!isQuitting) optionalModuleRuntime.markFailed('aiTAdvice', reason)
+  }
+}
+
+function initializeOptionalModules(): void {
+  const marketInsightReady = initializeMarketInsightModule()
+  const aiReady = initializeAiModule(marketInsightReady)
+  void initializeAiTAdviceModule(aiReady, marketInsightReady)
+}
+
 function cleanupBeforeQuit(): void {
   if (isQuitting) return
   isQuitting = true
   closeRetainedSystemNotifications()
+  optionalModuleRuntime.dispose()
   aiTAdviceRuntime?.dispose()
   aiTAdviceRuntime = null
   aiRuntime?.dispose()
@@ -447,6 +574,8 @@ if (!hasSingleInstanceLock) {
       persistState,
       getQuotes: getLatestQuotes,
       getStartupWarning: () => startupWarning,
+      getOptionalModulesState: () => optionalModuleRuntime.getState(),
+      waitForOptionalModule: (moduleId) => optionalModuleRuntime.waitUntilReady(moduleId),
       getTaskbarLayout: () =>
         windowManager?.getTaskbarLayout() ?? { taskbarHeight: 48, taskbarEdge: 'bottom' },
       getTaskbarTooltipQuoteId: () => windowManager?.getTaskbarTooltipQuoteId() ?? null,
@@ -469,8 +598,9 @@ if (!hasSingleInstanceLock) {
         companyReportService!.get(quoteId, forceRefresh),
       getGlobalFundamentals: (quoteId, forceRefresh) =>
         globalFundamentalService!.get(quoteId, forceRefresh),
-      generateCompanyReportSummary: (report) => {
-        if (!aiRuntime) throw new Error('当前构建未启用 AI 功能')
+      generateCompanyReportSummary: async (report) => {
+        await optionalModuleRuntime.waitUntilReady('ai')
+        if (!aiRuntime) throw new Error('AI 功能初始化失败')
         return companyReportService!.generateSummary(report, (request, signal) =>
           aiRuntime!.runStructuredTask(request, signal)
         )
@@ -586,62 +716,6 @@ if (!hasSingleInstanceLock) {
       quit: quitApp
     })
 
-    if (__JIANZHANG_MARKET_INSIGHT_ENABLED__) {
-      const { installMarketInsight } =
-        await import('../../src/modules/market-insight/main/register')
-      marketInsightRuntime = installMarketInsight({
-        marketDataHub,
-        getState: () => state,
-        getKline: (quoteId, period, limit) => getKline(quoteId, period, limit, 'market-insight'),
-        getOrderBook: (quoteId) =>
-          orderBookHub.get(quoteId, {
-            maxAgeMilliseconds: 3_000,
-            allowStaleOnError: false,
-            caller: 'market-insight'
-          }),
-        getFundsFlow: (quoteId) => getFundsFlow(quoteId, 'market-insight'),
-        notifyUpdated: (quoteId) => sendToWindows('insight:updated', quoteId)
-      })
-    }
-    if (__JIANZHANG_AI_MODULE_ENABLED__) {
-      const { installAi } = await import('../../src/modules/ai/main/register')
-      aiRuntime = installAi({
-        getMarketInsightSnapshot: (quoteId) => marketInsightRuntime?.getSnapshot(quoteId) ?? null,
-        refreshMarketInsightSnapshot: (quoteId) =>
-          marketInsightRuntime?.refreshSnapshot(quoteId) ?? null,
-        getChipDistributionCache: (quoteId) => chipDistributionCache?.get(quoteId) ?? null,
-        getLatestQuote: (quoteId) =>
-          getLatestQuotes().find((quote) => quote.quoteId === quoteId) ?? null,
-        getDailyKline: (quoteId, limit) => getKline(quoteId, 'daily', limit, 'ai:long-term'),
-        getValuationHistory: (quoteId) => valuationHistoryService!.get(quoteId),
-        getFundamentalSnapshot: () => fundamentalDataService!.getSnapshot(),
-        getFundamentalState: () => fundamentalDataService!.getState(),
-        getDividendFinancingSnapshot: () => dividendFinancingService!.getSnapshot(),
-        getDividendFinancingState: () => dividendFinancingService!.getState(),
-        getCompanyReportSummaries: (code) => companyReportService?.getSummaries(code) ?? []
-      })
-
-      if (__JIANZHANG_AI_T_ADVICE_MODULE_ENABLED__) {
-        const { installAiTAdvice } = await import('../../src/modules/ai-t-advice/main/register')
-        aiTAdviceRuntime = installAiTAdvice({
-          refreshMarketInsightSnapshot: (quoteId) =>
-            marketInsightRuntime?.refreshSnapshot(quoteId) ?? null,
-          getChipDistributionCache: (quoteId) => chipDistributionCache?.get(quoteId) ?? null,
-          getTradingContext: (quoteId) => {
-            const stock = state.watchlist.find((item) => item.quoteId === quoteId)
-            if (!stock) return null
-            return {
-              stock,
-              quote: getLatestQuotes().find((item) => item.quoteId === quoteId),
-              position: stock.position,
-              account: state.tTradingAccounts[quoteId]
-            }
-          },
-          runStructuredTask: (request, signal) => aiRuntime!.runStructuredTask(request, signal)
-        })
-      }
-    }
-
     windowManager = new WindowManager(
       {
         getState: () => state,
@@ -653,6 +727,7 @@ if (!hasSingleInstanceLock) {
       app.getPath('userData')
     )
     windowManager.create()
+    initializeOptionalModules()
     dividendFinancingService.initializeIfMissing()
     fundamentalDataService.initializeIfMissing()
     quoteRuntime.start()

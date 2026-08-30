@@ -50,6 +50,7 @@ import type {
   FundamentalSnapshot,
   GitHubDeviceAuthorization,
   GitHubSyncSettings,
+  OptionalModulesState,
   PortfolioPerformanceAdjustments,
   SearchResult,
   StockPosition,
@@ -105,6 +106,18 @@ const EMPTY_DATA_SNAPSHOT_STATE: DataSnapshotRuntimeState = {
   recordCount: 0,
   periodLabel: null,
   staleReason: null
+}
+
+const INITIAL_OPTIONAL_MODULES_STATE: OptionalModulesState = {
+  marketInsight: {
+    status: __JIANZHANG_MARKET_INSIGHT_ENABLED__ ? 'initializing' : 'disabled',
+    error: null
+  },
+  ai: { status: __JIANZHANG_AI_MODULE_ENABLED__ ? 'initializing' : 'disabled', error: null },
+  aiTAdvice: {
+    status: __JIANZHANG_AI_T_ADVICE_MODULE_ENABLED__ ? 'initializing' : 'disabled',
+    error: null
+  }
 }
 
 // AI UI remains behind build-time boundaries so share builds can omit it completely.
@@ -187,11 +200,15 @@ export default function App() {
     useState<DataSnapshotRuntimeState>(EMPTY_DATA_SNAPSHOT_STATE)
   const [fundamentalDataState, setFundamentalDataState] =
     useState<DataSnapshotRuntimeState>(EMPTY_DATA_SNAPSHOT_STATE)
+  const [optionalModulesState, setOptionalModulesState] = useState<OptionalModulesState>(
+    INITIAL_OPTIONAL_MODULES_STATE
+  )
   const [aiAssistantContext, setAiAssistantContext] = useState<{
     quoteId: string
     quoteName?: string
   } | null>(null)
-  const aiRuntimeAvailable = Boolean(AiAssistantDrawer && window.aiApi)
+  const aiModulePresent = Boolean(AiAssistantDrawer && window.aiApi)
+  const aiRuntimeAvailable = aiModulePresent && optionalModulesState.ai.status === 'ready'
 
   const loadDialog = useCallback((dialogId: DeferredDialogId) => {
     setLoadedDialogs((current) => {
@@ -291,6 +308,23 @@ export default function App() {
       unsubscribeError()
     }
   }, [handleStockSelection, refreshGitHubGist, reportError, updateQuotes])
+
+  useEffect(() => {
+    let active = true
+    const unsubscribe = stockApi.onOptionalModulesStateUpdated((moduleState) => {
+      if (active) setOptionalModulesState(moduleState)
+    })
+    stockApi
+      .getOptionalModulesState()
+      .then((moduleState) => {
+        if (active) setOptionalModulesState(moduleState)
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+      unsubscribe()
+    }
+  }, [])
 
   useEffect(() => {
     stockApi
@@ -393,6 +427,7 @@ export default function App() {
 
   useEffect(() => {
     const openWithStockContext = (event: Event) => {
+      if (!aiRuntimeAvailable) return
       const detail = (event as CustomEvent<{ quoteId: string; quoteName?: string }>).detail
       if (!detail?.quoteId) return
       setAiAssistantContext(detail)
@@ -400,7 +435,7 @@ export default function App() {
     }
     window.addEventListener('ai:open-assistant', openWithStockContext)
     return () => window.removeEventListener('ai:open-assistant', openWithStockContext)
-  }, [])
+  }, [aiRuntimeAvailable])
 
   const quoteIds = useMemo(
     () => new Set(state.watchlist.map((stock) => stock.quoteId)),
@@ -1427,18 +1462,31 @@ export default function App() {
               onOpenCorporateActionCenter={() => setCorporateActionCenterOpen(true)}
               onOpenPortfolioPerformance={() => setPortfolioPerformanceOpen(true)}
             />
-            {aiRuntimeAvailable ? (
+            {aiModulePresent ? (
               <button
                 className="secondary-button ai-assistant-trigger"
                 type="button"
+                disabled={!aiRuntimeAvailable}
                 onClick={() => {
                   setAiAssistantContext(null)
                   setAiAssistantOpen(true)
                 }}
-                title="AI 助手"
+                title={
+                  optionalModulesState.ai.status === 'initializing'
+                    ? 'AI 模块正在初始化'
+                    : optionalModulesState.ai.status === 'failed'
+                      ? (optionalModulesState.ai.error ?? 'AI 模块初始化失败')
+                      : 'AI 助手'
+                }
               >
                 <Bot size={17} />
-                <span>AI 助手</span>
+                <span>
+                  {optionalModulesState.ai.status === 'initializing'
+                    ? 'AI 初始化中'
+                    : optionalModulesState.ai.status === 'failed'
+                      ? 'AI 不可用'
+                      : 'AI 助手'}
+                </span>
               </button>
             ) : null}
             <SettingsMenu
@@ -1775,7 +1823,7 @@ export default function App() {
           />
         </Suspense>
       ) : null}
-      {AiAssistantDrawer ? (
+      {aiRuntimeAvailable && AiAssistantDrawer ? (
         <Suspense fallback={null}>
           <AiAssistantDrawer
             open={aiAssistantOpen}

@@ -8,6 +8,7 @@ import type {
   DailyMarketScanState,
   DividendFinancingUpdateProgress,
   FundamentalUpdateProgress,
+  OptionalModulesState,
   StockDesktopApi,
   StockQuote,
   StockSelectionRequest,
@@ -26,6 +27,7 @@ function subscribe<T>(channel: string, callback: (payload: T) => void): () => vo
 
 const api: StockDesktopApi = {
   getBootstrap: () => ipcRenderer.invoke('app:bootstrap'),
+  getOptionalModulesState: () => ipcRenderer.invoke('app:optional-modules:get'),
   getTaskbarLayout: () => ipcRenderer.invoke('taskbar:layout:get'),
   getTaskbarTooltipQuoteId: () => ipcRenderer.invoke('taskbar:tooltip:get'),
   resizeTaskbarTicker: (width, height) =>
@@ -113,6 +115,8 @@ const api: StockDesktopApi = {
   onTaskbarTooltipStock: (callback) => subscribe<string>('taskbar:tooltip-stock', callback),
   onSelectStock: (callback) => subscribe<StockSelectionRequest>('stock:selected', callback),
   onDataError: (callback) => subscribe<string>('data:error', callback),
+  onOptionalModulesStateUpdated: (callback) =>
+    subscribe<OptionalModulesState>('app:optional-modules:updated', callback),
   onDividendFinancingUpdateProgress: (callback) =>
     subscribe<DividendFinancingUpdateProgress>('dividend-financing:update-progress', callback),
   onDividendFinancingStateUpdated: (callback) =>

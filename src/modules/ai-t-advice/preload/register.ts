@@ -4,14 +4,19 @@ import type { AiTAdviceApi, AiTAdviceProgressEvent } from '../shared/types'
 const PROGRESS_CHANNEL = 'ai-t:advice:progress'
 
 export function installAiTAdvicePreload(): void {
+  let ready: Promise<void> | null = null
+  const invoke = (channel: string, ...args: unknown[]) =>
+    (ready ??= ipcRenderer.invoke('app:optional-module:wait', 'aiTAdvice')).then(() =>
+      ipcRenderer.invoke(channel, ...args)
+    )
   const api: AiTAdviceApi = {
-    getStatus: () => ipcRenderer.invoke('ai-t:status:get'),
-    getSettings: () => ipcRenderer.invoke('ai-t:settings:get'),
-    saveSettings: (settings) => ipcRenderer.invoke('ai-t:settings:update', settings),
-    generate: (quoteId) => ipcRenderer.invoke('ai-t:advice:generate', quoteId),
-    cancel: (quoteId) => ipcRenderer.invoke('ai-t:advice:cancel', quoteId),
-    listHistory: (quoteId) => ipcRenderer.invoke('ai-t:advice:history', quoteId),
-    dismiss: (adviceId) => ipcRenderer.invoke('ai-t:advice:dismiss', adviceId),
+    getStatus: () => invoke('ai-t:status:get'),
+    getSettings: () => invoke('ai-t:settings:get'),
+    saveSettings: (settings) => invoke('ai-t:settings:update', settings),
+    generate: (quoteId) => invoke('ai-t:advice:generate', quoteId),
+    cancel: (quoteId) => invoke('ai-t:advice:cancel', quoteId),
+    listHistory: (quoteId) => invoke('ai-t:advice:history', quoteId),
+    dismiss: (adviceId) => invoke('ai-t:advice:dismiss', adviceId),
     onProgress: (listener) => {
       const handler = (_event: Electron.IpcRendererEvent, payload: AiTAdviceProgressEvent): void =>
         listener(payload)

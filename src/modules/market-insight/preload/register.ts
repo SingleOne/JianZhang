@@ -9,17 +9,21 @@ function subscribe<T>(channel: string, callback: (payload: T) => void): () => vo
 }
 
 export function installMarketInsightPreload(): void {
+  let ready: Promise<void> | null = null
+  const invoke = (channel: string, ...args: unknown[]) =>
+    (ready ??= ipcRenderer.invoke('app:optional-module:wait', 'marketInsight')).then(() =>
+      ipcRenderer.invoke(channel, ...args)
+    )
   const api: MarketInsightApi = {
-    getStatus: () => ipcRenderer.invoke(MARKET_INSIGHT_IPC.statusGet),
-    getSettings: () => ipcRenderer.invoke(MARKET_INSIGHT_IPC.settingsGet),
-    saveSettings: (settings) => ipcRenderer.invoke(MARKET_INSIGHT_IPC.settingsSave, settings),
-    getSnapshot: (quoteId) => ipcRenderer.invoke(MARKET_INSIGHT_IPC.snapshotGet, quoteId),
-    refresh: (quoteId) => ipcRenderer.invoke(MARKET_INSIGHT_IPC.refresh, quoteId),
-    listEvents: (quoteId) => ipcRenderer.invoke(MARKET_INSIGHT_IPC.eventsList, quoteId),
-    acknowledgeEvent: (eventId) => ipcRenderer.invoke(MARKET_INSIGHT_IPC.eventAcknowledge, eventId),
-    clearExpiredEvents: (quoteId) =>
-      ipcRenderer.invoke(MARKET_INSIGHT_IPC.eventsClearExpired, quoteId),
-    openSource: (url) => ipcRenderer.invoke(MARKET_INSIGHT_IPC.sourceOpen, url),
+    getStatus: () => invoke(MARKET_INSIGHT_IPC.statusGet),
+    getSettings: () => invoke(MARKET_INSIGHT_IPC.settingsGet),
+    saveSettings: (settings) => invoke(MARKET_INSIGHT_IPC.settingsSave, settings),
+    getSnapshot: (quoteId) => invoke(MARKET_INSIGHT_IPC.snapshotGet, quoteId),
+    refresh: (quoteId) => invoke(MARKET_INSIGHT_IPC.refresh, quoteId),
+    listEvents: (quoteId) => invoke(MARKET_INSIGHT_IPC.eventsList, quoteId),
+    acknowledgeEvent: (eventId) => invoke(MARKET_INSIGHT_IPC.eventAcknowledge, eventId),
+    clearExpiredEvents: (quoteId) => invoke(MARKET_INSIGHT_IPC.eventsClearExpired, quoteId),
+    openSource: (url) => invoke(MARKET_INSIGHT_IPC.sourceOpen, url),
     onUpdated: (listener) => subscribe<string>(MARKET_INSIGHT_IPC.updated, listener)
   }
   contextBridge.exposeInMainWorld('marketInsightApi', api)

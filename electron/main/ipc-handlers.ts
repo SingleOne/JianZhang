@@ -55,6 +55,8 @@ import type {
   KlinePeriod,
   KlineResult,
   ManualCorporateActionRequest,
+  OptionalModuleId,
+  OptionalModulesState,
   PortfolioLedgerEntry,
   ReversalLedgerEntry,
   SearchResult,
@@ -78,6 +80,8 @@ interface IpcHandlerDependencies {
   persistState: () => void
   getQuotes: () => StockQuote[]
   getStartupWarning: () => string | undefined
+  getOptionalModulesState: () => OptionalModulesState
+  waitForOptionalModule: (moduleId: OptionalModuleId) => Promise<void>
   getTaskbarLayout: () => TaskbarLayout
   getTaskbarTooltipQuoteId: () => string | null
   resizeTaskbarTicker: (width: number, height: number) => void
@@ -190,17 +194,21 @@ interface IpcHandlerDependencies {
 
 const CHANNELS = [
   'app:bootstrap',
+  'app:optional-modules:get',
+  'app:optional-module:wait',
   'taskbar:layout:get',
   'taskbar:ticker:resize',
   'taskbar:tooltip:get',
   'taskbar:tooltip:set',
   'taskbar:tooltip:resize',
   'stocks:search',
+  'dividend-financing:overview:get',
   'dividend-financing:get',
   'dividend-financing:state:get',
   'dividend-financing:changes:get',
   'dividend-financing:update',
   'fundamentals:get',
+  'fundamentals:overview:get',
   'fundamentals:state:get',
   'fundamentals:changes:get',
   'fundamentals:update',
@@ -273,6 +281,10 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
     source: 'eastmoney' as const,
     warning: dependencies.getStartupWarning()
   }))
+  ipcMain.handle('app:optional-modules:get', () => dependencies.getOptionalModulesState())
+  ipcMain.handle('app:optional-module:wait', (_event, moduleId: OptionalModuleId) =>
+    dependencies.waitForOptionalModule(moduleId)
+  )
   ipcMain.handle('taskbar:layout:get', () => dependencies.getTaskbarLayout())
   ipcMain.handle('taskbar:ticker:resize', (_event, width: number, height: number) =>
     dependencies.resizeTaskbarTicker(width, height)

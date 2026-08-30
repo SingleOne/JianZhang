@@ -29,6 +29,7 @@ import {
   type FundsFlowResult,
   type KlinePeriod,
   type KlineResult,
+  type OptionalModulesState,
   type SectorIndexResult,
   type ShareholderSnapshot,
   type StockDesktopApi,
@@ -577,6 +578,13 @@ const demoApi: StockDesktopApi = {
     const marketIndices = getMarketIndexStocks(state.settings.marketIndexIds)
     return { state, quotes: makeDemoQuotes([...state.watchlist, ...marketIndices]), source: 'demo' }
   },
+  async getOptionalModulesState(): Promise<OptionalModulesState> {
+    return {
+      marketInsight: { status: 'disabled', error: null },
+      ai: { status: 'disabled', error: null },
+      aiTAdvice: { status: 'disabled', error: null }
+    }
+  },
   async getTaskbarLayout() {
     return { taskbarHeight: 48, taskbarEdge: 'bottom' }
   },
@@ -970,6 +978,7 @@ const demoApi: StockDesktopApi = {
   onTaskbarTooltipStock: noSubscribe,
   onSelectStock: noSubscribe,
   onDataError: noSubscribe,
+  onOptionalModulesStateUpdated: noSubscribe,
   onDividendFinancingUpdateProgress: noSubscribe,
   onDividendFinancingStateUpdated: noSubscribe,
   onFundamentalUpdateProgress: noSubscribe,

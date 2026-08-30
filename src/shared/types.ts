@@ -2731,6 +2731,16 @@ export interface BootstrapResult {
   warning?: string
 }
 
+export type OptionalModuleId = 'marketInsight' | 'ai' | 'aiTAdvice'
+export type OptionalModuleStatus = 'disabled' | 'initializing' | 'ready' | 'failed'
+
+export interface OptionalModuleState {
+  status: OptionalModuleStatus
+  error: string | null
+}
+
+export type OptionalModulesState = Record<OptionalModuleId, OptionalModuleState>
+
 export interface TaskbarLayout {
   taskbarHeight: number
   taskbarEdge: 'top' | 'bottom'
@@ -2750,6 +2760,7 @@ export interface StockSelectionRequest {
 
 export interface StockDesktopApi {
   getBootstrap: () => Promise<BootstrapResult>
+  getOptionalModulesState: () => Promise<OptionalModulesState>
   getTaskbarLayout: () => Promise<TaskbarLayout>
   getTaskbarTooltipQuoteId: () => Promise<string | null>
   resizeTaskbarTicker: (width: number, height: number) => Promise<void>
@@ -2846,6 +2857,7 @@ export interface StockDesktopApi {
   onTaskbarTooltipStock: (callback: (quoteId: string) => void) => () => void
   onSelectStock: (callback: (request: StockSelectionRequest) => void) => () => void
   onDataError: (callback: (message: string) => void) => () => void
+  onOptionalModulesStateUpdated: (callback: (state: OptionalModulesState) => void) => () => void
   onDividendFinancingUpdateProgress: (
     callback: (progress: DividendFinancingUpdateProgress) => void
   ) => () => void
