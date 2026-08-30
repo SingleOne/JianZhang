@@ -16,6 +16,7 @@ import type {
 import { AppSelect, type AppSelectOption } from './AppSelect'
 import { StockTrackingEditor } from './StockTrackingEditor'
 import { useStockTrackingMarketData } from './useStockTrackingMarketData'
+import './StockTracking.css'
 
 type StatusFilter = 'all' | 'tracking' | 'stopped'
 type SourceFilter = 'all' | StockTrackingSourceType

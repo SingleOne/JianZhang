@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
+import './FundamentalScreeningDialog.css'
 import { stockMarketIdentity } from '../shared/stock-market'
 import {
   DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA,

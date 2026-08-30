@@ -26,6 +26,7 @@ import type {
   WatchStock
 } from '../shared/types'
 import { useConfirmDialog } from './ConfirmDialog'
+import './DividendFinancingRankingDialog.css'
 
 const PAGE_SIZE = 50
 const MARKET_LABELS: Record<DividendFinancingMarket, string> = {

@@ -2,12 +2,8 @@ import { Bot, CircleCheck, RefreshCw, Signal, WifiOff } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { AppTitlebar, MarketTradingState } from './components/AppTitlebar'
 import { useConfirmDialog } from './components/ConfirmDialog'
-import { DailyMarketScanDialog } from './components/DailyMarketScanDialog'
-import { DividendFinancingRankingDialog } from './components/DividendFinancingRankingDialog'
-import { FundamentalScreeningDialog } from './components/FundamentalScreeningDialog'
 import { SearchBar } from './components/SearchBar'
 import { SettingsMenu } from './components/SettingsMenu'
-import { StockTrackingDialog } from './components/StockTrackingDialog'
 import { TitlebarToolsMenu } from './components/TitlebarToolsMenu'
 import { WatchlistTable } from './components/WatchlistTable'
 import { initialState, isDesktopRuntime, stockApi } from './lib/api'
@@ -68,6 +64,26 @@ import type {
   WatchlistColumnId
 } from './shared/types'
 
+const DailyMarketScanDialog = lazy(() =>
+  import('./components/DailyMarketScanDialog').then((module) => ({
+    default: module.DailyMarketScanDialog
+  }))
+)
+const DividendFinancingRankingDialog = lazy(() =>
+  import('./components/DividendFinancingRankingDialog').then((module) => ({
+    default: module.DividendFinancingRankingDialog
+  }))
+)
+const FundamentalScreeningDialog = lazy(() =>
+  import('./components/FundamentalScreeningDialog').then((module) => ({
+    default: module.FundamentalScreeningDialog
+  }))
+)
+const StockTrackingDialog = lazy(() =>
+  import('./components/StockTrackingDialog').then((module) => ({
+    default: module.StockTrackingDialog
+  }))
+)
 const CorporateActionCenterDialog = lazy(() => import('./components/CorporateActionCenterDialog'))
 const PortfolioPerformanceDialog = lazy(() => import('./components/PortfolioPerformanceDialog'))
 
@@ -76,6 +92,8 @@ interface StockAddOptions {
   source?: StockTrackingSource
   targetGroups?: WatchlistGroup[]
 }
+
+type DeferredDialogId = 'dividend-ranking' | 'fundamental-screening' | 'daily-scan' | 'tracking'
 
 const EMPTY_DATA_SNAPSHOT_STATE: DataSnapshotRuntimeState = {
   status: 'missing',
@@ -151,6 +169,7 @@ export default function App() {
   const [fundamentalScreeningOpen, setFundamentalScreeningOpen] = useState(false)
   const [dailyMarketScanOpen, setDailyMarketScanOpen] = useState(false)
   const [stockTrackingOpen, setStockTrackingOpen] = useState(false)
+  const [loadedDialogs, setLoadedDialogs] = useState<Set<DeferredDialogId>>(() => new Set())
   const [corporateActionCenterOpen, setCorporateActionCenterOpen] = useState(false)
   const [portfolioPerformanceOpen, setPortfolioPerformanceOpen] = useState(false)
   const [dividendFinancingSnapshot, setDividendFinancingSnapshot] =
@@ -169,6 +188,15 @@ export default function App() {
     quoteName?: string
   } | null>(null)
   const aiRuntimeAvailable = Boolean(AiAssistantDrawer && window.aiApi)
+
+  const loadDialog = useCallback((dialogId: DeferredDialogId) => {
+    setLoadedDialogs((current) => {
+      if (current.has(dialogId)) return current
+      const next = new Set(current)
+      next.add(dialogId)
+      return next
+    })
+  }, [])
 
   const updateQuotes = useCallback((incoming: StockQuote[]) => {
     setQuotes((current) => reconcileStockQuotes(current, incoming))
@@ -1392,10 +1420,22 @@ export default function App() {
               <span>立即刷新</span>
             </button>
             <TitlebarToolsMenu
-              onOpenDividendRanking={() => setDividendRankingOpen(true)}
-              onOpenFundamentalScreening={() => setFundamentalScreeningOpen(true)}
-              onOpenDailyMarketScan={() => setDailyMarketScanOpen(true)}
-              onOpenStockTracking={() => setStockTrackingOpen(true)}
+              onOpenDividendRanking={() => {
+                loadDialog('dividend-ranking')
+                setDividendRankingOpen(true)
+              }}
+              onOpenFundamentalScreening={() => {
+                loadDialog('fundamental-screening')
+                setFundamentalScreeningOpen(true)
+              }}
+              onOpenDailyMarketScan={() => {
+                loadDialog('daily-scan')
+                setDailyMarketScanOpen(true)
+              }}
+              onOpenStockTracking={() => {
+                loadDialog('tracking')
+                setStockTrackingOpen(true)
+              }}
               onOpenCorporateActionCenter={() => setCorporateActionCenterOpen(true)}
               onOpenPortfolioPerformance={() => setPortfolioPerformanceOpen(true)}
             />
@@ -1659,54 +1699,70 @@ export default function App() {
           {notice}
         </div>
       ) : null}
-      <DividendFinancingRankingDialog
-        open={dividendRankingOpen}
-        cachedSnapshot={dividendFinancingSnapshot}
-        cachedChangeReport={dividendFinancingChangeReport}
-        dataState={dividendFinancingState}
-        watchlist={state.watchlist}
-        trackingProfiles={state.stockTrackingProfiles}
-        onAddStock={addDividendFinancingStock}
-        onViewStock={viewWatchlistStockFromRanking}
-        onSnapshotChange={setDividendFinancingSnapshot}
-        onChangeReportChange={setDividendFinancingChangeReport}
-        onClose={() => setDividendRankingOpen(false)}
-      />
-      <FundamentalScreeningDialog
-        open={fundamentalScreeningOpen}
-        cachedSnapshot={fundamentalSnapshot}
-        cachedChangeReport={fundamentalChangeReport}
-        dataState={fundamentalDataState}
-        watchlist={state.watchlist}
-        trackingProfiles={state.stockTrackingProfiles}
-        onAddStock={addFundamentalScreeningStock}
-        onViewStock={viewWatchlistStockFromFundamentals}
-        onSnapshotChange={setFundamentalSnapshot}
-        onChangeReportChange={setFundamentalChangeReport}
-        onClose={() => setFundamentalScreeningOpen(false)}
-      />
-      <DailyMarketScanDialog
-        open={dailyMarketScanOpen}
-        watchlist={state.watchlist}
-        trackingProfiles={state.stockTrackingProfiles}
-        onAddStock={addDailyMarketScanStock}
-        onViewStock={viewWatchlistStockFromDailyScan}
-        onClose={() => setDailyMarketScanOpen(false)}
-      />
-      <StockTrackingDialog
-        open={stockTrackingOpen}
-        profiles={state.stockTrackingProfiles}
-        watchlist={state.watchlist}
-        quotes={quotes}
-        onUpdateProfile={saveTrackingProfile}
-        onStopTracking={stopTracking}
-        onRestartTracking={restartTracking}
-        onDeleteStock={removeTrackedStock}
-        onViewStock={viewWatchlistStockFromDailyScan}
-        bollingerBandsEnabled={state.settings.showBollingerBands}
-        onBollingerBandsEnabledChange={updateBollingerBandsEnabled}
-        onClose={() => setStockTrackingOpen(false)}
-      />
+      {loadedDialogs.has('dividend-ranking') ? (
+        <Suspense fallback={null}>
+          <DividendFinancingRankingDialog
+            open={dividendRankingOpen}
+            cachedSnapshot={dividendFinancingSnapshot}
+            cachedChangeReport={dividendFinancingChangeReport}
+            dataState={dividendFinancingState}
+            watchlist={state.watchlist}
+            trackingProfiles={state.stockTrackingProfiles}
+            onAddStock={addDividendFinancingStock}
+            onViewStock={viewWatchlistStockFromRanking}
+            onSnapshotChange={setDividendFinancingSnapshot}
+            onChangeReportChange={setDividendFinancingChangeReport}
+            onClose={() => setDividendRankingOpen(false)}
+          />
+        </Suspense>
+      ) : null}
+      {loadedDialogs.has('fundamental-screening') ? (
+        <Suspense fallback={null}>
+          <FundamentalScreeningDialog
+            open={fundamentalScreeningOpen}
+            cachedSnapshot={fundamentalSnapshot}
+            cachedChangeReport={fundamentalChangeReport}
+            dataState={fundamentalDataState}
+            watchlist={state.watchlist}
+            trackingProfiles={state.stockTrackingProfiles}
+            onAddStock={addFundamentalScreeningStock}
+            onViewStock={viewWatchlistStockFromFundamentals}
+            onSnapshotChange={setFundamentalSnapshot}
+            onChangeReportChange={setFundamentalChangeReport}
+            onClose={() => setFundamentalScreeningOpen(false)}
+          />
+        </Suspense>
+      ) : null}
+      {loadedDialogs.has('daily-scan') ? (
+        <Suspense fallback={null}>
+          <DailyMarketScanDialog
+            open={dailyMarketScanOpen}
+            watchlist={state.watchlist}
+            trackingProfiles={state.stockTrackingProfiles}
+            onAddStock={addDailyMarketScanStock}
+            onViewStock={viewWatchlistStockFromDailyScan}
+            onClose={() => setDailyMarketScanOpen(false)}
+          />
+        </Suspense>
+      ) : null}
+      {loadedDialogs.has('tracking') ? (
+        <Suspense fallback={null}>
+          <StockTrackingDialog
+            open={stockTrackingOpen}
+            profiles={state.stockTrackingProfiles}
+            watchlist={state.watchlist}
+            quotes={quotes}
+            onUpdateProfile={saveTrackingProfile}
+            onStopTracking={stopTracking}
+            onRestartTracking={restartTracking}
+            onDeleteStock={removeTrackedStock}
+            onViewStock={viewWatchlistStockFromDailyScan}
+            bollingerBandsEnabled={state.settings.showBollingerBands}
+            onBollingerBandsEnabledChange={updateBollingerBandsEnabled}
+            onClose={() => setStockTrackingOpen(false)}
+          />
+        </Suspense>
+      ) : null}
       {corporateActionCenterOpen ? (
         <Suspense fallback={null}>
           <CorporateActionCenterDialog
