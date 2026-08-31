@@ -1,12 +1,12 @@
 import {
   WATCHLIST_COLUMN_ORDER_VERSION,
-  migrateWatchlistColumnOrder,
   normalizeAppSettings,
   normalizeCorporateActionRecords,
   normalizePortfolioPerformanceAdjustments,
   normalizeStockTrackingProfiles,
   normalizeTradingAccountsForWatchlist,
   normalizeWatchlist,
+  normalizeWatchlistColumnOrder,
   normalizeWatchlistGroups,
   synchronizeTrackingGroupMembership,
   type AppSettings,
@@ -57,13 +57,10 @@ function isWatchStock(value: unknown): value is WatchStock {
 
 function isCompatibleAppSettings(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false
-  const settings = value as Partial<AppSettings> & { refreshSeconds?: number }
-  const hasRefreshSettings =
-    (typeof settings.priorityRefreshSeconds === 'number' &&
-      typeof settings.regularRefreshSeconds === 'number') ||
-    typeof settings.refreshSeconds === 'number'
+  const settings = value as Partial<AppSettings>
   return (
-    hasRefreshSettings &&
+    typeof settings.priorityRefreshSeconds === 'number' &&
+    typeof settings.regularRefreshSeconds === 'number' &&
     typeof settings.startWithWindows === 'boolean' &&
     typeof settings.minimizeToTray === 'boolean' &&
     typeof settings.showTaskbarTicker === 'boolean' &&
@@ -76,7 +73,7 @@ export function parseConfigDocument(value: unknown): AppState {
   const document = value as Partial<JianzhangConfigDocument>
   if (
     document.format !== JIANZHANG_CONFIG_FORMAT ||
-    ![1, 2, JIANZHANG_CONFIG_VERSION].includes(document.formatVersion ?? 0)
+    document.formatVersion !== JIANZHANG_CONFIG_VERSION
   ) {
     throw new Error('配置格式或版本不受支持')
   }
@@ -108,9 +105,8 @@ export function parseImportedAppState(value: unknown): AppState {
     watchlistGroups,
     stockTrackingProfiles,
     settings: normalizeAppSettings(importedState.settings),
-    columnOrder: migrateWatchlistColumnOrder(
-      Array.isArray(importedState.columnOrder) ? importedState.columnOrder : undefined,
-      importedState.columnOrderVersion
+    columnOrder: normalizeWatchlistColumnOrder(
+      Array.isArray(importedState.columnOrder) ? importedState.columnOrder : undefined
     ),
     columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
     tTradingAccounts: normalizeTradingAccountsForWatchlist(

@@ -3,7 +3,6 @@ import { basename, join } from 'node:path'
 import {
   WATCHLIST_COLUMN_ORDER_VERSION,
   hasLegacyTTradingData,
-  migrateWatchlistColumnOrder,
   normalizeAppSettings,
   normalizeCorporateActionRecords,
   normalizePortfolioPerformanceAdjustments,
@@ -202,7 +201,7 @@ export class StateStore {
       watchlistGroups,
       stockTrackingProfiles,
       settings: normalizeAppSettings(saved.settings),
-      columnOrder: migrateWatchlistColumnOrder(saved.columnOrder, saved.columnOrderVersion),
+      columnOrder: normalizeWatchlistColumnOrder(saved.columnOrder),
       columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
       tTradingAccounts: normalizeTradingAccountsForWatchlist(watchlist, saved.tTradingAccounts),
       corporateActionRecords: normalizeCorporateActionRecords(saved.corporateActionRecords),

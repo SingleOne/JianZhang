@@ -26,19 +26,16 @@ function state(): AppState {
 }
 
 describe('configuration tracking profiles', () => {
-  it('imports older configuration documents without tracking data', () => {
-    const legacyState = state() as Partial<AppState>
-    delete legacyState.stockTrackingProfiles
-    const parsed = parseConfigDocument({
-      format: JIANZHANG_CONFIG_FORMAT,
-      formatVersion: 2,
-      applicationVersion: '7.10.0',
-      exportedAt: '2026-08-10T00:00:00.000Z',
-      state: legacyState
-    })
-
-    expect(parsed.stockTrackingProfiles).toEqual({})
-    expect(parsed.watchlistGroups).toHaveLength(2)
+  it('rejects obsolete configuration formats', () => {
+    expect(() =>
+      parseConfigDocument({
+        format: JIANZHANG_CONFIG_FORMAT,
+        formatVersion: 2,
+        applicationVersion: '7.10.0',
+        exportedAt: '2026-08-10T00:00:00.000Z',
+        state: state()
+      })
+    ).toThrow('配置格式或版本不受支持')
   })
 
   it('round trips tracking profiles in the current configuration format', () => {
@@ -58,7 +55,7 @@ describe('configuration tracking profiles', () => {
       entries: [],
       metricSnapshots: []
     }
-    const document = createConfigDocument(current, '7.10.0')
+    const document = createConfigDocument(current, '13.0.1')
     const parsed = parseConfigDocument(document)
 
     expect(document.formatVersion).toBe(JIANZHANG_CONFIG_VERSION)

@@ -1418,45 +1418,6 @@ export function normalizeWatchlistColumnOrder(
   return [...normalized, ...missingColumns, 'operation']
 }
 
-export function migrateWatchlistColumnOrder(
-  columnOrder: readonly string[] | undefined,
-  version: number | undefined
-): WatchlistColumnId[] {
-  let migrated = normalizeWatchlistColumnOrder(columnOrder)
-
-  if ((version ?? 0) < 2) {
-    migrated = migrated.filter((columnId) => columnId !== 'todayProfit')
-    const totalProfitIndex = migrated.indexOf('totalProfit')
-    migrated.splice(totalProfitIndex + 1, 0, 'todayProfit')
-  }
-
-  if ((version ?? 0) < 5) {
-    migrated = migrated.filter((columnId) => columnId !== 'trading')
-    const openIndex = migrated.indexOf('open')
-    migrated.splice(openIndex + 1, 0, 'trading')
-  }
-
-  if ((version ?? 0) < 7) {
-    migrated = migrated.filter((columnId) => columnId !== 'dividendFinancingRatio')
-    const changePercentIndex = migrated.indexOf('changePercent')
-    migrated.splice(changePercentIndex + 1, 0, 'dividendFinancingRatio')
-  }
-
-  if ((version ?? 0) < 8) {
-    migrated = migrated.filter((columnId) => columnId !== 'valueTags')
-    const dividendFinancingIndex = migrated.indexOf('dividendFinancingRatio')
-    migrated.splice(dividendFinancingIndex + 1, 0, 'valueTags')
-  }
-
-  if ((version ?? 0) < 9) {
-    migrated = migrated.filter((columnId) => columnId !== 'sinceAddedChange')
-    const changePercentIndex = migrated.indexOf('changePercent')
-    migrated.splice(changePercentIndex + 1, 0, 'sinceAddedChange')
-  }
-
-  return migrated
-}
-
 export interface StockSectorQuote {
   code: string
   name: string
@@ -2513,22 +2474,18 @@ export function normalizeTradingCalendarSettings(
   const normalizeMarket = (market: StockMarket): MarketTradingCalendarSettings => {
     const defaults = DEFAULT_MARKET_TRADING_CALENDARS[market]
     const stored = storedMarkets?.[market]
-    const legacy = market === 'CN' ? calendar : undefined
     return {
-      closedDates: validDates([
-        ...defaults.closedDates,
-        ...(stored?.closedDates ?? legacy?.closedDates ?? [])
-      ]),
+      closedDates: validDates([...defaults.closedDates, ...(stored?.closedDates ?? [])]),
       halfDayDates: validDates([...defaults.halfDayDates, ...(stored?.halfDayDates ?? [])]),
       coveredThroughYear: Math.max(
         defaults.coveredThroughYear,
-        stored?.coveredThroughYear ?? legacy?.coveredThroughYear ?? defaults.coveredThroughYear
+        stored?.coveredThroughYear ?? defaults.coveredThroughYear
       ),
       source: stored?.source ?? defaults.source,
-      lastRefreshedAt: stored?.lastRefreshedAt ?? legacy?.lastRefreshedAt ?? null,
-      lastCheckedYear: stored?.lastCheckedYear ?? legacy?.lastCheckedYear ?? null,
-      lastAttemptedAt: stored?.lastAttemptedAt ?? legacy?.lastAttemptedAt ?? null,
-      lastError: stored?.lastError ?? legacy?.lastError ?? null
+      lastRefreshedAt: stored?.lastRefreshedAt ?? null,
+      lastCheckedYear: stored?.lastCheckedYear ?? null,
+      lastAttemptedAt: stored?.lastAttemptedAt ?? null,
+      lastError: stored?.lastError ?? null
     }
   }
   const markets = {
@@ -2555,14 +2512,7 @@ export function marketTradingCalendar(
   return settings.markets[market]
 }
 
-export function normalizeAppSettings(
-  settings: (Partial<AppSettings> & { refreshSeconds?: number }) | undefined
-): AppSettings {
-  const legacyRefreshSeconds = settings?.refreshSeconds
-  const regularFallback =
-    typeof legacyRefreshSeconds === 'number' && legacyRefreshSeconds !== 5
-      ? legacyRefreshSeconds
-      : DEFAULT_APP_SETTINGS.regularRefreshSeconds
+export function normalizeAppSettings(settings: Partial<AppSettings> | undefined): AppSettings {
   return {
     theme: settings?.theme === 'light' || settings?.theme === 'dark' ? settings.theme : 'system',
     priorityRefreshSeconds: Math.min(
@@ -2571,7 +2521,7 @@ export function normalizeAppSettings(
     ),
     regularRefreshSeconds: Math.min(
       300,
-      Math.max(3, settings?.regularRefreshSeconds ?? regularFallback)
+      Math.max(3, settings?.regularRefreshSeconds ?? DEFAULT_APP_SETTINGS.regularRefreshSeconds)
     ),
     marketIndexIds: normalizeMarketIndexIds(settings?.marketIndexIds),
     startWithWindows: settings?.startWithWindows ?? DEFAULT_APP_SETTINGS.startWithWindows,

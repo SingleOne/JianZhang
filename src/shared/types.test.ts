@@ -5,7 +5,6 @@ import {
   WATCHLIST_COLUMN_ORDER_VERSION,
   getMarketIndexStocks,
   hasLegacyTTradingData,
-  migrateWatchlistColumnOrder,
   normalizeAppSettings,
   normalizeTradingAccountsForWatchlist,
   normalizeTTradingAccounts,
@@ -192,21 +191,7 @@ describe('settings and column migration', () => {
     expect(settings.tFloatingProfitAlertDefaultThreshold).toBe(100)
   })
 
-  it('inserts historical columns in their intended positions', () => {
-    const migrated = migrateWatchlistColumnOrder(
-      ['stock', 'changePercent', 'open', 'totalProfit', 'operation'],
-      1
-    )
-
-    expect(migrated).not.toContain('sectorChangePercent')
-    expect(migrated.indexOf('sinceAddedChange')).toBe(migrated.indexOf('changePercent') + 1)
-    expect(migrated.indexOf('dividendFinancingRatio')).toBe(
-      migrated.indexOf('sinceAddedChange') + 1
-    )
-    expect(migrated.indexOf('valueTags')).toBe(migrated.indexOf('dividendFinancingRatio') + 1)
-    expect(migrated.indexOf('trading')).toBe(migrated.indexOf('open') + 1)
-    expect(migrated.indexOf('todayProfit')).toBe(migrated.indexOf('totalProfit') + 1)
-    expect(migrated.at(-1)).toBe('operation')
+  it('tracks the current column layout version', () => {
     expect(WATCHLIST_COLUMN_ORDER_VERSION).toBe(9)
   })
 
