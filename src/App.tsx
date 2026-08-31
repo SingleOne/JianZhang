@@ -1374,6 +1374,13 @@ export default function App() {
     }
   }
 
+  const recalculatePortfolioPerformanceStock = useCallback(
+    async (quoteId: string) => {
+      updateQuotes(await stockApi.refreshQuote(quoteId))
+    },
+    [updateQuotes]
+  )
+
   const refreshTradingCalendar = async () => {
     setCalendarRefreshing(true)
     try {
@@ -1818,6 +1825,7 @@ export default function App() {
             exchangeRates={state.settings.exchangeRates}
             adjustments={state.portfolioPerformanceAdjustments ?? {}}
             onSaveAdjustments={savePortfolioPerformanceAdjustments}
+            onRecalculateStock={recalculatePortfolioPerformanceStock}
             onClose={() => setPortfolioPerformanceOpen(false)}
           />
         </Suspense>

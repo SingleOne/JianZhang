@@ -1,4 +1,4 @@
-import { ChartPie, CircleAlert, PencilLine, Save, X } from 'lucide-react'
+import { ChartPie, CircleAlert, PencilLine, RefreshCw, Save, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { formatMoneyProfit } from '../lib/format'
@@ -26,6 +26,7 @@ interface PortfolioPerformanceDialogProps {
   exchangeRates: ExchangeRateSettings
   adjustments: PortfolioPerformanceAdjustments
   onSaveAdjustments: (adjustments: PortfolioPerformanceAdjustments) => Promise<boolean>
+  onRecalculateStock: (quoteId: string) => Promise<void>
   onClose: () => void
 }
 
@@ -131,6 +132,7 @@ export default function PortfolioPerformanceDialog({
   exchangeRates,
   adjustments,
   onSaveAdjustments,
+  onRecalculateStock,
   onClose
 }: PortfolioPerformanceDialogProps) {
   const [dimension, setDimension] = useState<PerformanceDimension>('stock')
@@ -138,6 +140,8 @@ export default function PortfolioPerformanceDialog({
   const [adjustmentDraft, setAdjustmentDraft] = useState('')
   const [adjustmentError, setAdjustmentError] = useState('')
   const [savingAdjustments, setSavingAdjustments] = useState(false)
+  const [recalculatingQuoteId, setRecalculatingQuoteId] = useState<string | null>(null)
+  const [recalculationErrorQuoteId, setRecalculationErrorQuoteId] = useState<string | null>(null)
   const report = useMemo(
     () =>
       calculatePortfolioPerformanceReport(watchlist, quotes, accounts, exchangeRates, adjustments),
@@ -205,6 +209,18 @@ export default function PortfolioPerformanceDialog({
     setSavingAdjustments(false)
     if (saved) closeAdjustmentEditor()
     else setAdjustmentError('收益调整保存失败，请重试')
+  }
+
+  const recalculateStock = async (quoteId: string) => {
+    setRecalculatingQuoteId(quoteId)
+    setRecalculationErrorQuoteId(null)
+    try {
+      await onRecalculateStock(quoteId)
+    } catch {
+      setRecalculationErrorQuoteId(quoteId)
+    } finally {
+      setRecalculatingQuoteId(null)
+    }
   }
 
   useEffect(() => {
@@ -344,6 +360,37 @@ export default function PortfolioPerformanceDialog({
                         <span className="performance-row-label">
                           <strong>{row.label}</strong>
                           <small>{row.detail ?? `${row.stockCount} 只股票`}</small>
+                          {editableStock ? (
+                            <span className="performance-row-actions">
+                              <button
+                                className="performance-row-recalculate"
+                                type="button"
+                                disabled={recalculatingQuoteId !== null}
+                                aria-label={`重新计算${row.label}收益`}
+                                title="刷新该股票行情，并按当前交易账本重新计算"
+                                onClick={() => void recalculateStock(editableStock.quoteId)}
+                              >
+                                <RefreshCw
+                                  size={13}
+                                  className={
+                                    recalculatingQuoteId === editableStock.quoteId
+                                      ? 'is-spinning'
+                                      : undefined
+                                  }
+                                />
+                                <span>
+                                  {recalculatingQuoteId === editableStock.quoteId
+                                    ? '计算中'
+                                    : '重新计算'}
+                                </span>
+                              </button>
+                              {recalculationErrorQuoteId === editableStock.quoteId ? (
+                                <small className="performance-row-recalculation-error">
+                                  重新计算失败，请重试
+                                </small>
+                              ) : null}
+                            </span>
+                          ) : null}
                         </span>
                       </td>
                       <td>
