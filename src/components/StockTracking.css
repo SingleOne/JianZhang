@@ -943,6 +943,7 @@
   border-radius: 16px;
   background: var(--surface);
   box-shadow: var(--shadow-menu);
+  animation: dialog-in 160ms ease-out;
 }
 
 .stock-tracking-dialog-header {

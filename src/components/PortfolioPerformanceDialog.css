@@ -20,6 +20,7 @@
   background: #fff;
   box-shadow: 0 24px 70px rgb(15 23 42 / 26%);
   color: #253247;
+  animation: dialog-in 160ms ease-out;
 }
 
 .portfolio-performance-header {
