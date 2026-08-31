@@ -16,7 +16,6 @@ import {
   type AppState
 } from '../../src/shared/types'
 import { atomicWriteFileSync } from './file-storage'
-import { repairKnownPortfolioDataCorruption } from './portfolio-data-repair'
 
 export const STATE_FILE_NAME = 'settings.json'
 export const LAST_GOOD_STATE_FILE_NAME = 'settings.last-good.json'
@@ -134,25 +133,22 @@ export class StateStore {
       watchlistGroups,
       stockTrackingProfiles
     )
-    return repairKnownPortfolioDataCorruption(
-      {
-        ...state,
-        revision: state.revision,
-        watchlist,
-        watchlistGroups,
-        stockTrackingProfiles,
-        settings: normalizeAppSettings(state.settings),
-        columnOrder: normalizeWatchlistColumnOrder(state.columnOrder),
-        columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
-        tTradingAccounts: normalizeTradingAccountsForWatchlist(watchlist, state.tTradingAccounts),
-        corporateActionRecords: normalizeCorporateActionRecords(state.corporateActionRecords),
-        portfolioPerformanceAdjustments: normalizePortfolioPerformanceAdjustments(
-          state.portfolioPerformanceAdjustments,
-          watchlist
-        )
-      },
-      this.now()
-    )
+    return {
+      ...state,
+      revision: state.revision,
+      watchlist,
+      watchlistGroups,
+      stockTrackingProfiles,
+      settings: normalizeAppSettings(state.settings),
+      columnOrder: normalizeWatchlistColumnOrder(state.columnOrder),
+      columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
+      tTradingAccounts: normalizeTradingAccountsForWatchlist(watchlist, state.tTradingAccounts),
+      corporateActionRecords: normalizeCorporateActionRecords(state.corporateActionRecords),
+      portfolioPerformanceAdjustments: normalizePortfolioPerformanceAdjustments(
+        state.portfolioPerformanceAdjustments,
+        watchlist
+      )
+    }
   }
 
   save(state: AppState): void {
@@ -197,27 +193,24 @@ export class StateStore {
       watchlistGroups,
       stockTrackingProfiles
     )
-    return repairKnownPortfolioDataCorruption(
-      {
-        revision:
-          typeof saved.revision === 'number' && Number.isInteger(saved.revision)
-            ? Math.max(0, saved.revision)
-            : 0,
-        watchlist,
-        watchlistGroups,
-        stockTrackingProfiles,
-        settings: normalizeAppSettings(saved.settings),
-        columnOrder: migrateWatchlistColumnOrder(saved.columnOrder, saved.columnOrderVersion),
-        columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
-        tTradingAccounts: normalizeTradingAccountsForWatchlist(watchlist, saved.tTradingAccounts),
-        corporateActionRecords: normalizeCorporateActionRecords(saved.corporateActionRecords),
-        portfolioPerformanceAdjustments: normalizePortfolioPerformanceAdjustments(
-          saved.portfolioPerformanceAdjustments,
-          watchlist
-        )
-      },
-      this.now()
-    )
+    return {
+      revision:
+        typeof saved.revision === 'number' && Number.isInteger(saved.revision)
+          ? Math.max(0, saved.revision)
+          : 0,
+      watchlist,
+      watchlistGroups,
+      stockTrackingProfiles,
+      settings: normalizeAppSettings(saved.settings),
+      columnOrder: migrateWatchlistColumnOrder(saved.columnOrder, saved.columnOrderVersion),
+      columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
+      tTradingAccounts: normalizeTradingAccountsForWatchlist(watchlist, saved.tTradingAccounts),
+      corporateActionRecords: normalizeCorporateActionRecords(saved.corporateActionRecords),
+      portfolioPerformanceAdjustments: normalizePortfolioPerformanceAdjustments(
+        saved.portfolioPerformanceAdjustments,
+        watchlist
+      )
+    }
   }
 
   private loadLastGoodState(): AppState | null {
