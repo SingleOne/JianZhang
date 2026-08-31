@@ -96,16 +96,27 @@ export default function CorporateActionCenterDialog({
           result.status === 'fulfilled' ? result.value.candidates : []
         )
         const failures = results.filter(({ result }) => result.status === 'rejected')
+        const degraded = results.filter(
+          ({ result }) => result.status === 'fulfilled' && result.value.degraded
+        )
         setCandidates(successful)
-        if (failures.length > 0) {
-          const details = failures
-            .map(({ stock, result }) =>
-              result.status === 'rejected'
-                ? `${stockLabel(stock)}：${failureReason(result.reason)}`
-                : stockLabel(stock)
-            )
-            .join('；')
-          setError(`${failures.length} 只股票请求失败（成功但无候选不会计入失败）：${details}`)
+        if (failures.length > 0 || degraded.length > 0) {
+          const failedDetails = failures.map(({ stock, result }) =>
+            result.status === 'rejected'
+              ? `${stockLabel(stock)}：${failureReason(result.reason)}`
+              : stockLabel(stock)
+          )
+          const degradedDetails = degraded.map(({ stock, result }) =>
+            result.status === 'fulfilled'
+              ? `${stockLabel(stock)}：${result.value.warning ?? '在线数据不完整'}`
+              : stockLabel(stock)
+          )
+          setError(
+            `公司行动数据获取不完整（成功但无候选不会计入失败）：${[
+              ...failedDetails,
+              ...degradedDetails
+            ].join('；')}`
+          )
         }
       })
       .finally(() => {

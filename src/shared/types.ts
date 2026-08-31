@@ -924,6 +924,8 @@ export interface CorporateActionListResult {
   fromCache: boolean
   candidates: CorporateActionCandidate[]
   warning?: string
+  degraded?: boolean
+  cacheVersion?: number
 }
 
 export interface ManualCorporateActionRequest {

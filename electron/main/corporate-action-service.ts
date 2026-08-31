@@ -24,9 +24,10 @@ import { atomicWriteJsonSync } from './file-storage'
 import type { CorporateActionProvider } from './corporate-action-provider'
 import { HkexCorporateActionProvider } from './hkex-corporate-action-provider'
 import { SecCorporateActionProvider } from './sec-corporate-action-provider'
-import { SecEdgarClient } from './sec-edgar-client'
+import { SEC_DOCUMENT_HEADERS, SecEdgarClient } from './sec-edgar-client'
 
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000
+const CACHE_VERSION = 2
 const OFFICIAL_HOSTS = new Set(['www1.hkexnews.hk', 'www.hkexnews.hk', 'www.sec.gov', 'sec.gov'])
 
 function mergeExtractedField<T>(
@@ -121,7 +122,8 @@ export class CorporateActionService {
         candidates: []
       }
     }
-    const cached = this.readCache(quoteId, market)
+    const storedCache = this.readCache(quoteId, market)
+    const cached = storedCache?.cacheVersion === CACHE_VERSION ? storedCache : null
     if (
       !forceRefresh &&
       cached &&
@@ -141,7 +143,7 @@ export class CorporateActionService {
           ? { ...candidate, status: 'revised' as const }
           : candidate
       })
-      const result = { ...fetched, candidates }
+      const result = { ...fetched, candidates, cacheVersion: CACHE_VERSION }
       this.writeCache(result)
       return result
     } catch (reason) {
@@ -149,6 +151,7 @@ export class CorporateActionService {
       return {
         ...cached,
         fromCache: true,
+        degraded: true,
         warning: `在线更新失败，当前显示本地缓存：${reason instanceof Error ? reason.message : '未知错误'}`
       }
     }
@@ -255,11 +258,13 @@ export class CorporateActionService {
       if (parsed.protocol !== 'https:' || !OFFICIAL_HOSTS.has(parsed.hostname)) return candidate
       try {
         const response = await net.fetch(url, {
-          headers: {
-            Referer:
-              candidate.market === 'HK' ? 'https://www1.hkexnews.hk/' : 'https://www.sec.gov/',
-            'User-Agent': 'JianZhang Desktop stock research app'
-          },
+          headers:
+            candidate.market === 'HK'
+              ? {
+                  Referer: 'https://www1.hkexnews.hk/',
+                  'User-Agent': 'JianZhang Desktop stock research app'
+                }
+              : { ...SEC_DOCUMENT_HEADERS, Referer: 'https://www.sec.gov/' },
           signal: AbortSignal.timeout(45_000)
         })
         if (!response.ok) return candidate

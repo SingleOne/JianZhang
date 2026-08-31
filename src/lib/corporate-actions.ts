@@ -161,7 +161,7 @@ export function extractCorporateActionTerms(
 function namedDate(text: string, labels: RegExp): string | undefined {
   const dayFirst = text.match(
     new RegExp(
-      `${labels.source}[^\\d]{0,40}(\\d{1,2})[\\s/-]+(January|February|March|April|May|June|July|August|September|October|November|December|\\d{1,2})[\\s/-]+(20\\d{2})`,
+      `(?:${labels.source})[^\\d]{0,40}(\\d{1,2})[\\s/-]+(January|February|March|April|May|June|July|August|September|October|November|December|\\d{1,2})[\\s/-]+(20\\d{2})`,
       'i'
     )
   )
@@ -187,7 +187,7 @@ function namedDate(text: string, labels: RegExp): string | undefined {
   }
   const monthFirst = text.match(
     new RegExp(
-      `${labels.source}.{0,40}?(January|February|March|April|May|June|July|August|September|October|November|December)\\s+(\\d{1,2})(?:st|nd|rd|th)?[,]?\\s+(20\\d{2})`,
+      `(?:${labels.source}).{0,40}?(January|February|March|April|May|June|July|August|September|October|November|December)\\s+(\\d{1,2})(?:st|nd|rd|th)?[,]?\\s+(20\\d{2})`,
       'i'
     )
   )
@@ -196,7 +196,7 @@ function namedDate(text: string, labels: RegExp): string | undefined {
     return `${monthFirst[3]}-${String(month).padStart(2, '0')}-${String(Number(monthFirst[2])).padStart(2, '0')}`
   }
   const iso = text.match(
-    new RegExp(`${labels.source}[^\\d]{0,40}(20\\d{2})-(\\d{2})-(\\d{2})`, 'i')
+    new RegExp(`(?:${labels.source})[^\\d]{0,40}(20\\d{2})-(\\d{2})-(\\d{2})`, 'i')
   )
   return iso ? `${iso[1]}-${iso[2]}-${iso[3]}` : undefined
 }
@@ -209,8 +209,11 @@ export function extractCorporateActionDates(
 > {
   return {
     exDate: namedDate(text, /ex[- ](?:dividend|entitlement) date/),
-    recordDate: namedDate(text, /record date/),
-    payableDate: namedDate(text, /pay(?:able|ment) date/),
+    recordDate: namedDate(
+      text,
+      /record date|(?:shareholders?|stockholders?|holders?) of record(?:\s+as of(?:\s+the close of business)?(?:\s+on)?)?/
+    ),
+    payableDate: namedDate(text, /pay(?:able|ment) date|dividend is payable(?:\s+on)?/),
     effectiveDate: namedDate(text, /effective date/),
     electionDeadline: namedDate(text, /(?:election|acceptance) deadline|latest time for acceptance/)
   }

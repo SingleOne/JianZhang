@@ -2,13 +2,18 @@ import { net } from 'electron'
 
 const SEC_TICKERS_URL = 'https://www.sec.gov/files/company_tickers_exchange.json'
 const SEC_DATA_BASE_URL = 'https://data.sec.gov'
+const SEC_USER_AGENT =
+  process.env.JIANZHANG_SEC_USER_AGENT?.trim() ||
+  'SingleOne JianZhang Desktop SingleOne@users.noreply.github.com'
 const SEC_HEADERS = {
   Accept: 'application/json',
-  'User-Agent': 'JianZhang Desktop stock research app'
+  'Accept-Encoding': 'gzip, deflate',
+  'User-Agent': SEC_USER_AGENT
 }
-const SEC_DOCUMENT_HEADERS = {
+export const SEC_DOCUMENT_HEADERS = {
   Accept: 'text/plain, text/html, */*',
-  'User-Agent': 'JianZhang Desktop stock research app'
+  'Accept-Encoding': 'gzip, deflate',
+  'User-Agent': SEC_USER_AGENT
 }
 
 export interface SecIssuer {
