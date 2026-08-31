@@ -10,6 +10,7 @@ import type {
 } from '../shared/types'
 import { StockTrackingEditor } from './StockTrackingEditor'
 import { useStockTrackingMarketData } from './useStockTrackingMarketData'
+import './StockTracking.css'
 
 interface StockTrackingPanelProps {
   stock: WatchStock
