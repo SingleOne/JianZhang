@@ -2,12 +2,11 @@ import { copyFileSync, existsSync, readFileSync, readdirSync, rmSync } from 'nod
 import { basename, join } from 'node:path'
 import {
   WATCHLIST_COLUMN_ORDER_VERSION,
-  hasLegacyTTradingData,
   normalizeAppSettings,
   normalizeCorporateActionRecords,
   normalizePortfolioPerformanceAdjustments,
   normalizeStockTrackingProfiles,
-  normalizeTradingAccountsForWatchlist,
+  normalizeTTradingAccounts,
   normalizeWatchlist,
   normalizeWatchlistColumnOrder,
   normalizeWatchlistGroups,
@@ -18,7 +17,6 @@ import { atomicWriteFileSync } from './file-storage'
 
 export const STATE_FILE_NAME = 'settings.json'
 export const LAST_GOOD_STATE_FILE_NAME = 'settings.last-good.json'
-export const LEGACY_TRADING_BACKUP_FILE_NAME = 'settings.pre-unified-trades.json'
 export const STATE_HISTORY_DIRECTORY_NAME = 'state-history'
 const STATE_HISTORY_LIMIT = 20
 const STATE_HISTORY_MIN_INTERVAL_MILLISECONDS = 15 * 60 * 1000
@@ -50,7 +48,6 @@ function invalidStateFileName(now: Date): string {
 export class StateStore {
   private readonly statePath: string
   private readonly lastGoodPath: string
-  private readonly legacyTradingBackupPath: string
   private revision = 0
   private loadedContent: string | null = null
   private lastHistoryAt = 0
@@ -62,7 +59,6 @@ export class StateStore {
   ) {
     this.statePath = join(directory, STATE_FILE_NAME)
     this.lastGoodPath = join(directory, LAST_GOOD_STATE_FILE_NAME)
-    this.legacyTradingBackupPath = join(directory, LEGACY_TRADING_BACKUP_FILE_NAME)
   }
 
   load(): StateStoreLoadResult {
@@ -94,13 +90,6 @@ export class StateStore {
     const portfolioPerformanceAdjustmentsMigrated =
       JSON.stringify(saved.portfolioPerformanceAdjustments ?? {}) !==
       JSON.stringify(state.portfolioPerformanceAdjustments)
-
-    if (
-      hasLegacyTTradingData(saved.tTradingAccounts) &&
-      !existsSync(this.legacyTradingBackupPath)
-    ) {
-      this.writeAtomically(this.legacyTradingBackupPath, JSON.stringify(saved, null, 2))
-    }
 
     if (
       saved.columnOrderVersion !== WATCHLIST_COLUMN_ORDER_VERSION ||
@@ -141,7 +130,7 @@ export class StateStore {
       settings: normalizeAppSettings(state.settings),
       columnOrder: normalizeWatchlistColumnOrder(state.columnOrder),
       columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
-      tTradingAccounts: normalizeTradingAccountsForWatchlist(watchlist, state.tTradingAccounts),
+      tTradingAccounts: normalizeTTradingAccounts(state.tTradingAccounts),
       corporateActionRecords: normalizeCorporateActionRecords(state.corporateActionRecords),
       portfolioPerformanceAdjustments: normalizePortfolioPerformanceAdjustments(
         state.portfolioPerformanceAdjustments,
@@ -203,7 +192,7 @@ export class StateStore {
       settings: normalizeAppSettings(saved.settings),
       columnOrder: normalizeWatchlistColumnOrder(saved.columnOrder),
       columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
-      tTradingAccounts: normalizeTradingAccountsForWatchlist(watchlist, saved.tTradingAccounts),
+      tTradingAccounts: normalizeTTradingAccounts(saved.tTradingAccounts),
       corporateActionRecords: normalizeCorporateActionRecords(saved.corporateActionRecords),
       portfolioPerformanceAdjustments: normalizePortfolioPerformanceAdjustments(
         saved.portfolioPerformanceAdjustments,

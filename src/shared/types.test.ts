@@ -4,17 +4,13 @@ import {
   DEFAULT_WATCHLIST_GROUPS,
   WATCHLIST_COLUMN_ORDER_VERSION,
   getMarketIndexStocks,
-  hasLegacyTTradingData,
   normalizeAppSettings,
-  normalizeTradingAccountsForWatchlist,
   normalizeTTradingAccounts,
   normalizeStockTrackingProfiles,
   normalizeWatchlist,
   normalizeWatchlistGroups,
   synchronizeTrackingGroupMembership,
-  type TTrade,
-  type TTradingAccounts,
-  type WatchStock
+  type TTrade
 } from './types'
 
 const EMPTY_FEES = {
@@ -221,88 +217,7 @@ describe('settings and column migration', () => {
   })
 })
 
-describe('unified trade record migration', () => {
-  it('creates a market-aware opening balance for an existing global position', () => {
-    const stock: WatchStock = {
-      quoteId: '105.AAPL',
-      code: 'AAPL',
-      name: 'Apple',
-      marketLabel: '纳斯达克',
-      market: 'US',
-      currency: 'USD',
-      showInTaskbar: false,
-      isPriority: true,
-      showRadarSignals: false,
-      position: {
-        quantity: 5,
-        cost: 200,
-        openedToday: false,
-        openedOn: '2026-08-20',
-        currency: 'USD',
-        costExchangeRate: 7,
-        costExchangeRateDate: '2026-08-20'
-      }
-    }
-    const account = normalizeTradingAccountsForWatchlist([stock], {})[stock.quoteId]
-    expect(account.market).toBe('US')
-    expect(account.tradeRecords[0]).toMatchObject({
-      origin: 'opening-balance',
-      quantity: 5,
-      currency: 'USD',
-      exchangeRate: 7
-    })
-  })
-
-  it('detects and migrates legacy base and batch trades without duplicates', () => {
-    const legacyAccounts = {
-      '1.600000': {
-        quoteId: '1.600000',
-        code: '600000',
-        name: '浦发银行',
-        baseTrades: [trade('base', '2026-07-01T09:30:00.000Z')],
-        history: [
-          {
-            id: 'batch-1',
-            sequence: 1,
-            openedAt: '2026-07-02T09:30:00.000Z',
-            sellLevels: [],
-            trades: [trade('history', '2026-07-02T09:30:00.000Z')]
-          }
-        ],
-        activeBatch: {
-          id: 'batch-2',
-          sequence: 2,
-          openedAt: '2026-07-03T09:30:00.000Z',
-          direction: 'reverse',
-          sellLevels: [{ targetPercent: 2, quantity: 100 }],
-          trades: [trade('active', '2026-07-03T09:30:00.000Z')]
-        },
-        tradeRecords: [trade('active', '2026-07-03T09:30:00.000Z')]
-      }
-    } as unknown as TTradingAccounts
-
-    expect(hasLegacyTTradingData(legacyAccounts)).toBe(true)
-
-    const account = normalizeTTradingAccounts(legacyAccounts)['1.600000']
-    expect(account.tradeRecords.map((record) => record.id)).toEqual(['active', 'history', 'base'])
-    expect(account.tradeRecords.find((record) => record.id === 'base')?.batchId).toBeUndefined()
-    expect(account.tradeRecords.find((record) => record.id === 'history')).toMatchObject({
-      batchId: 'batch-1',
-      batchSequence: 1,
-      batchDirection: 'forward'
-    })
-    expect(account.tradeRecords.find((record) => record.id === 'active')).toMatchObject({
-      batchId: 'batch-2',
-      batchSequence: 2,
-      batchDirection: 'reverse'
-    })
-    expect(account.activeBatch).not.toHaveProperty('trades')
-    expect(account.history[0]).not.toHaveProperty('trades')
-    expect(account.activeBatch?.buyLevels?.[0].targetPercent).toBe(2)
-    expect(account.activeBatch?.sellLevels[0].targetPercent).toBe(1)
-    expect(hasLegacyTTradingData(normalizeTTradingAccounts(legacyAccounts))).toBe(false)
-  })
-
+describe('unified trade records', () => {
   it('normalizes an active batch from the quantity allocated by a cross-batch execution', () => {
     const transitionTrade = {
       ...trade('transition', '2026-08-26T10:00'),

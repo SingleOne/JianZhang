@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   appendPortfolioLedgerEntries,
   normalizeTTradingAccounts,
+  withLedgerTradeRecords,
   type CorporateActionCandidate,
   type TTradeRecord
 } from '../shared/types'
@@ -27,13 +28,13 @@ function trade(id: string, quantity = 100, price = 20): TTradeRecord {
     exchangeRate: 0.92,
     exchangeRateDate: '2026-01-02',
     origin: 'opening-balance',
-    note: '期初持仓'
+    note: '初始持仓'
   }
 }
 
 function account() {
-  return normalizeTTradingAccounts({
-    '116.00700': {
+  const current = withLedgerTradeRecords(
+    {
       quoteId: '116.00700',
       code: '00700',
       name: '腾讯控股',
@@ -41,9 +42,11 @@ function account() {
       currency: 'HKD',
       history: [],
       ledger: { schemaVersion: 1, entries: [] },
-      tradeRecords: [trade('opening')]
-    }
-  })['116.00700']
+      tradeRecords: []
+    },
+    [trade('opening')]
+  )
+  return normalizeTTradingAccounts({ '116.00700': current })['116.00700']
 }
 
 function candidate(
@@ -70,7 +73,7 @@ function candidate(
 }
 
 describe('portfolio ledger corporate actions', () => {
-  it('migrates existing trades into the versioned ledger without losing the compatibility mirror', () => {
+  it('keeps ledger trades synchronized with the compatibility mirror', () => {
     const normalized = account()
     expect(normalized.ledger.schemaVersion).toBe(1)
     expect(normalized.ledger.entries).toHaveLength(1)

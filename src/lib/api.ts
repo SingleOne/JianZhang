@@ -6,7 +6,7 @@ import {
   getMarketIndexStocks,
   normalizeAppSettings,
   normalizePortfolioPerformanceAdjustments,
-  normalizeTradingAccountsForWatchlist,
+  normalizeTTradingAccounts,
   normalizeStockTrackingProfiles,
   normalizeWatchlist,
   normalizeWatchlistColumnOrder,
@@ -188,7 +188,7 @@ function loadDemoState(): AppState {
     settings: normalizeAppSettings(parsed.settings),
     columnOrder: normalizeWatchlistColumnOrder(parsed.columnOrder),
     columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
-    tTradingAccounts: normalizeTradingAccountsForWatchlist(watchlist, parsed.tTradingAccounts),
+    tTradingAccounts: normalizeTTradingAccounts(parsed.tTradingAccounts),
     corporateActionRecords: parsed.corporateActionRecords ?? {},
     portfolioPerformanceAdjustments: normalizePortfolioPerformanceAdjustments(
       parsed.portfolioPerformanceAdjustments,

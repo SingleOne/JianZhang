@@ -15,25 +15,15 @@ import {
   DEFAULT_WATCHLIST_GROUPS,
   DEFAULT_WATCHLIST_COLUMN_ORDER,
   WATCHLIST_COLUMN_ORDER_VERSION,
-  type AppState,
-  type TTrade
+  type AppState
 } from '../../src/shared/types'
 import {
   LAST_GOOD_STATE_FILE_NAME,
-  LEGACY_TRADING_BACKUP_FILE_NAME,
   STATE_FILE_NAME,
   STATE_HISTORY_DIRECTORY_NAME,
   StateStore,
   StateStoreRevisionConflictError
 } from './state-store'
-
-const EMPTY_FEES = {
-  commission: 0,
-  handling: 0,
-  regulatory: 0,
-  transfer: 0,
-  stampDuty: 0
-}
 
 function makeState(name = '浦发银行'): AppState {
   return {
@@ -55,19 +45,6 @@ function makeState(name = '浦发银行'): AppState {
     columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
     tTradingAccounts: {},
     corporateActionRecords: {}
-  }
-}
-
-function trade(id: string): TTrade {
-  return {
-    id,
-    side: 'buy',
-    purpose: 't',
-    tradedAt: '2026-07-31T01:30:00.000Z',
-    price: 10,
-    quantity: 100,
-    fees: EMPTY_FEES,
-    note: ''
   }
 }
 
@@ -112,41 +89,6 @@ describe('StateStore', () => {
     expect(readState(join(directory, STATE_FILE_NAME)).watchlistGroups).toEqual(
       DEFAULT_WATCHLIST_GROUPS
     )
-  })
-
-  it('normalizes legacy trades and keeps an untouched migration backup', () => {
-    const legacy = {
-      ...makeState(),
-      columnOrderVersion: 1,
-      tTradingAccounts: {
-        '1.600000': {
-          quoteId: '1.600000',
-          code: '600000',
-          name: '浦发银行',
-          baseTrades: [trade('base')],
-          history: [],
-          activeBatch: {
-            id: 'batch-1',
-            sequence: 1,
-            openedAt: '2026-07-31T01:30:00.000Z',
-            sellLevels: [],
-            trades: [trade('active')]
-          }
-        }
-      }
-    }
-    writeFileSync(join(directory, STATE_FILE_NAME), JSON.stringify(legacy, null, 2), 'utf8')
-
-    const result = new StateStore(directory, makeState()).load()
-    const saved = readState(join(directory, STATE_FILE_NAME))
-    const migrationBackup = JSON.parse(
-      readFileSync(join(directory, LEGACY_TRADING_BACKUP_FILE_NAME), 'utf8')
-    ) as typeof legacy
-
-    expect(result.state.columnOrderVersion).toBe(WATCHLIST_COLUMN_ORDER_VERSION)
-    expect(result.state.tTradingAccounts['1.600000'].tradeRecords).toHaveLength(2)
-    expect(saved.tTradingAccounts['1.600000'].activeBatch).not.toHaveProperty('trades')
-    expect(migrationBackup.tTradingAccounts['1.600000'].activeBatch).toHaveProperty('trades')
   })
 
   it('recovers a damaged configuration from the last-good backup', () => {

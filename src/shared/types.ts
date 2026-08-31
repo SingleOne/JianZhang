@@ -1021,23 +1021,6 @@ export interface TTradingAccount {
 
 export type TTradingAccounts = Record<string, TTradingAccount>
 
-export function hasLegacyTTradingData(accounts: unknown): boolean {
-  if (!accounts || typeof accounts !== 'object') return false
-  return Object.values(accounts).some((value) => {
-    if (!value || typeof value !== 'object') return false
-    const account = value as {
-      baseTrades?: unknown
-      activeBatch?: { trades?: unknown }
-      history?: Array<{ trades?: unknown }>
-    }
-    return (
-      Array.isArray(account.baseTrades) ||
-      Array.isArray(account.activeBatch?.trades) ||
-      account.history?.some((batch) => Array.isArray(batch.trades)) === true
-    )
-  })
-}
-
 function activeTQuantity(batch: TTradingBatch, trades: readonly TTrade[]): number {
   const openingSide: TTradeSide = (batch.direction ?? 'forward') === 'reverse' ? 'sell' : 'buy'
   return Math.max(
@@ -1216,101 +1199,17 @@ export function normalizeTTradingAccounts(
 ): TTradingAccounts {
   return Object.fromEntries(
     Object.entries(accounts ?? {}).map(([quoteId, account]) => {
-      type LegacyBatch = TTradingBatch & { trades?: TTrade[] }
-      type LegacyAccount = Omit<
-        TTradingAccount,
-        'activeBatch' | 'history' | 'ledger' | 'tradeRecords'
-      > & {
-        activeBatch?: LegacyBatch
-        history?: LegacyBatch[]
-        baseTrades?: TTrade[]
-        ledger?: PortfolioLedger
-        tradeRecords?: TTradeRecord[]
-      }
-      const legacyAccount = account as LegacyAccount
-      const legacyHistory = legacyAccount.history ?? []
-      const stripLegacyTrades = (batch: LegacyBatch): TTradingBatch => {
-        const { trades: _legacyTrades, ...normalizedBatch } = batch
-        return normalizedBatch
-      }
-      const ledgerTrades = tradeRecordsFromLedger(legacyAccount.ledger)
-      const records = new Map(
-        (ledgerTrades.length > 0 ? ledgerTrades : (legacyAccount.tradeRecords ?? [])).map(
-          (record) => [record.id, record]
-        )
-      )
-      const addLegacyBatchTrades = (batch: LegacyBatch) => {
-        const legacyTrades = batch.trades ?? []
-        legacyTrades.forEach((trade) =>
-          records.set(trade.id, {
-            ...trade,
-            batchId: batch.id,
-            batchSequence: batch.sequence,
-            batchDirection: batch.direction ?? 'forward'
-          })
-        )
-      }
-
-      legacyAccount.baseTrades?.forEach((trade) => records.set(trade.id, { ...trade }))
-      legacyHistory.forEach(addLegacyBatchTrades)
-      if (legacyAccount.activeBatch) addLegacyBatchTrades(legacyAccount.activeBatch)
-
-      const history = legacyHistory.map(stripLegacyTrades)
-      const activeBatch = legacyAccount.activeBatch
-        ? stripLegacyTrades(legacyAccount.activeBatch)
-        : undefined
-      const batchesById = new Map(
-        [...history, ...(activeBatch ? [activeBatch] : [])].map((batch) => [batch.id, batch])
-      )
-      const tradeRecords = [...records.values()]
-        .map((record) => {
-          const note =
-            record.origin === 'opening-balance' && record.note === '期初持仓'
-              ? '初始持仓'
-              : record.note
-          const allocations = record.allocations?.map((allocation) => {
-            const allocationBatch = allocation.batchId
-              ? batchesById.get(allocation.batchId)
-              : undefined
-            return allocationBatch
-              ? {
-                  ...allocation,
-                  batchSequence: allocationBatch.sequence,
-                  batchDirection: allocationBatch.direction ?? 'forward'
-                }
-              : allocation
-          })
-          const batch = record.batchId ? batchesById.get(record.batchId) : undefined
-          return batch
-            ? {
-                ...record,
-                note,
-                allocations,
-                batchSequence: batch.sequence,
-                batchDirection: batch.direction ?? 'forward'
-              }
-            : { ...record, note, allocations }
-        })
-        .sort((left, right) => right.tradedAt.localeCompare(left.tradedAt))
+      const tradeRecords = tradeRecordsFromLedger(account.ledger)
+      const activeBatch = account.activeBatch
       const activeTrades = activeBatch
         ? tradeRecords.filter((record) => tradeReferencesTradingBatch(record, activeBatch.id))
         : []
-      const {
-        activeBatch: _legacyActiveBatch,
-        history: _legacyHistory,
-        baseTrades: _legacyBaseTrades,
-        ledger: _legacyLedger,
-        tradeRecords: _legacyTradeRecords,
-        ...accountFields
-      } = legacyAccount
-
-      const ledger = normalizedPortfolioLedger(quoteId, quoteId, legacyAccount.ledger, tradeRecords)
+      const ledger = normalizedPortfolioLedger(quoteId, quoteId, account.ledger, tradeRecords)
 
       return [
         quoteId,
         {
-          ...accountFields,
-          history,
+          ...account,
           activeBatch: activeBatch
             ? normalizeActiveTTradingBatch(activeBatch, activeTrades)
             : undefined,
@@ -1320,63 +1219,6 @@ export function normalizeTTradingAccounts(
       ]
     })
   )
-}
-
-export function normalizeTradingAccountsForWatchlist(
-  watchlist: readonly WatchStock[],
-  accounts: TTradingAccounts | undefined
-): TTradingAccounts {
-  const normalized = normalizeTTradingAccounts(accounts)
-  for (const stock of watchlist) {
-    const identity = stockMarketIdentity(stock.quoteId, stock.instrumentType)
-    const existing = normalized[stock.quoteId]
-    const account: TTradingAccount = existing ?? {
-      quoteId: stock.quoteId,
-      code: stock.code,
-      name: stock.name,
-      history: [],
-      ledger: { schemaVersion: 1, entries: [] },
-      tradeRecords: []
-    }
-    const records = account.tradeRecords.map((record) => ({
-      ...record,
-      market: record.market ?? identity.market,
-      currency: record.currency ?? identity.currency,
-      marketDate: record.marketDate ?? record.tradedAt.slice(0, 10),
-      exchangeRate: record.exchangeRate ?? (identity.currency === 'CNY' ? 1 : undefined)
-    }))
-    if (records.length === 0 && stock.position) {
-      const openedOn = stock.position.openedOn ?? new Date().toISOString().slice(0, 10)
-      records.push({
-        id: `opening-balance:${stock.quoteId}`,
-        side: 'buy',
-        purpose: 'base',
-        tradedAt: `${openedOn}T00:00`,
-        price: stock.position.cost,
-        quantity: stock.position.quantity,
-        fees: { commission: 0, handling: 0, regulatory: 0, transfer: 0, stampDuty: 0 },
-        market: identity.market,
-        currency: stock.position.currency ?? identity.currency,
-        marketDate: openedOn,
-        exchangeRate:
-          stock.position.costExchangeRate ?? (identity.currency === 'CNY' ? 1 : undefined),
-        exchangeRateDate: stock.position.costExchangeRateDate,
-        origin: 'opening-balance',
-        note: '初始持仓'
-      })
-    }
-    if (existing || records.length > 0) {
-      normalized[stock.quoteId] = withLedgerTradeRecords(
-        {
-          ...account,
-          market: account.market ?? identity.market,
-          currency: account.currency ?? identity.currency
-        },
-        records.sort((left, right) => right.tradedAt.localeCompare(left.tradedAt))
-      )
-    }
-  }
-  return normalized
 }
 
 export const DEFAULT_WATCHLIST_COLUMN_ORDER = [

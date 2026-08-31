@@ -4,7 +4,7 @@ import {
   normalizeCorporateActionRecords,
   normalizePortfolioPerformanceAdjustments,
   normalizeStockTrackingProfiles,
-  normalizeTradingAccountsForWatchlist,
+  normalizeTTradingAccounts,
   normalizeWatchlist,
   normalizeWatchlistColumnOrder,
   normalizeWatchlistGroups,
@@ -109,10 +109,7 @@ export function parseImportedAppState(value: unknown): AppState {
       Array.isArray(importedState.columnOrder) ? importedState.columnOrder : undefined
     ),
     columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
-    tTradingAccounts: normalizeTradingAccountsForWatchlist(
-      watchlist,
-      importedState.tTradingAccounts
-    ),
+    tTradingAccounts: normalizeTTradingAccounts(importedState.tTradingAccounts),
     corporateActionRecords: normalizeCorporateActionRecords(importedState.corporateActionRecords),
     portfolioPerformanceAdjustments: normalizePortfolioPerformanceAdjustments(
       importedState.portfolioPerformanceAdjustments,
