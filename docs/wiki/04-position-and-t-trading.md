@@ -4,19 +4,19 @@
 
 ## 代码分工
 
-| 文件 | 职责 |
-| --- | --- |
-| `src/shared/types.ts` | 持仓、交易、批次、结算、费用和五档的数据结构 |
-| `src/lib/portfolio.ts` | 持仓指标、今日收益、可用数量、持仓天数、组合汇总 |
-| `src/lib/t-trading.ts` | 费用、正/反 T 账本、成本、批次和持仓重算 |
-| `src/lib/t-alerts.ts` | 五档目标价、预测数据、提醒状态机 |
-| `src/lib/trade-records.ts` | 统一交易流水排序、批次筛选、写入和批次关联处理 |
-| `src/components/PositionEditor.tsx` | 持仓录入、版本快照、全部交易记录的查看与行内编辑 |
-| `src/components/TTradingDrawer.tsx` | 做 T 交易、计划、结算和历史交互 |
-| `src/components/TPlanTable.tsx` | 买入/卖出五档表格 |
-| `src/components/TAlertBadges.tsx` | 双五档价格提醒标识 |
-| `src/components/TFloatingProfitAlertBadge.tsx` | T仓浮盈/浮亏金额提醒标识 |
-| `electron/main/index.ts` | 行情刷新后执行提醒并广播状态 |
+| 文件                                           | 职责                                             |
+| ---------------------------------------------- | ------------------------------------------------ |
+| `src/shared/types.ts`                          | 持仓、交易、批次、结算、费用和五档的数据结构     |
+| `src/lib/portfolio.ts`                         | 持仓指标、今日收益、可用数量、持仓天数、组合汇总 |
+| `src/lib/t-trading.ts`                         | 费用、正/反 T 账本、成本、批次和持仓重算         |
+| `src/lib/t-alerts.ts`                          | 五档目标价、预测数据、提醒状态机                 |
+| `src/lib/trade-records.ts`                     | 统一交易流水排序、批次筛选、写入和批次关联处理   |
+| `src/components/PositionEditor.tsx`            | 持仓录入、版本快照、全部交易记录的查看与行内编辑 |
+| `src/components/TTradingDrawer.tsx`            | 做 T 交易、计划、结算和历史交互                  |
+| `src/components/TPlanTable.tsx`                | 买入/卖出五档表格                                |
+| `src/components/TAlertBadges.tsx`              | 双五档价格提醒标识                               |
+| `src/components/TFloatingProfitAlertBadge.tsx` | T仓浮盈/浮亏金额提醒标识                         |
+| `electron/main/index.ts`                       | 行情刷新后执行提醒并广播状态                     |
 
 ## 普通持仓
 
@@ -93,7 +93,8 @@
 TTradingAccount
 ├─ activeBatch?   当前活动批次
 ├─ history[]      已结算批次，新的在前
-└─ tradeRecords[] 唯一交易数据源，包含全部 T 流水和底仓增减
+├─ ledger         唯一数据源，包含成交、持仓调整和公司行动
+└─ tradeRecords[] 从账本成交条目派生的兼容镜像
 ```
 
 `TTradeRecord` 在普通 `TTrade` 基础上增加可选的：
@@ -104,13 +105,7 @@ batchId / batchSequence / batchDirection
 
 缺少批次字段表示独立底仓交易；带 `batchId` 的记录由 `getBatchTrades` 按需投影给活动批次或历史批次。批次对象本身不再持有 `trades` 数组。
 
-`normalizeTTradingAccounts` 兼容 4.15.0 之前的 `baseTrades`、`activeBatch.trades` 和 `history[].trades`：按交易 ID 合并去重，补齐批次关联，然后从运行结构中移除旧字段。主进程首次检测到旧结构时会先备份完整旧配置：
-
-```text
-userData/settings.pre-unified-trades.json
-```
-
-迁移后的 `settings.json` 不再含旧字段，因此后续启动只做普通规范化；迁移函数本身重复执行也会得到稳定结果。
+`normalizeTTradingAccounts` 以 `ledger` 为准刷新 `tradeRecords` 镜像，并根据活动批次关联的成交重新规范化当前计划和提醒状态。
 
 活动批次 `TTradingBatch`：
 
@@ -127,10 +122,10 @@ TTradingBatch
 
 ## 正 T 与反 T
 
-| 方向 | 建立 T 仓 | 关闭 T 仓 | 剩余数量含义 |
-| --- | --- | --- | --- |
-| 正 T `forward` | 买入 | 卖出 | 尚未卖出的 T 仓 |
-| 反 T `reverse` | 卖出 | 买回 | 尚未回补的数量 |
+| 方向           | 建立 T 仓 | 关闭 T 仓 | 剩余数量含义    |
+| -------------- | --------- | --------- | --------------- |
+| 正 T `forward` | 买入      | 卖出      | 尚未卖出的 T 仓 |
+| 反 T `reverse` | 卖出      | 买回      | 尚未回补的数量  |
 
 没有活动批次时：
 
@@ -202,13 +197,13 @@ TTradingBatch
 
 默认配置位于 `DEFAULT_T_TRADING_FEE_SETTINGS`：
 
-| 项目 | 默认值（万分比） |
-| --- | ---: |
-| 净佣金 | 5.313 |
-| 经手费 | 0.341 |
-| 证管费 | 0.2 |
-| 过户费 | 0.1 |
-| 卖出印花税 | 5 |
+| 项目       | 默认值（万分比） |
+| ---------- | ---------------: |
+| 净佣金     |            5.313 |
+| 经手费     |            0.341 |
+| 证管费     |              0.2 |
+| 过户费     |              0.1 |
+| 卖出印花税 |                5 |
 
 最低费用组合默认为 5 元：
 
@@ -232,10 +227,10 @@ TTradingBatch
 
 计划分为开仓侧和闭仓侧：
 
-| T 方向 | 开仓侧 | 闭仓侧 |
-| --- | --- | --- |
-| 正 T | 买入五档 | 卖出五档 |
-| 反 T | 卖出五档 | 买入五档 |
+| T 方向 | 开仓侧   | 闭仓侧   |
+| ------ | -------- | -------- |
+| 正 T   | 买入五档 | 卖出五档 |
+| 反 T   | 卖出五档 | 买入五档 |
 
 开仓侧展示执行后的预计数量和预计均价；闭仓侧展示本档、累计和全仓预计收益。预计收益会扣除按目标价格计算的费用。
 
@@ -365,7 +360,7 @@ latestQuotes
 
 ## 修改做 T 时的检查清单
 
-1. 数据结构是否需要兼容旧批次。
+1. 统一账本、`tradeRecords` 镜像和批次关联是否同步。
 2. 正 T 和反 T 是否都按时间重放验证。
 3. 普通持仓是否与交易重算结果一致。
 4. 五档默认值、计划重排和重置是否同步。
@@ -373,5 +368,4 @@ latestQuotes
 6. 主表、任务栏和托盘是否使用相同账户状态。
 7. 数量输入是否 `step="100"`。
 8. 所有收益和收益率是否正红、负绿、零中性。
-9. 是否只从 `tradeRecords` 读写成交，未重新向批次或账户增加第二份流水。
-10. 旧交易迁移是否保留批次关联、按 ID 去重并且重复启动稳定。
+9. 是否只通过统一账本写入成交，并同步 `tradeRecords` 镜像，未向批次增加第二份流水。

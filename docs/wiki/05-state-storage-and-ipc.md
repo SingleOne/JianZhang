@@ -57,7 +57,6 @@ interface AppState {
 | 文件                                         | 作用                                       |
 | -------------------------------------------- | ------------------------------------------ |
 | `settings.last-good.json`                    | 最近一次完整保存的可用备份                 |
-| `settings.pre-unified-trades.json`           | 统一交易流水迁移前的一次性原始备份         |
 | `settings.invalid-<时间>.json`               | 配置损坏时保留的原文件副本                 |
 | `state-history/settings-<时间>-r<版本>.json` | 最多 20 份、至少间隔 15 分钟的历史状态快照 |
 
@@ -70,12 +69,12 @@ interface AppState {
 3. `normalizeStockTrackingProfiles`
 4. `synchronizeTrackingGroupMembership`
 5. `normalizeAppSettings`
-6. `migrateWatchlistColumnOrder`
+6. `normalizeWatchlistColumnOrder`
 7. `normalizeTTradingAccounts`
 
-列版本落后或交易账户规范化结果变化时，会立即把迁移后的状态写回。若检测到旧 `baseTrades` / `batch.trades`，写回前先把原始完整配置备份为 `settings.pre-unified-trades.json`；已有备份不会被覆盖。
+列版本或交易账户规范化结果变化时，会立即把规范化后的状态写回。
 
-只有 `settings.json` 不存在时才复制 `DEFAULT_STATE` 并保存。文件读取、JSON 解析或迁移失败时：
+只有 `settings.json` 不存在时才复制 `DEFAULT_STATE` 并保存。文件读取、JSON 解析或规范化失败时：
 
 1. 把原文件保留为 `settings.invalid-<时间>.json`。
 2. 尝试加载并规范化 `settings.last-good.json`。
@@ -106,23 +105,22 @@ interface AppState {
 | 自选集合或重点状态 | 交易时段内提交合并刷新；新增股票后台补取板块绑定 |
 | 任务栏相关设置     | 重新计算窗口显示和位置                           |
 
-## 状态规范化和迁移
+## 状态规范化
 
-`src/shared/types.ts` 中的 normalize/migrate 是当前兼容核心：
+`src/shared/types.ts` 中的 normalize 是当前状态约束核心：
 
-| 函数                                 | 作用                                                                                               |
-| ------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `normalizeWatchlist`                 | 持仓股票强制重点关注、补异动开关、过滤无效快照                                                     |
-| `normalizeWatchlistGroups`           | 去除无 ID、无名称或重复 ID 的自选分组，并补齐系统“异动观察”和“追踪”分组                            |
-| `normalizeStockTrackingProfiles`     | 兼容缺失追踪数据的旧配置并规范化来源、标签、时间线和通用每日指标快照；快照中的数字指标按名称扩展   |
-| `synchronizeTrackingGroupMembership` | 根据追踪中/已停止状态自动加入或移出系统“追踪”分组                                                  |
-| `normalizeMarketIndexIds`            | 过滤并按内置顺序返回指数                                                                           |
-| `normalizeActiveTTradingBatch`       | 兼容旧双五档、价格/浮动盈亏提醒开关和反 T 语义                                                     |
-| `normalizeTTradingAccounts`          | 把旧活动/历史批次流水和 `baseTrades` 按 ID 合并到唯一 `tradeRecords`，再移除旧字段并规范化活动批次 |
-| `normalizeWatchlistColumnOrder`      | 去重、补缺失列、保证操作列在末尾                                                                   |
-| `migrateWatchlistColumnOrder`        | 按版本插入今日收益、板块、成交等新列，并过滤已经移除的列                                           |
-| `normalizeAppSettings`               | 兼容旧刷新字段、限制秒数/位置、补费用、浮动盈亏提醒默认值和日历                                    |
-| `normalizeTradingCalendarSettings`   | 校验日期、去重、排序并保证内置覆盖年份                                                             |
+| 函数                                 | 作用                                                                       |
+| ------------------------------------ | -------------------------------------------------------------------------- |
+| `normalizeWatchlist`                 | 持仓股票强制重点关注、补异动开关、过滤无效快照                             |
+| `normalizeWatchlistGroups`           | 去除无 ID、无名称或重复 ID 的自选分组，并补齐系统“异动观察”和“追踪”分组    |
+| `normalizeStockTrackingProfiles`     | 规范化追踪来源、标签、时间线和通用每日指标快照；快照中的数字指标按名称扩展 |
+| `synchronizeTrackingGroupMembership` | 根据追踪中/已停止状态自动加入或移出系统“追踪”分组                          |
+| `normalizeMarketIndexIds`            | 过滤并按内置顺序返回指数                                                   |
+| `normalizeActiveTTradingBatch`       | 根据当前成交数量规范化双五档计划、提醒状态和反 T 语义                      |
+| `normalizeTTradingAccounts`          | 以统一账本为准同步 `tradeRecords` 镜像并规范化活动批次                     |
+| `normalizeWatchlistColumnOrder`      | 去重、补缺失列、保证操作列在末尾                                           |
+| `normalizeAppSettings`               | 限制刷新秒数和任务栏位置，规范化费用、浮动盈亏提醒默认值和日历             |
+| `normalizeTradingCalendarSettings`   | 校验日期、去重、排序并保证内置覆盖年份                                     |
 
 新增持久化字段时，不能只改 interface；至少要补默认值和 normalize。
 
@@ -155,14 +153,14 @@ JianzhangUserDataBackupDocument
 ### 导入
 
 1. 主进程显示打开对话框。
-2. 校验备份格式、允许的相对路径、AI API Key 和 `AppState`，再运行共享 normalize/migrate。
+2. 校验备份格式、允许的相对路径、AI API Key 和 `AppState`，再运行共享 normalize。
 3. 只把状态、文件数量和 API Key 数量返回给 React；Key 本身不会进入 renderer。
 4. React 显示覆盖和自动重启确认提示。
 5. 用户确认后先在临时目录完整写入并校验备份内容，再保存当前状态、模块文件和凭证到 `restore-backups/`。
 6. 替换受管用户文件、重新加密 API Key，最后保存导入状态；任一步骤失败都会回滚当前状态、模块文件和凭证。
 7. 成功恢复后保留最近 5 份恢复前快照，并自动重启，让各模块重新加载恢复后的设置和历史。
 
-旧版 `jianzhang-config` 格式 1、2、3 仍可导入，但只恢复其中的核心配置，不触发模块数据替换和应用重启。`scripts/convert-stock-helper-config.mjs` 生成的转换结果也继续兼容。
+独立 `jianzhang-config` 导入仅接受当前格式 3，只恢复其中的核心配置，不触发模块数据替换和应用重启。
 
 ### GitHub Gist 加密同步
 

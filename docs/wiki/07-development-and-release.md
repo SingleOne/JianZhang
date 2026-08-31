@@ -4,16 +4,16 @@
 
 ## 技术栈
 
-| 类别 | 当前方案 |
-| --- | --- |
-| 桌面壳 | Electron 43 |
-| 前端 | React 19 |
-| 语言 | TypeScript 5.9，`strict: true` |
-| 构建 | Vite 7 + electron-vite 5 |
-| 图表 | Lightweight Charts 5 |
-| 图标 | Lucide React |
-| Windows 打包 | electron-builder 26 |
-| Node.js | README 要求 20+ |
+| 类别         | 当前方案                       |
+| ------------ | ------------------------------ |
+| 桌面壳       | Electron 43                    |
+| 前端         | React 19                       |
+| 语言         | TypeScript 5.9，`strict: true` |
+| 构建         | Vite 7 + electron-vite 5       |
+| 图表         | Lightweight Charts 5           |
+| 图标         | Lucide React                   |
+| Windows 打包 | electron-builder 26            |
+| Node.js      | README 要求 20+                |
 
 当前应用版本从 `package.json` 读取，并在主窗口状态栏展示。
 
@@ -32,19 +32,19 @@ npm run package:win
 npm run package:portable
 ```
 
-| 命令 | 作用 |
-| --- | --- |
-| `dev` | 启动 electron-vite，运行真实 Electron/IPC/主进程行情 |
-| `dev:web` | 只启动 Vite，使用 `src/lib/api.ts` 的浏览器演示 API |
-| `test` | 使用 Vitest 运行单元测试 |
-| `test:watch` | 以监听模式运行 Vitest |
-| `lint` | 检查 Electron、renderer、共享代码和构建配置 |
-| `format:check` | 用 Prettier 检查代码格式；当前仍会列出尚未批量格式化的历史文件 |
-| `build` | 先 `tsc --noEmit`，再构建 main/preload/renderer |
-| `build:unpacked` | 完成类型检查、生产构建和图标生成，并更新 `release/win-unpacked` 开发预览，不生成安装包 |
-| `generate:icon` | 生成白底、红底和黑底三套应用图标 |
-| `package:win` | build + icon + NSIS x64 安装包 |
-| `package:portable` | build + icon + Windows portable 包 |
+| 命令               | 作用                                                                                   |
+| ------------------ | -------------------------------------------------------------------------------------- |
+| `dev`              | 启动 electron-vite，运行真实 Electron/IPC/主进程行情                                   |
+| `dev:web`          | 只启动 Vite，使用 `src/lib/api.ts` 的浏览器演示 API                                    |
+| `test`             | 使用 Vitest 运行单元测试                                                               |
+| `test:watch`       | 以监听模式运行 Vitest                                                                  |
+| `lint`             | 检查 Electron、renderer、共享代码和构建配置                                            |
+| `format:check`     | 用 Prettier 检查代码格式；当前仍会列出尚未批量格式化的历史文件                         |
+| `build`            | 先 `tsc --noEmit`，再构建 main/preload/renderer                                        |
+| `build:unpacked`   | 完成类型检查、生产构建和图标生成，并更新 `release/win-unpacked` 开发预览，不生成安装包 |
+| `generate:icon`    | 生成白底、红底和黑底三套应用图标                                                       |
+| `package:win`      | build + icon + NSIS x64 安装包                                                         |
+| `package:portable` | build + icon + Windows portable 包                                                     |
 
 应用图标默认使用白底红箭头。通过编译环境变量可统一切换 exe、主窗体和托盘图标：
 
@@ -54,22 +54,22 @@ npm run build:unpacked
 Remove-Item Env:JIANZHANG_ICON_VARIANT
 ```
 
-| 参数 | 生成文件 | 配色 |
-| --- | --- | --- |
+| 参数            | 生成文件               | 配色       |
+| --------------- | ---------------------- | ---------- |
 | `white`（默认） | `build/icon-white.png` | 白底红箭头 |
-| `red` | `build/icon.png` | 红底白箭头 |
-| `black` | `build/icon-black.png` | 黑底红箭头 |
+| `red`           | `build/icon.png`       | 红底白箭头 |
+| `black`         | `build/icon-black.png` | 黑底红箭头 |
 
 三个版本的 PNG 都会由 `generate:icon` 保留在 `build/`。
 
 ## 构建输出
 
-| 目录 | 内容 | Git |
-| --- | --- | --- |
-| `out/` | electron-vite 构建结果 | 忽略 |
-| `build/` | 动态生成图标等资源 | 忽略 |
+| 目录       | 内容                                                           | Git  |
+| ---------- | -------------------------------------------------------------- | ---- |
+| `out/`     | electron-vite 构建结果                                         | 忽略 |
+| `build/`   | 动态生成图标等资源                                             | 忽略 |
 | `release/` | electron-builder 安装包、portable 包和 `win-unpacked` 开发预览 | 忽略 |
-| `outputs/` | 其他交付输出 | 忽略 |
+| `outputs/` | 其他交付输出                                                   | 忽略 |
 
 主进程入口：
 
@@ -87,27 +87,17 @@ preload 和 renderer 入口由 `electron.vite.config.ts` 指定。
 export const stockApi = window.stockApi ?? demoApi
 ```
 
-| 能力 | Electron `npm run dev` | Web `npm run dev:web` |
-| --- | --- | --- |
-| 东方财富真实行情 | 是 | 否，演示数据 |
-| Electron IPC | 是 | 否 |
-| 本地文件 `settings.json` | 是 | 否，`localStorage` |
-| 原生导入导出对话框 | 是 | 否，浏览器文件控件 |
-| 任务栏透明窗口 | 是 | 否 |
-| 托盘 | 是 | 否 |
-| 上交所日历刷新 | 是 | 否 |
+| 能力                     | Electron `npm run dev` | Web `npm run dev:web` |
+| ------------------------ | ---------------------- | --------------------- |
+| 东方财富真实行情         | 是                     | 否，演示数据          |
+| Electron IPC             | 是                     | 否                    |
+| 本地文件 `settings.json` | 是                     | 否，`localStorage`    |
+| 原生导入导出对话框       | 是                     | 否，浏览器文件控件    |
+| 任务栏透明窗口           | 是                     | 否                    |
+| 托盘                     | 是                     | 否                    |
+| 上交所日历刷新           | 是                     | 否                    |
 
 纯 UI 调整可先看 web 预览；窗口、IPC、定时刷新、托盘和真实行情问题必须在 Electron 模式判断。
-
-## 配置转换脚本
-
-把“股票基金助手”配置转换成见涨配置：
-
-```powershell
-node scripts/convert-stock-helper-config.mjs <原配置.json> <见涨配置.json>
-```
-
-脚本只转换沪 A、深 A、科创板条目，并把不兼容条目写入导出文档的 `source.skippedStocks`。
 
 ## 项目协作约束
 
@@ -127,11 +117,11 @@ node scripts/convert-stock-helper-config.mjs <原配置.json> <见涨配置.json
 
 以当前 `5.0.1` 为例：
 
-| 变更 | 建议版本 |
-| --- | --- |
-| 小修复、样式微调、文档修正 | `5.0.2` |
-| 新增一个小功能 | `5.1.0` |
-| 新增独立功能模块 | 先确认是否升级 `6.0.0` |
+| 变更                       | 建议版本               |
+| -------------------------- | ---------------------- |
+| 小修复、样式微调、文档修正 | `5.0.2`                |
+| 新增一个小功能             | `5.1.0`                |
+| 新增独立功能模块           | 先确认是否升级 `6.0.0` |
 
 版本至少同步：
 
@@ -153,7 +143,6 @@ flowchart LR
 仓库规则明确要求“每次打包前进行代码提交”。目标版本号也应在执行打包前进入提交历史。
 
 `npm run build:unpacked` 仅更新可直接运行的开发预览，不执行上述版本与提交步骤。
-
 
 ## 常见修改同步清单
 
@@ -189,7 +178,7 @@ flowchart LR
 - 普通持仓同步。
 - 双五档和提醒状态。
 - 结算和历史。
-- 配置导入兼容。
+- 配置导入验证。
 
 ## 当前验证能力
 

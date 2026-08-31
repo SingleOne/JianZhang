@@ -74,7 +74,6 @@ JianZhang/
 │  ├─ shared/                   # 共享类型、配置、交易时段和日历
 │  └─ styles.css                # 设计变量、全局基础和共享样式；组件样式在组件旁
 ├─ scripts/
-│  ├─ convert-stock-helper-config.mjs
 │  └─ generate-icon.mjs
 ├─ docs/
 │  ├─ wiki/                     # 本 Wiki
@@ -88,7 +87,7 @@ JianZhang/
 | 需求                     | 首要文件                                                                       | 通常还会涉及                                                                                                                                                         |
 | ------------------------ | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 增减自选、持仓、设置字段 | [`src/App.tsx`](../../src/App.tsx)                                             | [`src/shared/types.ts`](../../src/shared/types.ts)、[`state-store.ts`](../../electron/main/state-store.ts)、[`ipc-handlers.ts`](../../electron/main/ipc-handlers.ts) |
-| 修改主表格列             | [`WatchlistTable.tsx`](../../src/components/WatchlistTable.tsx)                | `watchlist-table/columns.ts`、共享列顺序与迁移、`WatchlistTable.css`                                                                                                 |
+| 修改主表格列             | [`WatchlistTable.tsx`](../../src/components/WatchlistTable.tsx)                | `watchlist-table/columns.ts`、共享列顺序规范化、`WatchlistTable.css`                                                                                                 |
 | 修改自定义分组或板块筛选 | [`WatchlistTable.tsx`](../../src/components/WatchlistTable.tsx)                | `WatchlistGroupDialog.tsx`、`TableFilterDropdown.tsx`、共享状态                                                                                                      |
 | 修改展开行情标签页       | [`ExpandedStockDetails.tsx`](../../src/components/ExpandedStockDetails.tsx)    | 图表/面板组件、`StockDesktopApi`、IPC                                                                                                                                |
 | 增加一种行情接口         | [`electron/main/market.ts`](../../electron/main/market.ts)                     | `market-constants.ts`、共享类型、preload、浏览器演示实现                                                                                                             |
@@ -99,17 +98,17 @@ JianZhang/
 | 修改 BOLL 指标           | [`bollinger.ts`](../../src/shared/bollinger.ts)                                | `PeriodKlineChart.tsx`、市场观察波动指标                                                                                                                             |
 | 修改 AI 对话或 `@股票`   | [`AiAssistantDrawer.tsx`](../../src/modules/ai/renderer/AiAssistantDrawer.tsx) | AI service、context builder、独立存储和 IPC                                                                                                                          |
 | 修改任务栏/托盘行为      | [`window-manager.ts`](../../electron/main/window-manager.ts)                   | `TaskbarTicker.tsx`、`TrayHoverSummary.tsx`                                                                                                                          |
-| 修改配置兼容             | [`src/shared/config.ts`](../../src/shared/config.ts)                           | 共享类型中的 normalize/migrate 函数                                                                                                                                  |
+| 修改配置导入验证         | [`src/shared/config.ts`](../../src/shared/config.ts)                           | 共享类型中的 normalize 函数                                                                                                                                          |
 
 ## 当前重要边界
 
 - 行情来自东方财富公开接口，最新报价只保存在内存；日/周/月 K 会按股票和周期缓存在 `userData/market-cache/klines/`。
 - 用户核心状态保存在 Electron `userData/settings.json`（当前安装通常为 `%APPDATA%\jianzhang-stock-desktop\settings.json`），并可完整导出为 JSON。
-- `TTradingAccount.tradeRecords` 是底仓和做 T 成交的唯一数据源；活动批次与历史批次不再各自保存流水。首次读取旧结构时会先生成 `settings.pre-unified-trades.json` 备份，再按交易 ID 合并迁移。
+- `TTradingAccount.ledger` 是底仓、做 T 成交和公司行动的唯一数据源；`tradeRecords` 是账本中成交条目的兼容镜像，活动批次与历史批次不保存第二份流水。
 - 筹码分布由当前日 K 可视范围内的数据在本地计算，向前取数直到累计换手率达到固定 100%；首批数据不足时按平均换手率估算目标根数后直接补取。最近一次结果单独缓存在 `userData/market-cache/chip-distributions.json`，并加入 AI 分析上下文。
 - 浏览器模式使用 `src/lib/api.ts` 的演示数据和 `localStorage`，与桌面版网络链路不同。
 - 当前没有自动下单或券商连接；`ai` 支持 OpenAI API、DeepSeek API 和 Codex 账号，聊天会按设置提交最近若干条消息，并允许一条消息快速 `@` 多只自选股。`ai-t-advice` 默认编译但需用户主动启用。
-- 项目已使用 Vitest 覆盖状态迁移、存储恢复、持仓/做 T/提醒计算、K 线缓存、表格列和格式化等关键纯逻辑；提交前同时执行测试、ESLint 和生产构建。
+- 项目已使用 Vitest 覆盖状态规范化、存储恢复、持仓/做 T/提醒计算、K 线缓存、表格列和格式化等关键纯逻辑。
 - 股票数量输入统一以 100 股为步长；收益/收益率正红、负绿、零值中性。
 
 ## 4.2.0–7.8.0 主要变化
