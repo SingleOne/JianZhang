@@ -403,7 +403,9 @@ function TradeRecordList({
                   数量变化 {quantityChange > 0 ? '+' : ''}
                   {formatShares(quantityChange)}
                 </strong>
-                <small title={entry.note || undefined}>{entry.note || '--'}</small>
+                <small title={entry.note || undefined}>
+                  {entry.resetsPerformance ? '收益基准重置' : entry.note || '--'}
+                </small>
                 <span className="trade-record-actions">
                   <button
                     className="icon-button is-delete"
@@ -817,7 +819,7 @@ export function PositionEditor({
     setOpenedOn(nextPosition?.openedOn ?? currentMarketDateTime.slice(0, 10))
   }
 
-  const savePosition = (nextPosition: StockPosition | undefined) => {
+  const savePosition = async (nextPosition: StockPosition | undefined) => {
     let resolvedPosition = nextPosition
     let updatedAccount = capabilities.tradeLedger ? editedAccount : undefined
     if (
@@ -848,13 +850,22 @@ export function PositionEditor({
       const previousPosition = replay.error ? stock.position : replay.position
       const positionWasEdited = !positionsMatch(stock.position, nextPosition)
       if (positionWasEdited && !positionsMatch(previousPosition, nextPosition)) {
+        const resetsPerformance = await confirm({
+          title: '选择收益计算方式',
+          message:
+            '本次持仓校准是否按券商持仓成本重置收益基准？重置后，校准前的交易仍保留展示，但不再计入校准后的当前收益；保留历史累计收益则继续累计。',
+          confirmLabel: '重置收益基准（推荐）',
+          cancelLabel: '保留历史累计收益',
+          dismissible: false
+        })
         const recordedAt = new Date()
         updatedAccount = appendPositionAdjustment(
           workingAccount,
           previousPosition,
           nextPosition,
           marketLedgerDateTime(market, recordedAt),
-          recordedAt.toISOString()
+          recordedAt.toISOString(),
+          resetsPerformance
         )
       }
     }
@@ -1316,7 +1327,7 @@ export function PositionEditor({
                           : (exchangeRates.rateDate ?? currentMarketDateTime.slice(0, 10))
                   }
                 : undefined
-              savePosition(nextPosition)
+              void savePosition(nextPosition)
             }}
           >
             <div className="position-fields">
@@ -1731,7 +1742,7 @@ export function PositionEditor({
                   className="clear-position-button"
                   type="button"
                   disabled={editingTradeId !== null}
-                  onClick={() => savePosition(undefined)}
+                  onClick={() => void savePosition(undefined)}
                 >
                   清空持仓
                 </button>

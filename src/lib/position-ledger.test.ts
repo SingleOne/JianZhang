@@ -117,7 +117,8 @@ describe('position ledger', () => {
       position(2_600, 10),
       nextPosition,
       '2026-08-29T00:31',
-      '2026-08-28T16:31:00.000Z'
+      '2026-08-28T16:31:00.000Z',
+      true
     )
 
     expect(adjusted.ledger.entries[0]).toMatchObject({
@@ -125,7 +126,8 @@ describe('position ledger', () => {
       quantityBefore: 2_600,
       quantityAfter: 3_000,
       costBefore: 10,
-      costAfter: 9.5
+      costAfter: 9.5,
+      resetsPerformance: true
     })
     expect(calculatePortfolioLedgerPosition(adjusted, 'CN', 'CNY').position).toMatchObject({
       quantity: 3_000,

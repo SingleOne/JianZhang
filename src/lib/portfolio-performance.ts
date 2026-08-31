@@ -399,6 +399,11 @@ function stockPerformance(
 
   for (const entry of activePortfolioLedgerEntries(account)) {
     const currency = currencyForEntry(entry, securityCurrency)
+    if (entry.kind === 'positionAdjustment' && entry.resetsPerformance) {
+      slices.clear()
+      issues.clear()
+      ledgerError = false
+    }
     const slice = getSlice(currency)
     const rate = historicalRate(entry, currency)
     if (entry.exchangeRateEstimated && currency !== 'CNY') issues.add('estimatedHistoricalRate')

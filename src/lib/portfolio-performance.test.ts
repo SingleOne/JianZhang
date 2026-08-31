@@ -252,6 +252,85 @@ describe('portfolio performance report', () => {
     expect(report.stocks[0].issues).not.toContain('positionMismatch')
   })
 
+  it('resets accumulated performance at a broker cost calibration checkpoint', () => {
+    const adjustment: PortfolioLedgerEntry = {
+      id: 'position-adjustment:performance-reset',
+      accountId: '116.00700',
+      quoteId: '116.00700',
+      occurredAt: '2026-04-02T02:00:00.000Z',
+      marketDate: '2026-04-02',
+      source: 'manual',
+      currency: 'HKD',
+      exchangeRate: 0.9,
+      kind: 'positionAdjustment',
+      resetsPerformance: true,
+      quantityBefore: 50,
+      quantityAfter: 60,
+      costBefore: 10,
+      costAfter: 11
+    }
+    const entries = [
+      trade('buy', 'buy', 100, 10, 0.9, 5),
+      trade('sell', 'sell', 50, 14, 0.95, 3),
+      adjustment
+    ]
+    const report = calculatePortfolioPerformanceReport(
+      [stock(60)],
+      [quote()],
+      { '116.00700': account(entries) },
+      exchangeRates()
+    )
+
+    expect(report.stocks[0].native[0]).toMatchObject({
+      realizedProfit: 0,
+      unrealizedProfit: 60,
+      tradeFees: 0,
+      totalProfit: 60
+    })
+    expect(report.stocks[0].cny).toMatchObject({
+      realizedProfit: 0,
+      unrealizedProfit: 68.4,
+      tradeFees: 0,
+      totalProfit: 68.4
+    })
+  })
+
+  it('keeps accumulated performance when a position calibration does not reset it', () => {
+    const adjustment: PortfolioLedgerEntry = {
+      id: 'position-adjustment:keep-performance',
+      accountId: '116.00700',
+      quoteId: '116.00700',
+      occurredAt: '2026-04-02T02:00:00.000Z',
+      marketDate: '2026-04-02',
+      source: 'manual',
+      currency: 'HKD',
+      exchangeRate: 0.9,
+      kind: 'positionAdjustment',
+      quantityBefore: 50,
+      quantityAfter: 60,
+      costBefore: 10,
+      costAfter: 11
+    }
+    const entries = [
+      trade('buy', 'buy', 100, 10, 0.9, 5),
+      trade('sell', 'sell', 50, 14, 0.95, 3),
+      adjustment
+    ]
+    const report = calculatePortfolioPerformanceReport(
+      [stock(60)],
+      [quote()],
+      { '116.00700': account(entries) },
+      exchangeRates()
+    )
+
+    expect(report.stocks[0].native[0]).toMatchObject({
+      realizedProfit: 200,
+      unrealizedProfit: 60,
+      tradeFees: 8,
+      totalProfit: 252
+    })
+  })
+
   it('provides stock, market, default-account, currency and portfolio groups', () => {
     const report = calculatePortfolioPerformanceReport(
       [stock(100)],

@@ -15,6 +15,8 @@ interface OpeningBalanceFingerprint {
 
 const CHANGAN_QUOTE_ID = '0.000625'
 const CREC_QUOTE_ID = '1.601390'
+const CREC_PERFORMANCE_RESET_ADJUSTMENT_ID =
+  'position-adjustment:ac1c7447-57b4-4724-9d5d-7f2932f14396'
 
 const CORRUPTED_OPENING_BALANCES: readonly OpeningBalanceFingerprint[] = [
   {
@@ -124,12 +126,48 @@ function removeOpeningBalance(
   return removePositionRecordEntries(account, entryIds)
 }
 
+function markKnownCrecPerformanceReset(state: AppState): AppState {
+  const account = state.tTradingAccounts[CREC_QUOTE_ID]
+  if (!account) return state
+
+  let changed = false
+  const entries = account.ledger.entries.map((entry) => {
+    if (
+      entry.kind !== 'positionAdjustment' ||
+      entry.id !== CREC_PERFORMANCE_RESET_ADJUSTMENT_ID ||
+      entry.occurredAt !== '2026-08-30T21:56:57.908' ||
+      entry.recordedAt !== '2026-08-30T13:56:57.908Z' ||
+      entry.quantityBefore !== 200 ||
+      entry.quantityAfter !== 100 ||
+      entry.costBefore !== 4.348_537_067_646_157 ||
+      entry.costAfter !== -0.9383 ||
+      entry.resetsPerformance
+    ) {
+      return entry
+    }
+    changed = true
+    return { ...entry, resetsPerformance: true }
+  })
+  if (!changed) return state
+
+  return {
+    ...state,
+    tTradingAccounts: {
+      ...state.tTradingAccounts,
+      [CREC_QUOTE_ID]: {
+        ...account,
+        ledger: { ...account.ledger, entries }
+      }
+    }
+  }
+}
+
 /**
- * Repairs the exact stale portfolio snapshot that was written to the host profile before
- * the Codex-hosted profile was cleaned. Every fingerprint must match before any data changes.
+ * Repairs the exact stale portfolio snapshot written to the host profile and independently
+ * upgrades the known CREC broker-cost calibration to a performance reset checkpoint.
  */
 export function repairKnownPortfolioDataCorruption(state: AppState, now: Date): AppState {
-  if (!hasKnownCorruption(state)) return state
+  if (!hasKnownCorruption(state)) return markKnownCrecPerformanceReset(state)
 
   const watchlist = state.watchlist.map((stock) => {
     const repairedPosition = REPAIRED_POSITIONS[stock.quoteId]
@@ -155,16 +193,17 @@ export function repairKnownPortfolioDataCorruption(state: AppState, now: Date): 
         replay.position,
         repairedPosition,
         recordedAt,
-        recordedAt
+        recordedAt,
+        true
       )
     }
     tTradingAccounts[fingerprint.quoteId] = repairedAccount
   }
 
-  return {
+  return markKnownCrecPerformanceReset({
     ...state,
     watchlist,
     tTradingAccounts,
     portfolioPerformanceAdjustments: {}
-  }
+  })
 }

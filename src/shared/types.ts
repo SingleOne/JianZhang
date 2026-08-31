@@ -820,6 +820,7 @@ export interface ShareAdjustmentLedgerEntry extends PortfolioLedgerEntryBase {
 
 export interface PositionAdjustmentLedgerEntry extends PortfolioLedgerEntryBase {
   kind: 'positionAdjustment'
+  resetsPerformance?: boolean
   quantityBefore: number
   quantityAfter: number
   costBefore: number | null

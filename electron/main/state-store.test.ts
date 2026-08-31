@@ -186,7 +186,7 @@ function knownCorruptedPortfolioState(): AppState {
     ]),
     [
       {
-        id: 'position-adjustment:existing-crec-calibration',
+        id: 'position-adjustment:ac1c7447-57b4-4724-9d5d-7f2932f14396',
         accountId: '1.601390',
         quoteId: '1.601390',
         occurredAt: '2026-08-30T21:56:57.908',
@@ -216,6 +216,43 @@ function knownCorruptedPortfolioState(): AppState {
     '0.000625': 362.25,
     '1.601390': -1_049.79
   }
+  return state
+}
+
+function knownCleanedPortfolioState(): AppState {
+  const state = knownCorruptedPortfolioState()
+  state.watchlist = state.watchlist.map((stock) =>
+    stock.quoteId === '0.000625'
+      ? {
+          ...stock,
+          position: {
+            quantity: 500,
+            cost: 7.8245,
+            openedToday: false,
+            openedOn: '2026-07-16',
+            currency: 'CNY',
+            costExchangeRate: 1,
+            costExchangeRateDate: '2026-07-16'
+          }
+        }
+      : stock
+  )
+  state.tTradingAccounts['0.000625'] = portfolioAccount('0.000625', '000625', '长安汽车', [
+    portfolioTrade('changan-real-trade', '2026-07-16T09:30', 7.8245, 500)
+  ])
+  state.tTradingAccounts['1.601390'] = {
+    ...state.tTradingAccounts['1.601390'],
+    tradeRecords: state.tTradingAccounts['1.601390'].tradeRecords.filter(
+      (record) => record.id !== 'opening-balance:1.601390'
+    ),
+    ledger: {
+      ...state.tTradingAccounts['1.601390'].ledger,
+      entries: state.tTradingAccounts['1.601390'].ledger.entries.filter(
+        (entry) => entry.id !== 'trade:opening-balance:1.601390'
+      )
+    }
+  }
+  state.portfolioPerformanceAdjustments = {}
   return state
 }
 
@@ -432,7 +469,8 @@ describe('StateStore', () => {
       crecAccount.ledger.entries.filter((entry) => entry.kind === 'positionAdjustment')
     ).toEqual([
       expect.objectContaining({
-        id: 'position-adjustment:existing-crec-calibration'
+        id: 'position-adjustment:ac1c7447-57b4-4724-9d5d-7f2932f14396',
+        resetsPerformance: true
       })
     ])
     expect(changanPosition).toMatchObject({
@@ -440,6 +478,43 @@ describe('StateStore', () => {
       cost: 7.8245,
       openedOn: '2026-07-16'
     })
+    expect(readState(join(directory, STATE_FILE_NAME))).toEqual(result.state)
+    expect(readState(join(directory, LAST_GOOD_STATE_FILE_NAME))).toEqual(result.state)
+  })
+
+  it('marks the existing CREC calibration as a performance reset after stale data was cleaned', () => {
+    const state = knownCleanedPortfolioState()
+    writeFileSync(join(directory, STATE_FILE_NAME), JSON.stringify(state, null, 2), 'utf8')
+
+    const result = new StateStore(directory, makeState()).load()
+    const adjustment = result.state.tTradingAccounts['1.601390'].ledger.entries.find(
+      (entry) => entry.id === 'position-adjustment:ac1c7447-57b4-4724-9d5d-7f2932f14396'
+    )
+
+    expect(adjustment).toMatchObject({
+      kind: 'positionAdjustment',
+      resetsPerformance: true
+    })
+    expect(readState(join(directory, STATE_FILE_NAME))).toEqual(result.state)
+    expect(readState(join(directory, LAST_GOOD_STATE_FILE_NAME))).toEqual(result.state)
+  })
+
+  it('upgrades the CREC performance reset when recovering an old last-good state', () => {
+    const state = knownCleanedPortfolioState()
+    writeFileSync(join(directory, STATE_FILE_NAME), '{invalid json', 'utf8')
+    writeFileSync(
+      join(directory, LAST_GOOD_STATE_FILE_NAME),
+      JSON.stringify(state, null, 2),
+      'utf8'
+    )
+
+    const result = new StateStore(directory, makeState()).load()
+    const adjustment = result.state.tTradingAccounts['1.601390'].ledger.entries.find(
+      (entry) => entry.id === 'position-adjustment:ac1c7447-57b4-4724-9d5d-7f2932f14396'
+    )
+
+    expect(result.warning).toContain('已从最近备份恢复')
+    expect(adjustment).toMatchObject({ resetsPerformance: true })
     expect(readState(join(directory, STATE_FILE_NAME))).toEqual(result.state)
     expect(readState(join(directory, LAST_GOOD_STATE_FILE_NAME))).toEqual(result.state)
   })

@@ -150,7 +150,8 @@ export function appendPositionAdjustment(
   previousPosition: StockPosition | undefined,
   nextPosition: StockPosition | undefined,
   occurredAt: string,
-  recordedAt: string
+  recordedAt: string,
+  resetsPerformance = false
 ): TTradingAccount {
   return appendPortfolioLedgerEntries(account, [
     {
@@ -167,6 +168,7 @@ export function appendPositionAdjustment(
         nextPosition?.costExchangeRateDate ?? previousPosition?.costExchangeRateDate,
       note: '修改持仓',
       kind: 'positionAdjustment',
+      resetsPerformance,
       quantityBefore: previousPosition?.quantity ?? 0,
       quantityAfter: nextPosition?.quantity ?? 0,
       costBefore: previousPosition?.cost ?? null,
