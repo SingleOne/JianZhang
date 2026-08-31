@@ -69,7 +69,8 @@ export class HkexNewsClient {
     periodStart: string,
     periodEnd: string,
     tierOneCode: string,
-    tierTwoCode = '-2'
+    tierTwoCode = '-2',
+    tierTwoGroupCode = '-2'
   ): Promise<HkexSearchItem[]> {
     const url = new URL(HKEX_SEARCH_URL)
     url.search = new URLSearchParams({
@@ -84,7 +85,7 @@ export class HkexNewsClient {
       title: '',
       searchType: '1',
       t1code: tierOneCode,
-      t2Gcode: '-2',
+      t2Gcode: tierTwoGroupCode,
       t2code: tierTwoCode,
       rowRange: '100',
       lang: 'EN'

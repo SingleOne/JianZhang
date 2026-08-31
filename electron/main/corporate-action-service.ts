@@ -86,6 +86,7 @@ function mergeTerms(
 export class CorporateActionService {
   private readonly cacheDirectory: string
   private readonly providers: Partial<Record<StockMarket, CorporateActionProvider>>
+  private readonly inFlight = new Map<string, Promise<CorporateActionListResult>>()
 
   constructor(userDataDirectory: string, secClient = new SecEdgarClient()) {
     this.cacheDirectory = join(userDataDirectory, 'corporate-actions', 'candidates')
@@ -96,6 +97,18 @@ export class CorporateActionService {
   }
 
   async get(quoteId: string, forceRefresh = false): Promise<CorporateActionListResult> {
+    const pending = this.inFlight.get(quoteId)
+    if (pending) return pending
+    const request = this.fetch(quoteId, forceRefresh)
+    this.inFlight.set(quoteId, request)
+    try {
+      return await request
+    } finally {
+      if (this.inFlight.get(quoteId) === request) this.inFlight.delete(quoteId)
+    }
+  }
+
+  private async fetch(quoteId: string, forceRefresh: boolean): Promise<CorporateActionListResult> {
     const market = marketFromQuoteId(quoteId)
     const provider = this.providers[market]
     if (!provider) {

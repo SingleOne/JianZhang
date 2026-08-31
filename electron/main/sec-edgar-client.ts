@@ -6,6 +6,10 @@ const SEC_HEADERS = {
   Accept: 'application/json',
   'User-Agent': 'JianZhang Desktop stock research app'
 }
+const SEC_DOCUMENT_HEADERS = {
+  Accept: 'text/plain, text/html, */*',
+  'User-Agent': 'JianZhang Desktop stock research app'
+}
 
 export interface SecIssuer {
   cik: number
@@ -79,6 +83,14 @@ export class SecEdgarClient {
     return `https://www.sec.gov/Archives/edgar/data/${cik}/${accessionNumber.replaceAll('-', '')}/${primaryDocument}`
   }
 
+  filingTextUrl(cik: number, accessionNumber: string): string {
+    return `https://www.sec.gov/Archives/edgar/data/${cik}/${accessionNumber.replaceAll('-', '')}/${accessionNumber}.txt`
+  }
+
+  getFilingText(cik: number, accessionNumber: string): Promise<string> {
+    return this.getText(this.filingTextUrl(cik, accessionNumber))
+  }
+
   issuerPageUrl(cik: number): string {
     return `https://www.sec.gov/edgar/browse/?CIK=${cik}`
   }
@@ -136,5 +148,14 @@ export class SecEdgarClient {
     })
     if (!response.ok) throw new Error(`请求 SEC EDGAR 失败：HTTP ${response.status}`)
     return response.json() as Promise<T>
+  }
+
+  private async getText(url: string): Promise<string> {
+    const response = await net.fetch(url, {
+      headers: SEC_DOCUMENT_HEADERS,
+      signal: AbortSignal.timeout(30_000)
+    })
+    if (!response.ok) throw new Error(`请求 SEC EDGAR 披露正文失败：HTTP ${response.status}`)
+    return response.text()
   }
 }

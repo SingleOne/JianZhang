@@ -27,19 +27,32 @@ interface CorporateActionCenterDialogProps {
 
 type MarketFilter = 'all' | StockMarket
 type TypeFilter = 'all' | CorporateActionType
+type CorporateActionLoadResult = {
+  stock: WatchStock
+  result: PromiseSettledResult<CorporateActionListResult>
+}
 
 async function listAtLowConcurrency(
   stocks: readonly WatchStock[]
-): Promise<PromiseSettledResult<CorporateActionListResult>[]> {
-  const results: PromiseSettledResult<CorporateActionListResult>[] = []
+): Promise<CorporateActionLoadResult[]> {
+  const results: CorporateActionLoadResult[] = []
   for (let index = 0; index < stocks.length; index += 3) {
-    results.push(
-      ...(await Promise.allSettled(
-        stocks.slice(index, index + 3).map((stock) => stockApi.listCorporateActions(stock.quoteId))
-      ))
+    const batch = stocks.slice(index, index + 3)
+    const settled = await Promise.allSettled(
+      batch.map((stock) => stockApi.listCorporateActions(stock.quoteId))
     )
+    results.push(...settled.map((result, batchIndex) => ({ stock: batch[batchIndex], result })))
   }
   return results
+}
+
+function stockLabel(stock: WatchStock): string {
+  return stock.name ? `${stock.name}（${stock.code}）` : stock.quoteId
+}
+
+function failureReason(reason: unknown): string {
+  const message = reason instanceof Error ? reason.message : '未知错误'
+  return message.length > 80 ? `${message.slice(0, 80)}…` : message
 }
 
 export default function CorporateActionCenterDialog({
@@ -79,13 +92,21 @@ export default function CorporateActionCenterDialog({
     void listAtLowConcurrency(globalStocks)
       .then((results) => {
         if (!active) return
-        const successful = results.flatMap((result) =>
+        const successful = results.flatMap(({ result }) =>
           result.status === 'fulfilled' ? result.value.candidates : []
         )
-        const failedCount =
-          results.length - results.filter((result) => result.status === 'fulfilled').length
+        const failures = results.filter(({ result }) => result.status === 'rejected')
         setCandidates(successful)
-        if (failedCount > 0) setError(`${failedCount} 只股票的候选获取失败，其余结果仍可查看。`)
+        if (failures.length > 0) {
+          const details = failures
+            .map(({ stock, result }) =>
+              result.status === 'rejected'
+                ? `${stockLabel(stock)}：${failureReason(result.reason)}`
+                : stockLabel(stock)
+            )
+            .join('；')
+          setError(`${failures.length} 只股票请求失败（成功但无候选不会计入失败）：${details}`)
+        }
       })
       .finally(() => {
         if (active) setLoading(false)

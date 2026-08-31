@@ -31,6 +31,20 @@ const CATEGORY_CODES = [
   '18260'
 ] as const
 
+const CATEGORY_GROUP_CODES: Record<(typeof CATEGORY_CODES)[number], string> = {
+  '13250': '3',
+  '13251': '3',
+  '18120': '8',
+  '18140': '8',
+  '18500': '8',
+  '18460': '8',
+  '12700': '2',
+  '17450': '7',
+  '17700': '7',
+  '17600': '7',
+  '18260': '8'
+}
+
 function contentHash(value: string): string {
   return createHash('sha256').update(value).digest('hex')
 }
@@ -48,7 +62,14 @@ export class HkexCorporateActionProvider implements CorporateActionProvider {
     const groups: HkexSearchItem[][] = []
     for (const categoryCode of CATEGORY_CODES) {
       groups.push(
-        await this.client.search(stock.stockId!, periodStart, periodEnd, '10000', categoryCode)
+        await this.client.search(
+          stock.stockId!,
+          periodStart,
+          periodEnd,
+          '10000',
+          categoryCode,
+          CATEGORY_GROUP_CODES[categoryCode]
+        )
       )
     }
     const detectedAt = new Date().toISOString()
