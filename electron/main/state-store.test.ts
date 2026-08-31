@@ -23,7 +23,8 @@ import {
   LEGACY_TRADING_BACKUP_FILE_NAME,
   STATE_FILE_NAME,
   STATE_HISTORY_DIRECTORY_NAME,
-  StateStore
+  StateStore,
+  StateStoreRevisionConflictError
 } from './state-store'
 
 const EMPTY_FEES = {
@@ -206,6 +207,22 @@ describe('StateStore', () => {
 
     expect(() => store.assertRevision({ ...state, revision: 0 })).toThrow('数据已在后台更新')
     expect(() => store.assertRevision(state)).not.toThrow()
+  })
+
+  it('rejects a stale instance before it overwrites a newer disk revision', () => {
+    const firstStore = new StateStore(directory, makeState())
+    firstStore.load()
+    const staleStore = new StateStore(directory, makeState())
+    const staleState = staleStore.load().state
+    const firstState = firstStore.load().state
+
+    firstStore.save({ ...firstState, watchlist: makeState('磁盘新配置').watchlist })
+
+    expect(() =>
+      staleStore.save({ ...staleState, watchlist: makeState('旧实例配置').watchlist })
+    ).toThrow(StateStoreRevisionConflictError)
+    expect(readState(join(directory, STATE_FILE_NAME)).watchlist[0].name).toBe('磁盘新配置')
+    expect(staleStore.load().state.watchlist[0].name).toBe('磁盘新配置')
   })
 
   it('keeps timestamped state history snapshots', () => {

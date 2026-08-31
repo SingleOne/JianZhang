@@ -24,6 +24,16 @@ export const STATE_HISTORY_DIRECTORY_NAME = 'state-history'
 const STATE_HISTORY_LIMIT = 20
 const STATE_HISTORY_MIN_INTERVAL_MILLISECONDS = 15 * 60 * 1000
 
+export class StateStoreRevisionConflictError extends Error {
+  constructor(
+    readonly expectedRevision: number,
+    readonly actualRevision: number
+  ) {
+    super('磁盘配置已由另一个应用实例更新，已重新加载最新数据，请重试刚才的操作')
+    this.name = 'StateStoreRevisionConflictError'
+  }
+}
+
 export interface StateStoreLoadResult {
   state: AppState
   warning?: string
@@ -136,6 +146,10 @@ export class StateStore {
 
   save(state: AppState): void {
     const previousContent = existsSync(this.statePath) ? readFileSync(this.statePath, 'utf8') : null
+    const diskRevision = previousContent ? this.readRevision(previousContent) : undefined
+    if (diskRevision !== undefined && diskRevision !== this.revision) {
+      throw new StateStoreRevisionConflictError(this.revision, diskRevision)
+    }
     if (previousContent && this.revision > 0) this.saveHistorySnapshot(previousContent)
     this.revision += 1
     state.revision = this.revision
@@ -216,6 +230,15 @@ export class StateStore {
 
   private readState(path: string): AppState {
     return JSON.parse(readFileSync(path, 'utf8')) as AppState
+  }
+
+  private readRevision(content: string): number | undefined {
+    try {
+      const revision = (JSON.parse(content) as { revision?: unknown }).revision
+      return typeof revision === 'number' && Number.isInteger(revision) ? Math.max(0, revision) : 0
+    } catch {
+      return undefined
+    }
   }
 
   private writeAtomically(path: string, content: string): void {

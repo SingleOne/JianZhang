@@ -61,7 +61,7 @@ import { QuoteSnapshotCache } from './quote-snapshot-cache'
 import { SectorMarketCache } from './sector-market-cache'
 import { SecEdgarClient } from './sec-edgar-client'
 import { ShareholderService } from './shareholder-service'
-import { StateStore } from './state-store'
+import { StateStore, StateStoreRevisionConflictError } from './state-store'
 import { StockTrackingMetricsRuntime } from './stock-tracking-metrics-runtime'
 import { TradingCalendarRuntime } from './trading-calendar-runtime'
 import { UserDataBackupService } from './user-data-backup-service'
@@ -200,7 +200,25 @@ function getLatestQuotes(): StockQuote[] {
 
 function persistState(): void {
   if (!stateStore) throw new Error('配置存储尚未初始化')
-  stateStore.save(state)
+  try {
+    stateStore.save(state)
+  } catch (reason) {
+    if (reason instanceof StateStoreRevisionConflictError) reloadStateFromDiskIfChanged()
+    throw reason
+  }
+}
+
+function reloadStateFromDiskIfChanged(): boolean {
+  if (!stateStore) return false
+  const previousRevision = state.revision
+  const loaded = stateStore.load()
+  if (loaded.warning) startupWarning = loaded.warning
+  if (loaded.state.revision === previousRevision) return false
+  state = loaded.state
+  sendToWindows('state:updated', state)
+  windowManager?.updateTrayMenu()
+  windowManager?.syncTaskbarWindow()
+  return true
 }
 
 function sendToWindows(channel: string, payload: unknown): void {
@@ -424,6 +442,11 @@ if (!hasSingleInstanceLock) {
   app.quit()
 } else {
   app.on('second-instance', () => {
+    try {
+      reloadStateFromDiskIfChanged()
+    } catch (reason) {
+      sendToWindows('data:error', reason instanceof Error ? reason.message : '重新加载最新配置失败')
+    }
     windowManager?.showMainWindow()
     windowManager?.syncTaskbarWindow()
     void quoteRuntime?.refreshAutomatically('second-instance')
