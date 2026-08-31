@@ -47,8 +47,25 @@ function account(records: TTradeRecord[] = []): TTradingAccount {
 describe('position ledger', () => {
   it('only creates an initial position record for a genuinely new position', () => {
     const existingPosition = position(1_000, 4.28)
+    const recordedTrade: TTradeRecord = {
+      id: 'recorded-buy',
+      side: 'buy',
+      purpose: 'base',
+      tradedAt: '2026-07-01T10:07',
+      price: 4.28,
+      quantity: 1_000,
+      fees: { commission: 0, handling: 0, regulatory: 0, transfer: 0, stampDuty: 0 },
+      market: 'CN',
+      currency: 'CNY',
+      marketDate: '2026-07-01',
+      exchangeRate: 1,
+      note: ''
+    }
 
     expect(shouldCreateInitialPositionRecord(undefined, existingPosition, account())).toBe(true)
+    expect(
+      shouldCreateInitialPositionRecord(undefined, existingPosition, account([recordedTrade]))
+    ).toBe(false)
     expect(
       shouldCreateInitialPositionRecord(existingPosition, position(1_000, 4.1), account())
     ).toBe(false)

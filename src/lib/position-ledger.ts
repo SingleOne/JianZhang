@@ -85,7 +85,12 @@ export function shouldCreateInitialPositionRecord(
   nextPosition: StockPosition | undefined,
   account: TTradingAccount | undefined
 ): boolean {
-  return !previousPosition && Boolean(nextPosition) && !hasInitialPositionRecord(account)
+  return (
+    !previousPosition &&
+    Boolean(nextPosition) &&
+    !hasInitialPositionRecord(account) &&
+    (account?.tradeRecords.length ?? 0) === 0
+  )
 }
 
 export function positionsMatch(
