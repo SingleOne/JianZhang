@@ -5,7 +5,11 @@ import { calculatePortfolioLedgerPosition } from './portfolio-ledger'
 import {
   appendPositionAdjustment,
   createInitialPositionAccount,
-  hasInitialPositionRecord
+  hasInitialPositionRecord,
+  positionRecordLedgerEntries,
+  previewPositionRecordDeletion,
+  removePositionRecordEntries,
+  shouldCreateInitialPositionRecord
 } from './position-ledger'
 
 const IDENTITY = {
@@ -41,6 +45,15 @@ function account(records: TTradeRecord[] = []): TTradingAccount {
 }
 
 describe('position ledger', () => {
+  it('only creates an initial position record for a genuinely new position', () => {
+    const existingPosition = position(1_000, 4.28)
+
+    expect(shouldCreateInitialPositionRecord(undefined, existingPosition, account())).toBe(true)
+    expect(
+      shouldCreateInitialPositionRecord(existingPosition, position(1_000, 4.1), account())
+    ).toBe(false)
+  })
+
   it('uses the first manually entered position as the initial balance even when trades exist', () => {
     const sell: TTradeRecord = {
       id: 'final-sell',
@@ -120,5 +133,55 @@ describe('position ledger', () => {
     )
 
     expect(calculatePortfolioLedgerPosition(adjusted, 'CN', 'CNY')).toEqual({})
+  })
+
+  it('lists position adjustments with trades and previews deleting all later records', () => {
+    const initial = createInitialPositionAccount(
+      account(),
+      IDENTITY,
+      position(1_000, 4.28),
+      '2026-07-01T10:00'
+    )
+    const adjusted = appendPositionAdjustment(
+      initial,
+      position(1_000, 4.28),
+      position(900, 4.1),
+      '2026-08-01T10:00',
+      '2026-08-01T02:00:00.000Z'
+    )
+    const laterTrade: TTradeRecord = {
+      id: 'later-buy',
+      side: 'buy',
+      purpose: 'base',
+      tradedAt: '2026-08-02T10:00',
+      price: 4,
+      quantity: 100,
+      fees: { commission: 0, handling: 0, regulatory: 0, transfer: 0, stampDuty: 0 },
+      market: 'CN',
+      currency: 'CNY',
+      marketDate: '2026-08-02',
+      exchangeRate: 1,
+      origin: 'execution',
+      note: ''
+    }
+    const withLaterTrade = withLedgerTradeRecords(adjusted, [...adjusted.tradeRecords, laterTrade])
+    const records = positionRecordLedgerEntries(withLaterTrade)
+    const adjustment = records.find((entry) => entry.kind === 'positionAdjustment')!
+    const preview = previewPositionRecordDeletion(withLaterTrade, adjustment.id)!
+
+    expect(records.map((entry) => entry.kind)).toEqual(['trade', 'positionAdjustment', 'trade'])
+    expect(preview.laterRecordCount).toBe(1)
+    expect(preview.entries.map((entry) => entry.id)).toEqual(['trade:later-buy', adjustment.id])
+
+    const removed = removePositionRecordEntries(
+      withLaterTrade,
+      new Set(preview.entries.map((entry) => entry.id))
+    )
+    expect(removed.tradeRecords.map((record) => record.id)).toEqual([
+      `opening-balance:${IDENTITY.quoteId}`
+    ])
+    expect(positionRecordLedgerEntries(removed).map((entry) => entry.id)).toEqual([
+      `trade:opening-balance:${IDENTITY.quoteId}`
+    ])
   })
 })

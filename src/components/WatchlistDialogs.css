@@ -633,6 +633,11 @@
   background: var(--green-soft);
 }
 
+.trade-record-side.is-adjustment {
+  color: var(--blue);
+  background: var(--blue-soft);
+}
+
 .trade-record-empty {
   padding: 22px;
   color: #8a94a6;

@@ -1,11 +1,18 @@
 import type {
+  PositionAdjustmentLedgerEntry,
   StockCurrency,
   StockMarket,
   StockPosition,
   TTradingAccount,
-  TTrade
+  TTrade,
+  TradeLedgerEntry
 } from '../shared/types'
-import { appendPortfolioLedgerEntries, withLedgerTradeRecords } from '../shared/types'
+import {
+  appendPortfolioLedgerEntries,
+  tradeRecordsFromLedger,
+  withLedgerTradeRecords
+} from '../shared/types'
+import { activePortfolioLedgerEntries } from './portfolio-ledger'
 import { upsertTradeRecord } from './trade-records'
 
 const EMPTY_FEES = {
@@ -24,8 +31,61 @@ export interface PositionLedgerIdentity {
   currency: StockCurrency
 }
 
+export type PositionRecordLedgerEntry = TradeLedgerEntry | PositionAdjustmentLedgerEntry
+
+export interface PositionRecordDeletionPreview {
+  target: PositionRecordLedgerEntry
+  entries: PositionRecordLedgerEntry[]
+  laterRecordCount: number
+}
+
+export function positionRecordLedgerEntries(
+  account: TTradingAccount | undefined
+): PositionRecordLedgerEntry[] {
+  if (!account) return []
+  return activePortfolioLedgerEntries(account)
+    .filter(
+      (entry): entry is PositionRecordLedgerEntry =>
+        entry.kind === 'trade' || entry.kind === 'positionAdjustment'
+    )
+    .reverse()
+}
+
+export function previewPositionRecordDeletion(
+  account: TTradingAccount,
+  entryId: string
+): PositionRecordDeletionPreview | undefined {
+  const records = positionRecordLedgerEntries(account)
+  const targetIndex = records.findIndex((entry) => entry.id === entryId)
+  if (targetIndex < 0) return undefined
+  return {
+    target: records[targetIndex],
+    entries: records.slice(0, targetIndex + 1),
+    laterRecordCount: targetIndex
+  }
+}
+
+export function removePositionRecordEntries(
+  account: TTradingAccount,
+  entryIds: ReadonlySet<string>
+): TTradingAccount {
+  const ledger = {
+    ...account.ledger,
+    entries: account.ledger.entries.filter((entry) => !entryIds.has(entry.id))
+  }
+  return { ...account, ledger, tradeRecords: tradeRecordsFromLedger(ledger) }
+}
+
 export function hasInitialPositionRecord(account: TTradingAccount | undefined): boolean {
   return account?.tradeRecords.some((record) => record.origin === 'opening-balance') ?? false
+}
+
+export function shouldCreateInitialPositionRecord(
+  previousPosition: StockPosition | undefined,
+  nextPosition: StockPosition | undefined,
+  account: TTradingAccount | undefined
+): boolean {
+  return !previousPosition && Boolean(nextPosition) && !hasInitialPositionRecord(account)
 }
 
 export function positionsMatch(
