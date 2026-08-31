@@ -210,10 +210,10 @@ function persistState(): void {
 
 function reloadStateFromDiskIfChanged(): boolean {
   if (!stateStore) return false
-  const previousRevision = state.revision
+  const previousContent = JSON.stringify(state)
   const loaded = stateStore.load()
   if (loaded.warning) startupWarning = loaded.warning
-  if (loaded.state.revision === previousRevision) return false
+  if (JSON.stringify(loaded.state) === previousContent) return false
   state = loaded.state
   sendToWindows('state:updated', state)
   windowManager?.updateTrayMenu()

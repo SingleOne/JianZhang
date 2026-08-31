@@ -53,6 +53,7 @@ export class StateStore {
   private readonly lastGoodPath: string
   private readonly legacyTradingBackupPath: string
   private revision = 0
+  private loadedContent: string | null = null
   private lastHistoryAt = 0
 
   constructor(
@@ -75,9 +76,11 @@ export class StateStore {
     let saved: AppState
     let state: AppState
     try {
-      saved = this.readState(this.statePath)
+      const savedContent = readFileSync(this.statePath, 'utf8')
+      saved = JSON.parse(savedContent) as AppState
       state = this.normalizeLoadedState(saved)
       this.revision = state.revision ?? 0
+      this.loadedContent = savedContent
     } catch (reason) {
       return this.recoverFromInvalidState(reason)
     }
@@ -147,7 +150,11 @@ export class StateStore {
   save(state: AppState): void {
     const previousContent = existsSync(this.statePath) ? readFileSync(this.statePath, 'utf8') : null
     const diskRevision = previousContent ? this.readRevision(previousContent) : undefined
-    if (diskRevision !== undefined && diskRevision !== this.revision) {
+    const diskContentChanged =
+      previousContent !== null &&
+      this.loadedContent !== null &&
+      previousContent !== this.loadedContent
+    if (diskRevision !== undefined && (diskRevision !== this.revision || diskContentChanged)) {
       throw new StateStoreRevisionConflictError(this.revision, diskRevision)
     }
     if (previousContent && this.revision > 0) this.saveHistorySnapshot(previousContent)
@@ -157,6 +164,7 @@ export class StateStore {
     try {
       this.writeAtomically(this.statePath, content)
       this.writeAtomically(this.lastGoodPath, content)
+      this.loadedContent = content
     } catch (reason) {
       this.revision -= 1
       state.revision = this.revision

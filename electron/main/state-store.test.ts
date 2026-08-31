@@ -225,6 +225,26 @@ describe('StateStore', () => {
     expect(staleStore.load().state.watchlist[0].name).toBe('磁盘新配置')
   })
 
+  it('rejects changed disk content even when the revision is unchanged', () => {
+    const store = new StateStore(directory, makeState())
+    const staleState = store.load().state
+    const sameRevisionDiskState = {
+      ...staleState,
+      watchlist: makeState('同修订号新配置').watchlist
+    }
+    writeFileSync(
+      join(directory, STATE_FILE_NAME),
+      JSON.stringify(sameRevisionDiskState, null, 2),
+      'utf8'
+    )
+
+    expect(() =>
+      store.save({ ...staleState, watchlist: makeState('旧实例配置').watchlist })
+    ).toThrow(StateStoreRevisionConflictError)
+    expect(readState(join(directory, STATE_FILE_NAME)).watchlist[0].name).toBe('同修订号新配置')
+    expect(store.load().state.watchlist[0].name).toBe('同修订号新配置')
+  })
+
   it('keeps timestamped state history snapshots', () => {
     let current = new Date('2026-08-13T00:00:00.000Z')
     const store = new StateStore(directory, makeState(), () => current)
