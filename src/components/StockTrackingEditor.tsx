@@ -23,6 +23,7 @@ import {
 import { formatPercent, formatPrice } from '../lib/format'
 import type { StockTrackingPerformance } from '../lib/stock-tracking-performance'
 import type {
+  DailyKlineIndicator,
   StockQuote,
   StockTrackingConclusionResult,
   StockTrackingEntryType,
@@ -41,6 +42,8 @@ interface StockTrackingEditorProps {
   showDailyKline?: boolean
   bollingerBandsEnabled?: boolean
   onBollingerBandsEnabledChange?: (enabled: boolean) => void
+  dailyKlineIndicator?: DailyKlineIndicator
+  onDailyKlineIndicatorChange?: (indicator: DailyKlineIndicator) => void
   onUpdateProfile: (profile: StockTrackingProfile) => void
   onStopTracking: (quoteId: string, result: StockTrackingConclusionResult, summary: string) => void
   onRestartTracking: (quoteId: string) => void
@@ -84,6 +87,8 @@ export function StockTrackingEditor({
   showDailyKline = false,
   bollingerBandsEnabled,
   onBollingerBandsEnabledChange,
+  dailyKlineIndicator,
+  onDailyKlineIndicatorChange,
   onUpdateProfile,
   onStopTracking,
   onRestartTracking,
@@ -277,6 +282,8 @@ export function StockTrackingEditor({
         trackingStoppedAt={profile.stoppedAt}
         bollingerBandsEnabled={bollingerBandsEnabled}
         onBollingerBandsEnabledChange={onBollingerBandsEnabledChange}
+        dailyKlineIndicator={dailyKlineIndicator}
+        onDailyKlineIndicatorChange={onDailyKlineIndicatorChange}
       />
 
       <section className="stock-tracking-section">

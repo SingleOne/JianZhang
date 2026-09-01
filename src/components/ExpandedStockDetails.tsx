@@ -77,6 +77,7 @@ import type {
   DividendFinancingRankingItem,
   CorporateActionRecord,
   CorporateActionRecords,
+  DailyKlineIndicator,
   ExchangeRateSettings,
   KlineBar,
   KlinePeriod,
@@ -1295,6 +1296,7 @@ interface ExpandedStockDetailsProps {
   autoRefreshOrderBook: boolean
   chipDistributionEnabled: boolean
   bollingerBandsEnabled: boolean
+  dailyKlineIndicator: DailyKlineIndicator
   tradingCalendar: TradingCalendarSettings
   exchangeRates: ExchangeRateSettings
   tradingAccount?: TTradingAccount
@@ -1312,6 +1314,7 @@ interface ExpandedStockDetailsProps {
   onRestartTracking: (quoteId: string) => void
   onChipDistributionEnabledChange: (enabled: boolean) => void
   onBollingerBandsEnabledChange: (enabled: boolean) => void
+  onDailyKlineIndicatorChange: (indicator: DailyKlineIndicator) => void
 }
 
 export function ExpandedStockDetails({
@@ -1334,6 +1337,7 @@ export function ExpandedStockDetails({
   autoRefreshOrderBook,
   chipDistributionEnabled,
   bollingerBandsEnabled,
+  dailyKlineIndicator,
   tradingCalendar,
   exchangeRates,
   tradingAccount,
@@ -1346,7 +1350,8 @@ export function ExpandedStockDetails({
   onStopTracking,
   onRestartTracking,
   onChipDistributionEnabledChange,
-  onBollingerBandsEnabledChange
+  onBollingerBandsEnabledChange,
+  onDailyKlineIndicatorChange
 }: ExpandedStockDetailsProps) {
   const market = marketFromQuoteId(stock.quoteId)
   const isAStock = market === 'CN'
@@ -2004,7 +2009,7 @@ export function ExpandedStockDetails({
             ))}
           </div>
           <div
-            className={`chart-panel ${priceTab === 'trend' && capabilities.orderBook ? 'has-order-book' : ''} ${historicalPeriod ? 'has-bollinger-toolbar' : ''} ${priceTab === 'daily' && chipDistributionEnabled && capabilities.chipDistribution ? 'has-chip-distribution' : ''}`}
+            className={`chart-panel ${priceTab === 'trend' && capabilities.orderBook ? 'has-order-book' : ''} ${historicalPeriod ? 'has-kline-indicator-toolbar' : ''} ${priceTab === 'daily' && chipDistributionEnabled && capabilities.chipDistribution ? 'has-chip-distribution' : ''}`}
           >
             <div className="chart-content">
               {(error && data) || isFiveMinuteFallback ? (
@@ -2074,6 +2079,8 @@ export function ExpandedStockDetails({
                       }
                       bollingerBandsEnabled={bollingerBandsEnabled}
                       onBollingerBandsEnabledChange={onBollingerBandsEnabledChange}
+                      dailyKlineIndicator={dailyKlineIndicator}
+                      onDailyKlineIndicatorChange={onDailyKlineIndicatorChange}
                       trackingStartedAt={
                         historicalPeriod === 'daily' ? trackingProfile?.startedAt : undefined
                       }

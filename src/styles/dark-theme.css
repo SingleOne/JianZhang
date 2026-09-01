@@ -1787,10 +1787,21 @@
 :root[data-theme='dark'] .intraday-volume-label {
   color: #cbd5e3;
 }
-:root[data-theme='dark'] .bollinger-indicator-bar {
+:root[data-theme='dark'] .kline-indicator-bar {
   color: #cbd5e3;
   background: #111827;
   border-top: 1px solid #263449;
+}
+:root[data-theme='dark'] .kline-indicator-selector {
+  background: #1b2638;
+  border-color: #34445d;
+}
+:root[data-theme='dark'] .kline-indicator-selector button {
+  color: #cbd5e3;
+}
+:root[data-theme='dark'] .kline-indicator-selector button.is-active {
+  color: #ffffff;
+  background: #5b8cff;
 }
 :root[data-theme='dark'] .bollinger-toggle {
   color: #cbd5e3;
@@ -1814,7 +1825,19 @@
 :root[data-theme='dark'] .bollinger-values .is-lower {
   color: #a78bfa;
 }
-:root[data-theme='dark'] .bollinger-disabled-label {
+:root[data-theme='dark'] .moving-average-values .is-ma-5 {
+  color: #f3b85b;
+}
+:root[data-theme='dark'] .moving-average-values .is-ma-10 {
+  color: #5b8cff;
+}
+:root[data-theme='dark'] .moving-average-values .is-ma-20 {
+  color: #a78bfa;
+}
+:root[data-theme='dark'] .moving-average-values .is-ma-60 {
+  color: #22d3ee;
+}
+:root[data-theme='dark'] .kline-indicator-disabled-label {
   color: #98a6ba;
 }
 :root[data-theme='dark'] .chart-history-loading {

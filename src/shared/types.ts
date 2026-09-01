@@ -2141,6 +2141,7 @@ export const DEFAULT_T_PLAN_SETTINGS: TPlanDefaultSettings = {
 }
 
 export type AppThemePreference = 'system' | 'light' | 'dark'
+export type DailyKlineIndicator = 'movingAverage' | 'bollinger' | 'none'
 
 export interface AppSettings {
   theme: AppThemePreference
@@ -2152,6 +2153,7 @@ export interface AppSettings {
   showTaskbarTicker: boolean
   showChipDistribution: boolean
   showBollingerBands: boolean
+  dailyKlineIndicator: DailyKlineIndicator
   taskbarPositionPercent: number
   tTradingFees: TTradingFeeSettings
   marketTradeFees: MarketTradeFeeSettings
@@ -2171,6 +2173,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   showTaskbarTicker: true,
   showChipDistribution: false,
   showBollingerBands: true,
+  dailyKlineIndicator: 'movingAverage',
   taskbarPositionPercent: 0,
   tTradingFees: { ...DEFAULT_T_TRADING_FEE_SETTINGS },
   marketTradeFees: structuredClone(DEFAULT_MARKET_TRADE_FEE_SETTINGS),
@@ -2357,6 +2360,17 @@ export function marketTradingCalendar(
 }
 
 export function normalizeAppSettings(settings: Partial<AppSettings> | undefined): AppSettings {
+  const dailyKlineIndicator =
+    settings?.dailyKlineIndicator === 'movingAverage' ||
+    settings?.dailyKlineIndicator === 'bollinger' ||
+    settings?.dailyKlineIndicator === 'none'
+      ? settings.dailyKlineIndicator
+      : settings?.showBollingerBands === undefined
+        ? DEFAULT_APP_SETTINGS.dailyKlineIndicator
+        : settings.showBollingerBands
+          ? 'bollinger'
+          : 'none'
+
   return {
     theme: settings?.theme === 'light' || settings?.theme === 'dark' ? settings.theme : 'system',
     priorityRefreshSeconds: Math.min(
@@ -2374,6 +2388,7 @@ export function normalizeAppSettings(settings: Partial<AppSettings> | undefined)
     showChipDistribution:
       settings?.showChipDistribution ?? DEFAULT_APP_SETTINGS.showChipDistribution,
     showBollingerBands: settings?.showBollingerBands ?? DEFAULT_APP_SETTINGS.showBollingerBands,
+    dailyKlineIndicator,
     taskbarPositionPercent: Math.min(
       100,
       Math.max(0, settings?.taskbarPositionPercent ?? DEFAULT_APP_SETTINGS.taskbarPositionPercent)

@@ -18,6 +18,7 @@ import type { StockDetailNavigationRequest } from '../lib/completion-notificatio
 import type {
   CorporateActionRecord,
   CorporateActionRecords,
+  DailyKlineIndicator,
   DividendFinancingRankingItem,
   ExchangeRateSettings,
   MarketTradeFeeSettings,
@@ -98,6 +99,7 @@ interface WatchlistTableProps {
   regularRefreshSeconds: number
   chipDistributionEnabled: boolean
   bollingerBandsEnabled: boolean
+  dailyKlineIndicator: DailyKlineIndicator
   selectedQuoteId: string | null
   stockSelectionRequest: StockSelectionRequest | null
   detailNavigationRequest: StockDetailNavigationRequest | null
@@ -149,6 +151,7 @@ interface WatchlistTableProps {
   ) => void
   onChipDistributionEnabledChange: (enabled: boolean) => void
   onBollingerBandsEnabledChange: (enabled: boolean) => void
+  onDailyKlineIndicatorChange: (indicator: DailyKlineIndicator) => void
   onRemove: (quoteId: string) => void
 }
 
@@ -227,6 +230,7 @@ export function WatchlistTable({
   regularRefreshSeconds,
   chipDistributionEnabled,
   bollingerBandsEnabled,
+  dailyKlineIndicator,
   selectedQuoteId,
   stockSelectionRequest,
   detailNavigationRequest,
@@ -260,6 +264,7 @@ export function WatchlistTable({
   onUpdateWatchlistGroups,
   onChipDistributionEnabledChange,
   onBollingerBandsEnabledChange,
+  onDailyKlineIndicatorChange,
   onRemove
 }: WatchlistTableProps) {
   const [sort, setSort] = useState<SortState | null>(null)
@@ -1131,6 +1136,7 @@ export function WatchlistTable({
                   regularRefreshSeconds={regularRefreshSeconds}
                   chipDistributionEnabled={chipDistributionEnabled}
                   bollingerBandsEnabled={bollingerBandsEnabled}
+                  dailyKlineIndicator={dailyKlineIndicator}
                   trackingProfile={stockTrackingProfiles[stock.quoteId]}
                   selected={selectedQuoteId === stock.quoteId}
                   detailNavigationRequest={
@@ -1160,6 +1166,7 @@ export function WatchlistTable({
                   onOpenRadar={openRadar}
                   onChipDistributionEnabledChange={onChipDistributionEnabledChange}
                   onBollingerBandsEnabledChange={onBollingerBandsEnabledChange}
+                  onDailyKlineIndicatorChange={onDailyKlineIndicatorChange}
                   onStartTracking={onStartTracking}
                   onUpdateTracking={onUpdateTracking}
                   onApplyCorporateAction={onApplyCorporateAction}

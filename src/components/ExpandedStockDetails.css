@@ -2594,11 +2594,11 @@
   grid-template-columns: minmax(0, 1fr) 278px;
 }
 
-.chart-panel.has-bollinger-toolbar {
+.chart-panel.has-kline-indicator-toolbar {
   min-height: 354px;
 }
 
-.chart-panel.has-bollinger-toolbar.has-chip-distribution {
+.chart-panel.has-kline-indicator-toolbar.has-chip-distribution {
   min-height: 394px;
 }
 
@@ -2617,11 +2617,11 @@
   min-height: 360px;
 }
 
-.has-bollinger-toolbar .chart-content {
+.has-kline-indicator-toolbar .chart-content {
   min-height: 354px;
 }
 
-.has-bollinger-toolbar.has-chip-distribution .chart-content {
+.has-kline-indicator-toolbar.has-chip-distribution .chart-content {
   min-height: 394px;
 }
 
@@ -2635,14 +2635,14 @@
   height: 360px;
 }
 
-.has-bollinger-toolbar .chart-loading,
-.has-bollinger-toolbar .chart-error {
+.has-kline-indicator-toolbar .chart-loading,
+.has-kline-indicator-toolbar .chart-error {
   height: 354px;
 }
 
-.has-bollinger-toolbar.has-chip-distribution .chart-loading,
-.has-bollinger-toolbar.has-chip-distribution .chart-error,
-.has-bollinger-toolbar.has-chip-distribution .chip-distribution-panel {
+.has-kline-indicator-toolbar.has-chip-distribution .chart-loading,
+.has-kline-indicator-toolbar.has-chip-distribution .chart-error,
+.has-kline-indicator-toolbar.has-chip-distribution .chip-distribution-panel {
   height: 394px;
 }
 
@@ -3449,11 +3449,11 @@
   height: 320px;
 }
 
-.bollinger-indicator-bar {
+.kline-indicator-bar {
   height: 34px;
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 14px;
   padding: 0 10px;
   overflow: hidden;
   color: #66758a;
@@ -3462,6 +3462,36 @@
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.kline-indicator-selector {
+  flex: 0 0 auto;
+  display: inline-flex;
+  padding: 2px;
+  background: #eef2f7;
+  border: 1px solid #dde4ee;
+  border-radius: 7px;
+}
+
+.kline-indicator-selector button {
+  min-width: 42px;
+  padding: 2px 7px;
+  color: #68768a;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.kline-indicator-selector button:hover {
+  color: var(--blue);
+}
+
+.kline-indicator-selector button.is-active {
+  color: #ffffff;
+  background: var(--blue);
 }
 
 .bollinger-toggle {
@@ -3523,23 +3553,29 @@
   font-style: normal;
 }
 
-.bollinger-values {
+.bollinger-values,
+.moving-average-values {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 14px;
+  overflow: hidden;
 }
 
 .bollinger-values span,
-.bollinger-values strong {
+.bollinger-values strong,
+.moving-average-values span,
+.moving-average-values strong {
   font-size: 12px;
 }
 
-.bollinger-values span {
+.bollinger-values span,
+.moving-average-values span {
   font-weight: 650;
 }
 
-.bollinger-values strong {
+.bollinger-values strong,
+.moving-average-values strong {
   margin-left: 3px;
   color: inherit;
 }
@@ -3554,7 +3590,23 @@
   color: #7c3aed;
 }
 
-.bollinger-disabled-label {
+.moving-average-values .is-ma-5 {
+  color: #d97706;
+}
+
+.moving-average-values .is-ma-10 {
+  color: #2563eb;
+}
+
+.moving-average-values .is-ma-20 {
+  color: #7c3aed;
+}
+
+.moving-average-values .is-ma-60 {
+  color: #0891b2;
+}
+
+.kline-indicator-disabled-label {
   color: #9aa5b4;
   font-size: 12px;
 }

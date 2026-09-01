@@ -6,6 +6,7 @@ import { STOCK_TRACKING_SOURCE_LABELS } from '../lib/stock-tracking'
 import { calculateStockTrackingPerformance } from '../lib/stock-tracking-performance'
 import { formatPercent } from '../lib/format'
 import type {
+  DailyKlineIndicator,
   StockQuote,
   StockTrackingConclusionResult,
   StockTrackingProfile,
@@ -56,6 +57,8 @@ interface StockTrackingDialogProps {
   onViewStock: (quoteId: string) => void
   bollingerBandsEnabled: boolean
   onBollingerBandsEnabledChange: (enabled: boolean) => void
+  dailyKlineIndicator: DailyKlineIndicator
+  onDailyKlineIndicatorChange: (indicator: DailyKlineIndicator) => void
   onClose: () => void
 }
 
@@ -87,6 +90,8 @@ export function StockTrackingDialog({
   onViewStock,
   bollingerBandsEnabled,
   onBollingerBandsEnabledChange,
+  dailyKlineIndicator,
+  onDailyKlineIndicatorChange,
   onClose
 }: StockTrackingDialogProps) {
   const [query, setQuery] = useState('')
@@ -368,6 +373,8 @@ export function StockTrackingDialog({
                   showDailyKline
                   bollingerBandsEnabled={bollingerBandsEnabled}
                   onBollingerBandsEnabledChange={onBollingerBandsEnabledChange}
+                  dailyKlineIndicator={dailyKlineIndicator}
+                  onDailyKlineIndicatorChange={onDailyKlineIndicatorChange}
                   onUpdateProfile={onUpdateProfile}
                   onStopTracking={onStopTracking}
                   onRestartTracking={onRestartTracking}

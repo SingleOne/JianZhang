@@ -45,6 +45,7 @@ import {
 import type {
   CorporateActionRecord,
   CorporateActionRecords,
+  DailyKlineIndicator,
   DividendFinancingRankingItem,
   ExchangeRateSettings,
   StockQuote,
@@ -134,6 +135,7 @@ interface WatchlistRowProps {
   regularRefreshSeconds: number
   chipDistributionEnabled: boolean
   bollingerBandsEnabled: boolean
+  dailyKlineIndicator: DailyKlineIndicator
   trackingProfile?: StockTrackingProfile
   selected: boolean
   detailNavigationRequest: StockDetailNavigationRequest | null
@@ -159,6 +161,7 @@ interface WatchlistRowProps {
   onOpenRadar: (quoteId: string, anchor: HTMLButtonElement) => void
   onChipDistributionEnabledChange: (enabled: boolean) => void
   onBollingerBandsEnabledChange: (enabled: boolean) => void
+  onDailyKlineIndicatorChange: (indicator: DailyKlineIndicator) => void
   onStartTracking: (quoteId: string) => void
   onUpdateTracking: (profile: StockTrackingProfile) => void
   onApplyCorporateAction: (
@@ -194,6 +197,7 @@ export const WatchlistRow = memo(function WatchlistRow({
   regularRefreshSeconds,
   chipDistributionEnabled,
   bollingerBandsEnabled,
+  dailyKlineIndicator,
   trackingProfile,
   selected,
   detailNavigationRequest,
@@ -219,6 +223,7 @@ export const WatchlistRow = memo(function WatchlistRow({
   onOpenRadar,
   onChipDistributionEnabledChange,
   onBollingerBandsEnabledChange,
+  onDailyKlineIndicatorChange,
   onStartTracking,
   onUpdateTracking,
   onApplyCorporateAction,
@@ -801,6 +806,7 @@ export const WatchlistRow = memo(function WatchlistRow({
                   autoRefreshOrderBook={Boolean(activeTBatch)}
                   chipDistributionEnabled={chipDistributionEnabled}
                   bollingerBandsEnabled={bollingerBandsEnabled}
+                  dailyKlineIndicator={dailyKlineIndicator}
                   tradingCalendar={tradingCalendar}
                   exchangeRates={exchangeRates}
                   tradingAccount={tradingAccount}
@@ -816,6 +822,7 @@ export const WatchlistRow = memo(function WatchlistRow({
                   onRestartTracking={onRestartTracking}
                   onChipDistributionEnabledChange={onChipDistributionEnabledChange}
                   onBollingerBandsEnabledChange={onBollingerBandsEnabledChange}
+                  onDailyKlineIndicatorChange={onDailyKlineIndicatorChange}
                 />
               </div>
             </div>

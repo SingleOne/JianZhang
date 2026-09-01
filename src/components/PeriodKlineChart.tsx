@@ -29,7 +29,13 @@ import {
   type BollingerBandPoint
 } from '../shared/bollinger'
 import { marketDateKey } from '../shared/market-hours'
-import type { KlineBar, KlinePeriod, StockMarket } from '../shared/types'
+import {
+  calculateMovingAverages,
+  MOVING_AVERAGE_PERIODS,
+  type MovingAveragePeriod,
+  type MovingAveragePoint
+} from '../shared/moving-average'
+import type { DailyKlineIndicator, KlineBar, KlinePeriod, StockMarket } from '../shared/types'
 
 type HistoricalPeriod = Extract<KlinePeriod, 'daily' | 'weekly' | 'monthly'>
 
@@ -44,6 +50,8 @@ interface PeriodKlineChartProps {
   onVisibleRangeChange?: (range: KlineVisibleRange, source: KlineVisibleRangeSource) => void
   bollingerBandsEnabled: boolean
   onBollingerBandsEnabledChange: (enabled: boolean) => void
+  dailyKlineIndicator: DailyKlineIndicator
+  onDailyKlineIndicatorChange: (indicator: DailyKlineIndicator) => void
   trackingStartedAt?: string
   trackingStoppedAt?: string
   ctrlWheelZoomOnly?: boolean
@@ -71,7 +79,7 @@ function dateLabel(time: Time, period: HistoricalPeriod): string {
   return period === 'monthly' ? `${year}-${month}` : `${month}-${day}`
 }
 
-function bollingerPrice(value: number | undefined): string {
+function indicatorPrice(value: number | undefined): string {
   return value === undefined ? '--' : value.toFixed(2)
 }
 
@@ -146,6 +154,8 @@ export default function PeriodKlineChart({
   onVisibleRangeChange,
   bollingerBandsEnabled,
   onBollingerBandsEnabledChange,
+  dailyKlineIndicator,
+  onDailyKlineIndicatorChange,
   trackingStartedAt,
   trackingStoppedAt,
   ctrlWheelZoomOnly = false,
@@ -155,11 +165,18 @@ export default function PeriodKlineChart({
   const chartRef = useRef<IChartApi | null>(null)
   const candlesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
   const volumeRef = useRef<ISeriesApi<'Histogram'> | null>(null)
+  const movingAverageRefs = useRef<Record<MovingAveragePeriod, ISeriesApi<'Line'> | null>>({
+    5: null,
+    10: null,
+    20: null,
+    60: null
+  })
   const bollingerUpperRef = useRef<ISeriesApi<'Line'> | null>(null)
   const bollingerMiddleRef = useRef<ISeriesApi<'Line'> | null>(null)
   const bollingerLowerRef = useRef<ISeriesApi<'Line'> | null>(null)
   const barsRef = useRef(bars)
   const barsByTimeRef = useRef(new Map<UTCTimestamp, KlineBar>())
+  const movingAverageByTimeRef = useRef(new Map<UTCTimestamp, MovingAveragePoint>())
   const bollingerByTimeRef = useRef(new Map<UTCTimestamp, BollingerBandPoint>())
   const dataLengthRef = useRef(0)
   const lastRequestedLengthRef = useRef(-1)
@@ -172,12 +189,23 @@ export default function PeriodKlineChart({
   >(() => {})
   const updateMarkersRef = useRef<(range: { from: number; to: number } | null) => void>(() => {})
   const trackingDatesRef = useRef({ startedAt: trackingStartedAt, stoppedAt: trackingStoppedAt })
+  const movingAverages = useMemo(() => calculateMovingAverages(bars), [bars])
   const bollingerBands = useMemo(() => calculateBollingerBands(bars), [bars])
+  const [hoveredMovingAverages, setHoveredMovingAverages] = useState<
+    MovingAveragePoint | null | undefined
+  >()
   const [hoveredBollinger, setHoveredBollinger] = useState<BollingerBandPoint | null | undefined>()
   const resolvedTheme = useResolvedAppTheme()
+  const activeIndicator: DailyKlineIndicator =
+    period === 'daily' ? dailyKlineIndicator : bollingerBandsEnabled ? 'bollinger' : 'none'
+  const displayedMovingAverages =
+    hoveredMovingAverages === undefined ? movingAverages.at(-1) : hoveredMovingAverages
   const displayedBollinger =
     hoveredBollinger === undefined ? bollingerBands.at(-1) : hoveredBollinger
   barsRef.current = bars
+  movingAverageByTimeRef.current = new Map(
+    movingAverages.map((point) => [toTimestamp(point.time), point])
+  )
   bollingerByTimeRef.current = new Map(
     bollingerBands.map((point) => [toTimestamp(point.time), point])
   )
@@ -326,6 +354,22 @@ export default function PeriodKlineChart({
     volume.priceScale().applyOptions({ scaleMargins: { top: 0.76, bottom: 0 } })
     volumeRef.current = volume
 
+    const movingAverageColors: Record<MovingAveragePeriod, string> = {
+      5: theme.amber,
+      10: theme.accent,
+      20: theme.purple,
+      60: resolvedTheme === 'dark' ? '#22d3ee' : '#0891b2'
+    }
+    for (const movingAveragePeriod of MOVING_AVERAGE_PERIODS) {
+      movingAverageRefs.current[movingAveragePeriod] = chart.addSeries(LineSeries, {
+        color: movingAverageColors[movingAveragePeriod],
+        lineWidth: 2,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false
+      })
+    }
+
     const bollingerUpper = chart.addSeries(LineSeries, {
       color: theme.amber,
       lineWidth: 2,
@@ -355,9 +399,11 @@ export default function PeriodKlineChart({
       if (typeof param.time === 'number') {
         const timestamp = param.time as UTCTimestamp
         onHoverBarRef.current?.(barsByTimeRef.current.get(timestamp) ?? null)
+        setHoveredMovingAverages(movingAverageByTimeRef.current.get(timestamp) ?? null)
         setHoveredBollinger(bollingerByTimeRef.current.get(timestamp) ?? null)
       } else {
         onHoverBarRef.current?.(null)
+        setHoveredMovingAverages(undefined)
         setHoveredBollinger(undefined)
       }
     }
@@ -406,6 +452,12 @@ export default function PeriodKlineChart({
       chartRef.current = null
       candlesRef.current = null
       volumeRef.current = null
+      movingAverageRefs.current = {
+        5: null,
+        10: null,
+        20: null,
+        60: null
+      }
       bollingerUpperRef.current = null
       bollingerMiddleRef.current = null
       bollingerLowerRef.current = null
@@ -415,6 +467,7 @@ export default function PeriodKlineChart({
   }, [ctrlWheelZoomOnly, height, market, period, resolvedTheme])
 
   useEffect(() => {
+    setHoveredMovingAverages(undefined)
     setHoveredBollinger(undefined)
   }, [bars, period])
 
@@ -466,13 +519,26 @@ export default function PeriodKlineChart({
   }, [trackingStartedAt, trackingStoppedAt])
 
   useEffect(() => {
+    for (const movingAveragePeriod of MOVING_AVERAGE_PERIODS) {
+      movingAverageRefs.current[movingAveragePeriod]?.setData(
+        activeIndicator === 'movingAverage'
+          ? movingAverages.flatMap((point) => {
+              const value = point.values[movingAveragePeriod]
+              return value === undefined ? [] : [{ time: toTimestamp(point.time), value }]
+            })
+          : []
+      )
+    }
+  }, [activeIndicator, height, movingAverages, period, resolvedTheme])
+
+  useEffect(() => {
     const upper = bollingerUpperRef.current
     const middle = bollingerMiddleRef.current
     const lower = bollingerLowerRef.current
     if (!upper || !middle || !lower) return
 
     upper.setData(
-      bollingerBandsEnabled
+      activeIndicator === 'bollinger'
         ? bollingerBands.map((point) => ({
             time: toTimestamp(point.time),
             value: point.upper
@@ -480,7 +546,7 @@ export default function PeriodKlineChart({
         : []
     )
     middle.setData(
-      bollingerBandsEnabled
+      activeIndicator === 'bollinger'
         ? bollingerBands.map((point) => ({
             time: toTimestamp(point.time),
             value: point.middle
@@ -488,14 +554,14 @@ export default function PeriodKlineChart({
         : []
     )
     lower.setData(
-      bollingerBandsEnabled
+      activeIndicator === 'bollinger'
         ? bollingerBands.map((point) => ({
             time: toTimestamp(point.time),
             value: point.lower
           }))
         : []
     )
-  }, [bollingerBands, bollingerBandsEnabled, height, period, resolvedTheme])
+  }, [activeIndicator, bollingerBands, height, period, resolvedTheme])
 
   useEffect(() => {
     const chart = chartRef.current
@@ -516,37 +582,83 @@ export default function PeriodKlineChart({
   return (
     <div className="period-kline-shell">
       <div className="period-kline-chart" ref={containerRef} style={{ height }} />
-      <div className="bollinger-indicator-bar" aria-label="BOLL 指标">
-        <button
-          className={`bollinger-toggle ${bollingerBandsEnabled ? 'is-active' : ''}`}
-          type="button"
-          role="switch"
-          aria-checked={bollingerBandsEnabled}
-          title={bollingerBandsEnabled ? '隐藏 BOLL 线' : '显示 BOLL 线'}
-          onClick={() => onBollingerBandsEnabledChange(!bollingerBandsEnabled)}
-        >
-          <span aria-hidden="true">
-            <i />
-          </span>
-          <strong>BOLL</strong>
-          <em>
-            ({BOLLINGER_PERIOD}, {BOLLINGER_MULTIPLIER})
-          </em>
-        </button>
-        {bollingerBandsEnabled ? (
+      <div
+        className="kline-indicator-bar"
+        aria-label={period === 'daily' ? '日 K 叠加指标' : 'BOLL 指标'}
+      >
+        {period === 'daily' ? (
+          <div className="kline-indicator-selector" role="group" aria-label="选择日 K 叠加指标">
+            <button
+              className={activeIndicator === 'movingAverage' ? 'is-active' : ''}
+              type="button"
+              aria-pressed={activeIndicator === 'movingAverage'}
+              title="显示 MA5、MA10、MA20 和 MA60"
+              onClick={() => onDailyKlineIndicatorChange('movingAverage')}
+            >
+              MA
+            </button>
+            <button
+              className={activeIndicator === 'bollinger' ? 'is-active' : ''}
+              type="button"
+              aria-pressed={activeIndicator === 'bollinger'}
+              title={`显示 BOLL(${BOLLINGER_PERIOD},${BOLLINGER_MULTIPLIER})`}
+              onClick={() => onDailyKlineIndicatorChange('bollinger')}
+            >
+              BOLL
+            </button>
+            <button
+              className={activeIndicator === 'none' ? 'is-active' : ''}
+              type="button"
+              aria-pressed={activeIndicator === 'none'}
+              title="关闭日 K 叠加指标"
+              onClick={() => onDailyKlineIndicatorChange('none')}
+            >
+              关闭
+            </button>
+          </div>
+        ) : (
+          <button
+            className={`bollinger-toggle ${bollingerBandsEnabled ? 'is-active' : ''}`}
+            type="button"
+            role="switch"
+            aria-checked={bollingerBandsEnabled}
+            title={bollingerBandsEnabled ? '隐藏 BOLL 线' : '显示 BOLL 线'}
+            onClick={() => onBollingerBandsEnabledChange(!bollingerBandsEnabled)}
+          >
+            <span aria-hidden="true">
+              <i />
+            </span>
+            <strong>BOLL</strong>
+            <em>
+              ({BOLLINGER_PERIOD}, {BOLLINGER_MULTIPLIER})
+            </em>
+          </button>
+        )}
+        {activeIndicator === 'movingAverage' ? (
+          <div className="moving-average-values">
+            {MOVING_AVERAGE_PERIODS.map((movingAveragePeriod) => (
+              <span className={`is-ma-${movingAveragePeriod}`} key={movingAveragePeriod}>
+                MA{movingAveragePeriod}{' '}
+                <strong>
+                  {indicatorPrice(displayedMovingAverages?.values[movingAveragePeriod])}
+                </strong>
+              </span>
+            ))}
+          </div>
+        ) : activeIndicator === 'bollinger' ? (
           <div className="bollinger-values">
             <span className="is-upper">
-              UP <strong>{bollingerPrice(displayedBollinger?.upper)}</strong>
+              UP <strong>{indicatorPrice(displayedBollinger?.upper)}</strong>
             </span>
             <span className="is-middle">
-              MID <strong>{bollingerPrice(displayedBollinger?.middle)}</strong>
+              MID <strong>{indicatorPrice(displayedBollinger?.middle)}</strong>
             </span>
             <span className="is-lower">
-              LOW <strong>{bollingerPrice(displayedBollinger?.lower)}</strong>
+              LOW <strong>{indicatorPrice(displayedBollinger?.lower)}</strong>
             </span>
           </div>
         ) : (
-          <span className="bollinger-disabled-label">三轨线已隐藏</span>
+          <span className="kline-indicator-disabled-label">叠加指标已关闭</span>
         )}
       </div>
     </div>

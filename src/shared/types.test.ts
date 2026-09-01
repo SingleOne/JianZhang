@@ -137,6 +137,17 @@ describe('settings and column migration', () => {
     ).toBe('system')
   })
 
+  it('preserves the daily K indicator and migrates the previous BOLL switch', () => {
+    expect(DEFAULT_APP_SETTINGS.dailyKlineIndicator).toBe('movingAverage')
+    expect(normalizeAppSettings(undefined).dailyKlineIndicator).toBe('movingAverage')
+    expect(normalizeAppSettings({ dailyKlineIndicator: 'bollinger' }).dailyKlineIndicator).toBe(
+      'bollinger'
+    )
+    expect(normalizeAppSettings({ dailyKlineIndicator: 'none' }).dailyKlineIndicator).toBe('none')
+    expect(normalizeAppSettings({ showBollingerBands: true }).dailyKlineIndicator).toBe('bollinger')
+    expect(normalizeAppSettings({ showBollingerBands: false }).dailyKlineIndicator).toBe('none')
+  })
+
   it('uses one default index for each supported market', () => {
     expect(DEFAULT_APP_SETTINGS.marketIndexIds).toEqual(['shanghai', 'hsi', 'nasdaq'])
     expect(getMarketIndexStocks(DEFAULT_APP_SETTINGS.marketIndexIds)).toMatchObject([

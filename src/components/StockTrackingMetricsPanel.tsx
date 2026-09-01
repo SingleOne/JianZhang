@@ -8,7 +8,12 @@ import {
   latestStockTrackingMetric,
   stockTrackingPriceVolumeState
 } from '../lib/stock-tracking-metrics'
-import type { KlineBar, StockMarket, StockTrackingMetricSnapshot } from '../shared/types'
+import type {
+  DailyKlineIndicator,
+  KlineBar,
+  StockMarket,
+  StockTrackingMetricSnapshot
+} from '../shared/types'
 import { volumeUnitForMarket } from '../shared/stock-market'
 import type { StockTrackingMarketData } from './useStockTrackingMarketData'
 
@@ -30,6 +35,8 @@ interface StockTrackingMetricsPanelProps {
   trackingStoppedAt?: string
   bollingerBandsEnabled?: boolean
   onBollingerBandsEnabledChange?: (enabled: boolean) => void
+  dailyKlineIndicator?: DailyKlineIndicator
+  onDailyKlineIndicatorChange?: (indicator: DailyKlineIndicator) => void
 }
 
 const CARDS = [
@@ -39,6 +46,7 @@ const CARDS = [
 ] as const
 
 const ignoreBollingerChange = () => undefined
+const ignoreDailyKlineIndicatorChange = () => undefined
 
 function ratioText(value: number | null): string {
   return value === null ? '--' : `${value.toFixed(2)}x`
@@ -64,7 +72,9 @@ export function StockTrackingMetricsPanel({
   trackingStartedAt,
   trackingStoppedAt,
   bollingerBandsEnabled = false,
-  onBollingerBandsEnabledChange
+  onBollingerBandsEnabledChange,
+  dailyKlineIndicator = 'none',
+  onDailyKlineIndicatorChange
 }: StockTrackingMetricsPanelProps) {
   const volumeUnit = volumeUnitForMarket(market)
   const [activeChart, setActiveChart] = useState<TrackingChart>('priceVolume')
@@ -208,6 +218,10 @@ export function StockTrackingMetricsPanel({
                 bollingerBandsEnabled={bollingerBandsEnabled}
                 onBollingerBandsEnabledChange={
                   onBollingerBandsEnabledChange ?? ignoreBollingerChange
+                }
+                dailyKlineIndicator={dailyKlineIndicator}
+                onDailyKlineIndicatorChange={
+                  onDailyKlineIndicatorChange ?? ignoreDailyKlineIndicatorChange
                 }
                 trackingStartedAt={trackingStartedAt}
                 trackingStoppedAt={trackingStoppedAt}

@@ -39,6 +39,7 @@ import type {
   CacheSummary,
   ConfigImportResult,
   CorporateActionRecord,
+  DailyKlineIndicator,
   DataSnapshotRuntimeState,
   DividendFinancingChangeReport,
   DividendFinancingOverview,
@@ -1187,6 +1188,16 @@ export default function App() {
     [state.settings, updateSettings]
   )
 
+  const updateDailyKlineIndicator = useCallback(
+    (indicator: DailyKlineIndicator) => {
+      updateSettings({
+        ...state.settings,
+        dailyKlineIndicator: indicator
+      })
+    },
+    [state.settings, updateSettings]
+  )
+
   const exportConfig = useCallback(async () => {
     setConfigBusy(true)
     try {
@@ -1673,6 +1684,7 @@ export default function App() {
                 regularRefreshSeconds={state.settings.regularRefreshSeconds}
                 chipDistributionEnabled={state.settings.showChipDistribution}
                 bollingerBandsEnabled={state.settings.showBollingerBands}
+                dailyKlineIndicator={state.settings.dailyKlineIndicator}
                 selectedQuoteId={selectedQuoteId}
                 stockSelectionRequest={stockSelectionRequest}
                 detailNavigationRequest={detailNavigationRequest}
@@ -1708,6 +1720,7 @@ export default function App() {
                 onUpdateWatchlistGroups={updateWatchlistGroups}
                 onChipDistributionEnabledChange={updateChipDistributionEnabled}
                 onBollingerBandsEnabledChange={updateBollingerBandsEnabled}
+                onDailyKlineIndicatorChange={updateDailyKlineIndicator}
                 onRemove={removeStock}
               />
             )}
@@ -1821,6 +1834,8 @@ export default function App() {
             onViewStock={viewWatchlistStockFromTracking}
             bollingerBandsEnabled={state.settings.showBollingerBands}
             onBollingerBandsEnabledChange={updateBollingerBandsEnabled}
+            dailyKlineIndicator={state.settings.dailyKlineIndicator}
+            onDailyKlineIndicatorChange={updateDailyKlineIndicator}
             onClose={() => setStockTrackingOpen(false)}
           />
         </Suspense>

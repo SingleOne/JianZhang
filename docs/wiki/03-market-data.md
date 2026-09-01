@@ -6,23 +6,24 @@
 
 桌面版网络请求集中在 `electron/main`：
 
-| 数据 | 主进程函数 | 上游 |
-| --- | --- | --- |
-| 股票搜索 | `searchStocks` | 东方财富搜索建议 |
-| 批量报价 | `fetchQuotes` | 东方财富主节点、东方财富镜像节点、腾讯行情、新浪行情 |
-| 全市场收盘扫描 | `fetchDailyMarketActiveQuotes` + `DailyMarketScanService` | 东方财富沪深京 A 股列表 + 现有日 K 主备链路 |
-| 五档盘口 | `OrderBookHub` → `fetchOrderBook` | 东方财富个股行情 |
-| 当日异动 | `fetchTodayRadarSignals` | 东方财富异动 |
-| 近 5 日异动 | `fetchHistoricalRadarSignals` | 东方财富异动统计与明细 |
-| 分时 | `KlineHub` → `fetchKline` | 东方财富主源、腾讯行情备用源 |
-| 五日/周期 K | `KlineHub` → `fetchKline` | 东方财富主节点、东方财富镜像节点、腾讯行情备用源 |
-| BOLL 指标 | `calculateBollingerBands` | 本地使用日/周/月 K 收盘价计算，不调用独立指标接口 |
-| 筹码分布 | `calculateChipDistribution` | 本地使用日 K 与换手率计算，不调用独立筹码接口 |
-| 五档盘口 | `OrderBookHub` → `fetchOrderBook` | 东方财富主节点、东方财富镜像节点、腾讯盘口备用源 |
-| 所属板块和板块报价 | `fetchSectorBinding` + `SectorMarketCache` + 统一报价调度 | 东方财富个股页与板块行情 |
-| 资金流向 | `FundsFlowHub` → `fetchFundsFlow` | 东方财富主节点、东方财富镜像节点 |
-| 股东信息 | `ShareholderService` | 东方财富 F10 股东研究 |
-| 休市日历 | `fetchSseTradingCalendar` | 上交所休市安排 |
+| 数据               | 主进程函数                                                | 上游                                                           |
+| ------------------ | --------------------------------------------------------- | -------------------------------------------------------------- |
+| 股票搜索           | `searchStocks`                                            | 东方财富搜索建议                                               |
+| 批量报价           | `fetchQuotes`                                             | 东方财富主节点、东方财富镜像节点、腾讯行情、新浪行情           |
+| 全市场收盘扫描     | `fetchDailyMarketActiveQuotes` + `DailyMarketScanService` | 东方财富沪深京 A 股列表 + 现有日 K 主备链路                    |
+| 五档盘口           | `OrderBookHub` → `fetchOrderBook`                         | 东方财富个股行情                                               |
+| 当日异动           | `fetchTodayRadarSignals`                                  | 东方财富异动                                                   |
+| 近 5 日异动        | `fetchHistoricalRadarSignals`                             | 东方财富异动统计与明细                                         |
+| 分时               | `KlineHub` → `fetchKline`                                 | 东方财富主源、腾讯行情备用源                                   |
+| 五日/周期 K        | `KlineHub` → `fetchKline`                                 | 东方财富主节点、东方财富镜像节点、腾讯行情备用源               |
+| BOLL 指标          | `calculateBollingerBands`                                 | 本地使用日/周/月 K 收盘价计算，不调用独立指标接口              |
+| 日 K 均线          | `calculateMovingAverages`                                 | 本地使用日 K 收盘价计算 MA5/MA10/MA20/MA60，不调用独立指标接口 |
+| 筹码分布           | `calculateChipDistribution`                               | 本地使用日 K 与换手率计算，不调用独立筹码接口                  |
+| 五档盘口           | `OrderBookHub` → `fetchOrderBook`                         | 东方财富主节点、东方财富镜像节点、腾讯盘口备用源               |
+| 所属板块和板块报价 | `fetchSectorBinding` + `SectorMarketCache` + 统一报价调度 | 东方财富个股页与板块行情                                       |
+| 资金流向           | `FundsFlowHub` → `fetchFundsFlow`                         | 东方财富主节点、东方财富镜像节点                               |
+| 股东信息           | `ShareholderService`                                      | 东方财富 F10 股东研究                                          |
+| 休市日历           | `fetchSseTradingCalendar`                                 | 上交所休市安排                                                 |
 
 常规行情请求通过 Electron `net.fetch` 发出。`requestJson` 使用 12 秒超时并最多尝试两次；板块页面文本请求使用同样的 12 秒超时，但不重试。主表批量行情每个刷新周期固定从 `push2.eastmoney.com` 开始，单次失败后依次请求 `push2delay.eastmoney.com`、腾讯行情和新浪行情，不记忆上一次使用的节点。东方财富镜像节点通过 Node HTTPS 保留主行情 Host 路由；新浪作为最后备用源时不提供换手率。
 
@@ -44,18 +45,18 @@
 
 `fetchQuotes` 批量请求以下字段并映射到 `StockQuote`：
 
-| `StockQuote` 字段 | 含义 |
-| --- | --- |
-| `latest` | 最新价 |
-| `change` | 涨跌额 |
-| `changePercent` | 涨跌幅 |
-| `open/high/low/previousClose` | 今开、最高、最低、昨收 |
-| `volume` | 成交量 |
-| `amount` | 成交额 |
-| `turnoverRate` | 换手率 |
-| `sector` | 主行业板块简要行情，后续补充 |
-| `radarSignals` | 已缓存的近 5 日异动 |
-| `updatedAt` | 本次转换时间 |
+| `StockQuote` 字段             | 含义                         |
+| ----------------------------- | ---------------------------- |
+| `latest`                      | 最新价                       |
+| `change`                      | 涨跌额                       |
+| `changePercent`               | 涨跌幅                       |
+| `open/high/low/previousClose` | 今开、最高、最低、昨收       |
+| `volume`                      | 成交量                       |
+| `amount`                      | 成交额                       |
+| `turnoverRate`                | 换手率                       |
+| `sector`                      | 主行业板块简要行情，后续补充 |
+| `radarSignals`                | 已缓存的近 5 日异动          |
+| `updatedAt`                   | 本次转换时间                 |
 
 东方财富部分价格/百分比字段按 100 倍整数返回，`scaled` 统一除以 100；成交量和成交额使用原值。
 
@@ -96,6 +97,7 @@
 量价状态以当日涨跌方向和 5 日量比判断：量比不低于 1.2 为放量、不高于 0.8 为缩量，中间区间显示量价平稳。其中涨幅严格大于 5% 且放量标记为“放量大涨”，跌幅严格小于 -5% 且放量标记为“放量大跌”；恰好上涨或下跌 5% 仍属于普通“放量上涨”或“放量下跌”。连续三个交易日“价格上涨且成交量下降”或“价格下跌且成交量增加”时，只在首次达到三日条件的日期生成背离事件，写入追踪时间线并发送 Windows 系统通知；同一股票、日期和背离类型使用确定性 ID 去重。
 
 实时量比使用“截至当前累计成交量 ÷（前 5 个完整交易日日均成交量 × 已交易分钟数 ÷ 240）”。当日日 K 不进入近 5 日均量；09:30 计作第 1 分钟、11:30 计作第 120 分钟、13:00 计作第 121 分钟、15:00 计作第 240 分钟，午休不计时，存在 09:25 集合竞价数据时成交量计入开盘累计量。界面在交易时段每 30 秒刷新，绘制当日实时量比曲线；东方财富 1 分钟源不可用时兼容腾讯 5 分钟备用行情。实时量比是可通过网络重新取得的当日临时行情，不写入用户追踪档案。
+
 - 20 日新高：当日收盘价严格高于此前 20 个交易日最高价。
 - 20 日新低：当日收盘价严格低于此前 20 个交易日最低价。
 - 连跌后翻红：此前 5 日至少 4 日下跌、简单收益率合计严格低于 -5%，当日涨幅严格大于 1%。
@@ -106,17 +108,17 @@
 
 主表刷新由 Electron 主进程的 `QuoteRefreshCoordinator` 驱动。重点、普通、手动、启动和状态变化共用一个队列；重点与普通同时到期时合并，任何时刻最多执行一轮主行情请求。
 
-| 对象 | 默认间隔 | 刷新位置 |
-| --- | --- | --- |
-| 重点股票 | 5 秒 | Electron 主进程 |
-| 普通股票和大盘指数 | 10 秒 | Electron 主进程 |
-| 分时、五日 | 30 秒 | renderer 定时触发，主进程 `KlineHub` 统一请求与缓存 |
-| 资金流 | 2 分钟；已取得当日 15:00 收盘数据后不再过期 | renderer 定时触发，主进程 `FundsFlowHub` 统一请求与缓存 |
-| 板块报价 | 60 秒 | 主进程 `SectorMarketCache` |
-| 板块分时 | 30 秒 | React 面板 + 主进程 `KlineHub` |
-| 可见股票盘口 | 打开时获取 1 次；活动做 T 股票继续按所属行情间隔刷新 | 主进程 `OrderBookHub` + React 面板 |
-| 活动做 T 股票大单盘口 | 每个所属行情刷新周期轮询 1 只 | 主进程 `OrderBookHub` |
-| 日/周/月 K | 盘中 5 分钟、休市时段 18 小时，失败时允许旧数据回退 | renderer 100 条 LRU + 主进程磁盘 |
+| 对象                  | 默认间隔                                             | 刷新位置                                                |
+| --------------------- | ---------------------------------------------------- | ------------------------------------------------------- |
+| 重点股票              | 5 秒                                                 | Electron 主进程                                         |
+| 普通股票和大盘指数    | 10 秒                                                | Electron 主进程                                         |
+| 分时、五日            | 30 秒                                                | renderer 定时触发，主进程 `KlineHub` 统一请求与缓存     |
+| 资金流                | 2 分钟；已取得当日 15:00 收盘数据后不再过期          | renderer 定时触发，主进程 `FundsFlowHub` 统一请求与缓存 |
+| 板块报价              | 60 秒                                                | 主进程 `SectorMarketCache`                              |
+| 板块分时              | 30 秒                                                | React 面板 + 主进程 `KlineHub`                          |
+| 可见股票盘口          | 打开时获取 1 次；活动做 T 股票继续按所属行情间隔刷新 | 主进程 `OrderBookHub` + React 面板                      |
+| 活动做 T 股票大单盘口 | 每个所属行情刷新周期轮询 1 只                        | 主进程 `OrderBookHub`                                   |
+| 日/周/月 K            | 盘中 5 分钟、休市时段 18 小时，失败时允许旧数据回退  | renderer 100 条 LRU + 主进程磁盘                        |
 
 所有自动刷新统一受 `shared/market-hours.ts` 的北京时间窗口限制。手动刷新不受限制。
 
@@ -127,7 +129,7 @@
 `KlinePeriod`：
 
 ```ts
-'intraday' | 'fiveDay' | 'daily' | 'weekly' | 'monthly'
+type KlinePeriod = 'intraday' | 'fiveDay' | 'daily' | 'weekly' | 'monthly'
 ```
 
 统一返回 `KlineResult`，每条 `KlineBar` 包含：
@@ -138,13 +140,13 @@ time, open, close, high, low, volume, amount, turnoverRate?
 
 ### 请求策略
 
-| 周期 | 上游粒度 | 初始数量 |
-| --- | --- | --- |
+| 周期 | 上游粒度 | 初始数量   |
+| ---- | -------- | ---------- |
 | 分时 | 当日趋势 | 最近交易日 |
-| 五日 | 5 分钟 K | 240 条 |
-| 日 K | 日线 | 120 条 |
-| 周 K | 周线 | 104 条 |
-| 月 K | 月线 | 60 条 |
+| 五日 | 5 分钟 K | 240 条     |
+| 日 K | 日线     | 120 条     |
+| 周 K | 周线     | 104 条     |
+| 月 K | 月线     | 60 条      |
 
 分时趋势接口失败时，自动请求 120 条 5 分钟 K，并只保留最后交易日作为备用分时。
 
@@ -173,8 +175,8 @@ time, open, close, high, low, volume, amount, turnoverRate?
 
 - 红涨绿跌蜡烛。
 - 成交量叠加在底部。
-- 以 20 根 K 线收盘价均值为中轨、上下各 2 倍总体标准差，叠加 BOLL 上轨、中轨和下轨。
-- 图表下方指标栏显示最新或十字光标所在周期的三轨价格；开关状态保存在 `AppSettings.showBollingerBands`。
+- 日 K 可选择叠加 MA5、MA10、MA20、MA60，或切换为 BOLL(20,2)，也可关闭叠加指标；指标栏显示最新或十字光标所在交易日的对应价格，选择保存在 `AppSettings.dailyKlineIndicator`。
+- BOLL 以 20 根 K 线收盘价均值为中轨、上下各 2 倍总体标准差；周/月 K 继续使用 `AppSettings.showBollingerBands` 控制三轨显示。
 - 最新周期固定在右侧。
 - 只允许缩放，不允许横向滚动离开最新端。
 - 根据当前可见范围重新标记最高和最低。
@@ -249,12 +251,12 @@ userData/market-cache/chip-distributions.json
 
 ## 异动缓存
 
-| 缓存 | 有效期 | 说明 |
-| --- | --- | --- |
-| 当日异动 | 30 秒 | 一次请求全市场后筛选自选股 |
-| 历史异动 | 10 分钟 | 按股票分批获取近 5 日统计与明细 |
+| 缓存     | 有效期  | 说明                                 |
+| -------- | ------- | ------------------------------------ |
+| 当日异动 | 30 秒   | 一次请求全市场后筛选自选股           |
+| 历史异动 | 10 分钟 | 按股票分批获取近 5 日统计与明细      |
 | 板块绑定 | 24 小时 | `stockQuoteId → board`，持久化到磁盘 |
-| 板块报价 | 60 秒 | 主表和板块详情共享主进程缓存 |
+| 板块报价 | 60 秒   | 主表和板块详情共享主进程缓存         |
 
 历史异动按 6 只股票一批并行处理，批次之间串行，降低瞬时请求量。
 
@@ -267,6 +269,7 @@ renderer 的 K 线缓存使用最多 100 条的 `LruCache`；资金流仍保留�
 - 应用重启后丢失。
 
 K 线、资金流和盘口分别通过 Electron 主进程的 `KlineHub`、`FundsFlowHub` 和 `OrderBookHub` 统一请求。只有存在 `activeBatch` 的活动做 T 股票会自动轮询盘口；其他股票只在打开盘口、手动刷新、主动刷新市场观察或生成做 T 参考时按需请求。
+
 - 请求失败但存在旧数据时，继续展示旧数据并显示刷新警告。
 
 日/周/月 K 另由 `HistoricalKlineCache` 写入 `market-cache/klines/`；筹码分布最近一次计算结果则单独写入磁盘，供应用重启后的 AI 上下文复用。
