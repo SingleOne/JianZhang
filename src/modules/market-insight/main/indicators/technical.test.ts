@@ -66,7 +66,7 @@ describe('calculateShortTermTechnicalIndicators', () => {
     expect(result.get('short-term-volatility-20')).toMatchObject({
       value: 0,
       state: 'flat',
-      status: '低波动'
+      status: '波动'
     })
     expect(result.get('liquidity-ratio-20')).toMatchObject({
       state: 'flat',

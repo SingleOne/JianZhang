@@ -330,7 +330,7 @@ export class SecCorporateActionProvider implements CorporateActionProvider {
       providerEventId: filing.accessionNumber,
       contentHash: hash,
       detectedAt,
-      warning: '免费 SEC 候选；请以券商通知确认数量、现金、税费及生效日期。'
+      warning: '免费 SEC 候选；请以券商通知确认数量、现金、费用及生效日期。'
     }
   }
 }

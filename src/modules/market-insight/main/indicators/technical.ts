@@ -34,7 +34,7 @@ function reversalStatus(value: number | null): string {
 
 function volatilityStatus(value: number | null): string {
   if (value === null) return '数据不足'
-  if (value <= 20) return '低波动'
+  if (value <= 20) return '波动'
   if (value <= 35) return '波动适中'
   if (value <= 50) return '波动偏高'
   return '高波动'
@@ -118,7 +118,7 @@ export function calculateShortTermTechnicalIndicators(
     ),
     metric(
       'short-term-volatility-20',
-      '低波动',
+      '波动',
       volatility,
       'percent',
       volatility === null ? 'unknown' : 'flat',

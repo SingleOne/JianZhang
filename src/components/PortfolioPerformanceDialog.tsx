@@ -68,7 +68,7 @@ function NativeProfitCell({ slices }: { slices: NativePerformanceSlice[] }) {
           <small>
             已 {formatMoneyProfit(slice.realizedProfit, slice.currency)} · 未{' '}
             {formatMoneyProfit(slice.unrealizedProfit, slice.currency)} · 分红{' '}
-            {formatMoneyProfit(slice.dividendIncome, slice.currency)} · 税费{' '}
+            {formatMoneyProfit(slice.dividendIncome, slice.currency)} · 费用{' '}
             {formatMoneyProfit(nativeExpense(slice), slice.currency)} · 行动{' '}
             {formatMoneyProfit(slice.corporateActionIncome, slice.currency)}
             {slice.manualAdjustment !== 0 ? (
@@ -300,14 +300,14 @@ export default function PortfolioPerformanceDialog({
             <SummaryValue label="已实现收益" value={portfolio.cny.realizedProfit} />
             <SummaryValue label="未实现收益" value={portfolio.cny.unrealizedProfit} />
             <SummaryValue label="税前分红" value={portfolio.cny.dividendIncome} />
-            <SummaryValue label="税费合计" value={taxFees} />
+            <SummaryValue label="费用合计" value={taxFees} />
             <SummaryValue label="公司行动收益" value={portfolio.cny.corporateActionIncome} />
             <SummaryValue label="证券价格贡献" value={portfolio.cny.priceContribution} />
             <SummaryValue label="汇率贡献" value={portfolio.cny.exchangeRateContribution} />
           </div>
 
           <div className="portfolio-performance-attribution-note">
-            证券价格贡献按历史加权购入汇率折算；汇率贡献按当前或卖出证券价值的汇率变化计算。分红、税费和公司行动现金单独列示；手动调整计入人民币收益小计，并按当前汇率同步到原币收益。
+            证券价格贡献按历史加权购入汇率折算；汇率贡献按当前或卖出证券价值的汇率变化计算。分红、费用和公司行动现金单独列示；手动调整计入人民币收益小计，并按当前汇率同步到原币收益。
           </div>
 
           <nav className="portfolio-performance-dimensions" aria-label="收益汇总维度">
@@ -336,7 +336,7 @@ export default function PortfolioPerformanceDialog({
                   <th>已实现</th>
                   <th>未实现</th>
                   <th>税前分红</th>
-                  <th>税费</th>
+                  <th>费用</th>
                   <th>公司行动</th>
                   <th>价格贡献</th>
                   <th>汇率贡献</th>
