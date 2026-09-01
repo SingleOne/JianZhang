@@ -110,7 +110,7 @@ export const COLUMN_META: Record<WatchlistColumnId, ColumnMeta> = {
   marketValue: { label: '持仓市值', width: 88, sortable: true },
   todayProfit: { label: '今日收益', width: 108, sortable: true },
   totalProfit: { label: '持仓收益', width: 108, sortable: true },
-  operation: { label: '设置', width: 90, sortable: false, className: 'settings-column' }
+  operation: { label: '设置', width: 116, sortable: false, className: 'settings-column' }
 }
 
 export const ORDER_COLUMN_WIDTH = 52

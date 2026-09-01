@@ -7,6 +7,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Columns3,
+  Folders,
   MonitorUp,
   RotateCcw,
   X
@@ -56,7 +57,7 @@ import {
   type FundamentalScreeningEvaluation,
   type FundamentalWatchlistFilter
 } from '../lib/fundamental-screening'
-import { normalizeWatchlistColumnOrder } from '../shared/types'
+import { isTrackingWatchlistGroup, normalizeWatchlistColumnOrder } from '../shared/types'
 import { PositionEditor } from './PositionEditor'
 import { PortfolioQualityDialog } from './PortfolioQualityDialog'
 import { StockAlertDialog } from './StockAlertDialog'
@@ -149,6 +150,7 @@ interface WatchlistTableProps {
     groups: WatchlistGroup[],
     groupIdsByQuoteId: Record<string, string[]>
   ) => void
+  onUpdateStockGroups: (quoteId: string, groupIds: string[]) => void
   onChipDistributionEnabledChange: (enabled: boolean) => void
   onBollingerBandsEnabledChange: (enabled: boolean) => void
   onDailyKlineIndicatorChange: (indicator: DailyKlineIndicator) => void
@@ -162,9 +164,18 @@ interface RadarPopoverState {
   placement: 'above' | 'below'
 }
 
+interface GroupPopoverState {
+  quoteId: string
+  left: number
+  top: number
+  placement: 'above' | 'below'
+}
+
 const ALL_FILTER = 'all'
 const UNGROUPED_FILTER = 'ungrouped'
 const NO_SECTOR_FILTER = 'no-sector'
+const GROUP_POPOVER_WIDTH = 286
+const GROUP_POPOVER_ESTIMATED_HEIGHT = 360
 
 const FUNDAMENTAL_FILTER_LABELS: Record<FundamentalWatchlistFilter, string> = {
   all: '全部',
@@ -262,6 +273,7 @@ export function WatchlistTable({
   onPin,
   onColumnOrderChange,
   onUpdateWatchlistGroups,
+  onUpdateStockGroups,
   onChipDistributionEnabledChange,
   onBollingerBandsEnabledChange,
   onDailyKlineIndicatorChange,
@@ -273,6 +285,7 @@ export function WatchlistTable({
   const [stockAlertStock, setStockAlertStock] = useState<WatchStock | null>(null)
   const [closingQuoteIds, setClosingQuoteIds] = useState<Set<string>>(() => new Set())
   const [radarPopover, setRadarPopover] = useState<RadarPopoverState | null>(null)
+  const [groupPopover, setGroupPopover] = useState<GroupPopoverState | null>(null)
   const [locatedQuoteId, setLocatedQuoteId] = useState<string | null>(null)
   const [stickyDisabledQuoteId, setStickyDisabledQuoteId] = useState<string | null>(null)
   const [customGroupFilter, setCustomGroupFilter] = useState(ALL_FILTER)
@@ -287,6 +300,8 @@ export function WatchlistTable({
   const tableScrollerRef = useRef<HTMLDivElement>(null)
   const radarAnchorRef = useRef<HTMLButtonElement | null>(null)
   const radarPopoverRef = useRef<HTMLDivElement>(null)
+  const groupAnchorRef = useRef<HTMLButtonElement | null>(null)
+  const groupPopoverRef = useRef<HTMLDivElement>(null)
   const locateTimerRef = useRef<number | undefined>(undefined)
   const locateFrameRef = useRef<number | undefined>(undefined)
   const collapseScrollFrameRef = useRef<number | undefined>(undefined)
@@ -405,6 +420,10 @@ export function WatchlistTable({
         ])
       ),
     [rows, watchlistGroups]
+  )
+  const watchlistGroupIdSet = useMemo(
+    () => new Set(watchlistGroups.map((group) => group.id)),
+    [watchlistGroups]
   )
   const ungroupedCount = useMemo(
     () =>
@@ -584,6 +603,12 @@ export function WatchlistTable({
   const activeRadarRow = radarPopover
     ? rows.find(({ stock }) => stock.quoteId === radarPopover.quoteId)
     : undefined
+  const activeGroupStock = groupPopover
+    ? watchlist.find((stock) => stock.quoteId === groupPopover.quoteId)
+    : undefined
+  const activeGroupCount = activeGroupStock
+    ? (activeGroupStock.groupIds ?? []).filter((groupId) => watchlistGroupIdSet.has(groupId)).length
+    : 0
 
   useEffect(() => {
     if (
@@ -640,6 +665,33 @@ export function WatchlistTable({
       scroller?.removeEventListener('scroll', closePopover)
     }
   }, [radarPopover])
+
+  useEffect(() => {
+    if (!groupPopover) return
+
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (groupPopoverRef.current?.contains(target) || groupAnchorRef.current?.contains(target)) {
+        return
+      }
+      setGroupPopover(null)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setGroupPopover(null)
+    }
+    const closePopover = () => setGroupPopover(null)
+    const scroller = tableScrollerRef.current
+    document.addEventListener('pointerdown', closeOnOutsidePointer)
+    document.addEventListener('keydown', closeOnEscape)
+    window.addEventListener('resize', closePopover)
+    scroller?.addEventListener('scroll', closePopover)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer)
+      document.removeEventListener('keydown', closeOnEscape)
+      window.removeEventListener('resize', closePopover)
+      scroller?.removeEventListener('scroll', closePopover)
+    }
+  }, [groupPopover])
 
   const moveColumn = (columnId: WatchlistColumnId, move: ColumnMove) => {
     const currentIndex = adjustableColumnOrder.indexOf(columnId)
@@ -764,6 +816,8 @@ export function WatchlistTable({
   )
 
   const openRadar = useCallback((quoteId: string, anchor: HTMLButtonElement) => {
+    groupAnchorRef.current = null
+    setGroupPopover(null)
     radarAnchorRef.current = anchor
     setRadarPopover((current) => {
       if (current?.quoteId === quoteId) return null
@@ -778,6 +832,44 @@ export function WatchlistTable({
     })
   }, [])
 
+  const openStockGroups = useCallback((quoteId: string, anchor: HTMLButtonElement) => {
+    radarAnchorRef.current = null
+    setRadarPopover(null)
+    groupAnchorRef.current = anchor
+    setGroupPopover((current) => {
+      if (current?.quoteId === quoteId) return null
+      const rect = anchor.getBoundingClientRect()
+      const placement =
+        rect.bottom + GROUP_POPOVER_ESTIMATED_HEIGHT > window.innerHeight &&
+        rect.top > GROUP_POPOVER_ESTIMATED_HEIGHT
+          ? 'above'
+          : 'below'
+      return {
+        quoteId,
+        left: Math.max(12, Math.min(rect.right + 7, window.innerWidth - GROUP_POPOVER_WIDTH - 12)),
+        top: placement === 'above' ? rect.top - 7 : rect.bottom + 7,
+        placement
+      }
+    })
+  }, [])
+
+  const toggleStockGroup = useCallback(
+    (groupId: string, checked: boolean) => {
+      if (!activeGroupStock) return
+      const nextGroupIds = new Set(activeGroupStock.groupIds ?? [])
+      if (checked) nextGroupIds.add(groupId)
+      else nextGroupIds.delete(groupId)
+      onUpdateStockGroups(activeGroupStock.quoteId, [...nextGroupIds])
+      if (
+        (!checked && customGroupFilter === groupId) ||
+        (checked && customGroupFilter === UNGROUPED_FILTER)
+      ) {
+        setGroupPopover(null)
+      }
+    },
+    [activeGroupStock, customGroupFilter, onUpdateStockGroups]
+  )
+
   const handlePin = useCallback(
     (quoteId: string) => {
       setSort(null)
@@ -788,7 +880,10 @@ export function WatchlistTable({
   const openPositionEditor = useCallback((stock: WatchStock) => setEditingStock(stock), [])
   const openStockAlert = useCallback((stock: WatchStock) => setStockAlertStock(stock), [])
   const openTTrading = useCallback((stock: WatchStock) => setTTradingStock(stock), [])
-  const openGroupDialog = useCallback(() => setGroupDialogOpen(true), [])
+  const openGroupDialog = useCallback(() => {
+    setGroupPopover(null)
+    setGroupDialogOpen(true)
+  }, [])
   const resetFilters = useCallback(() => {
     setCustomGroupFilter(ALL_FILTER)
     setSectorFilter(ALL_FILTER)
@@ -1150,6 +1245,11 @@ export function WatchlistTable({
                   dragging={draggingQuoteId === stock.quoteId}
                   dragOver={dragOverQuoteId === stock.quoteId}
                   radarExpanded={radarPopover?.quoteId === stock.quoteId}
+                  groupCount={
+                    (stock.groupIds ?? []).filter((groupId) => watchlistGroupIdSet.has(groupId))
+                      .length
+                  }
+                  groupPopoverOpen={groupPopover?.quoteId === stock.quoteId}
                   onToggleDetails={toggleStockDetails}
                   onDetailNavigationHandled={onDetailNavigationHandled}
                   onFinishClosing={finishClosingStockDetails}
@@ -1164,6 +1264,7 @@ export function WatchlistTable({
                   onOpenStockAlert={openStockAlert}
                   onOpenTTrading={openTTrading}
                   onOpenRadar={openRadar}
+                  onOpenGroups={openStockGroups}
                   onChipDistributionEnabledChange={onChipDistributionEnabledChange}
                   onBollingerBandsEnabledChange={onBollingerBandsEnabledChange}
                   onDailyKlineIndicatorChange={onDailyKlineIndicatorChange}
@@ -1227,6 +1328,72 @@ export function WatchlistTable({
                 {signal.info ? <small>{signal.info}</small> : null}
               </div>
             ))}
+          </div>
+        </div>
+      ) : null}
+
+      {groupPopover && activeGroupStock ? (
+        <div
+          className={`watchlist-group-quick-popover ${groupPopover.placement === 'above' ? 'is-above' : ''}`}
+          id="watchlist-group-quick-popover"
+          style={{ left: groupPopover.left, top: groupPopover.top }}
+          ref={groupPopoverRef}
+          role="dialog"
+          aria-label={`调整 ${activeGroupStock.name} 的分组`}
+        >
+          <div className="watchlist-group-quick-heading">
+            <span>
+              <strong>{activeGroupStock.name}</strong>
+              <small>
+                {activeGroupStock.code} · 已加入 {activeGroupCount} 个分组
+              </small>
+            </span>
+            <button
+              className="icon-button watchlist-group-quick-close"
+              type="button"
+              onClick={() => setGroupPopover(null)}
+              aria-label="关闭分组选择"
+              title="关闭"
+            >
+              <X size={14} />
+            </button>
+          </div>
+          <div className="watchlist-group-quick-list">
+            {watchlistGroups.map((group) => {
+              const checked = Boolean(activeGroupStock.groupIds?.includes(group.id))
+              const trackingGroup = isTrackingWatchlistGroup(group)
+              return (
+                <label
+                  className={`watchlist-group-quick-row ${checked ? 'is-selected' : ''} ${trackingGroup ? 'is-readonly' : ''}`}
+                  key={group.id}
+                  title={trackingGroup ? '追踪分组由开始或停止追踪自动维护' : undefined}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={trackingGroup}
+                    onChange={(event) => toggleStockGroup(group.id, event.target.checked)}
+                    aria-label={
+                      trackingGroup
+                        ? `${group.name}分组由追踪状态自动维护`
+                        : `${checked ? '移出' : '加入'}分组 ${group.name}`
+                    }
+                  />
+                  <span>
+                    <strong>{group.name}</strong>
+                    <small>
+                      {trackingGroup ? '由追踪状态自动维护' : checked ? '已加入' : '点击加入'}
+                    </small>
+                  </span>
+                </label>
+              )
+            })}
+          </div>
+          <div className="watchlist-group-quick-footer">
+            <button className="secondary-button" type="button" onClick={openGroupDialog}>
+              <Folders size={15} />
+              管理分组…
+            </button>
           </div>
         </div>
       ) : null}

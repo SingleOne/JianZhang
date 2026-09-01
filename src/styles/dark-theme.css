@@ -4482,6 +4482,31 @@ html[data-theme='dark'][data-theme='dark'].tray-mode #root {
 :root[data-theme='dark'] .row-action-button.is-t-profit-down {
   border-color: rgba(53, 201, 139, 0.35);
 }
+:root[data-theme='dark'] .watchlist-group-quick-popover {
+  background: #111827;
+  border-color: #34445d;
+  border-top-color: #5b8cff;
+}
+:root[data-theme='dark'] .watchlist-group-quick-heading strong,
+:root[data-theme='dark'] .watchlist-group-quick-row strong {
+  color: #e6edf7;
+}
+:root[data-theme='dark'] .watchlist-group-quick-heading small,
+:root[data-theme='dark'] .watchlist-group-quick-row small,
+:root[data-theme='dark'] .watchlist-group-quick-close {
+  color: #cbd5e3;
+}
+:root[data-theme='dark'] .watchlist-group-quick-row:hover {
+  background: #162033;
+}
+:root[data-theme='dark'] .watchlist-group-quick-row.is-selected {
+  background: rgba(91, 140, 255, 0.14);
+}
+:root[data-theme='dark'] .watchlist-group-quick-footer .secondary-button {
+  color: #cbd5e3;
+  background: #162033;
+  border-color: #34445d;
+}
 :root[data-theme='dark'] .settings-column {
   background: #111827;
   box-shadow:

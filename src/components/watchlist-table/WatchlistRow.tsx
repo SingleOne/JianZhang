@@ -1,6 +1,7 @@
 import {
   ArrowUpToLine,
   BellRing,
+  FolderPlus,
   GripVertical,
   MonitorUp,
   PencilLine,
@@ -145,6 +146,8 @@ interface WatchlistRowProps {
   dragging: boolean
   dragOver: boolean
   radarExpanded: boolean
+  groupCount: number
+  groupPopoverOpen: boolean
   onToggleDetails: (quoteId: string) => void
   onDetailNavigationHandled: (requestId: string) => void
   onFinishClosing: (quoteId: string) => void
@@ -159,6 +162,7 @@ interface WatchlistRowProps {
   onOpenStockAlert: (stock: WatchStock) => void
   onOpenTTrading: (stock: WatchStock) => void
   onOpenRadar: (quoteId: string, anchor: HTMLButtonElement) => void
+  onOpenGroups: (quoteId: string, anchor: HTMLButtonElement) => void
   onChipDistributionEnabledChange: (enabled: boolean) => void
   onBollingerBandsEnabledChange: (enabled: boolean) => void
   onDailyKlineIndicatorChange: (indicator: DailyKlineIndicator) => void
@@ -207,6 +211,8 @@ export const WatchlistRow = memo(function WatchlistRow({
   dragging,
   dragOver,
   radarExpanded,
+  groupCount,
+  groupPopoverOpen,
   onToggleDetails,
   onDetailNavigationHandled,
   onFinishClosing,
@@ -221,6 +227,7 @@ export const WatchlistRow = memo(function WatchlistRow({
   onOpenStockAlert,
   onOpenTTrading,
   onOpenRadar,
+  onOpenGroups,
   onChipDistributionEnabledChange,
   onBollingerBandsEnabledChange,
   onDailyKlineIndicatorChange,
@@ -378,6 +385,22 @@ export const WatchlistRow = memo(function WatchlistRow({
               title={stock.showInTaskbar ? '取消任务栏展示' : '直接在任务栏显示实时价格'}
             >
               <MonitorUp size={15} />
+            </button>
+            <button
+              className={`row-action-button is-group-action ${groupCount > 0 || groupPopoverOpen ? 'is-active' : ''}`}
+              type="button"
+              aria-haspopup="dialog"
+              aria-expanded={groupPopoverOpen}
+              aria-controls={groupPopoverOpen ? 'watchlist-group-quick-popover' : undefined}
+              onKeyDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation()
+                onOpenGroups(stock.quoteId, event.currentTarget)
+              }}
+              aria-label={`调整 ${stock.name} 的分组`}
+              title={groupCount > 0 ? `调整分组，已加入 ${groupCount} 个分组` : '加入分组'}
+            >
+              <FolderPlus size={15} />
             </button>
             {capabilities.position || capabilities.tTrading ? (
               <>

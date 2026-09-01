@@ -1068,6 +1068,16 @@ export default function App() {
     [persist, state]
   )
 
+  const updateStockGroups = useCallback(
+    (quoteId: string, groupIds: string[]) => {
+      const nextWatchlist = state.watchlist.map((stock) =>
+        stock.quoteId === quoteId ? { ...stock, groupIds: [...new Set(groupIds)] } : stock
+      )
+      void persist({ ...state, watchlist: nextWatchlist })
+    },
+    [persist, state]
+  )
+
   const updateSettings = useCallback(
     (settings: AppSettings) => {
       void persist({ ...state, settings })
@@ -1718,6 +1728,7 @@ export default function App() {
                 onPin={pinStock}
                 onColumnOrderChange={updateColumnOrder}
                 onUpdateWatchlistGroups={updateWatchlistGroups}
+                onUpdateStockGroups={updateStockGroups}
                 onChipDistributionEnabledChange={updateChipDistributionEnabled}
                 onBollingerBandsEnabledChange={updateBollingerBandsEnabled}
                 onDailyKlineIndicatorChange={updateDailyKlineIndicator}
