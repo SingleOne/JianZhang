@@ -1158,6 +1158,15 @@ export default function App() {
     setDailyMarketScanOpen(false)
   }, [])
 
+  const viewWatchlistStockFromTracking = useCallback((quoteId: string) => {
+    setSelectedQuoteId(quoteId)
+    setStockSelectionRequest({
+      id: `stock-tracking:${quoteId}:${Date.now()}`,
+      quoteId,
+      scrollAlignment: 'sticky-top'
+    })
+  }, [])
+
   const updateChipDistributionEnabled = useCallback(
     (enabled: boolean) => {
       updateSettings({
@@ -1809,7 +1818,7 @@ export default function App() {
             onStopTracking={stopTracking}
             onRestartTracking={restartTracking}
             onDeleteStock={removeTrackedStock}
-            onViewStock={viewWatchlistStockFromDailyScan}
+            onViewStock={viewWatchlistStockFromTracking}
             bollingerBandsEnabled={state.settings.showBollingerBands}
             onBollingerBandsEnabledChange={updateBollingerBandsEnabled}
             onClose={() => setStockTrackingOpen(false)}
