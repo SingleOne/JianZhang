@@ -149,7 +149,8 @@ export class WindowManager {
 
   showMainWindow(
     quoteId?: string,
-    scrollAlignment?: StockSelectionRequest['scrollAlignment']
+    scrollAlignment?: StockSelectionRequest['scrollAlignment'],
+    detailTarget?: StockSelectionRequest['detailTarget']
   ): void {
     const window = this.getMainWindow()
     if (!window) return
@@ -166,7 +167,8 @@ export class WindowManager {
       window.webContents.send('stock:selected', {
         id: `${Date.now()}-${this.stockSelectionSequence}`,
         quoteId,
-        scrollAlignment
+        scrollAlignment,
+        detailTarget
       } satisfies StockSelectionRequest)
     }
   }

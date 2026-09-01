@@ -789,6 +789,7 @@ export function WatchlistTable({
 
   const detailNavigationRequestId = detailNavigationRequest?.id
   const detailNavigationQuoteId = detailNavigationRequest?.quoteId
+  const detailNavigationScrollAlignment = detailNavigationRequest?.scrollAlignment
   const stockSelectionRequestId = stockSelectionRequest?.id
   const stockSelectionQuoteId = stockSelectionRequest?.quoteId
   const stockSelectionScrollAlignment = stockSelectionRequest?.scrollAlignment
@@ -814,8 +815,16 @@ export function WatchlistTable({
   useEffect(() => {
     if (!detailNavigationRequestId || !detailNavigationQuoteId) return
     resetFilters()
-    window.requestAnimationFrame(() => scrollToStock(detailNavigationQuoteId))
-  }, [detailNavigationQuoteId, detailNavigationRequestId, resetFilters, scrollToStock])
+    window.requestAnimationFrame(() =>
+      scrollToStock(detailNavigationQuoteId, detailNavigationScrollAlignment)
+    )
+  }, [
+    detailNavigationQuoteId,
+    detailNavigationRequestId,
+    detailNavigationScrollAlignment,
+    resetFilters,
+    scrollToStock
+  ])
 
   if (watchlist.length === 0) {
     return (

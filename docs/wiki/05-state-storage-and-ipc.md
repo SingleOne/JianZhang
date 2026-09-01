@@ -287,7 +287,7 @@ localStorage["jianzhang-demo-state-v1"]
 | `onFundamentalUpdateProgress`       | `fundamentals:update-progress`       | 基本面四阶段脚本当前日志或完成/失败状态 |
 | `onFundamentalStateUpdated`         | `fundamentals:state-updated`         | 基本面快照状态变化                      |
 
-`stock:selected` 用于从托盘菜单点选股票或点击 Windows 系统通知后，让主窗口定位/展开对应股票。系统通知会附带 `scrollAlignment: 'sticky-top'`，列表清除筛选条件后将目标主行滚动到顶部 sticky 位置。
+`stock:selected` 用于从托盘菜单点选股票或点击 Windows 系统通知后，让主窗口定位/展开对应股票。系统通知会附带 `scrollAlignment: 'sticky-top'` 和 `detailTarget`，列表清除筛选条件后将目标主行滚动到顶部 sticky 位置并展开详情；普通股票提醒和 T 仓浮盈提醒进入分时页签，量价背离提醒进入追踪复盘页签。
 
 ## 主窗口保存流程
 

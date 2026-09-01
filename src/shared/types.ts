@@ -2420,6 +2420,8 @@ export function normalizePortfolioPerformanceAdjustments(
 export type CompletionNotificationTarget =
   'reports' | 'corporate-actions' | 'ai-short-term' | 'ai-long-term' | 't-advice'
 
+export type StockDetailNavigationTarget = CompletionNotificationTarget | 'trend' | 'tracking'
+
 export interface AppCompletionNotification {
   id: string
   quoteId: string
@@ -2551,6 +2553,7 @@ export interface StockSelectionRequest {
   id: string
   quoteId: string
   scrollAlignment?: 'sticky-top'
+  detailTarget?: StockDetailNavigationTarget
 }
 
 export interface StockDesktopApi {

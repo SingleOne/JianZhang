@@ -1,4 +1,4 @@
-import type { AppCompletionNotification, CompletionNotificationTarget } from '../shared/types'
+import type { AppCompletionNotification, StockDetailNavigationTarget } from '../shared/types'
 
 export type { AppCompletionNotification, CompletionNotificationTarget } from '../shared/types'
 
@@ -7,7 +7,8 @@ export const APP_COMPLETION_NOTIFICATION_EVENT = 'app:completion-notification'
 export interface StockDetailNavigationRequest {
   id: string
   quoteId: string
-  target: CompletionNotificationTarget
+  target: StockDetailNavigationTarget
+  scrollAlignment?: 'sticky-top'
 }
 
 let notificationSequence = 0

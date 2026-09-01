@@ -235,7 +235,16 @@ export default function App() {
 
   const handleStockSelection = useCallback((request: StockSelectionRequest) => {
     setSelectedQuoteId(request.quoteId)
-    if (request.scrollAlignment === 'sticky-top') setStockSelectionRequest(request)
+    if (request.detailTarget) {
+      setDetailNavigationRequest({
+        id: request.id,
+        quoteId: request.quoteId,
+        target: request.detailTarget,
+        scrollAlignment: request.scrollAlignment
+      })
+    } else if (request.scrollAlignment === 'sticky-top') {
+      setStockSelectionRequest(request)
+    }
   }, [])
 
   const refreshGitHubGist = useCallback(
@@ -1000,7 +1009,8 @@ export default function App() {
     setDetailNavigationRequest({
       id: `corporate-action:${quoteId}:${Date.now()}`,
       quoteId,
-      target: 'corporate-actions'
+      target: 'corporate-actions',
+      scrollAlignment: 'sticky-top'
     })
   }, [])
 
@@ -1124,7 +1134,8 @@ export default function App() {
     setDetailNavigationRequest({
       id: notification.id,
       quoteId: notification.quoteId,
-      target: notification.target
+      target: notification.target,
+      scrollAlignment: 'sticky-top'
     })
   }, [])
 

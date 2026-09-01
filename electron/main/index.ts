@@ -8,6 +8,7 @@ import {
   type AppState,
   type KlinePeriod,
   type StockQuote,
+  type StockDetailNavigationTarget,
   type StockTrackingProfile,
   type WatchStock
 } from '../../src/shared/types'
@@ -225,7 +226,11 @@ function sendToWindows(channel: string, payload: unknown): void {
   windowManager?.sendToWindows(channel, payload)
 }
 
-function showStockNavigationNotification(notification: Notification, quoteId: string): void {
+function showStockNavigationNotification(
+  notification: Notification,
+  quoteId: string,
+  detailTarget: StockDetailNavigationTarget
+): void {
   retainedSystemNotifications.push(notification)
   if (retainedSystemNotifications.length > RETAINED_SYSTEM_NOTIFICATION_LIMIT) {
     retainedSystemNotifications.shift()
@@ -236,7 +241,7 @@ function showStockNavigationNotification(notification: Notification, quoteId: st
     if (index >= 0) retainedSystemNotifications.splice(index, 1)
   }
   notification.once('click', () => {
-    windowManager?.showMainWindow(quoteId, 'sticky-top')
+    windowManager?.showMainWindow(quoteId, 'sticky-top', detailTarget)
     releaseNotification()
   })
   notification.once('failed', releaseNotification)
@@ -255,7 +260,7 @@ function showStockAlertNotification(alert: TriggeredStockAlert): void {
     icon: createAppIcon(),
     timeoutType: 'default'
   })
-  showStockNavigationNotification(notification, alert.stock.quoteId)
+  showStockNavigationNotification(notification, alert.stock.quoteId, 'trend')
 }
 
 function showTFloatingProfitAlertNotification(alert: TriggeredTFloatingProfitAlert): void {
@@ -265,7 +270,7 @@ function showTFloatingProfitAlertNotification(alert: TriggeredTFloatingProfitAle
     icon: createAppIcon(),
     timeoutType: 'default'
   })
-  showStockNavigationNotification(notification, alert.quoteId)
+  showStockNavigationNotification(notification, alert.quoteId, 'trend')
 }
 
 function showPriceVolumeDivergenceNotification(
@@ -280,7 +285,7 @@ function showPriceVolumeDivergenceNotification(
     icon: createAppIcon(),
     timeoutType: 'default'
   })
-  showStockNavigationNotification(notification, profile.quoteId)
+  showStockNavigationNotification(notification, profile.quoteId, 'tracking')
 }
 
 function syncWindowSurfaces(): void {

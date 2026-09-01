@@ -1400,13 +1400,15 @@ export function ExpandedStockDetails({
   useEffect(() => {
     if (!detailNavigationId || !detailNavigationTarget) return
     const targetSupported =
-      detailNavigationTarget === 'reports'
-        ? capabilities.companyReports
-        : detailNavigationTarget === 'corporate-actions'
-          ? capabilities.corporateActions
-          : detailNavigationTarget === 't-advice'
-            ? capabilities.aiTAdvice
-            : capabilities.aiAnalysis
+      detailNavigationTarget === 'trend' || detailNavigationTarget === 'tracking'
+        ? true
+        : detailNavigationTarget === 'reports'
+          ? capabilities.companyReports
+          : detailNavigationTarget === 'corporate-actions'
+            ? capabilities.corporateActions
+            : detailNavigationTarget === 't-advice'
+              ? capabilities.aiTAdvice
+              : capabilities.aiAnalysis
     if (!targetSupported) {
       onDetailNavigationHandled(detailNavigationId)
       return
@@ -1419,7 +1421,11 @@ export function ExpandedStockDetails({
     ) {
       return
     }
-    if (detailNavigationTarget === 'reports') {
+    if (detailNavigationTarget === 'trend') {
+      setActiveTab('trend')
+    } else if (detailNavigationTarget === 'tracking') {
+      setActiveTab('tracking')
+    } else if (detailNavigationTarget === 'reports') {
       setActiveTab('reports')
     } else if (detailNavigationTarget === 'corporate-actions') {
       setActiveTab('corporateActions')
