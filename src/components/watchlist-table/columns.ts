@@ -32,6 +32,7 @@ export interface StockRowData {
 export interface SortState {
   column: WatchlistColumnId
   direction: 'asc' | 'desc'
+  dividendFinancingMetric?: 'ratio' | 'yield'
 }
 
 export interface SectorFilterOption {
@@ -122,7 +123,8 @@ export const TABLE_MIN_WIDTH =
 export function sortValue(
   row: StockRowData,
   column: WatchlistColumnId,
-  tradingCalendar: TradingCalendarSettings | string[]
+  tradingCalendar: TradingCalendarSettings | string[],
+  dividendFinancingMetric: SortState['dividendFinancingMetric'] = 'ratio'
 ): string | number | null | undefined {
   switch (column) {
     case 'stock':
@@ -134,7 +136,9 @@ export function sortValue(
     case 'sinceAddedChange':
       return calculateSinceAddedPerformance(row.stock, row.quote)?.changePercent
     case 'dividendFinancingRatio':
-      return row.dividendFinancing?.ratio
+      return dividendFinancingMetric === 'yield'
+        ? calculatePreviousCloseDividendYield(row.dividendFinancing, row.quote)?.yieldPercent
+        : row.dividendFinancing?.ratio
     case 'valueTags': {
       const category = classifyFundamentalDividendCategory(
         row.fundamentalScreening,
@@ -185,8 +189,8 @@ export function sortRows(
   tradingCalendar: TradingCalendarSettings | string[]
 ): StockRowData[] {
   return [...rows].sort((left, right) => {
-    const leftValue = sortValue(left, sort.column, tradingCalendar)
-    const rightValue = sortValue(right, sort.column, tradingCalendar)
+    const leftValue = sortValue(left, sort.column, tradingCalendar, sort.dividendFinancingMetric)
+    const rightValue = sortValue(right, sort.column, tradingCalendar, sort.dividendFinancingMetric)
     const leftMissing = leftValue === null || leftValue === undefined
     const rightMissing = rightValue === null || rightValue === undefined
 

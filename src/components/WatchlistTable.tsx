@@ -76,6 +76,11 @@ import { FundamentalWatchlistOverview } from './watchlist-table/FundamentalWatch
 import { todayRadarSignals, WatchlistRow } from './watchlist-table/WatchlistRow'
 import { useDragReorder } from './watchlist-table/useDragReorder'
 
+const DIVIDEND_FINANCING_SORT_OPTIONS = [
+  { metric: 'ratio', label: '分红融资比' },
+  { metric: 'yield', label: '股息率' }
+] as const
+
 interface WatchlistTableProps {
   watchlist: WatchStock[]
   watchlistGroups: WatchlistGroup[]
@@ -647,13 +652,29 @@ export function WatchlistTable({
     onColumnOrderChange([...nextOrder, 'operation'])
   }
 
-  const changeSort = (column: WatchlistColumnId) => {
+  const changeSort = (
+    column: WatchlistColumnId,
+    dividendFinancingMetric?: SortState['dividendFinancingMetric']
+  ) => {
     if (!COLUMN_META[column].sortable) return
     setSort((current) => {
-      if (current?.column === column) {
-        return { column, direction: current.direction === 'asc' ? 'desc' : 'asc' }
+      const metric = column === 'dividendFinancingRatio' ? dividendFinancingMetric : undefined
+      const isSameSort =
+        current?.column === column &&
+        (column !== 'dividendFinancingRatio' ||
+          (current.dividendFinancingMetric ?? 'ratio') === metric)
+      if (isSameSort) {
+        return {
+          column,
+          direction: current.direction === 'asc' ? 'desc' : 'asc',
+          ...(metric ? { dividendFinancingMetric: metric } : {})
+        }
       }
-      return { column, direction: column === 'stock' ? 'asc' : 'desc' }
+      return {
+        column,
+        direction: column === 'stock' ? 'asc' : 'desc',
+        ...(metric ? { dividendFinancingMetric: metric } : {})
+      }
     })
   }
 
@@ -1020,7 +1041,34 @@ export function WatchlistTable({
                         : undefined
                     }
                   >
-                    {meta.sortable ? (
+                    {columnId === 'dividendFinancingRatio' ? (
+                      <div className="dividend-financing-sort-header">
+                        {DIVIDEND_FINANCING_SORT_OPTIONS.map(({ metric, label }) => {
+                          const isActive =
+                            Boolean(activeSort) &&
+                            (activeSort?.dividendFinancingMetric ?? 'ratio') === metric
+                          return (
+                            <button
+                              className={`column-sort-button dividend-financing-sort-button ${isActive ? 'is-active' : ''}`}
+                              type="button"
+                              key={metric}
+                              aria-pressed={isActive}
+                              onClick={() => changeSort(columnId, metric)}
+                              title={`按${label}排序`}
+                            >
+                              <span>{label}</span>
+                              {isActive && activeSort?.direction === 'asc' ? (
+                                <ArrowUp size={12} />
+                              ) : isActive && activeSort?.direction === 'desc' ? (
+                                <ArrowDown size={12} />
+                              ) : (
+                                <ArrowUpDown size={12} />
+                              )}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    ) : meta.sortable ? (
                       <button
                         className={`column-sort-button ${activeSort ? 'is-active' : ''}`}
                         type="button"

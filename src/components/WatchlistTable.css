@@ -1105,6 +1105,19 @@
   opacity: 1;
 }
 
+.dividend-financing-sort-header {
+  height: 40px;
+  display: grid;
+  grid-template-rows: repeat(2, 20px);
+}
+
+.dividend-financing-sort-header .dividend-financing-sort-button {
+  height: 20px;
+  gap: 3px;
+  font-size: 12px;
+  line-height: 1;
+}
+
 .stock-column .column-sort-button {
   justify-content: center;
 }

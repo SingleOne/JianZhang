@@ -179,6 +179,50 @@ describe('watchlist column sorting', () => {
     ).toEqual(['higher', 'lower', 'missing'])
   })
 
+  it('sorts by the displayed dividend yield and keeps missing values last', () => {
+    const missing = row('missing', 'Missing', 10, 0)
+    const lower = row('lower', 'Lower', 10, 1)
+    const higher = row('higher', 'Higher', 10, 2)
+    for (const item of [lower, higher]) {
+      item.quote = {
+        ...item.quote!,
+        previousClose: 10,
+        totalMarketValue: 1_000_000_000
+      }
+    }
+    lower.dividendFinancing = {
+      rank: 1,
+      code: 'lower',
+      name: 'Lower',
+      market: 'SH',
+      dividendYi: 20,
+      financingYi: 4,
+      ratio: 500,
+      lastDividendYear: 2025,
+      annualDividends: [{ year: 2025, amountYi: 0.5, eventCount: 1 }]
+    }
+    higher.dividendFinancing = {
+      ...lower.dividendFinancing,
+      rank: 2,
+      code: 'higher',
+      name: 'Higher',
+      ratio: 200,
+      annualDividends: [{ year: 2025, amountYi: 1, eventCount: 1 }]
+    }
+
+    expect(
+      sortRows(
+        [missing, lower, higher],
+        {
+          column: 'dividendFinancingRatio',
+          direction: 'desc',
+          dividendFinancingMetric: 'yield'
+        },
+        []
+      ).map(({ stock }) => stock.quoteId)
+    ).toEqual(['higher', 'lower', 'missing'])
+  })
+
   it('calculates price performance from the recorded add price', () => {
     const added = stock('added', 'Added')
     added.addedAt = '2026-07-01T02:00:00.000Z'
