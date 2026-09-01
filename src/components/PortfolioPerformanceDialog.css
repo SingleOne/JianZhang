@@ -200,12 +200,23 @@
   background: #fafcff;
 }
 
-.performance-row-label,
+.performance-row-identity,
 .performance-native-values,
 .performance-native-values > span,
 .performance-completeness {
   display: grid;
   gap: 3px;
+}
+
+.performance-row-label {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.performance-row-identity {
+  min-width: 0;
 }
 
 .performance-row-label strong,
@@ -224,9 +235,9 @@
 
 .performance-row-actions {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 7px;
-  margin-top: 3px;
 }
 
 .performance-row-recalculate {

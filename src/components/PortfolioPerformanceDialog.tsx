@@ -358,8 +358,10 @@ export default function PortfolioPerformanceDialog({
                     <tr key={`${row.scope}:${row.id}`}>
                       <td>
                         <span className="performance-row-label">
-                          <strong>{row.label}</strong>
-                          <small>{row.detail ?? `${row.stockCount} 只股票`}</small>
+                          <span className="performance-row-identity">
+                            <strong>{row.label}</strong>
+                            <small>{row.detail ?? `${row.stockCount} 只股票`}</small>
+                          </span>
                           {editableStock ? (
                             <span className="performance-row-actions">
                               <button
