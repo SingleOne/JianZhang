@@ -159,9 +159,11 @@
 }
 
 .daily-scan-summary > span {
-  display: grid;
-  gap: 2px;
-  padding: 6px 10px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 9px;
   background: #ffffff;
   border: 1px solid #e7ebf1;
   border-radius: 8px;
@@ -170,11 +172,13 @@
 .daily-scan-summary small {
   color: var(--muted);
   font-size: 12px;
+  white-space: nowrap;
 }
 
 .daily-scan-summary strong {
   color: #6d28d9;
-  font-size: 17px;
+  font-size: 14px;
+  white-space: nowrap;
 }
 
 .daily-scan-summary strong.is-warning {

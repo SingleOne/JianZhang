@@ -286,21 +286,25 @@
 }
 
 .stock-tracking-performance > span {
-  display: grid;
-  gap: 5px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 11px;
+  padding: 7px 10px;
   background: var(--surface-muted);
 }
 
 .stock-tracking-performance small {
   color: var(--muted);
   font-size: 12px;
+  white-space: nowrap;
 }
 
 .stock-tracking-performance strong {
-  font-size: 16px;
+  font-size: 14px;
+  white-space: nowrap;
 }
 
 .stock-tracking-metrics-section {
@@ -959,10 +963,6 @@
 }
 
 @media (max-width: 920px) {
-  .stock-tracking-performance {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .stock-tracking-entry-form {
     display: grid;
   }
