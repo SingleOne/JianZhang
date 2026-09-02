@@ -1648,6 +1648,12 @@ export default function App() {
                       {formatPercent(portfolioSummary.todayProfitPercent)}
                     </strong>
                   </span>
+                  <span className={cardDirectionClass(portfolioSummary.totalProfit)}>
+                    <small>持仓收益</small>
+                    <strong className={directionClass(portfolioSummary.totalProfit)}>
+                      {formatMoneyProfit(portfolioSummary.totalProfit, 'CNY')}
+                    </strong>
+                  </span>
                   <span className={cardDirectionClass(portfolioSummary.profitPercent)}>
                     <small>持仓收益率</small>
                     <strong
