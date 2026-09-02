@@ -1004,6 +1004,10 @@ export function TTradingDrawer({
               <strong>{formatOverviewValue(stock.position?.quantity, formatShares)}</strong>
             </span>
             <span>
+              <small>持仓成本</small>
+              <strong>{formatOverviewValue(stock.position?.cost, formatCost)}</strong>
+            </span>
+            <span>
               <small>{isReverseBatch ? '待回补数量' : '当前T仓'}</small>
               <strong>{formatOverviewValue(activeMetrics.remainingQuantity, formatShares)}</strong>
             </span>
