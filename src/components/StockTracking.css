@@ -121,7 +121,8 @@
 .stock-tracking-stop-form textarea,
 .stock-tracking-inline-form input,
 .stock-tracking-thesis,
-.stock-tracking-entry-form textarea {
+.stock-tracking-entry-form textarea,
+.stock-tracking-entry-edit-form textarea {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
@@ -138,7 +139,8 @@
 
 .stock-tracking-stop-form textarea,
 .stock-tracking-thesis,
-.stock-tracking-entry-form textarea {
+.stock-tracking-entry-form textarea,
+.stock-tracking-entry-edit-form textarea {
   min-height: 88px;
   resize: vertical;
   padding: 9px;
@@ -877,6 +879,44 @@
 .stock-tracking-timeline article > div {
   justify-content: space-between;
   gap: 10px;
+}
+
+.stock-tracking-timeline-heading > span {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stock-tracking-entry-edit-trigger {
+  flex: 0 0 auto;
+  height: 28px;
+  padding: 0 9px;
+  font-size: 12px;
+}
+
+.stock-tracking-entry-edit-form {
+  display: grid;
+  gap: 8px;
+}
+
+.stock-tracking-entry-edit-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 88px;
+}
+
+.stock-tracking-entry-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.stock-tracking-entry-edit-actions .primary-button,
+.stock-tracking-entry-edit-actions .secondary-button {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
 }
 
 .stock-tracking-timeline strong,

@@ -118,7 +118,7 @@ export function StockTrackingDialog({
 }: StockTrackingDialogProps) {
   const [query, setQuery] = useState('')
   const deferredQuery = useDeferredValue(query)
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('tracking')
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all')
   const [profileSort, setProfileSort] = useState<ProfileSort>('updated-desc')
   const [selectedQuoteId, setSelectedQuoteId] = useState('')

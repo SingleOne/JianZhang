@@ -4,6 +4,7 @@ import {
   Eye,
   FolderPlus,
   History,
+  PencilLine,
   Play,
   Plus,
   Save,
@@ -62,6 +63,11 @@ const CONCLUSION_OPTIONS = Object.entries(STOCK_TRACKING_CONCLUSION_LABELS).map(
 
 type EditableEntryType = Exclude<StockTrackingEntryType, 'system'>
 
+interface EntryEditState {
+  id: string
+  content: string
+}
+
 const ENTRY_TYPE_OPTIONS = (['note', 'thesis', 'review'] as const).map((value) => ({
   value,
   label: STOCK_TRACKING_ENTRY_LABELS[value]
@@ -107,6 +113,7 @@ export function StockTrackingEditor({
   const [tagInput, setTagInput] = useState('')
   const [entryType, setEntryType] = useState<EditableEntryType>('note')
   const [entryContent, setEntryContent] = useState('')
+  const [entryEdit, setEntryEdit] = useState<EntryEditState | null>(null)
   const [showStopForm, setShowStopForm] = useState(false)
   const [conclusionResult, setConclusionResult] =
     useState<StockTrackingConclusionResult>('unverified')
@@ -149,6 +156,18 @@ export function StockTrackingEditor({
     if (!entryContent.trim()) return
     onUpdateProfile(addStockTrackingEntry(profile, entryType, entryContent, quote))
     setEntryContent('')
+  }
+
+  const saveEntryEdit = () => {
+    if (!entryEdit?.content.trim()) return
+    onUpdateProfile({
+      ...profile,
+      entries: profile.entries.map((entry) =>
+        entry.id === entryEdit.id ? { ...entry, content: entryEdit.content.trim() } : entry
+      ),
+      updatedAt: new Date().toISOString()
+    })
+    setEntryEdit(null)
   }
 
   return (
@@ -440,23 +459,77 @@ export function StockTrackingEditor({
           <small>{profile.entries.length} 条</small>
         </div>
         <div className="stock-tracking-timeline">
-          {profile.entries.map((entry) => (
-            <article className={`is-${entry.type}`} key={entry.id}>
-              <div>
-                <strong>{STOCK_TRACKING_ENTRY_LABELS[entry.type]}</strong>
-                <small>{formatDateTime(entry.createdAt)}</small>
-              </div>
-              <p>{entry.content}</p>
-              {entry.quoteSnapshot ? (
-                <span>
-                  当时股价 {formatPrice(entry.quoteSnapshot.latest)}
-                  <em className={valueClass(entry.quoteSnapshot.changePercent)}>
-                    {formatPercent(entry.quoteSnapshot.changePercent)}
-                  </em>
-                </span>
-              ) : null}
-            </article>
-          ))}
+          {profile.entries.map((entry) => {
+            const editing = entryEdit?.id === entry.id
+            return (
+              <article className={`is-${entry.type}`} key={entry.id}>
+                <div className="stock-tracking-timeline-heading">
+                  <span>
+                    <strong>{STOCK_TRACKING_ENTRY_LABELS[entry.type]}</strong>
+                    <small>{formatDateTime(entry.createdAt)}</small>
+                  </span>
+                  {entry.type !== 'system' && !editing ? (
+                    <button
+                      className="secondary-button stock-tracking-entry-edit-trigger"
+                      type="button"
+                      onClick={() => setEntryEdit({ id: entry.id, content: entry.content })}
+                      aria-label={`编辑${STOCK_TRACKING_ENTRY_LABELS[entry.type]}`}
+                    >
+                      <PencilLine size={13} />
+                      编辑
+                    </button>
+                  ) : null}
+                </div>
+                {editing && entryEdit ? (
+                  <form
+                    className="stock-tracking-entry-edit-form"
+                    onSubmit={(event) => {
+                      event.preventDefault()
+                      saveEntryEdit()
+                    }}
+                  >
+                    <textarea
+                      value={entryEdit.content}
+                      onChange={(event) =>
+                        setEntryEdit((current) =>
+                          current ? { ...current, content: event.target.value } : current
+                        )
+                      }
+                      aria-label={`编辑${STOCK_TRACKING_ENTRY_LABELS[entry.type]}内容`}
+                    />
+                    <div className="stock-tracking-entry-edit-actions">
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        onClick={() => setEntryEdit(null)}
+                      >
+                        <X size={13} />
+                        取消
+                      </button>
+                      <button
+                        className="primary-button"
+                        type="submit"
+                        disabled={!entryEdit.content.trim()}
+                      >
+                        <Save size={13} />
+                        保存修改
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <p>{entry.content}</p>
+                )}
+                {entry.quoteSnapshot ? (
+                  <span>
+                    当时股价 {formatPrice(entry.quoteSnapshot.latest)}
+                    <em className={valueClass(entry.quoteSnapshot.changePercent)}>
+                      {formatPercent(entry.quoteSnapshot.changePercent)}
+                    </em>
+                  </span>
+                ) : null}
+              </article>
+            )
+          })}
         </div>
       </section>
     </div>
