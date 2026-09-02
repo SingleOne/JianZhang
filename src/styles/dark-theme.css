@@ -1285,6 +1285,27 @@
 :root[data-theme='dark'] .investment-value-metrics > footer em {
   color: #f3b85b;
 }
+:root[data-theme='dark'] .investment-value-metrics > footer .pcf-pe-signal.is-quality {
+  color: #8ee0bd;
+  background: rgba(44, 157, 110, 0.12);
+  border-color: rgba(74, 190, 139, 0.4);
+}
+:root[data-theme='dark'] .investment-value-metrics > footer .pcf-pe-signal.is-matched,
+:root[data-theme='dark'] .investment-value-metrics > footer .pcf-pe-signal.is-neutral {
+  color: #cbd5e3;
+  background: rgba(100, 116, 139, 0.12);
+  border-color: #334155;
+}
+:root[data-theme='dark'] .investment-value-metrics > footer .pcf-pe-signal.is-warning {
+  color: #f3c873;
+  background: rgba(191, 126, 20, 0.13);
+  border-color: rgba(224, 167, 70, 0.42);
+}
+:root[data-theme='dark'] .investment-value-metrics > footer .pcf-pe-signal.is-critical {
+  color: #ff9ba3;
+  background: rgba(220, 65, 78, 0.13);
+  border-color: rgba(237, 103, 114, 0.43);
+}
 :root[data-theme='dark'] .insight-indicator-section.is-summary {
   background: linear-gradient(135deg, rgba(91, 140, 255, 0.14) 0%, #111827 100%);
   border: 1px solid rgba(91, 140, 255, 0.48);

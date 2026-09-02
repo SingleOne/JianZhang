@@ -24,7 +24,7 @@ describe('data snapshot status', () => {
 
   it('marks fundamental data stale by fiscal year before age', () => {
     const snapshot = {
-      schemaVersion: 6,
+      schemaVersion: 7,
       generatedAt: '2027-04-30T12:00:00+08:00',
       fiscalYears: [2021, 2022, 2023, 2024, 2025]
     } as FundamentalSnapshot
@@ -50,6 +50,18 @@ describe('data snapshot status', () => {
 
     expect(fundamentalStaleReason(snapshot, new Date('2026-08-12T13:00:00+08:00'))).toContain(
       '季度财务排雷'
+    )
+  })
+
+  it('marks schema v6 fundamental data stale when PCF industry data is missing', () => {
+    const snapshot = {
+      schemaVersion: 6,
+      generatedAt: '2026-09-02T12:00:00+08:00',
+      fiscalYears: [2021, 2022, 2023, 2024, 2025]
+    } as FundamentalSnapshot
+
+    expect(fundamentalStaleReason(snapshot, new Date('2026-09-02T13:00:00+08:00'))).toContain(
+      'PCF 行业分位'
     )
   })
 })

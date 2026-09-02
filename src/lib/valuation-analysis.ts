@@ -1,4 +1,5 @@
 import type {
+  FundamentalAnnualReport,
   FundamentalCompany,
   FundamentalOrganizationType,
   StockPriceCashFlowAnalysis,
@@ -6,6 +7,30 @@ import type {
   StockValuationAnalysis,
   StockValuationHistory
 } from '../shared/types'
+
+export const PCF_PE_MATCH_LOWER_RATIO = 0.9
+export const PCF_PE_MATCH_UPPER_RATIO = 1.1
+export const PCF_PE_CRITICAL_RATIO = 1.5
+export const PCF_PE_PERSISTENT_YEARS = 3
+
+export function annualPriceCashFlowPeRatio(report: FundamentalAnnualReport): number | null {
+  const profit = report.parentNetProfit
+  const cashFlow = report.operatingCashFlow
+  return profit !== null && profit > 0 && cashFlow !== null && cashFlow > 0
+    ? profit / cashFlow
+    : null
+}
+
+export function consecutiveAnnualPcfPeGapYears(company: FundamentalCompany): number {
+  const reports = company.annualReports ?? []
+  let years = 0
+  for (let index = reports.length - 1; index >= 0; index -= 1) {
+    const ratio = annualPriceCashFlowPeRatio(reports[index])
+    if (ratio === null || ratio < PCF_PE_CRITICAL_RATIO) break
+    years += 1
+  }
+  return years
+}
 
 function quarterIndex(reportDate: string): number {
   const year = Number(reportDate.slice(0, 4))
@@ -71,10 +96,25 @@ function currentTotalMarketValue(
 
 function createPriceCashFlowAnalysis(
   quote: StockQuote | null | undefined,
-  company: FundamentalCompany | null | undefined
+  company: FundamentalCompany | null | undefined,
+  history: StockValuationHistory | null
 ): StockPriceCashFlowAnalysis {
+  const valuation = company?.valuation
+  const historicalValues = history?.priceCashFlowRatioTtmValues ?? []
+  const persistentGapYears = company ? consecutiveAnnualPcfPeGapYears(company) : 0
+  const base = {
+    historicalPercentile: null,
+    historicalSampleSize: historicalValues.length,
+    industryPercentile: valuation?.priceCashFlowIndustryPercentile ?? null,
+    industrySampleSize: valuation?.priceCashFlowIndustrySampleSize ?? 0,
+    industryBasisValue: valuation?.priceCashFlowRatioTtm ?? null,
+    priceEarningsComparisonRatio: null,
+    relation: 'unavailable' as const,
+    persistentGapYears
+  }
   if (!usesOrdinaryCorporateInvestmentMetrics(company?.organizationType)) {
     return {
+      ...base,
       currentValue: null,
       operatingCashFlowTtm: null,
       reportDate: company?.quarterlyRiskReports?.at(-1)?.reportDate ?? null,
@@ -84,10 +124,17 @@ function createPriceCashFlowAnalysis(
 
   const { operatingCashFlowTtm, reportDate } = trailingOperatingCashFlow(company)
   if (operatingCashFlowTtm === null) {
-    return { currentValue: null, operatingCashFlowTtm, reportDate, unavailableReason: 'cash-flow' }
+    return {
+      ...base,
+      currentValue: null,
+      operatingCashFlowTtm,
+      reportDate,
+      unavailableReason: 'cash-flow'
+    }
   }
   if (operatingCashFlowTtm <= 0) {
     return {
+      ...base,
       currentValue: null,
       operatingCashFlowTtm,
       reportDate,
@@ -98,6 +145,7 @@ function createPriceCashFlowAnalysis(
   const marketValue = currentTotalMarketValue(quote, company)
   if (marketValue === null) {
     return {
+      ...base,
       currentValue: null,
       operatingCashFlowTtm,
       reportDate,
@@ -105,11 +153,32 @@ function createPriceCashFlowAnalysis(
     }
   }
 
+  const currentValue = marketValue / operatingCashFlowTtm
+  const currentPe = quote?.priceEarningsRatioTtm ?? null
+  const priceEarningsComparisonRatio =
+    currentPe !== null && currentPe > 0 ? currentValue / currentPe : null
+  const relation =
+    priceEarningsComparisonRatio === null
+      ? 'unavailable'
+      : priceEarningsComparisonRatio >= PCF_PE_CRITICAL_RATIO &&
+          persistentGapYears >= PCF_PE_PERSISTENT_YEARS
+        ? 'persistent-gap'
+        : priceEarningsComparisonRatio < PCF_PE_MATCH_LOWER_RATIO
+          ? 'cash-rich'
+          : priceEarningsComparisonRatio <= PCF_PE_MATCH_UPPER_RATIO
+            ? 'matched'
+            : 'cash-lagging'
+
   return {
-    currentValue: marketValue / operatingCashFlowTtm,
+    ...base,
+    currentValue,
+    historicalPercentile: valuationPercentile(historicalValues, currentValue),
     operatingCashFlowTtm,
     reportDate,
-    unavailableReason: null
+    unavailableReason: null,
+    priceEarningsComparisonRatio,
+    relation,
+    persistentGapYears
   }
 }
 
@@ -168,6 +237,6 @@ export function createStockValuationAnalysis(
       industrySampleSize: valuation?.priceBookIndustrySampleSize ?? 0,
       industryBasisValue: valuation?.priceBookRatio ?? null
     },
-    priceCashFlowRatioTtm: createPriceCashFlowAnalysis(quote, company)
+    priceCashFlowRatioTtm: createPriceCashFlowAnalysis(quote, company, history)
   }
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { FundamentalCompany, StockQuote, StockValuationHistory } from '../shared/types'
 import {
   createStockValuationAnalysis,
+  PCF_PE_CRITICAL_RATIO,
   usesOrdinaryCorporateInvestmentMetrics,
   valuationPercentile
 } from './valuation-analysis'
@@ -38,7 +39,8 @@ describe('valuation analysis', () => {
       periodStart: '2021-08-05',
       periodEnd: '2026-08-05',
       priceEarningsRatioTtmValues: [8, 10, 12, 14],
-      priceBookRatioValues: [1, 1.5, 2]
+      priceBookRatioValues: [1, 1.5, 2],
+      priceCashFlowRatioTtmValues: [6, 8, 10, 12]
     }
 
     const result = createStockValuationAnalysis('1.600000', quote, company, history)
@@ -55,6 +57,7 @@ describe('valuation analysis', () => {
     const quote = {
       quoteId: '1.600000',
       totalMarketValue: 120_000_000_000,
+      priceEarningsRatioTtm: 15,
       latest: 12,
       updatedAt: '2026-08-05T14:30:00+08:00'
     } as StockQuote
@@ -70,11 +73,72 @@ describe('valuation analysis', () => {
 
     const result = createStockValuationAnalysis('1.600000', quote, company, null)
 
-    expect(result.priceCashFlowRatioTtm).toEqual({
+    expect(result.priceCashFlowRatioTtm).toMatchObject({
       currentValue: 12,
+      historicalPercentile: null,
+      industryPercentile: null,
       operatingCashFlowTtm: 10_000_000_000,
       reportDate: '2026-06-30',
-      unavailableReason: null
+      unavailableReason: null,
+      priceEarningsComparisonRatio: 0.8,
+      relation: 'cash-rich',
+      persistentGapYears: 0
+    })
+  })
+
+  it('publishes PCF history and industry percentiles with the PE comparison', () => {
+    const quote = {
+      quoteId: '1.600000',
+      totalMarketValue: 120_000_000_000,
+      priceEarningsRatioTtm: 10,
+      updatedAt: '2026-09-02T14:30:00+08:00'
+    } as StockQuote
+    const company = {
+      organizationType: 'general',
+      annualReports: [2023, 2024, 2025].map((year) => ({
+        year,
+        parentNetProfit: 150,
+        operatingCashFlow: 100
+      })),
+      quarterlyRiskReports: [
+        { reportDate: '2025-09-30', operatingCashFlowQuarter: 2_000_000_000 },
+        { reportDate: '2025-12-31', operatingCashFlowQuarter: 3_000_000_000 },
+        { reportDate: '2026-03-31', operatingCashFlowQuarter: 2_000_000_000 },
+        { reportDate: '2026-06-30', operatingCashFlowQuarter: 1_000_000_000 }
+      ],
+      valuation: {
+        priceCashFlowRatioTtm: 14.8,
+        priceCashFlowIndustryPercentile: 82,
+        priceCashFlowIndustrySampleSize: 32
+      }
+    } as FundamentalCompany
+    const history = {
+      quoteId: '1.600000',
+      fetchedAt: '2026-09-02T14:31:00+08:00',
+      periodStart: '2021-09-02',
+      periodEnd: '2026-09-02',
+      priceEarningsRatioTtmValues: [8, 10, 12],
+      priceBookRatioValues: [1, 2, 3],
+      priceCashFlowRatioTtmValues: [8, 12, 15, 18]
+    } satisfies StockValuationHistory
+
+    const metric = createStockValuationAnalysis(
+      '1.600000',
+      quote,
+      company,
+      history
+    ).priceCashFlowRatioTtm
+
+    expect(metric).toMatchObject({
+      currentValue: 15,
+      historicalPercentile: 75,
+      historicalSampleSize: 4,
+      industryPercentile: 82,
+      industrySampleSize: 32,
+      industryBasisValue: 14.8,
+      priceEarningsComparisonRatio: PCF_PE_CRITICAL_RATIO,
+      relation: 'persistent-gap',
+      persistentGapYears: 3
     })
   })
 

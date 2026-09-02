@@ -1730,12 +1730,15 @@ export interface FundamentalValuationSnapshot {
   closePrice?: number | null
   priceEarningsRatioTtm: number | null
   priceBookRatio: number | null
+  priceCashFlowRatioTtm?: number | null
   totalMarketValue?: number | null
   circulatingMarketValue?: number | null
   priceEarningsIndustryPercentile: number | null
   priceBookIndustryPercentile: number | null
+  priceCashFlowIndustryPercentile?: number | null
   priceEarningsIndustrySampleSize: number
   priceBookIndustrySampleSize: number
+  priceCashFlowIndustrySampleSize?: number
 }
 
 export type CompanyReportType =
@@ -1887,7 +1890,7 @@ export interface FundamentalIndustryBenchmark {
 }
 
 export interface FundamentalSnapshot {
-  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7
   snapshotDate: string
   generatedAt: string
   currency: 'CNY'
@@ -1913,6 +1916,7 @@ export interface FundamentalSnapshot {
     latestCirculatingMarketValueCount?: number
     latestPriceEarningsIndustryPercentileCount?: number
     latestPriceBookIndustryPercentileCount?: number
+    latestPriceCashFlowIndustryPercentileCount?: number
     latestQuarterlyRiskReportCount?: number
     completeQuarterlyRiskIndicatorCount?: number
     industryCount: number
@@ -1962,6 +1966,7 @@ export interface StockValuationHistory {
   periodEnd: string | null
   priceEarningsRatioTtmValues: number[]
   priceBookRatioValues: number[]
+  priceCashFlowRatioTtmValues: number[]
 }
 
 export interface StockValuationMetricAnalysis {
@@ -1976,11 +1981,16 @@ export interface StockValuationMetricAnalysis {
 export type StockPriceCashFlowUnavailableReason =
   'not-applicable' | 'cash-flow' | 'non-positive-cash-flow' | 'market-value'
 
-export interface StockPriceCashFlowAnalysis {
-  currentValue: number | null
+export type StockPriceCashFlowPeRelation =
+  'cash-rich' | 'matched' | 'cash-lagging' | 'persistent-gap' | 'unavailable'
+
+export interface StockPriceCashFlowAnalysis extends StockValuationMetricAnalysis {
   operatingCashFlowTtm: number | null
   reportDate: string | null
   unavailableReason: StockPriceCashFlowUnavailableReason | null
+  priceEarningsComparisonRatio: number | null
+  relation: StockPriceCashFlowPeRelation
+  persistentGapYears: number
 }
 
 export interface StockValuationAnalysis {

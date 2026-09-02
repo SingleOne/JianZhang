@@ -76,6 +76,71 @@ function priceCashFlowDetail(metric: StockPriceCashFlowAnalysis): string {
   return `${metric.reportDate ?? '--'} 截止的最近四季度`
 }
 
+function priceCashFlowComparison(
+  metric: StockPriceCashFlowAnalysis,
+  valuationError: string
+): string {
+  if (metric.currentValue === null) return priceCashFlowDetail(metric)
+  const history =
+    metric.historicalSampleSize > 0
+      ? `历史 ${percentile(metric.historicalPercentile)}`
+      : valuationError
+        ? '历史分位暂不可用'
+        : '历史分位读取中'
+  const industry =
+    metric.industrySampleSize > 0
+      ? `行业 ${percentile(metric.industryPercentile)}`
+      : '行业分位待快照更新'
+  return `${history} · ${industry}`
+}
+
+function priceCashFlowPeSignal(
+  metric: StockPriceCashFlowAnalysis,
+  peMetric: StockValuationMetricAnalysis
+): { className: string; text: string } | null {
+  const comparison = metric.priceEarningsComparisonRatio
+  if (metric.unavailableReason === 'non-positive-cash-flow') {
+    return {
+      className: 'is-neutral',
+      text: 'PCF 不适用：最近四季度经营现金流不为正，不能用该倍数判断估值或利润质量。'
+    }
+  }
+  if (comparison === null) return null
+  if (metric.relation === 'persistent-gap') {
+    return {
+      className: 'is-critical',
+      text: `多年剪刀差：PCF/PE ${comparison.toFixed(2)}，且最近 ${metric.persistentGapYears} 个完整财年均不低于 1.5，利润现金含量需优先排查。`
+    }
+  }
+  if (
+    metric.historicalPercentile !== null &&
+    peMetric.historicalPercentile !== null &&
+    metric.historicalPercentile >= 70 &&
+    peMetric.historicalPercentile <= 40
+  ) {
+    return {
+      className: 'is-warning',
+      text: `估值剪刀差：PCF 历史分位 ${percentile(metric.historicalPercentile)}，PE 历史分位 ${percentile(peMetric.historicalPercentile)}；现金流估值明显高于利润估值。`
+    }
+  }
+  if (metric.relation === 'cash-lagging') {
+    return {
+      className: 'is-warning',
+      text: `现金滞后：PCF/PE ${comparison.toFixed(2)}，重点核对应收账款、存货、预付款和非经常性损益。`
+    }
+  }
+  if (metric.relation === 'matched') {
+    return {
+      className: 'is-matched',
+      text: `现金匹配：PCF/PE ${comparison.toFixed(2)}，利润与经营现金流基本匹配。`
+    }
+  }
+  return {
+    className: 'is-quality',
+    text: `现金含金量较高：PCF/PE ${comparison.toFixed(2)}，经营现金流好于账面利润。`
+  }
+}
+
 export function InvestmentValueMetrics({
   quoteId,
   quote,
@@ -122,6 +187,10 @@ export function InvestmentValueMetrics({
   const financialYears = company?.annualReports.length
     ? `${company.annualReports[0].year}—${company.annualReports.at(-1)?.year}`
     : '--'
+  const pcfPeSignal = priceCashFlowPeSignal(
+    valuationAnalysis.priceCashFlowRatioTtm,
+    valuationAnalysis.priceEarningsRatioTtm
+  )
 
   return (
     <section className="investment-value-metrics" aria-labelledby={headingId}>
@@ -159,7 +228,11 @@ export function InvestmentValueMetrics({
         <article title="当前总市值相对于最近连续四个季度经营活动产生的现金流量净额的倍数">
           <span>市现率 PCF TTM</span>
           <strong>{ratio(valuationAnalysis.priceCashFlowRatioTtm.currentValue)}</strong>
-          <small>{priceCashFlowDetail(valuationAnalysis.priceCashFlowRatioTtm)}</small>
+          <small
+            title={`${priceCashFlowDetail(valuationAnalysis.priceCashFlowRatioTtm)}；历史样本 ${valuationAnalysis.priceCashFlowRatioTtm.historicalSampleSize} 个，行业样本 ${valuationAnalysis.priceCashFlowRatioTtm.industrySampleSize} 家`}
+          >
+            {priceCashFlowComparison(valuationAnalysis.priceCashFlowRatioTtm, valuationError)}
+          </small>
         </article>
         <article title="快照估值日收盘价乘以公司总股本">
           <span>总市值</span>
@@ -225,7 +298,10 @@ export function InvestmentValueMetrics({
       </div>
 
       <footer>
-        <span>PE/PB 分位越低表示相对近五年自身或快照日同行越低；PCF 当前展示 TTM 倍数。</span>
+        <span>PE/PB/PCF 分位越低，仅表示相对近五年自身或快照日同行倍数更低。</span>
+        {pcfPeSignal ? (
+          <span className={`pcf-pe-signal ${pcfPeSignal.className}`}>{pcfPeSignal.text}</span>
+        ) : null}
         {staleReason ? <em>基本面快照已过期：{staleReason}</em> : null}
       </footer>
     </section>

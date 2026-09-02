@@ -233,7 +233,7 @@ localStorage["jianzhang-demo-state-v1"]
 | `getDividendFinancingState`                                  | `dividend-financing:state:get`                                   | 返回缺失、排队、更新中、有效、过期或失败状态                                                            |
 | `getDividendFinancingChangeReport`                           | `dividend-financing:changes:get`                                 | 返回最近一次手动更新前后的新入榜、移出、排名、比例、分红与融资变化                                      |
 | `runDividendFinancingUpdate`                                 | `dividend-financing:update`                                      | 调用随应用附带的 Python 脚本，保存更新前快照并生成变化报告                                              |
-| `getFundamentalSnapshot`                                     | `fundamentals:get`                                               | 返回进程内缓存的 schema v1/v2/v3/v4/v5 用户快照；本地不存在时返回 `null`                                |
+| `getFundamentalSnapshot`                                     | `fundamentals:get`                                               | 返回进程内缓存的 schema v1-v7 用户快照；本地不存在时返回 `null`                                |
 | `getFundamentalState`                                        | `fundamentals:state:get`                                         | 返回基本面快照状态、报告期、生成时间和过期原因                                                          |
 | `getFundamentalChangeReport`                                 | `fundamentals:changes:get`                                       | 返回最近两次快照按默认规则比较的新入选、移出、待核、数据完整性、覆盖和企业口径变化；首次快照返回 `null` |
 | `runFundamentalUpdate`                                       | `fundamentals:update`                                            | 调用五阶段 Python 脚本，更新五年财务、季度排雷、行业资产负债分位、净负债、快照日 PE/PB行业分位、总市值和流通市值 |
@@ -241,7 +241,7 @@ localStorage["jianzhang-demo-state-v1"]
 | `generateCompanyReportSummary`                               | `company-reports:summary:generate`                               | 下载巨潮官方 PDF、提取重点章节、调用当前 AI 模型生成总结并保存到本地                                    |
 | `openCompanyReport`                                          | `company-reports:open`                                           | 校验巨潮资讯 HTTPS 链接后用系统浏览器打开原始 PDF                                                       |
 | `getShareholderSnapshot`                                     | `shareholders:get`                                               | 按股票读取 24 小时持久化缓存或查询东方财富 F10 股东信息；可强制更新，失败时允许返回旧缓存并提示         |
-| `getValuationHistory`                                        | `valuation-history:get`                                          | 按股票返回近五年 PE TTM/PB正值序列，主进程按日缓存供市场观察和长期 AI 计算历史分位                      |
+| `getValuationHistory`                                        | `valuation-history:get`                                          | 按股票返回近五年 PE TTM/PB/PCF TTM正值序列，主进程按日缓存供市场观察和长期 AI 计算历史分位                      |
 | `refreshQuotes`                                              | `quotes:refresh`                                                 | 向统一调度器提交手动全量刷新                                                                            |
 | `refreshQuote`                                               | `quotes:refresh-one`                                             | 新增自选后向统一调度器提交单股定向刷新，并返回合并后的当前报价                                          |
 | `getKline`                                                   | `kline:get`                                                      | 通过 `KlineHub` 获取分时/五日/周期 K，同参数合并并串行请求                                              |

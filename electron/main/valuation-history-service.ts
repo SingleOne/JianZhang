@@ -5,7 +5,7 @@ import type { StockValuationHistory } from '../../src/shared/types'
 import { atomicWriteJsonSync } from './file-storage'
 
 interface ValuationHistoryCacheEntry extends StockValuationHistory {
-  version: 1
+  version: 2
   cachedAt: number
 }
 
@@ -13,6 +13,7 @@ interface EastmoneyValuationRow {
   TRADE_DATE?: string
   PE_TTM?: number | null
   PB_MRQ?: number | null
+  PCF_OCF_TTM?: number | null
 }
 
 const CACHE_MAX_AGE = 18 * 60 * 60 * 1000
@@ -51,7 +52,7 @@ export class ValuationHistoryService {
       pageSize: '5000',
       pageNumber: '1',
       reportName: 'RPT_VALUEANALYSIS_DET',
-      columns: 'TRADE_DATE,PE_TTM,PB_MRQ',
+      columns: 'TRADE_DATE,PE_TTM,PB_MRQ,PCF_OCF_TTM',
       source: 'WEB',
       client: 'WEB',
       filter: `(SECURITY_CODE="${code}")`
@@ -79,7 +80,7 @@ export class ValuationHistoryService {
       (row) => typeof row.TRADE_DATE === 'string' && row.TRADE_DATE.slice(0, 10) >= cutoff
     )
     const entry: ValuationHistoryCacheEntry = {
-      version: 1,
+      version: 2,
       quoteId,
       cachedAt: this.now(),
       fetchedAt: new Date(this.now()).toISOString(),
@@ -91,7 +92,8 @@ export class ValuationHistoryService {
           .sort()[0] ?? null,
       periodEnd,
       priceEarningsRatioTtmValues: windowRows.map((row) => row.PE_TTM).filter(finitePositive),
-      priceBookRatioValues: windowRows.map((row) => row.PB_MRQ).filter(finitePositive)
+      priceBookRatioValues: windowRows.map((row) => row.PB_MRQ).filter(finitePositive),
+      priceCashFlowRatioTtmValues: windowRows.map((row) => row.PCF_OCF_TTM).filter(finitePositive)
     }
     this.memory.set(quoteId, entry)
     atomicWriteJsonSync(this.path(quoteId), entry, false)
@@ -108,7 +110,7 @@ export class ValuationHistoryService {
     if (!existsSync(path)) return null
     try {
       const entry = JSON.parse(readFileSync(path, 'utf8')) as ValuationHistoryCacheEntry
-      if (entry.version !== 1 || entry.quoteId !== quoteId) return null
+      if (entry.version !== 2 || entry.quoteId !== quoteId) return null
       this.memory.set(quoteId, entry)
       return entry
     } catch {

@@ -12,6 +12,13 @@ import type {
 } from '../shared/types'
 export type { FundamentalPeerComparison, FundamentalPeerMetricComparison } from '../shared/types'
 import { hasFinancialMineRisk } from './financial-mine-detector'
+import {
+  annualPriceCashFlowPeRatio,
+  consecutiveAnnualPcfPeGapYears,
+  PCF_PE_MATCH_LOWER_RATIO,
+  PCF_PE_MATCH_UPPER_RATIO,
+  PCF_PE_PERSISTENT_YEARS
+} from './valuation-analysis'
 
 export type FundamentalRoeMetric = 'weighted' | 'deducted'
 export type FundamentalCashFlowMode = 'cumulative' | 'latest'
@@ -66,6 +73,7 @@ export type FundamentalQualityTag =
   | 'profitGrowth'
   | 'roeStable'
   | 'deductedSolid'
+  | 'cashProfitQuality'
   | 'improving'
 
 export interface FundamentalQualityMetrics {
@@ -75,6 +83,7 @@ export interface FundamentalQualityMetrics {
   roeRange: number | null
   deductedProfitRatio: number | null
   latestCashConversion: number | null
+  latestPcfPeRatio: number | null
 }
 
 export interface FundamentalQualityProfile {
@@ -88,6 +97,7 @@ export const FUNDAMENTAL_QUALITY_TAG_LABELS: Record<FundamentalQualityTag, strin
   profitGrowth: '利润成长',
   roeStable: 'ROE稳定',
   deductedSolid: '扣非扎实',
+  cashProfitQuality: '现金含金量',
   improving: '改善观察'
 }
 
@@ -96,6 +106,8 @@ export type FundamentalRiskTag =
   | 'highLeverageRoe'
   | 'deductedWeak'
   | 'profitCashDivergence'
+  | 'pcfPeGap'
+  | 'pcfPePersistentGap'
   | 'roeDecline'
   | 'singleYearCashWeak'
 
@@ -110,6 +122,8 @@ export interface FundamentalRiskMetrics {
   roeDeclinePoints: number | null
   latestNetProfit: number | null
   latestOperatingCashFlow: number | null
+  latestPcfPeRatio: number | null
+  consecutivePcfPeGapYears: number
 }
 
 export interface FundamentalRiskProfile {
@@ -123,6 +137,8 @@ export const FUNDAMENTAL_RISK_TAG_LABELS: Record<FundamentalRiskTag, string> = {
   highLeverageRoe: '高杠杆ROE',
   deductedWeak: '扣非偏弱',
   profitCashDivergence: '利润现金背离',
+  pcfPeGap: 'PCF高于PE',
+  pcfPePersistentGap: '多年剪刀差',
   roeDecline: 'ROE下滑',
   singleYearCashWeak: '单年现金转弱'
 }
@@ -132,6 +148,8 @@ export const FUNDAMENTAL_RISK_TAG_SEVERITY: Record<FundamentalRiskTag, Fundament
   highLeverageRoe: 'warning',
   deductedWeak: 'warning',
   profitCashDivergence: 'critical',
+  pcfPeGap: 'warning',
+  pcfPePersistentGap: 'critical',
   roeDecline: 'warning',
   singleYearCashWeak: 'warning'
 }
@@ -308,6 +326,13 @@ export function evaluateFundamentalQuality(company: FundamentalCompany): Fundame
     latestReport?.netProfit ?? null,
     latestReport?.operatingCashFlow ?? null
   )
+  const recentPcfPeRatios = reports.slice(-PCF_PE_PERSISTENT_YEARS).map(annualPriceCashFlowPeRatio)
+  const latestPcfPeRatio =
+    company.organizationType === 'general' ? (recentPcfPeRatios.at(-1) ?? null) : null
+  const cashProfitQuality =
+    company.organizationType === 'general' &&
+    recentPcfPeRatios.length === PCF_PE_PERSISTENT_YEARS &&
+    recentPcfPeRatios.every((ratio) => ratio !== null && ratio < PCF_PE_MATCH_LOWER_RATIO)
   const recentReports = reports.slice(-3)
   const recentRoe = completeValues(
     recentReports.map((report) => report.weightedAverageRoe),
@@ -336,7 +361,8 @@ export function evaluateFundamentalQuality(company: FundamentalCompany): Fundame
         netProfitCagr,
         roeRange,
         deductedProfitRatio,
-        latestCashConversion
+        latestCashConversion,
+        latestPcfPeRatio
       }
     }
   }
@@ -357,6 +383,7 @@ export function evaluateFundamentalQuality(company: FundamentalCompany): Fundame
   if (defaultEvaluation.passed && deductedProfitRatio !== null && deductedProfitRatio > 90) {
     tags.push('deductedSolid')
   }
+  if (cashProfitQuality) tags.push('cashProfitQuality')
   if (improving) tags.push('improving')
 
   return {
@@ -367,7 +394,8 @@ export function evaluateFundamentalQuality(company: FundamentalCompany): Fundame
       netProfitCagr,
       roeRange,
       deductedProfitRatio,
-      latestCashConversion
+      latestCashConversion,
+      latestPcfPeRatio
     }
   }
 }
@@ -402,6 +430,12 @@ export function evaluateFundamentalRisk(company: FundamentalCompany): Fundamenta
   const latestNetProfit = latestReport?.netProfit ?? null
   const latestOperatingCashFlow = latestReport?.operatingCashFlow ?? null
   const latestCashConversion = cashConversion(latestNetProfit, latestOperatingCashFlow)
+  const latestPcfPeRatio =
+    company.organizationType === 'general' && latestReport
+      ? annualPriceCashFlowPeRatio(latestReport)
+      : null
+  const consecutivePcfPeGapYears =
+    company.organizationType === 'general' ? consecutiveAnnualPcfPeGapYears(company) : 0
   const roeDeclinePoints = weightedRoe ? weightedRoe[0] - weightedRoe.at(-1)! : null
   const highRoe = weightedRoe !== null && weightedRoe.every((value) => value > 15)
   const recentNetProfits = completeValues(
@@ -439,6 +473,11 @@ export function evaluateFundamentalRisk(company: FundamentalCompany): Fundamenta
       tags.push('deductedWeak')
     }
     if (profitCashDivergence) tags.push('profitCashDivergence')
+    if (consecutivePcfPeGapYears >= PCF_PE_PERSISTENT_YEARS) {
+      tags.push('pcfPePersistentGap')
+    } else if (latestPcfPeRatio !== null && latestPcfPeRatio > PCF_PE_MATCH_UPPER_RATIO) {
+      tags.push('pcfPeGap')
+    }
     if (highRoe && roeDeclinePoints !== null && roeDeclinePoints >= 5) {
       tags.push('roeDecline')
     }
@@ -467,7 +506,9 @@ export function evaluateFundamentalRisk(company: FundamentalCompany): Fundamenta
       latestCashConversion,
       roeDeclinePoints,
       latestNetProfit,
-      latestOperatingCashFlow
+      latestOperatingCashFlow,
+      latestPcfPeRatio,
+      consecutivePcfPeGapYears
     }
   }
 }

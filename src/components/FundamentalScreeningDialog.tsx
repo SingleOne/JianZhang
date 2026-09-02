@@ -68,6 +68,7 @@ const FUNDAMENTAL_QUALITY_TAGS: FundamentalQualityTag[] = [
   'profitGrowth',
   'roeStable',
   'deductedSolid',
+  'cashProfitQuality',
   'improving'
 ]
 
@@ -77,6 +78,7 @@ const FUNDAMENTAL_QUALITY_TAG_DESCRIPTIONS: Record<FundamentalQualityTag, string
   profitGrowth: '默认三项通过，且五年净利润复合增速严格大于10%',
   roeStable: '默认三项通过，且五年加权ROE波动范围严格小于8个百分点',
   deductedSolid: '默认三项通过，且五年累计扣非利润占比严格大于90%',
+  cashProfitQuality: '最近三个完整财年PCF/PE均低于0.9，经营现金流持续好于归母净利润',
   improving: '最近三年ROE与净利润连续增长，且最新现金转换率严格大于100%'
 }
 
@@ -85,6 +87,8 @@ const FUNDAMENTAL_RISK_TAGS: FundamentalRiskTag[] = [
   'highLeverageRoe',
   'deductedWeak',
   'profitCashDivergence',
+  'pcfPeGap',
+  'pcfPePersistentGap',
   'roeDecline',
   'singleYearCashWeak'
 ]
@@ -94,6 +98,8 @@ const FUNDAMENTAL_RISK_TAG_DESCRIPTIONS: Record<FundamentalRiskTag, string> = {
   highLeverageRoe: '五年高ROE，但行业负债百分位大于等于80%',
   deductedWeak: '五年加权ROE达标，但扣非ROE至少一年不高于15%',
   profitCashDivergence: '最近三年利润连续增长、现金流连续下降，且最新现金转换率低于100%',
+  pcfPeGap: '最新完整财年PCF/PE高于1.1，但尚未达到连续三年1.5倍风险线',
+  pcfPePersistentGap: '最近连续三个完整财年PCF/PE均不低于1.5',
   roeDecline: '五年ROE仍达标，但最新ROE较五年前下降至少5个百分点',
   singleYearCashWeak: '五年累计现金转换率高于100%，但最新一年低于100%'
 }
@@ -733,6 +739,7 @@ export function FundamentalScreeningDialog({
       profitGrowth: 0,
       roeStable: 0,
       deductedSolid: 0,
+      cashProfitQuality: 0,
       improving: 0
     }
     qualityProfilesByCode.forEach((profile) => {
@@ -755,6 +762,8 @@ export function FundamentalScreeningDialog({
       highLeverageRoe: 0,
       deductedWeak: 0,
       profitCashDivergence: 0,
+      pcfPeGap: 0,
+      pcfPePersistentGap: 0,
       roeDecline: 0,
       singleYearCashWeak: 0
     }

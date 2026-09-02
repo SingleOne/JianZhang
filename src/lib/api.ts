@@ -765,7 +765,8 @@ const demoApi: StockDesktopApi = {
       periodStart: '2021-08-05',
       periodEnd: '2026-08-05',
       priceEarningsRatioTtmValues: [8, 10, 12, 15, 18, 20, 24],
-      priceBookRatioValues: [1, 1.2, 1.5, 1.8, 2.2, 2.8]
+      priceBookRatioValues: [1, 1.2, 1.5, 1.8, 2.2, 2.8],
+      priceCashFlowRatioTtmValues: [7, 9, 11, 13, 16, 18, 22]
     }
   },
   async refreshQuotes() {

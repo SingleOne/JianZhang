@@ -208,7 +208,7 @@ export function buildLongTermContext(input: LongTermContextInput) {
           ordinaryCorporateMetricsApplicable,
           ordinaryCorporateMetricsReason: ordinaryCorporateMetricsApplicable
             ? null
-            : '银行、保险和券商的普通企业 ROIC、自由现金流和净负债不适用，应使用金融行业专用指标。',
+            : '银行、保险和券商的普通企业 PCF、ROIC、自由现金流和净负债不适用，应使用金融行业专用指标。',
           annualReports: fundamentalCompany.annualReports.map((report) => ({
             year: report.year,
             reportDate: report.reportDate,

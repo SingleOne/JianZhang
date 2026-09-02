@@ -1736,6 +1736,39 @@
   font-style: normal;
 }
 
+.investment-value-metrics > footer .pcf-pe-signal {
+  flex-basis: 100%;
+  padding: 7px 9px;
+  border: 1px solid #d8e2ed;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.investment-value-metrics > footer .pcf-pe-signal.is-quality {
+  color: #24694f;
+  background: #f1faf6;
+  border-color: #bfe2d3;
+}
+
+.investment-value-metrics > footer .pcf-pe-signal.is-matched,
+.investment-value-metrics > footer .pcf-pe-signal.is-neutral {
+  color: #647184;
+  background: #f6f8fb;
+}
+
+.investment-value-metrics > footer .pcf-pe-signal.is-warning {
+  color: #8a5900;
+  background: #fffbf1;
+  border-color: #ead7a7;
+}
+
+.investment-value-metrics > footer .pcf-pe-signal.is-critical {
+  color: #a32431;
+  background: #fff5f6;
+  border-color: #edc8cc;
+}
+
 .insight-indicator-split {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

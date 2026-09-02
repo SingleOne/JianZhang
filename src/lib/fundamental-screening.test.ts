@@ -204,7 +204,8 @@ describe('fundamental screening', () => {
       'strictFundamental',
       'cashSustained',
       'roeStable',
-      'deductedSolid'
+      'deductedSolid',
+      'cashProfitQuality'
     ])
     expect(profile.metrics).toMatchObject({
       minimumDeductedRoe: 17,
@@ -236,6 +237,7 @@ describe('fundamental screening', () => {
       'profitGrowth',
       'roeStable',
       'deductedSolid',
+      'cashProfitQuality',
       'improving'
     ])
     expect(profile.metrics.netProfitCagr).toBeCloseTo(12)
@@ -268,16 +270,16 @@ describe('fundamental screening', () => {
       })
     )
 
-    expect(boundaryProfile.tags).toEqual(['improving'])
-    expect(improvingOnly.tags).toEqual(['improving'])
-    expect(
-      evaluateFundamentalQuality(
-        company({
-          organizationType: 'bank',
-          annualReports: reports
-        })
-      ).tags
-    ).toEqual([])
+    expect(boundaryProfile.tags).toEqual(['cashProfitQuality', 'improving'])
+    expect(improvingOnly.tags).toEqual(['cashProfitQuality', 'improving'])
+    const financialQuality = evaluateFundamentalQuality(
+      company({
+        organizationType: 'bank',
+        annualReports: reports
+      })
+    )
+    expect(financialQuality.tags).toEqual([])
+    expect(financialQuality.metrics.latestPcfPeRatio).toBeNull()
   })
 
   it('identifies overlapping fundamental risks and promotes direct cash divergence to critical', () => {
@@ -345,7 +347,7 @@ describe('fundamental screening', () => {
 
     expect(boundaryProfile.tags).toEqual(['highLeverageRoe', 'deductedWeak', 'roeDecline'])
     expect(boundaryProfile.severity).toBe('warning')
-    expect(cashDivergence.tags).toEqual(['cashDivergence'])
+    expect(cashDivergence.tags).toEqual(['cashDivergence', 'pcfPeGap'])
     expect(cashDivergence.severity).toBe('critical')
     expect(
       hasFundamentalRisk(
@@ -356,14 +358,31 @@ describe('fundamental screening', () => {
         )
       )
     ).toBe(true)
-    expect(
-      evaluateFundamentalRisk(
-        company({
-          organizationType: 'bank',
-          annualReports: boundaryReports
-        })
-      ).tags
-    ).toEqual([])
+    const financialProfile = evaluateFundamentalRisk(
+      company({
+        organizationType: 'bank',
+        annualReports: boundaryReports
+      })
+    )
+    expect(financialProfile.tags).toEqual([])
+    expect(financialProfile.metrics.latestPcfPeRatio).toBeNull()
+    expect(financialProfile.metrics.consecutivePcfPeGapYears).toBe(0)
+  })
+
+  it('classifies sustained PCF and PE scissors as a critical risk', () => {
+    const reports = [2021, 2022, 2023, 2024, 2025].map((year, index) =>
+      annualReport(year, {
+        parentNetProfit: index < 2 ? 100 : 180,
+        operatingCashFlow: 100
+      })
+    )
+    const profile = evaluateFundamentalRisk(company({ annualReports: reports }))
+
+    expect(profile.tags).toContain('pcfPePersistentGap')
+    expect(profile.tags).not.toContain('pcfPeGap')
+    expect(profile.severity).toBe('critical')
+    expect(profile.metrics.latestPcfPeRatio).toBe(1.8)
+    expect(profile.metrics.consecutivePcfPeGapYears).toBe(3)
   })
 
   it('includes quarterly financial mine warnings in the combined risk filter', () => {

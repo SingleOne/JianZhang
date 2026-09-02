@@ -70,6 +70,8 @@ const RISK_CATEGORIES: PortfolioRiskCategory[] = ['critical', 'warning', 'clear'
 export const PORTFOLIO_RISK_TAGS: FundamentalRiskTag[] = [
   'cashDivergence',
   'profitCashDivergence',
+  'pcfPePersistentGap',
+  'pcfPeGap',
   'highLeverageRoe',
   'deductedWeak',
   'roeDecline',
@@ -101,6 +103,7 @@ function hasCompleteRiskInputs(evaluation: FundamentalScreeningEvaluation): bool
         report.weightedAverageRoe !== null &&
         report.deductedWeightedAverageRoe !== null &&
         report.netProfit !== null &&
+        report.parentNetProfit !== null &&
         report.operatingCashFlow !== null
     ) &&
     company.latestBalanceSheet.industryPercentile !== null

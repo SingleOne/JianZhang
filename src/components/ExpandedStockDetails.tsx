@@ -223,6 +223,10 @@ function fundamentalPercent(value: number | null | undefined, digits = 2): strin
       })}%`
 }
 
+function fundamentalMultiple(value: number | null | undefined): string {
+  return value === null || value === undefined ? '--' : `${value.toFixed(2)} 倍`
+}
+
 function fundamentalAmount(value: number | null): string {
   return value === null
     ? '--'
@@ -780,6 +784,14 @@ function FundamentalQualityEvidence({
       </>
     )
   }
+  if (tag === 'cashProfitQuality') {
+    return (
+      <>
+        <strong>最新年度 PCF/PE {fundamentalMultiple(metrics.latestPcfPeRatio)}</strong>
+        <p>最近三个完整财年 PCF/PE 均低于 0.9，经营现金流持续好于归母净利润</p>
+      </>
+    )
+  }
   return (
     <>
       <strong className={signedValueClass(metrics.latestCashConversion ?? 0)}>
@@ -884,6 +896,25 @@ function FundamentalRiskEvidence({
         <p>
           {recentFirstYear}—{lastYear} 净利润连续增长，但经营现金流连续下降
         </p>
+      </>
+    )
+  }
+  if (tag === 'pcfPePersistentGap') {
+    return (
+      <>
+        <strong>最新年度 PCF/PE {fundamentalMultiple(metrics.latestPcfPeRatio)}</strong>
+        <p>
+          最近连续 {metrics.consecutivePcfPeGapYears} 个完整财年 PCF/PE 均不低于
+          1.5，优先核查应收、存货、预付款和非经常性损益
+        </p>
+      </>
+    )
+  }
+  if (tag === 'pcfPeGap') {
+    return (
+      <>
+        <strong>最新年度 PCF/PE {fundamentalMultiple(metrics.latestPcfPeRatio)}</strong>
+        <p>最新完整财年 PCF/PE 高于 1.1，账面利润转化为经营现金流的能力偏弱</p>
       </>
     )
   }

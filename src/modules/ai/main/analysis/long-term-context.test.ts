@@ -159,7 +159,8 @@ function valuationHistory(): StockValuationHistory {
     periodStart: '2021-08-05',
     periodEnd: '2026-08-05',
     priceEarningsRatioTtmValues: [8, 10, 12, 15],
-    priceBookRatioValues: [1, 1.5, 2, 2.5]
+    priceBookRatioValues: [1, 1.5, 2, 2.5],
+    priceCashFlowRatioTtmValues: [7, 9, 11, 14]
   }
 }
 

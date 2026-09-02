@@ -61,7 +61,7 @@ const RISK_CATEGORY_META: Record<PortfolioRiskCategory, { label: string; descrip
   },
   clear: {
     label: '暂未发现风险',
-    description: '六类风险所需数据完整，当前均未触发'
+    description: '八类风险所需数据完整，当前均未触发'
   },
   unassessed: {
     label: '未评估',

@@ -11,5 +11,8 @@ describe('long-term value prompt', () => {
     expect(LONG_TERM_VALUE_PROMPT).toContain('不是目标价')
     expect(LONG_TERM_VALUE_PROMPT).toContain('companyReportSummaries 为空时直接忽略')
     expect(LONG_TERM_VALUE_PROMPT).toContain('不是财报原文')
+    expect(LONG_TERM_VALUE_PROMPT).toContain('PCF/PE 剪刀差')
+    expect(LONG_TERM_VALUE_PROMPT).toContain('persistent-gap')
+    expect(LONG_TERM_VALUE_PROMPT).toContain('经营现金流不为正或金融企业时 PCF 不适用')
   })
 })

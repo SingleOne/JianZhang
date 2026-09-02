@@ -76,7 +76,7 @@ DETAILED_BALANCE_COLUMNS = (
 )
 VALUATION_COLUMNS = (
     "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,TRADE_DATE,CLOSE_PRICE,PE_TTM,PB_MRQ,"
-    "TOTAL_MARKET_CAP,NOTLIMITED_MARKETCAP_A"
+    "PCF_OCF_TTM,TOTAL_MARKET_CAP,NOTLIMITED_MARKETCAP_A"
 )
 ORGANIZATION_TYPES = {
     "通用": "general",
@@ -446,7 +446,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
     }
 
     valuation_date = latest_valuation_date(snapshot_date)
-    log(f"阶段四/五：获取 {valuation_date} 的 PE TTM、PB、总市值、流通市值并计算行业分位")
+    log(f"阶段四/五：获取 {valuation_date} 的 PE TTM、PB、PCF TTM、总市值、流通市值并计算行业分位")
     latest_valuation = valuation_rows(
         fetch_filtered_report(
             "RPT_VALUEANALYSIS_DET",
@@ -518,23 +518,36 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         values.sort()
 
     valuation_industry_values: dict[tuple[str, str], dict[str, list[float]]] = defaultdict(
-        lambda: {"pe": [], "pb": []}
+        lambda: {"pe": [], "pb": [], "pcf": []}
     )
     for code, balance in latest_balance.items():
         valuation = latest_valuation.get(code, {})
+        organization_type = ORGANIZATION_TYPES.get(
+            str(main_by_year[latest_year].get(code, {}).get("ORG_TYPE") or ""), "other"
+        )
         key = (
             str(balance.get("INDUSTRY_CODE") or ""),
             str(balance.get("INDUSTRY_NAME") or ""),
         )
         pe_ttm = number(valuation.get("PE_TTM"))
         price_book = number(valuation.get("PB_MRQ"))
+        price_cash_flow = number(valuation.get("PCF_OCF_TTM"))
         if key[0] and key[1] and pe_ttm is not None and pe_ttm > 0:
             valuation_industry_values[key]["pe"].append(pe_ttm)
         if key[0] and key[1] and price_book is not None and price_book > 0:
             valuation_industry_values[key]["pb"].append(price_book)
+        if (
+            key[0]
+            and key[1]
+            and organization_type in ("general", "other")
+            and price_cash_flow is not None
+            and price_cash_flow > 0
+        ):
+            valuation_industry_values[key]["pcf"].append(price_cash_flow)
     for metrics in valuation_industry_values.values():
         metrics["pe"].sort()
         metrics["pb"].sort()
+        metrics["pcf"].sort()
 
     industries = [
         {
@@ -554,6 +567,9 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         debt_asset_ratio = number(balance.get("DEBT_ASSET_RATIO"))
         peer_values = industry_values.get((industry_code, industry_name), [])
         latest_main = main_by_year[latest_year].get(code, {})
+        organization_type = ORGANIZATION_TYPES.get(
+            str(latest_main.get("ORG_TYPE") or ""), "other"
+        )
         detailed_balance = latest_detailed_balance.get(code, {})
         valuation = latest_valuation.get(code, {})
         quarterly_risk_reports = build_quarterly_risk_reports(
@@ -631,11 +647,16 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         )
         pe_ttm = number(valuation.get("PE_TTM"))
         price_book = number(valuation.get("PB_MRQ"))
+        price_cash_flow = (
+            number(valuation.get("PCF_OCF_TTM"))
+            if organization_type in ("general", "other")
+            else None
+        )
         close_price = number(valuation.get("CLOSE_PRICE"))
         total_market_value = number(valuation.get("TOTAL_MARKET_CAP"))
         circulating_market_value = number(valuation.get("NOTLIMITED_MARKETCAP_A"))
         valuation_peers = valuation_industry_values.get(
-            (industry_code, industry_name), {"pe": [], "pb": []}
+            (industry_code, industry_name), {"pe": [], "pb": [], "pcf": []}
         )
         pe_percentile = (
             100 * bisect.bisect_right(valuation_peers["pe"], pe_ttm) / len(valuation_peers["pe"])
@@ -647,6 +668,13 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
             if price_book is not None and price_book > 0 and valuation_peers["pb"]
             else None
         )
+        pcf_percentile = (
+            100
+            * bisect.bisect_right(valuation_peers["pcf"], price_cash_flow)
+            / len(valuation_peers["pcf"])
+            if price_cash_flow is not None and price_cash_flow > 0 and valuation_peers["pcf"]
+            else None
+        )
 
         rows.append(
             {
@@ -654,9 +682,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
                 "name": str(balance.get("SECURITY_NAME_ABBR") or latest_main.get("SECURITY_NAME_ABBR") or code),
                 "market": secucode.rsplit(".", 1)[1],
                 "quoteId": quote_id(secucode),
-                "organizationType": ORGANIZATION_TYPES.get(
-                    str(latest_main.get("ORG_TYPE") or ""), "other"
-                ),
+                "organizationType": organization_type,
                 "industryCode": industry_code,
                 "industryName": industry_name,
                 "annualReports": annual_reports,
@@ -677,12 +703,15 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
                     "closePrice": rounded(close_price, 4),
                     "priceEarningsRatioTtm": rounded(pe_ttm, 4),
                     "priceBookRatio": rounded(price_book, 4),
+                    "priceCashFlowRatioTtm": rounded(price_cash_flow, 4),
                     "totalMarketValue": rounded(total_market_value),
                     "circulatingMarketValue": rounded(circulating_market_value),
                     "priceEarningsIndustryPercentile": rounded(pe_percentile, 4),
                     "priceBookIndustryPercentile": rounded(pb_percentile, 4),
+                    "priceCashFlowIndustryPercentile": rounded(pcf_percentile, 4),
                     "priceEarningsIndustrySampleSize": len(valuation_peers["pe"]),
                     "priceBookIndustrySampleSize": len(valuation_peers["pb"]),
+                    "priceCashFlowIndustrySampleSize": len(valuation_peers["pcf"]),
                 },
             }
         )
@@ -730,6 +759,9 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
     pb_industry_percentile_count = sum(
         row["valuation"]["priceBookIndustryPercentile"] is not None for row in rows
     )
+    pcf_industry_percentile_count = sum(
+        row["valuation"]["priceCashFlowIndustryPercentile"] is not None for row in rows
+    )
     latest_quarterly_risk_report_count = sum(
         bool(row["quarterlyRiskReports"]) for row in rows
     )
@@ -747,7 +779,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
 
     generated_at = dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).isoformat(timespec="seconds")
     snapshot = {
-        "schemaVersion": 6,
+        "schemaVersion": 7,
         "snapshotDate": snapshot_date,
         "generatedAt": generated_at,
         "currency": "CNY",
@@ -800,6 +832,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
             "latestCirculatingMarketValueCount": circulating_market_value_count,
             "latestPriceEarningsIndustryPercentileCount": pe_industry_percentile_count,
             "latestPriceBookIndustryPercentileCount": pb_industry_percentile_count,
+            "latestPriceCashFlowIndustryPercentileCount": pcf_industry_percentile_count,
             "latestQuarterlyRiskReportCount": latest_quarterly_risk_report_count,
             "completeQuarterlyRiskIndicatorCount": complete_quarterly_risk_indicator_count,
             "industryCount": len(industries),
@@ -808,7 +841,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         "rows": rows,
     }
     diagnostics = {
-        "schemaVersion": 6,
+        "schemaVersion": 7,
         "snapshotDate": snapshot_date,
         "generatedAt": generated_at,
         "fiscalYears": fiscal_years,
