@@ -9,12 +9,12 @@ const white = [255, 255, 255]
 const black = [17, 17, 17]
 
 function isInsideRoundedSquare(x, y) {
-  const inset = 32 * scale
+  const inset = 0
   const radius = 54 * scale
   const left = inset
   const top = inset
-  const right = size - inset
-  const bottom = size - inset
+  const right = size - inset - 1
+  const bottom = size - inset - 1
   const nearestX = Math.max(left + radius, Math.min(x, right - radius))
   const nearestY = Math.max(top + radius, Math.min(y, bottom - radius))
   const dx = x - nearestX
