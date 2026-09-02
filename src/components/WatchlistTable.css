@@ -625,7 +625,7 @@
 
 .table-filter-trigger {
   height: 32px;
-  min-width: 172px;
+  min-width: 128px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;

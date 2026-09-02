@@ -987,8 +987,8 @@
 .stock-tracking-dialog {
   display: flex;
   flex-direction: column;
-  width: min(1240px, 96vw);
-  height: min(830px, 92vh);
+  width: min(1440px, 96vw);
+  height: min(960px, 92vh);
   overflow: hidden;
   border: 1px solid var(--border-strong);
   border-radius: 16px;

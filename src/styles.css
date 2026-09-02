@@ -174,7 +174,7 @@ tr:focus-visible {
 
 .titlebar-command-main {
   min-width: 300px;
-  flex: 0 1 600px;
+  flex: 0 1 500px;
 }
 
 .titlebar-command-main .search-composer {

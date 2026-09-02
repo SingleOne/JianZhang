@@ -122,19 +122,19 @@ export function WatchlistFilters({
   return (
     <Fragment>
       <TableFilterDropdown
-        label="市场筛选"
+        label=""
         value={marketFilter}
         options={marketOptions}
         onChange={(value) => onMarketChange(value as StockMarket | 'all')}
       />
       <TableFilterDropdown
-        label="自定义分组"
+        label=""
         value={customGroupFilter}
         options={customGroupOptions}
         onChange={onCustomGroupChange}
       />
       <TableFilterDropdown
-        label="板块筛选"
+        label=""
         value={sectorFilter}
         options={sectorOptions}
         searchable

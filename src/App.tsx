@@ -1649,7 +1649,7 @@ export default function App() {
                     </strong>
                   </span>
                   <span className={cardDirectionClass(portfolioSummary.profitPercent)}>
-                    <small>总收益率</small>
+                    <small>持仓收益率</small>
                     <strong
                       className={
                         portfolioSummary.profitPercent === null
