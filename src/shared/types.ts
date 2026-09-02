@@ -1364,8 +1364,17 @@ export interface KlineResult {
   fromCache?: boolean
 }
 
+export type TechnicalPatternSignalType =
+  'longUpperShadow' | 'longLowerShadow' | 'bollingerNarrowing' | 'bollingerExpansion'
+
 export type DailyMarketScanSignalType =
-  'volumeSurge' | 'strongGain' | 'strongLoss' | 'breakout20d' | 'breakdown20d' | 'reversal'
+  | 'volumeSurge'
+  | 'strongGain'
+  | 'strongLoss'
+  | 'breakout20d'
+  | 'breakdown20d'
+  | 'reversal'
+  | TechnicalPatternSignalType
 
 export interface DailyMarketScanRow {
   code: string

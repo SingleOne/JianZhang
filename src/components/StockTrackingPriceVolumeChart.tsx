@@ -28,9 +28,11 @@ import {
   STOCK_TRACKING_PRICE_VOLUME_STATE_LABELS,
   STOCK_TRACKING_VOLUME_AVERAGE_METRICS,
   stockTrackingPriceVolumeDivergence,
-  stockTrackingPriceVolumeState
+  stockTrackingPriceVolumeState,
+  stockTrackingTechnicalPatternSignals
 } from '../lib/stock-tracking-metrics'
 import { getChartThemeColors, type ChartThemeColors } from '../lib/theme'
+import { TECHNICAL_PATTERN_SIGNAL_LABELS } from '../shared/technical-patterns'
 import type { StockMarket, StockTrackingMetricSnapshot } from '../shared/types'
 import { volumeUnitForMarket } from '../shared/stock-market'
 
@@ -67,41 +69,63 @@ function directionClass(value: number | undefined): string {
   return value > 0 ? 'is-up' : 'is-down'
 }
 
-function stateMarker(
+function stateMarkers(
   snapshot: StockTrackingMetricSnapshot,
   theme: ChartThemeColors
-): SeriesMarker<Time> | null {
+): SeriesMarker<Time>[] {
   const time = toTimestamp(snapshot.tradingDate)
+  const markers: SeriesMarker<Time>[] = []
   const divergence = stockTrackingPriceVolumeDivergence(snapshot)
   if (divergence) {
-    return {
+    markers.push({
       time,
       position: 'aboveBar',
       shape: 'arrowDown',
       color: theme.purple,
       text: STOCK_TRACKING_PRICE_VOLUME_DIVERGENCE_LABELS[divergence],
       size: 1
-    }
+    })
   }
   const state = stockTrackingPriceVolumeState(snapshot)
-  if (state === 'neutral') return null
-  const rising =
-    state === 'volumeSurgePriceRise' ||
-    state === 'volumeRisePriceRise' ||
-    state === 'volumeFallPriceRise'
-  const expanded =
-    state === 'volumeSurgePriceRise' ||
-    state === 'volumeSurgePriceFall' ||
-    state === 'volumeRisePriceRise' ||
-    state === 'volumeRisePriceFall'
-  return {
-    time,
-    position: rising ? 'belowBar' : 'aboveBar',
-    shape: expanded ? (rising ? 'arrowUp' : 'arrowDown') : 'circle',
-    color: rising ? (expanded ? theme.red : theme.amber) : expanded ? theme.green : theme.accent,
-    text: STOCK_TRACKING_PRICE_VOLUME_STATE_LABELS[state],
-    size: 0.8
+  if (state !== 'neutral') {
+    const rising =
+      state === 'volumeSurgePriceRise' ||
+      state === 'volumeRisePriceRise' ||
+      state === 'volumeFallPriceRise'
+    const expanded =
+      state === 'volumeSurgePriceRise' ||
+      state === 'volumeSurgePriceFall' ||
+      state === 'volumeRisePriceRise' ||
+      state === 'volumeRisePriceFall'
+    markers.push({
+      time,
+      position: rising ? 'belowBar' : 'aboveBar',
+      shape: expanded ? (rising ? 'arrowUp' : 'arrowDown') : 'circle',
+      color: rising ? (expanded ? theme.red : theme.amber) : expanded ? theme.green : theme.accent,
+      text: STOCK_TRACKING_PRICE_VOLUME_STATE_LABELS[state],
+      size: 0.8
+    })
   }
+
+  for (const signal of stockTrackingTechnicalPatternSignals(snapshot)) {
+    const upperSignal = signal === 'longUpperShadow'
+    const lowerSignal = signal === 'longLowerShadow'
+    markers.push({
+      time,
+      position: upperSignal ? 'aboveBar' : 'belowBar',
+      shape: upperSignal ? 'arrowDown' : lowerSignal ? 'arrowUp' : 'circle',
+      color: upperSignal
+        ? theme.green
+        : lowerSignal
+          ? theme.red
+          : signal === 'bollingerExpansion'
+            ? theme.purple
+            : theme.amber,
+      text: TECHNICAL_PATTERN_SIGNAL_LABELS[signal],
+      size: 0.8
+    })
+  }
+  return markers
 }
 
 export default function StockTrackingPriceVolumeChart({
@@ -130,6 +154,7 @@ export default function StockTrackingPriceVolumeChart({
   const legendTheme = getChartThemeColors(resolvedTheme)
   const displayedMetrics = displayedSnapshot?.metrics
   const displayedState = stockTrackingPriceVolumeState(displayedSnapshot)
+  const displayedTechnicalSignals = stockTrackingTechnicalPatternSignals(displayedSnapshot)
   snapshotsByTimeRef.current = new Map(
     chartSnapshots.map((snapshot) => [toTimestamp(snapshot.tradingDate), snapshot])
   )
@@ -289,10 +314,7 @@ export default function StockTrackingPriceVolumeChart({
       )
     }
     setMarkersRef.current(
-      chartSnapshots.slice(-120).flatMap((snapshot) => {
-        const marker = stateMarker(snapshot, theme)
-        return marker ? [marker] : []
-      })
+      chartSnapshots.slice(-120).flatMap((snapshot) => stateMarkers(snapshot, theme))
     )
     const lastIndex = chartSnapshots.length - 1
     if (lastIndex >= 0) {
@@ -324,9 +346,16 @@ export default function StockTrackingPriceVolumeChart({
         <span>
           成交额 {formatAmount(displayedMetrics?.[STOCK_TRACKING_BASE_METRICS.amount] ?? null)}
         </span>
-        <em className={`is-${displayedState}`}>
-          {STOCK_TRACKING_PRICE_VOLUME_STATE_LABELS[displayedState]}
-        </em>
+        <div className="stock-tracking-price-volume-tags">
+          <em className={`is-${displayedState}`}>
+            {STOCK_TRACKING_PRICE_VOLUME_STATE_LABELS[displayedState]}
+          </em>
+          {displayedTechnicalSignals.map((signal) => (
+            <em className={`is-${signal}`} key={signal}>
+              {TECHNICAL_PATTERN_SIGNAL_LABELS[signal]}
+            </em>
+          ))}
+        </div>
       </div>
       <div className="stock-tracking-price-average-legend">
         {PRICE_AVERAGES.map((definition) => (

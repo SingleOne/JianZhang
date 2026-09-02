@@ -4,9 +4,24 @@ import type {
   KlineBar,
   StockQuote
 } from '../shared/types'
+import {
+  calculateBollingerBandwidthTrends,
+  candlestickShadowSignals,
+  TECHNICAL_PATTERN_SIGNAL_LABELS
+} from '../shared/technical-patterns'
 
 export const DAILY_MARKET_SCAN_MINIMUM_AMOUNT = 50_000_000
-export const DAILY_MARKET_SCAN_KLINE_LIMIT = 21
+export const DAILY_MARKET_SCAN_KLINE_LIMIT = 24
+
+export const DAILY_MARKET_SCAN_SIGNAL_LABELS: Record<DailyMarketScanSignalType, string> = {
+  volumeSurge: '放量异动',
+  strongGain: '大涨放量',
+  strongLoss: '大跌放量',
+  breakout20d: '20 日新高',
+  breakdown20d: '20 日新低',
+  reversal: '连跌后翻红',
+  ...TECHNICAL_PATTERN_SIGNAL_LABELS
+}
 
 export function dailyMarketScanBoardLabel(code: string): '创业板' | '科创板' | null {
   if (/^30[01]/.test(code)) return '创业板'
@@ -44,7 +59,7 @@ export function createDailyMarketScanRow(
 
   const recentBars = orderedBars.slice(-DAILY_MARKET_SCAN_KLINE_LIMIT)
   const todayBar = recentBars.at(-1)!
-  const previous20Bars = recentBars.slice(0, -1)
+  const previous20Bars = recentBars.slice(-21, -1)
   const averageVolume20d =
     previous20Bars.reduce((total, bar) => total + bar.volume, 0) / previous20Bars.length
   if (averageVolume20d <= 0) return null
@@ -77,6 +92,9 @@ export function createDailyMarketScanRow(
   if (declineDays >= 4 && previousFiveDayReturn < -5 && todayReturn > 1) {
     signals.push('reversal')
   }
+  signals.push(...candlestickShadowSignals(todayBar))
+  const bollingerSignal = calculateBollingerBandwidthTrends(recentBars).at(-1)?.signal
+  if (bollingerSignal) signals.push(bollingerSignal)
 
   if (signals.length === 0) return null
   return {

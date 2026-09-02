@@ -325,6 +325,48 @@
   font-weight: 700;
 }
 
+.stock-tracking-current-pattern-tags,
+.stock-tracking-price-volume-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.stock-tracking-current-pattern-tags em,
+.stock-tracking-price-volume-tags em {
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.stock-tracking-current-pattern-tags em.is-longUpperShadow,
+.stock-tracking-price-volume-tags em.is-longUpperShadow {
+  background: rgba(8, 104, 65, 0.1);
+  color: #075d3b;
+}
+
+.stock-tracking-current-pattern-tags em.is-longLowerShadow,
+.stock-tracking-price-volume-tags em.is-longLowerShadow {
+  background: rgba(220, 55, 66, 0.1);
+  color: #b4232e;
+}
+
+.stock-tracking-current-pattern-tags em.is-bollingerExpansion,
+.stock-tracking-price-volume-tags em.is-bollingerExpansion {
+  background: rgba(109, 40, 217, 0.11);
+  color: #6d28d9;
+}
+
+.stock-tracking-current-pattern-tags em.is-bollingerNarrowing,
+.stock-tracking-price-volume-tags em.is-bollingerNarrowing {
+  background: rgba(217, 119, 6, 0.1);
+  color: #a45d08;
+}
+
 .stock-tracking-metric-cards .is-up,
 .stock-tracking-price-volume-legend .is-up,
 .stock-tracking-price-average-legend .is-up {
@@ -544,42 +586,37 @@
   font-weight: 700;
 }
 
-.stock-tracking-price-volume-legend > em {
+.stock-tracking-price-volume-tags {
   margin-left: auto;
-  border-radius: 999px;
-  padding: 3px 8px;
-  background: #f1f5f9;
-  color: #64748b;
-  font-style: normal;
-  font-weight: 700;
+  justify-content: flex-end;
 }
 
-.stock-tracking-price-volume-legend > em.is-volumeRisePriceRise {
+.stock-tracking-price-volume-tags em.is-volumeRisePriceRise {
   background: rgba(220, 55, 66, 0.1);
   color: #b4232e;
 }
 
-.stock-tracking-price-volume-legend > em.is-volumeSurgePriceRise {
+.stock-tracking-price-volume-tags em.is-volumeSurgePriceRise {
   background: rgba(168, 15, 30, 0.13);
   color: #8c1020;
 }
 
-.stock-tracking-price-volume-legend > em.is-volumeSurgePriceFall {
+.stock-tracking-price-volume-tags em.is-volumeSurgePriceFall {
   background: rgba(8, 104, 65, 0.13);
   color: #075d3b;
 }
 
-.stock-tracking-price-volume-legend > em.is-volumeRisePriceFall {
+.stock-tracking-price-volume-tags em.is-volumeRisePriceFall {
   background: rgba(24, 146, 102, 0.1);
   color: #11734f;
 }
 
-.stock-tracking-price-volume-legend > em.is-volumeFallPriceRise {
+.stock-tracking-price-volume-tags em.is-volumeFallPriceRise {
   background: rgba(217, 119, 6, 0.1);
   color: #a45d08;
 }
 
-.stock-tracking-price-volume-legend > em.is-volumeFallPriceFall {
+.stock-tracking-price-volume-tags em.is-volumeFallPriceFall {
   background: rgba(63, 127, 211, 0.1);
   color: #315f9d;
 }

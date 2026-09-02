@@ -10,6 +10,7 @@ import type {
   StockTrackingSourceType,
   WatchStock
 } from '../shared/types'
+import { DAILY_MARKET_SCAN_SIGNAL_LABELS } from './daily-market-scan'
 
 export const STOCK_TRACKING_SOURCE_LABELS: Record<StockTrackingSourceType, string> = {
   manual: '手动添加',
@@ -32,22 +33,13 @@ export const STOCK_TRACKING_CONCLUSION_LABELS: Record<StockTrackingConclusionRes
   unverified: '尚未验证'
 }
 
-const DAILY_SCAN_SIGNAL_LABELS = {
-  volumeSurge: '放量异动',
-  strongGain: '大涨放量',
-  strongLoss: '大跌放量',
-  breakout20d: '20 日新高',
-  breakdown20d: '20 日新低',
-  reversal: '连跌后翻红'
-} as const
-
 type StockTrackingSourceTagExtractor = (source: StockTrackingSource) => string[]
 
 const STOCK_TRACKING_SOURCE_TAG_EXTRACTORS: Partial<
   Record<StockTrackingSourceType, StockTrackingSourceTagExtractor>
 > = {
   dailyScan: (source) =>
-    source.detail?.signals?.map((signal) => DAILY_SCAN_SIGNAL_LABELS[signal]) ?? [],
+    source.detail?.signals?.map((signal) => DAILY_MARKET_SCAN_SIGNAL_LABELS[signal]) ?? [],
   dividendFinancing: () => ['分红']
 }
 
@@ -266,7 +258,9 @@ export function initialTrackingPrice(profile: StockTrackingProfile): number | nu
 export function trackingSourceDescription(source: StockTrackingSource): string {
   const detail = source.detail
   if (source.type === 'dailyScan') {
-    const signals = detail?.signals?.map((signal) => DAILY_SCAN_SIGNAL_LABELS[signal]).join('、')
+    const signals = detail?.signals
+      ?.map((signal) => DAILY_MARKET_SCAN_SIGNAL_LABELS[signal])
+      .join('、')
     return [detail?.tradingDate, signals].filter(Boolean).join(' · ')
   }
   if (source.type === 'dividendFinancing') {

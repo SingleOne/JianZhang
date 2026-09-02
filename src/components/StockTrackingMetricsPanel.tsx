@@ -6,8 +6,10 @@ import {
   STOCK_TRACKING_PRICE_VOLUME_STATE_LABELS,
   STOCK_TRACKING_VOLUME_RATIO_METRICS,
   latestStockTrackingMetric,
-  stockTrackingPriceVolumeState
+  stockTrackingPriceVolumeState,
+  stockTrackingTechnicalPatternSignals
 } from '../lib/stock-tracking-metrics'
+import { TECHNICAL_PATTERN_SIGNAL_LABELS } from '../shared/technical-patterns'
 import type {
   DailyKlineIndicator,
   KlineBar,
@@ -82,6 +84,7 @@ export function StockTrackingMetricsPanel({
   const latestSnapshot = snapshots.at(-1)
   const latestDate = latestSnapshot?.tradingDate
   const priceVolumeState = stockTrackingPriceVolumeState(latestSnapshot)
+  const technicalPatternSignals = stockTrackingTechnicalPatternSignals(latestSnapshot)
   const latestChange = latestSnapshot?.metrics[STOCK_TRACKING_BASE_METRICS.changePercent]
   const hasPriceVolumeData = snapshots.some(
     (snapshot) => snapshot.metrics[STOCK_TRACKING_BASE_METRICS.close] !== undefined
@@ -102,6 +105,15 @@ export function StockTrackingMetricsPanel({
         <article className={`is-state-${priceVolumeState}`}>
           <small>当前量价状态</small>
           <strong>{STOCK_TRACKING_PRICE_VOLUME_STATE_LABELS[priceVolumeState]}</strong>
+          {technicalPatternSignals.length > 0 ? (
+            <div className="stock-tracking-current-pattern-tags">
+              {technicalPatternSignals.map((signal) => (
+                <em className={`is-${signal}`} key={signal}>
+                  {TECHNICAL_PATTERN_SIGNAL_LABELS[signal]}
+                </em>
+              ))}
+            </div>
+          ) : null}
           <span>
             {formatPrice(latestSnapshot?.metrics[STOCK_TRACKING_BASE_METRICS.close] ?? null)}{' '}
             <em className={directionClass(latestChange)}>{formatPercent(latestChange)}</em>
@@ -268,8 +280,8 @@ export function StockTrackingMetricsPanel({
       <p className="stock-tracking-metrics-note">
         图表请按住 Ctrl 并滚动鼠标滚轮进行横轴缩放。 日级追踪每 30 分钟更新；实时量比按交易时段每 30
         秒刷新，计算口径为累计成交量 ÷ 近5日平均成交量按已交易分钟折算值，
-        {market === 'US' ? '按美股连续交易时段计算' : '午休不计时'}。
-        连续三日量价背离会写入时间线并发送系统提醒。
+        {market === 'US' ? '按美股连续交易时段计算' : '午休不计时'}。 长影线与连续 4
+        日布林带收窄/扩张会随每日快照保存并显示标签；连续三日量价背离会写入时间线并发送系统提醒。
       </p>
     </section>
   )

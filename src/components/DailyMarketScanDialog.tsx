@@ -16,7 +16,10 @@ import {
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { stockApi } from '../lib/api'
-import { dailyMarketScanBoardLabel } from '../lib/daily-market-scan'
+import {
+  DAILY_MARKET_SCAN_SIGNAL_LABELS,
+  dailyMarketScanBoardLabel
+} from '../lib/daily-market-scan'
 import type {
   DailyMarketScanResult,
   DailyMarketScanRow,
@@ -30,15 +33,6 @@ import { stockMarketIdentity } from '../shared/stock-market'
 import './DailyMarketScanDialog.css'
 
 const PAGE_SIZE = 100
-
-const SIGNAL_LABELS: Record<DailyMarketScanSignalType, string> = {
-  volumeSurge: '放量异动',
-  strongGain: '大涨放量',
-  strongLoss: '大跌放量',
-  breakout20d: '20 日新高',
-  breakdown20d: '20 日新低',
-  reversal: '连跌后翻红'
-}
 
 type ScanView = 'all' | DailyMarketScanSignalType
 type ScanSortKey = 'changePercent' | 'volumeRatio' | 'rangeBreakPercent' | 'turnoverRate'
@@ -56,7 +50,11 @@ const VIEW_OPTIONS: { id: ScanView; label: string }[] = [
   { id: 'strongLoss', label: '大跌放量' },
   { id: 'breakout20d', label: '20 日新高' },
   { id: 'breakdown20d', label: '20 日新低' },
-  { id: 'reversal', label: '连跌后翻红' }
+  { id: 'reversal', label: '连跌后翻红' },
+  { id: 'longUpperShadow', label: '长上影线' },
+  { id: 'longLowerShadow', label: '长下影线' },
+  { id: 'bollingerNarrowing', label: '布林带收窄' },
+  { id: 'bollingerExpansion', label: '布林带扩张' }
 ]
 
 const EMPTY_STATE: DailyMarketScanState = {
@@ -221,7 +219,9 @@ export function DailyMarketScanDialog({
     if (!normalizedQuery) return rows
     return rows.filter((row) => {
       const boardLabel = dailyMarketScanBoardLabel(row.code) ?? ''
-      const signalLabels = row.signals.map((signal) => SIGNAL_LABELS[signal]).join(' ')
+      const signalLabels = row.signals
+        .map((signal) => DAILY_MARKET_SCAN_SIGNAL_LABELS[signal])
+        .join(' ')
       return [row.name, row.code, row.marketLabel, boardLabel, signalLabels]
         .join(' ')
         .toLocaleLowerCase('zh-CN')
@@ -317,7 +317,7 @@ export function DailyMarketScanDialog({
             <span>
               {result
                 ? `${result.tradingDate} · ${sourceLabel(result.source)} · 生成于 ${formatGeneratedAt(result.generatedAt)}`
-                : '扫描全市场活跃股票的量价异动'}
+                : '扫描全市场活跃股票的量价与技术形态'}
             </span>
           </div>
           <button
@@ -554,7 +554,7 @@ export function DailyMarketScanDialog({
                           <span className="daily-scan-tags">
                             {row.signals.map((signal) => (
                               <em className={`is-${signal}`} key={signal}>
-                                {SIGNAL_LABELS[signal]}
+                                {DAILY_MARKET_SCAN_SIGNAL_LABELS[signal]}
                               </em>
                             ))}
                           </span>
@@ -594,7 +594,10 @@ export function DailyMarketScanDialog({
             </div>
 
             <footer className="daily-scan-footer">
-              <span>标签可多选并按同时满足筛选；量比使用此前 20 个交易日均量。</span>
+              <span>
+                标签可多选并按同时满足筛选；影线需不短于实体且占振幅至少 40%，布林带需连续 4
+                日同向且累计变化至少 10%。
+              </span>
               <div>
                 <button
                   type="button"

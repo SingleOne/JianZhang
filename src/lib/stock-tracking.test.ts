@@ -131,4 +131,19 @@ describe('stock tracking', () => {
       trackingProfileSourceTags(withoutTags)
     )
   })
+
+  it('turns technical scan signals into tracking source tags', () => {
+    const profile = startStockTracking(
+      undefined,
+      stock,
+      createStockTrackingSource('dailyScan', {
+        tradingDate: '2026-08-12',
+        signals: ['longUpperShadow', 'bollingerNarrowing']
+      }),
+      undefined,
+      '2026-08-12T08:00:00.000Z'
+    )
+
+    expect(profile.tags).toEqual(['长上影线', '布林带收窄'])
+  })
 })

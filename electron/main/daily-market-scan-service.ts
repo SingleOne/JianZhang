@@ -126,7 +126,7 @@ export class DailyMarketScanService {
         running: true,
         progress: {
           stage: 'calculating',
-          message: '日 K 获取完成，正在计算量价信号…',
+          message: '日 K 获取完成，正在计算量价与技术信号…',
           completed: loaded.length,
           total: market.quotes.length
         },

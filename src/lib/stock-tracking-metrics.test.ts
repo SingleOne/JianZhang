@@ -10,7 +10,8 @@ import {
   calculateStockTrackingDailyMetrics,
   mergeStockTrackingMetricSnapshots,
   stockTrackingPriceVolumeDivergence,
-  stockTrackingPriceVolumeState
+  stockTrackingPriceVolumeState,
+  stockTrackingTechnicalPatternSignals
 } from './stock-tracking-metrics'
 
 function bar(day: number, volume: number, close = 10): KlineBar {
@@ -107,6 +108,28 @@ describe('stock tracking metrics', () => {
     expect(stockTrackingPriceVolumeState(snapshot(-5.01))).toBe('volumeSurgePriceFall')
     expect(stockTrackingPriceVolumeState(snapshot(5))).toBe('volumeRisePriceRise')
     expect(stockTrackingPriceVolumeState(snapshot(-5))).toBe('volumeRisePriceFall')
+  })
+
+  it('stores long-shadow and continuous Bollinger signals in daily snapshots', () => {
+    const bars = [
+      ...Array.from({ length: 19 }, (_, index) => bar(index + 1, 100)),
+      bar(20, 100, 9.9),
+      bar(21, 100, 10.5),
+      bar(22, 100, 11),
+      bar(23, 100, 11.5),
+      {
+        ...bar(24, 100, 12),
+        open: 11,
+        high: 13,
+        low: 10.5
+      }
+    ]
+    const snapshot = calculateStockTrackingDailyMetrics(bars, '2026-07-24T00:00:00.000Z').at(-1)
+
+    expect(stockTrackingTechnicalPatternSignals(snapshot)).toEqual([
+      'longUpperShadow',
+      'bollingerExpansion'
+    ])
   })
 
   it('calculates realtime volume ratio by trading progress and excludes current daily bar', () => {

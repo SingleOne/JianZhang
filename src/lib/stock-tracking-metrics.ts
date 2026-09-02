@@ -2,8 +2,13 @@ import type {
   KlineBar,
   StockMarket,
   StockTrackingMetricSnapshot,
-  StockTrackingProfile
+  StockTrackingProfile,
+  TechnicalPatternSignalType
 } from '../shared/types'
+import {
+  calculateBollingerBandwidthTrends,
+  candlestickShadowSignals
+} from '../shared/technical-patterns'
 
 export const STOCK_TRACKING_BASE_METRICS = {
   close: 'close',
@@ -12,6 +17,18 @@ export const STOCK_TRACKING_BASE_METRICS = {
   amount: 'amount',
   priceVolumeDivergence: 'priceVolumeDivergence'
 } as const
+
+export const STOCK_TRACKING_TECHNICAL_PATTERN_METRICS: Record<TechnicalPatternSignalType, string> =
+  {
+    longUpperShadow: 'longUpperShadow',
+    longLowerShadow: 'longLowerShadow',
+    bollingerNarrowing: 'bollingerNarrowing',
+    bollingerExpansion: 'bollingerExpansion'
+  }
+
+const TECHNICAL_PATTERN_SIGNALS = Object.keys(
+  STOCK_TRACKING_TECHNICAL_PATTERN_METRICS
+) as TechnicalPatternSignalType[]
 
 export const STOCK_TRACKING_VOLUME_RATIO_METRICS = {
   5: 'volumeRatio5d',
@@ -204,6 +221,9 @@ export function calculateStockTrackingDailyMetrics(
   const startedDate = dateKey(startedAt)
   const stoppedDate = stoppedAt ? dateKey(stoppedAt) : null
   const snapshots: StockTrackingMetricSnapshot[] = []
+  const bollingerTrendByTime = new Map(
+    calculateBollingerBandwidthTrends(orderedBars).map((point) => [point.time, point])
+  )
 
   for (let index = 1; index < orderedBars.length; index += 1) {
     const current = orderedBars[index]
@@ -216,6 +236,14 @@ export function calculateStockTrackingDailyMetrics(
       [STOCK_TRACKING_BASE_METRICS.changePercent]: percentageChange(current.close, previous.close),
       [STOCK_TRACKING_BASE_METRICS.volume]: current.volume,
       [STOCK_TRACKING_BASE_METRICS.amount]: current.amount
+    }
+    const technicalSignals = candlestickShadowSignals(current)
+    const bollingerSignal = bollingerTrendByTime.get(current.time)?.signal
+    if (bollingerSignal) technicalSignals.push(bollingerSignal)
+    for (const signal of TECHNICAL_PATTERN_SIGNALS) {
+      metrics[STOCK_TRACKING_TECHNICAL_PATTERN_METRICS[signal]] = technicalSignals.includes(signal)
+        ? 1
+        : 0
     }
 
     for (const period of METRIC_PERIODS) {
@@ -278,6 +306,15 @@ export function stockTrackingPriceVolumeDivergence(
   if (value === 1) return 'priceRiseVolumeFall'
   if (value === -1) return 'priceFallVolumeRise'
   return null
+}
+
+export function stockTrackingTechnicalPatternSignals(
+  snapshot: StockTrackingMetricSnapshot | undefined
+): TechnicalPatternSignalType[] {
+  if (!snapshot) return []
+  return TECHNICAL_PATTERN_SIGNALS.filter(
+    (signal) => snapshot.metrics[STOCK_TRACKING_TECHNICAL_PATTERN_METRICS[signal]] === 1
+  )
 }
 
 function sameMetrics(left: Record<string, number>, right: Record<string, number>): boolean {

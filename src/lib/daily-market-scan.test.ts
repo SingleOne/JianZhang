@@ -38,7 +38,7 @@ describe('createDailyMarketScanRow', () => {
   it('uses the previous 20 sessions for volume and breakout comparisons', () => {
     const result = createDailyMarketScanRow(
       quote({ volume: 300, latest: 12, changePercent: 6 }),
-      bars([...Array.from({ length: 20 }, (_, index) => 10 + index * 0.05), 12])
+      bars([8, 9, 10, ...Array.from({ length: 20 }, (_, index) => 10 + index * 0.05), 12])
     )
 
     expect(result?.averageVolume20d).toBe(100)
@@ -51,7 +51,7 @@ describe('createDailyMarketScanRow', () => {
   })
 
   it('detects four down sessions in the previous five and a positive reversal', () => {
-    const closes = [...Array.from({ length: 14 }, () => 12), 12, 11.7, 11.4, 11.1, 11.2, 10.8, 11.1]
+    const closes = [...Array.from({ length: 17 }, () => 12), 12, 11.7, 11.4, 11.1, 11.2, 10.8, 11.1]
     const result = createDailyMarketScanRow(
       quote({ latest: 11.1, changePercent: 2.78, volume: 100 }),
       bars(closes)
@@ -65,7 +65,7 @@ describe('createDailyMarketScanRow', () => {
   it('detects a volume-backed large loss and a new 20-session low', () => {
     const result = createDailyMarketScanRow(
       quote({ latest: 9.3, changePercent: -6, volume: 200 }),
-      bars([...Array.from({ length: 20 }, () => 10), 9.3])
+      bars([...Array.from({ length: 23 }, () => 10), 9.3])
     )
 
     expect(result?.volumeRatio).toBe(2)
@@ -84,11 +84,35 @@ describe('createDailyMarketScanRow', () => {
     expect(
       createDailyMarketScanRow(
         quote({ changePercent: 5, volume: 250 }),
-        bars(Array.from({ length: 21 }, () => 10))
+        bars(Array.from({ length: 24 }, () => 10))
       )
     ).toBeNull()
     expect(
-      createDailyMarketScanRow(quote({ volume: 300 }), bars(Array.from({ length: 20 }, () => 10)))
+      createDailyMarketScanRow(quote({ volume: 300 }), bars(Array.from({ length: 23 }, () => 10)))
     ).toBeNull()
+  })
+
+  it('adds upper and lower shadow signals without requiring another scan signal', () => {
+    const upperBars = bars(Array.from({ length: 24 }, () => 10))
+    upperBars[23] = { ...upperBars[23], open: 9, close: 10, high: 11, low: 8.5 }
+    const lowerBars = bars(Array.from({ length: 24 }, () => 10))
+    lowerBars[23] = { ...lowerBars[23], open: 11, close: 10, high: 11.5, low: 9 }
+
+    expect(createDailyMarketScanRow(quote({ changePercent: 0 }), upperBars)?.signals).toContain(
+      'longUpperShadow'
+    )
+    expect(createDailyMarketScanRow(quote({ changePercent: 0 }), lowerBars)?.signals).toContain(
+      'longLowerShadow'
+    )
+  })
+
+  it('adds a continuous Bollinger bandwidth signal', () => {
+    const closes = [...Array.from({ length: 19 }, () => 10), 9.9, 10.5, 11, 11.5, 12]
+    const result = createDailyMarketScanRow(
+      quote({ latest: 12, changePercent: 4, volume: 100 }),
+      bars(closes)
+    )
+
+    expect(result?.signals).toContain('bollingerExpansion')
   })
 })
