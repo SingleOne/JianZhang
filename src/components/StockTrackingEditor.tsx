@@ -2,6 +2,7 @@ import {
   BookOpenText,
   CircleStop,
   Eye,
+  FolderPlus,
   History,
   Play,
   Plus,
@@ -48,6 +49,9 @@ interface StockTrackingEditorProps {
   onStopTracking: (quoteId: string, result: StockTrackingConclusionResult, summary: string) => void
   onRestartTracking: (quoteId: string) => void
   canRestart?: boolean
+  groupCount?: number
+  groupPopoverOpen?: boolean
+  onOpenGroups?: (anchor: HTMLButtonElement) => void
   onViewStock?: () => void
   onDeleteStock?: () => void
 }
@@ -93,6 +97,9 @@ export function StockTrackingEditor({
   onStopTracking,
   onRestartTracking,
   canRestart = true,
+  groupCount = 0,
+  groupPopoverOpen = false,
+  onOpenGroups,
   onViewStock,
   onDeleteStock
 }: StockTrackingEditorProps) {
@@ -157,6 +164,20 @@ export function StockTrackingEditor({
           </small>
         </div>
         <div className="stock-tracking-editor-actions">
+          {onOpenGroups ? (
+            <button
+              className={`secondary-button stock-tracking-group-trigger ${groupCount > 0 || groupPopoverOpen ? 'is-active' : ''}`}
+              type="button"
+              aria-haspopup="dialog"
+              aria-expanded={groupPopoverOpen}
+              aria-controls={groupPopoverOpen ? 'stock-tracking-group-quick-popover' : undefined}
+              onClick={(event) => onOpenGroups(event.currentTarget)}
+              title={groupCount > 0 ? `调整分组，已加入 ${groupCount} 个分组` : '加入分组'}
+            >
+              <FolderPlus size={14} />
+              管理分组
+            </button>
+          ) : null}
           {onViewStock ? (
             <button className="secondary-button" type="button" onClick={onViewStock}>
               <Eye size={14} />

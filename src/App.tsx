@@ -1837,12 +1837,15 @@ export default function App() {
             open={stockTrackingOpen}
             profiles={state.stockTrackingProfiles}
             watchlist={state.watchlist}
+            watchlistGroups={state.watchlistGroups}
             quotes={quotes}
             onUpdateProfile={saveTrackingProfile}
             onStopTracking={stopTracking}
             onRestartTracking={restartTracking}
             onDeleteStock={removeTrackedStock}
             onViewStock={viewWatchlistStockFromTracking}
+            onUpdateWatchlistGroups={updateWatchlistGroups}
+            onUpdateStockGroups={updateStockGroups}
             bollingerBandsEnabled={state.settings.showBollingerBands}
             onBollingerBandsEnabledChange={updateBollingerBandsEnabled}
             dailyKlineIndicator={state.settings.dailyKlineIndicator}

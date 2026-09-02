@@ -12,16 +12,29 @@ import type {
   StockTrackingProfile,
   StockTrackingProfiles,
   StockTrackingSourceType,
+  WatchlistGroup,
   WatchStock
 } from '../shared/types'
 import { AppSelect, type AppSelectOption } from './AppSelect'
+import { StockGroupQuickPopover } from './StockGroupQuickPopover'
 import { StockTrackingEditor } from './StockTrackingEditor'
+import { WatchlistGroupDialog } from './WatchlistGroupDialog'
 import { useStockTrackingMarketData } from './useStockTrackingMarketData'
 import './StockTracking.css'
 
 type StatusFilter = 'all' | 'tracking' | 'stopped'
 type SourceFilter = 'all' | StockTrackingSourceType
 type ProfileSort = 'updated-desc' | 'started-desc' | 'return-desc' | 'return-asc' | 'name-asc'
+
+interface GroupPopoverState {
+  quoteId: string
+  left: number
+  top: number
+  placement: 'above' | 'below'
+}
+
+const GROUP_POPOVER_WIDTH = 286
+const GROUP_POPOVER_ESTIMATED_HEIGHT = 360
 
 const STATUS_FILTER_OPTIONS: readonly AppSelectOption<StatusFilter>[] = [
   { value: 'all', label: '全部状态' },
@@ -49,12 +62,18 @@ interface StockTrackingDialogProps {
   open: boolean
   profiles: StockTrackingProfiles
   watchlist: WatchStock[]
+  watchlistGroups: WatchlistGroup[]
   quotes: StockQuote[]
   onUpdateProfile: (profile: StockTrackingProfile) => void
   onStopTracking: (quoteId: string, result: StockTrackingConclusionResult, summary: string) => void
   onRestartTracking: (quoteId: string) => void
   onDeleteStock: (quoteId: string) => void
   onViewStock: (quoteId: string) => void
+  onUpdateWatchlistGroups: (
+    groups: WatchlistGroup[],
+    groupIdsByQuoteId: Record<string, string[]>
+  ) => void
+  onUpdateStockGroups: (quoteId: string, groupIds: string[]) => void
   bollingerBandsEnabled: boolean
   onBollingerBandsEnabledChange: (enabled: boolean) => void
   dailyKlineIndicator: DailyKlineIndicator
@@ -82,12 +101,15 @@ export function StockTrackingDialog({
   open,
   profiles,
   watchlist,
+  watchlistGroups,
   quotes,
   onUpdateProfile,
   onStopTracking,
   onRestartTracking,
   onDeleteStock,
   onViewStock,
+  onUpdateWatchlistGroups,
+  onUpdateStockGroups,
   bollingerBandsEnabled,
   onBollingerBandsEnabledChange,
   dailyKlineIndicator,
@@ -100,10 +122,14 @@ export function StockTrackingDialog({
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all')
   const [profileSort, setProfileSort] = useState<ProfileSort>('updated-desc')
   const [selectedQuoteId, setSelectedQuoteId] = useState('')
+  const [groupPopover, setGroupPopover] = useState<GroupPopoverState | null>(null)
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false)
   const [profileSnapshot, setProfileSnapshot] = useState<StockTrackingProfile[]>([])
   const [trackingQuotes, setTrackingQuotes] = useState<StockQuote[]>([])
   const profilesRef = useRef(profiles)
   const quotesRef = useRef(quotes)
+  const groupAnchorRef = useRef<HTMLButtonElement | null>(null)
+  const groupPopoverRef = useRef<HTMLDivElement>(null)
   profilesRef.current = profiles
   quotesRef.current = quotes
 
@@ -114,7 +140,9 @@ export function StockTrackingDialog({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (
         event.key === 'Escape' &&
-        !document.querySelector('.app-select-menu, .confirm-dialog-backdrop')
+        !document.querySelector(
+          '.app-select-menu, .confirm-dialog-backdrop, .watchlist-group-quick-popover, .stock-tracking-group-dialog-backdrop'
+        )
       ) {
         onClose()
       }
@@ -125,6 +153,40 @@ export function StockTrackingDialog({
       document.removeEventListener('keydown', handleKeyDown)
     }
   }, [onClose, open])
+
+  useEffect(() => {
+    if (!groupPopover) return
+
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (groupPopoverRef.current?.contains(target) || groupAnchorRef.current?.contains(target)) {
+        return
+      }
+      setGroupPopover(null)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setGroupPopover(null)
+    }
+    const closePopover = () => setGroupPopover(null)
+    document.addEventListener('pointerdown', closeOnOutsidePointer)
+    document.addEventListener('keydown', closeOnEscape)
+    window.addEventListener('resize', closePopover)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer)
+      document.removeEventListener('keydown', closeOnEscape)
+      window.removeEventListener('resize', closePopover)
+    }
+  }, [groupPopover])
+
+  useEffect(() => {
+    setGroupPopover(null)
+  }, [selectedQuoteId])
+
+  useEffect(() => {
+    if (open) return
+    setGroupPopover(null)
+    setGroupDialogOpen(false)
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -236,6 +298,16 @@ export function StockTrackingDialog({
   const selectedProfile = selectedSnapshotProfile
     ? (profiles[selectedSnapshotProfile.quoteId] ?? selectedSnapshotProfile)
     : undefined
+  const activeGroupStock = groupPopover
+    ? watchlist.find((stock) => stock.quoteId === groupPopover.quoteId)
+    : undefined
+  const watchlistGroupIdSet = useMemo(
+    () => new Set(watchlistGroups.map((group) => group.id)),
+    [watchlistGroups]
+  )
+  const activeGroupCount = activeGroupStock
+    ? (activeGroupStock.groupIds ?? []).filter((groupId) => watchlistGroupIdSet.has(groupId)).length
+    : 0
   const marketData = useStockTrackingMarketData(open ? selectedProfile?.quoteId : undefined)
   const selectedPerformance = useMemo(
     () =>
@@ -248,6 +320,38 @@ export function StockTrackingDialog({
         : undefined,
     [detailQuoteMap, marketData.dailyBars, selectedProfile]
   )
+
+  const openStockGroups = (quoteId: string, anchor: HTMLButtonElement) => {
+    groupAnchorRef.current = anchor
+    setGroupPopover((current) => {
+      if (current?.quoteId === quoteId) return null
+      const rect = anchor.getBoundingClientRect()
+      const placement =
+        rect.bottom + GROUP_POPOVER_ESTIMATED_HEIGHT > window.innerHeight &&
+        rect.top > GROUP_POPOVER_ESTIMATED_HEIGHT
+          ? 'above'
+          : 'below'
+      return {
+        quoteId,
+        left: Math.max(12, Math.min(rect.left, window.innerWidth - GROUP_POPOVER_WIDTH - 12)),
+        top: placement === 'above' ? rect.top - 7 : rect.bottom + 7,
+        placement
+      }
+    })
+  }
+
+  const toggleStockGroup = (groupId: string, checked: boolean) => {
+    if (!activeGroupStock) return
+    const nextGroupIds = new Set(activeGroupStock.groupIds ?? [])
+    if (checked) nextGroupIds.add(groupId)
+    else nextGroupIds.delete(groupId)
+    onUpdateStockGroups(activeGroupStock.quoteId, [...nextGroupIds])
+  }
+
+  const openGroupDialog = () => {
+    setGroupPopover(null)
+    setGroupDialogOpen(true)
+  }
 
   if (!open) return null
 
@@ -379,6 +483,18 @@ export function StockTrackingDialog({
                   onStopTracking={onStopTracking}
                   onRestartTracking={onRestartTracking}
                   canRestart={watchlistQuoteIds.has(selectedProfile.quoteId)}
+                  groupCount={
+                    (
+                      watchlist.find((stock) => stock.quoteId === selectedProfile.quoteId)
+                        ?.groupIds ?? []
+                    ).filter((groupId) => watchlistGroupIdSet.has(groupId)).length
+                  }
+                  groupPopoverOpen={groupPopover?.quoteId === selectedProfile.quoteId}
+                  onOpenGroups={
+                    watchlistQuoteIds.has(selectedProfile.quoteId)
+                      ? (anchor) => openStockGroups(selectedProfile.quoteId, anchor)
+                      : undefined
+                  }
                   onViewStock={
                     watchlistQuoteIds.has(selectedProfile.quoteId)
                       ? () => {
@@ -397,6 +513,37 @@ export function StockTrackingDialog({
             ) : null}
           </div>
         )}
+        {groupPopover && activeGroupStock
+          ? createPortal(
+              <StockGroupQuickPopover
+                id="stock-tracking-group-quick-popover"
+                className="stock-tracking-group-quick-popover"
+                stock={activeGroupStock}
+                groups={watchlistGroups}
+                groupCount={activeGroupCount}
+                placement={groupPopover.placement}
+                style={{ left: groupPopover.left, top: groupPopover.top }}
+                popoverRef={groupPopoverRef}
+                onToggleGroup={toggleStockGroup}
+                onManageGroups={openGroupDialog}
+                onClose={() => setGroupPopover(null)}
+              />,
+              document.body
+            )
+          : null}
+        {groupDialogOpen ? (
+          <WatchlistGroupDialog
+            groups={watchlistGroups}
+            stocks={watchlist}
+            quotes={quotes}
+            backdropClassName="stock-tracking-group-dialog-backdrop"
+            onClose={() => setGroupDialogOpen(false)}
+            onSave={(groups, groupIdsByQuoteId) => {
+              onUpdateWatchlistGroups(groups, groupIdsByQuoteId)
+              setGroupDialogOpen(false)
+            }}
+          />
+        ) : null}
       </section>
     </div>,
     document.body

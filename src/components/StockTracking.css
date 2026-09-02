@@ -41,6 +41,20 @@
   height: 36px;
 }
 
+.stock-tracking-group-trigger.is-active {
+  color: var(--blue);
+  background: var(--blue-soft);
+  border-color: rgba(82, 162, 255, 0.45);
+}
+
+.watchlist-group-quick-popover.stock-tracking-group-quick-popover {
+  z-index: 940;
+}
+
+.position-dialog-backdrop.stock-tracking-group-dialog-backdrop {
+  z-index: 950;
+}
+
 .stock-tracking-delete-stock {
   width: 36px;
   height: 36px;

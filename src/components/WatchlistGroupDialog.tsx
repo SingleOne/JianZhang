@@ -9,6 +9,7 @@ interface WatchlistGroupDialogProps {
   groups: WatchlistGroup[]
   stocks: WatchStock[]
   quotes: StockQuote[]
+  backdropClassName?: string
   onSave: (groups: WatchlistGroup[], groupIdsByQuoteId: Record<string, string[]>) => void
   onClose: () => void
 }
@@ -17,6 +18,7 @@ export function WatchlistGroupDialog({
   groups: initialGroups,
   stocks,
   quotes,
+  backdropClassName = '',
   onSave,
   onClose
 }: WatchlistGroupDialogProps) {
@@ -126,7 +128,11 @@ export function WatchlistGroupDialog({
   }
 
   return createPortal(
-    <div className="position-dialog-backdrop" role="presentation" onMouseDown={onClose}>
+    <div
+      className={`position-dialog-backdrop ${backdropClassName}`.trim()}
+      role="presentation"
+      onMouseDown={onClose}
+    >
       <section
         className="position-dialog watchlist-group-dialog"
         role="dialog"

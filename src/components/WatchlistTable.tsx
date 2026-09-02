@@ -7,7 +7,6 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Columns3,
-  Folders,
   MonitorUp,
   RotateCcw,
   X
@@ -57,10 +56,11 @@ import {
   type FundamentalScreeningEvaluation,
   type FundamentalWatchlistFilter
 } from '../lib/fundamental-screening'
-import { isTrackingWatchlistGroup, normalizeWatchlistColumnOrder } from '../shared/types'
+import { normalizeWatchlistColumnOrder } from '../shared/types'
 import { PositionEditor } from './PositionEditor'
 import { PortfolioQualityDialog } from './PortfolioQualityDialog'
 import { StockAlertDialog } from './StockAlertDialog'
+import { StockGroupQuickPopover } from './StockGroupQuickPopover'
 import { TTradingDrawer } from './TTradingDrawer'
 import { WatchlistGroupDialog } from './WatchlistGroupDialog'
 import {
@@ -1333,69 +1333,18 @@ export function WatchlistTable({
       ) : null}
 
       {groupPopover && activeGroupStock ? (
-        <div
-          className={`watchlist-group-quick-popover ${groupPopover.placement === 'above' ? 'is-above' : ''}`}
+        <StockGroupQuickPopover
           id="watchlist-group-quick-popover"
+          stock={activeGroupStock}
+          groups={watchlistGroups}
+          groupCount={activeGroupCount}
+          placement={groupPopover.placement}
           style={{ left: groupPopover.left, top: groupPopover.top }}
-          ref={groupPopoverRef}
-          role="dialog"
-          aria-label={`调整 ${activeGroupStock.name} 的分组`}
-        >
-          <div className="watchlist-group-quick-heading">
-            <span>
-              <strong>{activeGroupStock.name}</strong>
-              <small>
-                {activeGroupStock.code} · 已加入 {activeGroupCount} 个分组
-              </small>
-            </span>
-            <button
-              className="icon-button watchlist-group-quick-close"
-              type="button"
-              onClick={() => setGroupPopover(null)}
-              aria-label="关闭分组选择"
-              title="关闭"
-            >
-              <X size={14} />
-            </button>
-          </div>
-          <div className="watchlist-group-quick-list">
-            {watchlistGroups.map((group) => {
-              const checked = Boolean(activeGroupStock.groupIds?.includes(group.id))
-              const trackingGroup = isTrackingWatchlistGroup(group)
-              return (
-                <label
-                  className={`watchlist-group-quick-row ${checked ? 'is-selected' : ''} ${trackingGroup ? 'is-readonly' : ''}`}
-                  key={group.id}
-                  title={trackingGroup ? '追踪分组由开始或停止追踪自动维护' : undefined}
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    disabled={trackingGroup}
-                    onChange={(event) => toggleStockGroup(group.id, event.target.checked)}
-                    aria-label={
-                      trackingGroup
-                        ? `${group.name}分组由追踪状态自动维护`
-                        : `${checked ? '移出' : '加入'}分组 ${group.name}`
-                    }
-                  />
-                  <span>
-                    <strong>{group.name}</strong>
-                    <small>
-                      {trackingGroup ? '由追踪状态自动维护' : checked ? '已加入' : '点击加入'}
-                    </small>
-                  </span>
-                </label>
-              )
-            })}
-          </div>
-          <div className="watchlist-group-quick-footer">
-            <button className="secondary-button" type="button" onClick={openGroupDialog}>
-              <Folders size={15} />
-              管理分组…
-            </button>
-          </div>
-        </div>
+          popoverRef={groupPopoverRef}
+          onToggleGroup={toggleStockGroup}
+          onManageGroups={openGroupDialog}
+          onClose={() => setGroupPopover(null)}
+        />
       ) : null}
 
       {editingStock ? (
