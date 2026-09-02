@@ -168,9 +168,9 @@
 | [`src/modules/ai/main/analysis/long-term-interpretation.ts`](../../src/modules/ai/main/analysis/long-term-interpretation.ts)             | 校验企业质量、财务安全、当前价格和双结论固定结构                                              |
 | [`src/modules/ai/prompts/long-term-value.ts`](../../src/modules/ai/prompts/long-term-value.ts)                                           | 隔离经营质量、估值与价格时机，并约束 DCF 判读和70%警戒规则的长期价值提示词                    |
 | [`src/modules/ai/renderer/AiAssistantDrawer.tsx`](../../src/modules/ai/renderer/AiAssistantDrawer.tsx)                                   | 会话管理、流式聊天和 `@自选股` 选择                                                           |
-| [`src/modules/market-insight/renderer/InvestmentValueMetrics.tsx`](../../src/modules/market-insight/renderer/InvestmentValueMetrics.tsx) | 市场观察中的 PE/PB历史/行业分位、总市值、流通市值、财务时点和金融行业适用性展示               |
+| [`src/components/InvestmentValueMetrics.tsx`](../../src/components/InvestmentValueMetrics.tsx)                               | 基本面与市场观察复用的 PE/PB历史/行业分位、PCF TTM、总市值、流通市值和资本回报展示            |
 | [`electron/main/valuation-history-service.ts`](../../electron/main/valuation-history-service.ts)                                         | 按股票获取并缓存近五年日度 PE TTM/PB历史序列                                                  |
-| [`src/lib/valuation-analysis.ts`](../../src/lib/valuation-analysis.ts)                                                                   | 计算历史估值分位并组合快照日同行分位                                                          |
+| [`src/lib/valuation-analysis.ts`](../../src/lib/valuation-analysis.ts)                                                       | 计算 PE/PB历史与同行分位、最近四季度 PCF及备用行情市值换算                                    |
 | [`src/modules/ai-t-advice`](../../src/modules/ai-t-advice/)                                                                              | 结构化只读做 T 参考、确定性事件、校验和独立历史                                               |
 
 ## 脚本和历史文档

@@ -1973,6 +1973,16 @@ export interface StockValuationMetricAnalysis {
   industryBasisValue: number | null
 }
 
+export type StockPriceCashFlowUnavailableReason =
+  'not-applicable' | 'cash-flow' | 'non-positive-cash-flow' | 'market-value'
+
+export interface StockPriceCashFlowAnalysis {
+  currentValue: number | null
+  operatingCashFlowTtm: number | null
+  reportDate: string | null
+  unavailableReason: StockPriceCashFlowUnavailableReason | null
+}
+
 export interface StockValuationAnalysis {
   quoteId: string
   quoteDataAt: string | null
@@ -1984,6 +1994,7 @@ export interface StockValuationAnalysis {
   circulatingMarketValue: number | null
   priceEarningsRatioTtm: StockValuationMetricAnalysis
   priceBookRatio: StockValuationMetricAnalysis
+  priceCashFlowRatioTtm: StockPriceCashFlowAnalysis
 }
 
 export type FundamentalChangeRuleStatus = 'passed' | 'failed' | 'missing' | 'not-applicable'

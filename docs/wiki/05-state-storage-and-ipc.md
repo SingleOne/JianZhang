@@ -236,7 +236,7 @@ localStorage["jianzhang-demo-state-v1"]
 | `getFundamentalSnapshot`                                     | `fundamentals:get`                                               | 返回进程内缓存的 schema v1/v2/v3/v4/v5 用户快照；本地不存在时返回 `null`                                |
 | `getFundamentalState`                                        | `fundamentals:state:get`                                         | 返回基本面快照状态、报告期、生成时间和过期原因                                                          |
 | `getFundamentalChangeReport`                                 | `fundamentals:changes:get`                                       | 返回最近两次快照按默认规则比较的新入选、移出、待核、数据完整性、覆盖和企业口径变化；首次快照返回 `null` |
-| `runFundamentalUpdate`                                       | `fundamentals:update`                                            | 调用四阶段 Python 脚本，更新五年财务、行业资产负债分位、净负债、快照日 PE/PB行业分位、总市值和流通市值  |
+| `runFundamentalUpdate`                                       | `fundamentals:update`                                            | 调用五阶段 Python 脚本，更新五年财务、季度排雷、行业资产负债分位、净负债、快照日 PE/PB行业分位、总市值和流通市值 |
 | `getCompanyReports`                                          | `company-reports:get`                                            | 按股票读取有效缓存或查询巨潮最近五个报告年度的年报、半年报、一季报和三季报目录；可强制更新              |
 | `generateCompanyReportSummary`                               | `company-reports:summary:generate`                               | 下载巨潮官方 PDF、提取重点章节、调用当前 AI 模型生成总结并保存到本地                                    |
 | `openCompanyReport`                                          | `company-reports:open`                                           | 校验巨潮资讯 HTTPS 链接后用系统浏览器打开原始 PDF                                                       |
@@ -284,7 +284,7 @@ localStorage["jianzhang-demo-state-v1"]
 | `onDataError`                       | `data:error`                         | 错误文本                                |
 | `onDividendFinancingUpdateProgress` | `dividend-financing:update-progress` | Python 脚本当前日志或完成/失败状态      |
 | `onDividendFinancingStateUpdated`   | `dividend-financing:state-updated`   | 分红融资榜快照状态变化                  |
-| `onFundamentalUpdateProgress`       | `fundamentals:update-progress`       | 基本面四阶段脚本当前日志或完成/失败状态 |
+| `onFundamentalUpdateProgress`       | `fundamentals:update-progress`       | 基本面五阶段脚本当前日志或完成/失败状态 |
 | `onFundamentalStateUpdated`         | `fundamentals:state-updated`         | 基本面快照状态变化                      |
 
 `stock:selected` 用于从托盘菜单点选股票或点击 Windows 系统通知后，让主窗口定位/展开对应股票。系统通知会附带 `scrollAlignment: 'sticky-top'` 和 `detailTarget`，列表清除筛选条件后将目标主行滚动到顶部 sticky 位置并展开详情；普通股票提醒和 T 仓浮盈提醒进入分时页签，量价背离提醒进入追踪复盘页签。

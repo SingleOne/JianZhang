@@ -1,18 +1,23 @@
 import { Landmark } from 'lucide-react'
-import { formatAmount, formatSignedAmount } from '../../../lib/format'
-import { usesOrdinaryCorporateInvestmentMetrics } from '../../../lib/valuation-analysis'
+import { useEffect, useId, useMemo, useState } from 'react'
+import { stockApi } from '../lib/api'
+import { formatAmount, formatSignedAmount } from '../lib/format'
+import {
+  createStockValuationAnalysis,
+  usesOrdinaryCorporateInvestmentMetrics
+} from '../lib/valuation-analysis'
 import type {
   FundamentalCompany,
+  StockPriceCashFlowAnalysis,
   StockQuote,
-  StockValuationAnalysis,
+  StockValuationHistory,
   StockValuationMetricAnalysis
-} from '../../../shared/types'
+} from '../shared/types'
 
 interface InvestmentValueMetricsProps {
+  quoteId: string
   quote?: StockQuote
   company?: FundamentalCompany
-  valuationAnalysis: StockValuationAnalysis
-  valuationError?: string
   snapshotDate?: string
   staleReason?: string | null
 }
@@ -61,14 +66,50 @@ function valuationComparison(
   return `${history} · ${industry}`
 }
 
+function priceCashFlowDetail(metric: StockPriceCashFlowAnalysis): string {
+  if (metric.unavailableReason === 'not-applicable') return '金融企业应使用行业专用指标'
+  if (metric.unavailableReason === 'cash-flow') return '最近连续四季度经营现金流不足'
+  if (metric.unavailableReason === 'non-positive-cash-flow') {
+    return '最近四季度经营现金流不为正'
+  }
+  if (metric.unavailableReason === 'market-value') return '当前总市值暂不可用'
+  return `${metric.reportDate ?? '--'} 截止的最近四季度`
+}
+
 export function InvestmentValueMetrics({
+  quoteId,
   quote,
   company,
-  valuationAnalysis,
-  valuationError,
   snapshotDate,
   staleReason
 }: InvestmentValueMetricsProps) {
+  const headingId = useId()
+  const [valuationHistory, setValuationHistory] = useState<StockValuationHistory | null>(null)
+  const [valuationError, setValuationError] = useState('')
+  const valuationAnalysis = useMemo(
+    () => createStockValuationAnalysis(quoteId, quote, company, valuationHistory),
+    [company, quote, quoteId, valuationHistory]
+  )
+
+  useEffect(() => {
+    let active = true
+    setValuationHistory(null)
+    setValuationError('')
+    void stockApi
+      .getValuationHistory(quoteId)
+      .then((history) => {
+        if (active) setValuationHistory(history)
+      })
+      .catch((reason: unknown) => {
+        if (active) {
+          setValuationError(reason instanceof Error ? reason.message : '历史估值数据暂不可用')
+        }
+      })
+    return () => {
+      active = false
+    }
+  }, [quoteId])
+
   const latestReport = company?.annualReports.at(-1)
   const balanceSheet = company?.latestBalanceSheet
   const ordinaryMetricsApplicable = usesOrdinaryCorporateInvestmentMetrics(
@@ -83,14 +124,14 @@ export function InvestmentValueMetrics({
     : '--'
 
   return (
-    <section className="investment-value-metrics" aria-labelledby="investment-value-metrics-title">
+    <section className="investment-value-metrics" aria-labelledby={headingId}>
       <header>
         <span>
           <Landmark size={17} />
-          <strong id="investment-value-metrics-title">估值与资本回报</strong>
+          <strong id={headingId}>估值与资本回报</strong>
         </span>
         <small>
-          行情 {dateTime(quote?.updatedAt)} · 财报截止{' '}
+          行情 {dateTime(quote?.dataAt ?? quote?.updatedAt)} · 财报截止{' '}
           {latestReport?.reportDate ?? snapshotDate ?? '--'} · 五年财务 {financialYears}
           {' · '}历史估值 {historyPeriod} · 行业估值 {valuationAnalysis.industryDataAt ?? '--'}
         </small>
@@ -114,6 +155,11 @@ export function InvestmentValueMetrics({
           >
             {valuationComparison(valuationAnalysis.priceBookRatio, valuationError, false)}
           </small>
+        </article>
+        <article title="当前总市值相对于最近连续四个季度经营活动产生的现金流量净额的倍数">
+          <span>市现率 PCF TTM</span>
+          <strong>{ratio(valuationAnalysis.priceCashFlowRatioTtm.currentValue)}</strong>
+          <small>{priceCashFlowDetail(valuationAnalysis.priceCashFlowRatioTtm)}</small>
         </article>
         <article title="快照估值日收盘价乘以公司总股本">
           <span>总市值</span>
@@ -179,7 +225,7 @@ export function InvestmentValueMetrics({
       </div>
 
       <footer>
-        <span>分位越低表示相对近五年自身或快照日同行越低；不同数据时点已分别标注。</span>
+        <span>PE/PB 分位越低表示相对近五年自身或快照日同行越低；PCF 当前展示 TTM 倍数。</span>
         {staleReason ? <em>基本面快照已过期：{staleReason}</em> : null}
       </footer>
     </section>

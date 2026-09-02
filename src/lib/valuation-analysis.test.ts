@@ -51,6 +51,87 @@ describe('valuation analysis', () => {
     expect(result.priceBookRatio.industryPercentile).toBe(35)
   })
 
+  it('calculates current PCF TTM from four consecutive quarter cash flows', () => {
+    const quote = {
+      quoteId: '1.600000',
+      totalMarketValue: 120_000_000_000,
+      latest: 12,
+      updatedAt: '2026-08-05T14:30:00+08:00'
+    } as StockQuote
+    const company = {
+      organizationType: 'general',
+      quarterlyRiskReports: [
+        { reportDate: '2025-09-30', operatingCashFlowQuarter: 2_000_000_000 },
+        { reportDate: '2025-12-31', operatingCashFlowQuarter: 3_000_000_000 },
+        { reportDate: '2026-03-31', operatingCashFlowQuarter: 2_000_000_000 },
+        { reportDate: '2026-06-30', operatingCashFlowQuarter: 3_000_000_000 }
+      ]
+    } as FundamentalCompany
+
+    const result = createStockValuationAnalysis('1.600000', quote, company, null)
+
+    expect(result.priceCashFlowRatioTtm).toEqual({
+      currentValue: 12,
+      operatingCashFlowTtm: 10_000_000_000,
+      reportDate: '2026-06-30',
+      unavailableReason: null
+    })
+  })
+
+  it('infers current market value from snapshot share count when the quote source omits it', () => {
+    const quote = {
+      quoteId: '1.600000',
+      latest: 12,
+      updatedAt: '2026-08-05T14:30:00+08:00'
+    } as StockQuote
+    const company = {
+      organizationType: 'general',
+      quarterlyRiskReports: [
+        { reportDate: '2025-09-30', operatingCashFlowQuarter: 2_000_000_000 },
+        { reportDate: '2025-12-31', operatingCashFlowQuarter: 3_000_000_000 },
+        { reportDate: '2026-03-31', operatingCashFlowQuarter: 2_000_000_000 },
+        { reportDate: '2026-06-30', operatingCashFlowQuarter: 3_000_000_000 }
+      ],
+      valuation: {
+        closePrice: 10,
+        totalMarketValue: 100_000_000_000
+      }
+    } as FundamentalCompany
+
+    const result = createStockValuationAnalysis('1.600000', quote, company, null)
+
+    expect(result.priceCashFlowRatioTtm.currentValue).toBe(12)
+  })
+
+  it('does not publish PCF when recent quarters are incomplete or cash flow is not positive', () => {
+    const quote = {
+      quoteId: '1.600000',
+      totalMarketValue: 120_000_000_000,
+      updatedAt: '2026-08-05T14:30:00+08:00'
+    } as StockQuote
+    const company = {
+      organizationType: 'general',
+      quarterlyRiskReports: [
+        { reportDate: '2025-09-30', operatingCashFlowQuarter: 2_000_000_000 },
+        { reportDate: '2025-12-31', operatingCashFlowQuarter: -3_000_000_000 },
+        { reportDate: '2026-03-31', operatingCashFlowQuarter: -2_000_000_000 },
+        { reportDate: '2026-06-30', operatingCashFlowQuarter: -3_000_000_000 }
+      ]
+    } as FundamentalCompany
+
+    expect(
+      createStockValuationAnalysis('1.600000', quote, company, null).priceCashFlowRatioTtm
+        .unavailableReason
+    ).toBe('non-positive-cash-flow')
+
+    company.quarterlyRiskReports![2].reportDate = '2026-06-30'
+    company.quarterlyRiskReports![3].reportDate = '2026-09-30'
+    expect(
+      createStockValuationAnalysis('1.600000', quote, company, null).priceCashFlowRatioTtm
+        .unavailableReason
+    ).toBe('cash-flow')
+  })
+
   it('marks financial organizations outside ordinary corporate metric scope', () => {
     expect(usesOrdinaryCorporateInvestmentMetrics('general')).toBe(true)
     expect(usesOrdinaryCorporateInvestmentMetrics('bank')).toBe(false)

@@ -93,6 +93,7 @@ import type {
 import { FundsFlowPanel } from './FundsFlowPanel'
 import { ChipDistributionPanel } from './ChipDistributionPanel'
 import { CompanyReportLibrary, FundamentalReadingGuide } from './CompanyReportLibrary'
+import { InvestmentValueMetrics } from './InvestmentValueMetrics'
 import { OrderBookPanel } from './OrderBookPanel'
 import { ShareholderPanel } from './ShareholderPanel'
 import { StockTrackingPanel } from './StockTrackingPanel'
@@ -1069,14 +1070,16 @@ function FinancialMinePanel({ evaluation }: { evaluation: FundamentalScreeningEv
 
 function FundamentalPanel({
   evaluation,
-  currentPrice,
+  quoteId,
+  quote,
   peerComparison,
   snapshotDate,
   generatedAt,
   staleReason
 }: {
   evaluation?: FundamentalScreeningEvaluation
-  currentPrice?: number | null
+  quoteId: string
+  quote?: StockQuote
   peerComparison?: FundamentalPeerComparison
   snapshotDate?: string
   generatedAt?: string
@@ -1204,7 +1207,15 @@ function FundamentalPanel({
         </section>
       </div>
 
-      <DcfPanel evaluation={evaluation} currentPrice={currentPrice} />
+      <DcfPanel evaluation={evaluation} currentPrice={quote?.latest} />
+
+      <InvestmentValueMetrics
+        quoteId={quoteId}
+        quote={quote}
+        company={company}
+        snapshotDate={snapshotDate}
+        staleReason={staleReason}
+      />
 
       <FundamentalQualityPanel evaluation={evaluation} />
 
@@ -1909,7 +1920,8 @@ export function ExpandedStockDetails({
           {isAStock ? (
             <FundamentalPanel
               evaluation={fundamentalScreening}
-              currentPrice={quote?.latest}
+              quoteId={stock.quoteId}
+              quote={quote}
               peerComparison={fundamentalPeerComparison}
               snapshotDate={fundamentalSnapshotDate}
               generatedAt={fundamentalGeneratedAt}
