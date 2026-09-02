@@ -1825,6 +1825,21 @@ export default function App() {
             open={dailyMarketScanOpen}
             watchlist={state.watchlist}
             trackingProfiles={state.stockTrackingProfiles}
+            dividendFinancingByCode={dividendFinancingByCode}
+            dividendFinancingSnapshotDate={dividendFinancingOverview?.snapshotDate}
+            fundamentalScreeningByCode={fundamentalScreeningByCode}
+            fundamentalPeerComparisonsByCode={fundamentalPeerComparisonsByCode}
+            fundamentalSnapshotDate={fundamentalOverview?.snapshotDate}
+            fundamentalGeneratedAt={fundamentalOverview?.generatedAt}
+            fundamentalStaleReason={
+              fundamentalDataState.status === 'stale' ? fundamentalDataState.staleReason : null
+            }
+            regularRefreshSeconds={state.settings.regularRefreshSeconds}
+            chipDistributionEnabled={state.settings.showChipDistribution}
+            bollingerBandsEnabled={state.settings.showBollingerBands}
+            dailyKlineIndicator={state.settings.dailyKlineIndicator}
+            tradingCalendar={state.settings.tradingCalendar}
+            exchangeRates={state.settings.exchangeRates}
             onAddStock={addDailyMarketScanStock}
             onViewStock={viewWatchlistStockFromDailyScan}
             onClose={() => setDailyMarketScanOpen(false)}

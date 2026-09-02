@@ -13,7 +13,7 @@ import {
   Search,
   X
 } from 'lucide-react'
-import { useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { Fragment, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { stockApi } from '../lib/api'
 import {
@@ -21,15 +21,24 @@ import {
   dailyMarketScanBoardLabel
 } from '../lib/daily-market-scan'
 import type {
+  FundamentalPeerComparison,
+  FundamentalScreeningEvaluation
+} from '../lib/fundamental-screening'
+import type {
+  DailyKlineIndicator,
   DailyMarketScanResult,
   DailyMarketScanRow,
   DailyMarketScanSignalType,
   DailyMarketScanState,
+  DividendFinancingRankingItem,
+  ExchangeRateSettings,
   SearchResult,
   StockTrackingProfiles,
+  TradingCalendarSettings,
   WatchStock
 } from '../shared/types'
 import { stockMarketIdentity } from '../shared/stock-market'
+import { DailyMarketScanStockDetails } from './DailyMarketScanStockDetails'
 import './DailyMarketScanDialog.css'
 
 const PAGE_SIZE = 100
@@ -72,6 +81,19 @@ interface DailyMarketScanDialogProps {
   open: boolean
   watchlist: WatchStock[]
   trackingProfiles: StockTrackingProfiles
+  dividendFinancingByCode: ReadonlyMap<string, DividendFinancingRankingItem>
+  dividendFinancingSnapshotDate?: string
+  fundamentalScreeningByCode: ReadonlyMap<string, FundamentalScreeningEvaluation>
+  fundamentalPeerComparisonsByCode: ReadonlyMap<string, FundamentalPeerComparison>
+  fundamentalSnapshotDate?: string
+  fundamentalGeneratedAt?: string
+  fundamentalStaleReason?: string | null
+  regularRefreshSeconds: number
+  chipDistributionEnabled: boolean
+  bollingerBandsEnabled: boolean
+  dailyKlineIndicator: DailyKlineIndicator
+  tradingCalendar: TradingCalendarSettings
+  exchangeRates: ExchangeRateSettings
   onAddStock: (stock: SearchResult, row: DailyMarketScanRow) => void
   onViewStock: (quoteId: string) => void
   onClose: () => void
@@ -171,6 +193,19 @@ export function DailyMarketScanDialog({
   open,
   watchlist,
   trackingProfiles,
+  dividendFinancingByCode,
+  dividendFinancingSnapshotDate,
+  fundamentalScreeningByCode,
+  fundamentalPeerComparisonsByCode,
+  fundamentalSnapshotDate,
+  fundamentalGeneratedAt,
+  fundamentalStaleReason,
+  regularRefreshSeconds,
+  chipDistributionEnabled,
+  bollingerBandsEnabled,
+  dailyKlineIndicator,
+  tradingCalendar,
+  exchangeRates,
   onAddStock,
   onViewStock,
   onClose
@@ -184,6 +219,7 @@ export function DailyMarketScanDialog({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [actionMessage, setActionMessage] = useState('')
+  const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -503,6 +539,7 @@ export function DailyMarketScanDialog({
                 <tbody>
                   {visibleRows.map((row) => {
                     const watched = watchlistQuoteIds.has(row.quoteId)
+                    const expanded = !watched && expandedQuoteId === row.quoteId
                     const trackingProfile = trackingProfiles[row.quoteId]
                     const tracking = trackingProfile?.status === 'tracking'
                     const sourceRecorded =
@@ -515,69 +552,114 @@ export function DailyMarketScanDialog({
                     const boardLabel = dailyMarketScanBoardLabel(row.code)
                     const rangeBreakPercent = row.breakoutPercent ?? row.breakdownPercent ?? null
                     return (
-                      <tr key={row.quoteId}>
-                        <td>
-                          <span className="daily-scan-stock">
-                            <strong>
-                              {row.name}
-                              {boardLabel ? (
-                                <span
-                                  className={`daily-scan-board-badge ${boardLabel === '创业板' ? 'is-chinext' : 'is-star'}`}
+                      <Fragment key={row.quoteId}>
+                        <tr className={expanded ? 'is-expanded' : ''}>
+                          <td>
+                            <span className="daily-scan-stock">
+                              <strong>
+                                {row.name}
+                                {boardLabel ? (
+                                  <span
+                                    className={`daily-scan-board-badge ${boardLabel === '创业板' ? 'is-chinext' : 'is-star'}`}
+                                  >
+                                    {boardLabel}
+                                  </span>
+                                ) : null}
+                              </strong>
+                              <small>
+                                {row.code} · {row.marketLabel}
+                              </small>
+                            </span>
+                          </td>
+                          <td>{row.latest.toFixed(2)}</td>
+                          <td className={directionClass(row.changePercent)}>
+                            {formatPercent(row.changePercent)}
+                          </td>
+                          <td>{formatAmount(row.amount)}</td>
+                          <td>{formatVolume(row.volume)}</td>
+                          <td>{formatVolume(row.averageVolume20d)}</td>
+                          <td>
+                            <strong>{row.volumeRatio.toFixed(2)}x</strong>
+                          </td>
+                          <td>{formatPercent(row.turnoverRate)}</td>
+                          <td className={directionClass(rangeBreakPercent)}>
+                            {formatPercent(rangeBreakPercent)}
+                          </td>
+                          <td className={directionClass(row.previousFiveDayReturn)}>
+                            {formatPercent(row.previousFiveDayReturn)}
+                          </td>
+                          <td>
+                            <span className="daily-scan-tags">
+                              {row.signals.map((signal) => (
+                                <em className={`is-${signal}`} key={signal}>
+                                  {DAILY_MARKET_SCAN_SIGNAL_LABELS[signal]}
+                                </em>
+                              ))}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="daily-scan-row-actions">
+                              {!watched ? (
+                                <button
+                                  className="daily-scan-row-action"
+                                  type="button"
+                                  aria-expanded={expanded}
+                                  onClick={() =>
+                                    setExpandedQuoteId((current) =>
+                                      current === row.quoteId ? null : row.quoteId
+                                    )
+                                  }
                                 >
-                                  {boardLabel}
-                                </span>
+                                  <Eye size={14} />
+                                  查看
+                                </button>
                               ) : null}
-                            </strong>
-                            <small>
-                              {row.code} · {row.marketLabel}
-                            </small>
-                          </span>
-                        </td>
-                        <td>{row.latest.toFixed(2)}</td>
-                        <td className={directionClass(row.changePercent)}>
-                          {formatPercent(row.changePercent)}
-                        </td>
-                        <td>{formatAmount(row.amount)}</td>
-                        <td>{formatVolume(row.volume)}</td>
-                        <td>{formatVolume(row.averageVolume20d)}</td>
-                        <td>
-                          <strong>{row.volumeRatio.toFixed(2)}x</strong>
-                        </td>
-                        <td>{formatPercent(row.turnoverRate)}</td>
-                        <td className={directionClass(rangeBreakPercent)}>
-                          {formatPercent(rangeBreakPercent)}
-                        </td>
-                        <td className={directionClass(row.previousFiveDayReturn)}>
-                          {formatPercent(row.previousFiveDayReturn)}
-                        </td>
-                        <td>
-                          <span className="daily-scan-tags">
-                            {row.signals.map((signal) => (
-                              <em className={`is-${signal}`} key={signal}>
-                                {DAILY_MARKET_SCAN_SIGNAL_LABELS[signal]}
-                              </em>
-                            ))}
-                          </span>
-                        </td>
-                        <td>
-                          <button
-                            className="daily-scan-row-action"
-                            type="button"
-                            onClick={() =>
-                              viewExisting ? onViewStock(row.quoteId) : addStock(row)
-                            }
-                          >
-                            {viewExisting ? <Eye size={14} /> : <Plus size={14} />}
-                            {viewExisting
-                              ? '查看'
-                              : watched && tracking
-                                ? '记录来源'
-                                : watched
-                                  ? '开始追踪'
-                                  : '加入并追踪'}
-                          </button>
-                        </td>
-                      </tr>
+                              <button
+                                className="daily-scan-row-action"
+                                type="button"
+                                onClick={() =>
+                                  viewExisting ? onViewStock(row.quoteId) : addStock(row)
+                                }
+                              >
+                                {viewExisting ? <Eye size={14} /> : <Plus size={14} />}
+                                {viewExisting
+                                  ? '查看'
+                                  : watched && tracking
+                                    ? '记录来源'
+                                    : watched
+                                      ? '开始追踪'
+                                      : '加入并追踪'}
+                              </button>
+                            </span>
+                          </td>
+                        </tr>
+                        {expanded ? (
+                          <tr className="daily-scan-details-row">
+                            <td colSpan={12}>
+                              <DailyMarketScanStockDetails
+                                key={`${row.quoteId}:${result.generatedAt}`}
+                                row={row}
+                                generatedAt={result.generatedAt}
+                                dividendFinancing={dividendFinancingByCode.get(row.code)}
+                                dividendFinancingSnapshotDate={dividendFinancingSnapshotDate}
+                                fundamentalScreening={fundamentalScreeningByCode.get(row.code)}
+                                fundamentalPeerComparison={fundamentalPeerComparisonsByCode.get(
+                                  row.code
+                                )}
+                                fundamentalSnapshotDate={fundamentalSnapshotDate}
+                                fundamentalGeneratedAt={fundamentalGeneratedAt}
+                                fundamentalStaleReason={fundamentalStaleReason}
+                                refreshSeconds={regularRefreshSeconds}
+                                initialChipDistributionEnabled={chipDistributionEnabled}
+                                initialBollingerBandsEnabled={bollingerBandsEnabled}
+                                initialDailyKlineIndicator={dailyKlineIndicator}
+                                tradingCalendar={tradingCalendar}
+                                exchangeRates={exchangeRates}
+                              />
+                            </td>
+                          </tr>
+                        ) : null}
+                      </Fragment>
                     )
                   })}
                 </tbody>

@@ -298,6 +298,16 @@
 :root[data-theme='dark'] .daily-scan-table tbody tr:hover {
   background: #111827;
 }
+:root[data-theme='dark'] .daily-scan-table tbody tr.is-expanded,
+:root[data-theme='dark'] .daily-scan-details-row > td,
+:root[data-theme='dark'] .daily-scan-details-row:hover {
+  background: #162033 !important;
+}
+:root[data-theme='dark'] .daily-scan-temporary-note {
+  color: #cbd5e3;
+  background: #111827;
+  border-color: #34445d;
+}
 :root[data-theme='dark'] .daily-scan-stock strong {
   color: #e6edf7;
 }

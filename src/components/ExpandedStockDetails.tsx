@@ -199,8 +199,8 @@ function apiPeriod(tab: PriceTab): KlinePeriod {
   return tab === 'trend' ? 'intraday' : tab
 }
 
-function cacheKey(quoteId: string, tab: PriceTab): string {
-  return `${quoteId}:${tab}`
+function cacheKey(cacheScope: string, quoteId: string, tab: PriceTab): string {
+  return `${cacheScope}:${quoteId}:${tab}`
 }
 
 function signedValueClass(value: number): string {
@@ -1320,6 +1320,7 @@ function FundamentalPanel({
 
 interface ExpandedStockDetailsProps {
   stock: WatchStock
+  cacheScope?: string
   quote?: StockQuote
   dividendFinancing?: DividendFinancingRankingItem
   dividendFinancingSnapshotDate?: string
@@ -1361,6 +1362,7 @@ interface ExpandedStockDetailsProps {
 
 export function ExpandedStockDetails({
   stock,
+  cacheScope = 'watchlist',
   quote,
   dividendFinancing,
   dividendFinancingSnapshotDate,
@@ -1400,7 +1402,7 @@ export function ExpandedStockDetails({
   const capabilities = marketCapabilitiesForQuoteId(stock.quoteId)
   const marketCalendar = tradingCalendar.markets[market]
   const volumeUnit = volumeUnitForMarket(market)
-  const initialTrend = klineCache.get(cacheKey(stock.quoteId, 'trend'))?.data
+  const initialTrend = klineCache.get(cacheKey(cacheScope, stock.quoteId, 'trend'))?.data
   const [activeTab, setActiveTab] = useState<DetailTab>('trend')
   const [aiAnalysisType, setAiAnalysisType] = useState<AiAnalysisType>('short-term')
   const [dataByTab, setDataByTab] = useState<Partial<Record<PriceTab, KlineResult>>>(() =>
@@ -1545,7 +1547,7 @@ export function ExpandedStockDetails({
     if (!isPriceTab(activeTab)) return
 
     const tab = activeTab
-    const key = cacheKey(stock.quoteId, tab)
+    const key = cacheKey(cacheScope, stock.quoteId, tab)
     const cached = klineCache.get(key)
     const isLiveChart = tab === 'trend' || tab === 'fiveDay'
     const requestedLimit = isHistoricalTab(tab) ? activeHistoricalLimit : undefined
@@ -1622,7 +1624,15 @@ export function ExpandedStockDetails({
       active = false
       window.clearTimeout(refreshTimer)
     }
-  }, [activeHistoricalLimit, activeTab, market, marketCalendar, refreshVersion, stock.quoteId])
+  }, [
+    activeHistoricalLimit,
+    activeTab,
+    cacheScope,
+    market,
+    marketCalendar,
+    refreshVersion,
+    stock.quoteId
+  ])
 
   const priceTab = isPriceTab(activeTab) ? activeTab : null
   const data = priceTab ? (dataByTab[priceTab] ?? null) : null
@@ -1748,7 +1758,7 @@ export function ExpandedStockDetails({
   }
 
   const retryCurrentTab = () => {
-    if (priceTab) klineCache.delete(cacheKey(stock.quoteId, priceTab))
+    if (priceTab) klineCache.delete(cacheKey(cacheScope, stock.quoteId, priceTab))
     setRefreshVersion((current) => current + 1)
   }
 
