@@ -458,7 +458,7 @@ if (!hasSingleInstanceLock) {
   })
 
   app.whenReady().then(async () => {
-    app.setAppUserModelId('com.jianzhang.stock')
+    app.setAppUserModelId(app.isPackaged ? 'com.jianzhang.stock' : 'com.jianzhang.stock.dev')
     stateStore = new StateStore(app.getPath('userData'), DEFAULT_STATE)
     try {
       const loaded = stateStore.load()
