@@ -311,26 +311,20 @@ function DcfPanel({
               </strong>
             </article>
             <article>
-              <small>相对当前股价</small>
-              <strong className={signedValueClass(analysis.differencePercent ?? 0)}>
-                {analysis.differencePercent === null
+              <small>当前股价相对于 DCF</small>
+              <strong className={signedValueClass(analysis.currentPriceDifferencePercent ?? 0)}>
+                {analysis.currentPriceDifferencePercent === null
                   ? '--'
-                  : analysis.differencePercent > 0
-                    ? `高于 ${fundamentalPercent(analysis.differencePercent, 1)}`
-                    : analysis.differencePercent < 0
-                      ? `低于 ${fundamentalPercent(Math.abs(analysis.differencePercent), 1)}`
+                  : analysis.currentPriceDifferencePercent > 0
+                    ? `高于 ${fundamentalPercent(analysis.currentPriceDifferencePercent, 1)}`
+                    : analysis.currentPriceDifferencePercent < 0
+                      ? `低于 ${fundamentalPercent(Math.abs(analysis.currentPriceDifferencePercent), 1)}`
                       : '持平 0.0%'}
               </strong>
             </article>
             <article>
-              <small>DCF / 当前股价</small>
-              <strong className={signedValueClass(analysis.differencePercent ?? 0)}>
-                {fundamentalPercent(analysis.fairValueToPricePercent, 1)}
-              </strong>
-            </article>
-            <article>
               <small>当前股价 / DCF</small>
-              <strong className={signedValueClass((analysis.priceToFairValuePercent ?? 100) - 100)}>
+              <strong className={signedValueClass(analysis.currentPriceDifferencePercent ?? 0)}>
                 {fundamentalPercent(analysis.priceToFairValuePercent, 1)}
               </strong>
             </article>
@@ -343,7 +337,7 @@ function DcfPanel({
                 <strong>DCF 低于现价提醒</strong>
                 DCF 仅为当前股价的 {fundamentalPercent(analysis.fairValueToPricePercent, 1)}， 低于{' '}
                 {DCF_LOW_VALUE_THRESHOLD_PERCENT}% 警戒线；当前股价高于 DCF 估值{' '}
-                {fundamentalPercent(Math.abs(analysis.differencePercent ?? 0), 1)}。
+                {fundamentalPercent(analysis.currentPriceDifferencePercent, 1)}。
               </span>
             </div>
           ) : analysis.differencePercent !== null ? (
