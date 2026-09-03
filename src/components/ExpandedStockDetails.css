@@ -531,7 +531,6 @@
 }
 
 .fundamental-evidence-grid p {
-  min-height: 36px;
   margin: 0;
   color: #7b899c;
   font-size: 12px;
@@ -967,7 +966,13 @@
   background: #e4f4ea;
 }
 
-.financial-mine-grid article > em {
+.financial-mine-grid article>div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.financial-mine-grid article>div>em {
   color: #4b4246;
   font-size: 14px;
   font-style: normal;
@@ -975,15 +980,18 @@
   font-variant-numeric: tabular-nums;
 }
 
-.financial-mine-grid article > p,
-.financial-mine-section > footer {
+.financial-mine-grid article>div>p {
   margin: 0;
   color: #80747a;
   font-size: 12px;
   line-height: 1.5;
 }
 
-.financial-mine-section > footer {
+.financial-mine-section>footer {
+  margin: 0;
+  color: #80747a;
+  font-size: 12px;
+  line-height: 1.5;
   padding: 0 10px 10px;
 }
 
@@ -1241,7 +1249,7 @@
 .fundamental-peer-metric {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 0.72fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 0.6fr) minmax(0, 1fr);
   gap: 8px 12px;
   padding: 10px;
   background: #fbfcfe;
@@ -1291,6 +1299,16 @@
   color: #8793a4;
   font-size: 12px;
   line-height: 1.45;
+}
+
+.fundamental-peer-metric .fundamental-peer-rank {
+  gap: 8px;
+}
+
+.fundamental-peer-metric .fundamental-peer-rank > span {
+  display: grid;
+  grid-auto-flow: column;
+  line-height: 1.1em;
 }
 
 .fundamental-peer-note {

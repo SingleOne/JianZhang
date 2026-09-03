@@ -625,19 +625,22 @@ function FundamentalPeerMetricCard({
           {fundamentalPercent(comparison.value)}
         </strong>
       </span>
-      <div>
+      <div className='fundamental-peer-rank'>
+        <small>{description}</small>
         {comparison.value === null ? (
           <strong>当前指标缺失</strong>
         ) : ranked ? (
-          <>
-            <strong>
-              行业第 {comparison.rank} / {comparison.sampleSize}
-            </strong>
-            <em>
-              {direction === 'higher'
-                ? `行业前 ${comparison.topPercent}%`
-                : `低于 ${comparison.betterThanPercent}% 同行`}
-            </em>
+            <>
+              <span>
+                <strong>
+                  行业第 {comparison.rank} / {comparison.sampleSize}
+                </strong>
+                <em>
+                  {direction === 'higher'
+                    ? `行业前 ${comparison.topPercent}%`
+                    : `低于 ${comparison.betterThanPercent}% 同行`}
+                </em>
+              </span>
           </>
         ) : (
           <>
@@ -646,7 +649,6 @@ function FundamentalPeerMetricCard({
           </>
         )}
       </div>
-      <p>{description}</p>
     </div>
   )
 }
@@ -681,7 +683,7 @@ function FundamentalPeerPanel({
         <>
           <div className="fundamental-peer-grid">
             <FundamentalPeerMetricCard
-              title="持续 ROE"
+              title="最低 ROE"
               description="按五年最低加权 ROE 从高到低排名"
               comparison={comparison.roe}
               direction="higher"
@@ -814,7 +816,7 @@ function FundamentalQualityPanel({ evaluation }: { evaluation: FundamentalScreen
             <Sparkles size={17} />
           </i>
           <span>
-            <strong>质量特征</strong>
+            <strong>优质标签</strong>
             <small>固定按软件推荐口径计算</small>
           </span>
         </span>
@@ -1084,8 +1086,10 @@ function FinancialMinePanel({ evaluation }: { evaluation: FundamentalScreeningEv
                     <FinancialMineHelp indicatorId={indicator.id} />
                   </header>
                   <span>{FINANCIAL_MINE_STATUS_LABELS[indicator.status]}</span>
-                  <em>{financialMineIndicatorValue(indicator)}</em>
-                  <p>{indicator.message}</p>
+                  <div>
+                    <em>{financialMineIndicatorValue(indicator)}</em>
+                    <p>{indicator.message}</p>
+                  </div>
                 </article>
               )
             })}
