@@ -23,14 +23,12 @@ export interface PositionMetrics {
   todayCostBasis: number | null
   totalProfit: number | null
   profitPercent: number | null
-  profitCostBasis: number | null
   cnyMarketValue: number | null
   cnyTodayProfit: number | null
   cnyTodayCostBasis: number | null
   cnyCostBasis: number | null
   cnyTotalProfit: number | null
   cnyProfitPercent: number | null
-  cnyProfitCostBasis: number | null
 }
 
 export interface PositionProfitOverride {
@@ -175,16 +173,10 @@ export function calculatePositionMetrics(
     todayProfit !== null && todayCostBasis && todayCostBasis > 0
       ? (todayProfit / todayCostBasis) * 100
       : null
-  const profitCostBasis = profitOverride
-    ? marketValue !== null && totalProfit !== null
-      ? marketValue - totalProfit
-      : null
-    : position
-      ? position.cost * position.quantity
-      : null
+  const positionCostBasis = position ? position.cost * position.quantity : null
   const profitPercent =
-    totalProfit !== null && profitCostBasis !== null && profitCostBasis > 0
-      ? (totalProfit / profitCostBasis) * 100
+    positionCostBasis !== null && positionCostBasis > 0 && totalProfit !== null
+      ? (totalProfit / positionCostBasis) * 100
       : null
   const cnyMarketValue =
     marketValue !== null && exchangeRate !== null ? marketValue * exchangeRate : null
@@ -201,11 +193,6 @@ export function calculatePositionMetrics(
     : cnyMarketValue !== null && cnyCostBasis !== null
       ? cnyMarketValue - cnyCostBasis
       : null
-  const cnyProfitCostBasis = profitOverride
-    ? cnyMarketValue !== null && cnyTotalProfit !== null
-      ? cnyMarketValue - cnyTotalProfit
-      : null
-    : cnyCostBasis
   return {
     currency,
     exchangeRate,
@@ -216,17 +203,15 @@ export function calculatePositionMetrics(
     todayCostBasis,
     totalProfit,
     profitPercent,
-    profitCostBasis,
     cnyMarketValue,
     cnyTodayProfit,
     cnyTodayCostBasis,
     cnyCostBasis,
     cnyTotalProfit,
     cnyProfitPercent:
-      cnyProfitCostBasis !== null && cnyProfitCostBasis > 0 && cnyTotalProfit !== null
-        ? (cnyTotalProfit / cnyProfitCostBasis) * 100
-        : null,
-    cnyProfitCostBasis
+      cnyCostBasis !== null && cnyCostBasis > 0 && cnyTotalProfit !== null
+        ? (cnyTotalProfit / cnyCostBasis) * 100
+        : null
   }
 }
 
@@ -240,8 +225,6 @@ export function calculatePortfolioSummary(
   const quoteMap = new Map(quotes.map((quote) => [quote.quoteId, quote]))
   let positionCount = 0
   let costBasis = 0
-  let costBasisPositionCount = 0
-  let profitCostBasis = 0
   let marketValue = 0
   let todayProfit = 0
   let todayCostBasis = 0
@@ -270,14 +253,10 @@ export function calculatePortfolioSummary(
       currencyValues[metrics.currency] =
         (currencyValues[metrics.currency] ?? 0) + metrics.cnyMarketValue
     }
-    if (stock.position && metrics.cnyProfitCostBasis !== null && metrics.cnyTotalProfit !== null) {
+    if (stock.position && metrics.cnyCostBasis !== null && metrics.cnyTotalProfit !== null) {
       profitPositionCount += 1
-      profitCostBasis += metrics.cnyProfitCostBasis
+      costBasis += metrics.cnyCostBasis
       totalProfit += metrics.cnyTotalProfit
-      if (metrics.cnyCostBasis !== null) {
-        costBasisPositionCount += 1
-        costBasis += metrics.cnyCostBasis
-      }
     } else if (stock.position) {
       unconvertedPositionCount += 1
     }
@@ -292,21 +271,19 @@ export function calculatePortfolioSummary(
     currency: 'CNY',
     exchangeRate: 1,
     costExchangeRate: 1,
-    costBasis: costBasisPositionCount > 0 ? costBasis : null,
+    costBasis: profitPositionCount > 0 ? costBasis : null,
     marketValue: marketValuePositionCount > 0 ? marketValue : null,
     todayProfit: todayPricedPositionCount > 0 ? todayProfit : null,
     todayProfitPercent: todayCostBasis > 0 ? (todayProfit / todayCostBasis) * 100 : null,
     todayCostBasis: todayPricedPositionCount > 0 ? todayCostBasis : null,
     totalProfit: profitPositionCount > 0 ? totalProfit : null,
-    profitPercent: profitCostBasis > 0 ? (totalProfit / profitCostBasis) * 100 : null,
-    profitCostBasis: profitPositionCount > 0 ? profitCostBasis : null,
+    profitPercent: costBasis > 0 ? (totalProfit / costBasis) * 100 : null,
     cnyMarketValue: marketValuePositionCount > 0 ? marketValue : null,
     cnyTodayProfit: todayPricedPositionCount > 0 ? todayProfit : null,
     cnyTodayCostBasis: todayPricedPositionCount > 0 ? todayCostBasis : null,
-    cnyCostBasis: costBasisPositionCount > 0 ? costBasis : null,
+    cnyCostBasis: profitPositionCount > 0 ? costBasis : null,
     cnyTotalProfit: profitPositionCount > 0 ? totalProfit : null,
-    cnyProfitPercent: profitCostBasis > 0 ? (totalProfit / profitCostBasis) * 100 : null,
-    cnyProfitCostBasis: profitPositionCount > 0 ? profitCostBasis : null,
+    cnyProfitPercent: costBasis > 0 ? (totalProfit / costBasis) * 100 : null,
     positionCount,
     unconvertedPositionCount,
     marketValues,

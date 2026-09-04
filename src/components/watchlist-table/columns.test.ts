@@ -20,14 +20,12 @@ const EMPTY_METRICS: PositionMetrics = {
   todayCostBasis: null,
   totalProfit: null,
   profitPercent: null,
-  profitCostBasis: null,
   cnyMarketValue: null,
   cnyTodayProfit: null,
   cnyTodayCostBasis: null,
   cnyCostBasis: null,
   cnyTotalProfit: null,
-  cnyProfitPercent: null,
-  cnyProfitCostBasis: null
+  cnyProfitPercent: null
 }
 
 function stock(quoteId: string, name: string): WatchStock {
