@@ -352,7 +352,7 @@
 
 .taskbar-tooltip-details {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) 76px;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) 140px;
   gap: 8px;
   margin: 0;
 }
@@ -376,9 +376,11 @@
   height: 26px;
   display: flex;
   align-items: center;
+  gap: 6px;
 }
 
 .taskbar-tooltip-sparkline svg {
+  flex: 0 0 76px;
   width: 76px;
   height: 26px;
   overflow: visible;
@@ -394,6 +396,22 @@
 
 .taskbar-tooltip-sparkline circle {
   fill: currentColor;
+}
+
+.taskbar-tooltip-sparkline-range {
+  height: 26px;
+  display: grid;
+  align-content: space-between;
+  color: #657187;
+  font-size: 12px;
+  line-height: 12px;
+  white-space: nowrap;
+}
+
+.taskbar-tooltip-sparkline-range i {
+  color: #8a94a6;
+  font-style: normal;
+  font-weight: 400;
 }
 
 .taskbar-tooltip-sparkline.is-up dd {
@@ -650,6 +668,14 @@ html[data-theme='dark'].tray-mode #root {
 
 :root[data-theme='dark'] .taskbar-tooltip-sparkline.is-flat dd {
   color: #c5cedb;
+}
+
+:root[data-theme='dark'] .taskbar-tooltip-sparkline-range {
+  color: #c5cedb;
+}
+
+:root[data-theme='dark'] .taskbar-tooltip-sparkline-range i {
+  color: #a8b3c3;
 }
 
 :root[data-theme='dark'] .taskbar-tooltip-section {

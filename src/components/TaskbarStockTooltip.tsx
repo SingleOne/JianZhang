@@ -71,7 +71,7 @@ function MiniPriceSparkline({ prices }: { prices: readonly number[] }) {
   if (prices.length === 0) {
     return (
       <div className="taskbar-tooltip-sparkline is-flat">
-        <dt>近15分钟</dt>
+        <dt>最近15分钟</dt>
         <dd>--</dd>
       </div>
     )
@@ -102,6 +102,11 @@ function MiniPriceSparkline({ prices }: { prices: readonly number[] }) {
           )
           .join(' ')
   const lastPoint = coordinates.at(-1)!
+  const maximumIndex = prices.lastIndexOf(maximum)
+  const minimumIndex = prices.lastIndexOf(minimum)
+  const maximumPoint = coordinates[maximumIndex]
+  const minimumPoint = coordinates[minimumIndex]
+  const lastIndex = coordinates.length - 1
   const change = prices.at(-1)! - prices[0]
 
   return (
@@ -109,13 +114,27 @@ function MiniPriceSparkline({ prices }: { prices: readonly number[] }) {
       <dt>最近15分钟</dt>
       <dd>
         <svg
-          aria-label={`近15分钟价格从 ${formatPrice(prices[0])} 变化至 ${formatPrice(prices.at(-1))}`}
+          aria-label={`最近15分钟价格从 ${formatPrice(prices[0])} 变化至 ${formatPrice(prices.at(-1))}，最高 ${formatPrice(maximum)}，最低 ${formatPrice(minimum)}`}
           role="img"
           viewBox={`0 0 ${SPARKLINE_WIDTH} ${SPARKLINE_HEIGHT}`}
         >
           <path d={path} />
-          <circle cx={lastPoint.x} cy={lastPoint.y} r="1.8" />
+          <circle className="is-extreme" cx={maximumPoint.x} cy={maximumPoint.y} r="2.2" />
+          {minimumIndex !== maximumIndex ? (
+            <circle className="is-extreme" cx={minimumPoint.x} cy={minimumPoint.y} r="2.2" />
+          ) : null}
+          {lastIndex !== maximumIndex && lastIndex !== minimumIndex ? (
+            <circle cx={lastPoint.x} cy={lastPoint.y} r="1.8" />
+          ) : null}
         </svg>
+        <span className="taskbar-tooltip-sparkline-range" aria-hidden="true">
+          <span>
+            <i>高</i> {formatPrice(maximum)}
+          </span>
+          <span>
+            <i>低</i> {formatPrice(minimum)}
+          </span>
+        </span>
       </dd>
     </div>
   )

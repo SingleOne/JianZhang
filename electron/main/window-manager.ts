@@ -22,7 +22,7 @@ import type {
 import { atomicWriteJsonSync } from './file-storage'
 import { createAppIcon } from './tray-icons'
 
-const TASKBAR_TOOLTIP_WIDTH = 380
+const TASKBAR_TOOLTIP_WIDTH = 450
 const TASKBAR_TOOLTIP_DEFAULT_HEIGHT = 260
 const MAIN_WINDOW_TITLEBAR_HEIGHT = 44
 const MAIN_WINDOW_THEME_COLORS = {
