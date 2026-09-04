@@ -1,6 +1,6 @@
 import { Folders, X } from 'lucide-react'
 import type { CSSProperties, Ref } from 'react'
-import { isTrackingWatchlistGroup } from '../shared/types'
+import { isHoldingWatchlistGroup, isTrackingWatchlistGroup } from '../shared/types'
 import type { WatchlistGroup, WatchStock } from '../shared/types'
 
 interface StockGroupQuickPopoverProps {
@@ -60,27 +60,30 @@ export function StockGroupQuickPopover({
         {groups.map((group) => {
           const checked = Boolean(stock.groupIds?.includes(group.id))
           const trackingGroup = isTrackingWatchlistGroup(group)
+          const holdingGroup = isHoldingWatchlistGroup(group)
+          const automaticGroup = trackingGroup || holdingGroup
+          const automaticDescription = trackingGroup ? '由追踪状态自动维护' : '由持仓数量自动维护'
           return (
             <label
-              className={`watchlist-group-quick-row ${checked ? 'is-selected' : ''} ${trackingGroup ? 'is-readonly' : ''}`}
+              className={`watchlist-group-quick-row ${checked ? 'is-selected' : ''} ${automaticGroup ? 'is-readonly' : ''}`}
               key={group.id}
-              title={trackingGroup ? '追踪分组由开始或停止追踪自动维护' : undefined}
+              title={automaticGroup ? `${group.name}分组${automaticDescription}` : undefined}
             >
               <input
                 type="checkbox"
                 checked={checked}
-                disabled={trackingGroup}
+                disabled={automaticGroup}
                 onChange={(event) => onToggleGroup(group.id, event.target.checked)}
                 aria-label={
-                  trackingGroup
-                    ? `${group.name}分组由追踪状态自动维护`
+                  automaticGroup
+                    ? `${group.name}分组${automaticDescription}`
                     : `${checked ? '移出' : '加入'}分组 ${group.name}`
                 }
               />
               <span>
                 <strong>{group.name}</strong>
                 <small>
-                  {trackingGroup ? '由追踪状态自动维护' : checked ? '已加入' : '点击加入'}
+                  {automaticGroup ? automaticDescription : checked ? '已加入' : '点击加入'}
                 </small>
               </span>
             </label>

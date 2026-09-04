@@ -143,9 +143,12 @@ export const DAILY_SCAN_WATCHLIST_GROUP_ID = 'daily-market-scan-observation'
 export const DAILY_SCAN_WATCHLIST_GROUP_NAME = '异动观察'
 export const TRACKING_WATCHLIST_GROUP_ID = 'stock-tracking'
 export const TRACKING_WATCHLIST_GROUP_NAME = '追踪'
+export const HOLDING_WATCHLIST_GROUP_ID = 'portfolio-holdings'
+export const HOLDING_WATCHLIST_GROUP_NAME = '持仓'
 export const DEFAULT_WATCHLIST_GROUPS: readonly WatchlistGroup[] = [
   { id: DAILY_SCAN_WATCHLIST_GROUP_ID, name: DAILY_SCAN_WATCHLIST_GROUP_NAME },
-  { id: TRACKING_WATCHLIST_GROUP_ID, name: TRACKING_WATCHLIST_GROUP_NAME }
+  { id: TRACKING_WATCHLIST_GROUP_ID, name: TRACKING_WATCHLIST_GROUP_NAME },
+  { id: HOLDING_WATCHLIST_GROUP_ID, name: HOLDING_WATCHLIST_GROUP_NAME }
 ]
 
 export function isDailyScanWatchlistGroup(group: WatchlistGroup): boolean {
@@ -165,12 +168,26 @@ export function isTrackingWatchlistGroup(group: WatchlistGroup): boolean {
   )
 }
 
+export function isHoldingWatchlistGroup(group: WatchlistGroup): boolean {
+  return (
+    group.id === HOLDING_WATCHLIST_GROUP_ID || group.name.trim() === HOLDING_WATCHLIST_GROUP_NAME
+  )
+}
+
 export function isSystemWatchlistGroup(group: WatchlistGroup): boolean {
-  return isDailyScanWatchlistGroup(group) || isTrackingWatchlistGroup(group)
+  return (
+    isDailyScanWatchlistGroup(group) ||
+    isTrackingWatchlistGroup(group) ||
+    isHoldingWatchlistGroup(group)
+  )
 }
 
 export function getTrackingWatchlistGroup(groups: readonly WatchlistGroup[]): WatchlistGroup {
   return groups.find(isTrackingWatchlistGroup) ?? { ...DEFAULT_WATCHLIST_GROUPS[1] }
+}
+
+export function getHoldingWatchlistGroup(groups: readonly WatchlistGroup[]): WatchlistGroup {
+  return groups.find(isHoldingWatchlistGroup) ?? { ...DEFAULT_WATCHLIST_GROUPS[2] }
 }
 
 export function normalizeWatchlistGroups(
@@ -186,16 +203,20 @@ export function normalizeWatchlistGroups(
   })
   const dailyScanGroup = normalized.find(isDailyScanWatchlistGroup)
   const trackingGroup = normalized.find(isTrackingWatchlistGroup)
+  const holdingGroup = normalized.find(isHoldingWatchlistGroup)
   const systemGroups = [
     dailyScanGroup ?? { ...DEFAULT_WATCHLIST_GROUPS[0] },
-    trackingGroup ?? { ...DEFAULT_WATCHLIST_GROUPS[1] }
+    trackingGroup ?? { ...DEFAULT_WATCHLIST_GROUPS[1] },
+    holdingGroup ?? { ...DEFAULT_WATCHLIST_GROUPS[2] }
   ]
   return [
     ...systemGroups.map((group) => ({
       ...group,
       name: isDailyScanWatchlistGroup(group)
         ? DAILY_SCAN_WATCHLIST_GROUP_NAME
-        : TRACKING_WATCHLIST_GROUP_NAME
+        : isTrackingWatchlistGroup(group)
+          ? TRACKING_WATCHLIST_GROUP_NAME
+          : HOLDING_WATCHLIST_GROUP_NAME
     })),
     ...normalized.filter((group) => !isSystemWatchlistGroup(group))
   ]
@@ -290,16 +311,19 @@ export function normalizeStockTrackingProfiles(
   )
 }
 
-export function synchronizeTrackingGroupMembership(
+export function synchronizeWatchlistGroupMemberships(
   stocks: readonly WatchStock[],
   groups: readonly WatchlistGroup[],
   profiles: StockTrackingProfiles
 ): WatchStock[] {
   const trackingGroupId = getTrackingWatchlistGroup(groups).id
+  const holdingGroupId = getHoldingWatchlistGroup(groups).id
   return stocks.map((stock) => {
     const groupIds = new Set(stock.groupIds ?? [])
     if (profiles[stock.quoteId]?.status === 'tracking') groupIds.add(trackingGroupId)
     else groupIds.delete(trackingGroupId)
+    if (stock.position && stock.position.quantity > 0) groupIds.add(holdingGroupId)
+    else groupIds.delete(holdingGroupId)
     return { ...stock, groupIds: [...groupIds] }
   })
 }
@@ -1243,7 +1267,7 @@ export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
 ] as const
 
 export type WatchlistColumnId = (typeof DEFAULT_WATCHLIST_COLUMN_ORDER)[number]
-export const WATCHLIST_COLUMN_ORDER_VERSION = 9
+export const WATCHLIST_COLUMN_ORDER_VERSION = 10
 
 export function normalizeWatchlistColumnOrder(
   columnOrder: readonly string[] | undefined
@@ -1252,14 +1276,15 @@ export function normalizeWatchlistColumnOrder(
   const validColumns = new Set<WatchlistColumnId>(DEFAULT_WATCHLIST_COLUMN_ORDER)
   const normalized = source.filter(
     (columnId, index): columnId is WatchlistColumnId =>
+      columnId !== 'stock' &&
       columnId !== 'operation' &&
       validColumns.has(columnId as WatchlistColumnId) &&
       source.indexOf(columnId) === index
   )
   const missingColumns = DEFAULT_WATCHLIST_COLUMN_ORDER.filter(
-    (columnId) => columnId !== 'operation' && !normalized.includes(columnId)
+    (columnId) => columnId !== 'stock' && columnId !== 'operation' && !normalized.includes(columnId)
   )
-  return [...normalized, ...missingColumns, 'operation']
+  return ['stock', ...normalized, ...missingColumns, 'operation']
 }
 
 export interface StockSectorQuote {

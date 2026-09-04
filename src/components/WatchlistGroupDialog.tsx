@@ -1,7 +1,11 @@
 import { FolderPlus, Folders, Search, Trash2, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { isSystemWatchlistGroup, isTrackingWatchlistGroup } from '../shared/types'
+import {
+  isHoldingWatchlistGroup,
+  isSystemWatchlistGroup,
+  isTrackingWatchlistGroup
+} from '../shared/types'
 import type { StockQuote, WatchlistGroup, WatchStock } from '../shared/types'
 import { useConfirmDialog } from './ConfirmDialog'
 
@@ -37,6 +41,8 @@ export function WatchlistGroupDialog({
   const quoteMap = useMemo(() => new Map(quotes.map((quote) => [quote.quoteId, quote])), [quotes])
   const selectedGroup = groups.find((group) => group.id === selectedGroupId)
   const selectedTrackingGroup = Boolean(selectedGroup && isTrackingWatchlistGroup(selectedGroup))
+  const selectedHoldingGroup = Boolean(selectedGroup && isHoldingWatchlistGroup(selectedGroup))
+  const selectedAutomaticGroup = selectedTrackingGroup || selectedHoldingGroup
   const normalizedNames = groups.map((group) => group.name.trim().toLocaleLowerCase('zh-CN'))
   const namesInvalid =
     normalizedNames.some((name) => !name) ||
@@ -92,7 +98,7 @@ export function WatchlistGroupDialog({
   }
 
   const toggleStock = (quoteId: string, checked: boolean) => {
-    if (!selectedGroupId || selectedTrackingGroup) return
+    if (!selectedGroupId || selectedAutomaticGroup) return
     setGroupIdsByQuoteId((current) => {
       const currentGroupIds = current[quoteId] ?? []
       return {
@@ -105,7 +111,7 @@ export function WatchlistGroupDialog({
   }
 
   const addFilteredStocks = () => {
-    if (!selectedGroupId || selectedTrackingGroup) return
+    if (!selectedGroupId || selectedAutomaticGroup) return
     setGroupIdsByQuoteId((current) => {
       const next = { ...current }
       for (const stock of filteredStocks) {
@@ -116,7 +122,7 @@ export function WatchlistGroupDialog({
   }
 
   const clearSelectedGroup = () => {
-    if (!selectedGroupId || selectedTrackingGroup) return
+    if (!selectedGroupId || selectedAutomaticGroup) return
     setGroupIdsByQuoteId((current) =>
       Object.fromEntries(
         Object.entries(current).map(([quoteId, groupIds]) => [
@@ -271,14 +277,16 @@ export function WatchlistGroupDialog({
                   <span>
                     {selectedTrackingGroup
                       ? `追踪分组由开始/停止追踪自动维护，当前有 ${groupStockCount(selectedGroup.id)} 只股票`
-                      : `当前分组已包含 ${groupStockCount(selectedGroup.id)} 只股票`}
+                      : selectedHoldingGroup
+                        ? `持仓分组由持仓数量自动维护，当前有 ${groupStockCount(selectedGroup.id)} 只股票`
+                        : `当前分组已包含 ${groupStockCount(selectedGroup.id)} 只股票`}
                   </span>
                   <span>
                     <button
                       className="secondary-button"
                       type="button"
                       onClick={addFilteredStocks}
-                      disabled={selectedTrackingGroup}
+                      disabled={selectedAutomaticGroup}
                     >
                       加入当前搜索结果
                     </button>
@@ -286,7 +294,7 @@ export function WatchlistGroupDialog({
                       className="secondary-button"
                       type="button"
                       onClick={clearSelectedGroup}
-                      disabled={selectedTrackingGroup}
+                      disabled={selectedAutomaticGroup}
                     >
                       清空当前分组
                     </button>
@@ -302,7 +310,7 @@ export function WatchlistGroupDialog({
                           checked={Boolean(
                             groupIdsByQuoteId[stock.quoteId]?.includes(selectedGroup.id)
                           )}
-                          disabled={selectedTrackingGroup}
+                          disabled={selectedAutomaticGroup}
                           onChange={(event) => toggleStock(stock.quoteId, event.target.checked)}
                         />
                         <strong>{stock.name}</strong>

@@ -8,7 +8,7 @@ import {
   normalizeWatchlist,
   normalizeWatchlistColumnOrder,
   normalizeWatchlistGroups,
-  synchronizeTrackingGroupMembership,
+  synchronizeWatchlistGroupMemberships,
   type AppSettings,
   type AppState,
   type WatchStock
@@ -94,7 +94,7 @@ export function parseImportedAppState(value: unknown): AppState {
 
   const watchlistGroups = normalizeWatchlistGroups(importedState.watchlistGroups)
   const stockTrackingProfiles = normalizeStockTrackingProfiles(importedState.stockTrackingProfiles)
-  const watchlist = synchronizeTrackingGroupMembership(
+  const watchlist = synchronizeWatchlistGroupMemberships(
     normalizeWatchlist(importedState.watchlist),
     watchlistGroups,
     stockTrackingProfiles

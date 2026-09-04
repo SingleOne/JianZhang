@@ -10,7 +10,7 @@ import {
   normalizeWatchlist,
   normalizeWatchlistColumnOrder,
   normalizeWatchlistGroups,
-  synchronizeTrackingGroupMembership,
+  synchronizeWatchlistGroupMemberships,
   type AppState
 } from '../../src/shared/types'
 import { atomicWriteFileSync } from './file-storage'
@@ -116,7 +116,7 @@ export class StateStore {
   normalize(state: AppState): AppState {
     const watchlistGroups = normalizeWatchlistGroups(state.watchlistGroups)
     const stockTrackingProfiles = normalizeStockTrackingProfiles(state.stockTrackingProfiles)
-    const watchlist = synchronizeTrackingGroupMembership(
+    const watchlist = synchronizeWatchlistGroupMemberships(
       normalizeWatchlist(state.watchlist),
       watchlistGroups,
       stockTrackingProfiles
@@ -176,7 +176,7 @@ export class StateStore {
   private normalizeLoadedState(saved: AppState): AppState {
     const watchlistGroups = normalizeWatchlistGroups(saved.watchlistGroups)
     const stockTrackingProfiles = normalizeStockTrackingProfiles(saved.stockTrackingProfiles)
-    const watchlist = synchronizeTrackingGroupMembership(
+    const watchlist = synchronizeWatchlistGroupMemberships(
       normalizeWatchlist(saved.watchlist ?? this.defaultState.watchlist),
       watchlistGroups,
       stockTrackingProfiles

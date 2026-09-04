@@ -11,7 +11,7 @@ import {
   normalizeWatchlist,
   normalizeWatchlistColumnOrder,
   normalizeWatchlistGroups,
-  synchronizeTrackingGroupMembership,
+  synchronizeWatchlistGroupMemberships,
   type AppState,
   type BootstrapResult,
   type CacheCategoryId,
@@ -175,7 +175,7 @@ function loadDemoState(): AppState {
   const parsed = JSON.parse(saved) as AppState
   const watchlistGroups = normalizeWatchlistGroups(parsed.watchlistGroups)
   const stockTrackingProfiles = normalizeStockTrackingProfiles(parsed.stockTrackingProfiles)
-  const watchlist = synchronizeTrackingGroupMembership(
+  const watchlist = synchronizeWatchlistGroupMemberships(
     normalizeWatchlist(parsed.watchlist),
     watchlistGroups,
     stockTrackingProfiles

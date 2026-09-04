@@ -28,7 +28,8 @@ import {
 import {
   getDailyScanWatchlistGroup,
   getTrackingWatchlistGroup,
-  MARKET_INDEX_OPTIONS
+  MARKET_INDEX_OPTIONS,
+  synchronizeWatchlistGroupMemberships
 } from './shared/types'
 import packageInfo from '../package.json'
 import type {
@@ -525,9 +526,17 @@ export default function App() {
 
   const persist = useCallback(
     async (nextState: AppState, refreshDemoQuotes = true) => {
-      setState(nextState)
+      const synchronizedState = {
+        ...nextState,
+        watchlist: synchronizeWatchlistGroupMemberships(
+          nextState.watchlist,
+          nextState.watchlistGroups,
+          nextState.stockTrackingProfiles
+        )
+      }
+      setState(synchronizedState)
       try {
-        const saved = await stockApi.saveState(nextState)
+        const saved = await stockApi.saveState(synchronizedState)
         setState(saved)
         if (!isDesktopRuntime && refreshDemoQuotes) updateQuotes(await stockApi.refreshQuotes())
         return saved

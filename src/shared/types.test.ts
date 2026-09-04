@@ -8,8 +8,9 @@ import {
   normalizeTTradingAccounts,
   normalizeStockTrackingProfiles,
   normalizeWatchlist,
+  normalizeWatchlistColumnOrder,
   normalizeWatchlistGroups,
-  synchronizeTrackingGroupMembership,
+  synchronizeWatchlistGroupMemberships,
   type TTrade
 } from './types'
 
@@ -49,7 +50,8 @@ describe('watchlist normalization', () => {
     expect(normalizeWatchlistGroups(undefined)).toEqual(DEFAULT_WATCHLIST_GROUPS)
     expect(normalizeWatchlistGroups([{ id: 'existing-scan-group', name: ' 异动观察 ' }])).toEqual([
       { id: 'existing-scan-group', name: '异动观察' },
-      DEFAULT_WATCHLIST_GROUPS[1]
+      DEFAULT_WATCHLIST_GROUPS[1],
+      DEFAULT_WATCHLIST_GROUPS[2]
     ])
   })
 
@@ -71,7 +73,7 @@ describe('watchlist normalization', () => {
         metricSnapshots: []
       }
     })
-    const [stock] = synchronizeTrackingGroupMembership(
+    const [stock] = synchronizeWatchlistGroupMemberships(
       [
         {
           code: '600000',
@@ -90,6 +92,41 @@ describe('watchlist normalization', () => {
     expect(profiles['1.600000'].tags).toEqual(['银行'])
     expect(profiles['1.600000'].thesis).toBe('低估值')
     expect(stock.groupIds).toContain(DEFAULT_WATCHLIST_GROUPS[1].id)
+  })
+
+  it('keeps the holding system group aligned with positive position quantity', () => {
+    const groups = normalizeWatchlistGroups(undefined)
+    const holdingGroupId = DEFAULT_WATCHLIST_GROUPS[2].id
+    const stocks = synchronizeWatchlistGroupMemberships(
+      [
+        {
+          code: '600000',
+          name: '浦发银行',
+          quoteId: '1.600000',
+          marketLabel: '沪A',
+          showInTaskbar: false,
+          isPriority: true,
+          showRadarSignals: true,
+          position: { quantity: 100, cost: 10, openedToday: false }
+        },
+        {
+          code: '000001',
+          name: '平安银行',
+          quoteId: '0.000001',
+          marketLabel: '深A',
+          showInTaskbar: false,
+          isPriority: false,
+          showRadarSignals: true,
+          groupIds: [holdingGroupId],
+          position: { quantity: 0, cost: 10, openedToday: false }
+        }
+      ],
+      groups,
+      {}
+    )
+
+    expect(stocks[0].groupIds).toContain(holdingGroupId)
+    expect(stocks[1].groupIds).not.toContain(holdingGroupId)
   })
 
   it('keeps valid snapshots and makes positions priority stocks', () => {
@@ -199,7 +236,19 @@ describe('settings and column migration', () => {
   })
 
   it('tracks the current column layout version', () => {
-    expect(WATCHLIST_COLUMN_ORDER_VERSION).toBe(9)
+    expect(WATCHLIST_COLUMN_ORDER_VERSION).toBe(10)
+  })
+
+  it('keeps the stock column first when normalizing a saved column order', () => {
+    const columnOrder = normalizeWatchlistColumnOrder([
+      'latest',
+      'stock',
+      'changePercent',
+      'operation'
+    ])
+
+    expect(columnOrder[0]).toBe('stock')
+    expect(columnOrder.at(-1)).toBe('operation')
   })
 
   it('adds the default disabled floating profit alert to old active batches', () => {

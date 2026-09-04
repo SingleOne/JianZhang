@@ -694,12 +694,13 @@ export function WatchlistTable({
   }, [groupPopover])
 
   const moveColumn = (columnId: WatchlistColumnId, move: ColumnMove) => {
+    if (columnId === 'stock') return
     const currentIndex = adjustableColumnOrder.indexOf(columnId)
     if (currentIndex === -1) return
 
     const nextIndex =
-      move === 'start' ? 0 : move === 'end' ? adjustableColumnOrder.length - 1 : currentIndex + move
-    if (nextIndex < 0 || nextIndex >= adjustableColumnOrder.length || nextIndex === currentIndex) {
+      move === 'start' ? 1 : move === 'end' ? adjustableColumnOrder.length - 1 : currentIndex + move
+    if (nextIndex < 1 || nextIndex >= adjustableColumnOrder.length || nextIndex === currentIndex) {
       return
     }
 
@@ -1029,7 +1030,8 @@ export function WatchlistTable({
               </div>
               {columnMenuOrder.map((columnId) => {
                 const currentIndex = adjustableColumnOrder.indexOf(columnId)
-                const isFirst = currentIndex === 0
+                const isFixed = columnId === 'stock'
+                const isFirst = currentIndex <= 1
                 const isLast = currentIndex === adjustableColumnOrder.length - 1
                 return (
                   <div className="column-order-item" key={columnId}>
@@ -1038,40 +1040,40 @@ export function WatchlistTable({
                       <button
                         className="icon-button column-move-button"
                         type="button"
-                        disabled={isFirst}
+                        disabled={isFixed || isFirst}
                         onClick={() => moveColumn(columnId, 'start')}
                         aria-label={`将${COLUMN_META[columnId].label}列移到最左侧`}
-                        title="移到最左侧"
+                        title={isFixed ? '股票名称列固定在左侧' : '移到最左侧'}
                       >
                         <ChevronsLeft size={14} />
                       </button>
                       <button
                         className="icon-button column-move-button"
                         type="button"
-                        disabled={isFirst}
+                        disabled={isFixed || isFirst}
                         onClick={() => moveColumn(columnId, -1)}
                         aria-label={`向左移动${COLUMN_META[columnId].label}列`}
-                        title="向左移动一列"
+                        title={isFixed ? '股票名称列固定在左侧' : '向左移动一列'}
                       >
                         <ArrowLeft size={14} />
                       </button>
                       <button
                         className="icon-button column-move-button"
                         type="button"
-                        disabled={isLast}
+                        disabled={isFixed || isLast}
                         onClick={() => moveColumn(columnId, 1)}
                         aria-label={`向右移动${COLUMN_META[columnId].label}列`}
-                        title="向右移动一列"
+                        title={isFixed ? '股票名称列固定在左侧' : '向右移动一列'}
                       >
                         <ArrowRight size={14} />
                       </button>
                       <button
                         className="icon-button column-move-button"
                         type="button"
-                        disabled={isLast}
+                        disabled={isFixed || isLast}
                         onClick={() => moveColumn(columnId, 'end')}
                         aria-label={`将${COLUMN_META[columnId].label}列移到最右侧`}
-                        title="移到最右侧"
+                        title={isFixed ? '股票名称列固定在左侧' : '移到最右侧'}
                       >
                         <ChevronsRight size={14} />
                       </button>
