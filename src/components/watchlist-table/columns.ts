@@ -106,8 +106,7 @@ export const COLUMN_META: Record<WatchlistColumnId, ColumnMeta> = {
   amount: { label: '持仓天数', width: 80, sortable: true },
   radar: { label: '异动提示', width: 100, sortable: true, className: 'radar-column' },
   positionQuantity: { label: '持仓数量', width: 84, sortable: true },
-  cost: { label: '成本价', width: 68, sortable: true },
-  marketValue: { label: '持仓市值', width: 88, sortable: true },
+  marketValue: { label: '持仓', width: 108, sortable: true },
   todayProfit: { label: '今日收益', width: 108, sortable: true },
   totalProfit: { label: '持仓收益', width: 108, sortable: true },
   operation: { label: '设置', width: 116, sortable: false, className: 'settings-column' }
@@ -170,8 +169,6 @@ export function sortValue(
     }
     case 'positionQuantity':
       return row.stock.position?.quantity
-    case 'cost':
-      return row.stock.position?.cost
     case 'marketValue':
       return row.metrics.marketValue
     case 'todayProfit':

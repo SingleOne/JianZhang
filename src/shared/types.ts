@@ -1259,7 +1259,6 @@ export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
   'amount',
   'radar',
   'positionQuantity',
-  'cost',
   'marketValue',
   'totalProfit',
   'todayProfit',
@@ -1267,7 +1266,7 @@ export const DEFAULT_WATCHLIST_COLUMN_ORDER = [
 ] as const
 
 export type WatchlistColumnId = (typeof DEFAULT_WATCHLIST_COLUMN_ORDER)[number]
-export const WATCHLIST_COLUMN_ORDER_VERSION = 10
+export const WATCHLIST_COLUMN_ORDER_VERSION = 11
 
 export function normalizeWatchlistColumnOrder(
   columnOrder: readonly string[] | undefined

@@ -236,12 +236,13 @@ describe('settings and column migration', () => {
   })
 
   it('tracks the current column layout version', () => {
-    expect(WATCHLIST_COLUMN_ORDER_VERSION).toBe(10)
+    expect(WATCHLIST_COLUMN_ORDER_VERSION).toBe(11)
   })
 
-  it('keeps the stock column first when normalizing a saved column order', () => {
+  it('keeps the stock column first and removes legacy columns from a saved order', () => {
     const columnOrder = normalizeWatchlistColumnOrder([
       'latest',
+      'cost',
       'stock',
       'changePercent',
       'operation'
@@ -249,6 +250,7 @@ describe('settings and column migration', () => {
 
     expect(columnOrder[0]).toBe('stock')
     expect(columnOrder.at(-1)).toBe('operation')
+    expect(columnOrder).not.toContain('cost')
   })
 
   it('adds the default disabled floating profit alert to old active batches', () => {

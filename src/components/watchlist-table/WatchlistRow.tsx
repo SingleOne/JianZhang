@@ -739,18 +739,18 @@ export const WatchlistRow = memo(function WatchlistRow({
                   </span>
                 </td>
               )
-            case 'cost':
-              return (
-                <td className="position-value-cell" key={columnId}>
-                  {stock.position
-                    ? `${STOCK_CURRENCY_SYMBOLS[metrics.currency]}${formatCost(stock.position.cost)}`
-                    : '--'}
-                </td>
-              )
             case 'marketValue':
               return (
                 <td className="position-value-cell" key={columnId}>
-                  {formatMoney(metrics.marketValue, metrics.currency)}
+                  <span className="combined-position-cell">
+                    <span>{formatMoney(metrics.marketValue, metrics.currency)}</span>
+                    <small>
+                      成本{' '}
+                      {stock.position
+                        ? `${STOCK_CURRENCY_SYMBOLS[metrics.currency]}${formatCost(stock.position.cost)}`
+                        : '--'}
+                    </small>
+                  </span>
                 </td>
               )
             case 'todayProfit':

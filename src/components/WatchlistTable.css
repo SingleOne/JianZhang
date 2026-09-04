@@ -1534,6 +1534,19 @@ button.value-screening-badge:focus-visible {
   font-weight: 700;
 }
 
+.combined-position-cell {
+  display: inline-grid;
+  justify-items: center;
+  gap: 3px;
+  line-height: 1.1;
+}
+
+.combined-position-cell small {
+  color: #8490a3;
+  font-size: 12px;
+  font-weight: 500;
+}
+
 .position-quantity-cell small {
   color: #8490a3;
   font-size: 11px;

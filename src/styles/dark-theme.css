@@ -4479,6 +4479,9 @@ html[data-theme='dark'][data-theme='dark'].tray-mode #root {
 :root[data-theme='dark'] .position-quantity-cell small {
   color: #cbd5e3;
 }
+:root[data-theme='dark'] .combined-position-cell small {
+  color: #cbd5e3;
+}
 :root[data-theme='dark'] .today-market-cell {
   color: #e6edf7;
 }
