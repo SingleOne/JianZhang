@@ -19,6 +19,7 @@ import {
   type FundamentalScreeningEvaluation
 } from './lib/fundamental-screening'
 import { calculatePortfolioSummary } from './lib/portfolio'
+import { calculateCurrentPositionProfitOverrides } from './lib/portfolio-performance'
 import { reconcileStockQuotes } from './lib/quote-state'
 import {
   createStockTrackingSource,
@@ -480,15 +481,39 @@ export default function App() {
       ),
     [fundamentalOverview]
   )
+  const positionProfitOverrides = useMemo(
+    () =>
+      calculateCurrentPositionProfitOverrides(
+        state.watchlist,
+        quotes,
+        state.tTradingAccounts,
+        state.settings.exchangeRates,
+        state.portfolioPerformanceAdjustments ?? {}
+      ),
+    [
+      quotes,
+      state.portfolioPerformanceAdjustments,
+      state.settings.exchangeRates,
+      state.tTradingAccounts,
+      state.watchlist
+    ]
+  )
   const portfolioSummary = useMemo(
     () =>
       calculatePortfolioSummary(
         state.watchlist,
         quotes,
         state.tTradingAccounts,
-        state.settings.exchangeRates
+        state.settings.exchangeRates,
+        positionProfitOverrides
       ),
-    [quotes, state.settings.exchangeRates, state.tTradingAccounts, state.watchlist]
+    [
+      positionProfitOverrides,
+      quotes,
+      state.settings.exchangeRates,
+      state.tTradingAccounts,
+      state.watchlist
+    ]
   )
   const portfolioExposureText = useMemo(() => {
     const total = portfolioSummary.marketValue ?? 0
@@ -1725,6 +1750,7 @@ export default function App() {
                 portfolioExposureText={portfolioExposureText}
                 tradingCalendar={state.settings.tradingCalendar}
                 exchangeRates={state.settings.exchangeRates}
+                positionProfitOverrides={positionProfitOverrides}
                 onSelect={selectWatchlistStock}
                 onDetailNavigationHandled={handleDetailNavigationHandled}
                 onToggleTaskbar={toggleTaskbar}

@@ -11,6 +11,7 @@ import type {
 } from '../shared/types'
 import { roundMoney, totalRecordedTradeFees } from './t-trading'
 import { activePortfolioLedgerEntries } from './portfolio-ledger'
+import type { PositionProfitOverride } from './portfolio'
 
 export const DEFAULT_PORTFOLIO_ACCOUNT_ID = 'default'
 export const DEFAULT_PORTFOLIO_ACCOUNT_LABEL = '默认账户'
@@ -397,12 +398,28 @@ function stockPerformance(
   let cnyCostComplete = true
   let ledgerError = false
 
+  const resetHoldingCycle = () => {
+    slices.clear()
+    issues.clear()
+    nativeCost = 0
+    cnyCost = 0
+    cnyCostComplete = true
+    ledgerError = false
+  }
+
   for (const entry of activePortfolioLedgerEntries(account)) {
     const currency = currencyForEntry(entry, securityCurrency)
-    if (entry.kind === 'positionAdjustment' && entry.resetsPerformance) {
-      slices.clear()
-      issues.clear()
-      ledgerError = false
+    const opensHoldingCycle =
+      quantity <= 0.000_001 &&
+      ((entry.kind === 'trade' &&
+        entry.record.side === 'buy' &&
+        entry.record.quantity > 0.000_001) ||
+        (entry.kind === 'positionAdjustment' && entry.quantityAfter > 0.000_001) ||
+        ((entry.kind === 'shareAdjustment' || entry.kind === 'securityConversion') &&
+          entry.quantityAfter > 0.000_001) ||
+        (entry.kind === 'rightsSubscription' && entry.quantity > 0.000_001))
+    if (opensHoldingCycle || (entry.kind === 'positionAdjustment' && entry.resetsPerformance)) {
+      resetHoldingCycle()
     }
     const slice = getSlice(currency)
     const rate = historicalRate(entry, currency)
@@ -592,6 +609,45 @@ function stockPerformance(
     complete: cny.totalProfit !== null,
     issues: [...issues]
   }
+}
+
+export function calculateCurrentPositionProfitOverride(
+  stock: WatchStock,
+  quote: StockQuote | undefined,
+  account: TTradingAccount | undefined,
+  exchangeRates: ExchangeRateSettings,
+  manualAdjustment = 0
+): PositionProfitOverride | undefined {
+  if (!stock.position || !account) return undefined
+  const performance = stockPerformance(stock, quote, account, exchangeRates, manualAdjustment)
+  if (!performance) return undefined
+  const native = performance.native.find((slice) => slice.currency === performance.securityCurrency)
+  return {
+    totalProfit: native?.totalProfit ?? null,
+    cnyTotalProfit: performance.cny.totalProfit
+  }
+}
+
+export function calculateCurrentPositionProfitOverrides(
+  watchlist: readonly WatchStock[],
+  quotes: readonly StockQuote[],
+  accounts: TTradingAccounts,
+  exchangeRates: ExchangeRateSettings,
+  adjustments: Readonly<PortfolioPerformanceAdjustments> = {}
+): Record<string, PositionProfitOverride> {
+  const quoteMap = new Map(quotes.map((quote) => [quote.quoteId, quote]))
+  return Object.fromEntries(
+    watchlist.flatMap((stock) => {
+      const profit = calculateCurrentPositionProfitOverride(
+        stock,
+        quoteMap.get(stock.quoteId),
+        accounts[stock.quoteId],
+        exchangeRates,
+        Number.isFinite(adjustments[stock.quoteId]) ? adjustments[stock.quoteId] : 0
+      )
+      return profit ? [[stock.quoteId, profit] as const] : []
+    })
+  )
 }
 
 function mergeNativeSlices(slices: readonly NativePerformanceSlice[]): NativePerformanceSlice[] {

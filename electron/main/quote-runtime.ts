@@ -355,7 +355,9 @@ export class QuoteRuntime {
       const stockAlertUpdate = applyStockAlertTriggers(
         currentState.watchlist,
         alertQuotes,
-        tAlertUpdate.accounts
+        tAlertUpdate.accounts,
+        currentState.settings.exchangeRates,
+        currentState.portfolioPerformanceAdjustments ?? {}
       )
       if (tAlertUpdate.changed || stockAlertUpdate.changed) {
         const nextState = {

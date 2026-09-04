@@ -2,7 +2,7 @@ import { BellRing, Plus, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { formatPercent, formatPrice } from '../lib/format'
-import { calculatePositionMetrics } from '../lib/portfolio'
+import { calculatePositionMetrics, type PositionProfitOverride } from '../lib/portfolio'
 import { STOCK_ALERT_METRIC_LABELS } from '../lib/stock-alerts'
 import {
   marketCapabilitiesForQuoteId,
@@ -13,6 +13,7 @@ import type {
   StockAlertMetric,
   StockAlertRule,
   StockQuote,
+  ExchangeRateSettings,
   TTradingAccount,
   WatchStock
 } from '../shared/types'
@@ -21,6 +22,8 @@ interface StockAlertDialogProps {
   stock: WatchStock
   quote: StockQuote | undefined
   account: TTradingAccount | undefined
+  exchangeRates: ExchangeRateSettings
+  profitOverride: PositionProfitOverride | undefined
   onSave: (rules: StockAlertRule[]) => void
   onClose: () => void
 }
@@ -36,13 +39,21 @@ export function StockAlertDialog({
   stock,
   quote,
   account,
+  exchangeRates,
+  profitOverride,
   onSave,
   onClose
 }: StockAlertDialogProps) {
   const capabilities = marketCapabilitiesForQuoteId(stock.quoteId)
   const currency = stock.currency ?? stockMarketIdentity(stock.quoteId).currency
   const currencySymbol = STOCK_CURRENCY_SYMBOLS[currency]
-  const metrics = calculatePositionMetrics(stock.position, quote, account)
+  const metrics = calculatePositionMetrics(
+    stock.position,
+    quote,
+    account,
+    exchangeRates,
+    profitOverride
+  )
   const availableMetrics = Object.entries(STOCK_ALERT_METRIC_LABELS).filter(
     ([metric]) => metric !== 'profitPercent' || capabilities.profitAlert
   )

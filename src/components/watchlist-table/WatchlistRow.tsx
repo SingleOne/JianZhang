@@ -21,10 +21,10 @@ import {
 } from '../../lib/format'
 import { isStockQuoteExpired, STOCK_QUOTE_SOURCE_LABELS } from '../../lib/quote-state'
 import {
-  calculatePositionMetrics,
   currentDateKey,
   getAvailablePositionQuantity,
-  getPositionHoldingDays
+  getPositionHoldingDays,
+  type PositionMetrics
 } from '../../lib/portfolio'
 import type { StockDetailNavigationRequest } from '../../lib/completion-notifications'
 import { getTriggeredStockAlertDirection } from '../../lib/stock-alerts'
@@ -118,6 +118,7 @@ export function todayRadarSignals(signals: StockRadarSignal[] | undefined): Stoc
 interface WatchlistRowProps {
   stock: WatchStock
   quote: StockQuote | undefined
+  metrics: PositionMetrics
   dividendFinancing: DividendFinancingRankingItem | undefined
   dividendFinancingSnapshotDate: string | undefined
   fundamentalScreening: FundamentalScreeningEvaluation | undefined
@@ -183,6 +184,7 @@ interface WatchlistRowProps {
 export const WatchlistRow = memo(function WatchlistRow({
   stock,
   quote,
+  metrics,
   dividendFinancing,
   dividendFinancingSnapshotDate,
   fundamentalScreening,
@@ -253,7 +255,6 @@ export const WatchlistRow = memo(function WatchlistRow({
   const financialMine = fundamentalScreening
     ? evaluateFinancialMine(fundamentalScreening.company)
     : null
-  const metrics = calculatePositionMetrics(stock.position, quote, tradingAccount, exchangeRates)
   const quoteDirection = valueClass(quote?.changePercent)
   const sectorDirection = valueClass(quote?.sector?.changePercent)
   const sinceAddedPerformance = calculateSinceAddedPerformance(stock, quote)

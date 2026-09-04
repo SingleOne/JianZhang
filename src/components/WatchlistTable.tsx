@@ -12,7 +12,11 @@ import {
   X
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { calculatePositionMetrics, type PortfolioSummary } from '../lib/portfolio'
+import {
+  calculatePositionMetrics,
+  type PortfolioSummary,
+  type PositionProfitOverride
+} from '../lib/portfolio'
 import { calculatePortfolioQualitySummary } from '../lib/portfolio-quality'
 import type { StockDetailNavigationRequest } from '../lib/completion-notifications'
 import type {
@@ -114,6 +118,7 @@ interface WatchlistTableProps {
   portfolioExposureText: string
   tradingCalendar: TradingCalendarSettings
   exchangeRates: ExchangeRateSettings
+  positionProfitOverrides: Readonly<Record<string, PositionProfitOverride>>
   onSelect: (quoteId: string) => void
   onDetailNavigationHandled: (requestId: string) => void
   onToggleTaskbar: (quoteId: string) => void
@@ -255,6 +260,7 @@ export function WatchlistTable({
   portfolioExposureText,
   tradingCalendar,
   exchangeRates,
+  positionProfitOverrides,
   onSelect,
   onDetailNavigationHandled,
   onToggleTaskbar,
@@ -396,7 +402,8 @@ export function WatchlistTable({
           stock.position,
           quote,
           tTradingAccounts[stock.quoteId],
-          exchangeRates
+          exchangeRates,
+          positionProfitOverrides[stock.quoteId]
         ),
         manualIndex
       }
@@ -406,6 +413,7 @@ export function WatchlistTable({
     fundamentalPeerComparisonsByCode,
     fundamentalScreeningByCode,
     exchangeRates,
+    positionProfitOverrides,
     quotes,
     tTradingAccounts,
     watchlist
@@ -1202,6 +1210,7 @@ export function WatchlistTable({
               dividendFinancing,
               fundamentalScreening,
               fundamentalPeerComparison,
+              metrics,
               manualIndex
             }) => (
               <tbody
@@ -1219,6 +1228,7 @@ export function WatchlistTable({
                   dividendFinancingSnapshotDate={dividendFinancingSnapshotDate}
                   fundamentalScreening={fundamentalScreening}
                   fundamentalPeerComparison={fundamentalPeerComparison}
+                  metrics={metrics}
                   fundamentalSnapshotDate={fundamentalSnapshotDate}
                   fundamentalGeneratedAt={fundamentalGeneratedAt}
                   fundamentalStaleReason={fundamentalStaleReason}
@@ -1399,6 +1409,8 @@ export function WatchlistTable({
           }
           quote={quotes.find((quote) => quote.quoteId === stockAlertStock.quoteId)}
           account={tTradingAccounts[stockAlertStock.quoteId]}
+          exchangeRates={exchangeRates}
+          profitOverride={positionProfitOverrides[stockAlertStock.quoteId]}
           onClose={() => setStockAlertStock(null)}
           onSave={(rules) => {
             onUpdateStockAlerts(stockAlertStock.quoteId, rules)

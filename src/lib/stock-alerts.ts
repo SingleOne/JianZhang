@@ -1,11 +1,15 @@
 import type {
+  ExchangeRateSettings,
+  PortfolioPerformanceAdjustments,
   StockAlertMetric,
   StockAlertRule,
   StockQuote,
   TTradingAccounts,
   WatchStock
 } from '../shared/types'
+import { DEFAULT_EXCHANGE_RATE_SETTINGS } from '../shared/types'
 import { calculatePositionMetrics } from './portfolio'
+import { calculateCurrentPositionProfitOverride } from './portfolio-performance'
 import { formatPercent, formatPrice } from './format'
 import {
   marketCapabilitiesForQuoteId,
@@ -50,11 +54,22 @@ function getMetricValue(
   metric: StockAlertMetric,
   stock: WatchStock,
   quote: StockQuote,
-  accounts: TTradingAccounts
+  accounts: TTradingAccounts,
+  exchangeRates: ExchangeRateSettings,
+  adjustments: Readonly<PortfolioPerformanceAdjustments>
 ): number | null {
   if (metric === 'price') return quote.latest
   if (metric === 'changePercent') return quote.changePercent
-  return calculatePositionMetrics(stock.position, quote, accounts[stock.quoteId]).profitPercent
+  const account = accounts[stock.quoteId]
+  const profitOverride = calculateCurrentPositionProfitOverride(
+    stock,
+    quote,
+    account,
+    exchangeRates,
+    Number.isFinite(adjustments[stock.quoteId]) ? adjustments[stock.quoteId] : 0
+  )
+  return calculatePositionMetrics(stock.position, quote, account, exchangeRates, profitOverride)
+    .profitPercent
 }
 
 function isConditionMet(rule: StockAlertRule, actualValue: number): boolean {
@@ -64,7 +79,9 @@ function isConditionMet(rule: StockAlertRule, actualValue: number): boolean {
 export function applyStockAlertTriggers(
   watchlist: WatchStock[],
   quotes: StockQuote[],
-  accounts: TTradingAccounts
+  accounts: TTradingAccounts,
+  exchangeRates: ExchangeRateSettings = DEFAULT_EXCHANGE_RATE_SETTINGS,
+  adjustments: Readonly<PortfolioPerformanceAdjustments> = {}
 ): StockAlertUpdate {
   const quoteMap = new Map(quotes.map((quote) => [quote.quoteId, quote]))
   const triggered: TriggeredStockAlert[] = []
@@ -88,7 +105,14 @@ export function applyStockAlertTriggers(
         return { ...rule, status: 'armed' as const, triggeredAt: undefined }
       }
 
-      const actualValue = getMetricValue(rule.metric, stock, quote, accounts)
+      const actualValue = getMetricValue(
+        rule.metric,
+        stock,
+        quote,
+        accounts,
+        exchangeRates,
+        adjustments
+      )
       if (actualValue === null) return rule
 
       const conditionMet = isConditionMet(rule, actualValue)

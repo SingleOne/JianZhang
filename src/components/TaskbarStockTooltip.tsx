@@ -12,6 +12,7 @@ import {
   formatUpdateTime
 } from '../lib/format'
 import { calculatePositionMetrics } from '../lib/portfolio'
+import { calculateCurrentPositionProfitOverride } from '../lib/portfolio-performance'
 import { formatStockAlertValue, STOCK_ALERT_METRIC_LABELS } from '../lib/stock-alerts'
 import { getTriggeredTAlertBadges, getTriggeredTFloatingProfitAlert } from '../lib/t-alerts'
 import { calculateTBatchMetrics } from '../lib/t-trading'
@@ -105,7 +106,7 @@ function MiniPriceSparkline({ prices }: { prices: readonly number[] }) {
 
   return (
     <div className={`taskbar-tooltip-sparkline ${valueClass(change)}`}>
-      <dt>近15分钟</dt>
+      <dt>最近15分钟</dt>
       <dd>
         <svg
           aria-label={`近15分钟价格从 ${formatPrice(prices[0])} 变化至 ${formatPrice(prices.at(-1))}`}
@@ -204,11 +205,21 @@ export function TaskbarStockTooltip() {
     ? calculateTBatchMetrics(account.activeBatch, activeTrades, quote?.latest)
     : null
   const floatingProfitAlert = getTriggeredTFloatingProfitAlert(account?.activeBatch)
+  const positionProfitOverride = stock
+    ? calculateCurrentPositionProfitOverride(
+        stock,
+        quote,
+        account,
+        state.settings.exchangeRates,
+        state.portfolioPerformanceAdjustments?.[stock.quoteId] ?? 0
+      )
+    : undefined
   const positionMetrics = calculatePositionMetrics(
     stock?.position,
     quote,
     account,
-    state.settings.exchangeRates
+    state.settings.exchangeRates,
+    positionProfitOverride
   )
   const triggeredStockAlerts =
     stock?.alertRules?.filter((rule) => rule.enabled && rule.status === 'triggered') ?? []
@@ -278,11 +289,11 @@ export function TaskbarStockTooltip() {
         <section className="taskbar-tooltip-section">
           <div className="taskbar-tooltip-position-grid">
             <span>
-              <small>持仓股数</small>
+              <small>持仓</small>
               <b>{formatShares(stock?.position?.quantity)}</b>
             </span>
             <span>
-              <small>持仓成本</small>
+              <small>成本</small>
               <b>
                 {stock?.position
                   ? formatMoney(stock.position.cost, positionMetrics.currency)
@@ -290,17 +301,17 @@ export function TaskbarStockTooltip() {
               </b>
             </span>
             <span>
-              <small>持仓市值</small>
+              <small>市值</small>
               <b>{formatMoney(positionMetrics.marketValue, positionMetrics.currency)}</b>
             </span>
             <span>
-              <small>持仓收益</small>
+              <small>收益</small>
               <b className={valueClass(positionMetrics.totalProfit)}>
                 {formatMoneyProfit(positionMetrics.totalProfit, positionMetrics.currency)}
               </b>
             </span>
             <span>
-              <small>持仓收益率</small>
+              <small>收益率</small>
               <b className={valueClass(positionMetrics.profitPercent)}>
                 {formatPercent(positionMetrics.profitPercent)}
               </b>

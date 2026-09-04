@@ -103,6 +103,21 @@ describe('portfolio calculations', () => {
     expect(metrics.profitPercent).toBeNull()
   })
 
+  it('uses current holding-cycle profit without changing the inventory cost basis', () => {
+    const metrics = calculatePositionMetrics(
+      { quantity: 100, cost: 7.44725, openedToday: false, openedOn: '2026-08-31' },
+      quote({ latest: 7.16, previousClose: 7.2 }),
+      undefined,
+      undefined,
+      { totalProfit: -304.47, cnyTotalProfit: -304.47 }
+    )
+
+    expect(metrics.totalProfit).toBe(-304.47)
+    expect(metrics.profitCostBasis).toBeCloseTo(1020.47)
+    expect(metrics.profitPercent).toBeCloseTo(-29.8362)
+    expect(metrics.cnyCostBasis).toBeCloseTo(744.725)
+  })
+
   it('includes same-day buy fees in intraday profit and available quantity', () => {
     const buy: TTradeRecord = {
       id: 'buy-today',

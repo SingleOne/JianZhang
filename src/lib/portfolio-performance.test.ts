@@ -23,9 +23,9 @@ function trade(
   quantity: number,
   price: number,
   exchangeRate: number | undefined,
-  fees: number
+  fees: number,
+  tradedAt = side === 'buy' ? '2026-01-02T02:00:00.000Z' : '2026-03-02T02:00:00.000Z'
 ): PortfolioLedgerEntry {
-  const tradedAt = side === 'buy' ? '2026-01-02T02:00:00.000Z' : '2026-03-02T02:00:00.000Z'
   return {
     id: `trade:${id}`,
     accountId: '116.00700',
@@ -329,6 +329,28 @@ describe('portfolio performance report', () => {
       tradeFees: 8,
       totalProfit: 252
     })
+  })
+
+  it('starts holding profit again when a fully closed position is reopened', () => {
+    const entries = [
+      trade('first-buy', 'buy', 100, 10, 0.9, 0),
+      trade('first-close', 'sell', 100, 15, 0.95, 0),
+      trade('second-buy', 'buy', 60, 11, 0.91, 2, '2026-04-03T02:00:00.000Z')
+    ]
+    const report = calculatePortfolioPerformanceReport(
+      [stock(60)],
+      [quote()],
+      { '116.00700': account(entries) },
+      exchangeRates()
+    )
+
+    expect(report.stocks[0].native[0]).toMatchObject({
+      realizedProfit: 0,
+      unrealizedProfit: 60,
+      tradeFees: 2,
+      totalProfit: 58
+    })
+    expect(report.stocks[0].cny.totalProfit).toBeCloseTo(59.98)
   })
 
   it('provides stock, market, default-account, currency and portfolio groups', () => {

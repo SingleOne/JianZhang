@@ -11,6 +11,7 @@ import {
   formatShares
 } from '../lib/format'
 import { calculatePositionMetrics } from '../lib/portfolio'
+import { calculateCurrentPositionProfitOverride } from '../lib/portfolio-performance'
 import { calculateTBatchMetrics } from '../lib/t-trading'
 import { getTaskbarVisibleStocks } from '../lib/taskbar-visibility'
 import { getBatchTrades } from '../lib/trade-records'
@@ -49,6 +50,13 @@ export function TrayHoverSummary() {
       const quote = quoteMap.get(stock.quoteId)
       const account = state.tTradingAccounts[stock.quoteId]
       const activeTrades = getBatchTrades(account, account?.activeBatch)
+      const profitOverride = calculateCurrentPositionProfitOverride(
+        stock,
+        quote,
+        account,
+        state.settings.exchangeRates,
+        state.portfolioPerformanceAdjustments?.[stock.quoteId] ?? 0
+      )
       return {
         stock,
         quote,
@@ -56,14 +64,21 @@ export function TrayHoverSummary() {
           stock.position,
           quote,
           account,
-          state.settings.exchangeRates
+          state.settings.exchangeRates,
+          profitOverride
         ),
         tMetrics: account?.activeBatch
           ? calculateTBatchMetrics(account.activeBatch, activeTrades, quote?.latest)
           : null
       }
     })
-  }, [quotes, state.settings.exchangeRates, state.tTradingAccounts, state.watchlist])
+  }, [
+    quotes,
+    state.portfolioPerformanceAdjustments,
+    state.settings.exchangeRates,
+    state.tTradingAccounts,
+    state.watchlist
+  ])
   const todayProfitTotal = selectedStocks.reduce<number | null>(
     (total, { positionMetrics }) =>
       positionMetrics.cnyTodayProfit === null

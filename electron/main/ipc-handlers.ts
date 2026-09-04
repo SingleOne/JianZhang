@@ -416,7 +416,9 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
     const stockAlertUpdate = applyStockAlertTriggers(
       normalizedState.watchlist,
       dependencies.getQuotes(),
-      tAlertUpdate.accounts
+      tAlertUpdate.accounts,
+      normalizedState.settings.exchangeRates,
+      normalizedState.portfolioPerformanceAdjustments ?? {}
     )
     const savedState = {
       ...normalizedState,
