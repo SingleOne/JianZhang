@@ -18,12 +18,15 @@ const EMPTY_METRICS: PositionMetrics = {
   todayProfit: null,
   todayProfitPercent: null,
   todayCostBasis: null,
+  holdingCost: null,
+  holdingCostBasis: null,
   totalProfit: null,
   profitPercent: null,
   cnyMarketValue: null,
   cnyTodayProfit: null,
   cnyTodayCostBasis: null,
   cnyCostBasis: null,
+  cnyHoldingCostBasis: null,
   cnyTotalProfit: null,
   cnyProfitPercent: null
 }

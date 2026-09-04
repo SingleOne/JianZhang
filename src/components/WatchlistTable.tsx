@@ -1391,6 +1391,9 @@ export function WatchlistTable({
           }
           quote={quotes.find((quote) => quote.quoteId === tTradingStock.quoteId)}
           account={tTradingAccounts[tTradingStock.quoteId]}
+          holdingCost={
+            rows.find(({ stock }) => stock.quoteId === tTradingStock.quoteId)?.metrics.holdingCost
+          }
           feeSettings={tTradingFees}
           planDefaults={tPlanDefaults}
           floatingProfitAlertDefaultThreshold={tFloatingProfitAlertDefaultThreshold}

@@ -17,6 +17,7 @@ import { formatStockAlertValue, STOCK_ALERT_METRIC_LABELS } from '../lib/stock-a
 import { getTriggeredTAlertBadges, getTriggeredTFloatingProfitAlert } from '../lib/t-alerts'
 import { calculateTBatchMetrics } from '../lib/t-trading'
 import { getBatchTrades } from '../lib/trade-records'
+import { STOCK_CURRENCY_SYMBOLS } from '../shared/stock-market'
 import type { AppState, KlineBar, KlineResult, StockQuote, TaskbarLayout } from '../shared/types'
 
 const SPARKLINE_WIDTH = 76
@@ -314,8 +315,8 @@ export function TaskbarStockTooltip() {
             <span>
               <small>成本</small>
               <b>
-                {stock?.position
-                  ? formatMoney(stock.position.cost, positionMetrics.currency)
+                {positionMetrics.holdingCost !== null
+                  ? `${STOCK_CURRENCY_SYMBOLS[positionMetrics.currency]}${formatCost(positionMetrics.holdingCost)}`
                   : '--'}
               </b>
             </span>

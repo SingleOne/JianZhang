@@ -746,8 +746,8 @@ export const WatchlistRow = memo(function WatchlistRow({
                     <span>{formatMoney(metrics.marketValue, metrics.currency)}</span>
                     <small>
                       成本{' '}
-                      {stock.position
-                        ? `${STOCK_CURRENCY_SYMBOLS[metrics.currency]}${formatCost(stock.position.cost)}`
+                      {metrics.holdingCost !== null
+                        ? `${STOCK_CURRENCY_SYMBOLS[metrics.currency]}${formatCost(metrics.holdingCost)}`
                         : '--'}
                     </small>
                   </span>

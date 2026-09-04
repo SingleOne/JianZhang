@@ -71,6 +71,7 @@ interface TTradingDrawerProps {
   stock: WatchStock
   quote: StockQuote | undefined
   account: TTradingAccount | undefined
+  holdingCost: number | null | undefined
   feeSettings: TTradingFeeSettings
   planDefaults: TPlanDefaultSettings
   floatingProfitAlertDefaultThreshold: number
@@ -155,6 +156,7 @@ export function TTradingDrawer({
   stock,
   quote,
   account,
+  holdingCost,
   feeSettings,
   planDefaults,
   floatingProfitAlertDefaultThreshold,
@@ -1005,7 +1007,7 @@ export function TTradingDrawer({
             </span>
             <span>
               <small>持仓成本</small>
-              <strong>{formatOverviewValue(stock.position?.cost, formatCost)}</strong>
+              <strong>{formatOverviewValue(holdingCost, formatCost)}</strong>
             </span>
             <span>
               <small>{isReverseBatch ? '待回补数量' : '当前T仓'}</small>
