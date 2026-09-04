@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { getInitialBootstrap, initialState, stockApi } from '../lib/api'
 import {
   formatCost,
@@ -16,7 +16,12 @@ import { formatStockAlertValue, STOCK_ALERT_METRIC_LABELS } from '../lib/stock-a
 import { getTriggeredTAlertBadges, getTriggeredTFloatingProfitAlert } from '../lib/t-alerts'
 import { calculateTBatchMetrics } from '../lib/t-trading'
 import { getBatchTrades } from '../lib/trade-records'
-import type { AppState, StockQuote, TaskbarLayout } from '../shared/types'
+import type { AppState, KlineBar, KlineResult, StockQuote, TaskbarLayout } from '../shared/types'
+
+const SPARKLINE_WIDTH = 76
+const SPARKLINE_HEIGHT = 26
+const SPARKLINE_PADDING = 2
+const FIFTEEN_MINUTES = 15 * 60_000
 
 function valueClass(value: number | null | undefined): string {
   if (value === null || value === undefined || value === 0) return 'is-flat'
@@ -27,11 +32,101 @@ function formatLargeOrderVolume(volume: number): string {
   return volume >= 10_000 ? `${(volume / 10_000).toFixed(2)}万` : volume.toLocaleString('zh-CN')
 }
 
+function minuteTimestamp(time: string): number | null {
+  const parts = time.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/)
+  if (!parts) return null
+  return Date.UTC(
+    Number(parts[1]),
+    Number(parts[2]) - 1,
+    Number(parts[3]),
+    Number(parts[4]),
+    Number(parts[5])
+  )
+}
+
+function recentFifteenMinutePrices(
+  bars: readonly KlineBar[],
+  latest: number | null | undefined
+): number[] {
+  const points = bars
+    .map((bar) => ({ time: minuteTimestamp(bar.time), price: bar.close }))
+    .filter((point): point is { time: number; price: number } => point.time !== null)
+    .sort((left, right) => left.time - right.time)
+  const latestTime = points.at(-1)?.time
+  const prices =
+    latestTime === undefined
+      ? []
+      : points
+          .filter((point) => point.time >= latestTime - FIFTEEN_MINUTES)
+          .map((point) => point.price)
+
+  if (typeof latest === 'number' && Number.isFinite(latest) && prices.at(-1) !== latest) {
+    prices.push(latest)
+  }
+  return prices
+}
+
+function MiniPriceSparkline({ prices }: { prices: readonly number[] }) {
+  if (prices.length === 0) {
+    return (
+      <div className="taskbar-tooltip-sparkline is-flat">
+        <dt>近15分钟</dt>
+        <dd>--</dd>
+      </div>
+    )
+  }
+
+  const minimum = Math.min(...prices)
+  const maximum = Math.max(...prices)
+  const range = maximum - minimum
+  const availableHeight = SPARKLINE_HEIGHT - SPARKLINE_PADDING * 2
+  const coordinates = prices.map((price, index) => ({
+    x:
+      prices.length === 1
+        ? SPARKLINE_WIDTH / 2
+        : SPARKLINE_PADDING +
+          (index / (prices.length - 1)) * (SPARKLINE_WIDTH - SPARKLINE_PADDING * 2),
+    y:
+      range === 0
+        ? SPARKLINE_HEIGHT / 2
+        : SPARKLINE_PADDING + ((maximum - price) / range) * availableHeight
+  }))
+  const path =
+    coordinates.length === 1
+      ? `M ${SPARKLINE_PADDING} ${coordinates[0].y} L ${SPARKLINE_WIDTH - SPARKLINE_PADDING} ${coordinates[0].y}`
+      : coordinates
+          .map(
+            (point, index) =>
+              `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`
+          )
+          .join(' ')
+  const lastPoint = coordinates.at(-1)!
+  const change = prices.at(-1)! - prices[0]
+
+  return (
+    <div className={`taskbar-tooltip-sparkline ${valueClass(change)}`}>
+      <dt>近15分钟</dt>
+      <dd>
+        <svg
+          aria-label={`近15分钟价格从 ${formatPrice(prices[0])} 变化至 ${formatPrice(prices.at(-1))}`}
+          role="img"
+          viewBox={`0 0 ${SPARKLINE_WIDTH} ${SPARKLINE_HEIGHT}`}
+        >
+          <path d={path} />
+          <circle cx={lastPoint.x} cy={lastPoint.y} r="1.8" />
+        </svg>
+      </dd>
+    </div>
+  )
+}
+
 export function TaskbarStockTooltip() {
   const shellRef = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<AppState>(initialState)
   const [quotes, setQuotes] = useState<StockQuote[]>([])
   const [quoteId, setQuoteId] = useState<string | null>(null)
+  const [intraday, setIntraday] = useState<KlineResult | null>(null)
+  const [intradayRequestVersion, setIntradayRequestVersion] = useState(0)
   const [layout, setLayout] = useState<TaskbarLayout>({
     taskbarHeight: 48,
     taskbarEdge: 'bottom'
@@ -47,6 +142,7 @@ export function TaskbarStockTooltip() {
     const unsubscribeTooltip = stockApi.onTaskbarTooltipStock((nextQuoteId) => {
       receivedTooltipEvent = true
       setQuoteId(nextQuoteId)
+      setIntradayRequestVersion((current) => current + 1)
     })
     const unsubscribeLayout = stockApi.onTaskbarLayout((nextLayout) => {
       receivedLayoutEvent = true
@@ -74,8 +170,33 @@ export function TaskbarStockTooltip() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!quoteId) {
+      setIntraday(null)
+      return
+    }
+    let active = true
+    setIntraday((current) => (current?.quoteId === quoteId ? current : null))
+    void stockApi.getKline(quoteId, 'intraday').then(
+      (result) => {
+        if (active) setIntraday(result)
+      },
+      () => {
+        if (active) setIntraday(null)
+      }
+    )
+    return () => {
+      active = false
+    }
+  }, [intradayRequestVersion, quoteId])
+
   const stock = state.watchlist.find((item) => item.quoteId === quoteId)
   const quote = quotes.find((item) => item.quoteId === quoteId)
+  const currentIntraday = intraday?.quoteId === quoteId ? intraday : null
+  const sparklinePrices = useMemo(
+    () => recentFifteenMinutePrices(currentIntraday?.bars ?? [], quote?.latest),
+    [currentIntraday, quote?.latest]
+  )
   const account = quoteId ? state.tTradingAccounts[quoteId] : undefined
   const activeTrades = getBatchTrades(account, account?.activeBatch)
   const tAlertBadges = getTriggeredTAlertBadges(account?.activeBatch, activeTrades)
@@ -116,7 +237,7 @@ export function TaskbarStockTooltip() {
           </span>
           <span className="taskbar-tooltip-header-meta">
             <span className="taskbar-tooltip-update-time">
-              行情 {formatUpdateTime(quote?.dataAt ?? quote?.updatedAt)}
+              {formatUpdateTime(quote?.dataAt ?? quote?.updatedAt)}
             </span>
             <span className="taskbar-tooltip-market">{stock?.marketLabel ?? '实时行情'}</span>
           </span>
@@ -151,6 +272,7 @@ export function TaskbarStockTooltip() {
             <dt>换手</dt>
             <dd>{formatPercent(quote?.turnoverRate)}</dd>
           </div>
+          <MiniPriceSparkline prices={sparklinePrices} />
         </dl>
 
         <section className="taskbar-tooltip-section">
@@ -175,6 +297,12 @@ export function TaskbarStockTooltip() {
               <small>持仓收益</small>
               <b className={valueClass(positionMetrics.totalProfit)}>
                 {formatMoneyProfit(positionMetrics.totalProfit, positionMetrics.currency)}
+              </b>
+            </span>
+            <span>
+              <small>持仓收益率</small>
+              <b className={valueClass(positionMetrics.profitPercent)}>
+                {formatPercent(positionMetrics.profitPercent)}
               </b>
             </span>
           </div>

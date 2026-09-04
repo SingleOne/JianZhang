@@ -94,7 +94,7 @@ export function TrayHoverSummary() {
                 </b>
               </div>
               <span>
-                今日收益
+                今日
                 <b className={valueClass(positionMetrics.todayProfit)}>
                   {formatMoneyProfit(positionMetrics.todayProfit, positionMetrics.currency)}
                 </b>
@@ -105,10 +105,9 @@ export function TrayHoverSummary() {
             </div>
             <div className="tray-summary-profit">
               <span>
-                持仓市值 <b>{formatMoney(positionMetrics.marketValue, positionMetrics.currency)}</b>
+                持仓 <b>{formatMoney(positionMetrics.marketValue, positionMetrics.currency)}</b>
               </span>
               <span>
-                持仓收益
                 <b className={valueClass(positionMetrics.totalProfit)}>
                   {formatMoneyProfit(positionMetrics.totalProfit, positionMetrics.currency)}
                 </b>
