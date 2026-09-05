@@ -611,7 +611,7 @@ export function DailyMarketScanDialog({
                                   }
                                 >
                                   <Eye size={14} />
-                                  查看
+                                  {expanded ? '收起详情' : '查看'}
                                 </button>
                               ) : null}
                               <button

@@ -101,6 +101,25 @@
   border-color: #b83240;
 }
 
+.warning-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  color: #ffffff;
+  background: #8a5a00;
+  border: 1px solid #8a5a00;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.warning-button:hover {
+  background: #714900;
+  border-color: #714900;
+}
+
 :root[data-theme='dark'] .confirm-dialog {
   background: #1e2938;
   border-color: #3b485a;

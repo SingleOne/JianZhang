@@ -15,7 +15,7 @@ export interface ConfirmDialogOptions {
   message: string
   confirmLabel?: string
   cancelLabel?: string
-  tone?: 'default' | 'danger'
+  tone?: 'default' | 'warning' | 'danger'
   dismissible?: boolean
 }
 
@@ -54,7 +54,7 @@ function ActiveConfirmDialog({
       }}
     >
       <section
-        className={`confirm-dialog ${request.tone === 'danger' ? 'is-danger' : ''}`}
+        className={`confirm-dialog ${request.tone === 'danger' ? 'is-danger' : request.tone === 'warning' ? 'is-warning' : ''}`}
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
@@ -91,7 +91,13 @@ function ActiveConfirmDialog({
             {request.cancelLabel ?? '取消'}
           </button>
           <button
-            className={request.tone === 'danger' ? 'danger-button' : 'primary-button'}
+            className={
+              request.tone === 'danger'
+                ? 'danger-button'
+                : request.tone === 'warning'
+                  ? 'warning-button'
+                  : 'primary-button'
+            }
             type="button"
             onClick={() => onFinish(true)}
           >

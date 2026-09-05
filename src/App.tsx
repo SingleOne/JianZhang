@@ -1260,7 +1260,7 @@ export default function App() {
   }, [reportError, reportSuccess, state])
 
   const applyImportedData = useCallback(
-    async (result: ConfigImportResult): Promise<boolean> => {
+    async (result: ConfigImportResult, tone: 'warning' | 'danger' = 'danger'): Promise<boolean> => {
       if (result.canceled || !result.state) return false
       const backupSummary = result.backupSummary
       const apiKeyMessage = backupSummary
@@ -1274,7 +1274,7 @@ export default function App() {
           ? `导入后将用备份中的 ${result.state.watchlist.length} 只股票、全部设置及 ${backupSummary?.fileCount ?? 0} 个持久化数据文件覆盖当前用户数据。${apiKeyMessage}应用将自动重启。`
           : `导入后将用文件中的 ${result.state.watchlist.length} 只股票和全部设置覆盖当前配置。`,
         confirmLabel: result.importId ? '导入并重启' : '继续导入',
-        tone: 'danger'
+        tone
       })
       if (!confirmed) return false
 
@@ -1403,7 +1403,7 @@ export default function App() {
           ? `${versionWarning}将使用本机同步密码加密全部用户数据并覆盖当前 Secret Gist，包括已配置的 AI API Key。`
           : '将使用本机同步密码加密全部用户数据，并自动创建一个 Secret Gist，包括已配置的 AI API Key。',
         confirmLabel: latestSettings.requiresRemoteRestore ? '仍然上传并覆盖' : '确认上传',
-        tone: 'danger'
+        tone: 'warning'
       })
       if (!confirmed) return
       const result = await stockApi.uploadUserDataToGitHub(
@@ -1426,7 +1426,7 @@ export default function App() {
     try {
       const result = await stockApi.downloadUserDataFromGitHub()
       setGitHubSyncSettings(await stockApi.getGitHubSyncSettings())
-      const applied = await applyImportedData(result)
+      const applied = await applyImportedData(result, 'warning')
       if (applied && result.githubGistVersion) {
         setGitHubSyncSettings(await stockApi.confirmGitHubGistRestore(result.githubGistVersion))
       }
