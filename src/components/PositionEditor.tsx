@@ -70,6 +70,7 @@ import type {
   WatchStock
 } from '../shared/types'
 import { withLedgerTradeRecords } from '../shared/types'
+import { TradeSplitSource } from './TradeSplitSource'
 import {
   currencyForMarket,
   marketCapabilitiesForQuoteId,
@@ -327,6 +328,16 @@ function updateTradeAccount(
     const validationError = validateTBatchTrades(batch, nextBatchTrades)
     if (validationError) {
       return { account, updatesPosition: false, error: validationError }
+    }
+    if (
+      record.splitSource &&
+      calculateTBatchMetrics(batch, nextBatchTrades).remainingQuantity > 0
+    ) {
+      return {
+        account,
+        updatesPosition: false,
+        error: '已结算批次的买卖数量必须保持平衡，请保留完成该批次所需的交易'
+      }
     }
     const history = account.history.map((item, index) =>
       index === historyIndex ? refreshBatchSettlement(batch, nextBatchTrades) : item
@@ -593,6 +604,11 @@ function TradeRecordList({
                       : '交收日 --'}
                   {record.settlementRule ? ` · ${record.settlementRule.label}` : ''}
                 </small>
+                {record.splitSource ? (
+                  <small>
+                    <TradeSplitSource trade={record} />
+                  </small>
+                ) : null}
               </span>
               <span>
                 <strong>
@@ -1016,7 +1032,7 @@ export function PositionEditor({
       ? feeTotal > 0
         ? [{ code: 'manual' as const, label: '券商实际费用', amount: feeTotal }]
         : []
-      : transactionChanged && record.feeTemplate
+      : transactionChanged && record.feeTemplate && !record.splitSource
         ? calculateMarketTradeFeeItems(
             market,
             price * tradeQuantity,
@@ -1054,6 +1070,7 @@ export function PositionEditor({
       actualSettlementDate: tradeRecordDraft.actualSettlementDate || undefined,
       settlementRule: settlementRuleForTradeDate(market, marketDate),
       origin: record.origin,
+      splitSource: record.splitSource,
       allocations: record.allocations?.length
         ? record.allocations.length > 1
           ? record.allocations
@@ -1089,13 +1106,14 @@ export function PositionEditor({
       setTradeRecordError(result.error)
       return
     }
-    if (!applyGlobalLedgerPosition(result.account, isIndependentBaseTrade(record))) {
+    const useFullLedgerPosition = isIndependentBaseTrade(record) || Boolean(record.splitSource)
+    if (!applyGlobalLedgerPosition(result.account, useFullLedgerPosition)) {
       setEditingTradeId(record.id)
       setTradeRecordDraft(createTradeRecordDraft(record))
       return
     }
     setEditedAccount(result.account)
-    if (result.updatesPosition) {
+    if (result.updatesPosition && !useFullLedgerPosition) {
       setQuantity(result.position?.quantity.toString() ?? '')
       setCost(result.position?.cost.toString() ?? '')
     }
@@ -1137,13 +1155,14 @@ export function PositionEditor({
       setTradeRecordError(result.error)
       return
     }
-    if (!applyGlobalLedgerPosition(result.account, isIndependentBaseTrade(record))) {
+    const useFullLedgerPosition = isIndependentBaseTrade(record) || Boolean(record.splitSource)
+    if (!applyGlobalLedgerPosition(result.account, useFullLedgerPosition)) {
       setEditingTradeId(record.id)
       setTradeRecordDraft(createTradeRecordDraft(record))
       return
     }
     setEditedAccount(result.account)
-    if (result.updatesPosition) {
+    if (result.updatesPosition && !useFullLedgerPosition) {
       setQuantity(result.position?.quantity.toString() ?? '')
       setCost(result.position?.cost.toString() ?? '')
     }
@@ -1152,6 +1171,10 @@ export function PositionEditor({
 
   const deletePositionRecord = async (entry: PositionRecordLedgerEntry) => {
     if (!workingAccount) return
+    if (entry.kind === 'trade' && entry.record.splitSource) {
+      await deleteTradeRecord(entry.record)
+      return
+    }
     const preview = previewPositionRecordDeletion(workingAccount, entry.id)
     if (!preview) return
     if (entry.kind === 'trade' && preview.laterRecordCount === 0) {

@@ -678,6 +678,8 @@ export interface TTrade {
   actualSettlementDate?: string
   settlementRule?: TradeFeeTemplateSnapshot
   origin?: 'execution' | 'opening-balance'
+  /** 拆分记录的共同成交来源，仅用于追溯，不参与持仓和批次计算。 */
+  splitSource?: { id: string; quantity: number }
   /** 一笔真实成交在底仓及一个或多个 T 批次之间的数量分配。 */
   allocations?: TTradeAllocation[]
   note: string

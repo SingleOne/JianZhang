@@ -27,11 +27,11 @@ import {
   calculateTradeFees,
   createTPlanLevelsFromDefaults,
   getTBatchDirection,
-  recalculatePositionFromBatch,
   rebalanceTBatchPlans,
   resetTBatchPlans,
   roundMoney,
   getTradeBatchAllocationAmounts,
+  totalRecordedTradeFees,
   totalTradeFees,
   validateTBatchSettlementPosition,
   validateTBatchTrades
@@ -42,18 +42,20 @@ import {
   getBatchTrades,
   hasTAllocationForBatch,
   isIndependentBaseTrade,
+  toTradeRecord,
   tradeReferencesBatch,
   upsertTradeRecord
 } from '../lib/trade-records'
 import { calculatePortfolioLedgerPosition } from '../lib/portfolio-ledger'
 import { deleteIndependentBaseTrade, upsertIndependentBaseTrade } from '../lib/base-trades'
+import { splitTradeForOverflow } from '../lib/split-trade'
+import { TradeSplitSource } from './TradeSplitSource'
 import { TPlanTable } from './TPlanTable'
 import { TFloatingProfitAlertBadge } from './TFloatingProfitAlertBadge'
 import type {
   StockPosition,
   StockQuote,
   TPlanDefaultSettings,
-  TTradeAllocation,
   TTradingAccount,
   TTradingBatch,
   TTradingFeeSettings,
@@ -380,12 +382,14 @@ export function TTradingDrawer({
     onApply(nextAccount, nextPosition)
   }
 
-  const applyTradeAccount = (
-    nextAccount: TTradingAccount,
-    fallbackPosition: StockPosition | undefined
-  ) => {
+  const applyTradeAccount = (nextAccount: TTradingAccount): boolean => {
     const replay = calculatePortfolioLedgerPosition(nextAccount, market, currency)
-    applyAccount(nextAccount, replay.error ? fallbackPosition : replay.position)
+    if (replay.error) {
+      setError(`完整账本校验失败：${replay.error}`)
+      return false
+    }
+    applyAccount(nextAccount, replay.position)
+    return true
   }
 
   const createBatch = (
@@ -413,18 +417,6 @@ export function TTradingDrawer({
     }
   })
 
-  const allocationForBatch = (
-    allocationPurpose: TTradeAllocation['purpose'],
-    allocationQuantity: number,
-    batch: TTradingBatch
-  ): TTradeAllocation => ({
-    purpose: allocationPurpose,
-    quantity: allocationQuantity,
-    batchId: batch.id,
-    batchSequence: batch.sequence,
-    batchDirection: getTBatchDirection(batch)
-  })
-
   const saveTrade = () => {
     if (numericPrice <= 0 || numericQuantity <= 0) {
       setError('请输入有效的成交价格和数量')
@@ -445,6 +437,7 @@ export function TTradingDrawer({
       exchangeRate: currency === 'CNY' ? 1 : editingTrade?.exchangeRate,
       exchangeRateDate: editingTrade?.exchangeRateDate,
       origin: editingTrade?.origin ?? 'execution',
+      splitSource: editingTrade?.splitSource,
       note: note.trim()
     }
 
@@ -460,7 +453,25 @@ export function TTradingDrawer({
         setError(`完整账本校验失败：${result.error}`)
         return
       }
-      applyAccount(result.account, result.position)
+      let nextAccount = result.account
+      const editedBatch = currentAccount.activeBatch
+      if (editingTrade && editedBatch && tradeReferencesBatch(editingTrade, editedBatch.id)) {
+        const remainingBatchTrades = getBatchTrades(nextAccount, editedBatch)
+        const validationError = validateTBatchTrades(editedBatch, remainingBatchTrades)
+        if (validationError) {
+          setError(validationError)
+          return
+        }
+        nextAccount = {
+          ...nextAccount,
+          activeBatch: remainingBatchTrades.some((trade) =>
+            hasTAllocationForBatch(trade, editedBatch.id)
+          )
+            ? rebalanceTBatchPlans(editedBatch, remainingBatchTrades, planDefaults)
+            : undefined
+        }
+      }
+      applyAccount(nextAccount, result.position)
       resetTradeForm()
       return
     }
@@ -495,7 +506,7 @@ export function TTradingDrawer({
       isClosingTTrade &&
       entryMetrics.remainingQuantity > 0 &&
       numericQuantity > entryMetrics.remainingQuantity &&
-      (!editingTradeId || Boolean(editingTrade && isIndependentBaseTrade(editingTrade)))
+      !hasFixedAllocations
     )
 
     if (isOverflow && overflowDisposition === 'opposite-t') {
@@ -505,14 +516,12 @@ export function TTradingDrawer({
       }
       const nextDirection = getTBatchDirection(batch) === 'forward' ? 'reverse' : 'forward'
       const nextBatchDraft = createBatch(nextDirection, tradedAt, undefined)
-      const trade: TTrade = {
-        ...baseTrade,
-        purpose: 't',
-        allocations: [
-          allocationForBatch('t', entryMetrics.remainingQuantity, batch),
-          allocationForBatch('t', overflowQuantity, nextBatchDraft)
-        ]
-      }
+      const [trade, nextBatchTrade] = splitTradeForOverflow(
+        baseTrade,
+        batch,
+        entryMetrics.remainingQuantity,
+        nextBatchDraft
+      )
       const closingTrades = [...batchTrades, trade].sort((left, right) =>
         left.tradedAt.localeCompare(right.tradedAt)
       )
@@ -531,7 +540,26 @@ export function TTradingDrawer({
         setError('当前交易无法完整结束原T批次')
         return
       }
-      const transitionPosition = recalculatePositionFromBatch(closingBatch, closingTrades)
+      const closingAccount = withLedgerTradeRecords(
+        currentAccount,
+        upsertTradeRecord(currentAccount.tradeRecords, trade)
+      )
+      const transitionReplay = calculatePortfolioLedgerPosition(
+        {
+          ...closingAccount,
+          ledger: {
+            ...closingAccount.ledger,
+            entries: closingAccount.ledger.entries.filter((entry) => entry.occurredAt <= tradedAt)
+          }
+        },
+        market,
+        currency
+      )
+      if (transitionReplay.error) {
+        setError(`完整账本校验失败：${transitionReplay.error}`)
+        return
+      }
+      const transitionPosition = transitionReplay.position
       const settlement = {
         settledAt: new Date().toISOString(),
         latestPositionQuantity: transitionPosition?.quantity ?? 0,
@@ -546,42 +574,35 @@ export function TTradingDrawer({
         ...nextBatchDraft,
         openingPosition: positionSnapshot(transitionPosition)
       }
-      const nextBatchTrades = [trade]
+      const nextBatchTrades = [nextBatchTrade]
       const nextValidationError = validateTBatchTrades(nextBatchBase, nextBatchTrades)
       if (nextValidationError) {
         setError(nextValidationError)
         return
       }
       const nextBatch = rebalanceTBatchPlans(nextBatchBase, nextBatchTrades, planDefaults)
-      const nextRecords = upsertTradeRecord(currentAccount.tradeRecords, trade)
-      applyTradeAccount(
-        withLedgerTradeRecords(
-          {
-            ...currentAccount,
-            activeBatch: nextBatch,
-            history: [settledBatch, ...currentAccount.history]
-          },
-          nextRecords
-        ),
-        recalculatePositionFromBatch(nextBatch, nextBatchTrades)
+      const nextAccount = withLedgerTradeRecords(
+        {
+          ...currentAccount,
+          activeBatch: nextBatch,
+          history: [settledBatch, ...currentAccount.history]
+        },
+        upsertTradeRecord(closingAccount.tradeRecords, nextBatchTrade)
       )
+      if (!applyTradeAccount(nextAccount)) return
       setHistoryPage(0)
       resetTradeForm()
       return
     }
 
-    const trade: TTrade = {
-      ...baseTrade,
-      allocations:
-        hasFixedAllocations && editingTrade?.allocations
-          ? editingTrade.allocations
-          : isOverflow
-            ? [
-                allocationForBatch('t', entryMetrics.remainingQuantity, batch),
-                { purpose: 'base', quantity: overflowQuantity }
-              ]
-            : [allocationForBatch(purpose, numericQuantity, batch)]
-    }
+    const [trade, baseOverflowTrade]: [TTrade, TTrade?] = isOverflow
+      ? splitTradeForOverflow(baseTrade, batch, entryMetrics.remainingQuantity)
+      : [
+          hasFixedAllocations && editingTrade?.allocations
+            ? { ...baseTrade, allocations: editingTrade.allocations }
+            : toTradeRecord(baseTrade, batch),
+          undefined
+        ]
 
     const nextTrades = [...batchTrades, trade].sort((left, right) =>
       left.tradedAt.localeCompare(right.tradedAt)
@@ -597,16 +618,27 @@ export function TTradingDrawer({
     }
     const hasTTrades = nextTrades.some((item) => hasTAllocationForBatch(item, plannedBatch.id))
     const nextRecords = upsertTradeRecord(currentAccount.tradeRecords, trade)
-    applyTradeAccount(
-      withLedgerTradeRecords(
-        {
-          ...currentAccount,
-          activeBatch: hasTTrades ? plannedBatch : undefined
-        },
-        hasTTrades ? nextRecords : detachTradeRecordsFromBatch(nextRecords, plannedBatch.id)
-      ),
-      recalculatePositionFromBatch(plannedBatch, nextTrades)
+    if (baseOverflowTrade) {
+      const nextAccount = withLedgerTradeRecords(
+        { ...currentAccount, activeBatch: plannedBatch },
+        upsertTradeRecord(nextRecords, baseOverflowTrade)
+      )
+      if (!applyTradeAccount(nextAccount)) return
+      resetTradeForm()
+      return
+    }
+    if (
+      !applyTradeAccount(
+        withLedgerTradeRecords(
+          {
+            ...currentAccount,
+            activeBatch: hasTTrades ? plannedBatch : undefined
+          },
+          hasTTrades ? nextRecords : detachTradeRecordsFromBatch(nextRecords, plannedBatch.id)
+        )
+      )
     )
+      return
     resetTradeForm()
   }
 
@@ -673,17 +705,19 @@ export function TTradingDrawer({
       }
       const { settlement: _settlement, ...unsettledBatch } = previousBatch
       const restoredBatch = rebalanceTBatchPlans(unsettledBatch, previousTrades, planDefaults)
-      applyTradeAccount(
-        withLedgerTradeRecords(
-          {
-            ...currentAccount,
-            activeBatch: restoredBatch,
-            history: currentAccount.history.filter((item) => item.id !== previousBatch.id)
-          },
-          nextRecords
-        ),
-        recalculatePositionFromBatch(restoredBatch, previousTrades)
+      if (
+        !applyTradeAccount(
+          withLedgerTradeRecords(
+            {
+              ...currentAccount,
+              activeBatch: restoredBatch,
+              history: currentAccount.history.filter((item) => item.id !== previousBatch.id)
+            },
+            nextRecords
+          )
+        )
       )
+        return
       resetTradeForm()
       return
     }
@@ -696,16 +730,18 @@ export function TTradingDrawer({
     const plannedBatch = rebalanceTBatchPlans(batch, nextTrades, planDefaults)
     const hasTTrades = nextTrades.some((trade) => hasTAllocationForBatch(trade, plannedBatch.id))
     const nextRecords = currentAccount.tradeRecords.filter((record) => record.id !== tradeId)
-    applyTradeAccount(
-      withLedgerTradeRecords(
-        {
-          ...currentAccount,
-          activeBatch: hasTTrades ? plannedBatch : undefined
-        },
-        hasTTrades ? nextRecords : detachTradeRecordsFromBatch(nextRecords, plannedBatch.id)
-      ),
-      recalculatePositionFromBatch(plannedBatch, nextTrades)
+    if (
+      !applyTradeAccount(
+        withLedgerTradeRecords(
+          {
+            ...currentAccount,
+            activeBatch: hasTTrades ? plannedBatch : undefined
+          },
+          hasTTrades ? nextRecords : detachTradeRecordsFromBatch(nextRecords, plannedBatch.id)
+        )
+      )
     )
+      return
     if (editingTradeId === tradeId) resetTradeForm()
   }
 
@@ -938,16 +974,18 @@ export function TTradingDrawer({
     })
     if (!confirmed) return
 
-    applyAccount(
-      withLedgerTradeRecords(
-        {
-          ...currentAccount,
-          history: currentAccount.history.filter((item) => item.id !== batch.id)
-        },
-        currentAccount.tradeRecords.filter((record) => !tradeReferencesBatch(record, batch.id))
-      ),
-      stock.position
+    if (
+      !applyTradeAccount(
+        withLedgerTradeRecords(
+          {
+            ...currentAccount,
+            history: currentAccount.history.filter((item) => item.id !== batch.id)
+          },
+          currentAccount.tradeRecords.filter((record) => !tradeReferencesBatch(record, batch.id))
+        )
+      )
     )
+      return
 
     if (editingHistoryBatchId === batch.id) cancelEditingHistoryProfit()
   }
@@ -1183,7 +1221,15 @@ export function TTradingDrawer({
                     {activeMetrics.direction === 'forward' ? '开启反T批次' : '开启正T批次'}
                   </button>
                 </div>
-                <small>手续费按 {formatShares(numericQuantity)} 整笔计算一次，再按数量分摊</small>
+                <small>
+                  保存后生成两条独立记录：本批次 {formatShares(entryMetrics.remainingQuantity)}，
+                  {overflowDisposition === 'base'
+                    ? basePurposeLabel
+                    : activeMetrics.direction === 'forward'
+                      ? '新反T批次'
+                      : '新正T批次'}{' '}
+                  {formatShares(overflowQuantity)}。手续费按整笔计算一次，再按数量分摊。
+                </small>
               </div>
             ) : null}
 
@@ -1217,7 +1263,7 @@ export function TTradingDrawer({
               </div>
               <div className="t-trade-list">
                 {visibleIndependentBaseTrades.map((trade) => {
-                  const fees = totalTradeFees(trade.fees)
+                  const fees = totalRecordedTradeFees(trade)
                   return (
                     <div className="t-trade-row" key={trade.id}>
                       <span className={`t-trade-side is-${trade.side}`}>
@@ -1230,6 +1276,11 @@ export function TTradingDrawer({
                         <small>
                           {formatTradeTime(trade.tradedAt)} · 费用 {formatCurrency(fees)}
                         </small>
+                        {trade.splitSource ? (
+                          <small>
+                            <TradeSplitSource trade={trade} />
+                          </small>
+                        ) : null}
                       </span>
                       <span className="t-trade-amount">
                         <span>{formatCurrency(trade.price * trade.quantity)}</span>
@@ -1373,6 +1424,11 @@ export function TTradingDrawer({
                             {formatCurrency(allocation.fees)}
                             {summary ? ` · ${summary}` : ''}
                           </small>
+                          {trade.splitSource ? (
+                            <small>
+                              <TradeSplitSource trade={trade} />
+                            </small>
+                          ) : null}
                         </span>
                         <span className="t-trade-amount">
                           <span>{formatCurrency(trade.price * allocation.quantity)}</span>
@@ -1650,6 +1706,12 @@ export function TTradingDrawer({
                               <span>
                                 {formatShares(allocation.quantity)} × {formatPrice(trade.price)}
                                 {summary ? ` · ${summary}` : ''}
+                                {trade.splitSource ? (
+                                  <>
+                                    {' '}
+                                    · <TradeSplitSource trade={trade} />
+                                  </>
+                                ) : null}
                               </span>
                               <span>分摊费用 {formatCurrency(totalFees)}</span>
                               <strong className={valueClass(amountChange)}>

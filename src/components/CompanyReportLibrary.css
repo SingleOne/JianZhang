@@ -206,7 +206,7 @@
 
 .company-report-copy small {
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.45;
   white-space: normal;
 }
