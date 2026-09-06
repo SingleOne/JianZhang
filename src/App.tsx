@@ -1175,6 +1175,10 @@ export default function App() {
       void stockApi.saveCompletionNotifications(next)
       return next
     })
+    if (notification.target === 'corporate-action-center') {
+      setCorporateActionCenterOpen(true)
+      return
+    }
     setSelectedQuoteId(notification.quoteId)
     setDetailNavigationRequest({
       id: notification.id,

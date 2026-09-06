@@ -25,15 +25,22 @@ describe('CompletionNotificationStore', () => {
       },
       {
         id: 'newer',
-        quoteId: '0.300750',
-        target: 'ai-long-term',
+        target: 'corporate-action-center',
         message: '新通知',
         createdAt: '2026-08-13T00:00:00.000Z'
+      },
+      {
+        id: 'corporate-action',
+        quoteId: '105.AAPL',
+        target: 'corporate-actions',
+        message: '公司行动候选已更新',
+        createdAt: '2026-08-12T12:00:00.000Z'
       }
     ])
 
     expect(new CompletionNotificationStore(directory).load().map((item) => item.id)).toEqual([
       'newer',
+      'corporate-action',
       'older'
     ])
     expect(readFileSync(join(directory, 'completion-notifications.json'), 'utf8')).toContain(

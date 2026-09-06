@@ -8,6 +8,7 @@ import {
 import { appendPortfolioLedgerEntries } from '../shared/types'
 import { exchangeRateForCurrency } from '../shared/exchange-rates'
 import { stockApi } from '../lib/api'
+import { emitCompletionNotification } from '../lib/completion-notifications'
 import { calculatePortfolioLedgerMetrics } from '../lib/portfolio-ledger'
 import { AppSelect, type AppSelectOption } from './AppSelect'
 import type {
@@ -74,6 +75,19 @@ const MANUAL_TYPE_OPTIONS = MANUAL_TYPES.map((value) => ({
   value,
   label: CORPORATE_ACTION_TYPE_LABELS[value]
 })) satisfies readonly AppSelectOption<CorporateActionType>[]
+
+const CURRENCY_OPTIONS = [
+  { value: 'CNY', label: 'CNY' },
+  { value: 'HKD', label: 'HKD' },
+  { value: 'USD', label: 'USD' }
+] satisfies readonly AppSelectOption<StockCurrency>[]
+
+type ExchangeRateBasis = 'official' | 'broker'
+
+const EXCHANGE_RATE_BASIS_OPTIONS = [
+  { value: 'official', label: '中国官方汇率估算' },
+  { value: 'broker', label: '券商实际入账汇率' }
+] satisfies readonly AppSelectOption<ExchangeRateBasis>[]
 
 function localDateTimeInput(date = new Date()): string {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
@@ -238,13 +252,22 @@ export default function CorporateActionPanel({
         setSource(result.source)
         setFetchedAt(result.fetchedAt)
         setWarning(result.warning ?? '')
+        if (forceRefresh) {
+          emitCompletionNotification({
+            quoteId: stock.quoteId,
+            target: 'corporate-actions',
+            message: result.degraded
+              ? `${stock.name} 公司行动检查完成，当前显示本地缓存`
+              : `${stock.name} 公司行动候选已更新，共 ${result.candidates.length} 条`
+          })
+        }
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : '公司行动获取失败')
       } finally {
         setLoading(false)
       }
     },
-    [stock.quoteId]
+    [stock.name, stock.quoteId]
   )
 
   useEffect(() => {
@@ -679,14 +702,13 @@ export default function CorporateActionPanel({
             </label>
             <label>
               币种
-              <select
+              <AppSelect
+                className="corporate-action-field-select"
                 value={draft.currency}
-                onChange={(event) => updateDraft('currency', event.target.value)}
-              >
-                <option value="CNY">CNY</option>
-                <option value="HKD">HKD</option>
-                <option value="USD">USD</option>
-              </select>
+                options={CURRENCY_OPTIONS}
+                label="公司行动币种"
+                onChange={(value) => updateDraft('currency', value)}
+              />
             </label>
             <label>
               人民币汇率
@@ -700,19 +722,17 @@ export default function CorporateActionPanel({
             </label>
             <label>
               汇率口径
-              <select
+              <AppSelect
+                className="corporate-action-field-select"
                 value={draft.exchangeRateEstimated ? 'official' : 'broker'}
-                onChange={(event) =>
+                options={EXCHANGE_RATE_BASIS_OPTIONS}
+                label="公司行动汇率口径"
+                onChange={(value) =>
                   setDraft((current) =>
-                    current
-                      ? { ...current, exchangeRateEstimated: event.target.value === 'official' }
-                      : current
+                    current ? { ...current, exchangeRateEstimated: value === 'official' } : current
                   )
                 }
-              >
-                <option value="official">中国官方汇率估算</option>
-                <option value="broker">券商实际入账汇率</option>
-              </select>
+              />
             </label>
             <label>
               入账/生效时间

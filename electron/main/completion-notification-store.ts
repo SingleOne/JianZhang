@@ -4,6 +4,13 @@ import type { AppCompletionNotification } from '../../src/shared/types'
 import { atomicWriteJsonSync } from './file-storage'
 
 const MAX_NOTIFICATIONS = 100
+const STOCK_TARGETS: readonly string[] = [
+  'reports',
+  'corporate-actions',
+  'ai-short-term',
+  'ai-long-term',
+  't-advice'
+]
 
 function normalize(
   notifications: readonly AppCompletionNotification[]
@@ -13,10 +20,11 @@ function normalize(
       (item) =>
         item &&
         typeof item.id === 'string' &&
-        typeof item.quoteId === 'string' &&
         typeof item.message === 'string' &&
         typeof item.createdAt === 'string' &&
-        ['reports', 'ai-short-term', 'ai-long-term', 't-advice'].includes(item.target)
+        (item.target === 'corporate-action-center'
+          ? item.quoteId === undefined
+          : typeof item.quoteId === 'string' && STOCK_TARGETS.includes(item.target))
     )
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
     .slice(0, MAX_NOTIFICATIONS)

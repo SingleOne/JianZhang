@@ -57,7 +57,7 @@
 }
 
 .corporate-action-form-grid input,
-.corporate-action-form-grid select {
+.corporate-action-form-grid .app-select-trigger {
   min-height: 32px;
   border: 1px solid var(--border);
   border-radius: 7px;
@@ -65,6 +65,15 @@
   color: var(--text-primary);
   font-size: 12px;
   padding: 5px 8px;
+}
+
+.corporate-action-field-select {
+  width: 100%;
+  min-width: 0;
+}
+
+.corporate-action-field-select .app-select-menu {
+  min-width: 100%;
 }
 
 .corporate-action-warning,

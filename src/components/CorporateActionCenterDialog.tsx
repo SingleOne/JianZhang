@@ -6,6 +6,7 @@ import {
   CORPORATE_ACTION_TYPE_LABELS
 } from '../lib/corporate-actions'
 import { stockApi } from '../lib/api'
+import { emitCompletionNotification } from '../lib/completion-notifications'
 import { marketFromQuoteId, STOCK_MARKET_LABELS } from '../shared/stock-market'
 import type {
   CorporateActionCandidate,
@@ -15,6 +16,7 @@ import type {
   StockMarket,
   WatchStock
 } from '../shared/types'
+import { AppSelect, type AppSelectOption } from './AppSelect'
 import './CorporateActionCenterDialog.css'
 
 interface CorporateActionCenterDialogProps {
@@ -31,6 +33,20 @@ type CorporateActionLoadResult = {
   stock: WatchStock
   result: PromiseSettledResult<CorporateActionListResult>
 }
+
+const MARKET_FILTER_OPTIONS = [
+  { value: 'all', label: '全部市场' },
+  { value: 'HK', label: '港股' },
+  { value: 'US', label: '美股' }
+] satisfies readonly AppSelectOption<MarketFilter>[]
+
+const TYPE_FILTER_OPTIONS: readonly AppSelectOption<TypeFilter>[] = [
+  { value: 'all', label: '全部事件' },
+  ...(Object.keys(CORPORATE_ACTION_TYPE_LABELS) as CorporateActionType[]).map((value) => ({
+    value,
+    label: CORPORATE_ACTION_TYPE_LABELS[value]
+  }))
+]
 
 async function listAtLowConcurrency(
   stocks: readonly WatchStock[]
@@ -119,6 +135,14 @@ export default function CorporateActionCenterDialog({
             ].join('；')}`
           )
         }
+        const incompleteCount = failures.length + degraded.length
+        emitCompletionNotification({
+          target: 'corporate-action-center',
+          message:
+            incompleteCount > 0
+              ? `公司行动待确认中心加载完成，${incompleteCount} 只股票数据不完整`
+              : `公司行动待确认中心加载完成，共 ${successful.length} 条在线候选`
+        })
       })
       .finally(() => {
         if (active) setLoading(false)
@@ -202,25 +226,20 @@ export default function CorporateActionCenterDialog({
               onChange={(event) => setQuery(event.target.value)}
             />
           </label>
-          <select
+          <AppSelect
+            className="corporate-action-center-filter-select"
             value={marketFilter}
-            onChange={(event) => setMarketFilter(event.target.value as MarketFilter)}
-          >
-            <option value="all">全部市场</option>
-            <option value="HK">港股</option>
-            <option value="US">美股</option>
-          </select>
-          <select
+            options={MARKET_FILTER_OPTIONS}
+            label="公司行动市场筛选"
+            onChange={setMarketFilter}
+          />
+          <AppSelect
+            className="corporate-action-center-filter-select"
             value={typeFilter}
-            onChange={(event) => setTypeFilter(event.target.value as TypeFilter)}
-          >
-            <option value="all">全部事件</option>
-            {Object.entries(CORPORATE_ACTION_TYPE_LABELS).map(([type, label]) => (
-              <option value={type} key={type}>
-                {label}
-              </option>
-            ))}
-          </select>
+            options={TYPE_FILTER_OPTIONS}
+            label="公司行动事件筛选"
+            onChange={setTypeFilter}
+          />
         </div>
         {error ? <div className="corporate-action-center-error">{error}</div> : null}
         <div className="corporate-action-center-list">
