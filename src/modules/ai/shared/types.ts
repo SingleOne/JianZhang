@@ -20,7 +20,22 @@ import type {
   StockValuationHistory
 } from '../../../shared/types'
 
-export type AiProviderId = 'openai' | 'deepseek'
+export const AI_PROVIDER_IDS = [
+  'openai',
+  'deepseek',
+  'zhipu',
+  'kimi',
+  'minimax',
+  'hunyuan',
+  'ernie',
+  'qwen',
+  'mimo',
+  'grok',
+  'gemini',
+  'anthropic'
+] as const
+
+export type AiProviderId = (typeof AI_PROVIDER_IDS)[number]
 export type AiApiKeyProviderId = AiProviderId
 export type AiMessageRole = 'user' | 'assistant' | 'system'
 export type AiMessageStatus = 'pending' | 'streaming' | 'completed' | 'stopped' | 'error'
@@ -43,6 +58,16 @@ export interface AiProviderDescriptor {
 export interface AiCredentialStatus {
   configured: boolean
   maskedSuffix?: string
+}
+
+export interface AiModelOption {
+  id: string
+  label: string
+}
+
+export interface AiCredentialSaveResult {
+  credential: AiCredentialStatus
+  models: AiModelOption[]
 }
 
 export interface AiSettings {
@@ -255,8 +280,9 @@ export interface AiApi {
   getStatus: () => Promise<AiStatus>
   getSettings: () => Promise<AiSettings>
   saveSettings: (settings: AiSettings) => Promise<AiSettings>
-  setCredential: (providerId: AiApiKeyProviderId, apiKey: string) => Promise<AiCredentialStatus>
+  setCredential: (providerId: AiApiKeyProviderId, apiKey: string) => Promise<AiCredentialSaveResult>
   clearCredential: (providerId: AiApiKeyProviderId) => Promise<void>
+  listModels: (providerId: AiProviderId) => Promise<AiModelOption[]>
   testConnection: (providerId: AiProviderId) => Promise<AiConnectionResult>
   listConversations: (query?: string) => Promise<AiConversation[]>
   getConversation: (
@@ -329,6 +355,7 @@ export interface AiStructuredTaskResult extends AiProviderTurnResult {
 export interface AiProvider {
   readonly id: AiProviderId
   getCapabilities: () => AiProviderCapabilities
+  listModels: (credential?: string) => Promise<AiModelOption[]>
   testConnection: (credential?: string) => Promise<AiConnectionResult>
   streamChat: (
     credential: string | undefined,

@@ -20,6 +20,7 @@ export function installAiPreload(): void {
     saveSettings: (settings) => invoke(AI_IPC.settingsSave, settings),
     setCredential: (providerId, apiKey) => invoke(AI_IPC.credentialSet, providerId, apiKey),
     clearCredential: (providerId) => invoke(AI_IPC.credentialClear, providerId),
+    listModels: (providerId) => invoke(AI_IPC.modelsList, providerId),
     testConnection: (providerId) => invoke(AI_IPC.connectionTest, providerId),
     listConversations: (query) => invoke(AI_IPC.conversationsList, query),
     getConversation: (conversationId) => invoke(AI_IPC.conversationGet, conversationId),

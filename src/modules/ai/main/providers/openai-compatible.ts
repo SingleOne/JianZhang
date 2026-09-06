@@ -2,6 +2,7 @@ import type {
   AiConnectionResult,
   AiModelOption,
   AiProvider,
+  AiProviderId,
   AiProviderRequest,
   AiProviderTurnResult
 } from '../../shared/types'
@@ -13,27 +14,35 @@ import {
   readSse
 } from './provider'
 
-const OPENAI_API_BASE = 'https://api.openai.com/v1'
+interface OpenAiCompatibleProviderConfig {
+  id: AiProviderId
+  label: string
+  apiBase: string
+  modelsUrl?: string
+  filterModel?: (model: AiModelOption) => boolean
+}
 
-export class OpenAiApiProvider implements AiProvider {
-  readonly id = 'openai' as const
+export class OpenAiCompatibleProvider implements AiProvider {
+  readonly id: AiProviderId
+
+  constructor(private readonly config: OpenAiCompatibleProviderConfig) {
+    this.id = config.id
+  }
 
   getCapabilities() {
-    // TODO: DeepSeek 股票数据工具链路调试稳定后，为 OpenAI Provider 接入同一套工具协议。
     return { streaming: true, marketInterpretation: true, stockDataTools: false }
   }
 
   async listModels(apiKey?: string): Promise<AiModelOption[]> {
     if (!apiKey) throw new Error('请先保存 API Key')
-    const models = await fetchModelOptions(`${OPENAI_API_BASE}/models`, {
-      Authorization: `Bearer ${apiKey}`
-    })
-    const available = models.filter(
-      (model) =>
-        /^(?:gpt-|o\d|chatgpt-)/i.test(model.id) &&
-        !/(?:audio|image|realtime|search|transcribe|tts|embedding|moderation)/i.test(model.id)
+    const models = await fetchModelOptions(
+      this.config.modelsUrl ?? `${this.config.apiBase}/models`,
+      {
+        Authorization: `Bearer ${apiKey}`
+      }
     )
-    if (available.length === 0) throw new Error('OpenAI 未返回可用的文本模型')
+    const available = this.config.filterModel ? models.filter(this.config.filterModel) : models
+    if (available.length === 0) throw new Error(`${this.config.label} 未返回可用的文本模型`)
     return available
   }
 
@@ -44,7 +53,7 @@ export class OpenAiApiProvider implements AiProvider {
       return {
         ok: true,
         kind: 'success',
-        message: `OpenAI API Key 已连接，可用模型 ${models.length} 个`
+        message: `${this.config.label} API Key 已连接，可用模型 ${models.length} 个`
       }
     } catch (error) {
       return connectionResultFromError(error)
@@ -58,7 +67,7 @@ export class OpenAiApiProvider implements AiProvider {
     signal: AbortSignal
   ): Promise<AiProviderTurnResult> {
     if (!apiKey) throw new Error('请先在 AI 助手的服务设置中保存 API Key')
-    const response = await fetch(`${OPENAI_API_BASE}/responses`, {
+    const response = await fetch(`${this.config.apiBase}/chat/completions`, {
       method: 'POST',
       signal,
       headers: {
@@ -67,10 +76,7 @@ export class OpenAiApiProvider implements AiProvider {
       },
       body: JSON.stringify({
         model: request.model,
-        input: request.messages.map((message) => ({
-          role: message.role === 'system' ? 'developer' : message.role,
-          content: message.content
-        })),
+        messages: request.messages,
         stream: true
       })
     })
@@ -78,18 +84,18 @@ export class OpenAiApiProvider implements AiProvider {
     let content = ''
     let responseId: string | undefined
     await readSse(response, (payload) => {
-      const event = JSON.parse(payload) as {
-        type?: string
-        delta?: string
-        response?: { id?: string }
+      if (payload === '[DONE]') return
+      const chunk = JSON.parse(payload) as {
+        id?: string
         error?: { message?: string }
+        choices?: Array<{ delta?: { content?: string | null } }>
       }
-      if (event.type === 'response.output_text.delta' && event.delta) {
-        content += event.delta
-        emit(event.delta)
-      }
-      if (event.type === 'response.completed') responseId = event.response?.id
-      if (event.type === 'error') throw new Error(event.error?.message ?? 'OpenAI 响应失败')
+      if (chunk.error) throw new Error(chunk.error.message ?? `${this.config.label} 响应失败`)
+      responseId = chunk.id ?? responseId
+      const delta = chunk.choices?.[0]?.delta?.content ?? ''
+      if (!delta) return
+      content += delta
+      emit(delta)
     })
     return completed(content, responseId)
   }

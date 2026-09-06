@@ -24,6 +24,7 @@ import type {
   AiConnectionResult,
   AiConversation,
   AiMessage,
+  AiModelOption,
   AiProviderId,
   AiSettings,
   AiStockMention,
@@ -314,7 +315,10 @@ interface AiSettingsPanelProps {
   onSave: (settings: AiSettings) => void
   onSaveCredential: (providerId: AiApiKeyProviderId, key: string) => void
   onClearCredential: (providerId: AiApiKeyProviderId) => void
+  onLoadModels: (providerId: AiProviderId) => void
   onTestConnection: (providerId: AiProviderId) => void
+  providerModels: Partial<Record<AiProviderId, AiModelOption[]>>
+  modelsLoadingProvider: AiProviderId | null
   busy: boolean
   connectionResult: AiConnectionResult | null
 }
@@ -325,7 +329,10 @@ function AiSettingsPanel({
   onSave,
   onSaveCredential,
   onClearCredential,
+  onLoadModels,
   onTestConnection,
+  providerModels,
+  modelsLoadingProvider,
   busy,
   connectionResult
 }: AiSettingsPanelProps) {
@@ -334,8 +341,32 @@ function AiSettingsPanel({
   const activeProvider =
     status.providers.find((item) => item.id === draft.providerId) ?? status.providers[0]
   const credential = status.credentials[draft.providerId as AiApiKeyProviderId]
+  const modelOptions = providerModels[draft.providerId]
+  const modelsLoading = modelsLoadingProvider === draft.providerId
+  const modelReady = modelOptions?.some((model) => model.id === draft.model) === true
 
   useEffect(() => setDraft(settings), [settings])
+
+  useEffect(() => {
+    if (credential?.configured && modelOptions === undefined && !modelsLoading) {
+      onLoadModels(draft.providerId)
+    }
+  }, [credential?.configured, draft.providerId, modelOptions, modelsLoading, onLoadModels])
+
+  useEffect(() => {
+    if (!modelOptions?.length) return
+    setDraft((current) => {
+      if (
+        current.providerId !== draft.providerId ||
+        modelOptions.some((model) => model.id === current.model)
+      ) {
+        return current
+      }
+      const preferred =
+        modelOptions.find((model) => model.id === activeProvider?.defaultModel) ?? modelOptions[0]
+      return { ...current, model: preferred.id }
+    })
+  }, [activeProvider?.defaultModel, draft.providerId, modelOptions])
 
   const selectProvider = (providerId: AiProviderId) => {
     const provider = status.providers.find((item) => item.id === providerId)
@@ -387,14 +418,40 @@ function AiSettingsPanel({
               <small>{activeProvider?.billingHint}</small>
             </label>
             <label>
-              <span>模型 ID</span>
-              <input
+              <span className="ai-field-heading">
+                <span>模型 ID</span>
+                <button
+                  type="button"
+                  disabled={!credential?.configured || modelsLoading}
+                  onClick={() => onLoadModels(draft.providerId)}
+                >
+                  {modelsLoading ? '读取中' : '刷新模型'}
+                </button>
+              </span>
+              <select
                 value={draft.model}
                 onChange={(event) =>
                   setDraft((current) => ({ ...current, model: event.target.value }))
                 }
-                placeholder={activeProvider?.defaultModel}
-              />
+                disabled={!credential?.configured || modelsLoading || !modelOptions?.length}
+              >
+                {modelOptions?.length ? (
+                  modelOptions.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.label === model.id ? model.id : `${model.label} · ${model.id}`}
+                    </option>
+                  ))
+                ) : (
+                  <option value={draft.model}>
+                    {modelsLoading
+                      ? '正在从 Provider 读取模型…'
+                      : credential?.configured
+                        ? '未获取到可用模型'
+                        : '请先填写并保存 API Key'}
+                  </option>
+                )}
+              </select>
+              <small>选项由当前 Provider 根据 API Key 实时返回。</small>
             </label>
             <label>
               <span>本地上下文消息数</span>
@@ -465,7 +522,7 @@ function AiSettingsPanel({
             <button
               className="primary-button"
               type="button"
-              disabled={busy}
+              disabled={busy || (draft.enabled && !modelReady)}
               onClick={() => onSave(draft)}
             >
               保存设置
@@ -480,7 +537,7 @@ function AiSettingsPanel({
         </div>
       </div>
       <p className="ai-settings-note">
-        OpenAI 与 DeepSeek 分别使用各自 Platform API 的账号和额度，配置互不影响。
+        各 Provider 分别使用对应开放平台的账号与额度，API Key 和模型选择互不影响。
       </p>
     </section>
   )
@@ -506,6 +563,10 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [connectionResult, setConnectionResult] = useState<AiConnectionResult | null>(null)
+  const [providerModels, setProviderModels] = useState<
+    Partial<Record<AiProviderId, AiModelOption[]>>
+  >({})
+  const [modelsLoadingProvider, setModelsLoadingProvider] = useState<AiProviderId | null>(null)
   const openedContextRef = useRef<string | null>(null)
   const composerRef = useRef<HTMLTextAreaElement>(null)
 
@@ -854,9 +915,14 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
     if (!api) return
     setBusy(true)
     try {
-      await api.setCredential(providerId, key)
+      const result = await api.setCredential(providerId, key)
+      setProviderModels((current) => ({ ...current, [providerId]: result.models }))
       setStatus(await api.getStatus())
-      setConnectionResult({ ok: true, kind: 'success', message: 'API Key 已安全保存' })
+      setConnectionResult({
+        ok: true,
+        kind: 'success',
+        message: `API Key 已安全保存，已获取 ${result.models.length} 个可用模型`
+      })
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '无法保存 API Key')
     } finally {
@@ -876,6 +942,11 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
     setBusy(true)
     try {
       await api.clearCredential(providerId)
+      setProviderModels((current) => {
+        const next = { ...current }
+        delete next[providerId]
+        return next
+      })
       setStatus(await api.getStatus())
       setConnectionResult(null)
     } catch (reason) {
@@ -884,6 +955,23 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
       setBusy(false)
     }
   }
+
+  const loadModels = useCallback(
+    async (providerId: AiProviderId) => {
+      if (!api) return
+      setModelsLoadingProvider(providerId)
+      try {
+        const models = await api.listModels(providerId)
+        setProviderModels((current) => ({ ...current, [providerId]: models }))
+      } catch (reason) {
+        setProviderModels((current) => ({ ...current, [providerId]: [] }))
+        setError(reason instanceof Error ? reason.message : '无法读取模型列表')
+      } finally {
+        setModelsLoadingProvider((current) => (current === providerId ? null : current))
+      }
+    },
+    [api]
+  )
 
   const testConnection = async (providerId: AiProviderId) => {
     if (!api) return
@@ -1124,7 +1212,10 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
             onSave={(nextSettings) => void saveSettings(nextSettings)}
             onSaveCredential={(providerId, key) => void saveCredential(providerId, key)}
             onClearCredential={(providerId) => void clearCredential(providerId)}
+            onLoadModels={loadModels}
             onTestConnection={(providerId) => void testConnection(providerId)}
+            providerModels={providerModels}
+            modelsLoadingProvider={modelsLoadingProvider}
             busy={busy}
             connectionResult={connectionResult}
           />

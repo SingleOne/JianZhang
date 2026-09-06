@@ -10,7 +10,8 @@
 - `src/components/ExpandedStockDetails.tsx`：条件加载 AI 分析标签。
 - AI 分析拆为“短期行情”和“长期价值”：短期从市场观察快照中只提取日 K 技术/趋势/动量/波动指标、新闻、公告事件和筹码，排除分时、VWAP、开盘区间、盘口、日内资金流与即时相对强弱；长期读取五年财务、用户已保存的管理层讨论/审计意见/重要附注/AI 结论摘要、简化 DCF、分红融资、PE/PB历史及行业分位和长期价格强弱；没有财报总结时直接忽略，不读取 PDF 原文。结果固定输出企业质量、财务安全、当前价格，并把长期价值与当前时机分开评级。DCF 使用应用已计算的同一口径，模型不得自行修改假设或重算；DCF/现价低于70%时必须进入当前价格结论和风险。两类上下文、提示词、缓存和最近结果键互相独立。
 - 两类 AI 分析按股票将最近一次完整结果保存在 `cache/latest-interpretations.json`，切换标签或重启应用后自动恢复，重新生成期间仍保留同类型旧结果。旧版 `quoteId` 结果继续作为短期行情读取，长期结果使用 `quoteId:long-term`。
-- 对话中 `@股票` 时，DeepSeek 首轮只收到带 `stockRef` 的数据目录。模型选择必要的 `datasetId` 后，主进程才通过 `read_stock_data` 读取对应明细并进行第二轮生成；工具不能访问本条消息未授权的股票。当前仅 DeepSeek 启用该链路，OpenAI Provider 的同协议支持留有代码 TODO，待 DeepSeek 调试稳定后实现。
+- 当前支持 OpenAI、DeepSeek、智谱 GLM、Kimi、MiniMax、腾讯混元、文心一言、阿里千问、小米 MiMo、Grok、Gemini 和 Anthropic。保存 API Key 前会由主进程向对应 Provider 查询账号可用模型，服务设置中的模型 ID 只能从实时返回的列表中选择。
+- 对话中 `@股票` 时，DeepSeek 首轮只收到带 `stockRef` 的数据目录。模型选择必要的 `datasetId` 后，主进程才通过 `read_stock_data` 读取对应明细并进行第二轮生成；工具不能访问本条消息未授权的股票。当前仅 DeepSeek 启用该链路，其他 Provider 暂时沿用原有市场快照上下文。
 
 ## 存储与凭证
 

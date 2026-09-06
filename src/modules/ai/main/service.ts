@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import type { WebContents } from 'electron'
 import type { MarketInsightSnapshot } from '../../market-insight/shared/types'
-import { AI_LONG_TERM_PROMPT_VERSION, AI_PROMPT_VERSION } from '../shared/constants'
+import {
+  AI_DEFAULT_MODELS,
+  AI_LONG_TERM_PROMPT_VERSION,
+  AI_PROMPT_VERSION
+} from '../shared/constants'
 import type {
   AiChatSendInput,
   AiChatStartResult,
@@ -16,6 +20,7 @@ import type {
   AiLongTermInterpretation,
   AiLongTermInterpretationResult,
   AiMessage,
+  AiModelOption,
   AiModuleDependencies,
   AiProvider,
   AiProviderDescriptor,
@@ -26,6 +31,7 @@ import type {
   AiStructuredTaskRequest,
   AiStructuredTaskResult
 } from '../shared/types'
+import { AI_PROVIDER_IDS } from '../shared/types'
 import {
   compactMarketSnapshot,
   compactShortTermSnapshot,
@@ -39,6 +45,9 @@ import { LONG_TERM_VALUE_PROMPT } from '../prompts/long-term-value'
 import { buildLongTermContext, type CompactLongTermContext } from './analysis/long-term-context'
 import { parseLongTermInterpretation } from './analysis/long-term-interpretation'
 import { DeepSeekProvider } from './providers/deepseek'
+import { AnthropicProvider } from './providers/anthropic'
+import { GeminiProvider } from './providers/gemini'
+import { OpenAiCompatibleProvider } from './providers/openai-compatible'
 import { OpenAiApiProvider } from './providers/openai-api'
 import { AiSecrets } from './secrets'
 import { AiStorage } from './storage'
@@ -53,7 +62,7 @@ const PROVIDERS: AiProviderDescriptor[] = [
     id: 'openai',
     label: 'OpenAI API Key',
     billingHint: '使用 OpenAI Platform API 余额，与 ChatGPT 订阅分开计费。',
-    defaultModel: 'gpt-5.6',
+    defaultModel: AI_DEFAULT_MODELS.openai,
     authMode: 'apiKey',
     capabilities: { streaming: true, marketInterpretation: true, stockDataTools: false }
   },
@@ -61,9 +70,89 @@ const PROVIDERS: AiProviderDescriptor[] = [
     id: 'deepseek',
     label: 'DeepSeek API Key',
     billingHint: '使用 DeepSeek Platform API Key 和对应平台额度。',
-    defaultModel: 'deepseek-v4-flash',
+    defaultModel: AI_DEFAULT_MODELS.deepseek,
     authMode: 'apiKey',
     capabilities: { streaming: true, marketInterpretation: true, stockDataTools: true }
+  },
+  {
+    id: 'zhipu',
+    label: '智谱 GLM',
+    billingHint: '使用智谱开放平台 API Key 和对应平台额度。',
+    defaultModel: AI_DEFAULT_MODELS.zhipu,
+    authMode: 'apiKey',
+    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: false }
+  },
+  {
+    id: 'kimi',
+    label: 'Kimi',
+    billingHint: '使用 Moonshot AI 开放平台 API Key 和对应平台额度。',
+    defaultModel: AI_DEFAULT_MODELS.kimi,
+    authMode: 'apiKey',
+    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: false }
+  },
+  {
+    id: 'minimax',
+    label: 'MiniMax',
+    billingHint: '使用 MiniMax 开放平台 API Key 和对应平台额度。',
+    defaultModel: AI_DEFAULT_MODELS.minimax,
+    authMode: 'apiKey',
+    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: false }
+  },
+  {
+    id: 'hunyuan',
+    label: '腾讯混元',
+    billingHint: '使用腾讯云 TokenHub API Key；模型列表仅展示混元文本模型。',
+    defaultModel: AI_DEFAULT_MODELS.hunyuan,
+    authMode: 'apiKey',
+    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: false }
+  },
+  {
+    id: 'ernie',
+    label: '文心一言',
+    billingHint: '使用百度智能云千帆 V2 API Key 和对应平台额度。',
+    defaultModel: AI_DEFAULT_MODELS.ernie,
+    authMode: 'apiKey',
+    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: false }
+  },
+  {
+    id: 'qwen',
+    label: '阿里千问',
+    billingHint: '使用阿里云百炼 API Key；模型列表仅展示千问文本生成模型。',
+    defaultModel: AI_DEFAULT_MODELS.qwen,
+    authMode: 'apiKey',
+    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: false }
+  },
+  {
+    id: 'mimo',
+    label: '小米 MiMo',
+    billingHint: '使用小米 MiMo 开放平台按量付费 API Key。',
+    defaultModel: AI_DEFAULT_MODELS.mimo,
+    authMode: 'apiKey',
+    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: false }
+  },
+  {
+    id: 'grok',
+    label: 'Grok',
+    billingHint: '使用 xAI Console API Key 和对应平台额度。',
+    defaultModel: AI_DEFAULT_MODELS.grok,
+    authMode: 'apiKey',
+    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: false }
+  },
+  {
+    id: 'gemini',
+    label: 'Gemini',
+    billingHint: '使用 Google AI Studio Gemini API Key 和对应平台额度。',
+    defaultModel: AI_DEFAULT_MODELS.gemini,
+    authMode: 'apiKey',
+    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: false }
+  },
+  {
+    id: 'anthropic',
+    label: 'Anthropic',
+    billingHint: '使用 Anthropic Console API Key 和对应平台额度。',
+    defaultModel: AI_DEFAULT_MODELS.anthropic,
+    authMode: 'apiKey',
+    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: false }
   }
 ]
 
@@ -157,10 +246,63 @@ export class AiService {
     private readonly send: (webContents: WebContents, channel: string, payload: unknown) => void
   ) {
     this.secrets = new AiSecrets(storage.rootDirectory)
-    this.providers = new Map<string, AiProvider>([
-      ['openai', new OpenAiApiProvider()],
-      ['deepseek', new DeepSeekProvider()]
-    ])
+    const providers: AiProvider[] = [
+      new OpenAiApiProvider(),
+      new DeepSeekProvider(),
+      new OpenAiCompatibleProvider({
+        id: 'zhipu',
+        label: '智谱 GLM',
+        apiBase: 'https://open.bigmodel.cn/api/paas/v4',
+        filterModel: (model) => /^glm-/i.test(model.id)
+      }),
+      new OpenAiCompatibleProvider({
+        id: 'kimi',
+        label: 'Kimi',
+        apiBase: 'https://api.moonshot.cn/v1',
+        filterModel: (model) => /^(?:kimi-|moonshot-)/i.test(model.id)
+      }),
+      new OpenAiCompatibleProvider({
+        id: 'minimax',
+        label: 'MiniMax',
+        apiBase: 'https://api.minimaxi.com/v1',
+        filterModel: (model) => /^minimax-m/i.test(model.id)
+      }),
+      new OpenAiCompatibleProvider({
+        id: 'hunyuan',
+        label: '腾讯混元',
+        apiBase: 'https://tokenhub.tencentmaas.com/v1',
+        filterModel: (model) =>
+          /^(?:hy[34](?:-|$)|hy-role(?:-|$)|hunyuan-role(?:-|$))/i.test(model.id)
+      }),
+      new OpenAiCompatibleProvider({
+        id: 'ernie',
+        label: '文心一言',
+        apiBase: 'https://qianfan.baidubce.com/v2',
+        filterModel: (model) => /^ernie-/i.test(model.id)
+      }),
+      new OpenAiCompatibleProvider({
+        id: 'qwen',
+        label: '阿里千问',
+        apiBase: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+        modelsUrl:
+          'https://dashscope.aliyuncs.com/api/v1/models?providers=qwen&capabilities=TG&page_size=100'
+      }),
+      new OpenAiCompatibleProvider({
+        id: 'mimo',
+        label: '小米 MiMo',
+        apiBase: 'https://api.xiaomimimo.com/v1',
+        filterModel: (model) => /^mimo-v2/i.test(model.id) && !/(?:tts|asr|speech)/i.test(model.id)
+      }),
+      new OpenAiCompatibleProvider({
+        id: 'grok',
+        label: 'Grok',
+        apiBase: 'https://api.x.ai/v1',
+        modelsUrl: 'https://api.x.ai/v1/language-models'
+      }),
+      new GeminiProvider(),
+      new AnthropicProvider()
+    ]
+    this.providers = new Map(providers.map((provider) => [provider.id, provider]))
   }
 
   getStatus(): AiStatus {
@@ -168,10 +310,9 @@ export class AiService {
     return {
       enabled: settings.enabled,
       providers: PROVIDERS,
-      credentials: {
-        openai: this.secrets.getStatus('openai'),
-        deepseek: this.secrets.getStatus('deepseek')
-      }
+      credentials: Object.fromEntries(
+        AI_PROVIDER_IDS.map((providerId) => [providerId, this.secrets.getStatus(providerId)])
+      ) as AiStatus['credentials']
     }
   }
 
@@ -195,14 +336,20 @@ export class AiService {
     return saved
   }
 
-  setCredential(providerId: AiApiKeyProviderId, apiKey: string) {
-    this.requireProvider(providerId)
-    return this.secrets.set(providerId, apiKey)
+  async setCredential(providerId: AiApiKeyProviderId, apiKey: string) {
+    const value = apiKey.trim()
+    if (!value) throw new Error('API Key 不能为空')
+    const models = await this.requireProvider(providerId).listModels(value)
+    return { credential: this.secrets.set(providerId, value), models }
   }
 
   clearCredential(providerId: AiApiKeyProviderId): void {
     this.requireProvider(providerId)
     this.secrets.clear(providerId)
+  }
+
+  async listModels(providerId: AiProviderId): Promise<AiModelOption[]> {
+    return this.requireProvider(providerId).listModels(this.getCredential(providerId))
   }
 
   async testConnection(providerId: AiProviderId): Promise<AiConnectionResult> {

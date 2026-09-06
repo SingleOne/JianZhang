@@ -13,28 +13,31 @@ import {
   readSse
 } from './provider'
 
-const OPENAI_API_BASE = 'https://api.openai.com/v1'
+const ANTHROPIC_API_BASE = 'https://api.anthropic.com/v1'
+const ANTHROPIC_VERSION = '2023-06-01'
 
-export class OpenAiApiProvider implements AiProvider {
-  readonly id = 'openai' as const
+function headers(apiKey: string): Record<string, string> {
+  return {
+    'x-api-key': apiKey,
+    'anthropic-version': ANTHROPIC_VERSION
+  }
+}
+
+export class AnthropicProvider implements AiProvider {
+  readonly id = 'anthropic' as const
 
   getCapabilities() {
-    // TODO: DeepSeek 股票数据工具链路调试稳定后，为 OpenAI Provider 接入同一套工具协议。
     return { streaming: true, marketInterpretation: true, stockDataTools: false }
   }
 
   async listModels(apiKey?: string): Promise<AiModelOption[]> {
     if (!apiKey) throw new Error('请先保存 API Key')
-    const models = await fetchModelOptions(`${OPENAI_API_BASE}/models`, {
-      Authorization: `Bearer ${apiKey}`
-    })
-    const available = models.filter(
-      (model) =>
-        /^(?:gpt-|o\d|chatgpt-)/i.test(model.id) &&
-        !/(?:audio|image|realtime|search|transcribe|tts|embedding|moderation)/i.test(model.id)
+    const models = await fetchModelOptions(
+      `${ANTHROPIC_API_BASE}/models?limit=1000`,
+      headers(apiKey)
     )
-    if (available.length === 0) throw new Error('OpenAI 未返回可用的文本模型')
-    return available
+    if (models.length === 0) throw new Error('Anthropic 未返回可用模型')
+    return models
   }
 
   async testConnection(apiKey?: string): Promise<AiConnectionResult> {
@@ -44,7 +47,7 @@ export class OpenAiApiProvider implements AiProvider {
       return {
         ok: true,
         kind: 'success',
-        message: `OpenAI API Key 已连接，可用模型 ${models.length} 个`
+        message: `Anthropic API Key 已连接，可用模型 ${models.length} 个`
       }
     } catch (error) {
       return connectionResultFromError(error)
@@ -58,20 +61,25 @@ export class OpenAiApiProvider implements AiProvider {
     signal: AbortSignal
   ): Promise<AiProviderTurnResult> {
     if (!apiKey) throw new Error('请先在 AI 助手的服务设置中保存 API Key')
-    const response = await fetch(`${OPENAI_API_BASE}/responses`, {
+    const system = request.messages
+      .filter((message) => message.role === 'system')
+      .map((message) => message.content)
+      .join('\n\n')
+    const response = await fetch(`${ANTHROPIC_API_BASE}/messages`, {
       method: 'POST',
       signal,
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        ...headers(apiKey),
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         model: request.model,
-        input: request.messages.map((message) => ({
-          role: message.role === 'system' ? 'developer' : message.role,
-          content: message.content
-        })),
-        stream: true
+        max_tokens: 8192,
+        stream: true,
+        ...(system ? { system } : {}),
+        messages: request.messages
+          .filter((message) => message.role !== 'system')
+          .map((message) => ({ role: message.role, content: message.content }))
       })
     })
     await ensureResponse(response)
@@ -80,16 +88,16 @@ export class OpenAiApiProvider implements AiProvider {
     await readSse(response, (payload) => {
       const event = JSON.parse(payload) as {
         type?: string
-        delta?: string
-        response?: { id?: string }
+        message?: { id?: string }
+        delta?: { type?: string; text?: string }
         error?: { message?: string }
       }
-      if (event.type === 'response.output_text.delta' && event.delta) {
-        content += event.delta
-        emit(event.delta)
-      }
-      if (event.type === 'response.completed') responseId = event.response?.id
-      if (event.type === 'error') throw new Error(event.error?.message ?? 'OpenAI 响应失败')
+      if (event.type === 'error') throw new Error(event.error?.message ?? 'Anthropic 响应失败')
+      if (event.type === 'message_start') responseId = event.message?.id
+      const delta = event.type === 'content_block_delta' ? (event.delta?.text ?? '') : ''
+      if (!delta) return
+      content += delta
+      emit(delta)
     })
     return completed(content, responseId)
   }

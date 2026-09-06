@@ -7,6 +7,21 @@ export const JIANZHANG_USER_DATA_BACKUP_VERSION = 1
 
 export type UserDataBackupApiKeys = Partial<Record<AiApiKeyProviderId, string>>
 
+const USER_DATA_BACKUP_AI_PROVIDER_IDS = [
+  'openai',
+  'deepseek',
+  'zhipu',
+  'kimi',
+  'minimax',
+  'hunyuan',
+  'ernie',
+  'qwen',
+  'mimo',
+  'grok',
+  'gemini',
+  'anthropic'
+] as const satisfies readonly AiApiKeyProviderId[]
+
 export interface UserDataBackupFile {
   path: string
   content: string
@@ -100,7 +115,7 @@ function parseApiKeys(value: unknown): UserDataBackupApiKeys {
   }
   const saved = value as Record<string, unknown>
   const apiKeys: UserDataBackupApiKeys = {}
-  for (const providerId of ['openai', 'deepseek'] as const) {
+  for (const providerId of USER_DATA_BACKUP_AI_PROVIDER_IDS) {
     const apiKey = saved[providerId]
     if (apiKey === undefined) continue
     if (typeof apiKey !== 'string' || !apiKey.trim()) {

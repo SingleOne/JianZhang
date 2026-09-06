@@ -66,12 +66,16 @@ userData/modules/market-insight/
 
 当前 Provider：
 
-| Provider | 认证    | 说明                                                   |
-| -------- | ------- | ------------------------------------------------------ |
-| OpenAI   | API Key | 通过主进程 Provider 适配器调用                         |
-| DeepSeek | API Key | 转换为同一聊天与结构化任务接口，并支持股票数据工具调用 |
+| Provider                            | 认证    | 说明                                     |
+| ----------------------------------- | ------- | ---------------------------------------- |
+| OpenAI                              | API Key | 通过 Responses API 调用                  |
+| DeepSeek                            | API Key | 支持股票数据工具调用                     |
+| 智谱 GLM、Kimi、MiniMax、文心一言   | API Key | 通过各平台 OpenAI 兼容接口调用           |
+| 腾讯混元、阿里千问、小米 MiMo、Grok | API Key | 通过各平台 OpenAI 兼容接口调用           |
+| Gemini                              | API Key | 通过 Gemini `streamGenerateContent` 调用 |
+| Anthropic                           | API Key | 通过 Anthropic Messages API 调用         |
 
-API Key 由 Electron `safeStorage` 加密保存在 AI 模块目录，renderer 只能读取配置状态和脱敏尾号。
+API Key 由 Electron `safeStorage` 加密保存在 AI 模块目录，renderer 只能读取配置状态和脱敏尾号。保存新 Key 时，主进程先调用对应 Provider 的模型列表接口验证凭证并取得可用模型；设置页的模型 ID 是下拉框，支持使用已保存 Key 重新刷新。腾讯混元使用 TokenHub 新入口，列表仅保留混元文本模型；阿里千问使用百炼模型目录并限定千问文本生成模型。
 
 ### 对话上下文
 
@@ -82,7 +86,7 @@ API Key 由 Electron `safeStorage` 加密保存在 AI 模块目录，renderer �
 - 股票会话可选择附带该会话默认股票的最新市场快照。
 - 输入 `@` 后可从当前自选快速选择一只或多只股票；发送时按 `quoteId` 去重。
 
-DeepSeek 对话使用两阶段股票数据协议：第一轮只提交每只授权股票的 `stockRef`、身份和数据集目录，不提交明细；模型通过 `read_stock_data` 一次批量选择需要的 `datasetId`，主进程校验股票范围、市场能力、分页和数量上限后才读取对应数据，并把结果交给第二轮生成。目录覆盖行情/K 线/盘口/资金流/板块/筹码、持仓/收益/账本/T 计划、追踪记录、财务/估值/分红融资/股东、公司报告、公司行动和每日扫描。消息引用会记录实际读取的数据集。当前仅 DeepSeek 启用该工具链路；OpenAI 暂时沿用原有市场快照上下文，待 DeepSeek 调试稳定后再接入同一协议。
+DeepSeek 对话使用两阶段股票数据协议：第一轮只提交每只授权股票的 `stockRef`、身份和数据集目录，不提交明细；模型通过 `read_stock_data` 一次批量选择需要的 `datasetId`，主进程校验股票范围、市场能力、分页和数量上限后才读取对应数据，并把结果交给第二轮生成。目录覆盖行情/K 线/盘口/资金流/板块/筹码、持仓/收益/账本/T 计划、追踪记录、财务/估值/分红融资/股东、公司报告、公司行动和每日扫描。消息引用会记录实际读取的数据集。当前仅 DeepSeek 启用该工具链路；其他 Provider 暂时沿用原有市场快照上下文。
 
 ### 短期行情与长期价值
 

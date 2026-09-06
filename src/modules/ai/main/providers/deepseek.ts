@@ -1,5 +1,6 @@
 import type {
   AiConnectionResult,
+  AiModelOption,
   AiProvider,
   AiProviderRequest,
   AiProviderRequestMessage,
@@ -8,7 +9,13 @@ import type {
   AiProviderToolExecutor,
   AiProviderTurnResult
 } from '../../shared/types'
-import { completed, connectionResultFromError, ensureResponse, readSse } from './provider'
+import {
+  completed,
+  connectionResultFromError,
+  ensureResponse,
+  fetchModelOptions,
+  readSse
+} from './provider'
 
 const DEEPSEEK_API_BASE = 'https://api.deepseek.com'
 const MAX_TOOL_CALLS = 3
@@ -123,14 +130,24 @@ export class DeepSeekProvider implements AiProvider {
     return { streaming: true, marketInterpretation: true, stockDataTools: true }
   }
 
+  async listModels(apiKey?: string): Promise<AiModelOption[]> {
+    if (!apiKey) throw new Error('请先保存 API Key')
+    const models = await fetchModelOptions(`${DEEPSEEK_API_BASE}/models`, {
+      Authorization: `Bearer ${apiKey}`
+    })
+    if (models.length === 0) throw new Error('DeepSeek 未返回可用模型')
+    return models
+  }
+
   async testConnection(apiKey?: string): Promise<AiConnectionResult> {
     if (!apiKey) return { ok: false, kind: 'authentication', message: '请先保存 API Key' }
     try {
-      const response = await fetch(`${DEEPSEEK_API_BASE}/models`, {
-        headers: { Authorization: `Bearer ${apiKey}` }
-      })
-      await ensureResponse(response)
-      return { ok: true, kind: 'success', message: 'DeepSeek API Key 已连接' }
+      const models = await this.listModels(apiKey)
+      return {
+        ok: true,
+        kind: 'success',
+        message: `DeepSeek API Key 已连接，可用模型 ${models.length} 个`
+      }
     } catch (error) {
       return connectionResultFromError(error)
     }

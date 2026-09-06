@@ -1,6 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { atomicWriteJsonSync } from '../../../../electron/main/file-storage'
+import { AI_DEFAULT_MODELS } from '../shared/constants'
 import type {
   AiConversation,
   AiConversationExport,
@@ -8,11 +9,12 @@ import type {
   AiProviderId,
   AiSettings
 } from '../shared/types'
+import { AI_PROVIDER_IDS } from '../shared/types'
 
 const DEFAULT_SETTINGS: AiSettings = {
   enabled: true,
   providerId: 'openai',
-  model: 'gpt-5.6',
+  model: AI_DEFAULT_MODELS.openai,
   maxContextMessages: 16
 }
 
@@ -50,8 +52,10 @@ export class AiStorage {
 
   getSettings(): AiSettings {
     const saved = readJson<Partial<AiSettings>>(join(this.rootDirectory, 'settings.json'), {})
-    const providerId: AiProviderId = saved.providerId === 'deepseek' ? 'deepseek' : 'openai'
-    const defaultModel = providerId === 'deepseek' ? 'deepseek-v4-flash' : 'gpt-5.6'
+    const providerId: AiProviderId = AI_PROVIDER_IDS.includes(saved.providerId as AiProviderId)
+      ? (saved.providerId as AiProviderId)
+      : 'openai'
+    const defaultModel = AI_DEFAULT_MODELS[providerId]
     const savedModel =
       typeof saved.model === 'string' && saved.model.trim() ? saved.model.trim() : defaultModel
     return {

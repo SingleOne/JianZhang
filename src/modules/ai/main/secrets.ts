@@ -2,6 +2,7 @@ import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { safeStorage } from 'electron'
 import { join } from 'node:path'
 import type { AiApiKeyProviderId, AiCredentialStatus } from '../shared/types'
+import { AI_PROVIDER_IDS } from '../shared/types'
 import { atomicWriteFileSync } from '../../../../electron/main/file-storage'
 
 export type AiApiKeyDocument = Partial<Record<AiApiKeyProviderId, string>>
@@ -62,7 +63,7 @@ export class AiSecrets {
 
   replaceAll(credentials: AiApiKeyDocument): void {
     const saved: AiApiKeyDocument = {}
-    for (const providerId of ['openai', 'deepseek'] as const) {
+    for (const providerId of AI_PROVIDER_IDS) {
       const apiKey = credentials[providerId]?.trim()
       if (apiKey) saved[providerId] = apiKey
     }

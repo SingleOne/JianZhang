@@ -36,6 +36,7 @@ export function installAi(dependencies: AiModuleDependencies): AiRuntime {
   ipcMain.handle(AI_IPC.credentialClear, (_event, providerId: AiApiKeyProviderId) =>
     service.clearCredential(providerId)
   )
+  ipcMain.handle(AI_IPC.modelsList, (_event, providerId) => service.listModels(providerId))
   ipcMain.handle(AI_IPC.connectionTest, (_event, providerId) => service.testConnection(providerId))
   ipcMain.handle(AI_IPC.conversationsList, (_event, query?: string) =>
     service.listConversations(query)

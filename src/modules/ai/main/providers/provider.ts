@@ -1,4 +1,4 @@
-import type { AiConnectionResult, AiProviderTurnResult } from '../../shared/types'
+import type { AiConnectionResult, AiModelOption, AiProviderTurnResult } from '../../shared/types'
 
 export async function ensureResponse(response: Response): Promise<void> {
   if (response.ok) return
@@ -22,6 +22,51 @@ export function connectionResultFromError(error: unknown): AiConnectionResult {
     kind: 'provider',
     message: error instanceof Error ? error.message : 'Provider 连接失败'
   }
+}
+
+function record(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null
+}
+
+function modelEntries(value: unknown): unknown[] {
+  const root = record(value)
+  if (!root) return []
+  if (Array.isArray(root.data)) return root.data
+  if (Array.isArray(root.models)) return root.models
+  const output = record(root.output)
+  return Array.isArray(output?.models) ? output.models : []
+}
+
+export function parseModelOptions(value: unknown): AiModelOption[] {
+  const models = new Map<string, AiModelOption>()
+  for (const entry of modelEntries(value)) {
+    const model = record(entry)
+    if (!model) continue
+    const rawId = [model.id, model.model, model.name].find(
+      (candidate) => typeof candidate === 'string' && candidate.trim()
+    )
+    if (typeof rawId !== 'string') continue
+    const id = rawId.trim().replace(/^models\//, '')
+    const rawLabel = [model.display_name, model.displayName, model.label, model.name].find(
+      (candidate) => typeof candidate === 'string' && candidate.trim()
+    )
+    const label = typeof rawLabel === 'string' ? rawLabel.trim().replace(/^models\//, '') : id
+    if (!models.has(id)) models.set(id, { id, label })
+  }
+  return [...models.values()].sort((left, right) =>
+    left.label.localeCompare(right.label, undefined, { numeric: true, sensitivity: 'base' })
+  )
+}
+
+export async function fetchModelOptions(
+  url: string,
+  headers: Record<string, string>
+): Promise<AiModelOption[]> {
+  const response = await fetch(url, { headers })
+  await ensureResponse(response)
+  return parseModelOptions(await response.json())
 }
 
 export async function readSse(response: Response, onData: (data: string) => void): Promise<void> {

@@ -33,14 +33,24 @@ describe('user data backup document', () => {
         { path: 'modules/ai/settings.json', content: '{"enabled":true}' },
         { path: 'modules/ai/conversations/index.json', content: '[]' }
       ],
-      { openai: 'openai-key', deepseek: 'deepseek-key' }
+      {
+        openai: 'openai-key',
+        deepseek: 'deepseek-key',
+        gemini: 'gemini-key',
+        anthropic: 'anthropic-key'
+      }
     )
 
     expect(parseUserDataBackupDocument(document)).toMatchObject({
       format: JIANZHANG_USER_DATA_BACKUP_FORMAT,
       applicationVersion: '8.3.0',
       files: document.files,
-      aiApiKeys: { openai: 'openai-key', deepseek: 'deepseek-key' }
+      aiApiKeys: {
+        openai: 'openai-key',
+        deepseek: 'deepseek-key',
+        gemini: 'gemini-key',
+        anthropic: 'anthropic-key'
+      }
     })
   })
 
