@@ -225,8 +225,29 @@
   background: #f7f8fa;
   border: 1px solid #e1e5eb;
   border-radius: 7px;
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
+}
+
+.t-cash-flow-card .t-form-grid input {
+  font-size: 12px;
+}
+
+.t-cash-ledger-list {
+  margin-top: 10px;
+}
+
+.t-cash-ledger-list .t-trade-amount strong.is-up {
+  color: var(--red);
+}
+
+.t-cash-ledger-list .t-trade-amount strong.is-down {
+  color: var(--green);
+}
+
+.t-cash-ledger-list .t-trade-actions .icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .t-segmented button.is-active {
@@ -381,7 +402,7 @@
   background: #fff4f3;
   border: 1px solid #ffd5d2;
   border-radius: 7px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .t-entry-actions {

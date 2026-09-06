@@ -142,13 +142,13 @@
 
 ## 做 T 组件
 
-| 文件                                                                                                 | 职责                                      |
-| ---------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| [`src/components/TTradingDrawer.tsx`](../../src/components/TTradingDrawer.tsx)                       | 做 T 交易、费用、双五档、提醒、结算和历史 |
-| [`src/components/TPlanTable.tsx`](../../src/components/TPlanTable.tsx)                               | 买入/卖出共用五档表                       |
-| [`src/components/TAlertBadges.tsx`](../../src/components/TAlertBadges.tsx)                           | 主表和任务栏提醒标识                      |
-| [`src/components/TFloatingProfitAlertBadge.tsx`](../../src/components/TFloatingProfitAlertBadge.tsx) | T仓浮盈/浮亏金额提醒标识                  |
-| [`src/components/FiveLevelAlertBadges.tsx`](../../src/components/FiveLevelAlertBadges.tsx)           | 活动 T 仓五档异常大单标识                 |
+| 文件                                                                                                 | 职责                                                              |
+| ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| [`src/components/TTradingDrawer.tsx`](../../src/components/TTradingDrawer.tsx)                       | 做 T 交易、混合底仓流水、分红缴税、费用、双五档、提醒、结算和历史 |
+| [`src/components/TPlanTable.tsx`](../../src/components/TPlanTable.tsx)                               | 买入/卖出共用五档表                                               |
+| [`src/components/TAlertBadges.tsx`](../../src/components/TAlertBadges.tsx)                           | 主表和任务栏提醒标识                                              |
+| [`src/components/TFloatingProfitAlertBadge.tsx`](../../src/components/TFloatingProfitAlertBadge.tsx) | T仓浮盈/浮亏金额提醒标识                                          |
+| [`src/components/FiveLevelAlertBadges.tsx`](../../src/components/FiveLevelAlertBadges.tsx)           | 活动 T 仓五档异常大单标识                                         |
 
 ## 桌面辅助窗口组件
 
@@ -159,19 +159,19 @@
 
 ## 可选模块
 
-| 目录/文件                                                                                                                                | 职责                                                                                          |
-| ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| [`src/modules/market-insight`](../../src/modules/market-insight/)                                                                        | 确定性指标、客观事件、公告/要闻、快照和独立调度/存储                                          |
-| [`src/modules/ai`](../../src/modules/ai/)                                                                                                | Provider、加密凭证、会话、`@股票` 完整市场上下文、日 K 尺度短期行情/长期价值分析和独立 IPC/UI |
-| [`src/modules/ai/main/conversations/context-builder.ts`](../../src/modules/ai/main/conversations/context-builder.ts)                     | 最近消息与多股票快照组装，加入筹码分布缓存                                                    |
-| [`src/modules/ai/main/analysis/long-term-context.ts`](../../src/modules/ai/main/analysis/long-term-context.ts)                           | 组合五年财务、简化 DCF、分红融资、PE/PB历史/行业分位及长期价格强弱，生成长期价值快照指纹      |
-| [`src/modules/ai/main/analysis/long-term-interpretation.ts`](../../src/modules/ai/main/analysis/long-term-interpretation.ts)             | 校验企业质量、财务安全、当前价格和双结论固定结构                                              |
-| [`src/modules/ai/prompts/long-term-value.ts`](../../src/modules/ai/prompts/long-term-value.ts)                                           | 隔离经营质量、估值与价格时机，并约束 DCF 判读和70%警戒规则的长期价值提示词                    |
-| [`src/modules/ai/renderer/AiAssistantDrawer.tsx`](../../src/modules/ai/renderer/AiAssistantDrawer.tsx)                                   | 会话管理、流式聊天和 `@自选股` 选择                                                           |
-| [`src/components/InvestmentValueMetrics.tsx`](../../src/components/InvestmentValueMetrics.tsx)                               | 基本面与市场观察复用的 PE/PB/PCF历史与行业分位、PCF/PE剪刀差、总市值、流通市值和资本回报展示            |
-| [`electron/main/valuation-history-service.ts`](../../electron/main/valuation-history-service.ts)                                         | 按股票获取并缓存近五年日度 PE TTM/PB/PCF TTM历史序列                                                  |
-| [`src/lib/valuation-analysis.ts`](../../src/lib/valuation-analysis.ts)                                                       | 计算 PE/PB/PCF历史与同行分位、PCF/PE剪刀差及备用行情市值换算                                    |
-| [`src/modules/ai-t-advice`](../../src/modules/ai-t-advice/)                                                                              | 结构化只读做 T 参考、确定性事件、校验和独立历史                                               |
+| 目录/文件                                                                                                                    | 职责                                                                                          |
+| ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| [`src/modules/market-insight`](../../src/modules/market-insight/)                                                            | 确定性指标、客观事件、公告/要闻、快照和独立调度/存储                                          |
+| [`src/modules/ai`](../../src/modules/ai/)                                                                                    | Provider、加密凭证、会话、`@股票` 完整市场上下文、日 K 尺度短期行情/长期价值分析和独立 IPC/UI |
+| [`src/modules/ai/main/conversations/context-builder.ts`](../../src/modules/ai/main/conversations/context-builder.ts)         | 最近消息与多股票快照组装，加入筹码分布缓存                                                    |
+| [`src/modules/ai/main/analysis/long-term-context.ts`](../../src/modules/ai/main/analysis/long-term-context.ts)               | 组合五年财务、简化 DCF、分红融资、PE/PB历史/行业分位及长期价格强弱，生成长期价值快照指纹      |
+| [`src/modules/ai/main/analysis/long-term-interpretation.ts`](../../src/modules/ai/main/analysis/long-term-interpretation.ts) | 校验企业质量、财务安全、当前价格和双结论固定结构                                              |
+| [`src/modules/ai/prompts/long-term-value.ts`](../../src/modules/ai/prompts/long-term-value.ts)                               | 隔离经营质量、估值与价格时机，并约束 DCF 判读和70%警戒规则的长期价值提示词                    |
+| [`src/modules/ai/renderer/AiAssistantDrawer.tsx`](../../src/modules/ai/renderer/AiAssistantDrawer.tsx)                       | 会话管理、流式聊天和 `@自选股` 选择                                                           |
+| [`src/components/InvestmentValueMetrics.tsx`](../../src/components/InvestmentValueMetrics.tsx)                               | 基本面与市场观察复用的 PE/PB/PCF历史与行业分位、PCF/PE剪刀差、总市值、流通市值和资本回报展示  |
+| [`electron/main/valuation-history-service.ts`](../../electron/main/valuation-history-service.ts)                             | 按股票获取并缓存近五年日度 PE TTM/PB/PCF TTM历史序列                                          |
+| [`src/lib/valuation-analysis.ts`](../../src/lib/valuation-analysis.ts)                                                       | 计算 PE/PB/PCF历史与同行分位、PCF/PE剪刀差及备用行情市值换算                                  |
+| [`src/modules/ai-t-advice`](../../src/modules/ai-t-advice/)                                                                  | 结构化只读做 T 参考、确定性事件、校验和独立历史                                               |
 
 ## 脚本和历史文档
 

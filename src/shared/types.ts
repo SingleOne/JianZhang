@@ -685,7 +685,7 @@ export interface TTrade {
   note: string
 }
 
-/** 统一交易记录；批次字段缺省时表示批次外的独立底仓交易。 */
+/** 统一交易记录；批次字段缺省时表示批次外的底仓交易。 */
 export interface TTradeRecord extends TTrade {
   batchId?: string
   batchSequence?: number

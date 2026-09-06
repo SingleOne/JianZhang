@@ -1396,6 +1396,7 @@ export function WatchlistTable({
           }
           feeSettings={tTradingFees}
           planDefaults={tPlanDefaults}
+          exchangeRates={exchangeRates}
           floatingProfitAlertDefaultThreshold={tFloatingProfitAlertDefaultThreshold}
           onClose={() => setTTradingStock(null)}
           onApply={(account, position) => {
