@@ -12,7 +12,8 @@ export class OpenAiApiProvider implements AiProvider {
   readonly id = 'openai' as const
 
   getCapabilities() {
-    return { streaming: true, marketInterpretation: true }
+    // TODO: DeepSeek 股票数据工具链路调试稳定后，为 OpenAI Provider 接入同一套工具协议。
+    return { streaming: true, marketInterpretation: true, stockDataTools: false }
   }
 
   async testConnection(apiKey?: string): Promise<AiConnectionResult> {

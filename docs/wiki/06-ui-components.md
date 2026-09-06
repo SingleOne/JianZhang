@@ -238,7 +238,7 @@ App
 
 - `ConfirmDialogProvider` 在渲染入口维护唯一确认弹窗和 Promise 结果。
 - `useConfirmDialog` 统一配置标题、正文、确认按钮文案和危险操作主题。
-- 配置导入、分组/交易/做 T 历史/AI 数据删除、API Key 清除和 Codex 退出均复用该组件。
+- 配置导入、分组/交易/做 T 历史/AI 数据删除和 API Key 清除均复用该组件。
 
 ### `WatchlistGroupDialog.tsx` / `TableFilterDropdown.tsx`
 

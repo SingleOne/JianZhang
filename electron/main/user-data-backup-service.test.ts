@@ -73,11 +73,11 @@ describe('UserDataBackupService', () => {
     )
   })
 
-  it('exports user-owned data and excludes network caches and Codex login data', () => {
+  it('exports user-owned data and excludes network and transient provider caches', () => {
     const directory = temporaryDirectory()
     write(directory, 'modules/ai/settings.json', '{"providerId":"openai"}')
     write(directory, 'modules/ai/conversations/index.json', '[{"id":"conversation-1"}]')
-    write(directory, 'modules/ai/codex-runtime/auth.json', '{"token":"private"}')
+    write(directory, 'modules/ai/transient-provider-cache/session.json', '{"token":"private"}')
     write(directory, 'market-cache/shareholders/1_600519.json', '{"cached":true}')
     write(directory, 'company-reports/summaries.json', '{"report":"summary"}')
     write(directory, 'completion-notifications.json', '[{"id":"notification-1"}]')
@@ -95,7 +95,7 @@ describe('UserDataBackupService', () => {
     expect(document.aiApiKeys).toEqual({ openai: 'openai-key' })
   })
 
-  it('restores managed files and API keys while preserving network and Codex data', () => {
+  it('restores managed files and API keys while preserving unmanaged cache data', () => {
     const source = temporaryDirectory()
     write(source, 'modules/ai/conversations/index.json', '[{"id":"from-backup"}]')
     write(source, 'modules/market-insight/events.json', '[{"id":"event-1"}]')
@@ -104,7 +104,7 @@ describe('UserDataBackupService', () => {
 
     const target = temporaryDirectory()
     write(target, 'modules/ai/conversations/index.json', '[{"id":"local"}]')
-    write(target, 'modules/ai/codex-runtime/auth.json', '{"token":"keep"}')
+    write(target, 'modules/ai/transient-provider-cache/session.json', '{"token":"keep"}')
     write(target, 'market-cache/klines/1_600519-daily.json', '{"cached":true}')
     const targetService = new UserDataBackupService(target)
     const prepared = targetService.prepare(document)
@@ -122,9 +122,9 @@ describe('UserDataBackupService', () => {
     expect(readFileSync(join(target, 'modules/ai/conversations/index.json'), 'utf8')).toContain(
       'from-backup'
     )
-    expect(readFileSync(join(target, 'modules/ai/codex-runtime/auth.json'), 'utf8')).toContain(
-      'keep'
-    )
+    expect(
+      readFileSync(join(target, 'modules/ai/transient-provider-cache/session.json'), 'utf8')
+    ).toContain('keep')
     expect(readFileSync(join(target, 'market-cache/klines/1_600519-daily.json'), 'utf8')).toContain(
       'cached'
     )

@@ -1,23 +1,34 @@
 import type { MarketInsightSnapshot } from '../../market-insight/shared/types'
 import type {
+  AppState,
   ChipDistributionCacheEntry,
+  CompanyReportLibraryResult,
   CompanyReportSummary,
+  CorporateActionListResult,
+  DailyMarketScanResult,
   DataSnapshotRuntimeState,
   DividendFinancingSnapshot,
+  FundsFlowResult,
   FundamentalSnapshot,
+  GlobalFundamentalSnapshot,
+  KlinePeriod,
   KlineResult,
+  SectorIndexResult,
+  ShareholderSnapshot,
+  StockOrderBook,
   StockQuote,
   StockValuationHistory
 } from '../../../shared/types'
 
-export type AiProviderId = 'openai' | 'openai-codex' | 'deepseek'
-export type AiApiKeyProviderId = Exclude<AiProviderId, 'openai-codex'>
+export type AiProviderId = 'openai' | 'deepseek'
+export type AiApiKeyProviderId = AiProviderId
 export type AiMessageRole = 'user' | 'assistant' | 'system'
 export type AiMessageStatus = 'pending' | 'streaming' | 'completed' | 'stopped' | 'error'
 
 export interface AiProviderCapabilities {
   streaming: boolean
   marketInterpretation: boolean
+  stockDataTools: boolean
 }
 
 export interface AiProviderDescriptor {
@@ -25,21 +36,13 @@ export interface AiProviderDescriptor {
   label: string
   billingHint: string
   defaultModel: string
-  authMode: 'apiKey' | 'codexAccount'
+  authMode: 'apiKey'
   capabilities: AiProviderCapabilities
 }
 
 export interface AiCredentialStatus {
   configured: boolean
   maskedSuffix?: string
-}
-
-export interface AiCodexAccountStatus {
-  runtimeAvailable: boolean
-  loggedIn: boolean
-  email?: string
-  planType?: string
-  message?: string
 }
 
 export interface AiSettings {
@@ -53,7 +56,6 @@ export interface AiStatus {
   enabled: boolean
   providers: AiProviderDescriptor[]
   credentials: Record<AiApiKeyProviderId, AiCredentialStatus>
-  codexAccount: AiCodexAccountStatus
 }
 
 export interface AiConnectionResult {
@@ -82,6 +84,7 @@ export interface AiContextRef {
   marketLabel?: string
   snapshotId: string
   source?: 'conversation' | 'mention'
+  datasetIds?: string[]
 }
 
 export interface AiStockMention {
@@ -254,8 +257,6 @@ export interface AiApi {
   saveSettings: (settings: AiSettings) => Promise<AiSettings>
   setCredential: (providerId: AiApiKeyProviderId, apiKey: string) => Promise<AiCredentialStatus>
   clearCredential: (providerId: AiApiKeyProviderId) => Promise<void>
-  loginCodexAccount: () => Promise<AiCodexAccountStatus>
-  logoutCodexAccount: () => Promise<AiCodexAccountStatus>
   testConnection: (providerId: AiProviderId) => Promise<AiConnectionResult>
   listConversations: (query?: string) => Promise<AiConversation[]>
   getConversation: (
@@ -290,7 +291,25 @@ export interface AiProviderRequestMessage {
 export interface AiProviderRequest {
   model: string
   messages: AiProviderRequestMessage[]
+  tools?: AiProviderTool[]
 }
+
+export interface AiProviderTool {
+  name: string
+  description: string
+  inputSchema: Record<string, unknown>
+}
+
+export interface AiProviderToolCall {
+  id: string
+  name: string
+  arguments: string
+}
+
+export type AiProviderToolExecutor = (
+  call: AiProviderToolCall,
+  signal: AbortSignal
+) => Promise<string>
 
 export interface AiProviderTurnResult {
   responseId?: string
@@ -315,22 +334,33 @@ export interface AiProvider {
     credential: string | undefined,
     request: AiProviderRequest,
     emit: (delta: string) => void,
-    signal: AbortSignal
+    signal: AbortSignal,
+    executeTool?: AiProviderToolExecutor
   ) => Promise<AiProviderTurnResult>
 }
 
 export interface AiModuleDependencies {
+  getState: () => AppState
   getMarketInsightSnapshot: (quoteId: string) => Promise<MarketInsightSnapshot | null> | null
   refreshMarketInsightSnapshot: (quoteId: string) => Promise<MarketInsightSnapshot | null> | null
   getChipDistributionCache: (quoteId: string) => ChipDistributionCacheEntry | null
   getLatestQuote: (quoteId: string) => StockQuote | null
   getDailyKline: (quoteId: string, limit: number) => Promise<KlineResult>
+  getKline: (quoteId: string, period: KlinePeriod, limit?: number) => Promise<KlineResult>
+  getOrderBook: (quoteId: string) => Promise<StockOrderBook>
+  getFundsFlow: (quoteId: string) => Promise<FundsFlowResult>
+  getSectorIndex: (quoteId: string) => Promise<SectorIndexResult>
+  getDailyMarketScanResult: () => DailyMarketScanResult | null
   getValuationHistory: (quoteId: string) => Promise<StockValuationHistory>
   getFundamentalSnapshot: () => Promise<FundamentalSnapshot | null>
   getFundamentalState: () => DataSnapshotRuntimeState
   getDividendFinancingSnapshot: () => Promise<DividendFinancingSnapshot | null>
   getDividendFinancingState: () => DataSnapshotRuntimeState
   getCompanyReportSummaries: (code: string) => CompanyReportSummary[]
+  getCompanyReports: (quoteId: string) => Promise<CompanyReportLibraryResult>
+  getGlobalFundamentals: (quoteId: string) => Promise<GlobalFundamentalSnapshot>
+  getShareholderSnapshot: (quoteId: string) => Promise<ShareholderSnapshot>
+  listCorporateActions: (quoteId: string) => Promise<CorporateActionListResult>
 }
 
 declare global {

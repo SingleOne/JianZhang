@@ -1,4 +1,3 @@
-const aiModuleEnabled = process.env.JIANZHANG_AI_MODULE !== '0'
 const requestedIconVariant = process.env.JIANZHANG_ICON_VARIANT
 const iconVariant =
   requestedIconVariant === 'red' || requestedIconVariant === 'black'
@@ -26,15 +25,7 @@ module.exports = {
     {
       from: 'scripts/generate_fundamental_snapshot.py',
       to: 'scripts/generate_fundamental_snapshot.py'
-    },
-    ...(aiModuleEnabled
-      ? [
-          {
-            from: 'node_modules/@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc',
-            to: 'codex-runtime'
-          }
-        ]
-      : [])
+    }
   ],
   win: {
     icon: iconFiles[iconVariant],

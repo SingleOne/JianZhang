@@ -8,7 +8,6 @@ import type {
   AiProviderId,
   AiSettings
 } from '../shared/types'
-import { normalizeOpenAiCodexModelId, OPENAI_CODEX_DEFAULT_MODEL } from '../shared/constants'
 
 const DEFAULT_SETTINGS: AiSettings = {
   enabled: true,
@@ -51,24 +50,14 @@ export class AiStorage {
 
   getSettings(): AiSettings {
     const saved = readJson<Partial<AiSettings>>(join(this.rootDirectory, 'settings.json'), {})
-    const providerId: AiProviderId =
-      saved.providerId === 'deepseek'
-        ? 'deepseek'
-        : saved.providerId === 'openai-codex'
-          ? 'openai-codex'
-          : 'openai'
-    const defaultModel =
-      providerId === 'deepseek'
-        ? 'deepseek-v4-flash'
-        : providerId === 'openai-codex'
-          ? OPENAI_CODEX_DEFAULT_MODEL
-          : 'gpt-5.6'
+    const providerId: AiProviderId = saved.providerId === 'deepseek' ? 'deepseek' : 'openai'
+    const defaultModel = providerId === 'deepseek' ? 'deepseek-v4-flash' : 'gpt-5.6'
     const savedModel =
       typeof saved.model === 'string' && saved.model.trim() ? saved.model.trim() : defaultModel
     return {
       enabled: saved.enabled !== false,
       providerId,
-      model: providerId === 'openai-codex' ? normalizeOpenAiCodexModelId(savedModel) : savedModel,
+      model: savedModel,
       maxContextMessages:
         typeof saved.maxContextMessages === 'number'
           ? Math.max(4, Math.min(40, Math.round(saved.maxContextMessages)))

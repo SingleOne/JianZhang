@@ -6,8 +6,6 @@ import {
   Download,
   KeyRound,
   LoaderCircle,
-  LogIn,
-  LogOut,
   MessageSquare,
   Pencil,
   Plus,
@@ -17,7 +15,6 @@ import {
   Settings2,
   Square,
   Trash2,
-  UserRound,
   X
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
@@ -233,6 +230,9 @@ function ChatThread({ conversation, messages, onCancel, onRetry, onExport }: Cha
                       <small key={`${context.source ?? 'legacy'}:${context.snapshotId}`}>
                         {context.source === 'mention' ? '@' : '上下文：'}
                         {context.quoteName ?? context.quoteId}
+                        {message.role === 'assistant' && context.datasetIds?.length
+                          ? ` · 已读取 ${context.datasetIds.length} 类数据`
+                          : ''}
                       </small>
                     ))}
                   </div>
@@ -314,8 +314,6 @@ interface AiSettingsPanelProps {
   onSave: (settings: AiSettings) => void
   onSaveCredential: (providerId: AiApiKeyProviderId, key: string) => void
   onClearCredential: (providerId: AiApiKeyProviderId) => void
-  onCodexLogin: () => void
-  onCodexLogout: () => void
   onTestConnection: (providerId: AiProviderId) => void
   busy: boolean
   connectionResult: AiConnectionResult | null
@@ -327,8 +325,6 @@ function AiSettingsPanel({
   onSave,
   onSaveCredential,
   onClearCredential,
-  onCodexLogin,
-  onCodexLogout,
   onTestConnection,
   busy,
   connectionResult
@@ -337,11 +333,7 @@ function AiSettingsPanel({
   const [apiKey, setApiKey] = useState('')
   const activeProvider =
     status.providers.find((item) => item.id === draft.providerId) ?? status.providers[0]
-  const usesCodexAccount = activeProvider?.authMode === 'codexAccount'
-  const credential = usesCodexAccount
-    ? null
-    : status.credentials[draft.providerId as AiApiKeyProviderId]
-  const codexAccount = status.codexAccount
+  const credential = status.credentials[draft.providerId as AiApiKeyProviderId]
 
   useEffect(() => setDraft(settings), [settings])
 
@@ -361,7 +353,7 @@ function AiSettingsPanel({
         <Settings2 size={17} />
         <div>
           <h2>服务设置</h2>
-          <p>API Key 由主进程加密保存；Codex 登录凭证由官方运行时管理。</p>
+          <p>API Key 仅由主进程加密保存。</p>
         </div>
       </header>
       <div className="ai-settings-content">
@@ -422,93 +414,49 @@ function AiSettingsPanel({
           </div>
         </div>
         <div className="ai-settings-column">
-          {usesCodexAccount ? (
-            <div className="ai-credential-card ai-codex-account-card">
-              <div>
-                <UserRound size={16} />
-                <span>
-                  <strong>Codex 账号</strong>
-                  <small>
-                    {codexAccount.loggedIn
-                      ? `${codexAccount.email ?? '已登录'}${codexAccount.planType ? ` · ${codexAccount.planType}` : ''}`
-                      : (codexAccount.message ?? '尚未登录')}
-                  </small>
-                </span>
-              </div>
-              <div className="ai-account-actions">
-                {codexAccount.loggedIn ? (
-                  <button
-                    className="secondary-button"
-                    type="button"
-                    disabled={busy}
-                    onClick={onCodexLogout}
-                  >
-                    <LogOut size={14} />
-                    退出登录
-                  </button>
-                ) : (
-                  <button
-                    className="primary-button"
-                    type="button"
-                    disabled={busy || !codexAccount.runtimeAvailable}
-                    onClick={onCodexLogin}
-                  >
-                    <LogIn size={14} />
-                    登录 Codex 账号
-                  </button>
-                )}
-                <small>登录页面由 OpenAI 在系统浏览器中打开，见涨不会读取或复制登录令牌。</small>
-              </div>
+          <div className="ai-credential-card">
+            <div>
+              <KeyRound size={16} />
+              <span>
+                <strong>API Key</strong>
+                <small>
+                  {credential?.configured ? `已配置 · 尾号 ${credential.maskedSuffix}` : '尚未配置'}
+                </small>
+              </span>
             </div>
-          ) : (
-            <div className="ai-credential-card">
-              <div>
-                <KeyRound size={16} />
-                <span>
-                  <strong>API Key</strong>
-                  <small>
-                    {credential?.configured
-                      ? `已配置 · 尾号 ${credential.maskedSuffix}`
-                      : '尚未配置'}
-                  </small>
-                </span>
-              </div>
-              <div className="ai-credential-actions">
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(event) => setApiKey(event.target.value)}
-                  placeholder="粘贴新的 API Key"
-                  autoComplete="off"
-                />
+            <div className="ai-credential-actions">
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(event) => setApiKey(event.target.value)}
+                placeholder="粘贴新的 API Key"
+                autoComplete="off"
+              />
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={!apiKey.trim() || busy}
+                onClick={() => onSaveCredential(draft.providerId as AiApiKeyProviderId, apiKey)}
+              >
+                保存 Key
+              </button>
+              {credential?.configured ? (
                 <button
-                  className="secondary-button"
+                  className="ai-text-button danger"
                   type="button"
-                  disabled={!apiKey.trim() || busy}
-                  onClick={() => onSaveCredential(draft.providerId as AiApiKeyProviderId, apiKey)}
+                  disabled={busy}
+                  onClick={() => onClearCredential(draft.providerId as AiApiKeyProviderId)}
                 >
-                  保存 Key
+                  清除
                 </button>
-                {credential?.configured ? (
-                  <button
-                    className="ai-text-button danger"
-                    type="button"
-                    disabled={busy}
-                    onClick={() => onClearCredential(draft.providerId as AiApiKeyProviderId)}
-                  >
-                    清除
-                  </button>
-                ) : null}
-              </div>
+              ) : null}
             </div>
-          )}
+          </div>
           <div className="ai-settings-footer">
             <button
               className="secondary-button"
               type="button"
-              disabled={
-                busy || (usesCodexAccount ? !codexAccount.loggedIn : !credential?.configured)
-              }
+              disabled={busy || !credential?.configured}
               onClick={() => onTestConnection(draft.providerId)}
             >
               {busy ? <LoaderCircle size={14} className="is-spinning" /> : <Check size={14} />}
@@ -532,8 +480,7 @@ function AiSettingsPanel({
         </div>
       </div>
       <p className="ai-settings-note">
-        Codex 账号模式使用 ChatGPT 订阅权限；OpenAI API Key 模式使用 Platform API
-        额度，两种计费与账号状态相互独立。
+        OpenAI 与 DeepSeek 分别使用各自 Platform API 的账号和额度，配置互不影响。
       </p>
     </section>
   )
@@ -950,45 +897,6 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
     }
   }
 
-  const loginCodexAccount = async () => {
-    if (!api) return
-    setBusy(true)
-    setConnectionResult(null)
-    try {
-      const account = await api.loginCodexAccount()
-      setStatus(await api.getStatus())
-      setConnectionResult({
-        ok: account.loggedIn,
-        kind: account.loggedIn ? 'success' : 'authentication',
-        message: account.loggedIn ? 'Codex 账号登录成功' : (account.message ?? 'Codex 账号登录失败')
-      })
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Codex 账号登录失败')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const logoutCodexAccount = async () => {
-    if (!api) return
-    const confirmed = await confirm({
-      title: '退出 Codex 账号',
-      message: '确定退出见涨使用的 Codex 账号吗？这不会退出浏览器中的 ChatGPT。',
-      confirmLabel: '退出登录'
-    })
-    if (!confirmed) return
-    setBusy(true)
-    try {
-      await api.logoutCodexAccount()
-      setStatus(await api.getStatus())
-      setConnectionResult({ ok: true, kind: 'success', message: '已退出 Codex 账号' })
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '无法退出 Codex 账号')
-    } finally {
-      setBusy(false)
-    }
-  }
-
   const exportConversation = async () => {
     if (!api || !activeConversation) return
     try {
@@ -1216,8 +1124,6 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
             onSave={(nextSettings) => void saveSettings(nextSettings)}
             onSaveCredential={(providerId, key) => void saveCredential(providerId, key)}
             onClearCredential={(providerId) => void clearCredential(providerId)}
-            onCodexLogin={() => void loginCodexAccount()}
-            onCodexLogout={() => void logoutCodexAccount()}
             onTestConnection={(providerId) => void testConnection(providerId)}
             busy={busy}
             connectionResult={connectionResult}

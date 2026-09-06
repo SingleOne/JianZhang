@@ -102,7 +102,7 @@
 
 最近一次全市场收盘扫描保存在同目录下的 `daily-market-scan/latest.json`。扫描日 K 与个股详情共用 `market-cache/klines/`，已缓存的数据会直接复用。
 
-“设置 → 数据”可导出或导入用户数据备份。备份包含核心配置、自选/追踪、持仓与交易、提醒、AI 对话和分析、做 T 建议历史、财报 AI 总结以及 OpenAI/DeepSeek API Key；不包含可重新联网获取的行情缓存和 Codex 登录凭证。当前 JSON 备份未加密，API Key 以明文保存，请妥善保管。
+“设置 → 数据”可导出或导入用户数据备份。备份包含核心配置、自选/追踪、持仓与交易、提醒、AI 对话和分析、做 T 建议历史、财报 AI 总结以及 OpenAI/DeepSeek API Key；不包含可重新联网获取的行情缓存。当前 JSON 备份未加密，API Key 以明文保存，请妥善保管。
 
 同一设置页还支持将这份备份加密上传到 GitHub Secret Gist，或从 Gist 下载并恢复。点击“连接 GitHub”后，应用会打开 GitHub 官方 Device Flow 授权页；授权令牌使用当前电脑的 `safeStorage` 加密保存，随后自动查找账号中由见涨创建的同步 Gist，首次上传时自动创建，不需要填写 Gist 链接。用户自行设置同步密码，也可主动使用安全密钥生成器；密码绑定保存在本机，可直接显示、复制或更换。上传前使用 `scrypt + AES-256-GCM` 加密完整备份，GitHub 只保存 `jianzhang-user-data.json` 密文。新电脑输入一次同步密码并通过远程备份校验后即可绑定；GitHub 授权令牌和同步密码都不进入用户数据备份。
 

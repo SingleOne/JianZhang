@@ -296,7 +296,6 @@ interface AiMessage {
 - API Key 使用 Electron `safeStorage` 加密后写入 `credentials.bin`。
 - 渲染层只能获取“已配置/未配置”和脱敏尾号，不能读取明文。
 - 调用由主进程完成，不将密钥发送给 renderer。
-- OpenAI 网页/Codex 登录凭证由官方登录运行时管理，见涨不读取 `auth.json`，不复制 ChatGPT Cookie，也不自行实现或复用 Hermes 的 OAuth client ID。
 
 ## 7. Provider 与认证设计
 
@@ -317,23 +316,11 @@ interface AiProvider {
 
 指标解读和做 T 参考都通过统一消息接口调用；结构化任务额外提供 Schema 和输出校验，不在 Provider 中复制业务逻辑。
 
-API Key Provider 直接使用 `fetch`；Codex 账号 Provider 仅在 AI 模块内部依赖官方 Codex 运行时，依赖与解包配置随模块一起删除。
+API Key Provider 直接使用 `fetch`。
 
 ### 7.2 OpenAI
 
-提供两种认证适配器：
-
-1. **OpenAI Platform API Key**
-   - 按 OpenAI API 的 Bearer Key 方式调用。
-   - 消耗 OpenAI Platform API 余额，与 ChatGPT/Codex 订阅分开。
-   - 官方认证说明：[API authentication](https://developers.openai.com/api/reference/overview#authentication)。
-2. **OpenAI Codex 登录**
-   - 已接入官方 `codex app-server`，由官方组件打开登录并持有、刷新凭证。
-   - 见涨只通过本地 JSON-RPC 进程协议提交请求和接收事件。
-   - 不复刻 Hermes 的网页授权实现，不调用 OpenAI 内部接口，不直接读取 Codex 凭证文件。
-   - 官方 Windows 运行时作为 AI 模块资源随启用 AI 的构建携带；无 AI 构建不复制该资源。登录状态与 API Key 模式相互独立。
-
-两种认证在设置页中明确标注计费来源，不能只显示为同一个“OpenAI”。
+使用 OpenAI Platform API Key，按 Bearer Key 方式调用；消耗 Platform API 余额，与 ChatGPT 订阅分开。官方认证说明：[API authentication](https://developers.openai.com/api/reference/overview#authentication)。
 
 ### 7.3 DeepSeek
 
@@ -419,11 +406,11 @@ src/modules/ai/
 │  │  ├─ repository.ts
 │  │  ├─ context-builder.ts
 │  │  └─ title-generator.ts
+│  ├─ stock-data/
+│  │  └─ tool.ts
 │  └─ providers/
 │     ├─ provider.ts
 │     ├─ openai-api.ts
-│     ├─ codex-app-server.ts
-│     ├─ openai-codex.ts
 │     └─ deepseek.ts
 ├─ prompts/
 │  ├─ general-chat.ts
@@ -498,24 +485,24 @@ JIANZHANG_AI_T_ADVICE_MODULE=0
 
 基础 AI 只允许保留以下薄安装点：
 
-| 位置 | 安装内容 |
-| --- | --- |
-| `electron/main/index.ts` | 条件动态注册 `ai`，以及可选的 `ai-t-advice` |
-| `electron/preload/index.ts` | 条件挂载 `window.aiApi` / `window.aiTAdviceApi` |
-| `src/App.tsx` | 条件挂载全局 AI 助手按钮和抽屉 |
-| `src/components/ExpandedStockDetails.tsx` | 条件挂载 AI 分析标签 |
-| `electron.vite.config.ts` | 两个构建常量 |
-| `src/vite-env.d.ts` | 仅声明构建常量；模块 API 类型由模块自己声明 |
+| 位置                                      | 安装内容                                        |
+| ----------------------------------------- | ----------------------------------------------- |
+| `electron/main/index.ts`                  | 条件动态注册 `ai`，以及可选的 `ai-t-advice`     |
+| `electron/preload/index.ts`               | 条件挂载 `window.aiApi` / `window.aiTAdviceApi` |
+| `src/App.tsx`                             | 条件挂载全局 AI 助手按钮和抽屉                  |
+| `src/components/ExpandedStockDetails.tsx` | 条件挂载 AI 分析标签                            |
+| `electron.vite.config.ts`                 | 两个构建常量                                    |
+| `src/vite-env.d.ts`                       | 仅声明构建常量；模块 API 类型由模块自己声明     |
 
 不得把 AI 字段加入 `AppState`、`AppSettings`、核心配置导入导出、`refreshStocks` 或现有 T 提醒状态机。
 
 ### 10.4 删除场景
 
-| 场景 | 操作 | 应保留能力 |
-| --- | --- | --- |
-| 只移除做 T 参考 | 删除 `src/modules/ai-t-advice` 和对应薄安装点，或构建变量设为 `0` | 指标解读、要闻参考、通用聊天、对话记录 |
-| 移除全部 AI | 再删除 `src/modules/ai` 和对应薄安装点，或 AI 构建变量设为 `0` | 核心行情、持仓、现有手工做 T、`market-insight` |
-| 只关闭运行 | 设置页关闭模块 | 源码和本地数据保留，不再显示入口或调用网络 |
+| 场景            | 操作                                                              | 应保留能力                                     |
+| --------------- | ----------------------------------------------------------------- | ---------------------------------------------- |
+| 只移除做 T 参考 | 删除 `src/modules/ai-t-advice` 和对应薄安装点，或构建变量设为 `0` | 指标解读、要闻参考、通用聊天、对话记录         |
+| 移除全部 AI     | 再删除 `src/modules/ai` 和对应薄安装点，或 AI 构建变量设为 `0`    | 核心行情、持仓、现有手工做 T、`market-insight` |
+| 只关闭运行      | 设置页关闭模块                                                    | 源码和本地数据保留，不再显示入口或调用网络     |
 
 ## 11. 请求流程
 
@@ -585,7 +572,6 @@ flowchart LR
 - 实现 Provider 统一接口。
 - 实现 OpenAI API Key、DeepSeek API Key 和连接测试。
 - 实现 `safeStorage` 凭证存储。
-- 实现 OpenAI 官方 Codex App Server 登录运行时适配器。
 - 完成 AI 服务设置页和计费来源提示。
 
 完成标准：渲染层不可读取明文密钥；连接测试能区分认证失败、限流和网络失败。
@@ -649,7 +635,6 @@ flowchart LR
 
 - [ ] OpenAI API Key 可以独立配置、测试和清除。
 - [ ] DeepSeek API Key 可以独立配置、测试和清除。
-- [ ] OpenAI Codex 登录由官方运行时处理，见涨不读取或复制凭证。
 - [ ] 聊天支持多会话、流式输出、停止、重试、搜索、删除和导出。
 - [ ] 对话在重启后保留，Provider 切换不丢失历史。
 - [ ] 指标和要闻解释能引用 `MarketInsightSnapshot` 的来源和时间。
@@ -677,16 +662,15 @@ flowchart LR
 
 ## 14. 风险与待确认项
 
-| 风险/决策 | 当前处理 |
-| --- | --- |
-| OpenAI 网页登录是否能作为应用稳定能力 | 只走官方 Codex 登录运行时；实施前验证发行和协议条件，不自行复刻 OAuth |
+| 风险/决策                 | 当前处理                                                        |
+| ------------------------- | --------------------------------------------------------------- |
 | 普通聊天绕过独立做 T 模块 | 请求路由、提示和输出校验三层限制；个性化做 T 请求只进入独立模块 |
-| 模型把解释写成建议 | 使用受限 Schema，并在展示前做禁止字段和语义检查 |
-| 新闻时效和来源可靠性 | 事实继续来自 `market-insight`，AI 只总结并保留 sourceId |
-| 历史消息与当前行情混淆 | 消息固定 snapshotId，UI 同时标明“回答时快照”和“当前行情” |
-| 流式中断产生损坏记录 | 用户消息先落盘，助手完成后落盘；中断记录明确状态 |
-| 模块隐藏但仍进入安装包 | 构建常量配合动态导入，并扫描产物验证真正剔除 |
-| 合规结论变化 | `ai-t-advice` 独立源码、存储、IPC、UI 和构建开关，可单独删除 |
+| 模型把解释写成建议        | 使用受限 Schema，并在展示前做禁止字段和语义检查                 |
+| 新闻时效和来源可靠性      | 事实继续来自 `market-insight`，AI 只总结并保留 sourceId         |
+| 历史消息与当前行情混淆    | 消息固定 snapshotId，UI 同时标明“回答时快照”和“当前行情”        |
+| 流式中断产生损坏记录      | 用户消息先落盘，助手完成后落盘；中断记录明确状态                |
+| 模块隐藏但仍进入安装包    | 构建常量配合动态导入，并扫描产物验证真正剔除                    |
+| 合规结论变化              | `ai-t-advice` 独立源码、存储、IPC、UI 和构建开关，可单独删除    |
 
 ## 15. 版本与发布约束
 
@@ -702,6 +686,5 @@ AI 基础模块和 `ai-t-advice` 都属于新功能模块。当前只输出计�
 2. OpenAI API Key、DeepSeek API Key、Provider 设置和连接测试。
 3. 本地多会话聊天、历史记录、流式输出、停止与删除。
 4. 手动触发的指标解读和要闻参考。
-5. OpenAI Codex 账号登录、退出、状态检测、连接测试和只读对话适配器。
 
 `ai-t-advice` 已完成独立实现并默认进入构建产物，但运行时仍默认关闭，只在用户主动开启和点击生成时调用模型。模块继续保留独立构建开关和删除边界，不影响基础 AI 助手功能。

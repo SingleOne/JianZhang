@@ -1,18 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import type { WebContents } from 'electron'
 import type { MarketInsightSnapshot } from '../../market-insight/shared/types'
-import {
-  AI_LONG_TERM_PROMPT_VERSION,
-  AI_PROMPT_VERSION,
-  normalizeOpenAiCodexModelId,
-  OPENAI_CODEX_DEFAULT_MODEL
-} from '../shared/constants'
+import { AI_LONG_TERM_PROMPT_VERSION, AI_PROMPT_VERSION } from '../shared/constants'
 import type {
   AiChatSendInput,
   AiChatStartResult,
   AiAnalysisProgressEvent,
   AiApiKeyProviderId,
-  AiCodexAccountStatus,
   AiConnectionResult,
   AiContextRef,
   AiConversation,
@@ -46,26 +40,22 @@ import { buildLongTermContext, type CompactLongTermContext } from './analysis/lo
 import { parseLongTermInterpretation } from './analysis/long-term-interpretation'
 import { DeepSeekProvider } from './providers/deepseek'
 import { OpenAiApiProvider } from './providers/openai-api'
-import { OpenAiCodexProvider } from './providers/openai-codex'
 import { AiSecrets } from './secrets'
 import { AiStorage } from './storage'
+import {
+  STOCK_DATA_TOOL,
+  StockDataToolSession,
+  type StockDataContextInput
+} from './stock-data/tool'
 
 const PROVIDERS: AiProviderDescriptor[] = [
   {
     id: 'openai',
     label: 'OpenAI API Key',
-    billingHint: '使用 OpenAI Platform API 余额，与 ChatGPT/Codex 订阅分开计费。',
+    billingHint: '使用 OpenAI Platform API 余额，与 ChatGPT 订阅分开计费。',
     defaultModel: 'gpt-5.6',
     authMode: 'apiKey',
-    capabilities: { streaming: true, marketInterpretation: true }
-  },
-  {
-    id: 'openai-codex',
-    label: 'OpenAI Codex 账号登录',
-    billingHint: '通过官方 Codex 运行时登录 ChatGPT，使用当前账号的 Codex 权限与额度。',
-    defaultModel: OPENAI_CODEX_DEFAULT_MODEL,
-    authMode: 'codexAccount',
-    capabilities: { streaming: true, marketInterpretation: true }
+    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: false }
   },
   {
     id: 'deepseek',
@@ -73,7 +63,7 @@ const PROVIDERS: AiProviderDescriptor[] = [
     billingHint: '使用 DeepSeek Platform API Key 和对应平台额度。',
     defaultModel: 'deepseek-v4-flash',
     authMode: 'apiKey',
-    capabilities: { streaming: true, marketInterpretation: true }
+    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: true }
   }
 ]
 
@@ -158,7 +148,6 @@ function parseInterpretation(
 
 export class AiService {
   private readonly secrets: AiSecrets
-  private readonly codexProvider: OpenAiCodexProvider
   private readonly providers: Map<string, AiProvider>
   private readonly activeChats = new Map<string, AbortController>()
 
@@ -168,15 +157,13 @@ export class AiService {
     private readonly send: (webContents: WebContents, channel: string, payload: unknown) => void
   ) {
     this.secrets = new AiSecrets(storage.rootDirectory)
-    this.codexProvider = new OpenAiCodexProvider(storage.rootDirectory)
     this.providers = new Map<string, AiProvider>([
       ['openai', new OpenAiApiProvider()],
-      ['openai-codex', this.codexProvider],
       ['deepseek', new DeepSeekProvider()]
     ])
   }
 
-  async getStatus(): Promise<AiStatus> {
+  getStatus(): AiStatus {
     const settings = this.storage.getSettings()
     return {
       enabled: settings.enabled,
@@ -184,8 +171,7 @@ export class AiService {
       credentials: {
         openai: this.secrets.getStatus('openai'),
         deepseek: this.secrets.getStatus('deepseek')
-      },
-      codexAccount: await this.codexProvider.getAccountStatus()
+      }
     }
   }
 
@@ -199,10 +185,7 @@ export class AiService {
     const settings: AiSettings = {
       enabled: input.enabled,
       providerId: input.providerId,
-      model:
-        input.providerId === 'openai-codex'
-          ? normalizeOpenAiCodexModelId(input.model.trim() || provider.defaultModel)
-          : input.model.trim() || provider.defaultModel,
+      model: input.model.trim() || provider.defaultModel,
       maxContextMessages: Math.max(4, Math.min(40, Math.round(input.maxContextMessages)))
     }
     const saved = this.storage.saveSettings(settings)
@@ -220,14 +203,6 @@ export class AiService {
   clearCredential(providerId: AiApiKeyProviderId): void {
     this.requireProvider(providerId)
     this.secrets.clear(providerId)
-  }
-
-  loginCodexAccount(): Promise<AiCodexAccountStatus> {
-    return this.codexProvider.login()
-  }
-
-  logoutCodexAccount(): Promise<AiCodexAccountStatus> {
-    return this.codexProvider.logout()
   }
 
   async testConnection(providerId: AiProviderId): Promise<AiConnectionResult> {
@@ -314,19 +289,29 @@ export class AiService {
     if (!content) throw new Error('请输入消息')
     if (this.activeChats.has(conversation.id)) throw new Error('当前会话正在生成，请先停止')
 
-    const contexts = await this.getConversationContexts(
+    const stockRequests = this.getStockContextRequests(
       conversation,
       input.includeStockContext !== false,
       uniqueMentions(input.mentionedStocks)
     )
-    const contextRefs: AiContextRef[] = contexts.map((context) => ({
-      quoteId: context.snapshot.quoteId,
-      quoteName: context.quoteName,
-      code: context.code,
-      marketLabel: context.marketLabel,
-      snapshotId: context.snapshot.snapshotId,
-      source: context.source
-    }))
+    const stockDataSession =
+      settings.providerId === 'deepseek' && stockRequests.length > 0
+        ? new StockDataToolSession(stockRequests, this.dependencies)
+        : undefined
+    const contexts = stockDataSession ? [] : await this.getConversationContexts(stockRequests)
+    const contextRefs: AiContextRef[] = stockDataSession
+      ? stockDataSession.contextRefs()
+      : contexts.map((context) => ({
+          quoteId: context.snapshot.quoteId,
+          quoteName: context.quoteName,
+          code: context.code,
+          marketLabel: context.marketLabel,
+          snapshotId: context.snapshot.snapshotId,
+          source: context.source
+        }))
+    if (stockDataSession) {
+      this.storage.saveSnapshot(stockDataSession.manifest.contextId, stockDataSession.snapshot())
+    }
     const createdAt = now()
     const userMessage: AiMessage = {
       id: randomUUID(),
@@ -359,7 +344,7 @@ export class AiService {
       messageCount: conversation.messageCount + 1
     })
 
-    void this.runChat(webContents, assistantMessage, contexts)
+    void this.runChat(webContents, assistantMessage, contexts, stockDataSession)
     return { userMessage, assistantMessage }
   }
 
@@ -621,28 +606,31 @@ export class AiService {
   dispose(): void {
     for (const controller of this.activeChats.values()) controller.abort()
     this.activeChats.clear()
-    this.codexProvider.dispose()
   }
 
   private async runChat(
     webContents: WebContents,
     pendingMessage: AiMessage,
-    contexts: AiChatStockContext[]
+    contexts: AiChatStockContext[],
+    stockDataSession?: StockDataToolSession
   ): Promise<void> {
     const settings = this.storage.getSettings()
+    const providerId = pendingMessage.providerId ?? settings.providerId
+    const model = pendingMessage.model ?? settings.model
     const controller = new AbortController()
     this.activeChats.set(pendingMessage.conversationId, controller)
     let streamedContent = ''
     try {
-      const credential = this.getCredential(settings.providerId)
+      const credential = this.getCredential(providerId)
       const messages = this.storage
         .getMessages(pendingMessage.conversationId)
         .slice(-settings.maxContextMessages)
-      const result = await this.requireProvider(settings.providerId).streamChat(
+      const result = await this.requireProvider(providerId).streamChat(
         credential,
         {
-          model: settings.model,
-          messages: toProviderMessages(messages, contexts)
+          model,
+          messages: toProviderMessages(messages, contexts, stockDataSession?.manifest),
+          tools: stockDataSession ? [STOCK_DATA_TOOL] : undefined
         },
         (delta) => {
           streamedContent = `${streamedContent}${delta}`
@@ -652,14 +640,25 @@ export class AiService {
             delta
           })
         },
-        controller.signal
+        controller.signal,
+        stockDataSession
+          ? async (call, signal) => {
+              const result = await stockDataSession.execute(call, signal)
+              this.storage.saveSnapshot(
+                stockDataSession.manifest.contextId,
+                stockDataSession.snapshot()
+              )
+              return result
+            }
+          : undefined
       )
       const content = result.content.trim() || '模型未返回可显示的内容。'
       this.completeMessage(webContents, {
         ...pendingMessage,
         content,
         status: 'completed',
-        providerResponseId: result.responseId
+        providerResponseId: result.responseId,
+        contextRefs: stockDataSession?.contextRefs() ?? pendingMessage.contextRefs
       })
     } catch (error) {
       const stopped = isAbortError(error, controller.signal)
@@ -667,6 +666,7 @@ export class AiService {
         ...pendingMessage,
         content: streamedContent || (stopped ? '已停止生成。' : ''),
         status: stopped ? 'stopped' : 'error',
+        contextRefs: stockDataSession?.contextRefs() ?? pendingMessage.contextRefs,
         errorMessage: stopped ? undefined : error instanceof Error ? error.message : 'AI 生成失败'
       }
       this.storage.appendMessage(message)
@@ -695,15 +695,15 @@ export class AiService {
     })
   }
 
-  private async getConversationContexts(
+  private getStockContextRequests(
     conversation: AiConversation,
     includeStockContext: boolean,
     mentionedStocks: AiStockMention[]
-  ): Promise<AiChatStockContext[]> {
+  ): StockDataContextInput[] {
     const requested = new Map<
       string,
       {
-        source: AiChatStockContext['source']
+        source: StockDataContextInput['source']
         quoteId: string
         quoteName?: string
         code?: string
@@ -727,8 +727,14 @@ export class AiService {
       })
     }
 
+    return [...requested.values()]
+  }
+
+  private async getConversationContexts(
+    requests: StockDataContextInput[]
+  ): Promise<AiChatStockContext[]> {
     const contexts = await Promise.all(
-      [...requested.values()].map(async (request): Promise<AiChatStockContext | null> => {
+      requests.map(async (request): Promise<AiChatStockContext | null> => {
         let snapshot = await this.dependencies.getMarketInsightSnapshot(request.quoteId)
         if (!snapshot && request.source === 'mention') {
           snapshot = await this.dependencies.refreshMarketInsightSnapshot(request.quoteId)
@@ -781,6 +787,6 @@ export class AiService {
   }
 
   private getCredential(providerId: AiProviderId): string | undefined {
-    return providerId === 'openai-codex' ? undefined : (this.secrets.get(providerId) ?? undefined)
+    return this.secrets.get(providerId) ?? undefined
   }
 }

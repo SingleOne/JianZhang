@@ -329,6 +329,7 @@ async function initializeAiModule(marketInsightReady: Promise<boolean>): Promise
     const { installAi } = await import('../../src/modules/ai/main/register')
     if (isQuitting) return false
     const runtime = installAi({
+      getState: () => state,
       getMarketInsightSnapshot: async (quoteId) => {
         await marketInsightReady
         return marketInsightRuntime?.getSnapshot(quoteId) ?? null
@@ -341,12 +342,30 @@ async function initializeAiModule(marketInsightReady: Promise<boolean>): Promise
       getLatestQuote: (quoteId) =>
         getLatestQuotes().find((quote) => quote.quoteId === quoteId) ?? null,
       getDailyKline: (quoteId, limit) => getKline(quoteId, 'daily', limit, 'ai:long-term'),
+      getKline: (quoteId, period, limit) =>
+        getKline(quoteId, period, limit, `ai:stock-data:${period}`),
+      getOrderBook: (quoteId) =>
+        orderBookHub.get(quoteId, {
+          maxAgeMilliseconds: 3_000,
+          allowStaleOnError: true,
+          caller: 'ai:stock-data:order-book'
+        }),
+      getFundsFlow: (quoteId) => getFundsFlow(quoteId, 'ai:stock-data:funds-flow'),
+      getSectorIndex: (quoteId) =>
+        quoteRuntime!.getSectorIndex(quoteId, (sectorQuoteId) =>
+          getKline(sectorQuoteId, 'intraday', undefined, 'ai:stock-data:sector')
+        ),
+      getDailyMarketScanResult: () => dailyMarketScanService!.getResult(),
       getValuationHistory: (quoteId) => valuationHistoryService!.get(quoteId),
       getFundamentalSnapshot: () => fundamentalDataService!.getSnapshot(),
       getFundamentalState: () => fundamentalDataService!.getState(),
       getDividendFinancingSnapshot: () => dividendFinancingService!.getSnapshot(),
       getDividendFinancingState: () => dividendFinancingService!.getState(),
-      getCompanyReportSummaries: (code) => companyReportService?.getSummaries(code) ?? []
+      getCompanyReportSummaries: (code) => companyReportService?.getSummaries(code) ?? [],
+      getCompanyReports: (quoteId) => companyReportService!.get(quoteId, false),
+      getGlobalFundamentals: (quoteId) => globalFundamentalService!.get(quoteId, false),
+      getShareholderSnapshot: (quoteId) => shareholderService!.get(quoteId, false),
+      listCorporateActions: (quoteId) => corporateActionService!.get(quoteId, false)
     })
     if (isQuitting) {
       runtime.dispose()

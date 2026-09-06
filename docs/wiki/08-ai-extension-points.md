@@ -33,11 +33,11 @@ src/modules/<module>/
 
 核心只保留条件注册和 UI 插槽。模块专有 IPC 不扩展 `StockDesktopApi`：
 
-| 模块 | Renderer API | 主要安装点 |
-| --- | --- | --- |
-| `market-insight` | `window.marketInsightApi` | main、preload、`ExpandedStockDetails` |
-| `ai` | `window.aiApi` | main、preload、`App`、`ExpandedStockDetails` |
-| `ai-t-advice` | `window.aiTAdviceApi` | main、preload、`ExpandedStockDetails` |
+| 模块             | Renderer API              | 主要安装点                                   |
+| ---------------- | ------------------------- | -------------------------------------------- |
+| `market-insight` | `window.marketInsightApi` | main、preload、`ExpandedStockDetails`        |
+| `ai`             | `window.aiApi`            | main、preload、`App`、`ExpandedStockDetails` |
+| `ai-t-advice`    | `window.aiTAdviceApi`     | main、preload、`ExpandedStockDetails`        |
 
 ## `market-insight`：非 AI 市场观察
 
@@ -66,13 +66,12 @@ userData/modules/market-insight/
 
 当前 Provider：
 
-| Provider | 认证 | 说明 |
-| --- | --- | --- |
-| OpenAI | API Key | 通过主进程 Provider 适配器调用 |
-| DeepSeek | API Key | 转换为同一聊天与结构化任务接口 |
-| OpenAI Codex | Codex 账号 | 使用随应用携带的官方 `codex app-server` 登录和运行 |
+| Provider | 认证    | 说明                                                   |
+| -------- | ------- | ------------------------------------------------------ |
+| OpenAI   | API Key | 通过主进程 Provider 适配器调用                         |
+| DeepSeek | API Key | 转换为同一聊天与结构化任务接口，并支持股票数据工具调用 |
 
-API Key 由 Electron `safeStorage` 加密保存在 AI 模块目录，renderer 只能读取配置状态和脱敏尾号。Codex 登录在系统浏览器完成，见涨不读取或复制凭证文件；对话运行在独立空工作目录、只读沙箱、禁止审批，并关闭网页搜索和 MCP，只消费应用传入的文字与市场快照。
+API Key 由 Electron `safeStorage` 加密保存在 AI 模块目录，renderer 只能读取配置状态和脱敏尾号。
 
 ### 对话上下文
 
@@ -81,9 +80,9 @@ API Key 由 Electron `safeStorage` 加密保存在 AI 模块目录，renderer �
 股票上下文有两种来源：
 
 - 股票会话可选择附带该会话默认股票的最新市场快照。
-- 输入 `@` 后可从当前自选快速选择一只或多只股票；发送时按 `quoteId` 去重并为每只股票即时取得只读快照。
+- 输入 `@` 后可从当前自选快速选择一只或多只股票；发送时按 `quoteId` 去重。
 
-每个上下文引用保存股票、快照 ID 和 `conversation` / `mention` 来源。构建快照时会组合市场观察结果、实时行情、持仓、活动 T 批次、计划档位，以及该股票最后一次筹码分布缓存。若明确 `@` 的股票暂时无法取得快照，本次发送会给出错误，不会把无数据股票伪装成有效上下文。
+DeepSeek 对话使用两阶段股票数据协议：第一轮只提交每只授权股票的 `stockRef`、身份和数据集目录，不提交明细；模型通过 `read_stock_data` 一次批量选择需要的 `datasetId`，主进程校验股票范围、市场能力、分页和数量上限后才读取对应数据，并把结果交给第二轮生成。目录覆盖行情/K 线/盘口/资金流/板块/筹码、持仓/收益/账本/T 计划、追踪记录、财务/估值/分红融资/股东、公司报告、公司行动和每日扫描。消息引用会记录实际读取的数据集。当前仅 DeepSeek 启用该工具链路；OpenAI 暂时沿用原有市场快照上下文，待 DeepSeek 调试稳定后再接入同一协议。
 
 ### 短期行情与长期价值
 
@@ -148,17 +147,17 @@ flowchart LR
 
 ## 构建开关
 
-| 环境变量 | 设为 `0` 时 |
-| --- | --- |
+| 环境变量                          | 设为 `0` 时                                                |
+| --------------------------------- | ---------------------------------------------------------- |
 | `JIANZHANG_MARKET_INSIGHT_MODULE` | 不注册市场观察 IPC/preload，不加载 renderer 模块和定时任务 |
-| `JIANZHANG_AI_MODULE` | 不注册 AI IPC/preload，不加载 AI 对话/分析 UI，也不复制 Codex runtime |
-| `JIANZHANG_AI_T_ADVICE_MODULE` | 不注册做 T 参考 IPC/preload，不加载做 T 参考 UI |
+| `JIANZHANG_AI_MODULE`             | 不注册 AI IPC/preload，不加载 AI 对话/分析 UI              |
+| `JIANZHANG_AI_T_ADVICE_MODULE`    | 不注册做 T 参考 IPC/preload，不加载做 T 参考 UI            |
 
 三个变量未设为 `0` 时默认进入当前构建。进入构建不代表自动调用模型：AI 对话、AI 分析和做 T 参考都由用户操作触发，模块设置仍可在运行时关闭。
 
 `ai-t-advice` 依赖基础 `ai` 的 Provider，因此 `JIANZHANG_AI_MODULE=0` 时做 T 参考也一定被剔除，即使没有单独关闭它。
 
-源码级删除时，应同时删除模块目录、main/preload/renderer 的薄安装点、对应构建常量；删除 AI 基础模块还要移除 `@openai/codex` 开发依赖和 electron-builder 的 Codex `extraResources`。
+源码级删除时，应同时删除模块目录、main/preload/renderer 的薄安装点和对应构建常量。
 
 ## 产品边界
 
