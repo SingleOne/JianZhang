@@ -57,7 +57,10 @@ export class HkexNewsClient {
       signal: AbortSignal.timeout(15_000)
     })
     if (!response.ok) throw new Error(`请求 HKEXnews 失败：HTTP ${response.status}`)
-    const payload = (await response.text()).replace(/^callback\(/, '').replace(/\);?$/, '')
+    const payload = (await response.text())
+      .trim()
+      .replace(/^callback\(/, '')
+      .replace(/\);?$/, '')
     const stocks = (JSON.parse(payload) as { stockInfo?: HkexStockInfo[] }).stockInfo ?? []
     const stock = stocks.find((item) => item.code === code && Number.isFinite(item.stockId))
     if (!stock) throw new Error(`HKEXnews 未找到港股代码 ${code}`)

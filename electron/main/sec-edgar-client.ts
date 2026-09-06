@@ -2,6 +2,7 @@ import { net } from 'electron'
 
 const SEC_TICKERS_URL = 'https://www.sec.gov/files/company_tickers_exchange.json'
 const SEC_DATA_BASE_URL = 'https://data.sec.gov'
+const SEC_REQUEST_INTERVAL_MILLISECONDS = 150
 const SEC_USER_AGENT =
   process.env.JIANZHANG_SEC_USER_AGENT?.trim() ||
   'SingleOne JianZhang Desktop SingleOne@users.noreply.github.com'
@@ -14,6 +15,26 @@ export const SEC_DOCUMENT_HEADERS = {
   Accept: 'text/plain, text/html, */*',
   'Accept-Encoding': 'gzip, deflate',
   'User-Agent': SEC_USER_AGENT
+}
+
+let nextSecRequestAt = 0
+let secRequestSchedule: Promise<void> = Promise.resolve()
+
+async function waitForSecRequestSlot(): Promise<void> {
+  const scheduled = secRequestSchedule.then(async () => {
+    const waitMilliseconds = Math.max(0, nextSecRequestAt - Date.now())
+    if (waitMilliseconds > 0) {
+      await new Promise<void>((resolve) => setTimeout(resolve, waitMilliseconds))
+    }
+    nextSecRequestAt = Date.now() + SEC_REQUEST_INTERVAL_MILLISECONDS
+  })
+  secRequestSchedule = scheduled
+  await scheduled
+}
+
+function secRequestFailure(message: string, status: number): Error {
+  const rateLimitHint = status === 403 ? '（访问频率受限，请稍后重试）' : ''
+  return new Error(`${message}：HTTP ${status}${rateLimitHint}`)
 }
 
 export interface SecIssuer {
@@ -147,20 +168,22 @@ export class SecEdgarClient {
   }
 
   private async getJson<T>(url: string): Promise<T> {
+    await waitForSecRequestSlot()
     const response = await net.fetch(url, {
       headers: SEC_HEADERS,
       signal: AbortSignal.timeout(20_000)
     })
-    if (!response.ok) throw new Error(`请求 SEC EDGAR 失败：HTTP ${response.status}`)
+    if (!response.ok) throw secRequestFailure('请求 SEC EDGAR 失败', response.status)
     return response.json() as Promise<T>
   }
 
   private async getText(url: string): Promise<string> {
+    await waitForSecRequestSlot()
     const response = await net.fetch(url, {
       headers: SEC_DOCUMENT_HEADERS,
       signal: AbortSignal.timeout(30_000)
     })
-    if (!response.ok) throw new Error(`请求 SEC EDGAR 披露正文失败：HTTP ${response.status}`)
+    if (!response.ok) throw secRequestFailure('请求 SEC EDGAR 披露正文失败', response.status)
     return response.text()
   }
 }
