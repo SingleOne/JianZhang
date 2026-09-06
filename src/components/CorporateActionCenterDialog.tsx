@@ -52,7 +52,8 @@ function stockLabel(stock: WatchStock): string {
 
 function failureReason(reason: unknown): string {
   const message = reason instanceof Error ? reason.message : '未知错误'
-  return message.length > 80 ? `${message.slice(0, 80)}…` : message
+  const detail = message.replace(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?/, '')
+  return detail.length > 80 ? `${detail.slice(0, 80)}…` : detail
 }
 
 export default function CorporateActionCenterDialog({

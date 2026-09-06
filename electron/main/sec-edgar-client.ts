@@ -3,17 +3,20 @@ import { net } from 'electron'
 const SEC_TICKERS_URL = 'https://www.sec.gov/files/company_tickers_exchange.json'
 const SEC_DATA_BASE_URL = 'https://data.sec.gov'
 const SEC_REQUEST_INTERVAL_MILLISECONDS = 150
+const SEC_CONTACT_EMAIL = 'SingleOne@users.noreply.github.com'
 const SEC_USER_AGENT =
   process.env.JIANZHANG_SEC_USER_AGENT?.trim() ||
-  'SingleOne JianZhang Desktop SingleOne@users.noreply.github.com'
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 JianZhangDesktop'
 const SEC_HEADERS = {
   Accept: 'application/json',
   'Accept-Encoding': 'gzip, deflate',
+  From: SEC_CONTACT_EMAIL,
   'User-Agent': SEC_USER_AGENT
 }
 export const SEC_DOCUMENT_HEADERS = {
   Accept: 'text/plain, text/html, */*',
   'Accept-Encoding': 'gzip, deflate',
+  From: SEC_CONTACT_EMAIL,
   'User-Agent': SEC_USER_AGENT
 }
 
