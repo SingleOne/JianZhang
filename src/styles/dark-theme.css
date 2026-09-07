@@ -3219,6 +3219,9 @@
 :root[data-theme='dark'] .t-batch-summary em {
   color: #cbd5e3;
 }
+:root[data-theme='dark'] .t-batch-summary strong.is-flat {
+  color: #cbd5e3;
+}
 :root[data-theme='dark'] .t-segmented button {
   color: #cbd5e3;
   background: #162033;
@@ -3294,10 +3297,10 @@
 :root[data-theme='dark'] .t-trade-row strong {
   color: #e6edf7;
 }
-:root[data-theme='dark'] .t-cash-ledger-list .t-trade-amount strong.is-up {
+:root[data-theme='dark'] .t-base-ledger-card .t-trade-amount strong.is-up {
   color: var(--red);
 }
-:root[data-theme='dark'] .t-cash-ledger-list .t-trade-amount strong.is-down {
+:root[data-theme='dark'] .t-base-ledger-card .t-trade-amount strong.is-down {
   color: var(--green);
 }
 :root[data-theme='dark'] .t-trade-row small {

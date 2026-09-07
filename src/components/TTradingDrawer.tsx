@@ -93,6 +93,7 @@ interface TTradingDrawerProps {
 
 const HISTORY_PAGE_SIZE = 10
 type OverflowDisposition = 'base' | 'opposite-t'
+type EntryMode = 'trade' | 'cash'
 type CashEntryKind = 'cashDividend' | 'withholdingTax'
 type CashLedgerEntry = CashDividendLedgerEntry | WithholdingTaxLedgerEntry
 
@@ -194,14 +195,19 @@ export function TTradingDrawer({
   onClose
 }: TTradingDrawerProps) {
   const confirm = useConfirmDialog()
-  const currentAccount: TTradingAccount = account ?? {
-    quoteId: stock.quoteId,
-    code: stock.code,
-    name: stock.name,
-    history: [],
-    ledger: { schemaVersion: 1, entries: [] },
-    tradeRecords: []
-  }
+  const currentAccount = useMemo<TTradingAccount>(
+    () =>
+      account ?? {
+        quoteId: stock.quoteId,
+        code: stock.code,
+        name: stock.name,
+        history: [],
+        ledger: { schemaVersion: 1, entries: [] },
+        tradeRecords: []
+      },
+    [account, stock.code, stock.name, stock.quoteId]
+  )
+  const [entryMode, setEntryMode] = useState<EntryMode>('trade')
   const [side, setSide] = useState<TTradeSide>('buy')
   const [purpose, setPurpose] = useState<TTradePurpose>('t')
   const [price, setPrice] = useState(quote?.latest?.toString() ?? '')
@@ -225,7 +231,7 @@ export function TTradingDrawer({
   const [historyProfitDraft, setHistoryProfitDraft] = useState('')
   const [historyProfitError, setHistoryProfitError] = useState('')
   const [showAllActiveTrades, setShowAllActiveTrades] = useState(false)
-  const [showAllIndependentTrades, setShowAllIndependentTrades] = useState(false)
+  const [showAllBaseLedgerEntries, setShowAllBaseLedgerEntries] = useState(false)
   const [cashEntryKind, setCashEntryKind] = useState<CashEntryKind>('cashDividend')
   const [cashAmount, setCashAmount] = useState('')
   const [cashEligibleQuantity, setCashEligibleQuantity] = useState(
@@ -234,7 +240,6 @@ export function TTradingDrawer({
   const [cashOccurredAt, setCashOccurredAt] = useState(localDateTimeInput)
   const [cashNote, setCashNote] = useState('')
   const [cashError, setCashError] = useState('')
-  const [showAllCashEntries, setShowAllCashEntries] = useState(false)
   const [historyPage, setHistoryPage] = useState(0)
 
   const market = stock.market ?? marketFromQuoteId(stock.quoteId)
@@ -282,13 +287,15 @@ export function TTradingDrawer({
       : '开启反T'
   const basePurposeLabel = side === 'buy' ? '增加底仓' : '减持底仓'
   const entryHint =
-    purpose === 'base'
-      ? '底仓交易独立于 T 批次，保存后按全部历史流水重算当前持仓'
-      : currentAccount.activeBatch
-        ? isReverseBatch
-          ? '反T批次：卖出建立待回补数量，买入用于回补反T'
-          : '正T批次：买入建立T仓，卖出用于清空T仓'
-        : '计入T仓的首笔买入开启正T，首笔卖出开启反T'
+    entryMode === 'cash'
+      ? '现金流水参与收益统计，不改变持仓数量和持仓成本'
+      : purpose === 'base'
+        ? '底仓交易独立于 T 批次，保存后按全部历史流水重算当前持仓'
+        : currentAccount.activeBatch
+          ? isReverseBatch
+            ? '反T批次：卖出建立待回补数量，买入用于回补反T'
+            : '正T批次：买入建立T仓，卖出用于清空T仓'
+          : '计入T仓的首笔买入开启正T，首笔卖出开启反T'
   const totalHistoryProfit = currentAccount.history.reduce(
     (total, batch) => total + (batch.settlement?.finalProfit ?? 0),
     0
@@ -400,21 +407,36 @@ export function TTradingDrawer({
         .sort((left, right) => right.tradedAt.localeCompare(left.tradedAt)),
     [currentAccount.tradeRecords]
   )
-  const visibleIndependentBaseTrades = showAllIndependentTrades
-    ? independentBaseTradesDescending
-    : independentBaseTradesDescending.slice(0, 5)
-  const cashLedgerEntriesDescending = activePortfolioLedgerEntries(currentAccount)
-    .filter(isCashLedgerEntry)
-    .reverse()
-  const visibleCashLedgerEntries = showAllCashEntries
-    ? cashLedgerEntriesDescending
-    : cashLedgerEntriesDescending.slice(0, 5)
+  const cashLedgerEntriesDescending = useMemo(
+    () => activePortfolioLedgerEntries(currentAccount).filter(isCashLedgerEntry).reverse(),
+    [currentAccount]
+  )
+  const baseLedgerEntriesDescending = useMemo(
+    () =>
+      [
+        ...independentBaseTradesDescending.map((trade) => ({
+          kind: 'trade' as const,
+          occurredAt: trade.tradedAt,
+          trade
+        })),
+        ...cashLedgerEntriesDescending.map((entry) => ({
+          kind: 'cash' as const,
+          occurredAt: entry.occurredAt,
+          entry
+        }))
+      ].sort((left, right) => right.occurredAt.localeCompare(left.occurredAt)),
+    [cashLedgerEntriesDescending, independentBaseTradesDescending]
+  )
+  const visibleBaseLedgerEntries = showAllBaseLedgerEntries
+    ? baseLedgerEntriesDescending
+    : baseLedgerEntriesDescending.slice(0, 5)
   const cashLedgerNetAmount = cashLedgerEntriesDescending.reduce(
     (total, entry) => total + cashLedgerAmount(entry),
     0
   )
 
   const resetTradeForm = () => {
+    setEntryMode('trade')
     setSide('buy')
     setPurpose('t')
     setPrice(quote?.latest?.toString() ?? '')
@@ -426,6 +448,7 @@ export function TTradingDrawer({
     setOverflowDisposition('base')
     setEditingTradeId(null)
     setError('')
+    setCashError('')
   }
 
   const applyAccount = (nextAccount: TTradingAccount, nextPosition: StockPosition | undefined) => {
@@ -814,6 +837,7 @@ export function TTradingDrawer({
       setError('跨批次成交如需调整，请先删除该成交后重新录入')
       return
     }
+    setEntryMode('trade')
     setEditingTradeId(trade.id)
     setSide(trade.side)
     setPurpose(trade.purpose)
@@ -824,6 +848,7 @@ export function TTradingDrawer({
     setManualFees(true)
     setFeeOverrides(trade.fees)
     setError('')
+    setCashError('')
   }
 
   const deleteTrade = (tradeId: string) => {
@@ -1254,340 +1279,293 @@ export function TTradingDrawer({
             <div className="t-entry-top-row">
               <div className="t-segmented">
                 <button
-                  className={side === 'buy' ? 'is-active' : ''}
+                  className={entryMode === 'trade' && side === 'buy' ? 'is-active' : ''}
                   type="button"
                   disabled={hasFixedAllocations}
                   onClick={() => {
+                    setEntryMode('trade')
                     setSide('buy')
                     setPurpose('t')
+                    setCashError('')
                   }}
                 >
                   买入
                 </button>
                 <button
-                  className={side === 'sell' ? 'is-active' : ''}
+                  className={entryMode === 'trade' && side === 'sell' ? 'is-active' : ''}
                   type="button"
                   disabled={hasFixedAllocations}
                   onClick={() => {
+                    setEntryMode('trade')
                     setSide('sell')
                     setPurpose('t')
+                    setCashError('')
                   }}
                 >
                   卖出
                 </button>
                 <button
-                  className={purpose === 't' ? 'is-purpose-active' : ''}
+                  className={entryMode === 'trade' && purpose === 't' ? 'is-purpose-active' : ''}
                   type="button"
                   disabled={hasFixedAllocations}
-                  onClick={() => setPurpose('t')}
+                  onClick={() => {
+                    setEntryMode('trade')
+                    setPurpose('t')
+                    setCashError('')
+                  }}
                 >
                   {tPurposeLabel}
                 </button>
                 <button
-                  className={purpose === 'base' ? 'is-purpose-active' : ''}
+                  className={entryMode === 'trade' && purpose === 'base' ? 'is-purpose-active' : ''}
                   type="button"
                   disabled={hasFixedAllocations}
-                  onClick={() => setPurpose('base')}
+                  onClick={() => {
+                    setEntryMode('trade')
+                    setPurpose('base')
+                    setCashError('')
+                  }}
                 >
                   {basePurposeLabel}
                 </button>
-              </div>
-
-              <div className="t-fee-summary">
-                <span>佣金 {formatCurrency(tradeFees.commission)}</span>
-                <span>经手 {formatCurrency(tradeFees.handling)}</span>
-                <span>证管 {formatCurrency(tradeFees.regulatory)}</span>
-                <span>过户 {formatCurrency(tradeFees.transfer)}</span>
-                <span>印花税 {formatCurrency(tradeFees.stampDuty)}</span>
-                <strong>合计 {formatCurrency(totalTradeFees(tradeFees))}</strong>
-              </div>
-              <button
-                type="button"
-                className="bordered-text-button text-button"
-                onClick={() => {
-                  if (!manualFees) setFeeOverrides(calculatedFees)
-                  setManualFees((current) => !current)
-                }}
-              >
-                {manualFees ? '恢复自动计算' : '手动修改费用'}
-              </button>
-            </div>
-
-            <div className="t-entry-input-row">
-              <div className="t-form-grid">
-                <label>
-                  <span>成交价格</span>
-                  <input
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    value={price}
-                    onChange={(event) => setPrice(event.target.value)}
-                  />
-                </label>
-                <label>
-                  <span>成交数量</span>
-                  <input
-                    type="number"
-                    min="100"
-                    step="100"
-                    value={quantity}
-                    disabled={hasFixedAllocations}
-                    onChange={(event) => setQuantity(event.target.value)}
-                  />
-                </label>
-                <label>
-                  <span>成交时间</span>
-                  <input
-                    type="datetime-local"
-                    value={tradedAt}
-                    onChange={(event) => setTradedAt(event.target.value)}
-                  />
-                </label>
-                <label>
-                  <span>备注</span>
-                  <input
-                    value={note}
-                    onChange={(event) => setNote(event.target.value)}
-                    placeholder="可选"
-                  />
-                </label>
-              </div>
-
-              <div className="t-entry-actions">
-                <span>成交额 {formatCurrency(numericPrice * numericQuantity)}</span>
-                <button className="primary-button compact-button" type="button" onClick={saveTrade}>
-                  <Plus size={15} />
-                  {editingTradeId ? '保存修改' : '记录交易'}
+                <button
+                  className={entryMode === 'cash' ? 'is-purpose-active' : ''}
+                  type="button"
+                  disabled={Boolean(editingTradeId)}
+                  onClick={() => {
+                    setEntryMode('cash')
+                    setCashError('')
+                    setError('')
+                  }}
+                >
+                  分红与缴税
                 </button>
               </div>
-            </div>
 
-            {overflowQuantity > 0 ? (
-              <div className="t-overflow-allocation">
-                <span>
-                  <strong>本次成交跨越当前T仓</strong>
-                  <small>
-                    成交时可用T仓 {formatShares(entryMetrics.remainingQuantity)}，超出{' '}
-                    {formatShares(overflowQuantity)}
-                  </small>
-                </span>
-                <div className="t-overflow-options">
+              {entryMode === 'trade' ? (
+                <>
+                  <div className="t-fee-summary">
+                    <span>佣金 {formatCurrency(tradeFees.commission)}</span>
+                    <span>经手 {formatCurrency(tradeFees.handling)}</span>
+                    <span>证管 {formatCurrency(tradeFees.regulatory)}</span>
+                    <span>过户 {formatCurrency(tradeFees.transfer)}</span>
+                    <span>印花税 {formatCurrency(tradeFees.stampDuty)}</span>
+                    <strong>合计 {formatCurrency(totalTradeFees(tradeFees))}</strong>
+                  </div>
                   <button
                     type="button"
-                    className={overflowDisposition === 'base' ? 'is-selected' : ''}
-                    onClick={() => setOverflowDisposition('base')}
+                    className="bordered-text-button text-button"
+                    onClick={() => {
+                      if (!manualFees) setFeeOverrides(calculatedFees)
+                      setManualFees((current) => !current)
+                    }}
                   >
-                    {side === 'sell' ? '减持底仓' : '增加底仓'}
+                    {manualFees ? '恢复自动计算' : '手动修改费用'}
                   </button>
-                  <button
-                    type="button"
-                    className={overflowDisposition === 'opposite-t' ? 'is-selected' : ''}
-                    onClick={() => setOverflowDisposition('opposite-t')}
-                  >
-                    {activeMetrics.direction === 'forward' ? '开启反T批次' : '开启正T批次'}
-                  </button>
-                </div>
-                <small>
-                  保存后生成两条独立记录：本批次 {formatShares(entryMetrics.remainingQuantity)}，
-                  {overflowDisposition === 'base'
-                    ? `混合底仓流水（${basePurposeLabel}）`
-                    : activeMetrics.direction === 'forward'
-                      ? '新反T批次'
-                      : '新正T批次'}{' '}
-                  {formatShares(overflowQuantity)}。手续费按整笔计算一次，再按数量分摊。
-                </small>
-              </div>
-            ) : null}
-
-            {manualFees ? (
-              <div className="t-fee-inputs">
-                {feeInput('commission', '佣金')}
-                {feeInput('handling', '经手费')}
-                {feeInput('regulatory', '证管费')}
-                {feeInput('transfer', '过户费')}
-                {feeInput('stampDuty', '印花税')}
-              </div>
-            ) : null}
-
-            {error ? <div className="t-form-error">{error}</div> : null}
-          </section>
-
-          <section className="t-card t-cash-flow-card">
-            <div className="t-card-heading">
-              <span>
-                <strong>分红与缴税</strong>
-                <small>现金流水参与收益统计，不改变持仓数量和持仓成本</small>
-              </span>
-              {cashLedgerEntriesDescending.length > 0 ? (
-                <div className="t-batch-summary">
-                  <span>
-                    <small>现金净收入</small>
-                    <strong className={valueClass(cashLedgerNetAmount)}>
-                      {formatProfit(cashLedgerNetAmount)}
-                    </strong>
-                  </span>
-                  <em>{cashLedgerEntriesDescending.length} 笔流水</em>
-                </div>
+                </>
               ) : null}
             </div>
 
-            <div className="t-segmented t-cash-entry-kind">
-              <button
-                className={cashEntryKind === 'cashDividend' ? 'is-active' : ''}
-                type="button"
-                onClick={() => {
-                  setCashEntryKind('cashDividend')
-                  setCashError('')
-                }}
-              >
-                分红
-              </button>
-              <button
-                className={cashEntryKind === 'withholdingTax' ? 'is-active' : ''}
-                type="button"
-                onClick={() => {
-                  setCashEntryKind('withholdingTax')
-                  setCashError('')
-                }}
-              >
-                缴税
-              </button>
-            </div>
+            {entryMode === 'cash' ? (
+              <>
+                <div className="t-segmented t-cash-entry-kind">
+                  <button
+                    className={cashEntryKind === 'cashDividend' ? 'is-active' : ''}
+                    type="button"
+                    onClick={() => {
+                      setCashEntryKind('cashDividend')
+                      setCashError('')
+                    }}
+                  >
+                    分红
+                  </button>
+                  <button
+                    className={cashEntryKind === 'withholdingTax' ? 'is-active' : ''}
+                    type="button"
+                    onClick={() => {
+                      setCashEntryKind('withholdingTax')
+                      setCashError('')
+                    }}
+                  >
+                    缴税
+                  </button>
+                </div>
 
-            <div className="t-form-grid t-cash-entry-grid">
-              <label>
-                <span>{cashEntryKind === 'cashDividend' ? '税前分红金额' : '缴税金额'}</span>
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={cashAmount}
-                  onChange={(event) => setCashAmount(event.target.value)}
-                />
-              </label>
-              {cashEntryKind === 'cashDividend' ? (
-                <label>
-                  <span>登记股数（可选）</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="100"
-                    value={cashEligibleQuantity}
-                    onChange={(event) => setCashEligibleQuantity(event.target.value)}
-                  />
-                </label>
-              ) : null}
-              <label>
-                <span>发生时间</span>
-                <input
-                  type="datetime-local"
-                  value={cashOccurredAt}
-                  onChange={(event) => setCashOccurredAt(event.target.value)}
-                />
-              </label>
-              <label className={cashEntryKind === 'withholdingTax' ? 'is-wide' : ''}>
-                <span>备注</span>
-                <input
-                  value={cashNote}
-                  onChange={(event) => setCashNote(event.target.value)}
-                  placeholder="可选"
-                />
-              </label>
-            </div>
+                <div className="t-entry-input-row">
+                  <div className="t-form-grid t-cash-entry-grid">
+                    <label>
+                      <span>{cashEntryKind === 'cashDividend' ? '税前分红金额' : '缴税金额'}</span>
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={cashAmount}
+                        onChange={(event) => setCashAmount(event.target.value)}
+                      />
+                    </label>
+                    {cashEntryKind === 'cashDividend' ? (
+                      <label>
+                        <span>登记股数（可选）</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="100"
+                          value={cashEligibleQuantity}
+                          onChange={(event) => setCashEligibleQuantity(event.target.value)}
+                        />
+                      </label>
+                    ) : null}
+                    <label>
+                      <span>发生时间</span>
+                      <input
+                        type="datetime-local"
+                        value={cashOccurredAt}
+                        onChange={(event) => setCashOccurredAt(event.target.value)}
+                      />
+                    </label>
+                    <label className={cashEntryKind === 'withholdingTax' ? 'is-wide' : ''}>
+                      <span>备注</span>
+                      <input
+                        value={cashNote}
+                        onChange={(event) => setCashNote(event.target.value)}
+                        placeholder="可选"
+                      />
+                    </label>
+                  </div>
 
-            <div className="t-entry-actions">
-              <span>
-                {cashEntryKind === 'cashDividend'
-                  ? Number(cashEligibleQuantity) > 0 && Number(cashAmount) > 0
-                    ? `每股分红 ${formatCurrency(Number(cashAmount) / Number(cashEligibleQuantity))}`
-                    : '按税前总额计入分红收入'
-                  : '缴税按现金流出计入收益统计'}
-              </span>
-              <button
-                className="primary-button compact-button"
-                type="button"
-                onClick={saveCashEntry}
-              >
-                <Plus size={15} />
-                {cashEntryKind === 'cashDividend' ? '记录分红' : '记录缴税'}
-              </button>
-            </div>
+                  <div className="t-entry-actions">
+                    <span>
+                      {cashEntryKind === 'cashDividend'
+                        ? Number(cashEligibleQuantity) > 0 && Number(cashAmount) > 0
+                          ? `每股分红 ${formatCurrency(
+                              Number(cashAmount) / Number(cashEligibleQuantity)
+                            )}`
+                          : '按税前总额计入分红收入'
+                        : '缴税按现金流出计入收益统计'}
+                    </span>
+                    <button
+                      className="primary-button compact-button"
+                      type="button"
+                      onClick={saveCashEntry}
+                    >
+                      <Plus size={15} />
+                      {cashEntryKind === 'cashDividend' ? '记录分红' : '记录缴税'}
+                    </button>
+                  </div>
+                </div>
 
-            {cashError ? <div className="t-form-error">{cashError}</div> : null}
+                {cashError ? <div className="t-form-error">{cashError}</div> : null}
+              </>
+            ) : (
+              <>
+                <div className="t-entry-input-row">
+                  <div className="t-form-grid">
+                    <label>
+                      <span>成交价格</span>
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={price}
+                        onChange={(event) => setPrice(event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      <span>成交数量</span>
+                      <input
+                        type="number"
+                        min="100"
+                        step="100"
+                        value={quantity}
+                        disabled={hasFixedAllocations}
+                        onChange={(event) => setQuantity(event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      <span>成交时间</span>
+                      <input
+                        type="datetime-local"
+                        value={tradedAt}
+                        onChange={(event) => setTradedAt(event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      <span>备注</span>
+                      <input
+                        value={note}
+                        onChange={(event) => setNote(event.target.value)}
+                        placeholder="可选"
+                      />
+                    </label>
+                  </div>
 
-            {cashLedgerEntriesDescending.length > 0 ? (
-              <div className="t-trade-list t-cash-ledger-list">
-                {visibleCashLedgerEntries.map((entry) => {
-                  const signedAmount = cashLedgerAmount(entry)
-                  const isManual = entry.source === 'manual' && !entry.corporateActionId
-                  return (
-                    <div className="t-trade-row" key={entry.id}>
-                      <span
-                        className={`t-trade-side ${
-                          entry.kind === 'cashDividend' ? 'is-buy' : 'is-sell'
-                        }`}
+                  <div className="t-entry-actions">
+                    <span>成交额 {formatCurrency(numericPrice * numericQuantity)}</span>
+                    <button
+                      className="primary-button compact-button"
+                      type="button"
+                      onClick={saveTrade}
+                    >
+                      <Plus size={15} />
+                      {editingTradeId ? '保存修改' : '记录交易'}
+                    </button>
+                  </div>
+                </div>
+
+                {overflowQuantity > 0 ? (
+                  <div className="t-overflow-allocation">
+                    <span>
+                      <strong>本次成交跨越当前T仓</strong>
+                      <small>
+                        成交时可用T仓 {formatShares(entryMetrics.remainingQuantity)}，超出{' '}
+                        {formatShares(overflowQuantity)}
+                      </small>
+                    </span>
+                    <div className="t-overflow-options">
+                      <button
+                        type="button"
+                        className={overflowDisposition === 'base' ? 'is-selected' : ''}
+                        onClick={() => setOverflowDisposition('base')}
                       >
-                        {entry.kind === 'cashDividend' ? '分红' : '缴税'}
-                      </span>
-                      <span>
-                        <strong>
-                          {entry.kind === 'cashDividend' && entry.eligibleQuantity > 0
-                            ? `${formatShares(entry.eligibleQuantity)} · 每股 ${formatCurrency(
-                                entry.amountPerShare
-                              )}`
-                            : entry.kind === 'cashDividend'
-                              ? '税前分红'
-                              : '预扣税款'}
-                        </strong>
-                        <small>
-                          {formatTradeTime(entry.occurredAt)} · {cashLedgerSourceLabel(entry)}
-                        </small>
-                      </span>
-                      <span className="t-trade-amount">
-                        <strong className={valueClass(signedAmount)}>
-                          {formatProfit(signedAmount)}
-                        </strong>
-                        <small>
-                          {entry.note || (entry.kind === 'cashDividend' ? '现金分红' : '缴税')}
-                        </small>
-                      </span>
-                      <span className="t-trade-actions">
-                        <button
-                          className="icon-button"
-                          type="button"
-                          disabled={!isManual}
-                          onClick={() => deleteCashEntry(entry)}
-                          title={
-                            isManual
-                              ? '删除现金流水'
-                              : entry.source === 'corporateAction'
-                                ? '请在公司行动中撤销'
-                                : '导入流水不能在此删除'
-                          }
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </span>
+                        {side === 'sell' ? '减持底仓' : '增加底仓'}
+                      </button>
+                      <button
+                        type="button"
+                        className={overflowDisposition === 'opposite-t' ? 'is-selected' : ''}
+                        onClick={() => setOverflowDisposition('opposite-t')}
+                      >
+                        {activeMetrics.direction === 'forward' ? '开启反T批次' : '开启正T批次'}
+                      </button>
                     </div>
-                  )
-                })}
-                {cashLedgerEntriesDescending.length > 5 ? (
-                  <button
-                    className="t-trade-more-button"
-                    type="button"
-                    onClick={() => setShowAllCashEntries((current) => !current)}
-                  >
-                    {showAllCashEntries
-                      ? '收起现金流水'
-                      : `显示更多现金流水（其余 ${cashLedgerEntriesDescending.length - 5} 条）`}
-                  </button>
+                    <small>
+                      保存后生成两条独立记录：本批次 {formatShares(entryMetrics.remainingQuantity)}
+                      ，
+                      {overflowDisposition === 'base'
+                        ? `混合底仓流水（${basePurposeLabel}）`
+                        : activeMetrics.direction === 'forward'
+                          ? '新反T批次'
+                          : '新正T批次'}{' '}
+                      {formatShares(overflowQuantity)}。手续费按整笔计算一次，再按数量分摊。
+                    </small>
+                  </div>
                 ) : null}
-              </div>
-            ) : null}
+
+                {manualFees ? (
+                  <div className="t-fee-inputs">
+                    {feeInput('commission', '佣金')}
+                    {feeInput('handling', '经手费')}
+                    {feeInput('regulatory', '证管费')}
+                    {feeInput('transfer', '过户费')}
+                    {feeInput('stampDuty', '印花税')}
+                  </div>
+                ) : null}
+
+                {error ? <div className="t-form-error">{error}</div> : null}
+              </>
+            )}
           </section>
 
-          {independentBaseTradesDescending.length > 0 ? (
+          {baseLedgerEntriesDescending.length > 0 ? (
             <section
               className={`t-card t-base-ledger-card${
                 currentAccount.activeBatch ? '' : ' is-full-width'
@@ -1596,14 +1574,79 @@ export function TTradingDrawer({
               <div className="t-card-heading">
                 <span>
                   <strong>底仓流水</strong>
-                  <small>账户级交易，不归属任何 T 批次，用于完整账本持仓重算</small>
+                  <small>底仓交易及分红缴税均不归属 T 批次，现金流水不改变持仓数量和成本</small>
                 </span>
                 <div className="t-batch-summary">
-                  <em>{independentBaseTradesDescending.length} 笔流水</em>
+                  {cashLedgerEntriesDescending.length > 0 ? (
+                    <span>
+                      <small>现金净收入</small>
+                      <strong className={valueClass(cashLedgerNetAmount)}>
+                        {formatProfit(cashLedgerNetAmount)}
+                      </strong>
+                    </span>
+                  ) : null}
+                  <em>{baseLedgerEntriesDescending.length} 笔流水</em>
                 </div>
               </div>
               <div className="t-trade-list">
-                {visibleIndependentBaseTrades.map((trade) => {
+                {visibleBaseLedgerEntries.map((item) => {
+                  if (item.kind === 'cash') {
+                    const { entry } = item
+                    const signedAmount = cashLedgerAmount(entry)
+                    const isManual = entry.source === 'manual' && !entry.corporateActionId
+                    return (
+                      <div className="t-trade-row" key={entry.id}>
+                        <span
+                          className={`t-trade-side ${
+                            entry.kind === 'cashDividend' ? 'is-buy' : 'is-sell'
+                          }`}
+                        >
+                          {entry.kind === 'cashDividend' ? '分红' : '缴税'}
+                        </span>
+                        <span>
+                          <strong>
+                            {entry.kind === 'cashDividend' && entry.eligibleQuantity > 0
+                              ? `${formatShares(entry.eligibleQuantity)} · 每股 ${formatCurrency(
+                                  entry.amountPerShare
+                                )}`
+                              : entry.kind === 'cashDividend'
+                                ? '税前分红'
+                                : '预扣税款'}
+                          </strong>
+                          <small>
+                            {formatTradeTime(entry.occurredAt)} · {cashLedgerSourceLabel(entry)}
+                          </small>
+                        </span>
+                        <span className="t-trade-amount">
+                          <strong className={valueClass(signedAmount)}>
+                            {formatProfit(signedAmount)}
+                          </strong>
+                          <small>
+                            {entry.note || (entry.kind === 'cashDividend' ? '现金分红' : '缴税')}
+                          </small>
+                        </span>
+                        <span className="t-trade-actions">
+                          <button
+                            className="icon-button"
+                            type="button"
+                            disabled={!isManual}
+                            onClick={() => deleteCashEntry(entry)}
+                            title={
+                              isManual
+                                ? '删除现金流水'
+                                : entry.source === 'corporateAction'
+                                  ? '请在公司行动中撤销'
+                                  : '导入流水不能在此删除'
+                            }
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </span>
+                      </div>
+                    )
+                  }
+
+                  const { trade } = item
                   const fees = totalRecordedTradeFees(trade)
                   return (
                     <div className="t-trade-row" key={trade.id}>
@@ -1652,18 +1695,21 @@ export function TTradingDrawer({
                     </div>
                   )
                 })}
-                {independentBaseTradesDescending.length > 5 ? (
+                {baseLedgerEntriesDescending.length > 5 ? (
                   <button
                     className="t-trade-more-button"
                     type="button"
-                    onClick={() => setShowAllIndependentTrades((current) => !current)}
+                    onClick={() => setShowAllBaseLedgerEntries((current) => !current)}
                   >
-                    {showAllIndependentTrades
+                    {showAllBaseLedgerEntries
                       ? '收起底仓流水'
-                      : `显示更多底仓流水（其余 ${independentBaseTradesDescending.length - 5} 条）`}
+                      : `显示更多底仓流水（其余 ${baseLedgerEntriesDescending.length - 5} 条）`}
                   </button>
                 ) : null}
               </div>
+              {cashError && entryMode !== 'cash' ? (
+                <div className="t-form-error">{cashError}</div>
+              ) : null}
             </section>
           ) : null}
 
@@ -1671,7 +1717,7 @@ export function TTradingDrawer({
             <>
               <section
                 className={`t-card t-active-batch-card ${
-                  independentBaseTradesDescending.length === 0 ? 'is-full-width' : ''
+                  baseLedgerEntriesDescending.length === 0 ? 'is-full-width' : ''
                 }`}
               >
                 <div className="t-card-heading">

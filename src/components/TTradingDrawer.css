@@ -185,6 +185,10 @@
   color: var(--green);
 }
 
+.t-batch-summary strong.is-flat {
+  color: #687386;
+}
+
 .t-batch-summary strong .t-floating-profit-rate {
   margin-left: 4px;
   color: inherit;
@@ -229,23 +233,15 @@
   cursor: pointer;
 }
 
-.t-cash-flow-card .t-form-grid input {
-  font-size: 12px;
-}
-
-.t-cash-ledger-list {
-  margin-top: 10px;
-}
-
-.t-cash-ledger-list .t-trade-amount strong.is-up {
+.t-base-ledger-card .t-trade-amount strong.is-up {
   color: var(--red);
 }
 
-.t-cash-ledger-list .t-trade-amount strong.is-down {
+.t-base-ledger-card .t-trade-amount strong.is-down {
   color: var(--green);
 }
 
-.t-cash-ledger-list .t-trade-actions .icon-button:disabled {
+.t-base-ledger-card .t-trade-actions .icon-button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }
