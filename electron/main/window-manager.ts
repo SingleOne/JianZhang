@@ -1,20 +1,10 @@
-import {
-  BrowserWindow,
-  Menu,
-  nativeTheme,
-  screen,
-  Tray,
-  type MenuItemConstructorOptions
-} from 'electron'
+import { BrowserWindow, Menu, nativeTheme, screen, Tray } from 'electron'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { calculatePositionMetrics } from '../../src/lib/portfolio'
-import { formatMoneyProfit, formatPercent, formatPrice } from '../../src/lib/format'
 import { getTaskbarVisibleStocks, shouldShowTaskbarTicker } from '../../src/lib/taskbar-visibility'
 import type {
   AppState,
   StockSelectionRequest,
-  StockQuote,
   TaskbarLayout,
   TaskbarTooltipAnchor,
   WatchStock
@@ -40,7 +30,6 @@ const MAIN_WINDOW_THEME_COLORS = {
 
 interface WindowManagerDependencies {
   getState: () => AppState
-  getQuotes: () => readonly StockQuote[]
   isQuitting: () => boolean
   refreshQuotes: () => Promise<unknown>
   quit: () => void
@@ -200,30 +189,11 @@ export class WindowManager {
 
   updateTrayMenu(): void {
     if (!this.appTray) return
-    const state = this.dependencies.getState()
-    const quotes = this.dependencies.getQuotes()
-    const selectedItems: MenuItemConstructorOptions[] = this.taskbarVisibleStocks().map((stock) => {
-      const quote = quotes.find((item) => item.quoteId === stock.quoteId)
-      const metrics = calculatePositionMetrics(
-        stock.position,
-        quote,
-        state.tTradingAccounts[stock.quoteId],
-        state.settings.exchangeRates
-      )
-      return {
-        label: `${stock.name}  ${formatPrice(quote?.latest ?? null)}  ${formatPercent(quote?.changePercent ?? null)}  ${formatMoneyProfit(metrics.todayProfit, metrics.currency)}`,
-        click: () => this.showMainWindow(stock.quoteId)
-      }
-    })
 
     this.appTray.setContextMenu(
       Menu.buildFromTemplate([
         { label: '打开见涨', click: () => this.showMainWindow() },
         { label: '立即刷新', click: () => void this.dependencies.refreshQuotes() },
-        { type: 'separator' },
-        ...(selectedItems.length > 0
-          ? selectedItems
-          : [{ label: '尚未选择任务栏股票', enabled: false }]),
         { type: 'separator' },
         { label: '退出', click: this.dependencies.quit }
       ])

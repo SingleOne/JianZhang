@@ -766,7 +766,6 @@ if (!hasSingleInstanceLock) {
     windowManager = new WindowManager(
       {
         getState: () => state,
-        getQuotes: getLatestQuotes,
         isQuitting: () => isQuitting,
         refreshQuotes: () => quoteRuntime!.refreshAll(),
         quit: quitApp
