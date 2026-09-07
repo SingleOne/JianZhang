@@ -3834,13 +3834,27 @@ html[data-theme='dark'][data-theme='dark'].tray-mode #root {
   border-color: rgba(91, 140, 255, 0.48);
   box-shadow: 0 0 0 3px rgba(0, 4, 13, 0.18);
 }
-:root[data-theme='dark'] .trade-record-edit-numbers label {
+:root[data-theme='dark'] .trade-record-edit-title > small {
   color: #cbd5e3;
+  background: #1c293b;
 }
-:root[data-theme='dark'] .trade-record-edit-hint {
+:root[data-theme='dark'] .trade-record-edit-actions button {
   color: #cbd5e3;
+  background: #162033;
+  border-color: #34445d;
 }
-:root[data-theme='dark'] .trade-record-edit-hint label {
+:root[data-theme='dark'] .trade-record-edit-actions button:hover {
+  color: #8bb0ff;
+  background: rgba(91, 140, 255, 0.14);
+  border-color: rgba(91, 140, 255, 0.48);
+}
+:root[data-theme='dark'] .trade-record-edit-actions button.is-save {
+  color: #35c98b;
+  background: rgba(53, 201, 139, 0.14);
+  border-color: rgba(53, 201, 139, 0.28);
+}
+:root[data-theme='dark'] .trade-record-edit-primary-fields label,
+:root[data-theme='dark'] .trade-record-edit-secondary-fields label {
   color: #cbd5e3;
 }
 :root[data-theme='dark'] .position-form-error {

@@ -509,17 +509,18 @@
 
 .trade-record-row.is-editing {
   position: relative;
-  min-height: 132px;
-  align-items: start;
-  padding-block: 10px;
+  min-height: auto;
+  display: block;
+  padding: 12px;
   background: #f8fbff;
 }
 
 .trade-record-row.is-editing select,
 .trade-record-row.is-editing input {
+  width: 100%;
   min-width: 0;
-  height: 32px;
-  padding: 0 8px;
+  height: 36px;
+  padding: 0 10px;
   color: #344054;
   background: #ffffff;
   border: 1px solid #d6deea;
@@ -535,51 +536,108 @@
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
 }
 
-.trade-record-edit-context {
+.trade-record-edit-card {
   display: grid;
-  gap: 6px !important;
+  gap: 12px;
 }
 
-.trade-record-edit-numbers {
-  display: grid !important;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px !important;
+.trade-record-edit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 
-.trade-record-edit-numbers label {
+.trade-record-edit-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trade-record-edit-title > strong {
+  color: #344054;
+  font-size: 13px;
+}
+
+.trade-record-edit-title > small {
+  max-width: 360px;
+  padding: 3px 8px;
+  color: #667085;
+  background: #eef3f9;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.trade-record-edit-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+
+.trade-record-edit-actions button {
+  min-width: 64px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 12px;
+  color: #5f6c80;
+  background: #ffffff;
+  border: 1px solid #d6deea;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.trade-record-edit-actions button:hover {
+  color: var(--blue);
+  background: var(--blue-soft);
+  border-color: #b9d0fb;
+}
+
+.trade-record-edit-actions button.is-save {
+  color: #147d64;
+  background: #e9f8f3;
+  border-color: #cceee3;
+}
+
+.trade-record-edit-primary-fields {
+  display: grid;
+  grid-template-columns: minmax(138px, 1.1fr) minmax(210px, 1.55fr) repeat(3, minmax(112px, 0.8fr));
+  gap: 10px;
+}
+
+.trade-record-edit-primary-fields.has-exchange-rate {
+  grid-template-columns: minmax(138px, 1.1fr) minmax(210px, 1.55fr) repeat(4, minmax(112px, 0.8fr));
+}
+
+.trade-record-edit-secondary-fields {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.7fr) minmax(360px, 3.3fr);
+  gap: 10px;
+}
+
+.trade-record-edit-primary-fields label,
+.trade-record-edit-secondary-fields label {
   min-width: 0;
   display: grid;
-  gap: 4px;
+  gap: 6px;
   color: #7b8799;
   font-size: 12px;
 }
 
-.trade-record-edit-numbers label > span {
+.trade-record-edit-primary-fields label > span,
+.trade-record-edit-secondary-fields label > span {
   line-height: 1;
-}
-
-.trade-record-edit-hint {
-  align-self: center;
-  color: #8a94a6;
-  font-size: 12px;
-}
-
-.trade-record-edit-hint label {
-  display: grid;
-  gap: 4px;
-  color: #7b8799;
-  font-size: 12px;
 }
 
 .position-form-error {
   margin-top: -4px;
   color: #c93643;
   font-size: 12px;
-}
-
-.trade-record-note-input {
-  align-self: center;
-  width: 100%;
 }
 
 .trade-record-actions {
@@ -612,7 +670,7 @@
 }
 
 .trade-record-row .trade-record-edit-error {
-  grid-column: 1 / -1;
+  display: block;
   color: #c93643;
   white-space: normal;
 }

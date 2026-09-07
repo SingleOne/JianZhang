@@ -467,124 +467,123 @@ function TradeRecordList({
                   }
                 }}
               >
-                <select
-                  value={`${draft.purpose}:${draft.side}`}
-                  disabled={hasFixedAllocations}
-                  onChange={(event) => {
-                    const [purpose, side] = event.target.value.split(':') as [
-                      TTradePurpose,
-                      TTradeSide
-                    ]
-                    onDraftChange({ purpose, side })
-                  }}
-                  aria-label="交易类型"
-                >
-                  <option value="base:buy">底仓买入</option>
-                  <option value="base:sell">底仓卖出</option>
-                  {hasBatchAllocation ? <option value="t:buy">{tBuyLabel}</option> : null}
-                  {hasBatchAllocation ? <option value="t:sell">{tSellLabel}</option> : null}
-                </select>
-                <span className="trade-record-edit-context">
-                  <strong>{tradeRecordContext(record)}</strong>
-                  <input
-                    type="datetime-local"
-                    value={draft.tradedAt}
-                    onChange={(event) => onDraftChange({ tradedAt: event.target.value })}
-                    aria-label="成交时间"
-                  />
-                </span>
-                <span className="trade-record-edit-numbers">
-                  <label>
-                    <span>数量</span>
-                    <input
-                      type="number"
-                      min={market === 'CN' ? 100 : 1}
-                      step="100"
-                      value={draft.quantity}
-                      disabled={hasFixedAllocations}
-                      onChange={(event) => onDraftChange({ quantity: event.target.value })}
-                      aria-label="成交数量"
-                    />
-                  </label>
-                  <label>
-                    <span>价格</span>
-                    <input
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      value={draft.price}
-                      onChange={(event) => onDraftChange({ price: event.target.value })}
-                      aria-label="成交价格"
-                    />
-                  </label>
-                  <label>
-                    <span>费用</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={draft.fees}
-                      onChange={(event) => onDraftChange({ fees: event.target.value })}
-                      aria-label="交易费用合计"
-                    />
-                  </label>
-                  {currency !== 'CNY' ? (
+                <div className="trade-record-edit-card">
+                  <div className="trade-record-edit-header">
+                    <span className="trade-record-edit-title">
+                      <strong>编辑交易记录</strong>
+                      <small>{tradeRecordContext(record)}</small>
+                    </span>
+                    <span className="trade-record-edit-actions">
+                      <button className="is-save" type="button" onClick={onSaveEdit}>
+                        <Check size={15} />
+                        保存
+                      </button>
+                      <button type="button" onClick={onCancelEdit}>
+                        <X size={15} />
+                        取消
+                      </button>
+                    </span>
+                  </div>
+                  <div
+                    className={`trade-record-edit-primary-fields${currency !== 'CNY' ? ' has-exchange-rate' : ''}`}
+                  >
                     <label>
-                      <span>汇率</span>
+                      <span>交易类型</span>
+                      <select
+                        value={`${draft.purpose}:${draft.side}`}
+                        disabled={hasFixedAllocations}
+                        onChange={(event) => {
+                          const [purpose, side] = event.target.value.split(':') as [
+                            TTradePurpose,
+                            TTradeSide
+                          ]
+                          onDraftChange({ purpose, side })
+                        }}
+                      >
+                        <option value="base:buy">底仓买入</option>
+                        <option value="base:sell">底仓卖出</option>
+                        {hasBatchAllocation ? <option value="t:buy">{tBuyLabel}</option> : null}
+                        {hasBatchAllocation ? <option value="t:sell">{tSellLabel}</option> : null}
+                      </select>
+                    </label>
+                    <label>
+                      <span>成交时间</span>
                       <input
-                        type="number"
-                        min="0.000001"
-                        step="0.000001"
-                        value={draft.exchangeRate}
-                        onChange={(event) => onDraftChange({ exchangeRate: event.target.value })}
-                        aria-label="成交汇率"
+                        type="datetime-local"
+                        value={draft.tradedAt}
+                        onChange={(event) => onDraftChange({ tradedAt: event.target.value })}
                       />
                     </label>
-                  ) : null}
-                </span>
-                <span className="trade-record-edit-hint">
-                  <label>
-                    <span>实际交收</span>
-                    <input
-                      type="date"
-                      value={draft.actualSettlementDate}
-                      onChange={(event) =>
-                        onDraftChange({
-                          actualSettlementDate: event.target.value
-                        })
-                      }
-                    />
-                  </label>
-                </span>
-                <input
-                  className="trade-record-note-input"
-                  type="text"
-                  value={draft.note}
-                  maxLength={100}
-                  onChange={(event) => onDraftChange({ note: event.target.value })}
-                  aria-label="交易备注"
-                />
-                <span className="trade-record-actions">
-                  <button
-                    className="icon-button is-save"
-                    type="button"
-                    onClick={onSaveEdit}
-                    title="保存本行"
-                    aria-label="保存本行"
-                  >
-                    <Check size={15} />
-                  </button>
-                  <button
-                    className="icon-button"
-                    type="button"
-                    onClick={onCancelEdit}
-                    title="取消编辑"
-                    aria-label="取消编辑"
-                  >
-                    <X size={15} />
-                  </button>
-                </span>
-                {error ? <small className="trade-record-edit-error">{error}</small> : null}
+                    <label>
+                      <span>数量</span>
+                      <input
+                        type="number"
+                        min={market === 'CN' ? 100 : 1}
+                        step="100"
+                        value={draft.quantity}
+                        disabled={hasFixedAllocations}
+                        onChange={(event) => onDraftChange({ quantity: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      <span>价格</span>
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={draft.price}
+                        onChange={(event) => onDraftChange({ price: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      <span>费用</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={draft.fees}
+                        onChange={(event) => onDraftChange({ fees: event.target.value })}
+                      />
+                    </label>
+                    {currency !== 'CNY' ? (
+                      <label>
+                        <span>汇率</span>
+                        <input
+                          type="number"
+                          min="0.000001"
+                          step="0.000001"
+                          value={draft.exchangeRate}
+                          onChange={(event) => onDraftChange({ exchangeRate: event.target.value })}
+                        />
+                      </label>
+                    ) : null}
+                  </div>
+                  <div className="trade-record-edit-secondary-fields">
+                    <label>
+                      <span>实际交收</span>
+                      <input
+                        type="date"
+                        value={draft.actualSettlementDate}
+                        onChange={(event) =>
+                          onDraftChange({
+                            actualSettlementDate: event.target.value
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      <span>备注</span>
+                      <input
+                        type="text"
+                        value={draft.note}
+                        maxLength={100}
+                        placeholder="可选，最多 100 个字符"
+                        onChange={(event) => onDraftChange({ note: event.target.value })}
+                      />
+                    </label>
+                  </div>
+                  {error ? <small className="trade-record-edit-error">{error}</small> : null}
+                </div>
               </div>
             )
           }
