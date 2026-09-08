@@ -27,9 +27,9 @@ import {
   DCF_LOW_VALUE_THRESHOLD_PERCENT,
   DCF_MAX_FORECAST_GROWTH_RATE,
   DCF_MIN_FORECAST_GROWTH_RATE,
-  DCF_TERMINAL_GROWTH_RATE,
-  createDcfAnalysis
+  DCF_TERMINAL_GROWTH_RATE
 } from '../../../../lib/dcf-analysis'
+import { createFundamentalValuationSummary } from '../../../../lib/fundamental-valuation'
 import {
   createStockValuationAnalysis,
   usesOrdinaryCorporateInvestmentMetrics
@@ -153,9 +153,10 @@ export function buildLongTermContext(input: LongTermContextInput) {
     fundamentalCompany,
     input.valuationHistory
   )
-  const dcfResult = fundamentalCompany
-    ? createDcfAnalysis(fundamentalCompany, input.quote?.latest)
+  const fundamentalValuation = fundamentalCompany
+    ? createFundamentalValuationSummary(fundamentalCompany, input.quote?.latest)
     : null
+  const dcfResult = fundamentalValuation?.dcf ?? null
   const dcf = dcfResult?.analysis
     ? {
         available: true as const,
@@ -187,6 +188,9 @@ export function buildLongTermContext(input: LongTermContextInput) {
       }
   const valuation = {
     ...marketValuation,
+    profile: fundamentalValuation?.profile ?? null,
+    dataDate: fundamentalValuation?.dataDate ?? null,
+    modelVersion: fundamentalValuation?.modelVersion ?? null,
     dcf
   }
 
@@ -205,6 +209,7 @@ export function buildLongTermContext(input: LongTermContextInput) {
           organizationType: fundamentalCompany.organizationType,
           industryCode: fundamentalCompany.industryCode,
           industryName: fundamentalCompany.industryName,
+          businessProfile: fundamentalCompany.businessProfile ?? null,
           ordinaryCorporateMetricsApplicable,
           ordinaryCorporateMetricsReason: ordinaryCorporateMetricsApplicable
             ? null

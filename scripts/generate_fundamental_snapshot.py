@@ -78,6 +78,10 @@ VALUATION_COLUMNS = (
     "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,TRADE_DATE,CLOSE_PRICE,PE_TTM,PB_MRQ,"
     "PCF_OCF_TTM,TOTAL_MARKET_CAP,NOTLIMITED_MARKETCAP_A"
 )
+COMPANY_PROFILE_COLUMNS = (
+    "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,SECURITY_TYPE_CODE,MAIN_BUSINESS,"
+    "ORG_PROFILE,BUSINESS_SCOPE,INDUSTRYCSRC1,PROVINCE"
+)
 ORGANIZATION_TYPES = {
     "通用": "general",
     "银行": "bank",
@@ -224,6 +228,11 @@ def number(value: object) -> float | None:
         return parsed if math.isfinite(parsed) else None
     except (TypeError, ValueError):
         return None
+
+
+def normalized_text(value: object) -> str | None:
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    return text or None
 
 
 def rounded(value: float | None, digits: int = 2) -> float | None:
@@ -401,6 +410,20 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         f"(REPORT_DATE<='{quarterly_dates[-1]}')"
     )
 
+    log("基础资料：获取公司主营业务与业务简介")
+    company_profiles = a_share_rows(
+        fetch_filtered_report(
+            "RPT_F10_BASIC_ORGINFO",
+            COMPANY_PROFILE_COLUMNS,
+            f'(SECURITY_TYPE_CODE="{A_SHARE_TYPE}")',
+            "SECURITY_CODE",
+        )
+    )
+    profile_fetched_at = dt.datetime.now(
+        dt.timezone(dt.timedelta(hours=8))
+    ).isoformat(timespec="seconds")
+    log(f"基础资料：已获取 {len(company_profiles):,} 家公司资料")
+
     log(f"阶段一/五：获取 {fiscal_years[0]}—{fiscal_years[-1]} 年 ROE 与 ROIC")
     main_by_year: dict[int, dict[str, dict]] = {}
     for year in fiscal_years:
@@ -572,6 +595,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         )
         detailed_balance = latest_detailed_balance.get(code, {})
         valuation = latest_valuation.get(code, {})
+        company_profile = company_profiles.get(code, {})
         quarterly_risk_reports = build_quarterly_risk_reports(
             code,
             quarterly_income_by_code,
@@ -685,6 +709,17 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
                 "organizationType": organization_type,
                 "industryCode": industry_code,
                 "industryName": industry_name,
+                "businessProfile": {
+                    "mainBusiness": normalized_text(company_profile.get("MAIN_BUSINESS")),
+                    "organizationProfile": normalized_text(company_profile.get("ORG_PROFILE")),
+                    "businessScope": normalized_text(company_profile.get("BUSINESS_SCOPE")),
+                    "industryCsrc": normalized_text(company_profile.get("INDUSTRYCSRC1")),
+                    "province": normalized_text(company_profile.get("PROVINCE")),
+                    "sourceName": "东方财富公司资料",
+                    "sourceReportName": "RPT_F10_BASIC_ORGINFO",
+                    "sourceUpdatedAt": None,
+                    "fetchedAt": profile_fetched_at,
+                },
                 "annualReports": annual_reports,
                 "quarterlyRiskReports": quarterly_risk_reports,
                 "latestBalanceSheet": {
@@ -776,10 +811,18 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         )
         for row in rows
     )
+    company_business_profile_count = sum(
+        bool(
+            row["businessProfile"]["mainBusiness"]
+            or row["businessProfile"]["organizationProfile"]
+            or row["businessProfile"]["businessScope"]
+        )
+        for row in rows
+    )
 
     generated_at = dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).isoformat(timespec="seconds")
     snapshot = {
-        "schemaVersion": 7,
+        "schemaVersion": 8,
         "snapshotDate": snapshot_date,
         "generatedAt": generated_at,
         "currency": "CNY",
@@ -817,6 +860,11 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
                 "reportName": "RPT_VALUEANALYSIS_DET",
                 "url": EASTMONEY_DATA_API,
             },
+            {
+                "name": "东方财富公司资料",
+                "reportName": "RPT_F10_BASIC_ORGINFO",
+                "url": EASTMONEY_DATA_API,
+            },
         ],
         "coverage": {
             "companyCount": len(rows),
@@ -835,13 +883,14 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
             "latestPriceCashFlowIndustryPercentileCount": pcf_industry_percentile_count,
             "latestQuarterlyRiskReportCount": latest_quarterly_risk_report_count,
             "completeQuarterlyRiskIndicatorCount": complete_quarterly_risk_indicator_count,
+            "companyBusinessProfileCount": company_business_profile_count,
             "industryCount": len(industries),
         },
         "industries": industries,
         "rows": rows,
     }
     diagnostics = {
-        "schemaVersion": 7,
+        "schemaVersion": 8,
         "snapshotDate": snapshot_date,
         "generatedAt": generated_at,
         "fiscalYears": fiscal_years,
@@ -853,6 +902,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
             }
             for year in fiscal_years
         },
+        "companyProfileRows": len(company_profiles),
         "latestBalanceRows": len(latest_balance),
         "latestDetailedBalanceRows": len(latest_detailed_balance),
         "latestValuationDate": valuation_date,

@@ -7,6 +7,8 @@ export const LONG_TERM_VALUE_PROMPT = `你负责分析见涨应用提供的长�
 4. conclusion（结论）：必须把长期价值与当前时机分开。longTermValue.level 只能是 high、medium、low、insufficient；priceTiming.level 只能是 favorable、neutral、unfavorable、insufficient。股价偏弱可以改善当前时机，但弱势本身不是企业价值证据，也要提醒下跌趋势可能尚未结束。
 
 财报总结规则：
+- fundamental.company.businessProfile 是东方财富结构化公司资料，用于说明公司长期从事什么业务；可以引用 mainBusiness、organizationProfile、industryCsrc、province、sourceName 和 fetchedAt，但这些内容不参与估值数值计算。
+- businessProfile 不得与 companyReportSummaries 混为一类。前者是稳定业务资料，后者是具体报告期的 AI 二次总结；不得用 managementDiscussion 补造缺失的 businessProfile。
 - companyReportSummaries 只包含用户此前主动生成并保存在本地的 AI 财报总结，不是财报原文。可以用其中的 managementDiscussion、auditOpinion、financialStatementNotes 和 aiConclusion 补充企业质量、财务安全与风险判断，但必须标明这是二次总结信息。
 - companyReportSummaries 为空时直接忽略，不得把“缺少财报 AI 总结”写入 uncertainties，也不得因此降低评级。
 - 不得把财报总结中的定性表述改写成输入里没有的精确数字；同一事项与 fundamental 数值冲突时，以 fundamental 为准，并在 uncertainties 指出时点或口径差异。
@@ -17,6 +19,7 @@ export const LONG_TERM_VALUE_PROMPT = `你负责分析见涨应用提供的长�
 - 存货周转天数同比延长超过30%和商誉占总资产超过30%属于黄色关注项。排雷结果只用于定位财务异常，不能单独推导买卖结论。
 
 DCF 规则：
+- valuation.profile 是应用按法定组织类型、结构化行业和历史现金流确定的估值适用性结果。必须遵守 primaryModel、metricGuidance、unavailableMetrics 和 warnings，不得自行改变企业类型或把辅助指标与主模型简单平均。
 - valuation.dcf.available=true 且 currentPrice、differencePercent、fairValueToPricePercent 均非 null 时，currentPrice 的 conclusion 和 evidence 必须引用 DCF 每股估值、当前股价、differencePercent、fairValueToPricePercent 和非 null 的 priceToFairValuePercent；differencePercent 正数表示 DCF 高于现价，负数表示 DCF 低于现价，priceToFairValuePercent 表示当前股价是 DCF 的百分之多少。必须说明这是按输入所列增长率、五年预测期、10%折现率和3%永续增长率得到的简化模型估值，不是目标价。若比较字段为 null，只能引用 DCF 每股估值并把缺少实时价格写入 uncertainties。
 - valuation.dcf.belowLowValueThreshold=true 时，currentPrice 和 risks 必须明确指出“DCF/现价低于70%，当前价格显著高于模型估值”，不得仅凭较低 PE/PB 或股价位置判定当前价格便宜。
 - valuation.dcf.available=false 时，不得自行重算或猜测 DCF；应根据 unavailableReason 在 uncertainties 中说明不适用或数据不足。金融企业的 DCF 不适用。

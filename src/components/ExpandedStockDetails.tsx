@@ -6,6 +6,8 @@ import {
   BookOpen,
   Building2,
   Calculator,
+  ChevronDown,
+  ChevronUp,
   CircleCheck,
   CircleDollarSign,
   CircleMinus,
@@ -32,11 +34,18 @@ import {
   DCF_MAX_FORECAST_GROWTH_RATE,
   DCF_MIN_FORECAST_GROWTH_RATE,
   DCF_TERMINAL_GROWTH_RATE,
-  createDcfAnalysis,
+  type DcfAnalysisResult,
   type DcfUnavailableReason
 } from '../lib/dcf-analysis'
 import { formatAmount, formatPercent, formatPrice, formatVolume } from '../lib/format'
 import { STOCK_QUOTE_SOURCE_LABELS } from '../lib/quote-state'
+import {
+  VALUATION_PROFILE_TAG_LABELS,
+  createFundamentalValuationSummary,
+  type FundamentalValuationSummary,
+  type ValuationAvailability,
+  type ValuationModelRole
+} from '../lib/fundamental-valuation'
 import {
   FINANCIAL_MINE_LEVEL_LABELS,
   evaluateFinancialMine,
@@ -265,14 +274,7 @@ const DCF_UNAVAILABLE_MESSAGES: Record<DcfUnavailableReason, string> = {
   'share-count': '快照缺少收盘价或总市值，请更新基本面数据后查看 DCF。'
 }
 
-function DcfPanel({
-  evaluation,
-  currentPrice
-}: {
-  evaluation: FundamentalScreeningEvaluation
-  currentPrice: number | null | undefined
-}) {
-  const result = createDcfAnalysis(evaluation.company, currentPrice)
+function DcfPanel({ result }: { result: DcfAnalysisResult }) {
   const analysis = result.analysis
 
   return (
@@ -573,8 +575,158 @@ const FUNDAMENTAL_ORGANIZATION_LABELS = {
   bank: '银行',
   securities: '证券公司',
   insurance: '保险公司',
-  other: '其他金融企业'
+  other: '其他企业'
 } as const
+
+const VALUATION_ROLE_LABELS: Record<ValuationModelRole, string> = {
+  primary: '主要',
+  secondary: '辅助',
+  informational: '信息'
+}
+
+const VALUATION_AVAILABILITY_LABELS: Record<ValuationAvailability, string> = {
+  available: '可用',
+  'not-applicable': '不适用',
+  'insufficient-data': '数据不足',
+  'stale-data': '数据过期',
+  'unstable-input': '输入不稳定'
+}
+
+function CompanyBusinessProfilePanel({
+  company
+}: {
+  company: FundamentalScreeningEvaluation['company']
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const [scopeExpanded, setScopeExpanded] = useState(false)
+  const profile = company.businessProfile
+  const hasProfile = Boolean(
+    profile?.mainBusiness || profile?.organizationProfile || profile?.businessScope
+  )
+
+  return (
+    <section className="fundamental-business-profile">
+      <header>
+        <span>
+          <Building2 size={17} />
+          <strong>公司业务简介</strong>
+        </span>
+        <small>
+          {profile
+            ? `${profile.industryCsrc ?? company.industryName ?? '行业未知'} · ${profile.province ?? '地区未知'}`
+            : company.industryName || '行业未知'}
+        </small>
+      </header>
+      {hasProfile ? (
+        <>
+          <div className="fundamental-business-main">
+            <span>主营业务</span>
+            <strong>{profile?.mainBusiness ?? '来源暂未提供主营业务字段'}</strong>
+          </div>
+          {profile?.organizationProfile ? (
+            <div className="fundamental-business-description">
+              <p className={expanded ? 'is-expanded' : undefined}>{profile.organizationProfile}</p>
+              <button type="button" onClick={() => setExpanded((value) => !value)}>
+                {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                {expanded ? '收起公司简介' : '展开公司简介'}
+              </button>
+            </div>
+          ) : null}
+          {profile?.businessScope ? (
+            <div className="fundamental-business-scope">
+              <button type="button" onClick={() => setScopeExpanded((value) => !value)}>
+                {scopeExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                工商经营范围（不等同于实际主营业务）
+              </button>
+              {scopeExpanded ? <p>{profile.businessScope}</p> : null}
+            </div>
+          ) : null}
+          <footer>
+            来源：{profile?.sourceName} · 获取于 {fundamentalGeneratedTime(profile?.fetchedAt)}
+            {profile?.sourceUpdatedAt
+              ? ` · 源资料更新于 ${fundamentalGeneratedTime(profile.sourceUpdatedAt)}`
+              : ''}
+          </footer>
+        </>
+      ) : (
+        <div className="fundamental-business-empty">
+          公司业务资料暂未提供；不会使用财报 AI 总结自动补位。
+        </div>
+      )}
+    </section>
+  )
+}
+
+function ValuationApplicabilityPanel({
+  summary,
+  company,
+  quoteId,
+  quote,
+  snapshotDate,
+  staleReason
+}: {
+  summary: FundamentalValuationSummary
+  company: FundamentalScreeningEvaluation['company']
+  quoteId: string
+  quote?: StockQuote
+  snapshotDate?: string
+  staleReason?: string | null
+}) {
+  const profile = summary.profile
+
+  return (
+    <section className="fundamental-valuation-section">
+      <header>
+        <span>
+          <Layers size={17} />
+          <strong>估值与适用性</strong>
+        </span>
+        <small>模型估值，不代表目标价或买卖建议</small>
+      </header>
+      <div className="fundamental-valuation-overview">
+        <div className="fundamental-valuation-profile">
+          <strong>{profile.organizationLabel}</strong>
+          {profile.tags.map((tag) => (
+            <span key={tag}>{VALUATION_PROFILE_TAG_LABELS[tag]}</span>
+          ))}
+        </div>
+        <div className="fundamental-valuation-primary">
+          <span>主要估值框架</span>
+          <strong>{profile.primaryModel}</strong>
+          <small>
+            数据截止 {summary.dataDate} · 模型 {summary.modelVersion}
+          </small>
+        </div>
+        <div className="fundamental-valuation-guidance">
+          {profile.metricGuidance.map((metric) => (
+            <article key={metric.id}>
+              <span className={`is-${metric.role}`}>{VALUATION_ROLE_LABELS[metric.role]}</span>
+              <strong>{metric.label}</strong>
+              <em className={`is-${metric.availability}`}>
+                {VALUATION_AVAILABILITY_LABELS[metric.availability]}
+              </em>
+              <small>{metric.note}</small>
+            </article>
+          ))}
+        </div>
+        {profile.warnings.length > 0 ? (
+          <div className="fundamental-valuation-warnings">
+            <AlertCircle size={15} />
+            <span>{profile.warnings.join('；')}</span>
+          </div>
+        ) : null}
+      </div>
+      <DcfPanel result={summary.dcf} />
+      <InvestmentValueMetrics
+        quoteId={quoteId}
+        quote={quote}
+        company={company}
+        snapshotDate={snapshotDate}
+        staleReason={staleReason}
+      />
+    </section>
+  )
+}
 
 function FundamentalRuleBadge({ status }: { status: FundamentalRuleAssessmentStatus }) {
   return (
@@ -635,7 +787,7 @@ function FundamentalPeerMetricCard({
                     : `低于 ${comparison.betterThanPercent}% 同行`}
                 </em>
               </span>
-          </>
+            </>
         ) : (
           <>
             <strong>样本不足</strong>
@@ -1115,6 +1267,11 @@ function FundamentalPanel({
   staleReason?: string | null
 }) {
   const [showReadingGuide, setShowReadingGuide] = useState(false)
+  const valuationSummary = useMemo(
+    () =>
+      evaluation ? createFundamentalValuationSummary(evaluation.company, quote?.latest) : null,
+    [evaluation, quote?.latest]
+  )
 
   if (!evaluation) {
     return (
@@ -1146,6 +1303,8 @@ function FundamentalPanel({
           </span>
         </div>
       ) : null}
+
+      <CompanyBusinessProfilePanel company={company} />
 
       <div className="fundamental-detail-conclusion-card">
         <span className="fundamental-detail-icon">
@@ -1236,15 +1395,16 @@ function FundamentalPanel({
         </section>
       </div>
 
-      <DcfPanel evaluation={evaluation} currentPrice={quote?.latest} />
-
-      <InvestmentValueMetrics
-        quoteId={quoteId}
-        quote={quote}
-        company={company}
-        snapshotDate={snapshotDate}
-        staleReason={staleReason}
-      />
+      {valuationSummary ? (
+        <ValuationApplicabilityPanel
+          summary={valuationSummary}
+          company={company}
+          quoteId={quoteId}
+          quote={quote}
+          snapshotDate={snapshotDate}
+          staleReason={staleReason}
+        />
+      ) : null}
 
       <FundamentalQualityPanel evaluation={evaluation} />
 

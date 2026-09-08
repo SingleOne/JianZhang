@@ -113,4 +113,17 @@ describe('fundamental snapshots', () => {
 
     expect(parseFundamentalSnapshot(JSON.stringify(value))).toEqual(value)
   })
+
+  it('parses schema v8 snapshots with company business profiles', () => {
+    const value: FundamentalSnapshot = {
+      ...snapshot('2026-09-08'),
+      schemaVersion: 8,
+      coverage: {
+        ...snapshot('2026-09-08').coverage,
+        companyBusinessProfileCount: 5500
+      }
+    }
+
+    expect(parseFundamentalSnapshot(JSON.stringify(value))).toEqual(value)
+  })
 })

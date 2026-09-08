@@ -1705,6 +1705,18 @@ export interface DataSnapshotRuntimeState {
 
 export type FundamentalOrganizationType = 'general' | 'bank' | 'securities' | 'insurance' | 'other'
 
+export interface CompanyBusinessProfile {
+  mainBusiness: string | null
+  organizationProfile: string | null
+  businessScope: string | null
+  industryCsrc: string | null
+  province: string | null
+  sourceName: string
+  sourceReportName: 'RPT_F10_BASIC_ORGINFO'
+  sourceUpdatedAt: string | null
+  fetchedAt: string
+}
+
 export interface FundamentalAnnualReport {
   year: number
   reportDate: string
@@ -1902,6 +1914,7 @@ export interface FundamentalCompany {
   organizationType: FundamentalOrganizationType
   industryCode: string
   industryName: string
+  businessProfile?: CompanyBusinessProfile
   annualReports: FundamentalAnnualReport[]
   quarterlyRiskReports?: FundamentalQuarterlyRiskReport[]
   latestBalanceSheet: FundamentalBalanceSheet
@@ -1916,7 +1929,7 @@ export interface FundamentalIndustryBenchmark {
 }
 
 export interface FundamentalSnapshot {
-  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
   snapshotDate: string
   generatedAt: string
   currency: 'CNY'
@@ -1945,6 +1958,7 @@ export interface FundamentalSnapshot {
     latestPriceCashFlowIndustryPercentileCount?: number
     latestQuarterlyRiskReportCount?: number
     completeQuarterlyRiskIndicatorCount?: number
+    companyBusinessProfileCount?: number
     industryCount: number
   }
   industries: FundamentalIndustryBenchmark[]

@@ -376,6 +376,269 @@
   gap: 7px;
 }
 
+.fundamental-business-profile,
+.fundamental-valuation-section {
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid #dce4ef;
+  border-radius: 10px;
+}
+
+.fundamental-business-profile > header,
+.fundamental-valuation-section > header {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  background: #f7faff;
+  border-bottom: 1px solid #e4eaf2;
+}
+
+.fundamental-business-profile > header > span,
+.fundamental-valuation-section > header > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #3568a9;
+}
+
+.fundamental-business-profile > header strong,
+.fundamental-valuation-section > header strong {
+  color: #35465d;
+  font-size: 13px;
+}
+
+.fundamental-business-profile > header small,
+.fundamental-valuation-section > header small {
+  color: #748399;
+  font-size: 12px;
+}
+
+.fundamental-business-main {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr);
+  gap: 10px;
+  padding: 11px 12px 5px;
+}
+
+.fundamental-business-main > span {
+  color: #748399;
+  font-size: 12px;
+}
+
+.fundamental-business-main > strong {
+  color: #34445a;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.fundamental-business-description,
+.fundamental-business-scope {
+  padding: 4px 12px 8px 96px;
+}
+
+.fundamental-business-description p,
+.fundamental-business-scope p {
+  margin: 0;
+  color: #66768b;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.fundamental-business-description p:not(.is-expanded) {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.fundamental-business-description button,
+.fundamental-business-scope button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 5px;
+  padding: 0;
+  color: #3568a9;
+  background: transparent;
+  border: 0;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.fundamental-business-scope {
+  padding-top: 0;
+}
+
+.fundamental-business-scope p {
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: #f8fafc;
+  border-radius: 7px;
+}
+
+.fundamental-business-profile > footer,
+.fundamental-business-empty {
+  padding: 8px 12px 10px;
+  color: #8793a4;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.fundamental-business-empty {
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+}
+
+.fundamental-valuation-section {
+  display: grid;
+  gap: 10px;
+  padding-bottom: 10px;
+}
+
+.fundamental-valuation-overview {
+  display: grid;
+  gap: 9px;
+  padding: 0 10px;
+}
+
+.fundamental-valuation-profile {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fundamental-valuation-profile > strong,
+.fundamental-valuation-profile > span {
+  min-height: 25px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.fundamental-valuation-profile > strong {
+  color: #285f9f;
+  background: #eaf2fc;
+}
+
+.fundamental-valuation-profile > span {
+  color: #6a5b37;
+  background: #fff5dc;
+}
+
+.fundamental-valuation-primary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  background: #f8fafc;
+  border: 1px solid #e3e8ef;
+  border-radius: 8px;
+}
+
+.fundamental-valuation-primary > span,
+.fundamental-valuation-primary > small {
+  color: #748399;
+  font-size: 12px;
+}
+
+.fundamental-valuation-primary > strong {
+  color: #34445a;
+  font-size: 14px;
+}
+
+.fundamental-valuation-guidance {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
+  gap: 7px;
+}
+
+.fundamental-valuation-guidance article {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid #e3e8ef;
+  border-radius: 8px;
+}
+
+.fundamental-valuation-guidance article > span,
+.fundamental-valuation-guidance article > em {
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.fundamental-valuation-guidance article > span {
+  color: #3568a9;
+  background: #eaf2fc;
+}
+
+.fundamental-valuation-guidance article > span.is-secondary,
+.fundamental-valuation-guidance article > span.is-informational {
+  color: #68768a;
+  background: #f0f3f7;
+}
+
+.fundamental-valuation-guidance article > strong {
+  overflow: hidden;
+  color: #3a4a60;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fundamental-valuation-guidance article > em {
+  color: #176b50;
+  background: #effaf5;
+}
+
+.fundamental-valuation-guidance article > em:not(.is-available) {
+  color: #8a5a00;
+  background: #fff5dc;
+}
+
+.fundamental-valuation-guidance article > small {
+  grid-column: 1 / -1;
+  color: #7b899c;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.fundamental-valuation-warnings {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 8px 10px;
+  color: #875000;
+  background: #fff9e8;
+  border: 1px solid #efd78b;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.fundamental-valuation-warnings > svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.fundamental-valuation-section > .fundamental-dcf-section,
+.fundamental-valuation-section > .investment-value-metrics {
+  margin: 0 10px;
+}
+
 .fundamental-detail-conclusion-card {
   display: flex;
   align-items: center;
@@ -966,13 +1229,13 @@
   background: #e4f4ea;
 }
 
-.financial-mine-grid article>div {
+.financial-mine-grid article > div {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-.financial-mine-grid article>div>em {
+.financial-mine-grid article > div > em {
   color: #4b4246;
   font-size: 14px;
   font-style: normal;
@@ -980,14 +1243,14 @@
   font-variant-numeric: tabular-nums;
 }
 
-.financial-mine-grid article>div>p {
+.financial-mine-grid article > div > p {
   margin: 0;
   color: #80747a;
   font-size: 12px;
   line-height: 1.5;
 }
 
-.financial-mine-section>footer {
+.financial-mine-section > footer {
   margin: 0;
   color: #80747a;
   font-size: 12px;
