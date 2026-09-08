@@ -237,6 +237,13 @@ export default function App() {
   }, [])
 
   const handleStockSelection = useCallback((request: StockSelectionRequest) => {
+    if (request.detailTarget && request.scrollAlignment === 'sticky-top') {
+      setSelectedQuoteId(null)
+      setDetailNavigationRequest(null)
+      setStockSelectionRequest(request)
+      return
+    }
+
     setSelectedQuoteId(request.quoteId)
     if (request.detailTarget) {
       setDetailNavigationRequest({
@@ -248,6 +255,18 @@ export default function App() {
     } else if (request.scrollAlignment === 'sticky-top') {
       setStockSelectionRequest(request)
     }
+  }, [])
+
+  const handleStockSelectionPositioned = useCallback((request: StockSelectionRequest) => {
+    setStockSelectionRequest((current) => (current?.id === request.id ? null : current))
+    setSelectedQuoteId(request.quoteId)
+    if (!request.detailTarget) return
+    setDetailNavigationRequest({
+      id: request.id,
+      quoteId: request.quoteId,
+      target: request.detailTarget,
+      scrollAlignment: request.scrollAlignment
+    })
   }, [])
 
   const refreshGitHubGist = useCallback(
@@ -1756,6 +1775,7 @@ export default function App() {
                 exchangeRates={state.settings.exchangeRates}
                 positionProfitOverrides={positionProfitOverrides}
                 onSelect={selectWatchlistStock}
+                onStockSelectionPositioned={handleStockSelectionPositioned}
                 onDetailNavigationHandled={handleDetailNavigationHandled}
                 onToggleTaskbar={toggleTaskbar}
                 onTogglePriority={togglePriority}

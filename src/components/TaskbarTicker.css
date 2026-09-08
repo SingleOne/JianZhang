@@ -529,6 +529,14 @@
   color: #087c57;
 }
 
+.taskbar-tooltip-alert-list .is-five-level-order.is-buy b {
+  color: #c92733;
+}
+
+.taskbar-tooltip-alert-list .is-five-level-order.is-sell b {
+  color: #087c57;
+}
+
 @keyframes taskbar-stock-alert-text-flash {
   0%,
   100% {
@@ -715,6 +723,14 @@ html[data-theme='dark'].tray-mode #root {
 :root[data-theme='dark'] .taskbar-tooltip-alert-list .is-lte b,
 :root[data-theme='dark'] .taskbar-tooltip-alert-list .is-buy b,
 :root[data-theme='dark'] .taskbar-tooltip-alert-list .is-loss b {
+  color: #51d39e;
+}
+
+:root[data-theme='dark'] .taskbar-tooltip-alert-list .is-five-level-order.is-buy b {
+  color: #ff6b75;
+}
+
+:root[data-theme='dark'] .taskbar-tooltip-alert-list .is-five-level-order.is-sell b {
   color: #51d39e;
 }
 

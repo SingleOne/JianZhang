@@ -11,7 +11,7 @@ import {
   RotateCcw,
   X
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   calculatePositionMetrics,
   type PortfolioSummary,
@@ -120,6 +120,7 @@ interface WatchlistTableProps {
   exchangeRates: ExchangeRateSettings
   positionProfitOverrides: Readonly<Record<string, PositionProfitOverride>>
   onSelect: (quoteId: string) => void
+  onStockSelectionPositioned: (request: StockSelectionRequest) => void
   onDetailNavigationHandled: (requestId: string) => void
   onToggleTaskbar: (quoteId: string) => void
   onTogglePriority: (quoteId: string) => void
@@ -262,6 +263,7 @@ export function WatchlistTable({
   exchangeRates,
   positionProfitOverrides,
   onSelect,
+  onStockSelectionPositioned,
   onDetailNavigationHandled,
   onToggleTaskbar,
   onTogglePriority,
@@ -311,6 +313,9 @@ export function WatchlistTable({
   const locateTimerRef = useRef<number | undefined>(undefined)
   const locateFrameRef = useRef<number | undefined>(undefined)
   const collapseScrollFrameRef = useRef<number | undefined>(undefined)
+  const scrollEndCleanupRef = useRef<(() => void) | undefined>(undefined)
+  const positionedDetailRequestIdRef = useRef<string | null>(null)
+  const skipDetailScrollRequestIdRef = useRef<string | null>(null)
   const stickyDisabledQuoteIdRef = useRef<string | null>(null)
   const selectedQuoteIdRef = useRef(selectedQuoteId)
   selectedQuoteIdRef.current = selectedQuoteId
@@ -343,8 +348,9 @@ export function WatchlistTable({
       }
 
       const scrollerTop = scroller.getBoundingClientRect().top
+      const stickyTop = row ? Number.parseFloat(window.getComputedStyle(row).top) || 0 : 0
       const expandedBottom = expandedRow.getBoundingClientRect().bottom
-      setDisabledQuoteId(expandedBottom <= scrollerTop ? selectedQuoteId : null)
+      setDisabledQuoteId(expandedBottom <= scrollerTop + stickyTop ? selectedQuoteId : null)
     }
     const scheduleStickyUpdate = () => {
       if (frameId !== undefined) return
@@ -643,6 +649,7 @@ export function WatchlistTable({
       window.clearTimeout(locateTimerRef.current)
       window.cancelAnimationFrame(locateFrameRef.current ?? 0)
       window.cancelAnimationFrame(collapseScrollFrameRef.current ?? 0)
+      scrollEndCleanupRef.current?.()
     },
     []
   )
@@ -781,7 +788,9 @@ export function WatchlistTable({
           )
           if (!collapsedRow) return
           scroller.scrollTop +=
-            collapsedRow.getBoundingClientRect().top - scroller.getBoundingClientRect().top
+            collapsedRow.getBoundingClientRect().top -
+            scroller.getBoundingClientRect().top -
+            stickyTop
         })
       }
     },
@@ -797,7 +806,12 @@ export function WatchlistTable({
   }, [])
 
   const scrollToStock = useCallback(
-    (quoteId: string, alignment: 'center' | 'sticky-top' = 'center') => {
+    (
+      quoteId: string,
+      alignment: 'center' | 'sticky-top' = 'center',
+      onSettled?: () => void,
+      behavior: ScrollBehavior = 'smooth'
+    ) => {
       const scroller = tableScrollerRef.current
       const row = scroller?.querySelector<HTMLTableRowElement>(`tr[data-quote-id="${quoteId}"]`)
       if (!scroller || !row) return
@@ -805,21 +819,47 @@ export function WatchlistTable({
       const scrollerRect = scroller.getBoundingClientRect()
       const rowRect = row.getBoundingClientRect()
       const stickyTop =
-        alignment === 'sticky-top' ? Number.parseFloat(window.getComputedStyle(row).top) || 0 : 0
+        alignment === 'sticky-top'
+          ? Number.parseFloat(window.getComputedStyle(row).top) ||
+            scroller.querySelector('thead')?.getBoundingClientRect().height ||
+            0
+          : 0
       const targetTop =
         scroller.scrollTop +
         rowRect.top -
         scrollerRect.top -
         (alignment === 'sticky-top' ? stickyTop : (scroller.clientHeight - rowRect.height) / 2)
-      scroller.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' })
-      row.focus({ preventScroll: true })
-      window.clearTimeout(locateTimerRef.current)
-      window.cancelAnimationFrame(locateFrameRef.current ?? 0)
-      setLocatedQuoteId(null)
-      locateFrameRef.current = window.requestAnimationFrame(() => {
-        setLocatedQuoteId(quoteId)
-        locateTimerRef.current = window.setTimeout(() => setLocatedQuoteId(null), 2000)
-      })
+      const maxScrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight)
+      const nextScrollTop = Math.min(Math.max(0, targetTop), maxScrollTop)
+      const finishLocate = () => {
+        row.focus({ preventScroll: true })
+        window.clearTimeout(locateTimerRef.current)
+        window.cancelAnimationFrame(locateFrameRef.current ?? 0)
+        setLocatedQuoteId(null)
+        locateFrameRef.current = window.requestAnimationFrame(() => {
+          setLocatedQuoteId(quoteId)
+          locateTimerRef.current = window.setTimeout(() => setLocatedQuoteId(null), 2000)
+        })
+        onSettled?.()
+      }
+
+      scrollEndCleanupRef.current?.()
+      if (!onSettled || Math.abs(scroller.scrollTop - nextScrollTop) <= 1) {
+        scroller.scrollTo({ top: nextScrollTop, behavior })
+        finishLocate()
+        return
+      }
+
+      const handleScrollEnd = () => {
+        scrollEndCleanupRef.current = undefined
+        finishLocate()
+      }
+      scrollEndCleanupRef.current = () => {
+        scroller.removeEventListener('scrollend', handleScrollEnd)
+        scrollEndCleanupRef.current = undefined
+      }
+      scroller.addEventListener('scrollend', handleScrollEnd, { once: true })
+      scroller.scrollTo({ top: nextScrollTop, behavior })
     },
     []
   )
@@ -920,30 +960,51 @@ export function WatchlistTable({
   const detailNavigationRequestId = detailNavigationRequest?.id
   const detailNavigationQuoteId = detailNavigationRequest?.quoteId
   const detailNavigationScrollAlignment = detailNavigationRequest?.scrollAlignment
-  const stockSelectionRequestId = stockSelectionRequest?.id
-  const stockSelectionQuoteId = stockSelectionRequest?.quoteId
-  const stockSelectionScrollAlignment = stockSelectionRequest?.scrollAlignment
 
   useEffect(() => {
+    if (!stockSelectionRequest || stockSelectionRequest.scrollAlignment !== 'sticky-top') return
+
+    resetFilters()
+    const frameId = window.requestAnimationFrame(() =>
+      scrollToStock(
+        stockSelectionRequest.quoteId,
+        'sticky-top',
+        stockSelectionRequest.detailTarget
+          ? () => {
+              positionedDetailRequestIdRef.current = stockSelectionRequest.id
+              onStockSelectionPositioned(stockSelectionRequest)
+            }
+          : undefined
+      )
+    )
+    return () => window.cancelAnimationFrame(frameId)
+  }, [onStockSelectionPositioned, resetFilters, scrollToStock, stockSelectionRequest])
+
+  useLayoutEffect(() => {
     if (
-      !stockSelectionRequestId ||
-      !stockSelectionQuoteId ||
-      stockSelectionScrollAlignment !== 'sticky-top'
+      !detailNavigationRequestId ||
+      !detailNavigationQuoteId ||
+      positionedDetailRequestIdRef.current !== detailNavigationRequestId
     ) {
       return
     }
-    resetFilters()
-    window.requestAnimationFrame(() => scrollToStock(stockSelectionQuoteId, 'sticky-top'))
+
+    positionedDetailRequestIdRef.current = null
+    skipDetailScrollRequestIdRef.current = detailNavigationRequestId
+    scrollToStock(detailNavigationQuoteId, detailNavigationScrollAlignment, undefined, 'auto')
   }, [
-    resetFilters,
-    scrollToStock,
-    stockSelectionQuoteId,
-    stockSelectionRequestId,
-    stockSelectionScrollAlignment
+    detailNavigationQuoteId,
+    detailNavigationRequestId,
+    detailNavigationScrollAlignment,
+    scrollToStock
   ])
 
   useEffect(() => {
     if (!detailNavigationRequestId || !detailNavigationQuoteId) return
+    if (skipDetailScrollRequestIdRef.current === detailNavigationRequestId) {
+      skipDetailScrollRequestIdRef.current = null
+      return
+    }
     resetFilters()
     window.requestAnimationFrame(() =>
       scrollToStock(detailNavigationQuoteId, detailNavigationScrollAlignment)

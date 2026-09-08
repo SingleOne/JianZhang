@@ -59,6 +59,26 @@
   font-size: 12px;
 }
 
+.t-alert-badges.five-level-alert-badges .five-level-alert-badge.is-buy {
+  --t-alert-ring: rgba(201, 39, 51, 0.42);
+  background: #c92733;
+}
+
+.t-alert-badges.five-level-alert-badges .five-level-alert-badge.is-sell {
+  --t-alert-ring: rgba(8, 124, 87, 0.42);
+  background: #087c57;
+}
+
+:root[data-theme='dark'] .t-alert-badges.five-level-alert-badges .five-level-alert-badge.is-buy {
+  --t-alert-ring: rgba(255, 107, 117, 0.42);
+  background: #c84a55;
+}
+
+:root[data-theme='dark'] .t-alert-badges.five-level-alert-badges .five-level-alert-badge.is-sell {
+  --t-alert-ring: rgba(53, 201, 139, 0.42);
+  background: #1e8f68;
+}
+
 @keyframes t-alert-flash {
   0%,
   100% {

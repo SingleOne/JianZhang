@@ -390,7 +390,7 @@ export function TaskbarStockTooltip() {
                 </li>
               ))}
               {fiveLevelAlerts.map((alert) => (
-                <li className={`is-${alert.side}`} key={alert.side}>
+                <li className={`is-five-level-order is-${alert.side}`} key={alert.side}>
                   <b>五档大单</b>
                   <span>
                     {alert.side === 'buy' ? '买' : '卖'}
