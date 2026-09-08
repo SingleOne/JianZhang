@@ -573,10 +573,12 @@ applyGitHubRestore(importId: string, gistVersion: string): Promise<void>
 
 ### 阶段 D：可选的逻辑懒加载（未启动）
 
+独立实施计划见 [`settings-state-stage-d-lazy-loading-implementation-plan.md`](settings-state-stage-d-lazy-loading-implementation-plan.md)。
+
 只有在真实启动或 IPC 指标证明有必要时再实施：
 
 - 把 `metricSnapshots` 从 Bootstrap 中移出。
-- Bootstrap 仅返回追踪档案摘要和最新指标。
+- Bootstrap 仅返回追踪档案摘要和指标历史计数、日期元数据。
 - 打开追踪编辑器或 AI 工具分页查询历史。
 - 增加领域化保存接口，逐步停止 renderer 提交完整 `AppState`。
 
