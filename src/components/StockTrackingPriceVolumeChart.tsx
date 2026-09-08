@@ -25,10 +25,10 @@ import {
   STOCK_TRACKING_PRICE_AVERAGE_METRICS,
   STOCK_TRACKING_PRICE_RETURN_METRICS,
   STOCK_TRACKING_PRICE_VOLUME_DIVERGENCE_LABELS,
-  STOCK_TRACKING_PRICE_VOLUME_STATE_LABELS,
   STOCK_TRACKING_VOLUME_AVERAGE_METRICS,
   stockTrackingPriceVolumeDivergence,
   stockTrackingPriceVolumeState,
+  stockTrackingPriceVolumeStateLabel,
   stockTrackingTechnicalPatternSignals
 } from '../lib/stock-tracking-metrics'
 import { getChartThemeColors, type ChartThemeColors } from '../lib/theme'
@@ -39,6 +39,8 @@ import { volumeUnitForMarket } from '../shared/stock-market'
 interface StockTrackingPriceVolumeChartProps {
   snapshots: StockTrackingMetricSnapshot[]
   market: StockMarket
+  quoteId: string
+  stockName: string
 }
 
 const PRICE_AVERAGES = [
@@ -71,7 +73,9 @@ function directionClass(value: number | undefined): string {
 
 function stateMarkers(
   snapshot: StockTrackingMetricSnapshot,
-  theme: ChartThemeColors
+  theme: ChartThemeColors,
+  quoteId: string,
+  stockName: string
 ): SeriesMarker<Time>[] {
   const time = toTimestamp(snapshot.tradingDate)
   const markers: SeriesMarker<Time>[] = []
@@ -91,7 +95,8 @@ function stateMarkers(
     const rising =
       state === 'volumeSurgePriceRise' ||
       state === 'volumeRisePriceRise' ||
-      state === 'volumeFallPriceRise'
+      state === 'volumeFallPriceRise' ||
+      state === 'priceRise'
     const expanded =
       state === 'volumeSurgePriceRise' ||
       state === 'volumeSurgePriceFall' ||
@@ -102,7 +107,7 @@ function stateMarkers(
       position: rising ? 'belowBar' : 'aboveBar',
       shape: expanded ? (rising ? 'arrowUp' : 'arrowDown') : 'circle',
       color: rising ? (expanded ? theme.red : theme.amber) : expanded ? theme.green : theme.accent,
-      text: STOCK_TRACKING_PRICE_VOLUME_STATE_LABELS[state],
+      text: stockTrackingPriceVolumeStateLabel(snapshot, quoteId, stockName),
       size: 0.8
     })
   }
@@ -130,7 +135,9 @@ function stateMarkers(
 
 export default function StockTrackingPriceVolumeChart({
   snapshots,
-  market
+  market,
+  quoteId,
+  stockName
 }: StockTrackingPriceVolumeChartProps) {
   const volumeUnit = volumeUnitForMarket(market)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -154,6 +161,11 @@ export default function StockTrackingPriceVolumeChart({
   const legendTheme = getChartThemeColors(resolvedTheme)
   const displayedMetrics = displayedSnapshot?.metrics
   const displayedState = stockTrackingPriceVolumeState(displayedSnapshot)
+  const displayedStateLabel = stockTrackingPriceVolumeStateLabel(
+    displayedSnapshot,
+    quoteId,
+    stockName
+  )
   const displayedTechnicalSignals = stockTrackingTechnicalPatternSignals(displayedSnapshot)
   snapshotsByTimeRef.current = new Map(
     chartSnapshots.map((snapshot) => [toTimestamp(snapshot.tradingDate), snapshot])
@@ -314,7 +326,9 @@ export default function StockTrackingPriceVolumeChart({
       )
     }
     setMarkersRef.current(
-      chartSnapshots.slice(-120).flatMap((snapshot) => stateMarkers(snapshot, theme))
+      chartSnapshots
+        .slice(-120)
+        .flatMap((snapshot) => stateMarkers(snapshot, theme, quoteId, stockName))
     )
     const lastIndex = chartSnapshots.length - 1
     if (lastIndex >= 0) {
@@ -323,7 +337,7 @@ export default function StockTrackingPriceVolumeChart({
         to: lastIndex + 1
       })
     }
-  }, [chartSnapshots, resolvedTheme])
+  }, [chartSnapshots, quoteId, resolvedTheme, stockName])
 
   return (
     <div className="stock-tracking-metrics-chart stock-tracking-price-volume-chart">
@@ -347,9 +361,7 @@ export default function StockTrackingPriceVolumeChart({
           成交额 {formatAmount(displayedMetrics?.[STOCK_TRACKING_BASE_METRICS.amount] ?? null)}
         </span>
         <div className="stock-tracking-price-volume-tags">
-          <em className={`is-${displayedState}`}>
-            {STOCK_TRACKING_PRICE_VOLUME_STATE_LABELS[displayedState]}
-          </em>
+          <em className={`is-${displayedState}`}>{displayedStateLabel}</em>
           {displayedTechnicalSignals.map((signal) => (
             <em className={`is-${signal}`} key={signal}>
               {TECHNICAL_PATTERN_SIGNAL_LABELS[signal]}

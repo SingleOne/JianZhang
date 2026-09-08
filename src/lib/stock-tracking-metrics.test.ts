@@ -9,8 +9,10 @@ import {
   calculateRealtimeVolumeRatio,
   calculateStockTrackingDailyMetrics,
   mergeStockTrackingMetricSnapshots,
+  stockTrackingPriceMovement,
   stockTrackingPriceVolumeDivergence,
   stockTrackingPriceVolumeState,
+  stockTrackingPriceVolumeStateLabel,
   stockTrackingTechnicalPatternSignals
 } from './stock-tracking-metrics'
 
@@ -41,6 +43,18 @@ function profile(): StockTrackingProfile {
     entries: [],
     metricSnapshots: []
   }
+}
+
+function metricSnapshot(changePercent: number, close = 10, volumeRatio5d = 1) {
+  return {
+    tradingDate: '2026-07-21',
+    capturedAt: '2026-07-21T08:00:00.000Z',
+    metrics: { changePercent, close, volumeRatio5d }
+  }
+}
+
+function metricSnapshotFromPrices(previousClose: number, close: number) {
+  return metricSnapshot((close / previousClose - 1) * 100, close)
 }
 
 describe('stock tracking metrics', () => {
@@ -97,7 +111,7 @@ describe('stock tracking metrics', () => {
     expect(stockTrackingPriceVolumeDivergence(fallingSnapshot)).toBe('priceFallVolumeRise')
   })
 
-  it('distinguishes expanded-volume moves above 5 percent from ordinary moves', () => {
+  it('distinguishes expanded-volume moves at 5 percent from ordinary moves', () => {
     const snapshot = (changePercent: number) => ({
       tradingDate: '2026-07-21',
       capturedAt: '2026-07-21T08:00:00.000Z',
@@ -106,8 +120,49 @@ describe('stock tracking metrics', () => {
 
     expect(stockTrackingPriceVolumeState(snapshot(5.01))).toBe('volumeSurgePriceRise')
     expect(stockTrackingPriceVolumeState(snapshot(-5.01))).toBe('volumeSurgePriceFall')
-    expect(stockTrackingPriceVolumeState(snapshot(5))).toBe('volumeRisePriceRise')
-    expect(stockTrackingPriceVolumeState(snapshot(-5))).toBe('volumeRisePriceFall')
+    expect(stockTrackingPriceVolumeState(snapshot(5))).toBe('volumeSurgePriceRise')
+    expect(stockTrackingPriceVolumeState(snapshot(-5))).toBe('volumeSurgePriceFall')
+  })
+
+  it('labels slight, ordinary and strong price moves at the requested boundaries', () => {
+    expect(stockTrackingPriceMovement(metricSnapshot(1.99))).toBe('slightRise')
+    expect(stockTrackingPriceMovement(metricSnapshot(2))).toBe('rise')
+    expect(stockTrackingPriceMovement(metricSnapshot(4.99))).toBe('rise')
+    expect(stockTrackingPriceMovement(metricSnapshot(5))).toBe('strongRise')
+    expect(stockTrackingPriceMovement(metricSnapshot(-1.99))).toBe('slightFall')
+    expect(stockTrackingPriceMovement(metricSnapshot(-2))).toBe('fall')
+    expect(stockTrackingPriceMovement(metricSnapshot(-4.99))).toBe('fall')
+    expect(stockTrackingPriceMovement(metricSnapshot(-5))).toBe('strongFall')
+    expect(stockTrackingPriceVolumeState(metricSnapshot(3))).toBe('priceRise')
+    expect(stockTrackingPriceVolumeState(metricSnapshot(-3))).toBe('priceFall')
+    expect(stockTrackingPriceVolumeStateLabel(metricSnapshot(3))).toBe('上涨')
+    expect(stockTrackingPriceVolumeStateLabel(metricSnapshot(-3))).toBe('下跌')
+    expect(stockTrackingPriceVolumeStateLabel(metricSnapshot(1, 10, 1.2))).toBe('放量微涨')
+    expect(stockTrackingPriceVolumeStateLabel(metricSnapshot(-6, 10, 0.8))).toBe('缩量大跌')
+  })
+
+  it('recognizes A-share price limits from the stock board and name', () => {
+    expect(
+      stockTrackingPriceMovement(metricSnapshotFromPrices(10, 11), '1.600000', '浦发银行')
+    ).toBe('limitUp')
+    expect(
+      stockTrackingPriceMovement(metricSnapshotFromPrices(10, 9), '1.600000', '浦发银行')
+    ).toBe('limitDown')
+    expect(
+      stockTrackingPriceVolumeStateLabel(metricSnapshotFromPrices(10, 10.5), '1.600001', 'ST示例')
+    ).toBe('涨停')
+    expect(
+      stockTrackingPriceVolumeStateLabel(metricSnapshotFromPrices(10, 12), '0.300001', '创业示例')
+    ).toBe('涨停')
+    expect(
+      stockTrackingPriceVolumeStateLabel(metricSnapshotFromPrices(10, 12), '0.300396', 'ST迪瑞')
+    ).toBe('涨停')
+    expect(
+      stockTrackingPriceVolumeStateLabel(metricSnapshotFromPrices(10, 13), '0.830001', '北交示例')
+    ).toBe('涨停')
+    expect(
+      stockTrackingPriceVolumeStateLabel(metricSnapshotFromPrices(10, 11), '105.AAPL', 'Apple')
+    ).toBe('大涨')
   })
 
   it('stores long-shadow and continuous Bollinger signals in daily snapshots', () => {

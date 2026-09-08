@@ -259,8 +259,8 @@ export default function App() {
 
   const handleStockSelectionPositioned = useCallback((request: StockSelectionRequest) => {
     setStockSelectionRequest((current) => (current?.id === request.id ? null : current))
-    setSelectedQuoteId(request.quoteId)
     if (!request.detailTarget) return
+    setSelectedQuoteId(request.quoteId)
     setDetailNavigationRequest({
       id: request.id,
       quoteId: request.quoteId,
@@ -643,7 +643,17 @@ export default function App() {
           : [...state.watchlist, nextStock],
         stockTrackingProfiles: nextTrackingProfiles
       }
-      setSelectedQuoteId(result.quoteId)
+      if (existing) {
+        setSelectedQuoteId(result.quoteId)
+      } else {
+        setSelectedQuoteId(null)
+        setDetailNavigationRequest(null)
+        setStockSelectionRequest({
+          id: `stock-add:${result.quoteId}:${Date.now()}`,
+          quoteId: result.quoteId,
+          scrollAlignment: 'sticky-top'
+        })
+      }
       void persist(nextState, false)
         .then(async (saved) => {
           if (!saved || existing) return

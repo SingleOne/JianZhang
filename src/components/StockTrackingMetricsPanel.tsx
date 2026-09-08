@@ -3,10 +3,10 @@ import { lazy, Suspense, useState } from 'react'
 import { formatAmount, formatPercent, formatPrice, formatVolume } from '../lib/format'
 import {
   STOCK_TRACKING_BASE_METRICS,
-  STOCK_TRACKING_PRICE_VOLUME_STATE_LABELS,
   STOCK_TRACKING_VOLUME_RATIO_METRICS,
   latestStockTrackingMetric,
   stockTrackingPriceVolumeState,
+  stockTrackingPriceVolumeStateLabel,
   stockTrackingTechnicalPatternSignals
 } from '../lib/stock-tracking-metrics'
 import { TECHNICAL_PATTERN_SIGNAL_LABELS } from '../shared/technical-patterns'
@@ -31,6 +31,8 @@ type TrackingChart = 'priceVolume' | 'volumeRatio' | 'realtimeVolumeRatio' | 'da
 interface StockTrackingMetricsPanelProps {
   snapshots: StockTrackingMetricSnapshot[]
   market: StockMarket
+  quoteId: string
+  stockName: string
   marketData?: StockTrackingMarketData
   showDailyKline?: boolean
   trackingStartedAt?: string
@@ -69,6 +71,8 @@ function dailyChangePercent(bars: readonly KlineBar[], bar: KlineBar | undefined
 export function StockTrackingMetricsPanel({
   snapshots,
   market,
+  quoteId,
+  stockName,
   marketData,
   showDailyKline = false,
   trackingStartedAt,
@@ -84,6 +88,11 @@ export function StockTrackingMetricsPanel({
   const latestSnapshot = snapshots.at(-1)
   const latestDate = latestSnapshot?.tradingDate
   const priceVolumeState = stockTrackingPriceVolumeState(latestSnapshot)
+  const priceVolumeStateLabel = stockTrackingPriceVolumeStateLabel(
+    latestSnapshot,
+    quoteId,
+    stockName
+  )
   const technicalPatternSignals = stockTrackingTechnicalPatternSignals(latestSnapshot)
   const latestChange = latestSnapshot?.metrics[STOCK_TRACKING_BASE_METRICS.changePercent]
   const hasPriceVolumeData = snapshots.some(
@@ -104,7 +113,7 @@ export function StockTrackingMetricsPanel({
       <div className="stock-tracking-metric-cards">
         <article className={`is-state-${priceVolumeState}`}>
           <small>当前量价状态</small>
-          <strong>{STOCK_TRACKING_PRICE_VOLUME_STATE_LABELS[priceVolumeState]}</strong>
+          <strong>{priceVolumeStateLabel}</strong>
           {technicalPatternSignals.length > 0 ? (
             <div className="stock-tracking-current-pattern-tags">
               {technicalPatternSignals.map((signal) => (
@@ -269,7 +278,12 @@ export function StockTrackingMetricsPanel({
           </div>
         ) : activeChart === 'priceVolume' ? (
           hasPriceVolumeData ? (
-            <StockTrackingPriceVolumeChart snapshots={snapshots} market={market} />
+            <StockTrackingPriceVolumeChart
+              snapshots={snapshots}
+              market={market}
+              quoteId={quoteId}
+              stockName={stockName}
+            />
           ) : (
             <div className="stock-tracking-metrics-empty">正在补齐量价历史数据…</div>
           )

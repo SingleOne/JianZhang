@@ -39,8 +39,8 @@ export function TPlanTable({
       ? '目标买入后的T仓仓位与成本'
       : '目标卖出后的反T仓位与成本'
     : isBuy
-      ? '目标跌幅 -1% 至 -5%'
-      : '目标涨幅 +1% 至 +5%'
+      ? '目标跌幅'
+      : '目标涨幅'
 
   return (
     <section

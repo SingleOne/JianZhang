@@ -2129,7 +2129,7 @@
 
 .watchlist-stock-group.is-expanded .detail-tabs {
   position: sticky;
-  top: 60px;
+  top: calc(var(--watchlist-table-header-height) + 60px);
   z-index: 11;
   margin-top: -14px;
   padding-top: 14px;

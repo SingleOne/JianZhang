@@ -9,6 +9,7 @@ import {
   calculateBollingerBandwidthTrends,
   candlestickShadowSignals
 } from '../shared/technical-patterns'
+import { exchangeFromQuoteId, marketFromQuoteId } from '../shared/stock-market'
 
 export const STOCK_TRACKING_BASE_METRICS = {
   close: 'close',
@@ -62,20 +63,31 @@ export type StockTrackingPriceVolumeState =
   | 'volumeFallPriceRise'
   | 'volumeRisePriceFall'
   | 'volumeFallPriceFall'
+  | 'priceRise'
+  | 'priceFall'
   | 'neutral'
 export type StockTrackingPriceVolumeDivergence = 'priceRiseVolumeFall' | 'priceFallVolumeRise'
+export type StockTrackingPriceMovement =
+  | 'limitUp'
+  | 'strongRise'
+  | 'rise'
+  | 'slightRise'
+  | 'flat'
+  | 'slightFall'
+  | 'fall'
+  | 'strongFall'
+  | 'limitDown'
 
-export const STOCK_TRACKING_PRICE_VOLUME_STATE_LABELS: Record<
-  StockTrackingPriceVolumeState,
-  string
-> = {
-  volumeSurgePriceRise: '放量大涨',
-  volumeSurgePriceFall: '放量大跌',
-  volumeRisePriceRise: '放量上涨',
-  volumeFallPriceRise: '缩量上涨',
-  volumeRisePriceFall: '放量下跌',
-  volumeFallPriceFall: '缩量下跌',
-  neutral: '量价平稳'
+export const STOCK_TRACKING_PRICE_MOVEMENT_LABELS: Record<StockTrackingPriceMovement, string> = {
+  limitUp: '涨停',
+  strongRise: '大涨',
+  rise: '上涨',
+  slightRise: '微涨',
+  flat: '平盘',
+  slightFall: '微跌',
+  fall: '下跌',
+  strongFall: '大跌',
+  limitDown: '跌停'
 }
 
 export const STOCK_TRACKING_PRICE_VOLUME_DIVERGENCE_LABELS: Record<
@@ -92,6 +104,7 @@ const METRIC_PERIODS = Object.keys(STOCK_TRACKING_VOLUME_RATIO_METRICS).map(
 const EXPANDED_VOLUME_RATIO = 1.2
 const CONTRACTED_VOLUME_RATIO = 0.8
 const LARGE_PRICE_CHANGE_PERCENT = 5
+const NORMAL_PRICE_CHANGE_PERCENT = 2
 
 export interface RealtimeVolumeRatioPoint {
   time: string
@@ -283,20 +296,106 @@ export function stockTrackingPriceVolumeState(
   if (!snapshot) return 'neutral'
   const changePercent = snapshot.metrics[STOCK_TRACKING_BASE_METRICS.changePercent]
   const volumeRatio = snapshot.metrics[STOCK_TRACKING_VOLUME_RATIO_METRICS[5]]
-  if (changePercent === undefined || volumeRatio === undefined || changePercent === 0) {
-    return 'neutral'
-  }
-  if (changePercent > LARGE_PRICE_CHANGE_PERCENT && volumeRatio >= EXPANDED_VOLUME_RATIO) {
+  if (changePercent === undefined || changePercent === 0) return 'neutral'
+  if (
+    changePercent >= LARGE_PRICE_CHANGE_PERCENT &&
+    volumeRatio !== undefined &&
+    volumeRatio >= EXPANDED_VOLUME_RATIO
+  ) {
     return 'volumeSurgePriceRise'
   }
-  if (changePercent < -LARGE_PRICE_CHANGE_PERCENT && volumeRatio >= EXPANDED_VOLUME_RATIO) {
+  if (
+    changePercent <= -LARGE_PRICE_CHANGE_PERCENT &&
+    volumeRatio !== undefined &&
+    volumeRatio >= EXPANDED_VOLUME_RATIO
+  ) {
     return 'volumeSurgePriceFall'
   }
-  if (changePercent > 0 && volumeRatio >= EXPANDED_VOLUME_RATIO) return 'volumeRisePriceRise'
-  if (changePercent > 0 && volumeRatio <= CONTRACTED_VOLUME_RATIO) return 'volumeFallPriceRise'
-  if (changePercent < 0 && volumeRatio >= EXPANDED_VOLUME_RATIO) return 'volumeRisePriceFall'
-  if (changePercent < 0 && volumeRatio <= CONTRACTED_VOLUME_RATIO) return 'volumeFallPriceFall'
-  return 'neutral'
+  if (changePercent > 0 && volumeRatio !== undefined && volumeRatio >= EXPANDED_VOLUME_RATIO) {
+    return 'volumeRisePriceRise'
+  }
+  if (changePercent > 0 && volumeRatio !== undefined && volumeRatio <= CONTRACTED_VOLUME_RATIO) {
+    return 'volumeFallPriceRise'
+  }
+  if (changePercent < 0 && volumeRatio !== undefined && volumeRatio >= EXPANDED_VOLUME_RATIO) {
+    return 'volumeRisePriceFall'
+  }
+  if (changePercent < 0 && volumeRatio !== undefined && volumeRatio <= CONTRACTED_VOLUME_RATIO) {
+    return 'volumeFallPriceFall'
+  }
+  return changePercent > 0 ? 'priceRise' : 'priceFall'
+}
+
+function aStockPriceLimitPercent(quoteId: string, stockName: string): number | null {
+  if (!quoteId || marketFromQuoteId(quoteId) !== 'CN') return null
+  if (exchangeFromQuoteId(quoteId) === 'BSE') return 30
+  const code = quoteId.split('.')[1] ?? ''
+  if (/^(300|301|688|689)/.test(code)) return 20
+  return /^(?:S\*?ST|\*?ST)/i.test(stockName) ? 5 : 10
+}
+
+function isPriceLimit(
+  snapshot: StockTrackingMetricSnapshot,
+  quoteId: string,
+  stockName: string,
+  direction: 1 | -1
+): boolean {
+  const limitPercent = aStockPriceLimitPercent(quoteId, stockName)
+  const close = snapshot.metrics[STOCK_TRACKING_BASE_METRICS.close]
+  const changePercent = snapshot.metrics[STOCK_TRACKING_BASE_METRICS.changePercent]
+  if (
+    limitPercent === null ||
+    close === undefined ||
+    changePercent === undefined ||
+    Math.sign(changePercent) !== direction
+  ) {
+    return false
+  }
+  const changeRatio = 1 + changePercent / 100
+  if (changeRatio <= 0) return false
+  const previousClose = close / changeRatio
+  const limitPrice =
+    Math.round((previousClose * (1 + (direction * limitPercent) / 100) + Number.EPSILON) * 100) /
+    100
+  return Math.abs(close - limitPrice) < 0.005
+}
+
+export function stockTrackingPriceMovement(
+  snapshot: StockTrackingMetricSnapshot | undefined,
+  quoteId = '',
+  stockName = ''
+): StockTrackingPriceMovement {
+  if (!snapshot) return 'flat'
+  const changePercent = snapshot.metrics[STOCK_TRACKING_BASE_METRICS.changePercent]
+  if (changePercent === undefined || changePercent === 0) return 'flat'
+  if (isPriceLimit(snapshot, quoteId, stockName, changePercent > 0 ? 1 : -1)) {
+    return changePercent > 0 ? 'limitUp' : 'limitDown'
+  }
+  const absoluteChange = Math.abs(changePercent)
+  if (absoluteChange >= LARGE_PRICE_CHANGE_PERCENT) {
+    return changePercent > 0 ? 'strongRise' : 'strongFall'
+  }
+  if (absoluteChange >= NORMAL_PRICE_CHANGE_PERCENT) {
+    return changePercent > 0 ? 'rise' : 'fall'
+  }
+  return changePercent > 0 ? 'slightRise' : 'slightFall'
+}
+
+export function stockTrackingPriceVolumeStateLabel(
+  snapshot: StockTrackingMetricSnapshot | undefined,
+  quoteId = '',
+  stockName = ''
+): string {
+  const state = stockTrackingPriceVolumeState(snapshot)
+  const movement = stockTrackingPriceMovement(snapshot, quoteId, stockName)
+  if (movement === 'flat') return '量价平稳'
+  const volumePrefix =
+    state.startsWith('volumeRise') || state.startsWith('volumeSurge')
+      ? '放量'
+      : state.startsWith('volumeFall')
+        ? '缩量'
+        : ''
+  return `${volumePrefix}${STOCK_TRACKING_PRICE_MOVEMENT_LABELS[movement]}`
 }
 
 export function stockTrackingPriceVolumeDivergence(

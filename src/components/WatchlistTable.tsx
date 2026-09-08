@@ -969,16 +969,12 @@ export function WatchlistTable({
 
     resetFilters()
     const frameId = window.requestAnimationFrame(() =>
-      scrollToStock(
-        stockSelectionRequest.quoteId,
-        'sticky-top',
-        stockSelectionRequest.detailTarget
-          ? () => {
-              positionedDetailRequestIdRef.current = stockSelectionRequest.id
-              onStockSelectionPositioned(stockSelectionRequest)
-            }
-          : undefined
-      )
+      scrollToStock(stockSelectionRequest.quoteId, 'sticky-top', () => {
+        if (stockSelectionRequest.detailTarget) {
+          positionedDetailRequestIdRef.current = stockSelectionRequest.id
+        }
+        onStockSelectionPositioned(stockSelectionRequest)
+      })
     )
     return () => window.cancelAnimationFrame(frameId)
   }, [onStockSelectionPositioned, resetFilters, scrollToStock, stockSelectionRequest])

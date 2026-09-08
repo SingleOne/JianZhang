@@ -265,12 +265,12 @@ export function TaskbarStockTooltip() {
           <span className="taskbar-tooltip-identity">
             <strong>{stock?.name ?? quote?.name ?? '--'}</strong>
             <span>{stock?.code ?? quote?.code ?? '--'}</span>
+            <span className="taskbar-tooltip-market">{stock?.marketLabel ?? '实时行情'}</span>
           </span>
           <span className="taskbar-tooltip-header-meta">
             <span className="taskbar-tooltip-update-time">
               {formatUpdateTime(quote?.dataAt ?? quote?.updatedAt)}
             </span>
-            <span className="taskbar-tooltip-market">{stock?.marketLabel ?? '实时行情'}</span>
           </span>
         </header>
 

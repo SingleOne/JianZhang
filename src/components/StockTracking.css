@@ -410,6 +410,11 @@
   background: rgba(220, 55, 66, 0.06);
 }
 
+.stock-tracking-metric-cards article.is-state-priceRise {
+  border-color: rgba(220, 55, 66, 0.24);
+  background: rgba(220, 55, 66, 0.04);
+}
+
 .stock-tracking-metric-cards article.is-state-volumeSurgePriceRise {
   border-color: rgba(168, 15, 30, 0.42);
   background: rgba(168, 15, 30, 0.09);
@@ -432,6 +437,11 @@
 .stock-tracking-metric-cards article.is-state-volumeRisePriceFall {
   border-color: rgba(24, 146, 102, 0.32);
   background: rgba(24, 146, 102, 0.06);
+}
+
+.stock-tracking-metric-cards article.is-state-priceFall {
+  border-color: rgba(24, 146, 102, 0.24);
+  background: rgba(24, 146, 102, 0.04);
 }
 
 .stock-tracking-metric-cards article.is-state-volumeFallPriceRise {
@@ -616,6 +626,11 @@
   color: #b4232e;
 }
 
+.stock-tracking-price-volume-tags em.is-priceRise {
+  background: rgba(220, 55, 66, 0.08);
+  color: #b4232e;
+}
+
 .stock-tracking-price-volume-tags em.is-volumeSurgePriceRise {
   background: rgba(168, 15, 30, 0.13);
   color: #8c1020;
@@ -628,6 +643,11 @@
 
 .stock-tracking-price-volume-tags em.is-volumeRisePriceFall {
   background: rgba(24, 146, 102, 0.1);
+  color: #11734f;
+}
+
+.stock-tracking-price-volume-tags em.is-priceFall {
+  background: rgba(24, 146, 102, 0.08);
   color: #11734f;
 }
 

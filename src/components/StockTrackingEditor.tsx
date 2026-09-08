@@ -316,6 +316,8 @@ export function StockTrackingEditor({
       <StockTrackingMetricsPanel
         snapshots={profile.metricSnapshots}
         market={marketFromQuoteId(profile.quoteId)}
+        quoteId={profile.quoteId}
+        stockName={profile.name}
         marketData={marketData}
         showDailyKline={showDailyKline}
         trackingStartedAt={profile.startedAt}
