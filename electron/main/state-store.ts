@@ -181,6 +181,15 @@ function stateWithoutRevision(state: AppState): Omit<AppState, 'revision'> {
   return rest
 }
 
+function serializeStateSemantics(state: AppState): string {
+  return JSON.stringify(stateWithoutRevision(state), (_key, value: unknown) => {
+    if (!isObject(value)) return value
+    return Object.fromEntries(
+      Object.entries(value).sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
+    )
+  })
+}
+
 export class StateStore {
   private readonly legacyStatePath: string
   private readonly legacyLastGoodPath: string
@@ -640,14 +649,14 @@ export class StateStore {
   private migrateLegacyState(): StateStoreLoadResult {
     const legacy = this.loadLegacyState()
     const normalized = legacy.state
-    const expected = JSON.stringify(stateWithoutRevision(normalized))
+    const expected = serializeStateSemantics(normalized)
     this.revision = normalized.revision ?? 0
     this.currentManifest = null
     this.loadedManifestContent = null
     this.save(normalized)
 
     const migrated = this.readManifestState(this.manifestPath)
-    const actual = JSON.stringify(stateWithoutRevision(this.normalizeLoadedState(migrated.state)))
+    const actual = serializeStateSemantics(this.normalizeLoadedState(migrated.state))
     if (actual !== expected) {
       rmSync(this.manifestPath, { force: true })
       rmSync(this.lastGoodManifestPath, { force: true })

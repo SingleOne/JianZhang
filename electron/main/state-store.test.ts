@@ -126,13 +126,32 @@ describe('StateStore', () => {
   })
 
   it('migrates a legacy settings.json once and keeps recognizable legacy copies', () => {
-    write(directory, STATE_FILE_NAME, JSON.stringify({ ...makeState('旧配置'), revision: 12 }))
+    const laterQuoteIdProfile = makeTrackingProfile()
+    const earlierQuoteIdProfile = {
+      ...makeTrackingProfile(),
+      quoteId: '0.000001',
+      code: '000001',
+      name: '平安银行'
+    }
+    write(
+      directory,
+      STATE_FILE_NAME,
+      JSON.stringify({
+        ...makeState('旧配置'),
+        revision: 12,
+        stockTrackingProfiles: {
+          [laterQuoteIdProfile.quoteId]: laterQuoteIdProfile,
+          [earlierQuoteIdProfile.quoteId]: earlierQuoteIdProfile
+        }
+      })
+    )
     write(directory, 'settings.last-good.json', JSON.stringify(makeState('旧备份')))
 
     const result = new StateStore(directory, makeState()).load()
 
     expect(result.state.revision).toBe(13)
     expect(result.state.watchlist[0].name).toBe('旧配置')
+    expect(Object.keys(result.state.stockTrackingProfiles)).toEqual(['1.600000', '0.000001'])
     expect(existsSync(statePath(directory, STATE_MANIFEST_FILE_NAME))).toBe(true)
     expect(existsSync(join(directory, LEGACY_STATE_FILE_NAME))).toBe(true)
     expect(existsSync(join(directory, LEGACY_LAST_GOOD_STATE_FILE_NAME))).toBe(true)
