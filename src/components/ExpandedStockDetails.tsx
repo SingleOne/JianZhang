@@ -15,6 +15,7 @@ import {
   Database,
   GraduationCap,
   Info,
+  Landmark,
   Layers,
   Radar,
   RefreshCw,
@@ -716,9 +717,15 @@ function ValuationApplicabilityPanel({
           </div>
         ) : null}
       </div>
-      <StrictFcffPanel summary={summary} company={company} />
-      <StrictDcfPanel summary={summary} />
-      <DcfPanel result={summary.dcf} />
+      {summary.financialValuation ? (
+        <FinancialValuationPanel summary={summary} />
+      ) : (
+        <>
+          <StrictFcffPanel summary={summary} company={company} />
+          <StrictDcfPanel summary={summary} />
+          <DcfPanel result={summary.dcf} />
+        </>
+      )}
       <InvestmentValueMetrics
         quoteId={quoteId}
         quote={quote}
@@ -929,6 +936,52 @@ function StrictDcfPanel({ summary }: { summary: FundamentalValuationSummary }) {
           <footer>{analysis.warnings.join('；')}</footer>
         </>
       )}
+    </section>
+  )
+}
+
+function FinancialValuationPanel({ summary }: { summary: FundamentalValuationSummary }) {
+  const analysis = summary.financialValuation
+  if (!analysis) return null
+  return (
+    <section className="fundamental-financial-valuation">
+      <header>
+        <span>
+          <Landmark size={17} />
+          <strong>{analysis.framework}</strong>
+        </span>
+        <em>专用数据未完整接入</em>
+      </header>
+      <div className="fundamental-financial-facts">
+        {analysis.facts.map((fact) => (
+          <article key={fact.id}>
+            <span>{fact.label}</span>
+            <strong className={fact.unit === 'percent' ? signedValueClass(fact.value ?? 0) : undefined}>
+              {fact.unit === 'percent'
+                ? fundamentalPercent(fact.value)
+                : fundamentalMultiple(fact.value)}
+            </strong>
+            <small>
+              {fact.role === 'primary' ? '主要事实' : fact.role === 'secondary' ? '辅助事实' : '信息'} ·{' '}
+              {fact.dataDate} · {fact.source}
+            </small>
+          </article>
+        ))}
+      </div>
+      <div className="fundamental-financial-required">
+        <strong>完整结论仍需以下专用指标</strong>
+        <div>
+          {analysis.requiredMetrics.map((metric) => (
+            <span key={metric.id} title={metric.reason}>
+              {metric.label} · 未接入
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="fundamental-financial-status">
+        结论：数据不足 · 可信度：不可用。专用指标完整接入前不输出完整金融估值结论。
+      </div>
+      <footer>{analysis.warnings.join('；')}</footer>
     </section>
   )
 }

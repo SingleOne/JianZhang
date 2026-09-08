@@ -6,6 +6,10 @@ import type {
 import { createDcfAnalysis, type DcfAnalysisResult } from './dcf-analysis'
 import { createFcffAnalysis } from './fcff-analysis'
 import {
+  createFinancialValuationAnalysis,
+  type FinancialValuationAnalysis
+} from './financial-valuation'
+import {
   STRICT_DCF_MODEL_VERSION,
   createStrictDcfAnalysis,
   type StrictDcfAnalysisResult
@@ -43,6 +47,7 @@ export interface FundamentalValuationSummary {
   profile: FundamentalValuationProfile
   fcff: FundamentalFcffCoverage
   strictDcf: StrictDcfAnalysisResult
+  financialValuation: FinancialValuationAnalysis | null
   dcf: DcfAnalysisResult
   dataDate: string
   modelVersion: 'simplified-fcf-dcf-v1'
@@ -157,6 +162,13 @@ function cashFlowProfile(company: FundamentalCompany): {
 }
 
 function financialProfile(company: FundamentalCompany): FundamentalValuationProfile {
+  const pbAvailability: ValuationAvailability =
+    company.valuation?.priceBookRatio === null || company.valuation?.priceBookRatio === undefined
+      ? 'insufficient-data'
+      : 'available'
+  const latestRoe = company.annualReports.at(-1)?.weightedAverageRoe
+  const roeAvailability: ValuationAvailability =
+    latestRoe === null || latestRoe === undefined ? 'insufficient-data' : 'available'
   const shared = {
     organizationType: company.organizationType,
     organizationLabel: ORGANIZATION_LABELS[company.organizationType],
@@ -168,17 +180,23 @@ function financialProfile(company: FundamentalCompany): FundamentalValuationProf
   if (company.organizationType === 'bank') {
     return {
       ...shared,
-      primaryModel: 'PB−ROE 框架',
+      primaryModel: 'PB−ROE 与资产质量框架',
       recommendedMetrics: ['PB', 'ROE', '净息差', '不良率', '拨备覆盖率', '资本充足率'],
       metricGuidance: [
         {
           id: 'pb',
           label: 'PB',
           role: 'primary',
-          availability: 'available',
+          availability: pbAvailability,
           note: '结合 ROE 判断'
         },
-        { id: 'roe', label: 'ROE', role: 'primary', availability: 'available', note: '观察持续性' },
+        {
+          id: 'roe',
+          label: 'ROE',
+          role: 'primary',
+          availability: roeAvailability,
+          note: '观察持续性'
+        },
         {
           id: 'bank-special',
           label: '银行专用指标',
@@ -192,21 +210,21 @@ function financialProfile(company: FundamentalCompany): FundamentalValuationProf
   if (company.organizationType === 'insurance') {
     return {
       ...shared,
-      primaryModel: 'P/EV 与 ROE 框架',
+      primaryModel: 'P/EV 与新业务价值框架',
       recommendedMetrics: ['P/EV', 'ROE', '新业务价值', '偿付能力', '综合成本率'],
       metricGuidance: [
         {
           id: 'pb',
           label: 'PB',
           role: 'secondary',
-          availability: 'available',
+          availability: pbAvailability,
           note: '仅作交叉验证'
         },
         {
           id: 'roe',
           label: 'ROE',
           role: 'secondary',
-          availability: 'available',
+          availability: roeAvailability,
           note: '观察持续性'
         },
         {
@@ -221,21 +239,21 @@ function financialProfile(company: FundamentalCompany): FundamentalValuationProf
   }
   return {
     ...shared,
-    primaryModel: 'PB−ROE 与净资本框架',
+    primaryModel: 'PB−ROE、净资本与周期框架',
     recommendedMetrics: ['PB', 'ROE', '净资本', '杠杆', '业务收入结构'],
     metricGuidance: [
       {
         id: 'pb',
         label: 'PB',
         role: 'primary',
-        availability: 'available',
+        availability: pbAvailability,
         note: '结合周期位置判断'
       },
       {
         id: 'roe',
         label: 'ROE',
         role: 'primary',
-        availability: 'available',
+        availability: roeAvailability,
         note: '观察跨周期水平'
       },
       {
@@ -329,6 +347,7 @@ export function createFundamentalValuationSummary(
   const fcff = createFcffAnalysis(company, profile.tags.includes('cyclical') ? 5 : 3)
   const dcf = createDcfAnalysis(company, currentPrice)
   const strictDcf = createStrictDcfAnalysis(company, currentPrice, profile.tags, fcff)
+  const financialValuation = createFinancialValuationAnalysis(company)
   const dcfAvailability: ValuationAvailability = dcf.analysis
     ? 'available'
     : dcf.unavailableReason === 'not-applicable'
@@ -395,6 +414,7 @@ export function createFundamentalValuationSummary(
     },
     fcff,
     strictDcf,
+    financialValuation,
     dcf,
     dataDate: company.annualReports.at(-1)?.reportDate ?? company.latestBalanceSheet.reportDate,
     modelVersion: 'simplified-fcf-dcf-v1',

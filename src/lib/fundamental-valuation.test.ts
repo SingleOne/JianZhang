@@ -51,7 +51,7 @@ describe('fundamental valuation profile', () => {
   it('uses financial-company specific guidance instead of ordinary FCFF', () => {
     const profile = createFundamentalValuationProfile(company('bank'))
 
-    expect(profile.primaryModel).toBe('PB−ROE 框架')
+    expect(profile.primaryModel).toBe('PB−ROE 与资产质量框架')
     expect(profile.unavailableMetrics).toContain('普通企业 FCFF')
     expect(profile.metricGuidance).toContainEqual(
       expect.objectContaining({ id: 'bank-special', availability: 'insufficient-data' })

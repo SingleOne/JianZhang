@@ -900,6 +900,116 @@
   font-style: normal;
 }
 
+.fundamental-financial-valuation {
+  overflow: hidden;
+  margin: 0 10px;
+  background: #ffffff;
+  border: 1px solid #d9e1ec;
+  border-radius: 8px;
+}
+
+.fundamental-financial-valuation > header {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  background: #f5f7fa;
+  border-bottom: 1px solid #e1e7f0;
+}
+
+.fundamental-financial-valuation > header > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #3568a9;
+}
+
+.fundamental-financial-valuation > header strong {
+  color: #34445a;
+  font-size: 13px;
+}
+
+.fundamental-financial-valuation > header em {
+  padding: 3px 7px;
+  color: #8a5a00;
+  background: #fff5dc;
+  border-radius: 999px;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.fundamental-financial-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px;
+}
+
+.fundamental-financial-facts article {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  padding: 9px;
+  background: #f8fafc;
+  border: 1px solid #e1e7f0;
+  border-radius: 8px;
+}
+
+.fundamental-financial-facts span,
+.fundamental-financial-facts small {
+  color: #748399;
+  font-size: 12px;
+}
+
+.fundamental-financial-facts strong {
+  color: #34445a;
+  font-size: 15px;
+}
+
+.fundamental-financial-required {
+  display: grid;
+  gap: 7px;
+  margin: 0 10px 9px;
+  padding: 9px;
+  background: #fffaf0;
+  border: 1px solid #ecd9ac;
+  border-radius: 7px;
+}
+
+.fundamental-financial-required > strong {
+  color: #6f5422;
+  font-size: 12px;
+}
+
+.fundamental-financial-required > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fundamental-financial-required span {
+  padding: 3px 7px;
+  color: #875000;
+  background: #fff1d2;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.fundamental-financial-valuation > footer {
+  padding: 0 10px 9px;
+  color: #7b899c;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.fundamental-financial-status {
+  margin: 0 10px 8px;
+  color: #68778b;
+  font-size: 12px;
+}
+
 .fundamental-detail-conclusion-card {
   display: flex;
   align-items: center;

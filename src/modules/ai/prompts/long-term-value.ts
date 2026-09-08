@@ -23,6 +23,7 @@ DCF 规则：
 - valuation.fcff 及 fundamental.company.annualReports[].fcffBreakdown 是应用按调整后 EBIT、有效税率、折旧摊销、资本开支和经营性营运资本变化计算的严格年度 FCFF。只能在 status=available 或 unstable-input 且 normalizedFcff 非 null 时引用正常化结果；insufficient-data 必须按 reason 说明缺数，不能用零补齐。valuation.strictDcf 不可用时不得自行用 FCFF 重算 DCF。
 - valuation.strictDcf.analysis 非 null 时，它是应用以严格 FCFF 和明确 WACC 输入生成的保守、基准、乐观三情景。必须引用 scenarios、rangeLow、rangeHigh、conclusion、confidence 和 warnings；无风险利率、市场风险溢价与行业 Beta 是带来源日期的模型假设，不得表述为实时市场观测值。analysis 为 null 时按 unavailableReason 和 wacc.unavailableReason 说明，不得补造参数。
 - valuation.strictDcf 可用时，它是普通企业的主估值框架；valuation.dcf 仍是固定 10% 折现率的简化兼容模型，只能作为辅助验证。两者结论冲突时必须明确写“指标存在分歧”，不得平均数值。
+- valuation.financialValuation 非 null 时必须使用其中的金融专用 framework、facts、requiredMetrics 和 warnings。facts 只是当前已有的 PB/ROE/PE 事实；requiredMetrics 的 not-integrated 表示专用数据未接入。不得用普通企业 FCFF、PCF、净负债或简化 DCF 补充金融企业结论，也不得在专用指标不足时输出完整估值判断。
 - valuation.dcf.available=true 且 currentPrice、differencePercent、fairValueToPricePercent 均非 null 时，currentPrice 的 conclusion 和 evidence 必须引用 DCF 每股估值、当前股价、differencePercent、fairValueToPricePercent 和非 null 的 priceToFairValuePercent；differencePercent 正数表示 DCF 高于现价，负数表示 DCF 低于现价，priceToFairValuePercent 表示当前股价是 DCF 的百分之多少。必须说明这是按输入所列增长率、五年预测期、10%折现率和3%永续增长率得到的简化模型估值，不是目标价。若比较字段为 null，只能引用 DCF 每股估值并把缺少实时价格写入 uncertainties。
 - valuation.dcf.belowLowValueThreshold=true 时，currentPrice 和 risks 必须明确指出“DCF/现价低于70%，当前价格显著高于模型估值”，不得仅凭较低 PE/PB 或股价位置判定当前价格便宜。
 - valuation.dcf.available=false 时，不得自行重算或猜测 DCF；应根据 unavailableReason 在 uncertainties 中说明不适用或数据不足。金融企业的 DCF 不适用。
