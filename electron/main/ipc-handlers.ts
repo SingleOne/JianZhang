@@ -45,6 +45,7 @@ import type {
   FundamentalChangeReport,
   FundamentalOverview,
   FundamentalSnapshot,
+  FundamentalStockUpdateResult,
   FundamentalUpdateResult,
   GlobalFundamentalSnapshot,
   FundsFlowResult,
@@ -99,6 +100,7 @@ interface IpcHandlerDependencies {
   getFundamentalState: () => DataSnapshotRuntimeState
   getFundamentalChangeReport: () => FundamentalChangeReport | null
   runFundamentalUpdate: () => Promise<FundamentalUpdateResult>
+  runFundamentalStockUpdate: (code: string) => Promise<FundamentalStockUpdateResult>
   getCompanyReports: (
     quoteId: string,
     forceRefresh?: boolean
@@ -212,6 +214,7 @@ const CHANNELS = [
   'fundamentals:state:get',
   'fundamentals:changes:get',
   'fundamentals:update',
+  'fundamentals:stock:update',
   'global-fundamentals:get',
   'company-reports:get',
   'company-reports:summary:generate',
@@ -313,6 +316,9 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
   ipcMain.handle('fundamentals:state:get', () => dependencies.getFundamentalState())
   ipcMain.handle('fundamentals:changes:get', () => dependencies.getFundamentalChangeReport())
   ipcMain.handle('fundamentals:update', () => dependencies.runFundamentalUpdate())
+  ipcMain.handle('fundamentals:stock:update', (_event, code: string) =>
+    dependencies.runFundamentalStockUpdate(code)
+  )
   ipcMain.handle('company-reports:get', (_event, quoteId: string, forceRefresh?: boolean) =>
     dependencies.getCompanyReports(quoteId, forceRefresh)
   )

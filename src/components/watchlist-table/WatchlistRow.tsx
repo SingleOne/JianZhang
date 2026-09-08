@@ -19,6 +19,7 @@ import {
   formatSigned,
   formatShares
 } from '../../lib/format'
+import { fundamentalCompanyStaleReason } from '../../lib/data-snapshot-status'
 import { isStockQuoteExpired, STOCK_QUOTE_SOURCE_LABELS } from '../../lib/quote-state'
 import {
   currentDateKey,
@@ -49,6 +50,7 @@ import type {
   DailyKlineIndicator,
   DividendFinancingRankingItem,
   ExchangeRateSettings,
+  FundamentalSnapshot,
   StockQuote,
   StockPosition,
   StockTrackingConclusionResult,
@@ -125,6 +127,7 @@ interface WatchlistRowProps {
   fundamentalPeerComparison: FundamentalPeerComparison | undefined
   fundamentalSnapshotDate: string | undefined
   fundamentalGeneratedAt: string | undefined
+  fundamentalSnapshotSchemaVersion: FundamentalSnapshot['schemaVersion'] | undefined
   fundamentalStaleReason: string | null | undefined
   tradingAccount: TTradingAccount | undefined
   corporateActionRecords: CorporateActionRecords
@@ -191,6 +194,7 @@ export const WatchlistRow = memo(function WatchlistRow({
   fundamentalPeerComparison,
   fundamentalSnapshotDate,
   fundamentalGeneratedAt,
+  fundamentalSnapshotSchemaVersion,
   fundamentalStaleReason,
   tradingAccount,
   corporateActionRecords,
@@ -249,6 +253,18 @@ export const WatchlistRow = memo(function WatchlistRow({
   const [fundamentalTabRequested, setFundamentalTabRequested] = useState(false)
   const [trackingTabRequested, setTrackingTabRequested] = useState(false)
   const fundamentalSummary = summarizeFundamentalScreening(fundamentalScreening)
+  const companyFundamentalSnapshotDate =
+    fundamentalScreening?.company.dataSnapshotDate ?? fundamentalSnapshotDate
+  const companyFundamentalGeneratedAt =
+    fundamentalScreening?.company.dataGeneratedAt ?? fundamentalGeneratedAt
+  const companyFundamentalStaleReason =
+    fundamentalScreening && companyFundamentalGeneratedAt && fundamentalSnapshotSchemaVersion
+      ? fundamentalCompanyStaleReason(
+          fundamentalScreening.company,
+          fundamentalSnapshotSchemaVersion,
+          companyFundamentalGeneratedAt
+        )
+      : fundamentalStaleReason
   const fundamentalRisk = fundamentalScreening
     ? evaluateFundamentalRisk(fundamentalScreening.company)
     : null
@@ -634,7 +650,7 @@ export const WatchlistRow = memo(function WatchlistRow({
                         title={fundamentalBadgeTitle(
                           fundamentalScreening,
                           fundamentalSummary,
-                          fundamentalSnapshotDate
+                          companyFundamentalSnapshotDate
                         )}
                         aria-label={`打开${stock.name}基本面详情`}
                         onKeyDown={(event) => event.stopPropagation()}
@@ -817,9 +833,9 @@ export const WatchlistRow = memo(function WatchlistRow({
                   dividendFinancingSnapshotDate={dividendFinancingSnapshotDate}
                   fundamentalScreening={fundamentalScreening}
                   fundamentalPeerComparison={fundamentalPeerComparison}
-                  fundamentalSnapshotDate={fundamentalSnapshotDate}
-                  fundamentalGeneratedAt={fundamentalGeneratedAt}
-                  fundamentalStaleReason={fundamentalStaleReason}
+                  fundamentalSnapshotDate={companyFundamentalSnapshotDate}
+                  fundamentalGeneratedAt={companyFundamentalGeneratedAt}
+                  fundamentalStaleReason={companyFundamentalStaleReason}
                   fundamentalTabRequested={fundamentalTabRequested}
                   onFundamentalTabRequestHandled={() => setFundamentalTabRequested(false)}
                   trackingTabRequested={trackingTabRequested}

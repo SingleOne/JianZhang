@@ -1704,6 +1704,7 @@ export interface DataSnapshotRuntimeState {
 }
 
 export type FundamentalOrganizationType = 'general' | 'bank' | 'securities' | 'insurance' | 'other'
+export type FundamentalSnapshotSchemaVersion = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11
 
 export interface CompanyBusinessProfile {
   mainBusiness: string | null
@@ -1950,6 +1951,9 @@ export interface FundamentalCompany {
   organizationType: FundamentalOrganizationType
   industryCode: string
   industryName: string
+  dataSchemaVersion?: FundamentalSnapshotSchemaVersion
+  dataSnapshotDate?: string
+  dataGeneratedAt?: string
   businessProfile?: CompanyBusinessProfile
   fcffCoverage?: FundamentalFcffCoverage
   annualReports: FundamentalAnnualReport[]
@@ -1966,7 +1970,7 @@ export interface FundamentalIndustryBenchmark {
 }
 
 export interface FundamentalSnapshot {
-  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10
+  schemaVersion: FundamentalSnapshotSchemaVersion
   snapshotDate: string
   generatedAt: string
   currency: 'CNY'
@@ -2159,6 +2163,12 @@ export interface FundamentalUpdateResult {
   changeReport: FundamentalChangeReport | null
   snapshotPath: string
   diagnosticsPath: string
+}
+
+export interface FundamentalStockUpdateResult {
+  company: FundamentalCompany
+  snapshotDate: string
+  generatedAt: string
 }
 
 export const BUILT_IN_TRADING_CALENDAR_END_YEAR = BUILT_IN_MARKET_CALENDAR_END_YEARS.CN
@@ -2717,6 +2727,7 @@ export interface StockDesktopApi {
   getFundamentalState: () => Promise<DataSnapshotRuntimeState>
   getFundamentalChangeReport: () => Promise<FundamentalChangeReport | null>
   runFundamentalUpdate: () => Promise<FundamentalUpdateResult>
+  runFundamentalStockUpdate: (code: string) => Promise<FundamentalStockUpdateResult>
   getCompanyReports: (
     quoteId: string,
     forceRefresh?: boolean

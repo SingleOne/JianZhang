@@ -132,11 +132,24 @@ def request_page(params: dict) -> dict:
     raise RuntimeError(f"财务数据接口请求失败：{last_error}")
 
 
-def fetch_report(report_name: str, columns: str, report_date: str) -> list[dict]:
+def append_stock_filter(filter_expression: str, stock_code: str | None) -> str:
+    return (
+        f'{filter_expression}(SECURITY_CODE="{stock_code}")'
+        if stock_code
+        else filter_expression
+    )
+
+
+def fetch_report(
+    report_name: str,
+    columns: str,
+    report_date: str,
+    stock_code: str | None = None,
+) -> list[dict]:
     return fetch_filtered_report(
         report_name,
         columns,
-        f"(REPORT_DATE='{report_date}')",
+        append_stock_filter(f"(REPORT_DATE='{report_date}')", stock_code),
         "SECURITY_CODE",
     )
 
@@ -561,7 +574,7 @@ def is_active_company_name(name: str) -> bool:
     return "退市" not in name and not name.endswith("退")
 
 
-def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
+def generate(snapshot_date: str, years: int, stock_code: str | None = None) -> tuple[dict, dict]:
     snapshot_day = dt.date.fromisoformat(snapshot_date)
     annual_reports_complete = snapshot_day >= dt.date(snapshot_day.year, 5, 1)
     latest_year = snapshot_day.year - (1 if annual_reports_complete else 2)
@@ -579,7 +592,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         fetch_filtered_report(
             "RPT_F10_BASIC_ORGINFO",
             COMPANY_PROFILE_COLUMNS,
-            f'(SECURITY_TYPE_CODE="{A_SHARE_TYPE}")',
+            append_stock_filter(f'(SECURITY_TYPE_CODE="{A_SHARE_TYPE}")', stock_code),
             "SECURITY_CODE",
         )
     )
@@ -591,7 +604,12 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
     log(f"阶段一/五：获取 {fiscal_years[0]}—{fiscal_years[-1]} 年 ROE 与 ROIC")
     main_by_year: dict[int, dict[str, dict]] = {}
     for year in fiscal_years:
-        rows = fetch_report("RPT_F10_FINANCE_MAINFINADATA", MAIN_COLUMNS, annual_dates[year])
+        rows = fetch_report(
+            "RPT_F10_FINANCE_MAINFINADATA",
+            MAIN_COLUMNS,
+            annual_dates[year],
+            stock_code,
+        )
         main_by_year[year] = a_share_rows(rows)
         log(f"阶段一/五：{year} 年 ROE 已获取 {len(main_by_year[year]):,} 家")
 
@@ -603,19 +621,32 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
     for year in fiscal_years:
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
             income_future = pool.submit(
-                fetch_report, "RPT_DMSK_FN_INCOME", INCOME_COLUMNS, annual_dates[year]
+                fetch_report,
+                "RPT_DMSK_FN_INCOME",
+                INCOME_COLUMNS,
+                annual_dates[year],
+                stock_code,
             )
             cashflow_future = pool.submit(
-                fetch_report, "RPT_DMSK_FN_CASHFLOW", CASHFLOW_COLUMNS, annual_dates[year]
+                fetch_report,
+                "RPT_DMSK_FN_CASHFLOW",
+                CASHFLOW_COLUMNS,
+                annual_dates[year],
+                stock_code,
             )
             fcff_income_future = pool.submit(
-                fetch_report, "RPT_F10_FINANCE_GINCOME", FCFF_INCOME_COLUMNS, annual_dates[year]
+                fetch_report,
+                "RPT_F10_FINANCE_GINCOME",
+                FCFF_INCOME_COLUMNS,
+                annual_dates[year],
+                stock_code,
             )
             fcff_cashflow_future = pool.submit(
                 fetch_report,
                 "RPT_F10_FINANCE_GCASHFLOW",
                 FCFF_CASHFLOW_COLUMNS,
                 annual_dates[year],
+                stock_code,
             )
             income_by_year[year] = a_share_rows(income_future.result())
             cashflow_by_year[year] = a_share_rows(cashflow_future.result())
@@ -633,12 +664,14 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
             "RPT_F10_FINANCE_GINCOME",
             FCFF_INCOME_COLUMNS,
             f"{prior_year}-12-31",
+            stock_code,
         )
         prior_fcff_cashflow_future = pool.submit(
             fetch_report,
             "RPT_F10_FINANCE_GCASHFLOW",
             FCFF_CASHFLOW_COLUMNS,
             f"{prior_year}-12-31",
+            stock_code,
         )
         fcff_income_by_year[prior_year] = a_share_rows(prior_fcff_income_future.result())
         fcff_cashflow_by_year[prior_year] = a_share_rows(prior_fcff_cashflow_future.result())
@@ -651,13 +684,18 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
     log(f"阶段三/五：获取 {latest_year} 年资产负债率、净负债并计算行业分位")
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
         balance_future = pool.submit(
-            fetch_report, "RPT_DMSK_FN_BALANCE", BALANCE_COLUMNS, annual_dates[latest_year]
+            fetch_report,
+            "RPT_DMSK_FN_BALANCE",
+            BALANCE_COLUMNS,
+            annual_dates[latest_year],
+            stock_code,
         )
         detailed_balance_future = pool.submit(
             fetch_report,
             "RPT_F10_FINANCE_GBALANCE",
             DETAILED_BALANCE_COLUMNS,
             annual_dates[latest_year],
+            stock_code,
         )
         latest_balance = a_share_rows(balance_future.result())
         latest_detailed_balance = a_share_rows(detailed_balance_future.result())
@@ -668,6 +706,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
                 "RPT_F10_FINANCE_GBALANCE",
                 FCFF_BALANCE_COLUMNS,
                 f"{year}-12-31",
+                stock_code,
             )
         )
         log(
@@ -686,7 +725,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         fetch_filtered_report(
             "RPT_VALUEANALYSIS_DET",
             VALUATION_COLUMNS,
-            f"(TRADE_DATE='{valuation_date}')",
+            append_stock_filter(f"(TRADE_DATE='{valuation_date}')", stock_code),
             "SECURITY_CODE",
         )
     )
@@ -697,28 +736,28 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
             fetch_filtered_report,
             "RPT_DMSK_FN_INCOME",
             QUARTERLY_INCOME_COLUMNS,
-            quarterly_filter,
+            append_stock_filter(quarterly_filter, stock_code),
             "REPORT_DATE,SECURITY_CODE",
         )
         quarterly_cashflow_future = pool.submit(
             fetch_filtered_report,
             "RPT_DMSK_FN_CASHFLOW",
             QUARTERLY_CASHFLOW_COLUMNS,
-            quarterly_filter,
+            append_stock_filter(quarterly_filter, stock_code),
             "REPORT_DATE,SECURITY_CODE",
         )
         quarterly_balance_future = pool.submit(
             fetch_filtered_report,
             "RPT_DMSK_FN_BALANCE",
             QUARTERLY_BALANCE_COLUMNS,
-            quarterly_filter,
+            append_stock_filter(quarterly_filter, stock_code),
             "REPORT_DATE,SECURITY_CODE",
         )
         quarterly_detailed_balance_future = pool.submit(
             fetch_filtered_report,
             "RPT_F10_FINANCE_GBALANCE",
             QUARTERLY_DETAILED_BALANCE_COLUMNS,
-            quarterly_filter,
+            append_stock_filter(quarterly_filter, stock_code),
             "REPORT_DATE,SECURITY_CODE",
         )
         quarterly_income_by_code = a_share_report_rows(
@@ -794,6 +833,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         for (code, name), values in sorted(industry_values.items(), key=lambda item: item[0][0])
     ]
 
+    generated_at = dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).isoformat(timespec="seconds")
     rows: list[dict] = []
     for code, balance in sorted(latest_balance.items()):
         secucode = str(balance["SECUCODE"])
@@ -933,6 +973,9 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
                 "organizationType": organization_type,
                 "industryCode": industry_code,
                 "industryName": industry_name,
+                "dataSchemaVersion": 11,
+                "dataSnapshotDate": snapshot_date,
+                "dataGeneratedAt": generated_at,
                 "businessProfile": {
                     "mainBusiness": normalized_text(company_profile.get("MAIN_BUSINESS")),
                     "organizationProfile": normalized_text(company_profile.get("ORG_PROFILE")),
@@ -1056,9 +1099,8 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         for row in rows
     )
 
-    generated_at = dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).isoformat(timespec="seconds")
     snapshot = {
-        "schemaVersion": 10,
+        "schemaVersion": 11,
         "snapshotDate": snapshot_date,
         "generatedAt": generated_at,
         "currency": "CNY",
@@ -1138,7 +1180,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         "rows": rows,
     }
     diagnostics = {
-        "schemaVersion": 10,
+        "schemaVersion": 11,
         "snapshotDate": snapshot_date,
         "generatedAt": generated_at,
         "fiscalYears": fiscal_years,
@@ -1185,9 +1227,13 @@ def main() -> None:
     parser.add_argument("--diagnostics", type=Path, default=DEFAULT_DIAGNOSTICS)
     parser.add_argument("--snapshot-date", default=dt.date.today().isoformat())
     parser.add_argument("--years", type=int, default=5)
+    parser.add_argument("--stock-code")
     args = parser.parse_args()
 
-    snapshot, diagnostics = generate(args.snapshot_date, args.years)
+    if args.stock_code and not re.fullmatch(r"\d{6}", args.stock_code):
+        parser.error("--stock-code 必须是六位 A 股代码")
+
+    snapshot, diagnostics = generate(args.snapshot_date, args.years, args.stock_code)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.diagnostics.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")

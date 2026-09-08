@@ -25,6 +25,7 @@ import type {
   DailyKlineIndicator,
   DividendFinancingRankingItem,
   ExchangeRateSettings,
+  FundamentalSnapshot,
   MarketTradeFeeSettings,
   StockAlertRule,
   StockPosition,
@@ -98,6 +99,7 @@ interface WatchlistTableProps {
   fundamentalPeerComparisonsByCode: ReadonlyMap<string, FundamentalPeerComparison>
   fundamentalSnapshotDate?: string
   fundamentalGeneratedAt?: string
+  fundamentalSnapshotSchemaVersion?: FundamentalSnapshot['schemaVersion']
   fundamentalStaleReason?: string | null
   columnOrder: WatchlistColumnId[]
   priorityRefreshSeconds: number
@@ -241,6 +243,7 @@ export function WatchlistTable({
   fundamentalPeerComparisonsByCode,
   fundamentalSnapshotDate,
   fundamentalGeneratedAt,
+  fundamentalSnapshotSchemaVersion,
   fundamentalStaleReason,
   columnOrder,
   priorityRefreshSeconds,
@@ -1292,6 +1295,7 @@ export function WatchlistTable({
                   metrics={metrics}
                   fundamentalSnapshotDate={fundamentalSnapshotDate}
                   fundamentalGeneratedAt={fundamentalGeneratedAt}
+                  fundamentalSnapshotSchemaVersion={fundamentalSnapshotSchemaVersion}
                   fundamentalStaleReason={fundamentalStaleReason}
                   tradingAccount={tTradingAccounts[stock.quoteId]}
                   corporateActionRecords={corporateActionRecords}

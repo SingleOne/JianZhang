@@ -678,19 +678,21 @@ function ValuationApplicabilityPanel({
   return (
     <section className="fundamental-valuation-section">
       <header>
-        <span>
-          <Layers size={17} />
-          <strong>估值与适用性</strong>
-        </span>
+        <div className="fundamental-valuation-heading">
+          <span>
+            <Layers size={17} />
+            <strong>估值与适用性</strong>
+          </span>
+          <div className="fundamental-valuation-profile">
+            <strong>{profile.organizationLabel}</strong>
+            {profile.tags.map((tag) => (
+              <span key={tag}>{VALUATION_PROFILE_TAG_LABELS[tag]}</span>
+            ))}
+          </div>
+        </div>
         <small>模型估值，不代表目标价或买卖建议</small>
       </header>
       <div className="fundamental-valuation-overview">
-        <div className="fundamental-valuation-profile">
-          <strong>{profile.organizationLabel}</strong>
-          {profile.tags.map((tag) => (
-            <span key={tag}>{VALUATION_PROFILE_TAG_LABELS[tag]}</span>
-          ))}
-        </div>
         <div className="fundamental-valuation-primary">
           <span>主要估值框架</span>
           <strong>{profile.primaryModel}</strong>
@@ -1525,18 +1527,62 @@ function FundamentalPanel({
   staleReason?: string | null
 }) {
   const [showReadingGuide, setShowReadingGuide] = useState(false)
+  const [stockUpdateStatus, setStockUpdateStatus] = useState<
+    'idle' | 'updating' | 'success' | 'error'
+  >('idle')
+  const [stockUpdateMessage, setStockUpdateMessage] = useState('')
   const valuationSummary = useMemo(
     () =>
       evaluation ? createFundamentalValuationSummary(evaluation.company, quote?.latest) : null,
     [evaluation, quote?.latest]
   )
+  const stockCode = evaluation?.company.code ?? quoteId.split('.').at(-1) ?? quoteId
+  const currentStockUpdateAvailable = Boolean(generatedAt)
+  const updateCurrentStockFundamentals = async () => {
+    setStockUpdateStatus('updating')
+    setStockUpdateMessage(`正在更新 ${stockCode}…`)
+    try {
+      const result = await stockApi.runFundamentalStockUpdate(stockCode)
+      setStockUpdateStatus('success')
+      setStockUpdateMessage(`${result.company.name}基本面数据已更新`)
+    } catch (reason) {
+      setStockUpdateStatus('error')
+      setStockUpdateMessage(reason instanceof Error ? reason.message : '当前股票基本面数据更新失败')
+    }
+  }
 
   if (!evaluation) {
     return (
-      <div className="fundamental-tab-empty" role="status">
+      <div className="fundamental-tab-empty">
         <Database size={26} />
         <strong>当前股票暂无基本面财务数据</strong>
         <span>当前快照可能尚未覆盖这只股票，可在“基本面初筛”中查看或更新数据。</span>
+        <button
+          className="fundamental-stock-update-button"
+          type="button"
+          disabled={stockUpdateStatus === 'updating' || !currentStockUpdateAvailable}
+          title={
+            currentStockUpdateAvailable
+              ? '单独更新当前股票的基本面数据'
+              : '尚无全量基本面快照，请先在设置中更新基本面数据'
+          }
+          onClick={() => void updateCurrentStockFundamentals()}
+        >
+          <RefreshCw size={16} className={stockUpdateStatus === 'updating' ? 'is-spinning' : ''} />
+          {stockUpdateStatus === 'updating'
+            ? '正在更新'
+            : currentStockUpdateAvailable
+              ? '更新当前股票'
+              : '请先更新全量数据'}
+        </button>
+        {stockUpdateMessage ? (
+          <span
+            className={`fundamental-stock-update-message is-${stockUpdateStatus}`}
+            role="status"
+          >
+            {stockUpdateMessage}
+          </span>
+        ) : null}
       </div>
     )
   }
@@ -1562,8 +1608,6 @@ function FundamentalPanel({
         </div>
       ) : null}
 
-      <CompanyBusinessProfilePanel company={company} />
-
       <div className="fundamental-detail-conclusion-card">
         <span className="fundamental-detail-icon">
           <Building2 size={20} />
@@ -1587,18 +1631,42 @@ function FundamentalPanel({
               : '以下财务数据仍然展示，但资产负债结构不与普通企业直接比较。'}
           </em>
         </span>
-        <button
-          className="fundamental-reading-guide-button"
-          type="button"
-          onClick={() => setShowReadingGuide((visible) => !visible)}
-          aria-expanded={showReadingGuide}
-        >
-          <GraduationCap size={16} />
-          {showReadingGuide ? '收起指南' : '基本面怎么看'}
-        </button>
+        <div className="fundamental-detail-actions">
+          {stockUpdateMessage ? (
+            <span
+              className={`fundamental-stock-update-message is-${stockUpdateStatus}`}
+              role="status"
+            >
+              {stockUpdateMessage}
+            </span>
+          ) : null}
+          <button
+            className="fundamental-stock-update-button"
+            type="button"
+            disabled={stockUpdateStatus === 'updating'}
+            onClick={() => void updateCurrentStockFundamentals()}
+          >
+            <RefreshCw
+              size={16}
+              className={stockUpdateStatus === 'updating' ? 'is-spinning' : ''}
+            />
+            {stockUpdateStatus === 'updating' ? '正在更新' : '更新基本面数据'}
+          </button>
+          <button
+            className="fundamental-reading-guide-button"
+            type="button"
+            onClick={() => setShowReadingGuide((visible) => !visible)}
+            aria-expanded={showReadingGuide}
+          >
+            <GraduationCap size={16} />
+            {showReadingGuide ? '收起指南' : '基本面怎么看'}
+          </button>
+        </div>
       </div>
 
       {showReadingGuide ? <FundamentalReadingGuide evaluation={evaluation} /> : null}
+
+      <CompanyBusinessProfilePanel company={company} />
 
       <div className="fundamental-evidence-grid">
         <section>

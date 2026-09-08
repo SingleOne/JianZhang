@@ -641,6 +641,7 @@ if (!hasSingleInstanceLock) {
       getFundamentalState: () => fundamentalDataService!.getState(),
       getFundamentalChangeReport: () => fundamentalDataService!.getChangeReport(),
       runFundamentalUpdate: () => fundamentalDataService!.runUpdate(),
+      runFundamentalStockUpdate: (code) => fundamentalDataService!.runStockUpdate(code),
       getCompanyReports: (quoteId, forceRefresh) =>
         companyReportService!.get(quoteId, forceRefresh),
       getGlobalFundamentals: (quoteId, forceRefresh) =>

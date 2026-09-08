@@ -397,11 +397,19 @@
 }
 
 .fundamental-business-profile > header > span,
-.fundamental-valuation-section > header > span {
+.fundamental-valuation-heading > span {
   display: inline-flex;
   align-items: center;
   gap: 7px;
   color: #3568a9;
+}
+
+.fundamental-valuation-heading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px 10px;
 }
 
 .fundamental-business-profile > header strong,
@@ -1013,6 +1021,7 @@
 .fundamental-detail-conclusion-card {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 11px;
   padding: 11px 13px;
   background: linear-gradient(135deg, #f2f7ff 0%, #f8fbff 100%);
@@ -1052,13 +1061,22 @@
   font-size: 14px;
 }
 
-.fundamental-reading-guide-button {
+.fundamental-detail-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-left: auto;
+}
+
+.fundamental-reading-guide-button,
+.fundamental-stock-update-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   min-height: 34px;
-  margin-left: auto;
   padding: 0 11px;
   border: 1px solid #c9d9ef;
   border-radius: 8px;
@@ -1070,9 +1088,30 @@
   cursor: pointer;
 }
 
-.fundamental-reading-guide-button:hover {
+.fundamental-reading-guide-button:hover,
+.fundamental-stock-update-button:hover:not(:disabled) {
   border-color: #94b5df;
   background: #f5f9ff;
+}
+
+.fundamental-stock-update-button:disabled {
+  color: #8a98ab;
+  background: #f1f4f8;
+  cursor: wait;
+}
+
+.fundamental-stock-update-message {
+  color: #748399;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.fundamental-stock-update-message.is-success {
+  color: #247355;
+}
+
+.fundamental-stock-update-message.is-error {
+  color: #b23b45;
 }
 
 .fundamental-evidence-grid {
@@ -2307,7 +2346,8 @@
 
 .investment-value-metrics > header,
 .investment-value-metrics > footer,
-.investment-value-metrics > header > span {
+.investment-value-heading,
+.investment-value-heading > span {
   display: flex;
   align-items: center;
 }
@@ -2317,9 +2357,21 @@
   gap: 12px;
 }
 
-.investment-value-metrics > header > span {
+.investment-value-heading {
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+.investment-value-heading > span {
   gap: 7px;
   color: #42658d;
+}
+
+.investment-value-heading > em {
+  color: #9a6800;
+  font-size: 12px;
+  font-style: normal;
 }
 
 .investment-value-metrics > header strong {

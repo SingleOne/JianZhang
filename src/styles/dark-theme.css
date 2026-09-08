@@ -812,7 +812,7 @@
   border-bottom-color: #263449;
 }
 :root[data-theme='dark'] .fundamental-business-profile > header > span,
-:root[data-theme='dark'] .fundamental-valuation-section > header > span {
+:root[data-theme='dark'] .fundamental-valuation-heading > span {
   color: #5b8cff;
 }
 :root[data-theme='dark'] .fundamental-business-profile > header strong,
@@ -990,14 +990,29 @@
 :root[data-theme='dark'] .fundamental-detail-conclusion-card strong {
   color: #e6edf7;
 }
-:root[data-theme='dark'] .fundamental-reading-guide-button {
+:root[data-theme='dark'] .fundamental-reading-guide-button,
+:root[data-theme='dark'] .fundamental-stock-update-button {
   border: 1px solid rgba(91, 140, 255, 0.48);
   color: #5b8cff;
   background: #111827;
 }
-:root[data-theme='dark'] .fundamental-reading-guide-button:hover {
+:root[data-theme='dark'] .fundamental-reading-guide-button:hover,
+:root[data-theme='dark'] .fundamental-stock-update-button:hover:not(:disabled) {
   border-color: rgba(91, 140, 255, 0.48);
   background: rgba(91, 140, 255, 0.14);
+}
+:root[data-theme='dark'] .fundamental-stock-update-button:disabled {
+  color: #98a6ba;
+  background: #162033;
+}
+:root[data-theme='dark'] .fundamental-stock-update-message {
+  color: #cbd5e3;
+}
+:root[data-theme='dark'] .fundamental-stock-update-message.is-success {
+  color: #8ee0bd;
+}
+:root[data-theme='dark'] .fundamental-stock-update-message.is-error {
+  color: #ff9ba3;
 }
 :root[data-theme='dark'] .fundamental-evidence-grid > section {
   background: #111827;
@@ -1442,7 +1457,7 @@
   background: linear-gradient(135deg, #111827 0%, #111827 100%);
   border: 1px solid #263449;
 }
-:root[data-theme='dark'] .investment-value-metrics > header > span {
+:root[data-theme='dark'] .investment-value-heading > span {
   color: #cbd5e3;
 }
 :root[data-theme='dark'] .investment-value-metrics > header strong {
@@ -1450,6 +1465,9 @@
 }
 :root[data-theme='dark'] .investment-value-metrics > header small {
   color: #cbd5e3;
+}
+:root[data-theme='dark'] .investment-value-heading > em {
+  color: #f3b85b;
 }
 :root[data-theme='dark'] .investment-value-grid article {
   background: rgba(17, 24, 39, 0.94);

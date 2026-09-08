@@ -1749,6 +1749,7 @@ export default function App() {
                 fundamentalPeerComparisonsByCode={fundamentalPeerComparisonsByCode}
                 fundamentalSnapshotDate={fundamentalOverview?.snapshotDate}
                 fundamentalGeneratedAt={fundamentalOverview?.generatedAt}
+                fundamentalSnapshotSchemaVersion={fundamentalOverview?.snapshotSchemaVersion}
                 fundamentalStaleReason={
                   fundamentalDataState.status === 'stale' ? fundamentalDataState.staleReason : null
                 }

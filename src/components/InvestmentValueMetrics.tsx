@@ -195,10 +195,13 @@ export function InvestmentValueMetrics({
   return (
     <section className="investment-value-metrics" aria-labelledby={headingId}>
       <header>
-        <span>
-          <Landmark size={17} />
-          <strong id={headingId}>估值与资本回报</strong>
-        </span>
+        <div className="investment-value-heading">
+          <span>
+            <Landmark size={17} />
+            <strong id={headingId}>估值与资本回报</strong>
+          </span>
+          {staleReason ? <em>基本面快照已过期：{staleReason}</em> : null}
+        </div>
         <small>
           行情 {dateTime(quote?.dataAt ?? quote?.updatedAt)} · 财报截止{' '}
           {latestReport?.reportDate ?? snapshotDate ?? '--'} · 五年财务 {financialYears}
@@ -302,7 +305,6 @@ export function InvestmentValueMetrics({
         {pcfPeSignal ? (
           <span className={`pcf-pe-signal ${pcfPeSignal.className}`}>{pcfPeSignal.text}</span>
         ) : null}
-        {staleReason ? <em>基本面快照已过期：{staleReason}</em> : null}
       </footer>
     </section>
   )

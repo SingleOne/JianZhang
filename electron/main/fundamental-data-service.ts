@@ -4,12 +4,13 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fundamentalStaleReason } from '../../src/lib/data-snapshot-status'
 import { createFundamentalChangeReport } from '../../src/lib/fundamental-screening'
-import { parseFundamentalSnapshot } from '../../src/lib/fundamentals'
+import { mergeFundamentalStockSnapshot, parseFundamentalSnapshot } from '../../src/lib/fundamentals'
 import type {
   DataSnapshotRuntimeState,
   FundamentalChangeReport,
   FundamentalOverview,
   FundamentalSnapshot,
+  FundamentalStockUpdateResult,
   FundamentalUpdateProgress,
   FundamentalUpdateResult
 } from '../../src/shared/types'
@@ -34,6 +35,7 @@ export class FundamentalDataService {
   private readonly snapshotPath: string
   private readonly diagnosticsPath: string
   private readonly changeReportPath: string
+  private readonly stockDiagnosticsPath: string
   private readonly overviewStore: ReturnType<typeof createFundamentalOverviewStore>
   private overviewManifest: IndexedOverviewManifest<FundamentalOverviewMetadata> | null = null
   private snapshotCache: FundamentalSnapshot | null = null
@@ -55,6 +57,7 @@ export class FundamentalDataService {
     this.snapshotPath = join(this.dataDirectory, 'snapshot.json')
     this.diagnosticsPath = join(this.dataDirectory, 'diagnostics.json')
     this.changeReportPath = join(this.dataDirectory, 'change-report.json')
+    this.stockDiagnosticsPath = join(this.dataDirectory, 'stock-update-diagnostics.json')
     this.overviewStore = createFundamentalOverviewStore(this.dataDirectory)
     this.overviewManifest = this.overviewStore.load(this.snapshotPath)
     if (this.overviewManifest) {
@@ -217,6 +220,91 @@ export class FundamentalDataService {
       }
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : '基本面财务数据更新失败'
+      this.setState({
+        ...this.snapshotState(this.snapshotCache),
+        status: 'failed',
+        progressMessage: null,
+        error: message
+      })
+      this.notifyProgress({ stage: 'failed', message })
+      throw new Error(message)
+    } finally {
+      this.updating = false
+    }
+  }
+
+  async runStockUpdate(code: string): Promise<FundamentalStockUpdateResult> {
+    if (!/^\d{6}$/.test(code)) throw new Error('股票代码必须是六位数字')
+    if (this.overviewGenerationTimer) clearTimeout(this.overviewGenerationTimer)
+    this.overviewGenerationTimer = null
+    if (this.overviewGeneration) await this.overviewGeneration
+    if (this.updating) throw new Error('基本面财务数据更新脚本正在运行')
+
+    const previousSnapshot = await this.getSnapshot()
+    if (!previousSnapshot) throw new Error('尚无全量基本面快照，请先更新基本面数据')
+
+    this.updating = true
+    mkdirSync(this.dataDirectory, { recursive: true })
+    const nextSnapshotPath = join(this.dataDirectory, 'snapshot.next.json')
+    const nextDiagnosticsPath = join(this.dataDirectory, 'stock-update-diagnostics.next.json')
+    const nextChangeReportPath = join(this.dataDirectory, 'change-report.next.json')
+    this.setState({
+      ...this.snapshotState(previousSnapshot),
+      status: 'queued',
+      progressMessage: `${code} 基本面数据更新已加入队列。`,
+      error: null
+    })
+
+    try {
+      const scriptPath = app.isPackaged
+        ? join(process.resourcesPath, 'scripts', 'generate_fundamental_snapshot.py')
+        : join(app.getAppPath(), 'scripts', 'generate_fundamental_snapshot.py')
+      await this.pythonQueue.run(
+        scriptPath,
+        ['--output', nextSnapshotPath, '--diagnostics', nextDiagnosticsPath, '--stock-code', code],
+        (content) => this.reportOutput(content),
+        () => {
+          this.setState({
+            ...this.snapshotState(previousSnapshot),
+            status: 'updating',
+            progressMessage: `正在更新 ${code} 基本面数据…`,
+            error: null
+          })
+          this.notifyProgress({
+            stage: 'running',
+            message: `正在更新 ${code} 基本面数据…`
+          })
+        }
+      )
+
+      const stockSnapshot = parseFundamentalSnapshot(readFileSync(nextSnapshotPath, 'utf8'))
+      if (stockSnapshot.rows.length !== 1 || stockSnapshot.rows[0].code !== code) {
+        throw new Error(`未获取到 ${code} 的完整基本面数据`)
+      }
+      const snapshot = mergeFundamentalStockSnapshot(previousSnapshot, stockSnapshot)
+      const updatedCompany = snapshot.rows.find((company) => company.code === code)
+      if (!updatedCompany) throw new Error(`${code} 的基本面数据合并失败`)
+      const changeReport = createFundamentalChangeReport(previousSnapshot, snapshot)
+      writeFileSync(nextSnapshotPath, JSON.stringify(snapshot, null, 2), 'utf8')
+      writeFileSync(nextChangeReportPath, JSON.stringify(changeReport, null, 2), 'utf8')
+      renameSync(nextChangeReportPath, this.changeReportPath)
+      renameSync(nextDiagnosticsPath, this.stockDiagnosticsPath)
+      renameSync(nextSnapshotPath, this.snapshotPath)
+      this.snapshotCache = snapshot
+      this.changeReportCache = changeReport
+      await this.generateOverview()
+      this.setState(this.snapshotState(snapshot))
+      this.notifyProgress({
+        stage: 'completed',
+        message: `${updatedCompany.name}（${code}）基本面数据更新完成`
+      })
+      return {
+        company: updatedCompany,
+        snapshotDate: updatedCompany.dataSnapshotDate ?? stockSnapshot.snapshotDate,
+        generatedAt: updatedCompany.dataGeneratedAt ?? stockSnapshot.generatedAt
+      }
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : `${code} 基本面数据更新失败`
       this.setState({
         ...this.snapshotState(this.snapshotCache),
         status: 'failed',

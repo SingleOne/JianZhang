@@ -653,19 +653,19 @@ export function FundamentalScreeningDialog({
       setSnapshot(cachedSnapshot)
       setChangeReport(cachedChangeReport)
       setLoadError('')
-      setLoading(false)
-      return
     }
     let active = true
-    setLoading(true)
+    setLoading(!cachedSnapshot)
     setLoadError('')
     Promise.all([stockApi.getFundamentalSnapshot(), stockApi.getFundamentalChangeReport()])
       .then(([data, changes]) => {
         if (!active) return
         setSnapshot(data)
         setChangeReport(changes)
-        if (data) onSnapshotChange(data)
-        onChangeReportChange(changes)
+        if (!cachedSnapshot && data) {
+          onSnapshotChange(data)
+          onChangeReportChange(changes)
+        }
       })
       .catch((reason: unknown) => {
         if (active) {

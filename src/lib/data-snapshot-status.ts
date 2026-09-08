@@ -1,4 +1,8 @@
-import type { DividendFinancingSnapshot, FundamentalSnapshot } from '../shared/types'
+import type {
+  DividendFinancingSnapshot,
+  FundamentalCompany,
+  FundamentalSnapshot
+} from '../shared/types'
 
 const DAY_MILLISECONDS = 24 * 60 * 60 * 1000
 
@@ -51,4 +55,21 @@ export function fundamentalStaleReason(
   return olderThanDays(snapshot.generatedAt, 90, now)
     ? '数据生成时间已超过90天，建议手动更新。'
     : null
+}
+
+export function fundamentalCompanyStaleReason(
+  company: FundamentalCompany,
+  schemaVersion: FundamentalSnapshot['schemaVersion'],
+  fallbackGeneratedAt: string,
+  now = new Date()
+): string | null {
+  const generatedAt = company.dataGeneratedAt ?? fallbackGeneratedAt
+  return fundamentalStaleReason(
+    {
+      schemaVersion: company.dataSchemaVersion ?? schemaVersion,
+      fiscalYears: company.annualReports.map((report) => report.year),
+      generatedAt
+    },
+    now
+  )
 }

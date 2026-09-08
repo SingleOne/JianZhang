@@ -650,6 +650,9 @@ const demoApi: StockDesktopApi = {
   async runFundamentalUpdate() {
     throw new Error('基本面财务数据更新脚本仅能在 Windows 桌面版中运行')
   },
+  async runFundamentalStockUpdate() {
+    throw new Error('单股基本面数据更新仅能在 Windows 桌面版中运行')
+  },
   async getCompanyReports(quoteId) {
     const code = quoteId.includes('.') ? (quoteId.split('.')[1] ?? quoteId) : quoteId
     return {
