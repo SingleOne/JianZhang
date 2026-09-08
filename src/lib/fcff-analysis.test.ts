@@ -38,6 +38,9 @@ function company(fcffValues: Array<number | null>): FundamentalCompany {
         operatingCurrentLiabilities: 120,
         operatingWorkingCapital: 80,
         operatingWorkingCapitalChange: 5,
+        interestBearingDebt: 200,
+        averageInterestBearingDebt: 190,
+        preTaxDebtCost: 2.63,
         fcff,
         unavailableReason: fcff === null ? '营运资本同比数据缺失' : null
       }

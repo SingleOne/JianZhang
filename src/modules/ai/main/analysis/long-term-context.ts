@@ -191,6 +191,8 @@ export function buildLongTermContext(input: LongTermContextInput) {
     profile: fundamentalValuation?.profile ?? null,
     fcff: fundamentalValuation?.fcff ?? null,
     fcffModelVersion: fundamentalValuation?.fcffModelVersion ?? null,
+    strictDcf: fundamentalValuation?.strictDcf ?? null,
+    strictDcfModelVersion: fundamentalValuation?.strictDcfModelVersion ?? null,
     dataDate: fundamentalValuation?.dataDate ?? null,
     modelVersion: fundamentalValuation?.modelVersion ?? null,
     dcf

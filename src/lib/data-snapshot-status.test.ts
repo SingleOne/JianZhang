@@ -24,7 +24,7 @@ describe('data snapshot status', () => {
 
   it('marks fundamental data stale by fiscal year before age', () => {
     const snapshot = {
-      schemaVersion: 9,
+      schemaVersion: 10,
       generatedAt: '2027-04-30T12:00:00+08:00',
       fiscalYears: [2021, 2022, 2023, 2024, 2025]
     } as FundamentalSnapshot
@@ -86,6 +86,18 @@ describe('data snapshot status', () => {
 
     expect(fundamentalStaleReason(snapshot, new Date('2026-09-08T13:00:00+08:00'))).toContain(
       '严格 FCFF'
+    )
+  })
+
+  it('marks schema v9 fundamental data stale when WACC inputs are missing', () => {
+    const snapshot = {
+      schemaVersion: 9,
+      generatedAt: '2026-09-08T12:00:00+08:00',
+      fiscalYears: [2021, 2022, 2023, 2024, 2025]
+    } as FundamentalSnapshot
+
+    expect(fundamentalStaleReason(snapshot, new Date('2026-09-08T13:00:00+08:00'))).toContain(
+      'WACC'
     )
   })
 })

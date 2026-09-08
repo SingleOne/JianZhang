@@ -5,6 +5,11 @@ import type {
 } from '../shared/types'
 import { createDcfAnalysis, type DcfAnalysisResult } from './dcf-analysis'
 import { createFcffAnalysis } from './fcff-analysis'
+import {
+  STRICT_DCF_MODEL_VERSION,
+  createStrictDcfAnalysis,
+  type StrictDcfAnalysisResult
+} from './strict-dcf-analysis'
 import { usesOrdinaryCorporateInvestmentMetrics } from './valuation-analysis'
 
 export type ValuationProfileTag =
@@ -37,10 +42,12 @@ export interface FundamentalValuationProfile {
 export interface FundamentalValuationSummary {
   profile: FundamentalValuationProfile
   fcff: FundamentalFcffCoverage
+  strictDcf: StrictDcfAnalysisResult
   dcf: DcfAnalysisResult
   dataDate: string
   modelVersion: 'simplified-fcf-dcf-v1'
   fcffModelVersion: 'strict-fcff-v1'
+  strictDcfModelVersion: typeof STRICT_DCF_MODEL_VERSION
 }
 
 export const VALUATION_PROFILE_TAG_LABELS: Record<ValuationProfileTag, string> = {
@@ -321,6 +328,7 @@ export function createFundamentalValuationSummary(
   const profile = createFundamentalValuationProfile(company)
   const fcff = createFcffAnalysis(company, profile.tags.includes('cyclical') ? 5 : 3)
   const dcf = createDcfAnalysis(company, currentPrice)
+  const strictDcf = createStrictDcfAnalysis(company, currentPrice, profile.tags, fcff)
   const dcfAvailability: ValuationAvailability = dcf.analysis
     ? 'available'
     : dcf.unavailableReason === 'not-applicable'
@@ -329,6 +337,7 @@ export function createFundamentalValuationSummary(
   return {
     profile: {
       ...profile,
+      primaryModel: strictDcf.analysis ? 'FCFF−WACC 三情景 DCF' : profile.primaryModel,
       metricGuidance: [
         ...(usesOrdinaryCorporateInvestmentMetrics(company.organizationType)
           ? [
@@ -351,15 +360,45 @@ export function createFundamentalValuationSummary(
             ]
           : []),
         ...profile.metricGuidance.map((metric) =>
-          metric.id === 'dcf' ? { ...metric, availability: dcfAvailability } : metric
-        )
+          metric.id === 'dcf'
+            ? {
+                ...metric,
+                role: strictDcf.analysis ? ('secondary' as const) : metric.role,
+                availability: dcfAvailability,
+                note: strictDcf.analysis ? '固定 10% 折现率的旧快照兼容结果' : metric.note
+              }
+            : metric
+        ),
+        ...(usesOrdinaryCorporateInvestmentMetrics(company.organizationType)
+          ? [
+              {
+                id: 'strict-dcf',
+                label: 'FCFF−WACC 三情景 DCF',
+                role: 'primary' as const,
+                availability: strictDcf.analysis
+                  ? ('available' as const)
+                  : strictDcf.unavailableReason === 'not-applicable'
+                    ? ('not-applicable' as const)
+                    : ('insufficient-data' as const),
+                note: strictDcf.analysis
+                  ? `可信度：${strictDcf.analysis.confidence}`
+                  : (strictDcf.wacc?.unavailableReason ?? '严格 FCFF 或折现参数不完整')
+              }
+            ]
+          : [])
       ],
-      warnings: [...profile.warnings, ...(fcff.reason ? [fcff.reason] : [])]
+      warnings: [
+        ...profile.warnings,
+        ...(fcff.reason ? [fcff.reason] : []),
+        ...(strictDcf.analysis?.warnings ?? [])
+      ]
     },
     fcff,
+    strictDcf,
     dcf,
     dataDate: company.annualReports.at(-1)?.reportDate ?? company.latestBalanceSheet.reportDate,
     modelVersion: 'simplified-fcf-dcf-v1',
-    fcffModelVersion: 'strict-fcff-v1'
+    fcffModelVersion: 'strict-fcff-v1',
+    strictDcfModelVersion: STRICT_DCF_MODEL_VERSION
   }
 }

@@ -285,8 +285,8 @@ function DcfPanel({ result }: { result: DcfAnalysisResult }) {
             <Calculator size={17} />
           </i>
           <span>
-            <strong>DCF 现金流折现估值</strong>
-            <small>用未来自由现金流估算每股内在价值</small>
+            <strong>简化现金流 DCF（兼容）</strong>
+            <small>沿用经营现金流减资本开支、固定 10% 折现率口径</small>
           </span>
         </span>
         <small>模型估值，不代表买入建议</small>
@@ -717,6 +717,7 @@ function ValuationApplicabilityPanel({
         ) : null}
       </div>
       <StrictFcffPanel summary={summary} company={company} />
+      <StrictDcfPanel summary={summary} />
       <DcfPanel result={summary.dcf} />
       <InvestmentValueMetrics
         quoteId={quoteId}
@@ -810,6 +811,125 @@ function StrictFcffPanel({
         经营性营运资本增加额。金额单位：亿元。
       </footer>
     </details>
+  )
+}
+
+const STRICT_DCF_UNAVAILABLE_MESSAGES = {
+  'not-applicable': '金融企业不适用普通企业 FCFF−WACC DCF。',
+  fcff: '正常化严格 FCFF 不可用或不为正。',
+  wacc: '公司 WACC 参数不完整。',
+  'net-debt': '缺少净负债，无法从企业价值换算为股权价值。',
+  'share-count': '缺少总市值或收盘价，无法换算每股价值。',
+  'terminal-growth': '永续增长率未严格低于折现率，三情景不可用。'
+} as const
+
+const STRICT_DCF_CONCLUSION_LABELS = {
+  'below-model-range': '当前价格低于模型估值区间',
+  'within-model-range': '当前价格位于模型估值区间',
+  'above-model-range': '当前价格高于模型估值区间',
+  unavailable: '缺少当前价格，暂不判断区间位置'
+} as const
+
+const STRICT_DCF_CONFIDENCE_LABELS = {
+  high: '高',
+  medium: '中等',
+  low: '低',
+  unavailable: '不可用'
+} as const
+
+function StrictDcfPanel({ summary }: { summary: FundamentalValuationSummary }) {
+  const result = summary.strictDcf
+  const analysis = result.analysis
+  return (
+    <section className="fundamental-strict-dcf">
+      <header>
+        <span>
+          <Calculator size={17} />
+          <strong>FCFF−WACC 三情景 DCF</strong>
+        </span>
+        <small>{summary.strictDcfModelVersion}</small>
+      </header>
+      {!analysis ? (
+        <div className="fundamental-strict-dcf-empty">
+          <strong>当前无法生成三情景估值</strong>
+          <span>{STRICT_DCF_UNAVAILABLE_MESSAGES[result.unavailableReason]}</span>
+          {result.wacc?.unavailableReason ? <em>{result.wacc.unavailableReason}</em> : null}
+        </div>
+      ) : (
+        <>
+          <div className="fundamental-strict-dcf-summary">
+            {analysis.scenarios.map((scenario) => (
+              <article key={scenario.scenario}>
+                <span>
+                  {scenario.scenario === 'conservative'
+                    ? '保守估值'
+                    : scenario.scenario === 'base'
+                      ? '基准估值'
+                      : '乐观估值'}
+                </span>
+                <strong>¥{formatPrice(scenario.fairValuePerShare)}</strong>
+                <small>
+                  增长 {fundamentalPercent(scenario.forecastGrowthRate, 1)} · 折现{' '}
+                  {fundamentalPercent(scenario.discountRate, 1)} · 永续{' '}
+                  {fundamentalPercent(scenario.terminalGrowthRate, 1)}
+                </small>
+              </article>
+            ))}
+            <article>
+              <span>当前股价</span>
+              <strong>
+                {analysis.currentPrice === null ? '--' : `¥${formatPrice(analysis.currentPrice)}`}
+              </strong>
+              <small>用于区间位置比较，不参与模型计算</small>
+            </article>
+          </div>
+          <div className={`fundamental-strict-dcf-conclusion is-${analysis.conclusion}`}>
+            <strong>{STRICT_DCF_CONCLUSION_LABELS[analysis.conclusion]}</strong>
+            <span>
+              区间 ¥{formatPrice(analysis.rangeLow)}—¥{formatPrice(analysis.rangeHigh)} · 可信度{' '}
+              {STRICT_DCF_CONFIDENCE_LABELS[analysis.confidence]}
+            </span>
+          </div>
+          <details className="fundamental-wacc-details">
+            <summary>
+              WACC {fundamentalPercent(analysis.wacc.value, 2)} · 展开参数与来源
+            </summary>
+            <div>
+              <span>无风险利率</span>
+              <strong>{fundamentalPercent(analysis.wacc.inputs.riskFreeRate.value)}</strong>
+              <small>
+                {analysis.wacc.inputs.riskFreeRate.source} ·{' '}
+                {analysis.wacc.inputs.riskFreeRate.dataDate}
+              </small>
+              <span>Beta</span>
+              <strong>{analysis.wacc.inputs.beta.value?.toFixed(2) ?? '--'}</strong>
+              <small>
+                {analysis.wacc.inputs.beta.source} · {analysis.wacc.inputs.beta.dataDate}
+              </small>
+              <span>市场风险溢价</span>
+              <strong>{fundamentalPercent(analysis.wacc.inputs.marketRiskPremium.value)}</strong>
+              <small>
+                {analysis.wacc.inputs.marketRiskPremium.source} ·{' '}
+                {analysis.wacc.inputs.marketRiskPremium.dataDate}
+              </small>
+              <span>税前债务成本</span>
+              <strong>{fundamentalPercent(analysis.wacc.inputs.preTaxCostOfDebt.value)}</strong>
+              <small>
+                {analysis.wacc.inputs.preTaxCostOfDebt.source} ·{' '}
+                {analysis.wacc.inputs.preTaxCostOfDebt.dataDate}
+              </small>
+              <span>权益 / 债务权重</span>
+              <strong>
+                {fundamentalPercent(analysis.wacc.equityWeight, 1)} /{' '}
+                {fundamentalPercent(analysis.wacc.debtWeight, 1)}
+              </strong>
+              <small>快照总市值与最新有息债务</small>
+            </div>
+          </details>
+          <footer>{analysis.warnings.join('；')}</footer>
+        </>
+      )}
+    </section>
   )
 }
 

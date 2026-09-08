@@ -140,4 +140,13 @@ describe('fundamental snapshots', () => {
 
     expect(parseFundamentalSnapshot(JSON.stringify(value))).toEqual(value)
   })
+
+  it('parses schema v10 snapshots with WACC debt-cost inputs', () => {
+    const value: FundamentalSnapshot = {
+      ...snapshot('2026-09-08'),
+      schemaVersion: 10
+    }
+
+    expect(parseFundamentalSnapshot(JSON.stringify(value))).toEqual(value)
+  })
 })

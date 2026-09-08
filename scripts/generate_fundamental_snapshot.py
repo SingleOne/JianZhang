@@ -339,6 +339,31 @@ def build_fcff_breakdown(
         if working_capital is not None and previous_working_capital is not None
         else None
     )
+    debt_fields = (
+        "SHORT_LOAN",
+        "SHORT_BOND_PAYABLE",
+        "NONCURRENT_LIAB_1YEAR",
+        "LONG_LOAN",
+        "BOND_PAYABLE",
+        "LEASE_LIAB",
+    )
+    interest_bearing_debt = sum_required_fields(balance, debt_fields)
+    previous_interest_bearing_debt = sum_required_fields(previous_balance, debt_fields)
+    average_interest_bearing_debt = (
+        (interest_bearing_debt + previous_interest_bearing_debt) / 2
+        if interest_bearing_debt is not None and previous_interest_bearing_debt is not None
+        else None
+    )
+    pre_tax_debt_cost = (
+        interest_expense / average_interest_bearing_debt
+        if interest_expense is not None
+        and average_interest_bearing_debt is not None
+        and average_interest_bearing_debt > 0
+        and 0 <= interest_expense / average_interest_bearing_debt <= 0.3
+        else 0
+        if average_interest_bearing_debt == 0 and interest_expense == 0
+        else None
+    )
 
     required = {
         "调整后 EBIT 输入缺失": adjusted_ebit,
@@ -374,6 +399,9 @@ def build_fcff_breakdown(
         "operatingCurrentLiabilities": rounded(operating_liabilities),
         "operatingWorkingCapital": rounded(working_capital),
         "operatingWorkingCapitalChange": rounded(working_capital_change),
+        "interestBearingDebt": rounded(interest_bearing_debt),
+        "averageInterestBearingDebt": rounded(average_interest_bearing_debt),
+        "preTaxDebtCost": rounded(pre_tax_debt_cost * 100, 4) if pre_tax_debt_cost is not None else None,
         "fcff": rounded(fcff),
         "unavailableReason": unavailable_reason,
     }
@@ -1030,7 +1058,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
 
     generated_at = dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).isoformat(timespec="seconds")
     snapshot = {
-        "schemaVersion": 9,
+        "schemaVersion": 10,
         "snapshotDate": snapshot_date,
         "generatedAt": generated_at,
         "currency": "CNY",
@@ -1110,7 +1138,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         "rows": rows,
     }
     diagnostics = {
-        "schemaVersion": 9,
+        "schemaVersion": 10,
         "snapshotDate": snapshot_date,
         "generatedAt": generated_at,
         "fiscalYears": fiscal_years,

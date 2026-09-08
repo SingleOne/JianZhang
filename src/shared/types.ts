@@ -1734,6 +1734,9 @@ export interface AnnualFcffBreakdown {
   operatingCurrentLiabilities: number | null
   operatingWorkingCapital: number | null
   operatingWorkingCapitalChange: number | null
+  interestBearingDebt: number | null
+  averageInterestBearingDebt: number | null
+  preTaxDebtCost: number | null
   fcff: number | null
   unavailableReason: string | null
 }
@@ -1963,7 +1966,7 @@ export interface FundamentalIndustryBenchmark {
 }
 
 export interface FundamentalSnapshot {
-  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10
   snapshotDate: string
   generatedAt: string
   currency: 'CNY'

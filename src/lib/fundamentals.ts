@@ -11,7 +11,8 @@ export function parseFundamentalSnapshot(content: string): FundamentalSnapshot {
       snapshot.schemaVersion !== 6 &&
       snapshot.schemaVersion !== 7 &&
       snapshot.schemaVersion !== 8 &&
-      snapshot.schemaVersion !== 9) ||
+      snapshot.schemaVersion !== 9 &&
+      snapshot.schemaVersion !== 10) ||
     !snapshot.snapshotDate ||
     !Array.isArray(snapshot.fiscalYears) ||
     !Array.isArray(snapshot.industries) ||
