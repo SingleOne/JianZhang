@@ -254,6 +254,57 @@ export class StateStore {
     }
   }
 
+  getCommittedAt(): string | undefined {
+    if (!existsSync(this.manifestPath)) return undefined
+    try {
+      return parseManifest(readFileSync(this.manifestPath, 'utf8')).committedAt
+    } catch {
+      return undefined
+    }
+  }
+
+  exportCommittedState(): AppState {
+    const loaded = this.readManifestState(this.manifestPath)
+    return structuredClone(this.normalizeLoadedState(loaded.state))
+  }
+
+  createRecoveryPoint(targetDirectory: string): void {
+    const loaded = this.readManifestState(this.manifestPath)
+    rmSync(targetDirectory, { force: true, recursive: true })
+    for (const reference of this.manifestDocumentReferences(loaded.manifest)) {
+      atomicWriteFileSync(
+        this.stateFilePath(reference.path, targetDirectory),
+        readFileSync(this.stateFilePath(reference.path))
+      )
+    }
+    atomicWriteFileSync(join(targetDirectory, STATE_MANIFEST_FILE_NAME), loaded.content)
+  }
+
+  restoreRecoveryPoint(sourceDirectory: string): AppState {
+    const sourceManifestPath = join(sourceDirectory, STATE_MANIFEST_FILE_NAME)
+    const loaded = this.readManifestState(sourceManifestPath, sourceDirectory)
+    for (const reference of this.manifestDocumentReferences(loaded.manifest)) {
+      atomicWriteFileSync(
+        this.stateFilePath(reference.path),
+        readFileSync(this.stateFilePath(reference.path, sourceDirectory))
+      )
+    }
+    this.writeAtomically(this.lastGoodManifestPath, loaded.content)
+    this.writeAtomically(this.manifestPath, loaded.content)
+    this.activateManifest(loaded)
+
+    const normalized = this.normalizeLoadedState(loaded.state)
+    if (JSON.stringify(loaded.state) !== JSON.stringify(normalized)) this.save(normalized)
+    else {
+      try {
+        this.cleanupUnreferencedDocuments()
+      } catch {
+        // Cleanup is best effort; the recovery manifest is already active.
+      }
+    }
+    return normalized
+  }
+
   save(state: AppState): void {
     const previousManifestContent = existsSync(this.manifestPath)
       ? readFileSync(this.manifestPath, 'utf8')
@@ -461,28 +512,42 @@ export class StateStore {
     return { path: relativePath, bytes, sha256: hash }
   }
 
-  private readManifestState(path: string): LoadedManifestState {
+  private readManifestState(path: string, documentRoot = this.stateDirectory): LoadedManifestState {
     const content = readFileSync(path, 'utf8')
     const manifest = parseManifest(content)
     const preferences = this.readDocument<PreferencesState>(
       manifest.documents.preferences,
-      'preferences'
+      'preferences',
+      undefined,
+      documentRoot
     )
-    const watchlist = this.readDocument<WatchlistState>(manifest.documents.watchlist, 'watchlist')
+    const watchlist = this.readDocument<WatchlistState>(
+      manifest.documents.watchlist,
+      'watchlist',
+      undefined,
+      documentRoot
+    )
     const portfolioMeta = this.readDocument<PortfolioMetaState>(
       manifest.documents.portfolioMeta,
-      'portfolio-meta'
+      'portfolio-meta',
+      undefined,
+      documentRoot
     )
     const stockTrackingProfiles = Object.fromEntries(
       Object.entries(manifest.documents.trackingProfiles).map(([quoteId, reference]) => [
         quoteId,
-        this.readDocument<StockTrackingProfile>(reference, 'tracking-profile', quoteId)
+        this.readDocument<StockTrackingProfile>(
+          reference,
+          'tracking-profile',
+          quoteId,
+          documentRoot
+        )
       ])
     )
     const tTradingAccounts = Object.fromEntries(
       Object.entries(manifest.documents.tradingAccounts).map(([quoteId, reference]) => [
         quoteId,
-        this.readDocument<TTradingAccount>(reference, 'trading-account', quoteId)
+        this.readDocument<TTradingAccount>(reference, 'trading-account', quoteId, documentRoot)
       ])
     )
     return {
@@ -502,9 +567,10 @@ export class StateStore {
   private readDocument<T>(
     reference: StateDocumentRef,
     expectedKind: StateDocumentKind,
-    expectedId?: string
+    expectedId?: string,
+    documentRoot = this.stateDirectory
   ): T {
-    const path = this.stateFilePath(reference.path)
+    const path = this.stateFilePath(reference.path, documentRoot)
     const content = readFileSync(path)
     if (content.byteLength !== reference.bytes || sha256(content) !== reference.sha256) {
       throw new Error(`核心状态分片校验失败：${reference.path}`)
@@ -664,8 +730,8 @@ export class StateStore {
     atomicWriteFileSync(path, content)
   }
 
-  private stateFilePath(relativePath: string): string {
-    return join(this.stateDirectory, ...relativePath.split('/'))
+  private stateFilePath(relativePath: string, root = this.stateDirectory): string {
+    return join(root, ...relativePath.split('/'))
   }
 
   private saveHistorySnapshot(content: string): void {
@@ -731,5 +797,15 @@ export class StateStore {
     Object.values(manifest.documents.tradingAccounts).forEach((reference) =>
       paths.add(reference.path)
     )
+  }
+
+  private manifestDocumentReferences(manifest: StateManifestV1): StateDocumentRef[] {
+    return [
+      manifest.documents.preferences,
+      manifest.documents.watchlist,
+      manifest.documents.portfolioMeta,
+      ...Object.values(manifest.documents.trackingProfiles),
+      ...Object.values(manifest.documents.tradingAccounts)
+    ]
   }
 }

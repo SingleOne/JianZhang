@@ -17,6 +17,7 @@ import {
   type AppState
 } from '../../src/shared/types'
 import type { UserDataBackupApiKeys } from '../../src/shared/user-data-backup'
+import { STATE_MANIFEST_FILE_NAME, StateStore } from './state-store'
 import { UserDataBackupService } from './user-data-backup-service'
 
 const directories: string[] = []
@@ -53,10 +54,8 @@ function write(directory: string, relativePath: string, content: string): void {
 describe('UserDataBackupService', () => {
   it('reports the latest modification time from local data included in backups', () => {
     const directory = temporaryDirectory()
-    write(directory, 'settings.json', '{}')
     write(directory, 'modules/ai/conversations/conversation.json', '{}')
     write(directory, 'market-cache/shareholders/1_600519.json', '{}')
-    utimesSync(join(directory, 'settings.json'), new Date(1_000), new Date(1_000))
     utimesSync(
       join(directory, 'modules/ai/conversations/conversation.json'),
       new Date(2_000),
@@ -68,9 +67,9 @@ describe('UserDataBackupService', () => {
       new Date(3_000)
     )
 
-    expect(new UserDataBackupService(directory).getLocalDataUpdatedAt()).toBe(
-      '1970-01-01T00:00:02.000Z'
-    )
+    expect(
+      new UserDataBackupService(directory).getLocalDataUpdatedAt('1970-01-01T00:00:01.000Z')
+    ).toBe('1970-01-01T00:00:02.000Z')
   })
 
   it('exports user-owned data and excludes network and transient provider caches', () => {
@@ -106,14 +105,19 @@ describe('UserDataBackupService', () => {
     write(target, 'modules/ai/conversations/index.json', '[{"id":"local"}]')
     write(target, 'modules/ai/transient-provider-cache/session.json', '{"token":"keep"}')
     write(target, 'market-cache/klines/1_600519-daily.json', '{"cached":true}')
+    const targetStateStore = new StateStore(target, state())
+    targetStateStore.load()
     const targetService = new UserDataBackupService(target)
     const prepared = targetService.prepare(document)
     let restoredApiKeys: UserDataBackupApiKeys = {}
 
     targetService.apply(prepared.importId, {
-      currentState: state(),
       currentApiKeys: {},
-      replaceState: (nextState) => nextState,
+      replaceState: (nextState) => targetStateStore.saveImported(nextState),
+      createStateRecoveryPoint: (targetDirectory) =>
+        targetStateStore.createRecoveryPoint(targetDirectory),
+      restoreStateRecoveryPoint: (sourceDirectory) =>
+        targetStateStore.restoreRecoveryPoint(sourceDirectory),
       replaceAiApiKeys: (apiKeys) => {
         restoredApiKeys = apiKeys
       }
@@ -137,31 +141,46 @@ describe('UserDataBackupService', () => {
         'utf8'
       )
     ).toContain('local')
+    expect(
+      readFileSync(
+        join(target, 'restore-backups', restoreBackups[0], 'core-state', STATE_MANIFEST_FILE_NAME),
+        'utf8'
+      )
+    ).toContain('jianzhang-state-manifest')
   })
 
   it('rolls back files, state and API keys when applying the backup fails', () => {
     const source = temporaryDirectory()
     write(source, 'modules/market-insight/events.json', '[{"id":"from-backup"}]')
-    const document = new UserDataBackupService(source).create(state(), '10.0.0', {
+    const importedState = state()
+    importedState.settings.startWithWindows = true
+    const document = new UserDataBackupService(source).create(importedState, '10.0.0', {
       openai: 'new-key'
     })
 
     const target = temporaryDirectory()
     write(target, 'modules/market-insight/events.json', '[{"id":"local"}]')
-    write(target, 'settings.json', '{"local":true}')
+    const targetStateStore = new StateStore(target, state())
+    targetStateStore.load()
     const targetService = new UserDataBackupService(target)
     const prepared = targetService.prepare(document)
-    const replacedStates: AppState[] = []
+    let replaceStateCallCount = 0
+    let recoveryPointRestored = false
     let restoredApiKeys: UserDataBackupApiKeys = {}
 
     expect(() =>
       targetService.apply(prepared.importId, {
-        currentState: state(),
         currentApiKeys: { deepseek: 'old-key' },
         replaceState: (nextState) => {
-          replacedStates.push(nextState)
-          if (replacedStates.length === 1) throw new Error('save failed')
-          return nextState
+          replaceStateCallCount += 1
+          targetStateStore.saveImported(nextState)
+          throw new Error('save failed')
+        },
+        createStateRecoveryPoint: (targetDirectory) =>
+          targetStateStore.createRecoveryPoint(targetDirectory),
+        restoreStateRecoveryPoint: (sourceDirectory) => {
+          recoveryPointRestored = true
+          return targetStateStore.restoreRecoveryPoint(sourceDirectory)
         },
         replaceAiApiKeys: (apiKeys) => {
           restoredApiKeys = apiKeys
@@ -172,8 +191,9 @@ describe('UserDataBackupService', () => {
     expect(readFileSync(join(target, 'modules/market-insight/events.json'), 'utf8')).toContain(
       'local'
     )
-    expect(readFileSync(join(target, 'settings.json'), 'utf8')).toContain('local')
+    expect(targetStateStore.exportCommittedState().settings.startWithWindows).toBe(false)
     expect(restoredApiKeys).toEqual({ deepseek: 'old-key' })
-    expect(replacedStates).toHaveLength(2)
+    expect(replaceStateCallCount).toBe(1)
+    expect(recoveryPointRestored).toBe(true)
   })
 })

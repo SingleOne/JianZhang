@@ -33,17 +33,16 @@ export interface PreparedUserDataImportResult {
 }
 
 interface ApplyUserDataBackupOptions {
-  currentState: AppState
   currentApiKeys: UserDataBackupApiKeys
   replaceState: (state: AppState) => AppState
+  createStateRecoveryPoint: (targetDirectory: string) => void
+  restoreStateRecoveryPoint: (sourceDirectory: string) => AppState
   replaceAiApiKeys: (apiKeys: UserDataBackupApiKeys) => void
+  afterApply?: () => void
 }
 
-const LOCAL_SNAPSHOT_PATHS = [
-  'settings.json',
-  'settings.last-good.json',
-  'modules/ai/credentials.bin'
-] as const
+const LOCAL_SNAPSHOT_PATHS = ['modules/ai/credentials.bin'] as const
+const STATE_RECOVERY_POINT_DIRECTORY_NAME = 'core-state'
 const RESTORE_SNAPSHOT_LIMIT = 5
 
 export class UserDataBackupService {
@@ -51,8 +50,9 @@ export class UserDataBackupService {
 
   constructor(private readonly userDataDirectory: string) {}
 
-  getLocalDataUpdatedAt(): string | undefined {
-    let latestModifiedAt = 0
+  getLocalDataUpdatedAt(coreStateCommittedAt?: string): string | undefined {
+    const committedAt = coreStateCommittedAt ? Date.parse(coreStateCommittedAt) : 0
+    let latestModifiedAt = Number.isFinite(committedAt) ? committedAt : 0
     const recordFile = (relativePath: string) => {
       const path = this.filePath(relativePath)
       if (existsSync(path)) latestModifiedAt = Math.max(latestModifiedAt, statSync(path).mtimeMs)
@@ -67,7 +67,6 @@ export class UserDataBackupService {
       }
     }
 
-    recordFile('settings.json')
     recordFile('modules/ai/credentials.bin')
     USER_DATA_BACKUP_SINGLE_FILES.forEach(recordFile)
     USER_DATA_BACKUP_DIRECTORIES.forEach(recordDirectory)
@@ -130,7 +129,7 @@ export class UserDataBackupService {
         atomicWriteFileSync(incomingPath, file.content)
         if (file.path.endsWith('.json')) JSON.parse(readFileSync(incomingPath, 'utf8'))
       }
-      this.snapshotCurrentData(snapshotDirectory)
+      this.snapshotCurrentData(snapshotDirectory, options.createStateRecoveryPoint)
       try {
         this.clearManagedData()
         for (const file of document.files) {
@@ -145,11 +144,11 @@ export class UserDataBackupService {
           importedApiKeyCount: Object.keys(document.aiApiKeys).length
         })
         this.cleanupRestoreSnapshots()
+        options.afterApply?.()
         this.preparedImport = null
         return savedState
       } catch (reason) {
-        this.restoreSnapshot(snapshotDirectory)
-        options.replaceState(options.currentState)
+        this.restoreSnapshot(snapshotDirectory, options.restoreStateRecoveryPoint)
         options.replaceAiApiKeys(options.currentApiKeys)
         throw reason
       }
@@ -158,7 +157,11 @@ export class UserDataBackupService {
     }
   }
 
-  private snapshotCurrentData(snapshotDirectory: string): void {
+  private snapshotCurrentData(
+    snapshotDirectory: string,
+    createStateRecoveryPoint: (targetDirectory: string) => void
+  ): void {
+    createStateRecoveryPoint(join(snapshotDirectory, STATE_RECOVERY_POINT_DIRECTORY_NAME))
     for (const relativePath of LOCAL_SNAPSHOT_PATHS)
       this.copyIfPresent(relativePath, snapshotDirectory)
     for (const relativePath of USER_DATA_BACKUP_SINGLE_FILES) {
@@ -169,12 +172,16 @@ export class UserDataBackupService {
     }
   }
 
-  private restoreSnapshot(snapshotDirectory: string): void {
+  private restoreSnapshot(
+    snapshotDirectory: string,
+    restoreStateRecoveryPoint: (sourceDirectory: string) => AppState
+  ): void {
     this.clearManagedData()
     for (const relativePath of LOCAL_SNAPSHOT_PATHS) {
       rmSync(this.filePath(relativePath), { force: true })
     }
     this.copyDirectoryFromSnapshot(snapshotDirectory, '')
+    restoreStateRecoveryPoint(join(snapshotDirectory, STATE_RECOVERY_POINT_DIRECTORY_NAME))
     rmSync(join(this.userDataDirectory, 'restore-manifest.json'), { force: true })
   }
 
@@ -211,7 +218,13 @@ export class UserDataBackupService {
       : snapshotRoot
     if (!existsSync(sourceDirectory)) return
     for (const entry of readdirSync(sourceDirectory, { withFileTypes: true })) {
-      if (!relativeDirectory && entry.name === 'restore-manifest.json') continue
+      if (
+        !relativeDirectory &&
+        (entry.name === 'restore-manifest.json' ||
+          entry.name === STATE_RECOVERY_POINT_DIRECTORY_NAME)
+      ) {
+        continue
+      }
       const relativePath = relativeDirectory ? `${relativeDirectory}/${entry.name}` : entry.name
       if (entry.isDirectory()) this.copyDirectoryFromSnapshot(snapshotRoot, relativePath)
       else if (entry.isFile()) {

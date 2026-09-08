@@ -285,6 +285,29 @@ describe('StateStore', () => {
     )
   })
 
+  it('exports the committed snapshot and its manifest timestamp', () => {
+    const committedAt = new Date('2026-09-08T09:30:00.000Z')
+    const store = new StateStore(directory, makeState('已提交'), () => committedAt)
+    const loaded = store.load().state
+    loaded.watchlist[0].name = '仅修改内存'
+
+    expect(store.exportCommittedState().watchlist[0].name).toBe('已提交')
+    expect(store.getCommittedAt()).toBe(committedAt.toISOString())
+  })
+
+  it('restores a physical recovery point with its referenced documents', () => {
+    const store = new StateStore(directory, makeState())
+    store.save(store.normalize(makeState('恢复点')))
+    const recoveryDirectory = join(directory, 'recovery-point')
+    store.createRecoveryPoint(recoveryDirectory)
+    store.save(store.normalize(makeState('导入后')))
+
+    const restored = store.restoreRecoveryPoint(recoveryDirectory)
+
+    expect(restored.watchlist[0].name).toBe('恢复点')
+    expect(store.exportCommittedState().watchlist[0].name).toBe('恢复点')
+  })
+
   it('keeps timestamped manifest history snapshots', () => {
     let current = new Date('2026-09-08T00:00:00.000Z')
     const store = new StateStore(directory, makeState(), () => current)

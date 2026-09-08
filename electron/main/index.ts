@@ -498,7 +498,7 @@ if (!hasSingleInstanceLock) {
     githubSyncService = new GitHubSyncService(
       app.getPath('userData'),
       __JIANZHANG_GITHUB_OAUTH_CLIENT_ID__,
-      () => userDataBackupService!.getLocalDataUpdatedAt()
+      () => userDataBackupService!.getLocalDataUpdatedAt(stateStore!.getCommittedAt())
     )
     aiSecrets = new AiSecrets(join(app.getPath('userData'), 'modules', 'ai'))
 
@@ -709,16 +709,25 @@ if (!hasSingleInstanceLock) {
         }, 300)
         return result
       },
-      createUserDataBackup: (stateToExport, applicationVersion) =>
-        userDataBackupService!.create(stateToExport, applicationVersion, aiSecrets!.exportAll()),
+      createUserDataBackup: (_stateToExport, applicationVersion) =>
+        userDataBackupService!.create(
+          stateStore!.exportCommittedState(),
+          applicationVersion,
+          aiSecrets!.exportAll()
+        ),
       prepareUserDataBackup: (value) => userDataBackupService!.prepare(value),
       applyUserDataBackup: (importId) =>
         userDataBackupService!.apply(importId, {
-          currentState: structuredClone(state),
           currentApiKeys: aiSecrets!.exportAll(),
           replaceState: (nextState) => {
             if (!stateStore) throw new Error('配置存储尚未初始化')
             state = stateStore.saveImported(nextState)
+            return state
+          },
+          createStateRecoveryPoint: (targetDirectory) =>
+            stateStore!.createRecoveryPoint(targetDirectory),
+          restoreStateRecoveryPoint: (sourceDirectory) => {
+            state = stateStore!.restoreRecoveryPoint(sourceDirectory)
             return state
           },
           replaceAiApiKeys: (apiKeys) => aiSecrets!.replaceAll(apiKeys)
@@ -731,9 +740,9 @@ if (!hasSingleInstanceLock) {
       generateGitHubSyncPassword: () => githubSyncService!.generateSyncPassword(),
       saveGitHubSyncPassword: (password) => githubSyncService!.saveSyncPassword(password),
       disconnectGitHub: () => githubSyncService!.disconnect(),
-      uploadUserDataToGitHub: async (stateToExport, applicationVersion, overwriteRemote) => {
+      uploadUserDataToGitHub: async (_stateToExport, applicationVersion, overwriteRemote) => {
         const document = userDataBackupService!.create(
-          stateStore!.normalize(stateToExport),
+          stateStore!.exportCommittedState(),
           applicationVersion,
           aiSecrets!.exportAll()
         )
