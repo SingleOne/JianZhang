@@ -24,6 +24,7 @@ import { atomicWriteFileSync, atomicWriteJsonSync } from './file-storage'
 interface PreparedUserDataImport {
   id: string
   document: JianzhangUserDataBackupDocument
+  sourceVersion?: string
 }
 
 export interface PreparedUserDataImportResult {
@@ -38,6 +39,7 @@ interface ApplyUserDataBackupOptions {
   createStateRecoveryPoint: (targetDirectory: string) => void
   restoreStateRecoveryPoint: (sourceDirectory: string) => AppState
   replaceAiApiKeys: (apiKeys: UserDataBackupApiKeys) => void
+  sourceVersion?: string
   afterApply?: () => void
 }
 
@@ -92,10 +94,10 @@ export class UserDataBackupService {
     return createUserDataBackupDocument(state, applicationVersion, files, aiApiKeys)
   }
 
-  prepare(value: unknown): PreparedUserDataImportResult {
+  prepare(value: unknown, sourceVersion?: string): PreparedUserDataImportResult {
     const document = parseUserDataBackupDocument(value)
     const importId = randomUUID()
-    this.preparedImport = { id: importId, document }
+    this.preparedImport = { id: importId, document, sourceVersion }
     return {
       importId,
       state: document.state,
@@ -111,6 +113,9 @@ export class UserDataBackupService {
   apply(importId: string, options: ApplyUserDataBackupOptions): AppState {
     if (!this.preparedImport || this.preparedImport.id !== importId) {
       throw new Error('待导入的用户数据已失效，请重新选择备份文件')
+    }
+    if (this.preparedImport.sourceVersion !== options.sourceVersion) {
+      throw new Error('待恢复的 GitHub Gist 版本与下载版本不一致，请重新下载')
     }
     const document = this.preparedImport.document
     const stagingDirectory = join(this.userDataDirectory, '.restore-staging', importId)
@@ -143,9 +148,13 @@ export class UserDataBackupService {
           importedFileCount: document.files.length,
           importedApiKeyCount: Object.keys(document.aiApiKeys).length
         })
-        this.cleanupRestoreSnapshots()
         options.afterApply?.()
         this.preparedImport = null
+        try {
+          this.cleanupRestoreSnapshots()
+        } catch {
+          // Snapshot retention is housekeeping and must not roll back a committed restore.
+        }
         return savedState
       } catch (reason) {
         this.restoreSnapshot(snapshotDirectory, options.restoreStateRecoveryPoint)

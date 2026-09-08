@@ -186,7 +186,9 @@ describe('GitHubSyncService Gist sync', () => {
     expect(second.getSettings().requiresRemoteRestore).toBe(true)
     const download = await second.download()
     expect(download.content).toBe('{"state":"from-first-machine"}')
-    expect(second.confirmRestore(download.version)).toMatchObject({
+    await second.assertRestoreVersion(download.version)
+    second.commitRestore(download.version)
+    expect(second.getSettings()).toMatchObject({
       hasStoredPassword: true,
       requiresRemoteRestore: false
     })
@@ -204,6 +206,20 @@ describe('GitHubSyncService Gist sync', () => {
     api.advanceRemoteVersion()
 
     await expect(service.upload('{"version":2}', 0)).rejects.toThrow('远程备份已由其他设备更新')
+  })
+
+  it('rejects a restore when the remote version changes after download', async () => {
+    const api = installGitHubApi()
+    const service = new GitHubSyncService(temporaryDirectory(), 'client-id')
+    await completeAuthorization(service)
+    await service.refreshGist()
+    await service.saveSyncPassword('sync-password')
+    await service.upload('{"version":1}', 0)
+    const download = await service.download()
+
+    api.advanceRemoteVersion()
+
+    await expect(service.assertRestoreVersion(download.version)).rejects.toThrow('远程版本已经变化')
   })
 
   it('overwrites a changed remote Gist after the user confirms the warning', async () => {

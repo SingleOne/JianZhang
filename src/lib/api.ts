@@ -971,7 +971,7 @@ const demoApi: StockDesktopApi = {
   async downloadUserDataFromGitHub() {
     throw new Error('GitHub 同步仅在 Windows 桌面版中可用')
   },
-  async confirmGitHubGistRestore() {
+  async applyGitHubGistRestore() {
     throw new Error('GitHub Gist 同步仅在 Windows 桌面版中可用')
   },
   async hideWindow() {},

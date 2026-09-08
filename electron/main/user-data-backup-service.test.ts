@@ -94,6 +94,28 @@ describe('UserDataBackupService', () => {
     expect(document.aiApiKeys).toEqual({ openai: 'openai-key' })
   })
 
+  it('binds a prepared GitHub import to the downloaded remote version', () => {
+    const directory = temporaryDirectory()
+    const service = new UserDataBackupService(directory)
+    const document = service.create(state(), '14.0.0', {})
+    const prepared = service.prepare(document, 'version-1')
+    let localDataTouched = false
+
+    expect(() =>
+      service.apply(prepared.importId, {
+        currentApiKeys: {},
+        replaceState: (nextState) => nextState,
+        createStateRecoveryPoint: () => {
+          localDataTouched = true
+        },
+        restoreStateRecoveryPoint: () => state(),
+        replaceAiApiKeys: () => undefined,
+        sourceVersion: 'version-2'
+      })
+    ).toThrow('与下载版本不一致')
+    expect(localDataTouched).toBe(false)
+  })
+
   it('restores managed files and API keys while preserving unmanaged cache data', () => {
     const source = temporaryDirectory()
     write(source, 'modules/ai/conversations/index.json', '[{"id":"from-backup"}]')
@@ -149,7 +171,7 @@ describe('UserDataBackupService', () => {
     ).toContain('jianzhang-state-manifest')
   })
 
-  it('rolls back files, state and API keys when applying the backup fails', () => {
+  it('rolls back files, state and API keys when the post-apply commit fails', () => {
     const source = temporaryDirectory()
     write(source, 'modules/market-insight/events.json', '[{"id":"from-backup"}]')
     const importedState = state()
@@ -173,8 +195,7 @@ describe('UserDataBackupService', () => {
         currentApiKeys: { deepseek: 'old-key' },
         replaceState: (nextState) => {
           replaceStateCallCount += 1
-          targetStateStore.saveImported(nextState)
-          throw new Error('save failed')
+          return targetStateStore.saveImported(nextState)
         },
         createStateRecoveryPoint: (targetDirectory) =>
           targetStateStore.createRecoveryPoint(targetDirectory),
@@ -184,9 +205,12 @@ describe('UserDataBackupService', () => {
         },
         replaceAiApiKeys: (apiKeys) => {
           restoredApiKeys = apiKeys
+        },
+        afterApply: () => {
+          throw new Error('baseline save failed')
         }
       })
-    ).toThrow('save failed')
+    ).toThrow('baseline save failed')
 
     expect(readFileSync(join(target, 'modules/market-insight/events.json'), 'utf8')).toContain(
       'local'

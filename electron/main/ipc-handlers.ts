@@ -173,7 +173,6 @@ interface IpcHandlerDependencies {
   saveGitHubSyncPassword: (password: string) => Promise<GitHubSyncSettings>
   disconnectGitHub: () => GitHubSyncSettings
   uploadUserDataToGitHub: (
-    state: AppState,
     applicationVersion: string,
     overwriteRemote?: boolean
   ) => Promise<GitHubSyncUploadResult>
@@ -183,7 +182,7 @@ interface IpcHandlerDependencies {
     summary: UserDataBackupSummary
     githubGistVersion: string
   }>
-  confirmGitHubGistRestore: (version: string) => GitHubSyncSettings
+  applyGitHubGistRestore: (importId: string, version: string) => Promise<void>
   clearInactiveFiveLevelAlerts: () => boolean
   sendToWindows: (channel: string, payload: unknown) => void
   syncWindowSurfaces: () => void
@@ -261,7 +260,7 @@ const CHANNELS = [
   'github-sync:disconnect',
   'github-sync:upload',
   'github-sync:download',
-  'github-sync:gist:restore-confirm',
+  'github-sync:gist:restore-apply',
   'app:hide',
   'app:quit'
 ] as const
@@ -529,14 +528,8 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
     dependencies.saveGitHubSyncPassword(password)
   )
   ipcMain.handle('github-sync:disconnect', () => dependencies.disconnectGitHub())
-  ipcMain.handle(
-    'github-sync:upload',
-    (_event, _stateToExport: AppState, overwriteRemote?: boolean) =>
-      dependencies.uploadUserDataToGitHub(
-        dependencies.normalizeState(dependencies.getState()),
-        app.getVersion(),
-        overwriteRemote
-      )
+  ipcMain.handle('github-sync:upload', (_event, overwriteRemote?: boolean) =>
+    dependencies.uploadUserDataToGitHub(app.getVersion(), overwriteRemote)
   )
   ipcMain.handle('github-sync:download', async () => {
     const prepared = await dependencies.downloadUserDataFromGitHub()
@@ -548,8 +541,12 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
       githubGistVersion: prepared.githubGistVersion
     }
   })
-  ipcMain.handle('github-sync:gist:restore-confirm', (_event, version: string) =>
-    dependencies.confirmGitHubGistRestore(version)
+  ipcMain.handle(
+    'github-sync:gist:restore-apply',
+    async (_event, importId: string, version: string) => {
+      await dependencies.applyGitHubGistRestore(importId, version)
+      setTimeout(dependencies.restart, 300)
+    }
   )
   ipcMain.handle('app:hide', () => dependencies.hideMainWindow())
   ipcMain.handle('app:quit', () => dependencies.quit())

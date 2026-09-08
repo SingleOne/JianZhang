@@ -329,13 +329,19 @@ export class GitHubSyncService {
     }
   }
 
-  confirmRestore(version: string): GitHubSyncSettings {
+  async assertRestoreVersion(version: string): Promise<void> {
+    const settings = await this.refreshGist()
+    if (!settings.gistId || settings.remoteVersion !== version) {
+      throw new Error('GitHub Gist 远程版本已经变化，请重新恢复')
+    }
+  }
+
+  commitRestore(version: string): void {
     const saved = this.readSettings()
     if (!saved.gistId || saved.remoteVersion !== version) {
       throw new Error('GitHub Gist 远程版本已经变化，请重新恢复')
     }
     this.writeSettings({ ...saved, lastSynchronizedVersion: version })
-    return this.getSettings()
   }
 
   private async pollForAccessToken(login: PendingDeviceLogin): Promise<string> {

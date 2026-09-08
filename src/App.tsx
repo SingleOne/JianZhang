@@ -1302,16 +1302,20 @@ export default function App() {
       if (!confirmed) return false
 
       const importedQuoteIds = new Set(result.state.watchlist.map((stock) => stock.quoteId))
-      setSelectedQuoteId(null)
-      setQuotes((current) => current.filter((quote) => importedQuoteIds.has(quote.quoteId)))
       if (result.importId) {
-        await stockApi.applyConfigImport(result.importId)
+        if (result.githubGistVersion) {
+          await stockApi.applyGitHubGistRestore(result.importId, result.githubGistVersion)
+        } else {
+          await stockApi.applyConfigImport(result.importId)
+        }
         reportSuccess('用户数据导入完成，应用正在重启')
       } else {
         const saved = await persist(result.state)
         if (!saved) return false
         reportSuccess(`已导入 ${saved.watchlist.length} 只股票及全部设置`)
       }
+      setSelectedQuoteId(null)
+      setQuotes((current) => current.filter((quote) => importedQuoteIds.has(quote.quoteId)))
       return true
     },
     [confirm, persist, reportSuccess]
@@ -1429,10 +1433,7 @@ export default function App() {
         tone: 'warning'
       })
       if (!confirmed) return
-      const result = await stockApi.uploadUserDataToGitHub(
-        state,
-        latestSettings.requiresRemoteRestore
-      )
+      const result = await stockApi.uploadUserDataToGitHub(latestSettings.requiresRemoteRestore)
       setGitHubSyncSettings(await stockApi.getGitHubSyncSettings())
       reportSuccess(`用户数据已加密上传到 GitHub Gist，版本 ${result.version.slice(0, 7)}`)
     } catch (reason) {
@@ -1441,7 +1442,7 @@ export default function App() {
       setGitHubSyncUploading(false)
       setGitHubSyncBusy(false)
     }
-  }, [confirm, githubSyncSettings.syncPasswordReady, reportError, reportSuccess, state])
+  }, [confirm, githubSyncSettings.syncPasswordReady, reportError, reportSuccess])
 
   const downloadUserDataFromGitHub = useCallback(async () => {
     setGitHubSyncBusy(true)
@@ -1449,10 +1450,7 @@ export default function App() {
     try {
       const result = await stockApi.downloadUserDataFromGitHub()
       setGitHubSyncSettings(await stockApi.getGitHubSyncSettings())
-      const applied = await applyImportedData(result, 'warning')
-      if (applied && result.githubGistVersion) {
-        setGitHubSyncSettings(await stockApi.confirmGitHubGistRestore(result.githubGistVersion))
-      }
+      await applyImportedData(result, 'warning')
     } catch (reason) {
       reportError(reason instanceof Error ? reason.message : 'GitHub 下载失败')
     } finally {

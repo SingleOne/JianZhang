@@ -222,6 +222,34 @@ function reloadStateFromDiskIfChanged(): boolean {
   return true
 }
 
+function applyPreparedUserDataBackup(
+  importId: string,
+  sourceVersion?: string,
+  afterApply?: () => void
+): AppState {
+  if (!userDataBackupService || !stateStore || !aiSecrets) {
+    throw new Error('用户数据恢复服务尚未初始化')
+  }
+  const backupService = userDataBackupService
+  const store = stateStore
+  const secrets = aiSecrets
+  return backupService.apply(importId, {
+    currentApiKeys: secrets.exportAll(),
+    replaceState: (nextState) => {
+      state = store.saveImported(nextState)
+      return state
+    },
+    createStateRecoveryPoint: (targetDirectory) => store.createRecoveryPoint(targetDirectory),
+    restoreStateRecoveryPoint: (sourceDirectory) => {
+      state = store.restoreRecoveryPoint(sourceDirectory)
+      return state
+    },
+    replaceAiApiKeys: (apiKeys) => secrets.replaceAll(apiKeys),
+    sourceVersion,
+    afterApply
+  })
+}
+
 function sendToWindows(channel: string, payload: unknown): void {
   windowManager?.sendToWindows(channel, payload)
 }
@@ -716,22 +744,7 @@ if (!hasSingleInstanceLock) {
           aiSecrets!.exportAll()
         ),
       prepareUserDataBackup: (value) => userDataBackupService!.prepare(value),
-      applyUserDataBackup: (importId) =>
-        userDataBackupService!.apply(importId, {
-          currentApiKeys: aiSecrets!.exportAll(),
-          replaceState: (nextState) => {
-            if (!stateStore) throw new Error('配置存储尚未初始化')
-            state = stateStore.saveImported(nextState)
-            return state
-          },
-          createStateRecoveryPoint: (targetDirectory) =>
-            stateStore!.createRecoveryPoint(targetDirectory),
-          restoreStateRecoveryPoint: (sourceDirectory) => {
-            state = stateStore!.restoreRecoveryPoint(sourceDirectory)
-            return state
-          },
-          replaceAiApiKeys: (apiKeys) => aiSecrets!.replaceAll(apiKeys)
-        }),
+      applyUserDataBackup: (importId) => applyPreparedUserDataBackup(importId),
       getGitHubSyncSettings: () => githubSyncService!.getSettings(),
       startGitHubLogin: () => githubSyncService!.startLogin(),
       completeGitHubLogin: (loginId) => githubSyncService!.completeLogin(loginId),
@@ -740,14 +753,14 @@ if (!hasSingleInstanceLock) {
       generateGitHubSyncPassword: () => githubSyncService!.generateSyncPassword(),
       saveGitHubSyncPassword: (password) => githubSyncService!.saveSyncPassword(password),
       disconnectGitHub: () => githubSyncService!.disconnect(),
-      uploadUserDataToGitHub: async (_stateToExport, applicationVersion, overwriteRemote) => {
+      uploadUserDataToGitHub: async (applicationVersion, overwriteRemote) => {
         const document = userDataBackupService!.create(
           stateStore!.exportCommittedState(),
           applicationVersion,
           aiSecrets!.exportAll()
         )
         return githubSyncService!.upload(
-          JSON.stringify(document, null, 2),
+          JSON.stringify(document),
           Object.keys(document.aiApiKeys).length,
           overwriteRemote
         )
@@ -755,11 +768,16 @@ if (!hasSingleInstanceLock) {
       downloadUserDataFromGitHub: async () => {
         const download = await githubSyncService!.download()
         return {
-          ...userDataBackupService!.prepare(JSON.parse(download.content)),
+          ...userDataBackupService!.prepare(JSON.parse(download.content), download.version),
           githubGistVersion: download.version
         }
       },
-      confirmGitHubGistRestore: (version) => githubSyncService!.confirmRestore(version),
+      applyGitHubGistRestore: async (importId, version) => {
+        await githubSyncService!.assertRestoreVersion(version)
+        applyPreparedUserDataBackup(importId, version, () => {
+          githubSyncService!.commitRestore(version)
+        })
+      },
       clearInactiveFiveLevelAlerts: () => quoteRuntime!.clearInactiveFiveLevelAlerts(),
       sendToWindows,
       syncWindowSurfaces,
