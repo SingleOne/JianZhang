@@ -716,6 +716,7 @@ function ValuationApplicabilityPanel({
           </div>
         ) : null}
       </div>
+      <StrictFcffPanel summary={summary} company={company} />
       <DcfPanel result={summary.dcf} />
       <InvestmentValueMetrics
         quoteId={quoteId}
@@ -725,6 +726,90 @@ function ValuationApplicabilityPanel({
         staleReason={staleReason}
       />
     </section>
+  )
+}
+
+function StrictFcffPanel({
+  summary,
+  company
+}: {
+  summary: FundamentalValuationSummary
+  company: FundamentalScreeningEvaluation['company']
+}) {
+  const fcff = summary.fcff
+  if (fcff.status === 'not-applicable') {
+    return (
+      <div className="fundamental-fcff-empty">
+        <strong>严格 FCFF 不适用</strong>
+        <span>{fcff.reason}</span>
+      </div>
+    )
+  }
+
+  return (
+    <details className="fundamental-fcff-details">
+      <summary>
+        <span>
+          <strong>年度严格 FCFF</strong>
+          <small>
+            有效 {fcff.validYears}/{fcff.totalYears} 年 · 正值 {fcff.positiveYears} 年 · 口径{' '}
+            {summary.fcffModelVersion}
+          </small>
+        </span>
+        <span>
+          正常化 FCFF
+          <strong className={signedValueClass(fcff.normalizedFcff ?? 0)}>
+            {fundamentalAmount(fcff.normalizedFcff)}
+          </strong>
+        </span>
+      </summary>
+      {fcff.reason ? <p className="fundamental-fcff-warning">{fcff.reason}</p> : null}
+      <div className="fundamental-fcff-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>财年</th>
+              <th>调整后 EBIT</th>
+              <th>有效税率</th>
+              <th>NOPAT</th>
+              <th>折旧摊销</th>
+              <th>资本开支</th>
+              <th>经营营运资本</th>
+              <th>营运资本增加</th>
+              <th>FCFF</th>
+            </tr>
+          </thead>
+          <tbody>
+            {company.annualReports.map((report) => {
+              const item = report.fcffBreakdown
+              return (
+                <tr key={report.year} title={item?.unavailableReason ?? undefined}>
+                  <td>{report.year}</td>
+                  <td>{fundamentalAmount(item?.adjustedEbit ?? null)}</td>
+                  <td>{fundamentalPercent(item?.effectiveTaxRate)}</td>
+                  <td>{fundamentalAmount(item?.nopat ?? null)}</td>
+                  <td>{fundamentalAmount(item?.depreciationAndAmortization ?? null)}</td>
+                  <td>{fundamentalAmount(item?.capitalExpenditure ?? null)}</td>
+                  <td>{fundamentalAmount(item?.operatingWorkingCapital ?? null)}</td>
+                  <td className={signedValueClass(item?.operatingWorkingCapitalChange ?? 0)}>
+                    {fundamentalAmount(item?.operatingWorkingCapitalChange ?? null)}
+                  </td>
+                  <td className={signedValueClass(item?.fcff ?? 0)}>
+                    {item?.fcff === null || item?.fcff === undefined
+                      ? item?.unavailableReason ?? '旧快照未提供'
+                      : fundamentalAmount(item.fcff)}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      <footer>
+        FCFF = 调整后 EBIT ×（1−有效税率）+ 折旧摊销 − 资本开支 −
+        经营性营运资本增加额。金额单位：亿元。
+      </footer>
+    </details>
   )
 }
 

@@ -189,6 +189,8 @@ export function buildLongTermContext(input: LongTermContextInput) {
   const valuation = {
     ...marketValuation,
     profile: fundamentalValuation?.profile ?? null,
+    fcff: fundamentalValuation?.fcff ?? null,
+    fcffModelVersion: fundamentalValuation?.fcffModelVersion ?? null,
     dataDate: fundamentalValuation?.dataDate ?? null,
     modelVersion: fundamentalValuation?.modelVersion ?? null,
     dcf
@@ -226,7 +228,10 @@ export function buildLongTermContext(input: LongTermContextInput) {
             deductedParentNetProfit: report.deductedParentNetProfit,
             operatingCashFlow: report.operatingCashFlow,
             capitalExpenditure: report.capitalExpenditure ?? null,
-            freeCashFlow: ordinaryCorporateMetricsApplicable ? (report.freeCashFlow ?? null) : null
+            freeCashFlow: ordinaryCorporateMetricsApplicable ? (report.freeCashFlow ?? null) : null,
+            fcffBreakdown: ordinaryCorporateMetricsApplicable
+              ? (report.fcffBreakdown ?? null)
+              : null
           })),
           latestBalanceSheet: {
             reportDate: fundamentalCompany.latestBalanceSheet.reportDate,

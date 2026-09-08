@@ -37,6 +37,9 @@ export function fundamentalStaleReason(
   if (snapshot.schemaVersion < 8) {
     return '当前快照缺少公司业务简介，建议手动更新。'
   }
+  if (snapshot.schemaVersion < 9) {
+    return '当前快照缺少严格 FCFF 明细，建议手动更新。'
+  }
   const latestYear = snapshot.fiscalYears.at(-1) ?? 0
   const expectedYear = expectedCompletedFiscalYear(now)
   if (latestYear < expectedYear) {

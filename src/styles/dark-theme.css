@@ -863,6 +863,37 @@
   background: rgba(243, 184, 91, 0.14);
   border-color: rgba(243, 184, 91, 0.48);
 }
+:root[data-theme='dark'] .fundamental-fcff-details,
+:root[data-theme='dark'] .fundamental-fcff-empty {
+  color: #cbd5e3;
+  background: #111827;
+  border-color: #263449;
+}
+:root[data-theme='dark'] .fundamental-fcff-details > summary,
+:root[data-theme='dark'] .fundamental-fcff-details > summary strong,
+:root[data-theme='dark'] .fundamental-fcff-table-wrap td,
+:root[data-theme='dark'] .fundamental-fcff-empty strong {
+  color: #e6edf7;
+}
+:root[data-theme='dark'] .fundamental-fcff-details > summary small,
+:root[data-theme='dark'] .fundamental-fcff-details > footer {
+  color: #cbd5e3;
+}
+:root[data-theme='dark'] .fundamental-fcff-warning {
+  color: #f3b85b;
+  background: rgba(243, 184, 91, 0.14);
+}
+:root[data-theme='dark'] .fundamental-fcff-table-wrap {
+  border-top-color: #263449;
+}
+:root[data-theme='dark'] .fundamental-fcff-table-wrap th,
+:root[data-theme='dark'] .fundamental-fcff-table-wrap td {
+  border-color: #263449;
+}
+:root[data-theme='dark'] .fundamental-fcff-table-wrap th {
+  color: #cbd5e3;
+  background: #162033;
+}
 :root[data-theme='dark'] .fundamental-detail-conclusion-card {
   background: linear-gradient(135deg, rgba(91, 140, 255, 0.14) 0%, #111827 100%);
   border: 1px solid rgba(91, 140, 255, 0.48);

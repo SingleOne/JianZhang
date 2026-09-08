@@ -74,6 +74,22 @@ DETAILED_BALANCE_COLUMNS = (
     "REPORT_DATE,NOTICE_DATE,MONETARYFUNDS,SHORT_LOAN,SHORT_BOND_PAYABLE,"
     "NONCURRENT_LIAB_1YEAR,LONG_LOAN,BOND_PAYABLE,LEASE_LIAB"
 )
+FCFF_INCOME_COLUMNS = (
+    "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,SECURITY_TYPE_CODE,REPORT_DATE,NOTICE_DATE,"
+    "OPERATE_PROFIT,TOTAL_PROFIT,INCOME_TAX,FE_INTEREST_EXPENSE,INVEST_INCOME,"
+    "FAIRVALUE_CHANGE_INCOME,ASSET_DISPOSAL_INCOME"
+)
+FCFF_CASHFLOW_COLUMNS = (
+    "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,SECURITY_TYPE_CODE,REPORT_DATE,NOTICE_DATE,"
+    "FA_IR_DEPR,IA_AMORTIZE,USERIGHT_ASSET_AMORTIZE,CONSTRUCT_LONG_ASSET"
+)
+FCFF_BALANCE_COLUMNS = (
+    "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,ORG_TYPE,SECURITY_TYPE_CODE,REPORT_DATE,"
+    "NOTICE_DATE,MONETARYFUNDS,SHORT_LOAN,SHORT_BOND_PAYABLE,NONCURRENT_LIAB_1YEAR,"
+    "LONG_LOAN,BOND_PAYABLE,LEASE_LIAB,NOTE_RECE,ACCOUNTS_RECE,PREPAYMENT,INVENTORY,"
+    "CONTRACT_ASSET,OTHER_CURRENT_ASSET,NOTE_PAYABLE,ACCOUNTS_PAYABLE,CONTRACT_LIAB,"
+    "ADVANCE_RECEIVABLES,STAFF_SALARY_PAYABLE,TAX_PAYABLE,OTHER_CURRENT_LIAB"
+)
 VALUATION_COLUMNS = (
     "SECUCODE,SECURITY_CODE,SECURITY_NAME_ABBR,TRADE_DATE,CLOSE_PRICE,PE_TTM,PB_MRQ,"
     "PCF_OCF_TTM,TOTAL_MARKET_CAP,NOTLIMITED_MARKETCAP_A"
@@ -244,6 +260,125 @@ def sum_nullable_fields(row: dict, fields: tuple[str, ...]) -> float | None:
     return sum(value or 0 for value in values) if any(value is not None for value in values) else None
 
 
+def sum_required_fields(row: dict, fields: tuple[str, ...]) -> float | None:
+    values = [number(row.get(field)) for field in fields]
+    return sum(values) if all(value is not None for value in values) else None
+
+
+def operating_working_capital(row: dict) -> tuple[float | None, float | None, float | None]:
+    assets = sum_required_fields(
+        row,
+        (
+            "NOTE_RECE",
+            "ACCOUNTS_RECE",
+            "PREPAYMENT",
+            "INVENTORY",
+            "CONTRACT_ASSET",
+            "OTHER_CURRENT_ASSET",
+        ),
+    )
+    liabilities = sum_required_fields(
+        row,
+        (
+            "NOTE_PAYABLE",
+            "ACCOUNTS_PAYABLE",
+            "CONTRACT_LIAB",
+            "ADVANCE_RECEIVABLES",
+            "STAFF_SALARY_PAYABLE",
+            "TAX_PAYABLE",
+            "OTHER_CURRENT_LIAB",
+        ),
+    )
+    working_capital = assets - liabilities if assets is not None and liabilities is not None else None
+    return assets, liabilities, working_capital
+
+
+def build_fcff_breakdown(
+    year: int,
+    income: dict,
+    cashflow: dict,
+    balance: dict,
+    previous_balance: dict,
+) -> dict:
+    operating_profit = number(income.get("OPERATE_PROFIT"))
+    interest_expense = number(income.get("FE_INTEREST_EXPENSE"))
+    non_operating_adjustments = sum_required_fields(
+        income,
+        ("INVEST_INCOME", "FAIRVALUE_CHANGE_INCOME", "ASSET_DISPOSAL_INCOME"),
+    )
+    adjusted_ebit = (
+        operating_profit + interest_expense - non_operating_adjustments
+        if operating_profit is not None
+        and interest_expense is not None
+        and non_operating_adjustments is not None
+        else None
+    )
+    total_profit = number(income.get("TOTAL_PROFIT"))
+    income_tax = number(income.get("INCOME_TAX"))
+    effective_tax_rate = (
+        income_tax / total_profit
+        if total_profit is not None
+        and total_profit > 0
+        and income_tax is not None
+        and 0 <= income_tax / total_profit <= 0.5
+        else None
+    )
+    nopat = (
+        adjusted_ebit * (1 - effective_tax_rate)
+        if adjusted_ebit is not None and effective_tax_rate is not None
+        else None
+    )
+    depreciation_and_amortization = sum_required_fields(
+        cashflow, ("FA_IR_DEPR", "IA_AMORTIZE", "USERIGHT_ASSET_AMORTIZE")
+    )
+    capital_expenditure = number(cashflow.get("CONSTRUCT_LONG_ASSET"))
+    operating_assets, operating_liabilities, working_capital = operating_working_capital(balance)
+    _, _, previous_working_capital = operating_working_capital(previous_balance)
+    working_capital_change = (
+        working_capital - previous_working_capital
+        if working_capital is not None and previous_working_capital is not None
+        else None
+    )
+
+    required = {
+        "调整后 EBIT 输入缺失": adjusted_ebit,
+        "有效税率异常或缺失": effective_tax_rate,
+        "折旧摊销数据缺失": depreciation_and_amortization,
+        "资本开支数据缺失": capital_expenditure,
+        "经营性营运资本同比数据缺失": working_capital_change,
+    }
+    unavailable_reason = next((message for message, value in required.items() if value is None), None)
+    fcff = (
+        nopat + depreciation_and_amortization - capital_expenditure - working_capital_change
+        if unavailable_reason is None
+        and nopat is not None
+        and depreciation_and_amortization is not None
+        and capital_expenditure is not None
+        and working_capital_change is not None
+        else None
+    )
+    return {
+        "year": year,
+        "reportDate": f"{year}-12-31",
+        "operatingProfit": rounded(operating_profit),
+        "interestExpense": rounded(interest_expense),
+        "nonOperatingIncomeAdjustments": rounded(non_operating_adjustments),
+        "adjustedEbit": rounded(adjusted_ebit),
+        "totalProfit": rounded(total_profit),
+        "incomeTaxExpense": rounded(income_tax),
+        "effectiveTaxRate": rounded(effective_tax_rate * 100, 4) if effective_tax_rate is not None else None,
+        "nopat": rounded(nopat),
+        "depreciationAndAmortization": rounded(depreciation_and_amortization),
+        "capitalExpenditure": rounded(capital_expenditure),
+        "operatingCurrentAssets": rounded(operating_assets),
+        "operatingCurrentLiabilities": rounded(operating_liabilities),
+        "operatingWorkingCapital": rounded(working_capital),
+        "operatingWorkingCapitalChange": rounded(working_capital_change),
+        "fcff": rounded(fcff),
+        "unavailableReason": unavailable_reason,
+    }
+
+
 def date_part(value: object) -> str | None:
     text = str(value or "")[:10]
     return text if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text) else None
@@ -403,6 +538,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
     annual_reports_complete = snapshot_day >= dt.date(snapshot_day.year, 5, 1)
     latest_year = snapshot_day.year - (1 if annual_reports_complete else 2)
     fiscal_years = list(range(latest_year - years + 1, latest_year + 1))
+    fcff_input_years = [fiscal_years[0] - 1, *fiscal_years]
     annual_dates = {year: f"{year}-12-31" for year in fiscal_years}
     quarterly_dates = quarter_end_dates(snapshot_day)
     quarterly_filter = (
@@ -434,20 +570,55 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
     log(f"阶段二/五：获取 {fiscal_years[0]}—{fiscal_years[-1]} 年利润与现金流")
     income_by_year: dict[int, dict[str, dict]] = {}
     cashflow_by_year: dict[int, dict[str, dict]] = {}
+    fcff_income_by_year: dict[int, dict[str, dict]] = {}
+    fcff_cashflow_by_year: dict[int, dict[str, dict]] = {}
     for year in fiscal_years:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
             income_future = pool.submit(
                 fetch_report, "RPT_DMSK_FN_INCOME", INCOME_COLUMNS, annual_dates[year]
             )
             cashflow_future = pool.submit(
                 fetch_report, "RPT_DMSK_FN_CASHFLOW", CASHFLOW_COLUMNS, annual_dates[year]
             )
+            fcff_income_future = pool.submit(
+                fetch_report, "RPT_F10_FINANCE_GINCOME", FCFF_INCOME_COLUMNS, annual_dates[year]
+            )
+            fcff_cashflow_future = pool.submit(
+                fetch_report,
+                "RPT_F10_FINANCE_GCASHFLOW",
+                FCFF_CASHFLOW_COLUMNS,
+                annual_dates[year],
+            )
             income_by_year[year] = a_share_rows(income_future.result())
             cashflow_by_year[year] = a_share_rows(cashflow_future.result())
+            fcff_income_by_year[year] = a_share_rows(fcff_income_future.result())
+            fcff_cashflow_by_year[year] = a_share_rows(fcff_cashflow_future.result())
         log(
             f"阶段二/五：{year} 年利润 {len(income_by_year[year]):,} 家，"
-            f"现金流 {len(cashflow_by_year[year]):,} 家"
+            f"现金流 {len(cashflow_by_year[year]):,} 家，严格 FCFF 损益 "
+            f"{len(fcff_income_by_year[year]):,} 家、现金流 {len(fcff_cashflow_by_year[year]):,} 家"
         )
+    prior_year = fcff_input_years[0]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        prior_fcff_income_future = pool.submit(
+            fetch_report,
+            "RPT_F10_FINANCE_GINCOME",
+            FCFF_INCOME_COLUMNS,
+            f"{prior_year}-12-31",
+        )
+        prior_fcff_cashflow_future = pool.submit(
+            fetch_report,
+            "RPT_F10_FINANCE_GCASHFLOW",
+            FCFF_CASHFLOW_COLUMNS,
+            f"{prior_year}-12-31",
+        )
+        fcff_income_by_year[prior_year] = a_share_rows(prior_fcff_income_future.result())
+        fcff_cashflow_by_year[prior_year] = a_share_rows(prior_fcff_cashflow_future.result())
+    log(
+        f"阶段二/五：{prior_year} 年严格 FCFF 覆盖诊断，损益 "
+        f"{len(fcff_income_by_year[prior_year]):,} 家、现金流 "
+        f"{len(fcff_cashflow_by_year[prior_year]):,} 家"
+    )
 
     log(f"阶段三/五：获取 {latest_year} 年资产负债率、净负债并计算行业分位")
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
@@ -462,6 +633,19 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         )
         latest_balance = a_share_rows(balance_future.result())
         latest_detailed_balance = a_share_rows(detailed_balance_future.result())
+    fcff_balance_by_year: dict[int, dict[str, dict]] = {}
+    for year in fcff_input_years:
+        fcff_balance_by_year[year] = a_share_rows(
+            fetch_report(
+                "RPT_F10_FINANCE_GBALANCE",
+                FCFF_BALANCE_COLUMNS,
+                f"{year}-12-31",
+            )
+        )
+        log(
+            f"阶段三/五：{year} 年严格 FCFF 营运资本已获取 "
+            f"{len(fcff_balance_by_year[year]):,} 家"
+        )
     latest_balance = {
         code: row
         for code, row in latest_balance.items()
@@ -623,6 +807,17 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
                 if operating_cash_flow is not None and capital_expenditure is not None
                 else None
             )
+            fcff_breakdown = (
+                build_fcff_breakdown(
+                    year,
+                    fcff_income_by_year[year].get(code, {}),
+                    fcff_cashflow_by_year[year].get(code, {}),
+                    fcff_balance_by_year[year].get(code, {}),
+                    fcff_balance_by_year[year - 1].get(code, {}),
+                )
+                if organization_type in ("general", "other")
+                else None
+            )
             annual_reports.append(
                 {
                     "year": year,
@@ -643,6 +838,7 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
                     "operatingCashFlow": rounded(operating_cash_flow),
                     "capitalExpenditure": rounded(capital_expenditure),
                     "freeCashFlow": rounded(free_cash_flow),
+                    **({"fcffBreakdown": fcff_breakdown} if fcff_breakdown else {}),
                 }
             )
 
@@ -819,10 +1015,22 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
         )
         for row in rows
     )
+    strict_fcff_company_count = sum(
+        any(report.get("fcffBreakdown", {}).get("fcff") is not None for report in row["annualReports"])
+        for row in rows
+    )
+    complete_strict_fcff_company_count = sum(
+        len(row["annualReports"]) == years
+        and all(
+            report.get("fcffBreakdown", {}).get("fcff") is not None
+            for report in row["annualReports"]
+        )
+        for row in rows
+    )
 
     generated_at = dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).isoformat(timespec="seconds")
     snapshot = {
-        "schemaVersion": 8,
+        "schemaVersion": 9,
         "snapshotDate": snapshot_date,
         "generatedAt": generated_at,
         "currency": "CNY",
@@ -856,6 +1064,16 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
                 "url": EASTMONEY_DATA_API,
             },
             {
+                "name": "东方财富详细利润表",
+                "reportName": "RPT_F10_FINANCE_GINCOME",
+                "url": EASTMONEY_DATA_API,
+            },
+            {
+                "name": "东方财富详细现金流量表",
+                "reportName": "RPT_F10_FINANCE_GCASHFLOW",
+                "url": EASTMONEY_DATA_API,
+            },
+            {
                 "name": "东方财富估值分析",
                 "reportName": "RPT_VALUEANALYSIS_DET",
                 "url": EASTMONEY_DATA_API,
@@ -884,13 +1102,15 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
             "latestQuarterlyRiskReportCount": latest_quarterly_risk_report_count,
             "completeQuarterlyRiskIndicatorCount": complete_quarterly_risk_indicator_count,
             "companyBusinessProfileCount": company_business_profile_count,
+            "strictFcffCompanyCount": strict_fcff_company_count,
+            "completeStrictFcffCompanyCount": complete_strict_fcff_company_count,
             "industryCount": len(industries),
         },
         "industries": industries,
         "rows": rows,
     }
     diagnostics = {
-        "schemaVersion": 8,
+        "schemaVersion": 9,
         "snapshotDate": snapshot_date,
         "generatedAt": generated_at,
         "fiscalYears": fiscal_years,
@@ -903,6 +1123,17 @@ def generate(snapshot_date: str, years: int) -> tuple[dict, dict]:
             for year in fiscal_years
         },
         "companyProfileRows": len(company_profiles),
+        "strictFcffIncomeRowsByYear": {
+            str(year): len(fcff_income_by_year[year]) for year in fcff_input_years
+        },
+        "strictFcffCashFlowRowsByYear": {
+            str(year): len(fcff_cashflow_by_year[year]) for year in fcff_input_years
+        },
+        "strictFcffWorkingCapitalBalanceRowsByYear": {
+            str(year): len(fcff_balance_by_year[year]) for year in fcff_input_years
+        },
+        "strictFcffCompanyCount": strict_fcff_company_count,
+        "completeStrictFcffCompanyCount": complete_strict_fcff_company_count,
         "latestBalanceRows": len(latest_balance),
         "latestDetailedBalanceRows": len(latest_detailed_balance),
         "latestValuationDate": valuation_date,

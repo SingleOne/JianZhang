@@ -1,5 +1,10 @@
-import type { FundamentalCompany, FundamentalOrganizationType } from '../shared/types'
+import type {
+  FundamentalCompany,
+  FundamentalFcffCoverage,
+  FundamentalOrganizationType
+} from '../shared/types'
 import { createDcfAnalysis, type DcfAnalysisResult } from './dcf-analysis'
+import { createFcffAnalysis } from './fcff-analysis'
 import { usesOrdinaryCorporateInvestmentMetrics } from './valuation-analysis'
 
 export type ValuationProfileTag =
@@ -31,9 +36,11 @@ export interface FundamentalValuationProfile {
 
 export interface FundamentalValuationSummary {
   profile: FundamentalValuationProfile
+  fcff: FundamentalFcffCoverage
   dcf: DcfAnalysisResult
   dataDate: string
   modelVersion: 'simplified-fcf-dcf-v1'
+  fcffModelVersion: 'strict-fcff-v1'
 }
 
 export const VALUATION_PROFILE_TAG_LABELS: Record<ValuationProfileTag, string> = {
@@ -92,9 +99,15 @@ function cashFlowProfile(company: FundamentalCompany): {
   reasons: string[]
   warnings: string[]
 } {
-  const values = company.annualReports
-    .map((report) => report.freeCashFlow)
+  const strictValues = company.annualReports
+    .map((report) => report.fcffBreakdown?.fcff)
     .filter((value): value is number => value !== null && value !== undefined)
+  const usesStrictFcff = strictValues.length >= 5
+  const values = usesStrictFcff
+    ? strictValues
+    : company.annualReports
+        .map((report) => report.freeCashFlow)
+        .filter((value): value is number => value !== null && value !== undefined)
   if (values.length < 5) {
     return {
       tags: [],
@@ -112,20 +125,26 @@ function cashFlowProfile(company: FundamentalCompany): {
   if (positiveYears >= 4 && coefficientOfVariation <= 0.35) {
     return {
       tags: ['stable-cash-flow'],
-      reasons: ['近五年自由现金流至少四年为正，且波动系数不高于 0.35。'],
+      reasons: [
+        `近五年${usesStrictFcff ? '严格 FCFF' : '简化自由现金流'}至少四年为正，且波动系数不高于 0.35。`
+      ],
       warnings: []
     }
   }
   if (positiveYears <= 2 || coefficientOfVariation >= 0.6) {
     return {
       tags: ['cash-flow-volatile'],
-      reasons: ['近五年自由现金流正值年份较少或波动系数不低于 0.60。'],
+      reasons: [
+        `近五年${usesStrictFcff ? '严格 FCFF' : '简化自由现金流'}正值年份较少或波动系数不低于 0.60。`
+      ],
       warnings: ['现金流波动较大，单点 DCF 结果应降低权重。']
     }
   }
   return {
     tags: [],
-    reasons: ['近五年自由现金流未达到稳定或高波动标签阈值。'],
+    reasons: [
+      `近五年${usesStrictFcff ? '严格 FCFF' : '简化自由现金流'}未达到稳定或高波动标签阈值。`
+    ],
     warnings: []
   }
 }
@@ -300,6 +319,7 @@ export function createFundamentalValuationSummary(
   currentPrice: number | null | undefined
 ): FundamentalValuationSummary {
   const profile = createFundamentalValuationProfile(company)
+  const fcff = createFcffAnalysis(company, profile.tags.includes('cyclical') ? 5 : 3)
   const dcf = createDcfAnalysis(company, currentPrice)
   const dcfAvailability: ValuationAvailability = dcf.analysis
     ? 'available'
@@ -309,12 +329,37 @@ export function createFundamentalValuationSummary(
   return {
     profile: {
       ...profile,
-      metricGuidance: profile.metricGuidance.map((metric) =>
-        metric.id === 'dcf' ? { ...metric, availability: dcfAvailability } : metric
-      )
+      metricGuidance: [
+        ...(usesOrdinaryCorporateInvestmentMetrics(company.organizationType)
+          ? [
+              {
+                id: 'fcff',
+                label: '严格 FCFF',
+                role: 'informational' as const,
+                availability:
+                  fcff.status === 'not-applicable'
+                    ? ('not-applicable' as const)
+                    : fcff.status === 'insufficient-data'
+                      ? ('insufficient-data' as const)
+                      : fcff.status === 'unstable-input'
+                        ? ('unstable-input' as const)
+                        : ('available' as const),
+                note:
+                  fcff.reason ??
+                  `以最近 ${fcff.normalizationYears} 年有效 FCFF 正常化；阶段 B 仅作为待 WACC 输入`
+              }
+            ]
+          : []),
+        ...profile.metricGuidance.map((metric) =>
+          metric.id === 'dcf' ? { ...metric, availability: dcfAvailability } : metric
+        )
+      ],
+      warnings: [...profile.warnings, ...(fcff.reason ? [fcff.reason] : [])]
     },
+    fcff,
     dcf,
     dataDate: company.annualReports.at(-1)?.reportDate ?? company.latestBalanceSheet.reportDate,
-    modelVersion: 'simplified-fcf-dcf-v1'
+    modelVersion: 'simplified-fcf-dcf-v1',
+    fcffModelVersion: 'strict-fcff-v1'
   }
 }

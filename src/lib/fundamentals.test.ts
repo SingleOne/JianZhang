@@ -126,4 +126,18 @@ describe('fundamental snapshots', () => {
 
     expect(parseFundamentalSnapshot(JSON.stringify(value))).toEqual(value)
   })
+
+  it('parses schema v9 snapshots with strict FCFF coverage', () => {
+    const value: FundamentalSnapshot = {
+      ...snapshot('2026-09-08'),
+      schemaVersion: 9,
+      coverage: {
+        ...snapshot('2026-09-08').coverage,
+        strictFcffCompanyCount: 4200,
+        completeStrictFcffCompanyCount: 3600
+      }
+    }
+
+    expect(parseFundamentalSnapshot(JSON.stringify(value))).toEqual(value)
+  })
 })

@@ -1717,6 +1717,38 @@ export interface CompanyBusinessProfile {
   fetchedAt: string
 }
 
+export interface AnnualFcffBreakdown {
+  year: number
+  reportDate: string
+  operatingProfit: number | null
+  interestExpense: number | null
+  nonOperatingIncomeAdjustments: number | null
+  adjustedEbit: number | null
+  totalProfit: number | null
+  incomeTaxExpense: number | null
+  effectiveTaxRate: number | null
+  nopat: number | null
+  depreciationAndAmortization: number | null
+  capitalExpenditure: number | null
+  operatingCurrentAssets: number | null
+  operatingCurrentLiabilities: number | null
+  operatingWorkingCapital: number | null
+  operatingWorkingCapitalChange: number | null
+  fcff: number | null
+  unavailableReason: string | null
+}
+
+export interface FundamentalFcffCoverage {
+  status: 'available' | 'insufficient-data' | 'unstable-input' | 'not-applicable'
+  totalYears: number
+  validYears: number
+  positiveYears: number
+  coefficientOfVariation: number | null
+  normalizedFcff: number | null
+  normalizationYears: number
+  reason: string | null
+}
+
 export interface FundamentalAnnualReport {
   year: number
   reportDate: string
@@ -1730,6 +1762,7 @@ export interface FundamentalAnnualReport {
   operatingCashFlow: number | null
   capitalExpenditure?: number | null
   freeCashFlow?: number | null
+  fcffBreakdown?: AnnualFcffBreakdown
 }
 
 export interface FundamentalBalanceSheet {
@@ -1915,6 +1948,7 @@ export interface FundamentalCompany {
   industryCode: string
   industryName: string
   businessProfile?: CompanyBusinessProfile
+  fcffCoverage?: FundamentalFcffCoverage
   annualReports: FundamentalAnnualReport[]
   quarterlyRiskReports?: FundamentalQuarterlyRiskReport[]
   latestBalanceSheet: FundamentalBalanceSheet
@@ -1929,7 +1963,7 @@ export interface FundamentalIndustryBenchmark {
 }
 
 export interface FundamentalSnapshot {
-  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
   snapshotDate: string
   generatedAt: string
   currency: 'CNY'
@@ -1959,6 +1993,8 @@ export interface FundamentalSnapshot {
     latestQuarterlyRiskReportCount?: number
     completeQuarterlyRiskIndicatorCount?: number
     companyBusinessProfileCount?: number
+    strictFcffCompanyCount?: number
+    completeStrictFcffCompanyCount?: number
     industryCount: number
   }
   industries: FundamentalIndustryBenchmark[]
