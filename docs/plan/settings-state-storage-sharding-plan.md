@@ -1,12 +1,12 @@
 # 核心状态分片与 GitHub Gist 备份恢复方案
 
-> 文档状态：方案已落盘，尚未实施
+> 文档状态：阶段 A、B、C 已于 2026-09-08 实施；阶段 D 为可选优化，尚未启动
 >
 > 编写日期：2026-09-08
 >
-> 代码基线：`main` 分支，`f1bb145`，应用版本 `14.0.0`
+> 实施提交：`cd6b16d`（阶段 A）、`a5da487`（阶段 B）、`0a9d0e9`（阶段 C），应用版本 `14.0.0`
 >
-> 当前实现说明见 [`docs/wiki/05-state-storage-and-ipc.md`](../wiki/05-state-storage-and-ipc.md)。本文描述后续实施方案，不代表现有版本已经具备这些能力。
+> 当前实现说明见 [`docs/wiki/05-state-storage-and-ipc.md`](../wiki/05-state-storage-and-ipc.md)。本文保留设计依据、阶段边界和后续可选工作。
 
 ## 1. 方案结论
 
@@ -336,6 +336,8 @@ manifest 必须足够小，写入时继续使用同目录临时文件和原子�
 
 不长期双写旧格式。双写会重新引入整份状态写入，并造成新旧程序分别修改两套状态后的来源冲突。降级到旧应用时只能读取迁移时保留的静态旧副本，不保证包含迁移后的新修改。
 
+实现中使用 `TODO(state-manifest-migration)` 标记旧单文件迁移入口与实现。待所有受支持安装版本都至少成功启动并跨过 manifest 格式后，应删除该迁移分支、旧文件常量及对应迁移测试；在此之前不得移除。
+
 ## 10. 本地用户数据备份
 
 ### 10.1 外部格式保持单一
@@ -370,14 +372,8 @@ JianzhangUserDataBackupDocument
 `UserDataBackupService` 不应自行猜测状态分片目录。由 `StateStore` 提供：
 
 ```ts
-interface StateRecoveryPoint {
-  id: string
-  revision: number
-  manifestPath: string
-}
-
-createRecoveryPoint(targetDirectory: string): StateRecoveryPoint
-restoreRecoveryPoint(point: StateRecoveryPoint): AppState
+createRecoveryPoint(targetDirectory: string): void
+restoreRecoveryPoint(sourceDirectory: string): AppState
 ```
 
 恢复点复制：
@@ -551,7 +547,7 @@ applyGitHubRestore(importId: string, gistVersion: string): Promise<void>
 
 ## 14. 实施分期
 
-### 阶段 A：本地存储格式与旧数据迁移
+### 阶段 A：本地存储格式与旧数据迁移（已完成）
 
 - 定义 manifest 和领域分片类型。
 - 实现拆分、组装、hash 校验和引用清理。
@@ -560,14 +556,14 @@ applyGitHubRestore(importId: string, gistVersion: string): Promise<void>
 - 把 last-good 和 state-history 改为 manifest 语义。
 - 继续返回完整 `AppState`，不改业务组件。
 
-### 阶段 B：本地备份与恢复协调
+### 阶段 B：本地备份与恢复协调（已完成）
 
 - 增加 `exportCommittedState`、`createRecoveryPoint`、`restoreRecoveryPoint`。
 - 更新 `UserDataBackupService`，让外部备份继续保存逻辑 AppState。
 - 恢复前快照覆盖当前 manifest 引用闭包。
 - `localDataUpdatedAt` 改用 manifest `committedAt` 和受管模块文件时间。
 
-### 阶段 C：GitHub Gist 压缩与原子恢复
+### 阶段 C：GitHub Gist 压缩与原子恢复（已完成）
 
 - 增加加密信封 v2：gzip 后 AES-256-GCM。
 - 保留 v1 解密和旧密码更换兼容。
@@ -575,7 +571,7 @@ applyGitHubRestore(importId: string, gistVersion: string): Promise<void>
 - 合并 Gist 恢复应用、同步基线更新和重启调度。
 - 保留远端版本冲突提示和用户明确覆盖能力。
 
-### 阶段 D：可选的逻辑懒加载
+### 阶段 D：可选的逻辑懒加载（未启动）
 
 只有在真实启动或 IPC 指标证明有必要时再实施：
 

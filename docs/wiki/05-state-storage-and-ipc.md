@@ -16,6 +16,8 @@ interface AppState {
   columnOrder: WatchlistColumnId[]
   columnOrderVersion?: number
   tTradingAccounts: TTradingAccounts
+  corporateActionRecords: CorporateActionRecords
+  portfolioPerformanceAdjustments?: PortfolioPerformanceAdjustments
 }
 ```
 
@@ -40,60 +42,67 @@ interface AppState {
 
 ## 本地存储
 
-桌面版路径：
+状态文件由 `electron/main/state-store.ts` 的 `StateStore` 统一管理。已安装应用通常使用 `%APPDATA%\jianzhang-stock-desktop`，核心状态目录为：
 
 ```text
-<Electron userData>\settings.json
+<Electron userData>/
+├─ state/
+│  ├─ manifest.json
+│  ├─ manifest.last-good.json
+│  ├─ documents/
+│  │  ├─ preferences-r<revision>-<hash>.json
+│  │  ├─ watchlist-r<revision>-<hash>.json
+│  │  └─ portfolio-meta-r<revision>-<hash>.json
+│  ├─ tracking/<quoteId>-r<revision>-<hash>.json
+│  └─ portfolios/<quoteId>-r<revision>-<hash>.json
+├─ state-history/manifest-<时间>-r<revision>.json
+├─ settings.legacy-v1.json
+└─ settings.last-good.legacy-v1.json
 ```
 
-当前已安装应用通常对应：
-
-```text
-%APPDATA%\jianzhang-stock-desktop\settings.json
-```
-
-状态文件由 `electron/main/state-store.ts` 的 `StateStore` 统一管理。除正式文件外，同目录还可能包含：
-
-| 文件                                         | 作用                                       |
-| -------------------------------------------- | ------------------------------------------ |
-| `settings.last-good.json`                    | 最近一次完整保存的可用备份                 |
-| `settings.invalid-<时间>.json`               | 配置损坏时保留的原文件副本                 |
-| `state-history/settings-<时间>-r<版本>.json` | 最多 20 份、至少间隔 15 分钟的历史状态快照 |
+`manifest.json` 是一次核心状态提交的唯一生效点。各 JSON 分片不可变并记录字节数和 SHA-256；未变化的分片在下一 revision 中复用旧引用。历史最多保留 20 个 manifest，且至少间隔 15 分钟，清理只删除未被当前、last-good 或保留历史引用的分片。
 
 ### 加载
 
-`StateStore.load()` 读取 JSON 后依次执行：
+`StateStore.load()` 读取 manifest 明确引用的全部分片，校验大小、SHA-256、文档类型和业务 ID，组装完整 `AppState` 后依次执行共享 normalize：
 
 1. `normalizeWatchlist`
 2. `normalizeWatchlistGroups`
 3. `normalizeStockTrackingProfiles`
-4. `synchronizeTrackingGroupMembership`
+4. `synchronizeWatchlistGroupMemberships`
 5. `normalizeAppSettings`
 6. `normalizeWatchlistColumnOrder`
 7. `normalizeTTradingAccounts`
+8. `normalizeCorporateActionRecords`
+9. `normalizePortfolioPerformanceAdjustments`
 
 列版本或交易账户规范化结果变化时，会立即把规范化后的状态写回。
 
-只有 `settings.json` 不存在时才复制 `DEFAULT_STATE` 并保存。文件读取、JSON 解析或规范化失败时：
+当前 manifest 或任一引用分片损坏时会整体回退，不会用空对象伪装成用户删除数据：
 
-1. 把原文件保留为 `settings.invalid-<时间>.json`。
-2. 尝试加载并规范化 `settings.last-good.json`。
-3. 恢复成功后重写正式文件，并在主界面显示一次启动警告。
-4. 没有可用备份时抛出明确错误，主进程显示错误框后停止启动，不会用默认自选覆盖用户文件。
+1. 把当前 manifest 保留为 `state/manifest.invalid-<时间>.json`。
+2. 依次尝试 `manifest.last-good.json` 和按时间倒序的历史 manifest。
+3. 恢复候选必须能完整读取并通过所有分片校验；成功后通过正常保存流程提交新 revision，并在主界面显示一次启动警告。
+4. 没有完整候选时停止启动，不用默认状态覆盖用户数据。
+
+首次升级时，如果新 manifest 尚不存在，`StateStore` 会读取并 normalize 旧 `settings.json`，写入首套分片，重新组装并校验迁移前后语义，再把旧文件归档为 `settings.legacy-v1.json`。旧当前文件损坏时可从旧 `settings.last-good.json` 迁移。新 manifest 一旦存在，就不再读取或合并旧文件。
+
+迁移分支带有 `TODO(state-manifest-migration)`。只有当所有受支持安装版本都已跨过 manifest 格式后，才能连同旧文件常量和迁移测试一起移除；当前不做长期双写。
 
 ### 保存
 
-主进程 `persistState` 调用 `StateStore.save()` 保存完整 `state`。保存先写同路径 `.tmp` 临时文件，再原子重命名替换目标文件；正式文件成功后同步更新 `settings.last-good.json`。常规保存入口是 IPC `state:save`：
+主进程 `persistState` 调用 `StateStore.save()` 保存完整 `state`。常规保存入口仍是 IPC `state:save`：
 
 每次成功保存都会递增 `revision`。渲染层提交的版本落后于主进程时会拒绝整份覆盖，并重新读取最新状态，避免后台提醒、追踪指标或交易日历更新被旧界面状态覆盖。
 
 1. 接收渲染层的完整 `AppState`。
 2. 再次 normalize。
 3. 比较新旧状态中会触发主进程副作用的字段。
-4. 更新内存并写入文件。
-5. 广播 `state:updated`。
-6. 更新托盘菜单和任务栏窗口。
-7. 通知追踪指标运行时检查是否有新开始追踪的股票需要立即采集。
+4. 只为变化领域写入新的不可变分片。
+5. 保存旧当前 manifest 为 last-good，最后原子替换 `manifest.json`。
+6. manifest 成功提交后更新内存 revision，并广播 `state:updated`。
+7. 更新托盘菜单和任务栏窗口。
+8. 通知追踪指标运行时检查是否有新开始追踪的股票需要立即采集。
 
 可能触发的额外动作：
 
@@ -109,18 +118,18 @@ interface AppState {
 
 `src/shared/types.ts` 中的 normalize 是当前状态约束核心：
 
-| 函数                                 | 作用                                                                       |
-| ------------------------------------ | -------------------------------------------------------------------------- |
-| `normalizeWatchlist`                 | 持仓股票强制重点关注、补异动开关、过滤无效快照                             |
-| `normalizeWatchlistGroups`           | 去除无 ID、无名称或重复 ID 的自选分组，并补齐系统“异动观察”和“追踪”分组    |
-| `normalizeStockTrackingProfiles`     | 规范化追踪来源、标签、时间线和通用每日指标快照；快照中的数字指标按名称扩展 |
-| `synchronizeTrackingGroupMembership` | 根据追踪中/已停止状态自动加入或移出系统“追踪”分组                          |
-| `normalizeMarketIndexIds`            | 过滤并按内置顺序返回指数                                                   |
-| `normalizeActiveTTradingBatch`       | 根据当前成交数量规范化双五档计划、提醒状态和反 T 语义                      |
-| `normalizeTTradingAccounts`          | 以统一账本为准同步 `tradeRecords` 镜像并规范化活动批次                     |
-| `normalizeWatchlistColumnOrder`      | 去重、补缺失列、保证操作列在末尾                                           |
-| `normalizeAppSettings`               | 限制刷新秒数和任务栏位置，规范化费用、浮动盈亏提醒默认值和日历             |
-| `normalizeTradingCalendarSettings`   | 校验日期、去重、排序并保证内置覆盖年份                                     |
+| 函数                                   | 作用                                                                       |
+| -------------------------------------- | -------------------------------------------------------------------------- |
+| `normalizeWatchlist`                   | 持仓股票强制重点关注、补异动开关、过滤无效快照                             |
+| `normalizeWatchlistGroups`             | 去除无 ID、无名称或重复 ID 的自选分组，并补齐系统“异动观察”和“追踪”分组    |
+| `normalizeStockTrackingProfiles`       | 规范化追踪来源、标签、时间线和通用每日指标快照；快照中的数字指标按名称扩展 |
+| `synchronizeWatchlistGroupMemberships` | 根据持仓、追踪中/已停止状态同步系统分组成员关系                            |
+| `normalizeMarketIndexIds`              | 过滤并按内置顺序返回指数                                                   |
+| `normalizeActiveTTradingBatch`         | 根据当前成交数量规范化双五档计划、提醒状态和反 T 语义                      |
+| `normalizeTTradingAccounts`            | 以统一账本为准同步 `tradeRecords` 镜像并规范化活动批次                     |
+| `normalizeWatchlistColumnOrder`        | 去重、补缺失列、保证操作列在末尾                                           |
+| `normalizeAppSettings`                 | 限制刷新秒数和任务栏位置，规范化费用、浮动盈亏提醒默认值和日历             |
+| `normalizeTradingCalendarSettings`     | 校验日期、去重、排序并保证内置覆盖年份                                     |
 
 新增持久化字段时，不能只改 interface；至少要补默认值和 normalize。
 
@@ -145,10 +154,10 @@ JianzhangUserDataBackupDocument
 
 ### 导出
 
-1. React 把当前 `AppState` 传给 `config:export`。
-2. 主进程显示保存对话框。
+1. React 发起 `config:export`，主进程显示保存对话框。
+2. `StateStore.exportCommittedState()` 从当前 manifest 重新组装已提交状态，不采用 renderer 的乐观状态或孤立分片。
 3. `UserDataBackupService` 收集允许备份的文件和 AI API Key。
-4. 写入 `见涨-用户数据-<时间>.json`。
+4. 写入单个 `见涨-用户数据-<时间>.json`；外部格式不包含本地 manifest、分片或历史文件。
 
 ### 导入
 
@@ -156,8 +165,8 @@ JianzhangUserDataBackupDocument
 2. 校验备份格式、允许的相对路径、AI API Key 和 `AppState`，再运行共享 normalize。
 3. 只把状态、文件数量和 API Key 数量返回给 React；Key 本身不会进入 renderer。
 4. React 显示覆盖和自动重启确认提示。
-5. 用户确认后先在临时目录完整写入并校验备份内容，再保存当前状态、模块文件和凭证到 `restore-backups/`。
-6. 替换受管用户文件、重新加密 API Key，最后保存导入状态；任一步骤失败都会回滚当前状态、模块文件和凭证。
+5. 用户确认后先在临时目录完整写入并校验备份内容，再保存当前 manifest 及全部引用分片、模块文件和凭证到 `restore-backups/`。
+6. 替换受管用户文件、重新加密 API Key，再通过 `StateStore.saveImported()` 提交新本地 revision；任一步骤失败都会按物理恢复点回滚 manifest、分片、模块文件和凭证。
 7. 成功恢复后保留最近 5 份恢复前快照，并自动重启，让各模块重新加载恢复后的设置和历史。
 
 独立 `jianzhang-config` 导入仅接受当前格式 3，只恢复其中的核心配置，不触发模块数据替换和应用重启。
@@ -169,10 +178,11 @@ GitHub 同步复用同一份用户数据备份，不维护第二套业务数据�
 - OAuth App 必须启用 Device Flow。仓库内置见涨 OAuth App 的公开 Client ID，也可在构建时通过 `JIANZHANG_GITHUB_OAUTH_CLIENT_ID` 覆盖，不使用 Client Secret。
 - Device Flow 请求独立的 `gist` scope。旧版 `repo` 授权不会直接复用，升级后需要重新连接一次；访问令牌使用当前电脑的 `safeStorage` 加密保存到 `userData/github-sync/token.bin`。
 - 用户首次自行设置同步密码，也可主动点击“生成安全密钥”。密码使用当前电脑的 `safeStorage` 保存到 `userData/github-sync/sync-password.bin`，设置页允许直接显示、复制和更换，不进行本地二次验证。
-- 上传前以随机 salt 运行 `scrypt` 派生 256 位密钥，再使用随机 IV 的 `AES-256-GCM` 加密完整备份。Gist 只保存带版本、KDF 参数、IV、认证标签和密文的加密信封，AI API Key 不会以明文离开本机。
+- 上传前先把紧凑的逻辑备份 JSON 做 gzip，再以随机 salt 运行 `scrypt` 派生 256 位密钥，并使用随机 IV 的 `AES-256-GCM` 加密。新信封为 schema v2；下载仍兼容没有压缩字段的 schema v1。Gist 只保存单个加密信封，AI API Key 不会以明文离开本机。
 - `userData/github-sync/settings.json` 保存账号、Gist ID、远程版本、最近同步基线和密码绑定的 Gist ID。新电脑自动找到 Gist 后，需要输入一次同步密码并成功解密，才会绑定到当前机器。
-- 上传前重新读取 Gist version；远程版本相对本机同步基线发生变化时阻止覆盖，要求先恢复远程数据。从 Gist 下载解密后继续使用本地导入的校验、确认、文件替换、API Key 重新加密、回滚和自动重启流程。
-- 更换密码时先用本机旧密码解密当前远程内容，再使用新密码重新加密并写入新版本。同步密码遗失后 GitHub 和应用都无法解密远程备份。
+- 上传命令不接收 renderer 的完整状态；主进程从当前 manifest 导出已提交状态。上传前重新读取 Gist version；远程版本相对本机同步基线发生变化时阻止覆盖，仅对用户明确确认的本次上传放行。
+- Gist 下载只准备导入并绑定当次 history version。用户确认后由一个主进程流程再次复核远端 version，再应用模块文件、API Key 和核心状态，最后写入 `lastSynchronizedVersion`；任一步失败都会回滚且不安排重启，全部成功后才自动重启。
+- 更换密码时先用本机旧密码按 v1/v2 解密当前远程内容，再用 v2 gzip 加密信封写入新版本。同步密码遗失后 GitHub 和应用都无法解密远程备份。
 
 切换到其他 OAuth App 的构建示例：
 
@@ -265,7 +275,7 @@ localStorage["jianzhang-demo-state-v1"]
 | `disconnectGitHub`                                           | `github-sync:disconnect`                                         | 删除当前电脑的 GitHub 访问令牌，保留本机同步密码                                                                 |
 | `uploadUserDataToGitHub`                                     | `github-sync:upload`                                             | 加密当前用户数据并创建或更新 Secret Gist                                                                         |
 | `downloadUserDataFromGitHub`                                 | `github-sync:download`                                           | 下载并解密远程备份，进入统一导入确认流程                                                                         |
-| `confirmGitHubGistRestore`                                   | `github-sync:gist:restore-confirm`                               | 恢复成功后记录当前 Gist version 为本机同步基线                                                                   |
+| `applyGitHubGistRestore`                                     | `github-sync:gist:restore-apply`                                 | 复核远端 version，原子协调用户数据恢复、同步基线提交和成功后的重启                                               |
 | `hideWindow`                                                 | `app:hide`                                                       | 隐藏主窗口                                                                                                       |
 | `quitApp`                                                    | `app:quit`                                                       | 清理并退出                                                                                                       |
 
@@ -296,14 +306,14 @@ sequenceDiagram
     participant A as App.persist
     participant P as preload
     participant E as Electron
-    participant F as settings.json
+    participant F as state/manifest.json + 分片
 
     C->>A: nextState
     A->>A: 乐观 setState
     A->>P: saveState(nextState)
     P->>E: state:save
     E->>E: StateStore.normalize + compare
-    E->>F: StateStore.save（临时文件原子替换 + 最近备份）
+    E->>F: 写变化分片，最后原子替换 manifest
     E-->>P: normalized AppState
     E-->>C: state:updated
     P-->>A: normalized AppState
@@ -313,7 +323,7 @@ sequenceDiagram
 
 核心 `AppState` 会：
 
-- 明文写入 `settings.json`。
+- 按领域明文写入本机 `state/` 分片，并由 manifest 管理当前版本。
 - 随配置完整导出。
 - 广播给三个渲染窗口。
 
