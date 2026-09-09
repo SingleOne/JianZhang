@@ -451,7 +451,6 @@
 .fundamental-business-scope p {
   margin: 0;
   color: #66768b;
-  font-size: 12px;
   line-height: 1.7;
 }
 
@@ -685,6 +684,15 @@
 .fundamental-fcff-details > summary small {
   color: #748399;
   font-size: 12px;
+}
+
+.fundamental-fcff-details > summary .fundamental-fcff-expand-hint {
+  color: #3568a9;
+  font-weight: 600;
+}
+
+.fundamental-fcff-details[open] .fundamental-fcff-expand-hint {
+  display: none;
 }
 
 .fundamental-fcff-warning {

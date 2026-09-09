@@ -24,7 +24,16 @@ import {
   Trophy,
   UsersRound
 } from 'lucide-react'
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import { stockApi } from '../lib/api'
 import { estimateChipHistoryLimit, findChipAutoRange } from '../lib/chip-distribution'
 import type { StockDetailNavigationRequest } from '../lib/completion-notifications'
@@ -601,10 +610,30 @@ function CompanyBusinessProfilePanel({
 }) {
   const [expanded, setExpanded] = useState(false)
   const [scopeExpanded, setScopeExpanded] = useState(false)
+  const [profileExpandable, setProfileExpandable] = useState(false)
+  const descriptionRef = useRef<HTMLParagraphElement>(null)
   const profile = company.businessProfile
-  const hasProfile = Boolean(
-    profile?.mainBusiness || profile?.organizationProfile || profile?.businessScope
-  )
+  const organizationProfile = profile?.organizationProfile
+  const hasProfile = Boolean(profile?.mainBusiness || organizationProfile || profile?.businessScope)
+
+  useLayoutEffect(() => {
+    setExpanded(false)
+    setProfileExpandable(false)
+  }, [organizationProfile])
+
+  useLayoutEffect(() => {
+    const description = descriptionRef.current
+    if (!description || expanded) return
+
+    const updateExpandable = () => {
+      const nextExpandable = description.scrollHeight > description.clientHeight + 1
+      setProfileExpandable((current) => (current === nextExpandable ? current : nextExpandable))
+    }
+    updateExpandable()
+    const resizeObserver = new ResizeObserver(updateExpandable)
+    resizeObserver.observe(description)
+    return () => resizeObserver.disconnect()
+  }, [expanded, organizationProfile])
 
   return (
     <section className="fundamental-business-profile">
@@ -625,20 +654,28 @@ function CompanyBusinessProfilePanel({
             <span>主营业务</span>
             <strong>{profile?.mainBusiness ?? '来源暂未提供主营业务字段'}</strong>
           </div>
-          {profile?.organizationProfile ? (
+          {organizationProfile ? (
             <div className="fundamental-business-description">
-              <p className={expanded ? 'is-expanded' : undefined}>{profile.organizationProfile}</p>
-              <button type="button" onClick={() => setExpanded((value) => !value)}>
-                {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                {expanded ? '收起公司简介' : '展开公司简介'}
-              </button>
+              <p ref={descriptionRef} className={expanded ? 'is-expanded' : undefined}>
+                {organizationProfile}
+              </p>
+              {profileExpandable ? (
+                <button
+                  type="button"
+                  aria-expanded={expanded}
+                  onClick={() => setExpanded((value) => !value)}
+                >
+                  {expanded ? '收起公司简介' : '展开公司简介'}
+                  {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
+              ) : null}
             </div>
           ) : null}
           {profile?.businessScope ? (
             <div className="fundamental-business-scope">
               <button type="button" onClick={() => setScopeExpanded((value) => !value)}>
-                {scopeExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                 工商经营范围（不等同于实际主营业务）
+                {scopeExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               </button>
               {scopeExpanded ? <p>{profile.businessScope}</p> : null}
             </div>
@@ -766,6 +803,7 @@ function StrictFcffPanel({
             有效 {fcff.validYears}/{fcff.totalYears} 年 · 正值 {fcff.positiveYears} 年 · 口径{' '}
             {summary.fcffModelVersion}
           </small>
+          <small className="fundamental-fcff-expand-hint">点击展开年度明细</small>
         </span>
         <span>
           正常化 FCFF
@@ -807,7 +845,7 @@ function StrictFcffPanel({
                   </td>
                   <td className={signedValueClass(item?.fcff ?? 0)}>
                     {item?.fcff === null || item?.fcff === undefined
-                      ? item?.unavailableReason ?? '旧快照未提供'
+                      ? (item?.unavailableReason ?? '旧快照未提供')
                       : fundamentalAmount(item.fcff)}
                   </td>
                 </tr>
@@ -901,9 +939,7 @@ function StrictDcfPanel({ summary }: { summary: FundamentalValuationSummary }) {
             </span>
           </div>
           <details className="fundamental-wacc-details">
-            <summary>
-              WACC {fundamentalPercent(analysis.wacc.value, 2)} · 展开参数与来源
-            </summary>
+            <summary>WACC {fundamentalPercent(analysis.wacc.value, 2)} · 展开参数与来源</summary>
             <div>
               <span>无风险利率</span>
               <strong>{fundamentalPercent(analysis.wacc.inputs.riskFreeRate.value)}</strong>
@@ -959,14 +995,20 @@ function FinancialValuationPanel({ summary }: { summary: FundamentalValuationSum
         {analysis.facts.map((fact) => (
           <article key={fact.id}>
             <span>{fact.label}</span>
-            <strong className={fact.unit === 'percent' ? signedValueClass(fact.value ?? 0) : undefined}>
+            <strong
+              className={fact.unit === 'percent' ? signedValueClass(fact.value ?? 0) : undefined}
+            >
               {fact.unit === 'percent'
                 ? fundamentalPercent(fact.value)
                 : fundamentalMultiple(fact.value)}
             </strong>
             <small>
-              {fact.role === 'primary' ? '主要事实' : fact.role === 'secondary' ? '辅助事实' : '信息'} ·{' '}
-              {fact.dataDate} · {fact.source}
+              {fact.role === 'primary'
+                ? '主要事实'
+                : fact.role === 'secondary'
+                  ? '辅助事实'
+                  : '信息'}{' '}
+              · {fact.dataDate} · {fact.source}
             </small>
           </article>
         ))}
@@ -1032,23 +1074,23 @@ function FundamentalPeerMetricCard({
           {fundamentalPercent(comparison.value)}
         </strong>
       </span>
-      <div className='fundamental-peer-rank'>
+      <div className="fundamental-peer-rank">
         <small>{description}</small>
         {comparison.value === null ? (
           <strong>当前指标缺失</strong>
         ) : ranked ? (
-            <>
-              <span>
-                <strong>
-                  行业第 {comparison.rank} / {comparison.sampleSize}
-                </strong>
-                <em>
-                  {direction === 'higher'
-                    ? `行业前 ${comparison.topPercent}%`
-                    : `低于 ${comparison.betterThanPercent}% 同行`}
-                </em>
-              </span>
-            </>
+          <>
+            <span>
+              <strong>
+                行业第 {comparison.rank} / {comparison.sampleSize}
+              </strong>
+              <em>
+                {direction === 'higher'
+                  ? `行业前 ${comparison.topPercent}%`
+                  : `低于 ${comparison.betterThanPercent}% 同行`}
+              </em>
+            </span>
+          </>
         ) : (
           <>
             <strong>样本不足</strong>
@@ -1541,7 +1583,7 @@ function FundamentalPanel({
   const currentStockUpdateAvailable = Boolean(generatedAt)
   const updateCurrentStockFundamentals = async () => {
     setStockUpdateStatus('updating')
-    setStockUpdateMessage(`正在更新 ${stockCode}…`)
+    setStockUpdateMessage(`正在更新 ${stockCode}`)
     try {
       const result = await stockApi.runFundamentalStockUpdate(stockCode)
       setStockUpdateStatus('success')

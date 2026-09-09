@@ -1743,6 +1743,10 @@ button.value-screening-badge:focus-visible {
   grid-area: 2 / 3;
 }
 
+.row-actions .is-bottom-action {
+  grid-area: 2 / 4;
+}
+
 .settings-column .row-action-button {
   width: 25px;
   height: 25px;

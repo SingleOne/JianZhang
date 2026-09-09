@@ -930,6 +930,14 @@ export function WatchlistTable({
     },
     [onPin]
   )
+  const handleMoveToBottom = useCallback(
+    (quoteId: string) => {
+      setSort(null)
+      const lastQuoteId = watchlist[watchlist.length - 1]?.quoteId
+      if (lastQuoteId && lastQuoteId !== quoteId) onReorder(quoteId, lastQuoteId)
+    },
+    [onReorder, watchlist]
+  )
   const openPositionEditor = useCallback((stock: WatchStock) => setEditingStock(stock), [])
   const openStockAlert = useCallback((stock: WatchStock) => setStockAlertStock(stock), [])
   const openTTrading = useCallback((stock: WatchStock) => setTTradingStock(stock), [])
@@ -1324,6 +1332,7 @@ export function WatchlistTable({
                       .length
                   }
                   groupPopoverOpen={groupPopover?.quoteId === stock.quoteId}
+                  isLastInManualOrder={manualIndex === watchlist.length - 1}
                   onToggleDetails={toggleStockDetails}
                   onDetailNavigationHandled={onDetailNavigationHandled}
                   onFinishClosing={finishClosingStockDetails}
@@ -1332,6 +1341,7 @@ export function WatchlistTable({
                   onDrop={handleDrop}
                   onDragEnd={handleDragEnd}
                   onPin={handlePin}
+                  onMoveToBottom={handleMoveToBottom}
                   onTogglePriority={onTogglePriority}
                   onToggleTaskbar={onToggleTaskbar}
                   onEditPosition={openPositionEditor}

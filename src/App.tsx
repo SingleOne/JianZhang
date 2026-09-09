@@ -595,11 +595,25 @@ export default function App() {
     [reportError, updateQuotes]
   )
 
+  const requestWatchlistStockPosition = useCallback(
+    (quoteId: string, requestSource: string, expandDetails = false) => {
+      setSelectedQuoteId(null)
+      setDetailNavigationRequest(null)
+      setStockSelectionRequest({
+        id: `${requestSource}:${quoteId}:${Date.now()}`,
+        quoteId,
+        scrollAlignment: 'sticky-top',
+        detailTarget: expandDetails ? 'trend' : undefined
+      })
+    },
+    []
+  )
+
   const addStock = useCallback(
     (result: SearchResult, options: StockAddOptions = {}) => {
       const existing = state.watchlist.find((stock) => stock.quoteId === result.quoteId)
       if (existing && !options.startTracking && !options.targetGroups?.length) {
-        setSelectedQuoteId(existing.quoteId)
+        requestWatchlistStockPosition(existing.quoteId, 'stock-add')
         return
       }
       const targetGroups = options.targetGroups ?? []
@@ -643,17 +657,7 @@ export default function App() {
           : [...state.watchlist, nextStock],
         stockTrackingProfiles: nextTrackingProfiles
       }
-      if (existing) {
-        setSelectedQuoteId(result.quoteId)
-      } else {
-        setSelectedQuoteId(null)
-        setDetailNavigationRequest(null)
-        setStockSelectionRequest({
-          id: `stock-add:${result.quoteId}:${Date.now()}`,
-          quoteId: result.quoteId,
-          scrollAlignment: 'sticky-top'
-        })
-      }
+      requestWatchlistStockPosition(result.quoteId, 'stock-add')
       void persist(nextState, false)
         .then(async (saved) => {
           if (!saved || existing) return
@@ -695,7 +699,7 @@ export default function App() {
           reportError(reason instanceof Error ? reason.message : '新股票行情获取失败')
         })
     },
-    [persist, quotes, reportError, state, updateQuotes]
+    [persist, quotes, reportError, requestWatchlistStockPosition, state, updateQuotes]
   )
 
   const addDailyMarketScanStock = useCallback(
@@ -1221,20 +1225,29 @@ export default function App() {
     setDetailNavigationRequest((current) => (current?.id === requestId ? null : current))
   }, [])
 
-  const viewWatchlistStockFromRanking = useCallback((quoteId: string) => {
-    setSelectedQuoteId(quoteId)
-    setDividendRankingOpen(false)
-  }, [])
+  const viewWatchlistStockFromRanking = useCallback(
+    (quoteId: string) => {
+      setDividendRankingOpen(false)
+      requestWatchlistStockPosition(quoteId, 'dividend-ranking', true)
+    },
+    [requestWatchlistStockPosition]
+  )
 
-  const viewWatchlistStockFromFundamentals = useCallback((quoteId: string) => {
-    setSelectedQuoteId(quoteId)
-    setFundamentalScreeningOpen(false)
-  }, [])
+  const viewWatchlistStockFromFundamentals = useCallback(
+    (quoteId: string) => {
+      setFundamentalScreeningOpen(false)
+      requestWatchlistStockPosition(quoteId, 'fundamental-screening', true)
+    },
+    [requestWatchlistStockPosition]
+  )
 
-  const viewWatchlistStockFromDailyScan = useCallback((quoteId: string) => {
-    setSelectedQuoteId(quoteId)
-    setDailyMarketScanOpen(false)
-  }, [])
+  const viewWatchlistStockFromDailyScan = useCallback(
+    (quoteId: string) => {
+      setDailyMarketScanOpen(false)
+      requestWatchlistStockPosition(quoteId, 'daily-scan', true)
+    },
+    [requestWatchlistStockPosition]
+  )
 
   const viewWatchlistStockFromTracking = useCallback((quoteId: string) => {
     setSelectedQuoteId(quoteId)
@@ -1293,7 +1306,10 @@ export default function App() {
   }, [reportError, reportSuccess, state])
 
   const applyImportedData = useCallback(
-    async (result: ConfigImportResult, tone: 'warning' | 'danger' = 'danger'): Promise<boolean> => {
+    async (
+      result: ConfigImportResult,
+      tone: 'default' | 'warning' | 'danger' = 'danger'
+    ): Promise<boolean> => {
       if (result.canceled || !result.state) return false
       const backupSummary = result.backupSummary
       const apiKeyMessage = backupSummary
@@ -1440,7 +1456,7 @@ export default function App() {
           ? `${versionWarning}将使用本机同步密码加密全部用户数据并覆盖当前 Secret Gist，包括已配置的 AI API Key。`
           : '将使用本机同步密码加密全部用户数据，并自动创建一个 Secret Gist，包括已配置的 AI API Key。',
         confirmLabel: latestSettings.requiresRemoteRestore ? '仍然上传并覆盖' : '确认上传',
-        tone: 'warning'
+        tone: 'default'
       })
       if (!confirmed) return
       const result = await stockApi.uploadUserDataToGitHub(latestSettings.requiresRemoteRestore)
@@ -1460,7 +1476,7 @@ export default function App() {
     try {
       const result = await stockApi.downloadUserDataFromGitHub()
       setGitHubSyncSettings(await stockApi.getGitHubSyncSettings())
-      await applyImportedData(result, 'warning')
+      await applyImportedData(result, 'default')
     } catch (reason) {
       reportError(reason instanceof Error ? reason.message : 'GitHub 下载失败')
     } finally {

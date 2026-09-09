@@ -1,4 +1,5 @@
 import {
+  ArrowDownToLine,
   ArrowUpToLine,
   BellRing,
   FolderPlus,
@@ -153,6 +154,7 @@ interface WatchlistRowProps {
   radarExpanded: boolean
   groupCount: number
   groupPopoverOpen: boolean
+  isLastInManualOrder: boolean
   onToggleDetails: (quoteId: string) => void
   onDetailNavigationHandled: (requestId: string) => void
   onFinishClosing: (quoteId: string) => void
@@ -161,6 +163,7 @@ interface WatchlistRowProps {
   onDrop: (quoteId: string, event: DragEvent<HTMLTableRowElement>) => void
   onDragEnd: () => void
   onPin: (quoteId: string) => void
+  onMoveToBottom: (quoteId: string) => void
   onTogglePriority: (quoteId: string) => void
   onToggleTaskbar: (quoteId: string) => void
   onEditPosition: (stock: WatchStock) => void
@@ -220,6 +223,7 @@ export const WatchlistRow = memo(function WatchlistRow({
   radarExpanded,
   groupCount,
   groupPopoverOpen,
+  isLastInManualOrder,
   onToggleDetails,
   onDetailNavigationHandled,
   onFinishClosing,
@@ -228,6 +232,7 @@ export const WatchlistRow = memo(function WatchlistRow({
   onDrop,
   onDragEnd,
   onPin,
+  onMoveToBottom,
   onTogglePriority,
   onToggleTaskbar,
   onEditPosition,
@@ -469,6 +474,19 @@ export const WatchlistRow = memo(function WatchlistRow({
               }
             >
               <BellRing size={15} />
+            </button>
+            <button
+              className="row-action-button is-bottom-action"
+              type="button"
+              disabled={!dragDisabled && isLastInManualOrder}
+              onClick={(event) => {
+                event.stopPropagation()
+                onMoveToBottom(stock.quoteId)
+              }}
+              aria-label={`将 ${stock.name} 移到底部`}
+              title={dragDisabled ? '移到底部并恢复手动排序' : '移到底部'}
+            >
+              <ArrowDownToLine size={15} />
             </button>
           </div>
         </td>
