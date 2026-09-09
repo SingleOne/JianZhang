@@ -4,6 +4,7 @@ import {
   type FundamentalPeerComparison,
   type FundamentalScreeningEvaluation
 } from '../../lib/fundamental-screening'
+import { hasDividendFinancingLabel } from '../../lib/dividend-financing'
 import type {
   DividendFinancingRankingItem,
   StockQuote,
@@ -141,7 +142,7 @@ export function sortValue(
     case 'valueTags': {
       const category = classifyFundamentalDividendCategory(
         row.fundamentalScreening,
-        Boolean(row.dividendFinancing)
+        hasDividendFinancingLabel(row.dividendFinancing)
       )
       return category === 'dual' ? 2 : category === 'fundamental' || category === 'dividend' ? 1 : 0
     }

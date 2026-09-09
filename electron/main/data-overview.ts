@@ -45,6 +45,7 @@ export function generateDividendFinancingOverview(
       schemaVersion: 1,
       snapshotDate: snapshot.snapshotDate,
       generatedAt: snapshot.generatedAt,
+      thresholdPercent: snapshot.thresholdPercent,
       recordCount: snapshot.rows.length
     },
     snapshot.rows

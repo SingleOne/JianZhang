@@ -20,6 +20,7 @@ import {
   formatShares
 } from '../../lib/format'
 import { fundamentalCompanyStaleReason } from '../../lib/data-snapshot-status'
+import { hasDividendFinancingLabel } from '../../lib/dividend-financing'
 import { isStockQuoteExpired, STOCK_QUOTE_SOURCE_LABELS } from '../../lib/quote-state'
 import {
   currentDateKey,
@@ -602,7 +603,7 @@ export const WatchlistRow = memo(function WatchlistRow({
                   title={
                     dividendFinancing
                       ? `累计A股分红 ${dividendFinancing.dividendYi.toLocaleString('zh-CN')} 亿元，累计A股融资 ${dividendFinancing.financingYi.toLocaleString('zh-CN')} 亿元；净回报 ${(dividendFinancing.netReturnYi ?? dividendFinancing.dividendYi - dividendFinancing.financingYi).toLocaleString('zh-CN')} 亿元；${dividendYield ? `${dividendYield.dividendYear} 年每股分红约 ${formatPrice(dividendYield.dividendPerShare)} 元，按昨收 ${formatPrice(quote?.previousClose)} 计算股息率` : '缺少年度分红、总市值或昨收数据，暂不能计算股息率'}；快照 ${dividendFinancingSnapshotDate ?? '--'}`
-                      : `未进入分红融资比大于100%榜单或暂无完整数据；快照 ${dividendFinancingSnapshotDate ?? '--'}`
+                      : `当前全量快照暂无完整的分红、融资数据；快照 ${dividendFinancingSnapshotDate ?? '--'}`
                   }
                 >
                   {dividendFinancing ? (
@@ -625,7 +626,7 @@ export const WatchlistRow = memo(function WatchlistRow({
                 fundamentalScreening && fundamentalSummary.status !== 'unavailable'
                   ? FUNDAMENTAL_BADGE_META[fundamentalSummary.status]
                   : null
-              const hasDividendBadge = Boolean(dividendFinancing)
+              const hasDividendBadge = hasDividendFinancingLabel(dividendFinancing)
               const hasAnnualRisk = Boolean(fundamentalRisk?.tags.length)
               const hasMineRisk =
                 financialMine?.level === 'high' || financialMine?.level === 'medium'
@@ -680,7 +681,7 @@ export const WatchlistRow = memo(function WatchlistRow({
                     {hasDividendBadge ? (
                       <span
                         className="value-screening-badge is-dividend"
-                        title={`进入分红融资榜；分红融资比 ${dividendFinancing?.ratio.toFixed(2) ?? '--'}%，第 ${dividendFinancing?.rank ?? '--'} 名；快照 ${dividendFinancingSnapshotDate ?? '--'}`}
+                        title={`分红融资比超过100%；当前比值 ${dividendFinancing?.ratio.toFixed(2) ?? '--'}%，全量排名第 ${dividendFinancing?.rank ?? '--'} 名；快照 ${dividendFinancingSnapshotDate ?? '--'}`}
                       >
                         分红
                       </span>

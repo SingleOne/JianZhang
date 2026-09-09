@@ -2,8 +2,18 @@ import type {
   DividendFinancingChangeItem,
   DividendFinancingChangeReport,
   DividendFinancingChangeType,
+  DividendFinancingRankingItem,
   DividendFinancingSnapshot
 } from '../shared/types'
+
+export const DIVIDEND_FINANCING_FULL_SCOPE_THRESHOLD_PERCENT = 0
+export const DIVIDEND_FINANCING_LABEL_THRESHOLD_PERCENT = 100
+
+export function hasDividendFinancingLabel(
+  item: DividendFinancingRankingItem | null | undefined
+): boolean {
+  return Boolean(item && item.ratio > DIVIDEND_FINANCING_LABEL_THRESHOLD_PERCENT)
+}
 
 export function parseDividendFinancingSnapshot(content: string): DividendFinancingSnapshot {
   const snapshot = JSON.parse(content) as DividendFinancingSnapshot

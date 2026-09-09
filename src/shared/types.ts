@@ -1621,7 +1621,7 @@ export interface DividendFinancingRankingItem {
 
 export interface DividendFinancingSnapshot {
   schemaVersion: 1 | 2
-  scoreMethodologyVersion?: 1
+  scoreMethodologyVersion?: 1 | 2
   snapshotDate: string
   generatedAt: string
   thresholdPercent: number
@@ -1637,6 +1637,7 @@ export interface DividendFinancingOverview {
   schemaVersion: 1
   snapshotDate: string
   generatedAt: string
+  thresholdPercent: number
   recordCount: number
   rows: DividendFinancingRankingItem[]
 }

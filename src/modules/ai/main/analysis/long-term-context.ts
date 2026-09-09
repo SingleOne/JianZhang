@@ -12,6 +12,7 @@ import {
   summarizeFundamentalScreening
 } from '../../../../lib/fundamental-screening'
 import { evaluateFinancialMine } from '../../../../lib/financial-mine-detector'
+import { hasDividendFinancingLabel } from '../../../../lib/dividend-financing'
 import type {
   CompanyReportSummary,
   DataSnapshotRuntimeState,
@@ -141,7 +142,10 @@ export function buildLongTermContext(input: LongTermContextInput) {
   )
   const valueCategory =
     input.fundamentalSnapshot && input.dividendSnapshot
-      ? classifyFundamentalDividendCategory(evaluation ?? undefined, Boolean(dividendItem))
+      ? classifyFundamentalDividendCategory(
+          evaluation ?? undefined,
+          hasDividendFinancingLabel(dividendItem)
+        )
       : null
   const priceStrength = calculateLongTermPriceStrength(input.quote, input.dailyKline)
   const ordinaryCorporateMetricsApplicable = usesOrdinaryCorporateInvestmentMetrics(

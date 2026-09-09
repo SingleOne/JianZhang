@@ -401,10 +401,10 @@ const noSubscribe = (): (() => void) => () => undefined
 
 const DEMO_DIVIDEND_FINANCING_SNAPSHOT: DividendFinancingSnapshot = {
   schemaVersion: 2,
-  scoreMethodologyVersion: 1,
+  scoreMethodologyVersion: 2,
   snapshotDate: '2026-08-04',
   generatedAt: '2026-08-04T12:00:00+08:00',
-  thresholdPercent: 100,
+  thresholdPercent: 0,
   activeStockCount: 1,
   exactCandidateCount: 1,
   dualListedCount: 0,
@@ -606,6 +606,7 @@ const demoApi: StockDesktopApi = {
       schemaVersion: 1,
       snapshotDate: DEMO_DIVIDEND_FINANCING_SNAPSHOT.snapshotDate,
       generatedAt: DEMO_DIVIDEND_FINANCING_SNAPSHOT.generatedAt,
+      thresholdPercent: DEMO_DIVIDEND_FINANCING_SNAPSHOT.thresholdPercent,
       recordCount: DEMO_DIVIDEND_FINANCING_SNAPSHOT.rows.length,
       rows: DEMO_DIVIDEND_FINANCING_SNAPSHOT.rows.filter((row) => requestedCodes.has(row.code))
     }

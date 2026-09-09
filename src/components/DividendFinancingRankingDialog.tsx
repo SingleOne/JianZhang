@@ -512,10 +512,10 @@ export function DividendFinancingRankingDialog({
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState('')
   const [query, setQuery] = useState('')
-  const [threshold, setThreshold] = useState(100)
+  const [threshold, setThreshold] = useState(0)
   const [market, setMarket] = useState<MarketFilter>('ALL')
   const [onlyWatchlist, setOnlyWatchlist] = useState(false)
-  const [minNetReturn, setMinNetReturn] = useState(0)
+  const [minNetReturn, setMinNetReturn] = useState<number | ''>('')
   const [minDividend, setMinDividend] = useState(0)
   const [minFinancing, setMinFinancing] = useState(0)
   const [minDividendYield, setMinDividendYield] = useState(0)
@@ -621,7 +621,7 @@ export function DividendFinancingRankingDialog({
     if (!snapshot) return []
     const rows = snapshot.rows.filter((item) => {
       if (item.ratio < threshold) return false
-      if (netReturn(item) < minNetReturn) return false
+      if (minNetReturn !== '' && netReturn(item) < minNetReturn) return false
       if (item.dividendYi < minDividend || item.financingYi < minFinancing) return false
       if (
         minDividendYield > 0 &&
@@ -755,7 +755,7 @@ export function DividendFinancingRankingDialog({
           {snapshot ? (
             <div className="dividend-ranking-summary">
               <div>
-                <span>入选股票</span>
+                <span>覆盖股票</span>
                 <strong>{snapshot.rows.length}</strong>
               </div>
               {tierCounts.map((item) => (
@@ -884,11 +884,11 @@ export function DividendFinancingRankingDialog({
                         年度分红按已实施事件拆分，再按精确累计分红总额等比例校准；融资只统计IPO、增发和配股的募集净额。
                       </p>
                       <p>
-                        股息率 = 最近完整年度每股分红 ÷ 更新时前收盘价 ×
+                        股息率 = 最近一个有分红的完整年度每股分红 ÷ 更新时前收盘价 ×
                         100%；年度分红或前收盘价缺失时显示“--”。
                       </p>
                       <p>
-                        回报质量评分：比例分位30分、净回报分位25分、连续性25分、近期增长10分、融资纪律10分，只在当前“超过100%”样本内比较。
+                        回报质量评分：比例分位30分、净回报分位25分、连续性25分、近期增长10分、融资纪律10分，在当前全量可比样本内比较。
                       </p>
                       <p>
                         融资额很小会放大比例，请结合“最低融资额”、净回报额和累计分红筛选，避免只看极端比例。
@@ -954,6 +954,7 @@ export function DividendFinancingRankingDialog({
                       value={threshold}
                       onChange={(event) => setThreshold(Number(event.target.value))}
                     >
+                      <option value={0}>全部比例</option>
                       <option value={100}>100% 以上</option>
                       <option value={200}>200% 以上</option>
                       <option value={500}>500% 以上</option>
@@ -990,10 +991,12 @@ export function DividendFinancingRankingDialog({
                     净回报 ≥{' '}
                     <input
                       type="number"
-                      min="0"
                       step="1"
                       value={minNetReturn}
-                      onChange={(event) => setMinNetReturn(Number(event.target.value))}
+                      placeholder="不限"
+                      onChange={(event) =>
+                        setMinNetReturn(event.target.value === '' ? '' : Number(event.target.value))
+                      }
                     />{' '}
                     亿
                   </label>

@@ -28,6 +28,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react
 import { stockApi } from '../lib/api'
 import { estimateChipHistoryLimit, findChipAutoRange } from '../lib/chip-distribution'
 import type { StockDetailNavigationRequest } from '../lib/completion-notifications'
+import { hasDividendFinancingLabel } from '../lib/dividend-financing'
 import {
   DCF_DISCOUNT_RATE,
   DCF_FORECAST_YEARS,
@@ -500,7 +501,7 @@ function DividendFinancingDeepDetails({ item }: { item: DividendFinancingRanking
             <p className="dividend-financing-no-history">当前快照没有评分拆解数据</p>
           )}
           <p className="dividend-score-note">
-            评分只比较本期分红融资比超过100%的股票，用于解释历史股东回报质量，不代表未来收益。
+            评分在本期全量可比股票中计算，用于解释历史股东回报质量，不代表未来收益。
           </p>
         </section>
       </div>
@@ -519,8 +520,8 @@ function DividendFinancingPanel({
     return (
       <div className="dividend-financing-tab-empty" role="status">
         <Trophy size={24} />
-        <strong>当前股票暂无分红融资榜数据</strong>
-        <span>可能未进入分红融资比大于100%榜单，或当前快照没有完整数据。</span>
+        <strong>当前股票暂无分红融资数据</strong>
+        <span>当前全量快照可能尚未更新，或该股票缺少完整的分红、融资数据。</span>
       </div>
     )
   }
@@ -531,7 +532,7 @@ function DividendFinancingPanel({
         <div className="dividend-financing-detail-title">
           <Trophy size={18} />
           <span>
-            <strong>分红融资榜</strong>
+            <strong>{hasDividendFinancingLabel(item) ? '分红融资高回报' : '分红融资数据'}</strong>
             <small>{snapshotDate ?? '--'} 快照</small>
           </span>
         </div>

@@ -1,4 +1,4 @@
-"""重新获取A股分红、融资数据并更新分红融资比排名文档。
+"""重新获取A股分红、融资数据并更新全量分红融资比排名文档。
 
 在项目根目录执行：
     python scripts/generate_dividend_financing_report.py
@@ -39,6 +39,7 @@ USER_AGENT = (
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0 Safari/537.36"
 )
 THREAD_LOCAL = threading.local()
+SNAPSHOT_THRESHOLD_PERCENT = 0
 
 
 def log(message: str) -> None:
@@ -577,33 +578,40 @@ def write_report(
 ) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     lines = [
-        "# A股分红融资比大于100%的股票排名",
+        "# A股分红融资比全量排名",
         "",
-        f"> 数据快照：{snapshot_date}；共筛出 **{len(ranked)}** 只股票，按分红融资比从高到低排列。",
+        f"> 数据快照：{snapshot_date}；共覆盖 **{len(ranked)}** 只可比股票，按分红融资比从高到低排列。",
         "",
         "## 统计口径",
         "",
         "- 分红融资比 = 上市以来累计A股现金分红 ÷ 上市以来累计A股股权融资 × 100%。",
         "- 股权融资仅统计已完成且有实际募集净额的IPO、增发和配股；不计可转债、优先股、债券和未实施方案。",
         "- A+H、A+B公司只使用A股累计分红和A股融资，避免跨市场混算。",
-        "- 股票范围为统计日仍可取得实时行情、且有历史现金分红记录的沪深北A股；退市股票不纳入。",
+        "- 股票范围为统计日仍可取得实时行情、且可取得历史现金分红与A股股权融资数据的沪深北A股；不再按分红融资比设入选门槛，退市股票不纳入。",
         "- 分红累计值来自同花顺F10，融资明细与募集净额来自东方财富F10。金额单位均为人民币亿元。",
         "- 年度分红根据东方财富已实施分红事件拆分，并按同花顺精确累计分红总额等比例校准；质量评分只在本榜单内比较。",
+        "- 股息率 = 最近一个有分红的完整年度每股分红 ÷ 更新时前收盘价 × 100%；数据不完整时记为--。",
         "- 该指标只反映历史现金回报与股权融资的比例，不代表未来收益或投资建议。",
         "",
         "## 排名",
         "",
-        "| 排名 | 股票代码 | 股票简称 | 累计A股分红（亿元） | 累计A股融资（亿元） | 净回报额（亿元） | 分红融资比 | 回报质量评分 |",
-        "|---:|:---:|:---|---:|---:|---:|---:|---:|",
+        "| 排名 | 股票代码 | 股票简称 | 累计A股分红（亿元） | 累计A股融资（亿元） | 净回报额（亿元） | 分红融资比 | 股息率 | 回报质量评分 |",
+        "|---:|:---:|:---|---:|---:|---:|---:|---:|---:|",
     ]
     for index, item in enumerate(ranked, start=1):
         name = str(item["name"]).replace("|", "\\|")
+        dividend_yield = (
+            f"{item['dividend_yield']:.2f}%"
+            if item["dividend_yield"] is not None
+            else "--"
+        )
         lines.append(
             f"| {index} | {item['code']} | {name} | "
             f"{format_amount_yi(item['dividend_yi'])} | "
             f"{format_amount_yi(item['financing_yi'])} | "
             f"{format_amount_yi(item['net_return_yi'])} | "
             f"{item['ratio']:.2f}% | "
+            f"{dividend_yield} | "
             f"{item['quality_score']:.1f} |"
         )
 
@@ -616,7 +624,7 @@ def write_report(
             f"- 进入精确累计分红复核范围的股票：{exact_candidate_count}只。",
             f"- 排名中按A股分红单独口径处理的A+H/A+B股票：{sum(1 for item in ranked if item['code'] in dual_listed)}只。",
             f"- 融资接口最终失败：{len(financing_errors)}只；累计分红接口最终失败：{len(dividend_errors)}只。失败项未使用估算值进入榜单。",
-            "- 接近100%的股票会随新分红实施、再融资完成或数据源修订而进出榜单，使用时应以最新公告复核。",
+            "- 分红融资比与股息率会随新分红实施、再融资完成、股价变化或数据源修订而变化，使用时应以最新公告复核。",
             "",
             "## 数据源",
             "",
@@ -642,10 +650,10 @@ def write_json_snapshot(
 ) -> None:
     payload = {
         "schemaVersion": 2,
-        "scoreMethodologyVersion": 1,
+        "scoreMethodologyVersion": 2,
         "snapshotDate": snapshot_date,
         "generatedAt": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
-        "thresholdPercent": 100,
+        "thresholdPercent": SNAPSHOT_THRESHOLD_PERCENT,
         "activeStockCount": active_count,
         "exactCandidateCount": exact_candidate_count,
         "dualListedCount": sum(1 for item in ranked if item["code"] in dual_listed),
@@ -719,7 +727,7 @@ def write_json_snapshot(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="更新A股分红融资比大于100%的排名文档")
+    parser = argparse.ArgumentParser(description="更新A股分红融资比全量排名文档")
     parser.add_argument(
         "--output",
         default="",
@@ -745,7 +753,7 @@ def main() -> int:
     output = (
         Path(args.output).resolve()
         if args.output
-        else DEFAULT_REPORT_DIRECTORY / f"A股分红融资比大于100%排名_{args.snapshot_date}.md"
+        else DEFAULT_REPORT_DIRECTORY / f"A股分红融资比全量排名_{args.snapshot_date}.md"
     )
     diagnostics = Path(args.diagnostics).resolve()
     json_output = Path(args.json_output).resolve()
@@ -783,7 +791,7 @@ def main() -> int:
         if funds <= 0:
             continue
         ratio = dividend / funds * 100.0
-        if ratio > 100.0 and math.isfinite(ratio):
+        if ratio >= SNAPSHOT_THRESHOLD_PERCENT and math.isfinite(ratio):
             ranked.append(
                 {
                     "code": code,

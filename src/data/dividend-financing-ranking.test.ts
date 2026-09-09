@@ -4,7 +4,7 @@ import snapshot from './dividend-financing-ranking.json'
 describe('dividend financing ranking snapshot', () => {
   it('contains a complete, descending schema v2 snapshot', () => {
     expect(snapshot.schemaVersion).toBe(2)
-    expect(snapshot.scoreMethodologyVersion).toBe(1)
+    expect([1, 2]).toContain(snapshot.scoreMethodologyVersion)
     expect(snapshot.snapshotDate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     expect(snapshot.rows.length).toBeGreaterThan(1000)
     expect(new Set(snapshot.rows.map((item) => item.code)).size).toBe(snapshot.rows.length)
@@ -12,7 +12,7 @@ describe('dividend financing ranking snapshot', () => {
 
     snapshot.rows.forEach((item, index) => {
       expect(item.rank).toBe(index + 1)
-      expect(item.ratio).toBeGreaterThan(snapshot.thresholdPercent)
+      expect(item.ratio).toBeGreaterThanOrEqual(snapshot.thresholdPercent)
       expect(['SH', 'SZ', 'BJ']).toContain(item.market)
       expect(item.netReturnYi).toBeCloseTo(item.dividendYi - item.financingYi, 3)
       expect(item.annualDividends.map((point) => point.year)).toEqual(

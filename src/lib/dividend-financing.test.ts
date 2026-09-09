@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { DividendFinancingRankingItem, DividendFinancingSnapshot } from '../shared/types'
 import {
   createDividendFinancingChangeReport,
+  hasDividendFinancingLabel,
   parseDividendFinancingSnapshot
 } from './dividend-financing'
 
@@ -84,5 +85,14 @@ describe('snapshot compatibility', () => {
 
     expect(parseDividendFinancingSnapshot(JSON.stringify(current))).toEqual(current)
     expect(() => parseDividendFinancingSnapshot(JSON.stringify(legacy))).toThrow('schema v2')
+  })
+})
+
+describe('dividend financing label', () => {
+  it('keeps the original above-100-percent quality boundary for full-scope rows', () => {
+    expect(hasDividendFinancingLabel(item({ ratio: 100.01 }))).toBe(true)
+    expect(hasDividendFinancingLabel(item({ ratio: 100 }))).toBe(false)
+    expect(hasDividendFinancingLabel(item({ ratio: 45 }))).toBe(false)
+    expect(hasDividendFinancingLabel(undefined)).toBe(false)
   })
 })

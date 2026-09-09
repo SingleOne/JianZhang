@@ -19,6 +19,7 @@ import {
 } from '../lib/portfolio'
 import { calculatePortfolioQualitySummary } from '../lib/portfolio-quality'
 import type { StockDetailNavigationRequest } from '../lib/completion-notifications'
+import { hasDividendFinancingLabel } from '../lib/dividend-financing'
 import type {
   CorporateActionRecord,
   CorporateActionRecords,
@@ -504,7 +505,7 @@ export function WatchlistTable({
               .filter(({ stock }) => marketCapabilitiesForQuoteId(stock.quoteId).dividendFinancing)
               .map(({ fundamentalScreening, dividendFinancing }) => ({
                 evaluation: fundamentalScreening,
-                hasDividendLabel: Boolean(dividendFinancing)
+                hasDividendLabel: hasDividendFinancingLabel(dividendFinancing)
               }))
           )
         : null,
@@ -530,7 +531,7 @@ export function WatchlistTable({
                   marketValue: metrics.cnyMarketValue,
                   costValue: metrics.cnyCostBasis ?? 0,
                   fundamentalEvaluation: fundamentalScreening,
-                  hasDividendLabel: Boolean(dividendFinancing)
+                  hasDividendLabel: hasDividendFinancingLabel(dividendFinancing)
                 }
               ]
             : []
@@ -551,7 +552,7 @@ export function WatchlistTable({
               matchesFundamentalDividendFilter(
                 {
                   evaluation: fundamentalScreening,
-                  hasDividendLabel: Boolean(dividendFinancing)
+                  hasDividendLabel: hasDividendFinancingLabel(dividendFinancing)
                 },
                 valueFilter
               ))) &&

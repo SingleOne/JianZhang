@@ -3,6 +3,7 @@ import type {
   FundamentalCompany,
   FundamentalSnapshot
 } from '../shared/types'
+import { DIVIDEND_FINANCING_FULL_SCOPE_THRESHOLD_PERCENT } from './dividend-financing'
 
 const DAY_MILLISECONDS = 24 * 60 * 60 * 1000
 
@@ -12,9 +13,12 @@ function olderThanDays(generatedAt: string, days: number, now: Date): boolean {
 }
 
 export function dividendFinancingStaleReason(
-  snapshot: Pick<DividendFinancingSnapshot, 'generatedAt'>,
+  snapshot: Pick<DividendFinancingSnapshot, 'generatedAt' | 'thresholdPercent'>,
   now = new Date()
 ): string | null {
+  if (snapshot.thresholdPercent !== DIVIDEND_FINANCING_FULL_SCOPE_THRESHOLD_PERCENT) {
+    return '当前快照仍只包含部分分红融资比区间，建议手动更新为全量股票数据。'
+  }
   return olderThanDays(snapshot.generatedAt, 7, now)
     ? '数据生成时间已超过7天，建议手动更新后再进行比较。'
     : null

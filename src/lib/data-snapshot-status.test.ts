@@ -9,12 +9,24 @@ import {
 describe('data snapshot status', () => {
   it('marks dividend data stale after seven days', () => {
     const snapshot = {
-      generatedAt: '2026-08-01T00:00:00+08:00'
+      generatedAt: '2026-08-01T00:00:00+08:00',
+      thresholdPercent: 0
     } as DividendFinancingSnapshot
     expect(dividendFinancingStaleReason(snapshot, new Date('2026-08-08T00:00:01+08:00'))).toContain(
       '7天'
     )
     expect(dividendFinancingStaleReason(snapshot, new Date('2026-08-07T23:59:59+08:00'))).toBeNull()
+  })
+
+  it('marks thresholded dividend data stale regardless of age', () => {
+    const snapshot = {
+      generatedAt: '2026-08-07T23:59:59+08:00',
+      thresholdPercent: 100
+    } as DividendFinancingSnapshot
+
+    expect(dividendFinancingStaleReason(snapshot, new Date('2026-08-08T00:00:00+08:00'))).toContain(
+      '全量股票'
+    )
   })
 
   it('uses May 1 as the completed annual report boundary', () => {
