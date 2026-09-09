@@ -360,8 +360,8 @@ def build_fcff_breakdown(
         "BOND_PAYABLE",
         "LEASE_LIAB",
     )
-    interest_bearing_debt = sum_required_fields(balance, debt_fields)
-    previous_interest_bearing_debt = sum_required_fields(previous_balance, debt_fields)
+    interest_bearing_debt = sum_nullable_fields(balance, debt_fields)
+    previous_interest_bearing_debt = sum_nullable_fields(previous_balance, debt_fields)
     average_interest_bearing_debt = (
         (interest_bearing_debt + previous_interest_bearing_debt) / 2
         if interest_bearing_debt is not None and previous_interest_bearing_debt is not None
