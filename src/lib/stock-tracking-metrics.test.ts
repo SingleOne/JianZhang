@@ -58,6 +58,23 @@ function metricSnapshotFromPrices(previousClose: number, close: number) {
 }
 
 describe('stock tracking metrics', () => {
+  it('records the started day when it is the first available daily bar', () => {
+    const snapshots = calculateStockTrackingDailyMetrics(
+      [bar(21, 200, 11)],
+      '2026-07-21T00:00:00.000Z',
+      undefined,
+      '2026-07-21T08:00:00.000Z'
+    )
+
+    expect(snapshots).toHaveLength(1)
+    expect(snapshots[0]).toMatchObject({
+      tradingDate: '2026-07-21',
+      capturedAt: '2026-07-21T08:00:00.000Z',
+      metrics: { close: 11, volume: 200, amount: 2_200 }
+    })
+    expect(snapshots[0].metrics.changePercent).toBeUndefined()
+  })
+
   it('calculates price, volume, moving averages, returns and volume ratios together', () => {
     const bars = Array.from({ length: 20 }, (_, index) => bar(index + 1, 100))
     bars.push(bar(21, 200, 11), bar(22, 300, 12))

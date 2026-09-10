@@ -6,7 +6,10 @@ import {
   stockTrackingPriceVolumeDivergence,
   type StockTrackingPriceVolumeDivergence
 } from '../../src/lib/stock-tracking-metrics'
-import { addStockTrackingSystemEntry } from '../../src/lib/stock-tracking'
+import {
+  addStockTrackingSystemEntry,
+  ensureStockTrackingStartedDaySnapshot
+} from '../../src/lib/stock-tracking'
 import type { AppState, KlineResult, StockTrackingProfile } from '../../src/shared/types'
 
 const TRACKING_METRICS_REFRESH_MILLISECONDS = 30 * 60 * 1000
@@ -106,7 +109,10 @@ export class StockTrackingMetricsRuntime {
         profile.stoppedAt,
         capturedAt
       )
-      let nextProfile = mergeStockTrackingMetricSnapshots(profile, snapshots)
+      let nextProfile = mergeStockTrackingMetricSnapshots(
+        ensureStockTrackingStartedDaySnapshot(profile),
+        snapshots
+      )
       const latestSnapshot = snapshots.at(-1)
       const divergence = stockTrackingPriceVolumeDivergence(latestSnapshot)
       if (latestSnapshot && divergence) {

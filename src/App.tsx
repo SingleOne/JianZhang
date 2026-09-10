@@ -23,6 +23,7 @@ import { calculateCurrentPositionProfitOverrides } from './lib/portfolio-perform
 import { reconcileStockQuotes } from './lib/quote-state'
 import {
   createStockTrackingSource,
+  ensureStockTrackingStartedDaySnapshot,
   startStockTracking,
   stopStockTracking
 } from './lib/stock-tracking'
@@ -689,7 +690,10 @@ export default function App() {
               profile && sources
                 ? {
                     ...saved.stockTrackingProfiles,
-                    [result.quoteId]: { ...profile, sources }
+                    [result.quoteId]: ensureStockTrackingStartedDaySnapshot(
+                      { ...profile, sources },
+                      refreshedQuote
+                    )
                   }
                 : saved.stockTrackingProfiles
           }

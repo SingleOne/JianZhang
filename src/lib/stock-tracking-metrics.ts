@@ -238,7 +238,7 @@ export function calculateStockTrackingDailyMetrics(
     calculateBollingerBandwidthTrends(orderedBars).map((point) => [point.time, point])
   )
 
-  for (let index = 1; index < orderedBars.length; index += 1) {
+  for (let index = 0; index < orderedBars.length; index += 1) {
     const current = orderedBars[index]
     const previous = orderedBars[index - 1]
     const tradingDate = dateKey(current.time)
@@ -246,9 +246,14 @@ export function calculateStockTrackingDailyMetrics(
 
     const metrics: Record<string, number> = {
       [STOCK_TRACKING_BASE_METRICS.close]: current.close,
-      [STOCK_TRACKING_BASE_METRICS.changePercent]: percentageChange(current.close, previous.close),
       [STOCK_TRACKING_BASE_METRICS.volume]: current.volume,
       [STOCK_TRACKING_BASE_METRICS.amount]: current.amount
+    }
+    if (previous) {
+      metrics[STOCK_TRACKING_BASE_METRICS.changePercent] = percentageChange(
+        current.close,
+        previous.close
+      )
     }
     const technicalSignals = candlestickShadowSignals(current)
     const bollingerSignal = bollingerTrendByTime.get(current.time)?.signal

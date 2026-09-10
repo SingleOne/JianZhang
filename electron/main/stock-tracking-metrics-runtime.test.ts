@@ -94,6 +94,60 @@ describe('StockTrackingMetricsRuntime', () => {
     expect(notifyPriceVolumeDivergence).not.toHaveBeenCalled()
   })
 
+  it('backfills the started day before the first completed daily bar is available', async () => {
+    let currentState = state()
+    currentState.stockTrackingProfiles['1.600000'] = {
+      ...trackedProfile(),
+      sources: [
+        {
+          id: 'manual-source',
+          type: 'manual',
+          recordedAt: '2026-07-21T00:00:00.000Z',
+          detail: { startPrice: 10.2 }
+        }
+      ],
+      entries: [
+        {
+          id: 'started-entry',
+          type: 'system',
+          content: '开始追踪，来源：手动添加',
+          createdAt: '2026-07-21T00:00:00.000Z',
+          quoteSnapshot: {
+            latest: 10.2,
+            changePercent: 2,
+            capturedAt: '2026-07-21T00:00:00.000Z'
+          }
+        }
+      ]
+    }
+    const runtime = new StockTrackingMetricsRuntime({
+      getState: () => currentState,
+      setState: (nextState) => {
+        currentState = nextState
+      },
+      persistState: vi.fn(),
+      sendStateUpdated: vi.fn(),
+      getDailyKline: async (quoteId) => ({
+        quoteId,
+        name: '浦发银行',
+        tradingDate: '2026-07-20',
+        bars: bars().slice(0, 20)
+      }),
+      notifyPriceVolumeDivergence: vi.fn(),
+      now: () => new Date('2026-07-21T01:00:00.000Z')
+    })
+
+    await runtime.capture(true)
+
+    expect(currentState.stockTrackingProfiles['1.600000'].metricSnapshots).toEqual([
+      {
+        tradingDate: '2026-07-21',
+        capturedAt: '2026-07-21T00:00:00.000Z',
+        metrics: { close: 10.2, changePercent: 2 }
+      }
+    ])
+  })
+
   it('records and notifies a new three-session divergence only once', async () => {
     let currentState = state()
     const divergentBars = bars()

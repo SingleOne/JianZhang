@@ -3,11 +3,12 @@ import {
   addTrackingSourceTags,
   addStockTrackingEntry,
   createStockTrackingSource,
+  ensureStockTrackingStartedDaySnapshot,
   startStockTracking,
   stopStockTracking,
   trackingProfileSourceTags
 } from './stock-tracking'
-import type { WatchStock } from '../shared/types'
+import type { StockQuote, WatchStock } from '../shared/types'
 
 const stock: WatchStock = {
   code: '600000',
@@ -20,6 +21,48 @@ const stock: WatchStock = {
 }
 
 describe('stock tracking', () => {
+  it('records the market state from the day tracking starts', () => {
+    const startedAt = '2026-09-10T00:25:09.858Z'
+    const quote: StockQuote = {
+      code: stock.code,
+      name: stock.name,
+      quoteId: stock.quoteId,
+      latest: 15.81,
+      change: -0.24,
+      changePercent: -1.5,
+      open: 16,
+      high: 16.1,
+      low: 15.7,
+      previousClose: 16.05,
+      volume: 320_000,
+      amount: 5_100_000,
+      turnoverRate: 1.2,
+      updatedAt: startedAt
+    }
+
+    const profile = startStockTracking(
+      undefined,
+      stock,
+      createStockTrackingSource('manual', { startPrice: 15.81 }, startedAt),
+      quote,
+      startedAt
+    )
+
+    expect(profile.metricSnapshots).toEqual([
+      {
+        tradingDate: '2026-09-10',
+        capturedAt: startedAt,
+        metrics: {
+          close: 15.81,
+          changePercent: -1.5,
+          volume: 320_000,
+          amount: 5_100_000
+        }
+      }
+    ])
+    expect(ensureStockTrackingStartedDaySnapshot(profile, quote)).toBe(profile)
+  })
+
   it('keeps multiple sources and preserves history after stopping and restarting', () => {
     const startedAt = '2026-08-08T07:10:00.000Z'
     const dailySource = createStockTrackingSource(
