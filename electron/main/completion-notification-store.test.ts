@@ -35,6 +35,12 @@ describe('CompletionNotificationStore', () => {
         target: 'corporate-actions',
         message: '公司行动候选已更新',
         createdAt: '2026-08-12T12:00:00.000Z'
+      },
+      {
+        id: 'older-center',
+        target: 'corporate-action-center',
+        message: '旧的中心加载通知',
+        createdAt: '2026-08-11T00:00:00.000Z'
       }
     ])
 
@@ -45,6 +51,9 @@ describe('CompletionNotificationStore', () => {
     ])
     expect(readFileSync(join(directory, 'completion-notifications.json'), 'utf8')).toContain(
       '新通知'
+    )
+    expect(readFileSync(join(directory, 'completion-notifications.json'), 'utf8')).not.toContain(
+      '旧的中心加载通知'
     )
   })
 

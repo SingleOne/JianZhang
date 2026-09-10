@@ -797,6 +797,16 @@ export interface CorporateActionEvidence {
   excerpt?: string
 }
 
+export interface CorporateActionSummary {
+  candidateId: string
+  quoteId: string
+  contentHash: string
+  content: string
+  generatedAt: string
+  providerId: string
+  model: string
+}
+
 export interface CorporateActionCandidate {
   id: string
   quoteId: string
@@ -819,6 +829,7 @@ export interface CorporateActionCandidate {
   reviewedAt?: string
   appliedEntryIds?: string[]
   warning?: string
+  aiSummary?: CorporateActionSummary
 }
 
 export interface CorporateActionRecord extends CorporateActionCandidate {
@@ -2774,6 +2785,9 @@ export interface StockDesktopApi {
     quoteId: string,
     forceRefresh?: boolean
   ) => Promise<CorporateActionListResult>
+  generateCorporateActionSummary: (
+    candidate: CorporateActionCandidate
+  ) => Promise<CorporateActionSummary>
   previewCorporateAction: (
     request: CorporateActionPreviewRequest
   ) => Promise<CorporateActionImpactPreview>

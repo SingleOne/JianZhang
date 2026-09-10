@@ -34,6 +34,7 @@ import type {
   CorporateActionListResult,
   CorporateActionPreviewRequest,
   CorporateActionRecord,
+  CorporateActionSummary,
   DataSnapshotRuntimeState,
   DailyMarketScanResult,
   DailyMarketScanState,
@@ -115,6 +116,9 @@ interface IpcHandlerDependencies {
     quoteId: string,
     forceRefresh?: boolean
   ) => Promise<CorporateActionListResult>
+  generateCorporateActionSummary: (
+    candidate: CorporateActionCandidate
+  ) => Promise<CorporateActionSummary>
   previewCorporateAction: (
     request: CorporateActionPreviewRequest
   ) => Promise<CorporateActionImpactPreview>
@@ -220,6 +224,7 @@ const CHANNELS = [
   'company-reports:open',
   'corporate-actions:list',
   'corporate-actions:refresh',
+  'corporate-actions:summary:generate',
   'corporate-actions:preview',
   'corporate-actions:confirm',
   'corporate-actions:ignore',
@@ -335,6 +340,11 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
   )
   ipcMain.handle('corporate-actions:refresh', (_event, quoteId: string) =>
     dependencies.listCorporateActions(quoteId, true)
+  )
+  ipcMain.handle(
+    'corporate-actions:summary:generate',
+    (_event, candidate: CorporateActionCandidate) =>
+      dependencies.generateCorporateActionSummary(candidate)
   )
   ipcMain.handle('corporate-actions:preview', (_event, request: CorporateActionPreviewRequest) =>
     dependencies.previewCorporateAction(request)

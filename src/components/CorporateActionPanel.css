@@ -182,10 +182,63 @@
   color: #c13b3b;
 }
 
+.corporate-action-card-actions .corporate-action-ai-button {
+  color: var(--accent);
+}
+
+.corporate-action-ai-feedback {
+  margin: 10px 0 0;
+  border-radius: 8px;
+  padding: 9px 10px;
+  font-size: 12px;
+}
+
+.corporate-action-ai-feedback.is-notice {
+  background: color-mix(in srgb, #d99514 10%, transparent);
+  color: #a96800;
+}
+
+.corporate-action-ai-feedback.is-error {
+  background: color-mix(in srgb, #d84b4b 10%, transparent);
+  color: #c13b3b;
+}
+
+.corporate-action-ai-summary {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface-muted));
+  padding: 10px 11px;
+}
+
+.corporate-action-ai-summary strong,
+.corporate-action-ai-summary p,
+.corporate-action-ai-summary small {
+  margin: 0;
+  font-size: 12px;
+}
+
+.corporate-action-ai-summary p {
+  line-height: 1.65;
+}
+
+.corporate-action-ai-summary small {
+  color: var(--text-secondary);
+}
+
 .corporate-action-editor {
   display: grid;
   gap: 13px;
   border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.corporate-action-editor-host {
+  margin-top: 12px;
+}
+
+.corporate-action-editor-host .corporate-action-editor {
+  background: var(--surface-muted);
 }
 
 .corporate-action-form-grid {

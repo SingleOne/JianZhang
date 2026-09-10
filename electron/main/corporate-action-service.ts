@@ -10,11 +10,16 @@ import {
 import { previewCorporateAction, reversalEntries } from '../../src/lib/portfolio-ledger'
 import { marketFromQuoteId } from '../../src/shared/stock-market'
 import type {
+  AiStructuredTaskRequest,
+  AiStructuredTaskResult
+} from '../../src/modules/ai/shared/types'
+import type {
   CorporateActionCandidate,
   CorporateActionImpactPreview,
   CorporateActionListResult,
   CorporateActionPreviewRequest,
   CorporateActionRecord,
+  CorporateActionSummary,
   CorporateActionTerms,
   ManualCorporateActionRequest,
   StockMarket,
@@ -29,6 +34,33 @@ import { SEC_DOCUMENT_HEADERS, SecEdgarClient } from './sec-edgar-client'
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000
 const CACHE_VERSION = 2
 const OFFICIAL_HOSTS = new Set(['www1.hkexnews.hk', 'www.hkexnews.hk', 'www.sec.gov', 'sec.gov'])
+const SUMMARY_PROMPT = `你是上市公司行动摘要助手。只能依据用户提供的公司行动候选、已提取条款和官方证据摘录，不得补充外部信息或猜测未披露内容。
+
+请用 120—260 字中文纯文本说明：行动是什么、关键日期和执行条款、对股东持仓数量/成本/现金流可能产生的影响，以及仍需向券商或官方原文核对的不确定项。
+不得使用 Markdown、标题或列表，不得给出买卖建议、目标价或收益承诺。证据不足时必须明确说明资料不足。`
+
+type RunStructuredTask = (
+  request: AiStructuredTaskRequest,
+  signal: AbortSignal
+) => Promise<AiStructuredTaskResult>
+
+function normalizeSummaryContent(value: string): string {
+  const content = value
+    .trim()
+    .replace(/^```(?:text)?\s*|\s*```$/g, '')
+    .replace(/^\s*(?:#{1,6}|[-*+]|\d+[.)])\s*/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!content) throw new Error('AI 未返回公司行动总结')
+  if (
+    /(?:建议|应当|可以考虑)(?:立即|择机)?(?:买入|卖出|增持|减持)|目标价|保证(?:收益|回报)|收益承诺/.test(
+      content
+    )
+  ) {
+    throw new Error('AI 总结包含不允许的交易建议，请重新生成')
+  }
+  return content.slice(0, 600)
+}
 
 function mergeExtractedField<T>(
   original: { value?: T; confidence: 'high' | 'medium' | 'low'; evidenceText?: string },
@@ -113,14 +145,14 @@ export class CorporateActionService {
     const market = marketFromQuoteId(quoteId)
     const provider = this.providers[market]
     if (!provider) {
-      return {
+      return this.attachSummaries({
         quoteId,
         market,
         source: '暂无可用官方来源',
         fetchedAt: new Date().toISOString(),
         fromCache: false,
         candidates: []
-      }
+      })
     }
     const storedCache = this.readCache(quoteId, market)
     const cached = storedCache?.cacheVersion === CACHE_VERSION ? storedCache : null
@@ -129,7 +161,7 @@ export class CorporateActionService {
       cached &&
       Date.now() - new Date(cached.fetchedAt).getTime() < CACHE_MAX_AGE
     ) {
-      return { ...cached, fromCache: true }
+      return this.attachSummaries({ ...cached, fromCache: true })
     }
     try {
       const fetched = await provider.fetch(quoteId)
@@ -145,16 +177,64 @@ export class CorporateActionService {
       })
       const result = { ...fetched, candidates, cacheVersion: CACHE_VERSION }
       this.writeCache(result)
-      return result
+      return this.attachSummaries(result)
     } catch (reason) {
       if (!cached) throw reason
-      return {
+      return this.attachSummaries({
         ...cached,
         fromCache: true,
         degraded: true,
         warning: `在线更新失败，当前显示本地缓存：${reason instanceof Error ? reason.message : '未知错误'}`
-      }
+      })
     }
+  }
+
+  async generateSummary(
+    candidate: CorporateActionCandidate,
+    runStructuredTask: RunStructuredTask
+  ): Promise<CorporateActionSummary> {
+    const enrichedCandidate = await this.enrichCandidate(candidate)
+    const result = await runStructuredTask(
+      {
+        systemPrompt: SUMMARY_PROMPT,
+        userContent: JSON.stringify({
+          quoteId: enrichedCandidate.quoteId,
+          market: enrichedCandidate.market,
+          type: enrichedCandidate.type,
+          title: enrichedCandidate.title,
+          status: enrichedCandidate.status,
+          announcementDate: enrichedCandidate.announcementDate,
+          exDate: enrichedCandidate.exDate,
+          recordDate: enrichedCandidate.recordDate,
+          electionDeadline: enrichedCandidate.electionDeadline,
+          effectiveDate: enrichedCandidate.effectiveDate,
+          payableDate: enrichedCandidate.payableDate,
+          terms: enrichedCandidate.terms,
+          warning: enrichedCandidate.warning,
+          evidence: enrichedCandidate.evidence.map((item) => ({
+            source: item.source,
+            title: item.title,
+            publishedAt: item.publishedAt,
+            excerpt: item.excerpt
+          }))
+        })
+      },
+      AbortSignal.timeout(180_000)
+    )
+    const content = normalizeSummaryContent(result.content)
+    const summary: CorporateActionSummary = {
+      candidateId: candidate.id,
+      quoteId: candidate.quoteId,
+      contentHash: candidate.contentHash,
+      content,
+      generatedAt: new Date().toISOString(),
+      providerId: result.providerId,
+      model: result.model
+    }
+    const summaries = this.readSummaries()
+    summaries[candidate.id] = summary
+    this.writeSummaries(summaries)
+    return summary
   }
 
   async preview(request: CorporateActionPreviewRequest): Promise<CorporateActionImpactPreview> {
@@ -230,6 +310,10 @@ export class CorporateActionService {
     return join(this.cacheDirectory, market, `${quoteId.replace(/[^\w.-]/g, '_')}.json`)
   }
 
+  private summariesPath(): string {
+    return join(this.cacheDirectory, '..', 'summaries.json')
+  }
+
   private documentPath(candidate: CorporateActionCandidate): string {
     return join(
       this.cacheDirectory,
@@ -295,7 +379,9 @@ export class CorporateActionService {
       electionDeadline: dates.electionDeadline ?? candidate.electionDeadline,
       terms: mergeTerms(candidate.terms, extractedTerms),
       evidence: candidate.evidence.map((evidence, index) =>
-        index === 0 ? { ...evidence, excerpt: text.slice(0, 500) } : evidence
+        index === 0
+          ? { ...evidence, excerpt: evidence.excerpt?.trim() || text.slice(0, 2_000) }
+          : evidence
       )
     }
   }
@@ -317,6 +403,31 @@ export class CorporateActionService {
     return existsSync(path)
       ? (JSON.parse(readFileSync(path, 'utf8')) as CorporateActionListResult)
       : null
+  }
+
+  private attachSummaries(result: CorporateActionListResult): CorporateActionListResult {
+    const summaries = this.readSummaries()
+    return {
+      ...result,
+      candidates: result.candidates.map((candidate) => {
+        const summary = summaries[candidate.id]
+        return summary?.contentHash === candidate.contentHash
+          ? { ...candidate, aiSummary: summary }
+          : candidate
+      })
+    }
+  }
+
+  private readSummaries(): Record<string, CorporateActionSummary> {
+    const path = this.summariesPath()
+    return existsSync(path)
+      ? (JSON.parse(readFileSync(path, 'utf8')) as Record<string, CorporateActionSummary>)
+      : {}
+  }
+
+  private writeSummaries(summaries: Record<string, CorporateActionSummary>): void {
+    mkdirSync(join(this.cacheDirectory, '..'), { recursive: true })
+    atomicWriteJsonSync(this.summariesPath(), summaries)
   }
 
   private writeCache(result: CorporateActionListResult): void {

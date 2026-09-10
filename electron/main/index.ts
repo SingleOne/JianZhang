@@ -685,6 +685,13 @@ if (!hasSingleInstanceLock) {
       openCompanyReport: (url) => companyReportService!.open(url),
       listCorporateActions: (quoteId, forceRefresh) =>
         corporateActionService!.get(quoteId, forceRefresh),
+      generateCorporateActionSummary: async (candidate) => {
+        await optionalModuleRuntime.waitUntilReady('ai')
+        if (!aiRuntime) throw new Error('AI 功能初始化失败')
+        return corporateActionService!.generateSummary(candidate, (request, signal) =>
+          aiRuntime!.runStructuredTask(request, signal)
+        )
+      },
       previewCorporateAction: (request) => corporateActionService!.preview(request),
       ignoreCorporateAction: (candidate) => corporateActionService!.ignore(candidate),
       reverseCorporateAction: (candidate, account) =>

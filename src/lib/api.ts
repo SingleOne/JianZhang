@@ -13,6 +13,7 @@ import {
   normalizeWatchlistGroups,
   synchronizeWatchlistGroupMemberships,
   type AppState,
+  type AppCompletionNotification,
   type BootstrapResult,
   type CacheCategoryId,
   type CacheClearResult,
@@ -47,6 +48,21 @@ import {
 import { DEMO_SECTORS, DEMO_STOCKS, DEMO_VALUES } from './demo-data'
 import { stockMarketIdentity } from '../shared/stock-market'
 import { previewCorporateAction, reversalEntries } from './portfolio-ledger'
+
+function normalizeDemoCompletionNotifications(
+  notifications: readonly AppCompletionNotification[]
+): AppCompletionNotification[] {
+  let hasCorporateActionCenter = false
+  return [...notifications]
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+    .filter((notification) => {
+      if (notification.target !== 'corporate-action-center') return true
+      if (hasCorporateActionCenter) return false
+      hasCorporateActionCenter = true
+      return true
+    })
+    .slice(0, 100)
+}
 
 function makeDemoSectorQuote(stockQuoteId: string): StockSectorQuote | undefined {
   const sector = DEMO_SECTORS[stockQuoteId]
@@ -675,6 +691,18 @@ const demoApi: StockDesktopApi = {
       warning: '浏览器预览不请求官方公司行动数据，可使用手工录入验证账本流程。'
     }
   },
+  async generateCorporateActionSummary(candidate) {
+    return {
+      candidateId: candidate.id,
+      quoteId: candidate.quoteId,
+      contentHash: candidate.contentHash,
+      content:
+        '演示总结：请结合公司行动类型、关键日期、执行条款和官方原文，核对对持仓数量、成本与现金流的实际影响。',
+      generatedAt: new Date().toISOString(),
+      providerId: 'demo',
+      model: 'demo'
+    }
+  },
   async previewCorporateAction(request) {
     return previewCorporateAction(request.candidate, request.account, request.confirmation)
   },
@@ -852,11 +880,14 @@ const demoApi: StockDesktopApi = {
   },
   async getCompletionNotifications() {
     const saved = localStorage.getItem('jianzhang-completion-notifications-v1')
-    return saved ? JSON.parse(saved) : []
+    return saved
+      ? normalizeDemoCompletionNotifications(JSON.parse(saved) as AppCompletionNotification[])
+      : []
   },
   async saveCompletionNotifications(notifications) {
-    localStorage.setItem('jianzhang-completion-notifications-v1', JSON.stringify(notifications))
-    return notifications
+    const saved = normalizeDemoCompletionNotifications(notifications)
+    localStorage.setItem('jianzhang-completion-notifications-v1', JSON.stringify(saved))
+    return saved
   },
   async exportConfig(state) {
     const fileName = demoConfigFileName()

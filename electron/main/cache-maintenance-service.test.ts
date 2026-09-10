@@ -39,6 +39,8 @@ describe('CacheMaintenanceService', () => {
     write(root, 'market-cache/shareholders/1_600519.json', 'shareholder')
     write(root, 'company-reports/600519.json', 'reports')
     write(root, 'company-reports/summaries.json', 'summary')
+    write(root, 'corporate-actions/candidates/HK/116.01810.json', 'candidate')
+    write(root, 'corporate-actions/summaries.json', 'action summary')
 
     const summary = await new CacheMaintenanceService(root, webCache()).getSummary()
     expect(summary.categories).toEqual(
@@ -47,6 +49,7 @@ describe('CacheMaintenanceService', () => {
         expect.objectContaining({ id: 'diagnostic-logs', group: 'default', fileCount: 1 }),
         expect.objectContaining({ id: 'shareholders', group: 'advanced', fileCount: 1 }),
         expect.objectContaining({ id: 'company-reports', group: 'advanced', fileCount: 1 }),
+        expect.objectContaining({ id: 'corporate-actions', group: 'advanced', fileCount: 1 }),
         expect.objectContaining({ id: 'data-snapshots', group: 'separate', fileCount: 0 }),
         expect.objectContaining({ id: 'electron-web', fileCount: null, sizeBytes: 512 })
       ])
@@ -60,12 +63,22 @@ describe('CacheMaintenanceService', () => {
     write(root, 'market-cache/shareholders/1_600519.json', 'shareholder')
     write(root, 'company-reports/600519.json', 'reports')
     write(root, 'company-reports/summaries.json', 'summary')
+    write(root, 'corporate-actions/candidates/HK/116.01810.json', 'candidate')
+    write(root, 'corporate-actions/summaries.json', 'action summary')
 
     const service = new CacheMaintenanceService(root, webCache())
-    const result = await service.clear(['temporary-market', 'diagnostic-logs', 'company-reports'])
+    const result = await service.clear([
+      'temporary-market',
+      'diagnostic-logs',
+      'company-reports',
+      'corporate-actions'
+    ])
 
-    expect(result.clearedFileCount).toBe(3)
+    expect(result.clearedFileCount).toBe(4)
     expect(readFileSync(join(root, 'company-reports/summaries.json'), 'utf8')).toBe('summary')
+    expect(readFileSync(join(root, 'corporate-actions/summaries.json'), 'utf8')).toBe(
+      'action summary'
+    )
     expect(readFileSync(join(root, 'market-cache/shareholders/1_600519.json'), 'utf8')).toBe(
       'shareholder'
     )

@@ -55,6 +55,8 @@ const api: StockDesktopApi = {
       forceRefresh ? 'corporate-actions:refresh' : 'corporate-actions:list',
       quoteId
     ),
+  generateCorporateActionSummary: (candidate) =>
+    ipcRenderer.invoke('corporate-actions:summary:generate', candidate),
   previewCorporateAction: (request) => ipcRenderer.invoke('corporate-actions:preview', request),
   confirmCorporateAction: (request) => ipcRenderer.invoke('corporate-actions:confirm', request),
   ignoreCorporateAction: (candidate) => ipcRenderer.invoke('corporate-actions:ignore', candidate),

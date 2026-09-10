@@ -79,6 +79,7 @@ describe('UserDataBackupService', () => {
     write(directory, 'modules/ai/transient-provider-cache/session.json', '{"token":"private"}')
     write(directory, 'market-cache/shareholders/1_600519.json', '{"cached":true}')
     write(directory, 'company-reports/summaries.json', '{"report":"summary"}')
+    write(directory, 'corporate-actions/summaries.json', '{"action":"summary"}')
     write(directory, 'completion-notifications.json', '[{"id":"notification-1"}]')
 
     const document = new UserDataBackupService(directory).create(state(), '8.3.0', {
@@ -88,6 +89,7 @@ describe('UserDataBackupService', () => {
     expect(document.files.map((file) => file.path)).toEqual([
       'company-reports/summaries.json',
       'completion-notifications.json',
+      'corporate-actions/summaries.json',
       'modules/ai/conversations/index.json',
       'modules/ai/settings.json'
     ])

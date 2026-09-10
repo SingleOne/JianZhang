@@ -21,6 +21,7 @@ import './CorporateActionCenterDialog.css'
 
 interface CorporateActionCenterDialogProps {
   open: boolean
+  notifyOnLoadComplete: boolean
   watchlist: WatchStock[]
   records: CorporateActionRecords
   onViewStock: (quoteId: string) => void
@@ -74,6 +75,7 @@ function failureReason(reason: unknown): string {
 
 export default function CorporateActionCenterDialog({
   open,
+  notifyOnLoadComplete,
   watchlist,
   records,
   onViewStock,
@@ -136,13 +138,15 @@ export default function CorporateActionCenterDialog({
           )
         }
         const incompleteCount = failures.length + degraded.length
-        emitCompletionNotification({
-          target: 'corporate-action-center',
-          message:
-            incompleteCount > 0
-              ? `公司行动待确认中心加载完成，${incompleteCount} 只股票数据不完整`
-              : `公司行动待确认中心加载完成，共 ${successful.length} 条在线候选`
-        })
+        if (notifyOnLoadComplete) {
+          emitCompletionNotification({
+            target: 'corporate-action-center',
+            message:
+              incompleteCount > 0
+                ? `公司行动待确认中心加载完成，${incompleteCount} 只股票数据不完整`
+                : `公司行动待确认中心加载完成，共 ${successful.length} 条在线候选`
+          })
+        }
       })
       .finally(() => {
         if (active) setLoading(false)
@@ -150,7 +154,7 @@ export default function CorporateActionCenterDialog({
     return () => {
       active = false
     }
-  }, [open, watchlist])
+  }, [notifyOnLoadComplete, open, watchlist])
 
   const stockMap = useMemo(
     () => new Map(watchlist.map((stock) => [stock.quoteId, stock] as const)),

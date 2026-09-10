@@ -1,5 +1,5 @@
 import { Bot, CircleCheck, RefreshCw, Signal, WifiOff } from 'lucide-react'
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AppTitlebar, MarketTradingState } from './components/AppTitlebar'
 import { useConfirmDialog } from './components/ConfirmDialog'
 import { SearchBar } from './components/SearchBar'
@@ -153,6 +153,8 @@ export default function App() {
   const [completionNotifications, setCompletionNotifications] = useState<
     AppCompletionNotification[]
   >([])
+  const dismissedCompletionNotificationIds = useRef(new Set<string>())
+  const corporateActionCenterNotificationsDismissed = useRef(false)
   const [detailNavigationRequest, setDetailNavigationRequest] =
     useState<StockDetailNavigationRequest | null>(null)
   const [source, setSource] = useState<'eastmoney' | 'demo'>('eastmoney')
@@ -188,6 +190,7 @@ export default function App() {
   const [stockTrackingOpen, setStockTrackingOpen] = useState(false)
   const [loadedDialogs, setLoadedDialogs] = useState<Set<DeferredDialogId>>(() => new Set())
   const [corporateActionCenterOpen, setCorporateActionCenterOpen] = useState(false)
+  const [corporateActionCenterNotifyOnLoad, setCorporateActionCenterNotifyOnLoad] = useState(true)
   const [portfolioPerformanceOpen, setPortfolioPerformanceOpen] = useState(false)
   const [dividendFinancingSnapshot, setDividendFinancingSnapshot] =
     useState<DividendFinancingSnapshot | null>(null)
@@ -430,9 +433,23 @@ export default function App() {
       .getCompletionNotifications()
       .then((saved) => {
         setCompletionNotifications((current) => {
-          if (current.length === 0) return saved
           const currentIds = new Set(current.map((item) => item.id))
-          const merged = [...current, ...saved.filter((item) => !currentIds.has(item.id))]
+          const hasCurrentCorporateActionCenter = current.some(
+            (item) => item.target === 'corporate-action-center'
+          )
+          const merged = [
+            ...current,
+            ...saved.filter(
+              (item) =>
+                !currentIds.has(item.id) &&
+                !dismissedCompletionNotificationIds.current.has(item.id) &&
+                !(
+                  item.target === 'corporate-action-center' &&
+                  (corporateActionCenterNotificationsDismissed.current ||
+                    hasCurrentCorporateActionCenter)
+                )
+            )
+          ]
           void stockApi.saveCompletionNotifications(merged)
           return merged
         })
@@ -444,8 +461,20 @@ export default function App() {
     const addCompletionNotification = (event: Event) => {
       const notification = (event as CustomEvent<AppCompletionNotification>).detail
       if (!notification) return
+      dismissedCompletionNotificationIds.current.delete(notification.id)
+      if (notification.target === 'corporate-action-center') {
+        corporateActionCenterNotificationsDismissed.current = false
+      }
       setCompletionNotifications((current) => {
-        const next = [notification, ...current.filter((item) => item.id !== notification.id)]
+        const next = [
+          notification,
+          ...current.filter(
+            (item) =>
+              item.id !== notification.id &&
+              (notification.target !== 'corporate-action-center' ||
+                item.target !== 'corporate-action-center')
+          )
+        ]
         void stockApi.saveCompletionNotifications(next)
         return next
       })
@@ -1203,12 +1232,22 @@ export default function App() {
   }, [])
 
   const openCompletionNotification = useCallback((notification: AppCompletionNotification) => {
+    if (notification.target === 'corporate-action-center') {
+      corporateActionCenterNotificationsDismissed.current = true
+    } else {
+      dismissedCompletionNotificationIds.current.add(notification.id)
+    }
     setCompletionNotifications((current) => {
-      const next = current.filter((item) => item.id !== notification.id)
+      const next = current.filter((item) =>
+        notification.target === 'corporate-action-center'
+          ? item.target !== 'corporate-action-center'
+          : item.id !== notification.id
+      )
       void stockApi.saveCompletionNotifications(next)
       return next
     })
     if (notification.target === 'corporate-action-center') {
+      setCorporateActionCenterNotifyOnLoad(false)
       setCorporateActionCenterOpen(true)
       return
     }
@@ -1587,7 +1626,10 @@ export default function App() {
                 loadDialog('tracking')
                 setStockTrackingOpen(true)
               }}
-              onOpenCorporateActionCenter={() => setCorporateActionCenterOpen(true)}
+              onOpenCorporateActionCenter={() => {
+                setCorporateActionCenterNotifyOnLoad(true)
+                setCorporateActionCenterOpen(true)
+              }}
               onOpenPortfolioPerformance={() => setPortfolioPerformanceOpen(true)}
             />
             {aiModulePresent ? (
@@ -1963,6 +2005,7 @@ export default function App() {
         <Suspense fallback={null}>
           <CorporateActionCenterDialog
             open
+            notifyOnLoadComplete={corporateActionCenterNotifyOnLoad}
             watchlist={state.watchlist}
             records={state.corporateActionRecords}
             onViewStock={viewCorporateActionStock}

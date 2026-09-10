@@ -1,5 +1,7 @@
-import { ExternalLink, Plus, RefreshCcw, RotateCcw } from 'lucide-react'
+import { ExternalLink, Plus, RefreshCcw, RotateCcw, Sparkles } from 'lucide-react'
+import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { formatCost, formatMoney, formatShares } from '../lib/format'
 import {
   CORPORATE_ACTION_STATUS_LABELS,
@@ -56,6 +58,12 @@ interface ConfirmationDraft {
   occurredAt: string
   targetQuoteId: string
   note: string
+}
+
+interface CandidateAiFeedback {
+  candidateId: string
+  tone: 'error' | 'notice'
+  message: string
 }
 
 const MANUAL_TYPES: CorporateActionType[] = [
@@ -222,6 +230,19 @@ function accountForStock(stock: WatchStock, account?: TTradingAccount): TTrading
   )
 }
 
+function editorHostId(candidateId: string): string {
+  return `corporate-action-editor-host:${candidateId}`
+}
+
+function mountCorporateActionEditor(
+  editor: ReactElement,
+  host: HTMLElement | null,
+  inline: boolean
+): ReactElement | null {
+  if (inline) return editor
+  return host ? createPortal(editor, host) : null
+}
+
 export default function CorporateActionPanel({
   stock,
   account,
@@ -241,6 +262,9 @@ export default function CorporateActionPanel({
   const [preview, setPreview] = useState<CorporateActionImpactPreview | null>(null)
   const [previewing, setPreviewing] = useState(false)
   const [manualType, setManualType] = useState<CorporateActionType>('manualCash')
+  const [summarizingId, setSummarizingId] = useState<string | null>(null)
+  const [aiFeedback, setAiFeedback] = useState<CandidateAiFeedback | null>(null)
+  const [editorHost, setEditorHost] = useState<HTMLElement | null>(null)
 
   const load = useCallback(
     async (forceRefresh = false) => {
@@ -274,15 +298,28 @@ export default function CorporateActionPanel({
     setSelected(null)
     setDraft(null)
     setPreview(null)
+    setSummarizingId(null)
+    setAiFeedback(null)
     void load()
   }, [load])
+
+  const selectedEditorCandidateId =
+    selected && selected.providerId !== 'manual' ? selected.id : null
+
+  useEffect(() => {
+    setEditorHost(
+      selectedEditorCandidateId
+        ? document.getElementById(editorHostId(selectedEditorCandidateId))
+        : null
+    )
+  }, [selectedEditorCandidateId])
 
   const timeline = useMemo(() => {
     const merged: CorporateActionCandidate[] = candidates.map((candidate) => {
       const saved = records[candidate.id] as CorporateActionRecord | undefined
       if (!saved) return candidate
       return saved.contentHash === candidate.contentHash
-        ? saved
+        ? { ...saved, aiSummary: candidate.aiSummary ?? saved.aiSummary }
         : {
             ...candidate,
             status: 'revised',
@@ -297,6 +334,25 @@ export default function CorporateActionPanel({
       right.announcementDate.localeCompare(left.announcementDate)
     )
   }, [candidates, records, stock.quoteId])
+  const currentCandidateIds = useMemo(
+    () => new Set(candidates.map((candidate) => candidate.id)),
+    [candidates]
+  )
+
+  useEffect(() => {
+    if (
+      selected &&
+      selected.providerId !== 'manual' &&
+      !timeline.some(
+        (candidate) =>
+          candidate.id === selected.id && candidate.contentHash === selected.contentHash
+      )
+    ) {
+      setSelected(null)
+      setDraft(null)
+      setPreview(null)
+    }
+  }, [selected, timeline])
 
   const chooseCandidate = (candidate: CorporateActionCandidate) => {
     setSelected(candidate)
@@ -436,6 +492,55 @@ export default function CorporateActionPanel({
     }
   }
 
+  const summarizeCandidate = async (candidate: CorporateActionCandidate) => {
+    const aiApi = window.aiApi
+    if (!aiApi) {
+      setAiFeedback({
+        candidateId: candidate.id,
+        tone: 'error',
+        message: '当前版本未加载 AI 模块，无法生成总结。'
+      })
+      return
+    }
+    setSummarizingId(candidate.id)
+    setAiFeedback(null)
+    try {
+      const [settings, status] = await Promise.all([aiApi.getSettings(), aiApi.getStatus()])
+      if (!settings.enabled) {
+        setAiFeedback({
+          candidateId: candidate.id,
+          tone: 'notice',
+          message: 'AI 助手尚未启用，请先点击顶部“AI 助手”完成启用和服务配置。'
+        })
+        return
+      }
+      if (!status.credentials[settings.providerId]?.configured) {
+        setAiFeedback({
+          candidateId: candidate.id,
+          tone: 'notice',
+          message: '当前 AI 服务尚未配置 API Key，请先点击顶部“AI 助手”完成配置。'
+        })
+        return
+      }
+      const summary = await stockApi.generateCorporateActionSummary(candidate)
+      setCandidates((current) =>
+        current.map((item) =>
+          item.id === candidate.id && item.contentHash === summary.contentHash
+            ? { ...item, aiSummary: summary }
+            : item
+        )
+      )
+    } catch (reason) {
+      setAiFeedback({
+        candidateId: candidate.id,
+        tone: 'error',
+        message: reason instanceof Error ? reason.message : 'AI 公司行动总结生成失败'
+      })
+    } finally {
+      setSummarizingId((current) => (current === candidate.id ? null : current))
+    }
+  }
+
   const reverse = async (candidate: CorporateActionRecord) => {
     const workingAccount = accountForStock(stock, account)
     try {
@@ -549,6 +654,22 @@ export default function CorporateActionPanel({
                   官方原文
                 </button>
               ) : null}
+              {currentCandidateIds.has(candidate.id) ? (
+                <button
+                  className="text-button corporate-action-ai-button"
+                  type="button"
+                  disabled={summarizingId !== null}
+                  onClick={() => void summarizeCandidate(candidate)}
+                  title="使用当前 AI 模型总结公司行动条款、影响和待核事项"
+                >
+                  <Sparkles size={14} />
+                  {summarizingId === candidate.id
+                    ? '总结中…'
+                    : candidate.aiSummary
+                      ? '重新总结'
+                      : 'AI 总结'}
+                </button>
+              ) : null}
               {candidate.status !== 'applied' && candidate.status !== 'reversed' ? (
                 <button
                   className="secondary-button"
@@ -580,307 +701,337 @@ export default function CorporateActionPanel({
                 </button>
               ) : null}
             </div>
+            {aiFeedback?.candidateId === candidate.id ? (
+              <p className={`corporate-action-ai-feedback is-${aiFeedback.tone}`}>
+                {aiFeedback.message}
+              </p>
+            ) : null}
+            {candidate.aiSummary ? (
+              <section className="corporate-action-ai-summary" aria-label="AI 公司行动总结">
+                <strong>AI 总结</strong>
+                <p>{candidate.aiSummary.content}</p>
+                <small>
+                  {candidate.aiSummary.providerId} · {candidate.aiSummary.model} ·{' '}
+                  {new Date(candidate.aiSummary.generatedAt).toLocaleString()}
+                </small>
+              </section>
+            ) : null}
+            {selected?.id === candidate.id ? (
+              <div className="corporate-action-editor-host" id={editorHostId(candidate.id)} />
+            ) : null}
           </article>
         ))}
       </div>
 
-      {selected && draft ? (
-        <section className="corporate-action-editor" aria-label="公司行动影响预览">
-          <header>
-            <div>
-              <strong>{selected.title}</strong>
-              <span>确认前不会修改持仓或账本</span>
-            </div>
-            <button className="text-button" type="button" onClick={() => setSelected(null)}>
-              关闭
-            </button>
-          </header>
-          <div className="corporate-action-form-grid">
-            {selected.type === 'cashDividend' || selected.type === 'returnOfCapital' ? (
-              <>
+      {selected && draft
+        ? mountCorporateActionEditor(
+            <section className="corporate-action-editor" aria-label="公司行动影响预览">
+              <header>
+                <div>
+                  <strong>{selected.title}</strong>
+                  <span>确认前不会修改持仓或账本</span>
+                </div>
+                <button className="text-button" type="button" onClick={() => setSelected(null)}>
+                  关闭
+                </button>
+              </header>
+              <div className="corporate-action-form-grid">
+                {selected.type === 'cashDividend' || selected.type === 'returnOfCapital' ? (
+                  <>
+                    <label>
+                      权益股数
+                      <input
+                        type="number"
+                        step="100"
+                        value={draft.eligibleQuantity}
+                        placeholder="按登记日账本计算"
+                        onChange={(event) => updateDraft('eligibleQuantity', event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      每股金额
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={draft.amountPerShare}
+                        onChange={(event) => updateDraft('amountPerShare', event.target.value)}
+                      />
+                    </label>
+                  </>
+                ) : null}
+                {(
+                  [
+                    'stockDividend',
+                    'split',
+                    'reverseSplit',
+                    'symbolChange',
+                    'mergerExchange'
+                  ] as CorporateActionType[]
+                ).includes(selected.type) ? (
+                  <>
+                    <label>
+                      旧股比例
+                      <input
+                        type="number"
+                        step="1"
+                        value={draft.oldShares}
+                        onChange={(event) => updateDraft('oldShares', event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      新股比例
+                      <input
+                        type="number"
+                        step="1"
+                        value={draft.newShares}
+                        onChange={(event) => updateDraft('newShares', event.target.value)}
+                      />
+                    </label>
+                  </>
+                ) : null}
+                {selected.type === 'rightsIssue' ? (
+                  <>
+                    <label>
+                      认购数量
+                      <input
+                        type="number"
+                        step="100"
+                        value={draft.subscribedQuantity}
+                        onChange={(event) => updateDraft('subscribedQuantity', event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      认购价
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={draft.subscriptionPrice}
+                        onChange={(event) => updateDraft('subscriptionPrice', event.target.value)}
+                      />
+                    </label>
+                  </>
+                ) : null}
+                {selected.type === 'manualCash' || selected.type === 'delistingCash' ? (
+                  <label>
+                    现金金额
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={draft.cashAmount}
+                      onChange={(event) => updateDraft('cashAmount', event.target.value)}
+                    />
+                  </label>
+                ) : null}
                 <label>
-                  权益股数
-                  <input
-                    type="number"
-                    step="100"
-                    value={draft.eligibleQuantity}
-                    placeholder="按登记日账本计算"
-                    onChange={(event) => updateDraft('eligibleQuantity', event.target.value)}
-                  />
-                </label>
-                <label>
-                  每股金额
+                  预扣税
                   <input
                     type="number"
                     step="0.01"
-                    value={draft.amountPerShare}
-                    onChange={(event) => updateDraft('amountPerShare', event.target.value)}
-                  />
-                </label>
-              </>
-            ) : null}
-            {(
-              [
-                'stockDividend',
-                'split',
-                'reverseSplit',
-                'symbolChange',
-                'mergerExchange'
-              ] as CorporateActionType[]
-            ).includes(selected.type) ? (
-              <>
-                <label>
-                  旧股比例
-                  <input
-                    type="number"
-                    step="1"
-                    value={draft.oldShares}
-                    onChange={(event) => updateDraft('oldShares', event.target.value)}
+                    value={draft.withholdingTax}
+                    onChange={(event) => updateDraft('withholdingTax', event.target.value)}
                   />
                 </label>
                 <label>
-                  新股比例
-                  <input
-                    type="number"
-                    step="1"
-                    value={draft.newShares}
-                    onChange={(event) => updateDraft('newShares', event.target.value)}
-                  />
-                </label>
-              </>
-            ) : null}
-            {selected.type === 'rightsIssue' ? (
-              <>
-                <label>
-                  认购数量
-                  <input
-                    type="number"
-                    step="100"
-                    value={draft.subscribedQuantity}
-                    onChange={(event) => updateDraft('subscribedQuantity', event.target.value)}
-                  />
-                </label>
-                <label>
-                  认购价
+                  费用
                   <input
                     type="number"
                     step="0.01"
-                    value={draft.subscriptionPrice}
-                    onChange={(event) => updateDraft('subscriptionPrice', event.target.value)}
+                    value={draft.fees}
+                    onChange={(event) => updateDraft('fees', event.target.value)}
                   />
                 </label>
-              </>
-            ) : null}
-            {selected.type === 'manualCash' || selected.type === 'delistingCash' ? (
-              <label>
-                现金金额
-                <input
-                  type="number"
-                  step="0.01"
-                  value={draft.cashAmount}
-                  onChange={(event) => updateDraft('cashAmount', event.target.value)}
-                />
-              </label>
-            ) : null}
-            <label>
-              预扣税
-              <input
-                type="number"
-                step="0.01"
-                value={draft.withholdingTax}
-                onChange={(event) => updateDraft('withholdingTax', event.target.value)}
-              />
-            </label>
-            <label>
-              费用
-              <input
-                type="number"
-                step="0.01"
-                value={draft.fees}
-                onChange={(event) => updateDraft('fees', event.target.value)}
-              />
-            </label>
-            <label>
-              币种
-              <AppSelect
-                className="corporate-action-field-select"
-                value={draft.currency}
-                options={CURRENCY_OPTIONS}
-                label="公司行动币种"
-                onChange={(value) => updateDraft('currency', value)}
-              />
-            </label>
-            <label>
-              人民币汇率
-              <input
-                type="number"
-                step="0.0001"
-                value={draft.exchangeRate}
-                onChange={(event) => updateDraft('exchangeRate', event.target.value)}
-              />
-              <small>默认取阶段 3 中国官方汇率，仅作估算；可改为券商实际汇率。</small>
-            </label>
-            <label>
-              汇率口径
-              <AppSelect
-                className="corporate-action-field-select"
-                value={draft.exchangeRateEstimated ? 'official' : 'broker'}
-                options={EXCHANGE_RATE_BASIS_OPTIONS}
-                label="公司行动汇率口径"
-                onChange={(value) =>
-                  setDraft((current) =>
-                    current ? { ...current, exchangeRateEstimated: value === 'official' } : current
-                  )
-                }
-              />
-            </label>
-            <label>
-              入账/生效时间
-              <input
-                type="datetime-local"
-                value={draft.occurredAt}
-                onChange={(event) => updateDraft('occurredAt', event.target.value)}
-              />
-            </label>
-            {selected.type === 'symbolChange' || selected.type === 'mergerExchange' ? (
-              <label>
-                新证券 quoteId
-                <input
-                  type="text"
-                  value={draft.targetQuoteId}
-                  onChange={(event) => updateDraft('targetQuoteId', event.target.value)}
-                />
-              </label>
-            ) : null}
-            <label className="is-wide">
-              备注
-              <input
-                type="text"
-                value={draft.note}
-                onChange={(event) => updateDraft('note', event.target.value)}
-              />
-            </label>
-          </div>
-          <div className="corporate-action-preview-actions">
-            <button
-              className="secondary-button"
-              type="button"
-              disabled={previewing}
-              onClick={() => void runPreview()}
-            >
-              {previewing ? '正在计算…' : '生成影响预览'}
-            </button>
-            <button
-              className="primary-button"
-              type="button"
-              disabled={!canApplyPreview}
-              onClick={() => void applyPreview()}
-            >
-              {confirmsRightsNonParticipation && preview?.entries.length === 0
-                ? '确认不参与供股'
-                : '确认并写入账本'}
-            </button>
-          </div>
-          {preview ? (
-            <div className="corporate-action-preview">
-              <div>
-                <span>持仓数量</span>
-                <strong>
-                  {formatShares(preview.quantityBefore)} → {formatShares(preview.quantityAfter)}
-                </strong>
+                <label>
+                  币种
+                  <AppSelect
+                    className="corporate-action-field-select"
+                    value={draft.currency}
+                    options={CURRENCY_OPTIONS}
+                    label="公司行动币种"
+                    onChange={(value) => updateDraft('currency', value)}
+                  />
+                </label>
+                <label>
+                  人民币汇率
+                  <input
+                    type="number"
+                    step="0.0001"
+                    value={draft.exchangeRate}
+                    onChange={(event) => updateDraft('exchangeRate', event.target.value)}
+                  />
+                  <small>默认取阶段 3 中国官方汇率，仅作估算；可改为券商实际汇率。</small>
+                </label>
+                <label>
+                  汇率口径
+                  <AppSelect
+                    className="corporate-action-field-select"
+                    value={draft.exchangeRateEstimated ? 'official' : 'broker'}
+                    options={EXCHANGE_RATE_BASIS_OPTIONS}
+                    label="公司行动汇率口径"
+                    onChange={(value) =>
+                      setDraft((current) =>
+                        current
+                          ? { ...current, exchangeRateEstimated: value === 'official' }
+                          : current
+                      )
+                    }
+                  />
+                </label>
+                <label>
+                  入账/生效时间
+                  <input
+                    type="datetime-local"
+                    value={draft.occurredAt}
+                    onChange={(event) => updateDraft('occurredAt', event.target.value)}
+                  />
+                </label>
+                {selected.type === 'symbolChange' || selected.type === 'mergerExchange' ? (
+                  <label>
+                    新证券 quoteId
+                    <input
+                      type="text"
+                      value={draft.targetQuoteId}
+                      onChange={(event) => updateDraft('targetQuoteId', event.target.value)}
+                    />
+                  </label>
+                ) : null}
+                <label className="is-wide">
+                  备注
+                  <input
+                    type="text"
+                    value={draft.note}
+                    onChange={(event) => updateDraft('note', event.target.value)}
+                  />
+                </label>
               </div>
-              <div>
-                <span>每股成本</span>
-                <strong>
-                  {formatCost(preview.costBefore)} → {formatCost(preview.costAfter)}
-                </strong>
-              </div>
-              <div>
-                <span>总成本</span>
-                <strong>
-                  {formatMoney(preview.totalCostBefore, draft.currency)} →{' '}
-                  {formatMoney(preview.totalCostAfter, draft.currency)}
-                </strong>
-              </div>
-              <div>
-                <span>现金总额</span>
-                <strong
-                  className={
-                    preview.grossCash > 0 ? 'is-up' : preview.grossCash < 0 ? 'is-down' : 'is-flat'
-                  }
+              <div className="corporate-action-preview-actions">
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={previewing}
+                  onClick={() => void runPreview()}
                 >
-                  {formatMoney(preview.grossCash, draft.currency)}
-                </strong>
-              </div>
-              <div>
-                <span>预扣税</span>
-                <strong
-                  className={
-                    preview.withholdingTax > 0
-                      ? 'is-down'
-                      : preview.withholdingTax < 0
-                        ? 'is-up'
-                        : 'is-flat'
-                  }
+                  {previewing ? '正在计算…' : '生成影响预览'}
+                </button>
+                <button
+                  className="primary-button"
+                  type="button"
+                  disabled={!canApplyPreview}
+                  onClick={() => void applyPreview()}
                 >
-                  {formatMoney(preview.withholdingTax, draft.currency)}
-                </strong>
+                  {confirmsRightsNonParticipation && preview?.entries.length === 0
+                    ? '确认不参与供股'
+                    : '确认并写入账本'}
+                </button>
               </div>
-              <div>
-                <span>费用</span>
-                <strong
-                  className={preview.fees > 0 ? 'is-down' : preview.fees < 0 ? 'is-up' : 'is-flat'}
-                >
-                  {formatMoney(preview.fees, draft.currency)}
-                </strong>
-              </div>
-              <div>
-                <span>净现金</span>
-                <strong
-                  className={
-                    preview.netCash > 0 ? 'is-up' : preview.netCash < 0 ? 'is-down' : 'is-flat'
-                  }
-                >
-                  {formatMoney(preview.netCash, draft.currency)}
-                </strong>
-              </div>
-              <div>
-                <span>人民币估算</span>
-                <strong
-                  className={
-                    preview.netCashCny && preview.netCashCny > 0
-                      ? 'is-up'
-                      : preview.netCashCny && preview.netCashCny < 0
-                        ? 'is-down'
-                        : 'is-flat'
-                  }
-                >
-                  {formatMoney(preview.netCashCny, 'CNY')}
-                </strong>
-              </div>
-              <div>
-                <span>账本记录</span>
-                <strong>{preview.entries.length} 条</strong>
-              </div>
-              {preview.entries.length > 0 ? (
-                <ul className="corporate-action-ledger-preview">
-                  {preview.entries.map((entry) => (
-                    <li key={entry.id}>{ledgerEntryDescription(entry, draft.currency)}</li>
-                  ))}
-                </ul>
+              {preview ? (
+                <div className="corporate-action-preview">
+                  <div>
+                    <span>持仓数量</span>
+                    <strong>
+                      {formatShares(preview.quantityBefore)} → {formatShares(preview.quantityAfter)}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>每股成本</span>
+                    <strong>
+                      {formatCost(preview.costBefore)} → {formatCost(preview.costAfter)}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>总成本</span>
+                    <strong>
+                      {formatMoney(preview.totalCostBefore, draft.currency)} →{' '}
+                      {formatMoney(preview.totalCostAfter, draft.currency)}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>现金总额</span>
+                    <strong
+                      className={
+                        preview.grossCash > 0
+                          ? 'is-up'
+                          : preview.grossCash < 0
+                            ? 'is-down'
+                            : 'is-flat'
+                      }
+                    >
+                      {formatMoney(preview.grossCash, draft.currency)}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>预扣税</span>
+                    <strong
+                      className={
+                        preview.withholdingTax > 0
+                          ? 'is-down'
+                          : preview.withholdingTax < 0
+                            ? 'is-up'
+                            : 'is-flat'
+                      }
+                    >
+                      {formatMoney(preview.withholdingTax, draft.currency)}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>费用</span>
+                    <strong
+                      className={
+                        preview.fees > 0 ? 'is-down' : preview.fees < 0 ? 'is-up' : 'is-flat'
+                      }
+                    >
+                      {formatMoney(preview.fees, draft.currency)}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>净现金</span>
+                    <strong
+                      className={
+                        preview.netCash > 0 ? 'is-up' : preview.netCash < 0 ? 'is-down' : 'is-flat'
+                      }
+                    >
+                      {formatMoney(preview.netCash, draft.currency)}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>人民币估算</span>
+                    <strong
+                      className={
+                        preview.netCashCny && preview.netCashCny > 0
+                          ? 'is-up'
+                          : preview.netCashCny && preview.netCashCny < 0
+                            ? 'is-down'
+                            : 'is-flat'
+                      }
+                    >
+                      {formatMoney(preview.netCashCny, 'CNY')}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>账本记录</span>
+                    <strong>{preview.entries.length} 条</strong>
+                  </div>
+                  {preview.entries.length > 0 ? (
+                    <ul className="corporate-action-ledger-preview">
+                      {preview.entries.map((entry) => (
+                        <li key={entry.id}>{ledgerEntryDescription(entry, draft.currency)}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {confirmsRightsNonParticipation && preview.entries.length === 0 ? (
+                    <p className="corporate-action-confirmation-note">
+                      本次选择不会生成账本流水，只保存“不参与供股”的确认结果。
+                    </p>
+                  ) : null}
+                  {preview.missingFields.length > 0 ? (
+                    <p>仍需补录：{preview.missingFields.join('、')}</p>
+                  ) : null}
+                </div>
               ) : null}
-              {confirmsRightsNonParticipation && preview.entries.length === 0 ? (
-                <p className="corporate-action-confirmation-note">
-                  本次选择不会生成账本流水，只保存“不参与供股”的确认结果。
-                </p>
-              ) : null}
-              {preview.missingFields.length > 0 ? (
-                <p>仍需补录：{preview.missingFields.join('、')}</p>
-              ) : null}
-            </div>
-          ) : null}
-        </section>
-      ) : null}
+            </section>,
+            editorHost,
+            selected.providerId === 'manual'
+          )
+        : null}
     </div>
   )
 }
