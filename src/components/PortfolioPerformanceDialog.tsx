@@ -1,4 +1,4 @@
-import { ChartPie, CircleAlert, PencilLine, RefreshCw, Save, X } from 'lucide-react'
+import { ChartPie, CircleAlert, History, PencilLine, RefreshCw, Save, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { formatMoneyProfit } from '../lib/format'
@@ -7,7 +7,7 @@ import {
   PORTFOLIO_PERFORMANCE_ISSUE_LABELS,
   type CnyProfitComponents,
   type NativePerformanceSlice,
-  type PortfolioPerformanceAggregate,
+  type PortfolioPerformanceAggregateSummary,
   type PortfolioPerformanceIssueCode
 } from '../lib/portfolio-performance'
 import type {
@@ -18,6 +18,7 @@ import type {
   WatchStock
 } from '../shared/types'
 import './PortfolioPerformanceDialog.css'
+import PortfolioPerformanceCyclesDialog from './PortfolioPerformanceCyclesDialog'
 
 interface PortfolioPerformanceDialogProps {
   watchlist: WatchStock[]
@@ -86,16 +87,25 @@ function NativeProfitCell({ slices }: { slices: NativePerformanceSlice[] }) {
   )
 }
 
-function IssueSummary({ row }: { row: PortfolioPerformanceAggregate }) {
-  const issues = Object.entries(row.issueCounts) as Array<[PortfolioPerformanceIssueCode, number]>
+function IssueSummary({
+  label,
+  summary
+}: {
+  label: string
+  summary: PortfolioPerformanceAggregateSummary
+}) {
+  const issues = Object.entries(summary.issueCounts) as Array<
+    [PortfolioPerformanceIssueCode, number]
+  >
   const blockingIssues = issues.filter(([issue]) => issue !== 'estimatedHistoricalRate')
-  const estimatedCount = row.issueCounts.estimatedHistoricalRate ?? 0
+  const estimatedCount = summary.issueCounts.estimatedHistoricalRate ?? 0
   return (
     <div className="performance-completeness">
-      <strong className={row.excludedStockCount > 0 ? 'is-warning' : 'is-complete'}>
-        {row.excludedStockCount > 0
-          ? `仅纳入 ${row.includedStockCount}/${row.stockCount} 只`
-          : `${row.includedStockCount} 只完整`}
+      <strong className={summary.excludedStockCount > 0 ? 'is-warning' : 'is-complete'}>
+        {label}：
+        {summary.excludedStockCount > 0
+          ? `仅纳入 ${summary.includedStockCount}/${summary.stockCount} 只`
+          : `${summary.includedStockCount} 只完整`}
       </strong>
       {blockingIssues.map(([issue, count]) => (
         <small key={issue}>
@@ -142,6 +152,7 @@ export default function PortfolioPerformanceDialog({
   const [savingAdjustments, setSavingAdjustments] = useState(false)
   const [recalculatingQuoteId, setRecalculatingQuoteId] = useState<string | null>(null)
   const [recalculationErrorQuoteId, setRecalculationErrorQuoteId] = useState<string | null>(null)
+  const [cycleDetailQuoteId, setCycleDetailQuoteId] = useState<string | null>(null)
   const report = useMemo(
     () =>
       calculatePortfolioPerformanceReport(watchlist, quotes, accounts, exchangeRates, adjustments),
@@ -158,17 +169,31 @@ export default function PortfolioPerformanceDialog({
     () => new Map(report.stocks.map((stock) => [stock.quoteId, stock])),
     [report.stocks]
   )
+  const watchlistByQuoteId = useMemo(
+    () => new Map(watchlist.map((stock) => [stock.quoteId, stock])),
+    [watchlist]
+  )
+  const quotesByQuoteId = useMemo(
+    () => new Map(quotes.map((quote) => [quote.quoteId, quote])),
+    [quotes]
+  )
   const portfolio = report.portfolioRow
-  const taxFees = expenseValue(portfolio.cny)
+  const taxFees = expenseValue(portfolio.currentCycle.cny)
   const rawPortfolioProfit =
-    portfolio.cny.totalProfit === null
+    portfolio.currentCycle.cny.totalProfit === null
       ? null
-      : portfolio.cny.totalProfit - portfolio.cny.manualAdjustment
+      : portfolio.currentCycle.cny.totalProfit - portfolio.currentCycle.cny.manualAdjustment
+  const cycleDetailPerformance = cycleDetailQuoteId
+    ? stocksByQuoteId.get(cycleDetailQuoteId)
+    : undefined
+  const cycleDetailStock = cycleDetailQuoteId
+    ? watchlistByQuoteId.get(cycleDetailQuoteId)
+    : undefined
 
   const openAdjustmentEditor = (quoteId: string) => {
     const stock = stocksByQuoteId.get(quoteId)
-    if (!stock || stock.cny.totalProfit === null) return
-    setAdjustmentDraft(stock.cny.totalProfit.toFixed(2))
+    if (!stock || stock.currentCycle.cny.totalProfit === null) return
+    setAdjustmentDraft(stock.currentCycle.cny.totalProfit.toFixed(2))
     setAdjustmentError('')
     setEditingAdjustmentQuoteId(quoteId)
   }
@@ -184,7 +209,9 @@ export default function PortfolioPerformanceDialog({
     const stock = stocksByQuoteId.get(editingAdjustmentQuoteId)
     if (!stock) return
     const rawProfit =
-      stock.cny.totalProfit === null ? null : stock.cny.totalProfit - stock.cny.manualAdjustment
+      stock.currentCycle.cny.totalProfit === null
+        ? null
+        : stock.currentCycle.cny.totalProfit - stock.currentCycle.cny.manualAdjustment
     if (rawProfit === null) {
       setAdjustmentError('当前人民币收益计算不完整')
       return
@@ -228,6 +255,10 @@ export default function PortfolioPerformanceDialog({
     document.body.style.overflow = 'hidden'
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
+      if (cycleDetailQuoteId) {
+        setCycleDetailQuoteId(null)
+        return
+      }
       if (editingAdjustmentQuoteId) {
         setEditingAdjustmentQuoteId(null)
         setAdjustmentDraft('')
@@ -241,7 +272,7 @@ export default function PortfolioPerformanceDialog({
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', closeOnEscape)
     }
-  }, [editingAdjustmentQuoteId, onClose])
+  }, [cycleDetailQuoteId, editingAdjustmentQuoteId, onClose])
 
   return createPortal(
     <div
@@ -287,27 +318,47 @@ export default function PortfolioPerformanceDialog({
         <div className="portfolio-performance-body">
           <div className="portfolio-performance-summary">
             <SummaryValue
-              label="人民币收益小计"
-              value={portfolio.cny.totalProfit}
+              label="当前周期收益小计"
+              value={portfolio.currentCycle.cny.totalProfit}
               note={
-                portfolio.cny.manualAdjustment !== 0 && rawPortfolioProfit !== null
-                  ? `计算 ${formatMoneyProfit(rawPortfolioProfit, 'CNY')} · 调整 ${formatMoneyProfit(portfolio.cny.manualAdjustment, 'CNY')}`
-                  : portfolio.excludedStockCount > 0
-                    ? `仅含 ${portfolio.includedStockCount} 只，排除 ${portfolio.excludedStockCount} 只`
-                    : `${portfolio.includedStockCount} 只数据完整`
+                portfolio.currentCycle.cny.manualAdjustment !== 0 && rawPortfolioProfit !== null
+                  ? `计算 ${formatMoneyProfit(rawPortfolioProfit, 'CNY')} · 调整 ${formatMoneyProfit(portfolio.currentCycle.cny.manualAdjustment, 'CNY')}`
+                  : portfolio.currentCycle.excludedStockCount > 0
+                    ? `仅含 ${portfolio.currentCycle.includedStockCount} 只，排除 ${portfolio.currentCycle.excludedStockCount} 只`
+                    : `${portfolio.currentCycle.includedStockCount} 只数据完整`
               }
             />
-            <SummaryValue label="已实现收益" value={portfolio.cny.realizedProfit} />
-            <SummaryValue label="未实现收益" value={portfolio.cny.unrealizedProfit} />
-            <SummaryValue label="税前分红" value={portfolio.cny.dividendIncome} />
+            <SummaryValue
+              label="累计收益小计"
+              value={portfolio.cumulative.cny.totalProfit}
+              note={
+                portfolio.cumulative.cny.manualAdjustment !== 0
+                  ? `含当前周期调整 ${formatMoneyProfit(portfolio.cumulative.cny.manualAdjustment, 'CNY')}`
+                  : portfolio.cumulative.excludedStockCount > 0
+                    ? `仅含 ${portfolio.cumulative.includedStockCount} 只，排除 ${portfolio.cumulative.excludedStockCount} 只`
+                    : `${portfolio.cumulative.includedStockCount} 只数据完整`
+              }
+            />
+            <SummaryValue label="已实现收益" value={portfolio.currentCycle.cny.realizedProfit} />
+            <SummaryValue label="未实现收益" value={portfolio.currentCycle.cny.unrealizedProfit} />
+            <SummaryValue label="税前分红" value={portfolio.currentCycle.cny.dividendIncome} />
             <SummaryValue label="费用合计" value={taxFees} />
-            <SummaryValue label="公司行动收益" value={portfolio.cny.corporateActionIncome} />
-            <SummaryValue label="证券价格贡献" value={portfolio.cny.priceContribution} />
-            <SummaryValue label="汇率贡献" value={portfolio.cny.exchangeRateContribution} />
+            <SummaryValue
+              label="公司行动收益"
+              value={portfolio.currentCycle.cny.corporateActionIncome}
+            />
+            <SummaryValue
+              label="证券价格贡献"
+              value={portfolio.currentCycle.cny.priceContribution}
+            />
+            <SummaryValue
+              label="汇率贡献"
+              value={portfolio.currentCycle.cny.exchangeRateContribution}
+            />
           </div>
 
           <div className="portfolio-performance-attribution-note">
-            证券价格贡献按历史加权购入汇率折算；汇率贡献按当前或卖出证券价值的汇率变化计算。分红、费用和公司行动现金单独列示；手动调整计入人民币收益小计，并按当前汇率同步到原币收益。
+            除累计收益小计和累计收益列外，其余收益分项均为当前或最近持仓周期。证券价格贡献按历史加权购入汇率折算；汇率贡献按当前或卖出证券价值的汇率变化计算。手动调整计入当前周期，并随周期汇总计入累计收益。
           </div>
 
           <nav className="portfolio-performance-dimensions" aria-label="收益汇总维度">
@@ -331,8 +382,9 @@ export default function PortfolioPerformanceDialog({
               <thead>
                 <tr>
                   <th>汇总对象</th>
-                  <th>原币收益</th>
-                  <th>人民币收益</th>
+                  <th>当前周期原币</th>
+                  <th>当前周期收益</th>
+                  <th>累计收益</th>
                   <th>已实现</th>
                   <th>未实现</th>
                   <th>税前分红</th>
@@ -341,18 +393,22 @@ export default function PortfolioPerformanceDialog({
                   <th>价格贡献</th>
                   <th>汇率贡献</th>
                   <th>完整性</th>
+                  <th>操作</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((row) => {
-                  const rowTaxFees = expenseValue(row.cny)
+                  const currentCycle = row.currentCycle
+                  const cumulative = row.cumulative
+                  const rowTaxFees = expenseValue(currentCycle.cny)
                   const editableStock =
                     row.scope === 'stock' ? stocksByQuoteId.get(row.id) : undefined
                   const editingAdjustment = editingAdjustmentQuoteId === editableStock?.quoteId
                   const rawStockProfit = editableStock
-                    ? editableStock.cny.totalProfit === null
+                    ? editableStock.currentCycle.cny.totalProfit === null
                       ? null
-                      : editableStock.cny.totalProfit - editableStock.cny.manualAdjustment
+                      : editableStock.currentCycle.cny.totalProfit -
+                        editableStock.currentCycle.cny.manualAdjustment
                     : null
                   return (
                     <tr key={`${row.scope}:${row.id}`}>
@@ -360,45 +416,14 @@ export default function PortfolioPerformanceDialog({
                         <span className="performance-row-label">
                           <span className="performance-row-identity">
                             <strong>{row.label}</strong>
-                            <small>{row.detail ?? `${row.stockCount} 只股票`}</small>
+                            <small>{row.detail ?? `${currentCycle.stockCount} 只股票`}</small>
                           </span>
-                          {editableStock ? (
-                            <span className="performance-row-actions">
-                              <button
-                                className="performance-row-recalculate"
-                                type="button"
-                                disabled={recalculatingQuoteId !== null}
-                                aria-label={`重新计算${row.label}收益`}
-                                title="刷新该股票行情，并按当前交易账本重新计算"
-                                onClick={() => void recalculateStock(editableStock.quoteId)}
-                              >
-                                <RefreshCw
-                                  size={13}
-                                  className={
-                                    recalculatingQuoteId === editableStock.quoteId
-                                      ? 'is-spinning'
-                                      : undefined
-                                  }
-                                />
-                                <span>
-                                  {recalculatingQuoteId === editableStock.quoteId
-                                    ? '计算中'
-                                    : '重新计算'}
-                                </span>
-                              </button>
-                              {recalculationErrorQuoteId === editableStock.quoteId ? (
-                                <small className="performance-row-recalculation-error">
-                                  重新计算失败，请重试
-                                </small>
-                              ) : null}
-                            </span>
-                          ) : null}
                         </span>
                       </td>
                       <td>
-                        <NativeProfitCell slices={row.native} />
+                        <NativeProfitCell slices={currentCycle.native} />
                       </td>
-                      <td className={valueClass(row.cny.totalProfit)}>
+                      <td className={valueClass(currentCycle.cny.totalProfit)}>
                         {editingAdjustment ? (
                           <form
                             className="performance-adjustment-editor"
@@ -439,8 +464,9 @@ export default function PortfolioPerformanceDialog({
                         ) : (
                           <span className="performance-adjusted-total">
                             <span className="performance-adjusted-value">
-                              {formatMoneyProfit(row.cny.totalProfit, 'CNY')}
-                              {editableStock && editableStock.cny.totalProfit !== null ? (
+                              {formatMoneyProfit(currentCycle.cny.totalProfit, 'CNY')}
+                              {editableStock &&
+                              editableStock.currentCycle.cny.totalProfit !== null ? (
                                 <button
                                   className="performance-adjustment-edit"
                                   type="button"
@@ -452,47 +478,101 @@ export default function PortfolioPerformanceDialog({
                                 </button>
                               ) : null}
                             </span>
-                            {row.cny.manualAdjustment !== 0 ? (
+                            {currentCycle.cny.manualAdjustment !== 0 ? (
                               <small>
                                 含调整{' '}
-                                <span className={valueClass(row.cny.manualAdjustment)}>
-                                  {formatMoneyProfit(row.cny.manualAdjustment, 'CNY')}
+                                <span className={valueClass(currentCycle.cny.manualAdjustment)}>
+                                  {formatMoneyProfit(currentCycle.cny.manualAdjustment, 'CNY')}
                                 </span>
                               </small>
                             ) : null}
                           </span>
                         )}
                       </td>
-                      <td className={valueClass(row.cny.realizedProfit)}>
-                        {formatMoneyProfit(row.cny.realizedProfit, 'CNY')}
+                      <td className={valueClass(cumulative.cny.totalProfit)}>
+                        {formatMoneyProfit(cumulative.cny.totalProfit, 'CNY')}
                       </td>
-                      <td className={valueClass(row.cny.unrealizedProfit)}>
-                        {formatMoneyProfit(row.cny.unrealizedProfit, 'CNY')}
+                      <td className={valueClass(currentCycle.cny.realizedProfit)}>
+                        {formatMoneyProfit(currentCycle.cny.realizedProfit, 'CNY')}
                       </td>
-                      <td className={valueClass(row.cny.dividendIncome)}>
-                        {formatMoneyProfit(row.cny.dividendIncome, 'CNY')}
+                      <td className={valueClass(currentCycle.cny.unrealizedProfit)}>
+                        {formatMoneyProfit(currentCycle.cny.unrealizedProfit, 'CNY')}
+                      </td>
+                      <td className={valueClass(currentCycle.cny.dividendIncome)}>
+                        {formatMoneyProfit(currentCycle.cny.dividendIncome, 'CNY')}
                       </td>
                       <td className={valueClass(rowTaxFees)}>
                         {formatMoneyProfit(rowTaxFees, 'CNY')}
                       </td>
-                      <td className={valueClass(row.cny.corporateActionIncome)}>
-                        {formatMoneyProfit(row.cny.corporateActionIncome, 'CNY')}
+                      <td className={valueClass(currentCycle.cny.corporateActionIncome)}>
+                        {formatMoneyProfit(currentCycle.cny.corporateActionIncome, 'CNY')}
                       </td>
-                      <td className={valueClass(row.cny.priceContribution)}>
-                        {formatMoneyProfit(row.cny.priceContribution, 'CNY')}
+                      <td className={valueClass(currentCycle.cny.priceContribution)}>
+                        {formatMoneyProfit(currentCycle.cny.priceContribution, 'CNY')}
                       </td>
-                      <td className={valueClass(row.cny.exchangeRateContribution)}>
-                        {formatMoneyProfit(row.cny.exchangeRateContribution, 'CNY')}
+                      <td className={valueClass(currentCycle.cny.exchangeRateContribution)}>
+                        {formatMoneyProfit(currentCycle.cny.exchangeRateContribution, 'CNY')}
                       </td>
                       <td>
-                        <IssueSummary row={row} />
+                        <div className="performance-completeness-scopes">
+                          <IssueSummary label="当前" summary={currentCycle} />
+                          <IssueSummary label="累计" summary={cumulative} />
+                        </div>
+                      </td>
+                      <td>
+                        {editableStock ? (
+                          <span className="performance-row-operation">
+                            <button
+                              className="performance-row-recalculate"
+                              type="button"
+                              disabled={recalculatingQuoteId !== null}
+                              aria-label={`重新计算${row.label}收益`}
+                              title="刷新该股票行情，并按当前交易账本重新计算"
+                              onClick={() => void recalculateStock(editableStock.quoteId)}
+                            >
+                              <RefreshCw
+                                size={13}
+                                className={
+                                  recalculatingQuoteId === editableStock.quoteId
+                                    ? 'is-spinning'
+                                    : undefined
+                                }
+                              />
+                              <span>
+                                {recalculatingQuoteId === editableStock.quoteId
+                                  ? '计算中'
+                                  : '重新计算'}
+                              </span>
+                            </button>
+                            <button
+                              className="performance-row-cycles"
+                              type="button"
+                              aria-label={`查看${row.label}所有持仓周期收益`}
+                              title="查看所有持仓周期收益"
+                              onClick={() => {
+                                closeAdjustmentEditor()
+                                setCycleDetailQuoteId(editableStock.quoteId)
+                              }}
+                            >
+                              <History size={13} />
+                              <span>周期明细</span>
+                            </button>
+                            {recalculationErrorQuoteId === editableStock.quoteId ? (
+                              <small className="performance-row-recalculation-error">
+                                重新计算失败，请重试
+                              </small>
+                            ) : null}
+                          </span>
+                        ) : (
+                          <span className="performance-empty-value">--</span>
+                        )}
                       </td>
                     </tr>
                   )
                 })}
                 {rows.length === 0 ? (
                   <tr>
-                    <td className="portfolio-performance-empty" colSpan={11}>
+                    <td className="portfolio-performance-empty" colSpan={13}>
                       当前没有可分析的持仓账本。
                     </td>
                   </tr>
@@ -502,6 +582,21 @@ export default function PortfolioPerformanceDialog({
           </div>
         </div>
       </section>
+      {cycleDetailPerformance && cycleDetailStock ? (
+        <PortfolioPerformanceCyclesDialog
+          stock={cycleDetailStock}
+          performance={cycleDetailPerformance}
+          quote={quotesByQuoteId.get(cycleDetailStock.quoteId)}
+          account={accounts[cycleDetailStock.quoteId]}
+          exchangeRates={exchangeRates}
+          manualAdjustment={
+            Number.isFinite(adjustments[cycleDetailStock.quoteId])
+              ? adjustments[cycleDetailStock.quoteId]
+              : 0
+          }
+          onClose={() => setCycleDetailQuoteId(null)}
+        />
+      ) : null}
     </div>,
     document.body
   )

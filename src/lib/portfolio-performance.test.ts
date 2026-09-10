@@ -7,7 +7,10 @@ import type {
   TTradingAccount,
   WatchStock
 } from '../shared/types'
-import { calculatePortfolioPerformanceReport } from './portfolio-performance'
+import {
+  calculatePortfolioPerformanceCycles,
+  calculatePortfolioPerformanceReport
+} from './portfolio-performance'
 
 const NO_FEES: TTradeFees = {
   commission: 0,
@@ -154,7 +157,7 @@ describe('portfolio performance report', () => {
     )
     const result = report.stocks[0]
 
-    expect(result.native[0]).toMatchObject({
+    expect(result.currentCycle.native[0]).toMatchObject({
       currency: 'HKD',
       realizedProfit: 200,
       unrealizedProfit: 120,
@@ -165,7 +168,7 @@ describe('portfolio performance report', () => {
       corporateActionIncome: 20,
       totalProfit: 420
     })
-    expect(result.cny).toMatchObject({
+    expect(result.currentCycle.cny).toMatchObject({
       realizedProfit: 210,
       unrealizedProfit: 122.4,
       dividendIncome: 91,
@@ -177,8 +180,12 @@ describe('portfolio performance report', () => {
       priceContribution: 288,
       exchangeRateContribution: 44.4
     })
-    expect((result.cny.realizedProfit ?? 0) + (result.cny.unrealizedProfit ?? 0)).toBe(
-      (result.cny.priceContribution ?? 0) + (result.cny.exchangeRateContribution ?? 0)
+    expect(
+      (result.currentCycle.cny.realizedProfit ?? 0) +
+        (result.currentCycle.cny.unrealizedProfit ?? 0)
+    ).toBe(
+      (result.currentCycle.cny.priceContribution ?? 0) +
+        (result.currentCycle.cny.exchangeRateContribution ?? 0)
     )
   })
 
@@ -191,12 +198,12 @@ describe('portfolio performance report', () => {
       exchangeRates()
     )
 
-    expect(report.stocks[0].native[0].unrealizedProfit).toBe(200)
-    expect(report.stocks[0].cny.totalProfit).toBeNull()
-    expect(report.stocks[0].issues).toContain('missingHistoricalRate')
-    expect(report.portfolioRow.includedStockCount).toBe(0)
-    expect(report.portfolioRow.excludedStockCount).toBe(1)
-    expect(report.portfolioRow.cny.totalProfit).toBeNull()
+    expect(report.stocks[0].currentCycle.native[0].unrealizedProfit).toBe(200)
+    expect(report.stocks[0].currentCycle.cny.totalProfit).toBeNull()
+    expect(report.stocks[0].currentCycle.issues).toContain('missingHistoricalRate')
+    expect(report.portfolioRow.currentCycle.includedStockCount).toBe(0)
+    expect(report.portfolioRow.currentCycle.excludedStockCount).toBe(1)
+    expect(report.portfolioRow.currentCycle.cny.totalProfit).toBeNull()
   })
 
   it('marks current FX and quote gaps instead of filling them with another value', () => {
@@ -214,10 +221,10 @@ describe('portfolio performance report', () => {
       exchangeRates()
     )
 
-    expect(missingRate.stocks[0].issues).toContain('missingCurrentRate')
-    expect(missingRate.stocks[0].cny.unrealizedProfit).toBeNull()
-    expect(missingQuote.stocks[0].issues).toContain('missingQuote')
-    expect(missingQuote.stocks[0].native[0].unrealizedProfit).toBeNull()
+    expect(missingRate.stocks[0].currentCycle.issues).toContain('missingCurrentRate')
+    expect(missingRate.stocks[0].currentCycle.cny.unrealizedProfit).toBeNull()
+    expect(missingQuote.stocks[0].currentCycle.issues).toContain('missingQuote')
+    expect(missingQuote.stocks[0].currentCycle.native[0].unrealizedProfit).toBeNull()
   })
 
   it('uses a manual position adjustment as the new quantity and cost basis', () => {
@@ -244,12 +251,12 @@ describe('portfolio performance report', () => {
       exchangeRates()
     )
 
-    expect(report.stocks[0].native[0]).toMatchObject({
+    expect(report.stocks[0].currentCycle.native[0]).toMatchObject({
       realizedProfit: 0,
       unrealizedProfit: 80,
       totalProfit: 80
     })
-    expect(report.stocks[0].issues).not.toContain('positionMismatch')
+    expect(report.stocks[0].currentCycle.issues).not.toContain('positionMismatch')
   })
 
   it('resets accumulated performance at a broker cost calibration checkpoint', () => {
@@ -281,17 +288,32 @@ describe('portfolio performance report', () => {
       exchangeRates()
     )
 
-    expect(report.stocks[0].native[0]).toMatchObject({
+    expect(report.stocks[0].currentCycle.native[0]).toMatchObject({
       realizedProfit: 0,
       unrealizedProfit: 60,
       tradeFees: 0,
       totalProfit: 60
     })
-    expect(report.stocks[0].cny).toMatchObject({
+    expect(report.stocks[0].currentCycle.cny).toMatchObject({
       realizedProfit: 0,
       unrealizedProfit: 68.4,
       tradeFees: 0,
       totalProfit: 68.4
+    })
+    expect(report.stocks[0].cumulative.cny.totalProfit).toBe(68.4)
+
+    const cycles = calculatePortfolioPerformanceCycles(
+      stock(60),
+      quote(),
+      account(entries),
+      exchangeRates()
+    )
+    expect(cycles).toHaveLength(2)
+    expect(cycles[0]).toMatchObject({ status: 'excluded', includedInCumulative: false })
+    expect(cycles[1]).toMatchObject({
+      status: 'open',
+      includedInCumulative: true,
+      startedByPerformanceReset: true
     })
   })
 
@@ -323,7 +345,7 @@ describe('portfolio performance report', () => {
       exchangeRates()
     )
 
-    expect(report.stocks[0].native[0]).toMatchObject({
+    expect(report.stocks[0].currentCycle.native[0]).toMatchObject({
       realizedProfit: 200,
       unrealizedProfit: 60,
       tradeFees: 8,
@@ -344,13 +366,32 @@ describe('portfolio performance report', () => {
       exchangeRates()
     )
 
-    expect(report.stocks[0].native[0]).toMatchObject({
+    expect(report.stocks[0].currentCycle.native[0]).toMatchObject({
       realizedProfit: 0,
       unrealizedProfit: 60,
       tradeFees: 2,
       totalProfit: 58
     })
-    expect(report.stocks[0].cny.totalProfit).toBeCloseTo(59.98)
+    expect(report.stocks[0].currentCycle.cny.totalProfit).toBeCloseTo(59.98)
+    expect(report.stocks[0].cumulative.native[0]).toMatchObject({
+      realizedProfit: 500,
+      unrealizedProfit: 60,
+      tradeFees: 2,
+      totalProfit: 558
+    })
+    expect(report.stocks[0].cumulative.cny.totalProfit).toBeCloseTo(584.98)
+
+    const cycles = calculatePortfolioPerformanceCycles(
+      stock(60),
+      quote(),
+      account(entries),
+      exchangeRates()
+    )
+    expect(cycles).toHaveLength(2)
+    expect(cycles[0]).toMatchObject({ sequence: 1, status: 'closed', endingQuantity: 0 })
+    expect(cycles[0].cny.totalProfit).toBe(525)
+    expect(cycles[1]).toMatchObject({ sequence: 2, status: 'open', endingQuantity: 60 })
+    expect(cycles[1].cny.totalProfit).toBeCloseTo(59.98)
   })
 
   it('provides stock, market, default-account, currency and portfolio groups', () => {
@@ -378,18 +419,19 @@ describe('portfolio performance report', () => {
       { '116.00700': 25.5 }
     )
 
-    expect(report.stocks[0].native[0].manualAdjustment).toBe(27.72)
-    expect(report.stocks[0].native[0].totalProfit).toBe(227.72)
-    expect(report.stocks[0].cny.manualAdjustment).toBe(25.5)
-    expect(report.stockRows[0].native[0].manualAdjustment).toBe(27.72)
-    expect(report.stockRows[0].native[0].totalProfit).toBe(227.72)
-    expect(report.stockRows[0].cny.manualAdjustment).toBe(25.5)
-    expect(report.currencyRows[0].native[0].manualAdjustment).toBe(27.72)
-    expect(report.currencyRows[0].native[0].totalProfit).toBe(227.72)
-    expect(report.currencyRows[0].cny.manualAdjustment).toBe(25.5)
-    expect(report.portfolioRow.native[0].manualAdjustment).toBe(27.72)
-    expect(report.portfolioRow.native[0].totalProfit).toBe(227.72)
-    expect(report.portfolioRow.cny.manualAdjustment).toBe(25.5)
-    expect(report.portfolioRow.cny.totalProfit).toBe(229.5)
+    expect(report.stocks[0].currentCycle.native[0].manualAdjustment).toBe(27.72)
+    expect(report.stocks[0].currentCycle.native[0].totalProfit).toBe(227.72)
+    expect(report.stocks[0].currentCycle.cny.manualAdjustment).toBe(25.5)
+    expect(report.stockRows[0].currentCycle.native[0].manualAdjustment).toBe(27.72)
+    expect(report.stockRows[0].currentCycle.native[0].totalProfit).toBe(227.72)
+    expect(report.stockRows[0].currentCycle.cny.manualAdjustment).toBe(25.5)
+    expect(report.currencyRows[0].currentCycle.native[0].manualAdjustment).toBe(27.72)
+    expect(report.currencyRows[0].currentCycle.native[0].totalProfit).toBe(227.72)
+    expect(report.currencyRows[0].currentCycle.cny.manualAdjustment).toBe(25.5)
+    expect(report.portfolioRow.currentCycle.native[0].manualAdjustment).toBe(27.72)
+    expect(report.portfolioRow.currentCycle.native[0].totalProfit).toBe(227.72)
+    expect(report.portfolioRow.currentCycle.cny.manualAdjustment).toBe(25.5)
+    expect(report.portfolioRow.currentCycle.cny.totalProfit).toBe(229.5)
+    expect(report.portfolioRow.cumulative.cny.totalProfit).toBe(229.5)
   })
 })

@@ -94,7 +94,7 @@
 
 .portfolio-performance-summary {
   display: grid;
-  grid-template-columns: repeat(8, minmax(128px, 1fr));
+  grid-template-columns: repeat(9, minmax(128px, 1fr));
   gap: 9px;
   overflow-x: auto;
 }
@@ -233,16 +233,21 @@
   font-size: 12px;
 }
 
-.performance-row-actions {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 7px;
+.performance-completeness-scopes,
+.performance-row-operation {
+  display: grid;
+  gap: 6px;
 }
 
-.performance-row-recalculate {
+.performance-row-operation {
+  justify-items: stretch;
+}
+
+.performance-row-recalculate,
+.performance-row-cycles {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   min-height: 28px;
   gap: 5px;
   border: 1px solid #c8d7e8;
@@ -255,7 +260,8 @@
   padding: 4px 8px;
 }
 
-.performance-row-recalculate:hover:not(:disabled) {
+.performance-row-recalculate:hover:not(:disabled),
+.performance-row-cycles:hover {
   border-color: #8fb0d5;
   background: #eaf3fd;
 }

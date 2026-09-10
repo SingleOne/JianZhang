@@ -73,6 +73,14 @@ export interface PortfolioPerformanceCurrencySlice {
   complete: boolean
 }
 
+export interface PortfolioPerformanceSnapshot {
+  currencySlices: PortfolioPerformanceCurrencySlice[]
+  native: NativePerformanceSlice[]
+  cny: CnyProfitComponents
+  complete: boolean
+  issues: PortfolioPerformanceIssueCode[]
+}
+
 export interface PortfolioPerformanceStockResult {
   quoteId: string
   code: string
@@ -83,26 +91,41 @@ export interface PortfolioPerformanceStockResult {
   securityCurrency: StockCurrency
   quantity: number
   latest: number | null
-  currencySlices: PortfolioPerformanceCurrencySlice[]
-  native: NativePerformanceSlice[]
-  cny: CnyProfitComponents
-  complete: boolean
-  issues: PortfolioPerformanceIssueCode[]
+  currentCycle: PortfolioPerformanceSnapshot
+  cumulative: PortfolioPerformanceSnapshot
+}
+
+export type PortfolioPerformanceCycleStatus = 'open' | 'closed' | 'excluded' | 'unassigned'
+
+export interface PortfolioPerformanceCycleResult extends PortfolioPerformanceSnapshot {
+  id: string
+  sequence: number
+  startedAt: string
+  endedAt?: string
+  startedByPerformanceReset: boolean
+  includedInCumulative: boolean
+  status: PortfolioPerformanceCycleStatus
+  endingQuantity: number
 }
 
 export type PortfolioPerformanceScope = 'stock' | 'market' | 'account' | 'currency' | 'portfolio'
 
-export interface PortfolioPerformanceAggregate {
-  id: string
-  label: string
-  detail?: string
-  scope: PortfolioPerformanceScope
+export interface PortfolioPerformanceAggregateSummary {
   stockCount: number
   includedStockCount: number
   excludedStockCount: number
   native: NativePerformanceSlice[]
   cny: CnyProfitComponents
   issueCounts: Partial<Record<PortfolioPerformanceIssueCode, number>>
+}
+
+export interface PortfolioPerformanceAggregate {
+  id: string
+  label: string
+  detail?: string
+  scope: PortfolioPerformanceScope
+  currentCycle: PortfolioPerformanceAggregateSummary
+  cumulative: PortfolioPerformanceAggregateSummary
 }
 
 export interface PortfolioPerformanceReport {
@@ -339,13 +362,44 @@ function addConverted(
   slice.values[key] += amount * rate
 }
 
+interface StockPerformanceCalculation extends PortfolioPerformanceSnapshot {
+  quoteId: string
+  code: string
+  name: string
+  market: StockMarket
+  accountId: string
+  accountLabel: string
+  securityCurrency: StockCurrency
+  quantity: number
+  latest: number | null
+}
+
+interface StockPerformanceOptions {
+  resetOnHoldingCycleOpen?: boolean
+  entries?: readonly PortfolioLedgerEntry[]
+  checkPositionMismatch?: boolean
+  includeUnrealized?: boolean
+}
+
+function opensHoldingCycle(entry: PortfolioLedgerEntry, quantity: number): boolean {
+  return (
+    quantity <= 0.000_001 &&
+    ((entry.kind === 'trade' && entry.record.side === 'buy' && entry.record.quantity > 0.000_001) ||
+      (entry.kind === 'positionAdjustment' && entry.quantityAfter > 0.000_001) ||
+      ((entry.kind === 'shareAdjustment' || entry.kind === 'securityConversion') &&
+        entry.quantityAfter > 0.000_001) ||
+      (entry.kind === 'rightsSubscription' && entry.quantity > 0.000_001))
+  )
+}
+
 function stockPerformance(
   stock: WatchStock,
   quote: StockQuote | undefined,
   account: TTradingAccount | undefined,
   exchangeRates: ExchangeRateSettings,
-  manualAdjustment: number
-): PortfolioPerformanceStockResult | null {
+  manualAdjustment: number,
+  options: StockPerformanceOptions = {}
+): StockPerformanceCalculation | null {
   const market = stock.market ?? marketFromQuoteId(stock.quoteId)
   const securityCurrency =
     account?.currency ??
@@ -407,18 +461,14 @@ function stockPerformance(
     ledgerError = false
   }
 
-  for (const entry of activePortfolioLedgerEntries(account)) {
+  const entries = options.entries ?? activePortfolioLedgerEntries(account)
+  for (const entry of entries) {
     const currency = currencyForEntry(entry, securityCurrency)
-    const opensHoldingCycle =
-      quantity <= 0.000_001 &&
-      ((entry.kind === 'trade' &&
-        entry.record.side === 'buy' &&
-        entry.record.quantity > 0.000_001) ||
-        (entry.kind === 'positionAdjustment' && entry.quantityAfter > 0.000_001) ||
-        ((entry.kind === 'shareAdjustment' || entry.kind === 'securityConversion') &&
-          entry.quantityAfter > 0.000_001) ||
-        (entry.kind === 'rightsSubscription' && entry.quantity > 0.000_001))
-    if (opensHoldingCycle || (entry.kind === 'positionAdjustment' && entry.resetsPerformance)) {
+    const opensNewHoldingCycle = opensHoldingCycle(entry, quantity)
+    if (
+      (options.resetOnHoldingCycleOpen !== false && opensNewHoldingCycle) ||
+      (entry.kind === 'positionAdjustment' && entry.resetsPerformance)
+    ) {
       resetHoldingCycle()
     }
     const slice = getSlice(currency)
@@ -519,7 +569,7 @@ function stockPerformance(
   }
 
   const securitySlice = getSlice(securityCurrency)
-  if (quantity > 0) {
+  if (quantity > 0 && options.includeUnrealized !== false) {
     if (quote?.latest === null || quote?.latest === undefined) {
       securitySlice.native.unrealizedComplete = false
       securitySlice.cny.complete.unrealizedProfit = false
@@ -549,8 +599,9 @@ function stockPerformance(
 
   if (ledgerError) issues.add('ledgerError')
   if (
-    (stock.position && Math.abs(stock.position.quantity - quantity) > 0.000_001) ||
-    (!stock.position && quantity > 0.000_001)
+    options.checkPositionMismatch !== false &&
+    ((stock.position && Math.abs(stock.position.quantity - quantity) > 0.000_001) ||
+      (!stock.position && quantity > 0.000_001))
   ) {
     issues.add('positionMismatch')
   }
@@ -609,6 +660,160 @@ function stockPerformance(
     complete: cny.totalProfit !== null,
     issues: [...issues]
   }
+}
+
+function performanceSnapshot(
+  calculation: StockPerformanceCalculation
+): PortfolioPerformanceSnapshot {
+  return {
+    currencySlices: calculation.currencySlices,
+    native: calculation.native,
+    cny: calculation.cny,
+    complete: calculation.complete,
+    issues: calculation.issues
+  }
+}
+
+interface MutablePerformanceCycle {
+  id: string
+  sequence: number
+  startedAt: string
+  endedAt?: string
+  startedByPerformanceReset: boolean
+  entries: PortfolioLedgerEntry[]
+  endingQuantity: number
+}
+
+function quantityAfterEntry(entry: PortfolioLedgerEntry, quantity: number): number {
+  if (entry.kind === 'trade') {
+    if (entry.record.side === 'buy') return quantity + entry.record.quantity
+    return entry.record.quantity > quantity + 0.000_001
+      ? quantity
+      : Math.max(0, quantity - entry.record.quantity)
+  }
+  if (
+    entry.kind === 'positionAdjustment' ||
+    entry.kind === 'shareAdjustment' ||
+    entry.kind === 'securityConversion'
+  ) {
+    return entry.quantityAfter
+  }
+  if (entry.kind === 'rightsSubscription') return quantity + entry.quantity
+  return quantity
+}
+
+function splitPerformanceCycles(account: TTradingAccount): MutablePerformanceCycle[] {
+  const cycles: MutablePerformanceCycle[] = []
+  let current: MutablePerformanceCycle | undefined
+  let quantity = 0
+  let sequence = 0
+
+  const finishCurrent = (endedAt?: string) => {
+    if (!current || current.entries.length === 0) return
+    if (endedAt) current.endedAt = endedAt
+    cycles.push(current)
+    current = undefined
+  }
+
+  for (const entry of activePortfolioLedgerEntries(account)) {
+    const startsByReset = entry.kind === 'positionAdjustment' && entry.resetsPerformance === true
+    const startsByOpening = opensHoldingCycle(entry, quantity)
+    if (startsByReset) {
+      finishCurrent(entry.occurredAt)
+      sequence += 1
+      current = {
+        id: `reset:${entry.id}`,
+        sequence,
+        startedAt: entry.occurredAt,
+        startedByPerformanceReset: true,
+        entries: [],
+        endingQuantity: quantity
+      }
+    } else if (startsByOpening) {
+      finishCurrent()
+      sequence += 1
+      current = {
+        id: `holding:${entry.id}`,
+        sequence,
+        startedAt: entry.occurredAt,
+        startedByPerformanceReset: false,
+        entries: [],
+        endingQuantity: quantity
+      }
+    } else if (!current) {
+      current = {
+        id: `unassigned:${entry.id}`,
+        sequence: 0,
+        startedAt: entry.occurredAt,
+        startedByPerformanceReset: false,
+        entries: [],
+        endingQuantity: quantity
+      }
+    }
+
+    current.entries.push(entry)
+    const previousQuantity = quantity
+    quantity = quantityAfterEntry(entry, quantity)
+    current.endingQuantity = quantity
+    if (previousQuantity > 0.000_001 && quantity <= 0.000_001) {
+      current.endedAt = entry.occurredAt
+    }
+  }
+  finishCurrent()
+  return cycles
+}
+
+export function calculatePortfolioPerformanceCycles(
+  stock: WatchStock,
+  quote: StockQuote | undefined,
+  account: TTradingAccount | undefined,
+  exchangeRates: ExchangeRateSettings,
+  manualAdjustment = 0
+): PortfolioPerformanceCycleResult[] {
+  if (!account) return []
+  const cycles = splitPerformanceCycles(account)
+  let latestResetIndex = -1
+  for (let index = cycles.length - 1; index >= 0; index -= 1) {
+    if (!cycles[index].startedByPerformanceReset) continue
+    latestResetIndex = index
+    break
+  }
+  const latestCycleIndex = cycles.length - 1
+  return cycles.map((cycle, index) => {
+    const calculation = stockPerformance(
+      stock,
+      quote,
+      account,
+      exchangeRates,
+      index === latestCycleIndex ? manualAdjustment : 0,
+      {
+        entries: cycle.entries,
+        checkPositionMismatch: false,
+        includeUnrealized: index === latestCycleIndex,
+        resetOnHoldingCycleOpen: true
+      }
+    )
+    if (!calculation) throw new Error('持仓周期收益计算失败')
+    const includedInCumulative = latestResetIndex < 0 || index >= latestResetIndex
+    const status: PortfolioPerformanceCycleStatus = !includedInCumulative
+      ? 'excluded'
+      : cycle.sequence === 0
+        ? 'unassigned'
+        : index === latestCycleIndex && cycle.endingQuantity > 0.000_001
+          ? 'open'
+          : 'closed'
+    return {
+      id: cycle.id,
+      sequence: cycle.sequence,
+      startedAt: cycle.startedAt,
+      endedAt: cycle.endedAt,
+      startedByPerformanceReset: cycle.startedByPerformanceReset,
+      includedInCumulative,
+      status,
+      endingQuantity: rounded(cycle.endingQuantity),
+      ...performanceSnapshot(calculation)
+    }
+  })
 }
 
 export function calculateCurrentPositionProfitOverride(
@@ -683,13 +888,32 @@ function mergeNativeSlices(slices: readonly NativePerformanceSlice[]): NativePer
 }
 
 function issueCounts(
-  stocks: readonly PortfolioPerformanceStockResult[]
+  snapshots: readonly PortfolioPerformanceSnapshot[]
 ): Partial<Record<PortfolioPerformanceIssueCode, number>> {
   const counts: Partial<Record<PortfolioPerformanceIssueCode, number>> = {}
-  for (const stock of stocks) {
-    for (const issue of stock.issues) counts[issue] = (counts[issue] ?? 0) + 1
+  for (const snapshot of snapshots) {
+    for (const issue of snapshot.issues) counts[issue] = (counts[issue] ?? 0) + 1
   }
   return counts
+}
+
+function aggregateStockSnapshots(
+  stocks: readonly PortfolioPerformanceStockResult[],
+  select: (stock: PortfolioPerformanceStockResult) => PortfolioPerformanceSnapshot
+): PortfolioPerformanceAggregateSummary {
+  const snapshots = stocks.map(select)
+  const included = snapshots.filter((snapshot) => snapshot.complete)
+  return {
+    stockCount: stocks.length,
+    includedStockCount: included.length,
+    excludedStockCount: stocks.length - included.length,
+    native: mergeNativeSlices(snapshots.flatMap((snapshot) => snapshot.native)),
+    cny:
+      included.length > 0
+        ? combineCny(included.map((snapshot) => snapshot.cny))
+        : emptyIncompleteCny(),
+    issueCounts: issueCounts(snapshots)
+  }
 }
 
 function aggregateStocks(
@@ -699,36 +923,29 @@ function aggregateStocks(
   stocks: readonly PortfolioPerformanceStockResult[],
   detail?: string
 ): PortfolioPerformanceAggregate {
-  const included = stocks.filter((stock) => stock.complete)
   return {
     id,
     label,
     detail,
     scope,
-    stockCount: stocks.length,
-    includedStockCount: included.length,
-    excludedStockCount: stocks.length - included.length,
-    native: mergeNativeSlices(stocks.flatMap((stock) => stock.native)),
-    cny:
-      included.length > 0 ? combineCny(included.map((stock) => stock.cny)) : emptyIncompleteCny(),
-    issueCounts: issueCounts(stocks)
+    currentCycle: aggregateStockSnapshots(stocks, (stock) => stock.currentCycle),
+    cumulative: aggregateStockSnapshots(stocks, (stock) => stock.cumulative)
   }
 }
 
-function aggregateCurrency(
+function aggregateCurrencySnapshots(
   currency: StockCurrency,
-  stocks: readonly PortfolioPerformanceStockResult[]
-): PortfolioPerformanceAggregate {
+  stocks: readonly PortfolioPerformanceStockResult[],
+  select: (stock: PortfolioPerformanceStockResult) => PortfolioPerformanceSnapshot
+): PortfolioPerformanceAggregateSummary {
   const members = stocks.flatMap((stock) => {
-    const slice = stock.currencySlices.find((item) => item.currency === currency)
-    return slice ? [{ stock, slice }] : []
+    const snapshot = select(stock)
+    const slice = snapshot.currencySlices.find((item) => item.currency === currency)
+    return slice ? [{ stock, snapshot, slice }] : []
   })
   const included = members.filter(({ slice }) => slice.complete)
+  const memberSnapshots = members.map(({ snapshot }) => snapshot)
   return {
-    id: currency,
-    label: currency,
-    detail: '按原始发生币种汇总',
-    scope: 'currency',
     stockCount: new Set(members.map(({ stock }) => stock.quoteId)).size,
     includedStockCount: new Set(included.map(({ stock }) => stock.quoteId)).size,
     excludedStockCount:
@@ -739,7 +956,21 @@ function aggregateCurrency(
       included.length > 0
         ? combineCny(included.map(({ slice }) => slice.cny))
         : emptyIncompleteCny(),
-    issueCounts: issueCounts(members.map(({ stock }) => stock))
+    issueCounts: issueCounts(memberSnapshots)
+  }
+}
+
+function aggregateCurrency(
+  currency: StockCurrency,
+  stocks: readonly PortfolioPerformanceStockResult[]
+): PortfolioPerformanceAggregate {
+  return {
+    id: currency,
+    label: currency,
+    detail: '按原始发生币种汇总',
+    scope: 'currency',
+    currentCycle: aggregateCurrencySnapshots(currency, stocks, (stock) => stock.currentCycle),
+    cumulative: aggregateCurrencySnapshots(currency, stocks, (stock) => stock.cumulative)
   }
 }
 
@@ -752,16 +983,43 @@ export function calculatePortfolioPerformanceReport(
 ): PortfolioPerformanceReport {
   const quoteMap = new Map(quotes.map((quote) => [quote.quoteId, quote]))
   const stocks = watchlist
-    .map((stock) =>
-      stockPerformance(
+    .flatMap((stock): PortfolioPerformanceStockResult[] => {
+      const manualAdjustment = Number.isFinite(adjustments[stock.quoteId])
+        ? adjustments[stock.quoteId]
+        : 0
+      const currentCycle = stockPerformance(
         stock,
         quoteMap.get(stock.quoteId),
         accounts[stock.quoteId],
         exchangeRates,
-        Number.isFinite(adjustments[stock.quoteId]) ? adjustments[stock.quoteId] : 0
+        manualAdjustment
       )
-    )
-    .filter((stock): stock is PortfolioPerformanceStockResult => stock !== null)
+      if (!currentCycle) return []
+      const cumulative = stockPerformance(
+        stock,
+        quoteMap.get(stock.quoteId),
+        accounts[stock.quoteId],
+        exchangeRates,
+        manualAdjustment,
+        { resetOnHoldingCycleOpen: false }
+      )
+      if (!cumulative) return []
+      return [
+        {
+          quoteId: currentCycle.quoteId,
+          code: currentCycle.code,
+          name: currentCycle.name,
+          market: currentCycle.market,
+          accountId: currentCycle.accountId,
+          accountLabel: currentCycle.accountLabel,
+          securityCurrency: currentCycle.securityCurrency,
+          quantity: currentCycle.quantity,
+          latest: currentCycle.latest,
+          currentCycle: performanceSnapshot(currentCycle),
+          cumulative: performanceSnapshot(cumulative)
+        }
+      ]
+    })
     .sort(
       (left, right) =>
         left.market.localeCompare(right.market) || left.code.localeCompare(right.code)
@@ -782,12 +1040,16 @@ export function calculatePortfolioPerformanceReport(
           DEFAULT_PORTFOLIO_ACCOUNT_LABEL,
           'account',
           stocks,
-          '当前全部持仓账本'
+          '全部持仓账本'
         )
       ]
     : []
   const currencies = [
-    ...new Set(stocks.flatMap((stock) => stock.native.map((item) => item.currency)))
+    ...new Set(
+      stocks.flatMap((stock) =>
+        [...stock.currentCycle.native, ...stock.cumulative.native].map((item) => item.currency)
+      )
+    )
   ]
   const currencyRows = currencies.sort().map((currency) => aggregateCurrency(currency, stocks))
   return {
