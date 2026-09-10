@@ -3,6 +3,7 @@ import { get as httpsGet } from 'node:https'
 import type {
   FundsFlowResult,
   KlineBar,
+  KlineDateRange,
   KlinePeriod,
   KlineResult,
   OrderBookLevel,
@@ -1135,7 +1136,8 @@ function toHistoricalKlineResult(
   if (lines.length === 0) throw new Error('行情服务未返回 K 线数据')
 
   const bars = lines.map((line) => {
-    const [time, open, close, high, low, volume, amount, , , , turnoverRate] = line.split(',')
+    const [time, open, close, high, low, volume, amount, , changePercent, , turnoverRate] =
+      line.split(',')
     return {
       time,
       open: Number(open),
@@ -1144,6 +1146,7 @@ function toHistoricalKlineResult(
       low: Number(low),
       volume: Number(volume),
       amount: Number(amount),
+      changePercent: changePercent === undefined ? undefined : Number(changePercent),
       turnoverRate: turnoverRate === undefined ? undefined : Number(turnoverRate)
     }
   })
@@ -1552,7 +1555,8 @@ async function fetchHistoricalKline(
   quoteId: string,
   klt: '5' | '101' | '102' | '103',
   limit: number,
-  caller: string
+  caller: string,
+  dateRange?: KlineDateRange
 ): Promise<KlineResult> {
   const createUrl = (origin: string) => {
     const url = new URL('/api/qt/stock/kline/get', origin)
@@ -1560,7 +1564,11 @@ async function fetchHistoricalKline(
     url.searchParams.set('klt', klt)
     url.searchParams.set('fqt', EASTMONEY_FIXED_PARAMS.historicalKline.fqt)
     url.searchParams.set('lmt', String(limit))
-    url.searchParams.set('end', EASTMONEY_FIXED_PARAMS.historicalKline.end)
+    if (dateRange) url.searchParams.set('beg', dateRange.startDate.replaceAll('-', ''))
+    url.searchParams.set(
+      'end',
+      dateRange?.endDate.replaceAll('-', '') ?? EASTMONEY_FIXED_PARAMS.historicalKline.end
+    )
     url.searchParams.set('fields1', EASTMONEY_FIELDS.historicalKlinePrimary)
     url.searchParams.set('fields2', EASTMONEY_FIELDS.historicalKlineSecondary)
     return url
@@ -1621,18 +1629,33 @@ async function fetchHistoricalKline(
 
 type NonIntradayKlinePeriod = Exclude<KlinePeriod, 'intraday'>
 
+function filterKlineDateRange(result: KlineResult, dateRange: KlineDateRange): KlineResult {
+  const bars = result.bars.filter((bar) => {
+    const tradingDate = bar.time.slice(0, 10)
+    return tradingDate >= dateRange.startDate && tradingDate <= dateRange.endDate
+  })
+  const firstDate = bars[0]?.time.slice(0, 10) ?? ''
+  const lastDate = bars.at(-1)?.time.slice(0, 10) ?? ''
+  return {
+    ...result,
+    tradingDate: firstDate === lastDate ? lastDate : `${firstDate} 至 ${lastDate}`,
+    bars
+  }
+}
+
 async function fetchEastmoneyKline(
   quoteId: string,
   period: NonIntradayKlinePeriod,
   limit?: number,
-  caller = 'kline'
+  caller = 'kline',
+  dateRange?: KlineDateRange
 ): Promise<KlineResult> {
   const requestedLimit = limit === undefined ? 0 : Math.max(1, Math.round(limit))
   switch (period) {
     case 'fiveDay':
       return fetchHistoricalKline(quoteId, '5', 240, caller)
     case 'daily':
-      return fetchHistoricalKline(quoteId, '101', requestedLimit || 120, caller)
+      return fetchHistoricalKline(quoteId, '101', requestedLimit || 120, caller, dateRange)
     case 'weekly':
       return fetchHistoricalKline(quoteId, '102', requestedLimit || 104, caller)
     case 'monthly':
@@ -1644,7 +1667,8 @@ export async function fetchKline(
   quoteId: string,
   period: KlinePeriod = 'intraday',
   limit?: number,
-  caller = 'kline'
+  caller = 'kline',
+  dateRange?: KlineDateRange
 ): Promise<KlineResult> {
   if (period === 'intraday') return fetchIntradayKline(quoteId, caller)
 
@@ -1659,8 +1683,8 @@ export async function fetchKline(
   let primaryError: unknown
 
   try {
-    const result = await fetchEastmoneyKline(quoteId, period, limit, caller)
-    return result
+    const result = await fetchEastmoneyKline(quoteId, period, limit, caller, dateRange)
+    return dateRange ? filterKlineDateRange(result, dateRange) : result
   } catch (error) {
     primaryError = error
   }
@@ -1672,13 +1696,14 @@ export async function fetchKline(
 
   try {
     const result = await fetchTencentKline(quoteId, period, requestedLimit, caller)
-    return {
+    const resolved = {
       ...result,
       fallbackReason:
         primaryError instanceof Error
           ? `东方财富行情读取失败：${primaryError.message}`
           : '东方财富行情读取失败，当前使用腾讯备用行情'
     }
+    return dateRange ? filterKlineDateRange(resolved, dateRange) : resolved
   } catch (backupError) {
     const primaryMessage = primaryError instanceof Error ? primaryError.message : '请求失败'
     const backupMessage = backupError instanceof Error ? backupError.message : '请求失败'

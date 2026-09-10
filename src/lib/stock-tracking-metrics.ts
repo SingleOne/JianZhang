@@ -249,7 +249,9 @@ export function calculateStockTrackingDailyMetrics(
       [STOCK_TRACKING_BASE_METRICS.volume]: current.volume,
       [STOCK_TRACKING_BASE_METRICS.amount]: current.amount
     }
-    if (previous) {
+    if (current.changePercent !== undefined) {
+      metrics[STOCK_TRACKING_BASE_METRICS.changePercent] = current.changePercent
+    } else if (previous) {
       metrics[STOCK_TRACKING_BASE_METRICS.changePercent] = percentageChange(
         current.close,
         previous.close
@@ -421,15 +423,6 @@ export function stockTrackingTechnicalPatternSignals(
   )
 }
 
-function sameMetrics(left: Record<string, number>, right: Record<string, number>): boolean {
-  const leftEntries = Object.entries(left)
-  const rightKeys = Object.keys(right)
-  return (
-    leftEntries.length === rightKeys.length &&
-    leftEntries.every(([metricId, value]) => right[metricId] === value)
-  )
-}
-
 export function mergeStockTrackingMetricSnapshots(
   profile: StockTrackingProfile,
   incoming: readonly StockTrackingMetricSnapshot[]
@@ -441,14 +434,8 @@ export function mergeStockTrackingMetricSnapshots(
   let changed = false
 
   for (const snapshot of incoming) {
-    const current = byDate.get(snapshot.tradingDate)
-    const metrics = { ...current?.metrics, ...snapshot.metrics }
-    if (current && sameMetrics(current.metrics, metrics)) continue
-    byDate.set(snapshot.tradingDate, {
-      tradingDate: snapshot.tradingDate,
-      capturedAt: snapshot.capturedAt,
-      metrics
-    })
+    if (byDate.has(snapshot.tradingDate)) continue
+    byDate.set(snapshot.tradingDate, snapshot)
     changed = true
   }
 

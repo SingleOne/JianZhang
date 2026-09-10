@@ -1,4 +1,4 @@
-import type { KlinePeriod, KlineResult } from '../../src/shared/types'
+import type { KlineDateRange, KlinePeriod, KlineResult } from '../../src/shared/types'
 import type { MarketCalendarDates } from '../../src/shared/market-calendar'
 import { LruCache } from '../../src/shared/lru-cache'
 import type { HistoricalKlineCache } from './historical-kline-cache'
@@ -28,6 +28,12 @@ function requestKey(quoteId: string, period: KlinePeriod, limit: number): string
   return `${quoteId}:${period}:${limit}`
 }
 
+function rangeLimit(range: KlineDateRange): number {
+  const start = new Date(`${range.startDate}T00:00:00.000Z`).getTime()
+  const end = new Date(`${range.endDate}T00:00:00.000Z`).getTime()
+  return Math.floor((end - start) / 86_400_000) + 1
+}
+
 export class KlineHub {
   private readonly liveCache: LruCache<string, LiveKlineCacheEntry>
   private readonly requests = new Map<string, Promise<KlineResult>>()
@@ -38,7 +44,8 @@ export class KlineHub {
       quoteId: string,
       period: KlinePeriod,
       limit: number | undefined,
-      caller: string
+      caller: string,
+      dateRange?: KlineDateRange
     ) => Promise<KlineResult>,
     private readonly historicalCache: HistoricalKlineCache,
     private readonly getCalendar: (quoteId: string) => MarketCalendarDates | readonly string[],
@@ -64,6 +71,14 @@ export class KlineHub {
     )
   }
 
+  getDailyRange(quoteId: string, dateRange: KlineDateRange, caller: string): Promise<KlineResult> {
+    const limit = rangeLimit(dateRange)
+    const key = `${requestKey(quoteId, 'daily', limit)}:${dateRange.startDate}:${dateRange.endDate}`
+    return (
+      this.requests.get(key) ?? this.startRequest(key, quoteId, 'daily', limit, caller, dateRange)
+    )
+  }
+
   private getCached(quoteId: string, period: KlinePeriod, limit: number): KlineResult | null {
     if (isHistoricalPeriod(period)) {
       return this.historicalCache.get(quoteId, period, limit, this.getCalendar(quoteId))
@@ -81,9 +96,10 @@ export class KlineHub {
     quoteId: string,
     period: KlinePeriod,
     limit: number,
-    caller: string
+    caller: string,
+    dateRange?: KlineDateRange
   ): Promise<KlineResult> {
-    const request = this.enqueue(() => this.load(quoteId, period, limit, caller))
+    const request = this.enqueue(() => this.load(quoteId, period, limit, caller, dateRange))
     this.requests.set(key, request)
     request.then(
       () => this.finishRequest(key, request),
@@ -96,8 +112,10 @@ export class KlineHub {
     quoteId: string,
     period: KlinePeriod,
     limit: number,
-    caller: string
+    caller: string,
+    dateRange?: KlineDateRange
   ): Promise<KlineResult> {
+    if (dateRange) return this.fetchKline(quoteId, period, limit, caller, dateRange)
     const cached = this.getCached(quoteId, period, limit)
     if (cached) return { ...cached, fromCache: true }
 

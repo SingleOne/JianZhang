@@ -580,7 +580,8 @@ if (!hasSingleInstanceLock) {
       },
       persistState,
       sendStateUpdated: (nextState) => sendToWindows('state:updated', nextState),
-      getDailyKline: (quoteId, limit) => getKline(quoteId, 'daily', limit, 'tracking:price-volume'),
+      getDailyKline: (quoteId, dateRange) =>
+        klineHub!.getDailyRange(quoteId, dateRange, 'tracking:price-volume'),
       notifyPriceVolumeDivergence: showPriceVolumeDivergenceNotification
     })
     dailyMarketScanService = new DailyMarketScanService({

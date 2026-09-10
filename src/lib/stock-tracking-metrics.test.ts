@@ -251,7 +251,7 @@ describe('stock tracking metrics', () => {
     expect(calculateRealtimeVolumeRatio([], dailyBars.slice(1), '2026-07-21')).toEqual([])
   })
 
-  it('updates the same date while preserving metrics added by future collectors', () => {
+  it('keeps completed dates immutable', () => {
     const current = {
       ...profile(),
       metricSnapshots: [
@@ -270,19 +270,7 @@ describe('stock tracking metrics', () => {
       }
     ])
 
-    expect(merged.metricSnapshots[0]).toEqual({
-      tradingDate: '2026-07-21',
-      capturedAt: '2026-07-21T09:00:00.000Z',
-      metrics: { volumeRatio5d: 1.8, volumeRatio10d: 1.5, turnoverRate: 3.6 }
-    })
-    expect(
-      mergeStockTrackingMetricSnapshots(merged, [
-        {
-          tradingDate: '2026-07-21',
-          capturedAt: '2026-07-21T10:00:00.000Z',
-          metrics: { volumeRatio5d: 1.8, volumeRatio10d: 1.5 }
-        }
-      ])
-    ).toBe(merged)
+    expect(merged).toBe(current)
+    expect(merged.metricSnapshots[0]).toEqual(current.metricSnapshots[0])
   })
 })

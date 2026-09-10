@@ -260,6 +260,40 @@ describe('fetchKline intraday sources', () => {
   })
 })
 
+describe('fetchKline daily range', () => {
+  beforeEach(() => {
+    netFetch.mockReset()
+  })
+
+  it('passes the completion-marker range to Eastmoney and returns only that range', async () => {
+    netFetch.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          name: '测试股票',
+          klines: [
+            '2026-07-28,9.80,9.90,10.00,9.70,90,89100,0,1.02,0.10,1.00',
+            '2026-07-29,9.90,10.00,10.10,9.80,100,100000,0,1.01,0.10,1.10',
+            '2026-07-30,10.00,10.20,10.30,9.90,110,112200,0,2.00,0.20,1.20',
+            '2026-07-31,10.20,10.30,10.40,10.10,120,123600,0,0.98,0.10,1.30'
+          ]
+        }
+      })
+    )
+
+    const result = await fetchKline('1.600000', 'daily', 3, 'tracking:test', {
+      startDate: '2026-07-29',
+      endDate: '2026-07-31'
+    })
+    const requestUrl = new URL(netFetch.mock.calls[0][0])
+
+    expect(requestUrl.searchParams.get('beg')).toBe('20260729')
+    expect(requestUrl.searchParams.get('end')).toBe('20260731')
+    expect(requestUrl.searchParams.get('lmt')).toBe('3')
+    expect(result.bars.map((bar) => bar.time)).toEqual(['2026-07-29', '2026-07-30', '2026-07-31'])
+    expect(result.bars[0].changePercent).toBe(1.01)
+  })
+})
+
 describe('searchStocks', () => {
   beforeEach(() => {
     netFetch.mockReset()

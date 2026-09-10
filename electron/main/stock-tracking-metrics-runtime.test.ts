@@ -53,7 +53,7 @@ function bars(): KlineBar[] {
 }
 
 describe('StockTrackingMetricsRuntime', () => {
-  it('captures active tracking profiles and persists one state update', async () => {
+  it('requests and stores the completed tracking-start date once', async () => {
     let currentState = state()
     const persistState = vi.fn()
     const sendStateUpdated = vi.fn()
@@ -62,7 +62,7 @@ describe('StockTrackingMetricsRuntime', () => {
       quoteId,
       name: '浦发银行',
       tradingDate: '2026-07-21',
-      bars: bars()
+      bars: [bars().at(-1)!]
     }))
     const runtime = new StockTrackingMetricsRuntime({
       getState: () => currentState,
@@ -76,17 +76,20 @@ describe('StockTrackingMetricsRuntime', () => {
       now: () => new Date('2026-07-21T08:00:00.000Z')
     })
 
-    await runtime.capture(true)
+    await runtime.capture()
+    await runtime.capture()
 
-    expect(getDailyKline).toHaveBeenCalledWith('1.600000', 500)
+    expect(getDailyKline).toHaveBeenCalledOnce()
+    expect(getDailyKline).toHaveBeenCalledWith('1.600000', {
+      startDate: '2026-07-21',
+      endDate: '2026-07-21'
+    })
     expect(currentState.stockTrackingProfiles['1.600000'].metricSnapshots).toHaveLength(1)
+    expect(currentState.stockTrackingProfiles['1.600000'].lastCompletedKlineDate).toBe('2026-07-21')
     expect(currentState.stockTrackingProfiles['1.600000'].metricSnapshots[0].metrics).toMatchObject(
       {
         close: 10,
-        volume: 200,
-        volumeRatio5d: 2,
-        volumeRatio10d: 2,
-        volumeRatio20d: 2
+        volume: 200
       }
     )
     expect(persistState).toHaveBeenCalledOnce()
@@ -94,72 +97,52 @@ describe('StockTrackingMetricsRuntime', () => {
     expect(notifyPriceVolumeDivergence).not.toHaveBeenCalled()
   })
 
-  it('backfills the started day before the first completed daily bar is available', async () => {
+  it('does not request or write the tracking-start date before the market closes', async () => {
     let currentState = state()
-    currentState.stockTrackingProfiles['1.600000'] = {
-      ...trackedProfile(),
-      sources: [
-        {
-          id: 'manual-source',
-          type: 'manual',
-          recordedAt: '2026-07-21T00:00:00.000Z',
-          detail: { startPrice: 10.2 }
-        }
-      ],
-      entries: [
-        {
-          id: 'started-entry',
-          type: 'system',
-          content: '开始追踪，来源：手动添加',
-          createdAt: '2026-07-21T00:00:00.000Z',
-          quoteSnapshot: {
-            latest: 10.2,
-            changePercent: 2,
-            capturedAt: '2026-07-21T00:00:00.000Z'
-          }
-        }
-      ]
-    }
+    const getDailyKline = vi.fn()
+    const persistState = vi.fn()
     const runtime = new StockTrackingMetricsRuntime({
       getState: () => currentState,
       setState: (nextState) => {
         currentState = nextState
       },
-      persistState: vi.fn(),
+      persistState,
       sendStateUpdated: vi.fn(),
-      getDailyKline: async (quoteId) => ({
-        quoteId,
-        name: '浦发银行',
-        tradingDate: '2026-07-20',
-        bars: bars().slice(0, 20)
-      }),
+      getDailyKline,
       notifyPriceVolumeDivergence: vi.fn(),
       now: () => new Date('2026-07-21T01:00:00.000Z')
     })
 
-    await runtime.capture(true)
+    await runtime.capture()
 
-    expect(currentState.stockTrackingProfiles['1.600000'].metricSnapshots).toEqual([
-      {
-        tradingDate: '2026-07-21',
-        capturedAt: '2026-07-21T00:00:00.000Z',
-        metrics: { close: 10.2, changePercent: 2 }
-      }
-    ])
+    expect(getDailyKline).not.toHaveBeenCalled()
+    expect(persistState).not.toHaveBeenCalled()
+    expect(currentState.stockTrackingProfiles['1.600000'].metricSnapshots).toEqual([])
   })
 
-  it('records and notifies a new three-session divergence only once', async () => {
+  it('requests only dates after the completion marker and never rewrites them', async () => {
     let currentState = state()
-    const divergentBars = bars()
-    divergentBars.splice(
-      17,
-      4,
-      { ...divergentBars[17], close: 10, volume: 140 },
-      { ...divergentBars[18], close: 11, volume: 130 },
-      { ...divergentBars[19], close: 12, volume: 120 },
-      { ...divergentBars[20], close: 13, volume: 110 }
-    )
+    const previousBars = [
+      { ...bars()[17], close: 10, volume: 140 },
+      { ...bars()[18], close: 11, volume: 130 },
+      { ...bars()[19], close: 12, volume: 120 }
+    ]
+    currentState.stockTrackingProfiles['1.600000'] = {
+      ...trackedProfile(),
+      lastCompletedKlineDate: '2026-07-20',
+      metricSnapshots: previousBars.map((bar) => ({
+        tradingDate: bar.time,
+        capturedAt: `${bar.time}T08:00:00.000Z`,
+        metrics: { close: bar.close, volume: bar.volume, amount: bar.amount }
+      }))
+    }
     const notifyPriceVolumeDivergence = vi.fn()
+    const getDailyKline = vi.fn(async (quoteId: string) => ({
+      quoteId,
+      name: '浦发银行',
+      tradingDate: '2026-07-21',
+      bars: [{ ...bars()[20], close: 13, volume: 110 }]
+    }))
     const runtime = new StockTrackingMetricsRuntime({
       getState: () => currentState,
       setState: (nextState) => {
@@ -167,19 +150,24 @@ describe('StockTrackingMetricsRuntime', () => {
       },
       persistState: vi.fn(),
       sendStateUpdated: vi.fn(),
-      getDailyKline: async (quoteId) => ({
-        quoteId,
-        name: '浦发银行',
-        tradingDate: '2026-07-21',
-        bars: divergentBars
-      }),
+      getDailyKline,
       notifyPriceVolumeDivergence,
       now: () => new Date('2026-07-21T08:00:00.000Z')
     })
 
-    await runtime.capture(true)
-    await runtime.capture(true)
+    await runtime.capture()
+    const completedSnapshot = currentState.stockTrackingProfiles['1.600000'].metricSnapshots.at(-1)
+    await runtime.capture()
 
+    expect(getDailyKline).toHaveBeenCalledOnce()
+    expect(getDailyKline).toHaveBeenCalledWith('1.600000', {
+      startDate: '2026-07-21',
+      endDate: '2026-07-21'
+    })
+    expect(currentState.stockTrackingProfiles['1.600000'].lastCompletedKlineDate).toBe('2026-07-21')
+    expect(currentState.stockTrackingProfiles['1.600000'].metricSnapshots.at(-1)).toBe(
+      completedSnapshot
+    )
     expect(currentState.stockTrackingProfiles['1.600000'].entries[0]).toMatchObject({
       id: 'tracking:price-volume-divergence:2026-07-21:priceRiseVolumeFall',
       type: 'system',

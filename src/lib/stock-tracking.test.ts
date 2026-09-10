@@ -3,7 +3,6 @@ import {
   addTrackingSourceTags,
   addStockTrackingEntry,
   createStockTrackingSource,
-  ensureStockTrackingStartedDaySnapshot,
   startStockTracking,
   stopStockTracking,
   trackingProfileSourceTags
@@ -48,19 +47,12 @@ describe('stock tracking', () => {
       startedAt
     )
 
-    expect(profile.metricSnapshots).toEqual([
-      {
-        tradingDate: '2026-09-10',
-        capturedAt: startedAt,
-        metrics: {
-          close: 15.81,
-          changePercent: -1.5,
-          volume: 320_000,
-          amount: 5_100_000
-        }
-      }
-    ])
-    expect(ensureStockTrackingStartedDaySnapshot(profile, quote)).toBe(profile)
+    expect(profile.metricSnapshots).toEqual([])
+    expect(profile.lastCompletedKlineDate).toBeUndefined()
+    expect(profile.entries[0].quoteSnapshot).toMatchObject({
+      latest: 15.81,
+      changePercent: -1.5
+    })
   })
 
   it('keeps multiple sources and preserves history after stopping and restarting', () => {

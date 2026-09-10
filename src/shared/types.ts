@@ -3,6 +3,7 @@ import {
   builtInMarketCalendar,
   type MarketCalendarSource
 } from './market-calendar'
+import { isAfterMarketClose, marketDateKey } from './market-hours'
 import { stockMarketIdentity, type StockMarket } from './stock-market'
 export type {
   StockCurrency,
@@ -124,6 +125,7 @@ export interface StockTrackingProfile {
   tags: string[]
   thesis: string
   startedAt: string
+  lastCompletedKlineDate?: string
   updatedAt: string
   stoppedAt?: string
   sources: StockTrackingSource[]
@@ -237,6 +239,26 @@ const STOCK_TRACKING_ENTRY_TYPES = new Set<StockTrackingEntryType>([
   'system'
 ])
 
+function inferLastCompletedKlineDate(
+  quoteId: string,
+  metricSnapshots: readonly StockTrackingMetricSnapshot[]
+): string | undefined {
+  const market = stockMarketIdentity(quoteId).market
+  for (let index = metricSnapshots.length - 1; index >= 0; index -= 1) {
+    const snapshot = metricSnapshots[index]
+    const capturedAt = new Date(snapshot.capturedAt)
+    if (Number.isNaN(capturedAt.getTime())) continue
+    const capturedDate = marketDateKey(capturedAt, market)
+    if (
+      snapshot.tradingDate < capturedDate ||
+      (snapshot.tradingDate === capturedDate && isAfterMarketClose(market, capturedAt))
+    ) {
+      return snapshot.tradingDate
+    }
+  }
+  return undefined
+}
+
 export function normalizeStockTrackingProfiles(
   profiles: StockTrackingProfiles | undefined
 ): StockTrackingProfiles {
@@ -291,6 +313,12 @@ export function normalizeStockTrackingProfiles(
             })
             .sort((left, right) => left.tradingDate.localeCompare(right.tradingDate))
         : []
+      const lastCompletedKlineDate =
+        profile.lastCompletedKlineDate?.slice(0, 10) ??
+        inferLastCompletedKlineDate(quoteId, metricSnapshots)
+      const completedMetricSnapshots = lastCompletedKlineDate
+        ? metricSnapshots.filter((snapshot) => snapshot.tradingDate <= lastCompletedKlineDate)
+        : []
       return [
         [
           quoteId,
@@ -299,11 +327,12 @@ export function normalizeStockTrackingProfiles(
             ...stockMarketIdentity(quoteId, profile.instrumentType),
             quoteId,
             status: profile.status === 'stopped' ? 'stopped' : 'tracking',
+            lastCompletedKlineDate,
             tags: [...new Set((profile.tags ?? []).map((tag) => tag.trim()).filter(Boolean))],
             thesis: profile.thesis?.trim() ?? '',
             sources,
             entries,
-            metricSnapshots
+            metricSnapshots: completedMetricSnapshots
           }
         ]
       ]
@@ -1374,6 +1403,7 @@ export interface KlineBar {
   low: number
   volume: number
   amount: number
+  changePercent?: number
   turnoverRate?: number
 }
 
@@ -1388,6 +1418,11 @@ export interface KlineResult {
   adjustment?: 'forward' | 'none'
   fetchedAt?: string
   fromCache?: boolean
+}
+
+export interface KlineDateRange {
+  startDate: string
+  endDate: string
 }
 
 export type TechnicalPatternSignalType =

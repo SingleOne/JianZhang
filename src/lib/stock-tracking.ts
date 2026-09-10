@@ -10,14 +10,7 @@ import type {
   StockTrackingSourceType,
   WatchStock
 } from '../shared/types'
-import { marketDateKey } from '../shared/market-hours'
-import { marketFromQuoteId } from '../shared/stock-market'
 import { DAILY_MARKET_SCAN_SIGNAL_LABELS } from './daily-market-scan'
-import {
-  STOCK_TRACKING_BASE_METRICS,
-  STOCK_TRACKING_VOLUME_RATIO_METRICS,
-  mergeStockTrackingMetricSnapshots
-} from './stock-tracking-metrics'
 
 export const STOCK_TRACKING_SOURCE_LABELS: Record<StockTrackingSourceType, string> = {
   manual: '手动添加',
@@ -172,15 +165,12 @@ export function startStockTracking(
       entries: [],
       metricSnapshots: []
     }
-    return ensureStockTrackingStartedDaySnapshot(
-      appendEntry(
-        profile,
-        'system',
-        `开始追踪，来源：${STOCK_TRACKING_SOURCE_LABELS[source.type]}`,
-        quote,
-        now
-      ),
-      quote
+    return appendEntry(
+      profile,
+      'system',
+      `开始追踪，来源：${STOCK_TRACKING_SOURCE_LABELS[source.type]}`,
+      quote,
+      now
     )
   }
 
@@ -263,61 +253,6 @@ export function initialTrackingPrice(profile: StockTrackingProfile): number | nu
       return entry.quoteSnapshot.latest
   }
   return null
-}
-
-export function ensureStockTrackingStartedDaySnapshot(
-  profile: StockTrackingProfile,
-  quote?: StockQuote
-): StockTrackingProfile {
-  const tradingDate = marketDateKey(
-    new Date(profile.startedAt),
-    profile.market ?? marketFromQuoteId(profile.quoteId)
-  )
-  const currentSnapshot = profile.metricSnapshots.find(
-    (snapshot) => snapshot.tradingDate === tradingDate
-  )
-  const initialSource = profile.sources.at(-1)
-  const initialQuoteSnapshot = [...profile.entries]
-    .reverse()
-    .find((entry) => entry.quoteSnapshot)?.quoteSnapshot
-  const close = quote?.latest ?? initialQuoteSnapshot?.latest ?? initialSource?.detail?.startPrice
-  if (close === null || close === undefined || !Number.isFinite(close)) return profile
-
-  const metrics: Record<string, number> = {
-    [STOCK_TRACKING_BASE_METRICS.close]: close
-  }
-  const changePercent =
-    quote?.changePercent ??
-    initialQuoteSnapshot?.changePercent ??
-    initialSource?.detail?.changePercent
-  if (changePercent !== null && changePercent !== undefined && Number.isFinite(changePercent)) {
-    metrics[STOCK_TRACKING_BASE_METRICS.changePercent] = changePercent
-  }
-  if (quote?.volume !== null && quote?.volume !== undefined && Number.isFinite(quote.volume)) {
-    metrics[STOCK_TRACKING_BASE_METRICS.volume] = quote.volume
-  }
-  if (quote?.amount !== null && quote?.amount !== undefined && Number.isFinite(quote.amount)) {
-    metrics[STOCK_TRACKING_BASE_METRICS.amount] = quote.amount
-  }
-  const volumeRatio = initialSource?.detail?.volumeRatio
-  if (volumeRatio !== undefined && Number.isFinite(volumeRatio)) {
-    metrics[STOCK_TRACKING_VOLUME_RATIO_METRICS[5]] = volumeRatio
-  }
-  Object.assign(metrics, currentSnapshot?.metrics)
-
-  const capturedAt =
-    currentSnapshot?.capturedAt ??
-    initialQuoteSnapshot?.capturedAt ??
-    quote?.updatedAt ??
-    initialSource?.recordedAt ??
-    profile.startedAt
-  return mergeStockTrackingMetricSnapshots(profile, [
-    {
-      tradingDate,
-      capturedAt,
-      metrics
-    }
-  ])
 }
 
 export function trackingSourceDescription(source: StockTrackingSource): string {

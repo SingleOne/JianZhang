@@ -77,6 +77,16 @@ describe('KlineHub', () => {
     expect(first).toBe(second)
   })
 
+  it('requests only the specified completed daily range', async () => {
+    const fetchKline = vi.fn(async (quoteId: string) => result(quoteId))
+    const hub = new KlineHub(fetchKline, new HistoricalKlineCache(directory), () => [], 60_000)
+    const dateRange = { startDate: '2026-07-29', endDate: '2026-07-31' }
+
+    await hub.getDailyRange('1.600000', dateRange, 'tracking:test')
+
+    expect(fetchKline).toHaveBeenCalledWith('1.600000', 'daily', 3, 'tracking:test', dateRange)
+  })
+
   it('keeps different network requests in the global serial queue', async () => {
     const started: string[] = []
     const resolvers = new Map<string, (value: KlineResult) => void>()
