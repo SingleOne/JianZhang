@@ -239,6 +239,8 @@ const STOCK_TRACKING_ENTRY_TYPES = new Set<StockTrackingEntryType>([
   'system'
 ])
 
+// TODO(stock-tracking-kline-completion-migration): Remove this legacy snapshot inference after
+// every persisted tracking profile has written lastCompletedKlineDate.
 function inferLastCompletedKlineDate(
   quoteId: string,
   metricSnapshots: readonly StockTrackingMetricSnapshot[]
