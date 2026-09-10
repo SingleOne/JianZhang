@@ -1466,6 +1466,10 @@ export function WatchlistTable({
           holdingCost={
             rows.find(({ stock }) => stock.quoteId === tTradingStock.quoteId)?.metrics.holdingCost
           }
+          holdingCostBasis={
+            rows.find(({ stock }) => stock.quoteId === tTradingStock.quoteId)?.metrics
+              .holdingCostBasis
+          }
           feeSettings={tTradingFees}
           planDefaults={tPlanDefaults}
           exchangeRates={exchangeRates}

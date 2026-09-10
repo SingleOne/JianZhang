@@ -249,18 +249,16 @@ describe('position cost changes', () => {
     expect(afterSell?.cost).toBeCloseTo(9.03)
   })
 
-  it('calculates profit represented by a lower adjusted position cost', () => {
-    const result = calculateCostAdjustedProfit(
-      {
-        ...batch(),
-        openingPosition: { quantity: 1_000, cost: 10, openedOn: '2026-07-01' }
-      },
-      [trade('base-buy', 'buy', 8, 100, 1, 'base'), trade('t-trade', 'sell', 12, 100, 1, 't')],
-      1_100,
-      9.5
-    )
+  it('adjusts ledger profit by the difference between calculated and broker cost basis', () => {
+    const result = calculateCostAdjustedProfit(908.03, 2_705.94, 500, 5.41188)
 
-    expect(result).toBe(351)
+    expect(result).toBeCloseTo(908.03)
+  })
+
+  it('applies a broker cost difference to the ledger profit', () => {
+    const result = calculateCostAdjustedProfit(908.03, 2_705.94, 500, 5.5)
+
+    expect(result).toBeCloseTo(863.97)
   })
 
   it('accepts zero and negative broker costs when settling a remaining position', () => {

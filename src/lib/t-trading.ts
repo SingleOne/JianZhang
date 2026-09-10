@@ -352,21 +352,10 @@ export function recalculatePositionFromBatch(
 }
 
 export function calculateCostAdjustedProfit(
-  batch: TTradingBatch,
-  trades: readonly TTrade[],
+  ledgerProfit: number,
+  holdingCostBasis: number,
   latestPositionQuantity: number,
   latestPositionCost: number
 ): number {
-  let referenceCostBasis =
-    (batch.openingPosition?.quantity ?? 0) * (batch.openingPosition?.cost ?? 0)
-
-  for (const trade of trades) {
-    const allocation = getTradeBatchAllocationAmounts(trade, batch)
-    if (allocation.baseQuantity <= 0) continue
-    const amount = trade.price * allocation.baseQuantity
-    const fees = allocation.baseFees
-    referenceCostBasis += trade.side === 'buy' ? amount + fees : -amount + fees
-  }
-
-  return referenceCostBasis - latestPositionQuantity * latestPositionCost
+  return ledgerProfit + holdingCostBasis - latestPositionQuantity * latestPositionCost
 }

@@ -83,6 +83,7 @@ interface TTradingDrawerProps {
   quote: StockQuote | undefined
   account: TTradingAccount | undefined
   holdingCost: number | null | undefined
+  holdingCostBasis: number | null | undefined
   feeSettings: TTradingFeeSettings
   planDefaults: TPlanDefaultSettings
   exchangeRates: ExchangeRateSettings
@@ -187,6 +188,7 @@ export function TTradingDrawer({
   quote,
   account,
   holdingCost,
+  holdingCostBasis,
   feeSettings,
   planDefaults,
   exchangeRates,
@@ -223,9 +225,7 @@ export function TTradingDrawer({
   const [latestPositionQuantity, setLatestPositionQuantity] = useState(
     stock.position?.quantity.toString() ?? '0'
   )
-  const [latestPositionCost, setLatestPositionCost] = useState(
-    stock.position?.cost.toString() ?? ''
-  )
+  const [latestPositionCost, setLatestPositionCost] = useState(holdingCost?.toString() ?? '')
   const [settlementNote, setSettlementNote] = useState('')
   const [editingHistoryBatchId, setEditingHistoryBatchId] = useState<string | null>(null)
   const [historyProfitDraft, setHistoryProfitDraft] = useState('')
@@ -355,18 +355,30 @@ export function TTradingDrawer({
     activeTrades.some((trade) => hasTAllocationForBatch(trade, currentAccount.activeBatch!.id)) &&
     activeMetrics.remainingQuantity === 0
   )
+  const settlementPreviewProfit =
+    currentAccount.activeBatch &&
+    holdingCostBasis !== null &&
+    holdingCostBasis !== undefined &&
+    latestPositionCost.trim() !== ''
+      ? calculateCostAdjustedProfit(
+          activeMetrics.realizedProfit,
+          holdingCostBasis,
+          Math.max(0, Number(latestPositionQuantity) || 0),
+          Number(latestPositionCost) || 0
+        )
+      : null
 
   useEffect(() => {
     const batchId = currentAccount.activeBatch?.id
     if (!readyToSettle || !batchId || settlementBatchId === batchId) return
     setSettlementBatchId(batchId)
     setLatestPositionQuantity(stock.position?.quantity.toString() ?? '0')
-    setLatestPositionCost(stock.position?.cost.toString() ?? '')
+    setLatestPositionCost(holdingCost?.toString() ?? '')
   }, [
     currentAccount.activeBatch?.id,
+    holdingCost,
     readyToSettle,
     settlementBatchId,
-    stock.position?.cost,
     stock.position?.quantity
   ])
 
@@ -1069,9 +1081,14 @@ export function TTradingDrawer({
     }
 
     const costAdjustedProfit =
-      finalCost === undefined
+      finalCost === undefined || holdingCostBasis === null || holdingCostBasis === undefined
         ? undefined
-        : calculateCostAdjustedProfit(batch, activeTrades, finalQuantity, finalCost)
+        : calculateCostAdjustedProfit(
+            activeMetrics.realizedProfit,
+            holdingCostBasis,
+            finalQuantity,
+            finalCost
+          )
     const settlement = {
       settledAt: new Date().toISOString(),
       latestPositionQuantity: finalQuantity,
@@ -1982,27 +1999,11 @@ export function TTradingDrawer({
                       />
                     </label>
                   </div>
-                  {latestPositionCost.trim() !== '' ? (
+                  {settlementPreviewProfit !== null ? (
                     <div className="t-cost-profit-preview">
                       按最新成本推算：
-                      <strong
-                        className={valueClass(
-                          calculateCostAdjustedProfit(
-                            currentAccount.activeBatch,
-                            activeTrades,
-                            Math.max(0, Number(latestPositionQuantity) || 0),
-                            Number(latestPositionCost) || 0
-                          )
-                        )}
-                      >
-                        {formatProfit(
-                          calculateCostAdjustedProfit(
-                            currentAccount.activeBatch,
-                            activeTrades,
-                            Math.max(0, Number(latestPositionQuantity) || 0),
-                            Number(latestPositionCost) || 0
-                          )
-                        )}
+                      <strong className={valueClass(settlementPreviewProfit)}>
+                        {formatProfit(settlementPreviewProfit)}
                       </strong>
                     </div>
                   ) : null}
