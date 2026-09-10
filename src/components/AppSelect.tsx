@@ -12,6 +12,7 @@ interface AppSelectProps<Value extends string> {
   options: readonly AppSelectOption<Value>[]
   label: string
   className?: string
+  disabled?: boolean
   onChange: (value: Value) => void
 }
 
@@ -20,6 +21,7 @@ export function AppSelect<Value extends string>({
   options,
   label,
   className = '',
+  disabled = false,
   onChange
 }: AppSelectProps<Value>) {
   const [open, setOpen] = useState(false)
@@ -51,18 +53,19 @@ export function AppSelect<Value extends string>({
   return (
     <div className={`app-select ${className}`.trim()} ref={rootRef}>
       <button
-        className={`app-select-trigger ${open ? 'is-open' : ''}`}
+        className={`app-select-trigger ${open && !disabled ? 'is-open' : ''}`}
         type="button"
         aria-haspopup="listbox"
-        aria-expanded={open}
+        aria-expanded={open && !disabled}
         aria-controls={menuId}
         aria-label={`${label}：${selectedOption.label}`}
+        disabled={disabled}
         onClick={() => setOpen((current) => !current)}
       >
         <span>{selectedOption.label}</span>
         <ChevronDown size={14} />
       </button>
-      {open ? (
+      {open && !disabled ? (
         <div className="app-select-menu" id={menuId} role="listbox" aria-label={label}>
           {options.map((option) => {
             const selected = option.value === value

@@ -18,6 +18,7 @@ import {
   X
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { AppSelect, type AppSelectOption } from '../../../components/AppSelect'
 import { useConfirmDialog } from '../../../components/ConfirmDialog'
 import type {
   AiApiKeyProviderId,
@@ -344,6 +345,26 @@ function AiSettingsPanel({
   const modelOptions = providerModels[draft.providerId]
   const modelsLoading = modelsLoadingProvider === draft.providerId
   const modelReady = modelOptions?.some((model) => model.id === draft.model) === true
+  const providerOptions: AppSelectOption<AiProviderId>[] = status.providers.map((provider) => ({
+    value: provider.id,
+    label: provider.label,
+    description: provider.billingHint
+  }))
+  const modelSelectOptions: AppSelectOption<string>[] = modelOptions?.length
+    ? modelOptions.map((model) => ({
+        value: model.id,
+        label: model.label === model.id ? model.id : `${model.label} · ${model.id}`
+      }))
+    : [
+        {
+          value: draft.model,
+          label: modelsLoading
+            ? '正在读取可用模型…'
+            : credential?.configured
+              ? '未获取到可用模型'
+              : '请先保存当前 Provider 的 API Key'
+        }
+      ]
 
   useEffect(() => setDraft(settings), [settings])
 
@@ -380,105 +401,54 @@ function AiSettingsPanel({
 
   return (
     <section className="ai-settings-panel">
-      <header>
-        <Settings2 size={17} />
-        <div>
-          <h2>服务设置</h2>
-          <p>API Key 仅由主进程加密保存。</p>
-        </div>
+      <header className="ai-settings-title-row">
+        <label className="ai-settings-enable-control">
+          <span>
+            <strong>启用 AI 助手</strong>
+            <small>关闭后停止发送 Provider 请求，仍可随时重新开启。</small>
+          </span>
+          <input
+            type="checkbox"
+            checked={draft.enabled}
+            onChange={(event) =>
+              setDraft((current) => ({ ...current, enabled: event.target.checked }))
+            }
+          />
+        </label>
+        <p className="ai-settings-security-note">
+          <KeyRound size={14} />
+          API Key 仅由主进程加密保存
+        </p>
       </header>
       <div className="ai-settings-content">
-        <div className="ai-settings-column">
-          <label className="ai-settings-toggle">
-            <span>
-              <strong>启用 AI 助手</strong>
-              <small>关闭后停止发送 Provider 请求，仍可通过 AI 助手入口重新开启。</small>
+        <section className="ai-settings-card ai-provider-card">
+          <header className="ai-settings-card-heading">
+            <span className="ai-settings-card-icon">
+              <KeyRound size={17} />
             </span>
-            <input
-              type="checkbox"
-              checked={draft.enabled}
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, enabled: event.target.checked }))
-              }
-            />
-          </label>
+            <div>
+              <h3>Provider 与 API Key</h3>
+              <p>每个 Provider 使用各自对应的凭证与平台额度。</p>
+            </div>
+          </header>
           <div className="ai-settings-fields">
             <label>
               <span>Provider</span>
-              <select
+              <AppSelect
+                className="ai-settings-select ai-provider-select"
                 value={draft.providerId}
-                onChange={(event) => selectProvider(event.target.value as AiProviderId)}
-              >
-                {status.providers.map((provider) => (
-                  <option key={provider.id} value={provider.id}>
-                    {provider.label}
-                  </option>
-                ))}
-              </select>
+                options={providerOptions}
+                label="Provider"
+                onChange={selectProvider}
+              />
               <small>{activeProvider?.billingHint}</small>
             </label>
-            <label>
-              <span className="ai-field-heading">
-                <span>模型 ID</span>
-                <button
-                  type="button"
-                  disabled={!credential?.configured || modelsLoading}
-                  onClick={() => onLoadModels(draft.providerId)}
-                >
-                  {modelsLoading ? '读取中' : '刷新模型'}
-                </button>
-              </span>
-              <select
-                value={draft.model}
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, model: event.target.value }))
-                }
-                disabled={!credential?.configured || modelsLoading || !modelOptions?.length}
-              >
-                {modelOptions?.length ? (
-                  modelOptions.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.label === model.id ? model.id : `${model.label} · ${model.id}`}
-                    </option>
-                  ))
-                ) : (
-                  <option value={draft.model}>
-                    {modelsLoading
-                      ? '正在从 Provider 读取模型…'
-                      : credential?.configured
-                        ? '未获取到可用模型'
-                        : '请先填写并保存 API Key'}
-                  </option>
-                )}
-              </select>
-              <small>选项由当前 Provider 根据 API Key 实时返回。</small>
-            </label>
-            <label>
-              <span>本地上下文消息数</span>
-              <input
-                type="number"
-                min="4"
-                max="40"
-                value={draft.maxContextMessages}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    maxContextMessages: Number(event.target.value) || 4
-                  }))
-                }
-              />
-            </label>
           </div>
-        </div>
-        <div className="ai-settings-column">
-          <div className="ai-credential-card">
-            <div>
-              <KeyRound size={16} />
-              <span>
-                <strong>API Key</strong>
-                <small>
-                  {credential?.configured ? `已配置 · 尾号 ${credential.maskedSuffix}` : '尚未配置'}
-                </small>
+          <div className="ai-credential-block">
+            <div className="ai-credential-heading">
+              <strong>API Key</strong>
+              <span className={credential?.configured ? 'is-configured' : ''}>
+                {credential?.configured ? `已配置 · 尾号 ${credential.maskedSuffix}` : '尚未配置'}
               </span>
             </div>
             <div className="ai-credential-actions">
@@ -508,37 +478,100 @@ function AiSettingsPanel({
                 </button>
               ) : null}
             </div>
+            <small>
+              当前输入仅保存到 {activeProvider?.label}，切换 Provider 后会显示对应凭证。
+            </small>
           </div>
-          <div className="ai-settings-footer">
+        </section>
+        <section className="ai-settings-card ai-model-card">
+          <header className="ai-settings-card-heading">
+            <span className="ai-settings-card-icon">
+              <Settings2 size={17} />
+            </span>
+            <div>
+              <h3>模型配置</h3>
+              <p>配置当前 Provider 使用的模型与对话上下文。</p>
+            </div>
             <button
-              className="secondary-button"
+              className="ai-card-action"
               type="button"
-              disabled={busy || !credential?.configured}
-              onClick={() => onTestConnection(draft.providerId)}
+              disabled={!credential?.configured || modelsLoading}
+              onClick={() => onLoadModels(draft.providerId)}
             >
-              {busy ? <LoaderCircle size={14} className="is-spinning" /> : <Check size={14} />}
-              测试连接
+              {modelsLoading ? '读取中' : '刷新模型'}
             </button>
-            <button
-              className="primary-button"
-              type="button"
-              disabled={busy || (draft.enabled && !modelReady)}
-              onClick={() => onSave(draft)}
-            >
-              保存设置
-            </button>
+          </header>
+          <div className="ai-settings-fields ai-model-fields">
+            <label>
+              <span>模型</span>
+              <AppSelect
+                className="ai-settings-select ai-model-select"
+                value={draft.model}
+                options={modelSelectOptions}
+                label="模型"
+                disabled={!credential?.configured || modelsLoading || !modelOptions?.length}
+                onChange={(model) => setDraft((current) => ({ ...current, model }))}
+              />
+              <small>
+                {modelsLoading
+                  ? '正在从当前 Provider 读取模型…'
+                  : modelOptions?.length
+                    ? `已获取 ${modelOptions.length} 个可用模型，列表由 Provider 实时返回。`
+                    : '保存当前 Provider 的 API Key 后即可读取可用模型。'}
+              </small>
+            </label>
+            <label className="ai-context-setting">
+              <span>
+                <strong>本地上下文消息数</strong>
+                <small>控制每次对话携带的最近消息数量。</small>
+              </span>
+              <input
+                type="number"
+                min="4"
+                max="40"
+                value={draft.maxContextMessages}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    maxContextMessages: Number(event.target.value) || 4
+                  }))
+                }
+              />
+            </label>
           </div>
+        </section>
+      </div>
+      <footer className="ai-settings-footer">
+        <div className="ai-settings-feedback">
           {connectionResult ? (
             <p className={`ai-connection-result is-${connectionResult.kind}`}>
               <span>{connectionResult.ok ? <Check size={14} /> : <AlertCircle size={14} />}</span>
               {connectionResult.message}
             </p>
-          ) : null}
+          ) : (
+            <p className="ai-settings-note">模型与 API Key 均按 Provider 独立配置。</p>
+          )}
         </div>
-      </div>
-      <p className="ai-settings-note">
-        各 Provider 分别使用对应开放平台的账号与额度，API Key 和模型选择互不影响。
-      </p>
+        <div className="ai-settings-buttons">
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={busy || !credential?.configured}
+            onClick={() => onTestConnection(draft.providerId)}
+          >
+            {busy ? <LoaderCircle size={14} className="is-spinning" /> : <Check size={14} />}
+            测试连接
+          </button>
+          <button
+            className="primary-button"
+            type="button"
+            disabled={busy || (draft.enabled && !modelReady)}
+            onClick={() => onSave(draft)}
+          >
+            保存设置
+          </button>
+        </div>
+      </footer>
     </section>
   )
 }

@@ -5040,46 +5040,16 @@ html[data-theme='dark'][data-theme='dark'].tray-mode #root {
 :root[data-theme='dark'] .ai-mention-empty {
   color: #98a6ba;
 }
-:root[data-theme='dark'] .ai-settings-panel h2 {
-  color: #e6edf7;
-}
-:root[data-theme='dark'] .ai-settings-panel header p {
-  color: #cbd5e3;
-}
-:root[data-theme='dark'] .ai-settings-toggle {
-  background: #111827;
-  border: 1px solid #263449;
-}
-:root[data-theme='dark'] .ai-settings-toggle strong {
-  color: #e6edf7;
-}
-:root[data-theme='dark'] .ai-settings-toggle small {
-  color: #cbd5e3;
-}
 :root[data-theme='dark'] .ai-settings-fields label {
   color: #cbd5e3;
 }
-:root[data-theme='dark'] .ai-settings-fields input,
-:root[data-theme='dark'] .ai-settings-fields select {
+:root[data-theme='dark'] .ai-settings-fields input {
   color: #e6edf7;
   background: #111827;
   border: 1px solid #263449;
 }
 :root[data-theme='dark'] .ai-settings-fields small {
   color: #98a6ba;
-}
-:root[data-theme='dark'] .ai-credential-card {
-  background: #111827;
-  border: 1px solid #263449;
-}
-:root[data-theme='dark'] .ai-credential-card > div:first-child {
-  color: #cbd5e3;
-}
-:root[data-theme='dark'] .ai-credential-card strong {
-  color: #e6edf7;
-}
-:root[data-theme='dark'] .ai-credential-card small {
-  color: #cbd5e3;
 }
 :root[data-theme='dark'] .ai-credential-actions input {
   border: 1px solid #34445d;
@@ -5109,6 +5079,88 @@ html[data-theme='dark'][data-theme='dark'].tray-mode #root {
 }
 :root[data-theme='dark'] .ai-settings-note {
   color: #98a6ba;
+}
+:root[data-theme='dark'] .ai-settings-title-row,
+:root[data-theme='dark'] .ai-settings-footer {
+  border-color: #344357;
+}
+:root[data-theme='dark'] .ai-settings-enable-control strong,
+:root[data-theme='dark'] .ai-settings-card-heading h3,
+:root[data-theme='dark'] .ai-credential-heading strong,
+:root[data-theme='dark'] .ai-context-setting strong {
+  color: #eef4fb;
+}
+:root[data-theme='dark'] .ai-settings-enable-control small,
+:root[data-theme='dark'] .ai-settings-card-heading p,
+:root[data-theme='dark'] .ai-settings-fields label,
+:root[data-theme='dark'] .ai-settings-fields small,
+:root[data-theme='dark'] .ai-credential-block > small,
+:root[data-theme='dark'] .ai-settings-note {
+  color: #aab8cb;
+}
+:root[data-theme='dark'] .ai-settings-enable-control input {
+  background: #34445d;
+  border-color: #4b5c73;
+}
+:root[data-theme='dark'] .ai-settings-enable-control input:checked {
+  background: var(--blue);
+  border-color: var(--blue);
+}
+:root[data-theme='dark'] .ai-settings-security-note {
+  color: #cbd5e3;
+  background: #202d3d;
+  border-color: #344357;
+}
+:root[data-theme='dark'] .ai-settings-card {
+  background: #111827;
+  border-color: #263449;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+}
+:root[data-theme='dark'] .ai-settings-card-icon {
+  background: rgba(91, 140, 255, 0.14);
+}
+:root[data-theme='dark'] .ai-card-action {
+  color: #8bb9ff;
+  background: #202d3d;
+  border-color: #34445d;
+}
+:root[data-theme='dark'] .ai-card-action:disabled {
+  color: #718096;
+}
+:root[data-theme='dark'] .ai-settings-select .app-select-trigger,
+:root[data-theme='dark'] .ai-settings-select .app-select-menu,
+:root[data-theme='dark'] .ai-settings-fields input,
+:root[data-theme='dark'] .ai-credential-actions input {
+  color: #e6edf7;
+  background: #182231;
+  border-color: #34445d;
+}
+:root[data-theme='dark'] .ai-settings-select .app-select-trigger:disabled {
+  color: #7f8ca0;
+  background: #151e2b;
+  border-color: #2b394d;
+}
+:root[data-theme='dark'] .ai-settings-select .app-select-option {
+  color: #e6edf7;
+}
+:root[data-theme='dark'] .ai-settings-select .app-select-option:hover,
+:root[data-theme='dark'] .ai-settings-select .app-select-option.is-selected {
+  background: rgba(91, 140, 255, 0.14);
+}
+:root[data-theme='dark'] .ai-settings-select .app-select-option small {
+  color: #aab8cb;
+}
+:root[data-theme='dark'] .ai-credential-block,
+:root[data-theme='dark'] .ai-context-setting {
+  border-color: #263449;
+}
+:root[data-theme='dark'] .ai-credential-heading > span {
+  color: #aab8cb;
+  background: #202d3d;
+}
+:root[data-theme='dark'] .ai-credential-heading > span.is-configured {
+  color: #35c98b;
+  background: rgba(53, 201, 139, 0.14);
 }
 :root[data-theme='dark'] .ai-analysis-panel {
   background: #111827;
