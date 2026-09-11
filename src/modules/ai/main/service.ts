@@ -60,7 +60,7 @@ import {
 const PROVIDERS: AiProviderDescriptor[] = [
   {
     id: 'openai',
-    label: 'OpenAI API Key',
+    label: 'OpenAI',
     billingHint: '使用 OpenAI Platform API 余额，与 ChatGPT 订阅分开计费。',
     defaultModel: AI_DEFAULT_MODELS.openai,
     authMode: 'apiKey',
@@ -68,7 +68,7 @@ const PROVIDERS: AiProviderDescriptor[] = [
   },
   {
     id: 'deepseek',
-    label: 'DeepSeek API Key',
+    label: 'DeepSeek',
     billingHint: '使用 DeepSeek Platform API Key 和对应平台额度。',
     defaultModel: AI_DEFAULT_MODELS.deepseek,
     authMode: 'apiKey',

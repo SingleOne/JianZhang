@@ -362,7 +362,7 @@ function AiSettingsPanel({
             ? '正在读取可用模型…'
             : credential?.configured
               ? '未获取到可用模型'
-              : '请先保存当前 Provider 的 API Key'
+              : '请先填写API Key'
         }
       ]
 

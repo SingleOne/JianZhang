@@ -146,7 +146,7 @@ export class DeepSeekProvider implements AiProvider {
       return {
         ok: true,
         kind: 'success',
-        message: `DeepSeek API Key 已连接，可用模型 ${models.length} 个`
+        message: `DeepSeek 已连接，可用模型 ${models.length} 个`
       }
     } catch (error) {
       return connectionResultFromError(error)
