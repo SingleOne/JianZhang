@@ -63,7 +63,7 @@ const A_STOCK_CAPABILITIES: StockMarketCapabilities = {
   fundamentals: true,
   dividendFinancing: true,
   companyReports: true,
-  corporateActions: false,
+  corporateActions: true,
   shareholders: true,
   fundsFlow: true,
   marketInsight: true,

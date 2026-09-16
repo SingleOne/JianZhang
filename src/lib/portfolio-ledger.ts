@@ -308,9 +308,26 @@ function baseEntry(
   confirmation: CorporateActionConfirmation,
   suffix: string
 ) {
-  const occurredAt =
-    confirmation.occurredAt ??
-    `${candidate.payableDate ?? candidate.effectiveDate ?? candidate.exDate ?? candidate.announcementDate}T00:00:00.000Z`
+  const candidateDate =
+    candidate.type === 'stockDividend' ||
+    candidate.type === 'split' ||
+    candidate.type === 'reverseSplit' ||
+    candidate.type === 'symbolChange' ||
+    candidate.type === 'mergerExchange'
+      ? (candidate.effectiveDate ??
+        candidate.exDate ??
+        candidate.recordDate ??
+        candidate.announcementDate)
+      : candidate.type === 'rightsIssue'
+        ? (candidate.effectiveDate ??
+          candidate.electionDeadline ??
+          candidate.recordDate ??
+          candidate.announcementDate)
+        : (candidate.payableDate ??
+          candidate.effectiveDate ??
+          candidate.exDate ??
+          candidate.announcementDate)
+  const occurredAt = confirmation.occurredAt ?? `${candidateDate}T00:00:00.000Z`
   return {
     id: `corporate-action:${candidate.id}:${candidate.contentHash.slice(0, 10)}:${suffix}`,
     accountId: candidate.quoteId,
@@ -415,19 +432,40 @@ export function previewCorporateAction(
     if (!(oldShares && oldShares > 0)) missingFields.push('旧股比例')
     if (!(newShares && newShares > 0)) missingFields.push('新股比例')
     if (oldShares && newShares) {
-      const previousAdjustment = previousEntries.find((entry) => entry.kind === 'shareAdjustment')
-      const originalQuantity =
+      const previousAdjustment = [...previousEntries]
+        .reverse()
+        .find((entry) => entry.kind === 'shareAdjustment')
+      const eventDate =
+        candidate.effectiveDate ??
+        candidate.exDate ??
+        candidate.recordDate ??
+        candidate.announcementDate
+      const eventQuantityBefore =
         previousAdjustment?.kind === 'shareAdjustment'
           ? previousAdjustment.quantityBefore
-          : quantityBefore
-      quantityAfter = (originalQuantity * newShares) / oldShares
+          : eligibleQuantityOn(account, eventDate)
+      const previousEventQuantityAfter =
+        previousAdjustment?.kind === 'shareAdjustment'
+          ? previousAdjustment.quantityAfter
+          : eventQuantityBefore
+      let desiredEventQuantityAfter = eventQuantityBefore
+      if (candidate.type === 'stockDividend') {
+        const eligibleQuantity =
+          confirmation.eligibleQuantity ??
+          eligibleQuantityOn(account, candidate.recordDate ?? candidate.exDate)
+        const desiredAddedQuantity = eligibleQuantity * ((newShares - oldShares) / oldShares)
+        desiredEventQuantityAfter = eventQuantityBefore + desiredAddedQuantity
+      } else {
+        desiredEventQuantityAfter = (eventQuantityBefore * newShares) / oldShares
+      }
+      quantityAfter = quantityBefore + desiredEventQuantityAfter - previousEventQuantityAfter
       if (quantityAfter !== quantityBefore || !previousAdjustment) {
         entries.push({
           ...baseEntry(candidate, confirmation, 'share-adjustment'),
           kind: 'shareAdjustment',
           actionType: candidate.type,
-          quantityBefore,
-          quantityAfter,
+          quantityBefore: eventQuantityBefore,
+          quantityAfter: desiredEventQuantityAfter,
           oldShares,
           newShares
         })

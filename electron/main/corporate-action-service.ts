@@ -27,13 +27,21 @@ import type {
 } from '../../src/shared/types'
 import { atomicWriteJsonSync } from './file-storage'
 import type { CorporateActionProvider } from './corporate-action-provider'
+import { CninfoCorporateActionProvider } from './cninfo-corporate-action-provider'
 import { HkexCorporateActionProvider } from './hkex-corporate-action-provider'
 import { SecCorporateActionProvider } from './sec-corporate-action-provider'
 import { SEC_DOCUMENT_HEADERS, SecEdgarClient } from './sec-edgar-client'
 
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000
 const CACHE_VERSION = 2
-const OFFICIAL_HOSTS = new Set(['www1.hkexnews.hk', 'www.hkexnews.hk', 'www.sec.gov', 'sec.gov'])
+const OFFICIAL_HOSTS = new Set([
+  'www1.hkexnews.hk',
+  'www.hkexnews.hk',
+  'www.sec.gov',
+  'sec.gov',
+  'www.cninfo.com.cn',
+  'static.cninfo.com.cn'
+])
 const SUMMARY_PROMPT = `你是上市公司行动摘要助手。只能依据用户提供的公司行动候选、已提取条款和官方证据摘录，不得补充外部信息或猜测未披露内容。
 
 请用 120—260 字中文纯文本说明：行动是什么、关键日期和执行条款、对股东持仓数量/成本/现金流可能产生的影响，以及仍需向券商或官方原文核对的不确定项。
@@ -124,6 +132,7 @@ export class CorporateActionService {
   constructor(userDataDirectory: string, secClient = new SecEdgarClient()) {
     this.cacheDirectory = join(userDataDirectory, 'corporate-actions', 'candidates')
     this.providers = {
+      CN: new CninfoCorporateActionProvider(),
       HK: new HkexCorporateActionProvider(),
       US: new SecCorporateActionProvider(secClient)
     }
@@ -168,8 +177,9 @@ export class CorporateActionService {
       const candidates = fetched.candidates.map((candidate) => {
         const previous = cached?.candidates.find(
           (item) =>
-            item.providerId === candidate.providerId &&
-            item.providerEventId === candidate.providerEventId
+            item.id === candidate.id ||
+            (item.providerId === candidate.providerId &&
+              item.providerEventId === candidate.providerEventId)
         )
         return previous && previous.contentHash !== candidate.contentHash
           ? { ...candidate, status: 'revised' as const }
@@ -297,7 +307,6 @@ export class CorporateActionService {
 
   async refreshWatchlist(quoteIds: readonly string[]): Promise<void> {
     for (const quoteId of quoteIds) {
-      if (marketFromQuoteId(quoteId) === 'CN') continue
       try {
         await this.get(quoteId)
       } catch {
@@ -326,7 +335,13 @@ export class CorporateActionService {
   private async enrichCandidate(
     candidate: CorporateActionCandidate
   ): Promise<CorporateActionCandidate> {
-    if (candidate.providerId === 'manual' || candidate.evidence.length === 0) return candidate
+    if (
+      candidate.providerId === 'manual' ||
+      candidate.providerId === 'cninfo-corporate-actions' ||
+      candidate.evidence.length === 0
+    ) {
+      return candidate
+    }
     const path = this.documentPath(candidate)
     let text = ''
     if (existsSync(path)) {

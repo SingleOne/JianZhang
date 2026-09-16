@@ -121,6 +121,36 @@ describe('portfolio ledger corporate actions', () => {
     expect(metrics.nativeCostBasis).toBe(2000)
   })
 
+  it('applies a stock dividend only to shares held on the record date', () => {
+    const current = withLedgerTradeRecords(
+      {
+        ...account(),
+        ledger: { schemaVersion: 1, entries: [] },
+        tradeRecords: []
+      },
+      [
+        trade('opening'),
+        {
+          ...trade('after-record-date', 100, 24),
+          tradedAt: '2026-06-15T09:30:00.000Z',
+          marketDate: '2026-06-15',
+          actualSettlementDate: '2026-06-17'
+        }
+      ]
+    )
+    const action = candidate('stockDividend', {
+      kind: 'shareRatio',
+      oldShares: { value: 10, confidence: 'high' },
+      newShares: { value: 13, confidence: 'high' }
+    })
+    const preview = previewCorporateAction(action, current, {})
+    const adjusted = appendPortfolioLedgerEntries(current, preview.entries)
+
+    expect(preview.quantityBefore).toBe(200)
+    expect(preview.quantityAfter).toBe(230)
+    expect(calculatePortfolioLedgerMetrics(adjusted, 'HKD').quantity).toBe(230)
+  })
+
   it('applies a revised split after the original entry on the same effective date', () => {
     const action = candidate('split', {
       kind: 'shareRatio',

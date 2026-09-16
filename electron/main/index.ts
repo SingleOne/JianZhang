@@ -819,7 +819,18 @@ if (!hasSingleInstanceLock) {
     void quoteRuntime.refreshAutomatically('startup')
     void quoteRuntime.primeSectorBindings(true)
     setTimeout(() => {
-      void corporateActionService?.refreshWatchlist(state.watchlist.map((stock) => stock.quoteId))
+      void corporateActionService?.refreshWatchlist(
+        state.watchlist
+          .filter((stock) => {
+            const market = marketFromQuoteId(stock.quoteId)
+            return (
+              market !== 'CN' ||
+              (stock.instrumentType !== 'etf' &&
+                Boolean(stock.position && stock.position.quantity > 0))
+            )
+          })
+          .map((stock) => stock.quoteId)
+      )
     }, 15_000)
   })
 }

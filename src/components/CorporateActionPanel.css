@@ -89,6 +89,10 @@
   color: #a96800;
 }
 
+.corporate-action-card > .corporate-action-warning {
+  margin: 10px 0 0;
+}
+
 .corporate-action-error {
   background: color-mix(in srgb, #d84b4b 10%, transparent);
   color: #c13b3b;

@@ -5,6 +5,11 @@ import type {
   StockCurrency
 } from '../shared/types'
 
+export interface CnCorporateActionEffect {
+  type: Extract<CorporateActionType, 'cashDividend' | 'stockDividend'>
+  terms: Extract<CorporateActionTerms, { kind: 'cashDividend' | 'shareRatio' }>
+}
+
 const NUMBER_WORDS: Record<string, number> = {
   one: 1,
   two: 2,
@@ -26,6 +31,13 @@ function numeric(value: string): number | undefined {
 }
 
 export function classifyCorporateAction(text: string): CorporateActionType | null {
+  if (/配股.*(?:发行|实施|结果|上市)|每\s*[\d,.]+\s*股(?:可)?配\s*[\d,.]+\s*股/.test(text)) {
+    return 'rightsIssue'
+  }
+  if (/送红股|送股|转增股本|资本公积金转增/.test(text)) return 'stockDividend'
+  if (/权益分派|利润分配|分红派息|现金红利|现金股利|每\s*[\d,.]+\s*股派/.test(text)) {
+    return 'cashDividend'
+  }
   if (/return of capital|capital distribution/i.test(text)) return 'returnOfCapital'
   if (/reverse stock split|share consolidation|consolidation of shares/i.test(text)) {
     return 'reverseSplit'
@@ -77,6 +89,12 @@ function ratioFromText(
   value: string,
   type: CorporateActionType
 ): { oldShares?: number; newShares?: number } {
+  const chineseRights = value.match(
+    /(?:每|按每)\s*([\d,.]+)\s*股(?:可)?(?:获配|配售|配)\s*([\d,.]+)\s*股/
+  )
+  if (chineseRights) {
+    return { oldShares: numeric(chineseRights[1]), newShares: numeric(chineseRights[2]) }
+  }
   const forRatio = value.match(/([\d,.]+)\s*[- ]for[- ]\s*([\d,.]+)/i)
   if (forRatio) return { newShares: numeric(forRatio[1]), oldShares: numeric(forRatio[2]) }
   const explicit = value.match(
@@ -95,6 +113,10 @@ function ratioFromText(
 }
 
 function subscriptionPriceFromText(value: string): number | undefined {
+  const chinese = value.match(
+    /配股(?:发行)?价格\s*(?:为|：|:)?\s*(?:人民币)?\s*([\d,.]+)\s*元\s*(?:\/\s*股|每股)?/
+  )
+  if (chinese) return numeric(chinese[1])
   const matched = value.match(
     /subscription price[^\d]*(?:HKD|USD|CNY|RMB|HK\$|US\$|\$)?\s*([\d,.]+)/i
   )
@@ -131,12 +153,16 @@ export function extractCorporateActionTerms(
   }
   if (type === 'rightsIssue') {
     const ratio = ratioFromText(text, type)
+    const isChineseRightsIssue = /配股|获配|配售/.test(text)
     return {
       kind: 'rightsIssue',
       heldShares: extracted(ratio.oldShares, text),
       entitlementShares: extracted(ratio.newShares, text),
       subscriptionPrice: extracted(subscriptionPriceFromText(text), text),
-      currency: extracted(currencyFromText(text), text)
+      currency: extracted(
+        currencyFromText(text) ?? (isChineseRightsIssue ? 'CNY' : undefined),
+        text
+      )
     }
   }
   if (type === 'symbolChange') {
@@ -156,6 +182,66 @@ export function extractCorporateActionTerms(
     }
   }
   return { kind: 'unsupported' }
+}
+
+function chineseDistributionMatch(
+  text: string,
+  pattern: RegExp
+): { baseShares: number; amount: number; evidenceText: string } | null {
+  const matched = text.match(pattern)
+  if (!matched) return null
+  const baseShares = numeric(matched[1])
+  const amount = numeric(matched[2])
+  return baseShares && amount !== undefined
+    ? { baseShares, amount, evidenceText: matched[0] }
+    : null
+}
+
+export function extractCnCorporateActionEffects(text: string): CnCorporateActionEffect[] {
+  const normalized = text.replace(/，/g, ',').replace(/：/g, ':').replace(/\s+/g, ' ').trim()
+  const cash = chineseDistributionMatch(
+    normalized,
+    /每\s*([\d,.]+)\s*股[^。；;]{0,100}?(?:派发?|分配)\s*(?:人民币)?\s*(?:现金红利|现金股利|现金)?\s*(?:人民币)?\s*([\d,.]+)\s*元/
+  )
+  const bonus = chineseDistributionMatch(
+    normalized,
+    /每\s*([\d,.]+)\s*股[^。；;]{0,100}?送(?:红股)?\s*([\d,.]+)\s*股/
+  )
+  const capitalized = chineseDistributionMatch(
+    normalized,
+    /每\s*([\d,.]+)\s*股[^。；;]{0,100}?(?:以[^。；;]{0,40}?资本公积金)?转增\s*([\d,.]+)\s*股/
+  )
+  const effects: CnCorporateActionEffect[] = []
+  if (cash && cash.amount > 0) {
+    effects.push({
+      type: 'cashDividend',
+      terms: {
+        kind: 'cashDividend',
+        amountPerShare: extracted(cash.amount / cash.baseShares, cash.evidenceText),
+        currency: extracted('CNY', cash.evidenceText)
+      }
+    })
+  }
+  if ((bonus?.amount ?? 0) > 0 || (capitalized?.amount ?? 0) > 0) {
+    const commonBase =
+      bonus && capitalized && bonus.baseShares !== capitalized.baseShares
+        ? 1
+        : (bonus?.baseShares ?? capitalized?.baseShares ?? 1)
+    const addedPerShare =
+      (bonus ? bonus.amount / bonus.baseShares : 0) +
+      (capitalized ? capitalized.amount / capitalized.baseShares : 0)
+    const newShares = Number((commonBase * (1 + addedPerShare)).toFixed(12))
+    const evidenceText = [bonus?.evidenceText, capitalized?.evidenceText].filter(Boolean).join('；')
+    effects.push({
+      type: 'stockDividend',
+      terms: {
+        kind: 'shareRatio',
+        oldShares: extracted(commonBase, evidenceText),
+        newShares: extracted(newShares, evidenceText)
+      }
+    })
+  }
+  return effects
 }
 
 function namedDate(text: string, labels: RegExp): string | undefined {
@@ -201,6 +287,24 @@ function namedDate(text: string, labels: RegExp): string | undefined {
   return iso ? `${iso[1]}-${iso[2]}-${iso[3]}` : undefined
 }
 
+function chineseNamedDate(text: string, labels: RegExp): string | undefined {
+  const chinese = text.match(
+    new RegExp(
+      `(?:${labels.source})[^\\d]{0,30}(20\\d{2})\\s*年\\s*(\\d{1,2})\\s*月\\s*(\\d{1,2})\\s*日`,
+      'i'
+    )
+  )
+  if (chinese) {
+    return `${chinese[1]}-${String(Number(chinese[2])).padStart(2, '0')}-${String(Number(chinese[3])).padStart(2, '0')}`
+  }
+  const separated = text.match(
+    new RegExp(`(?:${labels.source})[^\\d]{0,30}(20\\d{2})[./-](\\d{1,2})[./-](\\d{1,2})`, 'i')
+  )
+  return separated
+    ? `${separated[1]}-${String(Number(separated[2])).padStart(2, '0')}-${String(Number(separated[3])).padStart(2, '0')}`
+    : undefined
+}
+
 export function extractCorporateActionDates(
   text: string
 ): Pick<
@@ -208,14 +312,26 @@ export function extractCorporateActionDates(
   'exDate' | 'recordDate' | 'payableDate' | 'effectiveDate' | 'electionDeadline'
 > {
   return {
-    exDate: namedDate(text, /ex[- ](?:dividend|entitlement) date/),
-    recordDate: namedDate(
-      text,
-      /record date|(?:shareholders?|stockholders?|holders?) of record(?:\s+as of(?:\s+the close of business)?(?:\s+on)?)?/
-    ),
-    payableDate: namedDate(text, /pay(?:able|ment) date|dividend is payable(?:\s+on)?/),
-    effectiveDate: namedDate(text, /effective date/),
-    electionDeadline: namedDate(text, /(?:election|acceptance) deadline|latest time for acceptance/)
+    exDate:
+      namedDate(text, /ex[- ](?:dividend|entitlement) date/) ??
+      chineseNamedDate(text, /除权除息日|除权日|除息日/),
+    recordDate:
+      namedDate(
+        text,
+        /record date|(?:shareholders?|stockholders?|holders?) of record(?:\s+as of(?:\s+the close of business)?(?:\s+on)?)?/
+      ) ?? chineseNamedDate(text, /股权登记日/),
+    payableDate:
+      namedDate(text, /pay(?:able|ment) date|dividend is payable(?:\s+on)?/) ??
+      chineseNamedDate(text, /现金红利发放日|现金股利发放日|红利发放日|派息日/),
+    effectiveDate:
+      namedDate(text, /effective date/) ??
+      chineseNamedDate(
+        text,
+        /新增(?:无限售条件流通)?股份上市日|送转股上市日|股份上市日|新增股份到账日/
+      ),
+    electionDeadline:
+      namedDate(text, /(?:election|acceptance) deadline|latest time for acceptance/) ??
+      chineseNamedDate(text, /配股缴款截止日|认购缴款截止日|缴款截止日/)
   }
 }
 

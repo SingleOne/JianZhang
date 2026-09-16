@@ -37,6 +37,7 @@ type CorporateActionLoadResult = {
 
 const MARKET_FILTER_OPTIONS = [
   { value: 'all', label: '全部市场' },
+  { value: 'CN', label: 'A股' },
   { value: 'HK', label: '港股' },
   { value: 'US', label: '美股' }
 ] satisfies readonly AppSelectOption<MarketFilter>[]
@@ -107,8 +108,14 @@ export default function CorporateActionCenterDialog({
     let active = true
     setLoading(true)
     setError('')
-    const globalStocks = watchlist.filter((stock) => marketFromQuoteId(stock.quoteId) !== 'CN')
-    void listAtLowConcurrency(globalStocks)
+    const supportedStocks = watchlist.filter((stock) => {
+      const market = marketFromQuoteId(stock.quoteId)
+      return (
+        market !== 'CN' ||
+        (stock.instrumentType !== 'etf' && Boolean(stock.position && stock.position.quantity > 0))
+      )
+    })
+    void listAtLowConcurrency(supportedStocks)
       .then((results) => {
         if (!active) return
         const successful = results.flatMap(({ result }) =>
@@ -213,7 +220,7 @@ export default function CorporateActionCenterDialog({
             <CircleDollarSign size={20} />
             <span>
               <strong id="corporate-action-center-title">公司行动待确认中心</strong>
-              <small>逐条查看官方证据并确认，不提供批量自动入账</small>
+              <small>A股自动检查持仓股票；逐条查看官方证据并确认，不提供批量自动入账</small>
             </span>
           </div>
           <button className="icon-button" type="button" aria-label="关闭" onClick={onClose}>
@@ -275,7 +282,7 @@ export default function CorporateActionCenterDialog({
             <div className="corporate-action-center-empty">当前筛选条件下没有待确认事件。</div>
           ) : null}
           {loading ? (
-            <div className="corporate-action-center-empty">正在汇总港美股官方候选…</div>
+            <div className="corporate-action-center-empty">正在汇总A股及港美股官方候选…</div>
           ) : null}
         </div>
       </section>

@@ -101,6 +101,37 @@ function localDateTimeInput(date = new Date()): string {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
 }
 
+function candidateOccurrenceDate(candidate: CorporateActionCandidate): string {
+  if (
+    candidate.type === 'stockDividend' ||
+    candidate.type === 'split' ||
+    candidate.type === 'reverseSplit' ||
+    candidate.type === 'symbolChange' ||
+    candidate.type === 'mergerExchange'
+  ) {
+    return (
+      candidate.effectiveDate ??
+      candidate.exDate ??
+      candidate.recordDate ??
+      candidate.announcementDate
+    )
+  }
+  if (candidate.type === 'rightsIssue') {
+    return (
+      candidate.effectiveDate ??
+      candidate.electionDeadline ??
+      candidate.recordDate ??
+      candidate.announcementDate
+    )
+  }
+  return (
+    candidate.payableDate ??
+    candidate.effectiveDate ??
+    candidate.exDate ??
+    candidate.announcementDate
+  )
+}
+
 function extractedNumber(
   candidate: CorporateActionCandidate,
   key: 'amount' | 'old' | 'new'
@@ -127,6 +158,32 @@ function candidateCurrency(
   return fallback
 }
 
+function candidateTermsSummary(candidate: CorporateActionCandidate): string {
+  if (candidate.terms.kind === 'cashDividend' && candidate.terms.amountPerShare.value) {
+    return `每股派发 ${formatMoney(
+      candidate.terms.amountPerShare.value,
+      candidate.terms.currency.value ?? 'CNY'
+    )}`
+  }
+  if (
+    candidate.terms.kind === 'shareRatio' &&
+    candidate.terms.oldShares.value &&
+    candidate.terms.newShares.value
+  ) {
+    return `每 ${formatShares(candidate.terms.oldShares.value)}调整为 ${formatShares(candidate.terms.newShares.value)}`
+  }
+  if (
+    candidate.terms.kind === 'rightsIssue' &&
+    candidate.terms.heldShares.value &&
+    candidate.terms.entitlementShares.value
+  ) {
+    const price = candidate.terms.subscriptionPrice.value
+    const currency = candidate.terms.currency.value ?? 'CNY'
+    return `每 ${formatShares(candidate.terms.heldShares.value)}可配 ${formatShares(candidate.terms.entitlementShares.value)}${price ? ` · 认购价 ${formatMoney(price, currency)}` : ''}`
+  }
+  return ''
+}
+
 function createDraft(
   candidate: CorporateActionCandidate,
   stock: WatchStock,
@@ -150,11 +207,7 @@ function createDraft(
     currency,
     exchangeRate: rate?.toString() ?? '',
     exchangeRateEstimated: Boolean(rate),
-    occurredAt: localDateTimeInput(
-      new Date(
-        `${candidate.payableDate ?? candidate.effectiveDate ?? candidate.exDate ?? candidate.announcementDate}T12:00:00`
-      )
-    ),
+    occurredAt: localDateTimeInput(new Date(`${candidateOccurrenceDate(candidate)}T12:00:00`)),
     targetQuoteId: '',
     note: candidate.title
   }
@@ -638,11 +691,21 @@ export default function CorporateActionPanel({
             </div>
             <div className="corporate-action-dates">
               <span>公告 {candidate.announcementDate}</span>
-              {candidate.exDate ? <span>除权 {candidate.exDate}</span> : null}
+              {candidate.exDate ? (
+                <span>
+                  {candidate.market === 'CN' ? '除权除息' : '除权'} {candidate.exDate}
+                </span>
+              ) : null}
               {candidate.recordDate ? <span>登记 {candidate.recordDate}</span> : null}
               {candidate.payableDate ? <span>派付 {candidate.payableDate}</span> : null}
               {candidate.effectiveDate ? <span>生效 {candidate.effectiveDate}</span> : null}
+              {candidateTermsSummary(candidate) ? (
+                <span>{candidateTermsSummary(candidate)}</span>
+              ) : null}
             </div>
+            {candidate.warning ? (
+              <p className="corporate-action-warning">{candidate.warning}</p>
+            ) : null}
             <div className="corporate-action-card-actions">
               {candidate.evidence[0]?.url ? (
                 <button
@@ -769,6 +832,18 @@ export default function CorporateActionPanel({
                   ] as CorporateActionType[]
                 ).includes(selected.type) ? (
                   <>
+                    {selected.type === 'stockDividend' ? (
+                      <label>
+                        权益股数
+                        <input
+                          type="number"
+                          step="100"
+                          value={draft.eligibleQuantity}
+                          placeholder="按登记日账本计算"
+                          onChange={(event) => updateDraft('eligibleQuantity', event.target.value)}
+                        />
+                      </label>
+                    ) : null}
                     <label>
                       旧股比例
                       <input
@@ -830,6 +905,9 @@ export default function CorporateActionPanel({
                     value={draft.withholdingTax}
                     onChange={(event) => updateDraft('withholdingTax', event.target.value)}
                   />
+                  {selected.market === 'CN' && selected.type === 'cashDividend' ? (
+                    <small>仅填写券商实际扣税；后续卖出补扣可在交易管理的缴税入口记录。</small>
+                  ) : null}
                 </label>
                 <label>
                   费用
