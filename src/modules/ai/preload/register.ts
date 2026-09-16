@@ -34,6 +34,7 @@ export function installAiPreload(): void {
     sendChat: (input) => invoke(AI_IPC.chatSend, input),
     cancelChat: (conversationId) => invoke(AI_IPC.chatCancel, conversationId),
     retryChat: (conversationId, messageId) => invoke(AI_IPC.chatRetry, conversationId, messageId),
+    openSource: (url) => invoke(AI_IPC.sourceOpen, url),
     getLatestInterpretation: (quoteId) => invoke(AI_IPC.analysisLatestGet, quoteId),
     interpret: (quoteId) => invoke(AI_IPC.analysisInterpret, quoteId),
     getLatestLongTermInterpretation: (quoteId) => invoke(AI_IPC.analysisLongTermLatestGet, quoteId),

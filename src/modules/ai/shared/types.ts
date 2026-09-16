@@ -1,4 +1,4 @@
-import type { MarketInsightSnapshot } from '../../market-insight/shared/types'
+import type { MarketInsightSnapshot, MarketNewsItem } from '../../market-insight/shared/types'
 import type {
   AppState,
   ChipDistributionCacheEntry,
@@ -132,7 +132,19 @@ export interface AiMessage {
   contextRef?: AiContextRef
   contextRefs?: AiContextRef[]
   sourceIds?: string[]
+  officialSearch?: boolean
+  citations?: AiSourceCitation[]
   errorMessage?: string
+}
+
+export interface AiSourceCitation {
+  id: string
+  stockRef: string
+  title: string
+  source: string
+  publishedAt: string
+  url: string
+  category: 'announcement' | 'company_report' | 'corporate_action' | 'regulation' | 'official_news'
 }
 
 export interface AiCreateConversationInput {
@@ -146,6 +158,7 @@ export interface AiChatSendInput {
   content: string
   includeStockContext?: boolean
   mentionedStocks?: AiStockMention[]
+  officialSearch?: boolean
 }
 
 export interface AiChatStartResult {
@@ -297,6 +310,7 @@ export interface AiApi {
   sendChat: (input: AiChatSendInput) => Promise<AiChatStartResult>
   cancelChat: (conversationId: string) => Promise<void>
   retryChat: (conversationId: string, messageId: string) => Promise<AiChatStartResult>
+  openSource: (url: string) => Promise<void>
   getLatestInterpretation: (quoteId: string) => Promise<AiInterpretationResult | null>
   interpret: (quoteId: string) => Promise<AiInterpretationResult>
   getLatestLongTermInterpretation: (
@@ -370,6 +384,12 @@ export interface AiModuleDependencies {
   getState: () => AppState
   getMarketInsightSnapshot: (quoteId: string) => Promise<MarketInsightSnapshot | null> | null
   refreshMarketInsightSnapshot: (quoteId: string) => Promise<MarketInsightSnapshot | null> | null
+  searchOfficialStockNews: (input: {
+    quoteId: string
+    code: string
+    fetchedAt: string
+    newsLookbackDays: number
+  }) => Promise<MarketNewsItem[]>
   getChipDistributionCache: (quoteId: string) => ChipDistributionCacheEntry | null
   getLatestQuote: (quoteId: string) => StockQuote | null
   getDailyKline: (quoteId: string, limit: number) => Promise<KlineResult>

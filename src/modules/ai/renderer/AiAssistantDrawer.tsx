@@ -4,6 +4,8 @@ import {
   Bot,
   Check,
   Download,
+  ExternalLink,
+  Globe2,
   KeyRound,
   LoaderCircle,
   MessageSquare,
@@ -186,9 +188,17 @@ interface ChatThreadProps {
   onCancel: () => void
   onRetry: (messageId: string) => void
   onExport: () => void
+  onOpenSource: (url: string) => void
 }
 
-function ChatThread({ conversation, messages, onCancel, onRetry, onExport }: ChatThreadProps) {
+function ChatThread({
+  conversation,
+  messages,
+  onCancel,
+  onRetry,
+  onExport,
+  onOpenSource
+}: ChatThreadProps) {
   const isGenerating = messages.some(
     (message) =>
       message.role === 'assistant' &&
@@ -237,13 +247,40 @@ function ChatThread({ conversation, messages, onCancel, onRetry, onExport }: Cha
                           : ''}
                       </small>
                     ))}
+                    {message.officialSearch ? <small>官方信息检索</small> : null}
                   </div>
                   <p>
                     {message.content ||
                       (message.status === 'pending' || message.status === 'streaming'
-                        ? '正在生成…'
+                        ? message.officialSearch
+                          ? '正在检索股票官方信息…'
+                          : '正在生成…'
                         : '')}
                   </p>
+                  {message.role === 'assistant' && message.citations?.length ? (
+                    <section className="ai-message-sources" aria-label="检索来源">
+                      <strong>检索来源</strong>
+                      <div>
+                        {message.citations.map((citation) => (
+                          <button
+                            type="button"
+                            key={`${citation.id}:${citation.url}`}
+                            onClick={() => onOpenSource(citation.url)}
+                          >
+                            <span>[{citation.id}]</span>
+                            <span>
+                              <b>{citation.title}</b>
+                              <small>
+                                {citation.source} ·{' '}
+                                {new Date(citation.publishedAt).toLocaleDateString('zh-CN')}
+                              </small>
+                            </span>
+                            <ExternalLink size={13} />
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  ) : null}
                   {message.status === 'error' ? (
                     <div className="ai-message-error">
                       <AlertCircle size={13} />
@@ -592,6 +629,7 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
   const [mentionTrigger, setMentionTrigger] = useState<MentionTrigger | null>(null)
   const [activeMentionIndex, setActiveMentionIndex] = useState(0)
   const [includeStockContext, setIncludeStockContext] = useState(true)
+  const [officialSearch, setOfficialSearch] = useState(false)
   const [sendingMessage, setSendingMessage] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -623,6 +661,11 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
       })
       .slice(0, 8)
   }, [mentionTrigger, mentionedStocks, stocks])
+  const stockSearchAvailable = Boolean(
+    (activeConversation?.scope === 'stock' && includeStockContext) || mentionedStocks.length > 0
+  )
+  const officialSearchEnabled =
+    officialSearch && stockSearchAvailable && settings?.providerId === 'deepseek'
 
   const loadConversations = useCallback(
     async (query = '') => {
@@ -720,6 +763,7 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
     setComposer('')
     setMentionedStocks([])
     setMentionTrigger(null)
+    setOfficialSearch(false)
   }, [activeConversationId])
 
   useEffect(() => {
@@ -833,7 +877,8 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
         conversationId: activeConversation.id,
         content,
         includeStockContext,
-        mentionedStocks: messageMentions
+        mentionedStocks: messageMentions,
+        officialSearch: officialSearchEnabled
       })
       setMessages((current) => [...current, result.userMessage, result.assistantMessage])
       await loadConversations(search)
@@ -1117,6 +1162,13 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
                 onCancel={() => activeConversation && void api.cancelChat(activeConversation.id)}
                 onRetry={(messageId) => void retryMessage(messageId)}
                 onExport={() => void exportConversation()}
+                onOpenSource={(url) =>
+                  void api
+                    .openSource(url)
+                    .catch((reason: unknown) =>
+                      setError(reason instanceof Error ? reason.message : '无法打开官方来源')
+                    )
+                }
               />
               {activeConversation ? (
                 <footer className="ai-composer">
@@ -1167,6 +1219,25 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
                       <AtSign size={14} />
                       股票
                     </button>
+                    {settings?.providerId === 'deepseek' ? (
+                      <button
+                        className={`ai-stock-search-toggle${
+                          officialSearchEnabled ? ' is-active' : ''
+                        }`}
+                        type="button"
+                        disabled={sendingMessage || !stockSearchAvailable}
+                        title={
+                          stockSearchAvailable
+                            ? '让 DeepSeek 检索当前消息股票的官方公开信息'
+                            : '请先添加当前股票上下文或通过 @ 引用股票'
+                        }
+                        aria-pressed={officialSearchEnabled}
+                        onClick={() => setOfficialSearch((current) => !current)}
+                      >
+                        <Globe2 size={14} />
+                        官方信息
+                      </button>
+                    ) : null}
                   </div>
                   <div className="ai-composer-editor">
                     <textarea

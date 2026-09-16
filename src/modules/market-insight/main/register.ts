@@ -11,6 +11,7 @@ import { MARKET_INSIGHT_IPC } from '../shared/constants'
 import type { MarketInsightSettings } from '../shared/types'
 import { normalizeMarketInsightSettings } from '../shared/normalize'
 import { MarketNewsRegistry } from './news/registry'
+import type { NewsQuery } from './news/types'
 import { CninfoAnnouncementProvider } from './news/providers/cninfo'
 import {
   BseNoticeProvider,
@@ -38,6 +39,7 @@ export interface MarketInsightRuntime {
   dispose: () => void
   getSnapshot: (quoteId: string) => ReturnType<MarketInsightService['getSnapshot']>
   refreshSnapshot: (quoteId: string) => ReturnType<MarketInsightService['refresh']>
+  searchOfficialNews: (query: NewsQuery) => ReturnType<MarketNewsRegistry['fetch']>
 }
 
 export function installMarketInsight(
@@ -46,23 +48,20 @@ export function installMarketInsight(
   const storage = new MarketInsightStorage(
     join(app.getPath('userData'), 'modules', 'market-insight')
   )
-  const service = new MarketInsightService(
-    storage,
-    new MarketNewsRegistry([
-      new CninfoAnnouncementProvider(),
-      new CsrcNewsProvider(),
-      new SseNoticeProvider(),
-      new SzseNoticeProvider(),
-      new BseNoticeProvider()
-    ]),
-    {
-      getState: dependencies.getState,
-      getKline: dependencies.getKline,
-      getOrderBook: dependencies.getOrderBook,
-      getFundsFlow: dependencies.getFundsFlow,
-      onUpdated: dependencies.notifyUpdated
-    }
-  )
+  const news = new MarketNewsRegistry([
+    new CninfoAnnouncementProvider(),
+    new CsrcNewsProvider(),
+    new SseNoticeProvider(),
+    new SzseNoticeProvider(),
+    new BseNoticeProvider()
+  ])
+  const service = new MarketInsightService(storage, news, {
+    getState: dependencies.getState,
+    getKline: dependencies.getKline,
+    getOrderBook: dependencies.getOrderBook,
+    getFundsFlow: dependencies.getFundsFlow,
+    onUpdated: dependencies.notifyUpdated
+  })
   const unsubscribe = dependencies.marketDataHub.subscribe((quotes) =>
     service.onMarketDataUpdated(quotes)
   )
@@ -97,6 +96,7 @@ export function installMarketInsight(
   return {
     getSnapshot: (quoteId) => service.getSnapshot(quoteId),
     refreshSnapshot: (quoteId) => service.refresh(quoteId, true),
+    searchOfficialNews: (query) => news.fetch(query),
     dispose: () => {
       unsubscribe()
       service.dispose()

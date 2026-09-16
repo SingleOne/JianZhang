@@ -366,6 +366,10 @@ async function initializeAiModule(marketInsightReady: Promise<boolean>): Promise
         await marketInsightReady
         return marketInsightRuntime?.refreshSnapshot(quoteId) ?? null
       },
+      searchOfficialStockNews: async (input) => {
+        await marketInsightReady
+        return marketInsightRuntime?.searchOfficialNews(input) ?? []
+      },
       getChipDistributionCache: (quoteId) => chipDistributionCache?.get(quoteId) ?? null,
       getLatestQuote: (quoteId) =>
         getLatestQuotes().find((quote) => quote.quoteId === quoteId) ?? null,

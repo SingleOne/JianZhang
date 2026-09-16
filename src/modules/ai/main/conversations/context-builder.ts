@@ -3,7 +3,7 @@ import type { MarketInsightSnapshot } from '../../../market-insight/shared/types
 import type { ChipDistributionCacheEntry } from '../../../../shared/types'
 import type { AiMessage, AiProviderRequestMessage } from '../../shared/types'
 import type { StockDataManifest } from '../stock-data/tool'
-import { GENERAL_CHAT_POLICY } from '../policy'
+import { GENERAL_CHAT_POLICY, OFFICIAL_STOCK_SEARCH_POLICY } from '../policy'
 
 export interface CompactMarketSnapshot {
   snapshotId: string
@@ -153,7 +153,8 @@ export function compactShortTermSnapshot(
 export function toProviderMessages(
   messages: AiMessage[],
   contexts: AiChatStockContext[],
-  stockDataManifest?: StockDataManifest
+  stockDataManifest?: StockDataManifest,
+  officialSearch = false
 ): AiProviderRequestMessage[] {
   const stockDataPolicy = stockDataManifest
     ? `\n\n当前消息关联了股票，但这里只提供数据目录，不包含目录所描述的详细数据。你必须先判断回答真正需要哪些数据，再调用 read_stock_data；使用清单中的 stockRef 和 datasetId，一次调用批量请求所需数据。不得把 availability、description 或数据集名称当成股票事实，也不得猜测未读取的数据。工具返回后应注明关键数据的时间、来源或缺失状态。若问题不需要股票明细，可以不调用工具。\n股票数据目录：\n${JSON.stringify(stockDataManifest)}`
@@ -162,9 +163,10 @@ export function toProviderMessages(
     contexts.length > 0
       ? `${GENERAL_CHAT_POLICY}\n\n本条消息附带以下只读股票上下文。source=mention 表示用户通过 @ 明确引用的股票，source=conversation 表示当前股票会话的默认上下文。每只股票的快照时间可能不同；回答时必须分别注明数据时间，且只能引用对应快照中的事实：\n${JSON.stringify(contexts)}`
       : GENERAL_CHAT_POLICY
-  const policy = stockDataManifest
+  const policyBase = stockDataManifest
     ? `${GENERAL_CHAT_POLICY}${stockDataPolicy}`
     : legacyContextPolicy
+  const policy = officialSearch ? `${policyBase}${OFFICIAL_STOCK_SEARCH_POLICY}` : policyBase
   return [
     { role: 'system', content: policy },
     ...messages

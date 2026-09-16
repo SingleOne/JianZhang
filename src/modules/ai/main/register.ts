@@ -1,4 +1,4 @@
-import { app, ipcMain } from 'electron'
+import { app, ipcMain, shell } from 'electron'
 import { join } from 'node:path'
 import { AI_IPC } from '../shared/constants'
 import type {
@@ -10,6 +10,7 @@ import type {
 } from '../shared/types'
 import { AiService } from './service'
 import { AiStorage } from './storage'
+import { assertOfficialStockSourceUrl } from './official-source'
 
 export interface AiRuntime {
   dispose: () => void
@@ -63,6 +64,10 @@ export function installAi(dependencies: AiModuleDependencies): AiRuntime {
   ipcMain.handle(AI_IPC.chatRetry, (event, conversationId: string, messageId: string) =>
     service.retryChat(event.sender, conversationId, messageId)
   )
+  ipcMain.handle(AI_IPC.sourceOpen, (_event, url: string) => {
+    assertOfficialStockSourceUrl(url)
+    return shell.openExternal(url)
+  })
   ipcMain.handle(AI_IPC.analysisLatestGet, (_event, quoteId: string) =>
     service.getLatestInterpretation(quoteId)
   )

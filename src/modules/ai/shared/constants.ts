@@ -19,6 +19,7 @@ export const AI_IPC = {
   chatSend: 'ai:chat:send',
   chatCancel: 'ai:chat:cancel',
   chatRetry: 'ai:chat:retry',
+  sourceOpen: 'ai:source:open',
   chatDelta: 'ai:chat:delta',
   chatCompleted: 'ai:chat:completed',
   chatError: 'ai:chat:error',

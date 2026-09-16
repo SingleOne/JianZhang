@@ -18,7 +18,9 @@ import {
 } from './provider'
 
 const DEEPSEEK_API_BASE = 'https://api.deepseek.com'
-const MAX_TOOL_CALLS = 3
+const MAX_TOOL_CALLS_PER_ROUND = 4
+const MAX_TOOL_ROUNDS = 3
+const MAX_TOTAL_TOOL_CALLS = 8
 
 interface DeepSeekToolCallAccumulator {
   id: string
@@ -166,47 +168,56 @@ export class DeepSeekProvider implements AiProvider {
       const result = await requestRound(apiKey, request.model, messages, signal, undefined, emit)
       return completed(result.content, result.responseId)
     }
-    if (!executeTool) throw new Error('DeepSeek 股票数据工具执行器未配置')
+    if (!executeTool) throw new Error('DeepSeek 工具执行器未配置')
 
-    // 第一轮只让模型根据数据目录选择数据；内容先缓冲，避免工具调用前的草稿泄漏到界面。
-    const selection = await requestRound(
-      apiKey,
-      request.model,
-      messages,
-      signal,
-      request.tools,
-      undefined
-    )
-    if (selection.toolCalls.length === 0) {
-      if (selection.content) emit(selection.content)
-      return completed(selection.content, selection.responseId)
-    }
-    if (selection.toolCalls.length > MAX_TOOL_CALLS) {
-      throw new Error(`模型一次请求了过多工具调用，最多允许 ${MAX_TOOL_CALLS} 个`)
-    }
-    for (const call of selection.toolCalls) {
-      if (!call.id || !call.name) throw new Error('模型返回的工具调用缺少 id 或 name')
+    let responseId: string | undefined
+    let totalToolCalls = 0
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+      // 工具轮内容先缓冲，避免模型在工具调用前生成的草稿泄漏到界面。
+      const selection = await requestRound(
+        apiKey,
+        request.model,
+        messages,
+        signal,
+        request.tools,
+        undefined
+      )
+      responseId = selection.responseId ?? responseId
+      if (selection.toolCalls.length === 0) {
+        if (selection.content) emit(selection.content)
+        return completed(selection.content, responseId)
+      }
+      if (selection.toolCalls.length > MAX_TOOL_CALLS_PER_ROUND) {
+        throw new Error(`模型一次请求了过多工具调用，最多允许 ${MAX_TOOL_CALLS_PER_ROUND} 个`)
+      }
+      totalToolCalls += selection.toolCalls.length
+      if (totalToolCalls > MAX_TOTAL_TOOL_CALLS) {
+        throw new Error(`模型累计请求了过多工具调用，最多允许 ${MAX_TOTAL_TOOL_CALLS} 个`)
+      }
+      for (const call of selection.toolCalls) {
+        if (!call.id || !call.name) throw new Error('模型返回的工具调用缺少 id 或 name')
+      }
+      messages.push({
+        role: 'assistant',
+        content: selection.content || null,
+        tool_calls: selection.toolCalls.map((call) => ({
+          id: call.id,
+          type: 'function',
+          function: { name: call.name, arguments: call.arguments }
+        }))
+      })
+      messages.push(
+        ...(await Promise.all(
+          selection.toolCalls.map(async (call) => ({
+            role: 'tool' as const,
+            tool_call_id: call.id,
+            content: await executeTool(call, signal)
+          }))
+        ))
+      )
     }
 
-    messages.push({
-      role: 'assistant',
-      content: selection.content || null,
-      tool_calls: selection.toolCalls.map((call) => ({
-        id: call.id,
-        type: 'function',
-        function: { name: call.name, arguments: call.arguments }
-      }))
-    })
-    const toolResults = await Promise.all(
-      selection.toolCalls.map(async (call) => ({
-        role: 'tool' as const,
-        tool_call_id: call.id,
-        content: await executeTool(call, signal)
-      }))
-    )
-    messages.push(...toolResults)
-
-    // 这次只实现一次“清单 -> 选取 -> 明细”的 DeepSeek 链路，第二轮直接生成最终答复。
+    // 达到工具轮次上限后停止继续调用工具，基于已经取得的结果生成最终答复。
     const answer = await requestRound(
       apiKey,
       request.model,
@@ -216,6 +227,6 @@ export class DeepSeekProvider implements AiProvider {
       emit,
       'none'
     )
-    return completed(answer.content, answer.responseId ?? selection.responseId)
+    return completed(answer.content, answer.responseId ?? responseId)
   }
 }

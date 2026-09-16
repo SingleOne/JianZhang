@@ -56,6 +56,11 @@ import {
   StockDataToolSession,
   type StockDataContextInput
 } from './stock-data/tool'
+import {
+  STOCK_INFORMATION_SEARCH_TOOL,
+  STOCK_INFORMATION_SEARCH_TOOL_NAME,
+  StockInformationSearchSession
+} from './stock-search/tool'
 
 const PROVIDERS: AiProviderDescriptor[] = [
   {
@@ -161,6 +166,13 @@ const MAX_MENTIONED_STOCKS = 5
 function messageContextRefs(message: AiMessage): AiContextRef[] {
   if (message.contextRefs?.length) return message.contextRefs
   return message.contextRef ? [message.contextRef] : []
+}
+
+function removeUnknownCitationMarkers(content: string, citations: AiMessage['citations']): string {
+  const allowed = new Set((citations ?? []).map((citation) => citation.id))
+  return content.replace(/\[(S[0-9A-Za-z-]+)\]/g, (marker, citationId: string) =>
+    allowed.has(citationId) ? marker : ''
+  )
 }
 
 function uniqueMentions(mentions: readonly AiStockMention[] = []): AiStockMention[] {
@@ -441,9 +453,19 @@ export class AiService {
       input.includeStockContext !== false,
       uniqueMentions(input.mentionedStocks)
     )
+    if (input.officialSearch && settings.providerId !== 'deepseek') {
+      throw new Error('股票官方信息检索当前仅支持 DeepSeek')
+    }
+    if (input.officialSearch && stockRequests.length === 0) {
+      throw new Error('请先添加当前股票上下文或通过 @ 引用股票')
+    }
     const stockDataSession =
       settings.providerId === 'deepseek' && stockRequests.length > 0
         ? new StockDataToolSession(stockRequests, this.dependencies)
+        : undefined
+    const stockSearchSession =
+      input.officialSearch && stockDataSession
+        ? new StockInformationSearchSession(stockDataSession.manifest, this.dependencies)
         : undefined
     const contexts = stockDataSession ? [] : await this.getConversationContexts(stockRequests)
     const contextRefs: AiContextRef[] = stockDataSession
@@ -467,7 +489,8 @@ export class AiService {
       content,
       status: 'completed',
       createdAt,
-      contextRefs: contextRefs.length > 0 ? contextRefs : undefined
+      contextRefs: contextRefs.length > 0 ? contextRefs : undefined,
+      officialSearch: input.officialSearch || undefined
     }
     const assistantMessage: AiMessage = {
       id: randomUUID(),
@@ -478,7 +501,8 @@ export class AiService {
       createdAt,
       providerId: settings.providerId,
       model: settings.model,
-      contextRefs: userMessage.contextRefs
+      contextRefs: userMessage.contextRefs,
+      officialSearch: input.officialSearch || undefined
     }
     this.storage.appendMessage(userMessage)
     this.storage.saveConversation({
@@ -491,7 +515,7 @@ export class AiService {
       messageCount: conversation.messageCount + 1
     })
 
-    void this.runChat(webContents, assistantMessage, contexts, stockDataSession)
+    void this.runChat(webContents, assistantMessage, contexts, stockDataSession, stockSearchSession)
     return { userMessage, assistantMessage }
   }
 
@@ -530,7 +554,8 @@ export class AiService {
           code: context.code ?? '',
           name: context.quoteName ?? context.quoteId,
           marketLabel: context.marketLabel ?? ''
-        }))
+        })),
+      officialSearch: userMessage.officialSearch
     })
   }
 
@@ -759,7 +784,8 @@ export class AiService {
     webContents: WebContents,
     pendingMessage: AiMessage,
     contexts: AiChatStockContext[],
-    stockDataSession?: StockDataToolSession
+    stockDataSession?: StockDataToolSession,
+    stockSearchSession?: StockInformationSearchSession
   ): Promise<void> {
     const settings = this.storage.getSettings()
     const providerId = pendingMessage.providerId ?? settings.providerId
@@ -776,8 +802,15 @@ export class AiService {
         credential,
         {
           model,
-          messages: toProviderMessages(messages, contexts, stockDataSession?.manifest),
-          tools: stockDataSession ? [STOCK_DATA_TOOL] : undefined
+          messages: toProviderMessages(
+            messages,
+            contexts,
+            stockDataSession?.manifest,
+            Boolean(stockSearchSession)
+          ),
+          tools: stockDataSession
+            ? [STOCK_DATA_TOOL, ...(stockSearchSession ? [STOCK_INFORMATION_SEARCH_TOOL] : [])]
+            : undefined
         },
         (delta) => {
           streamedContent = `${streamedContent}${delta}`
@@ -790,30 +823,46 @@ export class AiService {
         controller.signal,
         stockDataSession
           ? async (call, signal) => {
-              const result = await stockDataSession.execute(call, signal)
+              if (call.name === STOCK_INFORMATION_SEARCH_TOOL_NAME && stockSearchSession) {
+                return stockSearchSession.execute(call, signal)
+              }
+              const toolResult = await stockDataSession.execute(call, signal)
               this.storage.saveSnapshot(
                 stockDataSession.manifest.contextId,
                 stockDataSession.snapshot()
               )
-              return result
+              return toolResult
             }
           : undefined
       )
-      const content = result.content.trim() || '模型未返回可显示的内容。'
+      const citations = stockSearchSession?.citations()
+      const content =
+        (stockSearchSession
+          ? removeUnknownCitationMarkers(result.content, citations)
+          : result.content
+        ).trim() || '模型未返回可显示的内容。'
       this.completeMessage(webContents, {
         ...pendingMessage,
         content,
         status: 'completed',
         providerResponseId: result.responseId,
-        contextRefs: stockDataSession?.contextRefs() ?? pendingMessage.contextRefs
+        contextRefs: stockDataSession?.contextRefs() ?? pendingMessage.contextRefs,
+        sourceIds: citations?.map((citation) => citation.id),
+        citations
       })
     } catch (error) {
       const stopped = isAbortError(error, controller.signal)
+      const citations = stockSearchSession?.citations()
       const message: AiMessage = {
         ...pendingMessage,
-        content: streamedContent || (stopped ? '已停止生成。' : ''),
+        content:
+          (stockSearchSession
+            ? removeUnknownCitationMarkers(streamedContent, citations)
+            : streamedContent) || (stopped ? '已停止生成。' : ''),
         status: stopped ? 'stopped' : 'error',
         contextRefs: stockDataSession?.contextRefs() ?? pendingMessage.contextRefs,
+        sourceIds: citations?.map((citation) => citation.id),
+        citations,
         errorMessage: stopped ? undefined : error instanceof Error ? error.message : 'AI 生成失败'
       }
       this.storage.appendMessage(message)
@@ -847,6 +896,9 @@ export class AiService {
     includeStockContext: boolean,
     mentionedStocks: AiStockMention[]
   ): StockDataContextInput[] {
+    const watchlist = new Map(
+      this.dependencies.getState().watchlist.map((stock) => [stock.quoteId, stock])
+    )
     const requested = new Map<
       string,
       {
@@ -858,13 +910,19 @@ export class AiService {
       }
     >()
     if (includeStockContext && conversation.scope === 'stock' && conversation.quoteId) {
-      requested.set(conversation.quoteId, {
+      const stock = watchlist.get(conversation.quoteId)
+      if (!stock) throw new Error('当前股票不在自选股中，无法授权 AI 读取')
+      requested.set(stock.quoteId, {
         source: 'conversation',
-        quoteId: conversation.quoteId,
-        quoteName: conversation.quoteName
+        quoteId: stock.quoteId,
+        quoteName: stock.name,
+        code: stock.code,
+        marketLabel: stock.marketLabel
       })
     }
-    for (const stock of mentionedStocks) {
+    for (const mention of mentionedStocks) {
+      const stock = watchlist.get(mention.quoteId)
+      if (!stock) throw new Error(`@${mention.name} 不在自选股中，无法授权 AI 读取`)
       requested.set(stock.quoteId, {
         source: 'mention',
         quoteId: stock.quoteId,
