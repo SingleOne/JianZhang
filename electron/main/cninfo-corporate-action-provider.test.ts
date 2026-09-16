@@ -1,10 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
+import { net } from 'electron'
 
 vi.mock('electron', () => ({
   net: { fetch: vi.fn() }
 }))
 
+vi.mock('pdf-parse', () => ({
+  default: vi.fn(async () => ({ text: '公告正文' }))
+}))
+
 import {
+  CninfoCorporateActionClient,
   CninfoCorporateActionProvider,
   isCnCorporateActionImplementationTitle,
   type CninfoCorporateActionClientLike
@@ -16,6 +22,20 @@ describe('CninfoCorporateActionProvider', () => {
     expect(isCnCorporateActionImplementationTitle('2025年年度利润分配预案')).toBe(false)
     expect(isCnCorporateActionImplementationTitle('2026年度配股发行公告')).toBe(true)
     expect(isCnCorporateActionImplementationTitle('配股提示性公告')).toBe(false)
+  })
+
+  it('downloads static PDF documents without the API Origin header', async () => {
+    const url = 'https://static.cninfo.com.cn/finalpage/2026-09-08/1225551687.PDF'
+    vi.mocked(net.fetch).mockResolvedValueOnce(new Response(new Uint8Array([1]), { status: 200 }))
+
+    await new CninfoCorporateActionClient().getDocumentText(url)
+
+    expect(net.fetch).toHaveBeenCalledWith(
+      url,
+      expect.objectContaining({
+        headers: expect.not.objectContaining({ Origin: expect.anything() })
+      })
+    )
   })
 
   it('creates separate cash and share candidates from one implementation announcement', async () => {

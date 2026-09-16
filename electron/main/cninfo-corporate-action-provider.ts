@@ -18,12 +18,18 @@ const ANNOUNCEMENT_URL = 'https://www.cninfo.com.cn/new/hisAnnouncement/query'
 const PDF_BASE_URL = 'https://static.cninfo.com.cn/'
 const PAGE_SIZE = 30
 const SEARCH_KEYWORDS = ['权益分派', '利润分配', '分红派息', '配股'] as const
-const REQUEST_HEADERS = {
+const CNINFO_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+const API_REQUEST_HEADERS = {
   Accept: 'application/json, text/plain, */*',
   Origin: 'https://www.cninfo.com.cn',
   Referer: 'https://www.cninfo.com.cn/',
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+  'User-Agent': CNINFO_USER_AGENT,
   'X-Requested-With': 'XMLHttpRequest'
+}
+const DOCUMENT_REQUEST_HEADERS = {
+  Accept: 'application/pdf, application/octet-stream;q=0.9, */*;q=0.8',
+  Referer: 'https://www.cninfo.com.cn/',
+  'User-Agent': CNINFO_USER_AGENT
 }
 const DISTRIBUTION_IMPLEMENTATION =
   /(?:权益分派|利润分配|分红派息).*(?:实施公告|实施结果公告)|(?:实施|实施结果).*(?:权益分派|利润分配|分红派息)/
@@ -142,7 +148,7 @@ export class CninfoCorporateActionClient implements CninfoCorporateActionClientL
 
   async getDocumentText(url: string): Promise<string> {
     const response = await net.fetch(url, {
-      headers: REQUEST_HEADERS,
+      headers: DOCUMENT_REQUEST_HEADERS,
       signal: AbortSignal.timeout(45_000)
     })
     if (!response.ok) throw new Error(`请求巨潮资讯公告失败：HTTP ${response.status}`)
@@ -195,7 +201,7 @@ export class CninfoCorporateActionClient implements CninfoCorporateActionClientL
     const response = await net.fetch(ANNOUNCEMENT_URL, {
       method: 'POST',
       headers: {
-        ...REQUEST_HEADERS,
+        ...API_REQUEST_HEADERS,
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
       },
       body: body.toString(),
@@ -209,7 +215,7 @@ export class CninfoCorporateActionClient implements CninfoCorporateActionClientL
     if (!this.stockOrganizations) {
       this.stockOrganizations = net
         .fetch(STOCK_LIST_URL, {
-          headers: REQUEST_HEADERS,
+          headers: API_REQUEST_HEADERS,
           signal: AbortSignal.timeout(15_000)
         })
         .then(async (response) => {
