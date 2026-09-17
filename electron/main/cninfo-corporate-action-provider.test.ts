@@ -19,7 +19,15 @@ import {
 describe('CninfoCorporateActionProvider', () => {
   it('keeps implementation announcements and rejects proposal-stage announcements', () => {
     expect(isCnCorporateActionImplementationTitle('2025年年度权益分派实施公告')).toBe(true)
+    expect(isCnCorporateActionImplementationTitle('现金红利发放公告')).toBe(true)
+    expect(isCnCorporateActionImplementationTitle('现金红利派发公告')).toBe(true)
+    expect(isCnCorporateActionImplementationTitle('分红派息公告')).toBe(true)
+    expect(isCnCorporateActionImplementationTitle('实施2026年度利润分配公告')).toBe(true)
     expect(isCnCorporateActionImplementationTitle('2025年年度利润分配预案')).toBe(false)
+    expect(isCnCorporateActionImplementationTitle('2026年度权益分派实施草案')).toBe(false)
+    expect(isCnCorporateActionImplementationTitle('关于利润分配实施方案的议案')).toBe(false)
+    expect(isCnCorporateActionImplementationTitle('关于派息政策调整的公告')).toBe(false)
+    expect(isCnCorporateActionImplementationTitle('关于派息税率的说明公告')).toBe(false)
     expect(isCnCorporateActionImplementationTitle('2026年度配股发行公告')).toBe(true)
     expect(isCnCorporateActionImplementationTitle('配股提示性公告')).toBe(false)
   })

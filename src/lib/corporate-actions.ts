@@ -184,33 +184,123 @@ export function extractCorporateActionTerms(
   return { kind: 'unsupported' }
 }
 
-function chineseDistributionMatch(
+type ChineseShareActionMatch = {
+  baseShares: number
+  amount: number
+  evidenceText: string
+}
+
+function patternMatches(text: string, pattern: RegExp): RegExpMatchArray[] {
+  const flags = pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`
+  return [...text.matchAll(new RegExp(pattern.source, flags))]
+}
+
+function nearestKeywordDistance(text: string, pattern: RegExp, anchor: number): number {
+  return patternMatches(text, pattern).reduce((distance, matched) => {
+    const start = matched.index ?? anchor
+    const center = start + matched[0].length / 2
+    return Math.min(distance, Math.abs(center - anchor))
+  }, Number.POSITIVE_INFINITY)
+}
+
+function cashAmountPriority(clause: string, amountStart: number, amountEnd: number): number {
+  const contextStart = Math.max(0, amountStart - 40)
+  const context = clause.slice(contextStart, Math.min(clause.length, amountEnd + 40))
+  const amountCenter = (amountStart + amountEnd) / 2 - contextStart
+  const grossDistance = nearestKeywordDistance(context, /(?<!不)含税|税前/g, amountCenter)
+  const netDistance = nearestKeywordDistance(
+    context,
+    /不含税|扣税后|税后|实际(?:发放|派发|到账)|代扣/g,
+    amountCenter
+  )
+  if (netDistance <= grossDistance && Number.isFinite(netDistance)) return 2
+  if (Number.isFinite(grossDistance)) return 0
+  return Number.isFinite(netDistance) ? 2 : 1
+}
+
+function chineseShareActionMatch(
   text: string,
-  pattern: RegExp
-): { baseShares: number; amount: number; evidenceText: string } | null {
-  const matched = text.match(pattern)
-  if (!matched) return null
-  const baseShares = numeric(matched[1])
-  const amount = numeric(matched[2])
-  return baseShares && amount !== undefined
-    ? { baseShares, amount, evidenceText: matched[0] }
-    : null
+  keywordPattern: RegExp,
+  amountUnit: '元' | '股'
+): ChineseShareActionMatch | null {
+  const amountPattern = amountUnit === '元' ? /([\d,.]+)\s*元/g : /([\d,.]+)\s*股/g
+  let best:
+    | (ChineseShareActionMatch & {
+        priority: number
+        clauseIndex: number
+        score: number
+      })
+    | null = null
+
+  for (const [clauseIndex, clause] of text.split(/[。；;]/).entries()) {
+    const bases = patternMatches(clause, /每\s*([\d,.]+)?\s*股/g)
+    const keywords = patternMatches(clause, keywordPattern)
+    const amounts = patternMatches(clause, amountPattern)
+
+    for (const base of bases) {
+      const baseStart = base.index ?? -1
+      const baseEnd = baseStart + base[0].length
+      const baseShares = base[1] ? numeric(base[1]) : 1
+      if (!baseShares || baseStart < 0) continue
+
+      for (const amountMatch of amounts) {
+        const amountStart = amountMatch.index ?? -1
+        const amountEnd = amountStart + amountMatch[0].length
+        const amount = numeric(amountMatch[1])
+        if (amount === undefined || amountStart < 0) continue
+        if (amountUnit === '股' && amountStart < baseEnd && amountEnd > baseStart) continue
+
+        for (const keyword of keywords) {
+          const keywordStart = keyword.index ?? -1
+          const keywordEnd = keywordStart + keyword[0].length
+          if (keywordStart < 0) continue
+          const evidenceStart = Math.min(baseStart, amountStart, keywordStart)
+          const evidenceEnd = Math.max(baseEnd, amountEnd, keywordEnd)
+          if (evidenceEnd - evidenceStart > 140) continue
+          const score =
+            evidenceEnd -
+            evidenceStart +
+            Math.abs(baseStart - amountStart) +
+            Math.min(Math.abs(keywordStart - baseStart), Math.abs(keywordStart - amountStart))
+          const priority =
+            amountUnit === '元' ? cashAmountPriority(clause, amountStart, amountEnd) : 1
+          if (
+            best &&
+            (best.priority < priority ||
+              (best.priority === priority && best.clauseIndex < clauseIndex) ||
+              (best.priority === priority &&
+                best.clauseIndex === clauseIndex &&
+                best.score <= score))
+          ) {
+            continue
+          }
+          best = {
+            baseShares,
+            amount,
+            evidenceText: clause.slice(evidenceStart, evidenceEnd),
+            priority,
+            clauseIndex,
+            score
+          }
+        }
+      }
+    }
+  }
+
+  if (!best) return null
+  const { priority: _priority, clauseIndex: _clauseIndex, score: _score, ...result } = best
+  return result
 }
 
 export function extractCnCorporateActionEffects(text: string): CnCorporateActionEffect[] {
   const normalized = text.replace(/，/g, ',').replace(/：/g, ':').replace(/\s+/g, ' ').trim()
-  const cash = chineseDistributionMatch(
+  const cash = chineseShareActionMatch(
     normalized,
-    /每\s*([\d,.]+)\s*股[^。；;]{0,100}?(?:派发?|分配)\s*(?:人民币)?\s*(?:现金红利|现金股利|现金)?\s*(?:人民币)?\s*([\d,.]+)\s*元/
+    /现金红利|现金股利|现金分红|分红派息|派息|派发|派现|分配|派/g,
+    '元'
   )
-  const bonus = chineseDistributionMatch(
-    normalized,
-    /每\s*([\d,.]+)\s*股[^。；;]{0,100}?送(?:红股)?\s*([\d,.]+)\s*股/
-  )
-  const capitalized = chineseDistributionMatch(
-    normalized,
-    /每\s*([\d,.]+)\s*股[^。；;]{0,100}?(?:以[^。；;]{0,40}?资本公积金)?转增\s*([\d,.]+)\s*股/
-  )
+  const bonus = chineseShareActionMatch(normalized, /送红股|送股|送/g, '股')
+  const capitalized = chineseShareActionMatch(normalized, /资本公积金|转增/g, '股')
   const effects: CnCorporateActionEffect[] = []
   if (cash && cash.amount > 0) {
     effects.push({
@@ -305,23 +395,98 @@ function chineseNamedDate(text: string, labels: RegExp): string | undefined {
     : undefined
 }
 
+function chineseDistributionTableDates(
+  text: string
+): Pick<CorporateActionCandidate, 'recordDate' | 'exDate' | 'payableDate'> {
+  const recordLabels = patternMatches(text, /股权登记日/g)
+  const labelPatterns = [
+    { field: 'recordDate' as const, pattern: /股权登记日/ },
+    { field: 'lastTradingDate' as const, pattern: /最后交易日/ },
+    {
+      field: 'exDate' as const,
+      pattern: /除权除息日|除权(?:\s*[（(]?\s*息\s*[）)]?)?\s*日|除息日/
+    },
+    {
+      field: 'payableDate' as const,
+      pattern: /现金红利发放日|现金股利发放日|红利发放日|派息日/
+    }
+  ]
+
+  for (const recordLabel of recordLabels) {
+    const clusterStart = recordLabel.index ?? -1
+    if (clusterStart < 0) continue
+    const cluster = text.slice(clusterStart, clusterStart + 180)
+    const labels = labelPatterns.flatMap(({ field, pattern }) => {
+      const matched = cluster.match(pattern)
+      return matched?.index === undefined
+        ? []
+        : [
+            {
+              field,
+              index: clusterStart + matched.index,
+              end: clusterStart + matched.index + matched[0].length
+            }
+          ]
+    })
+    if (
+      !labels.some(({ field }) => field === 'recordDate') ||
+      !labels.some(({ field }) => field === 'exDate') ||
+      !labels.some(({ field }) => field === 'payableDate')
+    ) {
+      continue
+    }
+    const firstLabelIndex = Math.min(...labels.map(({ index }) => index))
+    const rowStart = Math.max(...labels.map(({ end }) => end))
+    if (rowStart - firstLabelIndex > 140) continue
+    if (/20\d{2}\s*(?:年|[./-])\s*\d{1,2}/.test(text.slice(firstLabelIndex, rowStart))) {
+      continue
+    }
+
+    const tokens = patternMatches(
+      text.slice(rowStart, rowStart + 180),
+      /(20\d{2})\s*(?:年|[./-])\s*(\d{1,2})\s*(?:月|[./-])\s*(\d{1,2})\s*日?|[—－]|(?<!\d)-(?!\d)/g
+    ).map((matched) =>
+      matched[1]
+        ? `${matched[1]}-${String(Number(matched[2])).padStart(2, '0')}-${String(
+            Number(matched[3])
+          ).padStart(2, '0')}`
+        : undefined
+    )
+    const sortedLabels = [...labels].sort((left, right) => left.index - right.index)
+    if (tokens.length < sortedLabels.length) continue
+
+    const result: Pick<CorporateActionCandidate, 'recordDate' | 'exDate' | 'payableDate'> = {}
+    sortedLabels.forEach(({ field }, index) => {
+      if (field !== 'lastTradingDate') result[field] = tokens[index]
+    })
+    return result
+  }
+
+  return {}
+}
+
 export function extractCorporateActionDates(
   text: string
 ): Pick<
   CorporateActionCandidate,
   'exDate' | 'recordDate' | 'payableDate' | 'effectiveDate' | 'electionDeadline'
 > {
+  const tableDates = chineseDistributionTableDates(text)
   return {
     exDate:
       namedDate(text, /ex[- ](?:dividend|entitlement) date/) ??
-      chineseNamedDate(text, /除权除息日|除权日|除息日/),
+      tableDates.exDate ??
+      chineseNamedDate(text, /除权除息日|除权(?:\s*[（(]?\s*息\s*[）)]?)?\s*日|除息日/),
     recordDate:
       namedDate(
         text,
         /record date|(?:shareholders?|stockholders?|holders?) of record(?:\s+as of(?:\s+the close of business)?(?:\s+on)?)?/
-      ) ?? chineseNamedDate(text, /股权登记日/),
+      ) ??
+      tableDates.recordDate ??
+      chineseNamedDate(text, /股权登记日/),
     payableDate:
       namedDate(text, /pay(?:able|ment) date|dividend is payable(?:\s+on)?/) ??
+      tableDates.payableDate ??
       chineseNamedDate(text, /现金红利发放日|现金股利发放日|红利发放日|派息日/),
     effectiveDate:
       namedDate(text, /effective date/) ??

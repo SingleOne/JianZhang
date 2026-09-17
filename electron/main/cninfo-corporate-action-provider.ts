@@ -17,7 +17,15 @@ const STOCK_LIST_URL = 'https://www.cninfo.com.cn/new/data/szse_stock.json'
 const ANNOUNCEMENT_URL = 'https://www.cninfo.com.cn/new/hisAnnouncement/query'
 const PDF_BASE_URL = 'https://static.cninfo.com.cn/'
 const PAGE_SIZE = 30
-const SEARCH_KEYWORDS = ['权益分派', '利润分配', '分红派息', '配股'] as const
+const SEARCH_KEYWORDS = [
+  '权益分派',
+  '利润分配',
+  '分红派息',
+  '现金红利',
+  '现金股利',
+  '派息',
+  '配股'
+] as const
 const CNINFO_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 const API_REQUEST_HEADERS = {
   Accept: 'application/json, text/plain, */*',
@@ -31,10 +39,12 @@ const DOCUMENT_REQUEST_HEADERS = {
   Referer: 'https://www.cninfo.com.cn/',
   'User-Agent': CNINFO_USER_AGENT
 }
-const DISTRIBUTION_IMPLEMENTATION =
-  /(?:权益分派|利润分配|分红派息).*(?:实施公告|实施结果公告)|(?:实施|实施结果).*(?:权益分派|利润分配|分红派息)/
-const RIGHTS_IMPLEMENTATION = /配股.*(?:发行公告|实施公告|结果公告|股份变动|获配股票上市|上市公告)/
-const NON_ACTIONABLE_TITLE = /预案|董事会决议|股东大会决议|提示性公告|问询函|回复公告|取消|终止/
+const DISTRIBUTION_ACTION_KEYWORDS = /权益分派|利润分配|分红派息|现金红利|现金股利|派息/
+const DISTRIBUTION_IMPLEMENTATION_KEYWORDS = /实施|结果|发放|派发|派息/
+const RIGHTS_ACTION_KEYWORDS = /配股/
+const RIGHTS_IMPLEMENTATION_KEYWORDS = /发行|实施|结果|股份变动|获配股票上市|上市/
+const NON_ACTIONABLE_TITLE =
+  /预案|草案|议案|政策|税率|说明|指引|规则|董事会决议|股东大会决议|提示性公告|问询函|回复公告|取消|终止/
 const BODY_FETCH_CONCURRENCY = 3
 
 interface CninfoStock {
@@ -94,7 +104,11 @@ function distributionEventKey(title: string, fallbackDate: string): string {
 export function isCnCorporateActionImplementationTitle(title: string): boolean {
   const normalized = normalizeTitle(title)
   if (NON_ACTIONABLE_TITLE.test(normalized)) return false
-  return DISTRIBUTION_IMPLEMENTATION.test(normalized) || RIGHTS_IMPLEMENTATION.test(normalized)
+  return (
+    (DISTRIBUTION_ACTION_KEYWORDS.test(normalized) &&
+      DISTRIBUTION_IMPLEMENTATION_KEYWORDS.test(normalized)) ||
+    (RIGHTS_ACTION_KEYWORDS.test(normalized) && RIGHTS_IMPLEMENTATION_KEYWORDS.test(normalized))
+  )
 }
 
 async function mapInBatches<T, R>(
@@ -310,7 +324,10 @@ export class CninfoCorporateActionProvider implements CorporateActionProvider {
   ): Promise<AnnouncementScanResult> {
     try {
       const text = await this.client.getDocumentText(announcement.url)
-      if (RIGHTS_IMPLEMENTATION.test(announcement.title)) {
+      if (
+        RIGHTS_ACTION_KEYWORDS.test(announcement.title) &&
+        RIGHTS_IMPLEMENTATION_KEYWORDS.test(announcement.title)
+      ) {
         return {
           candidates: [this.createRightsCandidate(quoteId, announcement, text)]
         }
