@@ -707,12 +707,78 @@ export default function CorporateActionPanel({
                       {CORPORATE_ACTION_TYPE_LABELS[candidate.type]}
                     </span>
                   </div>
-                  <strong>{candidate.title}</strong>
+                  <strong title={candidate.title}>{candidate.title}</strong>
                 </div>
                 <div className="corporate-action-announcement-date">
                   <span>公告日期</span>
                   <time dateTime={candidate.announcementDate}>{candidate.announcementDate}</time>
                 </div>
+                {hasSourceActions || hasDecisionActions ? (
+                  <div className="corporate-action-card-actions">
+                    {hasSourceActions ? (
+                      <div className="corporate-action-card-source-actions">
+                        {evidenceUrl ? (
+                          <button
+                            className="text-button"
+                            type="button"
+                            onClick={() => void stockApi.openCorporateAction(evidenceUrl)}
+                          >
+                            <ExternalLink size={14} />
+                            官方原文
+                          </button>
+                        ) : null}
+                        {canSummarize ? (
+                          <button
+                            className="text-button corporate-action-ai-button"
+                            type="button"
+                            disabled={summarizingId !== null}
+                            onClick={() => void summarizeCandidate(candidate)}
+                            title="使用当前 AI 模型总结公司行动条款、影响和待核事项"
+                          >
+                            <Sparkles size={14} />
+                            {summarizingId === candidate.id
+                              ? '总结中…'
+                              : candidate.aiSummary
+                                ? '重新总结'
+                                : 'AI 总结'}
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    {hasDecisionActions ? (
+                      <div className="corporate-action-card-decision-actions">
+                        {canPreview ? (
+                          <button
+                            className="secondary-button"
+                            type="button"
+                            onClick={() => chooseCandidate(candidate)}
+                          >
+                            预览并确认
+                          </button>
+                        ) : null}
+                        {canIgnore ? (
+                          <button
+                            className="text-button"
+                            type="button"
+                            onClick={() => void ignore(candidate)}
+                          >
+                            忽略
+                          </button>
+                        ) : null}
+                        {canReverse ? (
+                          <button
+                            className="text-button is-danger"
+                            type="button"
+                            onClick={() => void reverse(candidate as CorporateActionRecord)}
+                          >
+                            <RotateCcw size={14} />
+                            写入撤销记录
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
 
               {hasTimelineDetails ? (
@@ -720,7 +786,7 @@ export default function CorporateActionPanel({
                   {termsSummary ? (
                     <div className="corporate-action-terms">
                       <span>关键方案</span>
-                      <strong>{termsSummary}</strong>
+                      <strong title={termsSummary}>{termsSummary}</strong>
                     </div>
                   ) : null}
                   {hasEventDates ? (
@@ -756,72 +822,6 @@ export default function CorporateActionPanel({
 
               {candidate.warning ? (
                 <p className="corporate-action-warning">{candidate.warning}</p>
-              ) : null}
-              {hasSourceActions || hasDecisionActions ? (
-                <div className="corporate-action-card-actions">
-                  {hasSourceActions ? (
-                    <div className="corporate-action-card-source-actions">
-                      {evidenceUrl ? (
-                        <button
-                          className="text-button"
-                          type="button"
-                          onClick={() => void stockApi.openCorporateAction(evidenceUrl)}
-                        >
-                          <ExternalLink size={14} />
-                          官方原文
-                        </button>
-                      ) : null}
-                      {canSummarize ? (
-                        <button
-                          className="text-button corporate-action-ai-button"
-                          type="button"
-                          disabled={summarizingId !== null}
-                          onClick={() => void summarizeCandidate(candidate)}
-                          title="使用当前 AI 模型总结公司行动条款、影响和待核事项"
-                        >
-                          <Sparkles size={14} />
-                          {summarizingId === candidate.id
-                            ? '总结中…'
-                            : candidate.aiSummary
-                              ? '重新总结'
-                              : 'AI 总结'}
-                        </button>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  {hasDecisionActions ? (
-                    <div className="corporate-action-card-decision-actions">
-                      {canPreview ? (
-                        <button
-                          className="secondary-button"
-                          type="button"
-                          onClick={() => chooseCandidate(candidate)}
-                        >
-                          预览并确认
-                        </button>
-                      ) : null}
-                      {canIgnore ? (
-                        <button
-                          className="text-button"
-                          type="button"
-                          onClick={() => void ignore(candidate)}
-                        >
-                          忽略
-                        </button>
-                      ) : null}
-                      {canReverse ? (
-                        <button
-                          className="text-button is-danger"
-                          type="button"
-                          onClick={() => void reverse(candidate as CorporateActionRecord)}
-                        >
-                          <RotateCcw size={14} />
-                          写入撤销记录
-                        </button>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
               ) : null}
               {aiFeedback?.candidateId === candidate.id ? (
                 <p className={`corporate-action-ai-feedback is-${aiFeedback.tone}`}>
