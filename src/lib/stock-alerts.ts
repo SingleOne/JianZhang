@@ -89,7 +89,7 @@ export function applyStockAlertTriggers(
 
   const nextWatchlist = watchlist.map((stock) => {
     const quote = quoteMap.get(stock.quoteId)
-    if (!quote || !stock.alertRules?.length) return stock
+    if (!quote || quote.latest === 0 || !stock.alertRules?.length) return stock
     const capabilities = marketCapabilitiesForQuoteId(stock.quoteId)
 
     let stockChanged = false

@@ -228,4 +228,17 @@ describe('stock alerts', () => {
       triggeredAt: undefined
     })
   })
+
+  it('ignores zero-price quotes without triggering a below-price alert', () => {
+    const stockWithBelowPriceAlert: WatchStock = {
+      ...stock,
+      alertRules: [{ ...stock.alertRules![0], operator: 'lte', target: 10 }]
+    }
+
+    const result = applyStockAlertTriggers([stockWithBelowPriceAlert], [quote(0)], {})
+
+    expect(result.changed).toBe(false)
+    expect(result.triggered).toEqual([])
+    expect(result.watchlist[0]).toBe(stockWithBelowPriceAlert)
+  })
 })
