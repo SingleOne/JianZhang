@@ -98,7 +98,7 @@ describe('portfolio calculations', () => {
       quote({ latest: 4.4, previousClose: 4.35 })
     )
 
-    expect(metrics.marketValue).toBe(440)
+    expect(metrics.marketValue).toBeCloseTo(440, 12)
     expect(metrics.totalProfit).toBeCloseTo(533.78)
     expect(metrics.profitPercent).toBeNull()
   })

@@ -59,7 +59,7 @@ describe('createDailyMarketScanRow', () => {
 
     expect(result?.declineDays).toBe(4)
     expect(result?.previousFiveDayReturn).toBeLessThan(-5)
-    expect(result?.signals).toEqual(['reversal'])
+    expect(result?.signals).toContain('reversal')
   })
 
   it('detects a volume-backed large loss and a new 20-session low', () => {

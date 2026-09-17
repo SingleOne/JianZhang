@@ -11,6 +11,7 @@ import {
   normalizeWatchlistColumnOrder,
   normalizeWatchlistGroups,
   synchronizeWatchlistGroupMemberships,
+  withLedgerTradeRecords,
   type TTrade
 } from './types'
 
@@ -302,8 +303,8 @@ describe('unified trade records', () => {
         }
       ]
     }
-    const accounts = normalizeTTradingAccounts({
-      '1.600000': {
+    const current = withLedgerTradeRecords(
+      {
         quoteId: '1.600000',
         code: '600000',
         name: '浦发银行',
@@ -327,8 +328,12 @@ describe('unified trade records', () => {
           }
         ],
         ledger: { schemaVersion: 1, entries: [] },
-        tradeRecords: [transitionTrade]
-      }
+        tradeRecords: []
+      },
+      [transitionTrade]
+    )
+    const accounts = normalizeTTradingAccounts({
+      '1.600000': current
     })
 
     expect(

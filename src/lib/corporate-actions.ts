@@ -31,7 +31,11 @@ function numeric(value: string): number | undefined {
 }
 
 export function classifyCorporateAction(text: string): CorporateActionType | null {
-  if (/配股.*(?:发行|实施|结果|上市)|每\s*[\d,.]+\s*股(?:可)?配\s*[\d,.]+\s*股/.test(text)) {
+  if (
+    /配股.*(?:发行|实施|结果|上市)|每\s*[\d,.]+\s*股(?:可)?(?:获配|配售|配)\s*[\d,.]+\s*股/.test(
+      text
+    )
+  ) {
     return 'rightsIssue'
   }
   if (/送红股|送股|转增股本|资本公积金转增/.test(text)) return 'stockDividend'

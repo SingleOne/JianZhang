@@ -125,13 +125,15 @@ describe('corporate action extraction', () => {
   })
 
   it('extracts cash dividends when distribution keywords appear in a different order', () => {
-    expect(extractCnCorporateActionEffects('现金红利按每10股人民币1.67元进行派发。')).toMatchObject(
-      [
-        {
-          type: 'cashDividend',
-          terms: { amountPerShare: { value: 0.167 }, currency: { value: 'CNY' } }
-        }
-      ]
+    const [effect] = extractCnCorporateActionEffects('现金红利按每10股人民币1.67元进行派发。')
+
+    expect(effect?.type).toBe('cashDividend')
+    expect(effect?.terms.kind).toBe('cashDividend')
+    expect(
+      effect?.terms.kind === 'cashDividend' ? effect.terms.amountPerShare.value : undefined
+    ).toBeCloseTo(0.167, 12)
+    expect(effect?.terms.kind === 'cashDividend' ? effect.terms.currency.value : undefined).toBe(
+      'CNY'
     )
   })
 

@@ -76,6 +76,7 @@ const CYCLICAL_INDUSTRY_KEYWORDS = [
   '钢铁',
   '有色',
   '化工',
+  '化学原料',
   '石油',
   '航运',
   '造纸',
