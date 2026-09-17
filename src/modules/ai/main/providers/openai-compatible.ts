@@ -4,15 +4,11 @@ import type {
   AiProvider,
   AiProviderId,
   AiProviderRequest,
+  AiProviderToolExecutor,
   AiProviderTurnResult
 } from '../../shared/types'
-import {
-  completed,
-  connectionResultFromError,
-  ensureResponse,
-  fetchModelOptions,
-  readSse
-} from './provider'
+import { connectionResultFromError, fetchModelOptions } from './provider'
+import { streamOpenAiChatCompletions } from './openai-chat-completions'
 
 interface OpenAiCompatibleProviderConfig {
   id: AiProviderId
@@ -30,7 +26,7 @@ export class OpenAiCompatibleProvider implements AiProvider {
   }
 
   getCapabilities() {
-    return { streaming: true, marketInterpretation: true, stockDataTools: false }
+    return { streaming: true, marketInterpretation: true, stockDataTools: true }
   }
 
   async listModels(apiKey?: string): Promise<AiModelOption[]> {
@@ -64,39 +60,18 @@ export class OpenAiCompatibleProvider implements AiProvider {
     apiKey: string | undefined,
     request: AiProviderRequest,
     emit: (delta: string) => void,
-    signal: AbortSignal
+    signal: AbortSignal,
+    executeTool?: AiProviderToolExecutor
   ): Promise<AiProviderTurnResult> {
     if (!apiKey) throw new Error('请先在 AI 助手的服务设置中保存 API Key')
-    const response = await fetch(`${this.config.apiBase}/chat/completions`, {
-      method: 'POST',
+    return streamOpenAiChatCompletions({
+      apiBase: this.config.apiBase,
+      apiKey,
+      label: this.config.label,
+      request,
+      emit,
       signal,
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: request.model,
-        messages: request.messages,
-        stream: true
-      })
+      executeTool
     })
-    await ensureResponse(response)
-    let content = ''
-    let responseId: string | undefined
-    await readSse(response, (payload) => {
-      if (payload === '[DONE]') return
-      const chunk = JSON.parse(payload) as {
-        id?: string
-        error?: { message?: string }
-        choices?: Array<{ delta?: { content?: string | null } }>
-      }
-      if (chunk.error) throw new Error(chunk.error.message ?? `${this.config.label} 响应失败`)
-      responseId = chunk.id ?? responseId
-      const delta = chunk.choices?.[0]?.delta?.content ?? ''
-      if (!delta) return
-      content += delta
-      emit(delta)
-    })
-    return completed(content, responseId)
   }
 }

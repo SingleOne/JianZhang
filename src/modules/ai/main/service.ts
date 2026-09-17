@@ -69,7 +69,7 @@ const PROVIDERS: AiProviderDescriptor[] = [
     billingHint: '使用 OpenAI Platform API 余额，与 ChatGPT 订阅分开计费。',
     defaultModel: AI_DEFAULT_MODELS.openai,
     authMode: 'apiKey',
-    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: false }
+    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: true }
   },
   {
     id: 'deepseek',
@@ -85,7 +85,7 @@ const PROVIDERS: AiProviderDescriptor[] = [
     billingHint: '使用智谱开放平台 API Key 和对应平台额度。',
     defaultModel: AI_DEFAULT_MODELS.zhipu,
     authMode: 'apiKey',
-    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: false }
+    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: true }
   },
   {
     id: 'kimi',
@@ -93,7 +93,7 @@ const PROVIDERS: AiProviderDescriptor[] = [
     billingHint: '使用 Moonshot AI 开放平台 API Key 和对应平台额度。',
     defaultModel: AI_DEFAULT_MODELS.kimi,
     authMode: 'apiKey',
-    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: false }
+    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: true }
   },
   {
     id: 'minimax',
@@ -101,7 +101,7 @@ const PROVIDERS: AiProviderDescriptor[] = [
     billingHint: '使用 MiniMax 开放平台 API Key 和对应平台额度。',
     defaultModel: AI_DEFAULT_MODELS.minimax,
     authMode: 'apiKey',
-    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: false }
+    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: true }
   },
   {
     id: 'hunyuan',
@@ -109,7 +109,7 @@ const PROVIDERS: AiProviderDescriptor[] = [
     billingHint: '使用腾讯云 TokenHub API Key；模型列表仅展示混元文本模型。',
     defaultModel: AI_DEFAULT_MODELS.hunyuan,
     authMode: 'apiKey',
-    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: false }
+    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: true }
   },
   {
     id: 'ernie',
@@ -117,7 +117,7 @@ const PROVIDERS: AiProviderDescriptor[] = [
     billingHint: '使用百度智能云千帆 V2 API Key 和对应平台额度。',
     defaultModel: AI_DEFAULT_MODELS.ernie,
     authMode: 'apiKey',
-    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: false }
+    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: true }
   },
   {
     id: 'qwen',
@@ -125,7 +125,7 @@ const PROVIDERS: AiProviderDescriptor[] = [
     billingHint: '使用阿里云百炼 API Key；模型列表仅展示千问文本生成模型。',
     defaultModel: AI_DEFAULT_MODELS.qwen,
     authMode: 'apiKey',
-    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: false }
+    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: true }
   },
   {
     id: 'mimo',
@@ -133,7 +133,7 @@ const PROVIDERS: AiProviderDescriptor[] = [
     billingHint: '使用小米 MiMo 开放平台按量付费 API Key。',
     defaultModel: AI_DEFAULT_MODELS.mimo,
     authMode: 'apiKey',
-    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: false }
+    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: true }
   },
   {
     id: 'grok',
@@ -141,7 +141,7 @@ const PROVIDERS: AiProviderDescriptor[] = [
     billingHint: '使用 xAI Console API Key 和对应平台额度。',
     defaultModel: AI_DEFAULT_MODELS.grok,
     authMode: 'apiKey',
-    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: false }
+    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: true }
   },
   {
     id: 'gemini',
@@ -149,7 +149,7 @@ const PROVIDERS: AiProviderDescriptor[] = [
     billingHint: '使用 Google AI Studio Gemini API Key 和对应平台额度。',
     defaultModel: AI_DEFAULT_MODELS.gemini,
     authMode: 'apiKey',
-    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: false }
+    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: true }
   },
   {
     id: 'anthropic',
@@ -157,7 +157,7 @@ const PROVIDERS: AiProviderDescriptor[] = [
     billingHint: '使用 Anthropic Console API Key 和对应平台额度。',
     defaultModel: AI_DEFAULT_MODELS.anthropic,
     authMode: 'apiKey',
-    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: false }
+    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: true }
   }
 ]
 
@@ -453,14 +453,11 @@ export class AiService {
       input.includeStockContext !== false,
       uniqueMentions(input.mentionedStocks)
     )
-    if (input.officialSearch && settings.providerId !== 'deepseek') {
-      throw new Error('联网搜索当前仅支持 DeepSeek')
-    }
     if (input.officialSearch && stockRequests.length === 0) {
       throw new Error('请先添加当前股票上下文或通过 @ 引用股票')
     }
     const stockDataSession =
-      settings.providerId === 'deepseek' && stockRequests.length > 0
+      (settings.providerId === 'deepseek' || input.officialSearch) && stockRequests.length > 0
         ? new StockDataToolSession(stockRequests, this.dependencies)
         : undefined
     const stockSearchSession =

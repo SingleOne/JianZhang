@@ -756,8 +756,10 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
   const stockSearchAvailable = Boolean(
     (activeConversation?.scope === 'stock' && includeStockContext) || mentionedStocks.length > 0
   )
-  const officialSearchEnabled =
-    officialSearch && stockSearchAvailable && settings?.providerId === 'deepseek'
+  const officialSearchEnabled = officialSearch && stockSearchAvailable
+  const activeProviderLabel =
+    status?.providers.find((provider) => provider.id === settings?.providerId)?.label ??
+    '当前 Provider'
 
   const loadConversations = useCallback(
     async (query = '') => {
@@ -1311,25 +1313,23 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
                       <AtSign size={14} />
                       股票
                     </button>
-                    {settings?.providerId === 'deepseek' ? (
-                      <button
-                        className={`ai-stock-search-toggle${
-                          officialSearchEnabled ? ' is-active' : ''
-                        }`}
-                        type="button"
-                        disabled={sendingMessage || !stockSearchAvailable}
-                        title={
-                          stockSearchAvailable
-                            ? '让 DeepSeek 联网检索当前消息股票的官方公开信息'
-                            : '请先添加当前股票上下文或通过 @ 引用股票'
-                        }
-                        aria-pressed={officialSearchEnabled}
-                        onClick={() => setOfficialSearch((current) => !current)}
-                      >
-                        <Globe2 size={14} />
-                        联网搜索
-                      </button>
-                    ) : null}
+                    <button
+                      className={`ai-stock-search-toggle${
+                        officialSearchEnabled ? ' is-active' : ''
+                      }`}
+                      type="button"
+                      disabled={sendingMessage || !stockSearchAvailable}
+                      title={
+                        stockSearchAvailable
+                          ? `让 ${activeProviderLabel} 联网检索当前消息股票的官方公开信息`
+                          : '请先添加当前股票上下文或通过 @ 引用股票'
+                      }
+                      aria-pressed={officialSearchEnabled}
+                      onClick={() => setOfficialSearch((current) => !current)}
+                    >
+                      <Globe2 size={14} />
+                      联网搜索
+                    </button>
                   </div>
                   <div className="ai-composer-editor">
                     <textarea
