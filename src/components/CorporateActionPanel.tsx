@@ -676,114 +676,174 @@ export default function CorporateActionPanel({
       ) : null}
 
       <div className="corporate-action-timeline">
-        {timeline.map((candidate) => (
-          <article className="corporate-action-card" key={candidate.id}>
-            <div className="corporate-action-card-heading">
-              <div>
-                <span className={`corporate-action-status is-${candidate.status}`}>
-                  {CORPORATE_ACTION_STATUS_LABELS[candidate.status]}
-                </span>
-                <strong>
-                  {CORPORATE_ACTION_TYPE_LABELS[candidate.type]} · {candidate.title}
-                </strong>
+        {timeline.map((candidate) => {
+          const termsSummary = candidateTermsSummary(candidate)
+          const hasEventDates = Boolean(
+            candidate.recordDate ||
+            candidate.exDate ||
+            candidate.payableDate ||
+            candidate.effectiveDate
+          )
+          const hasTimelineDetails = Boolean(termsSummary || hasEventDates)
+          const evidenceUrl = candidate.evidence[0]?.url
+          const canSummarize = currentCandidateIds.has(candidate.id)
+          const canPreview = candidate.status !== 'applied' && candidate.status !== 'reversed'
+          const canIgnore =
+            candidate.status === 'detected' ||
+            candidate.status === 'needsReview' ||
+            candidate.status === 'revised'
+          const canReverse = candidate.status === 'applied'
+          const hasSourceActions = Boolean(evidenceUrl || canSummarize)
+          const hasDecisionActions = canPreview || canIgnore || canReverse
+          return (
+            <article className="corporate-action-card" key={candidate.id}>
+              <div className="corporate-action-card-heading">
+                <div className="corporate-action-card-title">
+                  <div className="corporate-action-card-labels">
+                    <span className={`corporate-action-status is-${candidate.status}`}>
+                      {CORPORATE_ACTION_STATUS_LABELS[candidate.status]}
+                    </span>
+                    <span className="corporate-action-type">
+                      {CORPORATE_ACTION_TYPE_LABELS[candidate.type]}
+                    </span>
+                  </div>
+                  <strong>{candidate.title}</strong>
+                </div>
+                <div className="corporate-action-announcement-date">
+                  <span>公告日期</span>
+                  <time dateTime={candidate.announcementDate}>{candidate.announcementDate}</time>
+                </div>
               </div>
-              <time>{candidate.announcementDate}</time>
-            </div>
-            <div className="corporate-action-dates">
-              <span>公告 {candidate.announcementDate}</span>
-              {candidate.exDate ? (
-                <span>
-                  {candidate.market === 'CN' ? '除权除息' : '除权'} {candidate.exDate}
-                </span>
+
+              {hasTimelineDetails ? (
+                <div className="corporate-action-card-details">
+                  {termsSummary ? (
+                    <div className="corporate-action-terms">
+                      <span>关键方案</span>
+                      <strong>{termsSummary}</strong>
+                    </div>
+                  ) : null}
+                  {hasEventDates ? (
+                    <div className="corporate-action-dates">
+                      {candidate.recordDate ? (
+                        <div>
+                          <span>股权登记日</span>
+                          <strong>{candidate.recordDate}</strong>
+                        </div>
+                      ) : null}
+                      {candidate.exDate ? (
+                        <div>
+                          <span>{candidate.market === 'CN' ? '除权除息日' : '除权日'}</span>
+                          <strong>{candidate.exDate}</strong>
+                        </div>
+                      ) : null}
+                      {candidate.payableDate ? (
+                        <div>
+                          <span>派付日</span>
+                          <strong>{candidate.payableDate}</strong>
+                        </div>
+                      ) : null}
+                      {candidate.effectiveDate ? (
+                        <div>
+                          <span>生效日</span>
+                          <strong>{candidate.effectiveDate}</strong>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
               ) : null}
-              {candidate.recordDate ? <span>登记 {candidate.recordDate}</span> : null}
-              {candidate.payableDate ? <span>派付 {candidate.payableDate}</span> : null}
-              {candidate.effectiveDate ? <span>生效 {candidate.effectiveDate}</span> : null}
-              {candidateTermsSummary(candidate) ? (
-                <span>{candidateTermsSummary(candidate)}</span>
+
+              {candidate.warning ? (
+                <p className="corporate-action-warning">{candidate.warning}</p>
               ) : null}
-            </div>
-            {candidate.warning ? (
-              <p className="corporate-action-warning">{candidate.warning}</p>
-            ) : null}
-            <div className="corporate-action-card-actions">
-              {candidate.evidence[0]?.url ? (
-                <button
-                  className="text-button"
-                  type="button"
-                  onClick={() => void stockApi.openCorporateAction(candidate.evidence[0].url)}
-                >
-                  <ExternalLink size={14} />
-                  官方原文
-                </button>
+              {hasSourceActions || hasDecisionActions ? (
+                <div className="corporate-action-card-actions">
+                  {hasSourceActions ? (
+                    <div className="corporate-action-card-source-actions">
+                      {evidenceUrl ? (
+                        <button
+                          className="text-button"
+                          type="button"
+                          onClick={() => void stockApi.openCorporateAction(evidenceUrl)}
+                        >
+                          <ExternalLink size={14} />
+                          官方原文
+                        </button>
+                      ) : null}
+                      {canSummarize ? (
+                        <button
+                          className="text-button corporate-action-ai-button"
+                          type="button"
+                          disabled={summarizingId !== null}
+                          onClick={() => void summarizeCandidate(candidate)}
+                          title="使用当前 AI 模型总结公司行动条款、影响和待核事项"
+                        >
+                          <Sparkles size={14} />
+                          {summarizingId === candidate.id
+                            ? '总结中…'
+                            : candidate.aiSummary
+                              ? '重新总结'
+                              : 'AI 总结'}
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {hasDecisionActions ? (
+                    <div className="corporate-action-card-decision-actions">
+                      {canPreview ? (
+                        <button
+                          className="secondary-button"
+                          type="button"
+                          onClick={() => chooseCandidate(candidate)}
+                        >
+                          预览并确认
+                        </button>
+                      ) : null}
+                      {canIgnore ? (
+                        <button
+                          className="text-button"
+                          type="button"
+                          onClick={() => void ignore(candidate)}
+                        >
+                          忽略
+                        </button>
+                      ) : null}
+                      {canReverse ? (
+                        <button
+                          className="text-button is-danger"
+                          type="button"
+                          onClick={() => void reverse(candidate as CorporateActionRecord)}
+                        >
+                          <RotateCcw size={14} />
+                          写入撤销记录
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
               ) : null}
-              {currentCandidateIds.has(candidate.id) ? (
-                <button
-                  className="text-button corporate-action-ai-button"
-                  type="button"
-                  disabled={summarizingId !== null}
-                  onClick={() => void summarizeCandidate(candidate)}
-                  title="使用当前 AI 模型总结公司行动条款、影响和待核事项"
-                >
-                  <Sparkles size={14} />
-                  {summarizingId === candidate.id
-                    ? '总结中…'
-                    : candidate.aiSummary
-                      ? '重新总结'
-                      : 'AI 总结'}
-                </button>
+              {aiFeedback?.candidateId === candidate.id ? (
+                <p className={`corporate-action-ai-feedback is-${aiFeedback.tone}`}>
+                  {aiFeedback.message}
+                </p>
               ) : null}
-              {candidate.status !== 'applied' && candidate.status !== 'reversed' ? (
-                <button
-                  className="secondary-button"
-                  type="button"
-                  onClick={() => chooseCandidate(candidate)}
-                >
-                  预览并确认
-                </button>
+              {candidate.aiSummary ? (
+                <section className="corporate-action-ai-summary" aria-label="AI 公司行动总结">
+                  <strong>AI 总结</strong>
+                  <p>{candidate.aiSummary.content}</p>
+                  <small>
+                    {candidate.aiSummary.providerId} · {candidate.aiSummary.model} ·{' '}
+                    {new Date(candidate.aiSummary.generatedAt).toLocaleString()}
+                  </small>
+                </section>
               ) : null}
-              {candidate.status === 'detected' ||
-              candidate.status === 'needsReview' ||
-              candidate.status === 'revised' ? (
-                <button
-                  className="text-button"
-                  type="button"
-                  onClick={() => void ignore(candidate)}
-                >
-                  忽略
-                </button>
+              {selected?.id === candidate.id ? (
+                <div className="corporate-action-editor-host" id={editorHostId(candidate.id)} />
               ) : null}
-              {candidate.status === 'applied' ? (
-                <button
-                  className="text-button is-danger"
-                  type="button"
-                  onClick={() => void reverse(candidate as CorporateActionRecord)}
-                >
-                  <RotateCcw size={14} />
-                  写入撤销记录
-                </button>
-              ) : null}
-            </div>
-            {aiFeedback?.candidateId === candidate.id ? (
-              <p className={`corporate-action-ai-feedback is-${aiFeedback.tone}`}>
-                {aiFeedback.message}
-              </p>
-            ) : null}
-            {candidate.aiSummary ? (
-              <section className="corporate-action-ai-summary" aria-label="AI 公司行动总结">
-                <strong>AI 总结</strong>
-                <p>{candidate.aiSummary.content}</p>
-                <small>
-                  {candidate.aiSummary.providerId} · {candidate.aiSummary.model} ·{' '}
-                  {new Date(candidate.aiSummary.generatedAt).toLocaleString()}
-                </small>
-              </section>
-            ) : null}
-            {selected?.id === candidate.id ? (
-              <div className="corporate-action-editor-host" id={editorHostId(candidate.id)} />
-            ) : null}
-          </article>
-        ))}
+            </article>
+          )
+        })}
       </div>
 
       {selected && draft
