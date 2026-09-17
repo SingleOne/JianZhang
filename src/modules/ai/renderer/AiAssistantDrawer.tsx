@@ -3,6 +3,7 @@ import {
   AtSign,
   Bot,
   Check,
+  ChevronDown,
   Download,
   ExternalLink,
   Globe2,
@@ -42,6 +43,7 @@ import type {
   AiModelOption,
   AiProviderId,
   AiSettings,
+  AiSourceCitation,
   AiStockMention,
   AiStatus
 } from '../shared/types'
@@ -91,6 +93,7 @@ function formatMessageTime(value: string): string {
 }
 
 const MARKDOWN_PLUGINS = [remarkGfm]
+const COLLAPSED_SOURCE_COUNT = 3
 const MarkdownSourceContext = createContext<(url: string) => void>(() => undefined)
 
 function MarkdownLink({ href, children }: ComponentPropsWithoutRef<'a'>) {
@@ -128,6 +131,56 @@ function MarkdownMessage({
         </ReactMarkdown>
       </div>
     </MarkdownSourceContext.Provider>
+  )
+}
+
+function MessageSources({
+  citations,
+  onOpenSource
+}: {
+  citations: AiSourceCitation[]
+  onOpenSource: (url: string) => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const hiddenCount = Math.max(0, citations.length - COLLAPSED_SOURCE_COUNT)
+  const visibleCitations = expanded ? citations : citations.slice(0, COLLAPSED_SOURCE_COUNT)
+
+  return (
+    <section className="ai-message-sources" aria-label="检索来源">
+      <strong>检索来源</strong>
+      <div className="ai-message-source-list">
+        {visibleCitations.map((citation) => (
+          <button
+            className="ai-message-source"
+            type="button"
+            key={`${citation.id}:${citation.url}`}
+            onClick={() => onOpenSource(citation.url)}
+          >
+            <span title="本条消息的引用编号" aria-label={`本条消息引用编号 ${citation.id}`}>
+              [{citation.id}]
+            </span>
+            <span>
+              <b>{citation.title}</b>
+              <small>
+                {citation.source} · {new Date(citation.publishedAt).toLocaleDateString('zh-CN')}
+              </small>
+            </span>
+            <ExternalLink size={13} />
+          </button>
+        ))}
+      </div>
+      {hiddenCount > 0 ? (
+        <button
+          className="ai-message-sources-toggle"
+          type="button"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((current) => !current)}
+        >
+          {expanded ? '收起来源' : `展开其余 ${hiddenCount} 条`}
+          <ChevronDown size={13} />
+        </button>
+      ) : null}
+    </section>
   )
 }
 
@@ -318,33 +371,7 @@ function ChatThread({
                     <p className="ai-message-body">{message.content}</p>
                   )}
                   {message.role === 'assistant' && message.citations?.length ? (
-                    <section className="ai-message-sources" aria-label="检索来源">
-                      <strong>检索来源</strong>
-                      <div>
-                        {message.citations.map((citation) => (
-                          <button
-                            type="button"
-                            key={`${citation.id}:${citation.url}`}
-                            onClick={() => onOpenSource(citation.url)}
-                          >
-                            <span
-                              title="本条消息的引用编号"
-                              aria-label={`本条消息引用编号 ${citation.id}`}
-                            >
-                              [{citation.id}]
-                            </span>
-                            <span>
-                              <b>{citation.title}</b>
-                              <small>
-                                {citation.source} ·{' '}
-                                {new Date(citation.publishedAt).toLocaleDateString('zh-CN')}
-                              </small>
-                            </span>
-                            <ExternalLink size={13} />
-                          </button>
-                        ))}
-                      </div>
-                    </section>
+                    <MessageSources citations={message.citations} onOpenSource={onOpenSource} />
                   ) : null}
                   {message.status === 'error' ? (
                     <div className="ai-message-error">

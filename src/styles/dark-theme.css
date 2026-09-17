@@ -4945,15 +4945,22 @@ html[data-theme='dark'][data-theme='dark'].tray-mode #root {
 :root[data-theme='dark'] .ai-message-sources small {
   color: #aebed1;
 }
-:root[data-theme='dark'] .ai-message-sources button {
+:root[data-theme='dark'] .ai-message-source {
   color: #b9d2ff;
   background: #253348;
   border-color: #3b4b60;
 }
-:root[data-theme='dark'] .ai-message-sources button:hover {
+:root[data-theme='dark'] .ai-message-source:hover {
   color: #d6e5ff;
   background: #29466d;
   border-color: #5275a4;
+}
+:root[data-theme='dark'] .ai-message-sources-toggle {
+  color: #aebed1;
+}
+:root[data-theme='dark'] .ai-message-sources-toggle:hover {
+  color: #d6e5ff;
+  background: #253348;
 }
 :root[data-theme='dark'] .ai-message.is-user .ai-message-body {
   background: #376fd6;
