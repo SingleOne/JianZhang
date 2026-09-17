@@ -698,20 +698,13 @@ export default function CorporateActionPanel({
           return (
             <article className="corporate-action-card" key={candidate.id}>
               <div className="corporate-action-card-heading">
-                <div className="corporate-action-card-title">
-                  <div className="corporate-action-card-labels">
-                    <span className={`corporate-action-status is-${candidate.status}`}>
-                      {CORPORATE_ACTION_STATUS_LABELS[candidate.status]}
-                    </span>
-                    <span className="corporate-action-type">
-                      {CORPORATE_ACTION_TYPE_LABELS[candidate.type]}
-                    </span>
-                  </div>
-                  <strong title={candidate.title}>{candidate.title}</strong>
-                </div>
-                <div className="corporate-action-announcement-date">
-                  <span>公告日期</span>
-                  <time dateTime={candidate.announcementDate}>{candidate.announcementDate}</time>
+                <div className="corporate-action-card-labels">
+                  <span className={`corporate-action-status is-${candidate.status}`}>
+                    {CORPORATE_ACTION_STATUS_LABELS[candidate.status]}
+                  </span>
+                  <span className="corporate-action-type">
+                    {CORPORATE_ACTION_TYPE_LABELS[candidate.type]}
+                  </span>
                 </div>
                 {hasSourceActions || hasDecisionActions ? (
                   <div className="corporate-action-card-actions">
@@ -729,7 +722,7 @@ export default function CorporateActionPanel({
                         ) : null}
                         {canSummarize ? (
                           <button
-                            className="text-button corporate-action-ai-button"
+                            className="secondary-button corporate-action-ai-button"
                             type="button"
                             disabled={summarizingId !== null}
                             onClick={() => void summarizeCandidate(candidate)}
@@ -779,6 +772,15 @@ export default function CorporateActionPanel({
                     ) : null}
                   </div>
                 ) : null}
+                <div className="corporate-action-card-summary-row">
+                  <strong className="corporate-action-card-title" title={candidate.title}>
+                    {candidate.title}
+                  </strong>
+                  <div className="corporate-action-announcement-date">
+                    <span>公告日期</span>
+                    <time dateTime={candidate.announcementDate}>{candidate.announcementDate}</time>
+                  </div>
+                </div>
               </div>
 
               {hasTimelineDetails ? (
