@@ -454,7 +454,7 @@ export class AiService {
       uniqueMentions(input.mentionedStocks)
     )
     if (input.officialSearch && settings.providerId !== 'deepseek') {
-      throw new Error('股票官方信息检索当前仅支持 DeepSeek')
+      throw new Error('联网搜索当前仅支持 DeepSeek')
     }
     if (input.officialSearch && stockRequests.length === 0) {
       throw new Error('请先添加当前股票上下文或通过 @ 引用股票')

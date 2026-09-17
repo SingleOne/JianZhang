@@ -19,7 +19,19 @@ import {
   Trash2,
   X
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentPropsWithoutRef,
+  type KeyboardEvent
+} from 'react'
+import ReactMarkdown, { type Components } from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { AppSelect, type AppSelectOption } from '../../../components/AppSelect'
 import { useConfirmDialog } from '../../../components/ConfirmDialog'
 import type {
@@ -76,6 +88,47 @@ function formatMessageTime(value: string): string {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+const MARKDOWN_PLUGINS = [remarkGfm]
+const MarkdownSourceContext = createContext<(url: string) => void>(() => undefined)
+
+function MarkdownLink({ href, children }: ComponentPropsWithoutRef<'a'>) {
+  const onOpenSource = useContext(MarkdownSourceContext)
+  return (
+    <button
+      className="ai-message-markdown-link"
+      type="button"
+      title={href}
+      onClick={() => href && onOpenSource(href)}
+    >
+      {children}
+    </button>
+  )
+}
+
+function MarkdownImage({ alt }: ComponentPropsWithoutRef<'img'>) {
+  return <span className="ai-message-markdown-image">[图片：{alt || '未提供说明'}]</span>
+}
+
+const MARKDOWN_COMPONENTS: Components = { a: MarkdownLink, img: MarkdownImage }
+
+function MarkdownMessage({
+  content,
+  onOpenSource
+}: {
+  content: string
+  onOpenSource: (url: string) => void
+}) {
+  return (
+    <MarkdownSourceContext.Provider value={onOpenSource}>
+      <div className="ai-message-body ai-message-markdown">
+        <ReactMarkdown components={MARKDOWN_COMPONENTS} remarkPlugins={MARKDOWN_PLUGINS} skipHtml>
+          {content}
+        </ReactMarkdown>
+      </div>
+    </MarkdownSourceContext.Provider>
+  )
 }
 
 function downloadJson(filename: string, value: unknown): void {
@@ -247,16 +300,23 @@ function ChatThread({
                           : ''}
                       </small>
                     ))}
-                    {message.officialSearch ? <small>官方信息检索</small> : null}
+                    {message.officialSearch ? <small>联网搜索</small> : null}
                   </div>
-                  <p>
-                    {message.content ||
-                      (message.status === 'pending' || message.status === 'streaming'
-                        ? message.officialSearch
-                          ? '正在检索股票官方信息…'
-                          : '正在生成…'
-                        : '')}
-                  </p>
+                  {message.role === 'assistant' ? (
+                    <MarkdownMessage
+                      onOpenSource={onOpenSource}
+                      content={
+                        message.content ||
+                        (message.status === 'pending' || message.status === 'streaming'
+                          ? message.officialSearch
+                            ? '正在联网搜索股票信息…'
+                            : '正在生成…'
+                          : '')
+                      }
+                    />
+                  ) : (
+                    <p className="ai-message-body">{message.content}</p>
+                  )}
                   {message.role === 'assistant' && message.citations?.length ? (
                     <section className="ai-message-sources" aria-label="检索来源">
                       <strong>检索来源</strong>
@@ -267,7 +327,12 @@ function ChatThread({
                             key={`${citation.id}:${citation.url}`}
                             onClick={() => onOpenSource(citation.url)}
                           >
-                            <span>[{citation.id}]</span>
+                            <span
+                              title="本条消息的引用编号"
+                              aria-label={`本条消息引用编号 ${citation.id}`}
+                            >
+                              [{citation.id}]
+                            </span>
                             <span>
                               <b>{citation.title}</b>
                               <small>
@@ -1228,14 +1293,14 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
                         disabled={sendingMessage || !stockSearchAvailable}
                         title={
                           stockSearchAvailable
-                            ? '让 DeepSeek 检索当前消息股票的官方公开信息'
+                            ? '让 DeepSeek 联网检索当前消息股票的官方公开信息'
                             : '请先添加当前股票上下文或通过 @ 引用股票'
                         }
                         aria-pressed={officialSearchEnabled}
                         onClick={() => setOfficialSearch((current) => !current)}
                       >
                         <Globe2 size={14} />
-                        官方信息
+                        联网搜索
                       </button>
                     ) : null}
                   </div>

@@ -392,22 +392,130 @@
   background: #eff5ff;
   border-radius: 4px;
 }
-.ai-message-content > p {
+.ai-message-body {
   margin: 0;
   padding: 10px 12px;
   color: #334155;
   background: #f5f7fa;
   border: 1px solid #e4e9f1;
   border-radius: 4px 10px 10px;
-  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   font-size: 13px;
   line-height: 1.68;
 }
-.ai-message.is-user .ai-message-content > p {
+.ai-message.is-user .ai-message-body {
   color: #ffffff;
   background: #2f6ee8;
   border-color: #2f6ee8;
   border-radius: 10px 4px 10px 10px;
+  white-space: pre-wrap;
+}
+.ai-message-markdown > :first-child {
+  margin-top: 0;
+}
+.ai-message-markdown > :last-child {
+  margin-bottom: 0;
+}
+.ai-message-markdown h1,
+.ai-message-markdown h2,
+.ai-message-markdown h3,
+.ai-message-markdown h4,
+.ai-message-markdown h5,
+.ai-message-markdown h6 {
+  margin: 14px 0 6px;
+  color: #243247;
+  line-height: 1.4;
+}
+.ai-message-markdown h1 {
+  font-size: 18px;
+}
+.ai-message-markdown h2 {
+  font-size: 16px;
+}
+.ai-message-markdown h3 {
+  font-size: 14px;
+}
+.ai-message-markdown h4,
+.ai-message-markdown h5,
+.ai-message-markdown h6 {
+  font-size: 13px;
+}
+.ai-message-markdown p,
+.ai-message-markdown ul,
+.ai-message-markdown ol,
+.ai-message-markdown blockquote,
+.ai-message-markdown pre,
+.ai-message-markdown table {
+  margin: 0 0 9px;
+}
+.ai-message-markdown ul,
+.ai-message-markdown ol {
+  padding-left: 22px;
+}
+.ai-message-markdown li + li {
+  margin-top: 3px;
+}
+.ai-message-markdown blockquote {
+  padding-left: 10px;
+  color: #5f6f84;
+  border-left: 3px solid #bdcbe0;
+}
+.ai-message-markdown code {
+  padding: 1px 4px;
+  color: #30496f;
+  background: #e8edf4;
+  border-radius: 4px;
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 12px;
+}
+.ai-message-markdown pre {
+  padding: 10px;
+  overflow-x: auto;
+  background: #e8edf4;
+  border-radius: 6px;
+}
+.ai-message-markdown pre code {
+  padding: 0;
+  color: inherit;
+  background: transparent;
+}
+.ai-message-markdown table {
+  width: 100%;
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.ai-message-markdown th,
+.ai-message-markdown td {
+  padding: 6px 8px;
+  text-align: left;
+  border: 1px solid #d8e0eb;
+  white-space: nowrap;
+}
+.ai-message-markdown th {
+  color: #34445b;
+  background: #e8edf4;
+}
+.ai-message-markdown-link {
+  display: inline;
+  padding: 0;
+  color: #2862c7;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.ai-message-markdown-image {
+  color: #65758b;
+  font-size: 12px;
+}
+.ai-message-markdown hr {
+  margin: 12px 0;
+  border: 0;
+  border-top: 1px solid #d8e0eb;
 }
 .ai-message.is-user {
   grid-template-columns: minmax(0, 1fr) 28px;
@@ -423,8 +531,8 @@
 .ai-message.is-user .ai-message-meta {
   justify-content: flex-end;
 }
-.ai-message.is-pending .ai-message-content > p,
-.ai-message.is-streaming .ai-message-content > p {
+.ai-message.is-pending .ai-message-body,
+.ai-message.is-streaming .ai-message-body {
   color: #607087;
 }
 .ai-message-sources {
@@ -2185,10 +2293,41 @@
   background: rgba(37, 51, 72, 0.72);
 }
 
-:root[data-theme='dark'] .ai-message-content > p {
+:root[data-theme='dark'] .ai-message-body {
   color: #d6e1ee;
   background: #253348;
   border-color: #3b4b60;
+}
+
+:root[data-theme='dark'] .ai-message-markdown h1,
+:root[data-theme='dark'] .ai-message-markdown h2,
+:root[data-theme='dark'] .ai-message-markdown h3,
+:root[data-theme='dark'] .ai-message-markdown h4,
+:root[data-theme='dark'] .ai-message-markdown h5,
+:root[data-theme='dark'] .ai-message-markdown h6 {
+  color: #edf4fc;
+}
+
+:root[data-theme='dark'] .ai-message-markdown blockquote {
+  color: #b8c5d6;
+  border-left-color: #52647e;
+}
+
+:root[data-theme='dark'] .ai-message-markdown-image {
+  color: #b8c5d6;
+}
+
+:root[data-theme='dark'] .ai-message-markdown code,
+:root[data-theme='dark'] .ai-message-markdown pre,
+:root[data-theme='dark'] .ai-message-markdown th {
+  color: #d9e6f5;
+  background: #1b2638;
+}
+
+:root[data-theme='dark'] .ai-message-markdown th,
+:root[data-theme='dark'] .ai-message-markdown td,
+:root[data-theme='dark'] .ai-message-markdown hr {
+  border-color: #42536b;
 }
 
 :root[data-theme='dark'] .ai-message-sources {

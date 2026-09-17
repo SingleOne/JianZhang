@@ -4932,7 +4932,7 @@ html[data-theme='dark'][data-theme='dark'].tray-mode #root {
   color: #cbd5e3;
   background: rgba(91, 140, 255, 0.14);
 }
-:root[data-theme='dark'] .ai-message-content > p {
+:root[data-theme='dark'] .ai-message-body {
   color: #e6edf7;
   background: #162033;
   border: 1px solid #263449;
@@ -4955,12 +4955,12 @@ html[data-theme='dark'][data-theme='dark'].tray-mode #root {
   background: #29466d;
   border-color: #5275a4;
 }
-:root[data-theme='dark'] .ai-message.is-user .ai-message-content > p {
+:root[data-theme='dark'] .ai-message.is-user .ai-message-body {
   background: #376fd6;
   border-color: rgba(91, 140, 255, 0.48);
 }
-:root[data-theme='dark'] .ai-message.is-pending .ai-message-content > p,
-:root[data-theme='dark'] .ai-message.is-streaming .ai-message-content > p {
+:root[data-theme='dark'] .ai-message.is-pending .ai-message-body,
+:root[data-theme='dark'] .ai-message.is-streaming .ai-message-body {
   color: #cbd5e3;
 }
 :root[data-theme='dark'] .ai-message-error {

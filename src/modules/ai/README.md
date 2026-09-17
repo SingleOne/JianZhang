@@ -12,7 +12,7 @@
 - 两类 AI 分析按股票将最近一次完整结果保存在 `cache/latest-interpretations.json`，切换标签或重启应用后自动恢复，重新生成期间仍保留同类型旧结果。旧版 `quoteId` 结果继续作为短期行情读取，长期结果使用 `quoteId:long-term`。
 - 当前支持 OpenAI、DeepSeek、智谱 GLM、Kimi、MiniMax、腾讯混元、文心一言、阿里千问、小米 MiMo、Grok、Gemini 和 Anthropic。保存 API Key 前会由主进程向对应 Provider 查询账号可用模型，服务设置中的模型 ID 只能从实时返回的列表中选择。
 - 对话中带有当前股票上下文或 `@股票` 时，DeepSeek 首轮只收到带 `stockRef` 的数据目录。模型选择必要的 `datasetId` 后，主进程才通过 `read_stock_data` 读取对应明细；工具不能访问本条消息未授权的股票。DeepSeek 支持连续多轮工具调用。
-- DeepSeek 消息可按需开启“官方信息”。开启后，`search_stock_information` 只检索授权股票的现有官方来源：A 股巨潮资讯、证监会和沪深北交易所，港股 HKEXnews，美股 SEC EDGAR，以及公司行动的官方证据；不接入通用网页、媒体或第三方搜索 API。结果使用消息级唯一的来源编号并随消息保存，可从对话中打开原文。其他 Provider 不提供该开关。
+- DeepSeek 消息可按需开启“联网搜索”。开启后，`search_stock_information` 只检索授权股票的现有官方来源：A 股巨潮资讯、证监会和沪深北交易所，港股 HKEXnews，美股 SEC EDGAR，以及公司行动的官方证据；不接入通用网页、媒体或第三方搜索 API。结果使用消息级唯一的来源编号并随消息保存，可从对话中打开原文。其他 Provider 不提供该开关。
 
 ## 存储与凭证
 
