@@ -36,7 +36,7 @@ export const AI_DEFAULT_MODELS = {
   openai: 'gpt-5.6',
   deepseek: 'deepseek-v4-flash',
   zhipu: 'glm-5.2',
-  kimi: 'kimi-k2.5',
+  kimi: 'kimi-k3',
   minimax: 'MiniMax-M2.7',
   hunyuan: 'hy4-preview',
   ernie: 'ernie-5.1',

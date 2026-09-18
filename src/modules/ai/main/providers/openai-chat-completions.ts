@@ -1,4 +1,5 @@
 import type {
+  AiProviderImage,
   AiProviderRequest,
   AiProviderRequestMessage,
   AiProviderTool,
@@ -15,8 +16,13 @@ interface OpenAiToolCallAccumulator {
   arguments: string
 }
 
+type OpenAiChatContent = Array<
+  { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }
+>
+
 type OpenAiChatMessage =
   | AiProviderRequestMessage
+  | { role: 'user'; content: OpenAiChatContent }
   | {
       role: 'assistant'
       content: string | null
@@ -43,6 +49,29 @@ interface OpenAiChatOptions {
   signal: AbortSignal
   executeTool?: AiProviderToolExecutor
   includeUsage?: boolean
+  imageInput?: boolean
+}
+
+function toOpenAiChatMessages(
+  source: AiProviderRequestMessage[],
+  images: AiProviderImage[] | undefined
+): OpenAiChatMessage[] {
+  const messages: OpenAiChatMessage[] = source.map((message) => ({ ...message }))
+  if (!images?.length) return messages
+  const targetIndex = messages.map((message) => message.role).lastIndexOf('user')
+  if (targetIndex < 0) return messages
+  const target = messages[targetIndex] as AiProviderRequestMessage
+  messages[targetIndex] = {
+    role: 'user',
+    content: [
+      ...images.map((image) => ({
+        type: 'image_url' as const,
+        image_url: { url: `data:${image.mediaType};base64,${image.data}` }
+      })),
+      { type: 'text', text: target.content }
+    ]
+  }
+  return messages
 }
 
 function toOpenAiTools(tools: AiProviderTool[]) {
@@ -126,10 +155,10 @@ async function requestRound(
 export async function streamOpenAiChatCompletions(
   options: OpenAiChatOptions
 ): Promise<AiProviderTurnResult> {
-  if (options.request.images?.length) {
-    throw new Error(`${options.label} 当前未启用图片输入，请切换到支持图片的 Provider`)
+  if (options.request.images?.length && !options.imageInput) {
+    throw new Error(`当前模型 ${options.request.model} 不支持图片理解，请切换支持的模型`)
   }
-  const messages: OpenAiChatMessage[] = [...options.request.messages]
+  const messages = toOpenAiChatMessages(options.request.messages, options.request.images)
   if (!options.request.tools?.length) {
     const result = await requestRound(options, messages, undefined, options.emit)
     return completed(result.content, result.responseId)

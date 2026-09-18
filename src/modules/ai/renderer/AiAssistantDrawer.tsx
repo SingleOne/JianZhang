@@ -1200,6 +1200,15 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="ai-drawer-header">
+          <button
+            className="icon-button ai-drawer-close"
+            type="button"
+            title="关闭 AI 助手"
+            aria-label="关闭 AI 助手"
+            onClick={onClose}
+          >
+            <X size={18} />
+          </button>
           <div>
             <Bot size={19} />
             <span>
@@ -1217,14 +1226,6 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
               对话
             </button>
             <button
-              className={activeTab === 'settings' ? 'is-active' : ''}
-              type="button"
-              onClick={() => setActiveTab('settings')}
-            >
-              <Settings2 size={15} />
-              服务设置
-            </button>
-            <button
               className={activeTab === 'import' ? 'is-active' : ''}
               type="button"
               onClick={() => setActiveTab('import')}
@@ -1232,16 +1233,15 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
               <ReceiptText size={15} />
               导入交易记录
             </button>
+            <button
+              className={activeTab === 'settings' ? 'is-active' : ''}
+              type="button"
+              onClick={() => setActiveTab('settings')}
+            >
+              <Settings2 size={15} />
+              服务设置
+            </button>
           </nav>
-          <button
-            className="icon-button ai-drawer-close"
-            type="button"
-            title="关闭 AI 助手"
-            aria-label="关闭 AI 助手"
-            onClick={onClose}
-          >
-            <X size={18} />
-          </button>
         </header>
         {error ? (
           <div className="ai-drawer-error">

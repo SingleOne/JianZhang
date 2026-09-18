@@ -95,7 +95,7 @@ const PROVIDERS: AiProviderDescriptor[] = [
       streaming: true,
       marketInterpretation: true,
       stockDataTools: true,
-      imageInput: false
+      imageInput: true
     }
   },
   {
@@ -108,7 +108,7 @@ const PROVIDERS: AiProviderDescriptor[] = [
       streaming: true,
       marketInterpretation: true,
       stockDataTools: true,
-      imageInput: false
+      imageInput: true
     }
   },
   {
@@ -121,7 +121,7 @@ const PROVIDERS: AiProviderDescriptor[] = [
       streaming: true,
       marketInterpretation: true,
       stockDataTools: true,
-      imageInput: false
+      imageInput: true
     }
   },
   {
@@ -134,20 +134,20 @@ const PROVIDERS: AiProviderDescriptor[] = [
       streaming: true,
       marketInterpretation: true,
       stockDataTools: true,
-      imageInput: false
+      imageInput: true
     }
   },
   {
     id: 'hunyuan',
     label: '腾讯混元',
-    billingHint: '使用腾讯云 TokenHub API Key；模型列表仅展示混元文本模型。',
+    billingHint: '使用腾讯云 TokenHub API Key；模型列表展示混元文本与图片理解模型。',
     defaultModel: AI_DEFAULT_MODELS.hunyuan,
     authMode: 'apiKey',
     capabilities: {
       streaming: true,
       marketInterpretation: true,
       stockDataTools: true,
-      imageInput: false
+      imageInput: true
     }
   },
   {
@@ -160,7 +160,7 @@ const PROVIDERS: AiProviderDescriptor[] = [
       streaming: true,
       marketInterpretation: true,
       stockDataTools: true,
-      imageInput: false
+      imageInput: true
     }
   },
   {
@@ -173,7 +173,7 @@ const PROVIDERS: AiProviderDescriptor[] = [
       streaming: true,
       marketInterpretation: true,
       stockDataTools: true,
-      imageInput: false
+      imageInput: true
     }
   },
   {
@@ -186,7 +186,7 @@ const PROVIDERS: AiProviderDescriptor[] = [
       streaming: true,
       marketInterpretation: true,
       stockDataTools: true,
-      imageInput: false
+      imageInput: true
     }
   },
   {
@@ -199,7 +199,7 @@ const PROVIDERS: AiProviderDescriptor[] = [
       streaming: true,
       marketInterpretation: true,
       stockDataTools: true,
-      imageInput: false
+      imageInput: true
     }
   },
   {
@@ -359,7 +359,9 @@ export class AiService {
         label: '腾讯混元',
         apiBase: 'https://tokenhub.tencentmaas.com/v1',
         filterModel: (model) =>
-          /^(?:hy[34](?:-|$)|hy-role(?:-|$)|hunyuan-role(?:-|$))/i.test(model.id)
+          /^(?:hy[34](?:-|$)|hy-(?:role|vision)(?:-|$)|hunyuan-(?:role|vision|t1-vision)(?:-|$))/i.test(
+            model.id
+          )
       }),
       new OpenAiCompatibleProvider({
         id: 'ernie',

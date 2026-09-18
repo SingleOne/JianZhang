@@ -6,6 +6,7 @@ import type {
   AiProviderToolExecutor,
   AiProviderTurnResult
 } from '../../shared/types'
+import { supportsImageUnderstanding } from '../../shared/model-capabilities'
 import { connectionResultFromError, fetchModelOptions } from './provider'
 import { streamOpenAiChatCompletions } from './openai-chat-completions'
 
@@ -19,7 +20,7 @@ export class DeepSeekProvider implements AiProvider {
       streaming: true,
       marketInterpretation: true,
       stockDataTools: true,
-      imageInput: false
+      imageInput: true
     }
   }
 
@@ -62,7 +63,8 @@ export class DeepSeekProvider implements AiProvider {
       emit,
       signal,
       executeTool,
-      includeUsage: true
+      includeUsage: true,
+      imageInput: supportsImageUnderstanding(this.id, request.model)
     })
   }
 }

@@ -103,7 +103,7 @@
 .ai-drawer-close {
   width: 34px;
   height: 34px;
-  margin-left: auto;
+  flex: 0 0 auto;
   color: #748196;
   border-radius: 8px;
   -webkit-app-region: no-drag;
