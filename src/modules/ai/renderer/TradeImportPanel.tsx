@@ -42,21 +42,28 @@ function formatCost(value: number | null): string {
   return value === null ? '--' : value.toFixed(4)
 }
 
+function isImageFile(file: File): boolean {
+  return file.type.startsWith('image/') || /\.(?:png|jpe?g|webp|gif)$/i.test(file.name)
+}
+
 interface TradeImportPanelProps {
   api: AiApi
   stocks: AiStockMention[]
-  imageInputAvailable: boolean
+  currentModel: string
+  imageUnderstandingAvailable: boolean
   onError: (message: string) => void
 }
 
 export function TradeImportPanel({
   api,
   stocks,
-  imageInputAvailable,
+  currentModel,
+  imageUnderstandingAvailable,
   onError
 }: TradeImportPanelProps) {
   const confirm = useConfirmDialog()
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const documentInputRef = useRef<HTMLInputElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
   const [sourceText, setSourceText] = useState('')
   const [files, setFiles] = useState<File[]>([])
   const [draft, setDraft] = useState<AiTradeImportDraft | null>(null)
@@ -90,27 +97,58 @@ export function TradeImportPanel({
     setDraft(null)
     setDirty(false)
     setCommitResult(null)
-    if (fileInputRef.current) fileInputRef.current.value = ''
+    if (documentInputRef.current) documentInputRef.current.value = ''
+    if (imageInputRef.current) imageInputRef.current.value = ''
   }
 
   const addFiles = (nextFiles: File[]) => {
-    setFiles(nextFiles.slice(0, 5))
+    const combined = [...files, ...nextFiles]
+    if (combined.length > 5) {
+      onError('一次最多导入 5 个文件')
+      return
+    }
+    setFiles(combined)
     setCommitResult(null)
   }
 
-  const chooseFiles = (event: ChangeEvent<HTMLInputElement>) => {
+  const chooseDocuments = (event: ChangeEvent<HTMLInputElement>) => {
     addFiles(Array.from(event.target.files ?? []))
+    event.target.value = ''
+  }
+
+  const chooseImages = (event: ChangeEvent<HTMLInputElement>) => {
+    addFiles(Array.from(event.target.files ?? []))
+    event.target.value = ''
+  }
+
+  const unsupportedImageMessage = `当前模型 ${currentModel || '未选择'} 不支持图片理解，请切换支持的模型`
+
+  const openImagePicker = () => {
+    if (!imageUnderstandingAvailable) {
+      onError(unsupportedImageMessage)
+      return
+    }
+    imageInputRef.current?.click()
   }
 
   const dropFiles = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault()
     if (busy) return
-    addFiles(Array.from(event.dataTransfer.files))
+    const droppedFiles = Array.from(event.dataTransfer.files)
+    if (droppedFiles.some(isImageFile) && !imageUnderstandingAvailable) {
+      onError(unsupportedImageMessage)
+      return
+    }
+    addFiles(droppedFiles)
   }
 
   const prepare = async () => {
     if (!sourceText.trim() && files.length === 0) {
       onError('请粘贴交易记录或选择文件')
+      return
+    }
+    if (files.some(isImageFile) && !imageUnderstandingAvailable) {
+      onError(unsupportedImageMessage)
       return
     }
     setBusy(true)
@@ -231,19 +269,33 @@ export function TradeImportPanel({
             onDrop={dropFiles}
           >
             <input
-              ref={fileInputRef}
+              ref={documentInputRef}
               type="file"
               multiple
-              accept=".txt,.xlsx,.png,.jpg,.jpeg,.webp,.gif,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/png,image/jpeg,image/webp,image/gif"
-              onChange={chooseFiles}
+              accept=".txt,.xlsx,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              onChange={chooseDocuments}
               disabled={busy}
             />
-            <button type="button" onClick={() => fileInputRef.current?.click()} disabled={busy}>
+            <input
+              ref={imageInputRef}
+              type="file"
+              multiple
+              accept=".png,.jpg,.jpeg,.webp,.gif,image/png,image/jpeg,image/webp,image/gif"
+              onChange={chooseImages}
+              disabled={busy}
+            />
+            <button type="button" onClick={() => documentInputRef.current?.click()} disabled={busy}>
               <Upload size={15} />
-              选择或拖入 TXT、XLSX、图片
+              选择 TXT 或 XLSX
+            </button>
+            <button type="button" onClick={openImagePicker} disabled={busy}>
+              <Image size={15} />
+              上传图片
             </button>
             <span>
-              {files.length > 0 ? files.map((file) => file.name).join('、') : '最多 5 个文件'}
+              {files.length > 0
+                ? files.map((file) => file.name).join('、')
+                : '也可拖入文件，最多 5 个'}
             </span>
           </div>
           <div className="ai-trade-import-notice">
@@ -254,12 +306,14 @@ export function TradeImportPanel({
             <AlertTriangle size={16} />
             <span>现有持仓会作为期初基线，流水按增量追加；请在导入前核对影响预览。</span>
           </div>
-          <div className={`ai-trade-import-notice${imageInputAvailable ? '' : ' is-warning'}`}>
+          <div
+            className={`ai-trade-import-notice${imageUnderstandingAvailable ? '' : ' is-warning'}`}
+          >
             <Image size={16} />
             <span>
-              {imageInputAvailable
-                ? '图片会发送给当前 AI Provider 识别。'
-                : '当前 Provider 不支持图片；文字、TXT 和 XLSX 仍可使用。'}
+              {imageUnderstandingAvailable
+                ? `当前模型 ${currentModel} 支持图片理解，图片会发送给当前 AI Provider 识别。`
+                : `当前模型 ${currentModel || '未选择'} 不支持图片理解；文字、TXT 和 XLSX 仍可使用。`}
             </span>
           </div>
           <button

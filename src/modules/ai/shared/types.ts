@@ -44,6 +44,7 @@ export interface AiProviderCapabilities {
   streaming: boolean
   marketInterpretation: boolean
   stockDataTools: boolean
+  /** Provider 适配器能否编码图片；实际可用性还必须结合当前模型判断。 */
   imageInput: boolean
 }
 

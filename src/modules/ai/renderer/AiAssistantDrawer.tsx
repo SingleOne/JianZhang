@@ -36,6 +36,7 @@ import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { AppSelect, type AppSelectOption } from '../../../components/AppSelect'
 import { useConfirmDialog } from '../../../components/ConfirmDialog'
+import { supportsImageUnderstanding } from '../shared/model-capabilities'
 import { TradeImportPanel } from './TradeImportPanel'
 import type {
   AiApiKeyProviderId,
@@ -484,7 +485,10 @@ function AiSettingsPanel({
   const modelSelectOptions: AppSelectOption<string>[] = modelOptions?.length
     ? modelOptions.map((model) => ({
         value: model.id,
-        label: model.label === model.id ? model.id : `${model.label} · ${model.id}`
+        label: model.label === model.id ? model.id : `${model.label} · ${model.id}`,
+        description: supportsImageUnderstanding(draft.providerId, model.id)
+          ? '支持图片理解'
+          : '不支持图片理解'
       }))
     : [
         {
@@ -762,9 +766,8 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
   const activeProviderLabel =
     status?.providers.find((provider) => provider.id === settings?.providerId)?.label ??
     '当前 Provider'
-  const imageInputAvailable = Boolean(
-    status?.providers.find((provider) => provider.id === settings?.providerId)?.capabilities
-      .imageInput
+  const imageUnderstandingAvailable = Boolean(
+    settings && supportsImageUnderstanding(settings.providerId, settings.model)
   )
 
   const loadConversations = useCallback(
@@ -1419,7 +1422,8 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
           <TradeImportPanel
             api={api}
             stocks={stocks}
-            imageInputAvailable={imageInputAvailable}
+            currentModel={settings?.model ?? ''}
+            imageUnderstandingAvailable={imageUnderstandingAvailable}
             onError={setError}
           />
         ) : status && settings ? (

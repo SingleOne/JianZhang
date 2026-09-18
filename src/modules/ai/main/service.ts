@@ -37,6 +37,7 @@ import type {
   AiTradeImportSourceBinding
 } from '../shared/types'
 import { AI_PROVIDER_IDS } from '../shared/types'
+import { supportsImageUnderstanding } from '../shared/model-capabilities'
 import {
   compactMarketSnapshot,
   compactShortTermSnapshot,
@@ -635,8 +636,12 @@ export class AiService {
     if (!settings.enabled) throw new Error('AI 助手当前已关闭')
     const prepared = await prepareTradeImportSources(input)
     const provider = this.requireProvider(settings.providerId)
-    if (prepared.images.length > 0 && !provider.getCapabilities().imageInput) {
-      throw new Error('当前 Provider 不支持图片输入，请切换到 OpenAI、Gemini 或 Anthropic')
+    if (
+      prepared.images.length > 0 &&
+      (!provider.getCapabilities().imageInput ||
+        !supportsImageUnderstanding(settings.providerId, settings.model))
+    ) {
+      throw new Error(`当前模型 ${settings.model} 不支持图片理解，请切换支持的模型`)
     }
     const result = await this.runStructuredTask(
       {

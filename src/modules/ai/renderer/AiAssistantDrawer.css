@@ -837,6 +837,7 @@
 
 .ai-trade-import-files {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   min-width: 0;
@@ -865,6 +866,7 @@
 }
 
 .ai-trade-import-files span {
+  flex: 1 1 180px;
   min-width: 0;
   overflow: hidden;
   color: #728197;
