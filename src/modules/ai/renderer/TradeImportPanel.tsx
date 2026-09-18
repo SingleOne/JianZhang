@@ -206,7 +206,7 @@ export function TradeImportPanel({
   const commit = async () => {
     if (!draft || selectedItems.length === 0) return
     const accepted = await confirm({
-      title: '确认导入券商流水',
+      title: '确认导入交易记录',
       message: `将把 ${selectedItems.length} 条流水一次性写入 ${new Set(selectedItems.map((item) => item.quoteId)).size} 只股票的统一账本。成交默认记为底仓交易，确认继续吗？`,
       confirmLabel: `导入 ${selectedItems.length} 条`,
       tone: 'default'
@@ -240,7 +240,7 @@ export function TradeImportPanel({
         <span>
           <ReceiptText size={19} />
           <span>
-            <strong>导入券商流水</strong>
+            <strong>导入交易记录</strong>
             <small>支持成交、现金分红和红利税；确认前不会修改持仓</small>
           </span>
         </span>

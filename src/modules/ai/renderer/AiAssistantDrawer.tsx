@@ -1230,7 +1230,7 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
               onClick={() => setActiveTab('import')}
             >
               <ReceiptText size={15} />
-              券商导入
+              导入交易记录
             </button>
           </nav>
           <button
