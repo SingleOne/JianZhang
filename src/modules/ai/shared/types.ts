@@ -44,6 +44,7 @@ export interface AiProviderCapabilities {
   streaming: boolean
   marketInterpretation: boolean
   stockDataTools: boolean
+  imageInput: boolean
 }
 
 export interface AiProviderDescriptor {
@@ -76,6 +77,99 @@ export interface AiSettings {
   model: string
   maxContextMessages: number
 }
+
+export type AiTradeImportEntryKind = 'trade' | 'cashDividend' | 'withholdingTax'
+export type AiTradeImportConfidence = 'high' | 'medium' | 'low'
+
+export interface AiTradeImportIssue {
+  severity: 'warning' | 'error'
+  field?: string
+  message: string
+}
+
+export interface AiTradeImportFile {
+  name: string
+  mediaType: string
+  data: Uint8Array
+}
+
+export interface AiTradeImportPrepareInput {
+  text?: string
+  files?: AiTradeImportFile[]
+}
+
+export interface AiTradeImportSource {
+  id: string
+  name: string
+  kind: 'text' | 'txt' | 'xlsx' | 'image'
+}
+
+export interface AiTradeImportSourceBinding extends AiTradeImportSource {
+  hash: string
+}
+
+export interface AiTradeImportItem {
+  id: string
+  selected: boolean
+  kind: AiTradeImportEntryKind
+  quoteId?: string
+  stockCode?: string
+  stockName?: string
+  side?: 'buy' | 'sell'
+  occurredAt?: string
+  price?: number
+  quantity?: number
+  fees?: number
+  amount?: number
+  eligibleQuantity?: number
+  currency?: 'CNY' | 'HKD' | 'USD'
+  exchangeRate?: number
+  externalId?: string
+  note?: string
+  sourceId: string
+  sourceLocator?: string
+  confidence: AiTradeImportConfidence
+  evidence?: string
+  issues: AiTradeImportIssue[]
+}
+
+export interface AiTradeImportDraft {
+  id: string
+  expectedRevision: number
+  createdAt: string
+  providerId: AiProviderId
+  model: string
+  sources: AiTradeImportSource[]
+  items: AiTradeImportItem[]
+  impacts: Array<{
+    quoteId: string
+    name: string
+    beforeQuantity: number
+    beforeCost: number | null
+    afterQuantity: number
+    afterCost: number | null
+  }>
+  warnings: string[]
+}
+
+export interface AiTradeImportCommitInput {
+  draftId: string
+  expectedRevision: number
+  items: AiTradeImportItem[]
+}
+
+export type AiTradeImportCommitResult =
+  | {
+      status: 'needsReview'
+      draft: AiTradeImportDraft
+    }
+  | {
+      status: 'committed'
+      importId: string
+      revision: number
+      entryCount: number
+      affectedStocks: Array<{ quoteId: string; name: string }>
+    }
 
 export interface AiStatus {
   enabled: boolean
@@ -310,6 +404,8 @@ export interface AiApi {
   sendChat: (input: AiChatSendInput) => Promise<AiChatStartResult>
   cancelChat: (conversationId: string) => Promise<void>
   retryChat: (conversationId: string, messageId: string) => Promise<AiChatStartResult>
+  prepareTradeImport: (input: AiTradeImportPrepareInput) => Promise<AiTradeImportDraft>
+  commitTradeImport: (input: AiTradeImportCommitInput) => Promise<AiTradeImportCommitResult>
   openSource: (url: string) => Promise<void>
   getLatestInterpretation: (quoteId: string) => Promise<AiInterpretationResult | null>
   interpret: (quoteId: string) => Promise<AiInterpretationResult>
@@ -331,7 +427,13 @@ export interface AiProviderRequestMessage {
 export interface AiProviderRequest {
   model: string
   messages: AiProviderRequestMessage[]
+  images?: AiProviderImage[]
   tools?: AiProviderTool[]
+}
+
+export interface AiProviderImage {
+  mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
+  data: string
 }
 
 export interface AiProviderTool {
@@ -359,6 +461,7 @@ export interface AiProviderTurnResult {
 export interface AiStructuredTaskRequest {
   systemPrompt: string
   userContent: string
+  images?: AiProviderImage[]
 }
 
 export interface AiStructuredTaskResult extends AiProviderTurnResult {
@@ -408,6 +511,10 @@ export interface AiModuleDependencies {
   getGlobalFundamentals: (quoteId: string) => Promise<GlobalFundamentalSnapshot>
   getShareholderSnapshot: (quoteId: string) => Promise<ShareholderSnapshot>
   listCorporateActions: (quoteId: string) => Promise<CorporateActionListResult>
+  commitTradeImport: (
+    input: AiTradeImportCommitInput,
+    sources: AiTradeImportSourceBinding[]
+  ) => AiTradeImportCommitResult
 }
 
 declare global {

@@ -19,6 +19,8 @@ export const AI_IPC = {
   chatSend: 'ai:chat:send',
   chatCancel: 'ai:chat:cancel',
   chatRetry: 'ai:chat:retry',
+  tradeImportPrepare: 'ai:trade-import:prepare',
+  tradeImportCommit: 'ai:trade-import:commit',
   sourceOpen: 'ai:source:open',
   chatDelta: 'ai:chat:delta',
   chatCompleted: 'ai:chat:completed',

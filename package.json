@@ -1,6 +1,6 @@
 {
   "name": "jianzhang-stock-desktop",
-  "version": "16.0.0",
+  "version": "17.0.0",
   "description": "见涨 - 实时股票自选桌面应用",
   "main": "out/main/index.js",
   "author": "star",
@@ -21,6 +21,7 @@
     "package:portable": "npm run build && npm run generate:icon && electron-builder --config electron-builder.config.cjs --win portable"
   },
   "dependencies": {
+    "exceljs": "^4.4.0",
     "lightweight-charts": "^5.2.0",
     "lucide-react": "^0.525.0",
     "pdf-parse": "^1.1.1",

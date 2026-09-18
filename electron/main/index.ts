@@ -354,7 +354,8 @@ async function initializeMarketInsightModule(): Promise<boolean> {
 async function initializeAiModule(marketInsightReady: Promise<boolean>): Promise<boolean> {
   if (!__JIANZHANG_AI_MODULE_ENABLED__) return false
   try {
-    const { installAi } = await import('../../src/modules/ai/main/register')
+    const { applyTradeImportToState, installAi } =
+      await import('../../src/modules/ai/main/register')
     if (isQuitting) return false
     const runtime = installAi({
       getState: () => state,
@@ -397,7 +398,26 @@ async function initializeAiModule(marketInsightReady: Promise<boolean>): Promise
       getCompanyReports: (quoteId) => companyReportService!.get(quoteId, false),
       getGlobalFundamentals: (quoteId) => globalFundamentalService!.get(quoteId, false),
       getShareholderSnapshot: (quoteId) => shareholderService!.get(quoteId, false),
-      listCorporateActions: (quoteId) => corporateActionService!.get(quoteId, false)
+      listCorporateActions: (quoteId) => corporateActionService!.get(quoteId, false),
+      commitTradeImport: (input, sources) => {
+        if (!stateStore) throw new Error('配置存储尚未初始化')
+        if ((state.revision ?? 0) !== input.expectedRevision) {
+          throw new StateStoreRevisionConflictError(input.expectedRevision, state.revision ?? 0)
+        }
+        const applied = applyTradeImportToState(state, input.draftId, input.items, sources)
+        state = stateStore.normalize(applied.state)
+        persistState()
+        sendToWindows('state:updated', state)
+        windowManager?.updateTrayMenu()
+        windowManager?.syncTaskbarWindow()
+        return {
+          status: 'committed' as const,
+          importId: input.draftId,
+          revision: state.revision ?? 0,
+          entryCount: applied.entryCount,
+          affectedStocks: applied.affectedStocks
+        }
+      }
     })
     if (isQuitting) {
       runtime.dispose()

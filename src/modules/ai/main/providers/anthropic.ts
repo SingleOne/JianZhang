@@ -29,6 +29,10 @@ function headers(apiKey: string): Record<string, string> {
 
 type AnthropicContentBlock =
   | { type: 'text'; text: string }
+  | {
+      type: 'image'
+      source: { type: 'base64'; media_type: string; data: string }
+    }
   | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
   | { type: 'tool_result'; tool_use_id: string; content: string }
 
@@ -161,7 +165,12 @@ export class AnthropicProvider implements AiProvider {
   readonly id = 'anthropic' as const
 
   getCapabilities() {
-    return { streaming: true, marketInterpretation: true, stockDataTools: true }
+    return {
+      streaming: true,
+      marketInterpretation: true,
+      stockDataTools: true,
+      imageInput: true
+    }
   }
 
   async listModels(apiKey?: string): Promise<AiModelOption[]> {
@@ -206,6 +215,19 @@ export class AnthropicProvider implements AiProvider {
         role: message.role as 'user' | 'assistant',
         content: message.content
       }))
+    if (request.images?.length) {
+      const target = [...messages].reverse().find((message) => message.role === 'user')
+      if (target) {
+        const text = typeof target.content === 'string' ? target.content : ''
+        target.content = [
+          { type: 'text', text },
+          ...request.images.map((image) => ({
+            type: 'image' as const,
+            source: { type: 'base64' as const, media_type: image.mediaType, data: image.data }
+          }))
+        ]
+      }
+    }
     if (!request.tools?.length) {
       const result = await requestRound(
         apiKey,

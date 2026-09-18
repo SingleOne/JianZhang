@@ -20,7 +20,15 @@ import { countToolCalls, executeToolCalls, MAX_TOOL_ROUNDS } from './tool-loop'
 const OPENAI_API_BASE = 'https://api.openai.com/v1'
 
 type OpenAiResponseInput =
-  | { role: 'developer' | 'user' | 'assistant'; content: string }
+  | {
+      role: 'developer' | 'user' | 'assistant'
+      content:
+        | string
+        | Array<
+            | { type: 'input_text'; text: string }
+            | { type: 'input_image'; image_url: string; detail: 'high' }
+          >
+    }
   | { type: 'function_call_output'; call_id: string; output: string }
 
 interface OpenAiResponseRoundResult {
@@ -117,7 +125,12 @@ export class OpenAiApiProvider implements AiProvider {
   readonly id = 'openai' as const
 
   getCapabilities() {
-    return { streaming: true, marketInterpretation: true, stockDataTools: true }
+    return {
+      streaming: true,
+      marketInterpretation: true,
+      stockDataTools: true,
+      imageInput: true
+    }
   }
 
   async listModels(apiKey?: string): Promise<AiModelOption[]> {
@@ -156,9 +169,20 @@ export class OpenAiApiProvider implements AiProvider {
     executeTool?: AiProviderToolExecutor
   ): Promise<AiProviderTurnResult> {
     if (!apiKey) throw new Error('请先在 AI 助手的服务设置中保存 API Key')
-    let input: OpenAiResponseInput[] = request.messages.map((message) => ({
+    const lastUserMessageIndex = request.messages.map((message) => message.role).lastIndexOf('user')
+    let input: OpenAiResponseInput[] = request.messages.map((message, index) => ({
       role: message.role === 'system' ? 'developer' : message.role,
-      content: message.content
+      content:
+        index === lastUserMessageIndex && request.images?.length
+          ? [
+              { type: 'input_text' as const, text: message.content },
+              ...request.images.map((image) => ({
+                type: 'input_image' as const,
+                image_url: `data:${image.mediaType};base64,${image.data}`,
+                detail: 'high' as const
+              }))
+            ]
+          : message.content
     }))
     if (!request.tools?.length) {
       const result = await requestRound(apiKey, request.model, input, signal, undefined, emit)

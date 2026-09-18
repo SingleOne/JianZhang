@@ -13,6 +13,7 @@ import {
   Pencil,
   Plus,
   RotateCcw,
+  ReceiptText,
   Search,
   Send,
   Settings2,
@@ -35,6 +36,7 @@ import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { AppSelect, type AppSelectOption } from '../../../components/AppSelect'
 import { useConfirmDialog } from '../../../components/ConfirmDialog'
+import { TradeImportPanel } from './TradeImportPanel'
 import type {
   AiApiKeyProviderId,
   AiConnectionResult,
@@ -708,7 +710,7 @@ function AiSettingsPanel({
 export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistantDrawerProps) {
   const api = window.aiApi
   const confirm = useConfirmDialog()
-  const [activeTab, setActiveTab] = useState<'chat' | 'settings'>('chat')
+  const [activeTab, setActiveTab] = useState<'chat' | 'import' | 'settings'>('chat')
   const [status, setStatus] = useState<AiStatus | null>(null)
   const [settings, setSettings] = useState<AiSettings | null>(null)
   const [conversations, setConversations] = useState<AiConversation[]>([])
@@ -760,6 +762,10 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
   const activeProviderLabel =
     status?.providers.find((provider) => provider.id === settings?.providerId)?.label ??
     '当前 Provider'
+  const imageInputAvailable = Boolean(
+    status?.providers.find((provider) => provider.id === settings?.providerId)?.capabilities
+      .imageInput
+  )
 
   const loadConversations = useCallback(
     async (query = '') => {
@@ -1215,6 +1221,14 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
               <Settings2 size={15} />
               服务设置
             </button>
+            <button
+              className={activeTab === 'import' ? 'is-active' : ''}
+              type="button"
+              onClick={() => setActiveTab('import')}
+            >
+              <ReceiptText size={15} />
+              券商导入
+            </button>
           </nav>
           <button
             className="icon-button ai-drawer-close"
@@ -1401,6 +1415,13 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
               ) : null}
             </div>
           </div>
+        ) : activeTab === 'import' ? (
+          <TradeImportPanel
+            api={api}
+            stocks={stocks}
+            imageInputAvailable={imageInputAvailable}
+            onError={setError}
+          />
         ) : status && settings ? (
           <AiSettingsPanel
             status={status}

@@ -22,6 +22,7 @@ interface GeminiModel {
 
 interface GeminiPart {
   text?: string
+  inlineData?: { mimeType: string; data: string }
   functionCall?: { id?: string; name?: string; args?: Record<string, unknown> }
   functionResponse?: {
     id?: string
@@ -47,13 +48,23 @@ interface GeminiRoundResult {
   toolCalls: GeminiToolCall[]
 }
 
-function toGeminiContents(messages: AiProviderRequestMessage[]): GeminiContent[] {
-  return messages
+function toGeminiContents(
+  messages: AiProviderRequestMessage[],
+  images: AiProviderRequest['images']
+): GeminiContent[] {
+  const contents: GeminiContent[] = messages
     .filter((message) => message.role !== 'system')
     .map((message) => ({
       role: message.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: message.content }]
     }))
+  if (images?.length) {
+    const target = [...contents].reverse().find((content) => content.role === 'user')
+    target?.parts.push(
+      ...images.map((image) => ({ inlineData: { mimeType: image.mediaType, data: image.data } }))
+    )
+  }
+  return contents
 }
 
 function toGeminiTools(tools: AiProviderTool[]) {
@@ -137,7 +148,12 @@ export class GeminiProvider implements AiProvider {
   readonly id = 'gemini' as const
 
   getCapabilities() {
-    return { streaming: true, marketInterpretation: true, stockDataTools: true }
+    return {
+      streaming: true,
+      marketInterpretation: true,
+      stockDataTools: true,
+      imageInput: true
+    }
   }
 
   async listModels(apiKey?: string): Promise<AiModelOption[]> {
@@ -186,7 +202,7 @@ export class GeminiProvider implements AiProvider {
       .filter((message) => message.role === 'system')
       .map((message) => message.content)
       .join('\n\n')
-    const contents: GeminiContent[] = toGeminiContents(request.messages)
+    const contents: GeminiContent[] = toGeminiContents(request.messages, request.images)
     if (!request.tools?.length) {
       const result = await requestRound(
         apiKey,

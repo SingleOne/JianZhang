@@ -15,7 +15,12 @@ export class DeepSeekProvider implements AiProvider {
   readonly id = 'deepseek' as const
 
   getCapabilities() {
-    return { streaming: true, marketInterpretation: true, stockDataTools: true }
+    return {
+      streaming: true,
+      marketInterpretation: true,
+      stockDataTools: true,
+      imageInput: false
+    }
   }
 
   async listModels(apiKey?: string): Promise<AiModelOption[]> {

@@ -29,7 +29,12 @@ import type {
   AiStockMention,
   AiStatus,
   AiStructuredTaskRequest,
-  AiStructuredTaskResult
+  AiStructuredTaskResult,
+  AiTradeImportCommitInput,
+  AiTradeImportCommitResult,
+  AiTradeImportDraft,
+  AiTradeImportPrepareInput,
+  AiTradeImportSourceBinding
 } from '../shared/types'
 import { AI_PROVIDER_IDS } from '../shared/types'
 import {
@@ -61,6 +66,9 @@ import {
   STOCK_INFORMATION_SEARCH_TOOL_NAME,
   StockInformationSearchSession
 } from './stock-search/tool'
+import { previewTradeImport } from './trade-import/commit'
+import { parseTradeImportExtraction, TRADE_IMPORT_SYSTEM_PROMPT } from './trade-import/extractor'
+import { prepareTradeImportSources } from './trade-import/sources'
 
 const PROVIDERS: AiProviderDescriptor[] = [
   {
@@ -69,7 +77,12 @@ const PROVIDERS: AiProviderDescriptor[] = [
     billingHint: '使用 OpenAI Platform API 余额，与 ChatGPT 订阅分开计费。',
     defaultModel: AI_DEFAULT_MODELS.openai,
     authMode: 'apiKey',
-    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: true }
+    capabilities: {
+      streaming: true,
+      marketInterpretation: true,
+      stockDataTools: true,
+      imageInput: true
+    }
   },
   {
     id: 'deepseek',
@@ -77,7 +90,12 @@ const PROVIDERS: AiProviderDescriptor[] = [
     billingHint: '使用 DeepSeek Platform API Key 和对应平台额度。',
     defaultModel: AI_DEFAULT_MODELS.deepseek,
     authMode: 'apiKey',
-    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: true }
+    capabilities: {
+      streaming: true,
+      marketInterpretation: true,
+      stockDataTools: true,
+      imageInput: false
+    }
   },
   {
     id: 'zhipu',
@@ -85,7 +103,12 @@ const PROVIDERS: AiProviderDescriptor[] = [
     billingHint: '使用智谱开放平台 API Key 和对应平台额度。',
     defaultModel: AI_DEFAULT_MODELS.zhipu,
     authMode: 'apiKey',
-    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: true }
+    capabilities: {
+      streaming: true,
+      marketInterpretation: true,
+      stockDataTools: true,
+      imageInput: false
+    }
   },
   {
     id: 'kimi',
@@ -93,7 +116,12 @@ const PROVIDERS: AiProviderDescriptor[] = [
     billingHint: '使用 Moonshot AI 开放平台 API Key 和对应平台额度。',
     defaultModel: AI_DEFAULT_MODELS.kimi,
     authMode: 'apiKey',
-    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: true }
+    capabilities: {
+      streaming: true,
+      marketInterpretation: true,
+      stockDataTools: true,
+      imageInput: false
+    }
   },
   {
     id: 'minimax',
@@ -101,7 +129,12 @@ const PROVIDERS: AiProviderDescriptor[] = [
     billingHint: '使用 MiniMax 开放平台 API Key 和对应平台额度。',
     defaultModel: AI_DEFAULT_MODELS.minimax,
     authMode: 'apiKey',
-    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: true }
+    capabilities: {
+      streaming: true,
+      marketInterpretation: true,
+      stockDataTools: true,
+      imageInput: false
+    }
   },
   {
     id: 'hunyuan',
@@ -109,7 +142,12 @@ const PROVIDERS: AiProviderDescriptor[] = [
     billingHint: '使用腾讯云 TokenHub API Key；模型列表仅展示混元文本模型。',
     defaultModel: AI_DEFAULT_MODELS.hunyuan,
     authMode: 'apiKey',
-    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: true }
+    capabilities: {
+      streaming: true,
+      marketInterpretation: true,
+      stockDataTools: true,
+      imageInput: false
+    }
   },
   {
     id: 'ernie',
@@ -117,7 +155,12 @@ const PROVIDERS: AiProviderDescriptor[] = [
     billingHint: '使用百度智能云千帆 V2 API Key 和对应平台额度。',
     defaultModel: AI_DEFAULT_MODELS.ernie,
     authMode: 'apiKey',
-    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: true }
+    capabilities: {
+      streaming: true,
+      marketInterpretation: true,
+      stockDataTools: true,
+      imageInput: false
+    }
   },
   {
     id: 'qwen',
@@ -125,7 +168,12 @@ const PROVIDERS: AiProviderDescriptor[] = [
     billingHint: '使用阿里云百炼 API Key；模型列表仅展示千问文本生成模型。',
     defaultModel: AI_DEFAULT_MODELS.qwen,
     authMode: 'apiKey',
-    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: true }
+    capabilities: {
+      streaming: true,
+      marketInterpretation: true,
+      stockDataTools: true,
+      imageInput: false
+    }
   },
   {
     id: 'mimo',
@@ -133,7 +181,12 @@ const PROVIDERS: AiProviderDescriptor[] = [
     billingHint: '使用小米 MiMo 开放平台按量付费 API Key。',
     defaultModel: AI_DEFAULT_MODELS.mimo,
     authMode: 'apiKey',
-    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: true }
+    capabilities: {
+      streaming: true,
+      marketInterpretation: true,
+      stockDataTools: true,
+      imageInput: false
+    }
   },
   {
     id: 'grok',
@@ -141,7 +194,12 @@ const PROVIDERS: AiProviderDescriptor[] = [
     billingHint: '使用 xAI Console API Key 和对应平台额度。',
     defaultModel: AI_DEFAULT_MODELS.grok,
     authMode: 'apiKey',
-    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: true }
+    capabilities: {
+      streaming: true,
+      marketInterpretation: true,
+      stockDataTools: true,
+      imageInput: false
+    }
   },
   {
     id: 'gemini',
@@ -149,7 +207,12 @@ const PROVIDERS: AiProviderDescriptor[] = [
     billingHint: '使用 Google AI Studio Gemini API Key 和对应平台额度。',
     defaultModel: AI_DEFAULT_MODELS.gemini,
     authMode: 'apiKey',
-    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: true }
+    capabilities: {
+      streaming: true,
+      marketInterpretation: true,
+      stockDataTools: true,
+      imageInput: true
+    }
   },
   {
     id: 'anthropic',
@@ -157,11 +220,21 @@ const PROVIDERS: AiProviderDescriptor[] = [
     billingHint: '使用 Anthropic Console API Key 和对应平台额度。',
     defaultModel: AI_DEFAULT_MODELS.anthropic,
     authMode: 'apiKey',
-    capabilities: { streaming: true, marketInterpretation: true, stockDataTools: true }
+    capabilities: {
+      streaming: true,
+      marketInterpretation: true,
+      stockDataTools: true,
+      imageInput: true
+    }
   }
 ]
 
 const MAX_MENTIONED_STOCKS = 5
+
+interface TradeImportSession {
+  draft: AiTradeImportDraft
+  sources: AiTradeImportSourceBinding[]
+}
 
 function messageContextRefs(message: AiMessage): AiContextRef[] {
   if (message.contextRefs?.length) return message.contextRefs
@@ -251,6 +324,7 @@ export class AiService {
   private readonly secrets: AiSecrets
   private readonly providers: Map<string, AiProvider>
   private readonly activeChats = new Map<string, AbortController>()
+  private readonly tradeImportSessions = new Map<string, TradeImportSession>()
 
   constructor(
     private readonly storage: AiStorage,
@@ -556,6 +630,92 @@ export class AiService {
     })
   }
 
+  async prepareTradeImport(input: AiTradeImportPrepareInput): Promise<AiTradeImportDraft> {
+    const settings = this.storage.getSettings()
+    if (!settings.enabled) throw new Error('AI 助手当前已关闭')
+    const prepared = await prepareTradeImportSources(input)
+    const provider = this.requireProvider(settings.providerId)
+    if (prepared.images.length > 0 && !provider.getCapabilities().imageInput) {
+      throw new Error('当前 Provider 不支持图片输入，请切换到 OpenAI、Gemini 或 Anthropic')
+    }
+    const result = await this.runStructuredTask(
+      {
+        systemPrompt: TRADE_IMPORT_SYSTEM_PROMPT,
+        userContent: prepared.userContent,
+        images: prepared.images
+      },
+      new AbortController().signal
+    )
+    const id = randomUUID()
+    const state = this.dependencies.getState()
+    const preview = previewTradeImport(
+      state,
+      id,
+      parseTradeImportExtraction(result, prepared.sources),
+      prepared.sources
+    )
+    const draft: AiTradeImportDraft = {
+      id,
+      expectedRevision: state.revision ?? 0,
+      createdAt: now(),
+      providerId: result.providerId,
+      model: result.model,
+      sources: prepared.sources.map((source) => ({
+        id: source.id,
+        name: source.name,
+        kind: source.kind
+      })),
+      items: preview.items,
+      impacts: preview.impacts,
+      warnings: [
+        ...(prepared.images.length > 0
+          ? ['图片已发送给当前 AI Provider 识别，请重点核对低置信度记录。']
+          : []),
+        ...(preview.items.length === 0 ? ['没有识别到可以导入的成交、分红或红利税流水。'] : [])
+      ]
+    }
+    this.tradeImportSessions.set(id, { draft, sources: prepared.sources })
+    while (this.tradeImportSessions.size > 10) {
+      const oldestId = this.tradeImportSessions.keys().next().value
+      if (typeof oldestId !== 'string') break
+      this.tradeImportSessions.delete(oldestId)
+    }
+    return draft
+  }
+
+  commitTradeImport(input: AiTradeImportCommitInput): AiTradeImportCommitResult {
+    const session = this.tradeImportSessions.get(input.draftId)
+    if (!session) throw new Error('导入草稿已失效，请重新识别')
+    const state = this.dependencies.getState()
+    const currentRevision = state.revision ?? 0
+    const preview = previewTradeImport(state, input.draftId, input.items, session.sources)
+    const items = preview.items
+    const revisionChanged = currentRevision !== session.draft.expectedRevision
+    const hasErrors = items
+      .filter((item) => item.selected)
+      .some((item) => item.issues.some((entry) => entry.severity === 'error'))
+    if (revisionChanged || hasErrors || items.every((item) => !item.selected)) {
+      const draft: AiTradeImportDraft = {
+        ...session.draft,
+        expectedRevision: currentRevision,
+        items,
+        impacts: preview.impacts,
+        warnings: [
+          ...(revisionChanged ? ['应用数据已更新，请重新检查本次导入结果后再提交。'] : []),
+          ...(items.every((item) => !item.selected) ? ['请至少选择一条可以导入的流水。'] : [])
+        ]
+      }
+      this.tradeImportSessions.set(input.draftId, { ...session, draft })
+      return { status: 'needsReview', draft }
+    }
+    const result = this.dependencies.commitTradeImport(
+      { ...input, expectedRevision: currentRevision, items },
+      session.sources
+    )
+    if (result.status === 'committed') this.tradeImportSessions.delete(input.draftId)
+    return result
+  }
+
   async interpret(
     quoteId: string,
     onProgress: (progress: AiAnalysisProgressEvent) => void = () => undefined
@@ -760,7 +920,8 @@ export class AiService {
         messages: [
           { role: 'system', content: request.systemPrompt },
           { role: 'user', content: request.userContent }
-        ]
+        ],
+        images: request.images
       },
       () => undefined,
       signal
@@ -775,6 +936,7 @@ export class AiService {
   dispose(): void {
     for (const controller of this.activeChats.values()) controller.abort()
     this.activeChats.clear()
+    this.tradeImportSessions.clear()
   }
 
   private async runChat(

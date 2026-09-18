@@ -26,7 +26,12 @@ export class OpenAiCompatibleProvider implements AiProvider {
   }
 
   getCapabilities() {
-    return { streaming: true, marketInterpretation: true, stockDataTools: true }
+    return {
+      streaming: true,
+      marketInterpretation: true,
+      stockDataTools: true,
+      imageInput: false
+    }
   }
 
   async listModels(apiKey?: string): Promise<AiModelOption[]> {

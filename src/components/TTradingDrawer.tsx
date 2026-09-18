@@ -579,7 +579,7 @@ export function TTradingDrawer({
   }
 
   const deleteCashEntry = (entry: CashLedgerEntry) => {
-    if (entry.source !== 'manual' || entry.corporateActionId) {
+    if (entry.source === 'corporateAction' || entry.corporateActionId) {
       setCashError('公司行动产生的流水请在公司行动中撤销')
       return
     }
@@ -1610,7 +1610,8 @@ export function TTradingDrawer({
                   if (item.kind === 'cash') {
                     const { entry } = item
                     const signedAmount = cashLedgerAmount(entry)
-                    const isManual = entry.source === 'manual' && !entry.corporateActionId
+                    const isDeletable =
+                      entry.source !== 'corporateAction' && !entry.corporateActionId
                     return (
                       <div className="t-trade-row" key={entry.id}>
                         <span
@@ -1646,15 +1647,9 @@ export function TTradingDrawer({
                           <button
                             className="icon-button"
                             type="button"
-                            disabled={!isManual}
+                            disabled={!isDeletable}
                             onClick={() => deleteCashEntry(entry)}
-                            title={
-                              isManual
-                                ? '删除现金流水'
-                                : entry.source === 'corporateAction'
-                                  ? '请在公司行动中撤销'
-                                  : '导入流水不能在此删除'
-                            }
+                            title={isDeletable ? '删除现金流水' : '请在公司行动中撤销'}
                           >
                             <Trash2 size={14} />
                           </button>

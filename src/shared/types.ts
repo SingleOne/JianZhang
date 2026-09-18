@@ -690,6 +690,16 @@ export interface TTradeAllocation {
   batchDirection?: TTradingDirection
 }
 
+export interface BrokerImportProvenance {
+  importId: string
+  recordedAt: string
+  sourceId: string
+  sourceName: string
+  sourceHash: string
+  sourceLocator?: string
+  externalId?: string
+}
+
 export interface TTrade {
   id: string
   side: TTradeSide
@@ -713,6 +723,8 @@ export interface TTrade {
   splitSource?: { id: string; quantity: number }
   /** 一笔真实成交在底仓及一个或多个 T 批次之间的数量分配。 */
   allocations?: TTradeAllocation[]
+  /** 券商流水导入来源；保留在成交记录中以便账本重建时继续维持幂等信息。 */
+  brokerImport?: BrokerImportProvenance
   note: string
 }
 
@@ -848,6 +860,7 @@ export interface PortfolioLedgerEntryBase {
   source: 'manual' | 'corporateAction' | 'brokerImport' | 'trade'
   externalId?: string
   corporateActionId?: string
+  brokerImport?: BrokerImportProvenance
   currency?: import('./stock-market').StockCurrency
   exchangeRate?: number
   exchangeRateDate?: string
@@ -1194,9 +1207,10 @@ export function tradeLedgerEntry(
     quoteId,
     occurredAt: record.tradedAt,
     marketDate: record.marketDate ?? record.tradedAt.slice(0, 10),
-    recordedAt: record.tradedAt,
-    source: 'trade',
-    externalId: record.id,
+    recordedAt: record.brokerImport?.recordedAt ?? record.tradedAt,
+    source: record.brokerImport ? 'brokerImport' : 'trade',
+    externalId: record.brokerImport?.externalId ?? record.id,
+    brokerImport: record.brokerImport,
     currency: record.currency,
     exchangeRate: record.exchangeRate,
     exchangeRateDate: record.exchangeRateDate,

@@ -126,6 +126,9 @@ async function requestRound(
 export async function streamOpenAiChatCompletions(
   options: OpenAiChatOptions
 ): Promise<AiProviderTurnResult> {
+  if (options.request.images?.length) {
+    throw new Error(`${options.label} 当前未启用图片输入，请切换到支持图片的 Provider`)
+  }
   const messages: OpenAiChatMessage[] = [...options.request.messages]
   if (!options.request.tools?.length) {
     const result = await requestRound(options, messages, undefined, options.emit)
