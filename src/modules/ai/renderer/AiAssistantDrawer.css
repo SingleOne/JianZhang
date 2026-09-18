@@ -1538,7 +1538,13 @@
   box-shadow: none;
   cursor: default;
 }
-.ai-settings-select .app-select-trigger > span {
+.ai-settings-select .app-select-trigger-label {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.ai-settings-select .app-select-trigger-label > span:first-child {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1593,10 +1599,17 @@
 .ai-settings-select .app-select-option.is-selected > svg {
   color: var(--blue);
 }
-.ai-settings-select .app-select-option > span {
+.ai-settings-select .app-select-option-content {
   min-width: 0;
   display: grid;
   gap: 2px;
+}
+.ai-settings-select .app-select-option-heading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 .ai-settings-select .app-select-option strong,
 .ai-settings-select .app-select-option small {
@@ -1606,6 +1619,20 @@
   color: #8290a2;
   font-weight: 400;
   line-height: 1.45;
+}
+.ai-settings-select .app-select-badge {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  color: #2563eb;
+  background: #eaf2ff;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.ai-settings-select .app-select-badge.is-success {
+  color: #16815b;
+  background: #e8f7f0;
 }
 .ai-credential-block {
   display: grid;
@@ -2577,6 +2604,16 @@
 
 :root[data-theme='dark'] .ai-settings-select .app-select-option small {
   color: #aab8cb;
+}
+
+:root[data-theme='dark'] .ai-settings-select .app-select-badge {
+  color: #9bc1ff;
+  background: rgba(91, 140, 255, 0.18);
+}
+
+:root[data-theme='dark'] .ai-settings-select .app-select-badge.is-success {
+  color: #72ddb3;
+  background: rgba(53, 201, 139, 0.16);
 }
 
 :root[data-theme='dark'] .ai-credential-block,

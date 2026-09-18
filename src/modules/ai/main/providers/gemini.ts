@@ -17,6 +17,7 @@ const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
 interface GeminiModel {
   name?: string
   displayName?: string
+  description?: string
   supportedGenerationMethods?: string[]
 }
 
@@ -167,7 +168,14 @@ export class GeminiProvider implements AiProvider {
       .filter((model) => model.supportedGenerationMethods?.includes('generateContent'))
       .flatMap((model) => {
         const id = model.name?.replace(/^models\//, '').trim()
-        return id ? [{ id, label: model.displayName?.trim() || id }] : []
+        const description = model.description?.trim()
+        return id
+          ? [
+              description
+                ? { id, label: model.displayName?.trim() || id, description }
+                : { id, label: model.displayName?.trim() || id }
+            ]
+          : []
       })
       .sort((left, right) =>
         left.label.localeCompare(right.label, undefined, { numeric: true, sensitivity: 'base' })

@@ -195,6 +195,20 @@
   transition: transform 140ms ease;
 }
 
+.app-select-trigger-label {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.app-select-trigger-label > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .app-select-trigger.is-open svg {
   transform: rotate(180deg);
 }
@@ -244,10 +258,38 @@
   color: var(--blue);
 }
 
-.app-select-option > span {
+.app-select-option-content {
   min-width: 0;
   display: grid;
   gap: 2px;
+}
+
+.app-select-option-heading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.app-select-option-heading strong {
+  min-width: 0;
+}
+
+.app-select-badge {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 999px;
+  color: #2563eb;
+  background: #eaf2ff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.app-select-badge.is-success {
+  color: #16815b;
+  background: #e8f7f0;
 }
 
 .app-select-option strong,

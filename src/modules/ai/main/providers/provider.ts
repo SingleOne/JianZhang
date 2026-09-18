@@ -53,7 +53,11 @@ export function parseModelOptions(value: unknown): AiModelOption[] {
       (candidate) => typeof candidate === 'string' && candidate.trim()
     )
     const label = typeof rawLabel === 'string' ? rawLabel.trim().replace(/^models\//, '') : id
-    if (!models.has(id)) models.set(id, { id, label })
+    const description =
+      typeof model.description === 'string' && model.description.trim()
+        ? model.description.trim()
+        : undefined
+    if (!models.has(id)) models.set(id, description ? { id, label, description } : { id, label })
   }
   return [...models.values()].sort((left, right) =>
     left.label.localeCompare(right.label, undefined, { numeric: true, sensitivity: 'base' })

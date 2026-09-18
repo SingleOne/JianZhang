@@ -65,6 +65,7 @@ export interface AiCredentialStatus {
 export interface AiModelOption {
   id: string
   label: string
+  description?: string
 }
 
 export interface AiCredentialSaveResult {

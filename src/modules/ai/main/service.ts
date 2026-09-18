@@ -38,6 +38,7 @@ import type {
 } from '../shared/types'
 import { AI_PROVIDER_IDS } from '../shared/types'
 import { supportsImageUnderstanding } from '../shared/model-capabilities'
+import { addOfficialModelDescriptions } from '../shared/model-descriptions'
 import {
   compactMarketSnapshot,
   compactShortTermSnapshot,
@@ -428,7 +429,10 @@ export class AiService {
   async setCredential(providerId: AiApiKeyProviderId, apiKey: string) {
     const value = apiKey.trim()
     if (!value) throw new Error('API Key 不能为空')
-    const models = await this.requireProvider(providerId).listModels(value)
+    const models = addOfficialModelDescriptions(
+      providerId,
+      await this.requireProvider(providerId).listModels(value)
+    )
     return { credential: this.secrets.set(providerId, value), models }
   }
 
@@ -438,7 +442,10 @@ export class AiService {
   }
 
   async listModels(providerId: AiProviderId): Promise<AiModelOption[]> {
-    return this.requireProvider(providerId).listModels(this.getCredential(providerId))
+    return addOfficialModelDescriptions(
+      providerId,
+      await this.requireProvider(providerId).listModels(this.getCredential(providerId))
+    )
   }
 
   async testConnection(providerId: AiProviderId): Promise<AiConnectionResult> {

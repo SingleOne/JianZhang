@@ -11,9 +11,21 @@ describe('parseModelOptions', () => {
 
     expect(
       parseModelOptions({
-        models: [{ name: 'models/gemini-example', displayName: 'Gemini Example' }]
+        models: [
+          {
+            name: 'models/gemini-example',
+            displayName: 'Gemini Example',
+            description: 'Official Gemini description.'
+          }
+        ]
       })
-    ).toEqual([{ id: 'gemini-example', label: 'Gemini Example' }])
+    ).toEqual([
+      {
+        id: 'gemini-example',
+        label: 'Gemini Example',
+        description: 'Official Gemini description.'
+      }
+    ])
 
     expect(
       parseModelOptions({

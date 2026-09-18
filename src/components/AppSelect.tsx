@@ -5,6 +5,8 @@ export interface AppSelectOption<Value extends string> {
   value: Value
   label: string
   description?: string
+  badge?: string
+  badgeTone?: 'info' | 'success'
 }
 
 interface AppSelectProps<Value extends string> {
@@ -62,7 +64,14 @@ export function AppSelect<Value extends string>({
         disabled={disabled}
         onClick={() => setOpen((current) => !current)}
       >
-        <span>{selectedOption.label}</span>
+        <span className="app-select-trigger-label">
+          <span>{selectedOption.label}</span>
+          {selectedOption.badge ? (
+            <span className={`app-select-badge is-${selectedOption.badgeTone ?? 'info'}`}>
+              {selectedOption.badge}
+            </span>
+          ) : null}
+        </span>
         <ChevronDown size={14} />
       </button>
       {open && !disabled ? (
@@ -79,8 +88,15 @@ export function AppSelect<Value extends string>({
                 onClick={() => choose(option.value)}
               >
                 <Check size={14} />
-                <span>
-                  <strong>{option.label}</strong>
+                <span className="app-select-option-content">
+                  <span className="app-select-option-heading">
+                    <strong>{option.label}</strong>
+                    {option.badge ? (
+                      <span className={`app-select-badge is-${option.badgeTone ?? 'info'}`}>
+                        {option.badge}
+                      </span>
+                    ) : null}
+                  </span>
                   {option.description ? <small>{option.description}</small> : null}
                 </span>
               </button>

@@ -480,15 +480,17 @@ function AiSettingsPanel({
   const providerOptions: AppSelectOption<AiProviderId>[] = status.providers.map((provider) => ({
     value: provider.id,
     label: provider.label,
-    description: provider.billingHint
+    description: provider.billingHint,
+    badge: status.credentials[provider.id]?.configured ? '已配置' : undefined,
+    badgeTone: 'success'
   }))
   const modelSelectOptions: AppSelectOption<string>[] = modelOptions?.length
     ? modelOptions.map((model) => ({
         value: model.id,
         label: model.label === model.id ? model.id : `${model.label} · ${model.id}`,
-        description: supportsImageUnderstanding(draft.providerId, model.id)
-          ? '支持图片理解'
-          : '不支持图片理解'
+        description: model.description,
+        badge: supportsImageUnderstanding(draft.providerId, model.id) ? '图片理解' : undefined,
+        badgeTone: 'info'
       }))
     : [
         {
