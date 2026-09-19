@@ -230,7 +230,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 13px;
+  font-size: 13px !important;
 }
 
 .app-select-trigger-label > span:first-child {

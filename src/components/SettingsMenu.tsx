@@ -1298,13 +1298,21 @@ export function SettingsMenu({
                     <span>
                       本地版本：
                       {githubSyncSettings.localDataUpdatedAt
-                        ? formatCalendarRefreshTime(githubSyncSettings.localDataUpdatedAt)
+                        ? `${formatCalendarRefreshTime(githubSyncSettings.localDataUpdatedAt)}${
+                            githubSyncSettings.localDataSizeBytes !== undefined
+                              ? ` · ${formatCacheSize(githubSyncSettings.localDataSizeBytes)}`
+                              : ''
+                          }`
                         : '暂无数据'}
                     </span>
                     <span>
                       远程版本：
                       {githubSyncSettings.remoteDataUpdatedAt
-                        ? formatCalendarRefreshTime(githubSyncSettings.remoteDataUpdatedAt)
+                        ? `${formatCalendarRefreshTime(githubSyncSettings.remoteDataUpdatedAt)}${
+                            githubSyncSettings.remoteDataSizeBytes !== undefined
+                              ? ` · ${formatCacheSize(githubSyncSettings.remoteDataSizeBytes)}`
+                              : ''
+                          }`
                         : '暂无备份'}
                     </span>
                   </small>

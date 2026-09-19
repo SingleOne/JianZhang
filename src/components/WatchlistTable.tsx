@@ -1018,7 +1018,7 @@ export function WatchlistTable({
       positionedDetailRequestIdRef.current = null
       skipDetailScrollRequestIdRef.current = detailNavigationRequestId
       scrollToStock(detailNavigationQuoteId, detailNavigationScrollAlignment, undefined, 'auto')
-    }, 260)
+    }, 460)
   }, [
     detailNavigationQuoteId,
     detailNavigationRequestId,

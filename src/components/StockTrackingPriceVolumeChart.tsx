@@ -55,6 +55,8 @@ const VOLUME_AVERAGES = [
   { period: 20, metricId: STOCK_TRACKING_VOLUME_AVERAGE_METRICS[20], colorKey: 'accent' }
 ] as const
 
+const MIN_BAR_SPACING = 36
+
 function toTimestamp(value: string): UTCTimestamp {
   const [year, month, day] = value.split('-').map(Number)
   return Math.floor(Date.UTC(year, month - 1, day, 8) / 1000) as UTCTimestamp
@@ -195,7 +197,8 @@ export default function StockTrackingPriceVolumeChart({
       timeScale: {
         borderColor: theme.border,
         rightOffset: 1,
-        barSpacing: 8,
+        barSpacing: MIN_BAR_SPACING,
+        minBarSpacing: MIN_BAR_SPACING,
         fixRightEdge: true,
         tickMarkFormatter: dateLabel
       },

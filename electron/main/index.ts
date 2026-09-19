@@ -570,7 +570,18 @@ if (!hasSingleInstanceLock) {
     githubSyncService = new GitHubSyncService(
       app.getPath('userData'),
       __JIANZHANG_GITHUB_OAUTH_CLIENT_ID__,
-      () => userDataBackupService!.getLocalDataUpdatedAt(stateStore!.getCommittedAt())
+      () => userDataBackupService!.getLocalDataUpdatedAt(stateStore!.getCommittedAt()),
+      () =>
+        Buffer.byteLength(
+          JSON.stringify(
+            userDataBackupService!.create(
+              stateStore!.exportCommittedState(),
+              app.getVersion(),
+              aiSecrets!.exportAll()
+            )
+          ),
+          'utf8'
+        )
     )
     aiSecrets = new AiSecrets(join(app.getPath('userData'), 'modules', 'ai'))
 

@@ -17,6 +17,7 @@ interface StoredGitHubSyncSettings {
   gistId?: string
   gistUrl?: string
   remoteDataUpdatedAt?: string
+  remoteDataSizeBytes?: number
   remoteVersion?: string
   lastSynchronizedVersion?: string
   passwordGistId?: string
@@ -51,6 +52,7 @@ interface GitHubUserResponse {
 }
 
 interface GitHubGistFileResponse {
+  size?: number
   content?: string
   truncated?: boolean
   raw_url?: string
@@ -70,6 +72,7 @@ interface RemoteGist {
   id: string
   url: string
   updatedAt: string
+  size?: number
   version: string
   response: GitHubGistResponse
 }
@@ -94,7 +97,8 @@ export class GitHubSyncService {
   constructor(
     userDataDirectory: string,
     private readonly oauthClientId: string,
-    private readonly getLocalDataUpdatedAt: () => string | undefined = () => undefined
+    private readonly getLocalDataUpdatedAt: () => string | undefined = () => undefined,
+    private readonly getLocalDataSizeBytes: () => number | undefined = () => undefined
   ) {
     this.directory = join(userDataDirectory, 'github-sync')
     this.settingsPath = join(this.directory, 'settings.json')
@@ -106,6 +110,7 @@ export class GitHubSyncService {
   getSettings(): GitHubSyncSettings {
     const saved = this.readSettings()
     const localDataUpdatedAt = this.getLocalDataUpdatedAt()
+    const localDataSizeBytes = this.getLocalDataSizeBytes()
     const hasStoredPassword = existsSync(this.passwordPath)
     const syncPasswordReady =
       hasStoredPassword && (!saved.gistId || saved.passwordGistId === saved.gistId)
@@ -121,8 +126,10 @@ export class GitHubSyncService {
       gistId: saved.gistId,
       gistUrl: saved.gistUrl,
       remoteDataUpdatedAt: saved.remoteDataUpdatedAt,
+      remoteDataSizeBytes: saved.remoteDataSizeBytes,
       remoteVersion: saved.remoteVersion,
-      ...(localDataUpdatedAt ? { localDataUpdatedAt } : {})
+      ...(localDataUpdatedAt ? { localDataUpdatedAt } : {}),
+      ...(localDataSizeBytes !== undefined ? { localDataSizeBytes } : {})
     }
   }
 
@@ -192,6 +199,7 @@ export class GitHubSyncService {
           gistId: gist.id,
           gistUrl: gist.url,
           remoteDataUpdatedAt: gist.updatedAt,
+          ...(gist.size !== undefined ? { remoteDataSizeBytes: gist.size } : {}),
           remoteVersion: gist.version,
           ...(saved.gistId === gist.id && saved.lastSynchronizedVersion
             ? { lastSynchronizedVersion: saved.lastSynchronizedVersion }
@@ -256,6 +264,7 @@ export class GitHubSyncService {
           gistId: updated.id,
           gistUrl: updated.url,
           remoteDataUpdatedAt: updated.updatedAt,
+          ...(updated.size !== undefined ? { remoteDataSizeBytes: updated.size } : {}),
           remoteVersion: updated.version,
           ...(saved.lastSynchronizedVersion === remote.version
             ? { lastSynchronizedVersion: updated.version }
@@ -302,6 +311,7 @@ export class GitHubSyncService {
       gistId: uploaded.id,
       gistUrl: uploaded.url,
       remoteDataUpdatedAt: uploaded.updatedAt,
+      ...(uploaded.size !== undefined ? { remoteDataSizeBytes: uploaded.size } : {}),
       remoteVersion: uploaded.version,
       lastSynchronizedVersion: uploaded.version,
       passwordGistId: uploaded.id
@@ -470,6 +480,9 @@ export class GitHubSyncService {
       id,
       url: response.html_url ?? `https://gist.github.com/${id}`,
       updatedAt,
+      ...(response.files?.[GIST_FILE_NAME]?.size !== undefined
+        ? { size: response.files[GIST_FILE_NAME]?.size }
+        : {}),
       version,
       response
     }
