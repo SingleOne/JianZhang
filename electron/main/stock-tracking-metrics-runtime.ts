@@ -42,12 +42,21 @@ interface StockTrackingMetricsRuntimeDependencies {
 interface CapturedKline {
   quoteId: string
   bars: KlineResult['bars']
+  startDate: string
   endDate: string
 }
 
 function shiftDate(date: string, days: number): string {
   const timestamp = new Date(`${date}T00:00:00.000Z`).getTime()
   return new Date(timestamp + days * DAY_MILLISECONDS).toISOString().slice(0, 10)
+}
+
+function previousTradingDate(profile: StockTrackingProfile, state: AppState, date: string): string {
+  const market = profile.market ?? marketFromQuoteId(profile.quoteId)
+  const calendar = state.settings.tradingCalendar.markets[market]
+  let candidate = shiftDate(date, -1)
+  while (!isMarketTradingDate(market, candidate, calendar)) candidate = shiftDate(candidate, -1)
+  return candidate
 }
 
 function latestCompletedKlineDate(
@@ -64,9 +73,7 @@ function latestCompletedKlineDate(
   ) {
     return currentDate
   }
-  let candidate = shiftDate(currentDate, -1)
-  while (!isMarketTradingDate(market, candidate, calendar)) candidate = shiftDate(candidate, -1)
-  return candidate
+  return previousTradingDate(profile, state, currentDate)
 }
 
 function pendingKlineRange(
@@ -75,9 +82,13 @@ function pendingKlineRange(
   now: Date
 ): KlineDateRange | null {
   const market = profile.market ?? marketFromQuoteId(profile.quoteId)
+  const calendar = state.settings.tradingCalendar.markets[market]
+  const startedDate = marketDateKey(new Date(profile.startedAt), market)
   const startDate = profile.lastCompletedKlineDate
     ? shiftDate(profile.lastCompletedKlineDate, 1)
-    : marketDateKey(new Date(profile.startedAt), market)
+    : isMarketTradingDate(market, startedDate, calendar)
+      ? startedDate
+      : previousTradingDate(profile, state, startedDate)
   const endDate = latestCompletedKlineDate(profile, state, now)
   return startDate <= endDate ? { startDate, endDate } : null
 }
@@ -138,6 +149,7 @@ export class StockTrackingMetricsRuntime {
           .then((result): CapturedKline => ({
             quoteId: profile.quoteId,
             bars: result.bars,
+            startDate: dateRange.startDate,
             endDate: dateRange.endDate
           }))
           .catch(() => null)
@@ -176,7 +188,7 @@ export class StockTrackingMetricsRuntime {
       )
       const snapshots = calculateStockTrackingDailyMetrics(
         [...barsByTime.values()],
-        profile.startedAt,
+        result.startDate,
         profile.stoppedAt,
         capturedAt
       ).filter(

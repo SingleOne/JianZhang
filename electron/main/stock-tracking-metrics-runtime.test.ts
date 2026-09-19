@@ -121,6 +121,74 @@ describe('StockTrackingMetricsRuntime', () => {
     expect(currentState.stockTrackingProfiles['1.600000'].metricSnapshots).toEqual([])
   })
 
+  it.each([
+    {
+      name: 'weekend',
+      startedAt: '2026-07-25T02:00:00.000Z',
+      closedDate: undefined,
+      expectedDate: '2026-07-24'
+    },
+    {
+      name: 'market holiday',
+      startedAt: '2026-07-22T02:00:00.000Z',
+      closedDate: '2026-07-22',
+      expectedDate: '2026-07-21'
+    }
+  ])(
+    'stores the latest completed trading date when tracking starts on a $name',
+    async ({ startedAt, closedDate, expectedDate }) => {
+      let currentState = state()
+      currentState.stockTrackingProfiles['1.600000'] = {
+        ...trackedProfile(),
+        startedAt,
+        updatedAt: startedAt
+      }
+      if (closedDate) {
+        currentState.settings.tradingCalendar.markets.CN.closedDates.push(closedDate)
+      }
+      const getDailyKline = vi.fn(async (quoteId: string) => ({
+        quoteId,
+        name: '浦发银行',
+        tradingDate: expectedDate,
+        bars: [
+          {
+            time: expectedDate,
+            open: 10,
+            close: 10,
+            high: 10,
+            low: 10,
+            volume: 100,
+            amount: 1_000
+          }
+        ]
+      }))
+      const runtime = new StockTrackingMetricsRuntime({
+        getState: () => currentState,
+        setState: (nextState) => {
+          currentState = nextState
+        },
+        persistState: vi.fn(),
+        sendStateUpdated: vi.fn(),
+        getDailyKline,
+        notifyPriceVolumeDivergence: vi.fn(),
+        now: () => new Date(startedAt)
+      })
+
+      await runtime.capture()
+
+      expect(getDailyKline).toHaveBeenCalledWith('1.600000', {
+        startDate: expectedDate,
+        endDate: expectedDate
+      })
+      expect(currentState.stockTrackingProfiles['1.600000'].metricSnapshots).toEqual([
+        expect.objectContaining({ tradingDate: expectedDate })
+      ])
+      expect(currentState.stockTrackingProfiles['1.600000'].lastCompletedKlineDate).toBe(
+        expectedDate
+      )
+    }
+  )
+
   it('requests only dates after the completion marker and never rewrites them', async () => {
     let currentState = state()
     const previousBars = [
