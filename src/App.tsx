@@ -1383,14 +1383,12 @@ export default function App() {
     [requestWatchlistStockPosition]
   )
 
-  const viewWatchlistStockFromTracking = useCallback((quoteId: string) => {
-    setSelectedQuoteId(quoteId)
-    setStockSelectionRequest({
-      id: `stock-tracking:${quoteId}:${Date.now()}`,
-      quoteId,
-      scrollAlignment: 'sticky-top'
-    })
-  }, [])
+  const viewWatchlistStockFromTracking = useCallback(
+    (quoteId: string) => {
+      requestWatchlistStockPosition(quoteId, 'stock-tracking', true)
+    },
+    [requestWatchlistStockPosition]
+  )
 
   const updateChipDistributionEnabled = useCallback(
     (enabled: boolean) => {

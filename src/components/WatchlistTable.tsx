@@ -323,6 +323,7 @@ export function WatchlistTable({
   const locateFrameRef = useRef<number | undefined>(undefined)
   const collapseScrollFrameRef = useRef<number | undefined>(undefined)
   const scrollEndCleanupRef = useRef<(() => void) | undefined>(undefined)
+  const detailCorrectionTimerRef = useRef<number | undefined>(undefined)
   const positionedDetailRequestIdRef = useRef<string | null>(null)
   const skipDetailScrollRequestIdRef = useRef<string | null>(null)
   const stickyDisabledQuoteIdRef = useRef<string | null>(null)
@@ -827,17 +828,23 @@ export function WatchlistTable({
 
       const scrollerRect = scroller.getBoundingClientRect()
       const rowRect = row.getBoundingClientRect()
+      const rowStyles = window.getComputedStyle(row)
       const stickyTop =
         alignment === 'sticky-top'
-          ? Number.parseFloat(window.getComputedStyle(row).top) ||
+          ? Number.parseFloat(rowStyles.top) ||
             scroller.querySelector('thead')?.getBoundingClientRect().height ||
             0
           : 0
-      const targetTop =
-        scroller.scrollTop +
-        rowRect.top -
-        scrollerRect.top -
-        (alignment === 'sticky-top' ? stickyTop : (scroller.clientHeight - rowRect.height) / 2)
+      const isAlreadyStickyAtTop =
+        alignment === 'sticky-top' &&
+        rowStyles.position === 'sticky' &&
+        Math.abs(rowRect.top - scrollerRect.top - stickyTop) <= 1
+      const targetTop = isAlreadyStickyAtTop
+        ? scroller.scrollTop
+        : scroller.scrollTop +
+          rowRect.top -
+          scrollerRect.top -
+          (alignment === 'sticky-top' ? stickyTop : (scroller.clientHeight - rowRect.height) / 2)
       const maxScrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight)
       const nextScrollTop = Math.min(Math.max(0, targetTop), maxScrollTop)
       const finishLocate = () => {
@@ -981,6 +988,8 @@ export function WatchlistTable({
   useEffect(() => {
     if (!stockSelectionRequest || stockSelectionRequest.scrollAlignment !== 'sticky-top') return
 
+    window.clearTimeout(detailCorrectionTimerRef.current)
+    detailCorrectionTimerRef.current = undefined
     resetFilters()
     const frameId = window.requestAnimationFrame(() =>
       scrollToStock(stockSelectionRequest.quoteId, 'sticky-top', () => {
@@ -1002,9 +1011,14 @@ export function WatchlistTable({
       return
     }
 
-    positionedDetailRequestIdRef.current = null
-    skipDetailScrollRequestIdRef.current = detailNavigationRequestId
-    scrollToStock(detailNavigationQuoteId, detailNavigationScrollAlignment, undefined, 'auto')
+    window.clearTimeout(detailCorrectionTimerRef.current)
+    detailCorrectionTimerRef.current = window.setTimeout(() => {
+      detailCorrectionTimerRef.current = undefined
+      if (positionedDetailRequestIdRef.current !== detailNavigationRequestId) return
+      positionedDetailRequestIdRef.current = null
+      skipDetailScrollRequestIdRef.current = detailNavigationRequestId
+      scrollToStock(detailNavigationQuoteId, detailNavigationScrollAlignment, undefined, 'auto')
+    }, 260)
   }, [
     detailNavigationQuoteId,
     detailNavigationRequestId,
