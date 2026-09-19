@@ -30,6 +30,7 @@ function bar(day: number, volume: number, close = 10): KlineBar {
 
 function profile(): StockTrackingProfile {
   return {
+    cycleId: 'cycle-1',
     quoteId: '1.600000',
     code: '600000',
     name: '浦发银行',

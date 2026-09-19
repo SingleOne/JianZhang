@@ -16,6 +16,7 @@ vi.mock('./market', () => ({ fetchQuotes: vi.fn() }))
 
 function trackingProfile(): StockTrackingProfile {
   return {
+    cycleId: 'cycle-1',
     quoteId: '1.600000',
     code: '600000',
     name: '浦发银行',

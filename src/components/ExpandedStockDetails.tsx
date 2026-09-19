@@ -1880,7 +1880,12 @@ interface ExpandedStockDetailsProps {
   trackingProfile?: StockTrackingProfile
   onStartTracking: (quoteId: string) => void
   onUpdateTracking: (profile: StockTrackingProfile) => void
-  onStopTracking: (quoteId: string, result: StockTrackingConclusionResult, summary: string) => void
+  onStopTracking: (
+    quoteId: string,
+    result: StockTrackingConclusionResult,
+    summary: string,
+    deletePreviousArchives?: boolean
+  ) => void
   onRestartTracking: (quoteId: string) => void
   onChipDistributionEnabledChange: (enabled: boolean) => void
   onBollingerBandsEnabledChange: (enabled: boolean) => void

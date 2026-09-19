@@ -66,6 +66,9 @@ import type {
   ShareholderSnapshot,
   StockOrderBook,
   StockQuote,
+  StockTrackingArchiveIndex,
+  StockTrackingArchiveMutationResult,
+  StockTrackingProfile,
   StockValuationHistory,
   TaskbarLayout,
   TaskbarTooltipAnchor,
@@ -82,6 +85,15 @@ interface IpcHandlerDependencies {
   persistState: () => void
   getQuotes: () => StockQuote[]
   getStartupWarning: () => string | undefined
+  getStockTrackingArchiveIndex: () => StockTrackingArchiveIndex
+  getStockTrackingArchiveCycle: (quoteId: string, cycleId: string) => StockTrackingProfile
+  archiveStockTrackingCycle: (
+    state: AppState,
+    profile: StockTrackingProfile,
+    deletePreviousArchives: boolean
+  ) => StockTrackingArchiveMutationResult
+  deleteStockTrackingArchiveCycle: (quoteId: string, cycleId: string) => StockTrackingArchiveIndex
+  deleteAllStockTrackingArchives: (quoteId: string) => StockTrackingArchiveIndex
   getOptionalModulesState: () => OptionalModulesState
   waitForOptionalModule: (moduleId: OptionalModuleId) => Promise<void>
   getTaskbarLayout: () => TaskbarLayout
@@ -199,6 +211,10 @@ interface IpcHandlerDependencies {
 
 const CHANNELS = [
   'app:bootstrap',
+  'tracking:archive-cycle:get',
+  'tracking:archive',
+  'tracking:archive-cycle:delete',
+  'tracking:archives:delete-all',
   'app:optional-modules:get',
   'app:optional-module:wait',
   'taskbar:layout:get',
@@ -284,10 +300,39 @@ function configTimestamp(): string {
 export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () => void {
   ipcMain.handle('app:bootstrap', async () => ({
     state: dependencies.getState(),
+    trackingArchiveIndex: dependencies.getStockTrackingArchiveIndex(),
     quotes: dependencies.getQuotes(),
     source: 'eastmoney' as const,
     warning: dependencies.getStartupWarning()
   }))
+  ipcMain.handle('tracking:archive-cycle:get', (_event, quoteId: string, cycleId: string) =>
+    dependencies.getStockTrackingArchiveCycle(quoteId, cycleId)
+  )
+  ipcMain.handle(
+    'tracking:archive',
+    (
+      _event,
+      nextState: AppState,
+      profile: StockTrackingProfile,
+      deletePreviousArchives: boolean
+    ) => {
+      dependencies.assertStateRevision(nextState)
+      const result = dependencies.archiveStockTrackingCycle(
+        nextState,
+        profile,
+        deletePreviousArchives
+      )
+      dependencies.sendToWindows('state:updated', result.state)
+      dependencies.syncWindowSurfaces()
+      return result
+    }
+  )
+  ipcMain.handle('tracking:archive-cycle:delete', (_event, quoteId: string, cycleId: string) =>
+    dependencies.deleteStockTrackingArchiveCycle(quoteId, cycleId)
+  )
+  ipcMain.handle('tracking:archives:delete-all', (_event, quoteId: string) =>
+    dependencies.deleteAllStockTrackingArchives(quoteId)
+  )
   ipcMain.handle('app:optional-modules:get', () => dependencies.getOptionalModulesState())
   ipcMain.handle('app:optional-module:wait', (_event, moduleId: OptionalModuleId) =>
     dependencies.waitForOptionalModule(moduleId)

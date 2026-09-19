@@ -152,6 +152,7 @@ export function startStockTracking(
   const sourceTags = trackingSourceTags(source)
   if (!current) {
     const profile: StockTrackingProfile = {
+      cycleId: uniqueId(),
       quoteId: stock.quoteId,
       code: stock.code,
       name: stock.name,
@@ -174,28 +175,20 @@ export function startStockTracking(
     )
   }
 
+  if (current.status === 'stopped') {
+    return startStockTracking(undefined, stock, source, quote, now)
+  }
+
   const sourceExists = current.sources.some((item) => sameSource(item, source))
-  const restarting = current.status === 'stopped'
   const next = {
     ...current,
     code: stock.code,
     name: stock.name,
     marketLabel: stock.marketLabel,
     status: 'tracking' as const,
-    stoppedAt: undefined,
-    conclusion: undefined,
     updatedAt: now,
     tags: uniqueTags([...current.tags, ...sourceTags]),
     sources: sourceExists ? current.sources : [source, ...current.sources]
-  }
-  if (restarting) {
-    return appendEntry(
-      next,
-      'system',
-      `重新开始追踪，来源：${STOCK_TRACKING_SOURCE_LABELS[source.type]}`,
-      quote,
-      now
-    )
   }
   if (!sourceExists) {
     return appendEntry(

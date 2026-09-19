@@ -36,6 +36,8 @@ import {
   type StockDesktopApi,
   type StockOrderBook,
   type StockQuote,
+  type StockTrackingArchiveIndex,
+  type StockTrackingProfile,
   type StockSectorQuote,
   type WatchStock
 } from '../shared/types'
@@ -93,6 +95,58 @@ const DEFAULT_STATE: AppState = {
   tTradingAccounts: {},
   corporateActionRecords: {},
   portfolioPerformanceAdjustments: {}
+}
+
+const DEMO_TRACKING_ARCHIVES_KEY = 'jianzhang-demo-tracking-archives-v1'
+
+function loadDemoTrackingArchives(): Record<string, StockTrackingProfile[]> {
+  const saved = localStorage.getItem(DEMO_TRACKING_ARCHIVES_KEY)
+  return saved ? (JSON.parse(saved) as Record<string, StockTrackingProfile[]>) : {}
+}
+
+function saveDemoTrackingArchives(archives: Record<string, StockTrackingProfile[]>): void {
+  localStorage.setItem(DEMO_TRACKING_ARCHIVES_KEY, JSON.stringify(archives))
+}
+
+function demoTrackingArchiveIndex(): StockTrackingArchiveIndex {
+  return Object.fromEntries(
+    Object.entries(loadDemoTrackingArchives()).flatMap(([quoteId, cycles]) => {
+      const latest = cycles[0]
+      if (!latest) return []
+      return [
+        [
+          quoteId,
+          {
+            quoteId,
+            code: latest.code,
+            name: latest.name,
+            marketLabel: latest.marketLabel,
+            cycles: cycles.flatMap((profile) =>
+              profile.stoppedAt && profile.conclusion
+                ? [
+                    {
+                      cycleId: profile.cycleId,
+                      quoteId,
+                      code: profile.code,
+                      name: profile.name,
+                      marketLabel: profile.marketLabel,
+                      startedAt: profile.startedAt,
+                      stoppedAt: profile.stoppedAt,
+                      updatedAt: profile.updatedAt,
+                      sourceTypes: [...new Set(profile.sources.map((source) => source.type))],
+                      tags: [...profile.tags],
+                      conclusion: profile.conclusion,
+                      trackingReturn: null,
+                      lastEntryContent: profile.entries[0]?.content
+                    }
+                  ]
+                : []
+            )
+          }
+        ]
+      ]
+    })
+  )
 }
 
 const DEMO_DAILY_MARKET_SCAN_RESULT: DailyMarketScanResult = {
@@ -190,13 +244,29 @@ function loadDemoState(): AppState {
   if (!saved) return structuredClone(DEFAULT_STATE)
   const parsed = JSON.parse(saved) as AppState
   const watchlistGroups = normalizeWatchlistGroups(parsed.watchlistGroups)
-  const stockTrackingProfiles = normalizeStockTrackingProfiles(parsed.stockTrackingProfiles)
+  const normalizedProfiles = normalizeStockTrackingProfiles(parsed.stockTrackingProfiles)
+  const stoppedProfiles = Object.values(normalizedProfiles).filter(
+    (profile) => profile.status === 'stopped'
+  )
+  if (stoppedProfiles.length > 0) {
+    const archives = loadDemoTrackingArchives()
+    stoppedProfiles.forEach((profile) => {
+      archives[profile.quoteId] = [
+        profile,
+        ...(archives[profile.quoteId] ?? []).filter((cycle) => cycle.cycleId !== profile.cycleId)
+      ]
+    })
+    saveDemoTrackingArchives(archives)
+  }
+  const stockTrackingProfiles = Object.fromEntries(
+    Object.entries(normalizedProfiles).filter(([, profile]) => profile.status === 'tracking')
+  )
   const watchlist = synchronizeWatchlistGroupMemberships(
     normalizeWatchlist(parsed.watchlist),
     watchlistGroups,
     stockTrackingProfiles
   )
-  return {
+  const state = {
     revision: parsed.revision,
     watchlist,
     watchlistGroups,
@@ -211,6 +281,10 @@ function loadDemoState(): AppState {
       watchlist
     )
   }
+  if (stoppedProfiles.length > 0) {
+    localStorage.setItem('jianzhang-demo-state-v1', JSON.stringify(state))
+  }
+  return state
 }
 
 function makeDemoQuotes(watchlist: WatchStock[]): StockQuote[] {
@@ -592,7 +666,43 @@ const demoApi: StockDesktopApi = {
   async getBootstrap(): Promise<BootstrapResult> {
     const state = loadDemoState()
     const marketIndices = getMarketIndexStocks(state.settings.marketIndexIds)
-    return { state, quotes: makeDemoQuotes([...state.watchlist, ...marketIndices]), source: 'demo' }
+    return {
+      state,
+      trackingArchiveIndex: demoTrackingArchiveIndex(),
+      quotes: makeDemoQuotes([...state.watchlist, ...marketIndices]),
+      source: 'demo'
+    }
+  },
+  async getStockTrackingArchiveCycle(quoteId, cycleId) {
+    const profile = loadDemoTrackingArchives()[quoteId]?.find((cycle) => cycle.cycleId === cycleId)
+    if (!profile) throw new Error('追踪周期不存在或已被删除')
+    return structuredClone(profile)
+  },
+  async archiveStockTrackingCycle(state, profile, deletePreviousArchives) {
+    const archives = loadDemoTrackingArchives()
+    archives[profile.quoteId] = [
+      profile,
+      ...(deletePreviousArchives
+        ? []
+        : (archives[profile.quoteId] ?? []).filter((cycle) => cycle.cycleId !== profile.cycleId))
+    ]
+    saveDemoTrackingArchives(archives)
+    localStorage.setItem('jianzhang-demo-state-v1', JSON.stringify(state))
+    return { state, archiveIndex: demoTrackingArchiveIndex() }
+  },
+  async deleteStockTrackingArchiveCycle(quoteId, cycleId) {
+    const archives = loadDemoTrackingArchives()
+    const cycles = (archives[quoteId] ?? []).filter((cycle) => cycle.cycleId !== cycleId)
+    if (cycles.length > 0) archives[quoteId] = cycles
+    else delete archives[quoteId]
+    saveDemoTrackingArchives(archives)
+    return demoTrackingArchiveIndex()
+  },
+  async deleteAllStockTrackingArchives(quoteId) {
+    const archives = loadDemoTrackingArchives()
+    delete archives[quoteId]
+    saveDemoTrackingArchives(archives)
+    return demoTrackingArchiveIndex()
   },
   async getOptionalModulesState(): Promise<OptionalModulesState> {
     return {

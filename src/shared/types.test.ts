@@ -60,6 +60,7 @@ describe('watchlist normalization', () => {
     const groups = normalizeWatchlistGroups(undefined)
     const profiles = normalizeStockTrackingProfiles({
       '1.600000': {
+        cycleId: 'cycle-1',
         quoteId: '1.600000',
         code: '600000',
         name: '浦发银行',

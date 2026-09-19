@@ -60,6 +60,7 @@ function makeState(name = '浦发银行'): AppState {
 
 function makeTrackingProfile(): StockTrackingProfile {
   return {
+    cycleId: 'cycle-1',
     quoteId: '1.600000',
     code: '600000',
     name: '浦发银行',

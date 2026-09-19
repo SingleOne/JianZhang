@@ -19,7 +19,12 @@ interface StockTrackingPanelProps {
   marketCalendar: MarketCalendarDates
   onStartTracking: (quoteId: string) => void
   onUpdateProfile: (profile: StockTrackingProfile) => void
-  onStopTracking: (quoteId: string, result: StockTrackingConclusionResult, summary: string) => void
+  onStopTracking: (
+    quoteId: string,
+    result: StockTrackingConclusionResult,
+    summary: string,
+    deletePreviousArchives?: boolean
+  ) => void
   onRestartTracking: (quoteId: string) => void
 }
 

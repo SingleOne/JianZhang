@@ -49,6 +49,7 @@ const BACKUP_SINGLE_FILES = new Set([
 ])
 
 const BACKUP_DIRECTORY_PREFIXES = [
+  'tracking-archives/',
   'modules/ai/conversations/',
   'modules/ai/snapshots/',
   'modules/ai/cache/'

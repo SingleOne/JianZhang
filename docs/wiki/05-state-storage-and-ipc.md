@@ -25,7 +25,7 @@ interface AppState {
 
 - 自选顺序、任务栏选择、重点关注。
 - 自选分组及股票的多分组归属；包含不可改名或删除的系统“异动观察”和“追踪”分组。
-- 选股追踪档案、来源历史、标签、选股逻辑、时间线、停止状态、复盘结论和按交易日保存的通用指标快照。
+- 当前正在进行的选股追踪周期；已结束周期保存在独立的按需加载档案库。
 - 持仓和持仓快照。
 - 自定义股价提醒规则与触发状态。
 - 刷新、指数、筹码分布开关、界面主题、做 T、浮动盈亏提醒默认值、系统、交易日历设置。
@@ -55,6 +55,10 @@ interface AppState {
 │  │  └─ portfolio-meta-r<revision>-<hash>.json
 │  ├─ tracking/<quoteId>-r<revision>-<hash>.json
 │  └─ portfolios/<quoteId>-r<revision>-<hash>.json
+├─ tracking-archives/
+│  ├─ index.json
+│  ├─ index.last-good.json
+│  └─ cycles/<quoteId>--<cycleId>.json
 ├─ state-history/manifest-<时间>-r<revision>.json
 ├─ settings.legacy-v1.json
 └─ settings.last-good.legacy-v1.json
@@ -62,9 +66,11 @@ interface AppState {
 
 `manifest.json` 是一次核心状态提交的唯一生效点。各 JSON 分片不可变并记录字节数和 SHA-256；未变化的分片在下一 revision 中复用旧引用。历史最多保留 20 个 manifest，且至少间隔 15 分钟，清理只删除未被当前、last-good 或保留历史引用的分片。
 
+`tracking-archives/index.json` 只保存按股票分组的周期摘要，应用启动和 `app:bootstrap` 不读取历史周期正文。选择某个历史周期后才通过追踪档案 IPC 读取对应 `cycles` 文件；索引损坏时回退 `index.last-good.json`。旧核心状态中的 `stopped` 档案在升级后首次启动时迁入该目录，核心状态此后只保留正在追踪的周期。
+
 ### 加载
 
-`StateStore.load()` 读取 manifest 明确引用的全部分片，校验大小、SHA-256、文档类型和业务 ID，组装完整 `AppState` 后依次执行共享 normalize：
+`StateStore.load()` 读取 manifest 明确引用的核心分片，校验大小、SHA-256、文档类型和业务 ID，组装只含活动追踪周期的 `AppState` 后依次执行共享 normalize：
 
 1. `normalizeWatchlist`
 2. `normalizeWatchlistGroups`
@@ -235,7 +241,11 @@ localStorage["jianzhang-demo-state-v1"]
 
 | preload 方法                                                 | IPC channel                                                      | 主进程处理                                                                                                       |
 | ------------------------------------------------------------ | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `getBootstrap`                                               | `app:bootstrap`                                                  | 返回状态、内存报价和数据源                                                                                       |
+| `getBootstrap`                                               | `app:bootstrap`                                                  | 返回核心状态、轻量追踪档案索引、内存报价和数据源                                                                 |
+| `getStockTrackingArchiveCycle`                               | `tracking:archive-cycle:get`                                     | 按股票和周期 ID 延迟读取一份历史追踪正文                                                                          |
+| `archiveStockTrackingCycle`                                  | `tracking:archive`                                               | 停止当前周期、写入历史档案并从活动状态移除                                                                         |
+| `deleteStockTrackingArchiveCycle`                            | `tracking:archive-cycle:delete`                                  | 删除指定股票的一个历史周期                                                                                         |
+| `deleteAllStockTrackingArchives`                             | `tracking:archives:delete-all`                                   | 清空指定股票的全部历史周期，不影响当前活动周期                                                                     |
 | `getTaskbarLayout`                                           | `taskbar:layout:get`                                             | 返回任务栏高度                                                                                                   |
 | `searchStocks`                                               | `stocks:search`                                                  | 股票联想                                                                                                         |
 | `getDividendFinancingSnapshot`                               | `dividend-financing:get`                                         | 返回进程内缓存的 schema v2 用户快照；本地不存在时返回 `null`                                                     |

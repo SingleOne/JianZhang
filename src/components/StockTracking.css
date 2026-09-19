@@ -118,6 +118,36 @@
   font-weight: 700;
 }
 
+.stock-tracking-stop-form .stock-tracking-stop-delete-history {
+  display: flex;
+  grid-template-columns: none;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 9px 10px;
+  border: 1px solid color-mix(in srgb, var(--danger) 28%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--danger) 5%, var(--surface));
+  cursor: pointer;
+}
+
+.stock-tracking-stop-delete-history input {
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+}
+
+.stock-tracking-stop-delete-history > span {
+  display: grid;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.stock-tracking-stop-delete-history small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
 .stock-tracking-stop-form textarea,
 .stock-tracking-inline-form input,
 .stock-tracking-thesis,
@@ -200,6 +230,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
+  font-size: 13px;
 }
 
 .app-select-trigger-label > span:first-child {
@@ -1294,6 +1325,143 @@
   padding: 15px 18px 24px;
 }
 
+.stock-tracking-detail-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.stock-tracking-detail-tabs > button:not(.stock-tracking-new-cycle) {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 0 10px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.stock-tracking-detail-tabs > button:not(.stock-tracking-new-cycle).is-active {
+  border-bottom-color: var(--blue);
+  color: var(--text-primary);
+}
+
+.stock-tracking-detail-tabs > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.stock-tracking-new-cycle {
+  margin: 0 0 5px auto;
+}
+
+.stock-tracking-history-layout {
+  display: grid;
+  grid-template-columns: minmax(230px, 280px) minmax(0, 1fr);
+  gap: 12px;
+  min-height: 420px;
+}
+
+.stock-tracking-cycle-list {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-muted);
+  overflow: hidden;
+}
+
+.stock-tracking-cycle-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.stock-tracking-cycle-list-header > strong {
+  font-size: 13px;
+}
+
+.stock-tracking-cycle-list-header .danger-button {
+  min-height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.stock-tracking-cycle-list > article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.stock-tracking-cycle-list > article.is-active {
+  background: var(--surface-selected);
+  box-shadow: inset 3px 0 var(--blue);
+}
+
+.stock-tracking-cycle-list > article > button:first-child {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  border: 0;
+  padding: 10px 8px 10px 12px;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.stock-tracking-cycle-list > article strong,
+.stock-tracking-cycle-list > article span,
+.stock-tracking-cycle-list > article small,
+.stock-tracking-history-empty,
+.stock-tracking-history-state {
+  font-size: 12px;
+}
+
+.stock-tracking-cycle-list > article span {
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stock-tracking-cycle-list > article small.is-up {
+  color: var(--red);
+}
+
+.stock-tracking-cycle-list > article small.is-down {
+  color: var(--green);
+}
+
+.stock-tracking-cycle-list > article small.is-flat {
+  color: var(--muted);
+}
+
+.stock-tracking-history-empty,
+.stock-tracking-history-state {
+  padding: 18px 12px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.stock-tracking-history-state.is-error {
+  color: var(--danger);
+}
+
+.stock-tracking-history-detail {
+  min-width: 0;
+}
+
 .stock-tracking-dialog-content-note {
   margin-bottom: 8px;
   padding: 8px 10px;
@@ -1325,6 +1493,10 @@
 @media (max-width: 900px) {
   .stock-tracking-dialog-layout {
     grid-template-columns: 250px minmax(0, 1fr);
+  }
+
+  .stock-tracking-history-layout {
+    grid-template-columns: 1fr;
   }
 
   .stock-tracking-dialog-toolbar {

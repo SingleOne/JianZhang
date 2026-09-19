@@ -183,7 +183,12 @@ interface WatchlistRowProps {
     record: CorporateActionRecord
   ) => string | void
   onUpdateCorporateActionRecord: (record: CorporateActionRecord) => void
-  onStopTracking: (quoteId: string, result: StockTrackingConclusionResult, summary: string) => void
+  onStopTracking: (
+    quoteId: string,
+    result: StockTrackingConclusionResult,
+    summary: string,
+    deletePreviousArchives?: boolean
+  ) => void
   onRestartTracking: (quoteId: string) => void
   onRemove: (quoteId: string) => void
 }

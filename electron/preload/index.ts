@@ -27,6 +27,14 @@ function subscribe<T>(channel: string, callback: (payload: T) => void): () => vo
 
 const api: StockDesktopApi = {
   getBootstrap: () => ipcRenderer.invoke('app:bootstrap'),
+  getStockTrackingArchiveCycle: (quoteId, cycleId) =>
+    ipcRenderer.invoke('tracking:archive-cycle:get', quoteId, cycleId),
+  archiveStockTrackingCycle: (state, profile, deletePreviousArchives) =>
+    ipcRenderer.invoke('tracking:archive', state, profile, deletePreviousArchives),
+  deleteStockTrackingArchiveCycle: (quoteId, cycleId) =>
+    ipcRenderer.invoke('tracking:archive-cycle:delete', quoteId, cycleId),
+  deleteAllStockTrackingArchives: (quoteId) =>
+    ipcRenderer.invoke('tracking:archives:delete-all', quoteId),
   getOptionalModulesState: () => ipcRenderer.invoke('app:optional-modules:get'),
   getTaskbarLayout: () => ipcRenderer.invoke('taskbar:layout:get'),
   getTaskbarTooltipQuoteId: () => ipcRenderer.invoke('taskbar:tooltip:get'),

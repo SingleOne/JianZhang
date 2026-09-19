@@ -64,6 +64,7 @@ import { SecEdgarClient } from './sec-edgar-client'
 import { ShareholderService } from './shareholder-service'
 import { StateStore, StateStoreRevisionConflictError } from './state-store'
 import { StockTrackingMetricsRuntime } from './stock-tracking-metrics-runtime'
+import { StockTrackingArchiveStore } from './stock-tracking-archive-store'
 import { TradingCalendarRuntime } from './trading-calendar-runtime'
 import { UserDataBackupService } from './user-data-backup-service'
 import { ValuationHistoryService } from './valuation-history-service'
@@ -133,6 +134,7 @@ const DEFAULT_STATE: AppState = {
 
 let state: AppState = DEFAULT_STATE
 let stateStore: StateStore | null = null
+let stockTrackingArchiveStore: StockTrackingArchiveStore | null = null
 let windowManager: WindowManager | null = null
 let quoteRuntime: QuoteRuntime | null = null
 let stockTrackingMetricsRuntime: StockTrackingMetricsRuntime | null = null
@@ -535,6 +537,24 @@ if (!hasSingleInstanceLock) {
       const loaded = stateStore.load()
       state = loaded.state
       startupWarning = loaded.warning
+      stockTrackingArchiveStore = new StockTrackingArchiveStore(app.getPath('userData'))
+      const archiveWarning = stockTrackingArchiveStore.initialize()
+      const stoppedProfiles = Object.values(state.stockTrackingProfiles).filter(
+        (profile) => profile.status === 'stopped'
+      )
+      if (stoppedProfiles.length > 0) {
+        stoppedProfiles.forEach((profile) => stockTrackingArchiveStore!.archive(profile, false))
+        state = stateStore.normalize({
+          ...state,
+          stockTrackingProfiles: Object.fromEntries(
+            Object.entries(state.stockTrackingProfiles).filter(
+              ([, profile]) => profile.status === 'tracking'
+            )
+          )
+        })
+        persistState()
+      }
+      startupWarning = [startupWarning, archiveWarning].filter(Boolean).join('；') || undefined
     } catch (reason) {
       dialog.showErrorBox(
         '见涨配置读取失败',
@@ -674,6 +694,35 @@ if (!hasSingleInstanceLock) {
       persistState,
       getQuotes: getLatestQuotes,
       getStartupWarning: () => startupWarning,
+      getStockTrackingArchiveIndex: () => stockTrackingArchiveStore!.getIndex(),
+      getStockTrackingArchiveCycle: (quoteId, cycleId) =>
+        stockTrackingArchiveStore!.getCycle(quoteId, cycleId),
+      archiveStockTrackingCycle: (nextState, profile, deletePreviousArchives) => {
+        if (!stateStore || !stockTrackingArchiveStore) throw new Error('追踪档案存储尚未初始化')
+        const previousState = state
+        const archiveSnapshot = stockTrackingArchiveStore.snapshotStock(profile.quoteId)
+        stockTrackingArchiveStore.archive(profile, deletePreviousArchives)
+        try {
+          state = stateStore.normalize(nextState)
+          persistState()
+          return {
+            state,
+            archiveIndex: stockTrackingArchiveStore.getIndex()
+          }
+        } catch (reason) {
+          state = previousState
+          stockTrackingArchiveStore.restoreStock(profile.quoteId, archiveSnapshot)
+          throw reason
+        }
+      },
+      deleteStockTrackingArchiveCycle: (quoteId, cycleId) => {
+        stockTrackingArchiveStore!.deleteCycle(quoteId, cycleId)
+        return stockTrackingArchiveStore!.getIndex()
+      },
+      deleteAllStockTrackingArchives: (quoteId) => {
+        stockTrackingArchiveStore!.deleteAll(quoteId)
+        return stockTrackingArchiveStore!.getIndex()
+      },
       getOptionalModulesState: () => optionalModuleRuntime.getState(),
       waitForOptionalModule: (moduleId) => optionalModuleRuntime.waitUntilReady(moduleId),
       getTaskbarLayout: () =>

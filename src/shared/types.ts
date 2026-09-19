@@ -113,6 +113,7 @@ export interface StockTrackingMetricSnapshot {
 }
 
 export interface StockTrackingProfile {
+  cycleId: string
   quoteId: string
   code: string
   name: string
@@ -135,6 +136,37 @@ export interface StockTrackingProfile {
 }
 
 export type StockTrackingProfiles = Record<string, StockTrackingProfile>
+
+export interface StockTrackingCycleSummary {
+  cycleId: string
+  quoteId: string
+  code: string
+  name: string
+  marketLabel: string
+  startedAt: string
+  stoppedAt: string
+  updatedAt: string
+  sourceTypes: StockTrackingSourceType[]
+  tags: string[]
+  conclusion: StockTrackingConclusion
+  trackingReturn: number | null
+  lastEntryContent?: string
+}
+
+export interface StockTrackingArchiveSummary {
+  quoteId: string
+  code: string
+  name: string
+  marketLabel: string
+  cycles: StockTrackingCycleSummary[]
+}
+
+export type StockTrackingArchiveIndex = Record<string, StockTrackingArchiveSummary>
+
+export interface StockTrackingArchiveMutationResult {
+  state: AppState
+  archiveIndex: StockTrackingArchiveIndex
+}
 
 export interface WatchlistGroup {
   id: string
@@ -327,6 +359,7 @@ export function normalizeStockTrackingProfiles(
           {
             ...profile,
             ...stockMarketIdentity(quoteId, profile.instrumentType),
+            cycleId: profile.cycleId || `${quoteId}:${profile.startedAt || profile.updatedAt}`,
             quoteId,
             status: profile.status === 'stopped' ? 'stopped' : 'tracking',
             lastCompletedKlineDate,
@@ -2738,6 +2771,7 @@ export interface CacheClearResult {
 
 export interface BootstrapResult {
   state: AppState
+  trackingArchiveIndex: StockTrackingArchiveIndex
   quotes: StockQuote[]
   source: 'eastmoney' | 'demo'
   warning?: string
@@ -2773,6 +2807,17 @@ export interface StockSelectionRequest {
 
 export interface StockDesktopApi {
   getBootstrap: () => Promise<BootstrapResult>
+  getStockTrackingArchiveCycle: (quoteId: string, cycleId: string) => Promise<StockTrackingProfile>
+  archiveStockTrackingCycle: (
+    state: AppState,
+    profile: StockTrackingProfile,
+    deletePreviousArchives: boolean
+  ) => Promise<StockTrackingArchiveMutationResult>
+  deleteStockTrackingArchiveCycle: (
+    quoteId: string,
+    cycleId: string
+  ) => Promise<StockTrackingArchiveIndex>
+  deleteAllStockTrackingArchives: (quoteId: string) => Promise<StockTrackingArchiveIndex>
   getOptionalModulesState: () => Promise<OptionalModulesState>
   getTaskbarLayout: () => Promise<TaskbarLayout>
   getTaskbarTooltipQuoteId: () => Promise<string | null>

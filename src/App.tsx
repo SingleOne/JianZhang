@@ -60,6 +60,8 @@ import type {
   StockPositionSnapshot,
   StockAlertRule,
   StockTrackingConclusionResult,
+  StockTrackingArchiveIndex,
+  StockTrackingCycleSummary,
   StockTrackingProfile,
   StockTrackingSource,
   StockQuote,
@@ -145,6 +147,7 @@ function cardDirectionClass(value: number | null | undefined): string {
 export default function App() {
   const confirm = useConfirmDialog()
   const [state, setState] = useState<AppState>(initialState)
+  const [trackingArchiveIndex, setTrackingArchiveIndex] = useState<StockTrackingArchiveIndex>({})
   const [quotes, setQuotes] = useState<StockQuote[]>([])
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null)
   const [stockSelectionRequest, setStockSelectionRequest] = useState<StockSelectionRequest | null>(
@@ -306,6 +309,7 @@ export default function App() {
     getInitialBootstrap()
       .then((bootstrap) => {
         setState(bootstrap.state)
+        setTrackingArchiveIndex(bootstrap.trackingArchiveIndex)
         setQuotes(bootstrap.quotes)
         setSource(bootstrap.source)
         if (bootstrap.warning) reportError(bootstrap.warning)
@@ -616,7 +620,10 @@ export default function App() {
       } catch (reason) {
         reportError(reason instanceof Error ? reason.message : '设置保存失败')
         if (isDesktopRuntime) {
-          void stockApi.getBootstrap().then((bootstrap) => setState(bootstrap.state))
+          void stockApi.getBootstrap().then((bootstrap) => {
+            setState(bootstrap.state)
+            setTrackingArchiveIndex(bootstrap.trackingArchiveIndex)
+          })
         }
         return null
       }
@@ -839,19 +846,46 @@ export default function App() {
   )
 
   const stopTracking = useCallback(
-    (quoteId: string, result: StockTrackingConclusionResult, summary: string) => {
+    (
+      quoteId: string,
+      result: StockTrackingConclusionResult,
+      summary: string,
+      deletePreviousArchives = false
+    ) => {
       const profile = state.stockTrackingProfiles[quoteId]
       if (!profile) return
-      saveTrackingProfile(
-        stopStockTracking(
-          profile,
-          result,
-          summary,
-          quotes.find((quote) => quote.quoteId === quoteId)
-        )
+      const stoppedProfile = stopStockTracking(
+        profile,
+        result,
+        summary,
+        quotes.find((quote) => quote.quoteId === quoteId)
       )
+      const { [quoteId]: _stoppedProfile, ...activeProfiles } = state.stockTrackingProfiles
+      const nextState = {
+        ...state,
+        stockTrackingProfiles: activeProfiles,
+        watchlist: synchronizeWatchlistGroupMemberships(
+          state.watchlist,
+          state.watchlistGroups,
+          activeProfiles
+        )
+      }
+      setState(nextState)
+      void stockApi
+        .archiveStockTrackingCycle(nextState, stoppedProfile, deletePreviousArchives)
+        .then((saved) => {
+          setState(saved.state)
+          setTrackingArchiveIndex(saved.archiveIndex)
+        })
+        .catch((reason: unknown) => {
+          reportError(reason instanceof Error ? reason.message : '停止追踪失败')
+          void stockApi.getBootstrap().then((bootstrap) => {
+            setState(bootstrap.state)
+            setTrackingArchiveIndex(bootstrap.trackingArchiveIndex)
+          })
+        })
     },
-    [quotes, saveTrackingProfile, state.stockTrackingProfiles]
+    [quotes, reportError, state]
   )
 
   const restartTracking = useCallback(
@@ -883,26 +917,28 @@ export default function App() {
     async (quoteId: string) => {
       const stock = state.watchlist.find((item) => item.quoteId === quoteId)
       const profile = state.stockTrackingProfiles[quoteId]
-      if (!stock || !profile) return
+      if (!stock) return
       const confirmed = await confirm({
-        title: '删除股票并停止追踪',
-        message: `将从股票列表中删除“${stock.name}（${stock.code}）”，并停止追踪。历史档案和复盘记录仍会保留。`,
-        confirmLabel: '删除并停止',
+        title: profile ? '删除股票并停止追踪' : '从股票列表中删除',
+        message: profile
+          ? `将从股票列表中删除“${stock.name}（${stock.code}）”，并停止追踪。历史档案和复盘记录仍会保留。`
+          : `将从股票列表中删除“${stock.name}（${stock.code}）”。历史档案和复盘记录仍会保留。`,
+        confirmLabel: profile ? '删除并停止' : '确认删除',
         tone: 'danger'
       })
       if (!confirmed) return
-      const nextProfile =
-        profile.status === 'tracking'
-          ? stopStockTracking(
-              profile,
-              'unverified',
-              '从股票列表中删除时停止追踪',
-              quotes.find((quote) => quote.quoteId === quoteId)
-            )
-          : profile
+      const stoppedProfile = profile
+        ? stopStockTracking(
+            profile,
+            'unverified',
+            '从股票列表中删除时停止追踪',
+            quotes.find((quote) => quote.quoteId === quoteId)
+          )
+        : undefined
+      const { [quoteId]: _removedProfile, ...activeProfiles } = state.stockTrackingProfiles
       setSelectedQuoteId((current) => (current === quoteId ? null : current))
       setQuotes((current) => current.filter((quote) => quote.quoteId !== quoteId))
-      void persist({
+      const nextState = {
         ...state,
         watchlist: state.watchlist.filter((item) => item.quoteId !== quoteId),
         portfolioPerformanceAdjustments: Object.fromEntries(
@@ -910,13 +946,72 @@ export default function App() {
             ([adjustedQuoteId]) => adjustedQuoteId !== quoteId
           )
         ),
-        stockTrackingProfiles: {
-          ...state.stockTrackingProfiles,
-          [quoteId]: nextProfile
-        }
-      })
+        stockTrackingProfiles: activeProfiles
+      }
+      if (!stoppedProfile) {
+        void persist(nextState)
+        return
+      }
+      setState(nextState)
+      void stockApi
+        .archiveStockTrackingCycle(nextState, stoppedProfile, false)
+        .then((saved) => {
+          setState(saved.state)
+          setTrackingArchiveIndex(saved.archiveIndex)
+        })
+        .catch((reason: unknown) => {
+          reportError(reason instanceof Error ? reason.message : '删除股票并停止追踪失败')
+          void stockApi.getBootstrap().then((bootstrap) => {
+            setState(bootstrap.state)
+            setTrackingArchiveIndex(bootstrap.trackingArchiveIndex)
+          })
+        })
     },
-    [confirm, persist, quotes, state]
+    [confirm, persist, quotes, reportError, state]
+  )
+
+  const deleteTrackingArchiveCycle = useCallback(
+    async (cycle: StockTrackingCycleSummary) => {
+      const confirmed = await confirm({
+        title: '删除追踪周期',
+        message: `将永久删除“${cycle.name}（${cycle.code}）”从 ${new Date(cycle.startedAt).toLocaleDateString('zh-CN')} 至 ${new Date(cycle.stoppedAt).toLocaleDateString('zh-CN')} 的追踪记录。`,
+        confirmLabel: '删除该周期',
+        tone: 'danger'
+      })
+      if (!confirmed) return false
+      try {
+        setTrackingArchiveIndex(
+          await stockApi.deleteStockTrackingArchiveCycle(cycle.quoteId, cycle.cycleId)
+        )
+        return true
+      } catch (reason) {
+        reportError(reason instanceof Error ? reason.message : '删除追踪周期失败')
+        return false
+      }
+    },
+    [confirm, reportError]
+  )
+
+  const deleteAllTrackingArchives = useCallback(
+    async (quoteId: string) => {
+      const archive = trackingArchiveIndex[quoteId]
+      if (!archive) return false
+      const confirmed = await confirm({
+        title: '清空历史追踪档案',
+        message: `将永久删除“${archive.name}（${archive.code}）”的 ${archive.cycles.length} 个历史追踪周期。正在进行的追踪不会受到影响。`,
+        confirmLabel: '全部删除',
+        tone: 'danger'
+      })
+      if (!confirmed) return false
+      try {
+        setTrackingArchiveIndex(await stockApi.deleteAllStockTrackingArchives(quoteId))
+        return true
+      } catch (reason) {
+        reportError(reason instanceof Error ? reason.message : '清空历史追踪档案失败')
+        return false
+      }
+    },
+    [confirm, reportError, trackingArchiveIndex]
   )
 
   const savePortfolioPerformanceAdjustments = useCallback(
@@ -1983,12 +2078,15 @@ export default function App() {
           <StockTrackingDialog
             open={stockTrackingOpen}
             profiles={state.stockTrackingProfiles}
+            archiveIndex={trackingArchiveIndex}
             watchlist={state.watchlist}
             watchlistGroups={state.watchlistGroups}
             quotes={quotes}
             onUpdateProfile={saveTrackingProfile}
             onStopTracking={stopTracking}
             onRestartTracking={restartTracking}
+            onDeleteArchiveCycle={deleteTrackingArchiveCycle}
+            onDeleteAllArchives={deleteAllTrackingArchives}
             onDeleteStock={removeTrackedStock}
             onViewStock={viewWatchlistStockFromTracking}
             onUpdateWatchlistGroups={updateWatchlistGroups}

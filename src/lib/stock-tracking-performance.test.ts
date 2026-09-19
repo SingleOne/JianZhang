@@ -8,6 +8,7 @@ function bar(time: string, close: number, high: number, low: number): KlineBar {
 
 function profile(startPrice?: number): StockTrackingProfile {
   return {
+    cycleId: 'cycle-1',
     quoteId: '1.600000',
     code: '600000',
     name: '浦发银行',

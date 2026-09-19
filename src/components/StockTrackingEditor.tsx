@@ -42,12 +42,18 @@ interface StockTrackingEditorProps {
   performance?: StockTrackingPerformance
   marketData?: StockTrackingMarketData
   showDailyKline?: boolean
+  readOnly?: boolean
   bollingerBandsEnabled?: boolean
   onBollingerBandsEnabledChange?: (enabled: boolean) => void
   dailyKlineIndicator?: DailyKlineIndicator
   onDailyKlineIndicatorChange?: (indicator: DailyKlineIndicator) => void
   onUpdateProfile: (profile: StockTrackingProfile) => void
-  onStopTracking: (quoteId: string, result: StockTrackingConclusionResult, summary: string) => void
+  onStopTracking: (
+    quoteId: string,
+    result: StockTrackingConclusionResult,
+    summary: string,
+    deletePreviousArchives?: boolean
+  ) => void
   onRestartTracking: (quoteId: string) => void
   canRestart?: boolean
   groupCount?: number
@@ -95,6 +101,7 @@ export function StockTrackingEditor({
   performance,
   marketData,
   showDailyKline = false,
+  readOnly = false,
   bollingerBandsEnabled,
   onBollingerBandsEnabledChange,
   dailyKlineIndicator,
@@ -118,6 +125,7 @@ export function StockTrackingEditor({
   const [conclusionResult, setConclusionResult] =
     useState<StockTrackingConclusionResult>('unverified')
   const [conclusionSummary, setConclusionSummary] = useState('')
+  const [deletePreviousArchives, setDeletePreviousArchives] = useState(false)
   const sourceTags = trackingProfileSourceTags(profile)
   const missingSourceTags = sourceTags.filter((tag) => !profile.tags.includes(tag))
 
@@ -183,7 +191,7 @@ export function StockTrackingEditor({
           </small>
         </div>
         <div className="stock-tracking-editor-actions">
-          {onOpenGroups ? (
+          {!readOnly && onOpenGroups ? (
             <button
               className={`secondary-button stock-tracking-group-trigger ${groupCount > 0 || groupPopoverOpen ? 'is-active' : ''}`}
               type="button"
@@ -203,12 +211,15 @@ export function StockTrackingEditor({
               查看股票详情
             </button>
           ) : null}
-          {profile.status === 'tracking' ? (
+          {!readOnly && profile.status === 'tracking' ? (
             <>
               <button
                 className="secondary-button stock-tracking-stop-trigger"
                 type="button"
-                onClick={() => setShowStopForm((current) => !current)}
+                onClick={() => {
+                  setDeletePreviousArchives(false)
+                  setShowStopForm((current) => !current)
+                }}
               >
                 <CircleStop size={15} />
                 停止追踪
@@ -225,7 +236,7 @@ export function StockTrackingEditor({
                 </button>
               ) : null}
             </>
-          ) : (
+          ) : !readOnly ? (
             <button
               className="primary-button stock-tracking-restart"
               type="button"
@@ -234,9 +245,9 @@ export function StockTrackingEditor({
               title={canRestart ? undefined : '请先重新加入自选，再恢复追踪'}
             >
               <Play size={15} />
-              重新追踪
+              开始新一轮追踪
             </button>
-          )}
+          ) : null}
         </div>
       </header>
 
@@ -259,6 +270,17 @@ export function StockTrackingEditor({
               placeholder="记录逻辑是否兑现、为什么停止，以及后续需要改进的地方"
             />
           </label>
+          <label className="stock-tracking-stop-delete-history">
+            <input
+              type="checkbox"
+              checked={deletePreviousArchives}
+              onChange={(event) => setDeletePreviousArchives(event.target.checked)}
+            />
+            <span>
+              同时删除该股票此前的历史档案
+              <small>本次刚结束的追踪周期仍会保留</small>
+            </span>
+          </label>
           <div className="stock-tracking-stop-actions">
             <button
               className="secondary-button"
@@ -270,7 +292,14 @@ export function StockTrackingEditor({
             <button
               className="danger-button"
               type="button"
-              onClick={() => onStopTracking(profile.quoteId, conclusionResult, conclusionSummary)}
+              onClick={() =>
+                onStopTracking(
+                  profile.quoteId,
+                  conclusionResult,
+                  conclusionSummary,
+                  deletePreviousArchives
+                )
+              }
             >
               确认停止
             </button>
@@ -348,56 +377,62 @@ export function StockTrackingEditor({
         <div className="stock-tracking-section-title">
           <Tag size={16} />
           <strong>标签与特点</strong>
-          <button
-            className="stock-tracking-source-tags-button"
-            type="button"
-            onClick={addSourceTags}
-            disabled={missingSourceTags.length === 0}
-            title={
-              missingSourceTags.length > 0
-                ? `添加来源标签：${missingSourceTags.join('、')}`
-                : sourceTags.length > 0
-                  ? '当前来源标签已全部添加'
-                  : '当前来源没有可添加的标签'
-            }
-          >
-            <Plus size={13} />
-            一键添加来源标签
-          </button>
+          {!readOnly ? (
+            <button
+              className="stock-tracking-source-tags-button"
+              type="button"
+              onClick={addSourceTags}
+              disabled={missingSourceTags.length === 0}
+              title={
+                missingSourceTags.length > 0
+                  ? `添加来源标签：${missingSourceTags.join('、')}`
+                  : sourceTags.length > 0
+                    ? '当前来源标签已全部添加'
+                    : '当前来源没有可添加的标签'
+              }
+            >
+              <Plus size={13} />
+              一键添加来源标签
+            </button>
+          ) : null}
         </div>
         <div className="stock-tracking-tags">
           {profile.tags.map((tag) => (
             <span key={tag}>
               {tag}
-              <button type="button" onClick={() => removeTag(tag)} aria-label={`删除标签 ${tag}`}>
-                <X size={12} />
-              </button>
+              {!readOnly ? (
+                <button type="button" onClick={() => removeTag(tag)} aria-label={`删除标签 ${tag}`}>
+                  <X size={12} />
+                </button>
+              ) : null}
             </span>
           ))}
         </div>
-        <div className="stock-tracking-inline-form">
-          <input
-            value={tagInput}
-            onChange={(event) => setTagInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault()
-                addTags()
-              }
-            }}
-            placeholder="输入标签，多个标签用逗号分隔"
-            aria-label="股票追踪标签"
-          />
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={addTags}
-            disabled={!tagInput.trim()}
-          >
-            <Plus size={14} />
-            添加
-          </button>
-        </div>
+        {!readOnly ? (
+          <div className="stock-tracking-inline-form">
+            <input
+              value={tagInput}
+              onChange={(event) => setTagInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  addTags()
+                }
+              }}
+              placeholder="输入标签，多个标签用逗号分隔"
+              aria-label="股票追踪标签"
+            />
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={addTags}
+              disabled={!tagInput.trim()}
+            >
+              <Plus size={14} />
+              添加
+            </button>
+          </div>
+        ) : null}
       </section>
 
       <div className="stock-tracking-edit-grid">
@@ -410,48 +445,53 @@ export function StockTrackingEditor({
             className="stock-tracking-thesis"
             value={thesis}
             onChange={(event) => setThesis(event.target.value)}
+            readOnly={readOnly}
             placeholder="记录为什么关注这只股票、预期验证条件、风险点和失效条件"
           />
-          <div className="stock-tracking-save-row">
-            <span>输入内容不会在每次按键时写入配置，请点击保存。</span>
-            <button className="primary-button" type="button" onClick={saveThesis}>
-              <Save size={14} />
-              保存总结
-            </button>
-          </div>
-        </section>
-
-        <section className="stock-tracking-section">
-          <div className="stock-tracking-section-title">
-            <History size={16} />
-            <strong>新增跟踪记录</strong>
-          </div>
-          <div className="stock-tracking-entry-form">
-            <textarea
-              value={entryContent}
-              onChange={(event) => setEntryContent(event.target.value)}
-              placeholder="记录今天观察到的变化、判断和后续计划"
-            />
+          {!readOnly ? (
             <div className="stock-tracking-save-row">
-              <AppSelect
-                className="stock-tracking-entry-type-select"
-                value={entryType}
-                options={ENTRY_TYPE_OPTIONS}
-                label="跟踪记录类型"
-                onChange={setEntryType}
-              />
-              <button
-                className="primary-button"
-                type="button"
-                onClick={addEntry}
-                disabled={!entryContent.trim()}
-              >
-                <Plus size={14} />
-                添加记录
+              <span>输入内容不会在每次按键时写入配置，请点击保存。</span>
+              <button className="primary-button" type="button" onClick={saveThesis}>
+                <Save size={14} />
+                保存总结
               </button>
             </div>
-          </div>
+          ) : null}
         </section>
+
+        {!readOnly ? (
+          <section className="stock-tracking-section">
+            <div className="stock-tracking-section-title">
+              <History size={16} />
+              <strong>新增跟踪记录</strong>
+            </div>
+            <div className="stock-tracking-entry-form">
+              <textarea
+                value={entryContent}
+                onChange={(event) => setEntryContent(event.target.value)}
+                placeholder="记录今天观察到的变化、判断和后续计划"
+              />
+              <div className="stock-tracking-save-row">
+                <AppSelect
+                  className="stock-tracking-entry-type-select"
+                  value={entryType}
+                  options={ENTRY_TYPE_OPTIONS}
+                  label="跟踪记录类型"
+                  onChange={setEntryType}
+                />
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={addEntry}
+                  disabled={!entryContent.trim()}
+                >
+                  <Plus size={14} />
+                  添加记录
+                </button>
+              </div>
+            </div>
+          </section>
+        ) : null}
       </div>
 
       <section className="stock-tracking-section">
@@ -470,7 +510,7 @@ export function StockTrackingEditor({
                     <strong>{STOCK_TRACKING_ENTRY_LABELS[entry.type]}</strong>
                     <small>{formatDateTime(entry.createdAt)}</small>
                   </span>
-                  {entry.type !== 'system' && !editing ? (
+                  {!readOnly && entry.type !== 'system' && !editing ? (
                     <button
                       className="secondary-button stock-tracking-entry-edit-trigger"
                       type="button"

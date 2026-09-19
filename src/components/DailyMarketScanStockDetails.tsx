@@ -141,7 +141,12 @@ export function DailyMarketScanStockDetails({
   }, [quote, row.changePercent, row.signals, row.tradingDate, row.volumeRatio, stock])
 
   const stopTracking = useCallback(
-    (_quoteId: string, result: StockTrackingConclusionResult, summary: string) => {
+    (
+      _quoteId: string,
+      result: StockTrackingConclusionResult,
+      summary: string,
+      _deletePreviousArchives?: boolean
+    ) => {
       setTrackingProfile((current) =>
         current ? stopStockTracking(current, result, summary, quote) : current
       )

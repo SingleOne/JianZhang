@@ -150,7 +150,12 @@ interface WatchlistTableProps {
   stockTrackingProfiles: StockTrackingProfiles
   onStartTracking: (quoteId: string) => void
   onUpdateTracking: (profile: StockTrackingProfile) => void
-  onStopTracking: (quoteId: string, result: StockTrackingConclusionResult, summary: string) => void
+  onStopTracking: (
+    quoteId: string,
+    result: StockTrackingConclusionResult,
+    summary: string,
+    deletePreviousArchives?: boolean
+  ) => void
   onRestartTracking: (quoteId: string) => void
   onReorder: (sourceQuoteId: string, targetQuoteId: string) => void
   onPin: (quoteId: string) => void

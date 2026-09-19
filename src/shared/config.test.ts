@@ -41,6 +41,7 @@ describe('configuration tracking profiles', () => {
   it('round trips tracking profiles in the current configuration format', () => {
     const current = state()
     current.stockTrackingProfiles['1.600000'] = {
+      cycleId: 'cycle-stopped',
       quoteId: '1.600000',
       code: '600000',
       name: '浦发银行',
@@ -71,6 +72,7 @@ describe('configuration tracking profiles', () => {
   it('migrates only legacy snapshots that were captured after their market close', () => {
     const current = state()
     current.stockTrackingProfiles['1.600000'] = {
+      cycleId: 'cycle-tracking',
       quoteId: '1.600000',
       code: '600000',
       name: '浦发银行',
