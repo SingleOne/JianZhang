@@ -120,13 +120,13 @@ function MiniPriceSparkline({ prices }: { prices: readonly number[] }) {
           viewBox={`0 0 ${SPARKLINE_WIDTH} ${SPARKLINE_HEIGHT}`}
         >
           <path d={path} />
-          <circle className="is-extreme" cx={maximumPoint.x} cy={maximumPoint.y} r="2.2" />
-          {minimumIndex !== maximumIndex ? (
+          {maximumIndex !== lastIndex ? (
+            <circle className="is-extreme" cx={maximumPoint.x} cy={maximumPoint.y} r="2.2" />
+          ) : null}
+          {minimumIndex !== maximumIndex && minimumIndex !== lastIndex ? (
             <circle className="is-extreme" cx={minimumPoint.x} cy={minimumPoint.y} r="2.2" />
           ) : null}
-          {lastIndex !== maximumIndex && lastIndex !== minimumIndex ? (
-            <circle cx={lastPoint.x} cy={lastPoint.y} r="1.8" />
-          ) : null}
+          <circle className="is-latest" cx={lastPoint.x} cy={lastPoint.y} r="2.4" />
         </svg>
         <span className="taskbar-tooltip-sparkline-range" aria-hidden="true">
           <span>
@@ -265,6 +265,14 @@ export function TaskbarStockTooltip() {
           <span className="taskbar-tooltip-identity">
             <strong>{stock?.name ?? quote?.name ?? '--'}</strong>
             <span>{stock?.code ?? quote?.code ?? '--'}</span>
+            {quote?.sector ? (
+              <span className="taskbar-tooltip-sector" title={quote.sector.name}>
+                <span>{quote.sector.name}</span>
+                <b className={valueClass(quote.sector.changePercent)}>
+                  {formatPercent(quote.sector.changePercent)}
+                </b>
+              </span>
+            ) : null}
             <span className="taskbar-tooltip-market">{stock?.marketLabel ?? '实时行情'}</span>
           </span>
           <span className="taskbar-tooltip-header-meta">
