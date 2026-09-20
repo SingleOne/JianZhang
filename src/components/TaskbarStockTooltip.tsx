@@ -46,26 +46,17 @@ function minuteTimestamp(time: string): number | null {
   )
 }
 
-function recentFifteenMinutePrices(
-  bars: readonly KlineBar[],
-  latest: number | null | undefined
-): number[] {
+function recentFifteenMinutePrices(bars: readonly KlineBar[]): number[] {
   const points = bars
     .map((bar) => ({ time: minuteTimestamp(bar.time), price: bar.close }))
     .filter((point): point is { time: number; price: number } => point.time !== null)
     .sort((left, right) => left.time - right.time)
   const latestTime = points.at(-1)?.time
-  const prices =
-    latestTime === undefined
-      ? []
-      : points
-          .filter((point) => point.time >= latestTime - FIFTEEN_MINUTES)
-          .map((point) => point.price)
-
-  if (typeof latest === 'number' && Number.isFinite(latest) && prices.at(-1) !== latest) {
-    prices.push(latest)
-  }
-  return prices
+  return latestTime === undefined
+    ? []
+    : points
+        .filter((point) => point.time >= latestTime - FIFTEEN_MINUTES)
+        .map((point) => point.price)
 }
 
 function MiniPriceSparkline({ prices }: { prices: readonly number[] }) {
@@ -215,8 +206,8 @@ export function TaskbarStockTooltip() {
   const quote = quotes.find((item) => item.quoteId === quoteId)
   const currentIntraday = intraday?.quoteId === quoteId ? intraday : null
   const sparklinePrices = useMemo(
-    () => recentFifteenMinutePrices(currentIntraday?.bars ?? [], quote?.latest),
-    [currentIntraday, quote?.latest]
+    () => recentFifteenMinutePrices(currentIntraday?.bars ?? []),
+    [currentIntraday]
   )
   const account = quoteId ? state.tTradingAccounts[quoteId] : undefined
   const activeTrades = getBatchTrades(account, account?.activeBatch)

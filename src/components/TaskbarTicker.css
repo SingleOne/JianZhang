@@ -315,6 +315,9 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  padding: 0 7px;
+  border-right: 1px solid #d7dde7;
+  border-left: 1px solid #d7dde7;
   white-space: nowrap;
 }
 
@@ -728,6 +731,10 @@ html[data-theme='dark'].tray-mode #root {
 
 :root[data-theme='dark'] .taskbar-tooltip-sector b.is-flat {
   color: #c5cedb;
+}
+
+:root[data-theme='dark'] .taskbar-tooltip-sector {
+  border-color: #48566c;
 }
 
 :root[data-theme='dark'] .taskbar-tooltip-sparkline-range {
