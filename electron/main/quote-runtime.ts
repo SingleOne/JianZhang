@@ -228,8 +228,10 @@ export class QuoteRuntime {
 
   private async refreshFiveLevelLargeOrders(stocks: WatchStock[]): Promise<void> {
     const state = this.dependencies.getState()
-    const tTradingStocks = stocks.filter((stock) =>
-      Boolean(state.tTradingAccounts[stock.quoteId]?.activeBatch)
+    const tTradingStocks = stocks.filter(
+      (stock) =>
+        marketCapabilitiesForQuoteId(stock.quoteId).orderBook &&
+        Boolean(state.tTradingAccounts[stock.quoteId]?.activeBatch)
     )
     if (tTradingStocks.length === 0) return
     const stock = tTradingStocks[this.fiveLevelRefreshCursor % tTradingStocks.length]

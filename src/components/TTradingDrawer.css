@@ -211,7 +211,7 @@
   color: var(--blue);
   background: transparent;
   border: 0;
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
 }
 
@@ -292,7 +292,7 @@
   border: 1px solid #dce2ea;
   border-radius: 7px;
   outline: 0;
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -306,7 +306,7 @@
 
 .t-trade-entry .t-form-grid label,
 .t-trade-entry .t-fee-inputs label {
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .t-trade-entry .t-form-grid input,
@@ -372,7 +372,7 @@
   padding: 6px 9px;
   color: #748094;
   border-radius: 7px;
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -688,7 +688,7 @@
   align-items: center;
   gap: 6px;
   color: #657187;
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
 }
 
@@ -791,7 +791,7 @@
 
 .t-plan-table-heading strong {
   color: #344054;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .t-plan-table.is-buy .t-plan-table-heading strong {
@@ -830,7 +830,7 @@
   padding: 3px 4px;
   color: #586579;
   border-bottom: 1px solid #edf0f4;
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
@@ -872,14 +872,14 @@
   padding: 0 3px;
   border: 0;
   outline: 0;
-  font-size: 11px;
+  font-size: 12px;
   text-align: center;
 }
 
 .t-plan-level label span {
   padding: 0 3px;
   color: #8a94a6;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .t-plan-alert-action {
@@ -949,7 +949,7 @@
   color: #687386;
   background: #f2f6ff;
   border-radius: 7px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .t-cost-profit-preview strong {
@@ -1025,7 +1025,7 @@
 
 .t-history-list summary strong {
   color: #344054;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .t-history-list summary strong.is-up {
@@ -1136,7 +1136,7 @@
   border: 1px solid #dce2ea;
   border-radius: 6px;
   outline: 0;
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 

@@ -1,7 +1,15 @@
+import { calculateMarketTradeFeeItems, totalTradeFeeItems } from './market-trades'
 import { calculateTBatchMetrics, calculateTradeFees, roundMoney, totalTradeFees } from './t-trading'
 import { getBatchTrades } from './trade-records'
-import { formatProfit } from './format'
+import { formatMoneyProfit } from './format'
+import {
+  currencyForMarket,
+  marketFromQuoteId,
+  type StockCurrency,
+  type StockMarket
+} from '../shared/stock-market'
 import type {
+  MarketTradeFeeSettings,
   StockQuote,
   TFloatingProfitAlertStatus,
   TPlanLevel,
@@ -18,6 +26,7 @@ export type TFloatingProfitAlertDirection = 'profit' | 'loss'
 export interface TriggeredTFloatingProfitAlert {
   quoteId: string
   name: string
+  currency: StockCurrency
   direction: TFloatingProfitAlertDirection
   actualValue: number
   threshold: number
@@ -38,6 +47,12 @@ export interface TAlertBadge {
   index: number
   label: string
   targetPrice: number | null
+}
+
+export interface TPlanFeeOptions {
+  market: StockMarket
+  marketTradeFees: MarketTradeFeeSettings
+  stampDutyExempt?: boolean
 }
 
 function levelsForSide(batch: TTradingBatch, side: TAlertSide): TPlanLevel[] {
@@ -66,7 +81,8 @@ export function getTPlanRows(
   trades: readonly TTrade[],
   side: TAlertSide,
   feeSettings: TTradingFeeSettings,
-  marketLabel: string
+  marketLabel: string,
+  feeOptions?: TPlanFeeOptions
 ): TPlanRow[] {
   if (!batch) return []
 
@@ -79,13 +95,24 @@ export function getTPlanRows(
 
   return levelsForSide(batch, side).map((level, index) => {
     const targetPrice = tPlanTargetPrice(averageCost, side, level.targetPercent)
-    const hasQuantity = level.quantity >= 100
+    const hasQuantity = level.quantity > 0
     const fees =
       targetPrice === null || !hasQuantity
         ? 0
-        : totalTradeFees(
-            calculateTradeFees(targetPrice * level.quantity, side, feeSettings, marketLabel)
-          )
+        : feeOptions && feeOptions.market !== 'CN'
+          ? totalTradeFeeItems(
+              calculateMarketTradeFeeItems(
+                feeOptions.market,
+                targetPrice * level.quantity,
+                level.quantity,
+                side,
+                feeOptions.marketTradeFees,
+                { stampDutyExempt: feeOptions.stampDutyExempt }
+              )
+            )
+          : totalTradeFees(
+              calculateTradeFees(targetPrice * level.quantity, side, feeSettings, marketLabel)
+            )
     const difference =
       targetPrice === null || averageCost === null
         ? null
@@ -97,16 +124,27 @@ export function getTPlanRows(
         ? null
         : difference * level.quantity - fees
     const fullPositionFees =
-      targetPrice === null
+      targetPrice === null || metrics.remainingQuantity <= 0
         ? 0
-        : totalTradeFees(
-            calculateTradeFees(
-              targetPrice * metrics.remainingQuantity,
-              side,
-              feeSettings,
-              marketLabel
+        : feeOptions && feeOptions.market !== 'CN'
+          ? totalTradeFeeItems(
+              calculateMarketTradeFeeItems(
+                feeOptions.market,
+                targetPrice * metrics.remainingQuantity,
+                metrics.remainingQuantity,
+                side,
+                feeOptions.marketTradeFees,
+                { stampDutyExempt: feeOptions.stampDutyExempt }
+              )
             )
-          )
+          : totalTradeFees(
+              calculateTradeFees(
+                targetPrice * metrics.remainingQuantity,
+                side,
+                feeSettings,
+                marketLabel
+              )
+            )
     const fullPositionProfit =
       isOpeningPlan || difference === null
         ? null
@@ -231,7 +269,7 @@ export function applyTFloatingProfitAlert(
 ): {
   batch: TTradingBatch
   changed: boolean
-  triggered?: Omit<TriggeredTFloatingProfitAlert, 'quoteId' | 'name'>
+  triggered?: Omit<TriggeredTFloatingProfitAlert, 'quoteId' | 'name' | 'currency'>
 } {
   const alert = batch.floatingProfitAlert
   if (!alert?.enabled) return { batch, changed: false }
@@ -303,6 +341,7 @@ export function applyTAlertTriggersToAccounts(
       triggered.push({
         quoteId,
         name: account.name,
+        currency: account.currency ?? currencyForMarket(marketFromQuoteId(quoteId)),
         ...floatingResult.triggered
       })
     }
@@ -375,7 +414,7 @@ export function formatTFloatingProfitAlertNotification(alert: TriggeredTFloating
   const target = alert.direction === 'profit' ? alert.threshold : -alert.threshold
   return {
     title: `${alert.name} T仓${label}提醒`,
-    body: `当前浮动收益 ${formatProfit(alert.actualValue)} 元，已达到 ${formatProfit(target)} 元提醒值`
+    body: `当前浮动收益 ${formatMoneyProfit(alert.actualValue, alert.currency)}，已达到 ${formatMoneyProfit(target, alert.currency)} 提醒值`
   }
 }
 

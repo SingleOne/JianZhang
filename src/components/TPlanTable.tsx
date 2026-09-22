@@ -1,5 +1,6 @@
-import { formatCost, formatProfit, formatShares } from '../lib/format'
+import { formatCost, formatMoneyProfit, formatShares } from '../lib/format'
 import type { TAlertSide, TPlanRow } from '../lib/t-alerts'
+import type { StockCurrency } from '../shared/stock-market'
 
 interface TPlanTableProps {
   side: TAlertSide
@@ -7,6 +8,8 @@ interface TPlanTableProps {
   alertEnabled: boolean
   emphasized: boolean
   openingPlan: boolean
+  currency: StockCurrency
+  minimumQuantity: number
   onUpdateLevel: (index: number, key: 'targetPercent' | 'quantity', value: number) => void
   onHandleAlert: (index?: number) => void
   onRestoreAlert: (index: number) => void
@@ -27,6 +30,8 @@ export function TPlanTable({
   alertEnabled,
   emphasized,
   openingPlan,
+  currency,
+  minimumQuantity,
   onUpdateLevel,
   onHandleAlert,
   onRestoreAlert
@@ -115,7 +120,7 @@ export function TPlanTable({
               <label>
                 <input
                   type="number"
-                  min="100"
+                  min={minimumQuantity}
                   step="100"
                   value={level.quantity || ''}
                   onChange={(event) =>
@@ -132,13 +137,13 @@ export function TPlanTable({
               ) : (
                 <>
                   <span className={valueClass(level.expectedProfit)}>
-                    {formatProfit(level.expectedProfit)}
+                    {formatMoneyProfit(level.expectedProfit, currency)}
                   </span>
                   <span className={valueClass(level.cumulativeProfit)}>
-                    {formatProfit(level.cumulativeProfit)}
+                    {formatMoneyProfit(level.cumulativeProfit, currency)}
                   </span>
                   <span className={valueClass(level.fullPositionProfit)}>
-                    {formatProfit(level.fullPositionProfit)}
+                    {formatMoneyProfit(level.fullPositionProfit, currency)}
                   </span>
                 </>
               )}

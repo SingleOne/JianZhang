@@ -4,6 +4,8 @@ import { createPortal } from 'react-dom'
 import {
   formatCost,
   formatCurrency,
+  formatMoney,
+  formatMoneyProfit,
   formatPercent,
   formatPrice,
   formatProfit,
@@ -21,6 +23,14 @@ import {
   updateTPlanLevel,
   type TAlertSide
 } from '../lib/t-alerts'
+import {
+  calculateMarketTradeFeeItems,
+  estimateSettlementDate,
+  marketFeeTemplateForTradeDate,
+  marketTradeQuantityError,
+  settlementRuleForTradeDate,
+  totalTradeFeeItems
+} from '../lib/market-trades'
 import {
   calculateCostAdjustedProfit,
   calculateTBatchMetrics,
@@ -59,6 +69,7 @@ import { TFloatingProfitAlertBadge } from './TFloatingProfitAlertBadge'
 import type {
   CashDividendLedgerEntry,
   ExchangeRateSettings,
+  MarketTradeFeeSettings,
   PortfolioLedgerEntry,
   StockPosition,
   StockQuote,
@@ -70,11 +81,13 @@ import type {
   TTradeFees,
   TTradePurpose,
   TTradeSide,
+  TradingCalendarSettings,
   WithholdingTaxLedgerEntry,
   WatchStock
 } from '../shared/types'
 import { appendPortfolioLedgerEntries, withLedgerTradeRecords } from '../shared/types'
 import { exchangeRateForCurrency } from '../shared/exchange-rates'
+import { marketDateTimeInput } from '../shared/market-hours'
 import { currencyForMarket, marketFromQuoteId } from '../shared/stock-market'
 import { useConfirmDialog } from './ConfirmDialog'
 
@@ -85,7 +98,9 @@ interface TTradingDrawerProps {
   holdingCost: number | null | undefined
   holdingCostBasis: number | null | undefined
   feeSettings: TTradingFeeSettings
+  marketTradeFees: MarketTradeFeeSettings
   planDefaults: TPlanDefaultSettings
+  tradingCalendar: TradingCalendarSettings
   exchangeRates: ExchangeRateSettings
   floatingProfitAlertDefaultThreshold: number
   onApply: (account: TTradingAccount, position: StockPosition | undefined) => void
@@ -97,11 +112,6 @@ type OverflowDisposition = 'base' | 'opposite-t'
 type EntryMode = 'trade' | 'cash'
 type CashEntryKind = 'cashDividend' | 'withholdingTax'
 type CashLedgerEntry = CashDividendLedgerEntry | WithholdingTaxLedgerEntry
-
-function localDateTimeInput(): string {
-  const now = new Date()
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
-}
 
 function emptyFees(): TTradeFees {
   return { commission: 0, handling: 0, regulatory: 0, transfer: 0, stampDuty: 0 }
@@ -190,34 +200,52 @@ export function TTradingDrawer({
   holdingCost,
   holdingCostBasis,
   feeSettings,
+  marketTradeFees,
   planDefaults,
+  tradingCalendar,
   exchangeRates,
   floatingProfitAlertDefaultThreshold,
   onApply,
   onClose
 }: TTradingDrawerProps) {
   const confirm = useConfirmDialog()
+  const market = stock.market ?? marketFromQuoteId(stock.quoteId)
+  const currency = stock.currency ?? currencyForMarket(market)
+  const effectiveExchangeRate = exchangeRateForCurrency(exchangeRates, currency)
   const currentAccount = useMemo<TTradingAccount>(
     () =>
-      account ?? {
-        quoteId: stock.quoteId,
-        code: stock.code,
-        name: stock.name,
-        history: [],
-        ledger: { schemaVersion: 1, entries: [] },
-        tradeRecords: []
-      },
-    [account, stock.code, stock.name, stock.quoteId]
+      account
+        ? {
+            ...account,
+            market: account.market ?? market,
+            currency: account.currency ?? currency
+          }
+        : {
+            quoteId: stock.quoteId,
+            code: stock.code,
+            name: stock.name,
+            market,
+            currency,
+            history: [],
+            ledger: { schemaVersion: 1, entries: [] },
+            tradeRecords: []
+          },
+    [account, currency, market, stock.code, stock.name, stock.quoteId]
   )
   const [entryMode, setEntryMode] = useState<EntryMode>('trade')
   const [side, setSide] = useState<TTradeSide>('buy')
   const [purpose, setPurpose] = useState<TTradePurpose>('t')
   const [price, setPrice] = useState(quote?.latest?.toString() ?? '')
   const [quantity, setQuantity] = useState('')
-  const [tradedAt, setTradedAt] = useState(localDateTimeInput)
+  const [tradedAt, setTradedAt] = useState(() => marketDateTimeInput(market))
   const [note, setNote] = useState('')
   const [manualFees, setManualFees] = useState(false)
   const [feeOverrides, setFeeOverrides] = useState<TTradeFees>(emptyFees)
+  const [actualFees, setActualFees] = useState('')
+  const [tradeExchangeRate, setTradeExchangeRate] = useState(
+    currency === 'CNY' ? '1' : (effectiveExchangeRate?.toString() ?? '')
+  )
+  const [tradeExchangeRateEdited, setTradeExchangeRateEdited] = useState(false)
   const [overflowDisposition, setOverflowDisposition] = useState<OverflowDisposition>('base')
   const [editingTradeId, setEditingTradeId] = useState<string | null>(null)
   const [error, setError] = useState('')
@@ -237,16 +265,14 @@ export function TTradingDrawer({
   const [cashEligibleQuantity, setCashEligibleQuantity] = useState(
     stock.position?.quantity.toString() ?? ''
   )
-  const [cashOccurredAt, setCashOccurredAt] = useState(localDateTimeInput)
+  const [cashOccurredAt, setCashOccurredAt] = useState(() => marketDateTimeInput(market))
+  const [cashExchangeRateInput, setCashExchangeRateInput] = useState(
+    currency === 'CNY' ? '1' : (effectiveExchangeRate?.toString() ?? '')
+  )
+  const [cashExchangeRateEdited, setCashExchangeRateEdited] = useState(false)
   const [cashNote, setCashNote] = useState('')
   const [cashError, setCashError] = useState('')
   const [historyPage, setHistoryPage] = useState(0)
-
-  const market = stock.market ?? marketFromQuoteId(stock.quoteId)
-  const currency = stock.currency ?? currencyForMarket(market)
-  const cashExchangeRate = exchangeRateForCurrency(exchangeRates, currency)
-  const usesManualCashExchangeRate =
-    currency !== 'CNY' && exchangeRates.manualOverrides[currency] !== undefined
 
   const activeTrades = getBatchTrades(currentAccount, currentAccount.activeBatch)
   const activeMetrics = useMemo(
@@ -349,7 +375,59 @@ export function TTradingDrawer({
       ),
     [feeSettings, numericPrice, numericQuantity, side, stock.marketLabel]
   )
-  const tradeFees = manualFees ? feeOverrides : calculatedFees
+  const tradeDate = tradedAt.slice(0, 10)
+  const marketFeeTemplate = marketFeeTemplateForTradeDate(market, tradeDate)
+  const calculatedMarketFeeItems = useMemo(
+    () =>
+      market !== 'CN' && marketFeeTemplate
+        ? calculateMarketTradeFeeItems(
+            market,
+            Math.max(0, numericPrice * numericQuantity),
+            Math.max(0, numericQuantity),
+            side,
+            marketTradeFees,
+            { stampDutyExempt: stock.instrumentType === 'etf' }
+          )
+        : [],
+    [
+      market,
+      marketFeeTemplate,
+      marketTradeFees,
+      numericPrice,
+      numericQuantity,
+      side,
+      stock.instrumentType
+    ]
+  )
+  const tradeFees = market === 'CN' ? (manualFees ? feeOverrides : calculatedFees) : emptyFees()
+  const preservesRecordedFees = Boolean(
+    market !== 'CN' &&
+    manualFees &&
+    editingTrade &&
+    actualFees.trim() !== '' &&
+    Number.isFinite(Number(actualFees)) &&
+    roundMoney(Number(actualFees)) === totalRecordedTradeFees(editingTrade)
+  )
+  const tradeFeeItems =
+    market === 'CN'
+      ? undefined
+      : manualFees
+        ? actualFees.trim() === '' || !Number.isFinite(Number(actualFees)) || Number(actualFees) < 0
+          ? []
+          : [
+              {
+                code: 'manual' as const,
+                label: '券商实际费用',
+                amount: roundMoney(Number(actualFees))
+              }
+            ]
+        : calculatedMarketFeeItems
+  const tradeFeeTotal =
+    market === 'CN' ? totalTradeFees(tradeFees) : totalTradeFeeItems(tradeFeeItems)
+  const formatNativeAmount = (value: number | null | undefined) =>
+    currency === 'CNY' ? formatCurrency(value) : formatMoney(value, currency)
+  const formatNativeProfit = (value: number | null | undefined) =>
+    currency === 'CNY' ? formatProfit(value) : formatMoneyProfit(value, currency)
   const readyToSettle = Boolean(
     currentAccount.activeBatch &&
     activeTrades.some((trade) => hasTAllocationForBatch(trade, currentAccount.activeBatch!.id)) &&
@@ -384,8 +462,23 @@ export function TTradingDrawer({
 
   const buyLevelRows = useMemo(
     () =>
-      getTPlanRows(currentAccount.activeBatch, activeTrades, 'buy', feeSettings, stock.marketLabel),
-    [activeTrades, currentAccount.activeBatch, feeSettings, stock.marketLabel]
+      getTPlanRows(
+        currentAccount.activeBatch,
+        activeTrades,
+        'buy',
+        feeSettings,
+        stock.marketLabel,
+        { market, marketTradeFees, stampDutyExempt: stock.instrumentType === 'etf' }
+      ),
+    [
+      activeTrades,
+      currentAccount.activeBatch,
+      feeSettings,
+      market,
+      marketTradeFees,
+      stock.instrumentType,
+      stock.marketLabel
+    ]
   )
   const sellLevelRows = useMemo(
     () =>
@@ -394,9 +487,18 @@ export function TTradingDrawer({
         activeTrades,
         'sell',
         feeSettings,
-        stock.marketLabel
+        stock.marketLabel,
+        { market, marketTradeFees, stampDutyExempt: stock.instrumentType === 'etf' }
       ),
-    [activeTrades, currentAccount.activeBatch, feeSettings, stock.marketLabel]
+    [
+      activeTrades,
+      currentAccount.activeBatch,
+      feeSettings,
+      market,
+      marketTradeFees,
+      stock.instrumentType,
+      stock.marketLabel
+    ]
   )
   const activeTradesDescending = useMemo(
     () =>
@@ -453,10 +555,13 @@ export function TTradingDrawer({
     setPurpose('t')
     setPrice(quote?.latest?.toString() ?? '')
     setQuantity('')
-    setTradedAt(localDateTimeInput())
+    setTradedAt(marketDateTimeInput(market))
     setNote('')
     setManualFees(false)
     setFeeOverrides(emptyFees())
+    setActualFees('')
+    setTradeExchangeRate(currency === 'CNY' ? '1' : (effectiveExchangeRate?.toString() ?? ''))
+    setTradeExchangeRateEdited(false)
     setOverflowDisposition('base')
     setEditingTradeId(null)
     setError('')
@@ -490,7 +595,9 @@ export function TTradingDrawer({
   const resetCashForm = () => {
     setCashAmount('')
     setCashEligibleQuantity(stock.position?.quantity.toString() ?? '')
-    setCashOccurredAt(localDateTimeInput())
+    setCashOccurredAt(marketDateTimeInput(market))
+    setCashExchangeRateInput(currency === 'CNY' ? '1' : (effectiveExchangeRate?.toString() ?? ''))
+    setCashExchangeRateEdited(false)
     setCashNote('')
     setCashError('')
   }
@@ -511,9 +618,21 @@ export function TTradingDrawer({
     const eligibleQuantity = cashEligibleQuantity.trim() ? Number(cashEligibleQuantity) : 0
     if (
       cashEntryKind === 'cashDividend' &&
-      (!Number.isFinite(eligibleQuantity) || eligibleQuantity < 0)
+      (!Number.isFinite(eligibleQuantity) ||
+        eligibleQuantity < 0 ||
+        !Number.isInteger(eligibleQuantity))
     ) {
       setCashError('请输入有效的登记股数，未知时可以留空')
+      return
+    }
+    const cashRate =
+      currency === 'CNY'
+        ? 1
+        : cashExchangeRateInput.trim() === ''
+          ? undefined
+          : Number(cashExchangeRateInput)
+    if (cashRate !== undefined && (!Number.isFinite(cashRate) || cashRate <= 0)) {
+      setCashError('请输入有效的成交汇率，未知时可以留空')
       return
     }
 
@@ -525,11 +644,11 @@ export function TTradingDrawer({
       recordedAt: new Date().toISOString(),
       source: 'manual' as const,
       currency,
-      exchangeRate: cashExchangeRate ?? undefined,
+      exchangeRate: cashRate,
       exchangeRateDate:
-        currency === 'CNY'
+        currency === 'CNY' || cashRate === undefined
           ? undefined
-          : usesManualCashExchangeRate
+          : cashExchangeRateEdited || exchangeRates.manualOverrides[currency] !== undefined
             ? cashOccurredAt.slice(0, 10)
             : (exchangeRates.rateDate ?? cashOccurredAt.slice(0, 10)),
       note: cashNote.trim() || undefined
@@ -620,8 +739,35 @@ export function TTradingDrawer({
   })
 
   const saveTrade = () => {
-    if (numericPrice <= 0 || numericQuantity <= 0) {
+    if (!tradedAt || !Number.isFinite(numericPrice) || numericPrice <= 0) {
       setError('请输入有效的成交价格和数量')
+      return
+    }
+    const quantityError = marketTradeQuantityError(market, numericQuantity)
+    if (quantityError) {
+      setError(quantityError)
+      return
+    }
+    if (market !== 'CN' && !manualFees && !marketFeeTemplate) {
+      setError('该成交日期早于内置费用模板，请切换为手动费用并填写券商实际费用')
+      return
+    }
+    if (
+      market !== 'CN' &&
+      manualFees &&
+      (actualFees.trim() === '' || !Number.isFinite(Number(actualFees)) || Number(actualFees) < 0)
+    ) {
+      setError('请填写有效的券商实际费用，零费用请填写 0')
+      return
+    }
+    const exchangeRate =
+      currency === 'CNY'
+        ? 1
+        : tradeExchangeRate.trim() === ''
+          ? undefined
+          : Number(tradeExchangeRate)
+    if (exchangeRate !== undefined && (!Number.isFinite(exchangeRate) || exchangeRate <= 0)) {
+      setError('请输入有效的成交汇率，未知时可以留空')
       return
     }
 
@@ -632,20 +778,61 @@ export function TTradingDrawer({
       tradedAt,
       price: numericPrice,
       quantity: numericQuantity,
-      fees: tradeFees,
+      fees: preservesRecordedFees && editingTrade ? editingTrade.fees : tradeFees,
+      feeItems: preservesRecordedFees && editingTrade ? editingTrade.feeItems : tradeFeeItems,
+      feeTemplate:
+        preservesRecordedFees && editingTrade
+          ? editingTrade.feeTemplate
+          : market === 'CN' || manualFees
+            ? undefined
+            : marketFeeTemplate,
       market,
       currency,
-      marketDate: tradedAt.slice(0, 10),
-      exchangeRate: currency === 'CNY' ? 1 : editingTrade?.exchangeRate,
-      exchangeRateDate: editingTrade?.exchangeRateDate,
+      marketDate: tradeDate,
+      exchangeRate,
+      exchangeRateDate:
+        currency === 'CNY' || exchangeRate === undefined
+          ? undefined
+          : editingTrade && !tradeExchangeRateEdited && editingTrade.exchangeRate === exchangeRate
+            ? editingTrade.exchangeRateDate
+            : tradeExchangeRateEdited || exchangeRates.manualOverrides[currency] !== undefined
+              ? tradeDate
+              : (exchangeRates.rateDate ?? tradeDate),
+      estimatedSettlementDate: estimateSettlementDate(market, tradeDate, tradingCalendar),
+      actualSettlementDate: editingTrade?.actualSettlementDate,
+      settlementRule: settlementRuleForTradeDate(market, tradeDate),
       origin: editingTrade?.origin ?? 'execution',
       splitSource: editingTrade?.splitSource,
+      brokerImport: editingTrade?.brokerImport,
       note: note.trim()
     }
+    const hasPositionLedgerEntries = activePortfolioLedgerEntries(currentAccount).some(
+      (entry) =>
+        entry.kind === 'trade' ||
+        entry.kind === 'positionAdjustment' ||
+        entry.kind === 'shareAdjustment' ||
+        entry.kind === 'rightsSubscription' ||
+        entry.kind === 'securityConversion'
+    )
+    const workingAccount =
+      stock.position && !hasPositionLedgerEntries
+        ? createInitialPositionAccount(
+            currentAccount,
+            {
+              quoteId: stock.quoteId,
+              code: stock.code,
+              name: stock.name,
+              market,
+              currency
+            },
+            stock.position,
+            tradedAt
+          )
+        : currentAccount
 
     if (purpose === 'base') {
       const result = upsertIndependentBaseTrade(
-        currentAccount,
+        workingAccount,
         baseTrade,
         market,
         currency,
@@ -743,8 +930,8 @@ export function TTradingDrawer({
         return
       }
       const closingAccount = withLedgerTradeRecords(
-        currentAccount,
-        upsertTradeRecord(currentAccount.tradeRecords, trade)
+        workingAccount,
+        upsertTradeRecord(workingAccount.tradeRecords, trade)
       )
       const transitionReplay = calculatePortfolioLedgerPosition(
         {
@@ -785,9 +972,9 @@ export function TTradingDrawer({
       const nextBatch = rebalanceTBatchPlans(nextBatchBase, nextBatchTrades, planDefaults)
       const nextAccount = withLedgerTradeRecords(
         {
-          ...currentAccount,
+          ...workingAccount,
           activeBatch: nextBatch,
-          history: [settledBatch, ...currentAccount.history]
+          history: [settledBatch, ...workingAccount.history]
         },
         upsertTradeRecord(closingAccount.tradeRecords, nextBatchTrade)
       )
@@ -819,10 +1006,10 @@ export function TTradingDrawer({
       plannedBatch = handleTriggeredTPlanAlertsForTrade(plannedBatch, side)
     }
     const hasTTrades = nextTrades.some((item) => hasTAllocationForBatch(item, plannedBatch.id))
-    const nextRecords = upsertTradeRecord(currentAccount.tradeRecords, trade)
+    const nextRecords = upsertTradeRecord(workingAccount.tradeRecords, trade)
     if (baseOverflowTrade) {
       const nextAccount = withLedgerTradeRecords(
-        { ...currentAccount, activeBatch: plannedBatch },
+        { ...workingAccount, activeBatch: plannedBatch },
         upsertTradeRecord(nextRecords, baseOverflowTrade)
       )
       if (!applyTradeAccount(nextAccount)) return
@@ -833,7 +1020,7 @@ export function TTradingDrawer({
       !applyTradeAccount(
         withLedgerTradeRecords(
           {
-            ...currentAccount,
+            ...workingAccount,
             activeBatch: hasTTrades ? plannedBatch : undefined
           },
           hasTTrades ? nextRecords : detachTradeRecordsFromBatch(nextRecords, plannedBatch.id)
@@ -857,8 +1044,11 @@ export function TTradingDrawer({
     setQuantity(trade.quantity.toString())
     setTradedAt(trade.tradedAt)
     setNote(trade.note)
-    setManualFees(true)
+    setManualFees(market === 'CN' || !trade.feeTemplate)
     setFeeOverrides(trade.fees)
+    setActualFees(market === 'CN' ? '' : totalRecordedTradeFees(trade).toString())
+    setTradeExchangeRate(currency === 'CNY' ? '1' : (trade.exchangeRate?.toString() ?? ''))
+    setTradeExchangeRateEdited(false)
     setError('')
     setCashError('')
   }
@@ -1072,6 +1262,12 @@ export function TTradingDrawer({
     if (!batch || activeMetrics.remainingQuantity !== 0) return
 
     const finalQuantity = Math.max(0, Number(latestPositionQuantity) || 0)
+    const finalQuantityError =
+      finalQuantity > 0 ? marketTradeQuantityError(market, finalQuantity) : undefined
+    if (finalQuantityError) {
+      setError(finalQuantityError)
+      return
+    }
     const hasLatestCost = latestPositionCost.trim() !== ''
     const finalCost = hasLatestCost ? Number(latestPositionCost) : undefined
     const settlementPositionError = validateTBatchSettlementPosition(finalQuantity, finalCost)
@@ -1106,7 +1302,10 @@ export function TTradingDrawer({
             quantity: finalQuantity,
             cost: finalCost,
             openedToday: false,
-            openedOn: stock.position?.openedOn ?? batch.openingPosition?.openedOn
+            openedOn: stock.position?.openedOn ?? batch.openingPosition?.openedOn,
+            currency,
+            costExchangeRate: stock.position?.costExchangeRate,
+            costExchangeRateDate: stock.position?.costExchangeRateDate
           }
         : undefined
 
@@ -1271,12 +1470,12 @@ export function TTradingDrawer({
             <span>
               <small>做T总收益</small>
               <strong className={valueClass(totalHistoryProfit)}>
-                {formatOverviewValue(totalHistoryProfit, formatProfit)}
+                {formatOverviewValue(totalHistoryProfit, formatNativeProfit)}
               </strong>
             </span>
             <span className="t-overview-fee">
               <small>做T总费用</small>
-              <strong>{formatOverviewValue(totalHistoryFees, formatCurrency)}</strong>
+              <strong>{formatOverviewValue(totalHistoryFees, formatNativeAmount)}</strong>
             </span>
           </section>
 
@@ -1362,18 +1561,36 @@ export function TTradingDrawer({
               {entryMode === 'trade' ? (
                 <>
                   <div className="t-fee-summary">
-                    <span>佣金 {formatCurrency(tradeFees.commission)}</span>
-                    <span>经手 {formatCurrency(tradeFees.handling)}</span>
-                    <span>证管 {formatCurrency(tradeFees.regulatory)}</span>
-                    <span>过户 {formatCurrency(tradeFees.transfer)}</span>
-                    <span>印花税 {formatCurrency(tradeFees.stampDuty)}</span>
-                    <strong>合计 {formatCurrency(totalTradeFees(tradeFees))}</strong>
+                    {market === 'CN' ? (
+                      <>
+                        <span>佣金 {formatCurrency(tradeFees.commission)}</span>
+                        <span>经手 {formatCurrency(tradeFees.handling)}</span>
+                        <span>证管 {formatCurrency(tradeFees.regulatory)}</span>
+                        <span>过户 {formatCurrency(tradeFees.transfer)}</span>
+                        <span>印花税 {formatCurrency(tradeFees.stampDuty)}</span>
+                      </>
+                    ) : (
+                      <>
+                        {tradeFeeItems?.map((item) => (
+                          <span key={item.code}>
+                            {item.label} {formatNativeAmount(item.amount)}
+                          </span>
+                        ))}
+                        {!manualFees && !marketFeeTemplate ? (
+                          <span>当前成交日期无内置费用模板</span>
+                        ) : null}
+                      </>
+                    )}
+                    <strong>合计 {formatNativeAmount(tradeFeeTotal)}</strong>
                   </div>
                   <button
                     type="button"
                     className="bordered-text-button text-button"
                     onClick={() => {
-                      if (!manualFees) setFeeOverrides(calculatedFees)
+                      if (!manualFees) {
+                        if (market === 'CN') setFeeOverrides(calculatedFees)
+                        else setActualFees(tradeFeeTotal.toString())
+                      }
                       setManualFees((current) => !current)
                     }}
                   >
@@ -1440,6 +1657,22 @@ export function TTradingDrawer({
                         onChange={(event) => setCashOccurredAt(event.target.value)}
                       />
                     </label>
+                    {currency !== 'CNY' ? (
+                      <label>
+                        <span>兑人民币汇率（可选）</span>
+                        <input
+                          type="number"
+                          min="0.000001"
+                          step="0.000001"
+                          value={cashExchangeRateInput}
+                          onChange={(event) => {
+                            setCashExchangeRateInput(event.target.value)
+                            setCashExchangeRateEdited(true)
+                          }}
+                          placeholder="未知时留空"
+                        />
+                      </label>
+                    ) : null}
                     <label className={cashEntryKind === 'withholdingTax' ? 'is-wide' : ''}>
                       <span>备注</span>
                       <input
@@ -1454,7 +1687,7 @@ export function TTradingDrawer({
                     <span>
                       {cashEntryKind === 'cashDividend'
                         ? Number(cashEligibleQuantity) > 0 && Number(cashAmount) > 0
-                          ? `每股分红 ${formatCurrency(
+                          ? `每股分红 ${formatNativeAmount(
                               Number(cashAmount) / Number(cashEligibleQuantity)
                             )}`
                           : '按税前总额计入分红收入'
@@ -1481,8 +1714,8 @@ export function TTradingDrawer({
                       <span>成交价格</span>
                       <input
                         type="number"
-                        min="0.01"
-                        step="0.01"
+                        min={market === 'CN' ? 0.01 : 0.0001}
+                        step={market === 'CN' ? 0.01 : 0.0001}
                         value={price}
                         onChange={(event) => setPrice(event.target.value)}
                       />
@@ -1491,13 +1724,29 @@ export function TTradingDrawer({
                       <span>成交数量</span>
                       <input
                         type="number"
-                        min="100"
+                        min={market === 'CN' ? 100 : 1}
                         step="100"
                         value={quantity}
                         disabled={hasFixedAllocations}
                         onChange={(event) => setQuantity(event.target.value)}
                       />
                     </label>
+                    {currency !== 'CNY' ? (
+                      <label>
+                        <span>成交汇率（可选）</span>
+                        <input
+                          type="number"
+                          min="0.000001"
+                          step="0.000001"
+                          value={tradeExchangeRate}
+                          onChange={(event) => {
+                            setTradeExchangeRate(event.target.value)
+                            setTradeExchangeRateEdited(true)
+                          }}
+                          placeholder="未知时留空"
+                        />
+                      </label>
+                    ) : null}
                     <label>
                       <span>成交时间</span>
                       <input
@@ -1517,7 +1766,14 @@ export function TTradingDrawer({
                   </div>
 
                   <div className="t-entry-actions">
-                    <span>成交额 {formatCurrency(numericPrice * numericQuantity)}</span>
+                    <span>
+                      成交额 {formatNativeAmount(numericPrice * numericQuantity)}
+                      {market !== 'CN' && tradedAt
+                        ? ` · 预计交收 ${
+                            estimateSettlementDate(market, tradeDate, tradingCalendar) || '--'
+                          }`
+                        : ''}
+                    </span>
                     <button
                       className="primary-button compact-button"
                       type="button"
@@ -1569,11 +1825,27 @@ export function TTradingDrawer({
 
                 {manualFees ? (
                   <div className="t-fee-inputs">
-                    {feeInput('commission', '佣金')}
-                    {feeInput('handling', '经手费')}
-                    {feeInput('regulatory', '证管费')}
-                    {feeInput('transfer', '过户费')}
-                    {feeInput('stampDuty', '印花税')}
+                    {market === 'CN' ? (
+                      <>
+                        {feeInput('commission', '佣金')}
+                        {feeInput('handling', '经手费')}
+                        {feeInput('regulatory', '证管费')}
+                        {feeInput('transfer', '过户费')}
+                        {feeInput('stampDuty', '印花税')}
+                      </>
+                    ) : (
+                      <label>
+                        <span>券商实际费用</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={actualFees}
+                          onChange={(event) => setActualFees(event.target.value)}
+                          placeholder="零费用请填写 0"
+                        />
+                      </label>
+                    )}
                   </div>
                 ) : null}
 
@@ -1598,7 +1870,7 @@ export function TTradingDrawer({
                     <span>
                       <small>现金净收入</small>
                       <strong className={valueClass(cashLedgerNetAmount)}>
-                        {formatProfit(cashLedgerNetAmount)}
+                        {formatNativeProfit(cashLedgerNetAmount)}
                       </strong>
                     </span>
                   ) : null}
@@ -1624,7 +1896,7 @@ export function TTradingDrawer({
                         <span>
                           <strong>
                             {entry.kind === 'cashDividend' && entry.eligibleQuantity > 0
-                              ? `${formatShares(entry.eligibleQuantity)} · 每股 ${formatCurrency(
+                              ? `${formatShares(entry.eligibleQuantity)} · 每股 ${formatNativeAmount(
                                   entry.amountPerShare
                                 )}`
                               : entry.kind === 'cashDividend'
@@ -1637,7 +1909,7 @@ export function TTradingDrawer({
                         </span>
                         <span className="t-trade-amount">
                           <strong className={valueClass(signedAmount)}>
-                            {formatProfit(signedAmount)}
+                            {formatNativeProfit(signedAmount)}
                           </strong>
                           <small>
                             {entry.note || (entry.kind === 'cashDividend' ? '现金分红' : '缴税')}
@@ -1670,7 +1942,7 @@ export function TTradingDrawer({
                           {formatShares(trade.quantity)} × {formatPrice(trade.price)}
                         </strong>
                         <small>
-                          {formatTradeTime(trade.tradedAt)} · 费用 {formatCurrency(fees)}
+                          {formatTradeTime(trade.tradedAt)} · 费用 {formatNativeAmount(fees)}
                         </small>
                         {trade.splitSource ? (
                           <small>
@@ -1679,7 +1951,7 @@ export function TTradingDrawer({
                         ) : null}
                       </span>
                       <span className="t-trade-amount">
-                        <span>{formatCurrency(trade.price * trade.quantity)}</span>
+                        <span>{formatNativeAmount(trade.price * trade.quantity)}</span>
                         <small>
                           {trade.splitSource
                             ? `混合底仓流水${trade.note ? ` · ${trade.note}` : ''}`
@@ -1747,7 +2019,7 @@ export function TTradingDrawer({
                     <span>
                       <small>浮动收益</small>
                       <strong className={valueClass(activeMetrics.floatingProfit)}>
-                        {formatProfit(activeMetrics.floatingProfit)}
+                        {formatNativeProfit(activeMetrics.floatingProfit)}
                         <small
                           className={`t-floating-profit-rate ${valueClass(activeMetrics.floatingProfitRate)}`}
                         >
@@ -1758,12 +2030,12 @@ export function TTradingDrawer({
                     <span>
                       <small>当前批次收益</small>
                       <strong className={valueClass(activeMetrics.realizedProfit)}>
-                        {formatProfit(activeMetrics.realizedProfit)}
+                        {formatNativeProfit(activeMetrics.realizedProfit)}
                       </strong>
                     </span>
                     <span>
                       <small>当前批次费用</small>
-                      <strong>{formatCurrency(currentBatchFees)}</strong>
+                      <strong>{formatNativeAmount(currentBatchFees)}</strong>
                     </span>
                     <em>{activeTrades.length} 笔流水</em>
                   </div>
@@ -1797,11 +2069,12 @@ export function TTradingDrawer({
                           }
                           aria-label="浮动盈亏提醒阈值"
                         />
-                        <em>元</em>
+                        <em>{currency === 'CNY' ? '元' : currency}</em>
                       </label>
                       <TFloatingProfitAlertBadge
                         batch={currentAccount.activeBatch}
                         floatingProfit={activeMetrics.floatingProfit}
+                        currency={currency}
                       />
                     </span>
                   </div>
@@ -1824,7 +2097,7 @@ export function TTradingDrawer({
                           </strong>
                           <small>
                             {formatTradeTime(trade.tradedAt)} · 费用{' '}
-                            {formatCurrency(allocation.fees)}
+                            {formatNativeAmount(allocation.fees)}
                             {summary ? ` · ${summary}` : ''}
                           </small>
                           {trade.splitSource ? (
@@ -1834,10 +2107,10 @@ export function TTradingDrawer({
                           ) : null}
                         </span>
                         <span className="t-trade-amount">
-                          <span>{formatCurrency(trade.price * allocation.quantity)}</span>
+                          <span>{formatNativeAmount(trade.price * allocation.quantity)}</span>
                           <small>
                             {trade.side === 'buy' ? '含费成本' : '净到账'}{' '}
-                            {formatCurrency(
+                            {formatNativeAmount(
                               trade.price * allocation.quantity +
                                 (trade.side === 'buy' ? 1 : -1) * allocation.fees
                             )}
@@ -1914,6 +2187,8 @@ export function TTradingDrawer({
                       <TPlanTable
                         side="buy"
                         rows={buyLevelRows}
+                        currency={currency}
+                        minimumQuantity={market === 'CN' ? 100 : 1}
                         alertEnabled={Boolean(currentAccount.activeBatch?.alertEnabled)}
                         emphasized={isReverseBatch}
                         openingPlan={!isReverseBatch}
@@ -1926,6 +2201,8 @@ export function TTradingDrawer({
                       <TPlanTable
                         side="sell"
                         rows={sellLevelRows}
+                        currency={currency}
+                        minimumQuantity={market === 'CN' ? 100 : 1}
                         alertEnabled={Boolean(currentAccount.activeBatch?.alertEnabled)}
                         emphasized={!isReverseBatch}
                         openingPlan={isReverseBatch}
@@ -1953,16 +2230,16 @@ export function TTradingDrawer({
                     <span>
                       <small>流水收益</small>
                       <strong className={valueClass(activeMetrics.realizedProfit)}>
-                        {formatProfit(activeMetrics.realizedProfit)}
+                        {formatNativeProfit(activeMetrics.realizedProfit)}
                       </strong>
                     </span>
                     <span>
                       <small>买入总额</small>
-                      <strong>{formatCurrency(activeMetrics.buyAmount)}</strong>
+                      <strong>{formatNativeAmount(activeMetrics.buyAmount)}</strong>
                     </span>
                     <span>
                       <small>卖出总额</small>
-                      <strong>{formatCurrency(activeMetrics.sellAmount)}</strong>
+                      <strong>{formatNativeAmount(activeMetrics.sellAmount)}</strong>
                     </span>
                   </div>
                   <div className="t-form-grid">
@@ -1998,7 +2275,7 @@ export function TTradingDrawer({
                     <div className="t-cost-profit-preview">
                       按最新成本推算：
                       <strong className={valueClass(settlementPreviewProfit)}>
-                        {formatProfit(settlementPreviewProfit)}
+                        {formatNativeProfit(settlementPreviewProfit)}
                       </strong>
                     </div>
                   ) : null}
@@ -2073,7 +2350,7 @@ export function TTradingDrawer({
                           <strong
                             className={`t-history-profit ${valueClass(batch.settlement?.finalProfit)}`}
                           >
-                            {formatProfit(batch.settlement?.finalProfit)}
+                            {formatNativeProfit(batch.settlement?.finalProfit)}
                           </strong>
                         </span>
                       </summary>
@@ -2100,9 +2377,9 @@ export function TTradingDrawer({
                                   </>
                                 ) : null}
                               </span>
-                              <span>分摊费用 {formatCurrency(totalFees)}</span>
+                              <span>分摊费用 {formatNativeAmount(totalFees)}</span>
                               <strong className={valueClass(amountChange)}>
-                                金额变动 {formatProfit(amountChange)}
+                                金额变动 {formatNativeProfit(amountChange)}
                               </strong>
                             </span>
                           )
@@ -2112,7 +2389,7 @@ export function TTradingDrawer({
                             <p>
                               流水收益{' '}
                               <strong className={valueClass(batch.settlement.ledgerProfit)}>
-                                {formatProfit(batch.settlement.ledgerProfit)}
+                                {formatNativeProfit(batch.settlement.ledgerProfit)}
                               </strong>
                               {batch.settlement.costAdjustedProfit !== undefined ? (
                                 <>
@@ -2120,7 +2397,7 @@ export function TTradingDrawer({
                                   <strong
                                     className={valueClass(batch.settlement.costAdjustedProfit)}
                                   >
-                                    {formatProfit(batch.settlement.costAdjustedProfit)}
+                                    {formatNativeProfit(batch.settlement.costAdjustedProfit)}
                                   </strong>
                                 </>
                               ) : null}

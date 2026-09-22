@@ -113,6 +113,7 @@ export function TaskbarTicker() {
                   <TFloatingProfitAlertBadge
                     batch={state.tTradingAccounts[stock.quoteId]?.activeBatch}
                     floatingProfit={tMetrics?.floatingProfit}
+                    currency={stock.currency ?? quote?.currency ?? 'CNY'}
                     compact
                     showTitle={false}
                   />

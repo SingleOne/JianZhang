@@ -76,7 +76,7 @@ const A_STOCK_CAPABILITIES: StockMarketCapabilities = {
 const GLOBAL_MARKET_CAPABILITIES: StockMarketCapabilities = {
   position: true,
   tradeLedger: true,
-  tTrading: false,
+  tTrading: true,
   profitAlert: true,
   radar: false,
   sector: false,

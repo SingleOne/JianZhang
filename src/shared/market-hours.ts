@@ -135,6 +135,15 @@ export function marketDateKey(date: Date, market: StockMarket): string {
   return marketClock(date, market).dateKey
 }
 
+export function marketDateTimeInput(market: StockMarket, date = new Date()): string {
+  const clock = marketClock(date, market)
+  const hours = Math.floor(clock.minutes / 60)
+    .toString()
+    .padStart(2, '0')
+  const minutes = (clock.minutes % 60).toString().padStart(2, '0')
+  return `${clock.dateKey}T${hours}:${minutes}`
+}
+
 export function isMarketTradingDate(
   market: StockMarket,
   dateKey: string,

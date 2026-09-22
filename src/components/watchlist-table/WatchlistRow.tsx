@@ -554,6 +554,7 @@ export const WatchlistRow = memo(function WatchlistRow({
                             <TFloatingProfitAlertBadge
                               batch={activeTBatch}
                               floatingProfit={tFloatingProfit}
+                              currency={metrics.currency}
                               compact
                             />
                           </button>

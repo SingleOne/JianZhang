@@ -6,7 +6,6 @@ import {
   formatMoneyProfit,
   formatPercent,
   formatPrice,
-  formatProfit,
   formatShares,
   formatSigned,
   formatUpdateTime
@@ -348,7 +347,7 @@ export function TaskbarStockTooltip() {
                 {formatCost(tMetrics.averageCost)}
               </span>
               <span className={valueClass(tMetrics.floatingProfit)}>
-                浮动 {formatProfit(tMetrics.floatingProfit)}（
+                浮动 {formatMoneyProfit(tMetrics.floatingProfit, positionMetrics.currency)}（
                 {formatPercent(tMetrics.floatingProfitRate)}）
               </span>
             </div>
@@ -403,11 +402,13 @@ export function TaskbarStockTooltip() {
                 <li className={`is-${floatingProfitAlert}`}>
                   <b>T浮动收益</b>
                   <span>
-                    当前 {formatProfit(tMetrics?.floatingProfit)}，提醒值{' '}
-                    {formatProfit(
+                    当前 {formatMoneyProfit(tMetrics?.floatingProfit, positionMetrics.currency)}
+                    ，提醒值{' '}
+                    {formatMoneyProfit(
                       floatingProfitAlert === 'profit'
                         ? account.activeBatch.floatingProfitAlert.threshold
-                        : -account.activeBatch.floatingProfitAlert.threshold
+                        : -account.activeBatch.floatingProfitAlert.threshold,
+                      positionMetrics.currency
                     )}
                   </span>
                 </li>

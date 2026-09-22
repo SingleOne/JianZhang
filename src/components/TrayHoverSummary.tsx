@@ -6,7 +6,6 @@ import {
   formatMoneyProfit,
   formatPercent,
   formatPrice,
-  formatProfit,
   formatSigned,
   formatShares
 } from '../lib/format'
@@ -142,7 +141,7 @@ export function TrayHoverSummary() {
                   {formatCost(tMetrics.averageCost)}
                 </span>
                 <span className={valueClass(tMetrics.floatingProfit)}>
-                  浮动 {formatProfit(tMetrics.floatingProfit)}
+                  浮动 {formatMoneyProfit(tMetrics.floatingProfit, positionMetrics.currency)}
                   {tMetrics.floatingProfitRate === null ? null : (
                     <small className="tray-summary-floating-rate">
                       ({formatPercent(tMetrics.floatingProfitRate)})

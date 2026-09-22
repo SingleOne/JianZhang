@@ -10,6 +10,7 @@ import {
   formatShares
 } from '../lib/format'
 import { exchangeRateForCurrency } from '../shared/exchange-rates'
+import { marketDateTimeInput } from '../shared/market-hours'
 import { deleteIndependentBaseTrade, upsertIndependentBaseTrade } from '../lib/base-trades'
 import { calculatePortfolioLedgerPosition } from '../lib/portfolio-ledger'
 import {
@@ -35,7 +36,7 @@ import {
   calculateMarketLedgerMetrics,
   calculateMarketTradeFeeItems,
   estimateSettlementDate,
-  MARKET_FEE_TEMPLATES,
+  marketFeeTemplateForTradeDate,
   marketTradeQuantityError,
   settlementRuleForTradeDate,
   totalTradeFeeItems
@@ -76,7 +77,6 @@ import {
   marketCapabilitiesForQuoteId,
   marketFromQuoteId,
   STOCK_MARKET_LABELS,
-  STOCK_MARKET_TIME_ZONES,
   STOCK_CURRENCY_SYMBOLS
 } from '../shared/stock-market'
 import { useConfirmDialog } from './ConfirmDialog'
@@ -171,21 +171,6 @@ function formatSnapshotTime(value: string): string {
 
 function defaultSnapshotName(createdAt: string): string {
   return formatSnapshotTime(createdAt)
-}
-
-function marketDateTimeInput(market: StockMarket, date = new Date()): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: STOCK_MARKET_TIME_ZONES[market],
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23'
-  }).formatToParts(date)
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((item) => item.type === type)?.value ?? ''
-  return `${part('year')}-${part('month')}-${part('day')}T${part('hour')}:${part('minute')}`
 }
 
 function marketLedgerDateTime(market: StockMarket, date = new Date()): string {
@@ -547,12 +532,13 @@ function TradeRecordList({
                     </label>
                     {currency !== 'CNY' ? (
                       <label>
-                        <span>汇率</span>
+                        <span>汇率（可选）</span>
                         <input
                           type="number"
                           min="0.000001"
                           step="0.000001"
                           value={draft.exchangeRate}
+                          placeholder="未知时留空"
                           onChange={(event) => onDraftChange({ exchangeRate: event.target.value })}
                         />
                       </label>
@@ -689,6 +675,7 @@ export function PositionEditor({
   const [editedAccount, setEditedAccount] = useState<TTradingAccount | undefined>()
   const [editingTradeId, setEditingTradeId] = useState<string | null>(null)
   const [tradeRecordDraft, setTradeRecordDraft] = useState<TradeRecordDraft | null>(null)
+  const [tradeRecordExchangeRateEdited, setTradeRecordExchangeRateEdited] = useState(false)
   const [tradeRecordError, setTradeRecordError] = useState('')
   const [newTradeDraft, setNewTradeDraft] = useState<NewTradeRecordDraft>(() => ({
     side: 'buy',
@@ -700,6 +687,7 @@ export function PositionEditor({
     stampDutyExempt: stock.instrumentType === 'etf',
     note: ''
   }))
+  const [newTradeExchangeRateEdited, setNewTradeExchangeRateEdited] = useState(false)
   const [newTradeError, setNewTradeError] = useState('')
   const [showAllTradeRecords, setShowAllTradeRecords] = useState(false)
   const [tradeRecordPage, setTradeRecordPage] = useState(0)
@@ -715,18 +703,22 @@ export function PositionEditor({
     market === 'CN' ? null : calculateMarketLedgerMetrics(tradeRecords, market, currency)
   const newTradePrice = Number(newTradeDraft.price)
   const newTradeQuantity = Number(newTradeDraft.quantity)
-  const calculatedNewTradeFeeItems = calculateMarketTradeFeeItems(
-    market,
-    Number.isFinite(newTradePrice) && Number.isFinite(newTradeQuantity)
-      ? newTradePrice * newTradeQuantity
-      : 0,
-    Number.isFinite(newTradeQuantity) ? newTradeQuantity : 0,
-    newTradeDraft.side,
-    marketTradeFees,
-    {
-      stampDutyExempt: newTradeDraft.stampDutyExempt
-    }
-  )
+  const newTradeMarketDate = newTradeDraft.tradedAt.slice(0, 10)
+  const newTradeFeeTemplate = marketFeeTemplateForTradeDate(market, newTradeMarketDate)
+  const calculatedNewTradeFeeItems = newTradeFeeTemplate
+    ? calculateMarketTradeFeeItems(
+        market,
+        Number.isFinite(newTradePrice) && Number.isFinite(newTradeQuantity)
+          ? newTradePrice * newTradeQuantity
+          : 0,
+        Number.isFinite(newTradeQuantity) ? newTradeQuantity : 0,
+        newTradeDraft.side,
+        marketTradeFees,
+        {
+          stampDutyExempt: newTradeDraft.stampDutyExempt
+        }
+      )
+    : []
   const calculatedNewTradeFees = totalTradeFeeItems(calculatedNewTradeFeeItems)
   const recentPositionRecords = positionRecords.slice(0, 5)
   const tradeRecordPageCount = Math.max(
@@ -771,12 +763,14 @@ export function PositionEditor({
   const startEditingTradeRecord = (record: TTradeRecord) => {
     setEditingTradeId(record.id)
     setTradeRecordDraft(createTradeRecordDraft(record))
+    setTradeRecordExchangeRateEdited(false)
     setTradeRecordError('')
   }
 
   const cancelEditingTradeRecord = () => {
     setEditingTradeId(null)
     setTradeRecordDraft(null)
+    setTradeRecordExchangeRateEdited(false)
     setTradeRecordError('')
   }
 
@@ -911,10 +905,19 @@ export function PositionEditor({
       setNewTradeError(quantityError)
       return
     }
+    if (manualFees === null && !newTradeFeeTemplate) {
+      setNewTradeError('该成交日期早于内置费用模板，请填写券商实际费用')
+      return
+    }
 
-    const exchangeRate = currency === 'CNY' ? 1 : Number(newTradeDraft.exchangeRate)
-    if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) {
-      setNewTradeError('请填写有效的成交汇率')
+    const exchangeRate =
+      currency === 'CNY'
+        ? 1
+        : newTradeDraft.exchangeRate.trim() === ''
+          ? undefined
+          : Number(newTradeDraft.exchangeRate)
+    if (exchangeRate !== undefined && (!Number.isFinite(exchangeRate) || exchangeRate <= 0)) {
+      setNewTradeError('请输入有效的成交汇率，未知时可以留空')
       return
     }
 
@@ -943,7 +946,7 @@ export function PositionEditor({
       )
     }
 
-    const marketDate = newTradeDraft.tradedAt.slice(0, 10)
+    const marketDate = newTradeMarketDate
     const feeItems: TradeFeeItem[] =
       manualFees === null
         ? calculatedNewTradeFeeItems
@@ -959,12 +962,17 @@ export function PositionEditor({
       quantity: tradeQuantity,
       fees: emptyTradeFees(),
       feeItems,
-      feeTemplate: market === 'HK' || market === 'US' ? MARKET_FEE_TEMPLATES[market] : undefined,
+      feeTemplate: manualFees === null ? newTradeFeeTemplate : undefined,
       market,
       currency,
       marketDate,
       exchangeRate,
-      exchangeRateDate: usesManualRate ? marketDate : (exchangeRates.rateDate ?? marketDate),
+      exchangeRateDate:
+        exchangeRate === undefined
+          ? undefined
+          : usesManualRate || newTradeExchangeRateEdited
+            ? marketDate
+            : (exchangeRates.rateDate ?? marketDate),
       estimatedSettlementDate: estimateSettlementDate(market, marketDate, tradingCalendar),
       settlementRule: settlementRuleForTradeDate(market, marketDate),
       origin: 'execution',
@@ -987,6 +995,7 @@ export function PositionEditor({
       actualFees: '',
       note: ''
     }))
+    setNewTradeExchangeRateEdited(false)
     setNewTradeError('')
   }
 
@@ -1014,20 +1023,28 @@ export function PositionEditor({
       return
     }
 
-    const exchangeRate = currency === 'CNY' ? 1 : Number(tradeRecordDraft.exchangeRate)
-    if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) {
-      setTradeRecordError('请填写有效的成交汇率')
+    const exchangeRate =
+      currency === 'CNY'
+        ? 1
+        : tradeRecordDraft.exchangeRate.trim() === ''
+          ? undefined
+          : Number(tradeRecordDraft.exchangeRate)
+    if (exchangeRate !== undefined && (!Number.isFinite(exchangeRate) || exchangeRate <= 0)) {
+      setTradeRecordError('请输入有效的成交汇率，未知时可以留空')
       return
     }
 
     const feeTotal = roundMoney(fees)
     const marketDate = tradeRecordDraft.tradedAt.slice(0, 10)
     const feeTotalChanged = feeTotal !== totalRecordedTradeFees(record)
+    const feeTemplateValidForDate =
+      !record.feeTemplate || record.feeTemplate.effectiveFrom <= marketDate
+    const usesManualTradeFee = feeTotalChanged || !feeTemplateValidForDate
     const transactionChanged =
       record.side !== tradeRecordDraft.side ||
       record.price !== price ||
       record.quantity !== tradeQuantity
-    const nextMarketFeeItems = feeTotalChanged
+    const nextMarketFeeItems = usesManualTradeFee
       ? feeTotal > 0
         ? [{ code: 'manual' as const, label: '券商实际费用', amount: feeTotal }]
         : []
@@ -1054,22 +1071,23 @@ export function PositionEditor({
       quantity: tradeQuantity,
       fees: market === 'CN' ? feesWithTotal(record.fees, feeTotal) : emptyTradeFees(),
       feeItems: market === 'CN' ? record.feeItems : nextMarketFeeItems,
-      feeTemplate: market === 'CN' || !feeTotalChanged ? record.feeTemplate : undefined,
+      feeTemplate: market === 'CN' || !usesManualTradeFee ? record.feeTemplate : undefined,
       market,
       currency,
       marketDate,
       exchangeRate,
       exchangeRateDate:
-        record.exchangeRate === exchangeRate
-          ? record.exchangeRateDate
-          : usesManualRate
-            ? marketDate
-            : (exchangeRates.rateDate ?? marketDate),
+        exchangeRate === undefined
+          ? undefined
+          : !tradeRecordExchangeRateEdited && record.exchangeRate === exchangeRate
+            ? record.exchangeRateDate
+            : marketDate,
       estimatedSettlementDate: estimateSettlementDate(market, marketDate, tradingCalendar),
       actualSettlementDate: tradeRecordDraft.actualSettlementDate || undefined,
       settlementRule: settlementRuleForTradeDate(market, marketDate),
       origin: record.origin,
       splitSource: record.splitSource,
+      brokerImport: record.brokerImport,
       allocations: record.allocations?.length
         ? record.allocations.length > 1
           ? record.allocations
@@ -1256,6 +1274,7 @@ export function PositionEditor({
     error: tradeRecordError,
     onStartEdit: startEditingTradeRecord,
     onDraftChange: (changes: Partial<TradeRecordDraft>) => {
+      if (changes.exchangeRate !== undefined) setTradeRecordExchangeRateEdited(true)
       setTradeRecordDraft((current) => (current ? { ...current, ...changes } : current))
       setTradeRecordError('')
     },
@@ -1669,7 +1688,11 @@ export function PositionEditor({
                           min="0"
                           step="0.01"
                           value={newTradeDraft.actualFees}
-                          placeholder={`自动 ${calculatedNewTradeFees.toFixed(2)}`}
+                          placeholder={
+                            newTradeFeeTemplate
+                              ? `自动 ${calculatedNewTradeFees.toFixed(2)}`
+                              : '请填写券商实际费用'
+                          }
                           onChange={(event) =>
                             setNewTradeDraft((current) => ({
                               ...current,
@@ -1679,18 +1702,20 @@ export function PositionEditor({
                         />
                       </label>
                       <label>
-                        <span>兑人民币汇率</span>
+                        <span>兑人民币汇率（可选）</span>
                         <input
                           type="number"
                           min="0.000001"
                           step="0.000001"
                           value={newTradeDraft.exchangeRate}
-                          onChange={(event) =>
+                          placeholder="未知时留空"
+                          onChange={(event) => {
+                            setNewTradeExchangeRateEdited(true)
                             setNewTradeDraft((current) => ({
                               ...current,
                               exchangeRate: event.target.value
                             }))
-                          }
+                          }}
                         />
                       </label>
                       <label className="trade-record-create-note">
@@ -1732,18 +1757,23 @@ export function PositionEditor({
                     </div>
                     <small className="trade-record-create-preview">
                       自动费用：
-                      {calculatedNewTradeFeeItems.length > 0
-                        ? calculatedNewTradeFeeItems
-                            .map((item) => `${item.label} ${item.amount.toFixed(2)}`)
-                            .join(' · ')
-                        : '0.00'}
+                      {!newTradeFeeTemplate
+                        ? '当前日期无内置费用模板'
+                        : calculatedNewTradeFeeItems.length > 0
+                          ? calculatedNewTradeFeeItems
+                              .map((item) => `${item.label} ${item.amount.toFixed(2)}`)
+                              .join(' · ')
+                          : '0.00'}
                       {' · '}预计交收：
                       {estimateSettlementDate(
                         market,
                         newTradeDraft.tradedAt.slice(0, 10),
                         tradingCalendar
                       ) || '--'}
-                      {' · '}留空实际费用时使用模板估算，券商账单优先
+                      {' · '}
+                      {newTradeFeeTemplate
+                        ? '留空实际费用时使用模板估算，券商账单优先'
+                        : '该日期需填写券商实际费用'}
                     </small>
                     {newTradeError ? (
                       <small className="trade-record-create-error">{newTradeError}</small>

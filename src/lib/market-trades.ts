@@ -79,6 +79,15 @@ export const MARKET_FEE_TEMPLATES: Record<'HK' | 'US', TradeFeeTemplateSnapshot>
   }
 }
 
+export function marketFeeTemplateForTradeDate(
+  market: StockMarket,
+  tradeDate: string
+): TradeFeeTemplateSnapshot | undefined {
+  if (market === 'CN') return undefined
+  const template = MARKET_FEE_TEMPLATES[market]
+  return template.effectiveFrom <= tradeDate ? template : undefined
+}
+
 export interface MarketTradeFeeOptions {
   stampDutyExempt?: boolean
 }

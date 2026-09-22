@@ -1490,7 +1490,9 @@ export function WatchlistTable({
               .holdingCostBasis
           }
           feeSettings={tTradingFees}
+          marketTradeFees={marketTradeFees}
           planDefaults={tPlanDefaults}
+          tradingCalendar={tradingCalendar}
           exchangeRates={exchangeRates}
           floatingProfitAlertDefaultThreshold={tFloatingProfitAlertDefaultThreshold}
           onClose={() => setTTradingStock(null)}

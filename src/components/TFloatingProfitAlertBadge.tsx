@@ -1,10 +1,12 @@
-import { formatProfit } from '../lib/format'
+import { formatMoneyProfit } from '../lib/format'
 import { getTriggeredTFloatingProfitAlert } from '../lib/t-alerts'
 import type { TTradingBatch } from '../shared/types'
+import type { StockCurrency } from '../shared/stock-market'
 
 interface TFloatingProfitAlertBadgeProps {
   batch: TTradingBatch | undefined
   floatingProfit: number | null | undefined
+  currency?: StockCurrency
   compact?: boolean
   showTitle?: boolean
 }
@@ -12,6 +14,7 @@ interface TFloatingProfitAlertBadgeProps {
 export function TFloatingProfitAlertBadge({
   batch,
   floatingProfit,
+  currency = 'CNY',
   compact = false,
   showTitle = true
 }: TFloatingProfitAlertBadgeProps) {
@@ -32,7 +35,7 @@ export function TFloatingProfitAlertBadge({
         className={`t-alert-badge is-${direction}`}
         title={
           showTitle
-            ? `当前浮动收益 ${formatProfit(floatingProfit)}，已达到 ${formatProfit(target)} 提醒值`
+            ? `当前浮动收益 ${formatMoneyProfit(floatingProfit, currency)}，已达到 ${formatMoneyProfit(target, currency)} 提醒值`
             : undefined
         }
       >
