@@ -288,7 +288,12 @@ function updateTradeAccount(
     if (validationError) {
       return { account, updatesPosition: false, error: validationError }
     }
-    const plannedBatch = rebalanceTBatchPlans(nextBatch, nextBatchTrades, planDefaults)
+    const plannedBatch = rebalanceTBatchPlans(
+      nextBatch,
+      nextBatchTrades,
+      planDefaults,
+      account.market ?? marketFromQuoteId(account.quoteId)
+    )
     const hasTTrades = nextBatchTrades.some((trade) => hasTAllocationForBatch(trade, nextBatch.id))
     const finalRecords = hasTTrades
       ? nextRecords
@@ -1277,7 +1282,7 @@ export function PositionEditor({
           return batchTrades.some((record) =>
             hasTAllocationForBatch(record, workingAccount.activeBatch!.id)
           )
-            ? rebalanceTBatchPlans(workingAccount.activeBatch!, batchTrades, planDefaults)
+            ? rebalanceTBatchPlans(workingAccount.activeBatch!, batchTrades, planDefaults, market)
             : undefined
         })()
       : undefined

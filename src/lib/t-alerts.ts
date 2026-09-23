@@ -89,13 +89,20 @@ export function getTPlanRows(
   const metrics = calculateTBatchMetrics(batch, trades)
   const averageCost = metrics.averageCost
   let cumulativeProfit = metrics.realizedProfit
+  let plannedClosingQuantity = 0
   const isOpeningPlan =
     (metrics.direction === 'forward' && side === 'buy') ||
     (metrics.direction === 'reverse' && side === 'sell')
 
   return levelsForSide(batch, side).map((level, index) => {
+    if (!isOpeningPlan) plannedClosingQuantity += level.quantity
     const targetPrice = tPlanTargetPrice(averageCost, side, level.targetPercent)
     const hasQuantity = level.quantity > 0
+    const exceedsForeignTPosition =
+      feeOptions?.market !== undefined &&
+      feeOptions.market !== 'CN' &&
+      !isOpeningPlan &&
+      plannedClosingQuantity > metrics.remainingQuantity
     const fees =
       targetPrice === null || !hasQuantity
         ? 0
@@ -120,7 +127,7 @@ export function getTPlanRows(
           ? averageCost - targetPrice
           : targetPrice - averageCost
     const expectedProfit =
-      isOpeningPlan || difference === null || !hasQuantity
+      isOpeningPlan || difference === null || !hasQuantity || exceedsForeignTPosition
         ? null
         : difference * level.quantity - fees
     const fullPositionFees =
@@ -188,7 +195,8 @@ export function getTriggeredTAlertBadges(
   return (['buy', 'sell'] as const).flatMap((side) => {
     const levels = levelsForSide(batch, side)
     let index = levels.length - 1
-    while (index >= 0 && levels[index].alertStatus !== 'triggered') index -= 1
+    while (index >= 0 && (levels[index].quantity <= 0 || levels[index].alertStatus !== 'triggered'))
+      index -= 1
     if (index < 0) return []
 
     const level = levels[index]
@@ -231,11 +239,16 @@ export function applyTAlertTriggers(
   for (const side of ['buy', 'sell'] as const) {
     const nextLevels = levelsForSide(nextBatch, side).map((level) => {
       const targetPrice = tPlanTargetPrice(averageCost, side, level.targetPercent)
+      const status = level.alertStatus ?? 'armed'
+      if (level.quantity <= 0) {
+        if (status === 'armed') return level
+        changed = true
+        return { ...level, alertStatus: 'armed' as const, triggeredAt: undefined }
+      }
       if (targetPrice === null) {
         return level
       }
 
-      const status = level.alertStatus ?? 'armed'
       const isTriggered = priceTriggersLevel(latest, targetPrice, side)
       if (!isTriggered) {
         if (status === 'armed') return level

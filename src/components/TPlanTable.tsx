@@ -20,8 +20,11 @@ function valueClass(value: number | null): string {
   return value > 0 ? 'is-up' : 'is-down'
 }
 
-function formatTargetPrice(value: number | null): string {
-  return value === null ? '--' : value.toFixed(2)
+function formatTargetPrice(value: number | null, currency: StockCurrency): string {
+  if (value === null) return '--'
+  return currency === 'CNY'
+    ? value.toFixed(2)
+    : value.toFixed(4).replace(/0+$/, '').replace(/\.$/, '')
 }
 
 export function TPlanTable({
@@ -37,7 +40,9 @@ export function TPlanTable({
   onRestoreAlert
 }: TPlanTableProps) {
   const isBuy = side === 'buy'
-  const triggeredCount = rows.filter((row) => row.alertStatus === 'triggered').length
+  const triggeredCount = rows.filter(
+    (row) => row.quantity > 0 && row.alertStatus === 'triggered'
+  ).length
   const sideLabel = isBuy ? '买入五档' : '卖出五档'
   const planHint = openingPlan
     ? isBuy
@@ -116,7 +121,7 @@ export function TPlanTable({
                 />
                 <span>%</span>
               </label>
-              <span>{formatTargetPrice(level.targetPrice)}</span>
+              <span>{formatTargetPrice(level.targetPrice, currency)}</span>
               <label>
                 <input
                   type="number"

@@ -259,6 +259,7 @@ export function TTradingDrawer({
   const [overflowDisposition, setOverflowDisposition] = useState<OverflowDisposition>('base')
   const [editingTradeId, setEditingTradeId] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [planError, setPlanError] = useState('')
   const [settlementBatchId, setSettlementBatchId] = useState('')
   const [latestPositionQuantity, setLatestPositionQuantity] = useState(
     stock.position?.quantity.toString() ?? '0'
@@ -313,6 +314,13 @@ export function TTradingDrawer({
     ]
   )
   const isReverseBatch = activeMetrics.direction === 'reverse'
+  const closingPlanQuantity = (
+    isReverseBatch
+      ? (currentAccount.activeBatch?.buyLevels ?? [])
+      : (currentAccount.activeBatch?.sellLevels ?? [])
+  ).reduce((sum, level) => sum + level.quantity, 0)
+  const closingPlanOverAllocated =
+    market !== 'CN' && closingPlanQuantity > activeMetrics.remainingQuantity
   const tPurposeLabel = currentAccount.activeBatch
     ? isReverseBatch
       ? side === 'sell'
@@ -918,7 +926,7 @@ export function TTradingDrawer({
           activeBatch: remainingBatchTrades.some((trade) =>
             hasTAllocationForBatch(trade, editedBatch.id)
           )
-            ? rebalanceTBatchPlans(editedBatch, remainingBatchTrades, planDefaults)
+            ? rebalanceTBatchPlans(editedBatch, remainingBatchTrades, planDefaults, market)
             : undefined
         }
       }
@@ -983,7 +991,7 @@ export function TTradingDrawer({
       }
 
       const closingBatch = handleTriggeredTPlanAlertsForTrade(
-        rebalanceTBatchPlans(batch, closingTrades, planDefaults),
+        rebalanceTBatchPlans(batch, closingTrades, planDefaults, market),
         side
       )
       const closingMetrics = calculateTBatchMetrics(closingBatch, closingTrades, quote?.latest)
@@ -1031,7 +1039,7 @@ export function TTradingDrawer({
         setError(nextValidationError)
         return
       }
-      const nextBatch = rebalanceTBatchPlans(nextBatchBase, nextBatchTrades, planDefaults)
+      const nextBatch = rebalanceTBatchPlans(nextBatchBase, nextBatchTrades, planDefaults, market)
       const nextAccount = withLedgerTradeRecords(
         {
           ...workingAccount,
@@ -1063,7 +1071,7 @@ export function TTradingDrawer({
       setError(validationError)
       return
     }
-    let plannedBatch = rebalanceTBatchPlans(batch, nextTrades, planDefaults)
+    let plannedBatch = rebalanceTBatchPlans(batch, nextTrades, planDefaults, market)
     if (hasTAllocationForBatch(trade, batch.id)) {
       plannedBatch = handleTriggeredTPlanAlertsForTrade(plannedBatch, side)
     }
@@ -1162,7 +1170,12 @@ export function TTradingDrawer({
         return
       }
       const { settlement: _settlement, ...unsettledBatch } = previousBatch
-      const restoredBatch = rebalanceTBatchPlans(unsettledBatch, previousTrades, planDefaults)
+      const restoredBatch = rebalanceTBatchPlans(
+        unsettledBatch,
+        previousTrades,
+        planDefaults,
+        market
+      )
       if (
         !applyTradeAccount(
           withLedgerTradeRecords(
@@ -1185,7 +1198,7 @@ export function TTradingDrawer({
       setError(validationError)
       return
     }
-    const plannedBatch = rebalanceTBatchPlans(batch, nextTrades, planDefaults)
+    const plannedBatch = rebalanceTBatchPlans(batch, nextTrades, planDefaults, market)
     const hasTTrades = nextTrades.some((trade) => hasTAllocationForBatch(trade, plannedBatch.id))
     const nextRecords = currentAccount.tradeRecords.filter((record) => record.id !== tradeId)
     if (
@@ -1211,6 +1224,31 @@ export function TTradingDrawer({
   ) => {
     const batch = currentAccount.activeBatch
     if (!batch) return
+    if (market !== 'CN' && key === 'quantity') {
+      if (!Number.isInteger(value) || value < 0) {
+        setPlanError('计划数量须为非负整数股')
+        return
+      }
+      const closingSide = isReverseBatch ? 'buy' : 'sell'
+      if (side === closingSide) {
+        const levels = side === 'buy' ? (batch.buyLevels ?? []) : batch.sellLevels
+        const currentPlannedQuantity = levels.reduce((sum, level) => sum + level.quantity, 0)
+        const plannedQuantity = levels.reduce(
+          (sum, level, levelIndex) => sum + (levelIndex === index ? value : level.quantity),
+          0
+        )
+        if (
+          plannedQuantity > activeMetrics.remainingQuantity &&
+          plannedQuantity >= currentPlannedQuantity
+        ) {
+          setPlanError(
+            `平仓侧计划合计不能超过当前 T 仓 ${formatShares(activeMetrics.remainingQuantity)} 股`
+          )
+          return
+        }
+      }
+    }
+    setPlanError('')
     const nextBatch = updateTPlanLevel(batch, side, index, key, value)
     applyAccount(
       {
@@ -1226,7 +1264,8 @@ export function TTradingDrawer({
   const resetPlanLevels = () => {
     const batch = currentAccount.activeBatch
     if (!batch) return
-    const nextBatch = resetTBatchPlans(batch, activeTrades, planDefaults)
+    const nextBatch = resetTBatchPlans(batch, activeTrades, planDefaults, market)
+    setPlanError('')
     applyAccount(
       {
         ...currentAccount,
@@ -2383,6 +2422,12 @@ export function TTradingDrawer({
                           ? '买入侧显示回补收益，卖出侧显示继续反T后的仓位与成本'
                           : '买入侧显示加仓后的仓位与成本，卖出侧显示价差收益'}
                       </small>
+                      {market !== 'CN' ? (
+                        <small>
+                          按整数股规划，预计收益以 {currency} 按当前费用模板估算
+                          {market === 'HK' ? '；下单前请核对每手股数' : ''}
+                        </small>
+                      ) : null}
                     </span>
                     <span className="t-plan-heading-actions">
                       <label className="t-alert-toggle">
@@ -2399,6 +2444,13 @@ export function TTradingDrawer({
                       </button>
                     </span>
                   </div>
+                  {closingPlanOverAllocated ? (
+                    <div className="t-form-error">
+                      平仓侧计划合计 {formatShares(closingPlanQuantity)} 股，超过当前 T 仓{' '}
+                      {formatShares(activeMetrics.remainingQuantity)} 股；请调整数量或重置双五档
+                    </div>
+                  ) : null}
+                  {planError ? <div className="t-form-error">{planError}</div> : null}
                   <div className="t-plan-scroll">
                     <div className="t-plan-grid">
                       <TPlanTable

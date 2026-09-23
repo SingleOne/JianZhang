@@ -4,7 +4,7 @@ import {
   type MarketCalendarSource
 } from './market-calendar'
 import { isAfterMarketClose, marketDateKey } from './market-hours'
-import { stockMarketIdentity, type StockMarket } from './stock-market'
+import { marketFromQuoteId, stockMarketIdentity, type StockMarket } from './stock-market'
 export type {
   StockCurrency,
   StockExchange,
@@ -1162,22 +1162,32 @@ function tradeReferencesTradingBatch(trade: TTradeRecord, batchId: string): bool
     : trade.batchId === batchId
 }
 
-export function createDefaultTPlanLevels(quantity: number): TPlanLevel[] {
-  const totalLots = Math.floor(quantity / 100)
-  const baseLots = Math.floor(totalLots / 5)
-  const extraLots = totalLots % 5
+export function createDefaultTPlanLevels(
+  quantity: number,
+  market: StockMarket = 'CN',
+  openingPlan = false
+): TPlanLevel[] {
+  const unit = market === 'CN' ? 100 : 1
+  const totalUnits = Math.floor(quantity / unit)
+  const baseUnits = Math.floor(totalUnits / 5)
+  const extraUnits = totalUnits % 5
   return [1, 2, 3, 4, 5].map((targetPercent, index) => ({
     targetPercent,
-    quantity: (baseLots + (index < extraLots ? 1 : 0)) * 100,
+    quantity:
+      (openingPlan && market !== 'CN'
+        ? Math.max(1, Math.ceil(totalUnits / 5))
+        : baseUnits + (index < extraUnits ? 1 : 0)) * unit,
     alertStatus: 'armed' as const
   }))
 }
 
 function normalizeTPlanLevels(
   levels: readonly TPlanLevel[] | undefined,
-  quantity: number
+  quantity: number,
+  market: StockMarket,
+  openingPlan: boolean
 ): TPlanLevel[] {
-  const defaults = createDefaultTPlanLevels(quantity)
+  const defaults = createDefaultTPlanLevels(quantity, market, openingPlan)
   return defaults.map((fallback, index) => {
     const level = levels?.[index]
     if (!level) return fallback
@@ -1211,21 +1221,29 @@ function normalizeTFloatingProfitAlert(
 
 export function normalizeActiveTTradingBatch(
   batch: TTradingBatch,
-  trades: readonly TTrade[] = []
+  trades: readonly TTrade[] = [],
+  market: StockMarket = 'CN'
 ): TTradingBatch {
   const quantity = activeTQuantity(batch, trades)
   const direction = batch.direction ?? 'forward'
-  const legacyLevels = normalizeTPlanLevels(batch.sellLevels, quantity)
   const hasBuyLevels = Array.isArray(batch.buyLevels)
+  const legacyLevels = normalizeTPlanLevels(
+    batch.sellLevels,
+    quantity,
+    market,
+    direction === 'reverse' && hasBuyLevels
+  )
 
   return {
     ...batch,
     buyLevels:
       direction === 'reverse' && !hasBuyLevels
         ? legacyLevels
-        : normalizeTPlanLevels(batch.buyLevels, quantity),
+        : normalizeTPlanLevels(batch.buyLevels, quantity, market, direction === 'forward'),
     sellLevels:
-      direction === 'reverse' && !hasBuyLevels ? createDefaultTPlanLevels(quantity) : legacyLevels,
+      direction === 'reverse' && !hasBuyLevels
+        ? createDefaultTPlanLevels(quantity, market, true)
+        : legacyLevels,
     alertEnabled: batch.alertEnabled ?? false,
     floatingProfitAlert: normalizeTFloatingProfitAlert(batch.floatingProfitAlert)
   }
@@ -1330,7 +1348,11 @@ export function normalizeTTradingAccounts(
         {
           ...account,
           activeBatch: activeBatch
-            ? normalizeActiveTTradingBatch(activeBatch, activeTrades)
+            ? normalizeActiveTTradingBatch(
+                activeBatch,
+                activeTrades,
+                account.market ?? marketFromQuoteId(quoteId)
+              )
             : undefined,
           ledger,
           tradeRecords: tradeRecordsFromLedger(ledger)

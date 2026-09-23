@@ -1,5 +1,6 @@
 import type {
   StockPosition,
+  StockMarket,
   TTradingBatch,
   TTradingFeeSettings,
   TTrade,
@@ -274,29 +275,66 @@ export function rebalanceTPlanLevels(
   })
 }
 
+function planDefaultsForMarket(
+  defaults: TPlanDefaultSettings,
+  market: StockMarket,
+  quantity: number,
+  direction: TTradingDirection
+): TPlanDefaultSettings {
+  if (market === 'CN') return defaults
+  const buyQuantities = createDefaultTPlanLevels(quantity, market, direction === 'forward')
+  const sellQuantities = createDefaultTPlanLevels(quantity, market, direction === 'reverse')
+  return {
+    buyLevels: defaults.buyLevels.map((level, index) => ({
+      ...level,
+      quantity: buyQuantities[index].quantity
+    })),
+    sellLevels: defaults.sellLevels.map((level, index) => ({
+      ...level,
+      quantity: sellQuantities[index].quantity
+    }))
+  }
+}
+
 export function rebalanceTBatchPlans(
   batch: TTradingBatch,
   trades: readonly TTrade[],
-  defaults: TPlanDefaultSettings
+  defaults: TPlanDefaultSettings,
+  market: StockMarket = 'CN'
 ): TTradingBatch {
-  const normalized = normalizeActiveTTradingBatch(batch, trades)
+  const normalized = normalizeActiveTTradingBatch(batch, trades, market)
+  const quantity = calculateTBatchMetrics(batch, trades).remainingQuantity
+  const marketDefaults = planDefaultsForMarket(
+    defaults,
+    market,
+    quantity,
+    getTBatchDirection(batch)
+  )
   return {
     ...normalized,
-    buyLevels: rebalanceTPlanLevels(normalized.buyLevels, defaults.buyLevels),
-    sellLevels: rebalanceTPlanLevels(normalized.sellLevels, defaults.sellLevels)
+    buyLevels: rebalanceTPlanLevels(normalized.buyLevels, marketDefaults.buyLevels),
+    sellLevels: rebalanceTPlanLevels(normalized.sellLevels, marketDefaults.sellLevels)
   }
 }
 
 export function resetTBatchPlans(
   batch: TTradingBatch,
   trades: readonly TTrade[],
-  defaults: TPlanDefaultSettings
+  defaults: TPlanDefaultSettings,
+  market: StockMarket = 'CN'
 ): TTradingBatch {
-  const normalized = normalizeActiveTTradingBatch(batch, trades)
+  const normalized = normalizeActiveTTradingBatch(batch, trades, market)
+  const quantity = calculateTBatchMetrics(batch, trades).remainingQuantity
+  const marketDefaults = planDefaultsForMarket(
+    defaults,
+    market,
+    quantity,
+    getTBatchDirection(batch)
+  )
   return {
     ...normalized,
-    buyLevels: createTPlanLevelsFromDefaults(defaults.buyLevels),
-    sellLevels: createTPlanLevelsFromDefaults(defaults.sellLevels)
+    buyLevels: createTPlanLevelsFromDefaults(marketDefaults.buyLevels),
+    sellLevels: createTPlanLevelsFromDefaults(marketDefaults.sellLevels)
   }
 }
 
