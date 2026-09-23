@@ -602,6 +602,9 @@ function TradeRecordList({
                 <small title={feeDetails}>
                   费用 {formatMoney(fees, currency)}
                   {feeDetails ? ` · ${feeDetails}` : ''}
+                  {market !== 'CN'
+                    ? ` · ${record.feeSource === 'actual' || record.feeItems?.some((item) => item.code === 'manual') ? '券商实际' : record.feeTemplate ? '模板估算' : '来源未标记'}`
+                    : ''}
                   {record.feeTemplate
                     ? ` · ${record.feeTemplate.label} v${record.feeTemplate.version}`
                     : ''}
@@ -715,7 +718,8 @@ export function PositionEditor({
         newTradeDraft.side,
         marketTradeFees,
         {
-          stampDutyExempt: newTradeDraft.stampDutyExempt
+          stampDutyExempt: newTradeDraft.stampDutyExempt,
+          tradeDate: newTradeMarketDate
         }
       )
     : []
@@ -963,6 +967,7 @@ export function PositionEditor({
       fees: emptyTradeFees(),
       feeItems,
       feeTemplate: manualFees === null ? newTradeFeeTemplate : undefined,
+      feeSource: market === 'CN' ? undefined : manualFees === null ? 'estimated' : 'actual',
       market,
       currency,
       marketDate,
@@ -1036,19 +1041,32 @@ export function PositionEditor({
 
     const feeTotal = roundMoney(fees)
     const marketDate = tradeRecordDraft.tradedAt.slice(0, 10)
+    if (
+      market !== 'CN' &&
+      tradeRecordDraft.actualSettlementDate &&
+      tradeRecordDraft.actualSettlementDate < marketDate
+    ) {
+      setTradeRecordError('实际交收日不能早于成交日')
+      return
+    }
     const feeTotalChanged = feeTotal !== totalRecordedTradeFees(record)
-    const feeTemplateValidForDate =
-      !record.feeTemplate || record.feeTemplate.effectiveFrom <= marketDate
-    const usesManualTradeFee = feeTotalChanged || !feeTemplateValidForDate
+    const estimatedFee = record.feeSource === 'estimated' || Boolean(record.feeTemplate)
+    const nextFeeTemplate = marketFeeTemplateForTradeDate(market, marketDate)
+    if (estimatedFee && !feeTotalChanged && !nextFeeTemplate) {
+      setTradeRecordError('该成交日期无内置费用模板，请填写券商实际费用')
+      return
+    }
+    const usesManualTradeFee = feeTotalChanged
     const transactionChanged =
       record.side !== tradeRecordDraft.side ||
       record.price !== price ||
-      record.quantity !== tradeQuantity
+      record.quantity !== tradeQuantity ||
+      (record.marketDate ?? record.tradedAt.slice(0, 10)) !== marketDate
     const nextMarketFeeItems = usesManualTradeFee
       ? feeTotal > 0
         ? [{ code: 'manual' as const, label: '券商实际费用', amount: feeTotal }]
         : []
-      : transactionChanged && record.feeTemplate && !record.splitSource
+      : transactionChanged && estimatedFee && !record.splitSource
         ? calculateMarketTradeFeeItems(
             market,
             price * tradeQuantity,
@@ -1057,7 +1075,8 @@ export function PositionEditor({
             marketTradeFees,
             {
               stampDutyExempt:
-                market === 'HK' && !record.feeItems?.some((item) => item.code === 'stamp-duty')
+                market === 'HK' && !record.feeItems?.some((item) => item.code === 'stamp-duty'),
+              tradeDate: marketDate
             }
           )
         : record.feeItems
@@ -1069,9 +1088,30 @@ export function PositionEditor({
       tradedAt: tradeRecordDraft.tradedAt,
       price,
       quantity: tradeQuantity,
-      fees: market === 'CN' ? feesWithTotal(record.fees, feeTotal) : emptyTradeFees(),
+      fees:
+        market === 'CN'
+          ? feesWithTotal(record.fees, feeTotal)
+          : usesManualTradeFee
+            ? emptyTradeFees()
+            : record.fees,
       feeItems: market === 'CN' ? record.feeItems : nextMarketFeeItems,
-      feeTemplate: market === 'CN' || !usesManualTradeFee ? record.feeTemplate : undefined,
+      feeTemplate:
+        market === 'CN'
+          ? record.feeTemplate
+          : usesManualTradeFee
+            ? undefined
+            : transactionChanged && estimatedFee && !record.splitSource
+              ? nextFeeTemplate
+              : record.feeTemplate,
+      feeSource:
+        market === 'CN'
+          ? record.feeSource
+          : usesManualTradeFee
+            ? 'actual'
+            : estimatedFee
+              ? 'estimated'
+              : (record.feeSource ??
+                (record.feeItems?.some((item) => item.code === 'manual') ? 'actual' : undefined)),
       market,
       currency,
       marketDate,

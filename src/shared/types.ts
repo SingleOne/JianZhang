@@ -743,6 +743,7 @@ export interface TTrade {
   fees: TTradeFees
   feeItems?: TradeFeeItem[]
   feeTemplate?: TradeFeeTemplateSnapshot
+  feeSource?: 'estimated' | 'actual'
   market?: import('./stock-market').StockMarket
   currency?: import('./stock-market').StockCurrency
   marketDate?: string
@@ -1094,6 +1095,7 @@ export type TSellPlanLevel = TPlanLevel
 
 export interface TBatchSettlement {
   settledAt: string
+  positionAdjustmentId?: string
   latestPositionQuantity: number
   latestPositionCost?: number
   ledgerProfit: number

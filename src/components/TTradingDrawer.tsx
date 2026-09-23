@@ -61,7 +61,7 @@ import {
   calculatePortfolioLedgerPosition
 } from '../lib/portfolio-ledger'
 import { deleteIndependentBaseTrade, upsertIndependentBaseTrade } from '../lib/base-trades'
-import { createInitialPositionAccount } from '../lib/position-ledger'
+import { appendPositionAdjustment, createInitialPositionAccount } from '../lib/position-ledger'
 import { splitTradeForOverflow } from '../lib/split-trade'
 import { TradeSplitSource } from './TradeSplitSource'
 import { TPlanTable } from './TPlanTable'
@@ -115,6 +115,14 @@ type CashLedgerEntry = CashDividendLedgerEntry | WithholdingTaxLedgerEntry
 
 function emptyFees(): TTradeFees {
   return { commission: 0, handling: 0, regulatory: 0, transfer: 0, stampDuty: 0 }
+}
+
+function tradeFeeSourceLabel(trade: TTrade): string {
+  if (trade.feeSource === 'actual' || trade.feeItems?.some((item) => item.code === 'manual')) {
+    return '券商实际'
+  }
+  if (trade.feeTemplate) return `模板估算 v${trade.feeTemplate.version}`
+  return trade.feeSource === 'estimated' ? '模板估算' : '来源未标记'
 }
 
 function positionSnapshot(position: StockPosition | undefined) {
@@ -238,8 +246,10 @@ export function TTradingDrawer({
   const [price, setPrice] = useState(quote?.latest?.toString() ?? '')
   const [quantity, setQuantity] = useState('')
   const [tradedAt, setTradedAt] = useState(() => marketDateTimeInput(market))
+  const [actualSettlementDate, setActualSettlementDate] = useState('')
   const [note, setNote] = useState('')
   const [manualFees, setManualFees] = useState(false)
+  const [feeModeEdited, setFeeModeEdited] = useState(false)
   const [feeOverrides, setFeeOverrides] = useState<TTradeFees>(emptyFees)
   const [actualFees, setActualFees] = useState('')
   const [tradeExchangeRate, setTradeExchangeRate] = useState(
@@ -258,6 +268,9 @@ export function TTradingDrawer({
   const [editingHistoryBatchId, setEditingHistoryBatchId] = useState<string | null>(null)
   const [historyProfitDraft, setHistoryProfitDraft] = useState('')
   const [historyProfitError, setHistoryProfitError] = useState('')
+  const [editingHistoryCostBatchId, setEditingHistoryCostBatchId] = useState<string | null>(null)
+  const [historyCostDraft, setHistoryCostDraft] = useState('')
+  const [historyCostError, setHistoryCostError] = useState('')
   const [showAllActiveTrades, setShowAllActiveTrades] = useState(false)
   const [showAllBaseLedgerEntries, setShowAllBaseLedgerEntries] = useState(false)
   const [cashEntryKind, setCashEntryKind] = useState<CashEntryKind>('cashDividend')
@@ -386,7 +399,7 @@ export function TTradingDrawer({
             Math.max(0, numericQuantity),
             side,
             marketTradeFees,
-            { stampDutyExempt: stock.instrumentType === 'etf' }
+            { stampDutyExempt: stock.instrumentType === 'etf', tradeDate }
           )
         : [],
     [
@@ -396,34 +409,73 @@ export function TTradingDrawer({
       numericPrice,
       numericQuantity,
       side,
-      stock.instrumentType
+      stock.instrumentType,
+      tradeDate
     ]
   )
-  const tradeFees = market === 'CN' ? (manualFees ? feeOverrides : calculatedFees) : emptyFees()
+  const preservesEstimatedFees = Boolean(
+    market !== 'CN' &&
+    !manualFees &&
+    editingTrade?.feeTemplate &&
+    editingTrade.feeSource !== 'actual' &&
+    editingTrade.side === side &&
+    editingTrade.price === numericPrice &&
+    editingTrade.quantity === numericQuantity &&
+    (editingTrade.marketDate ?? editingTrade.tradedAt.slice(0, 10)) === tradeDate
+  )
+  const selectedFeeTemplate =
+    preservesEstimatedFees && editingTrade?.feeTemplate
+      ? editingTrade.feeTemplate
+      : marketFeeTemplate
+  const preservesUnknownFeeSource = Boolean(
+    editingTrade &&
+    !feeModeEdited &&
+    editingTrade.feeSource === undefined &&
+    !editingTrade.feeItems?.some((item) => item.code === 'manual')
+  )
   const preservesRecordedFees = Boolean(
     market !== 'CN' &&
     manualFees &&
     editingTrade &&
+    !editingTrade.feeTemplate &&
     actualFees.trim() !== '' &&
     Number.isFinite(Number(actualFees)) &&
     roundMoney(Number(actualFees)) === totalRecordedTradeFees(editingTrade)
   )
+  const tradeFees =
+    market === 'CN'
+      ? manualFees
+        ? feeOverrides
+        : calculatedFees
+      : (preservesRecordedFees || preservesEstimatedFees) && editingTrade
+        ? editingTrade.fees
+        : emptyFees()
   const tradeFeeItems =
     market === 'CN'
       ? undefined
       : manualFees
-        ? actualFees.trim() === '' || !Number.isFinite(Number(actualFees)) || Number(actualFees) < 0
-          ? []
-          : [
-              {
-                code: 'manual' as const,
-                label: '券商实际费用',
-                amount: roundMoney(Number(actualFees))
-              }
-            ]
-        : calculatedMarketFeeItems
+        ? preservesRecordedFees && editingTrade
+          ? editingTrade.feeItems
+          : actualFees.trim() === '' ||
+              !Number.isFinite(Number(actualFees)) ||
+              Number(actualFees) < 0
+            ? []
+            : [
+                {
+                  code: 'manual' as const,
+                  label: '券商实际费用',
+                  amount: roundMoney(Number(actualFees))
+                }
+              ]
+        : preservesEstimatedFees && editingTrade
+          ? editingTrade.feeItems
+          : calculatedMarketFeeItems
   const tradeFeeTotal =
-    market === 'CN' ? totalTradeFees(tradeFees) : totalTradeFeeItems(tradeFeeItems)
+    market === 'CN'
+      ? totalTradeFees(tradeFees)
+      : (preservesRecordedFees || preservesEstimatedFees) && editingTrade
+        ? totalRecordedTradeFees(editingTrade)
+        : totalTradeFeeItems(tradeFeeItems)
   const formatNativeAmount = (value: number | null | undefined) =>
     currency === 'CNY' ? formatCurrency(value) : formatMoney(value, currency)
   const formatNativeProfit = (value: number | null | undefined) =>
@@ -556,8 +608,10 @@ export function TTradingDrawer({
     setPrice(quote?.latest?.toString() ?? '')
     setQuantity('')
     setTradedAt(marketDateTimeInput(market))
+    setActualSettlementDate('')
     setNote('')
     setManualFees(false)
+    setFeeModeEdited(false)
     setFeeOverrides(emptyFees())
     setActualFees('')
     setTradeExchangeRate(currency === 'CNY' ? '1' : (effectiveExchangeRate?.toString() ?? ''))
@@ -752,6 +806,10 @@ export function TTradingDrawer({
       setError('该成交日期早于内置费用模板，请切换为手动费用并填写券商实际费用')
       return
     }
+    if (market !== 'CN' && actualSettlementDate && actualSettlementDate < tradeDate) {
+      setError('实际交收日不能早于成交日')
+      return
+    }
     if (
       market !== 'CN' &&
       manualFees &&
@@ -778,14 +836,17 @@ export function TTradingDrawer({
       tradedAt,
       price: numericPrice,
       quantity: numericQuantity,
-      fees: preservesRecordedFees && editingTrade ? editingTrade.fees : tradeFees,
-      feeItems: preservesRecordedFees && editingTrade ? editingTrade.feeItems : tradeFeeItems,
-      feeTemplate:
-        preservesRecordedFees && editingTrade
-          ? editingTrade.feeTemplate
-          : market === 'CN' || manualFees
-            ? undefined
-            : marketFeeTemplate,
+      fees: tradeFees,
+      feeItems: tradeFeeItems,
+      feeTemplate: market === 'CN' || manualFees ? undefined : selectedFeeTemplate,
+      feeSource:
+        market === 'CN'
+          ? undefined
+          : manualFees
+            ? preservesUnknownFeeSource
+              ? undefined
+              : 'actual'
+            : 'estimated',
       market,
       currency,
       marketDate: tradeDate,
@@ -799,7 +860,8 @@ export function TTradingDrawer({
               ? tradeDate
               : (exchangeRates.rateDate ?? tradeDate),
       estimatedSettlementDate: estimateSettlementDate(market, tradeDate, tradingCalendar),
-      actualSettlementDate: editingTrade?.actualSettlementDate,
+      actualSettlementDate:
+        market === 'CN' ? editingTrade?.actualSettlementDate : actualSettlementDate || undefined,
       settlementRule: settlementRuleForTradeDate(market, tradeDate),
       origin: editingTrade?.origin ?? 'execution',
       splitSource: editingTrade?.splitSource,
@@ -1043,8 +1105,10 @@ export function TTradingDrawer({
     setPrice(trade.price.toString())
     setQuantity(trade.quantity.toString())
     setTradedAt(trade.tradedAt)
+    setActualSettlementDate(trade.actualSettlementDate ?? '')
     setNote(trade.note)
     setManualFees(market === 'CN' || !trade.feeTemplate)
+    setFeeModeEdited(false)
     setFeeOverrides(trade.fees)
     setActualFees(market === 'CN' ? '' : totalRecordedTradeFees(trade).toString())
     setTradeExchangeRate(currency === 'CNY' ? '1' : (trade.exchangeRate?.toString() ?? ''))
@@ -1295,7 +1359,7 @@ export function TTradingDrawer({
       source: costAdjustedProfit === undefined ? ('ledger' as const) : ('position-cost' as const),
       note: settlementNote.trim()
     }
-    const settledBatch = { ...batch, settlement }
+    let settledBatch: TTradingBatch = { ...batch, settlement }
     const nextPosition =
       finalQuantity > 0 && finalCost !== undefined
         ? {
@@ -1309,14 +1373,58 @@ export function TTradingDrawer({
           }
         : undefined
 
-    applyAccount(
-      {
-        ...currentAccount,
-        activeBatch: undefined,
-        history: [settledBatch, ...currentAccount.history]
-      },
-      nextPosition
-    )
+    let settledAccount: TTradingAccount = {
+      ...currentAccount,
+      activeBatch: undefined,
+      history: [settledBatch, ...currentAccount.history]
+    }
+    if (market === 'CN') {
+      applyAccount(settledAccount, nextPosition)
+    } else {
+      const before = calculatePortfolioLedgerPosition(settledAccount, market, currency)
+      if (before.error) {
+        setError(`完整账本校验失败：${before.error}`)
+        return
+      }
+      if (finalQuantity > 0 || (before.position?.quantity ?? 0) !== finalQuantity) {
+        const calibratedPosition: StockPosition | undefined =
+          finalQuantity > 0 && nextPosition
+            ? {
+                ...nextPosition,
+                openedOn: before.position?.openedOn ?? nextPosition?.openedOn,
+                costExchangeRate:
+                  before.position?.costExchangeRate ?? nextPosition?.costExchangeRate,
+                costExchangeRateDate:
+                  before.position?.costExchangeRateDate ?? nextPosition?.costExchangeRateDate
+              }
+            : undefined
+        const positionAdjustmentId = `position-adjustment:${crypto.randomUUID()}`
+        settledAccount = appendPositionAdjustment(
+          settledAccount,
+          before.position,
+          calibratedPosition,
+          `${marketDateTimeInput(market)}:59`,
+          settlement.settledAt,
+          false,
+          `T批次 #${batch.sequence} 结算成本校准`,
+          positionAdjustmentId
+        )
+        settledBatch = {
+          ...settledBatch,
+          settlement: { ...settlement, positionAdjustmentId }
+        }
+        settledAccount = {
+          ...settledAccount,
+          history: [settledBatch, ...currentAccount.history]
+        }
+      }
+      const after = calculatePortfolioLedgerPosition(settledAccount, market, currency)
+      if (after.error) {
+        setError(`完整账本校验失败：${after.error}`)
+        return
+      }
+      applyAccount(settledAccount, after.position)
+    }
     setHistoryPage(0)
     setSettlementNote('')
     setSettlementBatchId('')
@@ -1325,6 +1433,7 @@ export function TTradingDrawer({
 
   const startEditingHistoryProfit = (batch: TTradingBatch) => {
     if (!batch.settlement) return
+    setEditingHistoryCostBatchId(null)
     setEditingHistoryBatchId(batch.id)
     setHistoryProfitDraft(
       (batch.settlement.costAdjustedProfit ?? batch.settlement.finalProfit).toString()
@@ -1365,6 +1474,70 @@ export function TTradingDrawer({
     cancelEditingHistoryProfit()
   }
 
+  const startEditingHistoryCost = (batch: TTradingBatch) => {
+    if (batch.settlement?.latestPositionCost === undefined) return
+    cancelEditingHistoryProfit()
+    setEditingHistoryCostBatchId(batch.id)
+    setHistoryCostDraft(batch.settlement.latestPositionCost.toString())
+    setHistoryCostError('')
+  }
+
+  const cancelEditingHistoryCost = () => {
+    setEditingHistoryCostBatchId(null)
+    setHistoryCostDraft('')
+    setHistoryCostError('')
+  }
+
+  const saveHistoryCost = (batch: TTradingBatch) => {
+    const settlement = batch.settlement
+    const adjustment = currentAccount.ledger.entries.find(
+      (entry) => entry.id === settlement?.positionAdjustmentId
+    )
+    if (
+      !settlement ||
+      settlement.latestPositionCost === undefined ||
+      adjustment?.kind !== 'positionAdjustment'
+    ) {
+      setHistoryCostError('未找到对应的结算成本账本记录')
+      return
+    }
+    const cost = Number(historyCostDraft)
+    if (historyCostDraft.trim() === '' || !Number.isFinite(cost) || cost < 0) {
+      setHistoryCostError('请输入有效的券商最终持仓成本')
+      return
+    }
+    const costAdjustedProfit =
+      settlement.costAdjustedProfit === undefined
+        ? undefined
+        : roundMoney(
+            settlement.costAdjustedProfit +
+              (settlement.latestPositionCost - cost) * settlement.latestPositionQuantity
+          )
+    const history = currentAccount.history.map((item) =>
+      item.id === batch.id
+        ? {
+            ...item,
+            settlement: {
+              ...settlement,
+              latestPositionCost: cost,
+              costAdjustedProfit,
+              finalProfit: costAdjustedProfit ?? settlement.finalProfit
+            }
+          }
+        : item
+    )
+    const nextAccount = appendPortfolioLedgerEntries({ ...currentAccount, history }, [
+      { ...adjustment, costAfter: cost }
+    ])
+    const replay = calculatePortfolioLedgerPosition(nextAccount, market, currency)
+    if (replay.error) {
+      setHistoryCostError(`完整账本校验失败：${replay.error}`)
+      return
+    }
+    applyAccount(nextAccount, replay.position)
+    cancelEditingHistoryCost()
+  }
+
   const deleteHistoryBatch = async (batch: TTradingBatch) => {
     if (
       currentAccount.tradeRecords.some(
@@ -1387,6 +1560,12 @@ export function TTradingDrawer({
         withLedgerTradeRecords(
           {
             ...currentAccount,
+            ledger: {
+              ...currentAccount.ledger,
+              entries: currentAccount.ledger.entries.filter(
+                (entry) => entry.id !== batch.settlement?.positionAdjustmentId
+              )
+            },
             history: currentAccount.history.filter((item) => item.id !== batch.id)
           },
           currentAccount.tradeRecords.filter((record) => !tradeReferencesBatch(record, batch.id))
@@ -1396,6 +1575,7 @@ export function TTradingDrawer({
       return
 
     if (editingHistoryBatchId === batch.id) cancelEditingHistoryProfit()
+    if (editingHistoryCostBatchId === batch.id) cancelEditingHistoryCost()
   }
 
   const feeInput = (key: keyof TTradeFees, label: string) => (
@@ -1579,6 +1759,13 @@ export function TTradingDrawer({
                         {!manualFees && !marketFeeTemplate ? (
                           <span>当前成交日期无内置费用模板</span>
                         ) : null}
+                        <span>
+                          {manualFees
+                            ? preservesUnknownFeeSource
+                              ? '费用来源未标记'
+                              : '券商实际费用'
+                            : `模板估算${selectedFeeTemplate ? ` · v${selectedFeeTemplate.version}` : ''}`}
+                        </span>
                       </>
                     )}
                     <strong>合计 {formatNativeAmount(tradeFeeTotal)}</strong>
@@ -1591,6 +1778,7 @@ export function TTradingDrawer({
                         if (market === 'CN') setFeeOverrides(calculatedFees)
                         else setActualFees(tradeFeeTotal.toString())
                       }
+                      setFeeModeEdited(true)
                       setManualFees((current) => !current)
                     }}
                   >
@@ -1755,6 +1943,16 @@ export function TTradingDrawer({
                         onChange={(event) => setTradedAt(event.target.value)}
                       />
                     </label>
+                    {market !== 'CN' ? (
+                      <label>
+                        <span>实际交收日（可选）</span>
+                        <input
+                          type="date"
+                          value={actualSettlementDate}
+                          onChange={(event) => setActualSettlementDate(event.target.value)}
+                        />
+                      </label>
+                    ) : null}
                     <label>
                       <span>备注</span>
                       <input
@@ -1841,7 +2039,10 @@ export function TTradingDrawer({
                           min="0"
                           step="0.01"
                           value={actualFees}
-                          onChange={(event) => setActualFees(event.target.value)}
+                          onChange={(event) => {
+                            setActualFees(event.target.value)
+                            setFeeModeEdited(true)
+                          }}
                           placeholder="零费用请填写 0"
                         />
                       </label>
@@ -1943,7 +2144,15 @@ export function TTradingDrawer({
                         </strong>
                         <small>
                           {formatTradeTime(trade.tradedAt)} · 费用 {formatNativeAmount(fees)}
+                          {market !== 'CN' ? ` · ${tradeFeeSourceLabel(trade)}` : ''}
                         </small>
+                        {market !== 'CN' ? (
+                          <small>
+                            {trade.actualSettlementDate
+                              ? `实际交收 ${trade.actualSettlementDate}`
+                              : `预计交收 ${trade.estimatedSettlementDate ?? '--'}`}
+                          </small>
+                        ) : null}
                         {trade.splitSource ? (
                           <small>
                             <TradeSplitSource trade={trade} />
@@ -2098,8 +2307,16 @@ export function TTradingDrawer({
                           <small>
                             {formatTradeTime(trade.tradedAt)} · 费用{' '}
                             {formatNativeAmount(allocation.fees)}
+                            {market !== 'CN' ? ` · ${tradeFeeSourceLabel(trade)}` : ''}
                             {summary ? ` · ${summary}` : ''}
                           </small>
+                          {market !== 'CN' ? (
+                            <small>
+                              {trade.actualSettlementDate
+                                ? `实际交收 ${trade.actualSettlementDate}`
+                                : `预计交收 ${trade.estimatedSettlementDate ?? '--'}`}
+                            </small>
+                          ) : null}
                           {trade.splitSource ? (
                             <small>
                               <TradeSplitSource trade={trade} />
@@ -2366,7 +2583,12 @@ export function TTradingDrawer({
                           return (
                             <span className="t-history-trade" key={trade.id}>
                               <b>{tradeLabel(trade, batch)}</b>
-                              <span>{formatTradeTime(trade.tradedAt)}</span>
+                              <span>
+                                {formatTradeTime(trade.tradedAt)}
+                                {market !== 'CN'
+                                  ? ` · ${trade.actualSettlementDate ? `实际交收 ${trade.actualSettlementDate}` : `预计交收 ${trade.estimatedSettlementDate ?? '--'}`}`
+                                  : ''}
+                              </span>
                               <span>
                                 {formatShares(allocation.quantity)} × {formatPrice(trade.price)}
                                 {summary ? ` · ${summary}` : ''}
@@ -2377,7 +2599,10 @@ export function TTradingDrawer({
                                   </>
                                 ) : null}
                               </span>
-                              <span>分摊费用 {formatNativeAmount(totalFees)}</span>
+                              <span>
+                                分摊费用 {formatNativeAmount(totalFees)}
+                                {market !== 'CN' ? ` · ${tradeFeeSourceLabel(trade)}` : ''}
+                              </span>
                               <strong className={valueClass(amountChange)}>
                                 金额变动 {formatNativeProfit(amountChange)}
                               </strong>
@@ -2403,6 +2628,42 @@ export function TTradingDrawer({
                               ) : null}
                               {batch.settlement.note ? ` · ${batch.settlement.note}` : ''}
                             </p>
+                            {market !== 'CN' &&
+                            batch.settlement.latestPositionCost !== undefined ? (
+                              <p>
+                                券商结算持仓 {formatShares(batch.settlement.latestPositionQuantity)}{' '}
+                                × {formatCost(batch.settlement.latestPositionCost)}
+                              </p>
+                            ) : null}
+                            {market !== 'CN' && editingHistoryCostBatchId === batch.id ? (
+                              <div className="t-history-profit-editor">
+                                <label>
+                                  <span>券商最终持仓成本</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.0001"
+                                    value={historyCostDraft}
+                                    onChange={(event) => setHistoryCostDraft(event.target.value)}
+                                  />
+                                </label>
+                                <button
+                                  className="primary-button compact-button"
+                                  type="button"
+                                  onClick={() => saveHistoryCost(batch)}
+                                >
+                                  保存
+                                </button>
+                                <button
+                                  className="text-button"
+                                  type="button"
+                                  onClick={cancelEditingHistoryCost}
+                                >
+                                  取消
+                                </button>
+                                {historyCostError ? <small>{historyCostError}</small> : null}
+                              </div>
+                            ) : null}
                             {editingHistoryBatchId === batch.id ? (
                               <div className="t-history-profit-editor">
                                 <label>
@@ -2441,6 +2702,16 @@ export function TTradingDrawer({
                                   <PencilLine size={12} />
                                   修改成本校准收益
                                 </button>
+                                {market !== 'CN' && batch.settlement.positionAdjustmentId ? (
+                                  <button
+                                    className="text-button t-history-edit-button"
+                                    type="button"
+                                    onClick={() => startEditingHistoryCost(batch)}
+                                  >
+                                    <PencilLine size={12} />
+                                    修改券商最终成本
+                                  </button>
+                                ) : null}
                                 <button
                                   className="text-button t-history-delete-button"
                                   type="button"

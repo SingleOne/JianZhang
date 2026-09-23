@@ -432,6 +432,7 @@ export function applyTradeImportToState(
             market !== 'CN' && actualFees > 0
               ? [{ code: 'manual', label: '券商实际费用', amount: actualFees }]
               : undefined,
+          feeSource: market !== 'CN' && item.fees !== undefined ? 'actual' : undefined,
           market,
           currency,
           marketDate: item.occurredAt!.slice(0, 10),

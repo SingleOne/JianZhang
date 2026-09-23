@@ -64,19 +64,65 @@ export const MARKET_SETTLEMENT_RULES: Record<StockMarket, readonly MarketSettlem
   ]
 }
 
-export const MARKET_FEE_TEMPLATES: Record<'HK' | 'US', TradeFeeTemplateSnapshot> = {
-  HK: {
+interface HkFeeRule extends TradeFeeTemplateSnapshot {
+  sfcLevyRate: number
+  afrcLevyRate: number
+  hkexTradingRate: number
+  stampDutyRate: number
+  settlementRate: number
+}
+
+interface UsFeeRule extends TradeFeeTemplateSnapshot {
+  secSection31PerMillion: number
+  finraTafPerShare: number
+  finraTafMaximum: number
+}
+
+const HK_FEE_RULES: readonly HkFeeRule[] = [
+  {
     id: 'hkex-equity-fees',
     version: '2026.1',
     label: '港股官方费用参考',
-    effectiveFrom: '2025-06-30'
+    effectiveFrom: '2025-06-30',
+    sfcLevyRate: 0.000027,
+    afrcLevyRate: 0.0000015,
+    hkexTradingRate: 0.0000565,
+    stampDutyRate: 0.001,
+    settlementRate: 0.000042
+  }
+]
+
+const US_FEE_RULES: readonly UsFeeRule[] = [
+  {
+    id: 'us-equity-regulatory-fees',
+    version: '2026.0',
+    label: '美股监管费用参考',
+    effectiveFrom: '2026-01-01',
+    secSection31PerMillion: 0,
+    finraTafPerShare: 0.000195,
+    finraTafMaximum: 9.79
   },
-  US: {
+  {
     id: 'us-equity-regulatory-fees',
     version: '2026.1',
     label: '美股监管费用参考',
-    effectiveFrom: '2026-04-04'
+    effectiveFrom: '2026-04-04',
+    secSection31PerMillion: 20.6,
+    finraTafPerShare: 0.000195,
+    finraTafMaximum: 9.79
   }
+]
+
+function feeRuleForTradeDate(market: 'HK', tradeDate?: string): HkFeeRule | undefined
+function feeRuleForTradeDate(market: 'US', tradeDate?: string): UsFeeRule | undefined
+function feeRuleForTradeDate(
+  market: 'HK' | 'US',
+  tradeDate?: string
+): HkFeeRule | UsFeeRule | undefined {
+  const rules = market === 'HK' ? HK_FEE_RULES : US_FEE_RULES
+  return tradeDate
+    ? [...rules].reverse().find((rule) => rule.effectiveFrom <= tradeDate)
+    : rules[rules.length - 1]
 }
 
 export function marketFeeTemplateForTradeDate(
@@ -84,12 +130,16 @@ export function marketFeeTemplateForTradeDate(
   tradeDate: string
 ): TradeFeeTemplateSnapshot | undefined {
   if (market === 'CN') return undefined
-  const template = MARKET_FEE_TEMPLATES[market]
-  return template.effectiveFrom <= tradeDate ? template : undefined
+  const rule =
+    market === 'HK' ? feeRuleForTradeDate('HK', tradeDate) : feeRuleForTradeDate('US', tradeDate)
+  if (!rule) return undefined
+  const { id, version, label, effectiveFrom } = rule
+  return { id, version, label, effectiveFrom }
 }
 
 export interface MarketTradeFeeOptions {
   stampDutyExempt?: boolean
+  tradeDate?: string
 }
 
 export interface MarketLedgerMetrics {
@@ -119,23 +169,29 @@ export function calculateMarketTradeFeeItems(
   options: MarketTradeFeeOptions = {}
 ): TradeFeeItem[] {
   if (market === 'HK') {
+    const rule = feeRuleForTradeDate('HK', options.tradeDate)
+    if (!rule) return []
     const brokerageRate = settings.HK.brokerageRatePercent / 100
     const brokerage =
       brokerageRate > 0 ? Math.max(settings.HK.minimumBrokerage, amount * brokerageRate) : 0
     return compactFees([
       feeItem('brokerage', '券商佣金', brokerage),
       feeItem('platform', '平台费', settings.HK.platformFee),
-      feeItem('sfc-levy', '证监会交易征费', amount * 0.000027),
-      feeItem('afrc-levy', '财汇局交易征费', amount * 0.0000015),
-      feeItem('hkex-trading', '港交所交易费', amount * 0.0000565),
+      feeItem('sfc-levy', '证监会交易征费', amount * rule.sfcLevyRate),
+      feeItem('afrc-levy', '财汇局交易征费', amount * rule.afrcLevyRate),
+      feeItem('hkex-trading', '港交所交易费', amount * rule.hkexTradingRate),
       options.stampDutyExempt
         ? null
-        : feeItem('stamp-duty', '股票印花税', Math.ceil(amount * 0.001)),
-      settings.HK.includeSettlementFee ? feeItem('settlement', '交收费', amount * 0.000042) : null
+        : feeItem('stamp-duty', '股票印花税', Math.ceil(amount * rule.stampDutyRate)),
+      settings.HK.includeSettlementFee
+        ? feeItem('settlement', '交收费', amount * rule.settlementRate)
+        : null
     ])
   }
 
   if (market === 'US') {
+    const rule = feeRuleForTradeDate('US', options.tradeDate)
+    if (!rule) return []
     const commission =
       settings.US.commissionPerShare > 0
         ? Math.max(settings.US.minimumCommission, quantity * settings.US.commissionPerShare)
@@ -144,10 +200,18 @@ export function calculateMarketTradeFeeItems(
       feeItem('brokerage', '券商佣金', commission),
       feeItem('platform', '平台费', settings.US.platformFee),
       side === 'sell' && settings.US.includeSecFee
-        ? feeItem('sec-section-31', 'SEC Section 31', (amount * 20.6) / 1_000_000)
+        ? feeItem(
+            'sec-section-31',
+            'SEC Section 31',
+            (amount * rule.secSection31PerMillion) / 1_000_000
+          )
         : null,
       side === 'sell' && settings.US.includeFinraTaf
-        ? feeItem('finra-taf', 'FINRA TAF', Math.min(9.79, quantity * 0.000195))
+        ? feeItem(
+            'finra-taf',
+            'FINRA TAF',
+            Math.min(rule.finraTafMaximum, quantity * rule.finraTafPerShare)
+          )
         : null
     ])
   }

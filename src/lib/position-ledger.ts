@@ -151,11 +151,13 @@ export function appendPositionAdjustment(
   nextPosition: StockPosition | undefined,
   occurredAt: string,
   recordedAt: string,
-  resetsPerformance = false
+  resetsPerformance = false,
+  note = '修改持仓',
+  id = `position-adjustment:${crypto.randomUUID()}`
 ): TTradingAccount {
   return appendPortfolioLedgerEntries(account, [
     {
-      id: `position-adjustment:${crypto.randomUUID()}`,
+      id,
       accountId: account.quoteId,
       quoteId: account.quoteId,
       occurredAt,
@@ -166,7 +168,7 @@ export function appendPositionAdjustment(
       exchangeRate: nextPosition?.costExchangeRate ?? previousPosition?.costExchangeRate,
       exchangeRateDate:
         nextPosition?.costExchangeRateDate ?? previousPosition?.costExchangeRateDate,
-      note: '修改持仓',
+      note,
       kind: 'positionAdjustment',
       resetsPerformance,
       quantityBefore: previousPosition?.quantity ?? 0,
