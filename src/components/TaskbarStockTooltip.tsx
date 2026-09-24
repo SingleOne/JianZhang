@@ -278,7 +278,7 @@ export function TaskbarStockTooltip() {
         <div className={`taskbar-tooltip-price-row ${valueClass(quote?.changePercent)}`}>
           <strong>{formatPrice(quote?.latest)}</strong>
           <span>
-            {formatSigned(quote?.change)} · {formatPercent(quote?.changePercent)}
+            {formatSigned(quote?.change)} {formatPercent(quote?.changePercent)}
           </span>
           <span
             className={`taskbar-tooltip-today-profit ${valueClass(positionMetrics.todayProfit)}`}
