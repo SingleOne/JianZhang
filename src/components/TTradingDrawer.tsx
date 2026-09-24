@@ -46,6 +46,7 @@ import {
   validateTBatchSettlementPosition,
   validateTBatchTrades
 } from '../lib/t-trading'
+import { calculateTBatchCnyMetrics, type TBatchCnyMetrics } from '../lib/t-batch-currency'
 import {
   detachTradeRecordsFromBatch,
   getTradeAllocations,
@@ -134,6 +135,14 @@ function positionSnapshot(position: StockPosition | undefined) {
 function valueClass(value: number | null | undefined): string {
   if (value === null || value === undefined || value === 0) return 'is-flat'
   return value > 0 ? 'is-up' : 'is-down'
+}
+
+function tBatchCnyIssue(metrics: TBatchCnyMetrics): string | null {
+  const issues: string[] = []
+  if (metrics.missingHistoricalRate) issues.push('部分成交缺少历史汇率')
+  if (metrics.missingCurrentRate) issues.push('缺少当前汇率')
+  if (metrics.missingQuote) issues.push('缺少当前行情')
+  return issues.length > 0 ? issues.join('；') : null
 }
 
 function formatOverviewValue(
@@ -293,6 +302,20 @@ export function TTradingDrawer({
     () => calculateTBatchMetrics(currentAccount.activeBatch, activeTrades, quote?.latest),
     [activeTrades, currentAccount.activeBatch, quote?.latest]
   )
+  const activeCnyMetrics = useMemo(
+    () =>
+      market !== 'CN' && currentAccount.activeBatch
+        ? calculateTBatchCnyMetrics(
+            currentAccount.activeBatch,
+            activeTrades,
+            market,
+            quote?.latest,
+            effectiveExchangeRate
+          )
+        : null,
+    [activeTrades, currentAccount.activeBatch, effectiveExchangeRate, market, quote?.latest]
+  )
+  const activeCnyIssue = activeCnyMetrics ? tBatchCnyIssue(activeCnyMetrics) : null
   const entryMetrics = useMemo(
     () =>
       currentAccount.activeBatch
@@ -321,6 +344,17 @@ export function TTradingDrawer({
   ).reduce((sum, level) => sum + level.quantity, 0)
   const closingPlanOverAllocated =
     market !== 'CN' && closingPlanQuantity > activeMetrics.remainingQuantity
+  const hasOddLotPlan =
+    market === 'HK' &&
+    Boolean(
+      currentAccount.boardLotSize &&
+      [
+        ...(currentAccount.activeBatch?.buyLevels ?? []),
+        ...(currentAccount.activeBatch?.sellLevels ?? [])
+      ].some(
+        (level) => level.quantity > 0 && level.quantity % (currentAccount.boardLotSize ?? 1) !== 0
+      )
+    )
   const tPurposeLabel = currentAccount.activeBatch
     ? isReverseBatch
       ? side === 'sell'
@@ -528,7 +562,12 @@ export function TTradingDrawer({
         'buy',
         feeSettings,
         stock.marketLabel,
-        { market, marketTradeFees, stampDutyExempt: stock.instrumentType === 'etf' }
+        {
+          market,
+          marketTradeFees,
+          stampDutyExempt: stock.instrumentType === 'etf',
+          instrumentType: stock.instrumentType
+        }
       ),
     [
       activeTrades,
@@ -548,7 +587,12 @@ export function TTradingDrawer({
         'sell',
         feeSettings,
         stock.marketLabel,
-        { market, marketTradeFees, stampDutyExempt: stock.instrumentType === 'etf' }
+        {
+          market,
+          marketTradeFees,
+          stampDutyExempt: stock.instrumentType === 'etf',
+          instrumentType: stock.instrumentType
+        }
       ),
     [
       activeTrades,
@@ -1254,7 +1298,10 @@ export function TTradingDrawer({
       {
         ...currentAccount,
         activeBatch: nextBatch.alertEnabled
-          ? applyTAlertTriggers(nextBatch, activeTrades, quote?.latest).batch
+          ? applyTAlertTriggers(nextBatch, activeTrades, quote?.latest, {
+              market,
+              instrumentType: stock.instrumentType
+            }).batch
           : nextBatch
       },
       stock.position
@@ -1270,11 +1317,24 @@ export function TTradingDrawer({
       {
         ...currentAccount,
         activeBatch: nextBatch.alertEnabled
-          ? applyTAlertTriggers(nextBatch, activeTrades, quote?.latest).batch
+          ? applyTAlertTriggers(nextBatch, activeTrades, quote?.latest, {
+              market,
+              instrumentType: stock.instrumentType
+            }).batch
           : nextBatch
       },
       stock.position
     )
+  }
+
+  const updateBoardLotSize = (rawValue: string) => {
+    const boardLotSize = rawValue === '' ? undefined : Number(rawValue)
+    if (boardLotSize !== undefined && (!Number.isInteger(boardLotSize) || boardLotSize <= 0)) {
+      setPlanError('每手股数须为正整数')
+      return
+    }
+    setPlanError('')
+    applyAccount({ ...currentAccount, boardLotSize }, stock.position)
   }
 
   const togglePriceAlerts = () => {
@@ -1285,7 +1345,10 @@ export function TTradingDrawer({
       {
         ...currentAccount,
         activeBatch: nextBatch.alertEnabled
-          ? applyTAlertTriggers(nextBatch, activeTrades, quote?.latest).batch
+          ? applyTAlertTriggers(nextBatch, activeTrades, quote?.latest, {
+              market,
+              instrumentType: stock.instrumentType
+            }).batch
           : nextBatch
       },
       stock.position
@@ -1353,7 +1416,10 @@ export function TTradingDrawer({
       {
         ...currentAccount,
         activeBatch: nextBatch.alertEnabled
-          ? applyTAlertTriggers(nextBatch, activeTrades, quote?.latest).batch
+          ? applyTAlertTriggers(nextBatch, activeTrades, quote?.latest, {
+              market,
+              instrumentType: stock.instrumentType
+            }).batch
           : nextBatch
       },
       stock.position
@@ -2288,6 +2354,41 @@ export function TTradingDrawer({
                     <em>{activeTrades.length} 笔流水</em>
                   </div>
                 </div>
+                {activeCnyMetrics ? (
+                  <div className="t-batch-cny-summary">
+                    <span>
+                      <small>人民币已实现</small>
+                      <strong className={valueClass(activeCnyMetrics.realizedProfit)}>
+                        {formatMoneyProfit(activeCnyMetrics.realizedProfit, 'CNY')}
+                      </strong>
+                    </span>
+                    <span>
+                      <small>人民币浮动</small>
+                      <strong className={valueClass(activeCnyMetrics.floatingProfit)}>
+                        {formatMoneyProfit(activeCnyMetrics.floatingProfit, 'CNY')}
+                      </strong>
+                    </span>
+                    <span>
+                      <small>人民币合计</small>
+                      <strong className={valueClass(activeCnyMetrics.totalProfit)}>
+                        {formatMoneyProfit(activeCnyMetrics.totalProfit, 'CNY')}
+                      </strong>
+                    </span>
+                    <span>
+                      <small>本币收益折算 / 汇率贡献</small>
+                      <strong className={valueClass(activeCnyMetrics.priceContribution)}>
+                        {formatMoneyProfit(activeCnyMetrics.priceContribution, 'CNY')} /{' '}
+                      </strong>
+                      <strong className={valueClass(activeCnyMetrics.exchangeRateContribution)}>
+                        {formatMoneyProfit(activeCnyMetrics.exchangeRateContribution, 'CNY')}
+                      </strong>
+                    </span>
+                    <small className="t-batch-cny-note">
+                      按成交记录汇率及当前汇率估算
+                      {activeCnyIssue ? `；${activeCnyIssue}，待补录后显示完整人民币结果` : ''}
+                    </small>
+                  </div>
+                ) : null}
                 {currentAccount.activeBatch.floatingProfitAlert ? (
                   <div className="t-floating-profit-alert-settings">
                     <span>
@@ -2425,7 +2526,7 @@ export function TTradingDrawer({
                       {market !== 'CN' ? (
                         <small>
                           按整数股规划，预计收益以 {currency} 按当前费用模板估算
-                          {market === 'HK' ? '；下单前请核对每手股数' : ''}
+                          {market === 'HK' ? '；ETF 特殊价位及每手股数请核对券商' : ''}
                         </small>
                       ) : null}
                     </span>
@@ -2444,6 +2545,24 @@ export function TTradingDrawer({
                       </button>
                     </span>
                   </div>
+                  {market === 'HK' ? (
+                    <div className="t-plan-market-options">
+                      <label>
+                        <span>每手股数（自填）</span>
+                        <input
+                          type="number"
+                          min="1"
+                          step="100"
+                          value={currentAccount.boardLotSize ?? ''}
+                          onChange={(event) => updateBoardLotSize(event.target.value)}
+                          placeholder="未填写"
+                        />
+                      </label>
+                      {hasOddLotPlan ? (
+                        <span>当前计划含碎股档位，请核对券商碎股交易方式</span>
+                      ) : null}
+                    </div>
+                  ) : null}
                   {closingPlanOverAllocated ? (
                     <div className="t-form-error">
                       平仓侧计划合计 {formatShares(closingPlanQuantity)} 股，超过当前 T 仓{' '}
@@ -2598,6 +2717,11 @@ export function TTradingDrawer({
                 {visibleHistoryBatches.map((batch) => {
                   const batchTrades = getBatchTrades(currentAccount, batch)
                   const lastTrade = batchTrades.at(-1)
+                  const batchCnyMetrics =
+                    market === 'CN'
+                      ? null
+                      : calculateTBatchCnyMetrics(batch, batchTrades, market, null, null)
+                  const batchCnyIssue = batchCnyMetrics ? tBatchCnyIssue(batchCnyMetrics) : null
                   return (
                     <details key={batch.id}>
                       <summary>
@@ -2680,6 +2804,31 @@ export function TTradingDrawer({
                               ) : null}
                               {batch.settlement.note ? ` · ${batch.settlement.note}` : ''}
                             </p>
+                            {batchCnyMetrics ? (
+                              <p>
+                                流水人民币收益{' '}
+                                <strong className={valueClass(batchCnyMetrics.realizedProfit)}>
+                                  {formatMoneyProfit(batchCnyMetrics.realizedProfit, 'CNY')}
+                                </strong>
+                                {' · 本币收益折算 '}
+                                <strong className={valueClass(batchCnyMetrics.priceContribution)}>
+                                  {formatMoneyProfit(batchCnyMetrics.priceContribution, 'CNY')}
+                                </strong>
+                                {' · 汇率贡献 '}
+                                <strong
+                                  className={valueClass(batchCnyMetrics.exchangeRateContribution)}
+                                >
+                                  {formatMoneyProfit(
+                                    batchCnyMetrics.exchangeRateContribution,
+                                    'CNY'
+                                  )}
+                                </strong>
+                                {batchCnyIssue ? ` · ${batchCnyIssue}` : ''}
+                                {batch.settlement.source === 'position-cost'
+                                  ? ' · 成本校准收益未折算'
+                                  : ''}
+                              </p>
+                            ) : null}
                             {market !== 'CN' &&
                             batch.settlement.latestPositionCost !== undefined ? (
                               <p>

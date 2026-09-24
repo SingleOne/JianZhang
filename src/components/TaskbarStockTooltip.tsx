@@ -16,7 +16,7 @@ import { formatStockAlertValue, STOCK_ALERT_METRIC_LABELS } from '../lib/stock-a
 import { getTriggeredTAlertBadges, getTriggeredTFloatingProfitAlert } from '../lib/t-alerts'
 import { calculateTBatchMetrics } from '../lib/t-trading'
 import { getBatchTrades } from '../lib/trade-records'
-import { STOCK_CURRENCY_SYMBOLS } from '../shared/stock-market'
+import { marketFromQuoteId, STOCK_CURRENCY_SYMBOLS } from '../shared/stock-market'
 import type { AppState, KlineBar, KlineResult, StockQuote, TaskbarLayout } from '../shared/types'
 
 const SPARKLINE_WIDTH = 76
@@ -210,7 +210,10 @@ export function TaskbarStockTooltip() {
   )
   const account = quoteId ? state.tTradingAccounts[quoteId] : undefined
   const activeTrades = getBatchTrades(account, account?.activeBatch)
-  const tAlertBadges = getTriggeredTAlertBadges(account?.activeBatch, activeTrades)
+  const tAlertBadges = getTriggeredTAlertBadges(account?.activeBatch, activeTrades, {
+    market: stock?.market ?? marketFromQuoteId(quoteId ?? ''),
+    instrumentType: stock?.instrumentType
+  })
   const tMetrics = account?.activeBatch
     ? calculateTBatchMetrics(account.activeBatch, activeTrades, quote?.latest)
     : null

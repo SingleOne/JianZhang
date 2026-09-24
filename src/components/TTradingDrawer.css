@@ -203,6 +203,45 @@
   flex: 1;
 }
 
+.t-batch-cny-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin-top: 10px;
+  padding: 9px 11px;
+  border: 1px solid #e3e8ef;
+  border-radius: 8px;
+  background: #f8fafc;
+  font-variant-numeric: tabular-nums;
+}
+
+.t-batch-cny-summary > span {
+  display: grid;
+  gap: 3px;
+}
+
+.t-batch-cny-summary small {
+  color: #687386;
+  font-size: 12px;
+}
+
+.t-batch-cny-summary strong {
+  color: #687386;
+  font-size: 13px;
+}
+
+.t-batch-cny-summary strong.is-up {
+  color: var(--red);
+}
+
+.t-batch-cny-summary strong.is-down {
+  color: var(--green);
+}
+
+.t-batch-cny-summary .t-batch-cny-note {
+  flex-basis: 100%;
+}
+
 .text-button {
   display: inline-flex;
   align-items: center;
@@ -591,6 +630,28 @@
 
 .t-dual-plan-card {
   min-width: 0;
+}
+
+.t-plan-market-options {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-bottom: 9px;
+  color: #8993a3;
+  font-size: 12px;
+}
+
+.t-plan-market-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.t-plan-market-options input {
+  width: 90px;
+  min-height: 28px;
+  font-size: 12px;
 }
 
 .t-plan-scroll {

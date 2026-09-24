@@ -3413,6 +3413,15 @@
 :root[data-theme='dark'] .t-batch-summary strong.is-flat {
   color: #cbd5e3;
 }
+:root[data-theme='dark'] .t-batch-cny-summary {
+  border-color: #263449;
+  background: #162033;
+}
+:root[data-theme='dark'] .t-batch-cny-summary small,
+:root[data-theme='dark'] .t-batch-cny-summary strong:not(.is-up):not(.is-down),
+:root[data-theme='dark'] .t-plan-market-options {
+  color: #cbd5e3;
+}
 :root[data-theme='dark'] .t-segmented button {
   color: #cbd5e3;
   background: #162033;

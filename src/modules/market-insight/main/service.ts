@@ -10,6 +10,7 @@ import type {
 import { tPlanTargetPrice } from '../../../lib/t-alerts'
 import { calculateTBatchMetrics } from '../../../lib/t-trading'
 import { getBatchTrades } from '../../../lib/trade-records'
+import { marketFromQuoteId } from '../../../shared/stock-market'
 import { getMarketIndexStocks } from '../../../shared/types'
 import {
   MARKET_INSIGHT_MODULE_VERSION,
@@ -481,18 +482,24 @@ export class MarketInsightService {
     }
     if (!batch) return [position]
     const levels = (side: 'buy' | 'sell', items: readonly TPlanLevel[] | undefined) =>
-      (items ?? []).map((level, index): TPlanDistance => {
-        const price = tPlanTargetPrice(cost, side, level.targetPercent)!
+      (items ?? []).flatMap((level, index): TPlanDistance[] => {
+        const price = tPlanTargetPrice(cost, side, level.targetPercent, {
+          market: stock.market ?? marketFromQuoteId(stock.quoteId),
+          instrumentType: stock.instrumentType
+        })
+        if (price === null) return []
         const distancePercent = price === 0 ? null : (latest / price - 1) * 100
-        return {
-          id: `${side}-${index + 1}`,
-          label: `T${index + 1}${side === 'buy' ? ' 买入档' : ' 卖出档'}`,
-          side,
-          price,
-          distancePercent,
-          quantity: level.quantity,
-          isNearest: false
-        }
+        return [
+          {
+            id: `${side}-${index + 1}`,
+            label: `T${index + 1}${side === 'buy' ? ' 买入档' : ' 卖出档'}`,
+            side,
+            price,
+            distancePercent,
+            quantity: level.quantity,
+            isNearest: false
+          }
+        ]
       })
     const result = [
       position,

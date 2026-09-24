@@ -2,6 +2,7 @@ import { calculateMarketTradeFeeItems, totalTradeFeeItems } from './market-trade
 import { calculateTBatchMetrics, calculateTradeFees, roundMoney, totalTradeFees } from './t-trading'
 import { getBatchTrades } from './trade-records'
 import { formatMoneyProfit } from './format'
+import { tPlanTradablePrice, type TPlanPriceRule } from './t-plan-prices'
 import {
   currencyForMarket,
   marketFromQuoteId,
@@ -17,7 +18,8 @@ import type {
   TTradingAccounts,
   TTradingBatch,
   TTradingFeeSettings,
-  TTrade
+  TTrade,
+  WatchStock
 } from '../shared/types'
 
 export type TAlertSide = 'buy' | 'sell'
@@ -53,6 +55,7 @@ export interface TPlanFeeOptions {
   market: StockMarket
   marketTradeFees: MarketTradeFeeSettings
   stampDutyExempt?: boolean
+  instrumentType?: TPlanPriceRule['instrumentType']
 }
 
 function levelsForSide(batch: TTradingBatch, side: TAlertSide): TPlanLevel[] {
@@ -70,10 +73,15 @@ function replaceLevels(
 export function tPlanTargetPrice(
   averageCost: number | null,
   side: TAlertSide,
-  targetPercent: number
+  targetPercent: number,
+  priceRule?: TPlanPriceRule
 ): number | null {
   if (averageCost === null) return null
-  return averageCost * (side === 'buy' ? 1 - targetPercent / 100 : 1 + targetPercent / 100)
+  return tPlanTradablePrice(
+    averageCost * (side === 'buy' ? 1 - targetPercent / 100 : 1 + targetPercent / 100),
+    side,
+    priceRule
+  )
 }
 
 export function getTPlanRows(
@@ -96,7 +104,7 @@ export function getTPlanRows(
 
   return levelsForSide(batch, side).map((level, index) => {
     if (!isOpeningPlan) plannedClosingQuantity += level.quantity
-    const targetPrice = tPlanTargetPrice(averageCost, side, level.targetPercent)
+    const targetPrice = tPlanTargetPrice(averageCost, side, level.targetPercent, feeOptions)
     const hasQuantity = level.quantity > 0
     const exceedsForeignTPosition =
       feeOptions?.market !== undefined &&
@@ -188,7 +196,8 @@ export function getTPlanRows(
 
 export function getTriggeredTAlertBadges(
   batch: TTradingBatch | undefined,
-  trades: readonly TTrade[]
+  trades: readonly TTrade[],
+  priceRule?: TPlanPriceRule
 ): TAlertBadge[] {
   if (!batch?.alertEnabled) return []
   const averageCost = calculateTBatchMetrics(batch, trades).averageCost
@@ -205,7 +214,7 @@ export function getTriggeredTAlertBadges(
         side,
         index,
         label: `T${index + 1}`,
-        targetPrice: tPlanTargetPrice(averageCost, side, level.targetPercent)
+        targetPrice: tPlanTargetPrice(averageCost, side, level.targetPercent, priceRule)
       }
     ]
   })
@@ -226,7 +235,8 @@ function priceTriggersLevel(latest: number, targetPrice: number | null, side: TA
 export function applyTAlertTriggers(
   batch: TTradingBatch,
   trades: readonly TTrade[],
-  latest: number | null | undefined
+  latest: number | null | undefined,
+  priceRule?: TPlanPriceRule
 ): { batch: TTradingBatch; changed: boolean } {
   if (!batch.alertEnabled || latest === null || latest === undefined) {
     return { batch, changed: false }
@@ -238,7 +248,7 @@ export function applyTAlertTriggers(
 
   for (const side of ['buy', 'sell'] as const) {
     const nextLevels = levelsForSide(nextBatch, side).map((level) => {
-      const targetPrice = tPlanTargetPrice(averageCost, side, level.targetPercent)
+      const targetPrice = tPlanTargetPrice(averageCost, side, level.targetPercent, priceRule)
       const status = level.alertStatus ?? 'armed'
       if (level.quantity <= 0) {
         if (status === 'armed') return level
@@ -329,13 +339,15 @@ export function applyTFloatingProfitAlert(
 
 export function applyTAlertTriggersToAccounts(
   accounts: TTradingAccounts,
-  quotes: readonly StockQuote[]
+  quotes: readonly StockQuote[],
+  watchlist: readonly WatchStock[] = []
 ): {
   accounts: TTradingAccounts
   changed: boolean
   triggered: TriggeredTFloatingProfitAlert[]
 } {
   const quotesById = new Map(quotes.map((quote) => [quote.quoteId, quote]))
+  const stocksById = new Map(watchlist.map((stock) => [stock.quoteId, stock]))
   let changed = false
   const triggered: TriggeredTFloatingProfitAlert[] = []
   const nextAccounts: TTradingAccounts = {}
@@ -344,8 +356,12 @@ export function applyTAlertTriggersToAccounts(
     const batch = account.activeBatch
     const trades = getBatchTrades(account, batch)
     const latest = quotesById.get(quoteId)?.latest
+    const priceRule = {
+      market: account.market ?? marketFromQuoteId(quoteId),
+      instrumentType: stocksById.get(quoteId)?.instrumentType
+    }
     const priceResult = batch
-      ? applyTAlertTriggers(batch, trades, latest)
+      ? applyTAlertTriggers(batch, trades, latest, priceRule)
       : { batch, changed: false }
     const floatingResult = priceResult.batch
       ? applyTFloatingProfitAlert(priceResult.batch, trades, latest)

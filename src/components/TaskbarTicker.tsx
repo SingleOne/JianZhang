@@ -6,6 +6,7 @@ import { calculateTBatchMetrics } from '../lib/t-trading'
 import { getBatchTrades } from '../lib/trade-records'
 import { getTriggeredStockAlertDirection } from '../lib/stock-alerts'
 import { getTaskbarVisibleStocks } from '../lib/taskbar-visibility'
+import { marketFromQuoteId } from '../shared/stock-market'
 import type { AppState, StockQuote } from '../shared/types'
 import { FiveLevelAlertBadges } from './FiveLevelAlertBadges'
 import { TAlertBadges } from './TAlertBadges'
@@ -50,7 +51,11 @@ export function TaskbarTicker() {
         quote,
         alertBadges: getTriggeredTAlertBadges(
           account?.activeBatch,
-          getBatchTrades(account, account?.activeBatch)
+          getBatchTrades(account, account?.activeBatch),
+          {
+            market: stock.market ?? marketFromQuoteId(stock.quoteId),
+            instrumentType: stock.instrumentType
+          }
         ),
         tMetrics: account?.activeBatch
           ? calculateTBatchMetrics(

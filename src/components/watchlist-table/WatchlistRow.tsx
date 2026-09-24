@@ -297,7 +297,10 @@ export const WatchlistRow = memo(function WatchlistRow({
     activeTTrades,
     quote?.latest
   ).floatingProfit
-  const tAlertBadges = getTriggeredTAlertBadges(activeTBatch, activeTTrades)
+  const tAlertBadges = getTriggeredTAlertBadges(activeTBatch, activeTTrades, {
+    market,
+    instrumentType: stock.instrumentType
+  })
   const tFloatingProfitAlert = getTriggeredTFloatingProfitAlert(activeTBatch)
   const enabledStockAlertCount = stock.alertRules?.filter((rule) => rule.enabled).length ?? 0
   const stockAlertDirection = getTriggeredStockAlertDirection(stock.alertRules)

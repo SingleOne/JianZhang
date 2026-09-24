@@ -1129,6 +1129,8 @@ export interface TTradingAccount {
   name: string
   market?: import('./stock-market').StockMarket
   currency?: import('./stock-market').StockCurrency
+  /** 港股每手股数由用户按券商证券资料确认，用于 T 计划碎股提示。 */
+  boardLotSize?: number
   activeBatch?: TTradingBatch
   history: TTradingBatch[]
   /** 统一组合账本是新写入和公司行动计算的唯一数据源。 */

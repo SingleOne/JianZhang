@@ -353,7 +353,11 @@ export class QuoteRuntime {
             currentState.settings.tradingCalendar.markets[marketFromQuoteId(quote.quoteId)]
           ) === 'live'
       )
-      const tAlertUpdate = applyTAlertTriggersToAccounts(currentState.tTradingAccounts, alertQuotes)
+      const tAlertUpdate = applyTAlertTriggersToAccounts(
+        currentState.tTradingAccounts,
+        alertQuotes,
+        currentState.watchlist
+      )
       const stockAlertUpdate = applyStockAlertTriggers(
         currentState.watchlist,
         alertQuotes,
