@@ -5,7 +5,7 @@ import type {
   WatchEvent
 } from '../../../market-insight/shared/types'
 import type { ChipDistributionCacheEntry } from '../../../../shared/types'
-import { compactShortTermSnapshot } from './context-builder'
+import { compactShortTermSnapshot, toProviderMessages } from './context-builder'
 
 function indicator(id: string, label: string, value: number): IndicatorValue {
   return {
@@ -157,5 +157,21 @@ describe('compactShortTermSnapshot', () => {
     expect(compactShortTermSnapshot(refreshed, chipDistribution).snapshotId).toBe(
       compactShortTermSnapshot(original, chipDistribution).snapshotId
     )
+  })
+})
+
+describe('toProviderMessages user background', () => {
+  it('uses background silently even when there are no saved facts yet', () => {
+    const messages = toProviderMessages([], [], undefined, false, '')
+
+    expect(messages[0].content).toContain('回答时自然使用可靠信息')
+    expect(messages[0].content).toContain('不要向用户提及后台记忆')
+    expect(messages[0].content).toContain('[M:...]')
+  })
+
+  it('includes available user facts as background', () => {
+    const messages = toProviderMessages([], [], undefined, false, '用户偏好与事实：简洁回答')
+
+    expect(messages[0].content).toContain('用户偏好与事实：简洁回答')
   })
 })

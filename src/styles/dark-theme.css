@@ -5606,6 +5606,15 @@ html[data-theme='dark'][data-theme='dark'].tray-mode #root {
   background: #111827;
   border-color: #34445d;
 }
+:root[data-theme='dark'] .app-button-danger {
+  color: #ff9ca6;
+  border-color: #7d4149;
+}
+:root[data-theme='dark'] .app-button-danger:hover:not(:disabled) {
+  color: #ffc2c8;
+  background: #38232b;
+  border-color: #a65a64;
+}
 :root[data-theme='dark'] .text-button.bordered-text-button {
   background: rgba(91, 140, 255, 0.14);
   border: 1px solid rgba(91, 140, 255, 0.48);

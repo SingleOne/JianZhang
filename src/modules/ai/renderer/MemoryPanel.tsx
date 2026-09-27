@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
+import { BrainCircuit } from 'lucide-react'
+import { AppButton } from '../../../components/AppButton'
+import { AppSelect, type AppSelectOption } from '../../../components/AppSelect'
 import type { AiApi, AiConversation } from '../shared/types'
 import type { MemoryFact, MemorySearchResult, MemoryStatus } from '../shared/memory-types'
 
@@ -118,181 +121,198 @@ export function MemoryPanel({ api, conversation }: Props) {
 
   const active = status?.profiles.find((profile) => profile.id === status.activeProfileId)
   const binding = conversation ? status?.bindings[conversation.id] : undefined
+  const profileOptions: AppSelectOption<string>[] = [
+    { value: '', label: '关闭记忆' },
+    ...(status?.profiles.map((profile) => ({
+      value: profile.id,
+      label: `${profile.name} · ${profile.displayName}`
+    })) ?? [])
+  ]
   return (
-    <section className="ai-memory-panel">
-      <header>
-        <h2>记忆服务</h2>
-        <p>
-          独立服务需先在本机启动。启用后，会话消息副本会同步到该服务；连接令牌保存在见涨主进程的加密存储中。
-        </p>
+    <section className="ai-settings-card ai-memory-panel">
+      <header className="ai-settings-card-heading">
+        <span className="ai-settings-card-icon">
+          <BrainCircuit size={17} />
+        </span>
+        <div>
+          <h3>记忆服务</h3>
+          <p>本机服务保存用户资料与会话副本，连接令牌由见涨加密保存。</p>
+        </div>
       </header>
       {error ? <p className="ai-memory-error">{error}</p> : null}
       {message ? <p className="ai-memory-success">{message}</p> : null}
-      <section className="ai-memory-card">
-        <h3>连接</h3>
-        <label>
-          连接名称
-          <input value={name} onChange={(event) => setName(event.target.value)} />
-        </label>
-        <label>
-          服务地址
-          <input value={url} onChange={(event) => setUrl(event.target.value)} />
-        </label>
-        <label>
-          连接令牌
-          <input
-            type="password"
-            value={token}
-            onChange={(event) => setToken(event.target.value)}
-            autoComplete="off"
-          />
-        </label>
-        <button type="button" disabled={busy || !url.trim() || !token.trim()} onClick={connect}>
-          测试并保存连接
-        </button>
-        <label>
-          当前身份
-          <select
-            value={status?.activeProfileId ?? ''}
-            disabled={busy}
-            onChange={(event) => select(event.target.value || null)}
-          >
-            <option value="">关闭记忆</option>
-            {status?.profiles.map((profile) => (
-              <option key={profile.id} value={profile.id}>
-                {profile.name} · {profile.displayName}
-              </option>
-            ))}
-          </select>
-        </label>
-        {active ? (
-          <p>
-            用户：{active.displayName} · 服务：{active.serviceId.slice(0, 8)} · 待同步删除：
-            {status?.pendingDeletes ?? 0}
+      <div className="ai-memory-grid">
+        <section className="ai-memory-card ai-memory-connection">
+          <h4>连接与身份</h4>
+          <div className="ai-memory-connection-fields">
+            <label>
+              连接名称
+              <input value={name} onChange={(event) => setName(event.target.value)} />
+            </label>
+            <label>
+              服务地址
+              <input value={url} onChange={(event) => setUrl(event.target.value)} />
+            </label>
+            <label>
+              连接令牌
+              <input
+                type="password"
+                value={token}
+                onChange={(event) => setToken(event.target.value)}
+                autoComplete="off"
+              />
+            </label>
+          </div>
+          <div className="ai-memory-connection-actions">
+            <label>
+              当前身份
+              <AppSelect
+                className="ai-settings-select ai-memory-identity-select"
+                value={status?.activeProfileId ?? ''}
+                options={profileOptions}
+                label="当前记忆身份"
+                disabled={busy}
+                onChange={(profileId) => select(profileId || null)}
+              />
+            </label>
+            <AppButton
+              variant="primary"
+              disabled={busy || !url.trim() || !token.trim()}
+              onClick={connect}
+            >
+              测试并保存连接
+            </AppButton>
+          </div>
+          <p className="ai-memory-connection-status">
+            {active
+              ? `用户：${active.displayName} · 服务：${active.serviceId.slice(0, 8)} · 待同步删除：${status?.pendingDeletes ?? 0}`
+              : '记忆当前关闭，普通 AI 对话仍可使用。'}
           </p>
-        ) : (
-          <p>记忆功能当前关闭，普通 AI 对话仍可使用。</p>
-        )}
-      </section>
-      {active ? (
-        <>
-          <section className="ai-memory-card">
-            <h3>当前会话</h3>
-            {conversation ? (
-              binding ? (
-                <>
-                  <p>
-                    {binding.profileId === active.id
-                      ? '已绑定当前身份'
-                      : '已绑定另一位用户，请切回原连接或新建会话'}
-                    {binding.pendingDelete ? ' · 删除待同步' : ''}
-                  </p>
-                  {binding.profileId === active.id && !binding.pendingDelete ? (
-                    <label className="ai-memory-history-control">
-                      <input
-                        type="checkbox"
-                        checked={binding.historyVisible}
-                        disabled={busy}
-                        onChange={(event) => changeHistory(event.target.checked)}
-                      />
-                      允许同一用户的其他授权会话检索此会话
-                    </label>
-                  ) : null}
-                </>
+        </section>
+        {active ? (
+          <>
+            <section className="ai-memory-card ai-memory-session">
+              <h4>当前会话</h4>
+              {conversation ? (
+                binding ? (
+                  <>
+                    <p>
+                      {binding.profileId === active.id
+                        ? '已绑定当前身份'
+                        : '已绑定另一位用户，请切回原连接或新建会话'}
+                      {binding.pendingDelete ? ' · 删除待同步' : ''}
+                    </p>
+                    {binding.profileId === active.id && !binding.pendingDelete ? (
+                      <label className="ai-memory-history-control">
+                        <input
+                          type="checkbox"
+                          checked={binding.historyVisible}
+                          disabled={busy}
+                          onChange={(event) => changeHistory(event.target.checked)}
+                        />
+                        允许同一用户的其他授权会话检索此会话
+                      </label>
+                    ) : null}
+                  </>
+                ) : (
+                  <AppButton disabled={busy} onClick={bind}>
+                    为此会话启用记忆
+                  </AppButton>
+                )
               ) : (
-                <button type="button" disabled={busy} onClick={bind}>
-                  为此会话启用记忆
-                </button>
-              )
-            ) : (
-              <p>选择一个会话后可启用记忆；新建会话会自动绑定当前身份。</p>
-            )}
-          </section>
-          <section className="ai-memory-card">
-            <h3>用户记忆</h3>
-            <div className="ai-memory-form">
-              <input
-                aria-label="记忆名称"
-                placeholder="例如：回答偏好"
-                value={factKey}
-                onChange={(event) => setFactKey(event.target.value)}
-              />
-              <textarea
-                aria-label="记忆内容"
-                placeholder="输入长期有效的事实或偏好"
-                value={factContent}
-                onChange={(event) => setFactContent(event.target.value)}
-              />
-              <button
-                type="button"
-                disabled={busy || !factKey.trim() || !factContent.trim()}
-                onClick={save}
-              >
-                {editing ? '保存修改' : '添加记忆'}
-              </button>
-              {editing ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditing(null)
-                    setFactKey('')
-                    setFactContent('')
-                  }}
-                >
-                  取消编辑
-                </button>
-              ) : null}
-            </div>
-            <ul>
-              {facts.map((item) => (
-                <li key={item.id}>
-                  <strong>{item.key}</strong>
-                  <p>{item.content}</p>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => {
-                      setEditing(item)
-                      setFactKey(item.key)
-                      setFactContent(item.content)
-                    }}
+                <p>选择会话后可启用记忆；新会话会自动绑定当前身份。</p>
+              )}
+            </section>
+            <section className="ai-memory-card ai-memory-facts">
+              <h4>用户记忆</h4>
+              <div className="ai-memory-form">
+                <input
+                  aria-label="记忆名称"
+                  placeholder="例如：回答偏好"
+                  value={factKey}
+                  onChange={(event) => setFactKey(event.target.value)}
+                />
+                <textarea
+                  aria-label="记忆内容"
+                  placeholder="输入长期有效的事实或偏好"
+                  value={factContent}
+                  onChange={(event) => setFactContent(event.target.value)}
+                />
+                <div className="ai-memory-form-actions">
+                  <AppButton
+                    variant="primary"
+                    disabled={busy || !factKey.trim() || !factContent.trim()}
+                    onClick={save}
                   >
-                    编辑
-                  </button>
-                  <button type="button" disabled={busy} onClick={() => remove(item)}>
-                    删除
-                  </button>
-                </li>
-              ))}
-            </ul>
-            {!facts.length ? <p>还没有用户记忆。</p> : null}
-          </section>
-          <section className="ai-memory-card">
-            <h3>检索记忆与历史</h3>
-            <div className="ai-memory-search">
-              <input
-                aria-label="检索内容"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && query.trim()) search()
-                }}
-              />
-              <button type="button" disabled={busy || !query.trim()} onClick={search}>
-                检索
-              </button>
-            </div>
-            <ul>
-              {results.map((item) => (
-                <li key={`${item.kind}:${item.sourceId}`}>
-                  <strong>{item.kind === 'fact' ? item.key : item.title}</strong>
-                  <p>{item.text}</p>
-                </li>
-              ))}
-            </ul>
-          </section>
-        </>
-      ) : null}
+                    {editing ? '保存修改' : '添加记忆'}
+                  </AppButton>
+                  {editing ? (
+                    <AppButton
+                      onClick={() => {
+                        setEditing(null)
+                        setFactKey('')
+                        setFactContent('')
+                      }}
+                    >
+                      取消编辑
+                    </AppButton>
+                  ) : null}
+                </div>
+              </div>
+              <ul>
+                {facts.map((item) => (
+                  <li key={item.id}>
+                    <div>
+                      <strong>{item.key}</strong>
+                      <p>{item.content}</p>
+                    </div>
+                    <div className="ai-memory-item-actions">
+                      <AppButton
+                        disabled={busy}
+                        onClick={() => {
+                          setEditing(item)
+                          setFactKey(item.key)
+                          setFactContent(item.content)
+                        }}
+                      >
+                        编辑
+                      </AppButton>
+                      <AppButton variant="danger" disabled={busy} onClick={() => remove(item)}>
+                        删除
+                      </AppButton>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              {!facts.length ? <p>还没有用户记忆。</p> : null}
+            </section>
+            <section className="ai-memory-card ai-memory-search-card">
+              <h4>检索记忆与历史</h4>
+              <div className="ai-memory-search">
+                <input
+                  aria-label="检索内容"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && query.trim()) search()
+                  }}
+                />
+                <AppButton disabled={busy || !query.trim()} onClick={search}>
+                  检索
+                </AppButton>
+              </div>
+              <ul>
+                {results.map((item) => (
+                  <li key={`${item.kind}:${item.sourceId}`}>
+                    <strong>{item.kind === 'fact' ? item.key : item.title}</strong>
+                    <p>{item.text}</p>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          </>
+        ) : null}
+      </div>
     </section>
   )
 }

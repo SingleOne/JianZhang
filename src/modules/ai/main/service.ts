@@ -1064,7 +1064,7 @@ export class AiService {
       const memoryProfileId = this.memory.getStatus().bindings[conversation.id]?.profileId
       if (controller.signal.aborted) throw new DOMException('已停止生成', 'AbortError')
       const memoryContext = prepared?.unavailable
-        ? '本轮记忆服务不可用。不能声称已读取历史或资料，也不能声称已保存、修改或删除记忆。若用户明确要求记住或忘记，请直接说明本轮未完成。'
+        ? '本轮无法读取此前的用户信息。不能声称已取得历史内容，也不能声称已保存、修改或删除用户信息。若用户明确要求记住或忘记，请说明这次未能完成，请稍后重试。'
         : prepared?.text
       const tools = [
         ...(stockDataSession

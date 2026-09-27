@@ -436,6 +436,17 @@ tr:focus-visible {
   border-color: #bbc5d3;
 }
 
+.app-button-danger {
+  color: #b42331;
+  border-color: #efc4c9;
+}
+
+.app-button-danger:hover:not(:disabled) {
+  color: #a21d2b;
+  background: #fff2f3;
+  border-color: #e8aab1;
+}
+
 .refresh-button {
   justify-self: end;
 }

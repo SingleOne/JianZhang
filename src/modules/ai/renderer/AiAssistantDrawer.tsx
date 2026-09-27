@@ -40,6 +40,7 @@ import { supportsImageUnderstanding } from '../shared/model-capabilities'
 import { TradeImportPanel } from './TradeImportPanel'
 import { MemoryPanel } from './MemoryPanel'
 import type {
+  AiApi,
   AiApiKeyProviderId,
   AiConnectionResult,
   AiConversation,
@@ -358,8 +359,6 @@ function ChatThread({
                       </small>
                     ))}
                     {message.officialSearch ? <small>联网搜索</small> : null}
-                    {message.memoryState === 'used' ? <small>记忆已连接</small> : null}
-                    {message.memoryState === 'unavailable' ? <small>本轮未使用记忆</small> : null}
                   </div>
                   {message.role === 'assistant' ? (
                     <MarkdownMessage
@@ -446,6 +445,8 @@ function ChatThread({
 }
 
 interface AiSettingsPanelProps {
+  api: AiApi
+  conversation: AiConversation | null
   status: AiStatus
   settings: AiSettings
   onSave: (settings: AiSettings) => void
@@ -460,6 +461,8 @@ interface AiSettingsPanelProps {
 }
 
 function AiSettingsPanel({
+  api,
+  conversation,
   status,
   settings,
   onSave,
@@ -680,6 +683,7 @@ function AiSettingsPanel({
             </label>
           </div>
         </section>
+        <MemoryPanel api={api} conversation={conversation} />
       </div>
       <footer className="ai-settings-footer">
         <div className="ai-settings-feedback">
@@ -719,7 +723,7 @@ function AiSettingsPanel({
 export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistantDrawerProps) {
   const api = window.aiApi
   const confirm = useConfirmDialog()
-  const [activeTab, setActiveTab] = useState<'chat' | 'import' | 'settings' | 'memory'>('chat')
+  const [activeTab, setActiveTab] = useState<'chat' | 'import' | 'settings'>('chat')
   const [status, setStatus] = useState<AiStatus | null>(null)
   const [settings, setSettings] = useState<AiSettings | null>(null)
   const [conversations, setConversations] = useState<AiConversation[]>([])
@@ -1246,14 +1250,6 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
               <Settings2 size={15} />
               服务设置
             </button>
-            <button
-              className={activeTab === 'memory' ? 'is-active' : ''}
-              type="button"
-              onClick={() => setActiveTab('memory')}
-            >
-              <Bot size={15} />
-              记忆
-            </button>
           </nav>
         </header>
         {error ? (
@@ -1439,10 +1435,10 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
             imageUnderstandingAvailable={imageUnderstandingAvailable}
             onError={setError}
           />
-        ) : activeTab === 'memory' ? (
-          <MemoryPanel api={api} conversation={activeConversation} />
         ) : status && settings ? (
           <AiSettingsPanel
+            api={api}
+            conversation={activeConversation}
             status={status}
             settings={settings}
             onSave={(nextSettings) => void saveSettings(nextSettings)}

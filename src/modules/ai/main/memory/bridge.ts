@@ -321,8 +321,8 @@ export class MemoryBridge {
         .join('\n')
       return {
         text: [
-          profileText && `用户记忆：\n${profileText}`,
-          historyText && `相关历史：\n${historyText}`
+          profileText && `用户偏好与事实：\n${profileText}`,
+          historyText && `相关先前对话：\n${historyText}`
         ]
           .filter(Boolean)
           .join('\n\n')
