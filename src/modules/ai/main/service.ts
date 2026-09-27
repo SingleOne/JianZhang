@@ -237,7 +237,8 @@ const MAX_MENTIONED_STOCKS = 5
 const MEMORY_TOOLS: AiProviderTool[] = [
   {
     name: 'search_user_context',
-    description: '查找当前用户此前明确提供的个人信息和先前交流内容；需要核对时使用。',
+    description:
+      '查找当前用户此前明确提供的信息、先前交流内容和本会话已选择的资料文件；需要核对时使用。',
     inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] }
   },
   {
@@ -246,7 +247,7 @@ const MEMORY_TOOLS: AiProviderTool[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        kind: { type: 'string', enum: ['fact', 'message'] },
+        kind: { type: 'string', enum: ['fact', 'message', 'document'] },
         sourceId: { type: 'string' }
       },
       required: ['kind', 'sourceId']
@@ -577,6 +578,9 @@ export class AiService {
   setConversationMemoryHistory(conversationId: string, visible: boolean) {
     return this.memory.setHistoryVisible(this.requireConversation(conversationId), visible)
   }
+  setConversationMemoryLibraries(conversationId: string, libraryIds: string[]) {
+    return this.memory.setLibraries(this.requireConversation(conversationId), libraryIds)
+  }
   listMemoryFacts(query?: string) {
     return this.memory.listFacts(query)
   }
@@ -595,6 +599,38 @@ export class AiService {
   }
   searchMemory(query: string) {
     return this.memory.search(query)
+  }
+  readMemorySource(kind: string, sourceId: string) {
+    return this.memory.readSource(kind, sourceId)
+  }
+  listMemoryLibraries() {
+    return this.memory.listLibraries()
+  }
+  createMemoryLibrary(name: string) {
+    return this.memory.createLibrary(name)
+  }
+  renameMemoryLibrary(id: string, name: string, revision: number) {
+    return this.memory.renameLibrary(id, name, revision)
+  }
+  deleteMemoryLibrary(id: string, revision: number) {
+    return this.memory.deleteLibrary(id, revision)
+  }
+  listMemoryDocuments(libraryId: string) {
+    return this.memory.listDocuments(libraryId)
+  }
+  uploadMemoryDocument(
+    name: string,
+    bytes: ArrayBuffer,
+    libraryId: string,
+    existing?: { id: string; revision: number }
+  ) {
+    return this.memory.uploadDocument(name, bytes, libraryId, existing)
+  }
+  publishMemoryDocumentKeyword(documentId: string, versionId: string, revision: number) {
+    return this.memory.publishDocumentKeyword(documentId, versionId, revision)
+  }
+  deleteMemoryDocument(id: string, revision: number) {
+    return this.memory.deleteDocument(id, revision)
   }
 
   exportConversation(conversationId: string) {

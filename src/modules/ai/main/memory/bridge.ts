@@ -6,9 +6,12 @@ import { atomicWriteFileSync, atomicWriteJsonSync } from '../../../../../electro
 import type { AiConversation } from '../../shared/types'
 import type {
   MemoryFact,
+  MemoryDocument,
   MemoryIdentity,
+  MemoryLibrary,
   MemoryProfile,
   MemorySearchResult,
+  MemorySourceDetail,
   MemoryStatus
 } from '../../shared/memory-types'
 import type { AiStorage } from '../storage'
@@ -22,6 +25,7 @@ type Binding = {
   sessionId?: string
   pendingDelete: boolean
   historyVisible?: boolean
+  libraryIds?: string[]
 }
 type State = {
   activeProfileId: string | null
@@ -75,7 +79,8 @@ export class MemoryBridge {
           {
             profileId: value.profileId,
             pendingDelete: value.pendingDelete,
-            historyVisible: value.historyVisible !== false
+            historyVisible: value.historyVisible !== false,
+            libraryIds: value.libraryIds ?? []
           }
         ])
       )
@@ -150,7 +155,8 @@ export class MemoryBridge {
       clientId: profile.clientId,
       generation: 1,
       pendingDelete: false,
-      historyVisible: true
+      historyVisible: true,
+      libraryIds: []
     }
     this.save()
   }
@@ -234,7 +240,7 @@ export class MemoryBridge {
     binding: Binding,
     conversation: AiConversation
   ): Promise<{ id: string; lastSequence: number }> {
-    const result = await this.request<{ id: string; lastSequence: number }>(
+    const result = await this.request<{ id: string; lastSequence: number; libraryIds: string[] }>(
       profile,
       'POST',
       '/v1/sessions',
@@ -246,6 +252,7 @@ export class MemoryBridge {
       }
     )
     binding.sessionId = result.id
+    binding.libraryIds = result.libraryIds ?? []
     this.save()
     return result
   }
@@ -304,25 +311,32 @@ export class MemoryBridge {
       await this.assertIdentity(profile)
       await this.flushDeletes()
       const session = await this.sync(profile, binding, conversation)
-      const result = await this.request<{ profile: MemoryFact[]; history: MemorySearchResult[] }>(
-        profile,
-        'POST',
-        `/v1/sessions/${session.id}/prepare-turn`,
-        { turnId: randomUUID(), question }
-      )
+      const result = await this.request<{
+        profile: MemoryFact[]
+        history: MemorySearchResult[]
+        documents: MemorySearchResult[]
+      }>(profile, 'POST', `/v1/sessions/${session.id}/prepare-turn`, {
+        turnId: randomUUID(),
+        question
+      })
       const profileText = result.profile.map((item) => `- ${item.key}：${item.content}`).join('\n')
       const historyText = result.history
         .map((item) => `- ${item.title ?? '先前对话'} / ${item.occurredAt ?? ''}：${item.text}`)
         .join('\n')
+      const documents = result.documents ?? []
+      const documentText = documents
+        .map((item) => `- ${item.fileName}（${item.locator}）：${item.text}`)
+        .join('\n')
       return {
         text: [
           profileText && `用户信息：\n${profileText}`,
-          historyText && `先前交流内容：\n${historyText}`
+          historyText && `先前交流内容：\n${historyText}`,
+          documentText && `资料文件内容：\n${documentText}`
         ]
           .filter(Boolean)
           .join('\n\n')
           .slice(0, 12000),
-        sources: result.history,
+        sources: [...result.history, ...documents],
         unavailable: false
       }
     } catch {
@@ -349,6 +363,27 @@ export class MemoryBridge {
     binding.historyVisible = visible
     this.save()
   }
+  async setLibraries(conversation: AiConversation, libraryIds: string[]): Promise<void> {
+    const profile = this.active()
+    const binding = this.state.bindings[conversation.id]
+    if (!profile || !binding || binding.profileId !== profile.id || binding.pendingDelete)
+      throw new Error('此会话未绑定当前记忆身份')
+    await this.assertIdentity(profile)
+    const session = await this.register(profile, binding, conversation)
+    const current = await this.request<{ revision: number }>(
+      profile,
+      'GET',
+      `/v1/sessions/${session.id}`
+    )
+    const updated = await this.request<{ libraryIds: string[] }>(
+      profile,
+      'PATCH',
+      `/v1/sessions/${session.id}`,
+      { operationId: randomUUID(), expectedRevision: current.revision, libraryIds }
+    )
+    binding.libraryIds = updated.libraryIds ?? []
+    this.save()
+  }
   async search(
     query: string,
     conversationId?: string,
@@ -373,7 +408,7 @@ export class MemoryBridge {
     sourceId: string,
     conversationId?: string,
     expectedProfileId?: string
-  ): Promise<{ text: string }> {
+  ): Promise<MemorySourceDetail> {
     const profile = this.active()
     if (!profile) throw new Error('记忆功能未启用')
     if (expectedProfileId && profile.id !== expectedProfileId)
@@ -384,6 +419,111 @@ export class MemoryBridge {
       kind,
       sourceId,
       sessionId: binding?.sessionId
+    })
+  }
+  async listLibraries(): Promise<MemoryLibrary[]> {
+    const profile = this.active()
+    if (!profile) return []
+    await this.assertIdentity(profile)
+    const result = await this.request<{ libraries: MemoryLibrary[] }>(
+      profile,
+      'GET',
+      '/v1/libraries'
+    )
+    return result.libraries
+  }
+  async createLibrary(name: string): Promise<MemoryLibrary> {
+    const profile = this.active()
+    if (!profile) throw new Error('记忆功能未启用')
+    await this.assertIdentity(profile)
+    return this.request(profile, 'POST', '/v1/libraries', { operationId: randomUUID(), name })
+  }
+  async renameLibrary(id: string, name: string, expectedRevision: number): Promise<MemoryLibrary> {
+    const profile = this.active()
+    if (!profile) throw new Error('记忆功能未启用')
+    await this.assertIdentity(profile)
+    return this.request(profile, 'PATCH', `/v1/libraries/${id}`, {
+      operationId: randomUUID(),
+      expectedRevision,
+      name
+    })
+  }
+  async deleteLibrary(id: string, expectedRevision: number): Promise<void> {
+    const profile = this.active()
+    if (!profile) throw new Error('记忆功能未启用')
+    await this.assertIdentity(profile)
+    await this.request(profile, 'DELETE', `/v1/libraries/${id}`, {
+      operationId: randomUUID(),
+      expectedRevision
+    })
+    for (const binding of Object.values(this.state.bindings))
+      if (binding.profileId === profile.id)
+        binding.libraryIds = (binding.libraryIds ?? []).filter((item) => item !== id)
+    this.save()
+  }
+  async listDocuments(libraryId: string): Promise<MemoryDocument[]> {
+    const profile = this.active()
+    if (!profile) return []
+    await this.assertIdentity(profile)
+    const result = await this.request<{ documents: MemoryDocument[] }>(
+      profile,
+      'GET',
+      `/v1/libraries/${libraryId}/documents`
+    )
+    return result.documents
+  }
+  async uploadDocument(
+    name: string,
+    bytes: ArrayBuffer,
+    libraryId: string,
+    existing?: { id: string; revision: number }
+  ): Promise<MemoryDocument> {
+    const profile = this.active()
+    if (!profile) throw new Error('记忆功能未启用')
+    await this.assertIdentity(profile)
+    const token = this.tokens()[profile.id]
+    if (!token) throw new Error('记忆连接令牌不可用')
+    const path = existing
+      ? `/v1/documents/${existing.id}/versions`
+      : `/v1/libraries/${libraryId}/documents`
+    const response = await fetch(`${profile.url}${path}?name=${encodeURIComponent(name)}`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/octet-stream',
+        'x-operation-id': randomUUID(),
+        ...(existing ? { 'x-expected-revision': String(existing.revision) } : {})
+      },
+      body: bytes,
+      signal: AbortSignal.timeout(120000),
+      redirect: 'error'
+    })
+    const result = (await response.json()) as MemoryDocument & { error?: string }
+    if (!response.ok) throw new Error(`记忆服务 ${response.status}: ${result.error ?? '上传失败'}`)
+    return result
+  }
+  async publishDocumentKeyword(
+    documentId: string,
+    versionId: string,
+    expectedRevision: number
+  ): Promise<MemoryDocument> {
+    const profile = this.active()
+    if (!profile) throw new Error('记忆功能未启用')
+    await this.assertIdentity(profile)
+    return this.request(
+      profile,
+      'POST',
+      `/v1/documents/${documentId}/versions/${versionId}/publish-keyword`,
+      { operationId: randomUUID(), expectedRevision }
+    )
+  }
+  async deleteDocument(id: string, expectedRevision: number): Promise<void> {
+    const profile = this.active()
+    if (!profile) throw new Error('记忆功能未启用')
+    await this.assertIdentity(profile)
+    await this.request(profile, 'DELETE', `/v1/documents/${id}`, {
+      operationId: randomUUID(),
+      expectedRevision
     })
   }
   async listFacts(query = ''): Promise<MemoryFact[]> {

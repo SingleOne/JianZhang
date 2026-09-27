@@ -1,9 +1,15 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { BrainCircuit } from 'lucide-react'
 import { AppButton } from '../../../components/AppButton'
 import { AppSelect, type AppSelectOption } from '../../../components/AppSelect'
 import type { AiApi, AiConversation } from '../shared/types'
-import type { MemoryFact, MemorySearchResult, MemoryStatus } from '../shared/memory-types'
+import type {
+  MemoryFact,
+  MemorySearchResult,
+  MemorySourceDetail,
+  MemoryStatus
+} from '../shared/memory-types'
+import { KnowledgePanel } from './KnowledgePanel'
 
 interface Props {
   api: AiApi
@@ -14,6 +20,8 @@ export function MemoryPanel({ api, conversation }: Props) {
   const [status, setStatus] = useState<MemoryStatus | null>(null)
   const [facts, setFacts] = useState<MemoryFact[]>([])
   const [results, setResults] = useState<MemorySearchResult[]>([])
+  const [preview, setPreview] = useState<MemorySourceDetail | null>(null)
+  const previewGeneration = useRef(0)
   const [name, setName] = useState('本地记忆')
   const [url, setUrl] = useState('http://127.0.0.1:43127')
   const [token, setToken] = useState('')
@@ -68,6 +76,9 @@ export function MemoryPanel({ api, conversation }: Props) {
 
   const connect = () =>
     void run(async () => {
+      previewGeneration.current++
+      setResults([])
+      setPreview(null)
       const profile = await api.connectMemory(name, url, token)
       setToken('')
       await refresh()
@@ -75,9 +86,11 @@ export function MemoryPanel({ api, conversation }: Props) {
     })
   const select = (profileId: string | null) =>
     void run(async () => {
+      previewGeneration.current++
+      setResults([])
+      setPreview(null)
       await api.selectMemory(profileId)
       await refresh()
-      setResults([])
     })
   const bind = () =>
     void run(async () => {
@@ -116,7 +129,16 @@ export function MemoryPanel({ api, conversation }: Props) {
     })
   const search = () =>
     void run(async () => {
-      setResults(await api.searchMemory(query))
+      const generation = ++previewGeneration.current
+      setPreview(null)
+      const found = await api.searchMemory(query)
+      if (generation === previewGeneration.current) setResults(found)
+    })
+  const openPreview = (item: MemorySearchResult) =>
+    void run(async () => {
+      const generation = ++previewGeneration.current
+      const source = await api.readMemorySource(item.kind, item.sourceId)
+      if (generation === previewGeneration.current) setPreview(source)
     })
 
   const active = status?.profiles.find((profile) => profile.id === status.activeProfileId)
@@ -286,8 +308,20 @@ export function MemoryPanel({ api, conversation }: Props) {
               </ul>
               {!facts.length ? <p>还没有用户记忆。</p> : null}
             </section>
+            <KnowledgePanel
+              key={active.id}
+              api={api}
+              conversation={conversation}
+              binding={binding?.profileId === active.id ? binding : undefined}
+              onBindingChange={refresh}
+              onSourcesChange={() => {
+                previewGeneration.current++
+                setResults([])
+                setPreview(null)
+              }}
+            />
             <section className="ai-memory-card ai-memory-search-card">
-              <h4>检索记忆与历史</h4>
+              <h4>检索用户资料、历史与文件</h4>
               <div className="ai-memory-search">
                 <input
                   aria-label="检索内容"
@@ -304,11 +338,30 @@ export function MemoryPanel({ api, conversation }: Props) {
               <ul>
                 {results.map((item) => (
                   <li key={`${item.kind}:${item.sourceId}`}>
-                    <strong>{item.kind === 'fact' ? item.key : item.title}</strong>
+                    <strong>
+                      {item.kind === 'fact'
+                        ? item.key
+                        : item.kind === 'document'
+                          ? `${item.fileName ?? '文件'} · ${item.locator ?? '正文'}`
+                          : item.title}
+                    </strong>
                     <p>{item.text}</p>
+                    <AppButton disabled={busy} onClick={() => openPreview(item)}>
+                      查看来源
+                    </AppButton>
                   </li>
                 ))}
               </ul>
+              {preview ? (
+                <div className="ai-memory-source-preview">
+                  <strong>
+                    {preview.kind === 'document'
+                      ? `${preview.fileName ?? '文件'} · ${preview.locator ?? '正文'}`
+                      : '来源内容'}
+                  </strong>
+                  <p>{preview.text}</p>
+                </div>
+              ) : null}
             </section>
           </>
         ) : null}

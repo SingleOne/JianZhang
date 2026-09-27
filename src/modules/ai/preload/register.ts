@@ -52,10 +52,24 @@ export function installAiPreload(): void {
       invoke(AI_IPC.memoryConversationEnable, conversationId),
     setConversationMemoryHistory: (conversationId, visible) =>
       invoke(AI_IPC.memoryConversationHistory, conversationId, visible),
+    setConversationMemoryLibraries: (conversationId, libraryIds) =>
+      invoke(AI_IPC.memoryConversationLibraries, conversationId, libraryIds),
     listMemoryFacts: (query) => invoke(AI_IPC.memoryFactsList, query),
     saveMemoryFact: (input) => invoke(AI_IPC.memoryFactSave, input),
     deleteMemoryFact: (id, revision) => invoke(AI_IPC.memoryFactDelete, id, revision),
-    searchMemory: (query) => invoke(AI_IPC.memorySearch, query)
+    searchMemory: (query) => invoke(AI_IPC.memorySearch, query),
+    readMemorySource: (kind, sourceId) => invoke(AI_IPC.memorySourceRead, kind, sourceId),
+    listMemoryLibraries: () => invoke(AI_IPC.memoryLibrariesList),
+    createMemoryLibrary: (name) => invoke(AI_IPC.memoryLibraryCreate, name),
+    renameMemoryLibrary: (id, name, revision) =>
+      invoke(AI_IPC.memoryLibraryRename, id, name, revision),
+    deleteMemoryLibrary: (id, revision) => invoke(AI_IPC.memoryLibraryDelete, id, revision),
+    listMemoryDocuments: (libraryId) => invoke(AI_IPC.memoryDocumentsList, libraryId),
+    uploadMemoryDocument: (name, bytes, libraryId, existing) =>
+      invoke(AI_IPC.memoryDocumentUpload, name, bytes, libraryId, existing),
+    publishMemoryDocumentKeyword: (documentId, versionId, revision) =>
+      invoke(AI_IPC.memoryDocumentPublishKeyword, documentId, versionId, revision),
+    deleteMemoryDocument: (id, revision) => invoke(AI_IPC.memoryDocumentDelete, id, revision)
   }
   contextBridge.exposeInMainWorld('aiApi', api)
 }

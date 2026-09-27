@@ -35,10 +35,20 @@ export const AI_IPC = {
   memorySelect: 'ai:memory:select',
   memoryConversationEnable: 'ai:memory:conversation:enable',
   memoryConversationHistory: 'ai:memory:conversation:history',
+  memoryConversationLibraries: 'ai:memory:conversation:libraries',
   memoryFactsList: 'ai:memory:facts:list',
   memoryFactSave: 'ai:memory:fact:save',
   memoryFactDelete: 'ai:memory:fact:delete',
-  memorySearch: 'ai:memory:search'
+  memorySearch: 'ai:memory:search',
+  memorySourceRead: 'ai:memory:source:read',
+  memoryLibrariesList: 'ai:memory:libraries:list',
+  memoryLibraryCreate: 'ai:memory:library:create',
+  memoryLibraryRename: 'ai:memory:library:rename',
+  memoryLibraryDelete: 'ai:memory:library:delete',
+  memoryDocumentsList: 'ai:memory:documents:list',
+  memoryDocumentUpload: 'ai:memory:document:upload',
+  memoryDocumentPublishKeyword: 'ai:memory:document:publish-keyword',
+  memoryDocumentDelete: 'ai:memory:document:delete'
 } as const
 
 export const AI_DEFAULT_MODELS = {

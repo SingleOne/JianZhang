@@ -1,5 +1,13 @@
 import type { MarketInsightSnapshot, MarketNewsItem } from '../../market-insight/shared/types'
-import type { MemoryFact, MemoryProfile, MemorySearchResult, MemoryStatus } from './memory-types'
+import type {
+  MemoryDocument,
+  MemoryFact,
+  MemoryLibrary,
+  MemoryProfile,
+  MemorySearchResult,
+  MemorySourceDetail,
+  MemoryStatus
+} from './memory-types'
 import type {
   AppState,
   ChipDistributionCacheEntry,
@@ -426,6 +434,7 @@ export interface AiApi {
   selectMemory: (profileId: string | null) => Promise<MemoryStatus>
   enableConversationMemory: (conversationId: string) => Promise<void>
   setConversationMemoryHistory: (conversationId: string, visible: boolean) => Promise<void>
+  setConversationMemoryLibraries: (conversationId: string, libraryIds: string[]) => Promise<void>
   listMemoryFacts: (query?: string) => Promise<MemoryFact[]>
   saveMemoryFact: (input: {
     id?: string
@@ -437,6 +446,24 @@ export interface AiApi {
   }) => Promise<MemoryFact>
   deleteMemoryFact: (id: string, expectedRevision: number) => Promise<void>
   searchMemory: (query: string) => Promise<MemorySearchResult[]>
+  readMemorySource: (kind: string, sourceId: string) => Promise<MemorySourceDetail>
+  listMemoryLibraries: () => Promise<MemoryLibrary[]>
+  createMemoryLibrary: (name: string) => Promise<MemoryLibrary>
+  renameMemoryLibrary: (id: string, name: string, revision: number) => Promise<MemoryLibrary>
+  deleteMemoryLibrary: (id: string, revision: number) => Promise<void>
+  listMemoryDocuments: (libraryId: string) => Promise<MemoryDocument[]>
+  uploadMemoryDocument: (
+    name: string,
+    bytes: ArrayBuffer,
+    libraryId: string,
+    existing?: { id: string; revision: number }
+  ) => Promise<MemoryDocument>
+  publishMemoryDocumentKeyword: (
+    documentId: string,
+    versionId: string,
+    revision: number
+  ) => Promise<MemoryDocument>
+  deleteMemoryDocument: (id: string, revision: number) => Promise<void>
 }
 
 export interface AiProviderRequestMessage {

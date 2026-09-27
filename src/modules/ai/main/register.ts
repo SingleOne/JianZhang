@@ -72,12 +72,51 @@ export function installAi(dependencies: AiModuleDependencies): AiRuntime {
     (_event, conversationId: string, visible: boolean) =>
       service.setConversationMemoryHistory(conversationId, visible)
   )
+  ipcMain.handle(
+    AI_IPC.memoryConversationLibraries,
+    (_event, conversationId: string, libraryIds: string[]) =>
+      service.setConversationMemoryLibraries(conversationId, libraryIds)
+  )
   ipcMain.handle(AI_IPC.memoryFactsList, (_event, query?: string) => service.listMemoryFacts(query))
   ipcMain.handle(AI_IPC.memoryFactSave, (_event, input) => service.saveMemoryFact(input))
   ipcMain.handle(AI_IPC.memoryFactDelete, (_event, id: string, revision: number) =>
     service.deleteMemoryFact(id, revision)
   )
   ipcMain.handle(AI_IPC.memorySearch, (_event, query: string) => service.searchMemory(query))
+  ipcMain.handle(AI_IPC.memorySourceRead, (_event, kind: string, sourceId: string) =>
+    service.readMemorySource(kind, sourceId)
+  )
+  ipcMain.handle(AI_IPC.memoryLibrariesList, () => service.listMemoryLibraries())
+  ipcMain.handle(AI_IPC.memoryLibraryCreate, (_event, name: string) =>
+    service.createMemoryLibrary(name)
+  )
+  ipcMain.handle(AI_IPC.memoryLibraryRename, (_event, id: string, name: string, revision: number) =>
+    service.renameMemoryLibrary(id, name, revision)
+  )
+  ipcMain.handle(AI_IPC.memoryLibraryDelete, (_event, id: string, revision: number) =>
+    service.deleteMemoryLibrary(id, revision)
+  )
+  ipcMain.handle(AI_IPC.memoryDocumentsList, (_event, libraryId: string) =>
+    service.listMemoryDocuments(libraryId)
+  )
+  ipcMain.handle(
+    AI_IPC.memoryDocumentUpload,
+    (
+      _event,
+      name: string,
+      bytes: ArrayBuffer,
+      libraryId: string,
+      existing?: { id: string; revision: number }
+    ) => service.uploadMemoryDocument(name, bytes, libraryId, existing)
+  )
+  ipcMain.handle(
+    AI_IPC.memoryDocumentPublishKeyword,
+    (_event, documentId: string, versionId: string, revision: number) =>
+      service.publishMemoryDocumentKeyword(documentId, versionId, revision)
+  )
+  ipcMain.handle(AI_IPC.memoryDocumentDelete, (_event, id: string, revision: number) =>
+    service.deleteMemoryDocument(id, revision)
+  )
   ipcMain.handle(AI_IPC.conversationExport, (_event, conversationId: string) =>
     service.exportConversation(conversationId)
   )
