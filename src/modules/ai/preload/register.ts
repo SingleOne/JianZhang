@@ -44,7 +44,18 @@ export function installAiPreload(): void {
     onAnalysisProgress: (listener) => subscribe(AI_IPC.analysisProgress, listener),
     onChatDelta: (listener) => subscribe(AI_IPC.chatDelta, listener),
     onChatCompleted: (listener) => subscribe(AI_IPC.chatCompleted, listener),
-    onChatError: (listener) => subscribe(AI_IPC.chatError, listener)
+    onChatError: (listener) => subscribe(AI_IPC.chatError, listener),
+    getMemoryStatus: () => invoke(AI_IPC.memoryStatus),
+    connectMemory: (name, url, token) => invoke(AI_IPC.memoryConnect, name, url, token),
+    selectMemory: (profileId) => invoke(AI_IPC.memorySelect, profileId),
+    enableConversationMemory: (conversationId) =>
+      invoke(AI_IPC.memoryConversationEnable, conversationId),
+    setConversationMemoryHistory: (conversationId, visible) =>
+      invoke(AI_IPC.memoryConversationHistory, conversationId, visible),
+    listMemoryFacts: (query) => invoke(AI_IPC.memoryFactsList, query),
+    saveMemoryFact: (input) => invoke(AI_IPC.memoryFactSave, input),
+    deleteMemoryFact: (id, revision) => invoke(AI_IPC.memoryFactDelete, id, revision),
+    searchMemory: (query) => invoke(AI_IPC.memorySearch, query)
   }
   contextBridge.exposeInMainWorld('aiApi', api)
 }

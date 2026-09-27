@@ -29,7 +29,16 @@ export const AI_IPC = {
   analysisInterpret: 'ai:analysis:interpret',
   analysisLongTermLatestGet: 'ai:analysis:long-term:latest:get',
   analysisLongTermInterpret: 'ai:analysis:long-term:interpret',
-  analysisProgress: 'ai:analysis:progress'
+  analysisProgress: 'ai:analysis:progress',
+  memoryStatus: 'ai:memory:status',
+  memoryConnect: 'ai:memory:connect',
+  memorySelect: 'ai:memory:select',
+  memoryConversationEnable: 'ai:memory:conversation:enable',
+  memoryConversationHistory: 'ai:memory:conversation:history',
+  memoryFactsList: 'ai:memory:facts:list',
+  memoryFactSave: 'ai:memory:fact:save',
+  memoryFactDelete: 'ai:memory:fact:delete',
+  memorySearch: 'ai:memory:search'
 } as const
 
 export const AI_DEFAULT_MODELS = {

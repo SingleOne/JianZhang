@@ -38,6 +38,7 @@ import { AppSelect, type AppSelectOption } from '../../../components/AppSelect'
 import { useConfirmDialog } from '../../../components/ConfirmDialog'
 import { supportsImageUnderstanding } from '../shared/model-capabilities'
 import { TradeImportPanel } from './TradeImportPanel'
+import { MemoryPanel } from './MemoryPanel'
 import type {
   AiApiKeyProviderId,
   AiConnectionResult,
@@ -357,6 +358,8 @@ function ChatThread({
                       </small>
                     ))}
                     {message.officialSearch ? <small>联网搜索</small> : null}
+                    {message.memoryState === 'used' ? <small>记忆已连接</small> : null}
+                    {message.memoryState === 'unavailable' ? <small>本轮未使用记忆</small> : null}
                   </div>
                   {message.role === 'assistant' ? (
                     <MarkdownMessage
@@ -716,7 +719,7 @@ function AiSettingsPanel({
 export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistantDrawerProps) {
   const api = window.aiApi
   const confirm = useConfirmDialog()
-  const [activeTab, setActiveTab] = useState<'chat' | 'import' | 'settings'>('chat')
+  const [activeTab, setActiveTab] = useState<'chat' | 'import' | 'settings' | 'memory'>('chat')
   const [status, setStatus] = useState<AiStatus | null>(null)
   const [settings, setSettings] = useState<AiSettings | null>(null)
   const [conversations, setConversations] = useState<AiConversation[]>([])
@@ -1243,6 +1246,14 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
               <Settings2 size={15} />
               服务设置
             </button>
+            <button
+              className={activeTab === 'memory' ? 'is-active' : ''}
+              type="button"
+              onClick={() => setActiveTab('memory')}
+            >
+              <Bot size={15} />
+              记忆
+            </button>
           </nav>
         </header>
         {error ? (
@@ -1428,6 +1439,8 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
             imageUnderstandingAvailable={imageUnderstandingAvailable}
             onError={setError}
           />
+        ) : activeTab === 'memory' ? (
+          <MemoryPanel api={api} conversation={activeConversation} />
         ) : status && settings ? (
           <AiSettingsPanel
             status={status}

@@ -2973,3 +2973,95 @@
   background: #1b2637;
   border-left-color: #53677f;
 }
+.ai-memory-panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px;
+  font-size: 13px;
+}
+.ai-memory-panel h2 {
+  margin: 0 0 6px;
+  font-size: 18px;
+}
+.ai-memory-panel h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+.ai-memory-panel p {
+  margin: 6px 0;
+  line-height: 1.5;
+}
+.ai-memory-card {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--border-color, #aaa5);
+  border-radius: 10px;
+}
+.ai-memory-card label {
+  display: grid;
+  gap: 5px;
+  margin: 9px 0;
+  font-size: 12px;
+}
+.ai-memory-card input,
+.ai-memory-card textarea,
+.ai-memory-card select {
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 9px;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--border-color, #aaa5);
+  border-radius: 6px;
+}
+.ai-memory-card textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+.ai-memory-card button {
+  margin: 4px 8px 4px 0;
+  padding: 7px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+.ai-memory-card button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.ai-memory-card ul {
+  padding-left: 20px;
+}
+.ai-memory-card li {
+  margin: 10px 0;
+}
+.ai-memory-form,
+.ai-memory-search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ai-memory-form textarea {
+  flex-basis: 100%;
+}
+.ai-memory-form input,
+.ai-memory-search input {
+  flex: 1;
+  min-width: 180px;
+}
+.ai-memory-error {
+  color: #c63838;
+}
+.ai-memory-history-control {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+}
+.ai-memory-history-control input {
+  width: auto;
+  min-height: 0;
+}
+.ai-memory-success {
+  color: #247b54;
+}

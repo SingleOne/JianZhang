@@ -23,6 +23,7 @@ import type {
   AiModelOption,
   AiModuleDependencies,
   AiProvider,
+  AiProviderTool,
   AiProviderDescriptor,
   AiProviderId,
   AiSettings,
@@ -58,6 +59,7 @@ import { OpenAiCompatibleProvider } from './providers/openai-compatible'
 import { OpenAiApiProvider } from './providers/openai-api'
 import { AiSecrets } from './secrets'
 import { AiStorage } from './storage'
+import { MemoryBridge } from './memory/bridge'
 import {
   STOCK_DATA_TOOL,
   StockDataToolSession,
@@ -232,6 +234,40 @@ const PROVIDERS: AiProviderDescriptor[] = [
 ]
 
 const MAX_MENTIONED_STOCKS = 5
+const MEMORY_TOOLS: AiProviderTool[] = [
+  {
+    name: 'search_memory',
+    description: '检索当前用户的已保存记忆和授权历史会话；当用户询问过去的讨论时使用。',
+    inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] }
+  },
+  {
+    name: 'read_source',
+    description: '读取 search_memory 返回的记忆或历史来源原文。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        kind: { type: 'string', enum: ['fact', 'message'] },
+        sourceId: { type: 'string' }
+      },
+      required: ['kind', 'sourceId']
+    }
+  },
+  {
+    name: 'update_user_memory',
+    description: '用户明确要求记住、修改或忘记长期信息时使用；成功返回后才可确认已保存。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['create', 'update', 'delete'] },
+        id: { type: 'string' },
+        expectedRevision: { type: 'integer' },
+        key: { type: 'string' },
+        content: { type: 'string' }
+      },
+      required: ['action']
+    }
+  }
+]
 
 interface TradeImportSession {
   draft: AiTradeImportDraft
@@ -327,6 +363,7 @@ export class AiService {
   private readonly providers: Map<string, AiProvider>
   private readonly activeChats = new Map<string, AbortController>()
   private readonly tradeImportSessions = new Map<string, TradeImportSession>()
+  private readonly memory: MemoryBridge
 
   constructor(
     private readonly storage: AiStorage,
@@ -334,6 +371,7 @@ export class AiService {
     private readonly send: (webContents: WebContents, channel: string, payload: unknown) => void
   ) {
     this.secrets = new AiSecrets(storage.rootDirectory)
+    this.memory = new MemoryBridge(storage)
     const providers: AiProvider[] = [
       new OpenAiApiProvider(),
       new DeepSeekProvider(),
@@ -490,7 +528,9 @@ export class AiService {
       model: settings.model,
       messageCount: 0
     }
-    return this.storage.saveConversation(conversation)
+    const saved = this.storage.saveConversation(conversation)
+    this.memory.bindNewConversation(saved.id)
+    return saved
   }
 
   renameConversation(conversationId: string, title: string): AiConversation {
@@ -504,14 +544,57 @@ export class AiService {
     })
   }
 
-  deleteConversation(conversationId: string): void {
+  async deleteConversation(conversationId: string): Promise<void> {
     this.activeChats.get(conversationId)?.abort()
+    this.memory.markDelete(conversationId)
+    await this.memory.flushDeletes().catch(() => undefined)
     this.storage.deleteConversation(conversationId)
   }
 
-  clearConversations(): void {
+  async clearConversations(): Promise<void> {
     for (const controller of this.activeChats.values()) controller.abort()
-    this.storage.clearConversations()
+    for (const conversation of this.storage.listConversations())
+      await this.deleteConversation(conversation.id)
+  }
+
+  getMemoryStatus() {
+    return this.memory.getStatus()
+  }
+  connectMemory(name: string, url: string, token: string) {
+    for (const controller of this.activeChats.values()) controller.abort()
+    return this.memory.connect(name, url, token)
+  }
+  async selectMemory(profileId: string | null) {
+    for (const controller of this.activeChats.values()) controller.abort()
+    this.memory.select(profileId)
+    await this.memory.flushDeletes().catch(() => undefined)
+    return this.memory.getStatus()
+  }
+  enableConversationMemory(conversationId: string): void {
+    this.requireConversation(conversationId)
+    this.memory.bindConversation(conversationId)
+  }
+  setConversationMemoryHistory(conversationId: string, visible: boolean) {
+    return this.memory.setHistoryVisible(this.requireConversation(conversationId), visible)
+  }
+  listMemoryFacts(query?: string) {
+    return this.memory.listFacts(query)
+  }
+  saveMemoryFact(input: {
+    id?: string
+    key: string
+    content: string
+    category?: string
+    pinned?: boolean
+    expectedRevision?: number
+  }) {
+    return this.memory.saveFact(input)
+  }
+  deleteMemoryFact(id: string, expectedRevision: number) {
+    return this.memory.deleteFact(id, expectedRevision)
+  }
+  searchMemory(query: string) {
+    return this.memory.search(query)
   }
 
   exportConversation(conversationId: string) {
@@ -966,11 +1049,29 @@ export class AiService {
     const controller = new AbortController()
     this.activeChats.set(pendingMessage.conversationId, controller)
     let streamedContent = ''
+    let prepared: Awaited<ReturnType<MemoryBridge['prepare']>> = null
+    let memoryAvailable = false
     try {
       const credential = this.getCredential(providerId)
       const messages = this.storage
         .getMessages(pendingMessage.conversationId)
         .slice(-settings.maxContextMessages)
+      const conversation = this.requireConversation(pendingMessage.conversationId)
+      const question =
+        [...messages].reverse().find((message) => message.role === 'user')?.content ?? ''
+      prepared = await this.memory.prepare(conversation, question)
+      memoryAvailable = Boolean(prepared && !prepared.unavailable)
+      const memoryProfileId = this.memory.getStatus().bindings[conversation.id]?.profileId
+      if (controller.signal.aborted) throw new DOMException('已停止生成', 'AbortError')
+      const memoryContext = prepared?.unavailable
+        ? '本轮记忆服务不可用。不能声称已读取历史或资料，也不能声称已保存、修改或删除记忆。若用户明确要求记住或忘记，请直接说明本轮未完成。'
+        : prepared?.text
+      const tools = [
+        ...(stockDataSession
+          ? [STOCK_DATA_TOOL, ...(stockSearchSession ? [STOCK_INFORMATION_SEARCH_TOOL] : [])]
+          : []),
+        ...(memoryAvailable ? MEMORY_TOOLS : [])
+      ]
       const result = await this.requireProvider(providerId).streamChat(
         credential,
         {
@@ -979,11 +1080,10 @@ export class AiService {
             messages,
             contexts,
             stockDataSession?.manifest,
-            Boolean(stockSearchSession)
+            Boolean(stockSearchSession),
+            memoryContext
           ),
-          tools: stockDataSession
-            ? [STOCK_DATA_TOOL, ...(stockSearchSession ? [STOCK_INFORMATION_SEARCH_TOOL] : [])]
-            : undefined
+          tools: tools.length ? tools : undefined
         },
         (delta) => {
           streamedContent = `${streamedContent}${delta}`
@@ -994,11 +1094,65 @@ export class AiService {
           })
         },
         controller.signal,
-        stockDataSession
+        stockDataSession || memoryAvailable
           ? async (call, signal) => {
+              if (memoryAvailable && call.name === 'search_memory') {
+                const args = JSON.parse(call.arguments) as { query: string }
+                return JSON.stringify(
+                  await this.memory.search(
+                    args.query,
+                    pendingMessage.conversationId,
+                    memoryProfileId
+                  )
+                )
+              }
+              if (memoryAvailable && call.name === 'read_source') {
+                const args = JSON.parse(call.arguments) as { kind: string; sourceId: string }
+                return JSON.stringify(
+                  await this.memory.readSource(
+                    args.kind,
+                    args.sourceId,
+                    pendingMessage.conversationId,
+                    memoryProfileId
+                  )
+                )
+              }
+              if (memoryAvailable && call.name === 'update_user_memory') {
+                const args = JSON.parse(call.arguments) as {
+                  action: string
+                  id?: string
+                  expectedRevision?: number
+                  key?: string
+                  content?: string
+                }
+                if (args.action === 'delete' && args.id && args.expectedRevision !== undefined) {
+                  await this.memory.deleteFact(args.id, args.expectedRevision, memoryProfileId)
+                  return JSON.stringify({ deleted: true })
+                }
+                if (
+                  (args.action === 'create' || args.action === 'update') &&
+                  args.key &&
+                  args.content &&
+                  (args.action === 'create' || (args.id && args.expectedRevision !== undefined))
+                ) {
+                  return JSON.stringify(
+                    await this.memory.saveFact(
+                      {
+                        id: args.id,
+                        expectedRevision: args.expectedRevision,
+                        key: args.key,
+                        content: args.content
+                      },
+                      memoryProfileId
+                    )
+                  )
+                }
+                return JSON.stringify({ error: '参数不足，请先检索记忆取得 id 和 revision' })
+              }
               if (call.name === STOCK_INFORMATION_SEARCH_TOOL_NAME && stockSearchSession) {
                 return stockSearchSession.execute(call, signal)
               }
+              if (!stockDataSession) throw new Error('工具不可用')
               const toolResult = await stockDataSession.execute(call, signal)
               this.storage.saveSnapshot(
                 stockDataSession.manifest.contextId,
@@ -1018,6 +1172,7 @@ export class AiService {
         ...pendingMessage,
         content,
         status: 'completed',
+        memoryState: prepared?.unavailable ? 'unavailable' : memoryAvailable ? 'used' : undefined,
         providerResponseId: result.responseId,
         contextRefs: stockDataSession?.contextRefs() ?? pendingMessage.contextRefs,
         sourceIds: citations?.map((citation) => citation.id),
@@ -1033,14 +1188,18 @@ export class AiService {
             ? removeUnknownCitationMarkers(streamedContent, citations)
             : streamedContent) || (stopped ? '已停止生成。' : ''),
         status: stopped ? 'stopped' : 'error',
+        memoryState: prepared?.unavailable ? 'unavailable' : memoryAvailable ? 'used' : undefined,
         contextRefs: stockDataSession?.contextRefs() ?? pendingMessage.contextRefs,
         sourceIds: citations?.map((citation) => citation.id),
         citations,
         errorMessage: stopped ? undefined : error instanceof Error ? error.message : 'AI 生成失败'
       }
-      this.storage.appendMessage(message)
-      this.touchConversation(message.conversationId)
-      this.send(webContents, 'ai:chat:error', { conversationId: message.conversationId, message })
+      if (this.storage.getConversation(message.conversationId)) {
+        this.storage.appendMessage(message)
+        this.touchConversation(message.conversationId)
+        this.syncMemoryConversation(message.conversationId)
+        this.send(webContents, 'ai:chat:error', { conversationId: message.conversationId, message })
+      }
     } finally {
       if (this.activeChats.get(pendingMessage.conversationId) === controller) {
         this.activeChats.delete(pendingMessage.conversationId)
@@ -1049,9 +1208,16 @@ export class AiService {
   }
 
   private completeMessage(webContents: WebContents, message: AiMessage): void {
+    if (!this.storage.getConversation(message.conversationId)) return
     this.storage.appendMessage(message)
     this.touchConversation(message.conversationId)
+    this.syncMemoryConversation(message.conversationId)
     this.send(webContents, 'ai:chat:completed', { conversationId: message.conversationId, message })
+  }
+
+  private syncMemoryConversation(conversationId: string): void {
+    const conversation = this.storage.getConversation(conversationId)
+    if (conversation) void this.memory.syncConversation(conversation).catch(() => undefined)
   }
 
   private touchConversation(conversationId: string): void {

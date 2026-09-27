@@ -57,6 +57,27 @@ export function installAi(dependencies: AiModuleDependencies): AiRuntime {
     service.deleteConversation(conversationId)
   )
   ipcMain.handle(AI_IPC.conversationsClear, () => service.clearConversations())
+  ipcMain.handle(AI_IPC.memoryStatus, () => service.getMemoryStatus())
+  ipcMain.handle(AI_IPC.memoryConnect, (_event, name: string, url: string, token: string) =>
+    service.connectMemory(name, url, token)
+  )
+  ipcMain.handle(AI_IPC.memorySelect, (_event, profileId: string | null) =>
+    service.selectMemory(profileId)
+  )
+  ipcMain.handle(AI_IPC.memoryConversationEnable, (_event, conversationId: string) =>
+    service.enableConversationMemory(conversationId)
+  )
+  ipcMain.handle(
+    AI_IPC.memoryConversationHistory,
+    (_event, conversationId: string, visible: boolean) =>
+      service.setConversationMemoryHistory(conversationId, visible)
+  )
+  ipcMain.handle(AI_IPC.memoryFactsList, (_event, query?: string) => service.listMemoryFacts(query))
+  ipcMain.handle(AI_IPC.memoryFactSave, (_event, input) => service.saveMemoryFact(input))
+  ipcMain.handle(AI_IPC.memoryFactDelete, (_event, id: string, revision: number) =>
+    service.deleteMemoryFact(id, revision)
+  )
+  ipcMain.handle(AI_IPC.memorySearch, (_event, query: string) => service.searchMemory(query))
   ipcMain.handle(AI_IPC.conversationExport, (_event, conversationId: string) =>
     service.exportConversation(conversationId)
   )

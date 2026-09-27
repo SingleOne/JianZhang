@@ -1,4 +1,5 @@
 import type { MarketInsightSnapshot, MarketNewsItem } from '../../market-insight/shared/types'
+import type { MemoryFact, MemoryProfile, MemorySearchResult, MemoryStatus } from './memory-types'
 import type {
   AppState,
   ChipDistributionCacheEntry,
@@ -231,6 +232,7 @@ export interface AiMessage {
   officialSearch?: boolean
   citations?: AiSourceCitation[]
   errorMessage?: string
+  memoryState?: 'used' | 'unavailable'
 }
 
 export interface AiSourceCitation {
@@ -419,6 +421,22 @@ export interface AiApi {
   onChatDelta: (listener: (event: AiChatDeltaEvent) => void) => () => void
   onChatCompleted: (listener: (event: AiChatCompletedEvent) => void) => () => void
   onChatError: (listener: (event: AiChatErrorEvent) => void) => () => void
+  getMemoryStatus: () => Promise<MemoryStatus>
+  connectMemory: (name: string, url: string, token: string) => Promise<MemoryProfile>
+  selectMemory: (profileId: string | null) => Promise<MemoryStatus>
+  enableConversationMemory: (conversationId: string) => Promise<void>
+  setConversationMemoryHistory: (conversationId: string, visible: boolean) => Promise<void>
+  listMemoryFacts: (query?: string) => Promise<MemoryFact[]>
+  saveMemoryFact: (input: {
+    id?: string
+    key: string
+    content: string
+    category?: string
+    pinned?: boolean
+    expectedRevision?: number
+  }) => Promise<MemoryFact>
+  deleteMemoryFact: (id: string, expectedRevision: number) => Promise<void>
+  searchMemory: (query: string) => Promise<MemorySearchResult[]>
 }
 
 export interface AiProviderRequestMessage {
