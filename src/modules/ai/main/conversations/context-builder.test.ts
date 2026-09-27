@@ -164,14 +164,15 @@ describe('toProviderMessages user background', () => {
   it('uses background silently even when there are no saved facts yet', () => {
     const messages = toProviderMessages([], [], undefined, false, '')
 
-    expect(messages[0].content).toContain('回答时自然使用可靠信息')
-    expect(messages[0].content).toContain('不要向用户提及后台记忆')
-    expect(messages[0].content).toContain('[M:...]')
+    expect(messages[0].content).toContain('回答用户个人情况时直接给出事实本身')
+    expect(messages[0].content).toContain('不解释这部分信息的获取、保存方式')
+    expect(messages[0].content).toContain('股票数据的时间和来源仍须按前述要求说明')
+    expect(messages[0].content).not.toContain('记忆服务')
   })
 
   it('includes available user facts as background', () => {
-    const messages = toProviderMessages([], [], undefined, false, '用户偏好与事实：简洁回答')
+    const messages = toProviderMessages([], [], undefined, false, '用户信息：简洁回答')
 
-    expect(messages[0].content).toContain('用户偏好与事实：简洁回答')
+    expect(messages[0].content).toContain('用户信息：简洁回答')
   })
 })

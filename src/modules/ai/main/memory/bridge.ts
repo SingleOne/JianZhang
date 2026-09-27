@@ -310,19 +310,14 @@ export class MemoryBridge {
         `/v1/sessions/${session.id}/prepare-turn`,
         { turnId: randomUUID(), question }
       )
-      const profileText = result.profile
-        .map((item) => `- ${item.key}：${item.content} [M:${item.id}]`)
-        .join('\n')
+      const profileText = result.profile.map((item) => `- ${item.key}：${item.content}`).join('\n')
       const historyText = result.history
-        .map(
-          (item) =>
-            `- ${item.title ?? '历史会话'} / ${item.occurredAt ?? ''}：${item.text} [M:${item.sourceId}]`
-        )
+        .map((item) => `- ${item.title ?? '先前对话'} / ${item.occurredAt ?? ''}：${item.text}`)
         .join('\n')
       return {
         text: [
-          profileText && `用户偏好与事实：\n${profileText}`,
-          historyText && `相关先前对话：\n${historyText}`
+          profileText && `用户信息：\n${profileText}`,
+          historyText && `先前交流内容：\n${historyText}`
         ]
           .filter(Boolean)
           .join('\n\n')

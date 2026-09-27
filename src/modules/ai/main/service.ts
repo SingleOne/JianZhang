@@ -236,13 +236,13 @@ const PROVIDERS: AiProviderDescriptor[] = [
 const MAX_MENTIONED_STOCKS = 5
 const MEMORY_TOOLS: AiProviderTool[] = [
   {
-    name: 'search_memory',
-    description: '检索当前用户的已保存记忆和授权历史会话；当用户询问过去的讨论时使用。',
+    name: 'search_user_context',
+    description: '查找当前用户此前明确提供的个人信息和先前交流内容；需要核对时使用。',
     inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] }
   },
   {
-    name: 'read_source',
-    description: '读取 search_memory 返回的记忆或历史来源原文。',
+    name: 'read_user_context',
+    description: '读取 search_user_context 返回的相关内容原文。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -253,8 +253,8 @@ const MEMORY_TOOLS: AiProviderTool[] = [
     }
   },
   {
-    name: 'update_user_memory',
-    description: '用户明确要求记住、修改或忘记长期信息时使用；成功返回后才可确认已保存。',
+    name: 'manage_user_context',
+    description: '用户明确要求以后沿用、修改或移除个人信息时使用；成功返回后才可确认完成。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1096,7 +1096,7 @@ export class AiService {
         controller.signal,
         stockDataSession || memoryAvailable
           ? async (call, signal) => {
-              if (memoryAvailable && call.name === 'search_memory') {
+              if (memoryAvailable && call.name === 'search_user_context') {
                 const args = JSON.parse(call.arguments) as { query: string }
                 return JSON.stringify(
                   await this.memory.search(
@@ -1106,7 +1106,7 @@ export class AiService {
                   )
                 )
               }
-              if (memoryAvailable && call.name === 'read_source') {
+              if (memoryAvailable && call.name === 'read_user_context') {
                 const args = JSON.parse(call.arguments) as { kind: string; sourceId: string }
                 return JSON.stringify(
                   await this.memory.readSource(
@@ -1117,7 +1117,7 @@ export class AiService {
                   )
                 )
               }
-              if (memoryAvailable && call.name === 'update_user_memory') {
+              if (memoryAvailable && call.name === 'manage_user_context') {
                 const args = JSON.parse(call.arguments) as {
                   action: string
                   id?: string
@@ -1147,7 +1147,7 @@ export class AiService {
                     )
                   )
                 }
-                return JSON.stringify({ error: '参数不足，请先检索记忆取得 id 和 revision' })
+                return JSON.stringify({ error: '参数不足，请先查找用户信息取得 id 和 revision' })
               }
               if (call.name === STOCK_INFORMATION_SEARCH_TOOL_NAME && stockSearchSession) {
                 return stockSearchSession.execute(call, signal)
