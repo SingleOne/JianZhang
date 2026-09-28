@@ -584,6 +584,26 @@ export class AiService {
   listMemoryFacts(query?: string) {
     return this.memory.listFacts(query)
   }
+  getMemoryMaintenanceStatus(conversationId?: string) {
+    return this.memory.maintenanceStatus(conversationId)
+  }
+  setMemoryMaintenanceEnabled(enabled: boolean) {
+    return this.memory.setMaintenanceEnabled(enabled)
+  }
+  listMemoryCandidates() {
+    return this.memory.listCandidates()
+  }
+  decideMemoryCandidate(
+    id: string,
+    decision: 'approve' | 'reject',
+    expectedRevision: number,
+    expectedFactRevision?: number
+  ) {
+    return this.memory.decideCandidate(id, decision, expectedRevision, expectedFactRevision)
+  }
+  retryMemoryMaintenance(conversationId: string) {
+    return this.memory.retryMaintenance(conversationId)
+  }
   saveMemoryFact(input: {
     id?: string
     key: string

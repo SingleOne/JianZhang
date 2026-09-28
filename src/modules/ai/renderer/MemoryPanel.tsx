@@ -10,6 +10,7 @@ import type {
   MemoryStatus
 } from '../shared/memory-types'
 import { KnowledgePanel } from './KnowledgePanel'
+import { MaintenancePanel } from './MaintenancePanel'
 
 interface Props {
   api: AiApi
@@ -22,6 +23,7 @@ export function MemoryPanel({ api, conversation }: Props) {
   const [results, setResults] = useState<MemorySearchResult[]>([])
   const [preview, setPreview] = useState<MemorySourceDetail | null>(null)
   const previewGeneration = useRef(0)
+  const identityGeneration = useRef(0)
   const [name, setName] = useState('本地记忆')
   const [url, setUrl] = useState('http://127.0.0.1:43127')
   const [token, setToken] = useState('')
@@ -34,27 +36,34 @@ export function MemoryPanel({ api, conversation }: Props) {
   const [message, setMessage] = useState('')
 
   const refresh = useCallback(async () => {
+    const generation = ++identityGeneration.current
     const next = await api.getMemoryStatus()
+    if (generation !== identityGeneration.current) return
     setStatus(next)
-    if (next.activeProfileId) setFacts(await api.listMemoryFacts())
-    else setFacts([])
+    if (next.activeProfileId) {
+      const loaded = await api.listMemoryFacts()
+      if (generation === identityGeneration.current) setFacts(loaded)
+    } else setFacts([])
   }, [api])
 
   useEffect(() => {
     let alive = true
+    const generation = ++identityGeneration.current
     void api
       .getMemoryStatus()
       .then(async (next) => {
-        if (!alive) return
+        if (!alive || generation !== identityGeneration.current) return
         setStatus(next)
         if (next.activeProfileId) {
           const loaded = await api.listMemoryFacts()
-          if (alive) setFacts(loaded)
+          if (alive && generation === identityGeneration.current) setFacts(loaded)
         }
       })
       .catch(
         (reason: unknown) =>
-          alive && setError(reason instanceof Error ? reason.message : '无法读取记忆状态')
+          alive &&
+          generation === identityGeneration.current &&
+          setError(reason instanceof Error ? reason.message : '无法读取记忆状态')
       )
     return () => {
       alive = false
@@ -76,6 +85,7 @@ export function MemoryPanel({ api, conversation }: Props) {
 
   const connect = () =>
     void run(async () => {
+      identityGeneration.current++
       previewGeneration.current++
       setResults([])
       setPreview(null)
@@ -86,6 +96,7 @@ export function MemoryPanel({ api, conversation }: Props) {
     })
   const select = (profileId: string | null) =>
     void run(async () => {
+      identityGeneration.current++
       previewGeneration.current++
       setResults([])
       setPreview(null)
@@ -308,6 +319,13 @@ export function MemoryPanel({ api, conversation }: Props) {
               </ul>
               {!facts.length ? <p>还没有用户记忆。</p> : null}
             </section>
+            <MaintenancePanel
+              key={`maintenance:${active.id}`}
+              api={api}
+              conversation={conversation}
+              facts={facts}
+              onFactsChange={refresh}
+            />
             <KnowledgePanel
               key={active.id}
               api={api}

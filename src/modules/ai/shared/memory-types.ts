@@ -28,6 +28,31 @@ export interface MemoryFact {
   updatedAt: string
 }
 
+export interface MemoryMaintenanceStatus {
+  configuration: 'ready' | 'unconfigured' | 'invalid'
+  enabled: boolean
+  jobs: Record<string, number>
+  pendingCandidates: number
+  session: {
+    summary: string
+    summaryThrough: number
+    lastSequence: number
+    state: 'idle' | 'pending' | 'running' | 'failed'
+    attempts: number
+    lastError: string | null
+  } | null
+}
+
+export interface MemoryCandidate {
+  id: string
+  key: string
+  content: string
+  category: string
+  evidence: string
+  revision: number
+  createdAt: string
+}
+
 export interface MemoryStatus {
   activeProfileId: string | null
   profiles: MemoryProfile[]

@@ -78,6 +78,21 @@ export function installAi(dependencies: AiModuleDependencies): AiRuntime {
       service.setConversationMemoryLibraries(conversationId, libraryIds)
   )
   ipcMain.handle(AI_IPC.memoryFactsList, (_event, query?: string) => service.listMemoryFacts(query))
+  ipcMain.handle(AI_IPC.memoryMaintenanceStatus, (_event, conversationId?: string) =>
+    service.getMemoryMaintenanceStatus(conversationId)
+  )
+  ipcMain.handle(AI_IPC.memoryMaintenanceEnabled, (_event, enabled: boolean) =>
+    service.setMemoryMaintenanceEnabled(enabled)
+  )
+  ipcMain.handle(AI_IPC.memoryCandidatesList, () => service.listMemoryCandidates())
+  ipcMain.handle(
+    AI_IPC.memoryCandidateDecide,
+    (_event, id: string, decision: 'approve' | 'reject', revision: number, factRevision?: number) =>
+      service.decideMemoryCandidate(id, decision, revision, factRevision)
+  )
+  ipcMain.handle(AI_IPC.memoryMaintenanceRetry, (_event, conversationId: string) =>
+    service.retryMemoryMaintenance(conversationId)
+  )
   ipcMain.handle(AI_IPC.memoryFactSave, (_event, input) => service.saveMemoryFact(input))
   ipcMain.handle(AI_IPC.memoryFactDelete, (_event, id: string, revision: number) =>
     service.deleteMemoryFact(id, revision)

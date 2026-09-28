@@ -3098,6 +3098,16 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
+.ai-memory-maintenance li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ai-memory-maintenance li > div:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .ai-memory-item-actions,
 .ai-memory-form-actions {
   display: flex;

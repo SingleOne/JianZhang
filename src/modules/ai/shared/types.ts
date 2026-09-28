@@ -1,8 +1,10 @@
 import type { MarketInsightSnapshot, MarketNewsItem } from '../../market-insight/shared/types'
 import type {
   MemoryDocument,
+  MemoryCandidate,
   MemoryFact,
   MemoryLibrary,
+  MemoryMaintenanceStatus,
   MemoryProfile,
   MemorySearchResult,
   MemorySourceDetail,
@@ -436,6 +438,16 @@ export interface AiApi {
   setConversationMemoryHistory: (conversationId: string, visible: boolean) => Promise<void>
   setConversationMemoryLibraries: (conversationId: string, libraryIds: string[]) => Promise<void>
   listMemoryFacts: (query?: string) => Promise<MemoryFact[]>
+  getMemoryMaintenanceStatus: (conversationId?: string) => Promise<MemoryMaintenanceStatus>
+  setMemoryMaintenanceEnabled: (enabled: boolean) => Promise<{ enabled: boolean }>
+  listMemoryCandidates: () => Promise<MemoryCandidate[]>
+  decideMemoryCandidate: (
+    id: string,
+    decision: 'approve' | 'reject',
+    expectedRevision: number,
+    expectedFactRevision?: number
+  ) => Promise<void>
+  retryMemoryMaintenance: (conversationId: string) => Promise<{ queued: boolean }>
   saveMemoryFact: (input: {
     id?: string
     key: string

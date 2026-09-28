@@ -5,10 +5,12 @@ import { safeStorage } from 'electron'
 import { atomicWriteFileSync, atomicWriteJsonSync } from '../../../../../electron/main/file-storage'
 import type { AiConversation } from '../../shared/types'
 import type {
+  MemoryCandidate,
   MemoryFact,
   MemoryDocument,
   MemoryIdentity,
   MemoryLibrary,
+  MemoryMaintenanceStatus,
   MemoryProfile,
   MemorySearchResult,
   MemorySourceDetail,
@@ -313,6 +315,8 @@ export class MemoryBridge {
       const session = await this.sync(profile, binding, conversation)
       const result = await this.request<{
         profile: MemoryFact[]
+        summary: string
+        summaryThrough: number
         history: MemorySearchResult[]
         documents: MemorySearchResult[]
       }>(profile, 'POST', `/v1/sessions/${session.id}/prepare-turn`, {
@@ -330,6 +334,8 @@ export class MemoryBridge {
       return {
         text: [
           profileText && `用户信息：\n${profileText}`,
+          result.summary &&
+            `当前会话较早内容概要（已覆盖至消息序号 ${result.summaryThrough}）：\n${result.summary.slice(0, 2000)}`,
           historyText && `先前交流内容：\n${historyText}`,
           documentText && `资料文件内容：\n${documentText}`
         ]
@@ -536,6 +542,72 @@ export class MemoryBridge {
       `/v1/profile/facts?q=${encodeURIComponent(query)}`
     )
     return result.facts
+  }
+  async maintenanceStatus(conversationId?: string): Promise<MemoryMaintenanceStatus> {
+    const profile = this.active()
+    if (!profile) throw new Error('记忆功能未启用')
+    await this.assertIdentity(profile)
+    const binding = conversationId ? this.state.bindings[conversationId] : undefined
+    const sessionId =
+      binding?.profileId === profile.id && !binding.pendingDelete ? binding.sessionId : undefined
+    return this.request(
+      profile,
+      'GET',
+      `/v1/maintenance/status${sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : ''}`
+    )
+  }
+  async setMaintenanceEnabled(enabled: boolean): Promise<{ enabled: boolean }> {
+    const profile = this.active()
+    if (!profile) throw new Error('记忆功能未启用')
+    await this.assertIdentity(profile)
+    return this.request(profile, 'PATCH', '/v1/maintenance/settings', {
+      operationId: randomUUID(),
+      enabled
+    })
+  }
+  async listCandidates(): Promise<MemoryCandidate[]> {
+    const profile = this.active()
+    if (!profile) return []
+    await this.assertIdentity(profile)
+    const result = await this.request<{ candidates: MemoryCandidate[] }>(
+      profile,
+      'GET',
+      '/v1/profile/candidates'
+    )
+    return result.candidates
+  }
+  async decideCandidate(
+    id: string,
+    decision: 'approve' | 'reject',
+    expectedRevision: number,
+    expectedFactRevision?: number
+  ): Promise<void> {
+    const profile = this.active()
+    if (!profile) throw new Error('记忆功能未启用')
+    await this.assertIdentity(profile)
+    await this.request(profile, 'POST', `/v1/profile/candidates/${id}/decision`, {
+      operationId: randomUUID(),
+      decision,
+      expectedRevision,
+      expectedFactRevision
+    })
+  }
+  async retryMaintenance(conversationId: string): Promise<{ queued: boolean }> {
+    const profile = this.active()
+    const binding = this.state.bindings[conversationId]
+    if (
+      !profile ||
+      !binding ||
+      binding.profileId !== profile.id ||
+      !binding.sessionId ||
+      binding.pendingDelete
+    )
+      throw new Error('当前会话尚未同步到记忆服务')
+    await this.assertIdentity(profile)
+    return this.request(profile, 'POST', '/v1/maintenance/retry', {
+      operationId: randomUUID(),
+      sessionId: binding.sessionId
+    })
   }
   async saveFact(
     input: {
