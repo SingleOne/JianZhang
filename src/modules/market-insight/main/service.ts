@@ -179,6 +179,17 @@ export class MarketInsightService {
     clearInterval(this.newsScheduleTimer)
   }
 
+  async clearCache(quoteId: string): Promise<void> {
+    const refresh = this.refreshes.get(quoteId)
+    const newsRefresh = this.newsRefreshes.get(quoteId)
+    await Promise.allSettled([refresh, newsRefresh].filter(Boolean))
+    this.scheduler.clear(quoteId)
+    this.snapshots.delete(quoteId)
+    this.snapshotPersistedAt.delete(quoteId)
+    delete this.newsIndex[quoteId]
+    this.storage.clearCache(quoteId)
+  }
+
   async getSnapshot(quoteId: string): Promise<MarketInsightSnapshot | null> {
     const memory = this.snapshots.get(quoteId)
     if (memory) return this.currentSnapshotState({ ...memory, events: this.listEvents(quoteId) })

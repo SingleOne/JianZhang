@@ -55,6 +55,27 @@ export class QuoteSnapshotCache {
     }
   }
 
+  clear(quoteId: string): void {
+    if (existsSync(this.snapshotPath)) {
+      const snapshot = JSON.parse(readFileSync(this.snapshotPath, 'utf8')) as StoredQuoteSnapshot
+      if (
+        snapshot.schemaVersion !== QUOTE_SNAPSHOT_SCHEMA_VERSION ||
+        !Array.isArray(snapshot.quotes)
+      ) {
+        throw new Error('行情快照格式无效')
+      }
+      const quotes = snapshot.quotes.filter((quote) => quote.quoteId !== quoteId)
+      atomicWriteJsonSync(
+        this.snapshotPath,
+        { schemaVersion: QUOTE_SNAPSHOT_SCHEMA_VERSION, savedAt: new Date().toISOString(), quotes },
+        false
+      )
+    }
+    if (this.pendingQuotes) {
+      this.pendingQuotes = this.pendingQuotes.filter((quote) => quote.quoteId !== quoteId)
+    }
+  }
+
   scheduleSave(quotes: readonly StockQuote[]): void {
     if (this.disposed) return
     this.pendingQuotes = quotes.map(quoteForCache)

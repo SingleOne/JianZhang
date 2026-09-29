@@ -64,6 +64,7 @@ import { SecEdgarClient } from './sec-edgar-client'
 import { ShareholderService } from './shareholder-service'
 import { StateStore, StateStoreRevisionConflictError } from './state-store'
 import { StockTrackingMetricsRuntime } from './stock-tracking-metrics-runtime'
+import { StockCacheMaintenanceService } from './stock-cache-maintenance-service'
 import { StockTrackingArchiveStore } from './stock-tracking-archive-store'
 import { TradingCalendarRuntime } from './trading-calendar-runtime'
 import { UserDataBackupService } from './user-data-backup-service'
@@ -689,6 +690,26 @@ if (!hasSingleInstanceLock) {
       },
       marketRequestLogger
     })
+    const stockCacheMaintenanceService = new StockCacheMaintenanceService(app.getPath('userData'), {
+      clearKlines: (quoteId) => klineHub!.clear(quoteId),
+      clearQuotes: (quoteId) => {
+        quoteSnapshotCache.clear(quoteId)
+        quoteRuntime!.clearQuote(quoteId)
+      },
+      clearMarketDetails: async (quoteId) => {
+        chipDistributionCache!.clear(quoteId)
+        await Promise.all([
+          sectorMarketCache.clear(quoteId),
+          fundsFlowHub!.clear(quoteId),
+          orderBookHub.clear(quoteId)
+        ])
+      },
+      clearShareholders: (quoteId) => shareholderService!.clear(quoteId),
+      clearValuations: (quoteId) => valuationHistoryService!.clear(quoteId),
+      clearMarketInsight: async (quoteId) => {
+        await marketInsightRuntime?.clearCache(quoteId)
+      }
+    })
     disposeIpcHandlers = registerIpcHandlers({
       getState: () => state,
       setState: (nextState) => {
@@ -829,6 +850,8 @@ if (!hasSingleInstanceLock) {
         }, 300)
         return result
       },
+      clearStockCaches: (quoteId, categoryIds) =>
+        stockCacheMaintenanceService.clear(quoteId, categoryIds),
       createUserDataBackup: (_stateToExport, applicationVersion) =>
         userDataBackupService!.create(
           stateStore!.exportCommittedState(),

@@ -93,6 +93,7 @@ import {
   volumeUnitForMarket
 } from '../shared/stock-market'
 import { LruCache } from '../shared/lru-cache'
+import type { StockCacheCategoryId } from '../shared/stock-cache'
 import type {
   DividendFinancingRankingItem,
   CorporateActionRecord,
@@ -110,13 +111,14 @@ import type {
   TradingCalendarSettings,
   WatchStock
 } from '../shared/types'
-import { FundsFlowPanel } from './FundsFlowPanel'
+import { FundsFlowPanel, clearFundsFlowCache } from './FundsFlowPanel'
 import { ChipDistributionPanel } from './ChipDistributionPanel'
 import { CompanyReportLibrary, FundamentalReadingGuide } from './CompanyReportLibrary'
 import { InvestmentValueMetrics } from './InvestmentValueMetrics'
 import { OrderBookPanel } from './OrderBookPanel'
 import { ShareholderPanel } from './ShareholderPanel'
 import { StockTrackingPanel } from './StockTrackingPanel'
+import { StockCacheDialog } from './StockCacheDialog'
 import type { KlineVisibleRange, KlineVisibleRangeSource } from './PeriodKlineChart'
 import type { MarketInsightSnapshot } from '../modules/market-insight/shared/types'
 import type { AiAnalysisType } from '../modules/ai/shared/types'
@@ -1943,6 +1945,10 @@ export function ExpandedStockDetails({
   const [loadingTab, setLoadingTab] = useState<PriceTab | null>(initialTrend ? null : 'trend')
   const [errors, setErrors] = useState<Partial<Record<PriceTab, string>>>({})
   const [refreshVersion, setRefreshVersion] = useState(0)
+  const [stockCacheDialogOpen, setStockCacheDialogOpen] = useState(false)
+  const [cacheRevisions, setCacheRevisions] = useState<
+    Partial<Record<StockCacheCategoryId, number>>
+  >({})
   const [hoveredBar, setHoveredBar] = useState<KlineBar | null>(null)
   const [historyLimits, setHistoryLimits] = useState<Record<HistoricalPeriod, number>>({
     ...INITIAL_HISTORY_LIMITS
@@ -2294,6 +2300,37 @@ export function ExpandedStockDetails({
     setRefreshVersion((current) => current + 1)
   }
 
+  const handleStockCachesCleared = async (ids: StockCacheCategoryId[]): Promise<string | null> => {
+    if (ids.includes('klines')) {
+      for (const scope of new Set([cacheScope, 'watchlist', 'daily-scan'])) {
+        for (const tab of PRICE_TABS) klineCache.delete(cacheKey(scope, stock.quoteId, tab.id))
+      }
+      setDataByTab({})
+      setHoveredBar(null)
+      setErrors({})
+      setRefreshVersion((current) => current + 1)
+    }
+    if (ids.includes('market-details')) {
+      clearFundsFlowCache(stock.quoteId)
+      const sector = await import('./SectorIndexPanel')
+      sector.clearSectorIndexCache(stock.quoteId)
+    }
+    if (ids.includes('market-insight')) setMarketInsightSnapshot(null)
+    setCacheRevisions((current) => {
+      const next = { ...current }
+      for (const id of ids) next[id] = (next[id] ?? 0) + 1
+      return next
+    })
+    if (ids.includes('quotes')) {
+      try {
+        await stockApi.refreshQuote(stock.quoteId)
+      } catch (reason) {
+        return `缓存已清理，但行情重新获取失败：${reason instanceof Error ? reason.message : '网络暂不可用'}`
+      }
+    }
+    return null
+  }
+
   const changeDetailTab = (nextTab: DetailTab, button: HTMLButtonElement) => {
     if (nextTab === activeTab) return
 
@@ -2480,6 +2517,13 @@ export function ExpandedStockDetails({
         ) : null}
       </div>
 
+      <div className="stock-cache-toolbar">
+        <button className="secondary-button" type="button" onClick={() => setStockCacheDialogOpen(true)}>
+          <Database size={14} />
+          清理缓存
+        </button>
+      </div>
+
       <div className="detail-tab-content" aria-hidden="true" />
       {capabilities.dividendFinancing && activeTab === 'dividendFinancing' ? (
         <div className="dividend-financing-tab-content" role="tabpanel">
@@ -2492,6 +2536,7 @@ export function ExpandedStockDetails({
         <div className="fundamental-tab-content" role="tabpanel">
           {isAStock ? (
             <FundamentalPanel
+              key={cacheRevisions.valuations ?? 0}
               evaluation={fundamentalScreening}
               quoteId={stock.quoteId}
               quote={quote}
@@ -2506,17 +2551,18 @@ export function ExpandedStockDetails({
             </div>
           ) : (
             <Suspense fallback={<div className="global-fundamental-empty">正在加载财务概览…</div>}>
-              <GlobalFundamentalPanel stock={stock} />
+              <GlobalFundamentalPanel key={cacheRevisions['company-reports'] ?? 0} stock={stock} />
             </Suspense>
           )}
         </div>
       ) : capabilities.shareholders && activeTab === 'shareholders' ? (
-        <ShareholderPanel stock={stock} />
+        <ShareholderPanel key={cacheRevisions.shareholders ?? 0} stock={stock} />
       ) : capabilities.companyReports && activeTab === 'reports' ? (
-        <CompanyReportLibrary stock={stock} />
+        <CompanyReportLibrary key={cacheRevisions['company-reports'] ?? 0} stock={stock} />
       ) : capabilities.corporateActions && activeTab === 'corporateActions' ? (
         <Suspense fallback={<div className="corporate-action-empty">正在加载公司行动…</div>}>
           <CorporateActionPanel
+            key={cacheRevisions['corporate-actions'] ?? 0}
             stock={stock}
             account={tradingAccount}
             records={corporateActionRecords}
@@ -2694,12 +2740,14 @@ export function ExpandedStockDetails({
             </div>
             {priceTab === 'trend' && capabilities.orderBook ? (
               <OrderBookPanel
+                key={cacheRevisions['market-details'] ?? 0}
                 stock={stock}
                 refreshSeconds={refreshSeconds}
                 autoRefresh={autoRefreshOrderBook}
               />
             ) : priceTab === 'daily' && chipDistributionEnabled && capabilities.chipDistribution ? (
               <ChipDistributionPanel
+                key={cacheRevisions['market-details'] ?? 0}
                 quoteId={stock.quoteId}
                 quoteName={stock.name}
                 bars={chipBars}
@@ -2713,17 +2761,18 @@ export function ExpandedStockDetails({
         </div>
       ) : capabilities.fundsFlow && activeTab === 'funds' ? (
         <div className="funds-tab-panel" role="tabpanel">
-          <FundsFlowPanel stock={stock} />
+          <FundsFlowPanel key={cacheRevisions['market-details'] ?? 0} stock={stock} />
         </div>
       ) : capabilities.sector && activeTab === 'sector' ? (
         <div className="sector-tab-panel" role="tabpanel">
           <Suspense fallback={<div className="chart-loading">正在加载板块详情…</div>}>
-            <SectorIndexPanel stock={stock} />
+            <SectorIndexPanel key={cacheRevisions['market-details'] ?? 0} stock={stock} />
           </Suspense>
         </div>
       ) : capabilities.aiAnalysis && activeTab === 'ai' && AiAnalysisPanel ? (
         <Suspense fallback={<div className="chart-loading">正在初始化 AI 分析…</div>}>
           <AiAnalysisPanel
+            key={cacheRevisions['ai-interpretations'] ?? 0}
             stock={stock}
             quote={quote}
             analysisType={aiAnalysisType}
@@ -2737,6 +2786,7 @@ export function ExpandedStockDetails({
       ) : capabilities.marketInsight && MarketInsightPanel ? (
         <Suspense fallback={<div className="chart-loading">正在初始化市场观察…</div>}>
           <MarketInsightPanel
+            key={cacheRevisions['market-insight'] ?? 0}
             stock={stock}
             quote={quote}
             fundamentalCompany={fundamentalScreening?.company}
@@ -2746,6 +2796,14 @@ export function ExpandedStockDetails({
             onChartOverlayEnabledChange={setShowInsightOverlay}
           />
         </Suspense>
+      ) : null}
+      {stockCacheDialogOpen ? (
+        <StockCacheDialog
+          key={stock.quoteId}
+          stock={stock}
+          onClose={() => setStockCacheDialogOpen(false)}
+          onCleared={handleStockCachesCleared}
+        />
       ) : null}
     </section>
   )

@@ -37,6 +37,7 @@ export interface MarketInsightDependencies {
 
 export interface MarketInsightRuntime {
   dispose: () => void
+  clearCache: (quoteId: string) => Promise<void>
   getSnapshot: (quoteId: string) => ReturnType<MarketInsightService['getSnapshot']>
   refreshSnapshot: (quoteId: string) => ReturnType<MarketInsightService['refresh']>
   searchOfficialNews: (query: NewsQuery) => ReturnType<MarketNewsRegistry['fetch']>
@@ -94,6 +95,7 @@ export function installMarketInsight(
   })
 
   return {
+    clearCache: (quoteId) => service.clearCache(quoteId),
     getSnapshot: (quoteId) => service.getSnapshot(quoteId),
     refreshSnapshot: (quoteId) => service.refresh(quoteId, true),
     searchOfficialNews: (query) => news.fetch(query),

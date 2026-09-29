@@ -15,6 +15,7 @@ import {
 } from '../../src/lib/t-alerts'
 import { applyStockAlertTriggers, type TriggeredStockAlert } from '../../src/lib/stock-alerts'
 import { parseConfigDocument } from '../../src/shared/config'
+import type { StockCacheCategoryId, StockCacheClearResult } from '../../src/shared/stock-cache'
 import {
   JIANZHANG_USER_DATA_BACKUP_FORMAT,
   type JianzhangUserDataBackupDocument
@@ -170,6 +171,10 @@ interface IpcHandlerDependencies {
   ) => AppCompletionNotification[]
   getCacheSummary: () => Promise<CacheSummary>
   clearCaches: (categoryIds: CacheCategoryId[]) => Promise<CacheClearResult>
+  clearStockCaches: (
+    quoteId: string,
+    categoryIds: StockCacheCategoryId[]
+  ) => Promise<StockCacheClearResult>
   createUserDataBackup: (
     state: AppState,
     applicationVersion: string
@@ -268,6 +273,7 @@ const CHANNELS = [
   'completion-notifications:save',
   'cache:summary',
   'cache:clear',
+  'stock-cache:clear',
   'config:export',
   'config:import',
   'config:import:apply',
@@ -517,6 +523,9 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
   ipcMain.handle('cache:summary', () => dependencies.getCacheSummary())
   ipcMain.handle('cache:clear', (_event, categoryIds: CacheCategoryId[]) =>
     dependencies.clearCaches(categoryIds)
+  )
+  ipcMain.handle('stock-cache:clear', (_event, quoteId: string, categoryIds: StockCacheCategoryId[]) =>
+    dependencies.clearStockCaches(quoteId, categoryIds)
   )
   ipcMain.handle('config:export', async (_event, _stateToExport: AppState) => {
     const options: SaveDialogOptions = {

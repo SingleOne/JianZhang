@@ -2925,6 +2925,10 @@ export interface StockDesktopApi {
   applyConfigImport: (importId: string) => Promise<void>
   getCacheSummary: () => Promise<CacheSummary>
   clearCaches: (categoryIds: CacheCategoryId[]) => Promise<CacheClearResult>
+  clearStockCaches: (
+    quoteId: string,
+    categoryIds: import('./stock-cache').StockCacheCategoryId[]
+  ) => Promise<import('./stock-cache').StockCacheClearResult>
   getGitHubSyncSettings: () => Promise<GitHubSyncSettings>
   startGitHubLogin: () => Promise<GitHubDeviceAuthorization>
   completeGitHubLogin: (loginId: string) => Promise<GitHubLoginResult>

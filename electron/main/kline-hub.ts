@@ -79,6 +79,17 @@ export class KlineHub {
     )
   }
 
+  clear(quoteId: string): Promise<void> {
+    return this.enqueue(async () => {
+      this.historicalCache.clear(quoteId)
+      this.liveCache.delete(liveCacheKey(quoteId, 'intraday'))
+      this.liveCache.delete(liveCacheKey(quoteId, 'fiveDay'))
+      for (const key of this.requests.keys()) {
+        if (key.startsWith(`${quoteId}:`)) this.requests.delete(key)
+      }
+    })
+  }
+
   private getCached(quoteId: string, period: KlinePeriod, limit: number): KlineResult | null {
     if (isHistoricalPeriod(period)) {
       return this.historicalCache.get(quoteId, period, limit, this.getCalendar(quoteId))
@@ -138,7 +149,7 @@ export class KlineHub {
     }
   }
 
-  private enqueue(load: () => Promise<KlineResult>): Promise<KlineResult> {
+  private enqueue<T>(load: () => Promise<T>): Promise<T> {
     const request = this.requestQueue.then(load)
     this.requestQueue = request.then(
       () => undefined,

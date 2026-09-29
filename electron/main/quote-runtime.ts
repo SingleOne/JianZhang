@@ -75,6 +75,13 @@ export class QuoteRuntime {
     return this.latestQuotes
   }
 
+  clearQuote(quoteId: string): void {
+    this.latestQuotes = this.latestQuotes.filter((quote) => quote.quoteId !== quoteId)
+    this.dependencies.scheduleQuoteSnapshot(this.latestQuotes)
+    this.dependencies.publishQuotes(this.latestQuotes)
+    this.dependencies.sendToWindows('quotes:updated', this.latestQuotes)
+  }
+
   refreshAll(reason = 'manual'): Promise<StockQuote[]> {
     return this.coordinator.request({ scope: 'all', reason })
   }

@@ -36,6 +36,11 @@ export class FundsFlowHub {
     return this.requests.get(quoteId) ?? this.startRequest(quoteId, caller)
   }
 
+  async clear(quoteId: string): Promise<void> {
+    await this.requests.get(quoteId)?.catch(() => undefined)
+    this.cache.delete(quoteId)
+  }
+
   private startRequest(quoteId: string, caller: string): Promise<FundsFlowResult> {
     const request = this.enqueue(() => this.fetchFundsFlow(quoteId, caller)).then((data) => {
       this.cache.set(quoteId, { data, cachedAt: Date.now() })

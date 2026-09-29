@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ShareholderSnapshot } from '../../src/shared/types'
 import { atomicWriteJsonSync } from './file-storage'
@@ -48,6 +48,13 @@ export class ShareholderService {
     })
     this.requests.set(quoteId, request)
     return request
+  }
+
+  async clear(quoteId: string): Promise<void> {
+    await this.requests.get(quoteId)?.catch(() => undefined)
+    const path = this.path(quoteId)
+    if (existsSync(path)) unlinkSync(path)
+    this.memory.delete(quoteId)
   }
 
   private async fetchAndPersist(

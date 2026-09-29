@@ -58,6 +58,13 @@ export class SectorMarketCache {
     return results.some((result) => result.status === 'fulfilled')
   }
 
+  async clear(stockQuoteId: string): Promise<void> {
+    await this.bindingRequests.get(stockQuoteId)?.catch(() => undefined)
+    this.bindingFailures.delete(stockQuoteId)
+    if (!this.bindings.delete(stockQuoteId)) return
+    this.saveBindings()
+  }
+
   ensureBinding(stockQuoteId: string): Promise<SectorBinding> {
     const cached = this.getFreshBinding(stockQuoteId)
     if (cached) return Promise.resolve(cached)

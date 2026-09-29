@@ -91,6 +91,20 @@ export class MarketInsightStorage {
     this.write('news-index.json', index)
   }
 
+  clearCache(quoteId: string): void {
+    const prefix = `${encodeURIComponent(quoteId)}-`
+    for (const name of readdirSync(this.cacheDirectory)) {
+      if (name.startsWith(prefix) && name.endsWith('.json')) {
+        unlinkSync(join(this.cacheDirectory, name))
+      }
+    }
+    const index = this.loadNewsIndex()
+    if (quoteId in index) {
+      delete index[quoteId]
+      this.saveNewsIndex(index)
+    }
+  }
+
   loadNews(quoteId: string): MarketNewsItem[] {
     return this.loadCache<MarketNewsItem[]>(quoteId, 'news', 'timeline-v1')?.value ?? []
   }

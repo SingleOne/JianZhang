@@ -22,6 +22,12 @@ export class ChipDistributionCache {
     return this.entries[quoteId] ?? null
   }
 
+  clear(quoteId: string): void {
+    if (!(quoteId in this.entries)) return
+    delete this.entries[quoteId]
+    atomicWriteJsonSync(this.filePath, { version: 1, entries: this.entries })
+  }
+
   save(entry: ChipDistributionCacheEntry): ChipDistributionCacheEntry {
     this.entries[entry.quoteId] = entry
     const file: ChipDistributionCacheFile = { version: 1, entries: this.entries }

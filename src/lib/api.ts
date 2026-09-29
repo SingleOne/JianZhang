@@ -1071,6 +1071,12 @@ const demoApi: StockDesktopApi = {
       failedPaths: []
     }
   },
+  async clearStockCaches(_quoteId, categoryIds) {
+    return {
+      cleared: [],
+      failed: categoryIds.map((id) => ({ id, message: '演示模式没有可清理的本地缓存' }))
+    }
+  },
   async getGitHubSyncSettings() {
     return {
       oauthAvailable: false,

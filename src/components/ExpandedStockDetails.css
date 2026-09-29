@@ -2168,6 +2168,21 @@
   background: #eaf2ff;
 }
 
+.stock-cache-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: -6px 0 10px;
+}
+
+.stock-cache-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
 .market-insight-panel {
   display: grid;
   gap: 14px;

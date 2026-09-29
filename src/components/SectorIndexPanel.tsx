@@ -19,6 +19,10 @@ interface SectorIndexCacheEntry {
 
 const sectorIndexCache = new Map<string, SectorIndexCacheEntry>()
 
+export function clearSectorIndexCache(quoteId: string): void {
+  sectorIndexCache.delete(quoteId)
+}
+
 interface SectorIndexPanelProps {
   stock: WatchStock
 }

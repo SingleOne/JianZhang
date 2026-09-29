@@ -18,6 +18,7 @@ import type {
 import { installMarketInsightPreload } from '../../src/modules/market-insight/preload/register'
 import { installAiPreload } from '../../src/modules/ai/preload/register'
 import { installAiTAdvicePreload } from '../../src/modules/ai-t-advice/preload/register'
+import type { StockCacheCategoryId, StockCacheClearResult } from '../../src/shared/stock-cache'
 
 function subscribe<T>(channel: string, callback: (payload: T) => void): () => void {
   const listener = (_event: Electron.IpcRendererEvent, payload: T): void => callback(payload)
@@ -105,6 +106,8 @@ const api: StockDesktopApi = {
   getCacheSummary: () => ipcRenderer.invoke('cache:summary') as Promise<CacheSummary>,
   clearCaches: (categoryIds: CacheCategoryId[]) =>
     ipcRenderer.invoke('cache:clear', categoryIds) as Promise<CacheClearResult>,
+  clearStockCaches: (quoteId: string, categoryIds: StockCacheCategoryId[]) =>
+    ipcRenderer.invoke('stock-cache:clear', quoteId, categoryIds) as Promise<StockCacheClearResult>,
   getGitHubSyncSettings: () => ipcRenderer.invoke('github-sync:settings:get'),
   startGitHubLogin: () => ipcRenderer.invoke('github-sync:login:start'),
   completeGitHubLogin: (loginId) => ipcRenderer.invoke('github-sync:login:complete', loginId),

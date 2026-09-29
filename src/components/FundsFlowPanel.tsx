@@ -18,6 +18,10 @@ interface FundsFlowCacheEntry {
 
 const fundsFlowCache = new Map<string, FundsFlowCacheEntry>()
 
+export function clearFundsFlowCache(quoteId: string): void {
+  fundsFlowCache.delete(quoteId)
+}
+
 interface FundsFlowPanelProps {
   stock: WatchStock
 }

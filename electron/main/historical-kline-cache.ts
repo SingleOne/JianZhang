@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, utimesSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, utimesSync } from 'node:fs'
 import { join } from 'node:path'
 import { isAfterMarketClose, isMarketOpen, marketDateKey } from '../../src/shared/market-hours'
 import type { MarketCalendarDates } from '../../src/shared/market-calendar'
@@ -105,6 +105,14 @@ export class HistoricalKlineCache {
 
   getFallback(quoteId: string, period: HistoricalKlinePeriod): KlineResult | null {
     return this.read(quoteId, period)?.data ?? null
+  }
+
+  clear(quoteId: string): void {
+    for (const period of ['daily', 'weekly', 'monthly'] as const) {
+      const path = join(this.directory, cacheFileName(quoteId, period))
+      if (existsSync(path)) unlinkSync(path)
+      this.entries.delete(cacheKey(quoteId, period))
+    }
   }
 
   save(

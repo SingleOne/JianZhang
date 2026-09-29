@@ -1,5 +1,5 @@
 import { net } from 'electron'
-import { existsSync, mkdirSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import type { StockValuationHistory } from '../../src/shared/types'
 import { atomicWriteJsonSync } from './file-storage'
@@ -98,6 +98,12 @@ export class ValuationHistoryService {
     this.memory.set(quoteId, entry)
     atomicWriteJsonSync(this.path(quoteId), entry, false)
     return entry
+  }
+
+  clear(quoteId: string): void {
+    const path = this.path(quoteId)
+    if (existsSync(path)) unlinkSync(path)
+    this.memory.delete(quoteId)
   }
 
   private path(quoteId: string): string {
