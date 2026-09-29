@@ -77,7 +77,13 @@ export function installAiPreload(): void {
       invoke(AI_IPC.memoryDocumentUpload, name, bytes, libraryId, existing),
     publishMemoryDocumentKeyword: (documentId, versionId, revision) =>
       invoke(AI_IPC.memoryDocumentPublishKeyword, documentId, versionId, revision),
-    deleteMemoryDocument: (id, revision) => invoke(AI_IPC.memoryDocumentDelete, id, revision)
+    deleteMemoryDocument: (id, revision) => invoke(AI_IPC.memoryDocumentDelete, id, revision),
+    listMemoryDocumentJobs: (documentId) => invoke(AI_IPC.memoryDocumentJobsList, documentId),
+    getMemoryDocumentJob: (jobId) => invoke(AI_IPC.memoryDocumentJobGet, jobId),
+    createMemoryDocumentJob: (documentId, versionId, revision, kind) =>
+      invoke(AI_IPC.memoryDocumentJobCreate, documentId, versionId, revision, kind),
+    retryMemoryDocumentJob: (job) => invoke(AI_IPC.memoryDocumentJobRetry, job),
+    cancelMemoryDocumentJob: (job) => invoke(AI_IPC.memoryDocumentJobCancel, job)
   }
   contextBridge.exposeInMainWorld('aiApi', api)
 }

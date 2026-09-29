@@ -53,7 +53,12 @@ export const AI_IPC = {
   memoryDocumentsList: 'ai:memory:documents:list',
   memoryDocumentUpload: 'ai:memory:document:upload',
   memoryDocumentPublishKeyword: 'ai:memory:document:publish-keyword',
-  memoryDocumentDelete: 'ai:memory:document:delete'
+  memoryDocumentDelete: 'ai:memory:document:delete',
+  memoryDocumentJobsList: 'ai:memory:document-jobs:list',
+  memoryDocumentJobGet: 'ai:memory:document-job:get',
+  memoryDocumentJobCreate: 'ai:memory:document-job:create',
+  memoryDocumentJobRetry: 'ai:memory:document-job:retry',
+  memoryDocumentJobCancel: 'ai:memory:document-job:cancel'
 } as const
 
 export const AI_DEFAULT_MODELS = {

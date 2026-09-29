@@ -6,8 +6,11 @@ import { atomicWriteFileSync, atomicWriteJsonSync } from '../../../../../electro
 import type { AiConversation } from '../../shared/types'
 import type {
   MemoryCandidate,
+  MemoryCapabilities,
   MemoryFact,
   MemoryDocument,
+  MemoryDocumentJobState,
+  MemoryDocumentProcessingJob,
   MemoryIdentity,
   MemoryLibrary,
   MemoryMaintenanceStatus,
@@ -88,6 +91,16 @@ export class MemoryBridge {
       )
     }
   }
+  async refreshCapabilities(): Promise<void> {
+    const profile = this.active()
+    if (!profile) return
+    const capabilities = await this.request<MemoryCapabilities>(profile, 'GET', '/v1/capabilities')
+    this.assertActiveProfile(profile)
+    if (capabilities.apiVersion !== 'v1' || !capabilities.profile || !capabilities.sessions)
+      throw new Error('记忆服务版本或能力不兼容')
+    profile.capabilities = capabilities
+    this.save()
+  }
   async connect(name: string, address: string, token: string): Promise<MemoryProfile> {
     const url = new URL(address)
     if (
@@ -102,11 +115,12 @@ export class MemoryBridge {
       throw new Error('当前版本只支持本机 HTTP 记忆服务地址')
     const base = url.origin
     const identity = await this.raw<MemoryIdentity>(base, token.trim(), 'GET', '/v1/me')
-    const capabilities = await this.raw<{
-      apiVersion: string
-      profile: boolean
-      sessions: boolean
-    }>(base, token.trim(), 'GET', '/v1/capabilities')
+    const capabilities = await this.raw<MemoryCapabilities>(
+      base,
+      token.trim(),
+      'GET',
+      '/v1/capabilities'
+    )
     if (capabilities.apiVersion !== 'v1' || !capabilities.profile || !capabilities.sessions)
       throw new Error('记忆服务版本或能力不兼容')
     const old = this.state.profiles.find(
@@ -123,7 +137,8 @@ export class MemoryBridge {
       serviceId: identity.serviceId,
       userId: identity.userId,
       clientId: identity.clientId,
-      displayName: identity.displayName
+      displayName: identity.displayName,
+      capabilities
     }
     const tokens = this.tokens()
     tokens[profile.id] = token.trim()
@@ -214,8 +229,11 @@ export class MemoryBridge {
       signal: AbortSignal.timeout(3500),
       redirect: 'error'
     })
-    const result = (await response.json()) as T & { error?: string }
-    if (!response.ok) throw new Error(`记忆服务 ${response.status}: ${result.error ?? '请求失败'}`)
+    const result = (await response.json()) as T & { error?: string; message?: string }
+    if (!response.ok)
+      throw new Error(
+        `记忆服务 ${response.status}: ${result.message ?? result.error ?? '请求失败'}`
+      )
     return result
   }
   private request<T>(
@@ -227,6 +245,9 @@ export class MemoryBridge {
     const token = this.tokens()[profile.id]
     if (!token) throw new Error('记忆连接令牌不可用')
     return this.raw<T>(profile.url, token, method, path, body)
+  }
+  private assertActiveProfile(profile: MemoryProfile): void {
+    if (this.active()?.id !== profile.id) throw new Error('记忆身份已切换，请重新操作')
   }
   private async assertIdentity(profile: MemoryProfile): Promise<void> {
     const me = await this.request<MemoryIdentity>(profile, 'GET', '/v1/me')
@@ -477,6 +498,73 @@ export class MemoryBridge {
       `/v1/libraries/${libraryId}/documents`
     )
     return result.documents
+  }
+  async listDocumentJobs(documentId?: string): Promise<MemoryDocumentProcessingJob[]> {
+    const profile = this.active()
+    if (!profile) return []
+    if (!profile.capabilities?.documentJobs) return []
+    await this.assertIdentity(profile)
+    const result = await this.request<{ jobs: MemoryDocumentProcessingJob[] }>(
+      profile,
+      'GET',
+      `/v1/document-processing-jobs${documentId ? `?documentId=${encodeURIComponent(documentId)}` : ''}`
+    )
+    this.assertActiveProfile(profile)
+    return result.jobs
+  }
+  async getDocumentJob(jobId: string): Promise<MemoryDocumentProcessingJob> {
+    const profile = this.active()
+    if (!profile?.capabilities?.documentJobs) throw new Error('当前记忆服务不支持资料处理任务')
+    await this.assertIdentity(profile)
+    const result = await this.request<MemoryDocumentProcessingJob>(
+      profile,
+      'GET',
+      `/v1/document-processing-jobs/${jobId}`
+    )
+    this.assertActiveProfile(profile)
+    return result
+  }
+  async createDocumentJob(
+    documentId: string,
+    versionId: string,
+    expectedRevision: number,
+    kind: 'reindex' | 'embed'
+  ): Promise<MemoryDocumentProcessingJob> {
+    const profile = this.active()
+    if (!profile?.capabilities?.documentJobs) throw new Error('当前记忆服务不支持资料处理任务')
+    await this.assertIdentity(profile)
+    const result = await this.request<MemoryDocumentProcessingJob>(
+      profile,
+      'POST',
+      `/v1/documents/${documentId}/versions/${versionId}/processing-jobs`,
+      { operationId: randomUUID(), expectedRevision, kind, options: {} }
+    )
+    this.assertActiveProfile(profile)
+    return result
+  }
+  private async operateDocumentJob(
+    jobId: string,
+    action: 'retry' | 'cancel',
+    expectedJobRevision: number,
+    expectedState: MemoryDocumentJobState
+  ): Promise<MemoryDocumentProcessingJob> {
+    const profile = this.active()
+    if (!profile?.capabilities?.documentJobs) throw new Error('当前记忆服务不支持资料处理任务')
+    await this.assertIdentity(profile)
+    const result = await this.request<MemoryDocumentProcessingJob>(
+      profile,
+      'POST',
+      `/v1/document-processing-jobs/${jobId}/${action}`,
+      { operationId: randomUUID(), expectedJobRevision, expectedState }
+    )
+    this.assertActiveProfile(profile)
+    return result
+  }
+  retryDocumentJob(job: MemoryDocumentProcessingJob): Promise<MemoryDocumentProcessingJob> {
+    return this.operateDocumentJob(job.id, 'retry', job.jobRevision, job.state)
+  }
+  cancelDocumentJob(job: MemoryDocumentProcessingJob): Promise<MemoryDocumentProcessingJob> {
+    return this.operateDocumentJob(job.id, 'cancel', job.jobRevision, job.state)
   }
   async uploadDocument(
     name: string,

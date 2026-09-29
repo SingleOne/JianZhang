@@ -3184,6 +3184,24 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
+.ai-knowledge-active-version {
+  color: #51647d;
+  font-size: 12px;
+}
+.ai-knowledge-job-status {
+  margin-top: 5px;
+  padding: 6px 8px;
+  border-left: 3px solid #8aa4c2;
+  border-radius: 4px;
+  background: #f4f7fb;
+  font-size: 12px;
+}
+.ai-knowledge-job-status p {
+  margin: 0;
+}
+.ai-knowledge-job-status p + p {
+  margin-top: 3px;
+}
 .ai-memory-source-preview {
   padding: 9px;
   border: 1px solid #d9e2ec;
@@ -3244,4 +3262,11 @@
   color: #dbe5f0;
   background: #202d3d;
   border-color: #465770;
+}
+:root[data-theme='dark'] .ai-knowledge-active-version {
+  color: #b7c5d8;
+}
+:root[data-theme='dark'] .ai-knowledge-job-status {
+  background: #202d3d;
+  border-color: #6683a5;
 }

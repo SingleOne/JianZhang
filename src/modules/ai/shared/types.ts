@@ -1,6 +1,7 @@
 import type { MarketInsightSnapshot, MarketNewsItem } from '../../market-insight/shared/types'
 import type {
   MemoryDocument,
+  MemoryDocumentProcessingJob,
   MemoryCandidate,
   MemoryFact,
   MemoryLibrary,
@@ -476,6 +477,18 @@ export interface AiApi {
     revision: number
   ) => Promise<MemoryDocument>
   deleteMemoryDocument: (id: string, revision: number) => Promise<void>
+  listMemoryDocumentJobs: (documentId?: string) => Promise<MemoryDocumentProcessingJob[]>
+  getMemoryDocumentJob: (jobId: string) => Promise<MemoryDocumentProcessingJob>
+  createMemoryDocumentJob: (
+    documentId: string,
+    versionId: string,
+    revision: number,
+    kind: 'reindex' | 'embed'
+  ) => Promise<MemoryDocumentProcessingJob>
+  retryMemoryDocumentJob: (job: MemoryDocumentProcessingJob) => Promise<MemoryDocumentProcessingJob>
+  cancelMemoryDocumentJob: (
+    job: MemoryDocumentProcessingJob
+  ) => Promise<MemoryDocumentProcessingJob>
 }
 
 export interface AiProviderRequestMessage {

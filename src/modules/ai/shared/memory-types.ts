@@ -15,6 +15,20 @@ export interface MemoryProfile {
   userId: string
   clientId: string
   displayName: string
+  capabilities?: MemoryCapabilities
+}
+
+export interface MemoryCapabilities {
+  apiVersion: string
+  schemaVersion?: number
+  profile: boolean
+  sessions: boolean
+  documentLibrary?: boolean
+  documentJobs?: boolean
+  ocrAvailable?: boolean
+  ocrLanguages?: string[]
+  ocrModes?: string[]
+  vectorBackend?: string
 }
 
 export interface MemoryFact {
@@ -99,8 +113,56 @@ export interface MemoryDocumentVersion {
   size: number
   pageCount: number | null
   modelFingerprint: string | null
+  publishedGenerationId?: string | null
   createdAt: string
   publishedAt: string | null
+}
+
+export type MemoryDocumentJobState =
+  | 'queued'
+  | 'running'
+  | 'retry_wait'
+  | 'needs_action'
+  | 'failed'
+  | 'succeeded'
+  | 'cancelled'
+  | 'superseded'
+
+export type MemoryDocumentJobStage =
+  'staging' | 'parsing' | 'ocr' | 'chunking' | 'keyword_index' | 'embedding' | 'publishing'
+
+export interface MemoryDocumentProcessingJob {
+  id: string
+  documentId: string
+  versionId: string
+  generationId: string
+  kind: 'reindex' | 'embed'
+  parameters: Record<string, string | number | boolean | null>
+  expectedDocumentRevision: number
+  state: MemoryDocumentJobState
+  stage: MemoryDocumentJobStage
+  progress: { completed: number | null; total: number | null }
+  attempts: number
+  maxAttempts: number
+  retryAt: string | null
+  error: {
+    code: string
+    message: string | null
+    retryable: boolean
+    actionHint: string | null
+  } | null
+  result: {
+    generationId?: string
+    versionId?: string
+    documentRevision?: number
+    status?: 'ready' | 'keyword_ready'
+    publishedAt?: string
+  } | null
+  jobRevision: number
+  createdAt: string
+  updatedAt: string
+  startedAt: string | null
+  finishedAt: string | null
 }
 
 export interface MemoryDocument {

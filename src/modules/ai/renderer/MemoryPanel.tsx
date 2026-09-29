@@ -330,6 +330,7 @@ export function MemoryPanel({ api, conversation }: Props) {
               key={active.id}
               api={api}
               conversation={conversation}
+              capabilities={active.capabilities}
               binding={binding?.profileId === active.id ? binding : undefined}
               onBindingChange={refresh}
               onSourcesChange={() => {

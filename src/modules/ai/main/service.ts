@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { WebContents } from 'electron'
 import type { MarketInsightSnapshot } from '../../market-insight/shared/types'
+import type { MemoryDocumentProcessingJob } from '../shared/memory-types'
 import {
   AI_DEFAULT_MODELS,
   AI_LONG_TERM_PROMPT_VERSION,
@@ -558,7 +559,8 @@ export class AiService {
       await this.deleteConversation(conversation.id)
   }
 
-  getMemoryStatus() {
+  async getMemoryStatus() {
+    await this.memory.refreshCapabilities().catch(() => undefined)
     return this.memory.getStatus()
   }
   connectMemory(name: string, url: string, token: string) {
@@ -651,6 +653,26 @@ export class AiService {
   }
   deleteMemoryDocument(id: string, revision: number) {
     return this.memory.deleteDocument(id, revision)
+  }
+  listMemoryDocumentJobs(documentId?: string) {
+    return this.memory.listDocumentJobs(documentId)
+  }
+  getMemoryDocumentJob(jobId: string) {
+    return this.memory.getDocumentJob(jobId)
+  }
+  createMemoryDocumentJob(
+    documentId: string,
+    versionId: string,
+    revision: number,
+    kind: 'reindex' | 'embed'
+  ) {
+    return this.memory.createDocumentJob(documentId, versionId, revision, kind)
+  }
+  retryMemoryDocumentJob(job: MemoryDocumentProcessingJob) {
+    return this.memory.retryDocumentJob(job)
+  }
+  cancelMemoryDocumentJob(job: MemoryDocumentProcessingJob) {
+    return this.memory.cancelDocumentJob(job)
   }
 
   exportConversation(conversationId: string) {
