@@ -528,7 +528,8 @@ export class MemoryBridge {
     documentId: string,
     versionId: string,
     expectedRevision: number,
-    kind: 'reindex' | 'embed'
+    kind: 'reindex' | 'embed' | 'ocr',
+    options: { mode?: 'skip' | 'redo'; languages?: string[] } = {}
   ): Promise<MemoryDocumentProcessingJob> {
     const profile = this.active()
     if (!profile?.capabilities?.documentJobs) throw new Error('当前记忆服务不支持资料处理任务')
@@ -537,7 +538,7 @@ export class MemoryBridge {
       profile,
       'POST',
       `/v1/documents/${documentId}/versions/${versionId}/processing-jobs`,
-      { operationId: randomUUID(), expectedRevision, kind, options: {} }
+      { operationId: randomUUID(), expectedRevision, kind, options }
     )
     this.assertActiveProfile(profile)
     return result
@@ -565,6 +566,27 @@ export class MemoryBridge {
   }
   cancelDocumentJob(job: MemoryDocumentProcessingJob): Promise<MemoryDocumentProcessingJob> {
     return this.operateDocumentJob(job.id, 'cancel', job.jobRevision, job.state)
+  }
+  async publishDocumentJob(
+    job: MemoryDocumentProcessingJob,
+    options: { allowPartial: boolean; keywordOnly: boolean }
+  ): Promise<MemoryDocumentProcessingJob> {
+    const profile = this.active()
+    if (!profile?.capabilities?.documentJobs) throw new Error('当前记忆服务不支持资料处理任务')
+    await this.assertIdentity(profile)
+    const result = await this.request<MemoryDocumentProcessingJob>(
+      profile,
+      'POST',
+      `/v1/document-processing-jobs/${job.id}/publish`,
+      {
+        operationId: randomUUID(),
+        expectedJobRevision: job.jobRevision,
+        expectedState: job.state,
+        ...options
+      }
+    )
+    this.assertActiveProfile(profile)
+    return result
   }
   async uploadDocument(
     name: string,

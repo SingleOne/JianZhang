@@ -483,11 +483,16 @@ export interface AiApi {
     documentId: string,
     versionId: string,
     revision: number,
-    kind: 'reindex' | 'embed'
+    kind: 'reindex' | 'embed' | 'ocr',
+    options?: { mode?: 'skip' | 'redo'; languages?: string[] }
   ) => Promise<MemoryDocumentProcessingJob>
   retryMemoryDocumentJob: (job: MemoryDocumentProcessingJob) => Promise<MemoryDocumentProcessingJob>
   cancelMemoryDocumentJob: (
     job: MemoryDocumentProcessingJob
+  ) => Promise<MemoryDocumentProcessingJob>
+  publishMemoryDocumentJob: (
+    job: MemoryDocumentProcessingJob,
+    options: { allowPartial: boolean; keywordOnly: boolean }
   ) => Promise<MemoryDocumentProcessingJob>
 }
 

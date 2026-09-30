@@ -664,15 +664,22 @@ export class AiService {
     documentId: string,
     versionId: string,
     revision: number,
-    kind: 'reindex' | 'embed'
+    kind: 'reindex' | 'embed' | 'ocr',
+    options?: { mode?: 'skip' | 'redo'; languages?: string[] }
   ) {
-    return this.memory.createDocumentJob(documentId, versionId, revision, kind)
+    return this.memory.createDocumentJob(documentId, versionId, revision, kind, options)
   }
   retryMemoryDocumentJob(job: MemoryDocumentProcessingJob) {
     return this.memory.retryDocumentJob(job)
   }
   cancelMemoryDocumentJob(job: MemoryDocumentProcessingJob) {
     return this.memory.cancelDocumentJob(job)
+  }
+  publishMemoryDocumentJob(
+    job: MemoryDocumentProcessingJob,
+    options: { allowPartial: boolean; keywordOnly: boolean }
+  ) {
+    return this.memory.publishDocumentJob(job, options)
   }
 
   exportConversation(conversationId: string) {

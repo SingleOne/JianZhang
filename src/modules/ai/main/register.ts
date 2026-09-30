@@ -140,14 +140,23 @@ export function installAi(dependencies: AiModuleDependencies): AiRuntime {
   )
   ipcMain.handle(
     AI_IPC.memoryDocumentJobCreate,
-    (_event, documentId: string, versionId: string, revision: number, kind: 'reindex' | 'embed') =>
-      service.createMemoryDocumentJob(documentId, versionId, revision, kind)
+    (
+      _event,
+      documentId: string,
+      versionId: string,
+      revision: number,
+      kind: 'reindex' | 'embed' | 'ocr',
+      options?: { mode?: 'skip' | 'redo'; languages?: string[] }
+    ) => service.createMemoryDocumentJob(documentId, versionId, revision, kind, options)
   )
   ipcMain.handle(AI_IPC.memoryDocumentJobRetry, (_event, job) =>
     service.retryMemoryDocumentJob(job)
   )
   ipcMain.handle(AI_IPC.memoryDocumentJobCancel, (_event, job) =>
     service.cancelMemoryDocumentJob(job)
+  )
+  ipcMain.handle(AI_IPC.memoryDocumentJobPublish, (_event, job, options) =>
+    service.publishMemoryDocumentJob(job, options)
   )
   ipcMain.handle(AI_IPC.conversationExport, (_event, conversationId: string) =>
     service.exportConversation(conversationId)

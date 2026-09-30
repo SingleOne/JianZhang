@@ -77,6 +77,7 @@ export function KnowledgePanel({
   const loadGeneration = useRef(0)
   const jobsRef = useRef<MemoryDocumentProcessingJob[]>([])
   const supportsJobs = capabilities?.documentJobs === true
+  const supportsOcr = capabilities?.ocrAvailable === true
   const loadJobsForDocuments = useCallback(
     async (items: MemoryDocument[]) => {
       if (!supportsJobs) return []
@@ -297,6 +298,23 @@ export function KnowledgePanel({
       rememberJob(next)
       setMessage('已开始重新建立索引。关闭面板不会中止处理。')
     })
+  const startOcr = (item: MemoryDocument, mode: 'skip' | 'redo') =>
+    void run(async () => {
+      if (!item.latestVersion) return
+      const next = await api.createMemoryDocumentJob(
+        item.id,
+        item.latestVersion.id,
+        item.revision,
+        'ocr',
+        { mode, languages: capabilities?.ocrLanguages }
+      )
+      rememberJob(next)
+      setMessage(
+        mode === 'redo'
+          ? '已开始增强识别。原件不会被修改，关闭面板不会中止处理。'
+          : '已开始识别扫描页。原件不会被修改，关闭面板不会中止处理。'
+      )
+    })
   const retryJob = (item: MemoryDocumentProcessingJob) =>
     void run(async () => {
       rememberJob(await api.retryMemoryDocumentJob(item))
@@ -307,6 +325,38 @@ export function KnowledgePanel({
       rememberJob(await api.cancelMemoryDocumentJob(item))
       setMessage('处理任务已取消。')
     })
+  const publishJob = async (
+    document: MemoryDocument,
+    job: MemoryDocumentProcessingJob,
+    allowPartial: boolean,
+    keywordOnly: boolean
+  ) => {
+    if (
+      allowPartial &&
+      !(await confirm({
+        title: '发布部分识别结果',
+        message: `仍有第 ${job.result?.failedPages?.join('、') || '未知'} 页未覆盖。确定只发布已经识别出的内容吗？`,
+        confirmLabel: keywordOnly ? '按关键词发布部分结果' : '发布部分结果'
+      }))
+    )
+      return
+    await run(async () => {
+      rememberJob(await api.publishMemoryDocumentJob(job, { allowPartial, keywordOnly }))
+      const nextDocuments = await api.listMemoryDocuments(document.libraryId)
+      const nextJobs = await loadJobsForDocuments(nextDocuments)
+      setDocuments(nextDocuments)
+      setJobs(nextJobs)
+      await refreshLibraries()
+      onSourcesChange()
+      setMessage(
+        allowPartial
+          ? keywordOnly
+            ? '已按关键词发布部分识别结果。未覆盖页仍会保留提示。'
+            : '已发布部分识别结果。未覆盖页仍会保留提示。'
+          : '已按关键词发布处理结果。'
+      )
+    })
+  }
   const deleteDocument = async (item: MemoryDocument) => {
     if (
       !(await confirm({
@@ -428,10 +478,21 @@ export function KnowledgePanel({
                         : '当前尚无可检索版本'}
                     </p>
                     {item.latestVersion?.error ? <p>{item.latestVersion.error}</p> : null}
+                    {item.latestVersion?.status === 'needs_ocr' && !supportsOcr ? (
+                      <p>本地 OCR 尚未配置，原件会继续保留且不会被修改。</p>
+                    ) : null}
                     {processingJob ? (
                       <div className="ai-knowledge-job-status">
                         <p>最新处理：{jobStatus(processingJob)}</p>
                         {processingJob.error?.message ? <p>{processingJob.error.message}</p> : null}
+                        {processingJob.result?.coverage === 'partial' ? (
+                          <p>
+                            部分覆盖
+                            {processingJob.result.failedPages?.length
+                              ? `；未覆盖第 ${processingJob.result.failedPages.join('、')} 页`
+                              : ''}
+                          </p>
+                        ) : null}
                         {failedJob && item.activeVersion ? (
                           <p>旧的可检索版本仍可继续使用。</p>
                         ) : null}
@@ -447,6 +508,48 @@ export function KnowledgePanel({
                     {processingJob && ['failed', 'needs_action'].includes(processingJob.state) ? (
                       <AppButton disabled={busy} onClick={() => retryJob(processingJob)}>
                         重试
+                      </AppButton>
+                    ) : null}
+                    {processingJob?.error?.code === 'ocr_partial' ? (
+                      <>
+                        {processingJob.result?.semanticReady ? (
+                          <AppButton
+                            disabled={busy}
+                            onClick={() => void publishJob(item, processingJob, true, false)}
+                          >
+                            发布已识别内容
+                          </AppButton>
+                        ) : null}
+                        <AppButton
+                          disabled={busy}
+                          onClick={() => void publishJob(item, processingJob, true, true)}
+                        >
+                          按关键词发布部分结果
+                        </AppButton>
+                      </>
+                    ) : null}
+                    {processingJob?.error?.code === 'embedding_failed' ? (
+                      <AppButton
+                        disabled={busy}
+                        onClick={() => void publishJob(item, processingJob, false, true)}
+                      >
+                        按关键词发布处理结果
+                      </AppButton>
+                    ) : null}
+                    {supportsOcr &&
+                    item.latestVersion?.mime === 'application/pdf' &&
+                    item.latestVersion.status === 'needs_ocr' &&
+                    !processing ? (
+                      <AppButton disabled={busy} onClick={() => startOcr(item, 'skip')}>
+                        识别扫描页
+                      </AppButton>
+                    ) : null}
+                    {supportsOcr &&
+                    capabilities?.ocrModes?.includes('redo') &&
+                    item.latestVersion?.mime === 'application/pdf' &&
+                    !processing ? (
+                      <AppButton disabled={busy} onClick={() => startOcr(item, 'redo')}>
+                        增强识别
                       </AppButton>
                     ) : null}
                     {supportsJobs && item.latestVersion?.status !== 'needs_ocr' && !processing ? (

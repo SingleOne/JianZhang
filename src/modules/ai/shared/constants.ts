@@ -58,7 +58,8 @@ export const AI_IPC = {
   memoryDocumentJobGet: 'ai:memory:document-job:get',
   memoryDocumentJobCreate: 'ai:memory:document-job:create',
   memoryDocumentJobRetry: 'ai:memory:document-job:retry',
-  memoryDocumentJobCancel: 'ai:memory:document-job:cancel'
+  memoryDocumentJobCancel: 'ai:memory:document-job:cancel',
+  memoryDocumentJobPublish: 'ai:memory:document-job:publish'
 } as const
 
 export const AI_DEFAULT_MODELS = {

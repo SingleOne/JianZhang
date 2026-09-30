@@ -29,6 +29,7 @@ export interface MemoryCapabilities {
   ocrLanguages?: string[]
   ocrModes?: string[]
   vectorBackend?: string
+  embeddings?: boolean
 }
 
 export interface MemoryFact {
@@ -136,8 +137,8 @@ export interface MemoryDocumentProcessingJob {
   documentId: string
   versionId: string
   generationId: string
-  kind: 'reindex' | 'embed'
-  parameters: Record<string, string | number | boolean | null>
+  kind: 'reindex' | 'embed' | 'ocr'
+  parameters: Record<string, unknown>
   expectedDocumentRevision: number
   state: MemoryDocumentJobState
   stage: MemoryDocumentJobStage
@@ -157,6 +158,10 @@ export interface MemoryDocumentProcessingJob {
     documentRevision?: number
     status?: 'ready' | 'keyword_ready'
     publishedAt?: string
+    coverage?: 'complete' | 'partial'
+    failedPages?: number[]
+    ocrMode?: 'skip' | 'redo' | null
+    semanticReady?: boolean
   } | null
   jobRevision: number
   createdAt: string
