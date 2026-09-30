@@ -87,13 +87,21 @@ export interface MemorySearchResult {
   title?: string
   role?: string
   occurredAt?: string
+  sessionId?: string
+  revision?: number
+  textHash?: string
   documentId?: string
   versionId?: string
+  generationId?: string
   libraryId?: string
   fileName?: string
   versionNo?: number
   locator?: string
   heading?: string
+  pageNumber?: number | null
+  sourceType?: 'native' | 'ocr'
+  coverage?: 'complete' | 'partial'
+  failedPages?: number[]
 }
 
 export interface MemoryLibrary {
@@ -185,8 +193,22 @@ export interface MemorySourceDetail {
   kind: 'fact' | 'message' | 'document'
   sourceId: string
   text: string
+  key?: string
+  revision?: number
+  textHash?: string
+  sessionId?: string
+  title?: string
+  role?: string
+  occurredAt?: string
+  documentId?: string
+  versionId?: string
+  generationId?: string
   fileName?: string
   versionNo?: number
   locator?: string
   heading?: string
+  pageNumber?: number | null
+  sourceType?: 'native' | 'ocr'
+  coverage?: 'complete' | 'partial'
+  failedPages?: number[]
 }

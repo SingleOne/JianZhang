@@ -61,6 +61,12 @@ import { OpenAiApiProvider } from './providers/openai-api'
 import { AiSecrets } from './secrets'
 import { AiStorage } from './storage'
 import { MemoryBridge } from './memory/bridge'
+import { TurnSourceRegistry } from './citations/registry'
+import {
+  CitationStreamFilter,
+  neutralizeHistoricalCitationMarkers,
+  validateCitationMarkers
+} from './citations/markers'
 import {
   STOCK_DATA_TOOL,
   StockDataToolSession,
@@ -239,12 +245,13 @@ const MEMORY_TOOLS: AiProviderTool[] = [
   {
     name: 'search_user_context',
     description:
-      '查找当前用户此前明确提供的信息、先前交流内容和本会话已选择的资料文件；需要核对时使用。',
+      '查找当前用户此前明确提供的信息、先前交流内容和本会话已选择的资料文件；需要核对时使用。返回 citationId 时，引用对应内容必须原样标注。',
     inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] }
   },
   {
     name: 'read_user_context',
-    description: '读取 search_user_context 返回的相关内容原文。',
+    description:
+      '读取 search_user_context 返回的相关内容原文。返回 citationId 时，引用对应内容必须原样标注。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -279,13 +286,6 @@ interface TradeImportSession {
 function messageContextRefs(message: AiMessage): AiContextRef[] {
   if (message.contextRefs?.length) return message.contextRefs
   return message.contextRef ? [message.contextRef] : []
-}
-
-function removeUnknownCitationMarkers(content: string, citations: AiMessage['citations']): string {
-  const allowed = new Set((citations ?? []).map((citation) => citation.id))
-  return content.replace(/\[(S[0-9A-Za-z-]+)\]/g, (marker, citationId: string) =>
-    allowed.has(citationId) ? marker : ''
-  )
 }
 
 function uniqueMentions(mentions: readonly AiStockMention[] = []): AiStockMention[] {
@@ -1133,7 +1133,8 @@ export class AiService {
     const model = pendingMessage.model ?? settings.model
     const controller = new AbortController()
     this.activeChats.set(pendingMessage.conversationId, controller)
-    let streamedContent = ''
+    const sourceRegistry = new TurnSourceRegistry()
+    const streamFilter = new CitationStreamFilter(() => sourceRegistry.registered())
     let prepared: Awaited<ReturnType<MemoryBridge['prepare']>> = null
     let memoryAvailable = false
     try {
@@ -1150,7 +1151,9 @@ export class AiService {
       if (controller.signal.aborted) throw new DOMException('已停止生成', 'AbortError')
       const memoryContext = prepared?.unavailable
         ? '本轮无法读取此前的用户信息。不能声称已取得历史内容，也不能声称已保存、修改或删除用户信息。若用户明确要求记住或忘记，请说明这次未能完成，请稍后重试。'
-        : prepared?.text
+        : prepared
+          ? sourceRegistry.buildMemoryContext(prepared)
+          : undefined
       const tools = [
         ...(stockDataSession
           ? [STOCK_DATA_TOOL, ...(stockSearchSession ? [STOCK_INFORMATION_SEARCH_TOOL] : [])]
@@ -1171,36 +1174,37 @@ export class AiService {
           tools: tools.length ? tools : undefined
         },
         (delta) => {
-          streamedContent = `${streamedContent}${delta}`
-          this.send(webContents, 'ai:chat:delta', {
-            conversationId: pendingMessage.conversationId,
-            messageId: pendingMessage.id,
-            delta
-          })
+          const validatedDelta = streamFilter.push(delta)
+          if (validatedDelta)
+            this.send(webContents, 'ai:chat:delta', {
+              conversationId: pendingMessage.conversationId,
+              messageId: pendingMessage.id,
+              delta: validatedDelta
+            })
         },
         controller.signal,
         stockDataSession || memoryAvailable
           ? async (call, signal) => {
               if (memoryAvailable && call.name === 'search_user_context') {
                 const args = JSON.parse(call.arguments) as { query: string }
+                const sources = await this.memory.search(
+                  args.query,
+                  pendingMessage.conversationId,
+                  memoryProfileId
+                )
                 return JSON.stringify(
-                  await this.memory.search(
-                    args.query,
-                    pendingMessage.conversationId,
-                    memoryProfileId
-                  )
+                  sourceRegistry.prepareToolResults(sources, prepared!.identity)
                 )
               }
               if (memoryAvailable && call.name === 'read_user_context') {
                 const args = JSON.parse(call.arguments) as { kind: string; sourceId: string }
-                return JSON.stringify(
-                  await this.memory.readSource(
-                    args.kind,
-                    args.sourceId,
-                    pendingMessage.conversationId,
-                    memoryProfileId
-                  )
+                const source = await this.memory.readSource(
+                  args.kind,
+                  args.sourceId,
+                  pendingMessage.conversationId,
+                  memoryProfileId
                 )
+                return JSON.stringify(sourceRegistry.prepareToolSource(source, prepared!.identity))
               }
               if (memoryAvailable && call.name === 'manage_user_context') {
                 const args = JSON.parse(call.arguments) as {
@@ -1235,7 +1239,9 @@ export class AiService {
                 return JSON.stringify({ error: '参数不足，请先查找用户信息取得 id 和 revision' })
               }
               if (call.name === STOCK_INFORMATION_SEARCH_TOOL_NAME && stockSearchSession) {
-                return stockSearchSession.execute(call, signal)
+                const output = await stockSearchSession.execute(call, signal)
+                sourceRegistry.registerStock(stockSearchSession.citations())
+                return neutralizeHistoricalCitationMarkers(output)
               }
               if (!stockDataSession) throw new Error('工具不可用')
               const toolResult = await stockDataSession.execute(call, signal)
@@ -1243,16 +1249,20 @@ export class AiService {
                 stockDataSession.manifest.contextId,
                 stockDataSession.snapshot()
               )
-              return toolResult
+              return neutralizeHistoricalCitationMarkers(toolResult)
             }
           : undefined
       )
-      const citations = stockSearchSession?.citations()
-      const content =
-        (stockSearchSession
-          ? removeUnknownCitationMarkers(result.content, citations)
-          : result.content
-        ).trim() || '模型未返回可显示的内容。'
+      const finalDelta = streamFilter.finish()
+      if (finalDelta)
+        this.send(webContents, 'ai:chat:delta', {
+          conversationId: pendingMessage.conversationId,
+          messageId: pendingMessage.id,
+          delta: finalDelta
+        })
+      const validated = validateCitationMarkers(result.content, sourceRegistry.registered())
+      const content = validated.content.trim() || '模型未返回可显示的内容。'
+      const citations = validated.citations.length ? validated.citations : undefined
       this.completeMessage(webContents, {
         ...pendingMessage,
         content,
@@ -1265,13 +1275,21 @@ export class AiService {
       })
     } catch (error) {
       const stopped = isAbortError(error, controller.signal)
-      const citations = stockSearchSession?.citations()
+      const finalDelta = streamFilter.finish()
+      if (finalDelta)
+        this.send(webContents, 'ai:chat:delta', {
+          conversationId: pendingMessage.conversationId,
+          messageId: pendingMessage.id,
+          delta: finalDelta
+        })
+      const validated = validateCitationMarkers(
+        streamFilter.rawContent(),
+        sourceRegistry.registered()
+      )
+      const citations = validated.citations.length ? validated.citations : undefined
       const message: AiMessage = {
         ...pendingMessage,
-        content:
-          (stockSearchSession
-            ? removeUnknownCitationMarkers(streamedContent, citations)
-            : streamedContent) || (stopped ? '已停止生成。' : ''),
+        content: validated.content || (stopped ? '已停止生成。' : ''),
         status: stopped ? 'stopped' : 'error',
         memoryState: prepared?.unavailable ? 'unavailable' : memoryAvailable ? 'used' : undefined,
         contextRefs: stockDataSession?.contextRefs() ?? pendingMessage.contextRefs,

@@ -241,13 +241,16 @@ export interface AiMessage {
   contextRefs?: AiContextRef[]
   sourceIds?: string[]
   officialSearch?: boolean
-  citations?: AiSourceCitation[]
+  citations?: MessageCitation[]
   errorMessage?: string
   memoryState?: 'used' | 'unavailable'
 }
 
 export interface AiSourceCitation {
   id: string
+  kind?: 'stock'
+  sourceRef?: string
+  providedExcerpts?: CitationExcerpt[]
   stockRef: string
   title: string
   source: string
@@ -255,6 +258,69 @@ export interface AiSourceCitation {
   url: string
   category: 'announcement' | 'company_report' | 'corporate_action' | 'regulation' | 'official_news'
 }
+
+export interface CitationExcerpt {
+  hash: string
+  start: number
+  end: number
+  length: number
+}
+
+interface MemoryCitationBase {
+  id: string
+  sourceRef: string
+  serviceProfileId: string
+  serviceId: string
+  userId: string
+  sessionId: string
+  providedExcerpts: CitationExcerpt[]
+}
+
+export interface DocumentCitation extends MemoryCitationBase {
+  kind: 'document'
+  documentId: string
+  versionId: string
+  generationId: string
+  chunkId: string
+  textHash: string
+  fileName: string
+  versionNo: number
+  locator?: string
+  heading?: string
+  pageNumber?: number | null
+  sourceType?: 'native' | 'ocr'
+  coverage?: 'complete' | 'partial'
+  failedPages?: number[]
+}
+
+export interface HistoryCitation extends MemoryCitationBase {
+  kind: 'history'
+  sourceSessionId: string
+  messageId: string
+  revision: number
+  textHash: string
+  title?: string
+  role?: string
+  occurredAt?: string
+}
+
+export interface FactCitation extends MemoryCitationBase {
+  kind: 'fact'
+  factId: string
+  revision: number
+  textHash: string
+  key: string
+}
+
+export type StockCitation = AiSourceCitation & {
+  kind: 'stock'
+  sourceRef: string
+  providedExcerpts: CitationExcerpt[]
+}
+
+export type ChatCitation = StockCitation | DocumentCitation | HistoryCitation | FactCitation
+
+export type MessageCitation = AiSourceCitation | ChatCitation
 
 export interface AiCreateConversationInput {
   scope?: AiConversation['scope']

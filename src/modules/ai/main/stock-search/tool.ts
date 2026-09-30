@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type {
   AiModuleDependencies,
   AiProviderTool,
@@ -32,6 +33,23 @@ interface SearchItem {
   category: SearchCategory
   scope: 'stock' | 'sector' | 'market'
   excerpt?: string
+}
+
+function citationEvidence(item: SearchItem) {
+  const evidence = JSON.stringify({
+    title: item.title,
+    source: item.source,
+    publishedAt: item.publishedAt,
+    url: item.url,
+    category: item.category,
+    excerpt: item.excerpt
+  })
+  return {
+    hash: createHash('sha256').update(evidence).digest('hex'),
+    start: 0,
+    end: evidence.length,
+    length: evidence.length
+  }
 }
 
 interface SearchLoadResult {
@@ -330,12 +348,15 @@ export class StockInformationSearchSession {
     if (existing) return existing
     const citation: AiSourceCitation = {
       id: `${this.citationPrefix}-${this.citationsByKey.size + 1}`,
+      kind: 'stock',
+      sourceRef: `stock:${item.stockRef}:${item.url}`,
       stockRef: item.stockRef,
       title: item.title,
       source: item.source,
       publishedAt: item.publishedAt,
       url: item.url,
-      category: item.category
+      category: item.category,
+      providedExcerpts: [citationEvidence(item)]
     }
     this.citationsByKey.set(key, citation)
     return citation

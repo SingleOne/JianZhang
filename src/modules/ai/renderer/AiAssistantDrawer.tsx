@@ -48,7 +48,7 @@ import type {
   AiModelOption,
   AiProviderId,
   AiSettings,
-  AiSourceCitation,
+  MessageCitation,
   AiStockMention,
   AiStatus
 } from '../shared/types'
@@ -139,11 +139,38 @@ function MarkdownMessage({
   )
 }
 
+function citationPresentation(citation: MessageCitation): {
+  kind: 'stock' | 'document' | 'history' | 'fact'
+  title: string
+  detail: string
+  url?: string
+} {
+  if (citation.kind === 'document')
+    return {
+      kind: 'document',
+      title: citation.fileName,
+      detail: `资料文件 · 版本 ${citation.versionNo}${citation.locator ? ` · ${citation.locator}` : ''}`
+    }
+  if (citation.kind === 'history')
+    return {
+      kind: 'history',
+      title: citation.title || '先前对话',
+      detail: `历史消息${citation.occurredAt ? ` · ${new Date(citation.occurredAt).toLocaleString('zh-CN')}` : ''}`
+    }
+  if (citation.kind === 'fact') return { kind: 'fact', title: citation.key, detail: '用户信息' }
+  return {
+    kind: 'stock',
+    title: citation.title,
+    detail: `${citation.source} · ${new Date(citation.publishedAt).toLocaleDateString('zh-CN')}`,
+    url: citation.url
+  }
+}
+
 function MessageSources({
   citations,
   onOpenSource
 }: {
-  citations: AiSourceCitation[]
+  citations: MessageCitation[]
   onOpenSource: (url: string) => void
 }) {
   const [expanded, setExpanded] = useState(false)
@@ -154,25 +181,42 @@ function MessageSources({
     <section className="ai-message-sources" aria-label="检索来源">
       <strong>检索来源</strong>
       <div className="ai-message-source-list">
-        {visibleCitations.map((citation) => (
-          <button
-            className="ai-message-source"
-            type="button"
-            key={`${citation.id}:${citation.url}`}
-            onClick={() => onOpenSource(citation.url)}
-          >
-            <span title="本条消息的引用编号" aria-label={`本条消息引用编号 ${citation.id}`}>
-              [{citation.id}]
-            </span>
-            <span>
-              <b>{citation.title}</b>
-              <small>
-                {citation.source} · {new Date(citation.publishedAt).toLocaleDateString('zh-CN')}
-              </small>
-            </span>
-            <ExternalLink size={13} />
-          </button>
-        ))}
+        {visibleCitations.map((citation) => {
+          const presentation = citationPresentation(citation)
+          const body = (
+            <>
+              <span title="本条消息的引用编号" aria-label={`本条消息引用编号 ${citation.id}`}>
+                [{citation.id}]
+              </span>
+              <span>
+                <b>{presentation.title}</b>
+                <small>{presentation.detail}</small>
+              </span>
+              {presentation.kind === 'stock' ? (
+                <ExternalLink size={13} />
+              ) : (
+                <ReceiptText size={13} />
+              )}
+            </>
+          )
+          return presentation.url ? (
+            <button
+              className="ai-message-source"
+              type="button"
+              key={`${citation.id}:${presentation.url}`}
+              onClick={() => onOpenSource(presentation.url!)}
+            >
+              {body}
+            </button>
+          ) : (
+            <div
+              className="ai-message-source is-static"
+              key={`${citation.id}:${citation.sourceRef}`}
+            >
+              {body}
+            </div>
+          )
+        })}
       </div>
       {hiddenCount > 0 ? (
         <button

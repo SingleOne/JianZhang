@@ -572,6 +572,15 @@
   background: #f1f6ff;
   border-color: #bdd2f2;
 }
+.ai-message-source.is-static {
+  color: #53657e;
+  cursor: default;
+}
+.ai-message-source.is-static:hover {
+  color: #53657e;
+  background: #ffffff;
+  border-color: #e3eaf3;
+}
 .ai-message-source > span:nth-child(2) {
   min-width: 0;
   display: grid;
@@ -2831,6 +2840,13 @@
   color: #d6e5ff;
   background: #29466d;
   border-color: #5275a4;
+}
+
+:root[data-theme='dark'] .ai-message-source.is-static,
+:root[data-theme='dark'] .ai-message-source.is-static:hover {
+  color: #aebed1;
+  background: #253348;
+  border-color: #3b4b60;
 }
 
 :root[data-theme='dark'] .ai-message-sources-toggle {

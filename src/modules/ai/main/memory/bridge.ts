@@ -20,6 +20,7 @@ import type {
   MemoryStatus
 } from '../../shared/memory-types'
 import type { AiStorage } from '../storage'
+import type { PreparedMemoryTurn } from '../citations/registry'
 
 type Binding = {
   profileId: string
@@ -37,8 +38,6 @@ type State = {
   profiles: MemoryProfile[]
   bindings: Record<string, Binding>
 }
-type Prepared = { text: string; sources: MemorySearchResult[]; unavailable: boolean }
-
 export class MemoryBridge {
   private readonly statePath: string
   private readonly secretsPath: string
@@ -249,8 +248,28 @@ export class MemoryBridge {
   private assertActiveProfile(profile: MemoryProfile): void {
     if (this.active()?.id !== profile.id) throw new Error('记忆身份已切换，请重新操作')
   }
+  private assertConversationBinding(
+    conversationId: string,
+    profile: MemoryProfile,
+    binding: Binding,
+    sessionId?: string
+  ): void {
+    this.assertActiveProfile(profile)
+    const current = this.state.bindings[conversationId]
+    if (
+      current !== binding ||
+      current.pendingDelete ||
+      current.profileId !== profile.id ||
+      current.serviceId !== profile.serviceId ||
+      current.userId !== profile.userId ||
+      current.clientId !== profile.clientId ||
+      (sessionId !== undefined && current.sessionId !== sessionId)
+    )
+      throw new Error('会话记忆绑定已变化，请重新提问')
+  }
   private async assertIdentity(profile: MemoryProfile): Promise<void> {
     const me = await this.request<MemoryIdentity>(profile, 'GET', '/v1/me')
+    this.assertActiveProfile(profile)
     if (
       me.serviceId !== profile.serviceId ||
       me.userId !== profile.userId ||
@@ -325,7 +344,10 @@ export class MemoryBridge {
     await this.flushDeletes()
     await this.sync(profile, binding, conversation)
   }
-  async prepare(conversation: AiConversation, question: string): Promise<Prepared | null> {
+  async prepare(
+    conversation: AiConversation,
+    question: string
+  ): Promise<PreparedMemoryTurn | null> {
     const profile = this.active(),
       binding = this.state.bindings[conversation.id]
     if (!profile || !binding || binding.profileId !== profile.id || binding.pendingDelete)
@@ -344,30 +366,36 @@ export class MemoryBridge {
         turnId: randomUUID(),
         question
       })
+      this.assertConversationBinding(conversation.id, profile, binding, session.id)
       const profileText = result.profile.map((item) => `- ${item.key}：${item.content}`).join('\n')
-      const historyText = result.history
-        .map((item) => `- ${item.title ?? '先前对话'} / ${item.occurredAt ?? ''}：${item.text}`)
-        .join('\n')
       const documents = result.documents ?? []
-      const documentText = documents
-        .map((item) => `- ${item.fileName}（${item.locator}）：${item.text}`)
-        .join('\n')
       return {
-        text: [
-          profileText && `用户信息：\n${profileText}`,
-          result.summary &&
-            `当前会话较早内容概要（已覆盖至消息序号 ${result.summaryThrough}）：\n${result.summary.slice(0, 2000)}`,
-          historyText && `先前交流内容：\n${historyText}`,
-          documentText && `资料文件内容：\n${documentText}`
-        ]
-          .filter(Boolean)
-          .join('\n\n')
-          .slice(0, 12000),
+        profileText,
+        summaryText: result.summary
+          ? `已覆盖至消息序号 ${result.summaryThrough}：\n${result.summary.slice(0, 2000)}`
+          : '',
         sources: [...result.history, ...documents],
+        identity: {
+          profileId: profile.id,
+          serviceId: profile.serviceId,
+          userId: profile.userId,
+          sessionId: session.id
+        },
         unavailable: false
       }
     } catch {
-      return { text: '', sources: [], unavailable: true }
+      return {
+        profileText: '',
+        summaryText: '',
+        sources: [],
+        identity: {
+          profileId: profile.id,
+          serviceId: profile.serviceId,
+          userId: profile.userId,
+          sessionId: binding.sessionId ?? ''
+        },
+        unavailable: true
+      }
     }
   }
   async setHistoryVisible(conversation: AiConversation, visible: boolean): Promise<void> {
@@ -422,12 +450,21 @@ export class MemoryBridge {
       throw new Error('记忆身份已切换，请重新提问')
     await this.assertIdentity(profile)
     const binding = conversationId ? this.state.bindings[conversationId] : undefined
+    if (
+      conversationId &&
+      (!binding || binding.profileId !== profile.id || binding.pendingDelete || !binding.sessionId)
+    )
+      throw new Error('此会话未绑定当前记忆身份')
+    const sessionId = binding?.sessionId
     const result = await this.request<{ results: MemorySearchResult[] }>(
       profile,
       'POST',
       '/v1/search',
-      { query, sessionId: binding?.sessionId }
+      { query, sessionId }
     )
+    if (conversationId && binding)
+      this.assertConversationBinding(conversationId, profile, binding, sessionId)
+    else this.assertActiveProfile(profile)
     return result.results
   }
   async readSource(
@@ -442,11 +479,21 @@ export class MemoryBridge {
       throw new Error('记忆身份已切换，请重新提问')
     await this.assertIdentity(profile)
     const binding = conversationId ? this.state.bindings[conversationId] : undefined
-    return this.request(profile, 'POST', '/v1/sources/read', {
+    if (
+      conversationId &&
+      (!binding || binding.profileId !== profile.id || binding.pendingDelete || !binding.sessionId)
+    )
+      throw new Error('此会话未绑定当前记忆身份')
+    const sessionId = binding?.sessionId
+    const result = await this.request<MemorySourceDetail>(profile, 'POST', '/v1/sources/read', {
       kind,
       sourceId,
-      sessionId: binding?.sessionId
+      sessionId
     })
+    if (conversationId && binding)
+      this.assertConversationBinding(conversationId, profile, binding, sessionId)
+    else this.assertActiveProfile(profile)
+    return result
   }
   async listLibraries(): Promise<MemoryLibrary[]> {
     const profile = this.active()

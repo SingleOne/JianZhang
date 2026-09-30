@@ -7,7 +7,9 @@ import type {
   AiConversationExport,
   AiMessage,
   AiProviderId,
-  AiSettings
+  AiSourceCitation,
+  AiSettings,
+  MessageCitation
 } from '../shared/types'
 import { AI_PROVIDER_IDS } from '../shared/types'
 
@@ -29,6 +31,39 @@ function readJson<T>(filePath: string, fallback: T): T {
 function messageSnapshotIds(message: AiMessage): string[] {
   if (message.contextRefs?.length) return message.contextRefs.map((item) => item.snapshotId)
   return message.contextRef ? [message.contextRef.snapshotId] : []
+}
+
+function normalizeCitation(value: unknown): MessageCitation | null {
+  if (!value || typeof value !== 'object') return null
+  const citation = value as Record<string, unknown>
+  if (typeof citation.id !== 'string') return null
+  if (citation.kind === 'document' || citation.kind === 'history' || citation.kind === 'fact')
+    return value as MessageCitation
+  if (
+    (citation.kind === undefined || citation.kind === 'stock') &&
+    typeof citation.stockRef === 'string' &&
+    typeof citation.title === 'string' &&
+    typeof citation.source === 'string' &&
+    typeof citation.publishedAt === 'string' &&
+    typeof citation.url === 'string'
+  )
+    return {
+      ...(value as AiSourceCitation),
+      kind: 'stock',
+      sourceRef:
+        typeof citation.sourceRef === 'string'
+          ? citation.sourceRef
+          : `stock:${citation.stockRef}:${citation.url}`,
+      providedExcerpts: Array.isArray(citation.providedExcerpts)
+        ? (citation.providedExcerpts as AiSourceCitation['providedExcerpts'])
+        : []
+    }
+  return null
+}
+
+function normalizeMessage(value: AiMessage): AiMessage {
+  const citations = value.citations?.map(normalizeCitation).filter((item) => item !== null)
+  return { ...value, citations: citations?.length ? citations : undefined }
 }
 
 export class AiStorage {
@@ -117,7 +152,7 @@ export class AiStorage {
       .filter(Boolean)
       .flatMap((line) => {
         try {
-          return [JSON.parse(line) as AiMessage]
+          return [normalizeMessage(JSON.parse(line) as AiMessage)]
         } catch {
           return []
         }
