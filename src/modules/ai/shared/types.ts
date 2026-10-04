@@ -242,6 +242,7 @@ export interface AiMessage {
   sourceIds?: string[]
   officialSearch?: boolean
   citations?: MessageCitation[]
+  contextUses?: AiMessageContextUse[]
   errorMessage?: string
   memoryState?: 'used' | 'unavailable'
 }
@@ -321,6 +322,12 @@ export type StockCitation = AiSourceCitation & {
 export type ChatCitation = StockCitation | DocumentCitation | HistoryCitation | FactCitation
 
 export type MessageCitation = AiSourceCitation | ChatCitation
+
+export interface AiMessageContextUse {
+  turnId: string
+  usage: 'provided' | 'cited'
+  citation: Exclude<ChatCitation, StockCitation>
+}
 
 export interface AiCreateConversationInput {
   scope?: AiConversation['scope']
@@ -526,6 +533,12 @@ export interface AiApi {
   deleteMemoryFact: (id: string, expectedRevision: number) => Promise<void>
   searchMemory: (query: string) => Promise<MemorySearchResult[]>
   readMemorySource: (kind: string, sourceId: string) => Promise<MemorySourceDetail>
+  readChatMemorySource: (
+    conversationId: string,
+    messageId: string,
+    citationId: string
+  ) => Promise<import('./memory-types').ChatMemorySourceResult>
+  onMemorySourcesChanged: (listener: () => void) => () => void
   listMemoryLibraries: () => Promise<MemoryLibrary[]>
   createMemoryLibrary: (name: string) => Promise<MemoryLibrary>
   renameMemoryLibrary: (id: string, name: string, revision: number) => Promise<MemoryLibrary>

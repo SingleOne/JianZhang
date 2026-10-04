@@ -1,4 +1,4 @@
-import { app, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'node:path'
 import { AI_IPC } from '../shared/constants'
 import type {
@@ -30,91 +30,114 @@ export function installAi(dependencies: AiModuleDependencies): AiRuntime {
     dependencies,
     (webContents, channel, payload) => webContents.send(channel, payload)
   )
-  ipcMain.handle(AI_IPC.statusGet, () => service.getStatus())
-  ipcMain.handle(AI_IPC.settingsGet, () => service.getSettings())
-  ipcMain.handle(AI_IPC.settingsSave, (_event, settings: AiSettings) =>
-    service.saveSettings(settings)
-  )
-  ipcMain.handle(AI_IPC.credentialSet, (_event, providerId: AiApiKeyProviderId, apiKey: string) =>
+  const invalidatingChannels = new Set<string>([
+    AI_IPC.memoryConnect,
+    AI_IPC.memorySelect,
+    AI_IPC.memoryConversationLibraries,
+    AI_IPC.memoryConversationHistory,
+    AI_IPC.memoryFactSave,
+    AI_IPC.memoryFactDelete,
+    AI_IPC.memoryLibraryDelete,
+    AI_IPC.memoryDocumentDelete,
+    AI_IPC.memoryCandidateDecide,
+    AI_IPC.conversationDelete,
+    AI_IPC.conversationsClear
+  ])
+  const notifySourcesChanged = () => {
+    for (const window of BrowserWindow.getAllWindows())
+      window.webContents.send(AI_IPC.memorySourcesChanged)
+  }
+  const handle = (channel: string, listener: Parameters<typeof ipcMain.handle>[1]) => {
+    ipcMain.handle(channel, async (event, ...args) => {
+      if (!invalidatingChannels.has(channel)) return listener(event, ...args)
+      notifySourcesChanged()
+      try {
+        return await listener(event, ...args)
+      } finally {
+        notifySourcesChanged()
+      }
+    })
+  }
+  handle(AI_IPC.statusGet, () => service.getStatus())
+  handle(AI_IPC.settingsGet, () => service.getSettings())
+  handle(AI_IPC.settingsSave, (_event, settings: AiSettings) => service.saveSettings(settings))
+  handle(AI_IPC.credentialSet, (_event, providerId: AiApiKeyProviderId, apiKey: string) =>
     service.setCredential(providerId, apiKey)
   )
-  ipcMain.handle(AI_IPC.credentialClear, (_event, providerId: AiApiKeyProviderId) =>
+  handle(AI_IPC.credentialClear, (_event, providerId: AiApiKeyProviderId) =>
     service.clearCredential(providerId)
   )
-  ipcMain.handle(AI_IPC.modelsList, (_event, providerId) => service.listModels(providerId))
-  ipcMain.handle(AI_IPC.connectionTest, (_event, providerId) => service.testConnection(providerId))
-  ipcMain.handle(AI_IPC.conversationsList, (_event, query?: string) =>
-    service.listConversations(query)
-  )
-  ipcMain.handle(AI_IPC.conversationGet, (_event, conversationId: string) =>
+  handle(AI_IPC.modelsList, (_event, providerId) => service.listModels(providerId))
+  handle(AI_IPC.connectionTest, (_event, providerId) => service.testConnection(providerId))
+  handle(AI_IPC.conversationsList, (_event, query?: string) => service.listConversations(query))
+  handle(AI_IPC.conversationGet, (_event, conversationId: string) =>
     service.getConversation(conversationId)
   )
-  ipcMain.handle(AI_IPC.conversationCreate, (_event, input) => service.createConversation(input))
-  ipcMain.handle(AI_IPC.conversationRename, (_event, conversationId: string, title: string) =>
+  handle(AI_IPC.conversationCreate, (_event, input) => service.createConversation(input))
+  handle(AI_IPC.conversationRename, (_event, conversationId: string, title: string) =>
     service.renameConversation(conversationId, title)
   )
-  ipcMain.handle(AI_IPC.conversationDelete, (_event, conversationId: string) =>
+  handle(AI_IPC.conversationDelete, (_event, conversationId: string) =>
     service.deleteConversation(conversationId)
   )
-  ipcMain.handle(AI_IPC.conversationsClear, () => service.clearConversations())
-  ipcMain.handle(AI_IPC.memoryStatus, () => service.getMemoryStatus())
-  ipcMain.handle(AI_IPC.memoryConnect, (_event, name: string, url: string, token: string) =>
+  handle(AI_IPC.conversationsClear, () => service.clearConversations())
+  handle(AI_IPC.memoryStatus, () => service.getMemoryStatus())
+  handle(AI_IPC.memoryConnect, (_event, name: string, url: string, token: string) =>
     service.connectMemory(name, url, token)
   )
-  ipcMain.handle(AI_IPC.memorySelect, (_event, profileId: string | null) =>
-    service.selectMemory(profileId)
-  )
-  ipcMain.handle(AI_IPC.memoryConversationEnable, (_event, conversationId: string) =>
+  handle(AI_IPC.memorySelect, (_event, profileId: string | null) => service.selectMemory(profileId))
+  handle(AI_IPC.memoryConversationEnable, (_event, conversationId: string) =>
     service.enableConversationMemory(conversationId)
   )
-  ipcMain.handle(
-    AI_IPC.memoryConversationHistory,
-    (_event, conversationId: string, visible: boolean) =>
-      service.setConversationMemoryHistory(conversationId, visible)
+  handle(AI_IPC.memoryConversationHistory, (_event, conversationId: string, visible: boolean) =>
+    service.setConversationMemoryHistory(conversationId, visible)
   )
-  ipcMain.handle(
+  handle(
     AI_IPC.memoryConversationLibraries,
     (_event, conversationId: string, libraryIds: string[]) =>
       service.setConversationMemoryLibraries(conversationId, libraryIds)
   )
-  ipcMain.handle(AI_IPC.memoryFactsList, (_event, query?: string) => service.listMemoryFacts(query))
-  ipcMain.handle(AI_IPC.memoryMaintenanceStatus, (_event, conversationId?: string) =>
+  handle(AI_IPC.memoryFactsList, (_event, query?: string) => service.listMemoryFacts(query))
+  handle(AI_IPC.memoryMaintenanceStatus, (_event, conversationId?: string) =>
     service.getMemoryMaintenanceStatus(conversationId)
   )
-  ipcMain.handle(AI_IPC.memoryMaintenanceEnabled, (_event, enabled: boolean) =>
+  handle(AI_IPC.memoryMaintenanceEnabled, (_event, enabled: boolean) =>
     service.setMemoryMaintenanceEnabled(enabled)
   )
-  ipcMain.handle(AI_IPC.memoryCandidatesList, () => service.listMemoryCandidates())
-  ipcMain.handle(
+  handle(AI_IPC.memoryCandidatesList, () => service.listMemoryCandidates())
+  handle(
     AI_IPC.memoryCandidateDecide,
     (_event, id: string, decision: 'approve' | 'reject', revision: number, factRevision?: number) =>
       service.decideMemoryCandidate(id, decision, revision, factRevision)
   )
-  ipcMain.handle(AI_IPC.memoryMaintenanceRetry, (_event, conversationId: string) =>
+  handle(AI_IPC.memoryMaintenanceRetry, (_event, conversationId: string) =>
     service.retryMemoryMaintenance(conversationId)
   )
-  ipcMain.handle(AI_IPC.memoryFactSave, (_event, input) => service.saveMemoryFact(input))
-  ipcMain.handle(AI_IPC.memoryFactDelete, (_event, id: string, revision: number) =>
+  handle(AI_IPC.memoryFactSave, (_event, input) => service.saveMemoryFact(input))
+  handle(AI_IPC.memoryFactDelete, (_event, id: string, revision: number) =>
     service.deleteMemoryFact(id, revision)
   )
-  ipcMain.handle(AI_IPC.memorySearch, (_event, query: string) => service.searchMemory(query))
-  ipcMain.handle(AI_IPC.memorySourceRead, (_event, kind: string, sourceId: string) =>
+  handle(AI_IPC.memorySearch, (_event, query: string) => service.searchMemory(query))
+  handle(AI_IPC.memorySourceRead, (_event, kind: string, sourceId: string) =>
     service.readMemorySource(kind, sourceId)
   )
-  ipcMain.handle(AI_IPC.memoryLibrariesList, () => service.listMemoryLibraries())
-  ipcMain.handle(AI_IPC.memoryLibraryCreate, (_event, name: string) =>
-    service.createMemoryLibrary(name)
+  handle(
+    AI_IPC.memoryChatSourceRead,
+    (_event, conversationId: string, messageId: string, citationId: string) =>
+      service.readChatMemorySource(conversationId, messageId, citationId)
   )
-  ipcMain.handle(AI_IPC.memoryLibraryRename, (_event, id: string, name: string, revision: number) =>
+  handle(AI_IPC.memoryLibrariesList, () => service.listMemoryLibraries())
+  handle(AI_IPC.memoryLibraryCreate, (_event, name: string) => service.createMemoryLibrary(name))
+  handle(AI_IPC.memoryLibraryRename, (_event, id: string, name: string, revision: number) =>
     service.renameMemoryLibrary(id, name, revision)
   )
-  ipcMain.handle(AI_IPC.memoryLibraryDelete, (_event, id: string, revision: number) =>
+  handle(AI_IPC.memoryLibraryDelete, (_event, id: string, revision: number) =>
     service.deleteMemoryLibrary(id, revision)
   )
-  ipcMain.handle(AI_IPC.memoryDocumentsList, (_event, libraryId: string) =>
+  handle(AI_IPC.memoryDocumentsList, (_event, libraryId: string) =>
     service.listMemoryDocuments(libraryId)
   )
-  ipcMain.handle(
+  handle(
     AI_IPC.memoryDocumentUpload,
     (
       _event,
@@ -124,21 +147,21 @@ export function installAi(dependencies: AiModuleDependencies): AiRuntime {
       existing?: { id: string; revision: number }
     ) => service.uploadMemoryDocument(name, bytes, libraryId, existing)
   )
-  ipcMain.handle(
+  handle(
     AI_IPC.memoryDocumentPublishKeyword,
     (_event, documentId: string, versionId: string, revision: number) =>
       service.publishMemoryDocumentKeyword(documentId, versionId, revision)
   )
-  ipcMain.handle(AI_IPC.memoryDocumentDelete, (_event, id: string, revision: number) =>
+  handle(AI_IPC.memoryDocumentDelete, (_event, id: string, revision: number) =>
     service.deleteMemoryDocument(id, revision)
   )
-  ipcMain.handle(AI_IPC.memoryDocumentJobsList, (_event, documentId?: string) =>
+  handle(AI_IPC.memoryDocumentJobsList, (_event, documentId?: string) =>
     service.listMemoryDocumentJobs(documentId)
   )
-  ipcMain.handle(AI_IPC.memoryDocumentJobGet, (_event, jobId: string) =>
+  handle(AI_IPC.memoryDocumentJobGet, (_event, jobId: string) =>
     service.getMemoryDocumentJob(jobId)
   )
-  ipcMain.handle(
+  handle(
     AI_IPC.memoryDocumentJobCreate,
     (
       _event,
@@ -149,48 +172,42 @@ export function installAi(dependencies: AiModuleDependencies): AiRuntime {
       options?: { mode?: 'skip' | 'redo'; languages?: string[] }
     ) => service.createMemoryDocumentJob(documentId, versionId, revision, kind, options)
   )
-  ipcMain.handle(AI_IPC.memoryDocumentJobRetry, (_event, job) =>
-    service.retryMemoryDocumentJob(job)
-  )
-  ipcMain.handle(AI_IPC.memoryDocumentJobCancel, (_event, job) =>
-    service.cancelMemoryDocumentJob(job)
-  )
-  ipcMain.handle(AI_IPC.memoryDocumentJobPublish, (_event, job, options) =>
+  handle(AI_IPC.memoryDocumentJobRetry, (_event, job) => service.retryMemoryDocumentJob(job))
+  handle(AI_IPC.memoryDocumentJobCancel, (_event, job) => service.cancelMemoryDocumentJob(job))
+  handle(AI_IPC.memoryDocumentJobPublish, (_event, job, options) =>
     service.publishMemoryDocumentJob(job, options)
   )
-  ipcMain.handle(AI_IPC.conversationExport, (_event, conversationId: string) =>
+  handle(AI_IPC.conversationExport, (_event, conversationId: string) =>
     service.exportConversation(conversationId)
   )
-  ipcMain.handle(AI_IPC.conversationsExportAll, () => service.exportAllConversations())
-  ipcMain.handle(AI_IPC.chatSend, (event, input) => service.sendChat(event.sender, input))
-  ipcMain.handle(AI_IPC.chatCancel, (_event, conversationId: string) =>
-    service.cancelChat(conversationId)
-  )
-  ipcMain.handle(AI_IPC.chatRetry, (event, conversationId: string, messageId: string) =>
+  handle(AI_IPC.conversationsExportAll, () => service.exportAllConversations())
+  handle(AI_IPC.chatSend, (event, input) => service.sendChat(event.sender, input))
+  handle(AI_IPC.chatCancel, (_event, conversationId: string) => service.cancelChat(conversationId))
+  handle(AI_IPC.chatRetry, (event, conversationId: string, messageId: string) =>
     service.retryChat(event.sender, conversationId, messageId)
   )
-  ipcMain.handle(AI_IPC.tradeImportPrepare, (_event, input: AiTradeImportPrepareInput) =>
+  handle(AI_IPC.tradeImportPrepare, (_event, input: AiTradeImportPrepareInput) =>
     service.prepareTradeImport(input)
   )
-  ipcMain.handle(AI_IPC.tradeImportCommit, (_event, input: AiTradeImportCommitInput) =>
+  handle(AI_IPC.tradeImportCommit, (_event, input: AiTradeImportCommitInput) =>
     service.commitTradeImport(input)
   )
-  ipcMain.handle(AI_IPC.sourceOpen, (_event, url: string) => {
+  handle(AI_IPC.sourceOpen, (_event, url: string) => {
     assertOfficialStockSourceUrl(url)
     return shell.openExternal(url)
   })
-  ipcMain.handle(AI_IPC.analysisLatestGet, (_event, quoteId: string) =>
+  handle(AI_IPC.analysisLatestGet, (_event, quoteId: string) =>
     service.getLatestInterpretation(quoteId)
   )
-  ipcMain.handle(AI_IPC.analysisInterpret, (event, quoteId: string) =>
+  handle(AI_IPC.analysisInterpret, (event, quoteId: string) =>
     service.interpret(quoteId, (progress) => {
       if (!event.sender.isDestroyed()) event.sender.send(AI_IPC.analysisProgress, progress)
     })
   )
-  ipcMain.handle(AI_IPC.analysisLongTermLatestGet, (_event, quoteId: string) =>
+  handle(AI_IPC.analysisLongTermLatestGet, (_event, quoteId: string) =>
     service.getLatestLongTermInterpretation(quoteId)
   )
-  ipcMain.handle(AI_IPC.analysisLongTermInterpret, (event, quoteId: string) =>
+  handle(AI_IPC.analysisLongTermInterpret, (event, quoteId: string) =>
     service.interpretLongTerm(quoteId, (progress) => {
       if (!event.sender.isDestroyed()) event.sender.send(AI_IPC.analysisProgress, progress)
     })

@@ -20,6 +20,7 @@ export interface MemoryCitationIdentity {
 
 export interface PreparedMemoryTurn {
   profileText: string
+  profileSources?: MemorySearchResult[]
   summaryText: string
   sources: MemorySearchResult[]
   identity: MemoryCitationIdentity
@@ -76,9 +77,14 @@ function fitSerializedText(text: string, fits: (candidate: string) => boolean): 
 export class TurnSourceRegistry {
   private readonly citationsByRef = new Map<string, ChatCitation>()
   private readonly counters = { document: 0, history: 0, fact: 0 }
+  private readonly profileDependencies: ChatCitation[] = []
 
   registered(): ChatCitation[] {
     return [...this.citationsByRef.values()]
+  }
+
+  provided(): ChatCitation[] {
+    return [...this.profileDependencies, ...this.registered()]
   }
 
   registerStock(citations: readonly AiSourceCitation[]): void {
@@ -109,6 +115,7 @@ export class TurnSourceRegistry {
     if (!sourceRef) return null
     const existing = this.citationsByRef.get(sourceRef)
     if (existing) return existing.id
+    if (Object.values(this.counters).reduce((sum, count) => sum + count, 0) >= 64) return null
     const kind = sourceKind(source)
     return `${kind === 'document' ? '资料' : kind === 'history' ? '历史' : '事实'}${this.counters[kind] + 1}`
   }
@@ -209,7 +216,21 @@ export class TurnSourceRegistry {
   buildMemoryContext(prepared: PreparedMemoryTurn): string {
     let context = ''
     const sourceSections = new Set<string>()
-    if (prepared.profileText)
+    if (prepared.profileSources?.length) {
+      for (const source of prepared.profileSources) {
+        const prefix = `${context ? '\n' : '用户信息：\n'}- ${source.key}：`
+        const remaining = MEMORY_CONTEXT_LIMIT - context.length - prefix.length
+        if (remaining <= 0) break
+        const text = neutralizeHistoricalCitationMarkers(source.text).slice(0, remaining)
+        if (!text) continue
+        context += `${prefix}${text}`
+        const citation = this.registerMemory(source, prepared.identity, text)
+        if (citation) {
+          this.profileDependencies.push(citation)
+          this.citationsByRef.delete(citation.sourceRef)
+        }
+      }
+    } else if (prepared.profileText)
       context = appendWithin(
         context,
         `用户信息：\n${neutralizeHistoricalCitationMarkers(prepared.profileText)}`,
@@ -222,6 +243,7 @@ export class TurnSourceRegistry {
         MEMORY_CONTEXT_LIMIT
       )
     for (const source of prepared.sources) {
+      if (source.evidenceInvalid) continue
       const marker = this.markerForMemory(source, prepared.identity)
       const prefix = `- ${marker ? `[${marker}] ` : ''}${sourceTitle(source)}：`
       const heading = source.kind === 'document' ? '资料文件内容：' : '先前交流内容：'
@@ -249,7 +271,9 @@ export class TurnSourceRegistry {
   ): Array<MemorySearchResult & { citationId?: string }> {
     const results: Array<MemorySearchResult & { citationId?: string }> = []
     for (const source of sources) {
+      if (source.evidenceInvalid) continue
       const marker = this.markerForMemory(source, identity)
+      if (!marker && this.memorySourceRef(source, identity)) break
       const sanitized = neutralizeHistoricalCitationMarkers(source.text)
       const text = fitSerializedText(
         sanitized,
@@ -270,7 +294,9 @@ export class TurnSourceRegistry {
     source: MemorySourceDetail,
     identity: MemoryCitationIdentity
   ): MemorySourceDetail & { citationId?: string } {
+    if (source.evidenceInvalid) return { ...source, text: '' }
     const marker = this.markerForMemory(source, identity)
+    if (!marker && this.memorySourceRef(source, identity)) return { ...source, text: '' }
     const sanitized = neutralizeHistoricalCitationMarkers(source.text)
     const text =
       fitSerializedText(
@@ -288,6 +314,7 @@ export class TurnSourceRegistry {
 
   private memorySourceRef(source: MemorySource, identity: MemoryCitationIdentity): string | null {
     if (!source.sourceId) return null
+    if (source.kind === 'message' && source.evidenceInvalid) return null
     if (source.kind === 'document') {
       if (
         !source.documentId ||

@@ -25,6 +25,8 @@ export interface MemoryCapabilities {
   sessions: boolean
   documentLibrary?: boolean
   documentJobs?: boolean
+  contextUses?: boolean
+  chatSourceRead?: boolean
   ocrAvailable?: boolean
   ocrLanguages?: string[]
   ocrModes?: string[]
@@ -90,6 +92,7 @@ export interface MemorySearchResult {
   sessionId?: string
   revision?: number
   textHash?: string
+  evidenceInvalid?: boolean
   documentId?: string
   versionId?: string
   generationId?: string
@@ -196,6 +199,7 @@ export interface MemorySourceDetail {
   key?: string
   revision?: number
   textHash?: string
+  evidenceInvalid?: boolean
   sessionId?: string
   title?: string
   role?: string
@@ -212,3 +216,7 @@ export interface MemorySourceDetail {
   coverage?: 'complete' | 'partial'
   failedPages?: number[]
 }
+
+export type ChatMemorySourceResult =
+  | { state: 'available'; source: MemorySourceDetail }
+  | { state: 'unavailable' | 'identity_mismatch' | 'invalid' | 'updated'; message: string }

@@ -625,6 +625,23 @@ export class AiService {
   readMemorySource(kind: string, sourceId: string) {
     return this.memory.readSource(kind, sourceId)
   }
+  readChatMemorySource(conversationId: string, messageId: string, citationId: string) {
+    this.requireConversation(conversationId)
+    const message = this.storage.getMessages(conversationId).find((item) => item.id === messageId)
+    const citation = message?.citations?.find(
+      (
+        item
+      ): item is
+        | import('../shared/types').DocumentCitation
+        | import('../shared/types').HistoryCitation
+        | import('../shared/types').FactCitation =>
+        item.id === citationId &&
+        (item.kind === 'document' || item.kind === 'history' || item.kind === 'fact')
+    )
+    if (!citation)
+      return Promise.resolve({ state: 'invalid' as const, message: '此消息没有可读取的资料引用' })
+    return this.memory.readChatSource(conversationId, citation)
+  }
   listMemoryLibraries() {
     return this.memory.listLibraries()
   }
@@ -1263,6 +1280,11 @@ export class AiService {
       const validated = validateCitationMarkers(result.content, sourceRegistry.registered())
       const content = validated.content.trim() || '模型未返回可显示的内容。'
       const citations = validated.citations.length ? validated.citations : undefined
+      const contextUses = this.messageContextUses(
+        pendingMessage.id,
+        sourceRegistry,
+        validated.citations
+      )
       this.completeMessage(webContents, {
         ...pendingMessage,
         content,
@@ -1271,7 +1293,8 @@ export class AiService {
         providerResponseId: result.responseId,
         contextRefs: stockDataSession?.contextRefs() ?? pendingMessage.contextRefs,
         sourceIds: citations?.map((citation) => citation.id),
-        citations
+        citations,
+        contextUses
       })
     } catch (error) {
       const stopped = isAbortError(error, controller.signal)
@@ -1295,6 +1318,11 @@ export class AiService {
         contextRefs: stockDataSession?.contextRefs() ?? pendingMessage.contextRefs,
         sourceIds: citations?.map((citation) => citation.id),
         citations,
+        contextUses: this.messageContextUses(
+          pendingMessage.id,
+          sourceRegistry,
+          validated.citations
+        ),
         errorMessage: stopped ? undefined : error instanceof Error ? error.message : 'AI 生成失败'
       }
       if (this.storage.getConversation(message.conversationId)) {
@@ -1316,6 +1344,26 @@ export class AiService {
     this.touchConversation(message.conversationId)
     this.syncMemoryConversation(message.conversationId)
     this.send(webContents, 'ai:chat:completed', { conversationId: message.conversationId, message })
+  }
+
+  private messageContextUses(
+    turnId: string,
+    registry: TurnSourceRegistry,
+    cited: readonly import('../shared/types').ChatCitation[]
+  ): import('../shared/types').AiMessageContextUse[] | undefined {
+    const refs = new Set(cited.map((citation) => citation.sourceRef))
+    const uses = registry.provided().flatMap((citation) =>
+      citation.kind === 'stock'
+        ? []
+        : [
+            {
+              turnId,
+              usage: refs.has(citation.sourceRef) ? ('cited' as const) : ('provided' as const),
+              citation
+            }
+          ]
+    )
+    return uses.length ? uses : undefined
   }
 
   private syncMemoryConversation(conversationId: string): void {

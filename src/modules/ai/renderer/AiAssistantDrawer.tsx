@@ -1,3 +1,4 @@
+import { ChatSourcePreview } from './ChatSourcePreview'
 import {
   AlertCircle,
   AtSign,
@@ -168,12 +169,20 @@ function citationPresentation(citation: MessageCitation): {
 
 function MessageSources({
   citations,
-  onOpenSource
+  onOpenSource,
+  api,
+  conversationId,
+  messageId
 }: {
   citations: MessageCitation[]
   onOpenSource: (url: string) => void
+  api: AiApi
+  conversationId: string
+  messageId: string
 }) {
   const [expanded, setExpanded] = useState(false)
+  const [previewId, setPreviewId] = useState<string | null>(null)
+  const closePreview = useCallback(() => setPreviewId(null), [])
   const hiddenCount = Math.max(0, citations.length - COLLAPSED_SOURCE_COUNT)
   const visibleCitations = expanded ? citations : citations.slice(0, COLLAPSED_SOURCE_COUNT)
 
@@ -209,15 +218,26 @@ function MessageSources({
               {body}
             </button>
           ) : (
-            <div
-              className="ai-message-source is-static"
+            <button
+              type="button"
+              className="ai-message-source"
               key={`${citation.id}:${citation.sourceRef}`}
+              onClick={() => setPreviewId(citation.id)}
             >
               {body}
-            </div>
+            </button>
           )
         })}
       </div>
+      {previewId ? (
+        <ChatSourcePreview
+          api={api}
+          conversationId={conversationId}
+          messageId={messageId}
+          citationId={previewId}
+          onClose={closePreview}
+        />
+      ) : null}
       {hiddenCount > 0 ? (
         <button
           className="ai-message-sources-toggle"
@@ -338,6 +358,7 @@ function ConversationList({
 }
 
 interface ChatThreadProps {
+  api: AiApi
   conversation: AiConversation | null
   messages: AiMessage[]
   onCancel: () => void
@@ -347,6 +368,7 @@ interface ChatThreadProps {
 }
 
 function ChatThread({
+  api,
   conversation,
   messages,
   onCancel,
@@ -420,7 +442,13 @@ function ChatThread({
                     <p className="ai-message-body">{message.content}</p>
                   )}
                   {message.role === 'assistant' && message.citations?.length ? (
-                    <MessageSources citations={message.citations} onOpenSource={onOpenSource} />
+                    <MessageSources
+                      citations={message.citations}
+                      onOpenSource={onOpenSource}
+                      api={api}
+                      conversationId={conversation.id}
+                      messageId={message.id}
+                    />
                   ) : null}
                   {message.status === 'error' ? (
                     <div className="ai-message-error">
@@ -1321,6 +1349,7 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
             />
             <div className="ai-chat-main">
               <ChatThread
+                api={api}
                 conversation={activeConversation}
                 messages={messages}
                 onCancel={() => activeConversation && void api.cancelChat(activeConversation.id)}

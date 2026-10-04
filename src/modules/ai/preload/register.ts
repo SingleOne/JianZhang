@@ -67,6 +67,9 @@ export function installAiPreload(): void {
     deleteMemoryFact: (id, revision) => invoke(AI_IPC.memoryFactDelete, id, revision),
     searchMemory: (query) => invoke(AI_IPC.memorySearch, query),
     readMemorySource: (kind, sourceId) => invoke(AI_IPC.memorySourceRead, kind, sourceId),
+    readChatMemorySource: (conversationId, messageId, citationId) =>
+      invoke(AI_IPC.memoryChatSourceRead, conversationId, messageId, citationId),
+    onMemorySourcesChanged: (listener) => subscribe(AI_IPC.memorySourcesChanged, listener),
     listMemoryLibraries: () => invoke(AI_IPC.memoryLibrariesList),
     createMemoryLibrary: (name) => invoke(AI_IPC.memoryLibraryCreate, name),
     renameMemoryLibrary: (id, name, revision) =>

@@ -1,9 +1,14 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { safeStorage } from 'electron'
 import { atomicWriteFileSync, atomicWriteJsonSync } from '../../../../../electron/main/file-storage'
-import type { AiConversation } from '../../shared/types'
+import type {
+  AiConversation,
+  AiMessageContextUse,
+  ChatCitation,
+  StockCitation
+} from '../../shared/types'
 import type {
   MemoryCandidate,
   MemoryCapabilities,
@@ -17,7 +22,8 @@ import type {
   MemoryProfile,
   MemorySearchResult,
   MemorySourceDetail,
-  MemoryStatus
+  MemoryStatus,
+  ChatMemorySourceResult
 } from '../../shared/memory-types'
 import type { AiStorage } from '../storage'
 import type { PreparedMemoryTurn } from '../citations/registry'
@@ -32,16 +38,49 @@ type Binding = {
   pendingDelete: boolean
   historyVisible?: boolean
   libraryIds?: string[]
+  messageEvents?: Record<string, { operationId: string; event: Record<string, unknown> }>
 }
 type State = {
   activeProfileId: string | null
   profiles: MemoryProfile[]
   bindings: Record<string, Binding>
 }
+function contextUsePayload(use: AiMessageContextUse) {
+  const citation = use.citation
+  return {
+    turnId: use.turnId,
+    usage: use.usage,
+    kind: citation.kind === 'history' ? 'message' : citation.kind,
+    sourceId:
+      citation.kind === 'document'
+        ? citation.chunkId
+        : citation.kind === 'history'
+          ? citation.messageId
+          : citation.factId,
+    textHash: citation.textHash,
+    revision: citation.kind === 'document' ? undefined : citation.revision,
+    sourceSessionId: citation.kind === 'history' ? citation.sourceSessionId : undefined,
+    documentId: citation.kind === 'document' ? citation.documentId : undefined,
+    versionId: citation.kind === 'document' ? citation.versionId : undefined,
+    generationId: citation.kind === 'document' ? citation.generationId : undefined,
+    snapshot: {
+      title:
+        citation.kind === 'document'
+          ? citation.fileName
+          : citation.kind === 'history'
+            ? citation.title
+            : citation.key,
+      locator: citation.kind === 'document' ? citation.locator : undefined,
+      pageNumber: citation.kind === 'document' ? citation.pageNumber : undefined
+    },
+    excerpts: citation.providedExcerpts.slice(0, 16)
+  }
+}
 export class MemoryBridge {
   private readonly statePath: string
   private readonly secretsPath: string
   private state: State
+  private readonly syncQueues = new Map<string, Promise<unknown>>()
 
   constructor(private readonly storage: AiStorage) {
     this.statePath = join(storage.rootDirectory, 'memory-bridge.json')
@@ -230,8 +269,9 @@ export class MemoryBridge {
     })
     const result = (await response.json()) as T & { error?: string; message?: string }
     if (!response.ok)
-      throw new Error(
-        `记忆服务 ${response.status}: ${result.message ?? result.error ?? '请求失败'}`
+      throw Object.assign(
+        new Error(`记忆服务 ${response.status}: ${result.message ?? result.error ?? '请求失败'}`),
+        { status: response.status }
       )
     return result
   }
@@ -303,7 +343,25 @@ export class MemoryBridge {
     binding: Binding,
     conversation: AiConversation
   ): Promise<{ id: string; lastSequence: number }> {
+    const prior = this.syncQueues.get(conversation.id) ?? Promise.resolve()
+    const pending = prior
+      .catch(() => undefined)
+      .then(() => this.syncUnlocked(profile, binding, conversation))
+    this.syncQueues.set(conversation.id, pending)
+    try {
+      return await pending
+    } finally {
+      if (this.syncQueues.get(conversation.id) === pending) this.syncQueues.delete(conversation.id)
+    }
+  }
+  private async syncUnlocked(
+    profile: MemoryProfile,
+    binding: Binding,
+    conversation: AiConversation
+  ): Promise<{ id: string; lastSequence: number }> {
+    this.assertConversationBinding(conversation.id, profile, binding)
     let session = await this.register(profile, binding, conversation)
+    this.assertConversationBinding(conversation.id, profile, binding, session.id)
     const messages = this.storage
       .getMessages(conversation.id)
       .filter(
@@ -315,24 +373,48 @@ export class MemoryBridge {
       throw new Error('记忆服务消息水位超过本地会话，请检查数据恢复状态')
     for (let index = session.lastSequence; index < messages.length; index++) {
       const message = messages[index]
+      this.assertConversationBinding(conversation.id, profile, binding, session.id)
+      binding.messageEvents ??= {}
+      const key = String(index + 1)
+      const payload = (binding.messageEvents[key] ??= {
+        operationId: `message:${conversation.id}:${index + 1}:${message.id}`,
+        event: {
+          externalMessageId: message.id,
+          revision: 1,
+          sequence: index + 1,
+          role: message.role,
+          status: message.status,
+          text: message.content,
+          occurredAt: message.createdAt,
+          ...(profile.capabilities?.contextUses
+            ? {
+                contextUses: (message.contextUses ?? [])
+                  .filter(
+                    (use) =>
+                      use.citation.serviceProfileId === profile.id &&
+                      use.citation.serviceId === profile.serviceId &&
+                      use.citation.userId === profile.userId &&
+                      use.citation.sessionId === session.id
+                  )
+                  .map(contextUsePayload)
+              }
+            : {})
+        }
+      })
+      this.save()
       const result = await this.request<{ lastSequence: number }>(
         profile,
         'POST',
         `/v1/sessions/${session.id}/events`,
-        {
-          operationId: `message:${conversation.id}:${index + 1}:${message.id}`,
-          event: {
-            externalMessageId: message.id,
-            revision: 1,
-            sequence: index + 1,
-            role: message.role,
-            status: message.status,
-            text: message.content,
-            occurredAt: message.createdAt
-          }
-        }
+        payload
       )
+      this.assertConversationBinding(conversation.id, profile, binding, session.id)
       session = { ...session, lastSequence: result.lastSequence }
+    }
+    if (binding.messageEvents) {
+      for (const key of Object.keys(binding.messageEvents))
+        if (Number(key) <= session.lastSequence) delete binding.messageEvents[key]
+      this.save()
     }
     return session
   }
@@ -371,6 +453,15 @@ export class MemoryBridge {
       const documents = result.documents ?? []
       return {
         profileText,
+        profileSources: result.profile.map((item) => ({
+          kind: 'fact',
+          sourceId: item.id,
+          text: item.content,
+          score: 0,
+          key: item.key,
+          revision: item.revision,
+          textHash: createHash('sha256').update(item.content).digest('hex')
+        })),
         summaryText: result.summary
           ? `已覆盖至消息序号 ${result.summaryThrough}：\n${result.summary.slice(0, 2000)}`
           : '',
@@ -494,6 +585,58 @@ export class MemoryBridge {
       this.assertConversationBinding(conversationId, profile, binding, sessionId)
     else this.assertActiveProfile(profile)
     return result
+  }
+  async readChatSource(
+    conversationId: string,
+    citation: Exclude<ChatCitation, StockCitation>
+  ): Promise<ChatMemorySourceResult> {
+    const profile = this.active()
+    const binding = this.state.bindings[conversationId]
+    if (
+      !profile ||
+      !binding ||
+      binding.pendingDelete ||
+      !binding.sessionId ||
+      profile.id !== citation.serviceProfileId ||
+      profile.serviceId !== citation.serviceId ||
+      profile.userId !== citation.userId ||
+      binding.profileId !== profile.id ||
+      binding.sessionId !== citation.sessionId
+    )
+      return { state: 'identity_mismatch', message: '当前记忆身份或会话绑定与该引用不匹配' }
+    if (!profile.capabilities?.chatSourceRead)
+      return { state: 'unavailable', message: '当前记忆服务不支持聊天来源回读' }
+    const sessionId = binding.sessionId
+    const selectedLibraries = binding.libraryIds
+    const expected = contextUsePayload({ turnId: 'source-read', usage: 'cited', citation })
+    try {
+      await this.assertIdentity(profile)
+      this.assertConversationBinding(conversationId, profile, binding, sessionId)
+      const source = await this.request<MemorySourceDetail>(profile, 'POST', '/v1/sources/read', {
+        kind: expected.kind,
+        sourceId: expected.sourceId,
+        sessionId,
+        expected
+      })
+      this.assertConversationBinding(conversationId, profile, binding, sessionId)
+      if (binding.libraryIds !== selectedLibraries)
+        return { state: 'invalid', message: '当前会话的资料库选择已变化' }
+      if (source.evidenceInvalid) return { state: 'invalid', message: '该历史回答的来源证据已失效' }
+      return { state: 'available', source }
+    } catch (error) {
+      if (
+        this.active()?.id !== profile.id ||
+        this.state.bindings[conversationId] !== binding ||
+        binding.pendingDelete
+      )
+        return { state: 'identity_mismatch', message: '记忆身份或会话绑定已变化' }
+      const status =
+        error && typeof error === 'object' && 'status' in error ? Number(error.status) : undefined
+      if (status === 409) return { state: 'updated', message: '来源已更新，旧引用正文无法读取' }
+      if (status === 404 || status === 410 || status === 403 || status === 401)
+        return { state: 'invalid', message: '来源已失效或当前会话无权读取' }
+      return { state: 'unavailable', message: '记忆服务暂时不可用，请稍后重试' }
+    }
   }
   async listLibraries(): Promise<MemoryLibrary[]> {
     const profile = this.active()

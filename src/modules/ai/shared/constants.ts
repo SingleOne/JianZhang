@@ -46,6 +46,8 @@ export const AI_IPC = {
   memoryFactDelete: 'ai:memory:fact:delete',
   memorySearch: 'ai:memory:search',
   memorySourceRead: 'ai:memory:source:read',
+  memoryChatSourceRead: 'ai:memory:chat-source:read',
+  memorySourcesChanged: 'ai:memory:sources:changed',
   memoryLibrariesList: 'ai:memory:libraries:list',
   memoryLibraryCreate: 'ai:memory:library:create',
   memoryLibraryRename: 'ai:memory:library:rename',

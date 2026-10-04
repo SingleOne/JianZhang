@@ -576,6 +576,26 @@
   color: #53657e;
   cursor: default;
 }
+.ai-chat-source-preview {
+  margin-top: 8px;
+  font-size: 12px;
+}
+.ai-chat-source-preview-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.ai-chat-source-preview-heading button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 12px;
+}
+.ai-chat-source-preview small {
+  font-size: 12px;
+}
 .ai-message-source.is-static:hover {
   color: #53657e;
   background: #ffffff;
