@@ -54,6 +54,7 @@ export const AI_IPC = {
   memoryLibraryDelete: 'ai:memory:library:delete',
   memoryDocumentsList: 'ai:memory:documents:list',
   memoryDocumentUpload: 'ai:memory:document:upload',
+  memoryUploadProgress: 'ai:memory:upload:progress',
   memoryDocumentPublishKeyword: 'ai:memory:document:publish-keyword',
   memoryDocumentDelete: 'ai:memory:document:delete',
   memoryDocumentJobsList: 'ai:memory:document-jobs:list',

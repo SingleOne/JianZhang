@@ -661,9 +661,11 @@ export class AiService {
     name: string,
     bytes: ArrayBuffer,
     libraryId: string,
-    existing?: { id: string; revision: number }
+    existing?: { id: string; revision: number },
+    operationId?: string,
+    onProgress?: (progress: import('../shared/memory-types').MemoryUploadProgress) => void
   ) {
-    return this.memory.uploadDocument(name, bytes, libraryId, existing)
+    return this.memory.uploadDocument(name, bytes, libraryId, existing, operationId, onProgress)
   }
   publishMemoryDocumentKeyword(documentId: string, versionId: string, revision: number) {
     return this.memory.publishDocumentKeyword(documentId, versionId, revision)

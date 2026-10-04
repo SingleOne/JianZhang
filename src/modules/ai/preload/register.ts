@@ -76,8 +76,9 @@ export function installAiPreload(): void {
       invoke(AI_IPC.memoryLibraryRename, id, name, revision),
     deleteMemoryLibrary: (id, revision) => invoke(AI_IPC.memoryLibraryDelete, id, revision),
     listMemoryDocuments: (libraryId) => invoke(AI_IPC.memoryDocumentsList, libraryId),
-    uploadMemoryDocument: (name, bytes, libraryId, existing) =>
-      invoke(AI_IPC.memoryDocumentUpload, name, bytes, libraryId, existing),
+    uploadMemoryDocument: (name, bytes, libraryId, existing, operationId) =>
+      invoke(AI_IPC.memoryDocumentUpload, name, bytes, libraryId, existing, operationId),
+    onMemoryUploadProgress: (listener) => subscribe(AI_IPC.memoryUploadProgress, listener),
     publishMemoryDocumentKeyword: (documentId, versionId, revision) =>
       invoke(AI_IPC.memoryDocumentPublishKeyword, documentId, versionId, revision),
     deleteMemoryDocument: (id, revision) => invoke(AI_IPC.memoryDocumentDelete, id, revision),

@@ -25,6 +25,13 @@ export interface MemoryCapabilities {
   sessions: boolean
   documentLibrary?: boolean
   documentJobs?: boolean
+  asyncDocumentUpload?: boolean
+  uploadLimits?: {
+    fileBytes: number
+    userConcurrent: number
+    userStagingBytes: number
+    receiveTimeoutMs: number
+  }
   contextUses?: boolean
   chatSourceRead?: boolean
   ocrAvailable?: boolean
@@ -119,7 +126,13 @@ export interface MemoryDocumentVersion {
   id: string
   versionNo: number
   name: string
-  status: 'ready' | 'keyword_ready' | 'embedding_failed' | 'needs_ocr'
+  status:
+    | 'ready'
+    | 'keyword_ready'
+    | 'embedding_failed'
+    | 'needs_ocr'
+    | 'processing'
+    | 'processing_failed'
   error: string | null
   mime: string
   size: number
@@ -148,7 +161,7 @@ export interface MemoryDocumentProcessingJob {
   documentId: string
   versionId: string
   generationId: string
-  kind: 'reindex' | 'embed' | 'ocr'
+  kind: 'reindex' | 'embed' | 'ocr' | 'import'
   parameters: Record<string, unknown>
   expectedDocumentRevision: number
   state: MemoryDocumentJobState
@@ -190,6 +203,13 @@ export interface MemoryDocument {
   latestVersion: MemoryDocumentVersion | null
   createdAt: string
   updatedAt: string
+  processingJob?: MemoryDocumentProcessingJob
+}
+
+export interface MemoryUploadProgress {
+  operationId: string
+  sentBytes: number
+  totalBytes: number
 }
 
 export interface MemorySourceDetail {

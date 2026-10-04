@@ -140,12 +140,16 @@ export function installAi(dependencies: AiModuleDependencies): AiRuntime {
   handle(
     AI_IPC.memoryDocumentUpload,
     (
-      _event,
+      event,
       name: string,
       bytes: ArrayBuffer,
       libraryId: string,
-      existing?: { id: string; revision: number }
-    ) => service.uploadMemoryDocument(name, bytes, libraryId, existing)
+      existing?: { id: string; revision: number },
+      operationId?: string
+    ) =>
+      service.uploadMemoryDocument(name, bytes, libraryId, existing, operationId, (progress) => {
+        if (!event.sender.isDestroyed()) event.sender.send(AI_IPC.memoryUploadProgress, progress)
+      })
   )
   handle(
     AI_IPC.memoryDocumentPublishKeyword,

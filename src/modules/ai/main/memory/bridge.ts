@@ -27,6 +27,8 @@ import type {
 } from '../../shared/memory-types'
 import type { AiStorage } from '../storage'
 import type { PreparedMemoryTurn } from '../citations/registry'
+import { uploadBytes } from './upload'
+import type { MemoryUploadProgress } from '../../shared/memory-types'
 
 type Binding = {
   profileId: string
@@ -782,7 +784,9 @@ export class MemoryBridge {
     name: string,
     bytes: ArrayBuffer,
     libraryId: string,
-    existing?: { id: string; revision: number }
+    existing?: { id: string; revision: number },
+    requestedOperationId?: string,
+    onProgress?: (progress: MemoryUploadProgress) => void
   ): Promise<MemoryDocument> {
     const profile = this.active()
     if (!profile) throw new Error('记忆功能未启用')
@@ -792,20 +796,27 @@ export class MemoryBridge {
     const path = existing
       ? `/v1/documents/${existing.id}/versions`
       : `/v1/libraries/${libraryId}/documents`
-    const response = await fetch(`${profile.url}${path}?name=${encodeURIComponent(name)}`, {
-      method: 'POST',
-      headers: {
+    this.assertActiveProfile(profile)
+    if (!bytes.byteLength || bytes.byteLength > 12 * 1024 * 1024)
+      throw new Error('上传文件须为 1 字节至 12 MB')
+    const operationId = requestedOperationId ?? randomUUID()
+    if (!/^[a-zA-Z0-9_-]{1,100}$/.test(operationId)) throw new Error('上传操作标识无效')
+    const result = await uploadBytes(
+      new URL(`${profile.url}${path}?name=${encodeURIComponent(name)}`),
+      {
         authorization: `Bearer ${token}`,
         'content-type': 'application/octet-stream',
-        'x-operation-id': randomUUID(),
+        'x-operation-id': operationId,
+        ...(profile.capabilities?.asyncDocumentUpload ? { prefer: 'respond-async' } : {}),
         ...(existing ? { 'x-expected-revision': String(existing.revision) } : {})
       },
-      body: bytes,
-      signal: AbortSignal.timeout(120000),
-      redirect: 'error'
-    })
-    const result = (await response.json()) as MemoryDocument & { error?: string }
-    if (!response.ok) throw new Error(`记忆服务 ${response.status}: ${result.error ?? '上传失败'}`)
+      bytes,
+      (sentBytes) => {
+        this.assertActiveProfile(profile)
+        onProgress?.({ operationId, sentBytes, totalBytes: bytes.byteLength })
+      }
+    )
+    this.assertActiveProfile(profile)
     return result
   }
   async publishDocumentKeyword(

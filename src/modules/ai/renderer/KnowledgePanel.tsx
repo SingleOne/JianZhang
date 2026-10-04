@@ -26,6 +26,8 @@ function versionStatus(document: MemoryDocument): string {
   if (latest.status === 'ready') return '全文与语义就绪'
   if (latest.status === 'keyword_ready') return '关键词可检索'
   if (latest.status === 'needs_ocr') return '需要 OCR，暂不可检索'
+  if (latest.status === 'processing') return '已上传，正在后台处理'
+  if (latest.status === 'processing_failed') return '处理未完成，未发布此版本'
   return '向量化失败，未发布此版本'
 }
 
@@ -74,10 +76,28 @@ export function KnowledgePanel({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [uploadProgress, setUploadProgress] = useState<{
+    sentBytes: number
+    totalBytes: number
+  } | null>(null)
+  const uploadOperation = useRef<string | null>(null)
+  const pendingUpload = useRef<{ key: string; operationId: string } | null>(null)
+  const mounted = useRef(true)
   const loadGeneration = useRef(0)
   const jobsRef = useRef<MemoryDocumentProcessingJob[]>([])
   const supportsJobs = capabilities?.documentJobs === true
   const supportsOcr = capabilities?.ocrAvailable === true
+  useEffect(() => {
+    mounted.current = true
+    const unsubscribe = api.onMemoryUploadProgress((progress) => {
+      if (mounted.current && uploadOperation.current === progress.operationId)
+        setUploadProgress({ sentBytes: progress.sentBytes, totalBytes: progress.totalBytes })
+    })
+    return () => {
+      mounted.current = false
+      unsubscribe()
+    }
+  }, [api])
   const loadJobsForDocuments = useCallback(
     async (items: MemoryDocument[]) => {
       if (!supportsJobs) return []
@@ -90,7 +110,9 @@ export function KnowledgePanel({
   )
 
   const refreshLibraries = useCallback(async () => {
+    const generation = loadGeneration.current
     const next = await api.listMemoryLibraries()
+    if (!mounted.current || generation !== loadGeneration.current) return
     setLibraries(next)
     setSelectedId((current) =>
       next.some((item) => item.id === current) ? current : (next[0]?.id ?? '')
@@ -192,9 +214,13 @@ export function KnowledgePanel({
     try {
       await action()
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '资料库操作失败')
+      if (mounted.current) setError(reason instanceof Error ? reason.message : '资料库操作失败')
     } finally {
-      setBusy(false)
+      uploadOperation.current = null
+      if (mounted.current) {
+        setUploadProgress(null)
+        setBusy(false)
+      }
     }
   }
 
@@ -253,27 +279,59 @@ export function KnowledgePanel({
   const upload = (file: File) =>
     void run(async () => {
       if (!selected) return
+      const generation = loadGeneration.current
       if (file.size > 12 * 1024 * 1024) throw new Error('文件不能超过 12 MB')
-      const bytes = await file.arrayBuffer()
       const target = uploadTarget.current
+      setUploadProgress({ sentBytes: 0, totalBytes: file.size })
+      const bytes = await file.arrayBuffer()
+      const hash = Array.from(
+        new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)),
+        (byte) => byte.toString(16).padStart(2, '0')
+      ).join('')
+      if (!mounted.current || generation !== loadGeneration.current) return
+      const key = JSON.stringify([
+        selected.id,
+        target?.id,
+        target?.revision,
+        file.name,
+        file.size,
+        file.lastModified,
+        hash
+      ])
+      const operationId =
+        pendingUpload.current?.key === key ? pendingUpload.current.operationId : crypto.randomUUID()
+      pendingUpload.current = { key, operationId }
+      uploadOperation.current = operationId
       const result = await api.uploadMemoryDocument(
         file.name,
         bytes,
         selected.id,
-        target ? { id: target.id, revision: target.revision } : undefined
+        target ? { id: target.id, revision: target.revision } : undefined,
+        operationId
       )
-      uploadTarget.current = null
+      if (!mounted.current || generation !== loadGeneration.current) return
+      uploadOperation.current = null
+      setUploadProgress(null)
       const nextDocuments = await api.listMemoryDocuments(selected.id)
       const nextJobs = await loadJobsForDocuments(nextDocuments)
-      setDocuments(nextDocuments)
-      setJobs(nextJobs)
       await refreshLibraries()
+      if (!mounted.current || generation !== loadGeneration.current) return
+      setDocuments(nextDocuments)
+      setJobs(
+        result.processingJob && !nextJobs.some((job) => job.id === result.processingJob?.id)
+          ? [result.processingJob, ...nextJobs]
+          : nextJobs
+      )
+      pendingUpload.current = null
+      uploadTarget.current = null
       setMessage(
-        result.latestVersion?.status === 'needs_ocr'
-          ? '文件已保存，但扫描 PDF 需要 OCR，暂不可检索。'
-          : result.latestVersion?.status === 'embedding_failed'
-            ? '文件已保存，向量化失败。可稍后按关键词模式发布此版本。'
-            : '文件已导入并可检索。'
+        result.processingJob
+          ? '文件已完整上传并保存，正在后台处理；关闭面板不会中止处理。'
+          : result.latestVersion?.status === 'needs_ocr'
+            ? '文件已保存，但扫描 PDF 需要 OCR，暂不可检索。'
+            : result.latestVersion?.status === 'embedding_failed'
+              ? '文件已保存，向量化失败。可稍后按关键词模式发布此版本。'
+              : '文件已导入并可检索。'
       )
     })
   const publishKeyword = (item: MemoryDocument) =>
@@ -458,6 +516,15 @@ export function KnowledgePanel({
               导入文件
             </AppButton>
             <span>TXT、Markdown、文字型 PDF、DOCX；单文件不超过 12 MB。</span>
+            {uploadProgress ? (
+              <p role="status" style={{ fontSize: 12 }}>
+                已发送 {uploadProgress.sentBytes.toLocaleString()} /{' '}
+                {uploadProgress.totalBytes.toLocaleString()} 字节
+                {uploadProgress.sentBytes === uploadProgress.totalBytes
+                  ? '；等待服务确认完整接收'
+                  : ''}
+              </p>
+            ) : null}
           </div>
           <ul className="ai-knowledge-documents">
             {documents.map((item) => {
@@ -557,7 +624,8 @@ export function KnowledgePanel({
                         重新建立索引
                       </AppButton>
                     ) : null}
-                    {item.latestVersion?.status === 'embedding_failed' ? (
+                    {item.latestVersion?.status === 'embedding_failed' &&
+                    processingJob?.kind !== 'import' ? (
                       <AppButton
                         disabled={busy || Boolean(processing)}
                         onClick={() => publishKeyword(item)}

@@ -548,8 +548,12 @@ export interface AiApi {
     name: string,
     bytes: ArrayBuffer,
     libraryId: string,
-    existing?: { id: string; revision: number }
+    existing?: { id: string; revision: number },
+    operationId?: string
   ) => Promise<MemoryDocument>
+  onMemoryUploadProgress: (
+    listener: (progress: import('./memory-types').MemoryUploadProgress) => void
+  ) => () => void
   publishMemoryDocumentKeyword: (
     documentId: string,
     versionId: string,
