@@ -44,6 +44,7 @@ const MARKET_INDEX_GROUPS = (['CN', 'HK', 'US'] as const).map((market) => ({
 }))
 
 interface SettingsMenuProps {
+  onManageAccounts: () => void
   settings: AppSettings
   onChange: (settings: AppSettings) => void
   onImportConfig: () => void
@@ -147,6 +148,7 @@ function formatCacheSize(bytes: number): string {
 }
 
 export function SettingsMenu({
+  onManageAccounts,
   settings,
   onChange,
   onImportConfig,
@@ -245,16 +247,6 @@ export function SettingsMenu({
     })
   }
 
-  const updateTradingFee = (key: keyof AppSettings['tTradingFees'], value: number) => {
-    onChange({
-      ...settings,
-      tTradingFees: {
-        ...settings.tTradingFees,
-        [key]: Math.max(0, value || 0)
-      }
-    })
-  }
-
   const updateTPlanDefault = (
     side: 'buyLevels' | 'sellLevels',
     index: number,
@@ -268,26 +260,6 @@ export function SettingsMenu({
         [side]: settings.tPlanDefaults[side].map((level, levelIndex) =>
           levelIndex === index ? { ...level, [key]: Math.max(0, value || 0) } : level
         )
-      }
-    })
-  }
-
-  const updateHongKongTradeFee = (changes: Partial<AppSettings['marketTradeFees']['HK']>) => {
-    onChange({
-      ...settings,
-      marketTradeFees: {
-        ...settings.marketTradeFees,
-        HK: { ...settings.marketTradeFees.HK, ...changes }
-      }
-    })
-  }
-
-  const updateUnitedStatesTradeFee = (changes: Partial<AppSettings['marketTradeFees']['US']>) => {
-    onChange({
-      ...settings,
-      marketTradeFees: {
-        ...settings.marketTradeFees,
-        US: { ...settings.marketTradeFees.US, ...changes }
       }
     })
   }
@@ -426,241 +398,12 @@ export function SettingsMenu({
             <>
               <section className="trading-fee-setting">
                 <span className="settings-section-heading">
-                  <strong>港股交易费用模板</strong>
-                  <small>
-                    官方征费、交易费和印花税按当前港交所规则计算；佣金、平台费及交收费转收按券商账单配置
-                  </small>
+                  <strong>股票账户与费率</strong>
+                  <small>各市场账户独立维护持仓与交易费用</small>
                 </span>
-                <div className="trading-fee-grid">
-                  <label>
-                    <span>佣金比例</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.001"
-                      value={settings.marketTradeFees.HK.brokerageRatePercent}
-                      onChange={(event) =>
-                        updateHongKongTradeFee({
-                          brokerageRatePercent: Math.max(0, Number(event.target.value) || 0)
-                        })
-                      }
-                    />
-                    <em>%</em>
-                  </label>
-                  <label>
-                    <span>最低佣金</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={settings.marketTradeFees.HK.minimumBrokerage}
-                      onChange={(event) =>
-                        updateHongKongTradeFee({
-                          minimumBrokerage: Math.max(0, Number(event.target.value) || 0)
-                        })
-                      }
-                    />
-                    <em>HKD</em>
-                  </label>
-                  <label>
-                    <span>平台费</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={settings.marketTradeFees.HK.platformFee}
-                      onChange={(event) =>
-                        updateHongKongTradeFee({
-                          platformFee: Math.max(0, Number(event.target.value) || 0)
-                        })
-                      }
-                    />
-                    <em>HKD</em>
-                  </label>
-                  <label className="trading-fee-switch-label">
-                    <span>计入交收费</span>
-                    <input
-                      className="switch-input"
-                      type="checkbox"
-                      checked={settings.marketTradeFees.HK.includeSettlementFee}
-                      onChange={(event) =>
-                        updateHongKongTradeFee({
-                          includeSettlementFee: event.target.checked
-                        })
-                      }
-                    />
-                  </label>
-                </div>
-              </section>
-              <section className="trading-fee-setting">
-                <span className="settings-section-heading">
-                  <strong>美股交易费用模板</strong>
-                  <small>
-                    SEC 与 FINRA 项按 2026
-                    年现行费率估算且仅用于卖出；券商实际成交单可在交易记录中覆盖
-                  </small>
-                </span>
-                <div className="trading-fee-grid">
-                  <label>
-                    <span>每股佣金</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.0001"
-                      value={settings.marketTradeFees.US.commissionPerShare}
-                      onChange={(event) =>
-                        updateUnitedStatesTradeFee({
-                          commissionPerShare: Math.max(0, Number(event.target.value) || 0)
-                        })
-                      }
-                    />
-                    <em>USD</em>
-                  </label>
-                  <label>
-                    <span>最低佣金</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={settings.marketTradeFees.US.minimumCommission}
-                      onChange={(event) =>
-                        updateUnitedStatesTradeFee({
-                          minimumCommission: Math.max(0, Number(event.target.value) || 0)
-                        })
-                      }
-                    />
-                    <em>USD</em>
-                  </label>
-                  <label>
-                    <span>平台费</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={settings.marketTradeFees.US.platformFee}
-                      onChange={(event) =>
-                        updateUnitedStatesTradeFee({
-                          platformFee: Math.max(0, Number(event.target.value) || 0)
-                        })
-                      }
-                    />
-                    <em>USD</em>
-                  </label>
-                  <label className="trading-fee-switch-label">
-                    <span>SEC 费用</span>
-                    <input
-                      className="switch-input"
-                      type="checkbox"
-                      checked={settings.marketTradeFees.US.includeSecFee}
-                      onChange={(event) =>
-                        updateUnitedStatesTradeFee({
-                          includeSecFee: event.target.checked
-                        })
-                      }
-                    />
-                  </label>
-                  <label className="trading-fee-switch-label">
-                    <span>FINRA TAF</span>
-                    <input
-                      className="switch-input"
-                      type="checkbox"
-                      checked={settings.marketTradeFees.US.includeFinraTaf}
-                      onChange={(event) =>
-                        updateUnitedStatesTradeFee({
-                          includeFinraTaf: event.target.checked
-                        })
-                      }
-                    />
-                  </label>
-                </div>
-              </section>
-              <section className="trading-fee-setting">
-                <span className="settings-section-heading">
-                  <strong>A股做T费用</strong>
-                  <small>
-                    佣金按净佣金计算；深A将过户费计入最低 5 元，沪A过户费在最低 5 元外单独收取
-                  </small>
-                </span>
-                <div className="trading-fee-grid">
-                  <label>
-                    <span>佣金</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.001"
-                      value={settings.tTradingFees.commissionRatePerTenThousand}
-                      onChange={(event) =>
-                        updateTradingFee('commissionRatePerTenThousand', Number(event.target.value))
-                      }
-                    />
-                    <em>万分</em>
-                  </label>
-                  <label>
-                    <span>最低合计</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={settings.tTradingFees.minimumCommissionBundle}
-                      onChange={(event) =>
-                        updateTradingFee('minimumCommissionBundle', Number(event.target.value))
-                      }
-                    />
-                    <em>元</em>
-                  </label>
-                  <label>
-                    <span>经手费</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.001"
-                      value={settings.tTradingFees.handlingRatePerTenThousand}
-                      onChange={(event) =>
-                        updateTradingFee('handlingRatePerTenThousand', Number(event.target.value))
-                      }
-                    />
-                    <em>万分</em>
-                  </label>
-                  <label>
-                    <span>证管费</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.001"
-                      value={settings.tTradingFees.regulatoryRatePerTenThousand}
-                      onChange={(event) =>
-                        updateTradingFee('regulatoryRatePerTenThousand', Number(event.target.value))
-                      }
-                    />
-                    <em>万分</em>
-                  </label>
-                  <label>
-                    <span>过户费</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.001"
-                      value={settings.tTradingFees.transferRatePerTenThousand}
-                      onChange={(event) =>
-                        updateTradingFee('transferRatePerTenThousand', Number(event.target.value))
-                      }
-                    />
-                    <em>万分</em>
-                  </label>
-                  <label>
-                    <span>印花税</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.001"
-                      value={settings.tTradingFees.stampDutyRatePerTenThousand}
-                      onChange={(event) =>
-                        updateTradingFee('stampDutyRatePerTenThousand', Number(event.target.value))
-                      }
-                    />
-                    <em>万分</em>
-                  </label>
-                </div>
+                <button className="secondary-button" type="button" onClick={onManageAccounts}>
+                  管理股票账户
+                </button>
               </section>
               <section className="t-plan-default-setting">
                 <span className="settings-section-heading">

@@ -3,7 +3,7 @@ import { parseImportedAppState } from './config'
 import type { AppState } from './types'
 
 export const JIANZHANG_USER_DATA_BACKUP_FORMAT = 'jianzhang-user-data-backup'
-export const JIANZHANG_USER_DATA_BACKUP_VERSION = 1
+export const JIANZHANG_USER_DATA_BACKUP_VERSION = 2
 
 export type UserDataBackupApiKeys = Partial<Record<AiApiKeyProviderId, string>>
 
@@ -130,10 +130,13 @@ function parseApiKeys(value: unknown): UserDataBackupApiKeys {
 
 export function parseUserDataBackupDocument(value: unknown): JianzhangUserDataBackupDocument {
   if (!value || typeof value !== 'object') throw new Error('文件不是有效的见涨用户数据备份')
-  const document = value as Partial<JianzhangUserDataBackupDocument>
+  const document = value as Partial<Omit<JianzhangUserDataBackupDocument, 'formatVersion'>> & {
+    formatVersion?: number
+  }
   if (
     document.format !== JIANZHANG_USER_DATA_BACKUP_FORMAT ||
-    document.formatVersion !== JIANZHANG_USER_DATA_BACKUP_VERSION ||
+    (document.formatVersion !== 1 &&
+      document.formatVersion !== JIANZHANG_USER_DATA_BACKUP_VERSION) ||
     typeof document.applicationVersion !== 'string' ||
     typeof document.exportedAt !== 'string'
   ) {

@@ -1,3 +1,6 @@
+import { useSecuritiesAccountState } from '../../../components/SecuritiesAccountContext'
+import { listAccountsForMarket, resolveAccountSelection } from '../../../shared/stock-accounts'
+import { STOCK_MARKET_LABELS } from '../../../shared/stock-market'
 import {
   AlertTriangle,
   CheckCircle2,
@@ -61,6 +64,7 @@ export function TradeImportPanel({
   imageUnderstandingAvailable,
   onError
 }: TradeImportPanelProps) {
+  const accountState = useSecuritiesAccountState()
   const confirm = useConfirmDialog()
   const documentInputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
@@ -199,6 +203,9 @@ export function TradeImportPanel({
       stockCode: stock?.code ?? item.stockCode,
       stockName: stock?.name ?? item.stockName,
       currency,
+      accountId: quoteId
+        ? resolveAccountSelection(accountState, marketFromQuoteId(quoteId))
+        : undefined,
       exchangeRate: currency === 'CNY' ? 1 : item.exchangeRate
     })
   }
@@ -375,16 +382,69 @@ export function TradeImportPanel({
             <section className="ai-trade-import-impacts">
               <strong>导入影响预览</strong>
               {draft.impacts.map((impact) => (
-                <div key={impact.quoteId}>
-                  <span>{impact.name}</span>
+                <div key={`${impact.quoteId}:${impact.accountId}`}>
+                  <span>
+                    {impact.name} · {impact.accountName}
+                  </span>
                   <span>
                     {impact.beforeQuantity} 股 / {formatCost(impact.beforeCost)} →{' '}
                     {impact.afterQuantity} 股 / {formatCost(impact.afterCost)}
+                    {' · 股票合计 '}
+                    {impact.totalBeforeQuantity} → {impact.totalAfterQuantity} 股
                   </span>
                 </div>
               ))}
             </section>
           ) : null}
+          <div className="ai-trade-import-fields">
+            {draft.sources.flatMap((source) =>
+              [
+                ...new Set(
+                  draft.items
+                    .filter((item) => item.sourceId === source.id && item.quoteId)
+                    .map((item) => marketFromQuoteId(item.quoteId!))
+                )
+              ].map((market) => (
+                <label key={`${source.id}:${market}`}>
+                  <span>
+                    {source.name} · {STOCK_MARKET_LABELS[market]}批量账户
+                  </span>
+                  <select
+                    value=""
+                    onChange={(event) => {
+                      const accountId = event.target.value
+                      if (!accountId) return
+                      setDraft((current) =>
+                        current
+                          ? {
+                              ...current,
+                              impacts: [],
+                              items: current.items.map((item) =>
+                                item.sourceId === source.id &&
+                                item.quoteId &&
+                                marketFromQuoteId(item.quoteId) === market
+                                  ? { ...item, accountId, issues: [] }
+                                  : item
+                              )
+                            }
+                          : current
+                      )
+                      setDirty(true)
+                    }}
+                  >
+                    <option value="">批量指定账户</option>
+                    {listAccountsForMarket(accountState.securitiesAccounts, market).map(
+                      (account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.name}
+                        </option>
+                      )
+                    )}
+                  </select>
+                </label>
+              ))
+            )}
+          </div>
           <div className="ai-trade-import-items">
             {draft.items.map((item, index) => (
               <article
@@ -424,6 +484,26 @@ export function TradeImportPanel({
                       label={`第 ${index + 1} 条股票`}
                       onChange={(quoteId) => mapStock(item, quoteId)}
                     />
+                  </label>
+                  <label>
+                    <span>股票账户</span>
+                    <select
+                      value={item.accountId ?? ''}
+                      disabled={!item.quoteId}
+                      onChange={(event) => updateItem(item.id, { accountId: event.target.value })}
+                    >
+                      <option value="">请选择账户</option>
+                      {item.quoteId
+                        ? listAccountsForMarket(
+                            accountState.securitiesAccounts,
+                            marketFromQuoteId(item.quoteId)
+                          ).map((account) => (
+                            <option key={account.id} value={account.id}>
+                              {account.name}
+                            </option>
+                          ))
+                        : null}
+                    </select>
                   </label>
                   <label>
                     <span>发生时间</span>

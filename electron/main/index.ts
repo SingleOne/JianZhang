@@ -1,3 +1,4 @@
+import { getStockAccountBook, resolveAccountSelection } from '../../src/shared/stock-accounts'
 import { app, dialog, Notification } from 'electron'
 import { join } from 'node:path'
 import {
@@ -128,8 +129,8 @@ const DEFAULT_STATE: AppState = {
   columnOrder: [...DEFAULT_WATCHLIST_COLUMN_ORDER],
   columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
   settings: { ...DEFAULT_APP_SETTINGS },
-  tTradingAccounts: {},
-  corporateActionRecords: {},
+  stockTradingBooks: {},
+  corporateActionApplications: {},
   portfolioPerformanceAdjustments: {}
 }
 
@@ -260,7 +261,9 @@ function sendToWindows(channel: string, payload: unknown): void {
 function showStockNavigationNotification(
   notification: Notification,
   quoteId: string,
-  detailTarget: StockDetailNavigationTarget
+  detailTarget: StockDetailNavigationTarget,
+  accountId?: string,
+  batchId?: string
 ): void {
   retainedSystemNotifications.push(notification)
   if (retainedSystemNotifications.length > RETAINED_SYSTEM_NOTIFICATION_LIMIT) {
@@ -272,7 +275,7 @@ function showStockNavigationNotification(
     if (index >= 0) retainedSystemNotifications.splice(index, 1)
   }
   notification.once('click', () => {
-    windowManager?.showMainWindow(quoteId, 'sticky-top', detailTarget)
+    windowManager?.showMainWindow(quoteId, 'sticky-top', detailTarget, accountId, batchId)
     releaseNotification()
   })
   notification.once('failed', releaseNotification)
@@ -301,7 +304,13 @@ function showTFloatingProfitAlertNotification(alert: TriggeredTFloatingProfitAle
     icon: createAppIcon(),
     timeoutType: 'default'
   })
-  showStockNavigationNotification(notification, alert.quoteId, 'trend')
+  showStockNavigationNotification(
+    notification,
+    alert.quoteId,
+    'trend',
+    alert.accountId,
+    alert.batchId
+  )
 }
 
 function showPriceVolumeDivergenceNotification(
@@ -453,14 +462,39 @@ async function initializeAiTAdviceModule(
         return marketInsightRuntime?.refreshSnapshot(quoteId) ?? null
       },
       getChipDistributionCache: (quoteId) => chipDistributionCache?.get(quoteId) ?? null,
-      getTradingContext: (quoteId) => {
+      getTradingContext: (quoteId, preferredId) => {
         const stock = state.watchlist.find((item) => item.quoteId === quoteId)
         if (!stock) return null
+        if (
+          preferredId &&
+          (!state.securitiesAccounts?.[preferredId]?.enabled ||
+            state.securitiesAccounts[preferredId].market !==
+              (stock.market ?? marketFromQuoteId(quoteId)))
+        )
+          throw new Error('请选择该市场的启用账户')
+        const accountId = resolveAccountSelection(
+          state,
+          stock.market ?? marketFromQuoteId(quoteId),
+          preferredId
+        )
+        const account = getStockAccountBook(state.stockTradingBooks, quoteId, accountId) ?? {
+          accountId,
+          accountName: state.securitiesAccounts![accountId].name,
+          quoteId,
+          code: stock.code,
+          name: stock.name,
+          market: stock.market,
+          currency: stock.currency,
+          history: [],
+          ledger: { schemaVersion: 1 as const, entries: [] },
+          tradeRecords: []
+        }
         return {
-          stock,
+          stock: { ...stock, position: account.position },
           quote: getLatestQuotes().find((item) => item.quoteId === quoteId),
-          position: stock.position,
-          account: state.tTradingAccounts[quoteId]
+          position: account.position,
+          account,
+          feeSettings: state.securitiesAccounts![accountId].feeSettings
         }
       },
       runStructuredTask: (request, signal) => aiRuntime!.runStructuredTask(request, signal)

@@ -1,3 +1,4 @@
+import { listStockAccountBooks } from '../../src/shared/stock-accounts'
 import {
   applyTAlertTriggersToAccounts,
   type TriggeredTFloatingProfitAlert
@@ -134,7 +135,8 @@ export class QuoteRuntime {
 
   clearInactiveFiveLevelAlerts(): boolean {
     const activeTQuoteIds = new Set(
-      Object.values(this.dependencies.getState().tTradingAccounts)
+      Object.values(this.dependencies.getState().stockTradingBooks)
+        .flatMap(listStockAccountBooks)
         .filter((account) => Boolean(account.activeBatch))
         .map((account) => account.quoteId)
     )
@@ -238,7 +240,9 @@ export class QuoteRuntime {
     const tTradingStocks = stocks.filter(
       (stock) =>
         marketCapabilitiesForQuoteId(stock.quoteId).orderBook &&
-        Boolean(state.tTradingAccounts[stock.quoteId]?.activeBatch)
+        listStockAccountBooks(state.stockTradingBooks[stock.quoteId]).some((account) =>
+          Boolean(account.activeBatch)
+        )
     )
     if (tTradingStocks.length === 0) return
     const stock = tTradingStocks[this.fiveLevelRefreshCursor % tTradingStocks.length]
@@ -361,7 +365,7 @@ export class QuoteRuntime {
           ) === 'live'
       )
       const tAlertUpdate = applyTAlertTriggersToAccounts(
-        currentState.tTradingAccounts,
+        currentState.stockTradingBooks,
         alertQuotes,
         currentState.watchlist
       )
@@ -376,7 +380,7 @@ export class QuoteRuntime {
         const nextState = {
           ...currentState,
           watchlist: stockAlertUpdate.watchlist,
-          tTradingAccounts: tAlertUpdate.accounts
+          stockTradingBooks: tAlertUpdate.accounts
         }
         this.dependencies.setState(nextState)
         this.dependencies.persistState()

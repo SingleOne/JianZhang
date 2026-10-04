@@ -30,13 +30,21 @@ export function installAiTAdvice(dependencies: AiTAdviceDependencies): AiTAdvice
   ipcMain.handle(IPC.settingsSave, (_event, settings: AiTAdviceSettings) =>
     service.saveSettings(settings)
   )
-  ipcMain.handle(IPC.generate, (event, quoteId: string) =>
-    service.generate(quoteId, (progress) => {
-      if (!event.sender.isDestroyed()) event.sender.send(PROGRESS_CHANNEL, progress)
-    })
+  ipcMain.handle(IPC.generate, (event, quoteId: string, accountId?: string) =>
+    service.generate(
+      quoteId,
+      (progress) => {
+        if (!event.sender.isDestroyed()) event.sender.send(PROGRESS_CHANNEL, progress)
+      },
+      accountId
+    )
   )
-  ipcMain.handle(IPC.cancel, (_event, quoteId: string) => service.cancel(quoteId))
-  ipcMain.handle(IPC.history, (_event, quoteId: string) => service.listHistory(quoteId))
+  ipcMain.handle(IPC.cancel, (_event, quoteId: string, accountId?: string) =>
+    service.cancel(quoteId, accountId)
+  )
+  ipcMain.handle(IPC.history, (_event, quoteId: string, accountId?: string) =>
+    service.listHistory(quoteId, accountId)
+  )
   ipcMain.handle(IPC.dismiss, (_event, adviceId: string) => service.dismiss(adviceId))
 
   return {

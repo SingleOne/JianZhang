@@ -1,9 +1,7 @@
+import { stockTOverview } from '../lib/stock-accounts'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { getInitialBootstrap, initialState, stockApi } from '../lib/api'
 import { formatPercent, formatPrice } from '../lib/format'
-import { getTriggeredTAlertBadges, getTriggeredTFloatingProfitAlert } from '../lib/t-alerts'
-import { calculateTBatchMetrics } from '../lib/t-trading'
-import { getBatchTrades } from '../lib/trade-records'
 import { getTriggeredStockAlertDirection } from '../lib/stock-alerts'
 import { getTaskbarVisibleStocks } from '../lib/taskbar-visibility'
 import { marketFromQuoteId } from '../shared/stock-market'
@@ -45,31 +43,20 @@ export function TaskbarTicker() {
     const quoteMap = new Map(quotes.map((quote) => [quote.quoteId, quote]))
     return getTaskbarVisibleStocks(state.watchlist).map((stock) => {
       const quote = quoteMap.get(stock.quoteId)
-      const account = state.tTradingAccounts[stock.quoteId]
+      const overview = stockTOverview(state.stockTradingBooks[stock.quoteId], quote?.latest, {
+        market: stock.market ?? marketFromQuoteId(stock.quoteId),
+        instrumentType: stock.instrumentType
+      })
       return {
         stock,
         quote,
-        alertBadges: getTriggeredTAlertBadges(
-          account?.activeBatch,
-          getBatchTrades(account, account?.activeBatch),
-          {
-            market: stock.market ?? marketFromQuoteId(stock.quoteId),
-            instrumentType: stock.instrumentType
-          }
-        ),
-        tMetrics: account?.activeBatch
-          ? calculateTBatchMetrics(
-              account.activeBatch,
-              getBatchTrades(account, account.activeBatch),
-              quote?.latest
-            )
-          : null,
-        floatingProfitAlert: getTriggeredTFloatingProfitAlert(account?.activeBatch),
-        fiveLevelAlerts: account?.activeBatch ? quote?.fiveLevelLargeOrders : undefined,
+        alertBadges: overview.badges,
+        floatingAlerts: overview.floatingAlerts,
+        fiveLevelAlerts: overview.summaries.length ? quote?.fiveLevelLargeOrders : undefined,
         stockAlertDirection: getTriggeredStockAlertDirection(stock.alertRules)
       }
     })
-  }, [quotes, state.tTradingAccounts, state.watchlist])
+  }, [quotes, state.stockTradingBooks, state.watchlist])
 
   useLayoutEffect(() => {
     const ticker = tickerRef.current
@@ -85,15 +72,7 @@ export function TaskbarTicker() {
         className={`taskbar-ticker ${selectedStocks.length === 1 ? 'is-single' : ''}`}
       >
         {selectedStocks.map(
-          ({
-            stock,
-            quote,
-            alertBadges,
-            tMetrics,
-            floatingProfitAlert,
-            fiveLevelAlerts,
-            stockAlertDirection
-          }) => {
+          ({ stock, quote, alertBadges, floatingAlerts, fiveLevelAlerts, stockAlertDirection }) => {
             const direction = directionClass(quote?.changePercent)
             return (
               <div
@@ -114,15 +93,17 @@ export function TaskbarTicker() {
                 <span className="taskbar-stock-change">{formatPercent(quote?.changePercent)}</span>
                 <FiveLevelAlertBadges alerts={fiveLevelAlerts} compact showTitle={false} />
                 <TAlertBadges badges={alertBadges} compact showTitle={false} />
-                {floatingProfitAlert ? (
+                {floatingAlerts.map((summary) => (
                   <TFloatingProfitAlertBadge
-                    batch={state.tTradingAccounts[stock.quoteId]?.activeBatch}
-                    floatingProfit={tMetrics?.floatingProfit}
+                    key={summary.account.accountId}
+                    accountName={summary.account.accountName}
+                    batch={summary.batch}
+                    floatingProfit={summary.metrics.floatingProfit}
                     currency={stock.currency ?? quote?.currency ?? 'CNY'}
                     compact
                     showTitle={false}
                   />
-                ) : null}
+                ))}
               </div>
             )
           }

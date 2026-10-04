@@ -21,7 +21,7 @@ const ORDER_BOOK_RETRY_DELAY_MS = 3_000
 export interface AiTAdviceDependencies {
   refreshMarketInsightSnapshot: (quoteId: string) => Promise<MarketInsightSnapshot | null> | null
   getChipDistributionCache: (quoteId: string) => ChipDistributionCacheEntry | null
-  getTradingContext: (quoteId: string) => AiTAdviceTradingContext | null
+  getTradingContext: (quoteId: string, accountId?: string) => AiTAdviceTradingContext | null
   runStructuredTask: (
     request: AiStructuredTaskRequest,
     signal: AbortSignal
@@ -99,6 +99,9 @@ function buildPromptContext(
       })),
       existingTPlanDistances: snapshot.existingTPlanDistances
     },
+    accountId: context.account?.accountId,
+    accountName: context.account?.accountName,
+    feeSettings: context.feeSettings,
     stock: {
       quoteId: context.stock.quoteId,
       code: context.stock.code,
@@ -152,7 +155,9 @@ export class AiTAdviceService {
     const settings = this.storage.getSettings()
     return {
       enabled: settings.enabled,
-      generatingQuoteIds: [...this.activeGenerations.keys()],
+      generatingQuoteIds: [
+        ...new Set([...this.activeGenerations.keys()].map((key) => key.split('::')[0]))
+      ],
       message: settings.enabled
         ? '私用做 T 参考已启用；只会在你主动生成时调用当前 AI Provider。'
         : '私用做 T 参考已关闭，不会调用模型或显示建议。'
@@ -174,21 +179,26 @@ export class AiTAdviceService {
 
   async generate(
     quoteId: string,
-    onProgress: (progress: AiTAdviceProgressEvent) => void = () => undefined
+    onProgress: (progress: AiTAdviceProgressEvent) => void = () => undefined,
+    accountId?: string
   ): Promise<AiTAdviceGenerationResult> {
     if (!this.storage.getSettings().enabled) throw new Error('做 T 参考当前已关闭')
-    if (this.activeGenerations.has(quoteId)) throw new Error('当前股票正在生成做 T 参考')
+    const ownerContext = this.dependencies.getTradingContext(quoteId, accountId)
+    if (!ownerContext) throw new Error('未找到股票账户上下文')
+    accountId = ownerContext.account?.accountId ?? accountId
+    const generationKey = `${quoteId}::${accountId ?? 'legacy'}`
+    if (this.activeGenerations.has(generationKey)) throw new Error('当前股票正在生成做 T 参考')
     const controller = new AbortController()
-    this.activeGenerations.set(quoteId, controller)
+    this.activeGenerations.set(generationKey, controller)
     const report = (
       phase: AiTAdviceProgressEvent['phase'],
       message: string,
       detail: string,
       attempt?: number
-    ) => onProgress({ quoteId, phase, message, detail, attempt, updatedAt: now() })
+    ) => onProgress({ quoteId, accountId, phase, message, detail, attempt, updatedAt: now() })
     try {
       report('preparing', '正在准备做 T 分析', '检查当前股票、持仓与活动 T 计划。')
-      if (!this.dependencies.getTradingContext(quoteId))
+      if (!this.dependencies.getTradingContext(quoteId, accountId))
         throw new Error('未找到当前股票或持仓上下文')
 
       let snapshot: MarketInsightSnapshot | null = null
@@ -214,7 +224,13 @@ export class AiTAdviceService {
         }
       }
 
-      const tradingContext = this.dependencies.getTradingContext(quoteId)
+      snapshot = {
+        ...snapshot,
+        existingTPlanDistances: snapshot.existingTPlanDistances.filter(
+          (plan) => !accountId || plan.id.startsWith(`${accountId}:`)
+        )
+      }
+      const tradingContext = this.dependencies.getTradingContext(quoteId, accountId)
       if (!tradingContext) throw new Error('未找到当前股票或持仓上下文')
       if (tradingContext.quote?.latest === null || tradingContext.quote?.latest === undefined) {
         throw new Error('当前最新价不可用，暂时不能生成做 T 参考')
@@ -248,7 +264,7 @@ export class AiTAdviceService {
       const advice = parseAiTAdvice(result.content, {
         quoteId,
         quoteName: tradingContext.stock.name,
-        snapshotId: snapshotId(snapshot),
+        snapshotId: `${snapshotId(snapshot)}::${accountId ?? 'legacy'}`,
         snapshotGeneratedAt: snapshot.generatedAt,
         snapshotDataState: snapshot.dataState,
         snapshotStaleSources: promptContext.snapshot.staleSources,
@@ -257,19 +273,24 @@ export class AiTAdviceService {
         model: result.model,
         generatedAt
       })
+      advice.accountId = accountId
+      advice.accountName = tradingContext.account?.accountName
       this.storage.saveAdvice(advice)
       return { advice }
     } finally {
-      if (this.activeGenerations.get(quoteId) === controller) this.activeGenerations.delete(quoteId)
+      if (this.activeGenerations.get(generationKey) === controller)
+        this.activeGenerations.delete(generationKey)
     }
   }
 
-  cancel(quoteId: string): void {
-    this.activeGenerations.get(quoteId)?.abort()
+  cancel(quoteId: string, accountId?: string): void {
+    for (const [key, controller] of this.activeGenerations)
+      if (key.startsWith(`${quoteId}::`) && (!accountId || key === `${quoteId}::${accountId}`))
+        controller.abort()
   }
 
-  listHistory(quoteId: string): AiTAdvice[] {
-    return this.storage.listHistory(quoteId)
+  listHistory(quoteId: string, accountId?: string): AiTAdvice[] {
+    return this.storage.listHistory(quoteId, accountId)
   }
 
   dismiss(adviceId: string): AiTAdvice {

@@ -1,3 +1,4 @@
+import { listStockAccountBooks } from '../../../shared/stock-accounts'
 import type {
   AppState,
   FundsFlowResult,
@@ -240,7 +241,10 @@ export class MarketInsightService {
     const stock = this.dependencies.getState().watchlist.find((item) => item.quoteId === quoteId)
     if (!stock) throw new Error('该股票不在自选列表中')
     const shouldRefreshOrderBook =
-      force || Boolean(this.dependencies.getState().tTradingAccounts[quoteId]?.activeBatch)
+      force ||
+      listStockAccountBooks(this.dependencies.getState().stockTradingBooks[quoteId]).some(
+        (account) => Boolean(account.activeBatch)
+      )
     const [intraday, daily, orderBook, fundsFlow] = await Promise.all([
       this.source(
         quoteId,
@@ -475,16 +479,28 @@ export class MarketInsightService {
   }
 
   private calculateTPlanDistances(stock: WatchStock, latest: number | null): TPlanDistance[] {
-    const account = this.dependencies.getState().tTradingAccounts[stock.quoteId]
+    const accounts = listStockAccountBooks(
+      this.dependencies.getState().stockTradingBooks[stock.quoteId]
+    )
+    return accounts.flatMap((account) =>
+      this.calculateAccountTPlanDistances(stock, latest, account)
+    )
+  }
+
+  private calculateAccountTPlanDistances(
+    stock: WatchStock,
+    latest: number | null,
+    account: import('../../../shared/types').TTradingAccount
+  ): TPlanDistance[] {
     const batch = account?.activeBatch
     const batchMetrics = batch
       ? calculateTBatchMetrics(batch, getBatchTrades(account, batch))
       : null
-    const cost = batchMetrics ? batchMetrics.averageCost : stock.position?.cost
+    const cost = batchMetrics ? batchMetrics.averageCost : account.position?.cost
     if (latest === null || cost === null || cost === undefined) return []
     const position: TPlanDistance = {
-      id: 'position-cost',
-      label: 'T 仓均价',
+      id: `${account.accountId}:position-cost`,
+      label: `${account.accountName ?? '账户'} · ${batch ? 'T 仓均价' : '持仓成本'}`,
       side: 'position',
       price: cost,
       distancePercent: cost === 0 ? null : (latest / cost - 1) * 100,
@@ -502,8 +518,8 @@ export class MarketInsightService {
         const distancePercent = price === 0 ? null : (latest / price - 1) * 100
         return [
           {
-            id: `${side}-${index + 1}`,
-            label: `T${index + 1}${side === 'buy' ? ' 买入档' : ' 卖出档'}`,
+            id: `${account.accountId}:${side}-${index + 1}`,
+            label: `${account.accountName ?? '账户'} · T${index + 1}${side === 'buy' ? ' 买入档' : ' 卖出档'}`,
             side,
             price,
             distancePercent,

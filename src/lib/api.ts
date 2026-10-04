@@ -1,3 +1,4 @@
+import { normalizeAccountState } from '../shared/stock-accounts'
 import {
   DEFAULT_APP_SETTINGS,
   DEFAULT_WATCHLIST_GROUPS,
@@ -6,7 +7,6 @@ import {
   getMarketIndexStocks,
   normalizeAppSettings,
   normalizePortfolioPerformanceAdjustments,
-  normalizeTTradingAccounts,
   normalizeStockTrackingProfiles,
   normalizeWatchlist,
   normalizeWatchlistColumnOrder,
@@ -92,8 +92,8 @@ const DEFAULT_STATE: AppState = {
   columnOrder: [...DEFAULT_WATCHLIST_COLUMN_ORDER],
   columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
   settings: { ...DEFAULT_APP_SETTINGS },
-  tTradingAccounts: {},
-  corporateActionRecords: {},
+  stockTradingBooks: {},
+  corporateActionApplications: {},
   portfolioPerformanceAdjustments: {}
 }
 
@@ -241,7 +241,7 @@ const DEMO_DAILY_MARKET_SCAN_RESULT: DailyMarketScanResult = {
 
 function loadDemoState(): AppState {
   const saved = localStorage.getItem('jianzhang-demo-state-v1')
-  if (!saved) return structuredClone(DEFAULT_STATE)
+  if (!saved) return normalizeAccountState(structuredClone(DEFAULT_STATE))
   const parsed = JSON.parse(saved) as AppState
   const watchlistGroups = normalizeWatchlistGroups(parsed.watchlistGroups)
   const normalizedProfiles = normalizeStockTrackingProfiles(parsed.stockTrackingProfiles)
@@ -266,7 +266,8 @@ function loadDemoState(): AppState {
     watchlistGroups,
     stockTrackingProfiles
   )
-  const state = {
+  const state = normalizeAccountState({
+    ...parsed,
     revision: parsed.revision,
     watchlist,
     watchlistGroups,
@@ -274,13 +275,14 @@ function loadDemoState(): AppState {
     settings: normalizeAppSettings(parsed.settings),
     columnOrder: normalizeWatchlistColumnOrder(parsed.columnOrder),
     columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
-    tTradingAccounts: normalizeTTradingAccounts(parsed.tTradingAccounts),
-    corporateActionRecords: parsed.corporateActionRecords ?? {},
+    stockTradingBooks: parsed.stockTradingBooks ?? parsed.tTradingAccounts ?? {},
+    corporateActionApplications:
+      parsed.corporateActionApplications ?? parsed.corporateActionRecords ?? {},
     portfolioPerformanceAdjustments: normalizePortfolioPerformanceAdjustments(
       parsed.portfolioPerformanceAdjustments,
       watchlist
     )
-  }
+  })
   if (stoppedProfiles.length > 0) {
     localStorage.setItem('jianzhang-demo-state-v1', JSON.stringify(state))
   }
@@ -985,8 +987,9 @@ const demoApi: StockDesktopApi = {
     throw new Error('官方汇率在线刷新仅在 Windows 桌面版中可用')
   },
   async saveState(state) {
-    localStorage.setItem('jianzhang-demo-state-v1', JSON.stringify(state))
-    return state
+    const normalized = normalizeAccountState(state)
+    localStorage.setItem('jianzhang-demo-state-v1', JSON.stringify(normalized))
+    return normalized
   },
   async getCompletionNotifications() {
     const saved = localStorage.getItem('jianzhang-completion-notifications-v1')
@@ -1140,7 +1143,7 @@ const demoApi: StockDesktopApi = {
 
 export const stockApi = window.stockApi ?? demoApi
 export const isDesktopRuntime = Boolean(window.stockApi)
-export const initialState = DEFAULT_STATE
+export const initialState = normalizeAccountState(DEFAULT_STATE)
 
 let initialBootstrapPromise: Promise<BootstrapResult> | null = null
 

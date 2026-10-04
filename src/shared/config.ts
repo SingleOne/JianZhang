@@ -1,10 +1,10 @@
+import { normalizeAccountState } from './stock-accounts'
 import {
   WATCHLIST_COLUMN_ORDER_VERSION,
   normalizeAppSettings,
   normalizeCorporateActionRecords,
   normalizePortfolioPerformanceAdjustments,
   normalizeStockTrackingProfiles,
-  normalizeTTradingAccounts,
   normalizeWatchlist,
   normalizeWatchlistColumnOrder,
   normalizeWatchlistGroups,
@@ -15,7 +15,7 @@ import {
 } from './types'
 
 export const JIANZHANG_CONFIG_FORMAT = 'jianzhang-config'
-export const JIANZHANG_CONFIG_VERSION = 3
+export const JIANZHANG_CONFIG_VERSION = 4
 
 export interface JianzhangConfigDocument {
   format: typeof JIANZHANG_CONFIG_FORMAT
@@ -73,7 +73,7 @@ export function parseConfigDocument(value: unknown): AppState {
   const document = value as Partial<JianzhangConfigDocument>
   if (
     document.format !== JIANZHANG_CONFIG_FORMAT ||
-    document.formatVersion !== JIANZHANG_CONFIG_VERSION
+    (document.formatVersion !== 3 && document.formatVersion !== JIANZHANG_CONFIG_VERSION)
   ) {
     throw new Error('配置格式或版本不受支持')
   }
@@ -99,7 +99,8 @@ export function parseImportedAppState(value: unknown): AppState {
     watchlistGroups,
     stockTrackingProfiles
   )
-  return {
+  return normalizeAccountState({
+    ...importedState,
     revision: undefined,
     watchlist,
     watchlistGroups,
@@ -109,11 +110,13 @@ export function parseImportedAppState(value: unknown): AppState {
       Array.isArray(importedState.columnOrder) ? importedState.columnOrder : undefined
     ),
     columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
-    tTradingAccounts: normalizeTTradingAccounts(importedState.tTradingAccounts),
-    corporateActionRecords: normalizeCorporateActionRecords(importedState.corporateActionRecords),
+    stockTradingBooks: importedState.stockTradingBooks ?? importedState.tTradingAccounts ?? {},
+    corporateActionApplications: normalizeCorporateActionRecords(
+      importedState.corporateActionApplications ?? importedState.corporateActionRecords
+    ),
     portfolioPerformanceAdjustments: normalizePortfolioPerformanceAdjustments(
       importedState.portfolioPerformanceAdjustments,
       watchlist
     )
-  }
+  })
 }

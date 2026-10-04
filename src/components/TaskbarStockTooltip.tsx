@@ -1,3 +1,4 @@
+import { stockTOverview } from '../lib/stock-accounts'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { getInitialBootstrap, initialState, stockApi } from '../lib/api'
 import {
@@ -13,9 +14,6 @@ import {
 import { calculatePositionMetrics } from '../lib/portfolio'
 import { calculateCurrentPositionProfitOverride } from '../lib/portfolio-performance'
 import { formatStockAlertValue, STOCK_ALERT_METRIC_LABELS } from '../lib/stock-alerts'
-import { getTriggeredTAlertBadges, getTriggeredTFloatingProfitAlert } from '../lib/t-alerts'
-import { calculateTBatchMetrics } from '../lib/t-trading'
-import { getBatchTrades } from '../lib/trade-records'
 import { marketFromQuoteId, STOCK_CURRENCY_SYMBOLS } from '../shared/stock-market'
 import type { AppState, KlineBar, KlineResult, StockQuote, TaskbarLayout } from '../shared/types'
 
@@ -208,16 +206,13 @@ export function TaskbarStockTooltip() {
     () => recentFifteenMinutePrices(currentIntraday?.bars ?? []),
     [currentIntraday]
   )
-  const account = quoteId ? state.tTradingAccounts[quoteId] : undefined
-  const activeTrades = getBatchTrades(account, account?.activeBatch)
-  const tAlertBadges = getTriggeredTAlertBadges(account?.activeBatch, activeTrades, {
+  const account = quoteId ? state.stockTradingBooks[quoteId] : undefined
+  const overview = stockTOverview(account, quote?.latest, {
     market: stock?.market ?? marketFromQuoteId(quoteId ?? ''),
     instrumentType: stock?.instrumentType
   })
-  const tMetrics = account?.activeBatch
-    ? calculateTBatchMetrics(account.activeBatch, activeTrades, quote?.latest)
-    : null
-  const floatingProfitAlert = getTriggeredTFloatingProfitAlert(account?.activeBatch)
+  const tAlertBadges = overview.badges
+  const floatingProfitAlert = overview.floatingAlert
   const positionProfitOverride = stock
     ? calculateCurrentPositionProfitOverride(
         stock,
@@ -236,7 +231,7 @@ export function TaskbarStockTooltip() {
   )
   const triggeredStockAlerts =
     stock?.alertRules?.filter((rule) => rule.enabled && rule.status === 'triggered') ?? []
-  const fiveLevelAlerts = account?.activeBatch ? (quote?.fiveLevelLargeOrders ?? []) : []
+  const fiveLevelAlerts = overview.summaries.length ? (quote?.fiveLevelLargeOrders ?? []) : []
   const alertCount =
     triggeredStockAlerts.length +
     tAlertBadges.length +
@@ -340,22 +335,20 @@ export function TaskbarStockTooltip() {
           </div>
         </section>
 
-        {tMetrics ? (
-          <section className="taskbar-tooltip-section">
+        {overview.summaries.map(({ account: owner, metrics: tMetrics }) => (
+          <section className="taskbar-tooltip-section" key={owner.accountId}>
             <div className="taskbar-tooltip-t-summary">
-              <strong>{tMetrics.direction === 'reverse' ? '反T' : '正T'}</strong>
+              <strong>
+                {owner.accountName} · {tMetrics.direction === 'reverse' ? '反T' : '正T'}
+              </strong>
               <span>剩余 {formatShares(tMetrics.remainingQuantity)}</span>
-              <span>
-                {tMetrics.direction === 'reverse' ? '基准' : '成本'}{' '}
-                {formatCost(tMetrics.averageCost)}
-              </span>
+              <span>成本 {formatCost(tMetrics.averageCost)}</span>
               <span className={valueClass(tMetrics.floatingProfit)}>
-                浮动 {formatMoneyProfit(tMetrics.floatingProfit, positionMetrics.currency)}（
-                {formatPercent(tMetrics.floatingProfitRate)}）
+                浮动 {formatMoneyProfit(tMetrics.floatingProfit, positionMetrics.currency)}
               </span>
             </div>
           </section>
-        ) : null}
+        ))}
 
         {alertCount > 0 ? (
           <section className="taskbar-tooltip-section taskbar-tooltip-alert-section">
@@ -382,11 +375,14 @@ export function TaskbarStockTooltip() {
                 )
               })}
               {tAlertBadges.map((badge) => (
-                <li className={`is-${badge.side}`} key={`${badge.side}-${badge.index}`}>
+                <li
+                  className={`is-${badge.side}`}
+                  key={`${badge.accountId}-${badge.side}-${badge.index}`}
+                >
                   <b>T价位</b>
                   <span>
-                    {badge.side === 'buy' ? '买入' : '卖出'} {badge.label}，目标价{' '}
-                    {formatPrice(badge.targetPrice)}
+                    {badge.accountName} · {badge.side === 'buy' ? '买入' : '卖出'} {badge.label}
+                    ，目标价 {formatPrice(badge.targetPrice)}
                   </span>
                 </li>
               ))}
@@ -401,21 +397,21 @@ export function TaskbarStockTooltip() {
                   </span>
                 </li>
               ))}
-              {floatingProfitAlert && account?.activeBatch?.floatingProfitAlert ? (
-                <li className={`is-${floatingProfitAlert}`}>
+              {overview.floatingAlerts.map((summary) => (
+                <li key={summary.account.accountId} className={`is-${summary.floatingAlert}`}>
                   <b>T浮动收益</b>
                   <span>
-                    当前 {formatMoneyProfit(tMetrics?.floatingProfit, positionMetrics.currency)}
+                    {summary.account.accountName} · 当前{' '}
+                    {formatMoneyProfit(summary.metrics.floatingProfit, positionMetrics.currency)}
                     ，提醒值{' '}
                     {formatMoneyProfit(
-                      floatingProfitAlert === 'profit'
-                        ? account.activeBatch.floatingProfitAlert.threshold
-                        : -account.activeBatch.floatingProfitAlert.threshold,
+                      (summary.floatingAlert === 'profit' ? 1 : -1) *
+                        summary.batch.floatingProfitAlert!.threshold,
                       positionMetrics.currency
                     )}
                   </span>
                 </li>
-              ) : null}
+              ))}
             </ul>
           </section>
         ) : null}

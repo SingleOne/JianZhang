@@ -4,6 +4,7 @@ import type { TTradingBatch } from '../shared/types'
 import type { StockCurrency } from '../shared/stock-market'
 
 interface TFloatingProfitAlertBadgeProps {
+  accountName?: string
   batch: TTradingBatch | undefined
   floatingProfit: number | null | undefined
   currency?: StockCurrency
@@ -13,6 +14,7 @@ interface TFloatingProfitAlertBadgeProps {
 
 export function TFloatingProfitAlertBadge({
   batch,
+  accountName,
   floatingProfit,
   currency = 'CNY',
   compact = false,
@@ -29,13 +31,13 @@ export function TFloatingProfitAlertBadge({
   return (
     <span
       className={`t-alert-badges t-floating-profit-alert-badges ${compact ? 'is-compact' : ''}`}
-      aria-label={`T仓${direction === 'profit' ? '浮盈' : '浮亏'}提醒`}
+      aria-label={`${accountName ?? ''} T仓${direction === 'profit' ? '浮盈' : '浮亏'}提醒`}
     >
       <span
         className={`t-alert-badge is-${direction}`}
         title={
           showTitle
-            ? `当前浮动收益 ${formatMoneyProfit(floatingProfit, currency)}，已达到 ${formatMoneyProfit(target, currency)} 提醒值`
+            ? `${accountName ?? ''} 当前浮动收益 ${formatMoneyProfit(floatingProfit, currency)}，已达到 ${formatMoneyProfit(target, currency)} 提醒值`
             : undefined
         }
       >

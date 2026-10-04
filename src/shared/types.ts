@@ -734,6 +734,9 @@ export interface BrokerImportProvenance {
 }
 
 export interface TTrade {
+  /** 旧数据读取时可缺省；账户化后写入必须填写真实账户 ID。 */
+  accountId?: string
+  accountFeeSnapshot?: AccountFeeSettings
   id: string
   side: TTradeSide
   purpose: TTradePurpose
@@ -879,6 +882,7 @@ export interface CorporateActionCandidate {
 }
 
 export interface CorporateActionRecord extends CorporateActionCandidate {
+  accountId?: string
   status: Exclude<CorporateActionStatus, 'detected'>
 }
 
@@ -1106,6 +1110,7 @@ export interface TBatchSettlement {
 }
 
 export interface TTradingBatch {
+  accountId?: string
   id: string
   sequence: number
   openedAt: string
@@ -1124,6 +1129,11 @@ export interface TTradingBatch {
 }
 
 export interface TTradingAccount {
+  accountId?: string
+  accountName?: string
+  position?: StockPosition
+  positionSnapshots?: StockPositionSnapshot[]
+  performanceAdjustmentCny?: number
   quoteId: string
   code: string
   name: string
@@ -1140,6 +1150,30 @@ export interface TTradingAccount {
 }
 
 export type TTradingAccounts = Record<string, TTradingAccount>
+
+export type AccountFeeSettings =
+  | { market: 'CN'; settings: TTradingFeeSettings }
+  | { market: 'HK'; settings: HongKongTradeFeeSettings }
+  | { market: 'US'; settings: UnitedStatesTradeFeeSettings }
+
+export interface SecuritiesAccount {
+  id: string
+  name: string
+  market: StockMarket
+  enabled: boolean
+  isSystemDefault: boolean
+  feeSettings: AccountFeeSettings
+}
+
+export type SecuritiesAccounts = Record<string, SecuritiesAccount>
+
+export interface StockTradingBook {
+  quoteId: string
+  accounts: TTradingAccounts
+}
+
+/** 单账本成员只供当前版本的升级输入使用，保存时统一为 StockTradingBook。 */
+export type StockTradingBooks = Record<string, StockTradingBook | TTradingAccount>
 
 function activeTQuantity(batch: TTradingBatch, trades: readonly TTrade[]): number {
   const openingSide: TTradeSide = (batch.direction ?? 'forward') === 'reverse' ? 'sell' : 'buy'
@@ -1306,7 +1340,12 @@ export function withLedgerTradeRecords(
   )
   return {
     ...account,
-    ledger: normalizedPortfolioLedger(account.quoteId, account.quoteId, account.ledger, records),
+    ledger: normalizedPortfolioLedger(
+      account.accountId ?? account.quoteId,
+      account.quoteId,
+      account.ledger,
+      records.map((record) => ({ ...record, accountId: account.accountId ?? record.accountId }))
+    ),
     tradeRecords: records
   }
 }
@@ -1343,7 +1382,12 @@ export function normalizeTTradingAccounts(
       const activeTrades = activeBatch
         ? tradeRecords.filter((record) => tradeReferencesTradingBatch(record, activeBatch.id))
         : []
-      const ledger = normalizedPortfolioLedger(quoteId, quoteId, account.ledger, tradeRecords)
+      const ledger = normalizedPortfolioLedger(
+        account.accountId ?? quoteId,
+        account.quoteId,
+        account.ledger,
+        tradeRecords
+      )
 
       return [
         quoteId,
@@ -2385,6 +2429,7 @@ export type AppThemePreference = 'system' | 'light' | 'dark'
 export type DailyKlineIndicator = 'movingAverage' | 'bollinger' | 'none'
 
 export interface AppSettings {
+  lastUsedAccountIdByMarket?: Partial<Record<StockMarket, string>>
   theme: AppThemePreference
   priorityRefreshSeconds: number
   regularRefreshSeconds: number
@@ -2613,6 +2658,7 @@ export function normalizeAppSettings(settings: Partial<AppSettings> | undefined)
           : 'none'
 
   return {
+    lastUsedAccountIdByMarket: { ...settings?.lastUsedAccountIdByMarket },
     theme: settings?.theme === 'light' || settings?.theme === 'dark' ? settings.theme : 'system',
     priorityRefreshSeconds: Math.min(
       300,
@@ -2647,6 +2693,11 @@ export function normalizeAppSettings(settings: Partial<AppSettings> | undefined)
 }
 
 export interface AppState {
+  portfolioSchemaVersion?: 2
+  securitiesAccounts?: SecuritiesAccounts
+  /** 仅供账户功能升级时读取旧状态。 */
+  tTradingAccounts?: TTradingAccounts
+  corporateActionRecords?: CorporateActionRecords
   revision?: number
   watchlist: WatchStock[]
   watchlistGroups: WatchlistGroup[]
@@ -2654,8 +2705,8 @@ export interface AppState {
   settings: AppSettings
   columnOrder: WatchlistColumnId[]
   columnOrderVersion?: number
-  tTradingAccounts: TTradingAccounts
-  corporateActionRecords: CorporateActionRecords
+  stockTradingBooks: StockTradingBooks
+  corporateActionApplications: CorporateActionRecords
   portfolioPerformanceAdjustments?: PortfolioPerformanceAdjustments
 }
 
@@ -2827,6 +2878,8 @@ export interface TaskbarTooltipAnchor {
 }
 
 export interface StockSelectionRequest {
+  accountId?: string
+  batchId?: string
   id: string
   quoteId: string
   scrollAlignment?: 'sticky-top'

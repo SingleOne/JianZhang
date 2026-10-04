@@ -1,3 +1,6 @@
+import { useSecuritiesAccountState } from './SecuritiesAccountContext'
+import { listStockAccountBooks, getStockAccountBook } from '../shared/stock-accounts'
+import type { StockTradingBooks } from '../shared/types'
 import { ChartPie, CircleAlert, History, PencilLine, RefreshCw, Save, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -14,7 +17,6 @@ import type {
   ExchangeRateSettings,
   PortfolioPerformanceAdjustments,
   StockQuote,
-  TTradingAccounts,
   WatchStock
 } from '../shared/types'
 import './PortfolioPerformanceDialog.css'
@@ -23,10 +25,13 @@ import PortfolioPerformanceCyclesDialog from './PortfolioPerformanceCyclesDialog
 interface PortfolioPerformanceDialogProps {
   watchlist: WatchStock[]
   quotes: StockQuote[]
-  accounts: TTradingAccounts
+  accounts: StockTradingBooks
   exchangeRates: ExchangeRateSettings
   adjustments: PortfolioPerformanceAdjustments
-  onSaveAdjustments: (adjustments: PortfolioPerformanceAdjustments) => Promise<boolean>
+  onSaveAdjustments: (
+    adjustments: PortfolioPerformanceAdjustments,
+    accountId?: string
+  ) => Promise<boolean>
   onRecalculateStock: (quoteId: string) => Promise<void>
   onClose: () => void
 }
@@ -148,15 +153,60 @@ export default function PortfolioPerformanceDialog({
   const [dimension, setDimension] = useState<PerformanceDimension>('stock')
   const [editingAdjustmentQuoteId, setEditingAdjustmentQuoteId] = useState<string | null>(null)
   const [adjustmentDraft, setAdjustmentDraft] = useState('')
+  const accountState = useSecuritiesAccountState()
+  const [accountFilter, setAccountFilter] = useState('all')
   const [adjustmentError, setAdjustmentError] = useState('')
   const [savingAdjustments, setSavingAdjustments] = useState(false)
   const [recalculatingQuoteId, setRecalculatingQuoteId] = useState<string | null>(null)
   const [recalculationErrorQuoteId, setRecalculationErrorQuoteId] = useState<string | null>(null)
   const [cycleDetailQuoteId, setCycleDetailQuoteId] = useState<string | null>(null)
+  const visibleBooks = useMemo(
+    () =>
+      accountFilter === 'all'
+        ? accounts
+        : Object.fromEntries(
+            Object.entries(accounts).map(([quoteId, parent]) => [
+              quoteId,
+              {
+                quoteId,
+                accounts: Object.fromEntries(
+                  listStockAccountBooks(parent)
+                    .filter((child) => child.accountId === accountFilter)
+                    .map((child) => [child.accountId!, child])
+                )
+              }
+            ])
+          ),
+    [accountFilter, accounts]
+  )
+  const visibleWatchlist = useMemo(
+    () =>
+      accountFilter === 'all'
+        ? watchlist
+        : watchlist.map((stock) => ({
+            ...stock,
+            position: getStockAccountBook(accounts, stock.quoteId, accountFilter)?.position
+          })),
+    [accountFilter, accounts, watchlist]
+  )
   const report = useMemo(
     () =>
-      calculatePortfolioPerformanceReport(watchlist, quotes, accounts, exchangeRates, adjustments),
-    [accounts, adjustments, exchangeRates, quotes, watchlist]
+      calculatePortfolioPerformanceReport(
+        visibleWatchlist,
+        quotes,
+        visibleBooks,
+        exchangeRates,
+        adjustments,
+        accountState.securitiesAccounts
+      ),
+    [
+      visibleBooks,
+      adjustments,
+      exchangeRates,
+      quotes,
+      visibleWatchlist,
+      accountState.securitiesAccounts
+    ]
   )
   const rows = useMemo(() => {
     if (dimension === 'stock') return report.stockRows
@@ -217,8 +267,13 @@ export default function PortfolioPerformanceDialog({
       return
     }
 
-    const next = { ...adjustments }
-    delete next[editingAdjustmentQuoteId]
+    const next = Object.fromEntries(
+      Object.values(accounts)
+        .flatMap((parent) => listStockAccountBooks(parent))
+        .filter((book) => book.accountId === stock.accountId)
+        .map((book) => [book.quoteId, book.performanceAdjustmentCny ?? 0])
+    )
+    next[editingAdjustmentQuoteId] = 0
     const draft = adjustmentDraft.trim()
     if (draft) {
       const targetProfit = Number(draft)
@@ -232,7 +287,7 @@ export default function PortfolioPerformanceDialog({
 
     setSavingAdjustments(true)
     setAdjustmentError('')
-    const saved = await onSaveAdjustments(next)
+    const saved = await onSaveAdjustments(next, stock.accountId)
     setSavingAdjustments(false)
     if (saved) closeAdjustmentEditor()
     else setAdjustmentError('收益调整保存失败，请重试')
@@ -377,6 +432,26 @@ export default function PortfolioPerformanceDialog({
             ))}
           </nav>
 
+          <label className="securities-account-selector">
+            <span>账户范围</span>
+            <select
+              value={accountFilter}
+              onChange={(event) => {
+                setAccountFilter(event.target.value)
+                closeAdjustmentEditor()
+                setCycleDetailQuoteId(null)
+              }}
+            >
+              <option value="all">全部账户汇总</option>
+              {Object.values(accountState.securitiesAccounts ?? {}).map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                  {account.enabled ? '' : '（已停用）'}
+                </option>
+              ))}
+            </select>
+            <small>选择具体账户后可调整收益和查看独立持仓周期</small>
+          </label>
           <div className="portfolio-performance-table-wrap">
             <table className="portfolio-performance-table">
               <thead>
@@ -402,7 +477,11 @@ export default function PortfolioPerformanceDialog({
                   const cumulative = row.cumulative
                   const rowTaxFees = expenseValue(currentCycle.cny)
                   const editableStock =
-                    row.scope === 'stock' ? stocksByQuoteId.get(row.id) : undefined
+                    row.scope === 'stock' &&
+                    accountFilter !== 'all' &&
+                    report.stocks.filter((stock) => stock.quoteId === row.id).length === 1
+                      ? stocksByQuoteId.get(row.id)
+                      : undefined
                   const editingAdjustment = editingAdjustmentQuoteId === editableStock?.quoteId
                   const rawStockProfit = editableStock
                     ? editableStock.currentCycle.cny.totalProfit === null
@@ -584,15 +663,28 @@ export default function PortfolioPerformanceDialog({
       </section>
       {cycleDetailPerformance && cycleDetailStock ? (
         <PortfolioPerformanceCyclesDialog
-          stock={cycleDetailStock}
+          stock={{
+            ...cycleDetailStock,
+            position: getStockAccountBook(
+              accounts,
+              cycleDetailStock.quoteId,
+              cycleDetailPerformance.accountId
+            )?.position
+          }}
           performance={cycleDetailPerformance}
           quote={quotesByQuoteId.get(cycleDetailStock.quoteId)}
-          account={accounts[cycleDetailStock.quoteId]}
+          account={getStockAccountBook(
+            accounts,
+            cycleDetailStock.quoteId,
+            cycleDetailPerformance.accountId
+          )}
           exchangeRates={exchangeRates}
           manualAdjustment={
-            Number.isFinite(adjustments[cycleDetailStock.quoteId])
-              ? adjustments[cycleDetailStock.quoteId]
-              : 0
+            getStockAccountBook(
+              accounts,
+              cycleDetailStock.quoteId,
+              cycleDetailPerformance.accountId
+            )?.performanceAdjustmentCny ?? 0
           }
           onClose={() => setCycleDetailQuoteId(null)}
         />

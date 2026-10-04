@@ -1,3 +1,4 @@
+import { normalizeAccountState } from '../../src/shared/stock-accounts'
 import { createHash } from 'node:crypto'
 import { copyFileSync, existsSync, readFileSync, readdirSync, renameSync, rmSync } from 'node:fs'
 import { basename, join } from 'node:path'
@@ -7,7 +8,6 @@ import {
   normalizeCorporateActionRecords,
   normalizePortfolioPerformanceAdjustments,
   normalizeStockTrackingProfiles,
-  normalizeTTradingAccounts,
   normalizeWatchlist,
   normalizeWatchlistColumnOrder,
   normalizeWatchlistGroups,
@@ -23,17 +23,23 @@ export const LEGACY_LAST_GOOD_STATE_FILE_NAME = 'settings.last-good.legacy-v1.js
 export const STATE_DIRECTORY_NAME = 'state'
 export const STATE_MANIFEST_FILE_NAME = 'manifest.json'
 export const LAST_GOOD_STATE_MANIFEST_FILE_NAME = 'manifest.last-good.json'
+export const ACCOUNT_UPGRADE_MANIFEST_FILE_NAME = 'manifest.before-stock-accounts.json'
 export const STATE_HISTORY_DIRECTORY_NAME = 'state-history'
 
 const STATE_MANIFEST_FORMAT = 'jianzhang-state-manifest'
-const STATE_MANIFEST_FORMAT_VERSION = 1
+const STATE_MANIFEST_FORMAT_VERSION = 2
 const STATE_DOCUMENT_FORMAT = 'jianzhang-state-document'
 const STATE_DOCUMENT_FORMAT_VERSION = 1
 const STATE_HISTORY_LIMIT = 20
 const STATE_HISTORY_MIN_INTERVAL_MILLISECONDS = 15 * 60 * 1000
 
 type StateDocumentKind =
-  'preferences' | 'watchlist' | 'portfolio-meta' | 'tracking-profile' | 'trading-account'
+  | 'preferences'
+  | 'watchlist'
+  | 'portfolio-meta'
+  | 'tracking-profile'
+  | 'trading-account'
+  | 'stock-trading-book'
 
 interface StateDocumentRef {
   path: string
@@ -43,7 +49,7 @@ interface StateDocumentRef {
 
 export interface StateManifestV1 {
   format: typeof STATE_MANIFEST_FORMAT
-  formatVersion: typeof STATE_MANIFEST_FORMAT_VERSION
+  formatVersion: 1 | 2
   revision: number
   committedAt: string
   documents: {
@@ -67,10 +73,14 @@ type PreferencesState = Pick<AppState, 'settings' | 'columnOrder' | 'columnOrder
 type WatchlistState = Pick<AppState, 'watchlist' | 'watchlistGroups'>
 type PortfolioMetaState = Pick<
   AppState,
-  'corporateActionRecords' | 'portfolioPerformanceAdjustments'
+  | 'corporateActionApplications'
+  | 'portfolioPerformanceAdjustments'
+  | 'securitiesAccounts'
+  | 'portfolioSchemaVersion'
+  | 'corporateActionRecords'
 >
 type StockTrackingProfile = AppState['stockTrackingProfiles'][string]
-type TTradingAccount = AppState['tTradingAccounts'][string]
+type TTradingAccount = AppState['stockTradingBooks'][string]
 
 interface LoadedManifestState {
   content: string
@@ -160,7 +170,7 @@ function parseManifest(content: string): StateManifestV1 {
   }
   if (
     value.format !== STATE_MANIFEST_FORMAT ||
-    value.formatVersion !== STATE_MANIFEST_FORMAT_VERSION ||
+    (value.formatVersion !== 1 && value.formatVersion !== STATE_MANIFEST_FORMAT_VERSION) ||
     typeof value.revision !== 'number' ||
     !Number.isInteger(value.revision) ||
     value.revision < 0 ||
@@ -225,7 +235,7 @@ export class StateStore {
       return this.migrateLegacyState()
     }
 
-    const state = structuredClone(this.defaultState)
+    const state = this.normalize(structuredClone(this.defaultState))
     this.save(state)
     return { state }
   }
@@ -245,7 +255,7 @@ export class StateStore {
       watchlistGroups,
       stockTrackingProfiles
     )
-    return {
+    return normalizeAccountState({
       ...state,
       revision: state.revision,
       watchlist,
@@ -254,13 +264,15 @@ export class StateStore {
       settings: normalizeAppSettings(state.settings),
       columnOrder: normalizeWatchlistColumnOrder(state.columnOrder),
       columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
-      tTradingAccounts: normalizeTTradingAccounts(state.tTradingAccounts),
-      corporateActionRecords: normalizeCorporateActionRecords(state.corporateActionRecords),
+      stockTradingBooks: state.stockTradingBooks,
+      corporateActionApplications: normalizeCorporateActionRecords(
+        state.corporateActionApplications
+      ),
       portfolioPerformanceAdjustments: normalizePortfolioPerformanceAdjustments(
         state.portfolioPerformanceAdjustments,
         watchlist
       )
-    }
+    })
   }
 
   getCommittedAt(): string | undefined {
@@ -340,6 +352,10 @@ export class StateStore {
     if (previousManifestContent && this.revision > 0) {
       this.saveHistorySnapshot(previousManifestContent)
     }
+    if (previousManifestContent && parseManifest(previousManifestContent).formatVersion === 1) {
+      const checkpointPath = join(this.stateDirectory, ACCOUNT_UPGRADE_MANIFEST_FILE_NAME)
+      if (!existsSync(checkpointPath)) this.writeAtomically(checkpointPath, previousManifestContent)
+    }
     const manifest = this.writeStateDocuments(state, nextRevision)
     const manifestContent = JSON.stringify(manifest, null, 2)
     const lastGoodContent = previousManifestContent ?? manifestContent
@@ -396,7 +412,8 @@ export class StateStore {
       watchlistGroups,
       stockTrackingProfiles
     )
-    return {
+    return normalizeAccountState({
+      ...saved,
       revision:
         typeof saved.revision === 'number' && Number.isInteger(saved.revision)
           ? Math.max(0, saved.revision)
@@ -407,13 +424,15 @@ export class StateStore {
       settings: normalizeAppSettings(saved.settings),
       columnOrder: normalizeWatchlistColumnOrder(saved.columnOrder),
       columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
-      tTradingAccounts: normalizeTTradingAccounts(saved.tTradingAccounts),
-      corporateActionRecords: normalizeCorporateActionRecords(saved.corporateActionRecords),
+      stockTradingBooks: saved.stockTradingBooks ?? saved.tTradingAccounts ?? {},
+      corporateActionApplications: normalizeCorporateActionRecords(
+        saved.corporateActionApplications ?? saved.corporateActionRecords
+      ),
       portfolioPerformanceAdjustments: normalizePortfolioPerformanceAdjustments(
         saved.portfolioPerformanceAdjustments,
         watchlist
       )
-    }
+    })
   }
 
   private writeStateDocuments(state: AppState, revision: number): StateManifestV1 {
@@ -440,7 +459,9 @@ export class StateStore {
     const portfolioMeta = this.writeDocument(
       'portfolio-meta',
       {
-        corporateActionRecords: state.corporateActionRecords,
+        corporateActionApplications: state.corporateActionApplications,
+        securitiesAccounts: state.securitiesAccounts,
+        portfolioSchemaVersion: state.portfolioSchemaVersion,
         portfolioPerformanceAdjustments: state.portfolioPerformanceAdjustments ?? {}
       } satisfies PortfolioMetaState,
       revision,
@@ -461,13 +482,13 @@ export class StateStore {
         ])
     )
     const tradingAccounts = Object.fromEntries(
-      Object.keys(state.tTradingAccounts)
+      Object.keys(state.stockTradingBooks)
         .sort()
         .map((quoteId) => [
           quoteId,
           this.writeDocument(
-            'trading-account',
-            state.tTradingAccounts[quoteId],
+            'stock-trading-book',
+            state.stockTradingBooks[quoteId],
             revision,
             previous?.tradingAccounts[quoteId],
             quoteId
@@ -514,7 +535,7 @@ export class StateStore {
     const relativePath =
       kind === 'tracking-profile'
         ? `tracking/${encodedId}${suffix}`
-        : kind === 'trading-account'
+        : kind === 'trading-account' || kind === 'stock-trading-book'
           ? `portfolios/${encodedId}${suffix}`
           : `documents/${kind}-${suffix}`
     this.writeAtomically(this.stateFilePath(relativePath), content)
@@ -553,10 +574,15 @@ export class StateStore {
         )
       ])
     )
-    const tTradingAccounts = Object.fromEntries(
+    const stockTradingBooks = Object.fromEntries(
       Object.entries(manifest.documents.tradingAccounts).map(([quoteId, reference]) => [
         quoteId,
-        this.readDocument<TTradingAccount>(reference, 'trading-account', quoteId, documentRoot)
+        this.readDocument<TTradingAccount>(
+          reference,
+          manifest.formatVersion === 1 ? 'trading-account' : 'stock-trading-book',
+          quoteId,
+          documentRoot
+        )
       ])
     )
     return {
@@ -567,7 +593,7 @@ export class StateStore {
         ...watchlist,
         stockTrackingProfiles,
         ...preferences,
-        tTradingAccounts,
+        stockTradingBooks,
         ...portfolioMeta
       }
     }
@@ -610,7 +636,11 @@ export class StateStore {
       copyFileSync(this.manifestPath, invalidPath)
     }
 
-    const candidates = [this.lastGoodManifestPath, ...this.historyManifestPathsDescending()]
+    const candidates = [
+      this.lastGoodManifestPath,
+      ...this.historyManifestPathsDescending(),
+      join(this.stateDirectory, ACCOUNT_UPGRADE_MANIFEST_FILE_NAME)
+    ]
     let recovered: LoadedManifestState | undefined
 
     for (const path of candidates) {
@@ -773,6 +803,7 @@ export class StateStore {
     for (const path of [
       this.manifestPath,
       this.lastGoodManifestPath,
+      join(this.stateDirectory, ACCOUNT_UPGRADE_MANIFEST_FILE_NAME),
       ...this.historyManifestPathsDescending()
     ]) {
       if (!existsSync(path)) continue

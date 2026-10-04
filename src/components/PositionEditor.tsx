@@ -1,3 +1,6 @@
+import { useSecuritiesAccountState } from './SecuritiesAccountContext'
+import type { ReactNode } from 'react'
+import type { AccountFeeSettings } from '../shared/types'
 import { BriefcaseBusiness, Camera, Check, PencilLine, ReceiptText, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -43,6 +46,7 @@ import {
 } from '../lib/market-trades'
 import {
   calculateTBatchMetrics,
+  calculateTradeFees,
   recalculatePositionFromBatch,
   rebalanceTBatchPlans,
   roundMoney,
@@ -81,7 +85,12 @@ import {
 } from '../shared/stock-market'
 import { useConfirmDialog } from './ConfirmDialog'
 
-interface PositionEditorProps {
+export interface PositionEditorProps {
+  hidden?: boolean
+  accountDisabled?: boolean
+  accountSelector?: ReactNode
+  onDraftChange?: () => void
+  accountFeeSnapshot?: AccountFeeSettings
   stock: WatchStock
   quote: StockQuote | undefined
   account: TTradingAccount | undefined
@@ -105,6 +114,7 @@ interface PositionVersionMetrics {
 }
 
 interface TradeRecordDraft {
+  recalculateFees?: boolean
   side: TTradeSide
   purpose: TTradePurpose
   tradedAt: string
@@ -371,6 +381,7 @@ function TradeRecordList({
   onCancelEdit,
   onDelete
 }: TradeRecordListProps) {
+  const { securitiesAccounts } = useSecuritiesAccountState()
   return (
     <div className="trade-record-scroll">
       <div className="trade-record-list">
@@ -390,7 +401,10 @@ function TradeRecordList({
                 <span className="trade-record-side is-adjustment">持仓校准</span>
                 <span>
                   <strong>持仓校准</strong>
-                  <small>{formatTradeTime(entry.occurredAt)}</small>
+                  <small>
+                    {securitiesAccounts?.[entry.accountId]?.name} ·{' '}
+                    {formatTradeTime(entry.occurredAt)}
+                  </small>
                 </span>
                 <span>
                   <strong>
@@ -461,7 +475,10 @@ function TradeRecordList({
                   <div className="trade-record-edit-header">
                     <span className="trade-record-edit-title">
                       <strong>编辑交易记录</strong>
-                      <small>{tradeRecordContext(record)}</small>
+                      <small>
+                        {securitiesAccounts?.[record.accountId ?? '']?.name} ·{' '}
+                        {tradeRecordContext(record)}
+                      </small>
                     </span>
                     <span className="trade-record-edit-actions">
                       <button className="is-save" type="button" onClick={onSaveEdit}>
@@ -549,6 +566,14 @@ function TradeRecordList({
                       </label>
                     ) : null}
                   </div>
+                  <button
+                    type="button"
+                    className="text-button"
+                    disabled={Boolean(record.splitSource)}
+                    onClick={() => onDraftChange({ recalculateFees: !draft.recalculateFees })}
+                  >
+                    {draft.recalculateFees ? '保留已保存费用' : '按当前账户重算费用'}
+                  </button>
                   <div className="trade-record-edit-secondary-fields">
                     <label>
                       <span>实际交收</span>
@@ -585,6 +610,9 @@ function TradeRecordList({
               </span>
               <span>
                 <strong>{tradeRecordContext(record)}</strong>
+                <small>
+                  账户：{securitiesAccounts?.[record.accountId ?? '']?.name ?? '默认账户'}
+                </small>
                 <small>
                   {formatTradeTime(record.tradedAt)} ·{' '}
                   {record.actualSettlementDate
@@ -651,6 +679,9 @@ function TradeRecordList({
 }
 
 export function PositionEditor({
+  accountSelector,
+  onDraftChange,
+  accountFeeSnapshot,
   stock,
   quote,
   account,
@@ -659,7 +690,9 @@ export function PositionEditor({
   marketTradeFees,
   tradingCalendar,
   onSave,
-  onClose
+  onClose,
+  hidden = false,
+  accountDisabled = false
 }: PositionEditorProps) {
   const confirm = useConfirmDialog()
   const market = marketFromQuoteId(stock.quoteId)
@@ -838,6 +871,10 @@ export function PositionEditor({
   }
 
   const savePosition = async (nextPosition: StockPosition | undefined) => {
+    if (accountDisabled && (nextPosition?.quantity ?? 0) > 0) {
+      setPositionError('请先恢复启用该账户')
+      return
+    }
     let resolvedPosition = nextPosition
     let updatedAccount = capabilities.tradeLedger ? editedAccount : undefined
     if (
@@ -896,6 +933,10 @@ export function PositionEditor({
   }
 
   const addTradeRecord = () => {
+    if (accountDisabled) {
+      setNewTradeError('请先恢复启用该账户')
+      return
+    }
     const price = Number(newTradeDraft.price)
     const tradeQuantity = Number(newTradeDraft.quantity)
     const manualFees =
@@ -969,6 +1010,8 @@ export function PositionEditor({
       tradedAt: newTradeDraft.tradedAt,
       price,
       quantity: tradeQuantity,
+      accountId: workingAccount?.accountId,
+      accountFeeSnapshot: manualFees === null ? accountFeeSnapshot : undefined,
       fees: emptyTradeFees(),
       feeItems,
       feeTemplate: manualFees === null ? newTradeFeeTemplate : undefined,
@@ -1057,21 +1100,17 @@ export function PositionEditor({
     const feeTotalChanged = feeTotal !== totalRecordedTradeFees(record)
     const estimatedFee = record.feeSource === 'estimated' || Boolean(record.feeTemplate)
     const nextFeeTemplate = marketFeeTemplateForTradeDate(market, marketDate)
-    if (estimatedFee && !feeTotalChanged && !nextFeeTemplate) {
+    if (tradeRecordDraft.recalculateFees && market !== 'CN' && !nextFeeTemplate) {
       setTradeRecordError('该成交日期无内置费用模板，请填写券商实际费用')
       return
     }
-    const usesManualTradeFee = feeTotalChanged
-    const transactionChanged =
-      record.side !== tradeRecordDraft.side ||
-      record.price !== price ||
-      record.quantity !== tradeQuantity ||
-      (record.marketDate ?? record.tradedAt.slice(0, 10)) !== marketDate
+    const recalculateFees = Boolean(tradeRecordDraft.recalculateFees && !record.splitSource)
+    const usesManualTradeFee = feeTotalChanged && !recalculateFees
     const nextMarketFeeItems = usesManualTradeFee
       ? feeTotal > 0
         ? [{ code: 'manual' as const, label: '券商实际费用', amount: feeTotal }]
         : []
-      : transactionChanged && estimatedFee && !record.splitSource
+      : recalculateFees
         ? calculateMarketTradeFeeItems(
             market,
             price * tradeQuantity,
@@ -1088,6 +1127,8 @@ export function PositionEditor({
 
     const nextTrade: TTrade = {
       id: record.id,
+      accountId: workingAccount.accountId,
+      accountFeeSnapshot: recalculateFees ? accountFeeSnapshot : record.accountFeeSnapshot,
       side: tradeRecordDraft.side,
       purpose: tradeRecordDraft.purpose,
       tradedAt: tradeRecordDraft.tradedAt,
@@ -1095,7 +1136,14 @@ export function PositionEditor({
       quantity: tradeQuantity,
       fees:
         market === 'CN'
-          ? feesWithTotal(record.fees, feeTotal)
+          ? recalculateFees && accountFeeSnapshot?.market === 'CN'
+            ? calculateTradeFees(
+                price * tradeQuantity,
+                tradeRecordDraft.side,
+                accountFeeSnapshot.settings,
+                stock.marketLabel
+              )
+            : feesWithTotal(record.fees, feeTotal)
           : usesManualTradeFee
             ? emptyTradeFees()
             : record.fees,
@@ -1105,7 +1153,7 @@ export function PositionEditor({
           ? record.feeTemplate
           : usesManualTradeFee
             ? undefined
-            : transactionChanged && estimatedFee && !record.splitSource
+            : recalculateFees
               ? nextFeeTemplate
               : record.feeTemplate,
       feeSource:
@@ -1113,7 +1161,7 @@ export function PositionEditor({
           ? record.feeSource
           : usesManualTradeFee
             ? 'actual'
-            : estimatedFee
+            : recalculateFees || estimatedFee
               ? 'estimated'
               : (record.feeSource ??
                 (record.feeItems?.some((item) => item.code === 'manual') ? 'actual' : undefined)),
@@ -1328,6 +1376,8 @@ export function PositionEditor({
     onDelete: deletePositionRecord
   }
 
+  if (hidden) return null
+
   return createPortal(
     <>
       <div className="position-dialog-backdrop" role="presentation" onMouseDown={onClose}>
@@ -1376,7 +1426,9 @@ export function PositionEditor({
             </button>
           </header>
 
+          {accountSelector}
           <form
+            onChange={onDraftChange}
             className="position-form"
             noValidate
             onSubmit={(event) => {

@@ -1,3 +1,5 @@
+import type { StockTradingBook } from '../../shared/types'
+import { stockTOverview } from '../../lib/stock-accounts'
 import {
   ArrowDownToLine,
   ArrowUpToLine,
@@ -31,9 +33,6 @@ import {
 } from '../../lib/portfolio'
 import type { StockDetailNavigationRequest } from '../../lib/completion-notifications'
 import { getTriggeredStockAlertDirection } from '../../lib/stock-alerts'
-import { getTriggeredTAlertBadges, getTriggeredTFloatingProfitAlert } from '../../lib/t-alerts'
-import { calculateTBatchMetrics } from '../../lib/t-trading'
-import { getBatchTrades } from '../../lib/trade-records'
 import {
   FINANCIAL_MINE_LEVEL_LABELS,
   evaluateFinancialMine
@@ -131,8 +130,8 @@ interface WatchlistRowProps {
   fundamentalGeneratedAt: string | undefined
   fundamentalSnapshotSchemaVersion: FundamentalSnapshot['schemaVersion'] | undefined
   fundamentalStaleReason: string | null | undefined
-  tradingAccount: TTradingAccount | undefined
-  corporateActionRecords: CorporateActionRecords
+  tradingAccount: TTradingAccount | StockTradingBook | undefined
+  corporateActionApplications: CorporateActionRecords
   manualIndex: number
   columnOrder: WatchlistColumnId[]
   tradingCalendar: TradingCalendarSettings
@@ -206,7 +205,7 @@ export const WatchlistRow = memo(function WatchlistRow({
   fundamentalSnapshotSchemaVersion,
   fundamentalStaleReason,
   tradingAccount,
-  corporateActionRecords,
+  corporateActionApplications,
   manualIndex,
   columnOrder,
   tradingCalendar,
@@ -290,18 +289,14 @@ export const WatchlistRow = memo(function WatchlistRow({
   const currentRadarSignals =
     capabilities.radar && stock.showRadarSignals ? todayRadarSignals(quote?.radarSignals) : []
   const latestRadarSignal = currentRadarSignals[0]
-  const activeTBatch = capabilities.tTrading ? tradingAccount?.activeBatch : undefined
-  const activeTTrades = getBatchTrades(tradingAccount, activeTBatch)
-  const tFloatingProfit = calculateTBatchMetrics(
-    activeTBatch,
-    activeTTrades,
-    quote?.latest
-  ).floatingProfit
-  const tAlertBadges = getTriggeredTAlertBadges(activeTBatch, activeTTrades, {
-    market,
-    instrumentType: stock.instrumentType
-  })
-  const tFloatingProfitAlert = getTriggeredTFloatingProfitAlert(activeTBatch)
+  const overview = stockTOverview(
+    capabilities.tTrading ? tradingAccount : undefined,
+    quote?.latest,
+    { market, instrumentType: stock.instrumentType }
+  )
+  const tFloatingProfit = overview.floatingProfit
+  const tAlertBadges = overview.badges
+  const tFloatingProfitAlert = overview.floatingAlert
   const enabledStockAlertCount = stock.alertRules?.filter((rule) => rule.enabled).length ?? 0
   const stockAlertDirection = getTriggeredStockAlertDirection(stock.alertRules)
   const stockAlertClass = stockAlertDirection
@@ -318,7 +313,7 @@ export const WatchlistRow = memo(function WatchlistRow({
     tradingAccount,
     market
   )
-  const tButtonState = !activeTBatch
+  const tButtonState = !overview.summaries.length
     ? ''
     : tFloatingProfit !== null && tFloatingProfit > 0
       ? 'is-t-profit-up'
@@ -458,7 +453,13 @@ export const WatchlistRow = memo(function WatchlistRow({
                       onOpenTTrading(stock)
                     }}
                     aria-label={`打开 ${stock.name} 的交易管理`}
-                    title={activeTBatch ? '继续记录当前交易批次' : '交易管理'}
+                    title={
+                      overview.summaries.length > 1
+                        ? `${overview.summaries.length} 个账户正在做 T`
+                        : overview.summaries.length
+                          ? '继续记录当前交易批次'
+                          : '交易管理'
+                    }
                   >
                     <span className="t-letter-icon" aria-hidden="true">
                       T
@@ -540,7 +541,9 @@ export const WatchlistRow = memo(function WatchlistRow({
                           </button>
                         ) : null}
                         <FiveLevelAlertBadges
-                          alerts={activeTBatch ? quote?.fiveLevelLargeOrders : undefined}
+                          alerts={
+                            overview.summaries.length ? quote?.fiveLevelLargeOrders : undefined
+                          }
                           compact
                         />
                         {tAlertBadges.length > 0 || tFloatingProfitAlert ? (
@@ -554,12 +557,16 @@ export const WatchlistRow = memo(function WatchlistRow({
                             title="查看当前 T 仓提醒"
                           >
                             <TAlertBadges badges={tAlertBadges} compact />
-                            <TFloatingProfitAlertBadge
-                              batch={activeTBatch}
-                              floatingProfit={tFloatingProfit}
-                              currency={metrics.currency}
-                              compact
-                            />
+                            {overview.floatingAlerts.map((summary) => (
+                              <TFloatingProfitAlertBadge
+                                key={summary.account.accountId}
+                                accountName={summary.account.accountName}
+                                batch={summary.batch}
+                                floatingProfit={summary.metrics.floatingProfit}
+                                currency={metrics.currency}
+                                compact
+                              />
+                            ))}
                           </button>
                         ) : null}
                       </span>
@@ -871,14 +878,14 @@ export const WatchlistRow = memo(function WatchlistRow({
                   detailNavigationRequest={detailNavigationRequest}
                   onDetailNavigationHandled={onDetailNavigationHandled}
                   refreshSeconds={stock.isPriority ? priorityRefreshSeconds : regularRefreshSeconds}
-                  autoRefreshOrderBook={Boolean(activeTBatch)}
+                  autoRefreshOrderBook={overview.summaries.length > 0}
                   chipDistributionEnabled={chipDistributionEnabled}
                   bollingerBandsEnabled={bollingerBandsEnabled}
                   dailyKlineIndicator={dailyKlineIndicator}
                   tradingCalendar={tradingCalendar}
                   exchangeRates={exchangeRates}
                   tradingAccount={tradingAccount}
-                  corporateActionRecords={corporateActionRecords}
+                  corporateActionApplications={corporateActionApplications}
                   onApplyCorporateAction={(account, position, record) =>
                     onApplyCorporateAction(stock.quoteId, account, position, record)
                   }

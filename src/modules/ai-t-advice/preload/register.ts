@@ -13,9 +13,9 @@ export function installAiTAdvicePreload(): void {
     getStatus: () => invoke('ai-t:status:get'),
     getSettings: () => invoke('ai-t:settings:get'),
     saveSettings: (settings) => invoke('ai-t:settings:update', settings),
-    generate: (quoteId) => invoke('ai-t:advice:generate', quoteId),
-    cancel: (quoteId) => invoke('ai-t:advice:cancel', quoteId),
-    listHistory: (quoteId) => invoke('ai-t:advice:history', quoteId),
+    generate: (quoteId, accountId) => invoke('ai-t:advice:generate', quoteId, accountId),
+    cancel: (quoteId, accountId) => invoke('ai-t:advice:cancel', quoteId, accountId),
+    listHistory: (quoteId, accountId) => invoke('ai-t:advice:history', quoteId, accountId),
     dismiss: (adviceId) => invoke('ai-t:advice:dismiss', adviceId),
     onProgress: (listener) => {
       const handler = (_event: Electron.IpcRendererEvent, payload: AiTAdviceProgressEvent): void =>

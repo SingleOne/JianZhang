@@ -1,3 +1,9 @@
+import {
+  normalizeAccountState,
+  getStockAccountBook,
+  upsertStockAccount,
+  resolveAccountSelection
+} from '../../../../shared/stock-accounts'
 import { appendPortfolioLedgerEntries, withLedgerTradeRecords } from '../../../../shared/types'
 import type {
   AppState,
@@ -40,7 +46,7 @@ const EMPTY_FEES = {
 export interface AppliedTradeImport {
   state: AppState
   entryCount: number
-  affectedStocks: Array<{ quoteId: string; name: string }>
+  affectedStocks: Array<{ quoteId: string; name: string; accountId?: string }>
 }
 
 export interface TradeImportPreview {
@@ -175,6 +181,7 @@ export function validateTradeImportItems(
   items: readonly AiTradeImportItem[],
   sources: readonly AiTradeImportSourceBinding[]
 ): AiTradeImportItem[] {
+  state = normalizeAccountState(state)
   const sourcesById = new Map(sources.map((source) => [source.id, source]))
   const externalIds = new Map<string, string>()
   const sourceLocations = new Set<string>()
@@ -260,11 +267,23 @@ export function validateTradeImportItems(
         }
       }
 
-      issues.push(...duplicateIssues(state.tTradingAccounts[stock.quoteId], nextItem, source))
+      const accountId =
+        nextItem.accountId ?? resolveAccountSelection(state, marketFromQuoteId(stock.quoteId))
+      nextItem.accountId = accountId
+      const owner = state.securitiesAccounts?.[accountId]
+      if (!owner?.enabled || owner.market !== marketFromQuoteId(stock.quoteId))
+        issues.push(issue('error', '请选择股票所属市场的启用账户', 'accountId'))
+      issues.push(
+        ...duplicateIssues(
+          getStockAccountBook(state.stockTradingBooks, stock.quoteId, nextItem.accountId),
+          nextItem,
+          source
+        )
+      )
     }
 
     if (stock && nextItem.externalId) {
-      const key = `${stock.quoteId}:${nextItem.kind}:${nextItem.externalId}`
+      const key = `${nextItem.accountId}:${stock.quoteId}:${nextItem.kind}:${nextItem.externalId}`
       const existingFingerprint = externalIds.get(key)
       if (existingFingerprint === itemFingerprint(nextItem)) {
         issues.push(issue('error', '本次草稿中存在相同券商编号和内容的重复流水'))
@@ -274,7 +293,7 @@ export function validateTradeImportItems(
       externalIds.set(key, itemFingerprint(nextItem))
     }
     if (source && nextItem.sourceLocator) {
-      const key = `${source.hash}:${nextItem.sourceLocator}`
+      const key = `${nextItem.accountId}:${nextItem.quoteId}:${source.hash}:${nextItem.sourceLocator}`
       if (sourceLocations.has(key)) issues.push(issue('error', '本次草稿中存在重复的来源位置'))
       sourceLocations.add(key)
     }
@@ -301,12 +320,24 @@ export function previewTradeImport(
     const applied = applyTradeImportToState(state, importId, validated, sources)
     return {
       items: validated,
-      impacts: applied.affectedStocks.map(({ quoteId, name }) => {
-        const before = state.watchlist.find((stock) => stock.quoteId === quoteId)?.position
-        const after = applied.state.watchlist.find((stock) => stock.quoteId === quoteId)?.position
+      impacts: applied.affectedStocks.map(({ quoteId, name, accountId }) => {
+        const before = accountId
+          ? getStockAccountBook(normalizeAccountState(state).stockTradingBooks, quoteId, accountId)
+              ?.position
+          : state.watchlist.find((stock) => stock.quoteId === quoteId)?.position
+        const after = accountId
+          ? getStockAccountBook(applied.state.stockTradingBooks, quoteId, accountId)?.position
+          : applied.state.watchlist.find((stock) => stock.quoteId === quoteId)?.position
         return {
           quoteId,
+          accountId,
+          accountName: accountId ? applied.state.securitiesAccounts?.[accountId]?.name : undefined,
           name,
+          totalBeforeQuantity:
+            state.watchlist.find((stock) => stock.quoteId === quoteId)?.position?.quantity ?? 0,
+          totalAfterQuantity:
+            applied.state.watchlist.find((stock) => stock.quoteId === quoteId)?.position
+              ?.quantity ?? 0,
           beforeQuantity: before?.quantity ?? 0,
           beforeCost: before?.cost ?? null,
           afterQuantity: after?.quantity ?? 0,
@@ -355,6 +386,7 @@ export function applyTradeImportToState(
   items: readonly AiTradeImportItem[],
   sources: readonly AiTradeImportSourceBinding[]
 ): AppliedTradeImport {
+  state = normalizeAccountState(state)
   const validated = validateTradeImportItems(state, items, sources)
   const selected = validated.filter((item) => item.selected)
   if (selected.length === 0) throw new Error('请至少选择一条可以导入的流水')
@@ -365,28 +397,31 @@ export function applyTradeImportToState(
   const sourcesById = new Map(sources.map((source) => [source.id, source]))
   const groups = new Map<string, AiTradeImportItem[]>()
   for (const item of selected) {
-    const group = groups.get(item.quoteId!) ?? []
+    const key = `${item.accountId}::${item.quoteId}`
+    const group = groups.get(key) ?? []
     group.push(item)
-    groups.set(item.quoteId!, group)
+    groups.set(key, group)
   }
 
-  const accounts = { ...state.tTradingAccounts }
-  const positions = new Map<
-    string,
-    ReturnType<typeof calculatePortfolioLedgerPosition>['position']
-  >()
+  let nextState = state
   const recordedAt = new Date().toISOString()
   let entryIndex = 0
 
-  for (const [quoteId, group] of groups) {
+  for (const group of groups.values()) {
+    const quoteId = group[0].quoteId!
+    const accountId = group[0].accountId!
     const stock = state.watchlist.find((candidate) => candidate.quoteId === quoteId)!
     const { market, currency } = identity(stock)
-    let account = accounts[quoteId] ?? createAccount(stock)
-    if (stock.position && !hasPositionEntries(account)) {
+    let account = getStockAccountBook(nextState.stockTradingBooks, quoteId, accountId) ?? {
+      ...createAccount(stock),
+      accountId,
+      accountName: state.securitiesAccounts![accountId].name
+    }
+    if (account.position && !hasPositionEntries(account)) {
       account = createInitialPositionAccount(
         account,
         { quoteId, code: stock.code, name: stock.name, market, currency },
-        stock.position,
+        account.position,
         group[0].occurredAt!
       )
     }
@@ -404,7 +439,7 @@ export function applyTradeImportToState(
         externalId: item.externalId
       }
       const common = {
-        accountId: quoteId,
+        accountId,
         quoteId,
         occurredAt: item.occurredAt!,
         marketDate: item.occurredAt!.slice(0, 10),
@@ -422,6 +457,7 @@ export function applyTradeImportToState(
         const actualFees = roundMoney(item.fees ?? 0)
         const record: TTrade = {
           id: `broker:${importId}:${suffix}`,
+          accountId,
           side: item.side!,
           purpose: 'base',
           tradedAt: item.occurredAt!,
@@ -475,28 +511,16 @@ export function applyTradeImportToState(
 
     const replay = calculatePortfolioLedgerPosition(account, market, currency)
     if (replay.error) throw new Error(`${stock.name} 导入后账本校验失败：${replay.error}`)
-    accounts[quoteId] = account
-    positions.set(quoteId, replay.position)
+    nextState = upsertStockAccount(nextState, account, replay.position)
   }
 
   return {
-    state: {
-      ...state,
-      tTradingAccounts: accounts,
-      watchlist: state.watchlist.map((stock) =>
-        positions.has(stock.quoteId)
-          ? {
-              ...stock,
-              position: positions.get(stock.quoteId),
-              isPriority: positions.get(stock.quoteId) ? true : stock.isPriority
-            }
-          : stock
-      )
-    },
+    state: nextState,
     entryCount: selected.length,
-    affectedStocks: [...groups.keys()].map((quoteId) => {
+    affectedStocks: [...groups.values()].map((group) => {
+      const quoteId = group[0].quoteId!
       const stock = state.watchlist.find((candidate) => candidate.quoteId === quoteId)!
-      return { quoteId, name: stock.name }
+      return { quoteId, name: stock.name, accountId: group[0].accountId }
     })
   }
 }

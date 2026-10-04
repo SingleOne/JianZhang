@@ -476,7 +476,7 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
           ?.isPriority !== stock.isPriority
     )
     const tAlertUpdate = applyTAlertTriggersToAccounts(
-      normalizedState.tTradingAccounts,
+      normalizedState.stockTradingBooks,
       dependencies.getQuotes(),
       normalizedState.watchlist
     )
@@ -490,7 +490,7 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
     const savedState = {
       ...normalizedState,
       watchlist: stockAlertUpdate.watchlist,
-      tTradingAccounts: tAlertUpdate.accounts
+      stockTradingBooks: tAlertUpdate.accounts
     }
     dependencies.setState(savedState)
     const fiveLevelAlertsCleared = dependencies.clearInactiveFiveLevelAlerts()
@@ -524,8 +524,10 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
   ipcMain.handle('cache:clear', (_event, categoryIds: CacheCategoryId[]) =>
     dependencies.clearCaches(categoryIds)
   )
-  ipcMain.handle('stock-cache:clear', (_event, quoteId: string, categoryIds: StockCacheCategoryId[]) =>
-    dependencies.clearStockCaches(quoteId, categoryIds)
+  ipcMain.handle(
+    'stock-cache:clear',
+    (_event, quoteId: string, categoryIds: StockCacheCategoryId[]) =>
+      dependencies.clearStockCaches(quoteId, categoryIds)
   )
   ipcMain.handle('config:export', async (_event, _stateToExport: AppState) => {
     const options: SaveDialogOptions = {

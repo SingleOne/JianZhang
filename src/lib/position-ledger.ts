@@ -24,6 +24,7 @@ const EMPTY_FEES = {
 }
 
 export interface PositionLedgerIdentity {
+  accountId?: string
   quoteId: string
   code: string
   name: string
@@ -118,7 +119,8 @@ export function createInitialPositionAccount(
 ): TTradingAccount {
   const openedOn = position.openedOn ?? marketDateTime.slice(0, 10)
   const trade: TTrade = {
-    id: `opening-balance:${identity.quoteId}`,
+    id: `opening-balance:${identity.accountId ?? account?.accountId ?? identity.quoteId}:${identity.quoteId}`,
+    accountId: identity.accountId ?? account?.accountId,
     side: 'buy',
     purpose: 'base',
     tradedAt: `${openedOn}T00:00`,
@@ -158,7 +160,7 @@ export function appendPositionAdjustment(
   return appendPortfolioLedgerEntries(account, [
     {
       id,
-      accountId: account.quoteId,
+      accountId: account.accountId ?? account.quoteId,
       quoteId: account.quoteId,
       occurredAt,
       marketDate: occurredAt.slice(0, 10),

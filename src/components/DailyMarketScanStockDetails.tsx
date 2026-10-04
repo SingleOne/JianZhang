@@ -101,7 +101,9 @@ export function DailyMarketScanStockDetails({
   const [stock, setStock] = useState(initialStock)
   const [quote, setQuote] = useState<StockQuote>(() => quoteFromScanRow(row, generatedAt))
   const [tradingAccount, setTradingAccount] = useState<TTradingAccount>()
-  const [corporateActionRecords, setCorporateActionRecords] = useState<CorporateActionRecords>({})
+  const [corporateActionApplications, setCorporateActionRecords] = useState<CorporateActionRecords>(
+    {}
+  )
   const [trackingProfile, setTrackingProfile] = useState<StockTrackingProfile>()
   const [chipDistributionEnabled, setChipDistributionEnabled] = useState(
     initialChipDistributionEnabled
@@ -195,7 +197,7 @@ export function DailyMarketScanStockDetails({
         tradingCalendar={tradingCalendar}
         exchangeRates={exchangeRates}
         tradingAccount={tradingAccount}
-        corporateActionRecords={corporateActionRecords}
+        corporateActionApplications={corporateActionApplications}
         onApplyCorporateAction={applyCorporateAction}
         onUpdateCorporateActionRecord={updateCorporateActionRecord}
         trackingProfile={trackingProfile}

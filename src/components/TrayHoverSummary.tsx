@@ -11,9 +11,8 @@ import {
 } from '../lib/format'
 import { calculatePositionMetrics } from '../lib/portfolio'
 import { calculateCurrentPositionProfitOverride } from '../lib/portfolio-performance'
-import { calculateTBatchMetrics } from '../lib/t-trading'
+import { stockTOverview } from '../lib/stock-accounts'
 import { getTaskbarVisibleStocks } from '../lib/taskbar-visibility'
-import { getBatchTrades } from '../lib/trade-records'
 import type { AppState, StockQuote } from '../shared/types'
 
 function valueClass(value: number | null | undefined): string {
@@ -47,8 +46,8 @@ export function TrayHoverSummary() {
     const quoteMap = new Map(quotes.map((quote) => [quote.quoteId, quote]))
     return getTaskbarVisibleStocks(state.watchlist).map((stock) => {
       const quote = quoteMap.get(stock.quoteId)
-      const account = state.tTradingAccounts[stock.quoteId]
-      const activeTrades = getBatchTrades(account, account?.activeBatch)
+      const account = state.stockTradingBooks[stock.quoteId]
+      const overview = stockTOverview(account, quote?.latest)
       const profitOverride = calculateCurrentPositionProfitOverride(
         stock,
         quote,
@@ -66,16 +65,14 @@ export function TrayHoverSummary() {
           state.settings.exchangeRates,
           profitOverride
         ),
-        tMetrics: account?.activeBatch
-          ? calculateTBatchMetrics(account.activeBatch, activeTrades, quote?.latest)
-          : null
+        tSummaries: overview.summaries
       }
     })
   }, [
     quotes,
     state.portfolioPerformanceAdjustments,
     state.settings.exchangeRates,
-    state.tTradingAccounts,
+    state.stockTradingBooks,
     state.watchlist
   ])
   const todayProfitTotal = selectedStocks.reduce<number | null>(
@@ -98,7 +95,7 @@ export function TrayHoverSummary() {
         </span>
       </header>
       <div className="tray-summary-list">
-        {selectedStocks.map(({ stock, quote, positionMetrics, tMetrics }) => (
+        {selectedStocks.map(({ stock, quote, positionMetrics, tSummaries }) => (
           <section className="tray-summary-item" key={stock.quoteId}>
             <div className="tray-summary-heading">
               <div className="tray-summary-stock">
@@ -130,25 +127,28 @@ export function TrayHoverSummary() {
                 </b>
               </span>
             </div>
-            {tMetrics ? (
-              <div className="tray-summary-t">
-                <span>
-                  {tMetrics.direction === 'reverse' ? '反T' : '正T'}{' '}
-                  {formatShares(tMetrics.remainingQuantity)}
-                </span>
-                <span>
-                  {tMetrics.direction === 'reverse' ? '基准' : '成本'}{' '}
-                  {formatCost(tMetrics.averageCost)}
-                </span>
-                <span className={valueClass(tMetrics.floatingProfit)}>
-                  浮动 {formatMoneyProfit(tMetrics.floatingProfit, positionMetrics.currency)}
-                  {tMetrics.floatingProfitRate === null ? null : (
-                    <small className="tray-summary-floating-rate">
-                      ({formatPercent(tMetrics.floatingProfitRate)})
-                    </small>
-                  )}
-                </span>
-              </div>
+            {tSummaries.length ? (
+              tSummaries.map(({ account: owner, metrics: tMetrics }) => (
+                <div className="tray-summary-t" key={owner.accountId}>
+                  <span>{owner.accountName}</span>
+                  <span>
+                    {tMetrics.direction === 'reverse' ? '反T' : '正T'}{' '}
+                    {formatShares(tMetrics.remainingQuantity)}
+                  </span>
+                  <span>
+                    {tMetrics.direction === 'reverse' ? '基准' : '成本'}{' '}
+                    {formatCost(tMetrics.averageCost)}
+                  </span>
+                  <span className={valueClass(tMetrics.floatingProfit)}>
+                    浮动 {formatMoneyProfit(tMetrics.floatingProfit, positionMetrics.currency)}
+                    {tMetrics.floatingProfitRate === null ? null : (
+                      <small className="tray-summary-floating-rate">
+                        ({formatPercent(tMetrics.floatingProfitRate)})
+                      </small>
+                    )}
+                  </span>
+                </div>
+              ))
             ) : (
               <div className="tray-summary-t is-empty">暂无进行中的 T 仓</div>
             )}

@@ -15,8 +15,10 @@ interface AppState {
   settings: AppSettings
   columnOrder: WatchlistColumnId[]
   columnOrderVersion?: number
-  tTradingAccounts: TTradingAccounts
-  corporateActionRecords: CorporateActionRecords
+  portfolioSchemaVersion?: 2
+  securitiesAccounts?: SecuritiesAccounts
+  stockTradingBooks: StockTradingBooks
+  corporateActionApplications: CorporateActionRecords
   portfolioPerformanceAdjustments?: PortfolioPerformanceAdjustments
 }
 ```
@@ -26,11 +28,11 @@ interface AppState {
 - 自选顺序、任务栏选择、重点关注。
 - 自选分组及股票的多分组归属；包含不可改名或删除的系统“异动观察”和“追踪”分组。
 - 当前正在进行的选股追踪周期；已结束周期保存在独立的按需加载档案库。
-- 持仓和持仓快照。
+- 股票账户目录、各账户费率、持仓、持仓快照及收益调整；股票持仓合计由子账本投影。
 - 自定义股价提醒规则与触发状态。
 - 刷新、指数、筹码分布开关、界面主题、做 T、浮动盈亏提醒默认值、系统、交易日历设置。
 - 表格列顺序及迁移版本。
-- 全部做 T 活动批次、历史元数据和唯一交易流水。
+- 按股票与账户独立保存的做 T 活动批次、历史元数据和统一交易流水。
 
 不包含：
 
@@ -39,6 +41,14 @@ interface AppState {
 - 筹码分布磁盘缓存和三个可选模块的设置、缓存及历史。
 - 当前展开股票。
 - 弹窗、加载和错误提示状态。
+
+## 账户结构升级
+
+manifest 当前格式版本为 2，股票分片类型为 `stock-trading-book`。账户目录和执行记录保存于 `portfolio-meta`，最近使用账户保存于偏好，所有账户子账本按股票保存于 `portfolios`。旧版本 1 通过 `normalizeAccountState` 一次转换，旧 `tTradingAccounts` / `corporateActionRecords` 字段不再双写。
+
+首次保存升级结果前，保留 `state/manifest.before-stock-accounts.json` 及其引用分片，常规历史轮换不会清理此恢复点。旧持仓与账本存在差异时保留原持仓，不静默重算。回退旧程序时须使用升级前完整数据恢复点。
+
+配置导出版本为 4，用户数据备份版本为 2；导入继续兼容配置版本 3 和备份版本 1。导入、恢复和默认状态初始化共用账户规范化入口，保留导入的账户 ID 和关联数据。
 
 ## 本地存储
 
@@ -49,6 +59,7 @@ interface AppState {
 ├─ state/
 │  ├─ manifest.json
 │  ├─ manifest.last-good.json
+│  ├─ manifest.before-stock-accounts.json
 │  ├─ documents/
 │  │  ├─ preferences-r<revision>-<hash>.json
 │  │  ├─ watchlist-r<revision>-<hash>.json
@@ -64,7 +75,7 @@ interface AppState {
 └─ settings.last-good.legacy-v1.json
 ```
 
-`manifest.json` 是一次核心状态提交的唯一生效点。各 JSON 分片不可变并记录字节数和 SHA-256；未变化的分片在下一 revision 中复用旧引用。历史最多保留 20 个 manifest，且至少间隔 15 分钟，清理只删除未被当前、last-good 或保留历史引用的分片。
+`manifest.json` 是一次核心状态提交的唯一生效点。各 JSON 分片不可变并记录字节数和 SHA-256；未变化的分片在下一 revision 中复用旧引用。历史最多保留 20 个 manifest，且至少间隔 15 分钟，清理只删除未被当前、last-good、账户升级前恢复点或保留历史引用的分片。
 
 `tracking-archives/index.json` 只保存按股票分组的周期摘要，应用启动和 `app:bootstrap` 不读取历史周期正文。选择某个历史周期后才通过追踪档案 IPC 读取对应 `cycles` 文件；索引损坏时回退 `index.last-good.json`。旧核心状态中的 `stopped` 档案在升级后首次启动时迁入该目录，核心状态此后只保留正在追踪的周期。
 
@@ -78,7 +89,7 @@ interface AppState {
 4. `synchronizeWatchlistGroupMemberships`
 5. `normalizeAppSettings`
 6. `normalizeWatchlistColumnOrder`
-7. `normalizeTTradingAccounts`
+7. `normalizeAccountState`（内部同步各账户成交镜像和活动批次）
 8. `normalizeCorporateActionRecords`
 9. `normalizePortfolioPerformanceAdjustments`
 
@@ -87,7 +98,7 @@ interface AppState {
 当前 manifest 或任一引用分片损坏时会整体回退，不会用空对象伪装成用户删除数据：
 
 1. 把当前 manifest 保留为 `state/manifest.invalid-<时间>.json`。
-2. 依次尝试 `manifest.last-good.json` 和按时间倒序的历史 manifest。
+2. 依次尝试 `manifest.last-good.json`、按时间倒序的历史 manifest，以及账户升级前恢复点。
 3. 恢复候选必须能完整读取并通过所有分片校验；成功后通过正常保存流程提交新 revision，并在主界面显示一次启动警告。
 4. 没有完整候选时停止启动，不用默认状态覆盖用户数据。
 
@@ -146,7 +157,7 @@ interface AppState {
 ```text
 JianzhangUserDataBackupDocument
 ├─ format = "jianzhang-user-data-backup"
-├─ formatVersion = 1
+├─ formatVersion = 2
 ├─ applicationVersion
 ├─ exportedAt
 ├─ state
@@ -242,10 +253,10 @@ localStorage["jianzhang-demo-state-v1"]
 | preload 方法                                                 | IPC channel                                                      | 主进程处理                                                                                                       |
 | ------------------------------------------------------------ | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `getBootstrap`                                               | `app:bootstrap`                                                  | 返回核心状态、轻量追踪档案索引、内存报价和数据源                                                                 |
-| `getStockTrackingArchiveCycle`                               | `tracking:archive-cycle:get`                                     | 按股票和周期 ID 延迟读取一份历史追踪正文                                                                          |
-| `archiveStockTrackingCycle`                                  | `tracking:archive`                                               | 停止当前周期、写入历史档案并从活动状态移除                                                                         |
-| `deleteStockTrackingArchiveCycle`                            | `tracking:archive-cycle:delete`                                  | 删除指定股票的一个历史周期                                                                                         |
-| `deleteAllStockTrackingArchives`                             | `tracking:archives:delete-all`                                   | 清空指定股票的全部历史周期，不影响当前活动周期                                                                     |
+| `getStockTrackingArchiveCycle`                               | `tracking:archive-cycle:get`                                     | 按股票和周期 ID 延迟读取一份历史追踪正文                                                                         |
+| `archiveStockTrackingCycle`                                  | `tracking:archive`                                               | 停止当前周期、写入历史档案并从活动状态移除                                                                       |
+| `deleteStockTrackingArchiveCycle`                            | `tracking:archive-cycle:delete`                                  | 删除指定股票的一个历史周期                                                                                       |
+| `deleteAllStockTrackingArchives`                             | `tracking:archives:delete-all`                                   | 清空指定股票的全部历史周期，不影响当前活动周期                                                                   |
 | `getTaskbarLayout`                                           | `taskbar:layout:get`                                             | 返回任务栏高度                                                                                                   |
 | `searchStocks`                                               | `stocks:search`                                                  | 股票联想                                                                                                         |
 | `getDividendFinancingSnapshot`                               | `dividend-financing:get`                                         | 返回进程内缓存的 schema v2 用户快照；本地不存在时返回 `null`                                                     |

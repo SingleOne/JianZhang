@@ -1,3 +1,5 @@
+import { defaultAccountId } from '../../../shared/stock-accounts'
+import { marketFromQuoteId } from '../../../shared/stock-market'
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AiTAdvice, AiTAdviceSettings } from '../shared/types'
@@ -39,13 +41,18 @@ export class AiTAdviceStorage {
     return settings
   }
 
-  listHistory(quoteId?: string): AiTAdvice[] {
+  listHistory(quoteId?: string, accountId?: string): AiTAdvice[] {
     if (!existsSync(this.historyPath)) return []
     const { records } = readJsonLinesSync<AiTAdvice>(this.historyPath)
     const latestById = new Map<string, AiTAdvice>()
     for (const record of records) latestById.set(record.id, record)
     return [...latestById.values()]
-      .filter((item) => !quoteId || item.quoteId === quoteId)
+      .filter(
+        (item) =>
+          (!quoteId || item.quoteId === quoteId) &&
+          (!accountId ||
+            (item.accountId ?? defaultAccountId(marketFromQuoteId(item.quoteId))) === accountId)
+      )
       .sort((left, right) => right.generatedAt.localeCompare(left.generatedAt))
       .slice(0, 100)
   }

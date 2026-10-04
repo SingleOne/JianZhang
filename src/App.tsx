@@ -1,3 +1,12 @@
+import { applyAccountSecurityConversion } from './lib/stock-accounts'
+import { SecuritiesAccountProvider } from './components/SecuritiesAccountContext'
+import { SecuritiesAccountManager } from './components/SecuritiesAccountManager'
+import {
+  upsertStockAccount,
+  normalizeAccountState,
+  corporateApplicationKey,
+  listStockAccountBooks
+} from './shared/stock-accounts'
 import { Bot, CircleCheck, RefreshCw, Signal, WifiOff } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AppTitlebar, MarketTradingState } from './components/AppTitlebar'
@@ -145,6 +154,10 @@ function cardDirectionClass(value: number | null | undefined): string {
 }
 
 export default function App() {
+  const [accountManagerOpen, setAccountManagerOpen] = useState(false)
+  const [accountNavigation, setAccountNavigation] = useState<
+    { quoteId: string; accountId: string } | undefined
+  >()
   const confirm = useConfirmDialog()
   const [state, setState] = useState<AppState>(initialState)
   const [trackingArchiveIndex, setTrackingArchiveIndex] = useState<StockTrackingArchiveIndex>({})
@@ -243,6 +256,9 @@ export default function App() {
   }, [])
 
   const handleStockSelection = useCallback((request: StockSelectionRequest) => {
+    setAccountNavigation(
+      request.accountId ? { quoteId: request.quoteId, accountId: request.accountId } : undefined
+    )
     if (request.detailTarget && request.scrollAlignment === 'sticky-top') {
       setSelectedQuoteId(null)
       setDetailNavigationRequest(null)
@@ -538,7 +554,7 @@ export default function App() {
       calculateCurrentPositionProfitOverrides(
         state.watchlist,
         quotes,
-        state.tTradingAccounts,
+        state.stockTradingBooks,
         state.settings.exchangeRates,
         state.portfolioPerformanceAdjustments ?? {}
       ),
@@ -546,7 +562,7 @@ export default function App() {
       quotes,
       state.portfolioPerformanceAdjustments,
       state.settings.exchangeRates,
-      state.tTradingAccounts,
+      state.stockTradingBooks,
       state.watchlist
     ]
   )
@@ -555,7 +571,7 @@ export default function App() {
       calculatePortfolioSummary(
         state.watchlist,
         quotes,
-        state.tTradingAccounts,
+        state.stockTradingBooks,
         state.settings.exchangeRates,
         positionProfitOverrides
       ),
@@ -563,7 +579,7 @@ export default function App() {
       positionProfitOverrides,
       quotes,
       state.settings.exchangeRates,
-      state.tTradingAccounts,
+      state.stockTradingBooks,
       state.watchlist
     ]
   )
@@ -1015,16 +1031,21 @@ export default function App() {
   )
 
   const savePortfolioPerformanceAdjustments = useCallback(
-    async (adjustments: PortfolioPerformanceAdjustments) =>
-      Boolean(
-        await persist(
-          {
-            ...state,
-            portfolioPerformanceAdjustments: adjustments
-          },
-          false
-        )
-      ),
+    async (adjustments: PortfolioPerformanceAdjustments, accountId?: string) => {
+      if (!accountId) return false
+      let next = state
+      for (const parent of Object.values(state.stockTradingBooks))
+        for (const book of listStockAccountBooks(parent)) {
+          if (book.accountId === accountId)
+            next = upsertStockAccount(
+              next,
+              { ...book, performanceAdjustmentCny: adjustments[book.quoteId] ?? 0 },
+              book.position,
+              false
+            )
+        }
+      return Boolean(await persist(next, false))
+    },
     [persist, state]
   )
 
@@ -1069,32 +1090,16 @@ export default function App() {
             }
           : stock
       )
-      void persist({
-        ...state,
-        watchlist: nextWatchlist,
-        tTradingAccounts: updatedAccount
-          ? { ...state.tTradingAccounts, [quoteId]: updatedAccount }
-          : state.tTradingAccounts
-      })
+      const nextState = { ...state, watchlist: nextWatchlist }
+      if (updatedAccount) void persist(upsertStockAccount(nextState, updatedAccount, position))
+      else void persist(nextState)
     },
     [persist, state]
   )
 
   const updateTTrading = useCallback(
     (quoteId: string, account: TTradingAccount, position: StockPosition | undefined) => {
-      const nextWatchlist = state.watchlist.map((stock) =>
-        stock.quoteId === quoteId
-          ? { ...stock, position, isPriority: position ? true : stock.isPriority }
-          : stock
-      )
-      void persist({
-        ...state,
-        watchlist: nextWatchlist,
-        tTradingAccounts: {
-          ...state.tTradingAccounts,
-          [quoteId]: account
-        }
-      })
+      void persist(upsertStockAccount(state, { ...account, quoteId }, position))
     },
     [persist, state]
   )
@@ -1106,81 +1111,29 @@ export default function App() {
       position: StockPosition | undefined,
       record: CorporateActionRecord
     ) => {
-      const conversion = account.ledger.entries.find(
-        (entry) =>
-          entry.kind === 'securityConversion' &&
-          entry.corporateActionId === record.id &&
-          entry.targetQuoteId
-      )
-      const targetQuoteId =
-        conversion?.kind === 'securityConversion'
-          ? record.status === 'reversed'
-            ? conversion.sourceQuoteId
-            : conversion.targetQuoteId
-          : undefined
-      const finalQuoteId = targetQuoteId && targetQuoteId !== quoteId ? targetQuoteId : quoteId
-      if (
-        finalQuoteId !== quoteId &&
-        (state.tTradingAccounts[finalQuoteId] ||
-          state.watchlist.some((stock) => stock.quoteId === finalQuoteId))
-      ) {
-        return `目标证券 ${finalQuoteId} 已存在，为避免覆盖账户或自选数据，本次未入账。请先处理目标证券后重试。`
+      const accountId = account.accountId
+      if (!accountId) return '请选择股票账户'
+      try {
+        const hasConversion = account.ledger.entries.some(
+          (entry) =>
+            entry.kind === 'securityConversion' &&
+            entry.corporateActionId === record.id &&
+            entry.targetQuoteId &&
+            entry.targetQuoteId !== quoteId
+        )
+        const next = hasConversion
+          ? applyAccountSecurityConversion(state, account, record)
+          : upsertStockAccount(state, account, position, false)
+        void persist({
+          ...next,
+          corporateActionApplications: {
+            ...next.corporateActionApplications,
+            [corporateApplicationKey(accountId, record.id)]: { ...record, accountId }
+          }
+        })
+      } catch (reason) {
+        return reason instanceof Error ? reason.message : '公司行动入账失败'
       }
-      const finalCode = finalQuoteId.includes('.')
-        ? finalQuoteId.split('.').slice(1).join('.') || account.code
-        : account.code
-      const normalizedAccount =
-        finalQuoteId === quoteId
-          ? account
-          : {
-              ...account,
-              quoteId: finalQuoteId,
-              code: finalCode,
-              ledger: {
-                ...account.ledger,
-                entries: account.ledger.entries.map((entry) => ({
-                  ...entry,
-                  accountId: finalQuoteId,
-                  quoteId: finalQuoteId
-                }))
-              }
-            }
-      const { [quoteId]: _previousAccount, ...otherAccounts } = state.tTradingAccounts
-      const migratedRecords = Object.fromEntries(
-        Object.entries(state.corporateActionRecords).map(([id, saved]) => [
-          id,
-          saved.quoteId === quoteId ? { ...saved, quoteId: finalQuoteId } : saved
-        ])
-      )
-      const trackingProfile = state.stockTrackingProfiles[quoteId]
-      const { [quoteId]: _previousTracking, ...otherTrackingProfiles } = state.stockTrackingProfiles
-      void persist({
-        ...state,
-        watchlist: state.watchlist.map((stock) =>
-          stock.quoteId === quoteId
-            ? {
-                ...stock,
-                quoteId: finalQuoteId,
-                code: finalCode,
-                position,
-                isPriority: position ? true : stock.isPriority
-              }
-            : stock
-        ),
-        tTradingAccounts: { ...otherAccounts, [finalQuoteId]: normalizedAccount },
-        stockTrackingProfiles:
-          finalQuoteId !== quoteId && trackingProfile
-            ? {
-                ...otherTrackingProfiles,
-                [finalQuoteId]: { ...trackingProfile, quoteId: finalQuoteId, code: finalCode }
-              }
-            : state.stockTrackingProfiles,
-        corporateActionRecords: {
-          ...migratedRecords,
-          [record.id]: { ...record, quoteId: finalQuoteId }
-        }
-      })
-      if (finalQuoteId !== quoteId) setSelectedQuoteId(finalQuoteId)
     },
     [persist, state]
   )
@@ -1189,13 +1142,17 @@ export default function App() {
     (record: CorporateActionRecord) => {
       void persist({
         ...state,
-        corporateActionRecords: { ...state.corporateActionRecords, [record.id]: record }
+        corporateActionApplications: {
+          ...state.corporateActionApplications,
+          [corporateApplicationKey(record.accountId!, record.id)]: record
+        }
       })
     },
     [persist, state]
   )
 
-  const viewCorporateActionStock = useCallback((quoteId: string) => {
+  const viewCorporateActionStock = useCallback((quoteId: string, accountId?: string) => {
+    setAccountNavigation(accountId ? { quoteId, accountId } : undefined)
     setCorporateActionCenterOpen(false)
     setSelectedQuoteId(quoteId)
     setDetailNavigationRequest({
@@ -1686,453 +1643,474 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell">
-      <AppTitlebar>
-        <section className="titlebar-command-bar" aria-label="自选股操作">
-          <div className="titlebar-command-main">
-            <SearchBar onAdd={addStock} existingQuoteIds={quoteIds} onError={reportError} />
-          </div>
-          <div className="titlebar-command-actions">
-            <button
-              className="secondary-button refresh-button"
-              onClick={refreshNow}
-              disabled={refreshing}
-              title="立即刷新"
-            >
-              <RefreshCw size={17} className={refreshing ? 'is-spinning' : ''} />
-              <span>立即刷新</span>
-            </button>
-            <TitlebarToolsMenu
-              onOpenDividendRanking={() => {
-                loadDialog('dividend-ranking')
-                setDividendRankingOpen(true)
-              }}
-              onOpenFundamentalScreening={() => {
-                loadDialog('fundamental-screening')
-                setFundamentalScreeningOpen(true)
-              }}
-              onOpenDailyMarketScan={() => {
-                loadDialog('daily-scan')
-                setDailyMarketScanOpen(true)
-              }}
-              onOpenStockTracking={() => {
-                loadDialog('tracking')
-                setStockTrackingOpen(true)
-              }}
-              onOpenCorporateActionCenter={() => {
-                setCorporateActionCenterNotifyOnLoad(true)
-                setCorporateActionCenterOpen(true)
-              }}
-              onOpenPortfolioPerformance={() => setPortfolioPerformanceOpen(true)}
-            />
-            {aiModulePresent ? (
-              <button
-                className="secondary-button ai-assistant-trigger"
-                type="button"
-                disabled={!aiRuntimeAvailable}
-                onClick={() => {
-                  setAiAssistantContext(null)
-                  setAiAssistantOpen(true)
-                }}
-                title={
-                  optionalModulesState.ai.status === 'initializing'
-                    ? 'AI 模块正在初始化'
-                    : optionalModulesState.ai.status === 'failed'
-                      ? (optionalModulesState.ai.error ?? 'AI 模块初始化失败')
-                      : 'AI 助手'
-                }
-              >
-                <Bot size={17} />
-                <span>
-                  {optionalModulesState.ai.status === 'initializing'
-                    ? 'AI 初始化中'
-                    : optionalModulesState.ai.status === 'failed'
-                      ? 'AI 不可用'
-                      : 'AI 助手'}
-                </span>
-              </button>
-            ) : null}
-            <SettingsMenu
-              settings={state.settings}
-              onChange={updateSettings}
-              onImportConfig={importConfig}
-              onExportConfig={exportConfig}
-              configBusy={configBusy}
-              githubSyncSettings={githubSyncSettings}
-              githubSyncPassword={githubSyncPassword}
-              githubGistLoading={githubGistLoading}
-              githubSyncPasswordSaving={githubSyncPasswordSaving}
-              githubSyncError={githubSyncError}
-              githubDeviceAuthorization={githubDeviceAuthorization}
-              githubSyncBusy={githubSyncBusy}
-              githubSyncUploading={githubSyncUploading}
-              githubSyncDownloading={githubSyncDownloading}
-              onConnectGitHub={connectGitHub}
-              onDisconnectGitHub={disconnectGitHub}
-              onGenerateGitHubSyncPassword={generateGitHubSyncPassword}
-              onSaveGitHubSyncPassword={saveGitHubSyncPassword}
-              onUploadUserDataToGitHub={uploadUserDataToGitHub}
-              onDownloadUserDataFromGitHub={downloadUserDataFromGitHub}
-              onRefreshTradingCalendar={refreshTradingCalendar}
-              calendarRefreshing={calendarRefreshing}
-              onRefreshExchangeRates={refreshExchangeRates}
-              exchangeRatesRefreshing={exchangeRatesRefreshing}
-              fundamentalDataState={fundamentalDataState}
-              onUpdateFundamentalData={updateFundamentalData}
-              cacheSummary={cacheSummary}
-              cacheBusy={cacheBusy}
-              onRefreshCacheSummary={refreshCacheSummary}
-              onClearCaches={clearCaches}
-            />
-          </div>
-        </section>
-      </AppTitlebar>
-      <main className="app-main">
-        <div className="workspace">
-          <section className="watchlist-panel" aria-label="我的自选">
-            <div className="panel-heading">
-              <div className="panel-heading-primary">
-                <div className="panel-title">
-                  <div className="panel-title-heading">
-                    <h1>我的自选</h1>
-                    <div
-                      className="auto-refresh-state panel-title-refresh"
-                      title="仅在北京时间 09:15:00–11:30:30、12:59:30–15:30:30 自动刷新"
-                    >
-                      <span className="live-dot" />
-                      重点 {state.settings.priorityRefreshSeconds} 秒 · 其余{' '}
-                      {state.settings.regularRefreshSeconds} 秒刷新
-                    </div>
-                  </div>
-                  <span>
-                    {state.watchlist.length} 只股票 ·{' '}
-                    {state.watchlist.filter((stock) => stock.isPriority).length} 只重点 ·{' '}
-                    {portfolioSummary.positionCount} 只有持仓 · 点击股票行展开行情详情
-                  </span>
-                </div>
-                <div id="portfolio-quality-slot" className="portfolio-quality-slot" />
-                {marketIndexQuotes.length > 0 ? (
-                  <div
-                    className="market-index-summary panel-market-index-summary"
-                    aria-label="大盘指数行情"
-                  >
-                    {marketIndexQuotes.map(({ index, quote }) => (
-                      <span
-                        className={`market-index-card ${cardDirectionClass(quote?.changePercent)}`}
-                        title={`${index.name} ${formatPrice(quote?.latest)} ${formatPercent(quote?.changePercent)}`}
-                        key={index.id}
-                      >
-                        <small>{index.name}</small>
-                        <span>
-                          <strong>{formatPrice(quote?.latest)}</strong>
-                          <em className={directionClass(quote?.changePercent)}>
-                            {formatPercent(quote?.changePercent)}
-                          </em>
-                        </span>
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-              <div className="panel-heading-side">
-                <div className="portfolio-summary" aria-label="全部持仓收益汇总">
-                  <span className={cardDirectionClass(portfolioSummary.todayProfit)}>
-                    <small>今日总收益</small>
-                    <strong
-                      className={
-                        portfolioSummary.todayProfit === null
-                          ? 'is-flat'
-                          : portfolioSummary.todayProfit >= 0
-                            ? 'is-up'
-                            : 'is-down'
-                      }
-                    >
-                      {formatMoneyProfit(portfolioSummary.todayProfit, 'CNY')}
-                    </strong>
-                  </span>
-                  <span className={cardDirectionClass(portfolioSummary.todayProfitPercent)}>
-                    <small>今日收益率</small>
-                    <strong
-                      className={
-                        portfolioSummary.todayProfitPercent === null
-                          ? 'is-flat'
-                          : portfolioSummary.todayProfitPercent >= 0
-                            ? 'is-up'
-                            : 'is-down'
-                      }
-                    >
-                      {formatPercent(portfolioSummary.todayProfitPercent)}
-                    </strong>
-                  </span>
-                  <span className={cardDirectionClass(portfolioSummary.totalProfit)}>
-                    <small>持仓收益</small>
-                    <strong className={directionClass(portfolioSummary.totalProfit)}>
-                      {formatMoneyProfit(portfolioSummary.totalProfit, 'CNY')}
-                    </strong>
-                  </span>
-                  <span className={cardDirectionClass(portfolioSummary.profitPercent)}>
-                    <small>持仓收益率</small>
-                    <strong
-                      className={
-                        portfolioSummary.profitPercent === null
-                          ? 'is-flat'
-                          : portfolioSummary.profitPercent >= 0
-                            ? 'is-up'
-                            : 'is-down'
-                      }
-                    >
-                      {formatPercent(portfolioSummary.profitPercent)}
-                    </strong>
-                  </span>
-                </div>
-              </div>
+    <SecuritiesAccountProvider
+      state={state}
+      onSave={async (next) => Boolean(await persist(next))}
+      accountNavigation={accountNavigation}
+      onNavigationHandled={() => setAccountNavigation(undefined)}
+    >
+      <div className="app-shell">
+        <AppTitlebar>
+          <section className="titlebar-command-bar" aria-label="自选股操作">
+            <div className="titlebar-command-main">
+              <SearchBar onAdd={addStock} existingQuoteIds={quoteIds} onError={reportError} />
             </div>
-            {initializing ? (
-              <div className="initial-loading">
-                <span className="search-loader" />
-                正在读取自选行情…
-              </div>
-            ) : (
-              <WatchlistTable
-                watchlist={state.watchlist}
-                watchlistGroups={state.watchlistGroups}
-                quotes={quotes}
-                dividendFinancingByCode={dividendFinancingByCode}
-                dividendFinancingSnapshotDate={dividendFinancingOverview?.snapshotDate}
-                dividendFinancingStaleReason={
-                  dividendFinancingState.status === 'stale'
-                    ? dividendFinancingState.staleReason
-                    : null
-                }
-                fundamentalScreeningByCode={fundamentalScreeningByCode}
-                fundamentalPeerComparisonsByCode={fundamentalPeerComparisonsByCode}
-                fundamentalSnapshotDate={fundamentalOverview?.snapshotDate}
-                fundamentalGeneratedAt={fundamentalOverview?.generatedAt}
-                fundamentalSnapshotSchemaVersion={fundamentalOverview?.snapshotSchemaVersion}
-                fundamentalStaleReason={
-                  fundamentalDataState.status === 'stale' ? fundamentalDataState.staleReason : null
-                }
-                columnOrder={state.columnOrder}
-                priorityRefreshSeconds={state.settings.priorityRefreshSeconds}
-                regularRefreshSeconds={state.settings.regularRefreshSeconds}
-                chipDistributionEnabled={state.settings.showChipDistribution}
-                bollingerBandsEnabled={state.settings.showBollingerBands}
-                dailyKlineIndicator={state.settings.dailyKlineIndicator}
-                selectedQuoteId={selectedQuoteId}
-                stockSelectionRequest={stockSelectionRequest}
-                detailNavigationRequest={detailNavigationRequest}
-                tTradingAccounts={state.tTradingAccounts}
-                corporateActionRecords={state.corporateActionRecords}
-                tTradingFees={state.settings.tTradingFees}
-                marketTradeFees={state.settings.marketTradeFees}
-                tPlanDefaults={state.settings.tPlanDefaults}
-                tFloatingProfitAlertDefaultThreshold={
-                  state.settings.tFloatingProfitAlertDefaultThreshold
-                }
-                portfolioSummary={portfolioSummary}
-                portfolioExposureText={portfolioExposureText}
-                tradingCalendar={state.settings.tradingCalendar}
-                exchangeRates={state.settings.exchangeRates}
-                positionProfitOverrides={positionProfitOverrides}
-                onSelect={selectWatchlistStock}
-                onStockSelectionPositioned={handleStockSelectionPositioned}
-                onDetailNavigationHandled={handleDetailNavigationHandled}
-                onToggleTaskbar={toggleTaskbar}
-                onTogglePriority={togglePriority}
-                onEditPosition={updatePosition}
-                onUpdateTTrading={updateTTrading}
-                onApplyCorporateAction={applyCorporateAction}
-                onUpdateCorporateActionRecord={updateCorporateActionRecord}
-                onUpdateStockAlerts={updateStockAlerts}
-                stockTrackingProfiles={state.stockTrackingProfiles}
-                onStartTracking={startManualTracking}
-                onUpdateTracking={saveTrackingProfile}
-                onStopTracking={stopTracking}
-                onRestartTracking={restartTracking}
-                onReorder={reorderWatchlist}
-                onPin={pinStock}
-                onColumnOrderChange={updateColumnOrder}
-                onUpdateWatchlistGroups={updateWatchlistGroups}
-                onUpdateStockGroups={updateStockGroups}
-                onChipDistributionEnabledChange={updateChipDistributionEnabled}
-                onBollingerBandsEnabledChange={updateBollingerBandsEnabled}
-                onDailyKlineIndicatorChange={updateDailyKlineIndicator}
-                onRemove={removeStock}
+            <div className="titlebar-command-actions">
+              <button
+                className="secondary-button refresh-button"
+                onClick={refreshNow}
+                disabled={refreshing}
+                title="立即刷新"
+              >
+                <RefreshCw size={17} className={refreshing ? 'is-spinning' : ''} />
+                <span>立即刷新</span>
+              </button>
+              <TitlebarToolsMenu
+                onOpenDividendRanking={() => {
+                  loadDialog('dividend-ranking')
+                  setDividendRankingOpen(true)
+                }}
+                onOpenFundamentalScreening={() => {
+                  loadDialog('fundamental-screening')
+                  setFundamentalScreeningOpen(true)
+                }}
+                onOpenDailyMarketScan={() => {
+                  loadDialog('daily-scan')
+                  setDailyMarketScanOpen(true)
+                }}
+                onOpenStockTracking={() => {
+                  loadDialog('tracking')
+                  setStockTrackingOpen(true)
+                }}
+                onOpenCorporateActionCenter={() => {
+                  setCorporateActionCenterNotifyOnLoad(true)
+                  setCorporateActionCenterOpen(true)
+                }}
+                onOpenPortfolioPerformance={() => setPortfolioPerformanceOpen(true)}
               />
-            )}
-          </section>
-        </div>
-      </main>
-
-      <footer className="statusbar">
-        <div className="status-source">
-          {error ? <WifiOff size={14} /> : <Signal size={14} />}
-          <span>{source === 'eastmoney' ? '东方财富公开行情' : '浏览器预览数据'}</span>
-        </div>
-        <span className="status-separator" />
-        <MarketTradingState tradingCalendar={state.settings.tradingCalendar} />
-        <span className="status-separator" />
-        <span>
-          {error ? '行情连接异常，保留最近数据' : `最近更新 ${formatUpdateTime(lastUpdated)}`}
-        </span>
-        {completionNotifications[0] ? (
-          <>
-            <span className="status-separator" />
-            <button
-              className="status-completion-notification"
-              type="button"
-              onClick={() => openCompletionNotification(completionNotifications[0])}
-              title={`${completionNotifications[0].message}，点击查看`}
-            >
-              <CircleCheck size={14} />
-              <span>{completionNotifications[0].message}</span>
-              {completionNotifications.length > 1 ? (
-                <em>+{completionNotifications.length - 1}</em>
+              {aiModulePresent ? (
+                <button
+                  className="secondary-button ai-assistant-trigger"
+                  type="button"
+                  disabled={!aiRuntimeAvailable}
+                  onClick={() => {
+                    setAiAssistantContext(null)
+                    setAiAssistantOpen(true)
+                  }}
+                  title={
+                    optionalModulesState.ai.status === 'initializing'
+                      ? 'AI 模块正在初始化'
+                      : optionalModulesState.ai.status === 'failed'
+                        ? (optionalModulesState.ai.error ?? 'AI 模块初始化失败')
+                        : 'AI 助手'
+                  }
+                >
+                  <Bot size={17} />
+                  <span>
+                    {optionalModulesState.ai.status === 'initializing'
+                      ? 'AI 初始化中'
+                      : optionalModulesState.ai.status === 'failed'
+                        ? 'AI 不可用'
+                        : 'AI 助手'}
+                  </span>
+                </button>
               ) : null}
-            </button>
-          </>
-        ) : null}
-        <span className="status-spacer" />
-        <span className="status-version">版本 v{packageInfo.version}</span>
-        <span className="status-separator" />
-        <span>红涨绿跌 · 行情仅供参考</span>
-      </footer>
+              <SettingsMenu
+                onManageAccounts={() => setAccountManagerOpen(true)}
+                settings={state.settings}
+                onChange={updateSettings}
+                onImportConfig={importConfig}
+                onExportConfig={exportConfig}
+                configBusy={configBusy}
+                githubSyncSettings={githubSyncSettings}
+                githubSyncPassword={githubSyncPassword}
+                githubGistLoading={githubGistLoading}
+                githubSyncPasswordSaving={githubSyncPasswordSaving}
+                githubSyncError={githubSyncError}
+                githubDeviceAuthorization={githubDeviceAuthorization}
+                githubSyncBusy={githubSyncBusy}
+                githubSyncUploading={githubSyncUploading}
+                githubSyncDownloading={githubSyncDownloading}
+                onConnectGitHub={connectGitHub}
+                onDisconnectGitHub={disconnectGitHub}
+                onGenerateGitHubSyncPassword={generateGitHubSyncPassword}
+                onSaveGitHubSyncPassword={saveGitHubSyncPassword}
+                onUploadUserDataToGitHub={uploadUserDataToGitHub}
+                onDownloadUserDataFromGitHub={downloadUserDataFromGitHub}
+                onRefreshTradingCalendar={refreshTradingCalendar}
+                calendarRefreshing={calendarRefreshing}
+                onRefreshExchangeRates={refreshExchangeRates}
+                exchangeRatesRefreshing={exchangeRatesRefreshing}
+                fundamentalDataState={fundamentalDataState}
+                onUpdateFundamentalData={updateFundamentalData}
+                cacheSummary={cacheSummary}
+                cacheBusy={cacheBusy}
+                onRefreshCacheSummary={refreshCacheSummary}
+                onClearCaches={clearCaches}
+              />
+            </div>
+          </section>
+        </AppTitlebar>
+        <main className="app-main">
+          <div className="workspace">
+            <section className="watchlist-panel" aria-label="我的自选">
+              <div className="panel-heading">
+                <div className="panel-heading-primary">
+                  <div className="panel-title">
+                    <div className="panel-title-heading">
+                      <h1>我的自选</h1>
+                      <div
+                        className="auto-refresh-state panel-title-refresh"
+                        title="仅在北京时间 09:15:00–11:30:30、12:59:30–15:30:30 自动刷新"
+                      >
+                        <span className="live-dot" />
+                        重点 {state.settings.priorityRefreshSeconds} 秒 · 其余{' '}
+                        {state.settings.regularRefreshSeconds} 秒刷新
+                      </div>
+                    </div>
+                    <span>
+                      {state.watchlist.length} 只股票 ·{' '}
+                      {state.watchlist.filter((stock) => stock.isPriority).length} 只重点 ·{' '}
+                      {portfolioSummary.positionCount} 只有持仓 · 点击股票行展开行情详情
+                    </span>
+                  </div>
+                  <div id="portfolio-quality-slot" className="portfolio-quality-slot" />
+                  {marketIndexQuotes.length > 0 ? (
+                    <div
+                      className="market-index-summary panel-market-index-summary"
+                      aria-label="大盘指数行情"
+                    >
+                      {marketIndexQuotes.map(({ index, quote }) => (
+                        <span
+                          className={`market-index-card ${cardDirectionClass(quote?.changePercent)}`}
+                          title={`${index.name} ${formatPrice(quote?.latest)} ${formatPercent(quote?.changePercent)}`}
+                          key={index.id}
+                        >
+                          <small>{index.name}</small>
+                          <span>
+                            <strong>{formatPrice(quote?.latest)}</strong>
+                            <em className={directionClass(quote?.changePercent)}>
+                              {formatPercent(quote?.changePercent)}
+                            </em>
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="panel-heading-side">
+                  <div className="portfolio-summary" aria-label="全部持仓收益汇总">
+                    <span className={cardDirectionClass(portfolioSummary.todayProfit)}>
+                      <small>今日总收益</small>
+                      <strong
+                        className={
+                          portfolioSummary.todayProfit === null
+                            ? 'is-flat'
+                            : portfolioSummary.todayProfit >= 0
+                              ? 'is-up'
+                              : 'is-down'
+                        }
+                      >
+                        {formatMoneyProfit(portfolioSummary.todayProfit, 'CNY')}
+                      </strong>
+                    </span>
+                    <span className={cardDirectionClass(portfolioSummary.todayProfitPercent)}>
+                      <small>今日收益率</small>
+                      <strong
+                        className={
+                          portfolioSummary.todayProfitPercent === null
+                            ? 'is-flat'
+                            : portfolioSummary.todayProfitPercent >= 0
+                              ? 'is-up'
+                              : 'is-down'
+                        }
+                      >
+                        {formatPercent(portfolioSummary.todayProfitPercent)}
+                      </strong>
+                    </span>
+                    <span className={cardDirectionClass(portfolioSummary.totalProfit)}>
+                      <small>持仓收益</small>
+                      <strong className={directionClass(portfolioSummary.totalProfit)}>
+                        {formatMoneyProfit(portfolioSummary.totalProfit, 'CNY')}
+                      </strong>
+                    </span>
+                    <span className={cardDirectionClass(portfolioSummary.profitPercent)}>
+                      <small>持仓收益率</small>
+                      <strong
+                        className={
+                          portfolioSummary.profitPercent === null
+                            ? 'is-flat'
+                            : portfolioSummary.profitPercent >= 0
+                              ? 'is-up'
+                              : 'is-down'
+                        }
+                      >
+                        {formatPercent(portfolioSummary.profitPercent)}
+                      </strong>
+                    </span>
+                  </div>
+                </div>
+              </div>
+              {initializing ? (
+                <div className="initial-loading">
+                  <span className="search-loader" />
+                  正在读取自选行情…
+                </div>
+              ) : (
+                <WatchlistTable
+                  watchlist={state.watchlist}
+                  watchlistGroups={state.watchlistGroups}
+                  quotes={quotes}
+                  dividendFinancingByCode={dividendFinancingByCode}
+                  dividendFinancingSnapshotDate={dividendFinancingOverview?.snapshotDate}
+                  dividendFinancingStaleReason={
+                    dividendFinancingState.status === 'stale'
+                      ? dividendFinancingState.staleReason
+                      : null
+                  }
+                  fundamentalScreeningByCode={fundamentalScreeningByCode}
+                  fundamentalPeerComparisonsByCode={fundamentalPeerComparisonsByCode}
+                  fundamentalSnapshotDate={fundamentalOverview?.snapshotDate}
+                  fundamentalGeneratedAt={fundamentalOverview?.generatedAt}
+                  fundamentalSnapshotSchemaVersion={fundamentalOverview?.snapshotSchemaVersion}
+                  fundamentalStaleReason={
+                    fundamentalDataState.status === 'stale'
+                      ? fundamentalDataState.staleReason
+                      : null
+                  }
+                  columnOrder={state.columnOrder}
+                  priorityRefreshSeconds={state.settings.priorityRefreshSeconds}
+                  regularRefreshSeconds={state.settings.regularRefreshSeconds}
+                  chipDistributionEnabled={state.settings.showChipDistribution}
+                  bollingerBandsEnabled={state.settings.showBollingerBands}
+                  dailyKlineIndicator={state.settings.dailyKlineIndicator}
+                  selectedQuoteId={selectedQuoteId}
+                  stockSelectionRequest={stockSelectionRequest}
+                  detailNavigationRequest={detailNavigationRequest}
+                  stockTradingBooks={state.stockTradingBooks}
+                  corporateActionApplications={state.corporateActionApplications}
+                  tTradingFees={state.settings.tTradingFees}
+                  marketTradeFees={state.settings.marketTradeFees}
+                  tPlanDefaults={state.settings.tPlanDefaults}
+                  tFloatingProfitAlertDefaultThreshold={
+                    state.settings.tFloatingProfitAlertDefaultThreshold
+                  }
+                  portfolioSummary={portfolioSummary}
+                  portfolioExposureText={portfolioExposureText}
+                  tradingCalendar={state.settings.tradingCalendar}
+                  exchangeRates={state.settings.exchangeRates}
+                  positionProfitOverrides={positionProfitOverrides}
+                  onSelect={selectWatchlistStock}
+                  onStockSelectionPositioned={handleStockSelectionPositioned}
+                  onDetailNavigationHandled={handleDetailNavigationHandled}
+                  onToggleTaskbar={toggleTaskbar}
+                  onTogglePriority={togglePriority}
+                  onEditPosition={updatePosition}
+                  onUpdateTTrading={updateTTrading}
+                  onApplyCorporateAction={applyCorporateAction}
+                  onUpdateCorporateActionRecord={updateCorporateActionRecord}
+                  onUpdateStockAlerts={updateStockAlerts}
+                  stockTrackingProfiles={state.stockTrackingProfiles}
+                  onStartTracking={startManualTracking}
+                  onUpdateTracking={saveTrackingProfile}
+                  onStopTracking={stopTracking}
+                  onRestartTracking={restartTracking}
+                  onReorder={reorderWatchlist}
+                  onPin={pinStock}
+                  onColumnOrderChange={updateColumnOrder}
+                  onUpdateWatchlistGroups={updateWatchlistGroups}
+                  onUpdateStockGroups={updateStockGroups}
+                  onChipDistributionEnabledChange={updateChipDistributionEnabled}
+                  onBollingerBandsEnabledChange={updateBollingerBandsEnabled}
+                  onDailyKlineIndicatorChange={updateDailyKlineIndicator}
+                  onRemove={removeStock}
+                />
+              )}
+            </section>
+          </div>
+        </main>
 
-      {error ? (
-        <div className="error-toast">
-          <WifiOff size={17} />
-          {error}
-        </div>
-      ) : null}
-      {notice ? (
-        <div className="success-toast">
-          <CircleCheck size={17} />
-          {notice}
-        </div>
-      ) : null}
-      {loadedDialogs.has('dividend-ranking') ? (
-        <Suspense fallback={null}>
-          <DividendFinancingRankingDialog
-            open={dividendRankingOpen}
-            cachedSnapshot={dividendFinancingSnapshot}
-            cachedChangeReport={dividendFinancingChangeReport}
-            dataState={dividendFinancingState}
-            watchlist={state.watchlist}
-            trackingProfiles={state.stockTrackingProfiles}
-            onAddStock={addDividendFinancingStock}
-            onViewStock={viewWatchlistStockFromRanking}
-            onSnapshotChange={setDividendFinancingSnapshot}
-            onChangeReportChange={setDividendFinancingChangeReport}
-            onClose={() => setDividendRankingOpen(false)}
-          />
-        </Suspense>
-      ) : null}
-      {loadedDialogs.has('fundamental-screening') ? (
-        <Suspense fallback={null}>
-          <FundamentalScreeningDialog
-            open={fundamentalScreeningOpen}
-            cachedSnapshot={fundamentalSnapshot}
-            cachedChangeReport={fundamentalChangeReport}
-            dataState={fundamentalDataState}
-            watchlist={state.watchlist}
-            trackingProfiles={state.stockTrackingProfiles}
-            onAddStock={addFundamentalScreeningStock}
-            onViewStock={viewWatchlistStockFromFundamentals}
-            onSnapshotChange={setFundamentalSnapshot}
-            onChangeReportChange={setFundamentalChangeReport}
-            onClose={() => setFundamentalScreeningOpen(false)}
-          />
-        </Suspense>
-      ) : null}
-      {loadedDialogs.has('daily-scan') ? (
-        <Suspense fallback={null}>
-          <DailyMarketScanDialog
-            open={dailyMarketScanOpen}
-            watchlist={state.watchlist}
-            trackingProfiles={state.stockTrackingProfiles}
-            dividendFinancingByCode={dividendFinancingByCode}
-            dividendFinancingSnapshotDate={dividendFinancingOverview?.snapshotDate}
-            fundamentalScreeningByCode={fundamentalScreeningByCode}
-            fundamentalPeerComparisonsByCode={fundamentalPeerComparisonsByCode}
-            fundamentalSnapshotDate={fundamentalOverview?.snapshotDate}
-            fundamentalGeneratedAt={fundamentalOverview?.generatedAt}
-            fundamentalStaleReason={
-              fundamentalDataState.status === 'stale' ? fundamentalDataState.staleReason : null
+        <footer className="statusbar">
+          <div className="status-source">
+            {error ? <WifiOff size={14} /> : <Signal size={14} />}
+            <span>{source === 'eastmoney' ? '东方财富公开行情' : '浏览器预览数据'}</span>
+          </div>
+          <span className="status-separator" />
+          <MarketTradingState tradingCalendar={state.settings.tradingCalendar} />
+          <span className="status-separator" />
+          <span>
+            {error ? '行情连接异常，保留最近数据' : `最近更新 ${formatUpdateTime(lastUpdated)}`}
+          </span>
+          {completionNotifications[0] ? (
+            <>
+              <span className="status-separator" />
+              <button
+                className="status-completion-notification"
+                type="button"
+                onClick={() => openCompletionNotification(completionNotifications[0])}
+                title={`${completionNotifications[0].message}，点击查看`}
+              >
+                <CircleCheck size={14} />
+                <span>{completionNotifications[0].message}</span>
+                {completionNotifications.length > 1 ? (
+                  <em>+{completionNotifications.length - 1}</em>
+                ) : null}
+              </button>
+            </>
+          ) : null}
+          <span className="status-spacer" />
+          <span className="status-version">版本 v{packageInfo.version}</span>
+          <span className="status-separator" />
+          <span>红涨绿跌 · 行情仅供参考</span>
+        </footer>
+
+        {error ? (
+          <div className="error-toast">
+            <WifiOff size={17} />
+            {error}
+          </div>
+        ) : null}
+        {notice ? (
+          <div className="success-toast">
+            <CircleCheck size={17} />
+            {notice}
+          </div>
+        ) : null}
+        {loadedDialogs.has('dividend-ranking') ? (
+          <Suspense fallback={null}>
+            <DividendFinancingRankingDialog
+              open={dividendRankingOpen}
+              cachedSnapshot={dividendFinancingSnapshot}
+              cachedChangeReport={dividendFinancingChangeReport}
+              dataState={dividendFinancingState}
+              watchlist={state.watchlist}
+              trackingProfiles={state.stockTrackingProfiles}
+              onAddStock={addDividendFinancingStock}
+              onViewStock={viewWatchlistStockFromRanking}
+              onSnapshotChange={setDividendFinancingSnapshot}
+              onChangeReportChange={setDividendFinancingChangeReport}
+              onClose={() => setDividendRankingOpen(false)}
+            />
+          </Suspense>
+        ) : null}
+        {loadedDialogs.has('fundamental-screening') ? (
+          <Suspense fallback={null}>
+            <FundamentalScreeningDialog
+              open={fundamentalScreeningOpen}
+              cachedSnapshot={fundamentalSnapshot}
+              cachedChangeReport={fundamentalChangeReport}
+              dataState={fundamentalDataState}
+              watchlist={state.watchlist}
+              trackingProfiles={state.stockTrackingProfiles}
+              onAddStock={addFundamentalScreeningStock}
+              onViewStock={viewWatchlistStockFromFundamentals}
+              onSnapshotChange={setFundamentalSnapshot}
+              onChangeReportChange={setFundamentalChangeReport}
+              onClose={() => setFundamentalScreeningOpen(false)}
+            />
+          </Suspense>
+        ) : null}
+        {loadedDialogs.has('daily-scan') ? (
+          <Suspense fallback={null}>
+            <DailyMarketScanDialog
+              open={dailyMarketScanOpen}
+              watchlist={state.watchlist}
+              trackingProfiles={state.stockTrackingProfiles}
+              dividendFinancingByCode={dividendFinancingByCode}
+              dividendFinancingSnapshotDate={dividendFinancingOverview?.snapshotDate}
+              fundamentalScreeningByCode={fundamentalScreeningByCode}
+              fundamentalPeerComparisonsByCode={fundamentalPeerComparisonsByCode}
+              fundamentalSnapshotDate={fundamentalOverview?.snapshotDate}
+              fundamentalGeneratedAt={fundamentalOverview?.generatedAt}
+              fundamentalStaleReason={
+                fundamentalDataState.status === 'stale' ? fundamentalDataState.staleReason : null
+              }
+              regularRefreshSeconds={state.settings.regularRefreshSeconds}
+              chipDistributionEnabled={state.settings.showChipDistribution}
+              bollingerBandsEnabled={state.settings.showBollingerBands}
+              dailyKlineIndicator={state.settings.dailyKlineIndicator}
+              tradingCalendar={state.settings.tradingCalendar}
+              exchangeRates={state.settings.exchangeRates}
+              onAddStock={addDailyMarketScanStock}
+              onViewStock={viewWatchlistStockFromDailyScan}
+              onClose={() => setDailyMarketScanOpen(false)}
+            />
+          </Suspense>
+        ) : null}
+        {loadedDialogs.has('tracking') ? (
+          <Suspense fallback={null}>
+            <StockTrackingDialog
+              open={stockTrackingOpen}
+              profiles={state.stockTrackingProfiles}
+              archiveIndex={trackingArchiveIndex}
+              watchlist={state.watchlist}
+              watchlistGroups={state.watchlistGroups}
+              quotes={quotes}
+              onUpdateProfile={saveTrackingProfile}
+              onStopTracking={stopTracking}
+              onRestartTracking={restartTracking}
+              onDeleteArchiveCycle={deleteTrackingArchiveCycle}
+              onDeleteAllArchives={deleteAllTrackingArchives}
+              onDeleteStock={removeTrackedStock}
+              onViewStock={viewWatchlistStockFromTracking}
+              onUpdateWatchlistGroups={updateWatchlistGroups}
+              onUpdateStockGroups={updateStockGroups}
+              bollingerBandsEnabled={state.settings.showBollingerBands}
+              onBollingerBandsEnabledChange={updateBollingerBandsEnabled}
+              dailyKlineIndicator={state.settings.dailyKlineIndicator}
+              onDailyKlineIndicatorChange={updateDailyKlineIndicator}
+              onClose={() => setStockTrackingOpen(false)}
+            />
+          </Suspense>
+        ) : null}
+        {corporateActionCenterOpen ? (
+          <Suspense fallback={null}>
+            <CorporateActionCenterDialog
+              open
+              notifyOnLoadComplete={corporateActionCenterNotifyOnLoad}
+              watchlist={state.watchlist}
+              records={state.corporateActionApplications}
+              onViewStock={viewCorporateActionStock}
+              onClose={() => setCorporateActionCenterOpen(false)}
+            />
+          </Suspense>
+        ) : null}
+        {accountManagerOpen ? (
+          <SecuritiesAccountManager
+            state={state}
+            onClose={() => setAccountManagerOpen(false)}
+            onSave={async (accounts) =>
+              Boolean(
+                await persist(normalizeAccountState({ ...state, securitiesAccounts: accounts }))
+              )
             }
-            regularRefreshSeconds={state.settings.regularRefreshSeconds}
-            chipDistributionEnabled={state.settings.showChipDistribution}
-            bollingerBandsEnabled={state.settings.showBollingerBands}
-            dailyKlineIndicator={state.settings.dailyKlineIndicator}
-            tradingCalendar={state.settings.tradingCalendar}
-            exchangeRates={state.settings.exchangeRates}
-            onAddStock={addDailyMarketScanStock}
-            onViewStock={viewWatchlistStockFromDailyScan}
-            onClose={() => setDailyMarketScanOpen(false)}
           />
-        </Suspense>
-      ) : null}
-      {loadedDialogs.has('tracking') ? (
-        <Suspense fallback={null}>
-          <StockTrackingDialog
-            open={stockTrackingOpen}
-            profiles={state.stockTrackingProfiles}
-            archiveIndex={trackingArchiveIndex}
-            watchlist={state.watchlist}
-            watchlistGroups={state.watchlistGroups}
-            quotes={quotes}
-            onUpdateProfile={saveTrackingProfile}
-            onStopTracking={stopTracking}
-            onRestartTracking={restartTracking}
-            onDeleteArchiveCycle={deleteTrackingArchiveCycle}
-            onDeleteAllArchives={deleteAllTrackingArchives}
-            onDeleteStock={removeTrackedStock}
-            onViewStock={viewWatchlistStockFromTracking}
-            onUpdateWatchlistGroups={updateWatchlistGroups}
-            onUpdateStockGroups={updateStockGroups}
-            bollingerBandsEnabled={state.settings.showBollingerBands}
-            onBollingerBandsEnabledChange={updateBollingerBandsEnabled}
-            dailyKlineIndicator={state.settings.dailyKlineIndicator}
-            onDailyKlineIndicatorChange={updateDailyKlineIndicator}
-            onClose={() => setStockTrackingOpen(false)}
-          />
-        </Suspense>
-      ) : null}
-      {corporateActionCenterOpen ? (
-        <Suspense fallback={null}>
-          <CorporateActionCenterDialog
-            open
-            notifyOnLoadComplete={corporateActionCenterNotifyOnLoad}
-            watchlist={state.watchlist}
-            records={state.corporateActionRecords}
-            onViewStock={viewCorporateActionStock}
-            onClose={() => setCorporateActionCenterOpen(false)}
-          />
-        </Suspense>
-      ) : null}
-      {portfolioPerformanceOpen ? (
-        <Suspense fallback={null}>
-          <PortfolioPerformanceDialog
-            watchlist={state.watchlist}
-            quotes={quotes}
-            accounts={state.tTradingAccounts}
-            exchangeRates={state.settings.exchangeRates}
-            adjustments={state.portfolioPerformanceAdjustments ?? {}}
-            onSaveAdjustments={savePortfolioPerformanceAdjustments}
-            onRecalculateStock={recalculatePortfolioPerformanceStock}
-            onClose={() => setPortfolioPerformanceOpen(false)}
-          />
-        </Suspense>
-      ) : null}
-      {aiRuntimeAvailable && AiAssistantDrawer ? (
-        <Suspense fallback={null}>
-          <AiAssistantDrawer
-            open={aiAssistantOpen}
-            context={aiAssistantContext}
-            stocks={state.watchlist}
-            onClose={() => setAiAssistantOpen(false)}
-          />
-        </Suspense>
-      ) : null}
-    </div>
+        ) : null}
+        {portfolioPerformanceOpen ? (
+          <Suspense fallback={null}>
+            <PortfolioPerformanceDialog
+              watchlist={state.watchlist}
+              quotes={quotes}
+              accounts={state.stockTradingBooks}
+              exchangeRates={state.settings.exchangeRates}
+              adjustments={state.portfolioPerformanceAdjustments ?? {}}
+              onSaveAdjustments={savePortfolioPerformanceAdjustments}
+              onRecalculateStock={recalculatePortfolioPerformanceStock}
+              onClose={() => setPortfolioPerformanceOpen(false)}
+            />
+          </Suspense>
+        ) : null}
+        {aiRuntimeAvailable && AiAssistantDrawer ? (
+          <Suspense fallback={null}>
+            <AiAssistantDrawer
+              open={aiAssistantOpen}
+              context={aiAssistantContext}
+              stocks={state.watchlist}
+              onClose={() => setAiAssistantOpen(false)}
+            />
+          </Suspense>
+        ) : null}
+      </div>
+    </SecuritiesAccountProvider>
   )
 }

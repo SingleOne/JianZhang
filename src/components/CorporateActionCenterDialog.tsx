@@ -1,3 +1,9 @@
+import { useSecuritiesAccountState } from './SecuritiesAccountContext'
+import {
+  listAccountsForMarket,
+  corporateApplicationKey,
+  listStockAccountBooks
+} from '../shared/stock-accounts'
 import { CircleDollarSign, Search, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -24,7 +30,7 @@ interface CorporateActionCenterDialogProps {
   notifyOnLoadComplete: boolean
   watchlist: WatchStock[]
   records: CorporateActionRecords
-  onViewStock: (quoteId: string) => void
+  onViewStock: (quoteId: string, accountId?: string) => void
   onClose: () => void
 }
 
@@ -82,6 +88,7 @@ export default function CorporateActionCenterDialog({
   onViewStock,
   onClose
 }: CorporateActionCenterDialogProps) {
+  const accountState = useSecuritiesAccountState()
   const [candidates, setCandidates] = useState<CorporateActionCandidate[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -168,21 +175,35 @@ export default function CorporateActionCenterDialog({
     [watchlist]
   )
   const rows = useMemo(() => {
-    const merged: CorporateActionCandidate[] = candidates.map((candidate) => {
-      const saved = records[candidate.id] as CorporateActionCandidate | undefined
-      if (!saved) return candidate
-      return saved.contentHash === candidate.contentHash
-        ? saved
-        : {
-            ...candidate,
-            status: 'revised',
-            reviewedAt: saved.reviewedAt,
-            appliedEntryIds: saved.appliedEntryIds
-          }
+    const merged = candidates.flatMap((candidate) => {
+      const relevantIds = new Set(
+        listStockAccountBooks(accountState.stockTradingBooks[candidate.quoteId]).map(
+          (book) => book.accountId
+        )
+      )
+      return listAccountsForMarket(accountState.securitiesAccounts, candidate.market, true)
+        .filter((owner) => relevantIds.has(owner.id))
+        .map((owner) => {
+          const saved = records[corporateApplicationKey(owner.id, candidate.id)]
+          const row = !saved
+            ? candidate
+            : saved.contentHash === candidate.contentHash
+              ? saved
+              : {
+                  ...candidate,
+                  status: 'revised' as const,
+                  reviewedAt: saved.reviewedAt,
+                  appliedEntryIds: saved.appliedEntryIds
+                }
+          return { ...row, accountId: owner.id }
+        })
     })
     const persisted = Object.values(records).filter(
       (record) =>
-        stockMap.has(record.quoteId) && !merged.some((candidate) => candidate.id === record.id)
+        stockMap.has(record.quoteId) &&
+        !merged.some(
+          (candidate) => candidate.id === record.id && candidate.accountId === record.accountId
+        )
     )
     const normalizedQuery = query.trim().toLocaleLowerCase('zh-CN')
     return [...merged, ...persisted]
@@ -197,7 +218,16 @@ export default function CorporateActionCenterDialog({
           .includes(normalizedQuery)
       })
       .sort((left, right) => right.announcementDate.localeCompare(left.announcementDate))
-  }, [candidates, marketFilter, query, records, stockMap, typeFilter])
+  }, [
+    candidates,
+    marketFilter,
+    query,
+    records,
+    stockMap,
+    typeFilter,
+    accountState.stockTradingBooks,
+    accountState.securitiesAccounts
+  ])
 
   if (!open) return null
 
@@ -259,14 +289,15 @@ export default function CorporateActionCenterDialog({
             return (
               <button
                 type="button"
-                onClick={() => onViewStock(candidate.quoteId)}
-                key={candidate.id}
+                onClick={() => onViewStock(candidate.quoteId, candidate.accountId)}
+                key={`${candidate.accountId}:${candidate.id}`}
               >
                 <span>
                   <strong>
                     {stock?.name ?? candidate.quoteId} · {stock?.code ?? ''}
                   </strong>
                   <small>
+                    {accountState.securitiesAccounts?.[candidate.accountId ?? '']?.name} ·{' '}
                     {STOCK_MARKET_LABELS[candidate.market]} ·{' '}
                     {CORPORATE_ACTION_TYPE_LABELS[candidate.type]} · {candidate.announcementDate}
                   </small>

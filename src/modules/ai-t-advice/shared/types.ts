@@ -18,6 +18,7 @@ export type AiTAdviceProgressPhase =
   'preparing' | 'refreshing-snapshot' | 'waiting-order-book' | 'analyzing' | 'validating'
 
 export interface AiTAdviceProgressEvent {
+  accountId?: string
   quoteId: string
   phase: AiTAdviceProgressPhase
   message: string
@@ -27,6 +28,8 @@ export interface AiTAdviceProgressEvent {
 }
 
 export interface AiTAdvice {
+  accountId?: string
+  accountName?: string
   id: string
   quoteId: string
   quoteName: string
@@ -56,6 +59,7 @@ export interface AiTAdviceGenerationResult {
 }
 
 export interface AiTAdviceTradingContext {
+  feeSettings?: import('../../../shared/types').AccountFeeSettings
   stock: WatchStock
   quote?: StockQuote
   position?: StockPosition
@@ -66,9 +70,9 @@ export interface AiTAdviceApi {
   getStatus: () => Promise<AiTAdviceStatus>
   getSettings: () => Promise<AiTAdviceSettings>
   saveSettings: (settings: AiTAdviceSettings) => Promise<AiTAdviceSettings>
-  generate: (quoteId: string) => Promise<AiTAdviceGenerationResult>
-  cancel: (quoteId: string) => Promise<void>
-  listHistory: (quoteId: string) => Promise<AiTAdvice[]>
+  generate: (quoteId: string, accountId?: string) => Promise<AiTAdviceGenerationResult>
+  cancel: (quoteId: string, accountId?: string) => Promise<void>
+  listHistory: (quoteId: string, accountId?: string) => Promise<AiTAdvice[]>
   dismiss: (adviceId: string) => Promise<AiTAdvice>
   onProgress: (listener: (event: AiTAdviceProgressEvent) => void) => () => void
 }

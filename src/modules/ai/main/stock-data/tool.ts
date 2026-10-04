@@ -1,3 +1,4 @@
+import { listStockAccountBooks } from '../../../../shared/stock-accounts'
 import { randomUUID } from 'node:crypto'
 import { calculatePortfolioPerformanceReport } from '../../../../lib/portfolio-performance'
 import {
@@ -451,7 +452,7 @@ export class StockDataToolSession {
     const capabilities = marketCapabilitiesForQuoteId(target.request.quoteId)
     if (definition.capability && !capabilities[definition.capability]) return 'unsupported'
     const state = this.dependencies.getState()
-    const account = state.tTradingAccounts[target.request.quoteId]
+    const account = state.stockTradingBooks[target.request.quoteId]
     switch (definition.localState) {
       case 'quote':
         return this.dependencies.getLatestQuote(target.request.quoteId) ? 'ready' : 'empty'
@@ -461,14 +462,20 @@ export class StockDataToolSession {
           : 'empty'
       case 'position':
         return target.stock?.position ||
-          target.stock?.positionSnapshots?.length ||
+          listStockAccountBooks(state.stockTradingBooks[target.request.quoteId]).some(
+            (book) => book.positionSnapshots?.length
+          ) ||
           target.stock?.alertRules?.length
           ? 'ready'
           : 'empty'
       case 'ledger':
-        return account?.ledger.entries.length ? 'ready' : 'empty'
+        return listStockAccountBooks(account).some((child) => child.ledger.entries.length)
+          ? 'ready'
+          : 'empty'
       case 'tPlan':
-        return account?.activeBatch || account?.history.length || account?.tradeRecords.length
+        return listStockAccountBooks(account).some(
+          (child) => child.activeBatch || child.history.length || child.tradeRecords.length
+        )
           ? 'ready'
           : 'empty'
       case 'tracking':
@@ -495,7 +502,7 @@ export class StockDataToolSession {
     const state = this.dependencies.getState()
     const stock = state.watchlist.find((item) => item.quoteId === quoteId) ?? target.stock
     const quote = this.dependencies.getLatestQuote(quoteId)
-    const account = state.tTradingAccounts[quoteId]
+    const account = state.stockTradingBooks[quoteId]
     switch (request.datasetId) {
       case 'identity.watchlist':
         return {
@@ -588,33 +595,45 @@ export class StockDataToolSession {
         const report = calculatePortfolioPerformanceReport(
           state.watchlist,
           quotes,
-          state.tTradingAccounts,
+          state.stockTradingBooks,
           state.settings.exchangeRates,
           state.portfolioPerformanceAdjustments ?? {}
         )
         return {
           position: stock?.position ?? null,
-          positionSnapshots: stock?.positionSnapshots ?? [],
+          positionSnapshots: listStockAccountBooks(account).map((book) => ({
+            accountId: book.accountId,
+            accountName: book.accountName,
+            snapshots: book.positionSnapshots ?? []
+          })),
           alertRules: stock?.alertRules ?? [],
-          performance: report.stocks.find((item) => item.quoteId === quoteId) ?? null,
-          manualCnyAdjustment: state.portfolioPerformanceAdjustments?.[quoteId] ?? 0
+          performance: report.stockRows.find((item) => item.id === quoteId) ?? null,
+          accounts: report.stocks.filter((item) => item.quoteId === quoteId),
+          manualCnyAdjustment: listStockAccountBooks(account).reduce(
+            (sum, child) => sum + (child.performanceAdjustmentCny ?? 0),
+            0
+          )
         }
       }
       case 'portfolio.ledger':
-        return account
-          ? {
-              account: { quoteId: account.quoteId, code: account.code, name: account.name },
-              entries: page(account.ledger.entries, request)
-            }
-          : null
+        return {
+          accounts: listStockAccountBooks(account).map((child) => ({
+            accountId: child.accountId,
+            accountName: child.accountName,
+            quoteId,
+            entries: page(child.ledger.entries, request)
+          }))
+        }
       case 'trading.tPlan':
-        return account
-          ? {
-              activeBatch: account.activeBatch ?? null,
-              history: page(account.history, request),
-              tradeRecords: page(account.tradeRecords, request)
-            }
-          : null
+        return {
+          accounts: listStockAccountBooks(account).map((child) => ({
+            accountId: child.accountId,
+            accountName: child.accountName,
+            activeBatch: child.activeBatch ?? null,
+            history: page(child.history, request),
+            tradeRecords: page(child.tradeRecords, request)
+          }))
+        }
       case 'research.tracking': {
         const profile = state.stockTrackingProfiles[quoteId]
         return profile
@@ -716,7 +735,7 @@ export class StockDataToolSession {
       }
       case 'corporate.actions': {
         const remote = await this.dependencies.listCorporateActions(quoteId)
-        const saved = Object.values(state.corporateActionRecords).filter(
+        const saved = Object.values(state.corporateActionApplications).filter(
           (record) => record.quoteId === quoteId
         )
         return {

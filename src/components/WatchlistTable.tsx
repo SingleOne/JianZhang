@@ -1,3 +1,4 @@
+import { useSecuritiesAccountState } from './SecuritiesAccountContext'
 import {
   ArrowDown,
   ArrowLeft,
@@ -38,7 +39,7 @@ import type {
   StockTrackingProfiles,
   TPlanDefaultSettings,
   TTradingAccount,
-  TTradingAccounts,
+  StockTradingBooks,
   TTradingFeeSettings,
   TradingCalendarSettings,
   StockMarket,
@@ -63,11 +64,13 @@ import {
   type FundamentalWatchlistFilter
 } from '../lib/fundamental-screening'
 import { normalizeWatchlistColumnOrder } from '../shared/types'
-import { PositionEditor } from './PositionEditor'
+import {
+  AccountPositionEditor as PositionEditor,
+  AccountTTradingDrawer as TTradingDrawer
+} from './AccountTradingEditors'
 import { PortfolioQualityDialog } from './PortfolioQualityDialog'
 import { StockAlertDialog } from './StockAlertDialog'
 import { StockGroupQuickPopover } from './StockGroupQuickPopover'
-import { TTradingDrawer } from './TTradingDrawer'
 import { WatchlistGroupDialog } from './WatchlistGroupDialog'
 import {
   COLUMN_META,
@@ -111,8 +114,8 @@ interface WatchlistTableProps {
   selectedQuoteId: string | null
   stockSelectionRequest: StockSelectionRequest | null
   detailNavigationRequest: StockDetailNavigationRequest | null
-  tTradingAccounts: TTradingAccounts
-  corporateActionRecords: CorporateActionRecords
+  stockTradingBooks: StockTradingBooks
+  corporateActionApplications: CorporateActionRecords
   tTradingFees: TTradingFeeSettings
   marketTradeFees: MarketTradeFeeSettings
   tPlanDefaults: TPlanDefaultSettings
@@ -260,8 +263,8 @@ export function WatchlistTable({
   selectedQuoteId,
   stockSelectionRequest,
   detailNavigationRequest,
-  tTradingAccounts,
-  corporateActionRecords,
+  stockTradingBooks,
+  corporateActionApplications,
   tTradingFees,
   marketTradeFees,
   tPlanDefaults,
@@ -297,6 +300,7 @@ export function WatchlistTable({
   onRemove
 }: WatchlistTableProps) {
   const [sort, setSort] = useState<SortState | null>(null)
+  const { clearAccountNavigation } = useSecuritiesAccountState()
   const [editingStock, setEditingStock] = useState<WatchStock | null>(null)
   const [tTradingStock, setTTradingStock] = useState<WatchStock | null>(null)
   const [stockAlertStock, setStockAlertStock] = useState<WatchStock | null>(null)
@@ -417,7 +421,7 @@ export function WatchlistTable({
         metrics: calculatePositionMetrics(
           stock.position,
           quote,
-          tTradingAccounts[stock.quoteId],
+          stockTradingBooks[stock.quoteId],
           exchangeRates,
           positionProfitOverrides[stock.quoteId]
         ),
@@ -431,7 +435,7 @@ export function WatchlistTable({
     exchangeRates,
     positionProfitOverrides,
     quotes,
-    tTradingAccounts,
+    stockTradingBooks,
     watchlist
   ])
 
@@ -950,9 +954,21 @@ export function WatchlistTable({
     },
     [onReorder, watchlist]
   )
-  const openPositionEditor = useCallback((stock: WatchStock) => setEditingStock(stock), [])
+  const openPositionEditor = useCallback(
+    (stock: WatchStock) => {
+      clearAccountNavigation()
+      setEditingStock(stock)
+    },
+    [clearAccountNavigation]
+  )
   const openStockAlert = useCallback((stock: WatchStock) => setStockAlertStock(stock), [])
-  const openTTrading = useCallback((stock: WatchStock) => setTTradingStock(stock), [])
+  const openTTrading = useCallback(
+    (stock: WatchStock) => {
+      clearAccountNavigation()
+      setTTradingStock(stock)
+    },
+    [clearAccountNavigation]
+  )
   const openGroupDialog = useCallback(() => {
     setGroupPopover(null)
     setGroupDialogOpen(true)
@@ -993,6 +1009,10 @@ export function WatchlistTable({
     resetFilters()
     const frameId = window.requestAnimationFrame(() =>
       scrollToStock(stockSelectionRequest.quoteId, 'sticky-top', () => {
+        if (stockSelectionRequest.accountId && stockSelectionRequest.batchId) {
+          const stock = watchlist.find((item) => item.quoteId === stockSelectionRequest.quoteId)
+          if (stock) setTTradingStock(stock)
+        }
         if (stockSelectionRequest.detailTarget) {
           positionedDetailRequestIdRef.current = stockSelectionRequest.id
         }
@@ -1000,7 +1020,7 @@ export function WatchlistTable({
       })
     )
     return () => window.cancelAnimationFrame(frameId)
-  }, [onStockSelectionPositioned, resetFilters, scrollToStock, stockSelectionRequest])
+  }, [onStockSelectionPositioned, resetFilters, scrollToStock, stockSelectionRequest, watchlist])
 
   useLayoutEffect(() => {
     if (
@@ -1321,8 +1341,8 @@ export function WatchlistTable({
                   fundamentalGeneratedAt={fundamentalGeneratedAt}
                   fundamentalSnapshotSchemaVersion={fundamentalSnapshotSchemaVersion}
                   fundamentalStaleReason={fundamentalStaleReason}
-                  tradingAccount={tTradingAccounts[stock.quoteId]}
-                  corporateActionRecords={corporateActionRecords}
+                  tradingAccount={stockTradingBooks[stock.quoteId]}
+                  corporateActionApplications={corporateActionApplications}
                   manualIndex={manualIndex}
                   columnOrder={adjustableColumnOrder}
                   tradingCalendar={tradingCalendar}
@@ -1455,7 +1475,7 @@ export function WatchlistTable({
           key={editingStock.quoteId}
           stock={watchlist.find((stock) => stock.quoteId === editingStock.quoteId) ?? editingStock}
           quote={quotes.find((quote) => quote.quoteId === editingStock.quoteId)}
-          account={tTradingAccounts[editingStock.quoteId]}
+          account={stockTradingBooks[editingStock.quoteId]}
           planDefaults={tPlanDefaults}
           exchangeRates={exchangeRates}
           marketTradeFees={marketTradeFees}
@@ -1481,7 +1501,7 @@ export function WatchlistTable({
             watchlist.find((stock) => stock.quoteId === tTradingStock.quoteId) ?? tTradingStock
           }
           quote={quotes.find((quote) => quote.quoteId === tTradingStock.quoteId)}
-          account={tTradingAccounts[tTradingStock.quoteId]}
+          account={stockTradingBooks[tTradingStock.quoteId]}
           holdingCost={
             rows.find(({ stock }) => stock.quoteId === tTradingStock.quoteId)?.metrics.holdingCost
           }
@@ -1509,7 +1529,7 @@ export function WatchlistTable({
             watchlist.find((stock) => stock.quoteId === stockAlertStock.quoteId) ?? stockAlertStock
           }
           quote={quotes.find((quote) => quote.quoteId === stockAlertStock.quoteId)}
-          account={tTradingAccounts[stockAlertStock.quoteId]}
+          account={stockTradingBooks[stockAlertStock.quoteId]}
           exchangeRates={exchangeRates}
           profitOverride={positionProfitOverrides[stockAlertStock.quoteId]}
           onClose={() => setStockAlertStock(null)}

@@ -18,10 +18,10 @@ export function TAlertBadges({ badges, compact = false, showTitle = true }: TAle
       {badges.map((badge) => (
         <span
           className={`t-alert-badge is-${badge.side}`}
-          key={`${badge.side}-${badge.index}`}
+          key={`${badge.accountId ?? ''}-${badge.side}-${badge.index}`}
           title={
             showTitle
-              ? `${badge.side === 'buy' ? '买入' : '卖出'} ${badge.label}，目标价 ${formatPrice(badge.targetPrice)}`
+              ? `${badge.accountName ? badge.accountName + ' · ' : ''}${badge.side === 'buy' ? '买入' : '卖出'} ${badge.label}，目标价 ${formatPrice(badge.targetPrice)}`
               : undefined
           }
         >

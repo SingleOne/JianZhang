@@ -1,3 +1,4 @@
+import type { StockTradingBook } from '../shared/types'
 import { BellRing, Plus, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -21,7 +22,7 @@ import type {
 interface StockAlertDialogProps {
   stock: WatchStock
   quote: StockQuote | undefined
-  account: TTradingAccount | undefined
+  account: TTradingAccount | StockTradingBook | undefined
   exchangeRates: ExchangeRateSettings
   profitOverride: PositionProfitOverride | undefined
   onSave: (rules: StockAlertRule[]) => void

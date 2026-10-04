@@ -4,7 +4,7 @@ import type {
   StockAlertMetric,
   StockAlertRule,
   StockQuote,
-  TTradingAccounts,
+  StockTradingBooks,
   WatchStock
 } from '../shared/types'
 import { DEFAULT_EXCHANGE_RATE_SETTINGS } from '../shared/types'
@@ -54,7 +54,7 @@ function getMetricValue(
   metric: StockAlertMetric,
   stock: WatchStock,
   quote: StockQuote,
-  accounts: TTradingAccounts,
+  accounts: StockTradingBooks,
   exchangeRates: ExchangeRateSettings,
   adjustments: Readonly<PortfolioPerformanceAdjustments>
 ): number | null {
@@ -79,7 +79,7 @@ function isConditionMet(rule: StockAlertRule, actualValue: number): boolean {
 export function applyStockAlertTriggers(
   watchlist: WatchStock[],
   quotes: StockQuote[],
-  accounts: TTradingAccounts,
+  accounts: StockTradingBooks,
   exchangeRates: ExchangeRateSettings = DEFAULT_EXCHANGE_RATE_SETTINGS,
   adjustments: Readonly<PortfolioPerformanceAdjustments> = {}
 ): StockAlertUpdate {

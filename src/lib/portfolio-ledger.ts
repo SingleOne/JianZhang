@@ -224,6 +224,39 @@ export function calculatePortfolioLedgerPosition(
   market: StockMarket,
   currency: StockCurrency
 ): PortfolioLedgerPositionResult {
+  if (market === 'CN') {
+    let quantity = 0
+    let locked = 0
+    let date = ''
+    for (const entry of activePortfolioLedgerEntries(account)) {
+      const currentDate = entryDate(entry)
+      if (currentDate !== date) {
+        date = currentDate
+        locked = 0
+      }
+      if (entry.kind === 'trade') {
+        if (entry.record.side === 'buy') {
+          quantity += entry.record.quantity
+          locked += entry.record.quantity
+        } else {
+          const available = Math.max(0, quantity - locked)
+          if (entry.record.quantity > available + 0.000001)
+            return {
+              error: `${account.accountName ?? '当前账户'}在 ${date} 的可卖数量不足（当日买入不能卖出）`,
+              errorEntryId: entry.id,
+              errorQuantity: available
+            }
+          quantity -= entry.record.quantity
+        }
+      } else if (entry.kind === 'positionAdjustment') {
+        quantity = entry.quantityAfter
+        locked = entry.openedOnAfter === date ? quantity : Math.min(locked, quantity)
+      } else if (entry.kind === 'shareAdjustment' || entry.kind === 'securityConversion') {
+        locked = quantity > 0 ? (locked * entry.quantityAfter) / quantity : 0
+        quantity = entry.quantityAfter
+      } else if (entry.kind === 'rightsSubscription') quantity += entry.quantity
+    }
+  }
   const metrics = calculatePortfolioLedgerMetrics(account, currency)
   if (metrics.error) {
     return {
@@ -589,7 +622,10 @@ export function previewCorporateAction(
     fees: feeDelta,
     netCash,
     netCashCny,
-    entries,
+    entries: entries.map((entry) => ({
+      ...entry,
+      accountId: account.accountId ?? account.quoteId
+    })),
     missingFields
   }
 }
@@ -604,7 +640,7 @@ export function reversalEntries(
     .filter((entry) => appliedIds.has(entry.id))
     .map((entry) => ({
       id: `reversal:${entry.id}`,
-      accountId: account.quoteId,
+      accountId: account.accountId ?? account.quoteId,
       quoteId: account.quoteId,
       occurredAt,
       marketDate: occurredAt.slice(0, 10),

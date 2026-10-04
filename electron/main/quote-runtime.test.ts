@@ -41,8 +41,8 @@ function appState(profile: StockTrackingProfile): AppState {
     settings: { ...DEFAULT_APP_SETTINGS },
     columnOrder: [...DEFAULT_WATCHLIST_COLUMN_ORDER],
     columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
-    tTradingAccounts: {},
-    corporateActionRecords: {}
+    stockTradingBooks: {},
+    corporateActionApplications: {}
   }
 }
 

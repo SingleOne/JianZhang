@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+import type { AccountFeeSettings } from '../shared/types'
 import { CheckCircle2, PencilLine, Plus, RefreshCcw, Repeat2, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -92,7 +94,12 @@ import { marketDateTimeInput } from '../shared/market-hours'
 import { currencyForMarket, marketFromQuoteId } from '../shared/stock-market'
 import { useConfirmDialog } from './ConfirmDialog'
 
-interface TTradingDrawerProps {
+export interface TTradingDrawerProps {
+  hidden?: boolean
+  accountDisabled?: boolean
+  accountSelector?: ReactNode
+  onDraftChange?: () => void
+  accountFeeSnapshot?: AccountFeeSettings
   stock: WatchStock
   quote: StockQuote | undefined
   account: TTradingAccount | undefined
@@ -211,6 +218,9 @@ function cashLedgerSourceLabel(entry: CashLedgerEntry): string {
 }
 
 export function TTradingDrawer({
+  accountSelector,
+  onDraftChange,
+  accountFeeSnapshot,
   stock,
   quote,
   account,
@@ -223,7 +233,9 @@ export function TTradingDrawer({
   exchangeRates,
   floatingProfitAlertDefaultThreshold,
   onApply,
-  onClose
+  onClose,
+  hidden = false,
+  accountDisabled = false
 }: TTradingDrawerProps) {
   const confirm = useConfirmDialog()
   const market = stock.market ?? marketFromQuoteId(stock.quoteId)
@@ -456,14 +468,7 @@ export function TTradingDrawer({
     ]
   )
   const preservesEstimatedFees = Boolean(
-    market !== 'CN' &&
-    !manualFees &&
-    editingTrade?.feeTemplate &&
-    editingTrade.feeSource !== 'actual' &&
-    editingTrade.side === side &&
-    editingTrade.price === numericPrice &&
-    editingTrade.quantity === numericQuantity &&
-    (editingTrade.marketDate ?? editingTrade.tradedAt.slice(0, 10)) === tradeDate
+    market !== 'CN' && !manualFees && editingTrade && !feeModeEdited
   )
   const selectedFeeTemplate =
     preservesEstimatedFees && editingTrade?.feeTemplate
@@ -709,6 +714,10 @@ export function TTradingDrawer({
   }
 
   const saveCashEntry = () => {
+    if (accountDisabled) {
+      setError('请先恢复启用该账户')
+      return
+    }
     const amount = roundMoney(Number(cashAmount))
     if (!Number.isFinite(amount) || amount <= 0) {
       setCashError(
@@ -743,7 +752,7 @@ export function TTradingDrawer({
     }
 
     const common = {
-      accountId: currentAccount.quoteId,
+      accountId: currentAccount.accountId ?? currentAccount.quoteId,
       quoteId: currentAccount.quoteId,
       occurredAt: cashOccurredAt,
       marketDate: cashOccurredAt.slice(0, 10),
@@ -845,6 +854,10 @@ export function TTradingDrawer({
   })
 
   const saveTrade = () => {
+    if (accountDisabled && !editingTradeId) {
+      setError('请先恢复启用该账户')
+      return
+    }
     if (!tradedAt || !Number.isFinite(numericPrice) || numericPrice <= 0) {
       setError('请输入有效的成交价格和数量')
       return
@@ -888,6 +901,13 @@ export function TTradingDrawer({
       tradedAt,
       price: numericPrice,
       quantity: numericQuantity,
+      accountId: currentAccount.accountId,
+      accountFeeSnapshot:
+        editingTrade && !feeModeEdited
+          ? editingTrade.accountFeeSnapshot
+          : manualFees
+            ? undefined
+            : accountFeeSnapshot,
       fees: tradeFees,
       feeItems: tradeFeeItems,
       feeTemplate: market === 'CN' || manualFees ? undefined : selectedFeeTemplate,
@@ -1466,10 +1486,10 @@ export function TTradingDrawer({
     }
     let settledBatch: TTradingBatch = { ...batch, settlement }
     const nextPosition =
-      finalQuantity > 0 && finalCost !== undefined
+      finalQuantity > 0 && (finalCost ?? stock.position?.cost) !== undefined
         ? {
             quantity: finalQuantity,
-            cost: finalCost,
+            cost: (finalCost ?? stock.position?.cost)!,
             openedToday: false,
             openedOn: stock.position?.openedOn ?? batch.openingPosition?.openedOn,
             currency,
@@ -1483,9 +1503,7 @@ export function TTradingDrawer({
       activeBatch: undefined,
       history: [settledBatch, ...currentAccount.history]
     }
-    if (market === 'CN') {
-      applyAccount(settledAccount, nextPosition)
-    } else {
+    {
       const before = calculatePortfolioLedgerPosition(settledAccount, market, currency)
       if (before.error) {
         setError(`完整账本校验失败：${before.error}`)
@@ -1701,6 +1719,8 @@ export function TTradingDrawer({
     </label>
   )
 
+  if (hidden) return null
+
   return createPortal(
     <div className="t-trading-backdrop" role="presentation" onMouseDown={onClose}>
       <aside
@@ -1730,7 +1750,8 @@ export function TTradingDrawer({
           </button>
         </header>
 
-        <div className="t-trading-content">
+        {accountSelector}
+        <div className="t-trading-content" onChange={onDraftChange}>
           <section className="t-overview-grid">
             <span>
               <small>总持仓</small>
@@ -1878,6 +1899,8 @@ export function TTradingDrawer({
                   <button
                     type="button"
                     className="bordered-text-button text-button"
+                    disabled={Boolean(editingTrade?.splitSource)}
+                    title={editingTrade?.splitSource ? '拆分成交保留整笔成交分摊的费用' : undefined}
                     onClick={() => {
                       if (!manualFees) {
                         if (market === 'CN') setFeeOverrides(calculatedFees)
@@ -1887,7 +1910,7 @@ export function TTradingDrawer({
                       setManualFees((current) => !current)
                     }}
                   >
-                    {manualFees ? '恢复自动计算' : '手动修改费用'}
+                    {manualFees ? '按当前账户重算费用' : '手动修改费用'}
                   </button>
                 </>
               ) : null}
@@ -2210,7 +2233,8 @@ export function TTradingDrawer({
                                 : '预扣税款'}
                           </strong>
                           <small>
-                            {formatTradeTime(entry.occurredAt)} · {cashLedgerSourceLabel(entry)}
+                            {currentAccount.accountName} · {formatTradeTime(entry.occurredAt)} ·{' '}
+                            {cashLedgerSourceLabel(entry)}
                           </small>
                         </span>
                         <span className="t-trade-amount">
@@ -2248,7 +2272,8 @@ export function TTradingDrawer({
                           {formatShares(trade.quantity)} × {formatPrice(trade.price)}
                         </strong>
                         <small>
-                          {formatTradeTime(trade.tradedAt)} · 费用 {formatNativeAmount(fees)}
+                          {currentAccount.accountName} · {formatTradeTime(trade.tradedAt)} · 费用{' '}
+                          {formatNativeAmount(fees)}
                           {market !== 'CN' ? ` · ${tradeFeeSourceLabel(trade)}` : ''}
                         </small>
                         {market !== 'CN' ? (
@@ -2445,7 +2470,7 @@ export function TTradingDrawer({
                             {formatShares(allocation.quantity)} × {formatPrice(trade.price)}
                           </strong>
                           <small>
-                            {formatTradeTime(trade.tradedAt)} · 费用{' '}
+                            {currentAccount.accountName} · {formatTradeTime(trade.tradedAt)} · 费用{' '}
                             {formatNativeAmount(allocation.fees)}
                             {market !== 'CN' ? ` · ${tradeFeeSourceLabel(trade)}` : ''}
                             {summary ? ` · ${summary}` : ''}
@@ -2730,7 +2755,7 @@ export function TTradingDrawer({
                             {batchDirectionLabel(batch)}批次 #{batch.sequence}
                           </strong>
                           <small>
-                            {formatTradeTime(batch.openedAt)} 至{' '}
+                            {currentAccount.accountName} · {formatTradeTime(batch.openedAt)} 至{' '}
                             {lastTrade ? formatTradeTime(lastTrade.tradedAt) : '--'}
                           </small>
                         </span>
@@ -2760,7 +2785,7 @@ export function TTradingDrawer({
                             <span className="t-history-trade" key={trade.id}>
                               <b>{tradeLabel(trade, batch)}</b>
                               <span>
-                                {formatTradeTime(trade.tradedAt)}
+                                {currentAccount.accountName} · {formatTradeTime(trade.tradedAt)}
                                 {market !== 'CN'
                                   ? ` · ${trade.actualSettlementDate ? `实际交收 ${trade.actualSettlementDate}` : `预计交收 ${trade.estimatedSettlementDate ?? '--'}`}`
                                   : ''}

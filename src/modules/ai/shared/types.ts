@@ -123,6 +123,7 @@ export interface AiTradeImportSourceBinding extends AiTradeImportSource {
 }
 
 export interface AiTradeImportItem {
+  accountId?: string
   id: string
   selected: boolean
   kind: AiTradeImportEntryKind
@@ -156,8 +157,12 @@ export interface AiTradeImportDraft {
   sources: AiTradeImportSource[]
   items: AiTradeImportItem[]
   impacts: Array<{
+    accountId?: string
+    accountName?: string
     quoteId: string
     name: string
+    totalBeforeQuantity?: number
+    totalAfterQuantity?: number
     beforeQuantity: number
     beforeCost: number | null
     afterQuantity: number

@@ -1,3 +1,5 @@
+import { listStockAccountBooks } from '../shared/stock-accounts'
+import type { StockTradingBook, StockTradingBooks } from '../shared/types'
 import { calculateMarketTradeFeeItems, totalTradeFeeItems } from './market-trades'
 import { calculateTBatchMetrics, calculateTradeFees, roundMoney, totalTradeFees } from './t-trading'
 import { getBatchTrades } from './trade-records'
@@ -26,6 +28,9 @@ export type TAlertSide = 'buy' | 'sell'
 export type TFloatingProfitAlertDirection = 'profit' | 'loss'
 
 export interface TriggeredTFloatingProfitAlert {
+  accountId?: string
+  batchId?: string
+  accountName?: string
   quoteId: string
   name: string
   currency: StockCurrency
@@ -45,6 +50,8 @@ export interface TPlanRow extends TPlanLevel {
 }
 
 export interface TAlertBadge {
+  accountId?: string
+  accountName?: string
   side: TAlertSide
   index: number
   label: string
@@ -338,11 +345,11 @@ export function applyTFloatingProfitAlert(
 }
 
 export function applyTAlertTriggersToAccounts(
-  accounts: TTradingAccounts,
+  accounts: StockTradingBooks,
   quotes: readonly StockQuote[],
   watchlist: readonly WatchStock[] = []
 ): {
-  accounts: TTradingAccounts
+  accounts: StockTradingBooks
   changed: boolean
   triggered: TriggeredTFloatingProfitAlert[]
 } {
@@ -350,35 +357,43 @@ export function applyTAlertTriggersToAccounts(
   const stocksById = new Map(watchlist.map((stock) => [stock.quoteId, stock]))
   let changed = false
   const triggered: TriggeredTFloatingProfitAlert[] = []
-  const nextAccounts: TTradingAccounts = {}
+  const nextAccounts: StockTradingBooks = {}
 
-  for (const [quoteId, account] of Object.entries(accounts)) {
-    const batch = account.activeBatch
-    const trades = getBatchTrades(account, batch)
-    const latest = quotesById.get(quoteId)?.latest
-    const priceRule = {
-      market: account.market ?? marketFromQuoteId(quoteId),
-      instrumentType: stocksById.get(quoteId)?.instrumentType
+  for (const [quoteId, parent] of Object.entries(accounts)) {
+    const children: TTradingAccounts = {}
+    for (const account of listStockAccountBooks(parent)) {
+      const batch = account.activeBatch
+      const trades = getBatchTrades(account, batch)
+      const latest = quotesById.get(quoteId)?.latest
+      const priceRule = {
+        market: account.market ?? marketFromQuoteId(quoteId),
+        instrumentType: stocksById.get(quoteId)?.instrumentType
+      }
+      const priceResult = batch
+        ? applyTAlertTriggers(batch, trades, latest, priceRule)
+        : { batch, changed: false }
+      const floatingResult = priceResult.batch
+        ? applyTFloatingProfitAlert(priceResult.batch, trades, latest)
+        : { batch: priceResult.batch, changed: false, triggered: undefined }
+      if (floatingResult.triggered) {
+        triggered.push({
+          quoteId,
+          name: account.name,
+          accountId: account.accountId,
+          accountName: account.accountName,
+          batchId: batch?.id,
+          currency: account.currency ?? currencyForMarket(marketFromQuoteId(quoteId)),
+          ...floatingResult.triggered
+        })
+      }
+      const accountChanged = priceResult.changed || floatingResult.changed
+      children[account.accountId ?? quoteId] = accountChanged
+        ? { ...account, activeBatch: floatingResult.batch }
+        : account
+      changed ||= accountChanged
     }
-    const priceResult = batch
-      ? applyTAlertTriggers(batch, trades, latest, priceRule)
-      : { batch, changed: false }
-    const floatingResult = priceResult.batch
-      ? applyTFloatingProfitAlert(priceResult.batch, trades, latest)
-      : { batch: priceResult.batch, changed: false, triggered: undefined }
-    if (floatingResult.triggered) {
-      triggered.push({
-        quoteId,
-        name: account.name,
-        currency: account.currency ?? currencyForMarket(marketFromQuoteId(quoteId)),
-        ...floatingResult.triggered
-      })
-    }
-    const accountChanged = priceResult.changed || floatingResult.changed
-    nextAccounts[quoteId] = accountChanged
-      ? { ...account, activeBatch: floatingResult.batch }
-      : account
-    changed ||= accountChanged
+    nextAccounts[quoteId] =
+      'accounts' in parent ? { ...parent, accounts: children } : Object.values(children)[0]
   }
 
   return { accounts: changed ? nextAccounts : accounts, changed, triggered }
@@ -442,7 +457,7 @@ export function formatTFloatingProfitAlertNotification(alert: TriggeredTFloating
   const label = alert.direction === 'profit' ? '浮盈' : '浮亏'
   const target = alert.direction === 'profit' ? alert.threshold : -alert.threshold
   return {
-    title: `${alert.name} T仓${label}提醒`,
+    title: `${alert.name}${alert.accountName ? ' · ' + alert.accountName : ''} T仓${label}提醒`,
     body: `当前浮动收益 ${formatMoneyProfit(alert.actualValue, alert.currency)}，已达到 ${formatMoneyProfit(target, alert.currency)} 提醒值`
   }
 }
@@ -500,7 +515,11 @@ export function handleTriggeredTPlanAlertsForTrade(
   return handleTPlanAlert(batch, side)
 }
 
-export function accountHasTriggeredTAlerts(account: TTradingAccount | undefined): boolean {
+export function accountHasTriggeredTAlerts(
+  account: TTradingAccount | StockTradingBook | undefined
+): boolean {
+  if (account && 'accounts' in account)
+    return listStockAccountBooks(account).some(accountHasTriggeredTAlerts)
   return (
     hasTriggeredTAlerts(account?.activeBatch, getBatchTrades(account, account?.activeBatch)) ||
     getTriggeredTFloatingProfitAlert(account?.activeBatch) !== null

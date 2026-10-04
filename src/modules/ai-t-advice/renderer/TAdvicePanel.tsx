@@ -1,3 +1,4 @@
+import { useStockAccountScope } from '../../../components/SecuritiesAccountContext'
 import {
   AlertCircle,
   Ban,
@@ -135,7 +136,11 @@ function AdviceSummary({ advice }: { advice: AiTAdvice }) {
   )
 }
 
-export function TAdvicePanel({ stock, quote }: TAdvicePanelProps) {
+function AccountTAdvicePanel({
+  stock,
+  quote,
+  accountId
+}: TAdvicePanelProps & { accountId: string }) {
   const api = window.aiTAdviceApi
   const [settings, setSettings] = useState<AiTAdviceSettings | null>(null)
   const [history, setHistory] = useState<AiTAdvice[]>([])
@@ -148,11 +153,11 @@ export function TAdvicePanel({ stock, quote }: TAdvicePanelProps) {
     if (!api) return
     const [nextSettings, nextHistory] = await Promise.all([
       api.getSettings(),
-      api.listHistory(stock.quoteId)
+      api.listHistory(stock.quoteId, accountId)
     ])
     setSettings(nextSettings)
     setHistory(nextHistory)
-  }, [api, stock.quoteId])
+  }, [api, stock.quoteId, accountId])
 
   useEffect(() => {
     setError('')
@@ -165,9 +170,9 @@ export function TAdvicePanel({ stock, quote }: TAdvicePanelProps) {
   useEffect(() => {
     if (!api) return
     return api.onProgress((event) => {
-      if (event.quoteId === stock.quoteId) setProgress(event)
+      if (event.quoteId === stock.quoteId && event.accountId === accountId) setProgress(event)
     })
-  }, [api, stock.quoteId])
+  }, [api, stock.quoteId, accountId])
 
   const latest = history[0] ?? null
   const olderHistory = useMemo(() => history.slice(1, 6), [history])
@@ -197,7 +202,7 @@ export function TAdvicePanel({ stock, quote }: TAdvicePanelProps) {
     })
     setError('')
     try {
-      const result = await api.generate(stock.quoteId)
+      const result = await api.generate(stock.quoteId, accountId)
       setHistory((current) => [
         result.advice,
         ...current.filter((item) => item.id !== result.advice.id)
@@ -216,7 +221,7 @@ export function TAdvicePanel({ stock, quote }: TAdvicePanelProps) {
   }
 
   const cancel = async () => {
-    await api.cancel(stock.quoteId)
+    await api.cancel(stock.quoteId, accountId)
   }
 
   const dismiss = async (adviceId: string) => {
@@ -353,5 +358,20 @@ export function TAdvicePanel({ stock, quote }: TAdvicePanelProps) {
         模型输出仅供个人复核，不保证收益。不会修改 T 计划或自动下单。
       </p>
     </section>
+  )
+}
+
+export function TAdvicePanel(props: TAdvicePanelProps) {
+  const scope = useStockAccountScope(props.stock)
+  return (
+    <>
+      {scope.selector}
+      <AccountTAdvicePanel
+        {...props}
+        stock={scope.stock}
+        key={scope.accountId}
+        accountId={scope.accountId}
+      />
+    </>
   )
 }

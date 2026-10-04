@@ -1,3 +1,4 @@
+import type { StockTradingBook } from '../shared/types'
 import {
   AlertCircle,
   BarChart3,
@@ -127,7 +128,7 @@ const CandlestickChart = lazy(() => import('./CandlestickChart'))
 const PeriodKlineChart = lazy(() => import('./PeriodKlineChart'))
 const SectorIndexPanel = lazy(() => import('./SectorIndexPanel'))
 const GlobalFundamentalPanel = lazy(() => import('./GlobalFundamentalPanel'))
-const CorporateActionPanel = lazy(() => import('./CorporateActionPanel'))
+const CorporateActionPanel = lazy(() => import('./AccountCorporateActionPanel'))
 const MarketInsightPanel = __JIANZHANG_MARKET_INSIGHT_ENABLED__
   ? lazy(() =>
       import('../modules/market-insight/renderer/register').then((module) => ({
@@ -1871,8 +1872,8 @@ interface ExpandedStockDetailsProps {
   dailyKlineIndicator: DailyKlineIndicator
   tradingCalendar: TradingCalendarSettings
   exchangeRates: ExchangeRateSettings
-  tradingAccount?: TTradingAccount
-  corporateActionRecords: CorporateActionRecords
+  tradingAccount?: TTradingAccount | StockTradingBook
+  corporateActionApplications: CorporateActionRecords
   onApplyCorporateAction: (
     account: TTradingAccount,
     position: StockPosition | undefined,
@@ -1919,7 +1920,7 @@ export function ExpandedStockDetails({
   tradingCalendar,
   exchangeRates,
   tradingAccount,
-  corporateActionRecords,
+  corporateActionApplications,
   onApplyCorporateAction,
   onUpdateCorporateActionRecord,
   trackingProfile,
@@ -2518,7 +2519,11 @@ export function ExpandedStockDetails({
       </div>
 
       <div className="stock-cache-toolbar">
-        <button className="secondary-button" type="button" onClick={() => setStockCacheDialogOpen(true)}>
+        <button
+          className="secondary-button"
+          type="button"
+          onClick={() => setStockCacheDialogOpen(true)}
+        >
           <Database size={14} />
           清理缓存
         </button>
@@ -2565,7 +2570,7 @@ export function ExpandedStockDetails({
             key={cacheRevisions['corporate-actions'] ?? 0}
             stock={stock}
             account={tradingAccount}
-            records={corporateActionRecords}
+            records={corporateActionApplications}
             exchangeRates={exchangeRates}
             onCommit={onApplyCorporateAction}
             onRecordChange={onUpdateCorporateActionRecord}

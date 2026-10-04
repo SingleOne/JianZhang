@@ -1,3 +1,5 @@
+import { listStockAccountBooks } from '../shared/stock-accounts'
+import type { SecuritiesAccounts, StockTradingBook, StockTradingBooks } from '../shared/types'
 import { exchangeRateForCurrency } from '../shared/exchange-rates'
 import { marketFromQuoteId, type StockCurrency, type StockMarket } from '../shared/stock-market'
 import type {
@@ -6,7 +8,6 @@ import type {
   PortfolioLedgerEntry,
   StockQuote,
   TTradingAccount,
-  TTradingAccounts,
   WatchStock
 } from '../shared/types'
 import { roundMoney, totalRecordedTradeFees } from './t-trading'
@@ -400,6 +401,7 @@ function stockPerformance(
   manualAdjustment: number,
   options: StockPerformanceOptions = {}
 ): StockPerformanceCalculation | null {
+  if (account?.accountId) stock = { ...stock, position: account.position }
   const market = stock.market ?? marketFromQuoteId(stock.quoteId)
   const securityCurrency =
     account?.currency ??
@@ -649,8 +651,8 @@ function stockPerformance(
     code: stock.code,
     name: stock.name,
     market,
-    accountId: DEFAULT_PORTFOLIO_ACCOUNT_ID,
-    accountLabel: DEFAULT_PORTFOLIO_ACCOUNT_LABEL,
+    accountId: account?.accountId ?? DEFAULT_PORTFOLIO_ACCOUNT_ID,
+    accountLabel: account?.accountName ?? DEFAULT_PORTFOLIO_ACCOUNT_LABEL,
     securityCurrency,
     quantity: rounded(quantity),
     latest: quote?.latest ?? null,
@@ -819,24 +821,41 @@ export function calculatePortfolioPerformanceCycles(
 export function calculateCurrentPositionProfitOverride(
   stock: WatchStock,
   quote: StockQuote | undefined,
-  account: TTradingAccount | undefined,
+  account: TTradingAccount | StockTradingBook | undefined,
   exchangeRates: ExchangeRateSettings,
   manualAdjustment = 0
 ): PositionProfitOverride | undefined {
-  if (!stock.position || !account) return undefined
-  const performance = stockPerformance(stock, quote, account, exchangeRates, manualAdjustment)
-  if (!performance) return undefined
-  const native = performance.native.find((slice) => slice.currency === performance.securityCurrency)
+  if (!account) return undefined
+  const results = listStockAccountBooks(account).flatMap((child) => {
+    const calculation = stockPerformance(
+      stock,
+      quote,
+      child,
+      exchangeRates,
+      child.performanceAdjustmentCny ?? manualAdjustment
+    )
+    return calculation ? [calculation] : []
+  })
+  if (!results.length) return undefined
+  const native = results.map(
+    (result) =>
+      result.native.find((slice) => slice.currency === result.securityCurrency)?.totalProfit ?? null
+  )
+  const cny = results.map((result) => result.cny.totalProfit)
   return {
-    totalProfit: native?.totalProfit ?? null,
-    cnyTotalProfit: performance.cny.totalProfit
+    totalProfit: native.some((value) => value === null)
+      ? null
+      : roundMoney(native.reduce<number>((sum, value) => sum + (value ?? 0), 0)),
+    cnyTotalProfit: cny.some((value) => value === null)
+      ? null
+      : roundMoney(cny.reduce<number>((sum, value) => sum + (value ?? 0), 0))
   }
 }
 
 export function calculateCurrentPositionProfitOverrides(
   watchlist: readonly WatchStock[],
   quotes: readonly StockQuote[],
-  accounts: TTradingAccounts,
+  accounts: StockTradingBooks,
   exchangeRates: ExchangeRateSettings,
   adjustments: Readonly<PortfolioPerformanceAdjustments> = {}
 ): Record<string, PositionProfitOverride> {
@@ -902,11 +921,15 @@ function aggregateStockSnapshots(
   select: (stock: PortfolioPerformanceStockResult) => PortfolioPerformanceSnapshot
 ): PortfolioPerformanceAggregateSummary {
   const snapshots = stocks.map(select)
-  const included = snapshots.filter((snapshot) => snapshot.complete)
+  const quoteIds = [...new Set(stocks.map((stock) => stock.quoteId))]
+  const completeIds = quoteIds.filter((id) =>
+    stocks.every((stock, index) => stock.quoteId !== id || snapshots[index].complete)
+  )
+  const included = snapshots.filter((_, index) => completeIds.includes(stocks[index].quoteId))
   return {
-    stockCount: stocks.length,
-    includedStockCount: included.length,
-    excludedStockCount: stocks.length - included.length,
+    stockCount: quoteIds.length,
+    includedStockCount: completeIds.length,
+    excludedStockCount: quoteIds.length - completeIds.length,
     native: mergeNativeSlices(snapshots.flatMap((snapshot) => snapshot.native)),
     cny:
       included.length > 0
@@ -943,14 +966,16 @@ function aggregateCurrencySnapshots(
     const slice = snapshot.currencySlices.find((item) => item.currency === currency)
     return slice ? [{ stock, snapshot, slice }] : []
   })
-  const included = members.filter(({ slice }) => slice.complete)
+  const quoteIds = [...new Set(members.map(({ stock }) => stock.quoteId))]
+  const completeIds = quoteIds.filter((id) =>
+    members.every(({ stock, slice }) => stock.quoteId !== id || slice.complete)
+  )
+  const included = members.filter(({ stock }) => completeIds.includes(stock.quoteId))
   const memberSnapshots = members.map(({ snapshot }) => snapshot)
   return {
-    stockCount: new Set(members.map(({ stock }) => stock.quoteId)).size,
-    includedStockCount: new Set(included.map(({ stock }) => stock.quoteId)).size,
-    excludedStockCount:
-      new Set(members.map(({ stock }) => stock.quoteId)).size -
-      new Set(included.map(({ stock }) => stock.quoteId)).size,
+    stockCount: quoteIds.length,
+    includedStockCount: completeIds.length,
+    excludedStockCount: quoteIds.length - completeIds.length,
     native: mergeNativeSlices(members.map(({ slice }) => slice.native)),
     cny:
       included.length > 0
@@ -977,73 +1002,83 @@ function aggregateCurrency(
 export function calculatePortfolioPerformanceReport(
   watchlist: readonly WatchStock[],
   quotes: readonly StockQuote[],
-  accounts: TTradingAccounts,
+  accounts: StockTradingBooks,
   exchangeRates: ExchangeRateSettings,
-  adjustments: Readonly<PortfolioPerformanceAdjustments> = {}
+  adjustments: Readonly<PortfolioPerformanceAdjustments> = {},
+  securitiesAccounts: SecuritiesAccounts = {}
 ): PortfolioPerformanceReport {
   const quoteMap = new Map(quotes.map((quote) => [quote.quoteId, quote]))
   const stocks = watchlist
     .flatMap((stock): PortfolioPerformanceStockResult[] => {
-      const manualAdjustment = Number.isFinite(adjustments[stock.quoteId])
-        ? adjustments[stock.quoteId]
-        : 0
-      const currentCycle = stockPerformance(
-        stock,
-        quoteMap.get(stock.quoteId),
-        accounts[stock.quoteId],
-        exchangeRates,
-        manualAdjustment
-      )
-      if (!currentCycle) return []
-      const cumulative = stockPerformance(
-        stock,
-        quoteMap.get(stock.quoteId),
-        accounts[stock.quoteId],
-        exchangeRates,
-        manualAdjustment,
-        { resetOnHoldingCycleOpen: false }
-      )
-      if (!cumulative) return []
-      return [
-        {
-          quoteId: currentCycle.quoteId,
-          code: currentCycle.code,
-          name: currentCycle.name,
-          market: currentCycle.market,
-          accountId: currentCycle.accountId,
-          accountLabel: currentCycle.accountLabel,
-          securityCurrency: currentCycle.securityCurrency,
-          quantity: currentCycle.quantity,
-          latest: currentCycle.latest,
-          currentCycle: performanceSnapshot(currentCycle),
-          cumulative: performanceSnapshot(cumulative)
-        }
-      ]
+      const children = listStockAccountBooks(accounts[stock.quoteId])
+      return (children.length ? children : [undefined]).flatMap((account) => {
+        const manualAdjustment = Number.isFinite(adjustments[stock.quoteId])
+          ? adjustments[stock.quoteId]
+          : 0
+        const currentCycle = stockPerformance(
+          stock,
+          quoteMap.get(stock.quoteId),
+          account,
+          exchangeRates,
+          account?.performanceAdjustmentCny ?? manualAdjustment
+        )
+        if (!currentCycle) return []
+        const cumulative = stockPerformance(
+          stock,
+          quoteMap.get(stock.quoteId),
+          account,
+          exchangeRates,
+          account?.performanceAdjustmentCny ?? manualAdjustment,
+          { resetOnHoldingCycleOpen: false }
+        )
+        if (!cumulative) return []
+        return [
+          {
+            quoteId: currentCycle.quoteId,
+            code: currentCycle.code,
+            name: currentCycle.name,
+            market: currentCycle.market,
+            accountId: currentCycle.accountId,
+            accountLabel:
+              securitiesAccounts[currentCycle.accountId]?.name ?? currentCycle.accountLabel,
+            securityCurrency: currentCycle.securityCurrency,
+            quantity: currentCycle.quantity,
+            latest: currentCycle.latest,
+            currentCycle: performanceSnapshot(currentCycle),
+            cumulative: performanceSnapshot(cumulative)
+          }
+        ]
+      })
     })
     .sort(
       (left, right) =>
         left.market.localeCompare(right.market) || left.code.localeCompare(right.code)
     )
-  const stockRows = stocks.map((stock) =>
-    aggregateStocks(stock.quoteId, stock.name, 'stock', [stock], `${stock.code} · ${stock.market}`)
-  )
+  const stockRows = [...new Set(stocks.map((stock) => stock.quoteId))].map((quoteId) => {
+    const members = stocks.filter((stock) => stock.quoteId === quoteId)
+    return aggregateStocks(
+      quoteId,
+      members[0].name,
+      'stock',
+      members,
+      `${members[0].code} · ${members[0].market}`
+    )
+  })
   const marketRows = (['CN', 'HK', 'US'] as const).flatMap((market) => {
     const members = stocks.filter((stock) => stock.market === market)
     if (members.length === 0) return []
     const label = market === 'CN' ? 'A股' : market === 'HK' ? '港股' : '美股'
     return [aggregateStocks(market, label, 'market', members)]
   })
-  const accountRows = stocks.length
-    ? [
-        aggregateStocks(
-          DEFAULT_PORTFOLIO_ACCOUNT_ID,
-          DEFAULT_PORTFOLIO_ACCOUNT_LABEL,
-          'account',
-          stocks,
-          '全部持仓账本'
-        )
-      ]
-    : []
+  const accountRows = [...new Set(stocks.map((stock) => stock.accountId))].map((accountId) => {
+    const members = stocks.filter((stock) => stock.accountId === accountId)
+    return aggregateStocks(
+      accountId,
+      securitiesAccounts[accountId]?.name ?? members[0].accountLabel,
+      'account',
+      members
+    )
+  })
   const currencies = [
     ...new Set(
       stocks.flatMap((stock) =>

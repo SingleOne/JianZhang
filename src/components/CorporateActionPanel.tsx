@@ -29,7 +29,9 @@ import type {
 } from '../shared/types'
 import './CorporateActionPanel.css'
 
-interface CorporateActionPanelProps {
+export interface CorporateActionPanelProps {
+  hidden?: boolean
+  accountDisabled?: boolean
   stock: WatchStock
   account?: TTradingAccount
   records: CorporateActionRecords
@@ -302,7 +304,9 @@ export default function CorporateActionPanel({
   records,
   exchangeRates,
   onCommit,
-  onRecordChange
+  onRecordChange,
+  hidden = false,
+  accountDisabled = false
 }: CorporateActionPanelProps) {
   const [candidates, setCandidates] = useState<CorporateActionCandidate[]>([])
   const [source, setSource] = useState('')
@@ -362,10 +366,12 @@ export default function CorporateActionPanel({
   useEffect(() => {
     setEditorHost(
       selectedEditorCandidateId
-        ? document.getElementById(editorHostId(selectedEditorCandidateId))
+        ? document.getElementById(
+            editorHostId(`${account?.accountId}:${selectedEditorCandidateId}`)
+          )
         : null
     )
-  }, [selectedEditorCandidateId])
+  }, [selectedEditorCandidateId, hidden, account?.accountId])
 
   const timeline = useMemo(() => {
     const merged: CorporateActionCandidate[] = candidates.map((candidate) => {
@@ -478,6 +484,10 @@ export default function CorporateActionPanel({
   }
 
   const applyPreview = async () => {
+    if (accountDisabled) {
+      setError('请先恢复启用该账户')
+      return
+    }
     const confirmsRightsNonParticipation =
       selected?.type === 'rightsIssue' && optionalNumber(draft?.subscribedQuantity ?? '') === 0
     if (
@@ -488,7 +498,19 @@ export default function CorporateActionPanel({
     )
       return
     const workingAccount = accountForStock(stock, account)
-    const nextAccount = appendPortfolioLedgerEntries(workingAccount, preview.entries)
+    const newIds = new Set(preview.entries.map((entry) => entry.id))
+    const nextAccount = appendPortfolioLedgerEntries(
+      {
+        ...workingAccount,
+        ledger: {
+          ...workingAccount.ledger,
+          entries: workingAccount.ledger.entries.filter(
+            (entry) => entry.kind !== 'reversal' || !newIds.has(entry.reversesEntryId)
+          )
+        }
+      },
+      preview.entries
+    )
     const positionCurrency = draft?.currency ?? stock.position?.currency ?? stock.currency ?? 'CNY'
     const metrics = calculatePortfolioLedgerMetrics(nextAccount, positionCurrency)
     const position =
@@ -630,11 +652,13 @@ export default function CorporateActionPanel({
     }
   }
 
+  if (hidden) return null
+
   return (
     <div className="corporate-action-panel" role="tabpanel">
       <header className="corporate-action-header">
         <div>
-          <strong>公司行动时间线</strong>
+          <strong>{account?.accountName} · 公司行动时间线</strong>
           <span>
             {source || '官方来源'}
             {fetchedAt ? ` · 更新于 ${new Date(fetchedAt).toLocaleString()}` : ''}
@@ -841,7 +865,10 @@ export default function CorporateActionPanel({
                 </section>
               ) : null}
               {selected?.id === candidate.id ? (
-                <div className="corporate-action-editor-host" id={editorHostId(candidate.id)} />
+                <div
+                  className="corporate-action-editor-host"
+                  id={editorHostId(`${account?.accountId}:${candidate.id}`)}
+                />
               ) : null}
             </article>
           )

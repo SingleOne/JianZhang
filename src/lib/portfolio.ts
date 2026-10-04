@@ -1,10 +1,11 @@
+import { listStockAccountBooks } from '../shared/stock-accounts'
+import type { StockTradingBook, StockTradingBooks } from '../shared/types'
 import type {
   ExchangeRateSettings,
   StockQuote,
   StockPosition,
   TTrade,
   TTradingAccount,
-  TTradingAccounts,
   WatchStock
 } from '../shared/types'
 import { DEFAULT_EXCHANGE_RATE_SETTINGS } from '../shared/types'
@@ -63,9 +64,14 @@ export function isPositionOpenedToday(
 
 export function getAvailablePositionQuantity(
   position: StockPosition | undefined,
-  account: TTradingAccount | undefined,
+  account: TTradingAccount | StockTradingBook | undefined,
   market: StockMarket = 'CN'
 ): number | null {
+  if (account && 'accounts' in account)
+    return listStockAccountBooks(account).reduce(
+      (sum, child) => sum + (getAvailablePositionQuantity(child.position, child, market) ?? 0),
+      0
+    )
   if (!position) return null
   if (market !== 'CN') return position.quantity
   if (isPositionOpenedToday(position, market)) return 0
@@ -114,10 +120,39 @@ function getTradeFees(trade: TTrade): number {
 export function calculatePositionMetrics(
   position: StockPosition | undefined,
   quote: StockQuote | undefined,
-  account?: TTradingAccount,
+  account?: TTradingAccount | StockTradingBook,
   exchangeRates: ExchangeRateSettings = DEFAULT_EXCHANGE_RATE_SETTINGS,
   profitOverride?: PositionProfitOverride
 ): PositionMetrics {
+  if (account && 'accounts' in account) {
+    const children = listStockAccountBooks(account)
+    const metrics = children.map((child) =>
+      calculatePositionMetrics(child.position, quote, child, exchangeRates)
+    )
+    const sum = (key: keyof PositionMetrics): number | null => {
+      const relevant = metrics.filter(
+        (item, index) => children[index].position || item.todayProfit !== null || item[key] !== null
+      )
+      if (!relevant.length || relevant.some((item) => item[key] === null)) return null
+      return relevant.reduce((total, item) => total + Number(item[key]), 0)
+    }
+    const base = calculatePositionMetrics(position, quote, undefined, exchangeRates, profitOverride)
+    const todayProfit = sum('todayProfit'),
+      todayCostBasis = sum('todayCostBasis')
+    const cnyTodayProfit = sum('cnyTodayProfit'),
+      cnyTodayCostBasis = sum('cnyTodayCostBasis')
+    return {
+      ...base,
+      todayProfit,
+      todayCostBasis,
+      cnyTodayProfit,
+      cnyTodayCostBasis,
+      todayProfitPercent:
+        todayProfit !== null && todayCostBasis !== null && todayCostBasis > 0
+          ? (todayProfit / todayCostBasis) * 100
+          : null
+    }
+  }
   const market = marketFromQuoteId(quote?.quoteId ?? account?.quoteId ?? '')
   const currency = position?.currency ?? quote?.currency ?? 'CNY'
   const exchangeRate = exchangeRateForCurrency(exchangeRates, currency)
@@ -238,7 +273,7 @@ export function calculatePositionMetrics(
 export function calculatePortfolioSummary(
   watchlist: WatchStock[],
   quotes: StockQuote[],
-  tTradingAccounts: TTradingAccounts,
+  stockTradingBooks: StockTradingBooks,
   exchangeRates: ExchangeRateSettings = DEFAULT_EXCHANGE_RATE_SETTINGS,
   profitOverrides: Readonly<Record<string, PositionProfitOverride>> = {}
 ): PortfolioSummary {
@@ -261,7 +296,7 @@ export function calculatePortfolioSummary(
     const metrics = calculatePositionMetrics(
       stock.position,
       quoteMap.get(stock.quoteId),
-      tTradingAccounts[stock.quoteId],
+      stockTradingBooks[stock.quoteId],
       exchangeRates,
       profitOverrides[stock.quoteId]
     )
