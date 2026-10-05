@@ -2,6 +2,22 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.t-trading-entry-content {
+  display: contents;
+}
+
+.t-account-records {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: 8px;
+}
+
+.t-account-records > .t-form-error {
+  grid-column: 1 / -1;
+}
+
 .t-overview-grid,
 .t-trade-entry,
 .t-dual-plan-card,
@@ -20,6 +36,11 @@
   min-width: 0;
   grid-column: 2;
   grid-row: 3;
+}
+
+.t-account-records .t-active-batch-card,
+.t-account-records .t-base-ledger-card {
+  grid-row: 1;
 }
 
 .t-active-batch-card.is-full-width,
