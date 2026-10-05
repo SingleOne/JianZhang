@@ -50,17 +50,17 @@
   font-size: 14px;
 }
 
-.t-trading-title-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
 .t-entry-account-select {
   width: 180px;
+  display: flex;
+  align-self: stretch;
 }
 
-.t-trading-header .app-select-option strong {
+.t-entry-account-select .app-select-trigger {
+  min-height: 0;
+}
+
+.t-entry-account-select .app-select-option strong {
   font-size: 12px;
 }
 
@@ -149,6 +149,17 @@
 }
 
 .t-card-heading > span {
+  display: grid;
+  gap: 3px;
+}
+
+.t-entry-heading {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.t-entry-heading-copy {
   display: grid;
   gap: 3px;
 }

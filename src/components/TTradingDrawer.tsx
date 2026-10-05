@@ -1,6 +1,6 @@
 import type { AccountFeeSettings } from '../shared/types'
 import { CheckCircle2, PencilLine, Plus, RefreshCcw, Repeat2, Trash2, X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
   formatCost,
@@ -127,6 +127,7 @@ interface TTradingAccountContentProps extends Omit<TTradingDrawerProps, 'account
   accountDisabled: boolean
   accountFeeSnapshot?: AccountFeeSettings
   view: 'entry' | 'records'
+  entryAccountSelect?: ReactNode
   clearEntry?: boolean
   tradeToEdit?: TTrade
   onEditTrade?: (trade: TTrade) => void
@@ -356,24 +357,7 @@ export function TTradingDrawer(props: TTradingDrawerProps) {
               <Repeat2 size={20} />
             </span>
             <div className="t-trading-heading">
-              <div className="t-trading-title-row">
-                <strong id="t-trading-title">交易管理 · {props.stock.name}</strong>
-                <AppSelect
-                  value={entryAccountId}
-                  label="交易账户"
-                  className="t-entry-account-select"
-                  options={owners.map((owner) => ({
-                    value: owner.id,
-                    label: `${owner.name}${owner.enabled ? '' : '（已停用）'}`
-                  }))}
-                  disabled={Boolean(tradeToEdit)}
-                  onChange={(id) => {
-                    if (id === entryAccountId) return
-                    setClearEntry(true)
-                    setEntryAccountId(id)
-                  }}
-                />
-              </div>
+              <strong id="t-trading-title">交易管理 · {props.stock.name}</strong>
               <small>{props.stock.code} · 记录交易、目标价格与批次收益</small>
             </div>
           </div>
@@ -424,6 +408,23 @@ export function TTradingDrawer(props: TTradingDrawerProps) {
             {...entryView}
             key={entryAccountId}
             view="entry"
+            entryAccountSelect={
+              <AppSelect
+                value={entryAccountId}
+                label="交易账户"
+                className="t-entry-account-select"
+                options={owners.map((owner) => ({
+                  value: owner.id,
+                  label: `${owner.name}${owner.enabled ? '' : '（已停用）'}`
+                }))}
+                disabled={Boolean(tradeToEdit)}
+                onChange={(id) => {
+                  if (id === entryAccountId) return
+                  setClearEntry(true)
+                  setEntryAccountId(id)
+                }}
+              />
+            }
             clearEntry={clearEntry}
             tradeToEdit={tradeToEdit}
             onEditComplete={finishEditing}
@@ -461,6 +462,7 @@ export function TTradingDrawer(props: TTradingDrawerProps) {
 
 function TTradingAccountContent({
   view,
+  entryAccountSelect,
   clearEntry = false,
   tradeToEdit,
   onEditTrade,
@@ -1982,10 +1984,13 @@ function TTradingAccountContent({
       {view === 'entry' ? (
         <section className="t-card t-trade-entry">
           <div className="t-card-heading">
-            <span>
-              <strong>{editingTradeId ? '修改交易' : '录入交易'}</strong>
-              <small>{entryHint}</small>
-            </span>
+            <div className="t-entry-heading">
+              <span className="t-entry-heading-copy">
+                <strong>{editingTradeId ? '修改交易' : '录入交易'}</strong>
+                <small>{entryHint}</small>
+              </span>
+              {entryAccountSelect}
+            </div>
             {editingTradeId ? (
               <button type="button" className="text-button" onClick={resetTradeForm}>
                 取消修改
