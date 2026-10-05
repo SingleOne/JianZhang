@@ -230,14 +230,14 @@ export function SecuritiesAccountManager({
         aria-labelledby="account-manager-title"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <header>
+        <header className="account-manager-header">
           <div>
             <h2 id="account-manager-title">股票账户</h2>
             <p>各账户独立管理持仓、交易费用和做 T。</p>
           </div>
           <button
             type="button"
-            className="icon-button"
+            className="icon-button account-manager-close"
             onClick={onClose}
             disabled={saving}
             aria-label="关闭"
@@ -357,9 +357,6 @@ export function SecuritiesAccountManager({
           </p>
         ) : null}
         <footer>
-          <button type="button" className="secondary-button" onClick={onClose} disabled={saving}>
-            关闭
-          </button>
           <button
             type="button"
             className="primary-button"

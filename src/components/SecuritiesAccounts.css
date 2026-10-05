@@ -48,6 +48,7 @@
   background: #0007;
 }
 .account-manager {
+  position: relative;
   width: min(880px, 100%);
   max-height: 90vh;
   overflow: auto;
@@ -66,6 +67,30 @@
   align-items: center;
   gap: 12px;
   margin: 12px 0;
+}
+.account-manager .account-manager-header {
+  margin: 0 0 20px;
+  padding-right: 40px;
+}
+.account-manager-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: var(--muted);
+}
+.account-manager-close:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--surface-muted);
+}
+.account-manager-close:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.account-manager > footer {
+  justify-content: flex-end;
 }
 .account-manager-layout {
   min-width: 0;
