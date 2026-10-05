@@ -647,6 +647,12 @@ export default function App() {
     [reportError, updateQuotes]
   )
 
+  const commitAccountState = useCallback(
+    async (next: AppState) => Boolean(await persist(next)),
+    [persist]
+  )
+  const clearAccountNavigation = useCallback(() => setAccountNavigation(undefined), [])
+
   const requestWatchlistStockPosition = useCallback(
     (quoteId: string, requestSource: string, expandDetails = false) => {
       setSelectedQuoteId(null)
@@ -1645,9 +1651,9 @@ export default function App() {
   return (
     <SecuritiesAccountProvider
       state={state}
-      onSave={async (next) => Boolean(await persist(next))}
+      onSave={commitAccountState}
       accountNavigation={accountNavigation}
-      onNavigationHandled={() => setAccountNavigation(undefined)}
+      onNavigationHandled={clearAccountNavigation}
     >
       <div className="app-shell">
         <AppTitlebar>

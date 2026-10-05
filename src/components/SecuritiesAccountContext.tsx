@@ -1,4 +1,12 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode
+} from 'react'
 import { createPortal } from 'react-dom'
 import {
   accountFeeSettings,
@@ -31,18 +39,17 @@ export function SecuritiesAccountProvider({
   onSave: (state: AppState) => Promise<boolean>
   accountNavigation?: { quoteId: string; accountId: string }
 }) {
-  return (
-    <AccountContext.Provider
-      value={{
-        ...state,
-        commitAccountState: onSave,
-        accountNavigation,
-        clearAccountNavigation: onNavigationHandled
-      }}
-    >
-      {children}
-    </AccountContext.Provider>
+  const value = useMemo<AccountContextState>(
+    () => ({
+      ...state,
+      commitAccountState: onSave,
+      accountNavigation,
+      clearAccountNavigation: onNavigationHandled
+    }),
+    [accountNavigation, onNavigationHandled, onSave, state]
   )
+
+  return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>
 }
 
 export function useSecuritiesAccountState(): AccountContextState {
