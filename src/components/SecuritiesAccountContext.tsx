@@ -1,12 +1,14 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import {
   accountFeeSettings,
   getStockAccountBook,
   listAccountsForMarket,
   resolveAccountSelection
 } from '../shared/stock-accounts'
-import { currencyForMarket, marketFromQuoteId } from '../shared/stock-market'
+import { currencyForMarket, marketFromQuoteId, STOCK_MARKET_LABELS } from '../shared/stock-market'
 import type { AppState, TTradingAccount, WatchStock } from '../shared/types'
+import { AppSelect } from './AppSelect'
 import './SecuritiesAccounts.css'
 
 type AccountContextState = AppState & {
@@ -49,6 +51,63 @@ export function useSecuritiesAccountState(): AccountContextState {
   return state
 }
 
+function AccountRequiredDialog({ message, onClose }: { message: string; onClose: () => void }) {
+  useEffect(() => {
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', escape)
+    return () => {
+      document.body.style.overflow = previous
+      document.removeEventListener('keydown', escape)
+    }
+  }, [onClose])
+  return createPortal(
+    <div className="account-manager-backdrop" onMouseDown={onClose} role="presentation">
+      <section
+        className="account-manager account-required-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="请先创建股票账户"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header>
+          <h2>请先创建股票账户</h2>
+        </header>
+        <p className="account-manager-notice">{message}</p>
+        <footer>
+          <button type="button" className="primary-button" onClick={onClose}>
+            关闭
+          </button>
+        </footer>
+      </section>
+    </div>,
+    document.body
+  )
+}
+
+export function StockAccountBoundary({
+  stock,
+  children,
+  onClose
+}: {
+  stock: WatchStock
+  children: ReactNode
+  onClose?: () => void
+}) {
+  const state = useSecuritiesAccountState()
+  const market = stock.market ?? marketFromQuoteId(stock.quoteId)
+  if (listAccountsForMarket(state.securitiesAccounts, market, true).length) return children
+  const message = `${STOCK_MARKET_LABELS[market]}暂无股票账户，请在设置的“管理股票账户”中新增账户。`
+  return onClose ? (
+    <AccountRequiredDialog message={message} onClose={onClose} />
+  ) : (
+    <p className="securities-account-empty">{message}</p>
+  )
+}
+
 export function useStockAccountScope(stock: WatchStock, preferredId?: string) {
   const state = useSecuritiesAccountState()
   const market = stock.market ?? marketFromQuoteId(stock.quoteId)
@@ -60,7 +119,8 @@ export function useStockAccountScope(stock: WatchStock, preferredId?: string) {
         : undefined)
     return preferred && state.securitiesAccounts?.[preferred]?.market === market
       ? preferred
-      : resolveAccountSelection(state, market)
+      : resolveAccountSelection(state, market) ||
+          listAccountsForMarket(state.securitiesAccounts, market, true)[0].id
   })
   const [visited, setVisited] = useState<string[]>([selection])
   const consumedNavigation = useRef<typeof state.accountNavigation>(undefined)
@@ -79,7 +139,8 @@ export function useStockAccountScope(stock: WatchStock, preferredId?: string) {
   const accountId =
     state.securitiesAccounts?.[selection]?.market === market
       ? selection
-      : resolveAccountSelection(state, market)
+      : resolveAccountSelection(state, market) ||
+        listAccountsForMarket(state.securitiesAccounts, market, true)[0].id
   const owner = state.securitiesAccounts![accountId]
   const existing = getStockAccountBook(state.stockTradingBooks, stock.quoteId, accountId)
   const book: TTradingAccount = existing ?? {
@@ -100,25 +161,29 @@ export function useStockAccountScope(stock: WatchStock, preferredId?: string) {
     setSelection(next)
   }
   const selector = (
-    <label className="securities-account-selector">
+    <div className="securities-account-selector">
       <span>股票账户</span>
-      <select value={accountId} onChange={(event) => void select(event.target.value)}>
-        {listAccountsForMarket(state.securitiesAccounts, market, true).map((account) => (
-          <option value={account.id} key={account.id}>
-            {account.name}
-            {account.enabled ? '' : '（已停用）'}
-          </option>
-        ))}
-      </select>
+      <AppSelect
+        value={accountId}
+        label="股票账户"
+        className="securities-account-select"
+        options={listAccountsForMarket(state.securitiesAccounts, market, true).map((account) => ({
+          value: account.id,
+          label: `${account.name}${account.enabled ? '' : '（已停用）'}`
+        }))}
+        onChange={(id) => void select(id)}
+      />
       <small>持仓、交易与做 T 按账户独立管理</small>
-    </label>
+    </div>
   )
   return {
     state,
     owner,
     book,
     accountId,
-    visited,
+    visited: [...new Set([...visited, accountId])].filter(
+      (id) => state.securitiesAccounts?.[id]?.market === market
+    ),
     select,
     selector,
     markDirty: () => {},

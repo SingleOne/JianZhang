@@ -3,12 +3,20 @@ import { createPortal } from 'react-dom'
 import { X, Plus } from 'lucide-react'
 import {
   ACCOUNT_MARKETS,
+  createDefaultAccounts,
   defaultAccountId,
   flattenStockAccountBooks,
   normalizeAccountState
 } from '../shared/stock-accounts'
 import { STOCK_MARKET_LABELS } from '../shared/stock-market'
-import type { AccountFeeSettings, AppState, SecuritiesAccounts, StockMarket } from '../shared/types'
+import type {
+  AccountFeeSettings,
+  AppState,
+  SecuritiesAccount,
+  SecuritiesAccounts,
+  StockMarket
+} from '../shared/types'
+import { AppSelect } from './AppSelect'
 import './SecuritiesAccounts.css'
 
 const FEE_LABELS: Record<string, string> = {
@@ -28,6 +36,36 @@ const FEE_LABELS: Record<string, string> = {
   includeFinraTaf: '计入 FINRA TAF'
 }
 
+const MARKET_OPTIONS = ACCOUNT_MARKETS.map((value) => ({
+  value,
+  label: STOCK_MARKET_LABELS[value]
+}))
+
+type AccountDraft = Omit<SecuritiesAccount, 'feeSettings'> & {
+  feeSettings: { market: StockMarket; settings: Record<string, string | boolean> }
+}
+type AccountDrafts = Record<string, AccountDraft>
+
+function accountDrafts(accounts: SecuritiesAccounts): AccountDrafts {
+  return Object.fromEntries(
+    Object.entries(accounts).map(([id, account]) => [
+      id,
+      {
+        ...account,
+        feeSettings: {
+          market: account.market,
+          settings: Object.fromEntries(
+            Object.entries(account.feeSettings.settings).map(([key, value]) => [
+              key,
+              typeof value === 'boolean' ? value : String(value)
+            ])
+          )
+        }
+      }
+    ])
+  )
+}
+
 export function SecuritiesAccountManager({
   state,
   onSave,
@@ -38,11 +76,14 @@ export function SecuritiesAccountManager({
   onClose: () => void
 }) {
   const [accounts, setAccounts] = useState(() =>
-    structuredClone(normalizeAccountState(state).securitiesAccounts!)
+    accountDrafts(normalizeAccountState(state).securitiesAccounts!)
   )
-  const [selectedId, setSelectedId] = useState(defaultAccountId('CN'))
+  const [selectedId, setSelectedId] = useState(
+    () => Object.values(accounts).find((account) => account.market === 'CN')?.id ?? ''
+  )
   const [market, setMarket] = useState<StockMarket>('CN')
   const [error, setError] = useState('')
+  const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   useEffect(() => {
     const previous = document.body.style.overflow
@@ -58,8 +99,11 @@ export function SecuritiesAccountManager({
   }, [onClose, saving])
   const selected = accounts[selectedId]
   const books = Object.values(flattenStockAccountBooks(state.stockTradingBooks))
-  const update = (changes: Partial<typeof selected>) =>
+  const update = (changes: Partial<AccountDraft>) => {
     setAccounts((current) => ({ ...current, [selectedId]: { ...current[selectedId], ...changes } }))
+    setSaved(false)
+    setError('')
+  }
   const add = () => {
     const id = crypto.randomUUID()
     let name = `${STOCK_MARKET_LABELS[market]}账户`
@@ -68,16 +112,15 @@ export function SecuritiesAccountManager({
       Object.values(accounts).some((account) => account.market === market && account.name === name)
     )
       name = `${STOCK_MARKET_LABELS[market]}账户 ${++count}`
+    const template =
+      Object.values(accounts).find((account) => account.market === market) ??
+      accountDrafts(createDefaultAccounts(state.settings))[defaultAccountId(market)]
     setAccounts((current) => ({
       ...current,
-      [id]: {
-        ...structuredClone(current[defaultAccountId(market)]),
-        id,
-        name,
-        isSystemDefault: false
-      }
+      [id]: { ...structuredClone(template), id, name, enabled: true, isSystemDefault: false }
     }))
     setSelectedId(id)
+    setSaved(false)
     setError('')
   }
   const toggle = () => {
@@ -92,7 +135,6 @@ export function SecuritiesAccountManager({
       return
     }
     update({ enabled: !selected.enabled })
-    setError('')
   }
   const remove = () => {
     if (
@@ -106,43 +148,67 @@ export function SecuritiesAccountManager({
     }
     const { [selectedId]: _removed, ...remaining } = accounts
     setAccounts(remaining)
-    setSelectedId(defaultAccountId(market))
+    setSelectedId(Object.values(remaining).find((account) => account.market === market)?.id ?? '')
+    setSaved(false)
     setError('')
   }
   const save = async () => {
     const names = new Set<string>()
+    const validated: SecuritiesAccounts = {}
+    const feeTemplates = createDefaultAccounts(state.settings)
     for (const account of Object.values(accounts)) {
       const name = account.name.trim()
+      const invalid = (message: string) => {
+        setSelectedId(account.id)
+        setMarket(account.market)
+        setError(message)
+      }
       if (!name) {
-        setError('请填写账户名称')
+        invalid('请填写账户名称')
         return
       }
       const key = `${account.market}:${name}`
       if (account.enabled && names.has(key)) {
-        setError('同一市场的启用账户名称不能重复')
+        invalid('同一市场的启用账户名称不能重复')
         return
       }
       if (account.enabled) names.add(key)
       if (
         Object.values(account.feeSettings.settings).some(
-          (value) => typeof value === 'number' && (!Number.isFinite(value) || value < 0)
+          (value) =>
+            typeof value === 'string' &&
+            (!value.trim() || !Number.isFinite(Number(value)) || Number(value) < 0)
         )
       ) {
-        setError('费率和费用必须为有效的非负数字')
+        invalid('费率和费用必须为有效的非负数字')
         return
+      }
+      const feeTemplate = feeTemplates[defaultAccountId(account.market)].feeSettings
+      validated[account.id] = {
+        ...account,
+        name,
+        feeSettings: {
+          ...feeTemplate,
+          settings: {
+            ...feeTemplate.settings,
+            ...Object.fromEntries(
+              Object.entries(account.feeSettings.settings).map(([key, value]) => [
+                key,
+                typeof value === 'boolean' ? value : Number(value)
+              ])
+            )
+          }
+        } as AccountFeeSettings
       }
     }
     setSaving(true)
+    setSaved(false)
     setError('')
     try {
-      const trimmed = Object.fromEntries(
-        Object.entries(accounts).map(([id, account]) => [
-          id,
-          { ...account, name: account.name.trim() }
-        ])
-      )
-      if (await onSave(trimmed)) onClose()
-      else setError('账户保存失败，请重试')
+      if (await onSave(validated)) {
+        setAccounts(accountDrafts(validated))
+        setSaved(true)
+      } else setError('账户保存失败，请重试')
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '账户保存失败')
     } finally {
@@ -150,44 +216,55 @@ export function SecuritiesAccountManager({
     }
   }
   return createPortal(
-    <div className="account-manager-backdrop" onMouseDown={onClose} role="presentation">
+    <div
+      className="account-manager-backdrop"
+      onMouseDown={() => {
+        if (!saving) onClose()
+      }}
+      role="presentation"
+    >
       <section
         className="account-manager"
         role="dialog"
         aria-modal="true"
-        aria-label="股票账户管理"
+        aria-labelledby="account-manager-title"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header>
           <div>
-            <strong>股票账户</strong>
+            <h2 id="account-manager-title">股票账户</h2>
             <p>各账户独立管理持仓、交易费用和做 T。</p>
           </div>
-          <button type="button" className="icon-button" onClick={onClose} aria-label="关闭">
+          <button
+            type="button"
+            className="icon-button"
+            onClick={onClose}
+            disabled={saving}
+            aria-label="关闭"
+          >
             <X size={18} />
           </button>
         </header>
-        <div className="account-manager-layout">
+        <fieldset className="account-manager-layout" disabled={saving}>
           <div className="account-manager-list">
             <div className="account-manager-actions">
-              <select
+              <AppSelect
                 value={market}
-                onChange={(event) => {
-                  const next = event.target.value as StockMarket
+                options={MARKET_OPTIONS}
+                label="股票市场"
+                disabled={saving}
+                className="account-manager-market-select"
+                onChange={(next) => {
                   setMarket(next)
-                  setSelectedId(defaultAccountId(next))
+                  setSelectedId(
+                    Object.values(accounts).find((account) => account.market === next)?.id ?? ''
+                  )
                   setError('')
                 }}
-              >
-                {ACCOUNT_MARKETS.map((value) => (
-                  <option value={value} key={value}>
-                    {STOCK_MARKET_LABELS[value]}
-                  </option>
-                ))}
-              </select>
-              <button className="secondary-button" type="button" onClick={add}>
+              />
+              <button className="secondary-button account-manager-add" type="button" onClick={add}>
                 <Plus size={14} />
-                新增
+                <span>新增</span>
               </button>
             </div>
             {Object.values(accounts)
@@ -196,66 +273,64 @@ export function SecuritiesAccountManager({
                 <button
                   type="button"
                   key={account.id}
-                  className={account.id === selectedId ? 'is-selected' : ''}
+                  className={`account-manager-account${account.id === selectedId ? ' is-selected' : ''}`}
                   onClick={() => {
                     setSelectedId(account.id)
                     setError('')
                   }}
                 >
-                  {account.name}
-                  <small>
-                    {account.isSystemDefault ? ' · 系统默认' : ''}
-                    {!account.enabled ? ' · 已停用' : ''}
-                  </small>
+                  <span>{account.name}</span>
+                  {!account.enabled ? <small>已停用</small> : null}
                 </button>
               ))}
+            {!Object.values(accounts).some((account) => account.market === market) ? (
+              <p className="account-manager-notice">暂无账户，点击“新增”创建。</p>
+            ) : null}
           </div>
-          <div>
-            <div className="account-manager-fields">
-              <label>
-                <span>账户名称</span>
-                <input
-                  value={selected.name}
-                  onChange={(event) => update({ name: event.target.value })}
-                />
-              </label>
-              <label>
-                <span>所属市场</span>
-                <input value={STOCK_MARKET_LABELS[selected.market]} readOnly />
-              </label>
-              {Object.entries(selected.feeSettings.settings).map(([key, value]) => (
-                <label key={key}>
-                  <span>{FEE_LABELS[key]}</span>
+          {selected ? (
+            <div>
+              <div className="account-manager-fields">
+                <label>
+                  <span>账户名称</span>
                   <input
-                    type={typeof value === 'boolean' ? 'checkbox' : 'number'}
-                    min={typeof value === 'boolean' ? undefined : 0}
-                    step={typeof value === 'boolean' ? undefined : '0.0001'}
-                    checked={typeof value === 'boolean' ? value : undefined}
-                    value={typeof value === 'number' ? value : undefined}
-                    onChange={(event) =>
-                      update({
-                        feeSettings: {
-                          ...selected.feeSettings,
-                          settings: {
-                            ...selected.feeSettings.settings,
-                            [key]:
-                              typeof value === 'boolean'
-                                ? event.target.checked
-                                : Number(event.target.value)
-                          }
-                        } as AccountFeeSettings
-                      })
-                    }
+                    value={selected.name}
+                    onChange={(event) => update({ name: event.target.value })}
                   />
                 </label>
-              ))}
-            </div>
-            <p>
-              <small>
+                <label>
+                  <span>所属市场</span>
+                  <input value={STOCK_MARKET_LABELS[selected.market]} disabled />
+                </label>
+                {Object.entries(selected.feeSettings.settings).map(([key, value]) => (
+                  <label key={key}>
+                    <span>{FEE_LABELS[key]}</span>
+                    <input
+                      type={typeof value === 'boolean' ? 'checkbox' : 'number'}
+                      min={typeof value === 'boolean' ? undefined : 0}
+                      step={typeof value === 'boolean' ? undefined : '0.0001'}
+                      checked={typeof value === 'boolean' ? value : undefined}
+                      value={typeof value === 'string' ? value : undefined}
+                      onChange={(event) =>
+                        update({
+                          feeSettings: {
+                            ...selected.feeSettings,
+                            settings: {
+                              ...selected.feeSettings.settings,
+                              [key]:
+                                typeof value === 'boolean'
+                                  ? event.target.checked
+                                  : event.target.value
+                            }
+                          }
+                        })
+                      }
+                    />
+                  </label>
+                ))}
+              </div>
+              <p className="account-manager-notice">
                 费率修改用于之后的交易估算和五档预测，历史已保存费用保持不变。港美股市场费用仍按成交日期的模板计算。
-              </small>
-            </p>
-            {!selected.isSystemDefault ? (
+              </p>
               <div className="account-manager-actions">
                 <button type="button" className="secondary-button" onClick={toggle}>
                   {selected.enabled ? '停用账户' : '恢复启用'}
@@ -264,17 +339,26 @@ export function SecuritiesAccountManager({
                   删除空账户
                 </button>
               </div>
-            ) : null}
-          </div>
-        </div>
+            </div>
+          ) : (
+            <p className="account-manager-notice">
+              请先为{STOCK_MARKET_LABELS[market]}创建股票账户。
+            </p>
+          )}
+        </fieldset>
         {error ? (
           <p className="account-manager-error" role="alert">
             {error}
           </p>
         ) : null}
+        {saved ? (
+          <p className="account-manager-status" role="status">
+            账户已保存
+          </p>
+        ) : null}
         <footer>
           <button type="button" className="secondary-button" onClick={onClose} disabled={saving}>
-            取消
+            关闭
           </button>
           <button
             type="button"

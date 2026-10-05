@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { PositionEditor, type PositionEditorProps } from './PositionEditor'
 import { TTradingDrawer, type TTradingDrawerProps } from './TTradingDrawer'
-import { useStockAccountScope } from './SecuritiesAccountContext'
+import { StockAccountBoundary, useStockAccountScope } from './SecuritiesAccountContext'
 import { AccountLedgerOverview } from './AccountLedgerOverview'
 import { calculatePositionMetrics } from '../lib/portfolio'
 import { calculateCurrentPositionProfitOverride } from '../lib/portfolio-performance'
@@ -51,6 +51,14 @@ function PositionAccountDraft({
 }
 
 export function AccountPositionEditor(props: PositionProps) {
+  return (
+    <StockAccountBoundary stock={props.stock} onClose={props.onClose}>
+      <PositionEditorWithAccounts {...props} />
+    </StockAccountBoundary>
+  )
+}
+
+function PositionEditorWithAccounts(props: PositionProps) {
   const scope = useStockAccountScope(props.stock, props.initialAccountId)
   const [epoch, setEpoch] = useState(0)
   const selector = (
@@ -122,6 +130,14 @@ function TradingAccountDraft({
 }
 
 export function AccountTTradingDrawer(props: TradingProps) {
+  return (
+    <StockAccountBoundary stock={props.stock} onClose={props.onClose}>
+      <TradingDrawerWithAccounts {...props} />
+    </StockAccountBoundary>
+  )
+}
+
+function TradingDrawerWithAccounts(props: TradingProps) {
   const scope = useStockAccountScope(props.stock, props.initialAccountId)
   const [epoch, setEpoch] = useState(0)
   const selector = (

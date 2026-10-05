@@ -1,4 +1,7 @@
-import { useStockAccountScope } from '../../../components/SecuritiesAccountContext'
+import {
+  StockAccountBoundary,
+  useStockAccountScope
+} from '../../../components/SecuritiesAccountContext'
 import {
   AlertCircle,
   Ban,
@@ -362,6 +365,14 @@ function AccountTAdvicePanel({
 }
 
 export function TAdvicePanel(props: TAdvicePanelProps) {
+  return (
+    <StockAccountBoundary stock={props.stock}>
+      <TAdviceWithAccount {...props} />
+    </StockAccountBoundary>
+  )
+}
+
+function TAdviceWithAccount(props: TAdvicePanelProps) {
   const scope = useStockAccountScope(props.stock)
   return (
     <>

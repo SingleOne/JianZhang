@@ -1,5 +1,6 @@
 import { Check, ChevronDown } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
+import './AppSelect.css'
 
 export interface AppSelectOption<Value extends string> {
   value: Value

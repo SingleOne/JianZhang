@@ -1,5 +1,5 @@
 import CorporateActionPanel, { type CorporateActionPanelProps } from './CorporateActionPanel'
-import { useStockAccountScope } from './SecuritiesAccountContext'
+import { StockAccountBoundary, useStockAccountScope } from './SecuritiesAccountContext'
 import { recordsForAccount } from '../shared/stock-accounts'
 import type { StockTradingBook, TTradingAccount } from '../shared/types'
 
@@ -32,6 +32,14 @@ function AccountDraft({
   )
 }
 export default function AccountCorporateActionPanel(props: PanelProps) {
+  return (
+    <StockAccountBoundary stock={props.stock}>
+      <CorporateActionWithAccounts {...props} />
+    </StockAccountBoundary>
+  )
+}
+
+function CorporateActionWithAccounts(props: PanelProps) {
   const scope = useStockAccountScope(props.stock)
   return (
     <>

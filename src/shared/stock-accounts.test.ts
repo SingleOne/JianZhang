@@ -72,6 +72,50 @@ describe('stock account state', () => {
     expect(normalizeAccountState(state)).toEqual(state)
   })
 
+  it('keeps initial accounts editable and disabled without restoring their former system status', () => {
+    const state = normalizeAccountState(legacyState())
+    const account = state.securitiesAccounts!['default:HK']
+    account.name = '我的港股账户'
+    account.enabled = false
+    account.isSystemDefault = true
+    const normalized = normalizeAccountState(state)
+    expect(normalized.securitiesAccounts!['default:HK']).toMatchObject({
+      name: '我的港股账户',
+      enabled: false,
+      isSystemDefault: false
+    })
+    expect(normalized.settings.lastUsedAccountIdByMarket?.HK).toBeUndefined()
+    expect(resolveAccountSelection(normalized, 'HK')).toBe('')
+  })
+
+  it('does not recreate a deleted initial account when loading or importing the account directory', () => {
+    const state = normalizeAccountState(legacyState())
+    delete state.securitiesAccounts!['default:HK']
+    const normalized = normalizeAccountState(state)
+    expect(normalized.securitiesAccounts!['default:HK']).toBeUndefined()
+    expect(normalizeAccountState(normalized)).toEqual(normalized)
+    expect(resolveAccountSelection(normalized, 'HK')).toBe('')
+    normalized.securitiesAccounts!.replacement = {
+      ...createDefaultAccounts(normalized.settings)['default:HK'],
+      id: 'replacement',
+      name: '新港股账户'
+    }
+    expect(resolveAccountSelection(normalized, 'HK')).toBe('replacement')
+  })
+
+  it('preserves a deliberately empty account directory instead of repeating initialization', () => {
+    const state = normalizeAccountState({
+      ...legacyState(),
+      portfolioSchemaVersion: 2,
+      watchlist: [],
+      stockTradingBooks: {},
+      securitiesAccounts: {}
+    })
+    expect(state.securitiesAccounts).toEqual({})
+    expect(state.settings.lastUsedAccountIdByMarket).toEqual({})
+    expect(normalizeAccountState(state).securitiesAccounts).toEqual({})
+  })
+
   it('isolates market choices and remembers only a successfully added execution', () => {
     let state = normalizeAccountState(legacyState())
     const accounts = createDefaultAccounts(state.settings)

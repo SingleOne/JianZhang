@@ -34,7 +34,7 @@ export function createDefaultAccounts(settings = DEFAULT_APP_SETTINGS): Securiti
           market,
           name: `${STOCK_MARKET_LABELS[market]}默认账户`,
           enabled: true,
-          isSystemDefault: true,
+          isSystemDefault: false,
           feeSettings:
             market === 'CN'
               ? { market, settings: structuredClone(settings.tTradingFees) }
@@ -80,11 +80,7 @@ export function listAccountsForMarket(
 ): SecuritiesAccount[] {
   return Object.values(accounts ?? createDefaultAccounts())
     .filter((account) => account.market === market && (includeDisabled || account.enabled))
-    .sort(
-      (a, b) =>
-        Number(b.isSystemDefault) - Number(a.isSystemDefault) ||
-        a.name.localeCompare(b.name, 'zh-CN')
-    )
+    .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'))
 }
 
 export function resolveAccountSelection(
@@ -100,7 +96,7 @@ export function resolveAccountSelection(
   ]) {
     if (id && accounts[id]?.enabled && accounts[id].market === market) return id
   }
-  throw new Error(`缺少${STOCK_MARKET_LABELS[market]}可用账户`)
+  return listAccountsForMarket(accounts, market)[0]?.id ?? ''
 }
 
 export function accountFeeSettings(
@@ -172,12 +168,9 @@ export function corporateApplicationKey(accountId: string, candidateId: string):
 
 export function normalizeAccountState(state: AppState): AppState {
   const settings = normalizeAppSettings(state.settings)
-  const accounts = { ...createDefaultAccounts(settings), ...state.securitiesAccounts }
-  for (const market of ACCOUNT_MARKETS) {
-    const id = defaultAccountId(market)
-    accounts[id] = { ...accounts[id], id, market, enabled: true, isSystemDefault: true }
-  }
+  const accounts = { ...(state.securitiesAccounts ?? createDefaultAccounts(settings)) }
   for (const [id, account] of Object.entries(accounts)) {
+    accounts[id] = { ...account, isSystemDefault: false }
     if (!account.name.trim() || account.id !== id || account.feeSettings.market !== account.market)
       throw new Error('股票账户资料或市场不一致')
     if (
@@ -286,8 +279,11 @@ export function normalizeAccountState(state: AppState): AppState {
   const lastUsedAccountIdByMarket = { ...settings.lastUsedAccountIdByMarket }
   for (const market of ACCOUNT_MARKETS) {
     const id = lastUsedAccountIdByMarket[market]
-    if (!id || !accounts[id]?.enabled || accounts[id].market !== market)
-      lastUsedAccountIdByMarket[market] = defaultAccountId(market)
+    if (!id || !accounts[id]?.enabled || accounts[id].market !== market) {
+      const fallback = listAccountsForMarket(accounts, market)[0]?.id
+      if (fallback) lastUsedAccountIdByMarket[market] = fallback
+      else delete lastUsedAccountIdByMarket[market]
+    }
   }
   const watchlist = state.watchlist.map((stock) => {
     const { positionSnapshots: _legacySnapshots, ...metadata } = stock
