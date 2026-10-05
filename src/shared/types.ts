@@ -2878,8 +2878,6 @@ export interface TaskbarTooltipAnchor {
 }
 
 export interface StockSelectionRequest {
-  accountId?: string
-  batchId?: string
   id: string
   quoteId: string
   scrollAlignment?: 'sticky-top'

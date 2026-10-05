@@ -1009,10 +1009,6 @@ export function WatchlistTable({
     resetFilters()
     const frameId = window.requestAnimationFrame(() =>
       scrollToStock(stockSelectionRequest.quoteId, 'sticky-top', () => {
-        if (stockSelectionRequest.accountId && stockSelectionRequest.batchId) {
-          const stock = watchlist.find((item) => item.quoteId === stockSelectionRequest.quoteId)
-          if (stock) setTTradingStock(stock)
-        }
         if (stockSelectionRequest.detailTarget) {
           positionedDetailRequestIdRef.current = stockSelectionRequest.id
         }
@@ -1020,7 +1016,7 @@ export function WatchlistTable({
       })
     )
     return () => window.cancelAnimationFrame(frameId)
-  }, [onStockSelectionPositioned, resetFilters, scrollToStock, stockSelectionRequest, watchlist])
+  }, [onStockSelectionPositioned, resetFilters, scrollToStock, stockSelectionRequest])
 
   useLayoutEffect(() => {
     if (

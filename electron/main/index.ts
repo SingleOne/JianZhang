@@ -261,9 +261,7 @@ function sendToWindows(channel: string, payload: unknown): void {
 function showStockNavigationNotification(
   notification: Notification,
   quoteId: string,
-  detailTarget: StockDetailNavigationTarget,
-  accountId?: string,
-  batchId?: string
+  detailTarget: StockDetailNavigationTarget
 ): void {
   retainedSystemNotifications.push(notification)
   if (retainedSystemNotifications.length > RETAINED_SYSTEM_NOTIFICATION_LIMIT) {
@@ -275,7 +273,7 @@ function showStockNavigationNotification(
     if (index >= 0) retainedSystemNotifications.splice(index, 1)
   }
   notification.once('click', () => {
-    windowManager?.showMainWindow(quoteId, 'sticky-top', detailTarget, accountId, batchId)
+    windowManager?.showMainWindow(quoteId, 'sticky-top', detailTarget)
     releaseNotification()
   })
   notification.once('failed', releaseNotification)
@@ -304,13 +302,7 @@ function showTFloatingProfitAlertNotification(alert: TriggeredTFloatingProfitAle
     icon: createAppIcon(),
     timeoutType: 'default'
   })
-  showStockNavigationNotification(
-    notification,
-    alert.quoteId,
-    'trend',
-    alert.accountId,
-    alert.batchId
-  )
+  showStockNavigationNotification(notification, alert.quoteId, 'trend')
 }
 
 function showPriceVolumeDivergenceNotification(

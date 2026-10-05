@@ -256,9 +256,7 @@ export default function App() {
   }, [])
 
   const handleStockSelection = useCallback((request: StockSelectionRequest) => {
-    setAccountNavigation(
-      request.accountId ? { quoteId: request.quoteId, accountId: request.accountId } : undefined
-    )
+    setAccountNavigation(undefined)
     if (request.detailTarget && request.scrollAlignment === 'sticky-top') {
       setSelectedQuoteId(null)
       setDetailNavigationRequest(null)
@@ -1290,6 +1288,7 @@ export default function App() {
   }, [])
 
   const openCompletionNotification = useCallback((notification: AppCompletionNotification) => {
+    setAccountNavigation(undefined)
     if (notification.target === 'corporate-action-center') {
       corporateActionCenterNotificationsDismissed.current = true
     } else {

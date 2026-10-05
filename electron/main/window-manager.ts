@@ -139,9 +139,7 @@ export class WindowManager {
   showMainWindow(
     quoteId?: string,
     scrollAlignment?: StockSelectionRequest['scrollAlignment'],
-    detailTarget?: StockSelectionRequest['detailTarget'],
-    accountId?: string,
-    batchId?: string
+    detailTarget?: StockSelectionRequest['detailTarget']
   ): void {
     const window = this.getMainWindow()
     if (!window) return
@@ -159,9 +157,7 @@ export class WindowManager {
         id: `${Date.now()}-${this.stockSelectionSequence}`,
         quoteId,
         scrollAlignment,
-        detailTarget,
-        accountId,
-        batchId
+        detailTarget
       } satisfies StockSelectionRequest)
     }
   }
