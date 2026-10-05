@@ -2518,17 +2518,6 @@ export function ExpandedStockDetails({
         ) : null}
       </div>
 
-      <div className="stock-cache-toolbar">
-        <button
-          className="secondary-button"
-          type="button"
-          onClick={() => setStockCacheDialogOpen(true)}
-        >
-          <Database size={14} />
-          清理缓存
-        </button>
-      </div>
-
       <div className="detail-tab-content" aria-hidden="true" />
       {capabilities.dividendFinancing && activeTab === 'dividendFinancing' ? (
         <div className="dividend-financing-tab-content" role="tabpanel">
@@ -2611,29 +2600,39 @@ export function ExpandedStockDetails({
               ) : null}
               {data?.fromCache ? <em className="overview-data-badge is-cache">本地缓存</em> : null}
             </div>
-            <div className="chart-legend" aria-label="图表图例">
-              <span className={isHistorical ? 'legend-candlestick' : 'legend-price'}>
-                {isHistorical ? 'K线' : '价格'}
-              </span>
-              {priceTab === 'trend' && isAStock ? (
-                <span className="legend-auction-price">集合竞价</span>
-              ) : null}
-              {priceTab === 'trend' ? <span className="legend-average-price">VWAP</span> : null}
-              <span className="legend-volume">成交量</span>
-              {priceTab === 'daily' && capabilities.chipDistribution ? (
-                <button
-                  className={`chip-distribution-toggle ${chipDistributionEnabled ? 'is-active' : ''}`}
-                  type="button"
-                  role="switch"
-                  aria-checked={chipDistributionEnabled}
-                  onClick={toggleChipDistribution}
-                >
-                  <span aria-hidden="true">
-                    <i />
-                  </span>
-                  筹码分布
-                </button>
-              ) : null}
+            <div className="overview-header-actions">
+              <div className="chart-legend" aria-label="图表图例">
+                <span className={isHistorical ? 'legend-candlestick' : 'legend-price'}>
+                  {isHistorical ? 'K线' : '价格'}
+                </span>
+                {priceTab === 'trend' && isAStock ? (
+                  <span className="legend-auction-price">集合竞价</span>
+                ) : null}
+                {priceTab === 'trend' ? <span className="legend-average-price">VWAP</span> : null}
+                <span className="legend-volume">成交量</span>
+                {priceTab === 'daily' && capabilities.chipDistribution ? (
+                  <button
+                    className={`chip-distribution-toggle ${chipDistributionEnabled ? 'is-active' : ''}`}
+                    type="button"
+                    role="switch"
+                    aria-checked={chipDistributionEnabled}
+                    onClick={toggleChipDistribution}
+                  >
+                    <span aria-hidden="true">
+                      <i />
+                    </span>
+                    筹码分布
+                  </button>
+                ) : null}
+              </div>
+              <button
+                className="secondary-button stock-cache-button"
+                type="button"
+                onClick={() => setStockCacheDialogOpen(true)}
+              >
+                <Database size={14} />
+                清理缓存
+              </button>
             </div>
           </div>
           <div className="overview-grid">

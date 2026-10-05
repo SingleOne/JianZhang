@@ -355,37 +355,36 @@ export function TTradingDrawer(props: TTradingDrawerProps) {
             <span className="t-trading-icon">
               <Repeat2 size={20} />
             </span>
-            <span>
-              <strong id="t-trading-title">交易管理 · {props.stock.name}</strong>
+            <div className="t-trading-heading">
+              <div className="t-trading-title-row">
+                <strong id="t-trading-title">交易管理 · {props.stock.name}</strong>
+                <AppSelect
+                  value={entryAccountId}
+                  label="交易账户"
+                  className="t-entry-account-select"
+                  options={owners.map((owner) => ({
+                    value: owner.id,
+                    label: `${owner.name}${owner.enabled ? '' : '（已停用）'}`
+                  }))}
+                  disabled={Boolean(tradeToEdit)}
+                  onChange={(id) => {
+                    if (id === entryAccountId) return
+                    setClearEntry(true)
+                    setEntryAccountId(id)
+                  }}
+                />
+              </div>
               <small>{props.stock.code} · 记录交易、目标价格与批次收益</small>
-            </span>
+            </div>
           </div>
-          <div className="t-trading-header-actions">
-            <span className="t-entry-account-label">录入账户</span>
-            <AppSelect
-              value={entryAccountId}
-              label="交易账户"
-              className="t-entry-account-select"
-              options={owners.map((owner) => ({
-                value: owner.id,
-                label: `${owner.name}${owner.enabled ? '' : '（已停用）'}`
-              }))}
-              disabled={Boolean(tradeToEdit)}
-              onChange={(id) => {
-                if (id === entryAccountId) return
-                setClearEntry(true)
-                setEntryAccountId(id)
-              }}
-            />
-            <button
-              className="icon-button dialog-close"
-              type="button"
-              onClick={props.onClose}
-              aria-label="关闭"
-            >
-              <X size={19} />
-            </button>
-          </div>
+          <button
+            className="icon-button dialog-close"
+            type="button"
+            onClick={props.onClose}
+            aria-label="关闭"
+          >
+            <X size={19} />
+          </button>
         </header>
         <div className="t-trading-content">
           <section className="t-overview-grid">

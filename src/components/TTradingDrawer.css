@@ -35,7 +35,7 @@
   gap: 11px;
 }
 
-.t-trading-header > div:first-child > span:last-child {
+.t-trading-heading {
   display: grid;
   gap: 3px;
 }
@@ -50,14 +50,10 @@
   font-size: 14px;
 }
 
-.t-trading-header .t-trading-header-actions {
+.t-trading-title-row {
+  display: flex;
+  align-items: center;
   gap: 10px;
-}
-
-.t-entry-account-label {
-  color: var(--muted);
-  font-size: 12px;
-  white-space: nowrap;
 }
 
 .t-entry-account-select {
