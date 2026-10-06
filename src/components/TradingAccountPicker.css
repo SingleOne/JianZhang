@@ -1,0 +1,190 @@
+.t-entry-heading .trading-account-picker-button {
+  align-self: stretch;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+.trading-account-picker-button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.trading-account-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 260;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.38);
+}
+
+.trading-account-picker-dialog {
+  width: min(860px, 100%);
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.22);
+}
+
+.trading-account-picker-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.trading-account-picker-header h2 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.trading-account-picker-header p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.trading-account-picker-list {
+  min-height: 0;
+  display: grid;
+  gap: 12px;
+  padding: 16px 20px 20px;
+  overflow-y: auto;
+}
+
+.trading-account-picker-option {
+  width: 100%;
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.trading-account-picker-option:hover:not(:disabled),
+.trading-account-picker-option.is-selected {
+  border-color: var(--blue);
+  background: var(--surface-selected);
+}
+
+.trading-account-picker-option:disabled {
+  cursor: default;
+}
+
+.trading-account-picker-option-heading,
+.trading-account-picker-badges {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.trading-account-picker-option-heading > strong {
+  font-size: 14px;
+}
+
+.trading-account-picker-badges > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border-radius: 5px;
+  background: var(--surface-muted);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.trading-account-picker-badges > .is-current {
+  color: var(--blue);
+}
+
+.trading-account-picker-market,
+.trading-account-picker-disabled-note {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.trading-account-picker-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.trading-account-picker-metrics > span {
+  display: grid;
+  gap: 5px;
+}
+
+.trading-account-picker-metrics small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.trading-account-picker-metrics strong {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.trading-account-picker-metrics .is-up {
+  color: var(--red);
+}
+
+.trading-account-picker-metrics .is-down {
+  color: var(--green);
+}
+
+.trading-account-picker-metrics .is-flat {
+  color: var(--text);
+}
+
+.trading-account-picker-fees {
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.trading-account-picker-fees > strong {
+  font-size: 12px;
+}
+
+.trading-account-picker-fee-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 18px;
+}
+
+.trading-account-picker-fee-grid > span {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 8px;
+  font-size: 12px;
+}
+
+.trading-account-picker-fee-grid > span > span:first-child {
+  color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .trading-account-picker-metrics,
+  .trading-account-picker-fee-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

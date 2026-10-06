@@ -50,20 +50,6 @@
   font-size: 14px;
 }
 
-.t-entry-account-select {
-  width: 180px;
-  display: flex;
-  align-self: stretch;
-}
-
-.t-entry-account-select .app-select-trigger {
-  min-height: 0;
-}
-
-.t-entry-account-select .app-select-option strong {
-  font-size: 12px;
-}
-
 .t-trading-icon {
   width: 36px;
   height: 36px;

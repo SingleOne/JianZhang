@@ -66,7 +66,7 @@ import { deleteIndependentBaseTrade, upsertIndependentBaseTrade } from '../lib/b
 import { appendPositionAdjustment, createInitialPositionAccount } from '../lib/position-ledger'
 import { splitTradeForOverflow } from '../lib/split-trade'
 import { TradeSplitSource } from './TradeSplitSource'
-import { AppSelect } from './AppSelect'
+import { TradingAccountPicker } from './TradingAccountPicker'
 import { useSecuritiesAccountState } from './SecuritiesAccountContext'
 import {
   accountFeeSettings,
@@ -249,6 +249,7 @@ export function TTradingDrawer(props: TTradingDrawerProps) {
   )
   const [tradeToEdit, setTradeToEdit] = useState<TTrade | undefined>(undefined)
   const [clearEntry, setClearEntry] = useState(false)
+  const entryAccountButtonRef = useRef<HTMLButtonElement>(null)
   const makeAccountView = useCallback(
     (book: TTradingAccount) => {
       const owner = state.securitiesAccounts?.[book.accountId ?? defaultAccountId(market)]
@@ -409,15 +410,15 @@ export function TTradingDrawer(props: TTradingDrawerProps) {
             key={entryAccountId}
             view="entry"
             entryAccountSelect={
-              <AppSelect
+              <TradingAccountPicker
                 value={entryAccountId}
-                label="交易账户"
-                className="t-entry-account-select"
-                options={owners.map((owner) => ({
-                  value: owner.id,
-                  label: `${owner.name}${owner.enabled ? '' : '（已停用）'}`
-                }))}
+                accounts={owners}
+                books={accountViews.map(({ account }) => account)}
+                stock={props.stock}
+                quote={props.quote}
+                exchangeRates={props.exchangeRates}
                 disabled={Boolean(tradeToEdit)}
+                buttonRef={entryAccountButtonRef}
                 onChange={(id) => {
                   if (id === entryAccountId) return
                   setClearEntry(true)
