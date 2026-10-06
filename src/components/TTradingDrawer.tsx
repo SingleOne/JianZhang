@@ -413,10 +413,6 @@ export function TTradingDrawer(props: TTradingDrawerProps) {
               <TradingAccountPicker
                 value={entryAccountId}
                 accounts={owners}
-                books={accountViews.map(({ account }) => account)}
-                stock={props.stock}
-                quote={props.quote}
-                exchangeRates={props.exchangeRates}
                 disabled={Boolean(tradeToEdit)}
                 buttonRef={entryAccountButtonRef}
                 onChange={(id) => {
@@ -1986,11 +1982,11 @@ function TTradingAccountContent({
         <section className="t-card t-trade-entry">
           <div className="t-card-heading">
             <div className="t-entry-heading">
-              <span className="t-entry-heading-copy">
+              <div className="t-entry-title-row">
                 <strong>{editingTradeId ? '修改交易' : '录入交易'}</strong>
-                <small>{entryHint}</small>
-              </span>
-              {entryAccountSelect}
+                {entryAccountSelect}
+              </div>
+              <small>{entryHint}</small>
             </div>
             {editingTradeId ? (
               <button type="button" className="text-button" onClick={resetTradeForm}>

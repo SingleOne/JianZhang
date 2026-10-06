@@ -1,6 +1,4 @@
-.t-entry-heading .trading-account-picker-button {
-  align-self: stretch;
-  padding: 0 4px;
+.trading-account-picker-button {
   white-space: nowrap;
 }
 
@@ -17,6 +15,11 @@
   place-items: center;
   padding: 24px;
   background: rgba(15, 23, 42, 0.38);
+  animation: trading-account-picker-backdrop-in 180ms ease-out both;
+}
+
+.trading-account-picker-backdrop.is-closing {
+  animation: trading-account-picker-backdrop-out 150ms ease-in both;
 }
 
 .trading-account-picker-dialog {
@@ -30,6 +33,51 @@
   background: var(--surface);
   color: var(--text);
   box-shadow: 0 22px 60px rgba(15, 23, 42, 0.22);
+  animation: trading-account-picker-in 180ms ease-out both;
+}
+
+.trading-account-picker-dialog.is-closing {
+  animation: trading-account-picker-out 150ms ease-in both;
+}
+
+@keyframes trading-account-picker-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes trading-account-picker-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+
+@keyframes trading-account-picker-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes trading-account-picker-backdrop-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 
 .trading-account-picker-header {
@@ -118,39 +166,7 @@
 .trading-account-picker-disabled-note {
   color: var(--muted);
   font-size: 12px;
-}
-
-.trading-account-picker-metrics {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.trading-account-picker-metrics > span {
-  display: grid;
-  gap: 5px;
-}
-
-.trading-account-picker-metrics small {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.trading-account-picker-metrics strong {
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-
-.trading-account-picker-metrics .is-up {
-  color: var(--red);
-}
-
-.trading-account-picker-metrics .is-down {
-  color: var(--green);
-}
-
-.trading-account-picker-metrics .is-flat {
-  color: var(--text);
+  flex: 1;
 }
 
 .trading-account-picker-fees {
@@ -183,7 +199,6 @@
 }
 
 @media (max-width: 640px) {
-  .trading-account-picker-metrics,
   .trading-account-picker-fee-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

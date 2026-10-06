@@ -1,28 +1,14 @@
 import { Check, X } from 'lucide-react'
 import { useCallback, useEffect, useId, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
-import { formatCost, formatMoney, formatMoneyProfit, formatShares } from '../lib/format'
-import { calculatePositionMetrics } from '../lib/portfolio'
-import { calculateCurrentPositionProfitOverride } from '../lib/portfolio-performance'
-import { getBatchTrades } from '../lib/trade-records'
-import { calculateTBatchMetrics } from '../lib/t-trading'
+import { formatMoney } from '../lib/format'
 import { currencyForMarket, STOCK_MARKET_LABELS } from '../shared/stock-market'
-import type {
-  ExchangeRateSettings,
-  SecuritiesAccount,
-  StockQuote,
-  TTradingAccount,
-  WatchStock
-} from '../shared/types'
+import type { SecuritiesAccount } from '../shared/types'
 import './TradingAccountPicker.css'
 
 interface TradingAccountPickerProps {
   value: string
   accounts: readonly SecuritiesAccount[]
-  books: readonly TTradingAccount[]
-  stock: WatchStock
-  quote: StockQuote | undefined
-  exchangeRates: ExchangeRateSettings
   disabled: boolean
   buttonRef: RefObject<HTMLButtonElement | null>
   onChange: (id: string) => void
@@ -32,12 +18,12 @@ function accountFeeRows(account: SecuritiesAccount): [string, string][] {
   const fees = account.feeSettings
   if (fees.market === 'CN') {
     return [
-      ['净佣金', `万分之 ${fees.settings.commissionRatePerTenThousand}`],
+      ['净佣金', `${fees.settings.commissionRatePerTenThousand}‱`],
       ['最低佣金组合', formatMoney(fees.settings.minimumCommissionBundle, 'CNY')],
-      ['经手费', `万分之 ${fees.settings.handlingRatePerTenThousand}`],
-      ['证管费', `万分之 ${fees.settings.regulatoryRatePerTenThousand}`],
-      ['过户费', `万分之 ${fees.settings.transferRatePerTenThousand}`],
-      ['卖出印花税', `万分之 ${fees.settings.stampDutyRatePerTenThousand}`]
+      ['经手费', `${fees.settings.handlingRatePerTenThousand}‱`],
+      ['证管费', `${fees.settings.regulatoryRatePerTenThousand}‱`],
+      ['过户费', `${fees.settings.transferRatePerTenThousand}‱`],
+      ['卖出印花税', `${fees.settings.stampDutyRatePerTenThousand}‱`]
     ]
   }
   if (fees.market === 'HK') {
@@ -66,7 +52,7 @@ export function TradingAccountPicker(props: TradingAccountPickerProps) {
     <>
       <button
         ref={props.buttonRef}
-        className="text-button trading-account-picker-button"
+        className="bordered-text-button text-button trading-account-picker-button"
         type="button"
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -84,10 +70,6 @@ export function TradingAccountPicker(props: TradingAccountPickerProps) {
 function TradingAccountDialog({
   value,
   accounts,
-  books,
-  stock,
-  quote,
-  exchangeRates,
   buttonRef,
   onChange,
   onClose
@@ -96,6 +78,12 @@ function TradingAccountDialog({
   const descriptionId = useId()
   const dialogRef = useRef<HTMLElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const [closing, setClosing] = useState(false)
+  const selectedAccountIdRef = useRef<string | null>(null)
+  const closeDialog = useCallback(() => {
+    closeButtonRef.current?.focus()
+    setClosing(true)
+  }, [])
   const restoreButtonFocus = useCallback(() => buttonRef.current?.focus(), [buttonRef])
 
   useEffect(() => {
@@ -107,7 +95,7 @@ function TradingAccountDialog({
       if (event.key === 'Escape') {
         event.preventDefault()
         event.stopPropagation()
-        onClose()
+        closeDialog()
       } else if (event.key === 'Tab') {
         const buttons = dialogElement?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')
         if (!buttons?.length) return
@@ -130,82 +118,55 @@ function TradingAccountDialog({
         if (!dialogElement?.isConnected) restoreButtonFocus()
       })
     }
-  }, [onClose, restoreButtonFocus])
+  }, [closeDialog, restoreButtonFocus])
 
   return createPortal(
     <div
-      className="trading-account-picker-backdrop"
+      className={`trading-account-picker-backdrop${closing ? ' is-closing' : ''}`}
       role="presentation"
       onMouseDown={(event) => {
         event.stopPropagation()
-        onClose()
+        closeDialog()
       }}
     >
       <section
         ref={dialogRef}
-        className="trading-account-picker-dialog"
+        className={`trading-account-picker-dialog${closing ? ' is-closing' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
         onMouseDown={(event) => event.stopPropagation()}
+        onAnimationEnd={(event) => {
+          if (
+            event.target === event.currentTarget &&
+            event.animationName === 'trading-account-picker-out' &&
+            closing
+          ) {
+            const accountId = selectedAccountIdRef.current
+            if (accountId && accountId !== value) onChange(accountId)
+            onClose()
+          }
+        }}
       >
         <header className="trading-account-picker-header">
           <div>
             <h2 id={titleId}>选择交易账户</h2>
-            <p id={descriptionId}>
-              {stock.name}（{stock.code}）· 切换账户会清空当前录入内容
-            </p>
+            <p id={descriptionId}>选择交易使用的账户，切换账户会清空当前录入内容</p>
           </div>
           <button
             ref={closeButtonRef}
             className="icon-button"
             type="button"
             aria-label="关闭账户选择弹窗"
-            onClick={onClose}
+            onClick={closeDialog}
           >
             <X size={18} />
           </button>
         </header>
         <div className="trading-account-picker-list">
           {accounts.map((owner) => {
-            const book = books.find((account) => account.accountId === owner.id)
             const currency = currencyForMarket(owner.market)
-            const scopedStock = {
-              ...stock,
-              position: book?.position,
-              positionSnapshots: book?.positionSnapshots
-            }
-            const profit = calculateCurrentPositionProfitOverride(
-              scopedStock,
-              quote,
-              book,
-              exchangeRates,
-              book?.performanceAdjustmentCny
-            )
-            const metrics = calculatePositionMetrics(
-              book?.position,
-              quote,
-              book,
-              exchangeRates,
-              profit
-            )
-            const activeMetrics = calculateTBatchMetrics(
-              book?.activeBatch,
-              book ? getBatchTrades(book, book.activeBatch) : [],
-              quote?.latest
-            )
-            const historyProfit = (book?.history ?? []).reduce(
-              (total, batch) => total + (batch.settlement?.finalProfit ?? 0),
-              0
-            )
-            const quantity = book?.position?.quantity ?? 0
-            const marketValue =
-              quantity === 0
-                ? 0
-                : quote?.latest === undefined || quote.latest === null
-                  ? undefined
-                  : quantity * quote.latest
             const selected = owner.id === value
             return (
               <button
@@ -213,14 +174,17 @@ function TradingAccountDialog({
                 type="button"
                 key={owner.id}
                 aria-pressed={selected}
-                disabled={!owner.enabled}
+                disabled={closing || !owner.enabled}
                 onClick={() => {
-                  if (!selected) onChange(owner.id)
-                  onClose()
+                  selectedAccountIdRef.current = selected ? null : owner.id
+                  closeDialog()
                 }}
               >
                 <span className="trading-account-picker-option-heading">
                   <strong>{owner.name}</strong>
+                  <span className="trading-account-picker-market">
+                    {STOCK_MARKET_LABELS[owner.market]} · {currency}
+                  </span>
                   <span className="trading-account-picker-badges">
                     <span>{owner.enabled ? '已启用' : '已停用'}</span>
                     {selected ? (
@@ -229,63 +193,6 @@ function TradingAccountDialog({
                         当前账户
                       </span>
                     ) : null}
-                  </span>
-                </span>
-                <span className="trading-account-picker-market">
-                  {STOCK_MARKET_LABELS[owner.market]} · {currency}
-                </span>
-                <span className="trading-account-picker-metrics">
-                  <span>
-                    <small>本股持仓</small>
-                    <strong>{formatShares(quantity)}</strong>
-                  </span>
-                  <span>
-                    <small>本股持仓成本</small>
-                    <strong>
-                      {metrics.holdingCost === null
-                        ? '--'
-                        : `${formatCost(metrics.holdingCost)} ${currency}`}
-                    </strong>
-                  </span>
-                  <span>
-                    <small>本股持仓市值</small>
-                    <strong>{formatMoney(marketValue, currency)}</strong>
-                  </span>
-                  <span>
-                    <small>当前 T 批次</small>
-                    <strong>
-                      {book?.activeBatch
-                        ? `${activeMetrics.direction === 'reverse' ? '反T' : '正T'} · #${book.activeBatch.sequence}`
-                        : '无'}
-                    </strong>
-                  </span>
-                  <span>
-                    <small>
-                      {activeMetrics.direction === 'reverse' ? '待回补数量' : '当前 T 仓'}
-                    </small>
-                    <strong>{formatShares(activeMetrics.remainingQuantity)}</strong>
-                  </span>
-                  <span>
-                    <small>交易笔数</small>
-                    <strong>
-                      {book?.tradeRecords.filter((trade) => trade.origin !== 'opening-balance')
-                        .length ?? 0}{' '}
-                      笔
-                    </strong>
-                  </span>
-                  <span>
-                    <small>已结算 T 批次</small>
-                    <strong>{book?.history.length ?? 0} 个</strong>
-                  </span>
-                  <span>
-                    <small>已结算 T 收益</small>
-                    <strong
-                      className={
-                        historyProfit > 0 ? 'is-up' : historyProfit < 0 ? 'is-down' : 'is-flat'
-                      }
-                    >
-                      {formatMoneyProfit(historyProfit, currency)}
-                    </strong>
                   </span>
                 </span>
                 <span className="trading-account-picker-fees">

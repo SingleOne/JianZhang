@@ -140,14 +140,14 @@
 }
 
 .t-entry-heading {
-  display: flex;
-  align-items: stretch;
-  gap: 12px;
-}
-
-.t-entry-heading-copy {
   display: grid;
   gap: 3px;
+}
+
+.t-entry-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .t-card-heading strong {
