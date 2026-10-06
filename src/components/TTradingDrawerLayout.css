@@ -34,17 +34,14 @@
 
 .t-base-ledger-card {
   min-width: 0;
-  grid-column: 2;
-  grid-row: 3;
+  grid-column: 1 / -1;
 }
 
-.t-account-records .t-active-batch-card,
-.t-account-records .t-base-ledger-card {
+.t-account-records .t-active-batch-card {
   grid-row: 1;
 }
 
-.t-active-batch-card.is-full-width,
-.t-base-ledger-card.is-full-width {
+.t-active-batch-card.is-full-width {
   grid-column: 1 / -1;
 }
 

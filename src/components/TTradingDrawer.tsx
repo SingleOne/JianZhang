@@ -236,6 +236,237 @@ function cashLedgerSourceLabel(entry: CashLedgerEntry): string {
   return '交易录入'
 }
 
+type BaseLedgerItem = {
+  account: TTradingAccount
+  occurredAt: string
+} & ({ kind: 'trade'; trade: TTrade } | { kind: 'cash'; entry: CashLedgerEntry })
+
+interface TBaseLedgerCardProps extends Pick<TTradingDrawerProps, 'stock' | 'onApply'> {
+  accounts: readonly TTradingAccount[]
+  onEditTrade: (account: TTradingAccount, trade: TTrade) => void
+}
+
+function TBaseLedgerCard({ accounts, stock, onApply, onEditTrade }: TBaseLedgerCardProps) {
+  const market = stock.market ?? marketFromQuoteId(stock.quoteId)
+  const currency = stock.currency ?? currencyForMarket(market)
+  const [showAllEntries, setShowAllEntries] = useState(false)
+  const [error, setError] = useState('')
+  const entries = useMemo(
+    () =>
+      accounts
+        .flatMap<BaseLedgerItem>((account) => [
+          ...account.tradeRecords.filter(isIndependentBaseTrade).map((trade) => ({
+            kind: 'trade' as const,
+            occurredAt: trade.tradedAt,
+            account,
+            trade
+          })),
+          ...activePortfolioLedgerEntries(account)
+            .filter(isCashLedgerEntry)
+            .reverse()
+            .map((entry) => ({
+              kind: 'cash' as const,
+              occurredAt: entry.occurredAt,
+              account,
+              entry
+            }))
+        ])
+        .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt)),
+    [accounts]
+  )
+  const visibleEntries = showAllEntries ? entries : entries.slice(0, 5)
+  const cashEntries = entries.filter((item) => item.kind === 'cash')
+  const cashNetAmount = cashEntries.reduce((total, item) => total + cashLedgerAmount(item.entry), 0)
+  const formatNativeAmount = (value: number) =>
+    currency === 'CNY' ? formatCurrency(value) : formatMoney(value, currency)
+  const formatNativeProfit = (value: number) =>
+    currency === 'CNY' ? formatProfit(value) : formatMoneyProfit(value, currency)
+
+  const editTrade = (account: TTradingAccount, trade: TTrade) => {
+    if (spansMultipleBatches(trade)) {
+      setError('跨批次成交如需调整，请先删除该成交后重新录入')
+      return
+    }
+    setError('')
+    onEditTrade(account, trade)
+  }
+
+  const deleteTrade = (account: TTradingAccount, trade: TTrade) => {
+    const result = deleteIndependentBaseTrade(account, trade.id, market, currency, account.position)
+    if (result.error) {
+      setError(`删除后账本不完整：${result.error}`)
+      return
+    }
+    onApply(result.account, result.position)
+    setError('')
+  }
+
+  const deleteCashEntry = (account: TTradingAccount, entry: CashLedgerEntry) => {
+    if (entry.source === 'corporateAction' || entry.corporateActionId) {
+      setError('公司行动产生的流水请在公司行动中撤销')
+      return
+    }
+    const nextAccount = {
+      ...account,
+      ledger: {
+        ...account.ledger,
+        entries: account.ledger.entries.filter((item) => item.id !== entry.id)
+      }
+    }
+    const replay = calculatePortfolioLedgerPosition(nextAccount, market, currency)
+    if (replay.error) {
+      setError(`完整账本校验失败：${replay.error}`)
+      return
+    }
+    onApply(nextAccount, replay.position)
+    setError('')
+  }
+
+  if (entries.length === 0) return null
+
+  return (
+    <section className="t-card t-base-ledger-card">
+      <div className="t-card-heading">
+        <span>
+          <strong>底仓流水</strong>
+          <small>底仓交易及分红缴税均不归属 T 批次，现金流水不改变持仓数量和成本</small>
+        </span>
+        <div className="t-batch-summary">
+          {cashEntries.length > 0 ? (
+            <span>
+              <small>现金净收入</small>
+              <strong className={valueClass(cashNetAmount)}>
+                {formatNativeProfit(cashNetAmount)}
+              </strong>
+            </span>
+          ) : null}
+          <em>{entries.length} 笔流水</em>
+        </div>
+      </div>
+      <div className="t-trade-list">
+        {visibleEntries.map((item) => {
+          const { account } = item
+          const accountId = account.accountId ?? defaultAccountId(market)
+          if (item.kind === 'cash') {
+            const { entry } = item
+            const signedAmount = cashLedgerAmount(entry)
+            const isDeletable = entry.source !== 'corporateAction' && !entry.corporateActionId
+            return (
+              <div className="t-trade-row" key={`${accountId}:cash:${entry.id}`}>
+                <span
+                  className={`t-trade-side ${entry.kind === 'cashDividend' ? 'is-buy' : 'is-sell'}`}
+                >
+                  {entry.kind === 'cashDividend' ? '分红' : '缴税'}
+                </span>
+                <span>
+                  <strong>
+                    {entry.kind === 'cashDividend' && entry.eligibleQuantity > 0
+                      ? `${formatShares(entry.eligibleQuantity)} · 每股 ${formatNativeAmount(entry.amountPerShare)}`
+                      : entry.kind === 'cashDividend'
+                        ? '税前分红'
+                        : '预扣税款'}
+                  </strong>
+                  <small>
+                    {account.accountName} · {formatTradeTime(entry.occurredAt)} ·{' '}
+                    {cashLedgerSourceLabel(entry)}
+                  </small>
+                </span>
+                <span className="t-trade-amount">
+                  <strong className={valueClass(signedAmount)}>
+                    {formatNativeProfit(signedAmount)}
+                  </strong>
+                  <small>
+                    {entry.note || (entry.kind === 'cashDividend' ? '现金分红' : '缴税')}
+                  </small>
+                </span>
+                <span className="t-trade-actions">
+                  <button
+                    className="icon-button"
+                    type="button"
+                    disabled={!isDeletable}
+                    onClick={() => deleteCashEntry(account, entry)}
+                    title={isDeletable ? '删除现金流水' : '请在公司行动中撤销'}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </span>
+              </div>
+            )
+          }
+
+          const { trade } = item
+          const fees = totalRecordedTradeFees(trade)
+          return (
+            <div className="t-trade-row" key={`${accountId}:trade:${trade.id}`}>
+              <span className={`t-trade-side is-${trade.side}`}>
+                {trade.side === 'buy' ? '底仓买入' : '底仓卖出'}
+              </span>
+              <span>
+                <strong>
+                  {formatShares(trade.quantity)} × {formatPrice(trade.price)}
+                </strong>
+                <small>
+                  {account.accountName} · {formatTradeTime(trade.tradedAt)} · 费用{' '}
+                  {formatNativeAmount(fees)}
+                  {market !== 'CN' ? ` · ${tradeFeeSourceLabel(trade)}` : ''}
+                </small>
+                {market !== 'CN' ? (
+                  <small>
+                    {trade.actualSettlementDate
+                      ? `实际交收 ${trade.actualSettlementDate}`
+                      : `预计交收 ${trade.estimatedSettlementDate ?? '--'}`}
+                  </small>
+                ) : null}
+                {trade.splitSource ? (
+                  <small>
+                    <TradeSplitSource trade={trade} />
+                  </small>
+                ) : null}
+              </span>
+              <span className="t-trade-amount">
+                <span>{formatNativeAmount(trade.price * trade.quantity)}</span>
+                <small>
+                  {trade.splitSource
+                    ? `混合底仓流水${trade.note ? ` · ${trade.note}` : ''}`
+                    : trade.note || '底仓流水'}
+                </small>
+              </span>
+              <span className="t-trade-actions">
+                <button
+                  className="icon-button"
+                  type="button"
+                  onClick={() => editTrade(account, trade)}
+                  title="修改底仓交易"
+                >
+                  <PencilLine size={14} />
+                </button>
+                <button
+                  className="icon-button"
+                  type="button"
+                  onClick={() => deleteTrade(account, trade)}
+                  title="删除底仓交易"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </span>
+            </div>
+          )
+        })}
+        {entries.length > 5 ? (
+          <button
+            className="t-trade-more-button"
+            type="button"
+            onClick={() => setShowAllEntries((current) => !current)}
+          >
+            {showAllEntries ? '收起底仓流水' : `显示更多底仓流水（其余 ${entries.length - 5} 条）`}
+          </button>
+        ) : null}
+      </div>
+      {error ? <div className="t-form-error">{error}</div> : null}
+    </section>
+  )
+}
+
 export function TTradingDrawer(props: TTradingDrawerProps) {
   const state = useSecuritiesAccountState()
   const market = props.stock.market ?? marketFromQuoteId(props.stock.quoteId)
@@ -298,6 +529,7 @@ export function TTradingDrawer(props: TTradingDrawerProps) {
     () => listStockAccountBooks(props.account).map(makeAccountView),
     [makeAccountView, props.account]
   )
+  const ledgerAccounts = useMemo(() => accountViews.map(({ account }) => account), [accountViews])
   const entryView = useMemo(
     () =>
       accountViews.find(({ account }) => account.accountId === entryAccountId) ??
@@ -426,6 +658,24 @@ export function TTradingDrawer(props: TTradingDrawerProps) {
             tradeToEdit={tradeToEdit}
             onEditComplete={finishEditing}
           />
+          <TBaseLedgerCard
+            accounts={ledgerAccounts}
+            stock={props.stock}
+            onApply={(nextAccount, position) => {
+              if (
+                entryAccountId === nextAccount.accountId &&
+                tradeToEdit &&
+                !nextAccount.tradeRecords.some((trade) => trade.id === tradeToEdit.id)
+              ) {
+                finishEditing()
+              }
+              props.onApply(nextAccount, position)
+            }}
+            onEditTrade={(account, trade) => {
+              setEntryAccountId(account.accountId!)
+              setTradeToEdit(trade)
+            }}
+          />
           {accountViews.map((view) => (
             <TTradingAccountContent
               {...props}
@@ -537,7 +787,6 @@ function TTradingAccountContent({
   const [historyCostDraft, setHistoryCostDraft] = useState('')
   const [historyCostError, setHistoryCostError] = useState('')
   const [showAllActiveTrades, setShowAllActiveTrades] = useState(false)
-  const [showAllBaseLedgerEntries, setShowAllBaseLedgerEntries] = useState(false)
   const [cashEntryKind, setCashEntryKind] = useState<CashEntryKind>('cashDividend')
   const [cashAmount, setCashAmount] = useState('')
   const [cashEligibleQuantity, setCashEligibleQuantity] = useState(
@@ -856,40 +1105,6 @@ function TTradingAccountContent({
   const visibleActiveTrades = showAllActiveTrades
     ? activeTradesDescending
     : activeTradesDescending.slice(0, 5)
-  const independentBaseTradesDescending = useMemo(
-    () =>
-      currentAccount.tradeRecords
-        .filter(isIndependentBaseTrade)
-        .sort((left, right) => right.tradedAt.localeCompare(left.tradedAt)),
-    [currentAccount.tradeRecords]
-  )
-  const cashLedgerEntriesDescending = useMemo(
-    () => activePortfolioLedgerEntries(currentAccount).filter(isCashLedgerEntry).reverse(),
-    [currentAccount]
-  )
-  const baseLedgerEntriesDescending = useMemo(
-    () =>
-      [
-        ...independentBaseTradesDescending.map((trade) => ({
-          kind: 'trade' as const,
-          occurredAt: trade.tradedAt,
-          trade
-        })),
-        ...cashLedgerEntriesDescending.map((entry) => ({
-          kind: 'cash' as const,
-          occurredAt: entry.occurredAt,
-          entry
-        }))
-      ].sort((left, right) => right.occurredAt.localeCompare(left.occurredAt)),
-    [cashLedgerEntriesDescending, independentBaseTradesDescending]
-  )
-  const visibleBaseLedgerEntries = showAllBaseLedgerEntries
-    ? baseLedgerEntriesDescending
-    : baseLedgerEntriesDescending.slice(0, 5)
-  const cashLedgerNetAmount = cashLedgerEntriesDescending.reduce(
-    (total, entry) => total + cashLedgerAmount(entry),
-    0
-  )
 
   const resetTradeForm = useCallback(() => {
     setEntryMode('trade')
@@ -1044,22 +1259,6 @@ function TTradingAccountContent({
 
     if (!applyCashAccount(appendPortfolioLedgerEntries(workingAccount, [entry]))) return
     resetCashForm()
-  }
-
-  const deleteCashEntry = (entry: CashLedgerEntry) => {
-    if (entry.source === 'corporateAction' || entry.corporateActionId) {
-      setCashError('公司行动产生的流水请在公司行动中撤销')
-      return
-    }
-    const nextAccount = {
-      ...currentAccount,
-      ledger: {
-        ...currentAccount.ledger,
-        entries: currentAccount.ledger.entries.filter((item) => item.id !== entry.id)
-      }
-    }
-    if (!applyCashAccount(nextAccount)) return
-    setCashError('')
   }
 
   const createBatch = (
@@ -1967,12 +2166,7 @@ function TTradingAccountContent({
     </label>
   )
 
-  if (
-    view === 'records' &&
-    !currentAccount.activeBatch &&
-    currentAccount.history.length === 0 &&
-    baseLedgerEntriesDescending.length === 0
-  ) {
+  if (view === 'records' && !currentAccount.activeBatch && currentAccount.history.length === 0) {
     return null
   }
 
@@ -2382,166 +2576,9 @@ function TTradingAccountContent({
       {view === 'records' ? (
         <>
           {error ? <div className="t-form-error">{error}</div> : null}
-          {baseLedgerEntriesDescending.length > 0 ? (
-            <section
-              className={`t-card t-base-ledger-card${
-                currentAccount.activeBatch ? '' : ' is-full-width'
-              }`}
-            >
-              <div className="t-card-heading">
-                <span>
-                  <strong>底仓流水</strong>
-                  <small>底仓交易及分红缴税均不归属 T 批次，现金流水不改变持仓数量和成本</small>
-                </span>
-                <div className="t-batch-summary">
-                  {cashLedgerEntriesDescending.length > 0 ? (
-                    <span>
-                      <small>现金净收入</small>
-                      <strong className={valueClass(cashLedgerNetAmount)}>
-                        {formatNativeProfit(cashLedgerNetAmount)}
-                      </strong>
-                    </span>
-                  ) : null}
-                  <em>{baseLedgerEntriesDescending.length} 笔流水</em>
-                </div>
-              </div>
-              <div className="t-trade-list">
-                {visibleBaseLedgerEntries.map((item) => {
-                  if (item.kind === 'cash') {
-                    const { entry } = item
-                    const signedAmount = cashLedgerAmount(entry)
-                    const isDeletable =
-                      entry.source !== 'corporateAction' && !entry.corporateActionId
-                    return (
-                      <div className="t-trade-row" key={entry.id}>
-                        <span
-                          className={`t-trade-side ${
-                            entry.kind === 'cashDividend' ? 'is-buy' : 'is-sell'
-                          }`}
-                        >
-                          {entry.kind === 'cashDividend' ? '分红' : '缴税'}
-                        </span>
-                        <span>
-                          <strong>
-                            {entry.kind === 'cashDividend' && entry.eligibleQuantity > 0
-                              ? `${formatShares(entry.eligibleQuantity)} · 每股 ${formatNativeAmount(
-                                  entry.amountPerShare
-                                )}`
-                              : entry.kind === 'cashDividend'
-                                ? '税前分红'
-                                : '预扣税款'}
-                          </strong>
-                          <small>
-                            {currentAccount.accountName} · {formatTradeTime(entry.occurredAt)} ·{' '}
-                            {cashLedgerSourceLabel(entry)}
-                          </small>
-                        </span>
-                        <span className="t-trade-amount">
-                          <strong className={valueClass(signedAmount)}>
-                            {formatNativeProfit(signedAmount)}
-                          </strong>
-                          <small>
-                            {entry.note || (entry.kind === 'cashDividend' ? '现金分红' : '缴税')}
-                          </small>
-                        </span>
-                        <span className="t-trade-actions">
-                          <button
-                            className="icon-button"
-                            type="button"
-                            disabled={!isDeletable}
-                            onClick={() => deleteCashEntry(entry)}
-                            title={isDeletable ? '删除现金流水' : '请在公司行动中撤销'}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </span>
-                      </div>
-                    )
-                  }
-
-                  const { trade } = item
-                  const fees = totalRecordedTradeFees(trade)
-                  return (
-                    <div className="t-trade-row" key={trade.id}>
-                      <span className={`t-trade-side is-${trade.side}`}>
-                        {trade.side === 'buy' ? '底仓买入' : '底仓卖出'}
-                      </span>
-                      <span>
-                        <strong>
-                          {formatShares(trade.quantity)} × {formatPrice(trade.price)}
-                        </strong>
-                        <small>
-                          {currentAccount.accountName} · {formatTradeTime(trade.tradedAt)} · 费用{' '}
-                          {formatNativeAmount(fees)}
-                          {market !== 'CN' ? ` · ${tradeFeeSourceLabel(trade)}` : ''}
-                        </small>
-                        {market !== 'CN' ? (
-                          <small>
-                            {trade.actualSettlementDate
-                              ? `实际交收 ${trade.actualSettlementDate}`
-                              : `预计交收 ${trade.estimatedSettlementDate ?? '--'}`}
-                          </small>
-                        ) : null}
-                        {trade.splitSource ? (
-                          <small>
-                            <TradeSplitSource trade={trade} />
-                          </small>
-                        ) : null}
-                      </span>
-                      <span className="t-trade-amount">
-                        <span>{formatNativeAmount(trade.price * trade.quantity)}</span>
-                        <small>
-                          {trade.splitSource
-                            ? `混合底仓流水${trade.note ? ` · ${trade.note}` : ''}`
-                            : trade.note || '底仓流水'}
-                        </small>
-                      </span>
-                      <span className="t-trade-actions">
-                        <button
-                          className="icon-button"
-                          type="button"
-                          onClick={() => editTrade(trade)}
-                          title="修改底仓交易"
-                        >
-                          <PencilLine size={14} />
-                        </button>
-                        <button
-                          className="icon-button"
-                          type="button"
-                          onClick={() => deleteTrade(trade.id)}
-                          title="删除底仓交易"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </span>
-                    </div>
-                  )
-                })}
-                {baseLedgerEntriesDescending.length > 5 ? (
-                  <button
-                    className="t-trade-more-button"
-                    type="button"
-                    onClick={() => setShowAllBaseLedgerEntries((current) => !current)}
-                  >
-                    {showAllBaseLedgerEntries
-                      ? '收起底仓流水'
-                      : `显示更多底仓流水（其余 ${baseLedgerEntriesDescending.length - 5} 条）`}
-                  </button>
-                ) : null}
-              </div>
-              {cashError && entryMode !== 'cash' ? (
-                <div className="t-form-error">{cashError}</div>
-              ) : null}
-            </section>
-          ) : null}
-
           {currentAccount.activeBatch ? (
             <>
-              <section
-                className={`t-card t-active-batch-card ${
-                  baseLedgerEntriesDescending.length === 0 ? 'is-full-width' : ''
-                }`}
-              >
+              <section className="t-card t-active-batch-card is-full-width">
                 <div className="t-card-heading">
                   <span>
                     <strong>
