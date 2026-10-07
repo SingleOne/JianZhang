@@ -57,6 +57,39 @@ function legacyState(): AppState {
 }
 
 describe('stock account state', () => {
+  it('keeps all-inclusive commissions independent between accounts and across normalization', () => {
+    const state = normalizeAccountState(legacyState())
+    const netAccount = state.securitiesAccounts!['default:CN']
+    const includedAccount = {
+      ...structuredClone(netAccount),
+      id: 'inclusive:CN',
+      name: '全包账户',
+      feeSettings: {
+        market: 'CN' as const,
+        settings: {
+          ...state.settings.tTradingFees,
+          commissionIncludesFees: true,
+          commissionRatePerTenThousand: 1,
+          minimumCommissionBundle: 1
+        }
+      }
+    }
+    state.securitiesAccounts![includedAccount.id] = includedAccount
+    const normalized = normalizeAccountState(state)
+    expect(
+      accountFeeSettings(normalized.securitiesAccounts![includedAccount.id]).tTradingFees
+        .commissionIncludesFees
+    ).toBe(true)
+    expect(
+      accountFeeSettings(normalized.securitiesAccounts!['default:CN']).tTradingFees
+        .commissionIncludesFees
+    ).toBe(false)
+    expect(normalized.settings.tTradingFees.commissionIncludesFees).toBe(false)
+    expect(
+      normalizeAccountState(normalized).securitiesAccounts![includedAccount.id].feeSettings
+    ).toEqual(includedAccount.feeSettings)
+  })
+
   it('migrates legacy positions and adjustments once and retains the original fee configuration', () => {
     const legacy = legacyState()
     legacy.settings.tTradingFees.minimumCommissionBundle = 7

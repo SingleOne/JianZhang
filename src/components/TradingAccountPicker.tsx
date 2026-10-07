@@ -17,12 +17,17 @@ interface TradingAccountPickerProps {
 function accountFeeRows(account: SecuritiesAccount): [string, string][] {
   const fees = account.feeSettings
   if (fees.market === 'CN') {
+    const included = Boolean(fees.settings.commissionIncludesFees)
     return [
-      ['净佣金', `${fees.settings.commissionRatePerTenThousand}‱`],
-      ['最低佣金组合', formatMoney(fees.settings.minimumCommissionBundle, 'CNY')],
-      ['经手费', `${fees.settings.handlingRatePerTenThousand}‱`],
-      ['证管费', `${fees.settings.regulatoryRatePerTenThousand}‱`],
-      ['过户费', `${fees.settings.transferRatePerTenThousand}‱`],
+      ['佣金口径', included ? '全包（含经手、证管、过户）' : '净佣金另加杂费'],
+      [included ? '全包佣金' : '净佣金', `${fees.settings.commissionRatePerTenThousand}‱`],
+      [
+        included ? '最低全包费用' : '最低佣金组合',
+        formatMoney(fees.settings.minimumCommissionBundle, 'CNY')
+      ],
+      [included ? '经手费（已包含）' : '经手费', `${fees.settings.handlingRatePerTenThousand}‱`],
+      [included ? '证管费（已包含）' : '证管费', `${fees.settings.regulatoryRatePerTenThousand}‱`],
+      [included ? '过户费（已包含）' : '过户费', `${fees.settings.transferRatePerTenThousand}‱`],
       ['卖出印花税', `${fees.settings.stampDutyRatePerTenThousand}‱`]
     ]
   }
@@ -196,7 +201,6 @@ function TradingAccountDialog({
                   </span>
                 </span>
                 <span className="trading-account-picker-fees">
-                  <strong>账户费用设置</strong>
                   <span className="trading-account-picker-fee-grid">
                     {accountFeeRows(owner).map(([label, amount]) => (
                       <span key={label}>

@@ -13,7 +13,7 @@ import type {
   TSellPlanLevel
 } from '../shared/types'
 import { createDefaultTPlanLevels, normalizeActiveTTradingBatch } from '../shared/types'
-import { currentDateKey } from './portfolio'
+import { marketDateKey } from '../shared/market-hours'
 import { getTradeAllocations } from './trade-records'
 
 export interface TBatchMetrics {
@@ -126,6 +126,17 @@ export function calculateTradeFees(
   const regulatory = feeByRate(amount, settings.regulatoryRatePerTenThousand)
   const transfer = Math.max(0.01, feeByRate(amount, settings.transferRatePerTenThousand))
   const baseCommission = feeByRate(amount, settings.commissionRatePerTenThousand)
+  if (settings.commissionIncludesFees) {
+    // 全包金额已含三项杂费；拆出净佣金用于明细，避免再加收一次。
+    const bundle = Math.max(baseCommission, settings.minimumCommissionBundle)
+    return {
+      commission: Math.max(0, roundMoney(bundle - handling - regulatory - transfer)),
+      handling,
+      regulatory,
+      transfer,
+      stampDuty: side === 'sell' ? feeByRate(amount, settings.stampDutyRatePerTenThousand) : 0
+    }
+  }
   const minimumBundleFees =
     marketLabel === '沪A' ? handling + regulatory : handling + regulatory + transfer
   const minimumCommission = Math.max(
@@ -214,7 +225,8 @@ export function calculateTBatchMetrics(
 
 export function validateTBatchTrades(
   batch: TTradingBatch,
-  trades: readonly TTrade[]
+  trades: readonly TTrade[],
+  validatePosition = true
 ): string | undefined {
   const direction = getTBatchDirection(batch)
   const openingSide: TTradeSide = direction === 'forward' ? 'buy' : 'sell'
@@ -224,7 +236,7 @@ export function validateTBatchTrades(
   for (const trade of trades) {
     const allocation = getTradeBatchAllocationAmounts(trade, batch)
     runningPositionQuantity += trade.side === 'buy' ? allocation.quantity : -allocation.quantity
-    if (runningPositionQuantity < 0) {
+    if (validatePosition && runningPositionQuantity < 0) {
       return '卖出数量不能超过批次内可用持仓数量'
     }
     if (allocation.tQuantity <= 0) continue
@@ -365,7 +377,9 @@ function applyTradeAmountToPosition(
   return {
     quantity: nextQuantity,
     cost: nextCostBasis / nextQuantity,
-    openedToday: position?.openedToday ?? trade.tradedAt.slice(0, 10) === currentDateKey(),
+    openedToday:
+      position?.openedToday ??
+      trade.tradedAt.slice(0, 10) === marketDateKey(new Date(), trade.market ?? 'CN'),
     openedOn: position?.openedOn ?? trade.tradedAt.slice(0, 10)
   }
 }

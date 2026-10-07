@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes } from 'react'
 
 type AppButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: 'primary' | 'secondary' | 'danger'
+  variant?: 'primary' | 'secondary' | 'danger' | 'text' | 'icon'
 }
 
 export function AppButton({

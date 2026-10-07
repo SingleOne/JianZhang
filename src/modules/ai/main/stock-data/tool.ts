@@ -1,4 +1,5 @@
 import { listStockAccountBooks } from '../../../../shared/stock-accounts'
+import { getStockTBatches } from '../../../../shared/stock-t-batches'
 import { randomUUID } from 'node:crypto'
 import { calculatePortfolioPerformanceReport } from '../../../../lib/portfolio-performance'
 import {
@@ -473,9 +474,8 @@ export class StockDataToolSession {
           ? 'ready'
           : 'empty'
       case 'tPlan':
-        return listStockAccountBooks(account).some(
-          (child) => child.activeBatch || child.history.length || child.tradeRecords.length
-        )
+        return getStockTBatches(account).length ||
+          listStockAccountBooks(account).some((child) => child.tradeRecords.length)
           ? 'ready'
           : 'empty'
       case 'tracking':
@@ -626,11 +626,14 @@ export class StockDataToolSession {
         }
       case 'trading.tPlan':
         return {
+          activeBatches: getStockTBatches(account).filter((batch) => !batch.settlement),
+          history: page(
+            getStockTBatches(account).filter((batch) => batch.settlement),
+            request
+          ),
           accounts: listStockAccountBooks(account).map((child) => ({
             accountId: child.accountId,
             accountName: child.accountName,
-            activeBatch: child.activeBatch ?? null,
-            history: page(child.history, request),
             tradeRecords: page(child.tradeRecords, request)
           }))
         }

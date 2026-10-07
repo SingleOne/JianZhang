@@ -40,6 +40,7 @@ import type {
   TPlanDefaultSettings,
   TTradingAccount,
   StockTradingBooks,
+  StockTradingBook,
   TTradingFeeSettings,
   TradingCalendarSettings,
   StockMarket,
@@ -142,6 +143,7 @@ interface WatchlistTableProps {
     account: TTradingAccount,
     position: StockPosition | undefined
   ) => void
+  onUpdateStockTradingBook: (book: StockTradingBook) => void
   onApplyCorporateAction: (
     quoteId: string,
     account: TTradingAccount,
@@ -281,6 +283,7 @@ export function WatchlistTable({
   onTogglePriority,
   onEditPosition,
   onUpdateTTrading,
+  onUpdateStockTradingBook,
   onApplyCorporateAction,
   onUpdateCorporateActionRecord,
   onUpdateStockAlerts,
@@ -1515,6 +1518,7 @@ export function WatchlistTable({
           onApply={(account, position) => {
             onUpdateTTrading(tTradingStock.quoteId, account, position)
           }}
+          onApplyBook={onUpdateStockTradingBook}
         />
       ) : null}
 

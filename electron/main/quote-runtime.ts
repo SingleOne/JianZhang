@@ -1,4 +1,4 @@
-import { listStockAccountBooks } from '../../src/shared/stock-accounts'
+import { getActiveStockTBatches } from '../../src/shared/stock-t-batches'
 import {
   applyTAlertTriggersToAccounts,
   type TriggeredTFloatingProfitAlert
@@ -136,9 +136,8 @@ export class QuoteRuntime {
   clearInactiveFiveLevelAlerts(): boolean {
     const activeTQuoteIds = new Set(
       Object.values(this.dependencies.getState().stockTradingBooks)
-        .flatMap(listStockAccountBooks)
-        .filter((account) => Boolean(account.activeBatch))
-        .map((account) => account.quoteId)
+        .filter((book) => getActiveStockTBatches(book).length > 0)
+        .map((book) => book.quoteId)
     )
     let changed = false
     this.latestQuotes = this.latestQuotes.map((quote) => {
@@ -240,9 +239,7 @@ export class QuoteRuntime {
     const tTradingStocks = stocks.filter(
       (stock) =>
         marketCapabilitiesForQuoteId(stock.quoteId).orderBook &&
-        listStockAccountBooks(state.stockTradingBooks[stock.quoteId]).some((account) =>
-          Boolean(account.activeBatch)
-        )
+        getActiveStockTBatches(state.stockTradingBooks[stock.quoteId]).length > 0
     )
     if (tTradingStocks.length === 0) return
     const stock = tTradingStocks[this.fiveLevelRefreshCursor % tTradingStocks.length]

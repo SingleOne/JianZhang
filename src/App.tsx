@@ -3,6 +3,7 @@ import { SecuritiesAccountProvider } from './components/SecuritiesAccountContext
 import { SecuritiesAccountManager } from './components/SecuritiesAccountManager'
 import {
   upsertStockAccount,
+  upsertStockTradingBook,
   normalizeAccountState,
   corporateApplicationKey,
   listStockAccountBooks
@@ -76,6 +77,7 @@ import type {
   StockQuote,
   StockSelectionRequest,
   TTradingAccount,
+  StockTradingBook,
   WatchlistGroup,
   WatchlistColumnId
 } from './shared/types'
@@ -1107,6 +1109,12 @@ export default function App() {
     },
     [persist, state]
   )
+  const updateStockTradingBook = useCallback(
+    (book: StockTradingBook) => {
+      void persist(upsertStockTradingBook(state, book))
+    },
+    [persist, state]
+  )
 
   const applyCorporateAction = useCallback(
     (
@@ -1912,6 +1920,7 @@ export default function App() {
                   onTogglePriority={togglePriority}
                   onEditPosition={updatePosition}
                   onUpdateTTrading={updateTTrading}
+                  onUpdateStockTradingBook={updateStockTradingBook}
                   onApplyCorporateAction={applyCorporateAction}
                   onUpdateCorporateActionRecord={updateCorporateActionRecord}
                   onUpdateStockAlerts={updateStockAlerts}

@@ -486,6 +486,7 @@ async function initializeAiTAdviceModule(
           quote: getLatestQuotes().find((item) => item.quoteId === quoteId),
           position: account.position,
           account,
+          stockBook: state.stockTradingBooks[quoteId],
           feeSettings: state.securitiesAccounts![accountId].feeSettings
         }
       },

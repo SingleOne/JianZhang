@@ -1,3 +1,4 @@
+import { getActiveStockTBatches } from '../shared/stock-t-batches'
 import { accountFeeSettings } from '../shared/stock-accounts'
 import { calculateMarketTradeFeeItems, marketFeeTemplateForTradeDate } from './market-trades'
 import {
@@ -150,23 +151,22 @@ export function stockTOverview(
   latest?: number | null,
   options?: Pick<TPlanFeeOptions, 'market' | 'instrumentType'>
 ) {
-  const summaries = listStockAccountBooks(book)
-    .filter((account) => account.activeBatch)
-    .map((account) => {
-      const batch = account.activeBatch!
-      const trades = getBatchTrades(account, batch)
-      return {
-        account,
-        batch,
-        metrics: calculateTBatchMetrics(batch, trades, latest),
-        badges: getTriggeredTAlertBadges(batch, trades, options).map((badge) => ({
-          ...badge,
-          accountId: account.accountId,
-          accountName: account.accountName
-        })),
-        floatingAlert: getTriggeredTFloatingProfitAlert(batch)
-      }
-    })
+  const summaries = getActiveStockTBatches(book).map((batch) => {
+    const trades = getBatchTrades(book, batch)
+    const first = listStockAccountBooks(book)[0]
+    const account = { ...first, accountId: batch.id, accountName: `批次 #${batch.sequence}` }
+    return {
+      account,
+      batch,
+      metrics: calculateTBatchMetrics(batch, trades, latest),
+      badges: getTriggeredTAlertBadges(batch, trades, options).map((badge) => ({
+        ...badge,
+        accountId: batch.id,
+        accountName: account.accountName
+      })),
+      floatingAlert: getTriggeredTFloatingProfitAlert(batch)
+    }
+  })
   const triggered = summaries.find((summary) => summary.floatingAlert)
   const single = summaries.length === 1 ? summaries[0] : undefined
   const profits = summaries.map((summary) => summary.metrics.floatingProfit)

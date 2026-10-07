@@ -92,7 +92,10 @@ export function activePortfolioLedgerEntries(account: TTradingAccount): Portfoli
     .sort(
       (left, right) =>
         left.occurredAt.localeCompare(right.occurredAt) ||
-        (left.recordedAt ?? left.occurredAt).localeCompare(right.recordedAt ?? right.occurredAt) ||
+        // 旧记录用成交时间充当录入时间；同一分钟内排在新录入记录之前。
+        (left.recordedAt === left.occurredAt ? '' : (left.recordedAt ?? '')).localeCompare(
+          right.recordedAt === right.occurredAt ? '' : (right.recordedAt ?? '')
+        ) ||
         left.id.localeCompare(right.id)
     )
 }

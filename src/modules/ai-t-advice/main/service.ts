@@ -2,6 +2,7 @@ import type { MarketInsightSnapshot } from '../../market-insight/shared/types'
 import type { AiStructuredTaskRequest, AiStructuredTaskResult } from '../../ai/shared/types'
 import { calculateTBatchMetrics } from '../../../lib/t-trading'
 import { getBatchTrades } from '../../../lib/trade-records'
+import { getActiveStockTBatches } from '../../../shared/stock-t-batches'
 import type { ChipDistributionCacheEntry } from '../../../shared/types'
 import { AI_T_ADVICE_PROMPT_VERSION, T_ADVICE_PROMPT } from '../prompts/t-advice'
 import type {
@@ -66,9 +67,23 @@ function buildPromptContext(
   context: AiTAdviceTradingContext,
   chipDistribution: ChipDistributionCacheEntry | null
 ) {
-  const batch = context.account?.activeBatch
-  const batchTrades = getBatchTrades(context.account, batch)
-  const metrics = batch ? calculateTBatchMetrics(batch, batchTrades, context.quote?.latest) : null
+  const book = context.stockBook ?? context.account
+  const activeTBatches = getActiveStockTBatches(book).map((batch) => {
+    const metrics = calculateTBatchMetrics(
+      batch,
+      getBatchTrades(book, batch),
+      context.quote?.latest
+    )
+    return {
+      id: batch.id,
+      direction: batch.direction ?? 'forward',
+      openedAt: batch.openedAt,
+      remainingQuantity: metrics.remainingQuantity,
+      averageCost: metrics.averageCost,
+      realizedProfit: metrics.realizedProfit,
+      floatingProfit: metrics.floatingProfit
+    }
+  })
   const positionQuantity = context.position?.quantity ?? 0
   const sourceStates = snapshot.sourceStates ?? []
   const staleSources = sourceStates
@@ -127,18 +142,8 @@ function buildPromptContext(
           openedToday: context.position.openedToday
         }
       : null,
-    activeTBatch:
-      batch && metrics
-        ? {
-            id: batch.id,
-            direction: batch.direction ?? 'forward',
-            openedAt: batch.openedAt,
-            remainingQuantity: metrics.remainingQuantity,
-            averageCost: metrics.averageCost,
-            realizedProfit: metrics.realizedProfit,
-            floatingProfit: metrics.floatingProfit
-          }
-        : null,
+    activeTBatch: activeTBatches[0] ?? null,
+    activeTBatches,
     maxTradableQuantity: Math.floor(positionQuantity / 100) * 100
   }
 }

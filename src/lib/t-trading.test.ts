@@ -72,6 +72,50 @@ describe('trade fees', () => {
     expect(fees.commission).toBe(4.95)
     expect(totalTradeFees(fees)).toBe(5.01)
   })
+
+  it('matches the Chuan Cai all-inclusive fee for 1300 shares at 6.89', () => {
+    const settings = {
+      ...DEFAULT_T_TRADING_FEE_SETTINGS,
+      commissionIncludesFees: true,
+      commissionRatePerTenThousand: 1,
+      minimumCommissionBundle: 1
+    }
+    const fees = calculateTradeFees(6.89 * 1300, 'buy', settings, '深A')
+    expect(fees).toEqual({
+      commission: 0.42,
+      handling: 0.31,
+      regulatory: 0.18,
+      transfer: 0.09,
+      stampDuty: 0
+    })
+    expect(totalTradeFees(fees)).toBe(1)
+    expect(
+      totalTradeFees(
+        calculateTradeFees(
+          6.89 * 1300,
+          'buy',
+          {
+            ...settings,
+            commissionIncludesFees: false
+          },
+          '深A'
+        )
+      )
+    ).toBe(1.48)
+  })
+
+  it('includes transfer fees in the all-inclusive bundle on both exchanges and adds sell stamp duty separately', () => {
+    const settings = {
+      ...DEFAULT_T_TRADING_FEE_SETTINGS,
+      commissionIncludesFees: true,
+      commissionRatePerTenThousand: 1,
+      minimumCommissionBundle: 1
+    }
+    for (const market of ['沪A', '深A']) {
+      expect(totalTradeFees(calculateTradeFees(20_000, 'buy', settings, market))).toBe(2)
+      expect(totalTradeFees(calculateTradeFees(20_000, 'sell', settings, market))).toBe(12)
+    }
+  })
 })
 
 describe('T batch metrics', () => {

@@ -87,6 +87,87 @@
   min-width: 0;
 }
 
+.t-manual-fee-inputs {
+  margin-top: 8px;
+}
+
+.t-trade-input-row {
+  grid-template-columns: minmax(0, 1fr) 180px;
+}
+
+.t-trade-entry .t-trade-input-grid,
+.t-trade-entry .t-manual-fee-inputs {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.t-trade-entry .t-trade-total-field input {
+  font-weight: 650;
+}
+
+.t-trade-extra-fields {
+  margin-top: 8px;
+}
+
+.t-trade-settlement-hint {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.t-trade-inline-editor {
+  min-width: 0;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.t-trade-inline-editor .t-trade-entry {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.t-trade-entry.is-inline .t-entry-top-row,
+.t-trade-entry.is-inline .t-segmented {
+  flex-wrap: wrap;
+}
+
+.t-trade-entry.is-inline .t-entry-input-row {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.t-trade-entry.is-inline .t-entry-actions {
+  justify-content: flex-end;
+}
+
+.t-trade-entry.is-inline .t-segmented button {
+  flex: 0 0 auto;
+}
+
+.t-trading-ledger-history {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 8px;
+}
+
+.t-trading-ledger-history > .t-card {
+  min-width: 0;
+  grid-column: auto;
+}
+
+.t-trading-ledger-history .t-trade-row {
+  grid-template-columns: 72px minmax(0, 1fr) minmax(80px, 0.65fr) 62px;
+}
+
+.t-trading-ledger-history .t-trade-row > span:nth-child(2) small {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .t-trade-entry .t-entry-actions {
   min-height: 34px;
   align-items: center;

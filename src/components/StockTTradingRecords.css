@@ -1,0 +1,121 @@
+.t-stock-records-error {
+  grid-column: 1 / -1;
+}
+
+.t-floating-profit-alert-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.t-active-batch-card .t-card-heading {
+  align-items: center;
+}
+.t-settlement-note-input {
+  min-width: 0;
+  flex: 1;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface, #fff);
+  color: inherit;
+  font-size: 12px;
+}
+.t-cost-calibration-dialog form {
+  padding: 16px;
+  overflow-y: auto;
+  font-size: 12px;
+}
+.t-cost-calibration-accounts {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.t-cost-calibration-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.5fr) repeat(3, minmax(90px, 1fr));
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.t-cost-calibration-row:last-child {
+  border-bottom: 0;
+}
+.t-cost-calibration-row.is-heading {
+  font-weight: 650;
+  color: var(--text-secondary, #748094);
+}
+.t-cost-calibration-row input {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: inherit;
+  background: var(--surface, #fff);
+  font-size: 12px;
+}
+.t-cost-calibration-preview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+.t-cost-calibration-preview > span {
+  display: grid;
+  gap: 6px;
+}
+.t-cost-calibration-preview small,
+.t-cost-calibration-history small {
+  font-size: 12px;
+}
+.t-cost-calibration-preview strong.is-up,
+.t-cost-calibration-history strong.is-up,
+.t-floating-profit-rate.is-up {
+  color: var(--red);
+}
+.t-cost-calibration-preview strong.is-down,
+.t-cost-calibration-history strong.is-down,
+.t-floating-profit-rate.is-down {
+  color: var(--green);
+}
+.t-cost-calibration-preview strong.is-flat,
+.t-cost-calibration-history strong.is-flat {
+  color: var(--text-secondary, #748094);
+}
+.t-history-settlement strong.is-up {
+  color: var(--red);
+}
+.t-history-settlement strong.is-down {
+  color: var(--green);
+}
+.t-history-settlement strong.is-flat,
+.t-batch-cny-summary strong.is-flat,
+.t-floating-profit-rate.is-flat {
+  color: var(--muted);
+}
+.t-cost-calibration-history > div {
+  display: grid;
+  gap: 6px;
+}
+.t-cost-calibration-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+}
+@media (max-width: 640px) {
+  .t-cost-calibration-accounts {
+    overflow-x: auto;
+  }
+  .t-cost-calibration-row {
+    min-width: 500px;
+  }
+  .t-cost-calibration-preview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

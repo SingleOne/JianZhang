@@ -8,6 +8,8 @@ import { formatMoney, formatShares, formatCost } from '../lib/format'
 import { totalRecordedTradeFees } from '../lib/t-trading'
 import { activePortfolioLedgerEntries } from '../lib/portfolio-ledger'
 import type { WatchStock } from '../shared/types'
+import { getActiveStockTBatches } from '../shared/stock-t-batches'
+import { getBatchTrades } from '../lib/trade-records'
 
 export function AccountLedgerOverview({
   stock,
@@ -23,6 +25,8 @@ export function AccountLedgerOverview({
   const [error, setError] = useState('')
   const [recalculateFees, setRecalculateFees] = useState(false)
   const books = listStockAccountBooks(state.stockTradingBooks[stock.quoteId])
+  const parent = state.stockTradingBooks[stock.quoteId]
+  const activeBatches = getActiveStockTBatches(parent)
   const entries = books
     .flatMap((book) => activePortfolioLedgerEntries(book).map((entry) => ({ book, entry })))
     .sort((a, b) => b.entry.occurredAt.localeCompare(a.entry.occurredAt))
@@ -46,7 +50,16 @@ export function AccountLedgerOverview({
                 <td>{book.accountName}</td>
                 <td>{formatShares(book.position?.quantity ?? 0)}</td>
                 <td>{formatCost(book.position?.cost)}</td>
-                <td>{book.activeBatch ? `批次 #${book.activeBatch.sequence}` : '—'}</td>
+                <td>
+                  {activeBatches
+                    .filter((batch) =>
+                      getBatchTrades(parent, batch).some(
+                        (trade) => trade.accountId === book.accountId
+                      )
+                    )
+                    .map((batch) => `批次 #${batch.sequence}`)
+                    .join('、') || '—'}
+                </td>
                 <td>
                   <button
                     type="button"
@@ -64,7 +77,7 @@ export function AccountLedgerOverview({
               <th>股票合计（只读）</th>
               <td>{formatShares(stock.position?.quantity ?? 0)}</td>
               <td>{formatCost(stock.position?.cost)}</td>
-              <td colSpan={2}>{books.filter((book) => book.activeBatch).length} 个账户正在做 T</td>
+              <td colSpan={2}>{activeBatches.length} 个 T 批次进行中</td>
             </tr>
           </tfoot>
         </table>

@@ -1,29 +1,17 @@
 import type { AccountFeeSettings } from '../shared/types'
-import { CheckCircle2, PencilLine, Plus, RefreshCcw, Repeat2, Trash2, X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { PencilLine, Plus, Repeat2, Trash2, X } from 'lucide-react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
   formatCost,
   formatCurrency,
   formatMoney,
   formatMoneyProfit,
-  formatPercent,
   formatPrice,
   formatProfit,
   formatShares
 } from '../lib/format'
-import {
-  applyTAlertTriggers,
-  getTPlanRows,
-  handleTPlanAlert,
-  handleTriggeredTPlanAlertsForTrade,
-  restoreTPlanAlert,
-  setTAlertEnabled,
-  setTFloatingProfitAlertEnabled,
-  setTFloatingProfitAlertThreshold,
-  updateTPlanLevel,
-  type TAlertSide
-} from '../lib/t-alerts'
+import { handleTriggeredTPlanAlertsForTrade } from '../lib/t-alerts'
 import {
   calculateMarketTradeFeeItems,
   estimateSettlementDate,
@@ -33,27 +21,24 @@ import {
   totalTradeFeeItems
 } from '../lib/market-trades'
 import {
-  calculateCostAdjustedProfit,
   calculateTBatchMetrics,
   calculateTradeFees,
   createTPlanLevelsFromDefaults,
   getTBatchDirection,
   rebalanceTBatchPlans,
-  resetTBatchPlans,
   roundMoney,
   getTradeBatchAllocationAmounts,
   totalRecordedTradeFees,
   totalTradeFees,
-  validateTBatchSettlementPosition,
   validateTBatchTrades
 } from '../lib/t-trading'
-import { calculateTBatchCnyMetrics, type TBatchCnyMetrics } from '../lib/t-batch-currency'
 import {
   detachTradeRecordsFromBatch,
   getTradeAllocations,
   getBatchTrades,
   hasTAllocationForBatch,
   isIndependentBaseTrade,
+  sortTBatchTrades,
   toTradeRecord,
   tradeReferencesBatch,
   upsertTradeRecord
@@ -63,7 +48,7 @@ import {
   calculatePortfolioLedgerPosition
 } from '../lib/portfolio-ledger'
 import { deleteIndependentBaseTrade, upsertIndependentBaseTrade } from '../lib/base-trades'
-import { appendPositionAdjustment, createInitialPositionAccount } from '../lib/position-ledger'
+import { createInitialPositionAccount } from '../lib/position-ledger'
 import { splitTradeForOverflow } from '../lib/split-trade'
 import { TradeSplitSource } from './TradeSplitSource'
 import { TradingAccountPicker } from './TradingAccountPicker'
@@ -77,8 +62,16 @@ import {
 } from '../shared/stock-accounts'
 import { calculatePositionMetrics } from '../lib/portfolio'
 import { calculateCurrentPositionProfitOverride } from '../lib/portfolio-performance'
-import { TPlanTable } from './TPlanTable'
-import { TFloatingProfitAlertBadge } from './TFloatingProfitAlertBadge'
+import { StockTTradingRecords } from './StockTTradingRecords'
+import {
+  batchCalibrationProfit,
+  getActiveStockTBatches,
+  getStockTBatches
+} from '../shared/stock-t-batches'
+import { mergeStockTAccount, stockBatchAccounts, toStockTradingBook } from '../lib/stock-t-trading'
+import { AppSelect } from './AppSelect'
+import { AppButton } from './AppButton'
+import { AppInput } from './AppFormControls'
 import type {
   CashDividendLedgerEntry,
   ExchangeRateSettings,
@@ -103,7 +96,6 @@ import { appendPortfolioLedgerEntries, withLedgerTradeRecords } from '../shared/
 import { exchangeRateForCurrency } from '../shared/exchange-rates'
 import { marketDateTimeInput } from '../shared/market-hours'
 import { currencyForMarket, marketFromQuoteId } from '../shared/stock-market'
-import { useConfirmDialog } from './ConfirmDialog'
 
 export interface TTradingDrawerProps {
   initialAccountId?: string
@@ -119,22 +111,23 @@ export interface TTradingDrawerProps {
   exchangeRates: ExchangeRateSettings
   floatingProfitAlertDefaultThreshold: number
   onApply: (account: TTradingAccount, position: StockPosition | undefined) => void
+  onApplyBook: (book: StockTradingBook) => void
   onClose: () => void
 }
 
-interface TTradingAccountContentProps extends Omit<TTradingDrawerProps, 'account'> {
+interface TTradeEntryProps extends Omit<TTradingDrawerProps, 'account'> {
   account: TTradingAccount
   accountDisabled: boolean
   accountFeeSnapshot?: AccountFeeSettings
-  view: 'entry' | 'records'
+  stockBook: StockTradingBook
   entryAccountSelect?: ReactNode
+  entryBatchSelect?: ReactNode
   clearEntry?: boolean
   tradeToEdit?: TTrade
-  onEditTrade?: (trade: TTrade) => void
   onEditComplete?: () => void
+  inline?: boolean
 }
 
-const HISTORY_PAGE_SIZE = 10
 type OverflowDisposition = 'base' | 'opposite-t'
 type EntryMode = 'trade' | 'cash'
 type CashEntryKind = 'cashDividend' | 'withholdingTax'
@@ -163,14 +156,6 @@ function valueClass(value: number | null | undefined): string {
   return value > 0 ? 'is-up' : 'is-down'
 }
 
-function tBatchCnyIssue(metrics: TBatchCnyMetrics): string | null {
-  const issues: string[] = []
-  if (metrics.missingHistoricalRate) issues.push('部分成交缺少历史汇率')
-  if (metrics.missingCurrentRate) issues.push('缺少当前汇率')
-  if (metrics.missingQuote) issues.push('缺少当前行情')
-  return issues.length > 0 ? issues.join('；') : null
-}
-
 function formatOverviewValue(
   value: number | null | undefined,
   formatter: (value: number) => string
@@ -184,31 +169,6 @@ function formatTradeTime(value: string): string {
 
 function batchDirectionLabel(batch: TTradingBatch | undefined): string {
   return getTBatchDirection(batch) === 'reverse' ? '反T' : '正T'
-}
-
-function tradeLabel(trade: TTrade, batch: TTradingBatch | undefined): string {
-  const allocation = batch ? getTradeBatchAllocationAmounts(trade, batch) : null
-  if (allocation && allocation.tQuantity > 0 && allocation.baseQuantity > 0) {
-    return trade.side === 'buy' ? 'T仓 / 底仓买入' : 'T仓 / 底仓卖出'
-  }
-  if (allocation ? allocation.tQuantity <= 0 : trade.purpose === 'base') {
-    return trade.side === 'buy' ? '底仓买入' : '底仓卖出'
-  }
-  if (getTBatchDirection(batch) === 'reverse') {
-    return trade.side === 'sell' ? '反T卖出' : '回补买入'
-  }
-  return trade.side === 'buy' ? 'T仓买入' : 'T仓卖出'
-}
-
-function allocationSummary(trade: TTrade, batch: TTradingBatch): string | null {
-  const allocation = getTradeBatchAllocationAmounts(trade, batch)
-  if (allocation.tQuantity > 0 && allocation.baseQuantity > 0) {
-    return `T仓 ${formatShares(allocation.tQuantity)} / 底仓 ${formatShares(allocation.baseQuantity)}`
-  }
-  if (trade.allocations && trade.allocations.length > 1 && allocation.quantity < trade.quantity) {
-    return `本批次 ${formatShares(allocation.quantity)} / 整笔 ${formatShares(trade.quantity)}`
-  }
-  return null
 }
 
 function spansMultipleBatches(trade: TTrade): boolean {
@@ -243,14 +203,16 @@ type BaseLedgerItem = {
 
 interface TBaseLedgerCardProps extends Pick<TTradingDrawerProps, 'stock' | 'onApply'> {
   accounts: readonly TTradingAccount[]
-  onEditTrade: (account: TTradingAccount, trade: TTrade) => void
+  renderTradeEditor: (trade: TTrade, onComplete: () => void) => ReactNode
 }
 
-function TBaseLedgerCard({ accounts, stock, onApply, onEditTrade }: TBaseLedgerCardProps) {
+function TBaseLedgerCard({ accounts, stock, onApply, renderTradeEditor }: TBaseLedgerCardProps) {
   const market = stock.market ?? marketFromQuoteId(stock.quoteId)
   const currency = stock.currency ?? currencyForMarket(market)
   const [showAllEntries, setShowAllEntries] = useState(false)
   const [error, setError] = useState('')
+  const [editingKey, setEditingKey] = useState<string | null>(null)
+  const finishEditing = useCallback(() => setEditingKey(null), [])
   const entries = useMemo(
     () =>
       accounts
@@ -288,7 +250,7 @@ function TBaseLedgerCard({ accounts, stock, onApply, onEditTrade }: TBaseLedgerC
       return
     }
     setError('')
-    onEditTrade(account, trade)
+    setEditingKey(`${account.accountId}:${trade.id}`)
   }
 
   const deleteTrade = (account: TTradingAccount, trade: TTrade) => {
@@ -396,60 +358,67 @@ function TBaseLedgerCard({ accounts, stock, onApply, onEditTrade }: TBaseLedgerC
 
           const { trade } = item
           const fees = totalRecordedTradeFees(trade)
+          const isEditing = editingKey === `${accountId}:${trade.id}`
           return (
-            <div className="t-trade-row" key={`${accountId}:trade:${trade.id}`}>
-              <span className={`t-trade-side is-${trade.side}`}>
-                {trade.side === 'buy' ? '底仓买入' : '底仓卖出'}
-              </span>
-              <span>
-                <strong>
-                  {formatShares(trade.quantity)} × {formatPrice(trade.price)}
-                </strong>
-                <small>
-                  {account.accountName} · {formatTradeTime(trade.tradedAt)} · 费用{' '}
-                  {formatNativeAmount(fees)}
-                  {market !== 'CN' ? ` · ${tradeFeeSourceLabel(trade)}` : ''}
-                </small>
-                {market !== 'CN' ? (
+            <Fragment key={`${accountId}:trade:${trade.id}`}>
+              <div className="t-trade-row">
+                <span className={`t-trade-side is-${trade.side}`}>
+                  {trade.side === 'buy' ? '底仓买入' : '底仓卖出'}
+                </span>
+                <span>
+                  <strong>
+                    {formatShares(trade.quantity)} × {formatPrice(trade.price)}
+                  </strong>
                   <small>
-                    {trade.actualSettlementDate
-                      ? `实际交收 ${trade.actualSettlementDate}`
-                      : `预计交收 ${trade.estimatedSettlementDate ?? '--'}`}
+                    {account.accountName} · {formatTradeTime(trade.tradedAt)} · 费用{' '}
+                    {formatNativeAmount(fees)}
+                    {market !== 'CN' ? ` · ${tradeFeeSourceLabel(trade)}` : ''}
                   </small>
-                ) : null}
-                {trade.splitSource ? (
+                  {market !== 'CN' ? (
+                    <small>
+                      {trade.actualSettlementDate
+                        ? `实际交收 ${trade.actualSettlementDate}`
+                        : `预计交收 ${trade.estimatedSettlementDate ?? '--'}`}
+                    </small>
+                  ) : null}
+                  {trade.splitSource ? (
+                    <small>
+                      <TradeSplitSource trade={trade} />
+                    </small>
+                  ) : null}
+                </span>
+                <span className="t-trade-amount">
+                  <span>{formatNativeAmount(trade.price * trade.quantity)}</span>
                   <small>
-                    <TradeSplitSource trade={trade} />
+                    {trade.splitSource
+                      ? `混合底仓流水${trade.note ? ` · ${trade.note}` : ''}`
+                      : trade.note || '底仓流水'}
                   </small>
-                ) : null}
-              </span>
-              <span className="t-trade-amount">
-                <span>{formatNativeAmount(trade.price * trade.quantity)}</span>
-                <small>
-                  {trade.splitSource
-                    ? `混合底仓流水${trade.note ? ` · ${trade.note}` : ''}`
-                    : trade.note || '底仓流水'}
-                </small>
-              </span>
-              <span className="t-trade-actions">
-                <button
-                  className="icon-button"
-                  type="button"
-                  onClick={() => editTrade(account, trade)}
-                  title="修改底仓交易"
-                >
-                  <PencilLine size={14} />
-                </button>
-                <button
-                  className="icon-button"
-                  type="button"
-                  onClick={() => deleteTrade(account, trade)}
-                  title="删除底仓交易"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </span>
-            </div>
+                </span>
+                <span className="t-trade-actions">
+                  <AppButton
+                    variant="icon"
+                    onClick={() => (isEditing ? finishEditing() : editTrade(account, trade))}
+                    title={isEditing ? '取消编辑底仓交易' : '修改底仓交易'}
+                  >
+                    {isEditing ? <X size={14} /> : <PencilLine size={14} />}
+                  </AppButton>
+                  <button
+                    className="icon-button"
+                    type="button"
+                    onClick={() => deleteTrade(account, trade)}
+                    title="删除底仓交易"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </span>
+              </div>
+              {isEditing ? (
+                <div className="t-trade-inline-editor">
+                  {renderTradeEditor(trade, finishEditing)}
+                </div>
+              ) : null}
+            </Fragment>
           )
         })}
         {entries.length > 5 ? (
@@ -480,6 +449,22 @@ export function TTradingDrawer(props: TTradingDrawerProps) {
   )
   const [tradeToEdit, setTradeToEdit] = useState<TTrade | undefined>(undefined)
   const [clearEntry, setClearEntry] = useState(false)
+  const stockBook = useMemo(
+    () => toStockTradingBook(props.account, props.stock.quoteId),
+    [props.account, props.stock.quoteId]
+  )
+  const batches = useMemo(() => getStockTBatches(stockBook), [stockBook])
+  const activeBatches = useMemo(() => getActiveStockTBatches(stockBook), [stockBook])
+  const [selectedBatchId, setSelectedBatchId] = useState(() => activeBatches[0]?.id ?? '')
+  const editingBatch = tradeToEdit
+    ? batches.find((batch) =>
+        getBatchTrades(stockBook, batch).some(
+          (trade) => trade.id === tradeToEdit.id && trade.accountId === tradeToEdit.accountId
+        )
+      )
+    : undefined
+  const entryBatch =
+    editingBatch ?? activeBatches.find((batch) => batch.id === selectedBatchId) ?? activeBatches[0]
   const entryAccountButtonRef = useRef<HTMLButtonElement>(null)
   const makeAccountView = useCallback(
     (book: TTradingAccount) => {
@@ -551,25 +536,59 @@ export function TTradingDrawer(props: TTradingDrawerProps) {
     let reverseQuantity = 0
     let historyProfit = 0
     let historyFees = 0
-    for (const { account } of accountViews) {
+    for (const batch of batches) {
       const metrics = calculateTBatchMetrics(
-        account.activeBatch,
-        getBatchTrades(account, account.activeBatch),
+        batch,
+        getBatchTrades(stockBook, batch),
         props.quote?.latest
       )
-      if (metrics.direction === 'reverse') reverseQuantity += metrics.remainingQuantity
-      else forwardQuantity += metrics.remainingQuantity
-      for (const batch of account.history) {
+      if (!batch.settlement) {
+        if (metrics.direction === 'reverse') reverseQuantity += metrics.remainingQuantity
+        else forwardQuantity += metrics.remainingQuantity
+      } else {
         historyProfit += batch.settlement?.finalProfit ?? 0
-        historyFees += getBatchTrades(account, batch).reduce(
+        historyFees += getBatchTrades(stockBook, batch).reduce(
           (total, trade) => total + getTradeBatchAllocationAmounts(trade, batch).fees,
           0
         )
       }
     }
     return { forwardQuantity, reverseQuantity, historyProfit, historyFees }
-  }, [accountViews, props.quote?.latest])
+  }, [batches, stockBook, props.quote?.latest])
   const finishEditing = useCallback(() => setTradeToEdit(undefined), [])
+  const applyBook = (book: StockTradingBook) => {
+    if (
+      tradeToEdit &&
+      !book.accounts[tradeToEdit.accountId!]?.tradeRecords.some(
+        (trade) => trade.id === tradeToEdit.id
+      )
+    )
+      finishEditing()
+    props.onApplyBook(book)
+  }
+  const renderTradeEditor = (trade: TTrade, onComplete: () => void) => {
+    const view = makeAccountView(stockBook.accounts[trade.accountId!])
+    const batch =
+      batches.find((item) => tradeReferencesBatch(trade, item.id)) ??
+      activeBatches.find((item) => item.id === selectedBatchId) ??
+      activeBatches[0]
+    return (
+      <TTradeEntry
+        {...props}
+        {...view}
+        account={{
+          ...view.account,
+          activeBatch: batch,
+          history: batches.filter((item) => item.settlement && item.id !== batch?.id)
+        }}
+        stockBook={stockBook}
+        tradeToEdit={trade}
+        onEditComplete={onComplete}
+        onApplyBook={applyBook}
+        inline
+      />
+    )
+  }
   const formatNativeAmount = (value: number) =>
     currency === 'CNY' ? formatCurrency(value) : formatMoney(value, currency)
   const formatNativeProfit = (value: number) =>
@@ -636,11 +655,17 @@ export function TTradingDrawer(props: TTradingDrawerProps) {
               <strong>{formatOverviewValue(overview.historyFees, formatNativeAmount)}</strong>
             </span>
           </section>
-          <TTradingAccountContent
+          <TTradeEntry
             {...props}
             {...entryView}
+            account={{
+              ...entryView.account,
+              activeBatch: entryBatch,
+              history: batches.filter((batch) => batch.settlement && batch.id !== entryBatch?.id)
+            }}
+            stockBook={stockBook}
+            onApplyBook={applyBook}
             key={entryAccountId}
-            view="entry"
             entryAccountSelect={
               <TradingAccountPicker
                 value={entryAccountId}
@@ -654,52 +679,62 @@ export function TTradingDrawer(props: TTradingDrawerProps) {
                 }}
               />
             }
+            entryBatchSelect={
+              activeBatches.length > 1 ? (
+                <AppSelect
+                  label="录入交易所属 T 批次"
+                  value={entryBatch?.id ?? ''}
+                  disabled={Boolean(tradeToEdit)}
+                  options={activeBatches.map((batch) => ({
+                    value: batch.id,
+                    label: `${batchDirectionLabel(batch)}批次 #${batch.sequence} · ${stockBatchAccounts(
+                      stockBook,
+                      batch
+                    )
+                      .map((account) => account.accountName)
+                      .join('、')}`,
+                    description: `开始于 ${formatTradeTime(batch.openedAt)}`
+                  }))}
+                  onChange={setSelectedBatchId}
+                />
+              ) : null
+            }
             clearEntry={clearEntry}
             tradeToEdit={tradeToEdit}
             onEditComplete={finishEditing}
           />
-          <TBaseLedgerCard
-            accounts={ledgerAccounts}
+          <StockTTradingRecords
+            baseLedger={
+              <TBaseLedgerCard
+                accounts={ledgerAccounts}
+                stock={props.stock}
+                onApply={(nextAccount, position) => {
+                  if (
+                    entryAccountId === nextAccount.accountId &&
+                    tradeToEdit &&
+                    !nextAccount.tradeRecords.some((trade) => trade.id === tradeToEdit.id)
+                  ) {
+                    finishEditing()
+                  }
+                  props.onApply(nextAccount, position)
+                }}
+                renderTradeEditor={renderTradeEditor}
+              />
+            }
+            book={stockBook}
             stock={props.stock}
-            onApply={(nextAccount, position) => {
-              if (
-                entryAccountId === nextAccount.accountId &&
-                tradeToEdit &&
-                !nextAccount.tradeRecords.some((trade) => trade.id === tradeToEdit.id)
-              ) {
-                finishEditing()
-              }
-              props.onApply(nextAccount, position)
-            }}
-            onEditTrade={(account, trade) => {
-              setEntryAccountId(account.accountId!)
+            quote={props.quote}
+            feeSettings={entryView.feeSettings}
+            marketTradeFees={entryView.marketTradeFees}
+            planDefaults={props.planDefaults}
+            exchangeRates={props.exchangeRates}
+            onApply={applyBook}
+            renderTradeEditor={renderTradeEditor}
+            onEditTrade={(trade) => {
+              setEntryAccountId(trade.accountId!)
               setTradeToEdit(trade)
             }}
           />
-          {accountViews.map((view) => (
-            <TTradingAccountContent
-              {...props}
-              {...view}
-              key={view.account.accountId}
-              view="records"
-              onApply={(nextAccount, position) => {
-                if (
-                  entryAccountId === view.account.accountId &&
-                  tradeToEdit &&
-                  (!nextAccount.tradeRecords.some((trade) => trade.id === tradeToEdit.id) ||
-                    (tradeToEdit.purpose === 't' &&
-                      nextAccount.activeBatch?.id !== view.account.activeBatch?.id))
-                ) {
-                  finishEditing()
-                }
-                props.onApply(nextAccount, position)
-              }}
-              onEditTrade={(trade) => {
-                setEntryAccountId(view.account.accountId!)
-                setTradeToEdit(trade)
-              }}
-            />
-          ))}
         </div>
       </aside>
     </div>,
@@ -707,29 +742,27 @@ export function TTradingDrawer(props: TTradingDrawerProps) {
   )
 }
 
-function TTradingAccountContent({
-  view,
+function TTradeEntry({
   entryAccountSelect,
+  entryBatchSelect,
   clearEntry = false,
   tradeToEdit,
-  onEditTrade,
   onEditComplete,
+  inline = false,
   accountFeeSnapshot,
   stock,
   quote,
   account,
-  holdingCost,
-  holdingCostBasis,
+  stockBook,
   feeSettings,
   marketTradeFees,
   planDefaults,
   tradingCalendar,
   exchangeRates,
   floatingProfitAlertDefaultThreshold,
-  onApply,
+  onApplyBook,
   accountDisabled = false
-}: TTradingAccountContentProps) {
-  const confirm = useConfirmDialog()
+}: TTradeEntryProps) {
   const market = stock.market ?? marketFromQuoteId(stock.quoteId)
   const currency = stock.currency ?? currencyForMarket(market)
   const effectiveExchangeRate = exchangeRateForCurrency(exchangeRates, currency)
@@ -763,6 +796,13 @@ function TTradingAccountContent({
   const [note, setNote] = useState('')
   const [manualFees, setManualFees] = useState(false)
   const [feeModeEdited, setFeeModeEdited] = useState(false)
+  const [editingFees, setEditingFees] = useState(false)
+  const feeEditSnapshotRef = useRef<{
+    manualFees: boolean
+    feeModeEdited: boolean
+    feeOverrides: TTradeFees
+    actualFees: string
+  } | null>(null)
   const [feeOverrides, setFeeOverrides] = useState<TTradeFees>(emptyFees)
   const [actualFees, setActualFees] = useState('')
   const [tradeExchangeRate, setTradeExchangeRate] = useState(
@@ -773,20 +813,6 @@ function TTradingAccountContent({
   const [editingTradeId, setEditingTradeId] = useState<string | null>(null)
   const loadedTradeRef = useRef<TTrade | undefined>(undefined)
   const [error, setError] = useState('')
-  const [planError, setPlanError] = useState('')
-  const [settlementBatchId, setSettlementBatchId] = useState('')
-  const [latestPositionQuantity, setLatestPositionQuantity] = useState(
-    stock.position?.quantity.toString() ?? '0'
-  )
-  const [latestPositionCost, setLatestPositionCost] = useState(holdingCost?.toString() ?? '')
-  const [settlementNote, setSettlementNote] = useState('')
-  const [editingHistoryBatchId, setEditingHistoryBatchId] = useState<string | null>(null)
-  const [historyProfitDraft, setHistoryProfitDraft] = useState('')
-  const [historyProfitError, setHistoryProfitError] = useState('')
-  const [editingHistoryCostBatchId, setEditingHistoryCostBatchId] = useState<string | null>(null)
-  const [historyCostDraft, setHistoryCostDraft] = useState('')
-  const [historyCostError, setHistoryCostError] = useState('')
-  const [showAllActiveTrades, setShowAllActiveTrades] = useState(false)
   const [cashEntryKind, setCashEntryKind] = useState<CashEntryKind>('cashDividend')
   const [cashAmount, setCashAmount] = useState('')
   const [cashEligibleQuantity, setCashEligibleQuantity] = useState(
@@ -799,37 +825,24 @@ function TTradingAccountContent({
   const [cashExchangeRateEdited, setCashExchangeRateEdited] = useState(false)
   const [cashNote, setCashNote] = useState('')
   const [cashError, setCashError] = useState('')
-  const [historyPage, setHistoryPage] = useState(0)
 
   const activeTrades = useMemo(
-    () => getBatchTrades(currentAccount, currentAccount.activeBatch),
-    [currentAccount]
+    () => getBatchTrades(stockBook, currentAccount.activeBatch),
+    [stockBook, currentAccount.activeBatch]
   )
   const activeMetrics = useMemo(
     () => calculateTBatchMetrics(currentAccount.activeBatch, activeTrades, quote?.latest),
     [activeTrades, currentAccount.activeBatch, quote?.latest]
   )
-  const activeCnyMetrics = useMemo(
-    () =>
-      market !== 'CN' && currentAccount.activeBatch
-        ? calculateTBatchCnyMetrics(
-            currentAccount.activeBatch,
-            activeTrades,
-            market,
-            quote?.latest,
-            effectiveExchangeRate
-          )
-        : null,
-    [activeTrades, currentAccount.activeBatch, effectiveExchangeRate, market, quote?.latest]
-  )
-  const activeCnyIssue = activeCnyMetrics ? tBatchCnyIssue(activeCnyMetrics) : null
   const entryMetrics = useMemo(
     () =>
       currentAccount.activeBatch
         ? calculateTBatchMetrics(
             currentAccount.activeBatch,
             activeTrades.filter(
-              (trade) => trade.id !== editingTradeId && trade.tradedAt <= tradedAt
+              (trade) =>
+                !(trade.id === editingTradeId && trade.accountId === currentAccount.accountId) &&
+                trade.tradedAt <= tradedAt
             ),
             quote?.latest
           )
@@ -838,30 +851,13 @@ function TTradingAccountContent({
       activeMetrics,
       activeTrades,
       currentAccount.activeBatch,
+      currentAccount.accountId,
       editingTradeId,
       quote?.latest,
       tradedAt
     ]
   )
   const isReverseBatch = activeMetrics.direction === 'reverse'
-  const closingPlanQuantity = (
-    isReverseBatch
-      ? (currentAccount.activeBatch?.buyLevels ?? [])
-      : (currentAccount.activeBatch?.sellLevels ?? [])
-  ).reduce((sum, level) => sum + level.quantity, 0)
-  const closingPlanOverAllocated =
-    market !== 'CN' && closingPlanQuantity > activeMetrics.remainingQuantity
-  const hasOddLotPlan =
-    market === 'HK' &&
-    Boolean(
-      currentAccount.boardLotSize &&
-      [
-        ...(currentAccount.activeBatch?.buyLevels ?? []),
-        ...(currentAccount.activeBatch?.sellLevels ?? [])
-      ].some(
-        (level) => level.quantity > 0 && level.quantity % (currentAccount.boardLotSize ?? 1) !== 0
-      )
-    )
   const tPurposeLabel = currentAccount.activeBatch
     ? isReverseBatch
       ? side === 'sell'
@@ -884,20 +880,6 @@ function TTradingAccountContent({
             ? '反T批次：卖出建立待回补数量，买入用于回补反T'
             : '正T批次：买入建立T仓，卖出用于清空T仓'
           : '计入T仓的首笔买入开启正T，首笔卖出开启反T'
-  const currentBatchFees = activeTrades.reduce(
-    (total, trade) =>
-      total +
-      (currentAccount.activeBatch
-        ? getTradeBatchAllocationAmounts(trade, currentAccount.activeBatch).fees
-        : 0),
-    0
-  )
-  const historyPageCount = Math.ceil(currentAccount.history.length / HISTORY_PAGE_SIZE)
-  const currentHistoryPage = Math.min(historyPage, Math.max(0, historyPageCount - 1))
-  const visibleHistoryBatches = currentAccount.history.slice(
-    currentHistoryPage * HISTORY_PAGE_SIZE,
-    (currentHistoryPage + 1) * HISTORY_PAGE_SIZE
-  )
   const numericPrice = Number(price)
   const numericQuantity = Number(quantity)
   const editingTrade = editingTradeId
@@ -1007,105 +989,24 @@ function TTradingAccountContent({
         : totalTradeFeeItems(tradeFeeItems)
   const formatNativeAmount = (value: number | null | undefined) =>
     currency === 'CNY' ? formatCurrency(value) : formatMoney(value, currency)
-  const formatNativeProfit = (value: number | null | undefined) =>
-    currency === 'CNY' ? formatProfit(value) : formatMoneyProfit(value, currency)
-  const readyToSettle = Boolean(
-    currentAccount.activeBatch &&
-    activeTrades.some((trade) => hasTAllocationForBatch(trade, currentAccount.activeBatch!.id)) &&
-    activeMetrics.remainingQuantity === 0
-  )
-  const settlementPreviewProfit =
-    currentAccount.activeBatch &&
-    holdingCostBasis !== null &&
-    holdingCostBasis !== undefined &&
-    latestPositionCost.trim() !== ''
-      ? calculateCostAdjustedProfit(
-          activeMetrics.realizedProfit,
-          holdingCostBasis,
-          Math.max(0, Number(latestPositionQuantity) || 0),
-          Number(latestPositionCost) || 0
-        )
-      : null
-
-  useEffect(() => {
-    const batchId = currentAccount.activeBatch?.id
-    if (!readyToSettle || !batchId || settlementBatchId === batchId) return
-    setSettlementBatchId(batchId)
-    setLatestPositionQuantity(stock.position?.quantity.toString() ?? '0')
-    setLatestPositionCost(holdingCost?.toString() ?? '')
-  }, [
-    currentAccount.activeBatch?.id,
-    holdingCost,
-    readyToSettle,
-    settlementBatchId,
-    stock.position?.quantity
-  ])
-
-  const buyLevelRows = useMemo(
-    () =>
-      getTPlanRows(
-        currentAccount.activeBatch,
-        activeTrades,
-        'buy',
-        feeSettings,
-        stock.marketLabel,
-        {
-          market,
-          marketTradeFees,
-          stampDutyExempt: stock.instrumentType === 'etf',
-          instrumentType: stock.instrumentType
-        }
-      ),
-    [
-      activeTrades,
-      currentAccount.activeBatch,
-      feeSettings,
-      market,
-      marketTradeFees,
-      stock.instrumentType,
-      stock.marketLabel
-    ]
-  )
-  const sellLevelRows = useMemo(
-    () =>
-      getTPlanRows(
-        currentAccount.activeBatch,
-        activeTrades,
-        'sell',
-        feeSettings,
-        stock.marketLabel,
-        {
-          market,
-          marketTradeFees,
-          stampDutyExempt: stock.instrumentType === 'etf',
-          instrumentType: stock.instrumentType
-        }
-      ),
-    [
-      activeTrades,
-      currentAccount.activeBatch,
-      feeSettings,
-      market,
-      marketTradeFees,
-      stock.instrumentType,
-      stock.marketLabel
-    ]
-  )
-  const activeTradesDescending = useMemo(
-    () =>
-      activeTrades
-        .map((trade, index) => ({ trade, index }))
-        .sort(
-          (left, right) =>
-            right.trade.tradedAt.localeCompare(left.trade.tradedAt) || right.index - left.index
-        )
-        .map(({ trade }) => trade),
-    [activeTrades]
-  )
-  const visibleActiveTrades = showAllActiveTrades
-    ? activeTradesDescending
-    : activeTradesDescending.slice(0, 5)
-
+  const toggleFeeEditing = () => {
+    if (editingFees) {
+      const snapshot = feeEditSnapshotRef.current!
+      setManualFees(snapshot.manualFees)
+      setFeeModeEdited(snapshot.feeModeEdited)
+      setFeeOverrides(snapshot.feeOverrides)
+      setActualFees(snapshot.actualFees)
+      feeEditSnapshotRef.current = null
+      setEditingFees(false)
+      return
+    }
+    feeEditSnapshotRef.current = { manualFees, feeModeEdited, feeOverrides, actualFees }
+    if (market === 'CN') setFeeOverrides(tradeFees)
+    else setActualFees(tradeFeeTotal.toString())
+    setManualFees(true)
+    setFeeModeEdited(true)
+    setEditingFees(true)
+  }
   const resetTradeForm = useCallback(() => {
     setEntryMode('trade')
     setSide('buy')
@@ -1117,6 +1018,8 @@ function TTradingAccountContent({
     setNote('')
     setManualFees(false)
     setFeeModeEdited(false)
+    setEditingFees(false)
+    feeEditSnapshotRef.current = null
     setFeeOverrides(emptyFees())
     setActualFees('')
     setTradeExchangeRate(currency === 'CNY' ? '1' : (effectiveExchangeRate?.toString() ?? ''))
@@ -1128,8 +1031,28 @@ function TTradingAccountContent({
     onEditComplete?.()
   }, [currency, effectiveExchangeRate, market, onEditComplete, quote?.latest])
 
-  const applyAccount = (nextAccount: TTradingAccount, nextPosition: StockPosition | undefined) => {
-    onApply(nextAccount, nextPosition)
+  const applyAccount = (
+    nextAccount: TTradingAccount,
+    nextPosition: StockPosition | undefined,
+    cash = false
+  ) => {
+    try {
+      onApplyBook(
+        mergeStockTAccount(
+          stockBook,
+          nextAccount,
+          nextPosition,
+          currentAccount.activeBatch?.id,
+          planDefaults
+        )
+      )
+      return true
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : String(reason)
+      if (cash) setCashError(message)
+      else setError(message)
+      return false
+    }
   }
 
   const applyTradeAccount = (nextAccount: TTradingAccount): boolean => {
@@ -1138,8 +1061,7 @@ function TTradingAccountContent({
       setError(`完整账本校验失败：${replay.error}`)
       return false
     }
-    applyAccount(nextAccount, replay.position)
-    return true
+    return applyAccount(nextAccount, replay.position)
   }
 
   const applyCashAccount = (nextAccount: TTradingAccount): boolean => {
@@ -1148,8 +1070,7 @@ function TTradingAccountContent({
       setCashError(`完整账本校验失败：${replay.error}`)
       return false
     }
-    applyAccount(nextAccount, replay.position)
-    return true
+    return applyAccount(nextAccount, replay.position, true)
   }
 
   const resetCashForm = () => {
@@ -1266,12 +1187,13 @@ function TTradingAccountContent({
     openedAt: string,
     openingPosition: StockPosition | undefined
   ): TTradingBatch => ({
+    legacyCalibrationProfit: 0,
     id: crypto.randomUUID(),
     sequence:
       Math.max(
         0,
         currentAccount.activeBatch?.sequence ?? 0,
-        ...currentAccount.history.map((item) => item.sequence)
+        ...getStockTBatches(stockBook).map((item) => item.sequence)
       ) + 1,
     openedAt,
     direction,
@@ -1332,6 +1254,7 @@ function TTradingAccountContent({
       side,
       purpose,
       tradedAt,
+      recordedAt: editingTrade?.recordedAt ?? new Date().toISOString(),
       price: numericPrice,
       quantity: numericQuantity,
       accountId: currentAccount.accountId,
@@ -1412,8 +1335,14 @@ function TTradingAccountContent({
       let nextAccount = result.account
       const editedBatch = currentAccount.activeBatch
       if (editingTrade && editedBatch && tradeReferencesBatch(editingTrade, editedBatch.id)) {
-        const remainingBatchTrades = getBatchTrades(nextAccount, editedBatch)
-        const validationError = validateTBatchTrades(editedBatch, remainingBatchTrades)
+        const remainingBatchTrades = getBatchTrades(
+          {
+            ...stockBook,
+            accounts: { ...stockBook.accounts, [nextAccount.accountId!]: nextAccount }
+          },
+          editedBatch
+        )
+        const validationError = validateTBatchTrades(editedBatch, remainingBatchTrades, false)
         if (validationError) {
           setError(validationError)
           return
@@ -1427,7 +1356,7 @@ function TTradingAccountContent({
             : undefined
         }
       }
-      applyAccount(nextAccount, result.position)
+      if (!applyAccount(nextAccount, result.position)) return
       resetTradeForm()
       return
     }
@@ -1436,7 +1365,9 @@ function TTradingAccountContent({
     let batchTrades: TTrade[]
     if (currentAccount.activeBatch) {
       batch = currentAccount.activeBatch
-      batchTrades = activeTrades.filter((item) => item.id !== editingTradeId)
+      batchTrades = activeTrades.filter(
+        (item) => !(item.id === editingTradeId && item.accountId === currentAccount.accountId)
+      )
     } else {
       batch = createBatch(side === 'buy' ? 'forward' : 'reverse', tradedAt, stock.position)
       batchTrades = []
@@ -1478,10 +1409,8 @@ function TTradingAccountContent({
         entryMetrics.remainingQuantity,
         nextBatchDraft
       )
-      const closingTrades = [...batchTrades, trade].sort((left, right) =>
-        left.tradedAt.localeCompare(right.tradedAt)
-      )
-      const closingValidationError = validateTBatchTrades(batch, closingTrades)
+      const closingTrades = sortTBatchTrades([...batchTrades, trade], batch.direction)
+      const closingValidationError = validateTBatchTrades(batch, closingTrades, false)
       if (closingValidationError) {
         setError(closingValidationError)
         return
@@ -1516,13 +1445,36 @@ function TTradingAccountContent({
         return
       }
       const transitionPosition = transitionReplay.position
+      const transitionAccounts = stockBatchAccounts(
+        {
+          ...stockBook,
+          accounts: {
+            ...stockBook.accounts,
+            [closingAccount.accountId!]: { ...closingAccount, position: transitionPosition }
+          }
+        },
+        closingBatch
+      )
+      const transitionQuantity = transitionAccounts.reduce(
+        (sum, account) => sum + (account.position?.quantity ?? 0),
+        0
+      )
+      const transitionCostBasis = transitionAccounts.reduce(
+        (sum, account) => sum + (account.position?.quantity ?? 0) * (account.position?.cost ?? 0),
+        0
+      )
+      const calibrationProfit = batchCalibrationProfit(closingBatch)
+      const calibrated = Boolean(closingBatch.costCalibrations?.length || calibrationProfit)
+      const finalProfit = roundMoney(closingMetrics.realizedProfit + calibrationProfit)
       const settlement = {
         settledAt: new Date().toISOString(),
-        latestPositionQuantity: transitionPosition?.quantity ?? 0,
-        latestPositionCost: transitionPosition?.cost,
+        latestPositionQuantity: transitionQuantity,
+        latestPositionCost:
+          transitionQuantity > 0 ? transitionCostBasis / transitionQuantity : undefined,
         ledgerProfit: closingMetrics.realizedProfit,
-        finalProfit: closingMetrics.realizedProfit,
-        source: 'ledger' as const,
+        finalProfit,
+        costAdjustedProfit: calibrated ? finalProfit : undefined,
+        source: calibrated ? ('position-cost' as const) : ('ledger' as const),
         note: `超出部分自动开启${nextDirection === 'reverse' ? '反T' : '正T'}批次 #${nextBatchDraft.sequence}`
       }
       const settledBatch = { ...closingBatch, settlement }
@@ -1531,7 +1483,7 @@ function TTradingAccountContent({
         openingPosition: positionSnapshot(transitionPosition)
       }
       const nextBatchTrades = [nextBatchTrade]
-      const nextValidationError = validateTBatchTrades(nextBatchBase, nextBatchTrades)
+      const nextValidationError = validateTBatchTrades(nextBatchBase, nextBatchTrades, false)
       if (nextValidationError) {
         setError(nextValidationError)
         return
@@ -1546,7 +1498,6 @@ function TTradingAccountContent({
         upsertTradeRecord(closingAccount.tradeRecords, nextBatchTrade)
       )
       if (!applyTradeAccount(nextAccount)) return
-      setHistoryPage(0)
       resetTradeForm()
       return
     }
@@ -1560,10 +1511,8 @@ function TTradingAccountContent({
           undefined
         ]
 
-    const nextTrades = [...batchTrades, trade].sort((left, right) =>
-      left.tradedAt.localeCompare(right.tradedAt)
-    )
-    const validationError = validateTBatchTrades(batch, nextTrades)
+    const nextTrades = sortTBatchTrades([...batchTrades, trade], batch.direction)
+    const validationError = validateTBatchTrades(batch, nextTrades, false)
     if (validationError) {
       setError(validationError)
       return
@@ -1603,7 +1552,9 @@ function TTradingAccountContent({
       setEntryMode('trade')
       setEditingTradeId(trade.id)
       setSide(trade.side)
-      setPurpose(trade.purpose)
+      setPurpose(
+        getTradeAllocations(trade).some((allocation) => allocation.purpose === 't') ? 't' : 'base'
+      )
       setPrice(trade.price.toString())
       setQuantity(trade.quantity.toString())
       setTradedAt(trade.tradedAt)
@@ -1611,6 +1562,8 @@ function TTradingAccountContent({
       setNote(trade.note)
       setManualFees(market === 'CN' || !trade.feeTemplate)
       setFeeModeEdited(false)
+      setEditingFees(false)
+      feeEditSnapshotRef.current = null
       setFeeOverrides(trade.fees)
       setActualFees(market === 'CN' ? '' : totalRecordedTradeFees(trade).toString())
       setTradeExchangeRate(currency === 'CNY' ? '1' : (trade.exchangeRate?.toString() ?? ''))
@@ -1628,530 +1581,10 @@ function TTradingAccountContent({
     else resetTradeForm()
   }, [loadTrade, resetTradeForm, tradeToEdit])
 
-  const editTrade = (trade: TTrade) => {
-    if (spansMultipleBatches(trade)) {
-      setError('跨批次成交如需调整，请先删除该成交后重新录入')
-      return
-    }
-    onEditTrade?.(trade)
-  }
-
-  const deleteTrade = (tradeId: string) => {
-    const record = currentAccount.tradeRecords.find((item) => item.id === tradeId)
-    if (record && isIndependentBaseTrade(record)) {
-      const result = deleteIndependentBaseTrade(
-        currentAccount,
-        tradeId,
-        market,
-        currency,
-        stock.position
-      )
-      if (result.error) {
-        setError(`删除后账本不完整：${result.error}`)
-        return
-      }
-      applyAccount(result.account, result.position)
-      if (editingTradeId === tradeId) resetTradeForm()
-      return
-    }
-
-    const batch = currentAccount.activeBatch
-    if (!batch) return
-    if (record && spansMultipleBatches(record)) {
-      const otherActiveTrades = activeTrades.filter((trade) => trade.id !== tradeId)
-      if (otherActiveTrades.length > 0) {
-        setError('该跨批次成交之后已有新批次流水，不能直接删除')
-        return
-      }
-      const previousBatchId = getTradeAllocations(record)
-        .map((allocation) => allocation.batchId)
-        .find((batchId) => batchId && batchId !== batch.id)
-      const previousBatch = currentAccount.history.find((item) => item.id === previousBatchId)
-      if (!previousBatch) {
-        setError('找不到跨批次成交对应的上一批次')
-        return
-      }
-      const nextRecords = currentAccount.tradeRecords.filter((item) => item.id !== tradeId)
-      const previousTrades = nextRecords
-        .filter((item) => tradeReferencesBatch(item, previousBatch.id))
-        .sort((left, right) => left.tradedAt.localeCompare(right.tradedAt))
-      const validationError = validateTBatchTrades(previousBatch, previousTrades)
-      if (validationError) {
-        setError(validationError)
-        return
-      }
-      const { settlement: _settlement, ...unsettledBatch } = previousBatch
-      const restoredBatch = rebalanceTBatchPlans(
-        unsettledBatch,
-        previousTrades,
-        planDefaults,
-        market
-      )
-      if (
-        !applyTradeAccount(
-          withLedgerTradeRecords(
-            {
-              ...currentAccount,
-              activeBatch: restoredBatch,
-              history: currentAccount.history.filter((item) => item.id !== previousBatch.id)
-            },
-            nextRecords
-          )
-        )
-      )
-        return
-      resetTradeForm()
-      return
-    }
-    const nextTrades = activeTrades.filter((trade) => trade.id !== tradeId)
-    const validationError = validateTBatchTrades(batch, nextTrades)
-    if (validationError) {
-      setError(validationError)
-      return
-    }
-    const plannedBatch = rebalanceTBatchPlans(batch, nextTrades, planDefaults, market)
-    const hasTTrades = nextTrades.some((trade) => hasTAllocationForBatch(trade, plannedBatch.id))
-    const nextRecords = currentAccount.tradeRecords.filter((record) => record.id !== tradeId)
-    if (
-      !applyTradeAccount(
-        withLedgerTradeRecords(
-          {
-            ...currentAccount,
-            activeBatch: hasTTrades ? plannedBatch : undefined
-          },
-          hasTTrades ? nextRecords : detachTradeRecordsFromBatch(nextRecords, plannedBatch.id)
-        )
-      )
-    )
-      return
-    if (editingTradeId === tradeId) resetTradeForm()
-  }
-
-  const updatePlanLevel = (
-    side: TAlertSide,
-    index: number,
-    key: 'targetPercent' | 'quantity',
-    value: number
-  ) => {
-    const batch = currentAccount.activeBatch
-    if (!batch) return
-    if (market !== 'CN' && key === 'quantity') {
-      if (!Number.isInteger(value) || value < 0) {
-        setPlanError('计划数量须为非负整数股')
-        return
-      }
-      const closingSide = isReverseBatch ? 'buy' : 'sell'
-      if (side === closingSide) {
-        const levels = side === 'buy' ? (batch.buyLevels ?? []) : batch.sellLevels
-        const currentPlannedQuantity = levels.reduce((sum, level) => sum + level.quantity, 0)
-        const plannedQuantity = levels.reduce(
-          (sum, level, levelIndex) => sum + (levelIndex === index ? value : level.quantity),
-          0
-        )
-        if (
-          plannedQuantity > activeMetrics.remainingQuantity &&
-          plannedQuantity >= currentPlannedQuantity
-        ) {
-          setPlanError(
-            `平仓侧计划合计不能超过当前 T 仓 ${formatShares(activeMetrics.remainingQuantity)} 股`
-          )
-          return
-        }
-      }
-    }
-    setPlanError('')
-    const nextBatch = updateTPlanLevel(batch, side, index, key, value)
-    applyAccount(
-      {
-        ...currentAccount,
-        activeBatch: nextBatch.alertEnabled
-          ? applyTAlertTriggers(nextBatch, activeTrades, quote?.latest, {
-              market,
-              instrumentType: stock.instrumentType
-            }).batch
-          : nextBatch
-      },
-      stock.position
-    )
-  }
-
-  const resetPlanLevels = () => {
-    const batch = currentAccount.activeBatch
-    if (!batch) return
-    const nextBatch = resetTBatchPlans(batch, activeTrades, planDefaults, market)
-    setPlanError('')
-    applyAccount(
-      {
-        ...currentAccount,
-        activeBatch: nextBatch.alertEnabled
-          ? applyTAlertTriggers(nextBatch, activeTrades, quote?.latest, {
-              market,
-              instrumentType: stock.instrumentType
-            }).batch
-          : nextBatch
-      },
-      stock.position
-    )
-  }
-
-  const updateBoardLotSize = (rawValue: string) => {
-    const boardLotSize = rawValue === '' ? undefined : Number(rawValue)
-    if (boardLotSize !== undefined && (!Number.isInteger(boardLotSize) || boardLotSize <= 0)) {
-      setPlanError('每手股数须为正整数')
-      return
-    }
-    setPlanError('')
-    applyAccount({ ...currentAccount, boardLotSize }, stock.position)
-  }
-
-  const togglePriceAlerts = () => {
-    const batch = currentAccount.activeBatch
-    if (!batch) return
-    const nextBatch = setTAlertEnabled(batch, !batch.alertEnabled)
-    applyAccount(
-      {
-        ...currentAccount,
-        activeBatch: nextBatch.alertEnabled
-          ? applyTAlertTriggers(nextBatch, activeTrades, quote?.latest, {
-              market,
-              instrumentType: stock.instrumentType
-            }).batch
-          : nextBatch
-      },
-      stock.position
-    )
-  }
-
-  const toggleFloatingProfitAlerts = () => {
-    const batch = currentAccount.activeBatch
-    if (!batch) return
-    const normalizedBatch = batch.floatingProfitAlert
-      ? batch
-      : {
-          ...batch,
-          floatingProfitAlert: {
-            enabled: false,
-            threshold: floatingProfitAlertDefaultThreshold,
-            status: 'armed' as const
-          }
-        }
-    const floatingAlert = normalizedBatch.floatingProfitAlert
-    if (!floatingAlert) return
-    const nextBatch = setTFloatingProfitAlertEnabled(normalizedBatch, !floatingAlert.enabled)
-    applyAccount({ ...currentAccount, activeBatch: nextBatch }, stock.position)
-  }
-
-  const updateFloatingProfitAlertThreshold = (value: number) => {
-    const batch = currentAccount.activeBatch
-    if (!batch) return
-    const normalizedBatch = batch.floatingProfitAlert
-      ? batch
-      : {
-          ...batch,
-          floatingProfitAlert: {
-            enabled: false,
-            threshold: floatingProfitAlertDefaultThreshold,
-            status: 'armed' as const
-          }
-        }
-    applyAccount(
-      {
-        ...currentAccount,
-        activeBatch: setTFloatingProfitAlertThreshold(normalizedBatch, value)
-      },
-      stock.position
-    )
-  }
-
-  const handlePlanAlert = (side: TAlertSide, index?: number) => {
-    const batch = currentAccount.activeBatch
-    if (!batch) return
-    applyAccount(
-      {
-        ...currentAccount,
-        activeBatch: handleTPlanAlert(batch, side, index)
-      },
-      stock.position
-    )
-  }
-
-  const restorePlanAlert = (side: TAlertSide, index: number) => {
-    const batch = currentAccount.activeBatch
-    if (!batch) return
-    const nextBatch = restoreTPlanAlert(batch, side, index)
-    applyAccount(
-      {
-        ...currentAccount,
-        activeBatch: nextBatch.alertEnabled
-          ? applyTAlertTriggers(nextBatch, activeTrades, quote?.latest, {
-              market,
-              instrumentType: stock.instrumentType
-            }).batch
-          : nextBatch
-      },
-      stock.position
-    )
-  }
-
-  const settleBatch = () => {
-    const batch = currentAccount.activeBatch
-    if (!batch || activeMetrics.remainingQuantity !== 0) return
-
-    const finalQuantity = Math.max(0, Number(latestPositionQuantity) || 0)
-    const finalQuantityError =
-      finalQuantity > 0 ? marketTradeQuantityError(market, finalQuantity) : undefined
-    if (finalQuantityError) {
-      setError(finalQuantityError)
-      return
-    }
-    const hasLatestCost = latestPositionCost.trim() !== ''
-    const finalCost = hasLatestCost ? Number(latestPositionCost) : undefined
-    const settlementPositionError = validateTBatchSettlementPosition(finalQuantity, finalCost)
-    if (settlementPositionError) {
-      setError(settlementPositionError)
-      return
-    }
-
-    const costAdjustedProfit =
-      finalCost === undefined || holdingCostBasis === null || holdingCostBasis === undefined
-        ? undefined
-        : calculateCostAdjustedProfit(
-            activeMetrics.realizedProfit,
-            holdingCostBasis,
-            finalQuantity,
-            finalCost
-          )
-    const settlement = {
-      settledAt: new Date().toISOString(),
-      latestPositionQuantity: finalQuantity,
-      latestPositionCost: finalCost,
-      ledgerProfit: activeMetrics.realizedProfit,
-      costAdjustedProfit,
-      finalProfit: costAdjustedProfit ?? activeMetrics.realizedProfit,
-      source: costAdjustedProfit === undefined ? ('ledger' as const) : ('position-cost' as const),
-      note: settlementNote.trim()
-    }
-    let settledBatch: TTradingBatch = { ...batch, settlement }
-    const nextPosition =
-      finalQuantity > 0 && (finalCost ?? stock.position?.cost) !== undefined
-        ? {
-            quantity: finalQuantity,
-            cost: (finalCost ?? stock.position?.cost)!,
-            openedToday: false,
-            openedOn: stock.position?.openedOn ?? batch.openingPosition?.openedOn,
-            currency,
-            costExchangeRate: stock.position?.costExchangeRate,
-            costExchangeRateDate: stock.position?.costExchangeRateDate
-          }
-        : undefined
-
-    let settledAccount: TTradingAccount = {
-      ...currentAccount,
-      activeBatch: undefined,
-      history: [settledBatch, ...currentAccount.history]
-    }
-    {
-      const before = calculatePortfolioLedgerPosition(settledAccount, market, currency)
-      if (before.error) {
-        setError(`完整账本校验失败：${before.error}`)
-        return
-      }
-      if (finalQuantity > 0 || (before.position?.quantity ?? 0) !== finalQuantity) {
-        const calibratedPosition: StockPosition | undefined =
-          finalQuantity > 0 && nextPosition
-            ? {
-                ...nextPosition,
-                openedOn: before.position?.openedOn ?? nextPosition?.openedOn,
-                costExchangeRate:
-                  before.position?.costExchangeRate ?? nextPosition?.costExchangeRate,
-                costExchangeRateDate:
-                  before.position?.costExchangeRateDate ?? nextPosition?.costExchangeRateDate
-              }
-            : undefined
-        const positionAdjustmentId = `position-adjustment:${crypto.randomUUID()}`
-        settledAccount = appendPositionAdjustment(
-          settledAccount,
-          before.position,
-          calibratedPosition,
-          `${marketDateTimeInput(market)}:59`,
-          settlement.settledAt,
-          false,
-          `T批次 #${batch.sequence} 结算成本校准`,
-          positionAdjustmentId
-        )
-        settledBatch = {
-          ...settledBatch,
-          settlement: { ...settlement, positionAdjustmentId }
-        }
-        settledAccount = {
-          ...settledAccount,
-          history: [settledBatch, ...currentAccount.history]
-        }
-      }
-      const after = calculatePortfolioLedgerPosition(settledAccount, market, currency)
-      if (after.error) {
-        setError(`完整账本校验失败：${after.error}`)
-        return
-      }
-      applyAccount(settledAccount, after.position)
-    }
-    setHistoryPage(0)
-    setSettlementNote('')
-    setSettlementBatchId('')
-    resetTradeForm()
-  }
-
-  const startEditingHistoryProfit = (batch: TTradingBatch) => {
-    if (!batch.settlement) return
-    setEditingHistoryCostBatchId(null)
-    setEditingHistoryBatchId(batch.id)
-    setHistoryProfitDraft(
-      (batch.settlement.costAdjustedProfit ?? batch.settlement.finalProfit).toString()
-    )
-    setHistoryProfitError('')
-  }
-
-  const cancelEditingHistoryProfit = () => {
-    setEditingHistoryBatchId(null)
-    setHistoryProfitDraft('')
-    setHistoryProfitError('')
-  }
-
-  const saveHistoryProfit = (batchId: string) => {
-    if (historyProfitDraft.trim() === '') {
-      setHistoryProfitError('请输入成本校准收益')
-      return
-    }
-    const profit = Number(historyProfitDraft)
-    if (!Number.isFinite(profit)) {
-      setHistoryProfitError('请输入有效的收益金额')
-      return
-    }
-    const roundedProfit = roundMoney(profit)
-    const history = currentAccount.history.map((batch) => {
-      if (batch.id !== batchId || !batch.settlement) return batch
-      return {
-        ...batch,
-        settlement: {
-          ...batch.settlement,
-          costAdjustedProfit: roundedProfit,
-          finalProfit: roundedProfit,
-          source: 'position-cost' as const
-        }
-      }
-    })
-    applyAccount({ ...currentAccount, history }, stock.position)
-    cancelEditingHistoryProfit()
-  }
-
-  const startEditingHistoryCost = (batch: TTradingBatch) => {
-    if (batch.settlement?.latestPositionCost === undefined) return
-    cancelEditingHistoryProfit()
-    setEditingHistoryCostBatchId(batch.id)
-    setHistoryCostDraft(batch.settlement.latestPositionCost.toString())
-    setHistoryCostError('')
-  }
-
-  const cancelEditingHistoryCost = () => {
-    setEditingHistoryCostBatchId(null)
-    setHistoryCostDraft('')
-    setHistoryCostError('')
-  }
-
-  const saveHistoryCost = (batch: TTradingBatch) => {
-    const settlement = batch.settlement
-    const adjustment = currentAccount.ledger.entries.find(
-      (entry) => entry.id === settlement?.positionAdjustmentId
-    )
-    if (
-      !settlement ||
-      settlement.latestPositionCost === undefined ||
-      adjustment?.kind !== 'positionAdjustment'
-    ) {
-      setHistoryCostError('未找到对应的结算成本账本记录')
-      return
-    }
-    const cost = Number(historyCostDraft)
-    if (historyCostDraft.trim() === '' || !Number.isFinite(cost) || cost < 0) {
-      setHistoryCostError('请输入有效的券商最终持仓成本')
-      return
-    }
-    const costAdjustedProfit =
-      settlement.costAdjustedProfit === undefined
-        ? undefined
-        : roundMoney(
-            settlement.costAdjustedProfit +
-              (settlement.latestPositionCost - cost) * settlement.latestPositionQuantity
-          )
-    const history = currentAccount.history.map((item) =>
-      item.id === batch.id
-        ? {
-            ...item,
-            settlement: {
-              ...settlement,
-              latestPositionCost: cost,
-              costAdjustedProfit,
-              finalProfit: costAdjustedProfit ?? settlement.finalProfit
-            }
-          }
-        : item
-    )
-    const nextAccount = appendPortfolioLedgerEntries({ ...currentAccount, history }, [
-      { ...adjustment, costAfter: cost }
-    ])
-    const replay = calculatePortfolioLedgerPosition(nextAccount, market, currency)
-    if (replay.error) {
-      setHistoryCostError(`完整账本校验失败：${replay.error}`)
-      return
-    }
-    applyAccount(nextAccount, replay.position)
-    cancelEditingHistoryCost()
-  }
-
-  const deleteHistoryBatch = async (batch: TTradingBatch) => {
-    if (
-      currentAccount.tradeRecords.some(
-        (record) => tradeReferencesBatch(record, batch.id) && spansMultipleBatches(record)
-      )
-    ) {
-      setError('该历史批次与另一T批次由同一笔成交连接，不能单独删除')
-      return
-    }
-    const confirmed = await confirm({
-      title: '删除做T历史批次',
-      message: `确定删除做T历史批次 #${batch.sequence} 吗？删除后无法恢复。`,
-      confirmLabel: '删除批次',
-      tone: 'danger'
-    })
-    if (!confirmed) return
-
-    if (
-      !applyTradeAccount(
-        withLedgerTradeRecords(
-          {
-            ...currentAccount,
-            ledger: {
-              ...currentAccount.ledger,
-              entries: currentAccount.ledger.entries.filter(
-                (entry) => entry.id !== batch.settlement?.positionAdjustmentId
-              )
-            },
-            history: currentAccount.history.filter((item) => item.id !== batch.id)
-          },
-          currentAccount.tradeRecords.filter((record) => !tradeReferencesBatch(record, batch.id))
-        )
-      )
-    )
-      return
-
-    if (editingHistoryBatchId === batch.id) cancelEditingHistoryProfit()
-    if (editingHistoryCostBatchId === batch.id) cancelEditingHistoryCost()
-  }
-
   const feeInput = (key: keyof TTradeFees, label: string) => (
     <label>
       <span>{label}</span>
-      <input
+      <AppInput
         type="number"
         min="0"
         step="0.01"
@@ -2166,381 +1599,349 @@ function TTradingAccountContent({
     </label>
   )
 
-  if (view === 'records' && !currentAccount.activeBatch && currentAccount.history.length === 0) {
-    return null
-  }
-
   return (
-    <div className={view === 'entry' ? 't-trading-entry-content' : 't-account-records'}>
-      {view === 'entry' ? (
-        <section className="t-card t-trade-entry">
+    <div className="t-trading-entry-content">
+      <section className={`t-card t-trade-entry${inline ? ' is-inline' : ''}`}>
+        {inline ? null : (
           <div className="t-card-heading">
             <div className="t-entry-heading">
               <div className="t-entry-title-row">
                 <strong>{editingTradeId ? '修改交易' : '录入交易'}</strong>
                 {entryAccountSelect}
+                {entryBatchSelect}
               </div>
               <small>{entryHint}</small>
             </div>
-            {editingTradeId ? (
-              <button type="button" className="text-button" onClick={resetTradeForm}>
-                取消修改
-              </button>
-            ) : null}
+          </div>
+        )}
+
+        <div className="t-entry-top-row">
+          <div className="t-segmented">
+            <button
+              className={entryMode === 'trade' && side === 'buy' ? 'is-active' : ''}
+              type="button"
+              disabled={hasFixedAllocations}
+              onClick={() => {
+                setEntryMode('trade')
+                setSide('buy')
+                setPurpose('t')
+                setCashError('')
+              }}
+            >
+              买入
+            </button>
+            <button
+              className={entryMode === 'trade' && side === 'sell' ? 'is-active' : ''}
+              type="button"
+              disabled={hasFixedAllocations}
+              onClick={() => {
+                setEntryMode('trade')
+                setSide('sell')
+                setPurpose('t')
+                setCashError('')
+              }}
+            >
+              卖出
+            </button>
+            <button
+              className={entryMode === 'trade' && purpose === 't' ? 'is-purpose-active' : ''}
+              type="button"
+              disabled={hasFixedAllocations}
+              onClick={() => {
+                setEntryMode('trade')
+                setPurpose('t')
+                setCashError('')
+              }}
+            >
+              {tPurposeLabel}
+            </button>
+            <button
+              className={entryMode === 'trade' && purpose === 'base' ? 'is-purpose-active' : ''}
+              type="button"
+              disabled={hasFixedAllocations}
+              onClick={() => {
+                setEntryMode('trade')
+                setPurpose('base')
+                setCashError('')
+              }}
+            >
+              {basePurposeLabel}
+            </button>
+            <button
+              className={entryMode === 'cash' ? 'is-purpose-active' : ''}
+              type="button"
+              disabled={Boolean(editingTradeId)}
+              onClick={() => {
+                setEntryMode('cash')
+                setCashError('')
+                setError('')
+              }}
+            >
+              分红与缴税
+            </button>
           </div>
 
-          <div className="t-entry-top-row">
-            <div className="t-segmented">
+          {entryMode === 'trade' ? (
+            <>
+              <div className="t-fee-summary">
+                {market === 'CN' ? (
+                  <>
+                    <span>佣金 {formatCurrency(tradeFees.commission)}</span>
+                    <span>经手 {formatCurrency(tradeFees.handling)}</span>
+                    <span>证管 {formatCurrency(tradeFees.regulatory)}</span>
+                    <span>过户 {formatCurrency(tradeFees.transfer)}</span>
+                    <span>印花税 {formatCurrency(tradeFees.stampDuty)}</span>
+                  </>
+                ) : (
+                  <>
+                    {tradeFeeItems?.map((item) => (
+                      <span key={item.code}>
+                        {item.label} {formatNativeAmount(item.amount)}
+                      </span>
+                    ))}
+                    {!manualFees && !marketFeeTemplate ? (
+                      <span>当前成交日期无内置费用模板</span>
+                    ) : null}
+                    <span>
+                      {manualFees
+                        ? preservesUnknownFeeSource
+                          ? '费用来源未标记'
+                          : '券商实际费用'
+                        : `模板估算${selectedFeeTemplate ? ` · v${selectedFeeTemplate.version}` : ''}`}
+                    </span>
+                  </>
+                )}
+                <strong>合计 {formatNativeAmount(tradeFeeTotal)}</strong>
+              </div>
+              <AppButton
+                variant="text"
+                className="bordered-text-button text-button"
+                disabled={Boolean(editingTrade?.splitSource)}
+                title={editingTrade?.splitSource ? '拆分成交保留整笔成交分摊的费用' : undefined}
+                onClick={toggleFeeEditing}
+              >
+                {editingFees ? '取消修改' : '手动修改费用'}
+              </AppButton>
+            </>
+          ) : null}
+        </div>
+
+        {entryMode === 'cash' ? (
+          <>
+            <div className="t-segmented t-cash-entry-kind">
               <button
-                className={entryMode === 'trade' && side === 'buy' ? 'is-active' : ''}
+                className={cashEntryKind === 'cashDividend' ? 'is-active' : ''}
                 type="button"
-                disabled={hasFixedAllocations}
                 onClick={() => {
-                  setEntryMode('trade')
-                  setSide('buy')
-                  setPurpose('t')
+                  setCashEntryKind('cashDividend')
                   setCashError('')
                 }}
               >
-                买入
+                分红
               </button>
               <button
-                className={entryMode === 'trade' && side === 'sell' ? 'is-active' : ''}
+                className={cashEntryKind === 'withholdingTax' ? 'is-active' : ''}
                 type="button"
-                disabled={hasFixedAllocations}
                 onClick={() => {
-                  setEntryMode('trade')
-                  setSide('sell')
-                  setPurpose('t')
+                  setCashEntryKind('withholdingTax')
                   setCashError('')
                 }}
               >
-                卖出
-              </button>
-              <button
-                className={entryMode === 'trade' && purpose === 't' ? 'is-purpose-active' : ''}
-                type="button"
-                disabled={hasFixedAllocations}
-                onClick={() => {
-                  setEntryMode('trade')
-                  setPurpose('t')
-                  setCashError('')
-                }}
-              >
-                {tPurposeLabel}
-              </button>
-              <button
-                className={entryMode === 'trade' && purpose === 'base' ? 'is-purpose-active' : ''}
-                type="button"
-                disabled={hasFixedAllocations}
-                onClick={() => {
-                  setEntryMode('trade')
-                  setPurpose('base')
-                  setCashError('')
-                }}
-              >
-                {basePurposeLabel}
-              </button>
-              <button
-                className={entryMode === 'cash' ? 'is-purpose-active' : ''}
-                type="button"
-                disabled={Boolean(editingTradeId)}
-                onClick={() => {
-                  setEntryMode('cash')
-                  setCashError('')
-                  setError('')
-                }}
-              >
-                分红与缴税
+                缴税
               </button>
             </div>
 
-            {entryMode === 'trade' ? (
-              <>
-                <div className="t-fee-summary">
-                  {market === 'CN' ? (
-                    <>
-                      <span>佣金 {formatCurrency(tradeFees.commission)}</span>
-                      <span>经手 {formatCurrency(tradeFees.handling)}</span>
-                      <span>证管 {formatCurrency(tradeFees.regulatory)}</span>
-                      <span>过户 {formatCurrency(tradeFees.transfer)}</span>
-                      <span>印花税 {formatCurrency(tradeFees.stampDuty)}</span>
-                    </>
-                  ) : (
-                    <>
-                      {tradeFeeItems?.map((item) => (
-                        <span key={item.code}>
-                          {item.label} {formatNativeAmount(item.amount)}
-                        </span>
-                      ))}
-                      {!manualFees && !marketFeeTemplate ? (
-                        <span>当前成交日期无内置费用模板</span>
-                      ) : null}
-                      <span>
-                        {manualFees
-                          ? preservesUnknownFeeSource
-                            ? '费用来源未标记'
-                            : '券商实际费用'
-                          : `模板估算${selectedFeeTemplate ? ` · v${selectedFeeTemplate.version}` : ''}`}
-                      </span>
-                    </>
-                  )}
-                  <strong>合计 {formatNativeAmount(tradeFeeTotal)}</strong>
-                </div>
-                <button
-                  type="button"
-                  className="bordered-text-button text-button"
-                  disabled={Boolean(editingTrade?.splitSource)}
-                  title={editingTrade?.splitSource ? '拆分成交保留整笔成交分摊的费用' : undefined}
-                  onClick={() => {
-                    if (!manualFees) {
-                      if (market === 'CN') setFeeOverrides(calculatedFees)
-                      else setActualFees(tradeFeeTotal.toString())
-                    }
-                    setFeeModeEdited(true)
-                    setManualFees((current) => !current)
-                  }}
-                >
-                  {manualFees ? '按当前账户重算费用' : '手动修改费用'}
-                </button>
-              </>
-            ) : null}
-          </div>
-
-          {entryMode === 'cash' ? (
-            <>
-              <div className="t-segmented t-cash-entry-kind">
-                <button
-                  className={cashEntryKind === 'cashDividend' ? 'is-active' : ''}
-                  type="button"
-                  onClick={() => {
-                    setCashEntryKind('cashDividend')
-                    setCashError('')
-                  }}
-                >
-                  分红
-                </button>
-                <button
-                  className={cashEntryKind === 'withholdingTax' ? 'is-active' : ''}
-                  type="button"
-                  onClick={() => {
-                    setCashEntryKind('withholdingTax')
-                    setCashError('')
-                  }}
-                >
-                  缴税
-                </button>
-              </div>
-
-              <div className="t-entry-input-row">
-                <div className="t-form-grid t-cash-entry-grid">
+            <div className="t-entry-input-row">
+              <div className="t-form-grid t-cash-entry-grid">
+                <label>
+                  <span>{cashEntryKind === 'cashDividend' ? '税前分红金额' : '缴税金额'}</span>
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={cashAmount}
+                    onChange={(event) => setCashAmount(event.target.value)}
+                  />
+                </label>
+                {cashEntryKind === 'cashDividend' ? (
                   <label>
-                    <span>{cashEntryKind === 'cashDividend' ? '税前分红金额' : '缴税金额'}</span>
+                    <span>登记股数（可选）</span>
                     <input
                       type="number"
-                      min="0.01"
-                      step="0.01"
-                      value={cashAmount}
-                      onChange={(event) => setCashAmount(event.target.value)}
-                    />
-                  </label>
-                  {cashEntryKind === 'cashDividend' ? (
-                    <label>
-                      <span>登记股数（可选）</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="100"
-                        value={cashEligibleQuantity}
-                        onChange={(event) => setCashEligibleQuantity(event.target.value)}
-                      />
-                    </label>
-                  ) : null}
-                  <label>
-                    <span>发生时间</span>
-                    <input
-                      type="datetime-local"
-                      value={cashOccurredAt}
-                      onChange={(event) => setCashOccurredAt(event.target.value)}
-                    />
-                  </label>
-                  {currency !== 'CNY' ? (
-                    <label>
-                      <span>兑人民币汇率（可选）</span>
-                      <input
-                        type="number"
-                        min="0.000001"
-                        step="0.000001"
-                        value={cashExchangeRateInput}
-                        onChange={(event) => {
-                          setCashExchangeRateInput(event.target.value)
-                          setCashExchangeRateEdited(true)
-                        }}
-                        placeholder="未知时留空"
-                      />
-                    </label>
-                  ) : null}
-                  <label className={cashEntryKind === 'withholdingTax' ? 'is-wide' : ''}>
-                    <span>备注</span>
-                    <input
-                      value={cashNote}
-                      onChange={(event) => setCashNote(event.target.value)}
-                      placeholder="可选"
-                    />
-                  </label>
-                </div>
-
-                <div className="t-entry-actions">
-                  <span>
-                    {cashEntryKind === 'cashDividend'
-                      ? Number(cashEligibleQuantity) > 0 && Number(cashAmount) > 0
-                        ? `每股分红 ${formatNativeAmount(
-                            Number(cashAmount) / Number(cashEligibleQuantity)
-                          )}`
-                        : '按税前总额计入分红收入'
-                      : '缴税按现金流出计入收益统计'}
-                  </span>
-                  <button
-                    className="primary-button compact-button"
-                    type="button"
-                    onClick={saveCashEntry}
-                  >
-                    <Plus size={15} />
-                    {cashEntryKind === 'cashDividend' ? '记录分红' : '记录缴税'}
-                  </button>
-                </div>
-              </div>
-
-              {cashError ? <div className="t-form-error">{cashError}</div> : null}
-            </>
-          ) : (
-            <>
-              <div className="t-entry-input-row">
-                <div className="t-form-grid">
-                  <label>
-                    <span>成交价格</span>
-                    <input
-                      type="number"
-                      min={market === 'CN' ? 0.01 : 0.0001}
-                      step={market === 'CN' ? 0.01 : 0.0001}
-                      value={price}
-                      onChange={(event) => setPrice(event.target.value)}
-                    />
-                  </label>
-                  <label>
-                    <span>成交数量</span>
-                    <input
-                      type="number"
-                      min={market === 'CN' ? 100 : 1}
+                      min="0"
                       step="100"
-                      value={quantity}
-                      disabled={hasFixedAllocations}
-                      onChange={(event) => setQuantity(event.target.value)}
+                      value={cashEligibleQuantity}
+                      onChange={(event) => setCashEligibleQuantity(event.target.value)}
                     />
                   </label>
-                  {currency !== 'CNY' ? (
-                    <label>
-                      <span>成交汇率（可选）</span>
-                      <input
-                        type="number"
-                        min="0.000001"
-                        step="0.000001"
-                        value={tradeExchangeRate}
-                        onChange={(event) => {
-                          setTradeExchangeRate(event.target.value)
-                          setTradeExchangeRateEdited(true)
-                        }}
-                        placeholder="未知时留空"
-                      />
-                    </label>
-                  ) : null}
+                ) : null}
+                <label>
+                  <span>发生时间</span>
+                  <input
+                    type="datetime-local"
+                    value={cashOccurredAt}
+                    onChange={(event) => setCashOccurredAt(event.target.value)}
+                  />
+                </label>
+                {currency !== 'CNY' ? (
                   <label>
-                    <span>成交时间</span>
+                    <span>兑人民币汇率（可选）</span>
                     <input
-                      type="datetime-local"
-                      value={tradedAt}
-                      onChange={(event) => setTradedAt(event.target.value)}
+                      type="number"
+                      min="0.000001"
+                      step="0.000001"
+                      value={cashExchangeRateInput}
+                      onChange={(event) => {
+                        setCashExchangeRateInput(event.target.value)
+                        setCashExchangeRateEdited(true)
+                      }}
+                      placeholder="未知时留空"
                     />
                   </label>
-                  {market !== 'CN' ? (
-                    <label>
-                      <span>实际交收日（可选）</span>
-                      <input
-                        type="date"
-                        value={actualSettlementDate}
-                        onChange={(event) => setActualSettlementDate(event.target.value)}
-                      />
-                    </label>
-                  ) : null}
-                  <label>
-                    <span>备注</span>
-                    <input
-                      value={note}
-                      onChange={(event) => setNote(event.target.value)}
-                      placeholder="可选"
-                    />
-                  </label>
-                </div>
-
-                <div className="t-entry-actions">
-                  <span>
-                    成交额 {formatNativeAmount(numericPrice * numericQuantity)}
-                    {market !== 'CN' && tradedAt
-                      ? ` · 预计交收 ${
-                          estimateSettlementDate(market, tradeDate, tradingCalendar) || '--'
-                        }`
-                      : ''}
-                  </span>
-                  <button
-                    className="primary-button compact-button"
-                    type="button"
-                    onClick={saveTrade}
-                  >
-                    <Plus size={15} />
-                    {editingTradeId ? '保存修改' : '记录交易'}
-                  </button>
-                </div>
+                ) : null}
+                <label className={cashEntryKind === 'withholdingTax' ? 'is-wide' : ''}>
+                  <span>备注</span>
+                  <input
+                    value={cashNote}
+                    onChange={(event) => setCashNote(event.target.value)}
+                    placeholder="可选"
+                  />
+                </label>
               </div>
 
-              {overflowQuantity > 0 ? (
-                <div className="t-overflow-allocation">
-                  <span>
-                    <strong>本次成交跨越当前T仓</strong>
-                    <small>
-                      成交时可用T仓 {formatShares(entryMetrics.remainingQuantity)}，超出{' '}
-                      {formatShares(overflowQuantity)}
-                    </small>
-                  </span>
-                  <div className="t-overflow-options">
-                    <button
-                      type="button"
-                      className={overflowDisposition === 'base' ? 'is-selected' : ''}
-                      onClick={() => setOverflowDisposition('base')}
-                    >
-                      {side === 'sell' ? '减持底仓' : '增加底仓'}
-                    </button>
-                    <button
-                      type="button"
-                      className={overflowDisposition === 'opposite-t' ? 'is-selected' : ''}
-                      onClick={() => setOverflowDisposition('opposite-t')}
-                    >
-                      {activeMetrics.direction === 'forward' ? '开启反T批次' : '开启正T批次'}
-                    </button>
-                  </div>
-                  <small>
-                    保存后生成两条独立记录：本批次 {formatShares(entryMetrics.remainingQuantity)}，
-                    {overflowDisposition === 'base'
-                      ? `混合底仓流水（${basePurposeLabel}）`
-                      : activeMetrics.direction === 'forward'
-                        ? '新反T批次'
-                        : '新正T批次'}{' '}
-                    {formatShares(overflowQuantity)}。手续费按整笔计算一次，再按数量分摊。
-                  </small>
-                </div>
-              ) : null}
+              <div className="t-entry-actions">
+                <span>
+                  {cashEntryKind === 'cashDividend'
+                    ? Number(cashEligibleQuantity) > 0 && Number(cashAmount) > 0
+                      ? `每股分红 ${formatNativeAmount(
+                          Number(cashAmount) / Number(cashEligibleQuantity)
+                        )}`
+                      : '按税前总额计入分红收入'
+                    : '缴税按现金流出计入收益统计'}
+                </span>
+                <button
+                  className="primary-button compact-button"
+                  type="button"
+                  onClick={saveCashEntry}
+                >
+                  <Plus size={15} />
+                  {cashEntryKind === 'cashDividend' ? '记录分红' : '记录缴税'}
+                </button>
+              </div>
+            </div>
 
-              {manualFees ? (
-                <div className="t-fee-inputs">
+            {cashError ? <div className="t-form-error">{cashError}</div> : null}
+          </>
+        ) : (
+          <>
+            <div className="t-entry-input-row t-trade-input-row">
+              <div className="t-form-grid t-trade-input-grid">
+                <label>
+                  <span>成交价格</span>
+                  <AppInput
+                    type="number"
+                    autoFocus={inline}
+                    min={market === 'CN' ? 0.01 : 0.0001}
+                    step={market === 'CN' ? 0.01 : 0.0001}
+                    value={price}
+                    onChange={(event) => setPrice(event.target.value)}
+                  />
+                </label>
+                <label>
+                  <span>成交数量</span>
+                  <AppInput
+                    type="number"
+                    min={market === 'CN' ? 100 : 1}
+                    step="100"
+                    value={quantity}
+                    disabled={hasFixedAllocations}
+                    onChange={(event) => setQuantity(event.target.value)}
+                  />
+                </label>
+                <label>
+                  <span>成交时间</span>
+                  <AppInput
+                    type="datetime-local"
+                    value={tradedAt}
+                    onChange={(event) => setTradedAt(event.target.value)}
+                  />
+                </label>
+                <label>
+                  <span>备注</span>
+                  <AppInput
+                    value={note}
+                    onChange={(event) => setNote(event.target.value)}
+                    placeholder="可选"
+                  />
+                </label>
+                <label className="t-trade-total-field">
+                  <span>成交额</span>
+                  <AppInput
+                    readOnly
+                    value={formatNativeAmount(numericPrice * numericQuantity)}
+                    aria-label="成交额"
+                  />
+                </label>
+              </div>
+
+              <div className="t-entry-actions">
+                {editingTradeId ? (
+                  <AppButton variant="text" onClick={resetTradeForm}>
+                    取消
+                  </AppButton>
+                ) : null}
+                <AppButton variant="primary" className="compact-button" onClick={saveTrade}>
+                  <Plus size={15} />
+                  {editingTradeId ? '保存修改' : '记录交易'}
+                </AppButton>
+              </div>
+            </div>
+            {market !== 'CN' && tradedAt ? (
+              <div className="t-trade-settlement-hint">
+                预计交收 {estimateSettlementDate(market, tradeDate, tradingCalendar) || '--'}
+              </div>
+            ) : null}
+
+            {overflowQuantity > 0 ? (
+              <div className="t-overflow-allocation">
+                <span>
+                  <strong>本次成交跨越当前T仓</strong>
+                  <small>
+                    成交时可用T仓 {formatShares(entryMetrics.remainingQuantity)}，超出{' '}
+                    {formatShares(overflowQuantity)}
+                  </small>
+                </span>
+                <div className="t-overflow-options">
+                  <button
+                    type="button"
+                    className={overflowDisposition === 'base' ? 'is-selected' : ''}
+                    onClick={() => setOverflowDisposition('base')}
+                  >
+                    {side === 'sell' ? '减持底仓' : '增加底仓'}
+                  </button>
+                  <button
+                    type="button"
+                    className={overflowDisposition === 'opposite-t' ? 'is-selected' : ''}
+                    onClick={() => setOverflowDisposition('opposite-t')}
+                  >
+                    {activeMetrics.direction === 'forward' ? '开启反T批次' : '开启正T批次'}
+                  </button>
+                </div>
+                <small>
+                  保存后生成两条独立记录：本批次 {formatShares(entryMetrics.remainingQuantity)}，
+                  {overflowDisposition === 'base'
+                    ? `混合底仓流水（${basePurposeLabel}）`
+                    : activeMetrics.direction === 'forward'
+                      ? '新反T批次'
+                      : '新正T批次'}{' '}
+                  {formatShares(overflowQuantity)}。手续费按整笔计算一次，再按数量分摊。
+                </small>
+              </div>
+            ) : null}
+
+            {editingFees ? (
+              <div className="t-entry-input-row t-trade-input-row">
+                <div className="t-form-grid t-manual-fee-inputs">
                   {market === 'CN' ? (
                     <>
                       {feeInput('commission', '佣金')}
@@ -2552,7 +1953,7 @@ function TTradingAccountContent({
                   ) : (
                     <label>
                       <span>券商实际费用</span>
-                      <input
+                      <AppInput
                         type="number"
                         min="0"
                         step="0.01"
@@ -2566,654 +1967,42 @@ function TTradingAccountContent({
                     </label>
                   )}
                 </div>
-              ) : null}
-
-              {error ? <div className="t-form-error">{error}</div> : null}
-            </>
-          )}
-        </section>
-      ) : null}
-      {view === 'records' ? (
-        <>
-          {error ? <div className="t-form-error">{error}</div> : null}
-          {currentAccount.activeBatch ? (
-            <>
-              <section className="t-card t-active-batch-card is-full-width">
-                <div className="t-card-heading">
-                  <span>
-                    <strong>
-                      {batchDirectionLabel(currentAccount.activeBatch)}批次 #
-                      {currentAccount.activeBatch.sequence}
-                    </strong>
-                    <small>
-                      {currentAccount.accountName} ·{' '}
-                      {isReverseBatch ? '先卖后买 · ' : '先买后卖 · '}
-                      开始于 {formatTradeTime(currentAccount.activeBatch.openedAt)}
-                      {' · '}
-                      {isReverseBatch ? '反T基准价' : 'T仓成本'}{' '}
-                      {formatCost(activeMetrics.averageCost)}
-                    </small>
-                  </span>
-                  <div className="t-batch-summary">
-                    <span>
-                      <small>浮动收益</small>
-                      <strong className={valueClass(activeMetrics.floatingProfit)}>
-                        {formatNativeProfit(activeMetrics.floatingProfit)}
-                        <small
-                          className={`t-floating-profit-rate ${valueClass(activeMetrics.floatingProfitRate)}`}
-                        >
-                          ({formatPercent(activeMetrics.floatingProfitRate)})
-                        </small>
-                      </strong>
-                    </span>
-                    <span>
-                      <small>当前批次收益</small>
-                      <strong className={valueClass(activeMetrics.realizedProfit)}>
-                        {formatNativeProfit(activeMetrics.realizedProfit)}
-                      </strong>
-                    </span>
-                    <span>
-                      <small>当前批次费用</small>
-                      <strong>{formatNativeAmount(currentBatchFees)}</strong>
-                    </span>
-                    <em>{activeTrades.length} 笔流水</em>
-                  </div>
-                </div>
-                {activeCnyMetrics ? (
-                  <div className="t-batch-cny-summary">
-                    <span>
-                      <small>人民币已实现</small>
-                      <strong className={valueClass(activeCnyMetrics.realizedProfit)}>
-                        {formatMoneyProfit(activeCnyMetrics.realizedProfit, 'CNY')}
-                      </strong>
-                    </span>
-                    <span>
-                      <small>人民币浮动</small>
-                      <strong className={valueClass(activeCnyMetrics.floatingProfit)}>
-                        {formatMoneyProfit(activeCnyMetrics.floatingProfit, 'CNY')}
-                      </strong>
-                    </span>
-                    <span>
-                      <small>人民币合计</small>
-                      <strong className={valueClass(activeCnyMetrics.totalProfit)}>
-                        {formatMoneyProfit(activeCnyMetrics.totalProfit, 'CNY')}
-                      </strong>
-                    </span>
-                    <span>
-                      <small>本币收益折算 / 汇率贡献</small>
-                      <strong className={valueClass(activeCnyMetrics.priceContribution)}>
-                        {formatMoneyProfit(activeCnyMetrics.priceContribution, 'CNY')} /{' '}
-                      </strong>
-                      <strong className={valueClass(activeCnyMetrics.exchangeRateContribution)}>
-                        {formatMoneyProfit(activeCnyMetrics.exchangeRateContribution, 'CNY')}
-                      </strong>
-                    </span>
-                    <small className="t-batch-cny-note">
-                      按成交记录汇率及当前汇率估算
-                      {activeCnyIssue ? `；${activeCnyIssue}，待补录后显示完整人民币结果` : ''}
-                    </small>
-                  </div>
-                ) : null}
-                {currentAccount.activeBatch.floatingProfitAlert ? (
-                  <div className="t-floating-profit-alert-settings">
-                    <span>
-                      <strong>浮动盈亏提醒</strong>
-                      <small>达到 +阈值或 -阈值时提醒，回到区间后自动恢复</small>
-                    </span>
-                    <span className="t-floating-profit-alert-actions">
-                      <label className="t-alert-toggle">
-                        <span>启用</span>
-                        <input
-                          type="checkbox"
-                          checked={currentAccount.activeBatch.floatingProfitAlert.enabled}
-                          onChange={toggleFloatingProfitAlerts}
-                          aria-label="启用浮动盈亏提醒"
-                        />
-                        <i aria-hidden="true" />
-                      </label>
-                      <label className="t-floating-profit-alert-threshold">
-                        <span>阈值</span>
-                        <input
-                          type="number"
-                          min="1"
-                          step="1"
-                          value={currentAccount.activeBatch.floatingProfitAlert.threshold}
-                          onChange={(event) =>
-                            updateFloatingProfitAlertThreshold(Number(event.target.value))
-                          }
-                          aria-label="浮动盈亏提醒阈值"
-                        />
-                        <em>{currency === 'CNY' ? '元' : currency}</em>
-                      </label>
-                      <TFloatingProfitAlertBadge
-                        batch={currentAccount.activeBatch}
-                        floatingProfit={activeMetrics.floatingProfit}
-                        currency={currency}
-                      />
-                    </span>
-                  </div>
-                ) : null}
-                <div className="t-trade-list">
-                  {visibleActiveTrades.map((trade) => {
-                    const allocation = getTradeBatchAllocationAmounts(
-                      trade,
-                      currentAccount.activeBatch!
-                    )
-                    const summary = allocationSummary(trade, currentAccount.activeBatch!)
-                    return (
-                      <div className="t-trade-row" key={trade.id}>
-                        <span className={`t-trade-side is-${trade.side}`}>
-                          {tradeLabel(trade, currentAccount.activeBatch)}
-                        </span>
-                        <span>
-                          <strong>
-                            {formatShares(allocation.quantity)} × {formatPrice(trade.price)}
-                          </strong>
-                          <small>
-                            {currentAccount.accountName} · {formatTradeTime(trade.tradedAt)} · 费用{' '}
-                            {formatNativeAmount(allocation.fees)}
-                            {market !== 'CN' ? ` · ${tradeFeeSourceLabel(trade)}` : ''}
-                            {summary ? ` · ${summary}` : ''}
-                          </small>
-                          {market !== 'CN' ? (
-                            <small>
-                              {trade.actualSettlementDate
-                                ? `实际交收 ${trade.actualSettlementDate}`
-                                : `预计交收 ${trade.estimatedSettlementDate ?? '--'}`}
-                            </small>
-                          ) : null}
-                          {trade.splitSource ? (
-                            <small>
-                              <TradeSplitSource trade={trade} />
-                            </small>
-                          ) : null}
-                        </span>
-                        <span className="t-trade-amount">
-                          <span>{formatNativeAmount(trade.price * allocation.quantity)}</span>
-                          <small>
-                            {trade.side === 'buy' ? '含费成本' : '净到账'}{' '}
-                            {formatNativeAmount(
-                              trade.price * allocation.quantity +
-                                (trade.side === 'buy' ? 1 : -1) * allocation.fees
-                            )}
-                          </small>
-                        </span>
-                        <span className="t-trade-actions">
-                          <button
-                            className="icon-button"
-                            type="button"
-                            disabled={spansMultipleBatches(trade)}
-                            onClick={() => editTrade(trade)}
-                            title={
-                              spansMultipleBatches(trade)
-                                ? '跨批次成交请删除后重新录入'
-                                : '修改交易'
-                            }
-                          >
-                            <PencilLine size={14} />
-                          </button>
-                          <button
-                            className="icon-button"
-                            type="button"
-                            onClick={() => deleteTrade(trade.id)}
-                            title="删除交易"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </span>
-                      </div>
-                    )
-                  })}
-                  {activeTradesDescending.length > 5 ? (
-                    <button
-                      className="t-trade-more-button"
-                      type="button"
-                      onClick={() => setShowAllActiveTrades((current) => !current)}
-                    >
-                      {showAllActiveTrades
-                        ? '收起当前批次流水'
-                        : `显示更多当前批次流水（其余 ${activeTradesDescending.length - 5} 条）`}
-                    </button>
-                  ) : null}
-                </div>
-              </section>
-
-              {activeMetrics.remainingQuantity > 0 ? (
-                <section className="t-card t-dual-plan-card">
-                  <div className="t-card-heading">
-                    <span>
-                      <strong>当前T仓双五档计划 · {currentAccount.accountName}</strong>
-                      <small>
-                        {isReverseBatch
-                          ? '买入侧显示回补收益，卖出侧显示继续反T后的仓位与成本'
-                          : '买入侧显示加仓后的仓位与成本，卖出侧显示价差收益'}
-                      </small>
-                      {market !== 'CN' ? (
-                        <small>
-                          按整数股规划，预计收益以 {currency} 按当前费用模板估算
-                          {market === 'HK' ? '；ETF 特殊价位及每手股数请核对券商' : ''}
-                        </small>
-                      ) : null}
-                    </span>
-                    <span className="t-plan-heading-actions">
-                      <label className="t-alert-toggle">
-                        <span>价格提醒</span>
-                        <input
-                          type="checkbox"
-                          checked={Boolean(currentAccount.activeBatch?.alertEnabled)}
-                          onChange={togglePriceAlerts}
-                        />
-                        <i aria-hidden="true" />
-                      </label>
-                      <button type="button" className="text-button" onClick={resetPlanLevels}>
-                        <RefreshCcw size={13} /> 重置双五档
-                      </button>
-                    </span>
-                  </div>
-                  {market === 'HK' ? (
-                    <div className="t-plan-market-options">
-                      <label>
-                        <span>每手股数（自填）</span>
-                        <input
-                          type="number"
-                          min="1"
-                          step="100"
-                          value={currentAccount.boardLotSize ?? ''}
-                          onChange={(event) => updateBoardLotSize(event.target.value)}
-                          placeholder="未填写"
-                        />
-                      </label>
-                      {hasOddLotPlan ? (
-                        <span>当前计划含碎股档位，请核对券商碎股交易方式</span>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  {closingPlanOverAllocated ? (
-                    <div className="t-form-error">
-                      平仓侧计划合计 {formatShares(closingPlanQuantity)} 股，超过当前 T 仓{' '}
-                      {formatShares(activeMetrics.remainingQuantity)} 股；请调整数量或重置双五档
-                    </div>
-                  ) : null}
-                  {planError ? <div className="t-form-error">{planError}</div> : null}
-                  <div className="t-plan-scroll">
-                    <div className="t-plan-grid">
-                      <TPlanTable
-                        side="buy"
-                        rows={buyLevelRows}
-                        currency={currency}
-                        minimumQuantity={market === 'CN' ? 100 : 1}
-                        alertEnabled={Boolean(currentAccount.activeBatch?.alertEnabled)}
-                        emphasized={isReverseBatch}
-                        openingPlan={!isReverseBatch}
-                        onUpdateLevel={(index, key, value) =>
-                          updatePlanLevel('buy', index, key, value)
-                        }
-                        onHandleAlert={(index) => handlePlanAlert('buy', index)}
-                        onRestoreAlert={(index) => restorePlanAlert('buy', index)}
-                      />
-                      <TPlanTable
-                        side="sell"
-                        rows={sellLevelRows}
-                        currency={currency}
-                        minimumQuantity={market === 'CN' ? 100 : 1}
-                        alertEnabled={Boolean(currentAccount.activeBatch?.alertEnabled)}
-                        emphasized={!isReverseBatch}
-                        openingPlan={isReverseBatch}
-                        onUpdateLevel={(index, key, value) =>
-                          updatePlanLevel('sell', index, key, value)
-                        }
-                        onHandleAlert={(index) => handlePlanAlert('sell', index)}
-                        onRestoreAlert={(index) => restorePlanAlert('sell', index)}
-                      />
-                    </div>
-                  </div>
-                </section>
-              ) : null}
-
-              {readyToSettle ? (
-                <section className="t-card t-settlement-card">
-                  <div className="t-card-heading">
-                    <span>
-                      <strong>{isReverseBatch ? '本批次反T已回补完成' : '本批次T仓已清空'}</strong>
-                      <small>
-                        {currentAccount.accountName} ·
-                        填写券商最新持仓成本后，以成本推算收益作为最终结果
-                      </small>
-                    </span>
-                    <CheckCircle2 size={20} />
-                  </div>
-                  <div className="t-settlement-preview">
-                    <span>
-                      <small>流水收益</small>
-                      <strong className={valueClass(activeMetrics.realizedProfit)}>
-                        {formatNativeProfit(activeMetrics.realizedProfit)}
-                      </strong>
-                    </span>
-                    <span>
-                      <small>买入总额</small>
-                      <strong>{formatNativeAmount(activeMetrics.buyAmount)}</strong>
-                    </span>
-                    <span>
-                      <small>卖出总额</small>
-                      <strong>{formatNativeAmount(activeMetrics.sellAmount)}</strong>
-                    </span>
-                  </div>
-                  <div className="t-form-grid">
-                    <label>
-                      <span>最新持仓数量</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="100"
-                        value={latestPositionQuantity}
-                        onChange={(event) => setLatestPositionQuantity(event.target.value)}
-                      />
-                    </label>
-                    <label>
-                      <span>最新持仓成本</span>
-                      <input
-                        type="number"
-                        step="0.0001"
-                        value={latestPositionCost}
-                        onChange={(event) => setLatestPositionCost(event.target.value)}
-                        placeholder="留空则采用流水收益"
-                      />
-                    </label>
-                    <label className="is-wide">
-                      <span>结算备注</span>
-                      <input
-                        value={settlementNote}
-                        onChange={(event) => setSettlementNote(event.target.value)}
-                      />
-                    </label>
-                  </div>
-                  {settlementPreviewProfit !== null ? (
-                    <div className="t-cost-profit-preview">
-                      按最新成本推算：
-                      <strong className={valueClass(settlementPreviewProfit)}>
-                        {formatNativeProfit(settlementPreviewProfit)}
-                      </strong>
-                    </div>
-                  ) : null}
-                  <div className="t-entry-actions">
-                    <span>结算后，下一笔计入T仓的交易将创建新批次</span>
-                    <button
-                      className="primary-button compact-button"
-                      type="button"
-                      onClick={settleBatch}
-                    >
-                      确认结算并归档
-                    </button>
-                  </div>
-                </section>
-              ) : null}
-            </>
-          ) : null}
-
-          {currentAccount.history.length > 0 ? (
-            <section className="t-card t-history-card">
-              <div className="t-card-heading">
-                <span>
-                  <strong>做T历史</strong>
-                  <small>
-                    {currentAccount.accountName} · 共完成 {currentAccount.history.length} 个批次
-                  </small>
-                </span>
-                {historyPageCount > 1 ? (
-                  <div className="t-history-pagination" aria-label="做T历史分页">
-                    <button
-                      type="button"
-                      onClick={() => setHistoryPage((current) => Math.max(0, current - 1))}
-                      disabled={currentHistoryPage === 0}
-                    >
-                      上一页
-                    </button>
-                    <span>
-                      {currentHistoryPage + 1} / {historyPageCount}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setHistoryPage((current) => Math.min(historyPageCount - 1, current + 1))
-                      }
-                      disabled={currentHistoryPage === historyPageCount - 1}
-                    >
-                      下一页
-                    </button>
-                  </div>
-                ) : null}
               </div>
-              <div className="t-history-list">
-                {visibleHistoryBatches.map((batch) => {
-                  const batchTrades = getBatchTrades(currentAccount, batch)
-                  const lastTrade = batchTrades.at(-1)
-                  const batchCnyMetrics =
-                    market === 'CN'
-                      ? null
-                      : calculateTBatchCnyMetrics(batch, batchTrades, market, null, null)
-                  const batchCnyIssue = batchCnyMetrics ? tBatchCnyIssue(batchCnyMetrics) : null
-                  return (
-                    <details key={batch.id}>
-                      <summary>
-                        <span>
-                          <strong>
-                            {batchDirectionLabel(batch)}批次 #{batch.sequence}
-                          </strong>
-                          <small>
-                            {currentAccount.accountName} · {formatTradeTime(batch.openedAt)} 至{' '}
-                            {lastTrade ? formatTradeTime(lastTrade.tradedAt) : '--'}
-                          </small>
-                        </span>
-                        <span>
-                          <small>
-                            {batch.settlement?.source === 'position-cost'
-                              ? '成本校准收益'
-                              : '流水收益'}
-                          </small>
-                          <strong
-                            className={`t-history-profit ${valueClass(batch.settlement?.finalProfit)}`}
-                          >
-                            {formatNativeProfit(batch.settlement?.finalProfit)}
-                          </strong>
-                        </span>
-                      </summary>
-                      <div>
-                        {batchTrades.map((trade) => {
-                          const allocation = getTradeBatchAllocationAmounts(trade, batch)
-                          const totalFees = allocation.fees
-                          const amountChange =
-                            trade.side === 'buy'
-                              ? -(trade.price * allocation.quantity + totalFees)
-                              : trade.price * allocation.quantity - totalFees
-                          const summary = allocationSummary(trade, batch)
-                          return (
-                            <span className="t-history-trade" key={trade.id}>
-                              <b>{tradeLabel(trade, batch)}</b>
-                              <span>
-                                {currentAccount.accountName} · {formatTradeTime(trade.tradedAt)}
-                                {market !== 'CN'
-                                  ? ` · ${trade.actualSettlementDate ? `实际交收 ${trade.actualSettlementDate}` : `预计交收 ${trade.estimatedSettlementDate ?? '--'}`}`
-                                  : ''}
-                              </span>
-                              <span>
-                                {formatShares(allocation.quantity)} × {formatPrice(trade.price)}
-                                {summary ? ` · ${summary}` : ''}
-                                {trade.splitSource ? (
-                                  <>
-                                    {' '}
-                                    · <TradeSplitSource trade={trade} />
-                                  </>
-                                ) : null}
-                              </span>
-                              <span>
-                                分摊费用 {formatNativeAmount(totalFees)}
-                                {market !== 'CN' ? ` · ${tradeFeeSourceLabel(trade)}` : ''}
-                              </span>
-                              <strong className={valueClass(amountChange)}>
-                                金额变动 {formatNativeProfit(amountChange)}
-                              </strong>
-                            </span>
-                          )
-                        })}
-                        {batch.settlement ? (
-                          <div className="t-history-settlement">
-                            <p>
-                              流水收益{' '}
-                              <strong className={valueClass(batch.settlement.ledgerProfit)}>
-                                {formatNativeProfit(batch.settlement.ledgerProfit)}
-                              </strong>
-                              {batch.settlement.costAdjustedProfit !== undefined ? (
-                                <>
-                                  {' · 成本校准 '}
-                                  <strong
-                                    className={valueClass(batch.settlement.costAdjustedProfit)}
-                                  >
-                                    {formatNativeProfit(batch.settlement.costAdjustedProfit)}
-                                  </strong>
-                                </>
-                              ) : null}
-                              {batch.settlement.note ? ` · ${batch.settlement.note}` : ''}
-                            </p>
-                            {batchCnyMetrics ? (
-                              <p>
-                                流水人民币收益{' '}
-                                <strong className={valueClass(batchCnyMetrics.realizedProfit)}>
-                                  {formatMoneyProfit(batchCnyMetrics.realizedProfit, 'CNY')}
-                                </strong>
-                                {' · 本币收益折算 '}
-                                <strong className={valueClass(batchCnyMetrics.priceContribution)}>
-                                  {formatMoneyProfit(batchCnyMetrics.priceContribution, 'CNY')}
-                                </strong>
-                                {' · 汇率贡献 '}
-                                <strong
-                                  className={valueClass(batchCnyMetrics.exchangeRateContribution)}
-                                >
-                                  {formatMoneyProfit(
-                                    batchCnyMetrics.exchangeRateContribution,
-                                    'CNY'
-                                  )}
-                                </strong>
-                                {batchCnyIssue ? ` · ${batchCnyIssue}` : ''}
-                                {batch.settlement.source === 'position-cost'
-                                  ? ' · 成本校准收益未折算'
-                                  : ''}
-                              </p>
-                            ) : null}
-                            {market !== 'CN' &&
-                            batch.settlement.latestPositionCost !== undefined ? (
-                              <p>
-                                券商结算持仓 {formatShares(batch.settlement.latestPositionQuantity)}{' '}
-                                × {formatCost(batch.settlement.latestPositionCost)}
-                              </p>
-                            ) : null}
-                            {market !== 'CN' && editingHistoryCostBatchId === batch.id ? (
-                              <div className="t-history-profit-editor">
-                                <label>
-                                  <span>券商最终持仓成本</span>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="0.0001"
-                                    value={historyCostDraft}
-                                    onChange={(event) => setHistoryCostDraft(event.target.value)}
-                                  />
-                                </label>
-                                <button
-                                  className="primary-button compact-button"
-                                  type="button"
-                                  onClick={() => saveHistoryCost(batch)}
-                                >
-                                  保存
-                                </button>
-                                <button
-                                  className="text-button"
-                                  type="button"
-                                  onClick={cancelEditingHistoryCost}
-                                >
-                                  取消
-                                </button>
-                                {historyCostError ? <small>{historyCostError}</small> : null}
-                              </div>
-                            ) : null}
-                            {editingHistoryBatchId === batch.id ? (
-                              <div className="t-history-profit-editor">
-                                <label>
-                                  <span>成本校准收益</span>
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    value={historyProfitDraft}
-                                    onChange={(event) => setHistoryProfitDraft(event.target.value)}
-                                    autoFocus
-                                  />
-                                </label>
-                                <button
-                                  className="primary-button compact-button"
-                                  type="button"
-                                  onClick={() => saveHistoryProfit(batch.id)}
-                                >
-                                  保存
-                                </button>
-                                <button
-                                  className="text-button"
-                                  type="button"
-                                  onClick={cancelEditingHistoryProfit}
-                                >
-                                  取消
-                                </button>
-                                {historyProfitError ? <small>{historyProfitError}</small> : null}
-                              </div>
-                            ) : (
-                              <div className="t-history-actions">
-                                <button
-                                  className="text-button t-history-edit-button"
-                                  type="button"
-                                  onClick={() => startEditingHistoryProfit(batch)}
-                                >
-                                  <PencilLine size={12} />
-                                  修改成本校准收益
-                                </button>
-                                {market !== 'CN' && batch.settlement.positionAdjustmentId ? (
-                                  <button
-                                    className="text-button t-history-edit-button"
-                                    type="button"
-                                    onClick={() => startEditingHistoryCost(batch)}
-                                  >
-                                    <PencilLine size={12} />
-                                    修改券商最终成本
-                                  </button>
-                                ) : null}
-                                <button
-                                  className="text-button t-history-delete-button"
-                                  type="button"
-                                  onClick={() => deleteHistoryBatch(batch)}
-                                >
-                                  <Trash2 size={12} />
-                                  删除此批次
-                                </button>
-                              </div>
-                            )}
-                            {editingHistoryBatchId === batch.id ? (
-                              <button
-                                className="text-button t-history-delete-button"
-                                type="button"
-                                onClick={() => deleteHistoryBatch(batch)}
-                              >
-                                <Trash2 size={12} />
-                                删除此批次
-                              </button>
-                            ) : null}
-                          </div>
-                        ) : null}
-                      </div>
-                    </details>
-                  )
-                })}
+            ) : null}
+
+            {market !== 'CN' ? (
+              <div className="t-form-grid t-trade-extra-fields">
+                {currency !== 'CNY' ? (
+                  <label>
+                    <span>成交汇率（可选）</span>
+                    <AppInput
+                      type="number"
+                      min="0.000001"
+                      step="0.000001"
+                      value={tradeExchangeRate}
+                      onChange={(event) => {
+                        setTradeExchangeRate(event.target.value)
+                        setTradeExchangeRateEdited(true)
+                      }}
+                      placeholder="未知时留空"
+                    />
+                  </label>
+                ) : null}
+                <label>
+                  <span>实际交收日（可选）</span>
+                  <AppInput
+                    type="date"
+                    value={actualSettlementDate}
+                    onChange={(event) => setActualSettlementDate(event.target.value)}
+                  />
+                </label>
               </div>
-            </section>
-          ) : null}
-        </>
-      ) : null}
+            ) : null}
+
+            {error ? <div className="t-form-error">{error}</div> : null}
+          </>
+        )}
+      </section>
     </div>
   )
 }

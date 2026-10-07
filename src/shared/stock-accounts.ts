@@ -3,6 +3,7 @@ import {
   DEFAULT_APP_SETTINGS,
   normalizeAppSettings,
   normalizeTTradingAccounts,
+  normalizeActiveTTradingBatch,
   tradeRecordsFromLedger,
   synchronizeWatchlistGroupMemberships,
   type AppState,
@@ -16,6 +17,9 @@ import {
   type TTradingAccounts,
   type CorporateActionRecords
 } from './types'
+import { getBatchTrades } from '../lib/trade-records'
+import { getStockTBatches } from './stock-t-batches'
+import { reconcileStockTBatches } from '../lib/stock-t-trading'
 
 export const ACCOUNT_MARKETS = ['CN', 'HK', 'US'] as const
 
@@ -216,19 +220,25 @@ export function normalizeAccountState(state: AppState): AppState {
                   oldAccount?.performanceAdjustmentCny
               }
             }
+    const hasStockBatches = Boolean(source && 'accounts' in source && source.tBatches)
+    const oldBatches = Object.entries(children).flatMap(([accountId, child]) =>
+      [child.activeBatch, ...child.history]
+        .filter((batch): batch is NonNullable<typeof batch> => Boolean(batch))
+        .map((batch) => ({ ...batch, accountId }))
+    )
+    const batchIdCounts = new Map<string, number>()
+    for (const batch of oldBatches)
+      batchIdCounts.set(batch.id, (batchIdCounts.get(batch.id) ?? 0) + 1)
+    const batchIdFor = (accountId: string, batchId: string) =>
+      !hasStockBatches && (batchIdCounts.get(batchId) ?? 0) > 1
+        ? `${accountId}:${batchId}`
+        : batchId
     const normalized: TTradingAccounts = {}
     for (const [accountId, child] of Object.entries(children)) {
       const owner = accounts[accountId]
       if (!owner || owner.market !== market) throw new Error(`股票 ${quoteId} 的账户归属无效`)
       if (!legacy && (child.accountId !== accountId || child.quoteId !== quoteId))
         throw new Error('子账本账户或证券身份不一致')
-      if (
-        !legacy &&
-        [child.activeBatch, ...child.history].some(
-          (batch) => batch?.accountId && batch.accountId !== accountId
-        )
-      )
-        throw new Error('做 T 批次不能跨账户')
       const ledger = {
         ...child.ledger,
         entries: child.ledger.entries.map((entry) => {
@@ -239,11 +249,27 @@ export function normalizeAccountState(state: AppState): AppState {
               (entry.kind === 'trade' && entry.record.accountId !== accountId))
           )
             throw new Error('交易不能跨账户写入')
+          const record =
+            entry.kind === 'trade'
+              ? {
+                  ...entry.record,
+                  accountId,
+                  batchId: entry.record.batchId
+                    ? batchIdFor(accountId, entry.record.batchId)
+                    : undefined,
+                  allocations: entry.record.allocations?.map((allocation) => ({
+                    ...allocation,
+                    batchId: allocation.batchId
+                      ? batchIdFor(accountId, allocation.batchId)
+                      : undefined
+                  }))
+                }
+              : undefined
           return {
             ...entry,
             accountId,
             quoteId,
-            ...(entry.kind === 'trade' ? { record: { ...entry.record, accountId } } : {})
+            ...(record ? { record } : {})
           }
         })
       }
@@ -256,12 +282,37 @@ export function normalizeAccountState(state: AppState): AppState {
         currency: currencyForMarket(market),
         ledger,
         tradeRecords: tradeRecordsFromLedger(ledger),
-        activeBatch: child.activeBatch ? { ...child.activeBatch, accountId } : undefined,
-        history: child.history.map((batch) => ({ ...batch, accountId }))
+        activeBatch: undefined,
+        history: []
       }
       normalized[accountId] = normalizeTTradingAccounts({ [accountId]: bound })[accountId]
     }
-    stockTradingBooks[quoteId] = { quoteId, accounts: normalized }
+    const parent: StockTradingBook = {
+      quoteId,
+      accounts: normalized,
+      boardLotSize:
+        source && 'accounts' in source
+          ? (source.boardLotSize ??
+            Object.values(children).find((child) => child.boardLotSize)?.boardLotSize)
+          : oldAccount?.boardLotSize
+    }
+    const batches = hasStockBatches
+      ? getStockTBatches(source)
+      : oldBatches.map((batch) => ({ ...batch, id: batchIdFor(batch.accountId, batch.id) }))
+    parent.tBatches = batches.map((batch) => {
+      const legacyCalibrationProfit =
+        batch.legacyCalibrationProfit ??
+        (batch.costCalibrations?.length
+          ? 0
+          : batch.settlement
+            ? batch.settlement.finalProfit - batch.settlement.ledgerProfit
+            : 0)
+      const normalizedBatch = { ...batch, legacyCalibrationProfit }
+      return batch.settlement
+        ? normalizedBatch
+        : normalizeActiveTTradingBatch(normalizedBatch, getBatchTrades(parent, batch), market)
+    })
+    stockTradingBooks[quoteId] = parent
   }
   const applications: CorporateActionRecords = {}
   for (const record of Object.values(
@@ -338,6 +389,7 @@ export function upsertStockAccount(
     stockTradingBooks: {
       ...state.stockTradingBooks,
       [book.quoteId]: {
+        ...(parent && 'accounts' in parent ? parent : {}),
         quoteId: book.quoteId,
         accounts: {
           ...children,
@@ -356,5 +408,49 @@ export function upsertStockAccount(
           }
         : state.settings
   }
+  const updatedParent = next.stockTradingBooks[book.quoteId] as StockTradingBook
+  next.stockTradingBooks[book.quoteId] = reconcileStockTBatches(
+    updatedParent,
+    state.settings.tPlanDefaults,
+    parent
+  )
   return normalizeAccountState(next)
+}
+
+export function upsertStockTradingBook(state: AppState, book: StockTradingBook): AppState {
+  const previous = state.stockTradingBooks[book.quoteId]
+  const previousAccounts = previous && 'accounts' in previous ? previous.accounts : {}
+  let lastTradeAccountId: string | undefined
+  for (const [id, account] of Object.entries(book.accounts)) {
+    const owner = state.securitiesAccounts?.[id]
+    if (!owner || owner.market !== marketFromQuoteId(book.quoteId))
+      throw new Error('股票账户归属无效')
+    const old = previousAccounts[id]
+    const newTrade = account.tradeRecords.some(
+      (trade) =>
+        trade.origin !== 'opening-balance' &&
+        !old?.tradeRecords.some((record) => record.id === trade.id)
+    )
+    const newCash = account.ledger.entries.some(
+      (entry) =>
+        (entry.kind === 'cashDividend' || entry.kind === 'withholdingTax') &&
+        !old?.ledger.entries.some((record) => record.id === entry.id)
+    )
+    if (!owner.enabled && (newTrade || newCash)) throw new Error('请先恢复启用该账户')
+    if (newTrade) lastTradeAccountId = id
+  }
+  const market = marketFromQuoteId(book.quoteId)
+  return normalizeAccountState({
+    ...state,
+    stockTradingBooks: { ...state.stockTradingBooks, [book.quoteId]: book },
+    settings: lastTradeAccountId
+      ? {
+          ...state.settings,
+          lastUsedAccountIdByMarket: {
+            ...state.settings.lastUsedAccountIdByMarket,
+            [market]: lastTradeAccountId
+          }
+        }
+      : state.settings
+  })
 }

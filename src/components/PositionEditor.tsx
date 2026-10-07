@@ -1,4 +1,5 @@
 import { useSecuritiesAccountState } from './SecuritiesAccountContext'
+import { reconcileStockTBatches, toStockTradingBook } from '../lib/stock-t-trading'
 import type { ReactNode } from 'react'
 import type { AccountFeeSettings } from '../shared/types'
 import { BriefcaseBusiness, Camera, Check, PencilLine, ReceiptText, Trash2, X } from 'lucide-react'
@@ -695,6 +696,7 @@ export function PositionEditor({
   accountDisabled = false
 }: PositionEditorProps) {
   const confirm = useConfirmDialog()
+  const { stockTradingBooks } = useSecuritiesAccountState()
   const market = marketFromQuoteId(stock.quoteId)
   const capabilities = marketCapabilitiesForQuoteId(stock.quoteId)
   const currency = stock.currency ?? quote?.currency ?? currencyForMarket(market)
@@ -825,6 +827,17 @@ export function PositionEditor({
     nextAccount: TTradingAccount,
     includeAStock = false
   ): boolean => {
+    try {
+      const parent = toStockTradingBook(stockTradingBooks[stock.quoteId], stock.quoteId)
+      reconcileStockTBatches(
+        { ...parent, accounts: { ...parent.accounts, [nextAccount.accountId!]: nextAccount } },
+        planDefaults,
+        parent
+      )
+    } catch (reason) {
+      setTradeRecordError(reason instanceof Error ? reason.message : String(reason))
+      return false
+    }
     if (market === 'CN' && !includeAStock) return true
     const replay = calculatePortfolioLedgerPosition(nextAccount, market, currency)
     if (replay.error) {
@@ -922,6 +935,22 @@ export function PositionEditor({
           recordedAt.toISOString(),
           resetsPerformance
         )
+      }
+    }
+    if (updatedAccount) {
+      try {
+        const parent = toStockTradingBook(stockTradingBooks[stock.quoteId], stock.quoteId)
+        reconcileStockTBatches(
+          {
+            ...parent,
+            accounts: { ...parent.accounts, [updatedAccount.accountId!]: updatedAccount }
+          },
+          planDefaults,
+          parent
+        )
+      } catch (reason) {
+        setPositionError(reason instanceof Error ? reason.message : String(reason))
+        return
       }
     }
     onSave(
@@ -1216,7 +1245,8 @@ export function PositionEditor({
       setTradeRecordError(result.error)
       return
     }
-    const useFullLedgerPosition = isIndependentBaseTrade(record) || Boolean(record.splitSource)
+    const useFullLedgerPosition =
+      record.purpose === 't' || isIndependentBaseTrade(record) || Boolean(record.splitSource)
     if (!applyGlobalLedgerPosition(result.account, useFullLedgerPosition)) {
       setEditingTradeId(record.id)
       setTradeRecordDraft(createTradeRecordDraft(record))
@@ -1265,7 +1295,8 @@ export function PositionEditor({
       setTradeRecordError(result.error)
       return
     }
-    const useFullLedgerPosition = isIndependentBaseTrade(record) || Boolean(record.splitSource)
+    const useFullLedgerPosition =
+      record.purpose === 't' || isIndependentBaseTrade(record) || Boolean(record.splitSource)
     if (!applyGlobalLedgerPosition(result.account, useFullLedgerPosition)) {
       setEditingTradeId(record.id)
       setTradeRecordDraft(createTradeRecordDraft(record))
@@ -1342,6 +1373,7 @@ export function PositionEditor({
       return batchTrades.length > 0 ? [refreshBatchSettlement(batch, batchTrades)] : []
     })
     const nextAccount = { ...accountWithoutRecords, activeBatch, history }
+    if (!applyGlobalLedgerPosition(nextAccount, true)) return
     const replay = calculatePortfolioLedgerPosition(nextAccount, market, currency)
     if (replay.error) {
       setTradeRecordError(replay.error)

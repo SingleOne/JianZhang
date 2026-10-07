@@ -17,15 +17,19 @@ import type {
   StockMarket
 } from '../shared/types'
 import { AppSelect } from './AppSelect'
+import { AppInput } from './AppFormControls'
+import { getActiveStockTBatches } from '../shared/stock-t-batches'
+import { getBatchTrades } from '../lib/trade-records'
 import './SecuritiesAccounts.css'
 
 const FEE_LABELS: Record<string, string> = {
-  commissionRatePerTenThousand: '净佣金（万分）',
+  commissionIncludesFees: '佣金包含经手费、证管费和过户费',
+  commissionRatePerTenThousand: '净佣金（‱）',
   minimumCommissionBundle: '最低佣金组合（元）',
-  handlingRatePerTenThousand: '经手费（万分）',
-  regulatoryRatePerTenThousand: '证管费（万分）',
-  transferRatePerTenThousand: '过户费（万分）',
-  stampDutyRatePerTenThousand: '卖出印花税（万分）',
+  handlingRatePerTenThousand: '经手费（‱）',
+  regulatoryRatePerTenThousand: '证管费（‱）',
+  transferRatePerTenThousand: '过户费（‱）',
+  stampDutyRatePerTenThousand: '卖出印花税（‱）',
   brokerageRatePercent: '佣金比例（%）',
   minimumBrokerage: '最低佣金（HKD）',
   platformFee: '平台费',
@@ -55,10 +59,10 @@ function accountDrafts(accounts: SecuritiesAccounts): AccountDrafts {
         feeSettings: {
           market: account.market,
           settings: Object.fromEntries(
-            Object.entries(account.feeSettings.settings).map(([key, value]) => [
-              key,
-              typeof value === 'boolean' ? value : String(value)
-            ])
+            Object.entries({
+              ...(account.market === 'CN' ? { commissionIncludesFees: false } : {}),
+              ...account.feeSettings.settings
+            }).map(([key, value]) => [key, typeof value === 'boolean' ? value : String(value)])
           )
         }
       }
@@ -128,7 +132,13 @@ export function SecuritiesAccountManager({
       selected.enabled &&
       books.some(
         (book) =>
-          book.accountId === selectedId && ((book.position?.quantity ?? 0) > 0 || book.activeBatch)
+          book.accountId === selectedId &&
+          ((book.position?.quantity ?? 0) > 0 ||
+            getActiveStockTBatches(state.stockTradingBooks[book.quoteId]).some((batch) =>
+              getBatchTrades(state.stockTradingBooks[book.quoteId], batch).some(
+                (trade) => trade.accountId === selectedId
+              )
+            ))
       )
     ) {
       setError('该账户仍有持仓或未结算 T 批次，请先处理后再停用。')
@@ -303,8 +313,18 @@ export function SecuritiesAccountManager({
                 </label>
                 {Object.entries(selected.feeSettings.settings).map(([key, value]) => (
                   <label key={key}>
-                    <span>{FEE_LABELS[key]}</span>
-                    <input
+                    <span>
+                      {selected.market === 'CN' &&
+                      selected.feeSettings.settings.commissionIncludesFees &&
+                      key === 'commissionRatePerTenThousand'
+                        ? '全包佣金（‱）'
+                        : selected.market === 'CN' &&
+                            selected.feeSettings.settings.commissionIncludesFees &&
+                            key === 'minimumCommissionBundle'
+                          ? '最低全包费用（元）'
+                          : FEE_LABELS[key]}
+                    </span>
+                    <AppInput
                       type={typeof value === 'boolean' ? 'checkbox' : 'number'}
                       min={typeof value === 'boolean' ? undefined : 0}
                       step={typeof value === 'boolean' ? undefined : '0.0001'}

@@ -442,7 +442,7 @@
 }
 
 .t-form-error {
-  margin-top: 8px;
+  margin: 8px 0;
   padding: 7px 9px;
   color: #b42318;
   background: #fff4f3;

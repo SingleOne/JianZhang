@@ -1,3 +1,4 @@
+import { getStockTBatches } from '../shared/stock-t-batches'
 import { listStockAccountBooks } from '../shared/stock-accounts'
 import type { StockTradingBook, StockTradingBooks } from '../shared/types'
 import { calculateMarketTradeFeeItems, totalTradeFeeItems } from './market-trades'
@@ -17,7 +18,6 @@ import type {
   TFloatingProfitAlertStatus,
   TPlanLevel,
   TTradingAccount,
-  TTradingAccounts,
   TTradingBatch,
   TTradingFeeSettings,
   TTrade,
@@ -360,40 +360,38 @@ export function applyTAlertTriggersToAccounts(
   const nextAccounts: StockTradingBooks = {}
 
   for (const [quoteId, parent] of Object.entries(accounts)) {
-    const children: TTradingAccounts = {}
-    for (const account of listStockAccountBooks(parent)) {
-      const batch = account.activeBatch
-      const trades = getBatchTrades(account, batch)
+    let stockChanged = false
+    const batches = getStockTBatches(parent).map((batch) => {
+      if (batch.settlement) return batch
+      const trades = getBatchTrades(parent, batch)
       const latest = quotesById.get(quoteId)?.latest
-      const priceRule = {
-        market: account.market ?? marketFromQuoteId(quoteId),
-        instrumentType: stocksById.get(quoteId)?.instrumentType
-      }
-      const priceResult = batch
-        ? applyTAlertTriggers(batch, trades, latest, priceRule)
-        : { batch, changed: false }
-      const floatingResult = priceResult.batch
-        ? applyTFloatingProfitAlert(priceResult.batch, trades, latest)
-        : { batch: priceResult.batch, changed: false, triggered: undefined }
+      const stock = stocksById.get(quoteId)
+      const priceResult = applyTAlertTriggers(batch, trades, latest, {
+        market: stock?.market ?? marketFromQuoteId(quoteId),
+        instrumentType: stock?.instrumentType
+      })
+      const floatingResult = applyTFloatingProfitAlert(priceResult.batch!, trades, latest)
       if (floatingResult.triggered) {
         triggered.push({
           quoteId,
-          name: account.name,
-          accountId: account.accountId,
-          accountName: account.accountName,
-          batchId: batch?.id,
-          currency: account.currency ?? currencyForMarket(marketFromQuoteId(quoteId)),
+          name: stock?.name ?? listStockAccountBooks(parent)[0]?.name ?? quoteId,
+          ...(!('accounts' in parent)
+            ? { accountId: parent.accountId, accountName: parent.accountName }
+            : {}),
+          batchId: batch.id,
+          currency: stock?.currency ?? currencyForMarket(marketFromQuoteId(quoteId)),
           ...floatingResult.triggered
         })
       }
-      const accountChanged = priceResult.changed || floatingResult.changed
-      children[account.accountId ?? quoteId] = accountChanged
-        ? { ...account, activeBatch: floatingResult.batch }
-        : account
-      changed ||= accountChanged
-    }
-    nextAccounts[quoteId] =
-      'accounts' in parent ? { ...parent, accounts: children } : Object.values(children)[0]
+      stockChanged ||= priceResult.changed || floatingResult.changed
+      return floatingResult.batch!
+    })
+    changed ||= stockChanged
+    nextAccounts[quoteId] = !stockChanged
+      ? parent
+      : 'accounts' in parent
+        ? { ...parent, tBatches: batches }
+        : { ...parent, activeBatch: batches.find((batch) => !batch.settlement) }
   }
 
   return { accounts: changed ? nextAccounts : accounts, changed, triggered }
@@ -518,10 +516,10 @@ export function handleTriggeredTPlanAlertsForTrade(
 export function accountHasTriggeredTAlerts(
   account: TTradingAccount | StockTradingBook | undefined
 ): boolean {
-  if (account && 'accounts' in account)
-    return listStockAccountBooks(account).some(accountHasTriggeredTAlerts)
-  return (
-    hasTriggeredTAlerts(account?.activeBatch, getBatchTrades(account, account?.activeBatch)) ||
-    getTriggeredTFloatingProfitAlert(account?.activeBatch) !== null
+  return getStockTBatches(account).some(
+    (batch) =>
+      !batch.settlement &&
+      (hasTriggeredTAlerts(batch, getBatchTrades(account, batch)) ||
+        getTriggeredTFloatingProfitAlert(batch) !== null)
   )
 }

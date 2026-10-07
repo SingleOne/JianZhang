@@ -1,4 +1,10 @@
-import type { StockPosition, StockQuote, TTradingAccount, WatchStock } from '../../../shared/types'
+import type {
+  StockPosition,
+  StockQuote,
+  StockTradingBook,
+  TTradingAccount,
+  WatchStock
+} from '../../../shared/types'
 
 export type AiTAdviceAction = 'hold' | 'forward-t' | 'reverse-t'
 export type AiTAdviceConfidence = 'low' | 'medium' | 'high'
@@ -64,6 +70,7 @@ export interface AiTAdviceTradingContext {
   quote?: StockQuote
   position?: StockPosition
   account?: TTradingAccount
+  stockBook?: StockTradingBook | TTradingAccount
 }
 
 export interface AiTAdviceApi {

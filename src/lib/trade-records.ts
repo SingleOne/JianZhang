@@ -5,6 +5,7 @@ import type {
   TTradeAllocation,
   TTradeRecord
 } from '../shared/types'
+import type { StockTradingBook } from '../shared/types'
 
 type TradeWithLegacyBatch = TTrade &
   Partial<Pick<TTradeRecord, 'batchId' | 'batchSequence' | 'batchDirection'>>
@@ -79,14 +80,30 @@ export function getAccountTrades(
 }
 
 export function getBatchTrades(
-  account: TTradingAccount | undefined,
-  batch: Pick<TTradingBatch, 'id'> | string | undefined
+  account: TTradingAccount | StockTradingBook | undefined,
+  batch: Pick<TTradingBatch, 'id' | 'direction'> | string | undefined
 ): TTradeRecord[] {
   const batchId = typeof batch === 'string' ? batch : batch?.id
   if (!batchId) return []
-  return sortTradeRecords(
-    (account?.tradeRecords ?? []).filter((record) => tradeReferencesBatch(record, batchId)),
-    'ascending'
+  const trades = (
+    account && 'accounts' in account
+      ? Object.values(account.accounts).flatMap((child) => child.tradeRecords)
+      : (account?.tradeRecords ?? [])
+  ).filter((record) => tradeReferencesBatch(record, batchId))
+  const direction = typeof batch === 'string' ? trades[0]?.batchDirection : batch?.direction
+  return sortTBatchTrades(trades, direction)
+}
+
+export function sortTBatchTrades<T extends TTrade>(
+  trades: readonly T[],
+  direction: TTradingBatch['direction']
+): T[] {
+  const openingSide = direction === 'reverse' ? 'sell' : 'buy'
+  return [...trades].sort(
+    (left, right) =>
+      left.tradedAt.localeCompare(right.tradedAt) ||
+      (left.recordedAt && right.recordedAt ? left.recordedAt.localeCompare(right.recordedAt) : 0) ||
+      Number(right.side === openingSide) - Number(left.side === openingSide)
   )
 }
 

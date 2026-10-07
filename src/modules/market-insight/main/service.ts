@@ -1,10 +1,14 @@
 import { listStockAccountBooks } from '../../../shared/stock-accounts'
+import { getActiveStockTBatches } from '../../../shared/stock-t-batches'
 import type {
   AppState,
   FundsFlowResult,
   KlineResult,
   StockOrderBook,
   StockQuote,
+  StockTradingBook,
+  TTradingAccount,
+  TTradingBatch,
   TPlanLevel,
   WatchStock
 } from '../../../shared/types'
@@ -242,9 +246,7 @@ export class MarketInsightService {
     if (!stock) throw new Error('该股票不在自选列表中')
     const shouldRefreshOrderBook =
       force ||
-      listStockAccountBooks(this.dependencies.getState().stockTradingBooks[quoteId]).some(
-        (account) => Boolean(account.activeBatch)
-      )
+      getActiveStockTBatches(this.dependencies.getState().stockTradingBooks[quoteId]).length > 0
     const [intraday, daily, orderBook, fundsFlow] = await Promise.all([
       this.source(
         quoteId,
@@ -479,35 +481,48 @@ export class MarketInsightService {
   }
 
   private calculateTPlanDistances(stock: WatchStock, latest: number | null): TPlanDistance[] {
-    const accounts = listStockAccountBooks(
-      this.dependencies.getState().stockTradingBooks[stock.quoteId]
-    )
-    return accounts.flatMap((account) =>
-      this.calculateAccountTPlanDistances(stock, latest, account)
-    )
+    const book = this.dependencies.getState().stockTradingBooks[stock.quoteId]
+    const batches = getActiveStockTBatches(book)
+    if (batches.length)
+      return batches.flatMap((batch) =>
+        this.calculateBatchTPlanDistances(stock, latest, book, batch)
+      )
+    return listStockAccountBooks(book).flatMap((account) => {
+      const cost = account.position?.cost
+      return latest === null || cost === undefined
+        ? []
+        : [
+            {
+              id: `${account.accountId}:position-cost`,
+              label: `${account.accountName ?? '账户'} · 持仓成本`,
+              side: 'position' as const,
+              price: cost,
+              distancePercent: cost === 0 ? null : (latest / cost - 1) * 100,
+              quantity: null,
+              isNearest: false
+            }
+          ]
+    })
   }
 
-  private calculateAccountTPlanDistances(
+  private calculateBatchTPlanDistances(
     stock: WatchStock,
     latest: number | null,
-    account: import('../../../shared/types').TTradingAccount
+    book: StockTradingBook | TTradingAccount | undefined,
+    batch: TTradingBatch
   ): TPlanDistance[] {
-    const batch = account?.activeBatch
-    const batchMetrics = batch
-      ? calculateTBatchMetrics(batch, getBatchTrades(account, batch))
-      : null
-    const cost = batchMetrics ? batchMetrics.averageCost : account.position?.cost
+    const batchMetrics = calculateTBatchMetrics(batch, getBatchTrades(book, batch))
+    const cost = batchMetrics.averageCost
     if (latest === null || cost === null || cost === undefined) return []
     const position: TPlanDistance = {
-      id: `${account.accountId}:position-cost`,
-      label: `${account.accountName ?? '账户'} · ${batch ? 'T 仓均价' : '持仓成本'}`,
+      id: `${batch.id}:position-cost`,
+      label: `批次 #${batch.sequence} · T 仓均价`,
       side: 'position',
       price: cost,
       distancePercent: cost === 0 ? null : (latest / cost - 1) * 100,
-      quantity: batchMetrics?.remainingQuantity ?? null,
+      quantity: batchMetrics.remainingQuantity,
       isNearest: false
     }
-    if (!batch) return [position]
     const levels = (side: 'buy' | 'sell', items: readonly TPlanLevel[] | undefined) =>
       (items ?? []).flatMap((level, index): TPlanDistance[] => {
         const price = tPlanTargetPrice(cost, side, level.targetPercent, {
@@ -518,8 +533,8 @@ export class MarketInsightService {
         const distancePercent = price === 0 ? null : (latest / price - 1) * 100
         return [
           {
-            id: `${account.accountId}:${side}-${index + 1}`,
-            label: `${account.accountName ?? '账户'} · T${index + 1}${side === 'buy' ? ' 买入档' : ' 卖出档'}`,
+            id: `${batch.id}:${side}-${index + 1}`,
+            label: `批次 #${batch.sequence} · T${index + 1}${side === 'buy' ? ' 买入档' : ' 卖出档'}`,
             side,
             price,
             distancePercent,

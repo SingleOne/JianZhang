@@ -625,6 +625,7 @@ export interface StockPosition {
 }
 
 export interface TTradingFeeSettings {
+  commissionIncludesFees?: boolean
   commissionRatePerTenThousand: number
   minimumCommissionBundle: number
   handlingRatePerTenThousand: number
@@ -654,6 +655,7 @@ export interface MarketTradeFeeSettings {
 }
 
 export const DEFAULT_T_TRADING_FEE_SETTINGS: TTradingFeeSettings = {
+  commissionIncludesFees: false,
   commissionRatePerTenThousand: 5.313,
   minimumCommissionBundle: 5,
   handlingRatePerTenThousand: 0.341,
@@ -741,6 +743,7 @@ export interface TTrade {
   side: TTradeSide
   purpose: TTradePurpose
   tradedAt: string
+  recordedAt?: string
   price: number
   quantity: number
   fees: TTradeFees
@@ -1110,6 +1113,7 @@ export interface TBatchSettlement {
 }
 
 export interface TTradingBatch {
+  /** 仅保留旧批次的来源账户；股票级批次不以此字段限制成交归属。 */
   accountId?: string
   id: string
   sequence: number
@@ -1126,6 +1130,24 @@ export interface TTradingBatch {
   /** 当前批次的双向浮动盈亏金额提醒。 */
   floatingProfitAlert?: TFloatingProfitAlert
   settlement?: TBatchSettlement
+  /** 升级时保留旧版成本校准收益；新校准单独累计。 */
+  legacyCalibrationProfit?: number
+  costCalibrations?: TBatchCostCalibration[]
+}
+
+export interface TBatchCostCalibration {
+  id: string
+  createdAt: string
+  profitAdjustment: number
+  profitAdjustmentCny: number | null
+  accounts: {
+    accountId: string
+    accountName: string
+    quantity: number
+    costBefore: number
+    costAfter: number
+    positionAdjustmentId?: string
+  }[]
 }
 
 export interface TTradingAccount {
@@ -1170,6 +1192,9 @@ export type SecuritiesAccounts = Record<string, SecuritiesAccount>
 export interface StockTradingBook {
   quoteId: string
   accounts: TTradingAccounts
+  /** 股票级批次，成交仍只保存在各自账户的真实账本中。 */
+  tBatches?: TTradingBatch[]
+  boardLotSize?: number
 }
 
 /** 单账本成员只供当前版本的升级输入使用，保存时统一为 StockTradingBook。 */
@@ -1296,7 +1321,7 @@ export function tradeLedgerEntry(
     quoteId,
     occurredAt: record.tradedAt,
     marketDate: record.marketDate ?? record.tradedAt.slice(0, 10),
-    recordedAt: record.brokerImport?.recordedAt ?? record.tradedAt,
+    recordedAt: record.recordedAt ?? record.brokerImport?.recordedAt ?? record.tradedAt,
     source: record.brokerImport ? 'brokerImport' : 'trade',
     externalId: record.brokerImport?.externalId ?? record.id,
     brokerImport: record.brokerImport,
@@ -2500,6 +2525,7 @@ function normalizeTTradingFeeSettings(
   settings: Partial<TTradingFeeSettings> | undefined
 ): TTradingFeeSettings {
   return {
+    commissionIncludesFees: settings?.commissionIncludesFees ?? false,
     commissionRatePerTenThousand: Math.max(
       0,
       settings?.commissionRatePerTenThousand ??
