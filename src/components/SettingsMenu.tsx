@@ -29,6 +29,7 @@ import {
   type MarketIndexId
 } from '../shared/types'
 import { applyAppThemePreference } from '../lib/theme'
+import { AppButton } from './AppButton'
 
 const MarketInsightSettingsToggle = __JIANZHANG_MARKET_INSIGHT_ENABLED__
   ? lazy(() =>
@@ -45,6 +46,7 @@ const MARKET_INDEX_GROUPS = (['CN', 'HK', 'US'] as const).map((market) => ({
 
 interface SettingsMenuProps {
   onManageAccounts: () => void
+  onManageFeeSchemes: () => void
   settings: AppSettings
   onChange: (settings: AppSettings) => void
   onImportConfig: () => void
@@ -149,6 +151,7 @@ function formatCacheSize(bytes: number): string {
 
 export function SettingsMenu({
   onManageAccounts,
+  onManageFeeSchemes,
   settings,
   onChange,
   onImportConfig,
@@ -398,12 +401,17 @@ export function SettingsMenu({
             <>
               <section className="trading-fee-setting">
                 <span className="settings-section-heading">
-                  <strong>股票账户与费率</strong>
-                  <small>各市场账户独立维护持仓与交易费用</small>
+                  <strong>股票账户管理</strong>
+                  <small>管理股票账户、绑定费用方案及账户费率微调</small>
                 </span>
-                <button className="secondary-button" type="button" onClick={onManageAccounts}>
-                  管理股票账户
-                </button>
+                <AppButton onClick={onManageAccounts}>管理股票账户</AppButton>
+              </section>
+              <section className="trading-fee-setting">
+                <span className="settings-section-heading">
+                  <strong>费用方案管理</strong>
+                  <small>维护统一默认费率、券商佣金参数及费用方案</small>
+                </span>
+                <AppButton onClick={onManageFeeSchemes}>管理费用方案</AppButton>
               </section>
               <section className="t-plan-default-setting">
                 <span className="settings-section-heading">

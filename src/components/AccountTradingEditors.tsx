@@ -32,7 +32,7 @@ function PositionAccountDraft({
       account={scope.book}
       accountDisabled={!scope.owner.enabled}
       marketTradeFees={scope.fees.marketTradeFees}
-      accountFeeSnapshot={scope.owner.feeSettings}
+      accountFeeSnapshot={scope.fees.accountFees}
       accountSelector={selector}
       onSave={(position, radar, snapshots, account) =>
         props.onSave(position, radar, snapshots, {

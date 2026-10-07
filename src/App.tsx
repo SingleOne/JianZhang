@@ -1,6 +1,7 @@
 import { applyAccountSecurityConversion } from './lib/stock-accounts'
 import { SecuritiesAccountProvider } from './components/SecuritiesAccountContext'
 import { SecuritiesAccountManager } from './components/SecuritiesAccountManager'
+import { FeeSchemeManager } from './components/FeeSchemeManager'
 import {
   upsertStockAccount,
   upsertStockTradingBook,
@@ -157,6 +158,7 @@ function cardDirectionClass(value: number | null | undefined): string {
 
 export default function App() {
   const [accountManagerOpen, setAccountManagerOpen] = useState(false)
+  const [feeSchemeManagerOpen, setFeeSchemeManagerOpen] = useState(false)
   const [accountNavigation, setAccountNavigation] = useState<
     { quoteId: string; accountId: string } | undefined
   >()
@@ -1729,7 +1731,14 @@ export default function App() {
                 </button>
               ) : null}
               <SettingsMenu
-                onManageAccounts={() => setAccountManagerOpen(true)}
+                onManageAccounts={() => {
+                  setFeeSchemeManagerOpen(false)
+                  setAccountManagerOpen(true)
+                }}
+                onManageFeeSchemes={() => {
+                  setAccountManagerOpen(false)
+                  setFeeSchemeManagerOpen(true)
+                }}
                 settings={state.settings}
                 onChange={updateSettings}
                 onImportConfig={importConfig}
@@ -2095,7 +2104,23 @@ export default function App() {
             onClose={() => setAccountManagerOpen(false)}
             onSave={async (accounts) =>
               Boolean(
-                await persist(normalizeAccountState({ ...state, securitiesAccounts: accounts }))
+                await persist(
+                  normalizeAccountState({
+                    ...state,
+                    securitiesAccounts: accounts
+                  })
+                )
+              )
+            }
+          />
+        ) : null}
+        {feeSchemeManagerOpen ? (
+          <FeeSchemeManager
+            state={state}
+            onClose={() => setFeeSchemeManagerOpen(false)}
+            onSave={async (feeSchemes, fixedFeeDefaults) =>
+              Boolean(
+                await persist(normalizeAccountState({ ...state, feeSchemes, fixedFeeDefaults }))
               )
             }
           />

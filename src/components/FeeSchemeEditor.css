@@ -1,0 +1,193 @@
+.account-manager.fee-scheme-manager {
+  width: min(1060px, 100%);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.fee-scheme-manager > .account-manager-header {
+  flex: 0 0 auto;
+  margin: 0 0 16px;
+}
+.fee-scheme-manager-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.account-manager.fee-scheme-manager > footer {
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  margin: 12px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.fee-scheme-manager > footer p {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.fee-scheme-manager > footer button {
+  flex-shrink: 0;
+}
+.account-manager-detail {
+  min-width: 0;
+}
+.fee-defaults-panel,
+.fee-account-overrides,
+.fee-scheme-preview {
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.fee-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.fee-scheme-editor h3,
+.fee-defaults-panel h3,
+.fee-account-overrides h3 {
+  margin: 12px 0;
+  font-size: 14px;
+}
+.fee-fixed-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.fee-fixed-fields label,
+.fee-scheme-name,
+.fee-scheme-rounding,
+.fee-preview-inputs label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+.fee-fixed-fields small {
+  font-size: 12px;
+  color: var(--muted);
+}
+.fee-account-binding {
+  grid-column: 1 / -1;
+}
+.fee-scheme-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.fee-scheme-heading .fee-scheme-name {
+  flex: 1 1 260px;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.fee-scheme-name > span {
+  flex-shrink: 0;
+}
+.fee-scheme-heading .fee-scheme-name input {
+  flex: 1;
+  width: 100%;
+  height: 34px;
+  padding: 6px 8px;
+}
+.fee-scheme-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 8px;
+  margin-left: auto;
+}
+.fee-scheme-heading .fee-scheme-actions button {
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: 14px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.fee-scheme-editor .fee-scheme-binding {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 6px 0 10px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.fee-scheme-list-item {
+  justify-content: space-between;
+}
+.fee-commission-exchanges {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.fee-commission-card {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+}
+.fee-commission-card h4 {
+  font-size: 14px;
+  margin: 0 0 12px;
+}
+.fee-commission-card p {
+  font-size: 13px;
+  margin: 12px 0 8px;
+}
+.fee-included-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.fee-included-options label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+}
+.fee-included-options input[type='checkbox'] {
+  align-self: center;
+  margin: 0;
+}
+.fee-scheme-rounding {
+  margin-top: 16px;
+}
+.fee-preview-inputs {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 12px;
+}
+.fee-preview-results {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+.fee-preview-results dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+.fee-preview-results dd {
+  font-size: 14px;
+  margin: 4px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 760px) {
+  .fee-fixed-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .fee-commission-exchanges {
+    grid-template-columns: 1fr;
+  }
+  .fee-preview-inputs {
+    grid-template-columns: 1fr;
+  }
+}

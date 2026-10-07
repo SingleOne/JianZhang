@@ -1,7 +1,7 @@
-import type { ButtonHTMLAttributes } from 'react'
+import type { ComponentProps } from 'react'
 
-type AppButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: 'primary' | 'secondary' | 'danger' | 'text' | 'icon'
+type AppButtonProps = ComponentProps<'button'> & {
+  variant?: 'primary' | 'secondary' | 'danger' | 'text' | 'icon' | 'plain'
 }
 
 export function AppButton({
@@ -11,6 +11,10 @@ export function AppButton({
   ...props
 }: AppButtonProps) {
   const variantClass =
-    variant === 'danger' ? 'secondary-button app-button-danger' : `${variant}-button`
+    variant === 'plain'
+      ? ''
+      : variant === 'danger'
+        ? 'secondary-button app-button-danger'
+        : `${variant}-button`
   return <button {...props} type={type} className={`${variantClass} ${className}`.trim()} />
 }

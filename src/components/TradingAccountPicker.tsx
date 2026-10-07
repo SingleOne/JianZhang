@@ -3,7 +3,15 @@ import { useCallback, useEffect, useId, useRef, useState, type RefObject } from 
 import { createPortal } from 'react-dom'
 import { formatMoney } from '../lib/format'
 import { currencyForMarket, STOCK_MARKET_LABELS } from '../shared/stock-market'
-import type { SecuritiesAccount } from '../shared/types'
+import type { BrokerFeeSchemes, SecuritiesAccount } from '../shared/types'
+import {
+  accountFeeScheme,
+  effectiveFixedFees,
+  FIXED_FEE_CODES,
+  FIXED_FEE_LABELS
+} from '../shared/fee-schemes'
+import { useSecuritiesAccountState } from './SecuritiesAccountContext'
+import { AppButton } from './AppButton'
 import './TradingAccountPicker.css'
 
 interface TradingAccountPickerProps {
@@ -14,25 +22,34 @@ interface TradingAccountPickerProps {
   onChange: (id: string) => void
 }
 
-function accountFeeRows(account: SecuritiesAccount): [string, string][] {
-  const fees = account.feeSettings
+function accountFeeRows(account: SecuritiesAccount, schemes: BrokerFeeSchemes): [string, string][] {
+  const fees = accountFeeScheme(account, schemes)
   if (fees.market === 'CN') {
-    const included = Boolean(fees.settings.commissionIncludesFees)
+    const fixed = effectiveFixedFees(account, fees)
     return [
-      ['佣金口径', included ? '全包（含经手、证管、过户）' : '净佣金另加杂费'],
-      [included ? '全包佣金' : '净佣金', `${fees.settings.commissionRatePerTenThousand}‱`],
+      ['费用方案', fees.name],
+      ['沪 A 佣金报价', `${fees.commission.SH.ratePerTenThousand}‱`],
+      ['沪 A 最低起收', formatMoney(fees.commission.SH.minimumCommission, 'CNY')],
       [
-        included ? '最低全包费用' : '最低佣金组合',
-        formatMoney(fees.settings.minimumCommissionBundle, 'CNY')
+        '沪 A 包含费用',
+        fees.commission.SH.includedFees.map((code) => FIXED_FEE_LABELS[code]).join('、') || '无'
       ],
-      [included ? '经手费（已包含）' : '经手费', `${fees.settings.handlingRatePerTenThousand}‱`],
-      [included ? '证管费（已包含）' : '证管费', `${fees.settings.regulatoryRatePerTenThousand}‱`],
-      [included ? '过户费（已包含）' : '过户费', `${fees.settings.transferRatePerTenThousand}‱`],
-      ['卖出印花税', `${fees.settings.stampDutyRatePerTenThousand}‱`]
+      ['深 A 佣金报价', `${fees.commission.SZ.ratePerTenThousand}‱`],
+      ['深 A 最低起收', formatMoney(fees.commission.SZ.minimumCommission, 'CNY')],
+      [
+        '深 A 包含费用',
+        fees.commission.SZ.includedFees.map((code) => FIXED_FEE_LABELS[code]).join('、') || '无'
+      ],
+      ...FIXED_FEE_CODES.map((code): [string, string] => [
+        `${FIXED_FEE_LABELS[code]}${account.fixedFeeOverrides?.[code] !== undefined ? '（账户微调）' : ''}`,
+        `${fixed[code]}‱${code === 'stampDuty' ? '（卖出）' : ''}`
+      ]),
+      ['取整规则', fees.roundingMode === 'half-up' ? '四舍五入' : '见分进位（只看第三位）']
     ]
   }
   if (fees.market === 'HK') {
     return [
+      ['费用方案', fees.name],
       ['佣金比例', `${fees.settings.brokerageRatePercent}%`],
       ['最低佣金', formatMoney(fees.settings.minimumBrokerage, 'HKD')],
       ['平台费', formatMoney(fees.settings.platformFee, 'HKD')],
@@ -40,6 +57,7 @@ function accountFeeRows(account: SecuritiesAccount): [string, string][] {
     ]
   }
   return [
+    ['费用方案', fees.name],
     ['每股佣金', `${fees.settings.commissionPerShare} USD / 股`],
     ['最低佣金', formatMoney(fees.settings.minimumCommission, 'USD')],
     ['平台费', formatMoney(fees.settings.platformFee, 'USD')],
@@ -55,7 +73,8 @@ export function TradingAccountPicker(props: TradingAccountPickerProps) {
 
   return (
     <>
-      <button
+      <AppButton
+        variant="plain"
         ref={props.buttonRef}
         className="bordered-text-button text-button trading-account-picker-button"
         type="button"
@@ -66,7 +85,7 @@ export function TradingAccountPicker(props: TradingAccountPickerProps) {
         onClick={() => setOpen(true)}
       >
         {selectedAccount?.name ?? '选择账户'}
-      </button>
+      </AppButton>
       {open ? <TradingAccountDialog {...props} onClose={close} /> : null}
     </>
   )
@@ -79,6 +98,7 @@ function TradingAccountDialog({
   onChange,
   onClose
 }: TradingAccountPickerProps & { onClose: () => void }) {
+  const state = useSecuritiesAccountState()
   const titleId = useId()
   const descriptionId = useId()
   const dialogRef = useRef<HTMLElement>(null)
@@ -159,7 +179,8 @@ function TradingAccountDialog({
             <h2 id={titleId}>选择交易账户</h2>
             <p id={descriptionId}>选择交易使用的账户，切换账户会清空当前录入内容</p>
           </div>
-          <button
+          <AppButton
+            variant="plain"
             ref={closeButtonRef}
             className="icon-button"
             type="button"
@@ -167,14 +188,15 @@ function TradingAccountDialog({
             onClick={closeDialog}
           >
             <X size={18} />
-          </button>
+          </AppButton>
         </header>
         <div className="trading-account-picker-list">
           {accounts.map((owner) => {
             const currency = currencyForMarket(owner.market)
             const selected = owner.id === value
             return (
-              <button
+              <AppButton
+                variant="plain"
                 className={`trading-account-picker-option${selected ? ' is-selected' : ''}`}
                 type="button"
                 key={owner.id}
@@ -202,7 +224,7 @@ function TradingAccountDialog({
                 </span>
                 <span className="trading-account-picker-fees">
                   <span className="trading-account-picker-fee-grid">
-                    {accountFeeRows(owner).map(([label, amount]) => (
+                    {accountFeeRows(owner, state.feeSchemes!).map(([label, amount]) => (
                       <span key={label}>
                         <span>{label}</span>
                         <span>{amount}</span>
@@ -213,7 +235,7 @@ function TradingAccountDialog({
                 {!owner.enabled ? (
                   <span className="trading-account-picker-disabled-note">恢复启用后可录入交易</span>
                 ) : null}
-              </button>
+              </AppButton>
             )
           })}
         </div>

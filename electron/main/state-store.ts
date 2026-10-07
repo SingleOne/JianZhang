@@ -76,6 +76,8 @@ type PortfolioMetaState = Pick<
   | 'corporateActionApplications'
   | 'portfolioPerformanceAdjustments'
   | 'securitiesAccounts'
+  | 'feeSchemes'
+  | 'fixedFeeDefaults'
   | 'portfolioSchemaVersion'
   | 'corporateActionRecords'
 >
@@ -461,6 +463,8 @@ export class StateStore {
       {
         corporateActionApplications: state.corporateActionApplications,
         securitiesAccounts: state.securitiesAccounts,
+        feeSchemes: state.feeSchemes,
+        fixedFeeDefaults: state.fixedFeeDefaults,
         portfolioSchemaVersion: state.portfolioSchemaVersion,
         portfolioPerformanceAdjustments: state.portfolioPerformanceAdjustments ?? {}
       } satisfies PortfolioMetaState,

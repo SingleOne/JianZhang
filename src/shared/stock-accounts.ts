@@ -20,6 +20,13 @@ import {
 import { getBatchTrades } from '../lib/trade-records'
 import { getStockTBatches } from './stock-t-batches'
 import { reconcileStockTBatches } from '../lib/stock-t-trading'
+import {
+  createDefaultFeeSchemes,
+  defaultFeeSchemeId,
+  migrateAccountFeeConfiguration,
+  projectExistingTradeSettings
+} from './fee-schemes'
+import type { BrokerFeeSchemes } from './types'
 
 export const ACCOUNT_MARKETS = ['CN', 'HK', 'US'] as const
 
@@ -27,7 +34,7 @@ export function defaultAccountId(market: StockMarket): string {
   return `default:${market}`
 }
 
-export function createDefaultAccounts(settings = DEFAULT_APP_SETTINGS): SecuritiesAccounts {
+export function createDefaultAccounts(_settings = DEFAULT_APP_SETTINGS): SecuritiesAccounts {
   return Object.fromEntries(
     ACCOUNT_MARKETS.map((market) => {
       const id = defaultAccountId(market)
@@ -39,12 +46,7 @@ export function createDefaultAccounts(settings = DEFAULT_APP_SETTINGS): Securiti
           name: `${STOCK_MARKET_LABELS[market]}默认账户`,
           enabled: true,
           isSystemDefault: false,
-          feeSettings:
-            market === 'CN'
-              ? { market, settings: structuredClone(settings.tTradingFees) }
-              : market === 'HK'
-                ? { market, settings: structuredClone(settings.marketTradeFees.HK) }
-                : { market, settings: structuredClone(settings.marketTradeFees.US) }
+          feeSchemeId: defaultFeeSchemeId(market)
         } satisfies SecuritiesAccount
       ]
     })
@@ -105,20 +107,19 @@ export function resolveAccountSelection(
 
 export function accountFeeSettings(
   account: SecuritiesAccount | undefined,
-  settings = DEFAULT_APP_SETTINGS
+  settings = DEFAULT_APP_SETTINGS,
+  schemes: BrokerFeeSchemes = createDefaultFeeSchemes(settings),
+  quoteId = ''
 ) {
+  const accountFees = account
+    ? projectExistingTradeSettings(account, schemes, quoteId.startsWith('1.') ? 'SH' : 'SZ')
+    : undefined
   return {
-    tTradingFees:
-      account?.feeSettings.market === 'CN' ? account.feeSettings.settings : settings.tTradingFees,
+    accountFees,
+    tTradingFees: accountFees?.market === 'CN' ? accountFees.settings : settings.tTradingFees,
     marketTradeFees: {
-      HK:
-        account?.feeSettings.market === 'HK'
-          ? account.feeSettings.settings
-          : settings.marketTradeFees.HK,
-      US:
-        account?.feeSettings.market === 'US'
-          ? account.feeSettings.settings
-          : settings.marketTradeFees.US
+      HK: accountFees?.market === 'HK' ? accountFees.settings : settings.marketTradeFees.HK,
+      US: accountFees?.market === 'US' ? accountFees.settings : settings.marketTradeFees.US
     }
   }
 }
@@ -172,18 +173,11 @@ export function corporateApplicationKey(accountId: string, candidateId: string):
 
 export function normalizeAccountState(state: AppState): AppState {
   const settings = normalizeAppSettings(state.settings)
-  const accounts = { ...(state.securitiesAccounts ?? createDefaultAccounts(settings)) }
-  for (const [id, account] of Object.entries(accounts)) {
-    accounts[id] = { ...account, isSystemDefault: false }
-    if (!account.name.trim() || account.id !== id || account.feeSettings.market !== account.market)
-      throw new Error('股票账户资料或市场不一致')
-    if (
-      Object.values(account.feeSettings.settings).some(
-        (value) => typeof value === 'number' && (!Number.isFinite(value) || value < 0)
-      )
-    )
-      throw new Error('账户费率必须为有效的非负数字')
-  }
+  const { accounts, schemes, fixedFeeDefaults } = migrateAccountFeeConfiguration(
+    state,
+    settings,
+    createDefaultAccounts(settings)
+  )
   const input = state.stockTradingBooks ?? state.tTradingAccounts ?? {}
   const stockTradingBooks: StockTradingBooks = {}
   const quoteIds = new Set([
@@ -348,6 +342,8 @@ export function normalizeAccountState(state: AppState): AppState {
     ...rest,
     portfolioSchemaVersion: 2,
     securitiesAccounts: accounts,
+    feeSchemes: schemes,
+    fixedFeeDefaults,
     stockTradingBooks,
     corporateActionApplications: applications,
     portfolioPerformanceAdjustments: {},

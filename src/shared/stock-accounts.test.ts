@@ -77,17 +77,29 @@ describe('stock account state', () => {
     state.securitiesAccounts![includedAccount.id] = includedAccount
     const normalized = normalizeAccountState(state)
     expect(
-      accountFeeSettings(normalized.securitiesAccounts![includedAccount.id]).tTradingFees
-        .commissionIncludesFees
+      accountFeeSettings(
+        normalized.securitiesAccounts![includedAccount.id],
+        normalized.settings,
+        normalized.feeSchemes,
+        '1.600000'
+      ).tTradingFees.commissionIncludesFees
     ).toBe(true)
     expect(
-      accountFeeSettings(normalized.securitiesAccounts!['default:CN']).tTradingFees
-        .commissionIncludesFees
+      accountFeeSettings(
+        normalized.securitiesAccounts!['default:CN'],
+        normalized.settings,
+        normalized.feeSchemes,
+        '1.600000'
+      ).tTradingFees.commissionIncludesFees
     ).toBe(false)
     expect(normalized.settings.tTradingFees.commissionIncludesFees).toBe(false)
-    expect(
-      normalizeAccountState(normalized).securitiesAccounts![includedAccount.id].feeSettings
-    ).toEqual(includedAccount.feeSettings)
+    expect(normalized.securitiesAccounts![includedAccount.id]).not.toHaveProperty('feeSettings')
+    const schemeId = normalized.securitiesAccounts![includedAccount.id].feeSchemeId
+    expect(normalized.feeSchemes![schemeId]).toMatchObject({
+      market: 'CN',
+      commission: { SH: { ratePerTenThousand: 1, minimumCommission: 1 } }
+    })
+    expect(normalizeAccountState(normalized)).toEqual(normalized)
   })
 
   it('migrates legacy positions and adjustments once and retains the original fee configuration', () => {
@@ -98,11 +110,46 @@ describe('stock account state', () => {
     expect(book.position).toEqual(legacy.watchlist[0].position)
     expect(book.performanceAdjustmentCny).toBe(12)
     expect(
-      accountFeeSettings(state.securitiesAccounts!['default:CN']).tTradingFees
-        .minimumCommissionBundle
+      accountFeeSettings(state.securitiesAccounts!['default:CN'], state.settings, state.feeSchemes)
+        .tTradingFees.minimumCommissionBundle
     ).toBe(7)
     expect(Object.keys(state.securitiesAccounts!)).toHaveLength(3)
     expect(normalizeAccountState(state)).toEqual(state)
+  })
+
+  it('does not recalculate existing ledger fees or positions when fee schemes change', () => {
+    let state = normalizeAccountState(legacyState())
+    const book = getStockAccountBook(state.stockTradingBooks, '1.600000', 'default:CN')!
+    const updated = withLedgerTradeRecords(book, [
+      ...book.tradeRecords,
+      {
+        id: 'recorded-fees',
+        accountId: 'default:CN',
+        purpose: 'base',
+        side: 'buy',
+        price: 20,
+        quantity: 100,
+        tradedAt: '2026-01-05T10:00',
+        origin: 'execution',
+        fees: { commission: 1, handling: 0.33, regulatory: 0.21, transfer: 0.09, stampDuty: 0 },
+        note: ''
+      }
+    ])
+    state = upsertStockAccount(state, updated, {
+      quantity: 200,
+      cost: 15.01,
+      openedToday: false,
+      currency: 'CNY'
+    })
+    const original = structuredClone(state.stockTradingBooks)
+    const owner = state.securitiesAccounts!['default:CN']
+    const scheme = state.feeSchemes![owner.feeSchemeId]
+    if (scheme.market !== 'CN') throw new Error('Expected CN scheme')
+    scheme.commission.SH.ratePerTenThousand = 10
+    scheme.fixedFees.handling = 0.1
+    owner.fixedFeeOverrides = { transfer: 0 }
+    const next = normalizeAccountState(state)
+    expect(next.stockTradingBooks).toEqual(original)
   })
 
   it('keeps initial accounts editable and disabled without restoring their former system status', () => {

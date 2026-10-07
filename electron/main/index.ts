@@ -1,4 +1,8 @@
-import { getStockAccountBook, resolveAccountSelection } from '../../src/shared/stock-accounts'
+import {
+  accountFeeSettings,
+  getStockAccountBook,
+  resolveAccountSelection
+} from '../../src/shared/stock-accounts'
 import { app, dialog, Notification } from 'electron'
 import { join } from 'node:path'
 import {
@@ -487,7 +491,12 @@ async function initializeAiTAdviceModule(
           position: account.position,
           account,
           stockBook: state.stockTradingBooks[quoteId],
-          feeSettings: state.securitiesAccounts![accountId].feeSettings
+          feeSettings: accountFeeSettings(
+            state.securitiesAccounts![accountId],
+            state.settings,
+            state.feeSchemes,
+            quoteId
+          ).accountFees!
         }
       },
       runStructuredTask: (request, signal) => aiRuntime!.runStructuredTask(request, signal)

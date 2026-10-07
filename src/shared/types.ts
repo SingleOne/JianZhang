@@ -1178,13 +1178,43 @@ export type AccountFeeSettings =
   | { market: 'HK'; settings: HongKongTradeFeeSettings }
   | { market: 'US'; settings: UnitedStatesTradeFeeSettings }
 
+export type FixedFeeCode = 'handling' | 'regulatory' | 'transfer' | 'stampDuty'
+export type CnFixedFeeRates = Record<FixedFeeCode, number>
+export type FeeRoundingMode = 'half-up' | 'next-digit-up'
+export type CnFeeExchange = 'SH' | 'SZ'
+
+export interface BrokerCommissionRule {
+  ratePerTenThousand: number
+  minimumCommission: number
+  includedFees: FixedFeeCode[]
+}
+
+export interface CnBrokerFeeScheme {
+  id: string
+  name: string
+  market: 'CN'
+  fixedFees: CnFixedFeeRates
+  commission: Record<CnFeeExchange, BrokerCommissionRule>
+  roundingMode: FeeRoundingMode
+  /** 交易入口统一接入前保留原取整顺序；新计算器不使用此字段。 */
+  existingCommissionMode?: 'net' | 'inclusive'
+}
+
+export type BrokerFeeScheme =
+  | CnBrokerFeeScheme
+  | { id: string; name: string; market: 'HK'; settings: HongKongTradeFeeSettings }
+  | { id: string; name: string; market: 'US'; settings: UnitedStatesTradeFeeSettings }
+export type BrokerFeeSchemes = Record<string, BrokerFeeScheme>
+
 export interface SecuritiesAccount {
   id: string
   name: string
   market: StockMarket
   enabled: boolean
   isSystemDefault: boolean
-  feeSettings: AccountFeeSettings
+  feeSchemeId: string
+  /** 省略的项目使用绑定方案的固定费率。 */
+  fixedFeeOverrides?: Partial<CnFixedFeeRates>
 }
 
 export type SecuritiesAccounts = Record<string, SecuritiesAccount>
@@ -2721,6 +2751,9 @@ export function normalizeAppSettings(settings: Partial<AppSettings> | undefined)
 export interface AppState {
   portfolioSchemaVersion?: 2
   securitiesAccounts?: SecuritiesAccounts
+  feeSchemes?: BrokerFeeSchemes
+  /** 只作为新方案及恢复默认值的来源，不覆盖已保存方案。 */
+  fixedFeeDefaults?: CnFixedFeeRates
   /** 仅供账户功能升级时读取旧状态。 */
   tTradingAccounts?: TTradingAccounts
   corporateActionRecords?: CorporateActionRecords

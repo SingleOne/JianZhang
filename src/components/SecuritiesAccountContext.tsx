@@ -196,6 +196,6 @@ export function useStockAccountScope(stock: WatchStock, preferredId?: string) {
     markDirty: () => {},
     saved: () => {},
     stock: { ...stock, position: book.position, positionSnapshots: book.positionSnapshots },
-    fees: accountFeeSettings(owner, state.settings)
+    fees: accountFeeSettings(owner, state.settings, state.feeSchemes, stock.quoteId)
   }
 }

@@ -489,7 +489,7 @@ export function TTradingDrawer(props: TTradingDrawerProps) {
         props.exchangeRates,
         profit
       )
-      const fees = accountFeeSettings(owner, state.settings)
+      const fees = accountFeeSettings(owner, state.settings, state.feeSchemes, props.stock.quoteId)
       return {
         stock,
         account,
@@ -498,7 +498,7 @@ export function TTradingDrawer(props: TTradingDrawerProps) {
         holdingCostBasis: metrics.holdingCostBasis,
         feeSettings: fees.tTradingFees,
         marketTradeFees: fees.marketTradeFees,
-        accountFeeSnapshot: owner?.feeSettings
+        accountFeeSnapshot: fees.accountFees
       }
     },
     [
@@ -507,6 +507,7 @@ export function TTradingDrawer(props: TTradingDrawerProps) {
       props.quote,
       props.stock,
       state.securitiesAccounts,
+      state.feeSchemes,
       state.settings
     ]
   )

@@ -100,7 +100,7 @@ export function moveAccountLedgerEntry(
   }
   if (recalculateFees && entry.kind === 'trade' && entry.record.origin !== 'opening-balance') {
     const date = entry.record.marketDate ?? entry.record.tradedAt.slice(0, 10)
-    const fees = accountFeeSettings(owner, state.settings)
+    const fees = accountFeeSettings(owner, state.settings, state.feeSchemes, quoteId)
     const stock = state.watchlist.find((item) => item.quoteId === quoteId)!
     const template = marketFeeTemplateForTradeDate(owner.market, date)
     if (owner.market !== 'CN' && !template)
@@ -108,7 +108,7 @@ export function moveAccountLedgerEntry(
     const record = {
       ...entry.record,
       accountId: targetId,
-      accountFeeSnapshot: structuredClone(owner.feeSettings),
+      accountFeeSnapshot: structuredClone(fees.accountFees),
       fees:
         owner.market === 'CN'
           ? calculateTradeFees(

@@ -126,6 +126,28 @@ describe('StateStore', () => {
     })
   })
 
+  it('persists fee scheme bindings and editable defaults without rewriting portfolio documents', () => {
+    const store = new StateStore(directory, makeState())
+    const state = store.load().state
+    const previous = readManifest(directory)
+    const account = state.securitiesAccounts!['default:CN']
+    const scheme = state.feeSchemes![account.feeSchemeId]
+    if (scheme.market !== 'CN') throw new Error('Expected CN scheme')
+    scheme.roundingMode = 'next-digit-up'
+    scheme.commission.SH.includedFees = ['handling', 'regulatory']
+    account.fixedFeeOverrides = { transfer: 0.08 }
+    state.fixedFeeDefaults!.handling = 0.3
+    store.save(state)
+    const loaded = new StateStore(directory, makeState()).load().state
+    expect(loaded.feeSchemes).toEqual(state.feeSchemes)
+    expect(loaded.fixedFeeDefaults).toEqual(state.fixedFeeDefaults)
+    expect(loaded.securitiesAccounts).toEqual(state.securitiesAccounts)
+    expect(loaded.securitiesAccounts!['default:CN']).not.toHaveProperty('feeSettings')
+    expect(readManifest(directory).documents.tradingAccounts).toEqual(
+      previous.documents.tradingAccounts
+    )
+  })
+
   it('migrates a legacy settings.json once and keeps recognizable legacy copies', () => {
     const laterQuoteIdProfile = makeTrackingProfile()
     const earlierQuoteIdProfile = {

@@ -3,50 +3,38 @@ import { createPortal } from 'react-dom'
 import { X, Plus } from 'lucide-react'
 import {
   ACCOUNT_MARKETS,
-  createDefaultAccounts,
-  defaultAccountId,
   flattenStockAccountBooks,
   normalizeAccountState
 } from '../shared/stock-accounts'
 import { STOCK_MARKET_LABELS } from '../shared/stock-market'
+import { FIXED_FEE_CODES, validateFeeConfiguration } from '../shared/fee-schemes'
 import type {
-  AccountFeeSettings,
   AppState,
+  CnFixedFeeRates,
+  FixedFeeCode,
   SecuritiesAccount,
   SecuritiesAccounts,
   StockMarket
 } from '../shared/types'
 import { AppSelect } from './AppSelect'
 import { AppInput } from './AppFormControls'
+import { AppButton } from './AppButton'
+import {
+  FixedFeeFields,
+  fixedFeeDraft,
+  parseFeeNumber,
+  type FixedFeeDraft
+} from './FeeSchemeEditor'
 import { getActiveStockTBatches } from '../shared/stock-t-batches'
 import { getBatchTrades } from '../lib/trade-records'
 import './SecuritiesAccounts.css'
-
-const FEE_LABELS: Record<string, string> = {
-  commissionIncludesFees: '佣金包含经手费、证管费和过户费',
-  commissionRatePerTenThousand: '净佣金（‱）',
-  minimumCommissionBundle: '最低佣金组合（元）',
-  handlingRatePerTenThousand: '经手费（‱）',
-  regulatoryRatePerTenThousand: '证管费（‱）',
-  transferRatePerTenThousand: '过户费（‱）',
-  stampDutyRatePerTenThousand: '卖出印花税（‱）',
-  brokerageRatePercent: '佣金比例（%）',
-  minimumBrokerage: '最低佣金（HKD）',
-  platformFee: '平台费',
-  includeSettlementFee: '计入交收费',
-  commissionPerShare: '每股佣金（USD）',
-  minimumCommission: '最低佣金（USD）',
-  includeSecFee: '计入 SEC 费用',
-  includeFinraTaf: '计入 FINRA TAF'
-}
 
 const MARKET_OPTIONS = ACCOUNT_MARKETS.map((value) => ({
   value,
   label: STOCK_MARKET_LABELS[value]
 }))
-
-type AccountDraft = Omit<SecuritiesAccount, 'feeSettings'> & {
-  feeSettings: { market: StockMarket; settings: Record<string, string | boolean> }
+type AccountDraft = Omit<SecuritiesAccount, 'fixedFeeOverrides'> & {
+  fixedFeeOverrides?: Partial<FixedFeeDraft>
 }
 type AccountDrafts = Record<string, AccountDraft>
 
@@ -56,15 +44,12 @@ function accountDrafts(accounts: SecuritiesAccounts): AccountDrafts {
       id,
       {
         ...account,
-        feeSettings: {
-          market: account.market,
-          settings: Object.fromEntries(
-            Object.entries({
-              ...(account.market === 'CN' ? { commissionIncludesFees: false } : {}),
-              ...account.feeSettings.settings
-            }).map(([key, value]) => [key, typeof value === 'boolean' ? value : String(value)])
-          )
-        }
+        fixedFeeOverrides: Object.fromEntries(
+          Object.entries(account.fixedFeeOverrides ?? {}).map(([code, value]) => [
+            code,
+            String(value)
+          ])
+        )
       }
     ])
   )
@@ -79,11 +64,11 @@ export function SecuritiesAccountManager({
   onSave: (accounts: SecuritiesAccounts) => Promise<boolean>
   onClose: () => void
 }) {
-  const [accounts, setAccounts] = useState(() =>
-    accountDrafts(normalizeAccountState(state).securitiesAccounts!)
-  )
+  const [initial] = useState(() => normalizeAccountState(state))
+  const [accounts, setAccounts] = useState(() => accountDrafts(initial.securitiesAccounts!))
+  const schemes = initial.feeSchemes!
   const [selectedId, setSelectedId] = useState(
-    () => Object.values(accounts).find((account) => account.market === 'CN')?.id ?? ''
+    () => Object.values(accounts).find((a) => a.market === 'CN')?.id ?? ''
   )
   const [market, setMarket] = useState<StockMarket>('CN')
   const [error, setError] = useState('')
@@ -102,11 +87,22 @@ export function SecuritiesAccountManager({
     }
   }, [onClose, saving])
   const selected = accounts[selectedId]
+  const boundScheme = selected ? schemes[selected.feeSchemeId] : undefined
   const books = Object.values(flattenStockAccountBooks(state.stockTradingBooks))
-  const update = (changes: Partial<AccountDraft>) => {
-    setAccounts((current) => ({ ...current, [selectedId]: { ...current[selectedId], ...changes } }))
+  const changed = () => {
     setSaved(false)
     setError('')
+  }
+  const selectAccount = (id: string) => {
+    setSelectedId(id)
+    setError('')
+  }
+  const update = (changes: Partial<AccountDraft>) => {
+    setAccounts((current) => ({ ...current, [selectedId]: { ...current[selectedId], ...changes } }))
+    changed()
+  }
+  const bindScheme = (feeSchemeId: string) => {
+    update({ feeSchemeId, fixedFeeOverrides: {} })
   }
   const add = () => {
     const id = crypto.randomUUID()
@@ -116,16 +112,19 @@ export function SecuritiesAccountManager({
       Object.values(accounts).some((account) => account.market === market && account.name === name)
     )
       name = `${STOCK_MARKET_LABELS[market]}账户 ${++count}`
-    const template =
-      Object.values(accounts).find((account) => account.market === market) ??
-      accountDrafts(createDefaultAccounts(state.settings))[defaultAccountId(market)]
+    const feeSchemeId = Object.values(schemes).find((scheme) => scheme.market === market)?.id
+    if (!feeSchemeId) {
+      setError(
+        `暂无${STOCK_MARKET_LABELS[market]}费用方案，请先在“设置 → 交易 → 费用方案管理”中新建。`
+      )
+      return
+    }
     setAccounts((current) => ({
       ...current,
-      [id]: { ...structuredClone(template), id, name, enabled: true, isSystemDefault: false }
+      [id]: { id, name, market, feeSchemeId, enabled: true, isSystemDefault: false }
     }))
     setSelectedId(id)
-    setSaved(false)
-    setError('')
+    changed()
   }
   const toggle = () => {
     if (
@@ -156,60 +155,47 @@ export function SecuritiesAccountManager({
       setError('该账户已有业务记录，可以停用并保留历史。')
       return
     }
-    const { [selectedId]: _removed, ...remaining } = accounts
+    const remaining = { ...accounts }
+    delete remaining[selectedId]
+    const next = Object.values(remaining).find((account) => account.market === market)
     setAccounts(remaining)
-    setSelectedId(Object.values(remaining).find((account) => account.market === market)?.id ?? '')
-    setSaved(false)
-    setError('')
+    setSelectedId(next?.id ?? '')
+    changed()
   }
   const save = async () => {
-    const names = new Set<string>()
     const validated: SecuritiesAccounts = {}
-    const feeTemplates = createDefaultAccounts(state.settings)
-    for (const account of Object.values(accounts)) {
-      const name = account.name.trim()
-      const invalid = (message: string) => {
-        setSelectedId(account.id)
-        setMarket(account.market)
-        setError(message)
-      }
-      if (!name) {
-        invalid('请填写账户名称')
-        return
-      }
-      const key = `${account.market}:${name}`
-      if (account.enabled && names.has(key)) {
-        invalid('同一市场的启用账户名称不能重复')
-        return
-      }
-      if (account.enabled) names.add(key)
-      if (
-        Object.values(account.feeSettings.settings).some(
-          (value) =>
-            typeof value === 'string' &&
-            (!value.trim() || !Number.isFinite(Number(value)) || Number(value) < 0)
-        )
-      ) {
-        invalid('费率和费用必须为有效的非负数字')
-        return
-      }
-      const feeTemplate = feeTemplates[defaultAccountId(account.market)].feeSettings
-      validated[account.id] = {
-        ...account,
-        name,
-        feeSettings: {
-          ...feeTemplate,
-          settings: {
-            ...feeTemplate.settings,
-            ...Object.fromEntries(
-              Object.entries(account.feeSettings.settings).map(([key, value]) => [
-                key,
-                typeof value === 'boolean' ? value : Number(value)
-              ])
-            )
+    try {
+      const names = new Set<string>()
+      for (const account of Object.values(accounts)) {
+        const name = account.name.trim()
+        const key = `${account.market}:${name}`
+        if (!name || (account.enabled && names.has(key))) {
+          setMarket(account.market)
+          selectAccount(account.id)
+          throw new Error(!name ? '请填写账户名称' : '同一市场的启用账户名称不能重复')
+        }
+        if (account.enabled) names.add(key)
+        const overrides: Partial<CnFixedFeeRates> = {}
+        try {
+          for (const code of FIXED_FEE_CODES) {
+            const value = account.fixedFeeOverrides?.[code]
+            if (value !== undefined) overrides[code] = parseFeeNumber(value)
           }
-        } as AccountFeeSettings
+        } catch (reason) {
+          setMarket(account.market)
+          selectAccount(account.id)
+          throw new Error(`${name}：${reason instanceof Error ? reason.message : '请检查费用配置'}`)
+        }
+        validated[account.id] = {
+          ...account,
+          name,
+          fixedFeeOverrides: Object.keys(overrides).length ? overrides : undefined
+        }
       }
+      validateFeeConfiguration(validated, schemes, initial.fixedFeeDefaults!)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '请检查费用配置')
+      return
     }
     setSaving(true)
     setSaved(false)
@@ -220,11 +206,14 @@ export function SecuritiesAccountManager({
         setSaved(true)
       } else setError('账户保存失败，请重试')
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '账户保存失败')
+      setError(reason instanceof Error ? reason.message : '保存失败')
     } finally {
       setSaving(false)
     }
   }
+  const schemeOptions = Object.values(schemes)
+    .filter((scheme) => scheme.market === market)
+    .map((scheme) => ({ value: scheme.id, label: scheme.name }))
   return createPortal(
     <div
       className="account-manager-backdrop"
@@ -242,20 +231,20 @@ export function SecuritiesAccountManager({
       >
         <header className="account-manager-header">
           <div>
-            <h2 id="account-manager-title">股票账户</h2>
-            <p>各账户独立管理持仓、交易费用和做 T。</p>
+            <h2 id="account-manager-title">股票账户管理</h2>
+            <p>管理各市场的股票账户、绑定费用方案及账户费率微调。</p>
           </div>
-          <button
-            type="button"
-            className="icon-button account-manager-close"
+          <AppButton
+            variant="icon"
+            className="account-manager-close"
             onClick={onClose}
             disabled={saving}
             aria-label="关闭"
           >
             <X size={18} />
-          </button>
+          </AppButton>
         </header>
-        <fieldset className="account-manager-layout" disabled={saving}>
+        <div className="account-manager-layout">
           <div className="account-manager-list">
             <div className="account-manager-actions">
               <AppSelect
@@ -266,106 +255,113 @@ export function SecuritiesAccountManager({
                 className="account-manager-market-select"
                 onChange={(next) => {
                   setMarket(next)
-                  setSelectedId(
+                  selectAccount(
                     Object.values(accounts).find((account) => account.market === next)?.id ?? ''
                   )
-                  setError('')
                 }}
               />
-              <button className="secondary-button account-manager-add" type="button" onClick={add}>
+              <AppButton className="account-manager-add" disabled={saving} onClick={add}>
                 <Plus size={14} />
                 <span>新增</span>
-              </button>
+              </AppButton>
             </div>
             {Object.values(accounts)
               .filter((account) => account.market === market)
               .map((account) => (
-                <button
-                  type="button"
+                <AppButton
+                  variant="plain"
+                  disabled={saving}
                   key={account.id}
                   className={`account-manager-account${account.id === selectedId ? ' is-selected' : ''}`}
-                  onClick={() => {
-                    setSelectedId(account.id)
-                    setError('')
-                  }}
+                  onClick={() => selectAccount(account.id)}
                 >
                   <span>{account.name}</span>
                   {!account.enabled ? <small>已停用</small> : null}
-                </button>
+                </AppButton>
               ))}
             {!Object.values(accounts).some((account) => account.market === market) ? (
               <p className="account-manager-notice">暂无账户，点击“新增”创建。</p>
             ) : null}
           </div>
-          {selected ? (
-            <div>
-              <div className="account-manager-fields">
-                <label>
-                  <span>账户名称</span>
-                  <input
-                    value={selected.name}
-                    onChange={(event) => update({ name: event.target.value })}
-                  />
-                </label>
-                <label>
-                  <span>所属市场</span>
-                  <input value={STOCK_MARKET_LABELS[selected.market]} disabled />
-                </label>
-                {Object.entries(selected.feeSettings.settings).map(([key, value]) => (
-                  <label key={key}>
-                    <span>
-                      {selected.market === 'CN' &&
-                      selected.feeSettings.settings.commissionIncludesFees &&
-                      key === 'commissionRatePerTenThousand'
-                        ? '全包佣金（‱）'
-                        : selected.market === 'CN' &&
-                            selected.feeSettings.settings.commissionIncludesFees &&
-                            key === 'minimumCommissionBundle'
-                          ? '最低全包费用（元）'
-                          : FEE_LABELS[key]}
-                    </span>
+          <div className="account-manager-detail">
+            {selected && selected.market === market ? (
+              <>
+                <div className="account-manager-fields">
+                  <label>
+                    <span>账户名称</span>
                     <AppInput
-                      type={typeof value === 'boolean' ? 'checkbox' : 'number'}
-                      min={typeof value === 'boolean' ? undefined : 0}
-                      step={typeof value === 'boolean' ? undefined : '0.0001'}
-                      checked={typeof value === 'boolean' ? value : undefined}
-                      value={typeof value === 'string' ? value : undefined}
-                      onChange={(event) =>
+                      value={selected.name}
+                      disabled={saving}
+                      onChange={(event) => update({ name: event.target.value })}
+                    />
+                  </label>
+                  <label>
+                    <span>所属市场</span>
+                    <AppInput value={STOCK_MARKET_LABELS[selected.market]} disabled />
+                  </label>
+                  <label className="fee-account-binding">
+                    <span>绑定费用方案</span>
+                    <AppSelect
+                      value={selected.feeSchemeId}
+                      options={schemeOptions}
+                      label="账户费用方案"
+                      disabled={saving}
+                      onChange={bindScheme}
+                    />
+                  </label>
+                </div>
+                <p className="account-manager-notice">
+                  切换方案采用新方案默认费率，并清除本账户的固定费率微调。
+                </p>
+                {boundScheme?.market === 'CN' ? (
+                  <section className="fee-account-overrides">
+                    <div className="fee-section-heading">
+                      <h3>本账户固定费率</h3>
+                      <AppButton
+                        variant="text"
+                        disabled={saving}
+                        onClick={() => update({ fixedFeeOverrides: {} })}
+                      >
+                        恢复方案默认值
+                      </AppButton>
+                    </div>
+                    <FixedFeeFields
+                      values={{
+                        ...fixedFeeDraft(boundScheme.fixedFees),
+                        ...selected.fixedFeeOverrides
+                      }}
+                      inherited={fixedFeeDraft(boundScheme.fixedFees)}
+                      disabled={saving}
+                      onChange={(code: FixedFeeCode, value) =>
                         update({
-                          feeSettings: {
-                            ...selected.feeSettings,
-                            settings: {
-                              ...selected.feeSettings.settings,
-                              [key]:
-                                typeof value === 'boolean'
-                                  ? event.target.checked
-                                  : event.target.value
-                            }
-                          }
+                          fixedFeeOverrides: { ...selected.fixedFeeOverrides, [code]: value }
                         })
                       }
                     />
-                  </label>
-                ))}
-              </div>
+                    <p className="account-manager-notice">
+                      仅本账户生效；未微调的项目跟随绑定方案。
+                    </p>
+                  </section>
+                ) : null}
+                <div className="account-manager-actions">
+                  <AppButton disabled={saving} onClick={toggle}>
+                    {selected.enabled ? '停用账户' : '恢复启用'}
+                  </AppButton>
+                  <AppButton variant="text" disabled={saving} onClick={remove}>
+                    删除空账户
+                  </AppButton>
+                </div>
+              </>
+            ) : (
               <p className="account-manager-notice">
-                费率修改用于之后的交易估算和五档预测，历史已保存费用保持不变。港美股市场费用仍按成交日期的模板计算。
+                请先为{STOCK_MARKET_LABELS[market]}创建股票账户。
               </p>
-              <div className="account-manager-actions">
-                <button type="button" className="secondary-button" onClick={toggle}>
-                  {selected.enabled ? '停用账户' : '恢复启用'}
-                </button>
-                <button type="button" className="text-button" onClick={remove}>
-                  删除空账户
-                </button>
-              </div>
-            </div>
-          ) : (
+            )}
             <p className="account-manager-notice">
-              请先为{STOCK_MARKET_LABELS[market]}创建股票账户。
+              方案的佣金参数与取整规则请在“设置 → 交易 → 费用方案管理”中调整。
             </p>
-          )}
-        </fieldset>
+          </div>
+        </div>
         {error ? (
           <p className="account-manager-error" role="alert">
             {error}
@@ -373,18 +369,13 @@ export function SecuritiesAccountManager({
         ) : null}
         {saved ? (
           <p className="account-manager-status" role="status">
-            账户已保存
+            股票账户已保存
           </p>
         ) : null}
         <footer>
-          <button
-            type="button"
-            className="primary-button"
-            onClick={() => void save()}
-            disabled={saving}
-          >
+          <AppButton variant="primary" onClick={() => void save()} disabled={saving}>
             {saving ? '正在保存…' : '保存账户'}
-          </button>
+          </AppButton>
         </footer>
       </section>
     </div>,
