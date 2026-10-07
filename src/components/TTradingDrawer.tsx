@@ -64,6 +64,7 @@ import {
 import { calculatePositionMetrics } from '../lib/portfolio'
 import { calculateCurrentPositionProfitOverride } from '../lib/portfolio-performance'
 import { StockTTradingRecords } from './StockTTradingRecords'
+import { TTradeInlineEditor } from './TTradeInlineEditor'
 import {
   batchCalibrationProfit,
   getActiveStockTBatches,
@@ -127,7 +128,6 @@ interface TTradeEntryProps extends Omit<TTradingDrawerProps, 'account'> {
   clearEntry?: boolean
   tradeToEdit?: TTrade
   onEditComplete?: () => void
-  inline?: boolean
 }
 
 type OverflowDisposition = 'base' | 'opposite-t'
@@ -576,25 +576,15 @@ export function TTradingDrawer(props: TTradingDrawerProps) {
     props.onApplyBook(book)
   }
   const renderTradeEditor = (trade: TTrade, onComplete: () => void) => {
-    const view = makeAccountView(stockBook.accounts[trade.accountId!])
-    const batch =
-      batches.find((item) => tradeReferencesBatch(trade, item.id)) ??
-      activeBatches.find((item) => item.id === selectedBatchId) ??
-      activeBatches[0]
     return (
-      <TTradeEntry
-        {...props}
-        {...view}
-        account={{
-          ...view.account,
-          activeBatch: batch,
-          history: batches.filter((item) => item.settlement && item.id !== batch?.id)
-        }}
-        stockBook={stockBook}
-        tradeToEdit={trade}
-        onEditComplete={onComplete}
-        onApplyBook={applyBook}
-        inline
+      <TTradeInlineEditor
+        key={`${trade.accountId}:${trade.id}`}
+        book={stockBook}
+        trade={trade}
+        planDefaults={props.planDefaults}
+        tradingCalendar={props.tradingCalendar}
+        onApply={applyBook}
+        onComplete={onComplete}
       />
     )
   }
@@ -758,7 +748,6 @@ function TTradeEntry({
   clearEntry = false,
   tradeToEdit,
   onEditComplete,
-  inline = false,
   feeContext,
   stock,
   quote,
@@ -1623,19 +1612,17 @@ function TTradeEntry({
 
   return (
     <div className="t-trading-entry-content">
-      <section className={`t-card t-trade-entry${inline ? ' is-inline' : ''}`}>
-        {inline ? null : (
-          <div className="t-card-heading">
-            <div className="t-entry-heading">
-              <div className="t-entry-title-row">
-                <strong>{editingTradeId ? '修改交易' : '录入交易'}</strong>
-                {entryAccountSelect}
-                {entryBatchSelect}
-              </div>
-              <small>{entryHint}</small>
+      <section className="t-card t-trade-entry">
+        <div className="t-card-heading">
+          <div className="t-entry-heading">
+            <div className="t-entry-title-row">
+              <strong>{editingTradeId ? '修改交易' : '录入交易'}</strong>
+              {entryAccountSelect}
+              {entryBatchSelect}
             </div>
+            <small>{entryHint}</small>
           </div>
-        )}
+        </div>
 
         <div className="t-entry-top-row">
           <div className="t-segmented">
@@ -1887,7 +1874,6 @@ function TTradeEntry({
                   <span>成交价格</span>
                   <AppInput
                     type="number"
-                    autoFocus={inline}
                     min={market === 'CN' ? 0.01 : 0.0001}
                     step={market === 'CN' ? 0.01 : 0.0001}
                     value={price}
