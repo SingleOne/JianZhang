@@ -426,6 +426,32 @@ function ActiveBatchCard({
           onDelete={onDelete}
         />
       </section>
+      {trades.length > 0 && metrics.remainingQuantity === 0 ? (
+        <section className="t-card t-settlement-card">
+          <div className="t-card-heading">
+            <span>
+              <strong>本批次已完成</strong>
+              <small>各账户持仓已按各自成交流水更新，可以结算本批次。</small>
+            </span>
+          </div>
+          <div className="t-entry-actions">
+            <input
+              className="t-settlement-note-input"
+              aria-label="批次结算备注"
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              placeholder="结算备注（选填）"
+            />
+            <button
+              className="primary-button compact-button"
+              type="button"
+              onClick={() => onSettle(note)}
+            >
+              结算批次
+            </button>
+          </div>
+        </section>
+      ) : null}
       <section className="t-card t-dual-plan-card">
         <div className="t-card-heading">
           <span>
@@ -500,32 +526,6 @@ function ActiveBatchCard({
           </div>
         </div>
       </section>
-      {trades.length > 0 && metrics.remainingQuantity === 0 ? (
-        <section className="t-card t-settlement-card">
-          <div className="t-card-heading">
-            <span>
-              <strong>本批次已完成</strong>
-              <small>各账户持仓已按各自成交流水更新，可以结算本批次。</small>
-            </span>
-          </div>
-          <div className="t-entry-actions">
-            <input
-              className="t-settlement-note-input"
-              aria-label="批次结算备注"
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder="结算备注（选填）"
-            />
-            <button
-              className="primary-button compact-button"
-              type="button"
-              onClick={() => onSettle(note)}
-            >
-              结算批次
-            </button>
-          </div>
-        </section>
-      ) : null}
     </div>
   )
 }
