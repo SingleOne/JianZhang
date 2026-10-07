@@ -10,6 +10,9 @@ import { activePortfolioLedgerEntries } from '../lib/portfolio-ledger'
 import type { WatchStock } from '../shared/types'
 import { getActiveStockTBatches } from '../shared/stock-t-batches'
 import { getBatchTrades } from '../lib/trade-records'
+import { AppButton } from './AppButton'
+import { AppInput } from './AppFormControls'
+import { AppSelect } from './AppSelect'
 
 export function AccountLedgerOverview({
   stock,
@@ -61,13 +64,13 @@ export function AccountLedgerOverview({
                     .join('、') || '—'}
                 </td>
                 <td>
-                  <button
-                    type="button"
+                  <AppButton
+                    variant="text"
                     className="text-button"
                     onClick={() => onSelect(book.accountId!)}
                   >
                     查看账户
-                  </button>
+                  </AppButton>
                 </td>
               </tr>
             ))}
@@ -83,7 +86,7 @@ export function AccountLedgerOverview({
         </table>
       </div>
       <label>
-        <input
+        <AppInput
           type="checkbox"
           checked={recalculateFees}
           onChange={(event) => setRecalculateFees(event.target.checked)}
@@ -138,22 +141,27 @@ export function AccountLedgerOverview({
                 </td>
                 <td>
                   {(entry.kind === 'trade' &&
-                    entry.record.purpose === 'base' &&
-                    !entry.record.batchId &&
+                    entry.record.origin !== 'opening-balance' &&
+                    (entry.record.allocations?.length ?? 0) <= 1 &&
                     !entry.record.splitSource &&
                     !entry.record.brokerImport) ||
                   ((entry.kind === 'cashDividend' || entry.kind === 'withholdingTax') &&
                     entry.source === 'manual') ? (
-                    <select
-                      aria-label="更正流水所属账户"
+                    <AppSelect
+                      label="更正流水所属账户"
                       value=""
-                      onChange={async (event) => {
-                        const targetId = event.target.value
+                      options={[
+                        { value: '', label: '选择目标账户' },
+                        ...listAccountsForMarket(state.securitiesAccounts, book.market!)
+                          .filter((account) => account.id !== book.accountId)
+                          .map((account) => ({ value: account.id, label: account.name }))
+                      ]}
+                      onChange={async (targetId) => {
                         if (!targetId) return
                         if (
                           !(await confirm({
                             title: '更正流水账户',
-                            message: `将这条流水从 ${book.accountName} 更正到 ${state.securitiesAccounts?.[targetId]?.name}，并重新计算两个账户的持仓。`,
+                            message: `将这条流水从 ${book.accountName} 更正到 ${state.securitiesAccounts?.[targetId]?.name}，${entry.kind === 'trade' && recalculateFees ? '按目标账户当前方案重新计费' : '保留原费用'}，并更新两个账户的持仓成本与相关批次收益。`,
                             confirmLabel: '确认更正'
                           }))
                         )
@@ -174,16 +182,7 @@ export function AccountLedgerOverview({
                           setError(reason instanceof Error ? reason.message : '账户更正失败')
                         }
                       }}
-                    >
-                      <option value="">选择目标账户</option>
-                      {listAccountsForMarket(state.securitiesAccounts, book.market!)
-                        .filter((account) => account.id !== book.accountId)
-                        .map((account) => (
-                          <option key={account.id} value={account.id}>
-                            {account.name}
-                          </option>
-                        ))}
-                    </select>
+                    />
                   ) : (
                     '—'
                   )}

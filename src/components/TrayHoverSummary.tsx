@@ -47,7 +47,15 @@ export function TrayHoverSummary() {
     return getTaskbarVisibleStocks(state.watchlist).map((stock) => {
       const quote = quoteMap.get(stock.quoteId)
       const account = state.stockTradingBooks[stock.quoteId]
-      const overview = stockTOverview(account, quote?.latest)
+      const overview = stockTOverview(account, quote?.latest, {
+        market: stock.market ?? 'CN',
+        instrumentType: stock.instrumentType,
+        feeState: {
+          securitiesAccounts: state.securitiesAccounts,
+          feeSchemes: state.feeSchemes,
+          settings: state.settings
+        }
+      })
       const profitOverride = calculateCurrentPositionProfitOverride(
         stock,
         quote,
@@ -71,7 +79,9 @@ export function TrayHoverSummary() {
   }, [
     quotes,
     state.portfolioPerformanceAdjustments,
-    state.settings.exchangeRates,
+    state.settings,
+    state.securitiesAccounts,
+    state.feeSchemes,
     state.stockTradingBooks,
     state.watchlist
   ])

@@ -303,7 +303,7 @@ export function FeeSchemeManager({
                 </p>
               )}
               <p className="account-manager-notice">
-                历史成交费用、持仓成本和批次收益不重算。方案试算采用新费用规则，实际交易录入暂沿用原有计费规则。
+                修改方案不会自动重算历史费用。新交易、五档预测和主动重新估算均采用当前账户方案；重新估算保存后更新相关成本与收益。
               </p>
             </div>
           </div>

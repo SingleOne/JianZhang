@@ -1,10 +1,16 @@
 import { getActiveStockTBatches } from '../shared/stock-t-batches'
-import { accountFeeSettings } from '../shared/stock-accounts'
-import { calculateMarketTradeFeeItems, marketFeeTemplateForTradeDate } from './market-trades'
+import {
+  calculateAccountTradeFees,
+  getAccountTradeFeeContext,
+  type AccountFeeState
+} from './account-trade-fees'
+import { calculateTBatchForecastMetrics } from './t-trade-forecast'
 import {
   listStockAccountBooks,
   getStockAccountBook,
-  upsertStockAccount
+  resolveAccountSelection,
+  upsertStockAccount,
+  upsertStockTradingBook
 } from '../shared/stock-accounts'
 import {
   marketFromQuoteId,
@@ -20,7 +26,8 @@ import type {
   PositionAdjustmentLedgerEntry
 } from '../shared/types'
 import { createInitialPositionAccount } from './position-ledger'
-import { calculateTradeFees, calculateTBatchMetrics } from './t-trading'
+import { calculateTBatchMetrics } from './t-trading'
+import { toStockTradingBook } from './stock-t-trading'
 import { getBatchTrades } from './trade-records'
 import {
   getTriggeredTAlertBadges,
@@ -54,14 +61,13 @@ export function moveAccountLedgerEntry(
     throw new Error('请选择同市场的其他启用账户')
   const movable =
     entry.kind === 'trade'
-      ? entry.record.purpose === 'base' &&
-        !entry.record.batchId &&
-        !entry.record.allocations?.some((item) => item.purpose === 't') &&
+      ? entry.record.origin !== 'opening-balance' &&
+        (entry.record.allocations?.length ?? 0) <= 1 &&
         !entry.record.splitSource &&
         !entry.record.brokerImport
       : (entry.kind === 'cashDividend' || entry.kind === 'withholdingTax') &&
         entry.source === 'manual'
-  if (!movable) throw new Error('批次、拆分成交或来源管理记录不能逐条更正账户')
+  if (!movable) throw new Error('拆分成交或来源管理记录不能逐条更正账户')
   if (
     source.ledger.entries.some(
       (item) => item.kind === 'reversal' && item.reversesEntryId === entry.id
@@ -100,37 +106,22 @@ export function moveAccountLedgerEntry(
   }
   if (recalculateFees && entry.kind === 'trade' && entry.record.origin !== 'opening-balance') {
     const date = entry.record.marketDate ?? entry.record.tradedAt.slice(0, 10)
-    const fees = accountFeeSettings(owner, state.settings, state.feeSchemes, quoteId)
-    const stock = state.watchlist.find((item) => item.quoteId === quoteId)!
-    const template = marketFeeTemplateForTradeDate(owner.market, date)
-    if (owner.market !== 'CN' && !template)
-      throw new Error('该成交日期没有内置费用模板，请保留原费用')
+    const stock = state.watchlist.find((item) => item.quoteId === quoteId)
+    const result = calculateAccountTradeFees(getAccountTradeFeeContext(state, targetId, quoteId), {
+      price: entry.record.price,
+      quantity: entry.record.quantity,
+      side: entry.record.side,
+      tradeDate: date,
+      stampDutyExempt: stock?.instrumentType === 'etf'
+    })
     const record = {
       ...entry.record,
       accountId: targetId,
-      accountFeeSnapshot: structuredClone(fees.accountFees),
-      fees:
-        owner.market === 'CN'
-          ? calculateTradeFees(
-              entry.record.price * entry.record.quantity,
-              entry.record.side,
-              fees.tTradingFees,
-              stock.marketLabel
-            )
-          : { commission: 0, handling: 0, regulatory: 0, transfer: 0, stampDuty: 0 },
-      feeItems:
-        owner.market === 'CN'
-          ? undefined
-          : calculateMarketTradeFeeItems(
-              owner.market,
-              entry.record.price * entry.record.quantity,
-              entry.record.quantity,
-              entry.record.side,
-              fees.marketTradeFees,
-              { tradeDate: date, stampDutyExempt: stock.instrumentType === 'etf' }
-            ),
-      feeSource: owner.market === 'CN' ? undefined : ('estimated' as const),
-      feeTemplate: template
+      accountFeeSnapshot: undefined,
+      fees: result.fees,
+      feeItems: result.feeItems,
+      feeSource: 'estimated' as const,
+      feeTemplate: result.feeTemplate
     }
     moved = { ...entry, accountId: targetId, record }
   }
@@ -138,27 +129,48 @@ export function moveAccountLedgerEntry(
   const before = calculatePortfolioLedgerPosition(sourceBook, source.market!, source.currency!)
   const after = calculatePortfolioLedgerPosition(targetBook, target.market!, target.currency!)
   if (before.error || after.error) throw new Error(before.error ?? after.error)
-  return upsertStockAccount(
-    upsertStockAccount(state, sourceBook, before.position, false),
-    targetBook,
-    after.position,
-    false
-  )
+  const parent = toStockTradingBook(state.stockTradingBooks[quoteId], quoteId)
+  const updated = upsertStockTradingBook(state, {
+    ...parent,
+    accounts: {
+      ...parent.accounts,
+      [sourceId]: { ...sourceBook, position: before.position },
+      [targetId]: { ...targetBook, position: after.position }
+    }
+  })
+  return { ...updated, settings: state.settings }
 }
 
 export function stockTOverview(
   book: StockTradingBook | TTradingAccount | undefined,
   latest?: number | null,
-  options?: Pick<TPlanFeeOptions, 'market' | 'instrumentType'>
+  options?: Pick<TPlanFeeOptions, 'market' | 'instrumentType'> & { feeState?: AccountFeeState }
 ) {
   const summaries = getActiveStockTBatches(book).map((batch) => {
     const trades = getBatchTrades(book, batch)
     const first = listStockAccountBooks(book)[0]
     const account = { ...first, accountId: batch.id, accountName: `批次 #${batch.sequence}` }
+    const feeState = options?.feeState
+    const quoteId = book!.quoteId
+    const predictionId = feeState
+      ? resolveAccountSelection(feeState, marketFromQuoteId(quoteId)) || trades[0]?.accountId
+      : undefined
+    const context =
+      feeState && predictionId
+        ? getAccountTradeFeeContext(feeState, predictionId, quoteId)
+        : undefined
     return {
       account,
       batch,
-      metrics: calculateTBatchMetrics(batch, trades, latest),
+      metrics: context
+        ? calculateTBatchForecastMetrics(
+            batch,
+            trades,
+            latest,
+            context,
+            options?.instrumentType === 'etf'
+          )
+        : calculateTBatchMetrics(batch, trades, latest),
       badges: getTriggeredTAlertBadges(batch, trades, options).map((badge) => ({
         ...badge,
         accountId: batch.id,

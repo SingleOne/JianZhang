@@ -209,7 +209,8 @@ export function TaskbarStockTooltip() {
   const account = quoteId ? state.stockTradingBooks[quoteId] : undefined
   const overview = stockTOverview(account, quote?.latest, {
     market: stock?.market ?? marketFromQuoteId(quoteId ?? ''),
-    instrumentType: stock?.instrumentType
+    instrumentType: stock?.instrumentType,
+    feeState: state
   })
   const tAlertBadges = overview.badges
   const floatingProfitAlert = overview.floatingAlert

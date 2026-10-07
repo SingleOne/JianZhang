@@ -1,4 +1,9 @@
-import type { AccountFeeSettings } from '../shared/types'
+import {
+  calculateAccountTradeFees,
+  getAccountTradeFeeContext,
+  reestimateTradeExecution,
+  type AccountTradeFeeContext
+} from '../lib/account-trade-fees'
 import { PencilLine, Plus, Repeat2, Trash2, X } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
@@ -13,23 +18,19 @@ import {
 } from '../lib/format'
 import { handleTriggeredTPlanAlertsForTrade } from '../lib/t-alerts'
 import {
-  calculateMarketTradeFeeItems,
   estimateSettlementDate,
   marketFeeTemplateForTradeDate,
   marketTradeQuantityError,
-  settlementRuleForTradeDate,
-  totalTradeFeeItems
+  settlementRuleForTradeDate
 } from '../lib/market-trades'
 import {
   calculateTBatchMetrics,
-  calculateTradeFees,
   createTPlanLevelsFromDefaults,
   getTBatchDirection,
   rebalanceTBatchPlans,
   roundMoney,
   getTradeBatchAllocationAmounts,
   totalRecordedTradeFees,
-  totalTradeFees,
   validateTBatchTrades
 } from '../lib/t-trading'
 import {
@@ -69,6 +70,7 @@ import {
   getStockTBatches
 } from '../shared/stock-t-batches'
 import { mergeStockTAccount, stockBatchAccounts, toStockTradingBook } from '../lib/stock-t-trading'
+import { calculateTBatchForecastMetrics } from '../lib/t-trade-forecast'
 import { AppSelect } from './AppSelect'
 import { AppButton } from './AppButton'
 import { AppInput } from './AppFormControls'
@@ -118,7 +120,7 @@ export interface TTradingDrawerProps {
 interface TTradeEntryProps extends Omit<TTradingDrawerProps, 'account'> {
   account: TTradingAccount
   accountDisabled: boolean
-  accountFeeSnapshot?: AccountFeeSettings
+  feeContext: AccountTradeFeeContext
   stockBook: StockTradingBook
   entryAccountSelect?: ReactNode
   entryBatchSelect?: ReactNode
@@ -498,7 +500,11 @@ export function TTradingDrawer(props: TTradingDrawerProps) {
         holdingCostBasis: metrics.holdingCostBasis,
         feeSettings: fees.tTradingFees,
         marketTradeFees: fees.marketTradeFees,
-        accountFeeSnapshot: fees.accountFees
+        feeContext: getAccountTradeFeeContext(
+          { securitiesAccounts: state.securitiesAccounts, feeSchemes: state.feeSchemes },
+          account.accountId!,
+          props.stock.quoteId
+        )
       }
     },
     [
@@ -538,10 +544,12 @@ export function TTradingDrawer(props: TTradingDrawerProps) {
     let historyProfit = 0
     let historyFees = 0
     for (const batch of batches) {
-      const metrics = calculateTBatchMetrics(
+      const metrics = calculateTBatchForecastMetrics(
         batch,
         getBatchTrades(stockBook, batch),
-        props.quote?.latest
+        props.quote?.latest,
+        entryView.feeContext,
+        props.stock.instrumentType === 'etf'
       )
       if (!batch.settlement) {
         if (metrics.direction === 'reverse') reverseQuantity += metrics.remainingQuantity
@@ -555,7 +563,7 @@ export function TTradingDrawer(props: TTradingDrawerProps) {
       }
     }
     return { forwardQuantity, reverseQuantity, historyProfit, historyFees }
-  }, [batches, stockBook, props.quote?.latest])
+  }, [batches, stockBook, props.quote?.latest, entryView.feeContext, props.stock.instrumentType])
   const finishEditing = useCallback(() => setTradeToEdit(undefined), [])
   const applyBook = (book: StockTradingBook) => {
     if (
@@ -727,6 +735,7 @@ export function TTradingDrawer(props: TTradingDrawerProps) {
             quote={props.quote}
             feeSettings={entryView.feeSettings}
             marketTradeFees={entryView.marketTradeFees}
+            feeContext={entryView.feeContext}
             planDefaults={props.planDefaults}
             exchangeRates={props.exchangeRates}
             onApply={applyBook}
@@ -750,13 +759,11 @@ function TTradeEntry({
   tradeToEdit,
   onEditComplete,
   inline = false,
-  accountFeeSnapshot,
+  feeContext,
   stock,
   quote,
   account,
   stockBook,
-  feeSettings,
-  marketTradeFees,
   planDefaults,
   tradingCalendar,
   exchangeRates,
@@ -897,80 +904,88 @@ function TTradeEntry({
     !hasFixedAllocations && isClosingTTrade
       ? Math.max(0, numericQuantity - entryMetrics.remainingQuantity)
       : 0
-  const calculatedFees = useMemo(
-    () =>
-      calculateTradeFees(
-        Math.max(0, numericPrice * numericQuantity),
-        side,
-        feeSettings,
-        stock.marketLabel
-      ),
-    [feeSettings, numericPrice, numericQuantity, side, stock.marketLabel]
-  )
   const tradeDate = tradedAt.slice(0, 10)
   const marketFeeTemplate = marketFeeTemplateForTradeDate(market, tradeDate)
-  const calculatedMarketFeeItems = useMemo(
-    () =>
-      market !== 'CN' && marketFeeTemplate
-        ? calculateMarketTradeFeeItems(
-            market,
-            Math.max(0, numericPrice * numericQuantity),
-            Math.max(0, numericQuantity),
-            side,
-            marketTradeFees,
-            { stampDutyExempt: stock.instrumentType === 'etf', tradeDate }
-          )
-        : [],
-    [
-      market,
-      marketFeeTemplate,
-      marketTradeFees,
-      numericPrice,
-      numericQuantity,
-      side,
-      stock.instrumentType,
-      tradeDate
-    ]
-  )
-  const preservesEstimatedFees = Boolean(
-    market !== 'CN' && !manualFees && editingTrade && !feeModeEdited
-  )
-  const selectedFeeTemplate =
-    preservesEstimatedFees && editingTrade?.feeTemplate
-      ? editingTrade.feeTemplate
-      : marketFeeTemplate
+  const feeEstimate = useMemo(() => {
+    try {
+      const price = Number.isFinite(numericPrice) ? Math.max(0, numericPrice) : 0
+      const quantity = Number.isFinite(numericQuantity) ? Math.max(0, numericQuantity) : 0
+      if (editingTrade?.splitSource) {
+        const records = reestimateTradeExecution(
+          currentAccount.tradeRecords.map((record) =>
+            record.id === editingTrade.id
+              ? { ...record, price, quantity, side, tradedAt, marketDate: tradeDate }
+              : record
+          ),
+          editingTrade.id,
+          feeContext,
+          stock.instrumentType === 'etf'
+        )
+        const record = records.find((record) => record.id === editingTrade.id)!
+        return {
+          result: {
+            fees: record.fees,
+            feeItems: record.feeItems,
+            feeTemplate: record.feeTemplate,
+            total: totalRecordedTradeFees(record)
+          },
+          error: ''
+        }
+      }
+      return {
+        result: calculateAccountTradeFees(feeContext, {
+          price,
+          quantity,
+          side,
+          tradeDate,
+          stampDutyExempt: stock.instrumentType === 'etf'
+        }),
+        error: ''
+      }
+    } catch (reason) {
+      return {
+        result: undefined,
+        error: reason instanceof Error ? reason.message : '无法估算成交费用'
+      }
+    }
+  }, [
+    currentAccount.tradeRecords,
+    editingTrade,
+    feeContext,
+    numericPrice,
+    numericQuantity,
+    side,
+    stock.instrumentType,
+    tradeDate,
+    tradedAt
+  ])
+  const preservesRecordedFees = Boolean(editingTrade && !feeModeEdited)
+  const selectedFeeTemplate = preservesRecordedFees
+    ? editingTrade?.feeTemplate
+    : feeEstimate.result?.feeTemplate
   const preservesUnknownFeeSource = Boolean(
     editingTrade &&
     !feeModeEdited &&
     editingTrade.feeSource === undefined &&
     !editingTrade.feeItems?.some((item) => item.code === 'manual')
   )
-  const preservesRecordedFees = Boolean(
-    market !== 'CN' &&
-    manualFees &&
-    editingTrade &&
-    !editingTrade.feeTemplate &&
-    actualFees.trim() !== '' &&
-    Number.isFinite(Number(actualFees)) &&
-    roundMoney(Number(actualFees)) === totalRecordedTradeFees(editingTrade)
-  )
   const tradeFees =
-    market === 'CN'
-      ? manualFees
-        ? feeOverrides
-        : calculatedFees
-      : (preservesRecordedFees || preservesEstimatedFees) && editingTrade
-        ? editingTrade.fees
+    preservesRecordedFees && editingTrade
+      ? editingTrade.fees
+      : market === 'CN'
+        ? manualFees
+          ? feeOverrides
+          : (feeEstimate.result?.fees ?? emptyFees())
         : emptyFees()
   const tradeFeeItems =
-    market === 'CN'
-      ? undefined
-      : manualFees
-        ? preservesRecordedFees && editingTrade
-          ? editingTrade.feeItems
-          : actualFees.trim() === '' ||
-              !Number.isFinite(Number(actualFees)) ||
-              Number(actualFees) < 0
+    preservesRecordedFees && editingTrade
+      ? editingTrade.feeItems
+      : market === 'CN'
+        ? undefined
+        : manualFees
+          ? actualFees.trim() === '' ||
+            !Number.isFinite(Number(actualFees)) ||
+            Number(actualFees) < 0
             ? []
             : [
                 {
@@ -979,15 +994,8 @@ function TTradeEntry({
                   amount: roundMoney(Number(actualFees))
                 }
               ]
-        : preservesEstimatedFees && editingTrade
-          ? editingTrade.feeItems
-          : calculatedMarketFeeItems
-  const tradeFeeTotal =
-    market === 'CN'
-      ? totalTradeFees(tradeFees)
-      : (preservesRecordedFees || preservesEstimatedFees) && editingTrade
-        ? totalRecordedTradeFees(editingTrade)
-        : totalTradeFeeItems(tradeFeeItems)
+          : feeEstimate.result?.feeItems
+  const tradeFeeTotal = totalRecordedTradeFees({ fees: tradeFees, feeItems: tradeFeeItems })
   const formatNativeAmount = (value: number | null | undefined) =>
     currency === 'CNY' ? formatCurrency(value) : formatMoney(value, currency)
   const toggleFeeEditing = () => {
@@ -1002,7 +1010,10 @@ function TTradeEntry({
       return
     }
     feeEditSnapshotRef.current = { manualFees, feeModeEdited, feeOverrides, actualFees }
-    if (market === 'CN') setFeeOverrides(tradeFees)
+    if (market === 'CN')
+      setFeeOverrides(
+        tradeFeeItems?.length ? { ...emptyFees(), commission: tradeFeeTotal } : tradeFees
+      )
     else setActualFees(tradeFeeTotal.toString())
     setManualFees(true)
     setFeeModeEdited(true)
@@ -1038,6 +1049,20 @@ function TTradeEntry({
     cash = false
   ) => {
     try {
+      if (!cash && editingTrade && feeModeEdited && !manualFees) {
+        nextAccount = withLedgerTradeRecords(
+          nextAccount,
+          reestimateTradeExecution(
+            nextAccount.tradeRecords,
+            editingTrade.id,
+            feeContext,
+            stock.instrumentType === 'etf'
+          )
+        )
+        const replay = calculatePortfolioLedgerPosition(nextAccount, market, currency)
+        if (replay.error) throw new Error(replay.error)
+        nextPosition = replay.position
+      }
       onApplyBook(
         mergeStockTAccount(
           stockBook,
@@ -1223,8 +1248,8 @@ function TTradeEntry({
       setError(quantityError)
       return
     }
-    if (market !== 'CN' && !manualFees && !marketFeeTemplate) {
-      setError('该成交日期早于内置费用模板，请切换为手动费用并填写券商实际费用')
+    if (!preservesRecordedFees && !manualFees && feeEstimate.error) {
+      setError(feeEstimate.error)
       return
     }
     if (market !== 'CN' && actualSettlementDate && actualSettlementDate < tradeDate) {
@@ -1259,23 +1284,19 @@ function TTradeEntry({
       price: numericPrice,
       quantity: numericQuantity,
       accountId: currentAccount.accountId,
-      accountFeeSnapshot:
-        editingTrade && !feeModeEdited
-          ? editingTrade.accountFeeSnapshot
-          : manualFees
-            ? undefined
-            : accountFeeSnapshot,
+      accountFeeSnapshot: preservesRecordedFees ? editingTrade?.accountFeeSnapshot : undefined,
       fees: tradeFees,
       feeItems: tradeFeeItems,
-      feeTemplate: market === 'CN' || manualFees ? undefined : selectedFeeTemplate,
-      feeSource:
-        market === 'CN'
+      feeTemplate: preservesRecordedFees
+        ? editingTrade?.feeTemplate
+        : manualFees
           ? undefined
-          : manualFees
-            ? preservesUnknownFeeSource
-              ? undefined
-              : 'actual'
-            : 'estimated',
+          : selectedFeeTemplate,
+      feeSource: preservesRecordedFees
+        ? editingTrade?.feeSource
+        : manualFees
+          ? 'actual'
+          : 'estimated',
       market,
       currency,
       marketDate: tradeDate,
@@ -1713,7 +1734,32 @@ function TTradeEntry({
                   </>
                 )}
                 <strong>合计 {formatNativeAmount(tradeFeeTotal)}</strong>
+                {preservesRecordedFees ? <span>保留已保存费用</span> : null}
+                {!preservesRecordedFees && !manualFees && feeEstimate.error ? (
+                  <span>{feeEstimate.error}</span>
+                ) : null}
               </div>
+              {editingTrade ? (
+                <AppButton
+                  variant="text"
+                  className="bordered-text-button text-button"
+                  title={
+                    editingTrade.splitSource
+                      ? '按整笔成交重新估算后分摊，将更新关联流水的费用及成本 / 收益'
+                      : '按该流水所属账户当前方案重新估算，保存后更新成本 / 收益'
+                  }
+                  onClick={() => {
+                    const keep = feeModeEdited && !manualFees
+                    setFeeModeEdited(!keep)
+                    setManualFees(keep ? market === 'CN' || !editingTrade.feeTemplate : false)
+                    setEditingFees(false)
+                    feeEditSnapshotRef.current = null
+                    setError('')
+                  }}
+                >
+                  {feeModeEdited && !manualFees ? '保留原费用' : '重新估算费用'}
+                </AppButton>
+              ) : null}
               <AppButton
                 variant="text"
                 className="bordered-text-button text-button"

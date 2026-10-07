@@ -45,7 +45,12 @@ export function TaskbarTicker() {
       const quote = quoteMap.get(stock.quoteId)
       const overview = stockTOverview(state.stockTradingBooks[stock.quoteId], quote?.latest, {
         market: stock.market ?? marketFromQuoteId(stock.quoteId),
-        instrumentType: stock.instrumentType
+        instrumentType: stock.instrumentType,
+        feeState: {
+          securitiesAccounts: state.securitiesAccounts,
+          feeSchemes: state.feeSchemes,
+          settings: state.settings
+        }
       })
       return {
         stock,
@@ -56,7 +61,14 @@ export function TaskbarTicker() {
         stockAlertDirection: getTriggeredStockAlertDirection(stock.alertRules)
       }
     })
-  }, [quotes, state.stockTradingBooks, state.watchlist])
+  }, [
+    quotes,
+    state.stockTradingBooks,
+    state.watchlist,
+    state.securitiesAccounts,
+    state.feeSchemes,
+    state.settings
+  ])
 
   useLayoutEffect(() => {
     const ticker = tickerRef.current

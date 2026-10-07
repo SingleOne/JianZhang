@@ -1,5 +1,6 @@
 import type { StockTradingBook } from '../../shared/types'
 import { stockTOverview } from '../../lib/stock-accounts'
+import type { AccountFeeState } from '../../lib/account-trade-fees'
 import {
   ArrowDownToLine,
   ArrowUpToLine,
@@ -131,6 +132,7 @@ interface WatchlistRowProps {
   fundamentalSnapshotSchemaVersion: FundamentalSnapshot['schemaVersion'] | undefined
   fundamentalStaleReason: string | null | undefined
   tradingAccount: TTradingAccount | StockTradingBook | undefined
+  feeState?: AccountFeeState
   corporateActionApplications: CorporateActionRecords
   manualIndex: number
   columnOrder: WatchlistColumnId[]
@@ -205,6 +207,7 @@ export const WatchlistRow = memo(function WatchlistRow({
   fundamentalSnapshotSchemaVersion,
   fundamentalStaleReason,
   tradingAccount,
+  feeState,
   corporateActionApplications,
   manualIndex,
   columnOrder,
@@ -292,7 +295,7 @@ export const WatchlistRow = memo(function WatchlistRow({
   const overview = stockTOverview(
     capabilities.tTrading ? tradingAccount : undefined,
     quote?.latest,
-    { market, instrumentType: stock.instrumentType }
+    { market, instrumentType: stock.instrumentType, feeState }
   )
   const tFloatingProfit = overview.floatingProfit
   const tAlertBadges = overview.badges

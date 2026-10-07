@@ -1,7 +1,14 @@
 import { useSecuritiesAccountState } from './SecuritiesAccountContext'
 import { reconcileStockTBatches, toStockTradingBook } from '../lib/stock-t-trading'
 import type { ReactNode } from 'react'
-import type { AccountFeeSettings } from '../shared/types'
+import {
+  calculateAccountTradeFees,
+  getAccountTradeFeeContext,
+  reestimateTradeExecution
+} from '../lib/account-trade-fees'
+import { resolveAccountSelection } from '../shared/stock-accounts'
+import { AppButton } from './AppButton'
+import { AppInput } from './AppFormControls'
 import { BriefcaseBusiness, Camera, Check, PencilLine, ReceiptText, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -38,16 +45,13 @@ import {
 } from '../lib/trade-records'
 import {
   calculateMarketLedgerMetrics,
-  calculateMarketTradeFeeItems,
   estimateSettlementDate,
   marketFeeTemplateForTradeDate,
   marketTradeQuantityError,
-  settlementRuleForTradeDate,
-  totalTradeFeeItems
+  settlementRuleForTradeDate
 } from '../lib/market-trades'
 import {
   calculateTBatchMetrics,
-  calculateTradeFees,
   recalculatePositionFromBatch,
   rebalanceTBatchPlans,
   roundMoney,
@@ -91,7 +95,6 @@ export interface PositionEditorProps {
   accountDisabled?: boolean
   accountSelector?: ReactNode
   onDraftChange?: () => void
-  accountFeeSnapshot?: AccountFeeSettings
   stock: WatchStock
   quote: StockQuote | undefined
   account: TTradingAccount | undefined
@@ -362,6 +365,7 @@ interface TradeRecordListProps {
   editingTradeId: string | null
   draft: TradeRecordDraft | null
   error: string
+  feePreview: string
   onStartEdit: (record: TTradeRecord) => void
   onDraftChange: (changes: Partial<TradeRecordDraft>) => void
   onSaveEdit: () => void
@@ -376,6 +380,7 @@ function TradeRecordList({
   editingTradeId,
   draft,
   error,
+  feePreview,
   onStartEdit,
   onDraftChange,
   onSaveEdit,
@@ -545,11 +550,12 @@ function TradeRecordList({
                     </label>
                     <label>
                       <span>费用</span>
-                      <input
+                      <AppInput
                         type="number"
                         min="0"
                         step="0.01"
                         value={draft.fees}
+                        disabled={Boolean(draft.recalculateFees)}
                         onChange={(event) => onDraftChange({ fees: event.target.value })}
                       />
                     </label>
@@ -567,14 +573,23 @@ function TradeRecordList({
                       </label>
                     ) : null}
                   </div>
-                  <button
-                    type="button"
+                  <AppButton
+                    variant="text"
                     className="text-button"
-                    disabled={Boolean(record.splitSource)}
+                    title={
+                      record.splitSource
+                        ? '整笔重新估算并分摊到所有关联流水，保存后更新成本与收益'
+                        : '保存后按当前方案更新费用及相关成本与收益'
+                    }
                     onClick={() => onDraftChange({ recalculateFees: !draft.recalculateFees })}
                   >
                     {draft.recalculateFees ? '保留已保存费用' : '按当前账户重算费用'}
-                  </button>
+                  </AppButton>
+                  <small className="trade-record-create-preview">
+                    {draft.recalculateFees
+                      ? feePreview
+                      : '保留已保存费用；重新估算仅在保存修改后生效'}
+                  </small>
                   <div className="trade-record-edit-secondary-fields">
                     <label>
                       <span>实际交收</span>
@@ -682,13 +697,11 @@ function TradeRecordList({
 export function PositionEditor({
   accountSelector,
   onDraftChange,
-  accountFeeSnapshot,
   stock,
   quote,
   account,
   planDefaults,
   exchangeRates,
-  marketTradeFees,
   tradingCalendar,
   onSave,
   onClose,
@@ -696,8 +709,14 @@ export function PositionEditor({
   accountDisabled = false
 }: PositionEditorProps) {
   const confirm = useConfirmDialog()
-  const { stockTradingBooks } = useSecuritiesAccountState()
+  const accountState = useSecuritiesAccountState()
+  const { stockTradingBooks } = accountState
   const market = marketFromQuoteId(stock.quoteId)
+  const feeContext = getAccountTradeFeeContext(
+    accountState,
+    account?.accountId ?? resolveAccountSelection(accountState, market),
+    stock.quoteId
+  )
   const capabilities = marketCapabilitiesForQuoteId(stock.quoteId)
   const currency = stock.currency ?? quote?.currency ?? currencyForMarket(market)
   const currentMarketDateTime = marketDateTimeInput(market)
@@ -748,22 +767,24 @@ export function PositionEditor({
   const newTradeQuantity = Number(newTradeDraft.quantity)
   const newTradeMarketDate = newTradeDraft.tradedAt.slice(0, 10)
   const newTradeFeeTemplate = marketFeeTemplateForTradeDate(market, newTradeMarketDate)
-  const calculatedNewTradeFeeItems = newTradeFeeTemplate
-    ? calculateMarketTradeFeeItems(
-        market,
-        Number.isFinite(newTradePrice) && Number.isFinite(newTradeQuantity)
-          ? newTradePrice * newTradeQuantity
-          : 0,
-        Number.isFinite(newTradeQuantity) ? newTradeQuantity : 0,
-        newTradeDraft.side,
-        marketTradeFees,
-        {
+  const newTradeEstimate = (() => {
+    try {
+      return {
+        result: calculateAccountTradeFees(feeContext, {
+          price: Number.isFinite(newTradePrice) ? Math.max(0, newTradePrice) : 0,
+          quantity: Number.isFinite(newTradeQuantity) ? Math.max(0, newTradeQuantity) : 0,
+          side: newTradeDraft.side,
           stampDutyExempt: newTradeDraft.stampDutyExempt,
           tradeDate: newTradeMarketDate
-        }
-      )
-    : []
-  const calculatedNewTradeFees = totalTradeFeeItems(calculatedNewTradeFeeItems)
+        }),
+        error: ''
+      }
+    } catch (reason) {
+      return { result: undefined, error: reason instanceof Error ? reason.message : '无法估算费用' }
+    }
+  })()
+  const calculatedNewTradeFeeItems = newTradeEstimate.result?.feeItems ?? []
+  const calculatedNewTradeFees = newTradeEstimate.result?.total ?? 0
   const recentPositionRecords = positionRecords.slice(0, 5)
   const tradeRecordPageCount = Math.max(
     1,
@@ -984,8 +1005,8 @@ export function PositionEditor({
       setNewTradeError(quantityError)
       return
     }
-    if (manualFees === null && !newTradeFeeTemplate) {
-      setNewTradeError('该成交日期早于内置费用模板，请填写券商实际费用')
+    if (manualFees === null && newTradeEstimate.error) {
+      setNewTradeError(newTradeEstimate.error)
       return
     }
 
@@ -1040,11 +1061,15 @@ export function PositionEditor({
       price,
       quantity: tradeQuantity,
       accountId: workingAccount?.accountId,
-      accountFeeSnapshot: manualFees === null ? accountFeeSnapshot : undefined,
-      fees: emptyTradeFees(),
-      feeItems,
+      fees:
+        manualFees === null
+          ? newTradeEstimate.result!.fees
+          : market === 'CN'
+            ? { ...emptyTradeFees(), commission: roundMoney(manualFees) }
+            : emptyTradeFees(),
+      feeItems: market === 'CN' ? undefined : feeItems,
       feeTemplate: manualFees === null ? newTradeFeeTemplate : undefined,
-      feeSource: market === 'CN' ? undefined : manualFees === null ? 'estimated' : 'actual',
+      feeSource: manualFees === null ? 'estimated' : 'actual',
       market,
       currency,
       marketDate,
@@ -1133,31 +1158,18 @@ export function PositionEditor({
       setTradeRecordError('该成交日期无内置费用模板，请填写券商实际费用')
       return
     }
-    const recalculateFees = Boolean(tradeRecordDraft.recalculateFees && !record.splitSource)
+    const recalculateFees = Boolean(tradeRecordDraft.recalculateFees)
     const usesManualTradeFee = feeTotalChanged && !recalculateFees
     const nextMarketFeeItems = usesManualTradeFee
       ? feeTotal > 0
         ? [{ code: 'manual' as const, label: '券商实际费用', amount: feeTotal }]
         : []
-      : recalculateFees
-        ? calculateMarketTradeFeeItems(
-            market,
-            price * tradeQuantity,
-            tradeQuantity,
-            tradeRecordDraft.side,
-            marketTradeFees,
-            {
-              stampDutyExempt:
-                market === 'HK' && !record.feeItems?.some((item) => item.code === 'stamp-duty'),
-              tradeDate: marketDate
-            }
-          )
-        : record.feeItems
+      : record.feeItems
 
     const nextTrade: TTrade = {
       id: record.id,
       accountId: workingAccount.accountId,
-      accountFeeSnapshot: recalculateFees ? accountFeeSnapshot : record.accountFeeSnapshot,
+      accountFeeSnapshot: recalculateFees ? undefined : record.accountFeeSnapshot,
       side: tradeRecordDraft.side,
       purpose: tradeRecordDraft.purpose,
       tradedAt: tradeRecordDraft.tradedAt,
@@ -1165,18 +1177,14 @@ export function PositionEditor({
       quantity: tradeQuantity,
       fees:
         market === 'CN'
-          ? recalculateFees && accountFeeSnapshot?.market === 'CN'
-            ? calculateTradeFees(
-                price * tradeQuantity,
-                tradeRecordDraft.side,
-                accountFeeSnapshot.settings,
-                stock.marketLabel
-              )
-            : feesWithTotal(record.fees, feeTotal)
+          ? usesManualTradeFee
+            ? feesWithTotal(record.fees, feeTotal)
+            : record.fees
           : usesManualTradeFee
             ? emptyTradeFees()
             : record.fees,
-      feeItems: market === 'CN' ? record.feeItems : nextMarketFeeItems,
+      feeItems:
+        market === 'CN' ? (usesManualTradeFee ? undefined : record.feeItems) : nextMarketFeeItems,
       feeTemplate:
         market === 'CN'
           ? record.feeTemplate
@@ -1223,6 +1231,24 @@ export function PositionEditor({
         : undefined,
       note: tradeRecordDraft.note.trim()
     }
+    const applyReestimatedAccount = (nextAccount: TTradingAccount) => {
+      try {
+        const updated = withLedgerTradeRecords(
+          nextAccount,
+          reestimateTradeExecution(
+            nextAccount.tradeRecords,
+            record.id,
+            feeContext,
+            stock.instrumentType === 'etf'
+          )
+        )
+        if (!applyGlobalLedgerPosition(updated, true)) return
+        setEditedAccount(updated)
+        cancelEditingTradeRecord()
+      } catch (reason) {
+        setTradeRecordError(reason instanceof Error ? reason.message : '重新估算失败')
+      }
+    }
     if (isIndependentBaseTrade(record) && isIndependentBaseTrade(nextTrade)) {
       const result = upsertIndependentBaseTrade(
         workingAccount,
@@ -1235,6 +1261,10 @@ export function PositionEditor({
         setTradeRecordError(result.error)
         return
       }
+      if (recalculateFees) {
+        applyReestimatedAccount(result.account)
+        return
+      }
       setEditedAccount(result.account)
       applyResolvedPosition(result.position)
       cancelEditingTradeRecord()
@@ -1243,6 +1273,10 @@ export function PositionEditor({
     const result = updateTradeAccount(workingAccount, record, nextTrade, planDefaults)
     if (result.error) {
       setTradeRecordError(result.error)
+      return
+    }
+    if (recalculateFees) {
+      applyReestimatedAccount(result.account)
       return
     }
     const useFullLedgerPosition =
@@ -1391,12 +1425,37 @@ export function PositionEditor({
     }
   }
 
+  const tradeRecordFeePreview = (() => {
+    if (!tradeRecordDraft?.recalculateFees || !workingAccount || !editingTradeId) return ''
+    try {
+      const record = workingAccount.tradeRecords.find((record) => record.id === editingTradeId)!
+      const updated = {
+        ...record,
+        price: Number(tradeRecordDraft.price),
+        quantity: Number(tradeRecordDraft.quantity),
+        side: tradeRecordDraft.side,
+        tradedAt: tradeRecordDraft.tradedAt,
+        marketDate: tradeRecordDraft.tradedAt.slice(0, 10)
+      }
+      const estimated = reestimateTradeExecution(
+        upsertTradeRecord(workingAccount.tradeRecords, updated),
+        record.id,
+        feeContext,
+        stock.instrumentType === 'etf'
+      )
+      const total = totalRecordedTradeFees(estimated.find((item) => item.id === record.id)!)
+      return `按 ${feeContext.accountName} 当前方案预计费用 ${formatMoney(total, currency)}${record.splitSource ? '；整笔重新估算并更新所有关联流水' : ''}，保存后更新成本与收益`
+    } catch (reason) {
+      return reason instanceof Error ? reason.message : '无法估算费用'
+    }
+  })()
   const tradeRecordListProps = {
     market,
     currency,
     editingTradeId,
     draft: tradeRecordDraft,
     error: tradeRecordError,
+    feePreview: tradeRecordFeePreview,
     onStartEdit: startEditingTradeRecord,
     onDraftChange: (changes: Partial<TradeRecordDraft>) => {
       if (changes.exchangeRate !== undefined) setTradeRecordExchangeRateEdited(true)

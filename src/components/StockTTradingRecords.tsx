@@ -10,6 +10,8 @@ import {
   type ReactNode
 } from 'react'
 import { createPortal } from 'react-dom'
+import type { AccountTradeFeeContext } from '../lib/account-trade-fees'
+import { calculateTBatchForecastMetrics, estimateTBreakEvenPrice } from '../lib/t-trade-forecast'
 import {
   formatCost,
   formatMoney,
@@ -79,6 +81,7 @@ interface Props {
   quote: StockQuote | undefined
   feeSettings: TTradingFeeSettings
   marketTradeFees: MarketTradeFeeSettings
+  feeContext: AccountTradeFeeContext
   planDefaults: TPlanDefaultSettings
   exchangeRates: ExchangeRateSettings
   onApply: (book: StockTradingBook) => void
@@ -223,15 +226,35 @@ function ActiveBatchCard({
   onSettle: (note: string) => void
   onDelete: (trade: TTradeRecord) => void
 }) {
-  const { book, stock, quote, feeSettings, marketTradeFees, planDefaults, exchangeRates } = props
+  const {
+    book,
+    stock,
+    quote,
+    feeSettings,
+    marketTradeFees,
+    feeContext,
+    planDefaults,
+    exchangeRates
+  } = props
   const [note, setNote] = useState('')
   const [planError, setPlanError] = useState('')
   const market = stock.market ?? marketFromQuoteId(stock.quoteId)
   const currency = stock.currency ?? currencyForMarket(market)
   const trades = useMemo(() => getBatchTrades(book, batch), [book, batch])
   const metrics = useMemo(
-    () => calculateTBatchMetrics(batch, trades, quote?.latest),
-    [batch, trades, quote?.latest]
+    () =>
+      calculateTBatchForecastMetrics(
+        batch,
+        trades,
+        quote?.latest,
+        feeContext,
+        stock.instrumentType === 'etf'
+      ),
+    [batch, trades, quote?.latest, feeContext, stock.instrumentType]
+  )
+  const breakEvenPrice = useMemo(
+    () => estimateTBreakEvenPrice(batch, trades, feeContext, stock.instrumentType),
+    [batch, trades, feeContext, stock.instrumentType]
   )
   const accounts = stockBatchAccounts(book, batch)
   const cny =
@@ -242,7 +265,8 @@ function ActiveBatchCard({
           trades,
           market,
           quote?.latest,
-          exchangeRateForCurrency(exchangeRates, currency)
+          exchangeRateForCurrency(exchangeRates, currency),
+          metrics.closingFee
         )
   const fees = trades.reduce(
     (sum, trade) => sum + getTradeBatchAllocationAmounts(trade, batch).fees,
@@ -259,6 +283,7 @@ function ActiveBatchCard({
     getTPlanRows(batch, trades, side, feeSettings, stock.marketLabel, {
       market,
       marketTradeFees,
+      accountFeeContext: feeContext,
       stampDutyExempt: stock.instrumentType === 'etf',
       instrumentType: stock.instrumentType
     })
@@ -337,7 +362,11 @@ function ActiveBatchCard({
               </strong>
             </span>
             <span>
-              <small>浮动收益</small>
+              <small
+                title={`已扣除按 ${feeContext.accountName} 方案预计平仓费用 ${formatMoney(metrics.closingFee, currency)}`}
+              >
+                浮动净收益
+              </small>
               <strong className={valueClass(metrics.floatingProfit)}>
                 {formatMoneyProfit(metrics.floatingProfit, currency)}
                 <small
@@ -346,6 +375,10 @@ function ActiveBatchCard({
                   {formatPercent(metrics.floatingProfitRate)}
                 </small>
               </strong>
+            </span>
+            <span>
+              <small>预计保本价</small>
+              <strong>{formatPrice(breakEvenPrice)}</strong>
             </span>
             <span>
               <small>本批次费用</small>
@@ -363,7 +396,7 @@ function ActiveBatchCard({
               </strong>
             </span>
             <span>
-              人民币浮动收益{' '}
+              人民币浮动净收益{' '}
               <strong className={valueClass(cny.floatingProfit)}>
                 {formatMoneyProfit(cny.floatingProfit, 'CNY')}
               </strong>
@@ -397,7 +430,9 @@ function ActiveBatchCard({
         <div className="t-card-heading">
           <span>
             <strong>当前T仓双五档计划</strong>
-            <small>按录入账户的费用设置估算计划收益</small>
+            <small>
+              按 {feeContext.accountName} 当前方案估算计划收益；浮动净收益已扣除预计平仓费用
+            </small>
           </span>
           <div className="t-plan-heading-actions">
             <label className="t-alert-toggle">

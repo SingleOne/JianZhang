@@ -76,7 +76,36 @@ export function calculateSchemeTradeFees(
   exchange: CnFeeExchange,
   fixedOverrides: Partial<CnFixedFeeRates> = {}
 ): SchemeTradeFeeResult {
-  const amount = decimal(amountInput)
+  return calculateCnTradeFees(decimal(amountInput), side, scheme, exchange, fixedOverrides)
+}
+
+/** 成交额按十进制价格与数量相乘，避免浮点尾差改变第三位取整结果。 */
+export function calculateSchemeExecutionFees(
+  price: DecimalInput,
+  quantity: DecimalInput,
+  side: TTradeSide,
+  scheme: CnBrokerFeeScheme,
+  exchange: CnFeeExchange,
+  fixedOverrides: Partial<CnFixedFeeRates> = {}
+): SchemeTradeFeeResult {
+  const p = decimal(price)
+  const q = decimal(quantity)
+  return calculateCnTradeFees(
+    { numerator: p.numerator * q.numerator, denominator: p.denominator * q.denominator },
+    side,
+    scheme,
+    exchange,
+    fixedOverrides
+  )
+}
+
+function calculateCnTradeFees(
+  amount: Decimal,
+  side: TTradeSide,
+  scheme: CnBrokerFeeScheme,
+  exchange: CnFeeExchange,
+  fixedOverrides: Partial<CnFixedFeeRates>
+): SchemeTradeFeeResult {
   if (amount.numerator === 0n)
     return {
       fees: { commission: 0, handling: 0, regulatory: 0, transfer: 0, stampDuty: 0 },

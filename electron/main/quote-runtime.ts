@@ -364,7 +364,8 @@ export class QuoteRuntime {
       const tAlertUpdate = applyTAlertTriggersToAccounts(
         currentState.stockTradingBooks,
         alertQuotes,
-        currentState.watchlist
+        currentState.watchlist,
+        currentState
       )
       const stockAlertUpdate = applyStockAlertTriggers(
         currentState.watchlist,

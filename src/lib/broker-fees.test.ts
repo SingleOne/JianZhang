@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { createCnFeeScheme } from '../shared/fee-schemes'
-import { calculateSchemeTradeFees, roundFeeAmount } from './broker-fees'
+import {
+  calculateSchemeTradeFees,
+  calculateSchemeExecutionFees,
+  roundFeeAmount
+} from './broker-fees'
 
 function scheme() {
   const result = createCnFeeScheme('test', '万 1 最低 1 元')
@@ -12,6 +16,14 @@ function scheme() {
 }
 
 describe('broker scheme fee calculation', () => {
+  it('multiplies execution prices and quantities as decimals before examining the third digit', () => {
+    const settings = scheme()
+    settings.roundingMode = 'next-digit-up'
+    settings.fixedFees = { handling: 0, regulatory: 0, transfer: 0, stampDuty: 0 }
+    settings.commission.SZ = { ratePerTenThousand: 10, minimumCommission: 0, includedFees: [] }
+    expect(calculateSchemeExecutionFees('1.23001', 1000, 'buy', settings, 'SZ').total).toBe(1.23)
+    expect(calculateSchemeExecutionFees('1.231', 1000, 'buy', settings, 'SZ').total).toBe(1.24)
+  })
   it.each([
     ['1.23001', 1.23],
     ['1.23099', 1.23],

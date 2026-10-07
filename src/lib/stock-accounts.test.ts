@@ -18,6 +18,7 @@ import {
 import { calculatePortfolioLedgerPosition } from './portfolio-ledger'
 import { calculatePortfolioPerformanceReport } from './portfolio-performance'
 import { moveAccountLedgerEntry } from './stock-accounts'
+import { createCnFeeScheme } from '../shared/fee-schemes'
 
 function book(id: string, records: TTradeRecord[]): TTradingAccount {
   const account = withLedgerTradeRecords(
@@ -158,6 +159,85 @@ describe('independent account ledgers', () => {
     expect(
       getStockAccountBook(current.stockTradingBooks, '1.600000', 'default:CN')?.tradeRecords
     ).toHaveLength(2)
+  })
+
+  it('moves a T execution atomically and reestimates only when requested using the target scheme', () => {
+    const opening = {
+      ...trade('a-open', 'buy', 10, '2026-01-02T10:00'),
+      purpose: 't' as const,
+      batchId: 'shared'
+    }
+    const closing = {
+      ...trade('a-close', 'sell', 12, '2026-03-02T10:00'),
+      purpose: 't' as const,
+      batchId: 'shared'
+    }
+    const current = state(
+      book('default:CN', [opening, closing]),
+      book('second', [trade('b-base', 'buy', 8, '2026-01-01T10:00')])
+    )
+    const scheme = createCnFeeScheme('target-fees', '目标账户')
+    scheme.commission.SH.ratePerTenThousand = 1
+    scheme.commission.SH.minimumCommission = 1
+    current.feeSchemes = { ...current.feeSchemes, [scheme.id]: scheme }
+    current.securitiesAccounts!.second.feeSchemeId = scheme.id
+    const parent = current.stockTradingBooks['1.600000']
+    if ('accounts' in parent)
+      parent.tBatches = [
+        {
+          id: 'shared',
+          sequence: 1,
+          direction: 'forward',
+          openedAt: opening.tradedAt,
+          sellLevels: [],
+          settlement: {
+            settledAt: '2026-03-02T11:00',
+            latestPositionQuantity: 100,
+            ledgerProfit: 200,
+            finalProfit: 200,
+            source: 'ledger',
+            note: ''
+          }
+        }
+      ]
+    const preserved = moveAccountLedgerEntry(
+      current,
+      '1.600000',
+      'default:CN',
+      'second',
+      'trade:a-close'
+    )
+    const preservedParent = preserved.stockTradingBooks['1.600000']
+    if ('accounts' in preservedParent)
+      expect(preservedParent.tBatches![0].settlement!.finalProfit).toBe(200)
+    const moved = moveAccountLedgerEntry(
+      current,
+      '1.600000',
+      'default:CN',
+      'second',
+      'trade:a-close',
+      true
+    )
+    expect(
+      getStockAccountBook(moved.stockTradingBooks, '1.600000', 'default:CN')?.position?.quantity
+    ).toBe(100)
+    expect(
+      getStockAccountBook(moved.stockTradingBooks, '1.600000', 'second')?.position
+    ).toBeUndefined()
+    const movedRecord = getStockAccountBook(
+      moved.stockTradingBooks,
+      '1.600000',
+      'second'
+    )!.tradeRecords.find((record) => record.id === closing.id)!
+    expect(movedRecord.feeSource).toBe('estimated')
+    expect(movedRecord.accountFeeSnapshot).toBeUndefined()
+    const movedParent = moved.stockTradingBooks['1.600000']
+    if ('accounts' in movedParent)
+      expect(movedParent.tBatches![0].settlement!.finalProfit).toBe(198.4)
+    expect(current.stockTradingBooks['1.600000']).toBe(parent)
+    expect(
+      parent && 'accounts' in parent ? parent.tBatches![0].settlement!.finalProfit : undefined
+    ).toBe(200)
   })
 
   it('does not allow another account to fund a sell or an A share purchase to be sold the same day', () => {

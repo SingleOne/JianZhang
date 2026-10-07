@@ -303,7 +303,12 @@ export function WatchlistTable({
   onRemove
 }: WatchlistTableProps) {
   const [sort, setSort] = useState<SortState | null>(null)
-  const { clearAccountNavigation } = useSecuritiesAccountState()
+  const { clearAccountNavigation, securitiesAccounts, feeSchemes, settings } =
+    useSecuritiesAccountState()
+  const feeState = useMemo(
+    () => ({ securitiesAccounts, feeSchemes, settings }),
+    [securitiesAccounts, feeSchemes, settings]
+  )
   const [editingStock, setEditingStock] = useState<WatchStock | null>(null)
   const [tTradingStock, setTTradingStock] = useState<WatchStock | null>(null)
   const [stockAlertStock, setStockAlertStock] = useState<WatchStock | null>(null)
@@ -1341,6 +1346,7 @@ export function WatchlistTable({
                   fundamentalSnapshotSchemaVersion={fundamentalSnapshotSchemaVersion}
                   fundamentalStaleReason={fundamentalStaleReason}
                   tradingAccount={stockTradingBooks[stock.quoteId]}
+                  feeState={feeState}
                   corporateActionApplications={corporateActionApplications}
                   manualIndex={manualIndex}
                   columnOrder={adjustableColumnOrder}

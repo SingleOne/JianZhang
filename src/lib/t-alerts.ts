@@ -1,6 +1,14 @@
 import { getStockTBatches } from '../shared/stock-t-batches'
 import { listStockAccountBooks } from '../shared/stock-accounts'
 import type { StockTradingBook, StockTradingBooks } from '../shared/types'
+import {
+  calculateAccountTradeFees,
+  getAccountTradeFeeContext,
+  type AccountTradeFeeContext
+} from './account-trade-fees'
+import { calculateTBatchForecastMetrics } from './t-trade-forecast'
+import { resolveAccountSelection } from '../shared/stock-accounts'
+import type { AppState } from '../shared/types'
 import { calculateMarketTradeFeeItems, totalTradeFeeItems } from './market-trades'
 import { calculateTBatchMetrics, calculateTradeFees, roundMoney, totalTradeFees } from './t-trading'
 import { getBatchTrades } from './trade-records'
@@ -63,6 +71,7 @@ export interface TPlanFeeOptions {
   marketTradeFees: MarketTradeFeeSettings
   stampDutyExempt?: boolean
   instrumentType?: TPlanPriceRule['instrumentType']
+  accountFeeContext?: AccountTradeFeeContext
 }
 
 function levelsForSide(batch: TTradingBatch, side: TAlertSide): TPlanLevel[] {
@@ -108,6 +117,26 @@ export function getTPlanRows(
   const isOpeningPlan =
     (metrics.direction === 'forward' && side === 'buy') ||
     (metrics.direction === 'reverse' && side === 'sell')
+  const estimateFees = (price: number, quantity: number) =>
+    feeOptions?.accountFeeContext
+      ? calculateAccountTradeFees(feeOptions.accountFeeContext, {
+          price,
+          quantity,
+          side,
+          stampDutyExempt: feeOptions.stampDutyExempt
+        }).total
+      : feeOptions && feeOptions.market !== 'CN'
+        ? totalTradeFeeItems(
+            calculateMarketTradeFeeItems(
+              feeOptions.market,
+              price * quantity,
+              quantity,
+              side,
+              feeOptions.marketTradeFees,
+              { stampDutyExempt: feeOptions.stampDutyExempt }
+            )
+          )
+        : totalTradeFees(calculateTradeFees(price * quantity, side, feeSettings, marketLabel))
 
   return levelsForSide(batch, side).map((level, index) => {
     if (!isOpeningPlan) plannedClosingQuantity += level.quantity
@@ -119,22 +148,7 @@ export function getTPlanRows(
       !isOpeningPlan &&
       plannedClosingQuantity > metrics.remainingQuantity
     const fees =
-      targetPrice === null || !hasQuantity
-        ? 0
-        : feeOptions && feeOptions.market !== 'CN'
-          ? totalTradeFeeItems(
-              calculateMarketTradeFeeItems(
-                feeOptions.market,
-                targetPrice * level.quantity,
-                level.quantity,
-                side,
-                feeOptions.marketTradeFees,
-                { stampDutyExempt: feeOptions.stampDutyExempt }
-              )
-            )
-          : totalTradeFees(
-              calculateTradeFees(targetPrice * level.quantity, side, feeSettings, marketLabel)
-            )
+      targetPrice === null || !hasQuantity ? 0 : estimateFees(targetPrice, level.quantity)
     const difference =
       targetPrice === null || averageCost === null
         ? null
@@ -148,25 +162,7 @@ export function getTPlanRows(
     const fullPositionFees =
       targetPrice === null || metrics.remainingQuantity <= 0
         ? 0
-        : feeOptions && feeOptions.market !== 'CN'
-          ? totalTradeFeeItems(
-              calculateMarketTradeFeeItems(
-                feeOptions.market,
-                targetPrice * metrics.remainingQuantity,
-                metrics.remainingQuantity,
-                side,
-                feeOptions.marketTradeFees,
-                { stampDutyExempt: feeOptions.stampDutyExempt }
-              )
-            )
-          : totalTradeFees(
-              calculateTradeFees(
-                targetPrice * metrics.remainingQuantity,
-                side,
-                feeSettings,
-                marketLabel
-              )
-            )
+        : estimateFees(targetPrice, metrics.remainingQuantity)
     const fullPositionProfit =
       isOpeningPlan || difference === null
         ? null
@@ -295,7 +291,9 @@ export function getTriggeredTFloatingProfitAlert(
 export function applyTFloatingProfitAlert(
   batch: TTradingBatch,
   trades: readonly TTrade[],
-  latest: number | null | undefined
+  latest: number | null | undefined,
+  feeContext?: AccountTradeFeeContext,
+  stampDutyExempt = false
 ): {
   batch: TTradingBatch
   changed: boolean
@@ -304,7 +302,9 @@ export function applyTFloatingProfitAlert(
   const alert = batch.floatingProfitAlert
   if (!alert?.enabled) return { batch, changed: false }
 
-  const metrics = calculateTBatchMetrics(batch, trades, latest)
+  const metrics = feeContext
+    ? calculateTBatchForecastMetrics(batch, trades, latest, feeContext, stampDutyExempt)
+    : calculateTBatchMetrics(batch, trades, latest)
   if (metrics.remainingQuantity <= 0) {
     if (alert.status === 'armed') return { batch, changed: false }
     return {
@@ -347,7 +347,8 @@ export function applyTFloatingProfitAlert(
 export function applyTAlertTriggersToAccounts(
   accounts: StockTradingBooks,
   quotes: readonly StockQuote[],
-  watchlist: readonly WatchStock[] = []
+  watchlist: readonly WatchStock[] = [],
+  feeState?: Pick<AppState, 'securitiesAccounts' | 'feeSchemes' | 'settings'>
 ): {
   accounts: StockTradingBooks
   changed: boolean
@@ -366,11 +367,24 @@ export function applyTAlertTriggersToAccounts(
       const trades = getBatchTrades(parent, batch)
       const latest = quotesById.get(quoteId)?.latest
       const stock = stocksById.get(quoteId)
+      const predictionId = feeState
+        ? resolveAccountSelection(feeState, marketFromQuoteId(quoteId)) || trades[0]?.accountId
+        : undefined
+      const feeContext =
+        feeState && predictionId
+          ? getAccountTradeFeeContext(feeState, predictionId, quoteId)
+          : undefined
       const priceResult = applyTAlertTriggers(batch, trades, latest, {
         market: stock?.market ?? marketFromQuoteId(quoteId),
         instrumentType: stock?.instrumentType
       })
-      const floatingResult = applyTFloatingProfitAlert(priceResult.batch!, trades, latest)
+      const floatingResult = applyTFloatingProfitAlert(
+        priceResult.batch!,
+        trades,
+        latest,
+        feeContext,
+        stock?.instrumentType === 'etf'
+      )
       if (floatingResult.triggered) {
         triggered.push({
           quoteId,

@@ -18,7 +18,8 @@ export function calculateTBatchCnyMetrics(
   trades: readonly TTrade[],
   market: StockMarket,
   latestPrice: number | null | undefined,
-  currentRate: number | null | undefined
+  currentRate: number | null | undefined,
+  closingFee = 0
 ): TBatchCnyMetrics {
   const direction = getTBatchDirection(batch)
   const openingSide = direction === 'forward' ? 'buy' : 'sell'
@@ -91,14 +92,16 @@ export function calculateTBatchCnyMetrics(
     remainingQuantity === 0 || (!missingQuote && !missingCurrentRate && cnyBasisComplete)
   const marketValue = (latestPrice ?? 0) * remainingQuantity
   const floatingCny =
-    remainingQuantity === 0 ? 0 : sign * (marketValue * (currentRate ?? 0) - cnyBasis)
+    remainingQuantity === 0
+      ? 0
+      : sign * (marketValue * (currentRate ?? 0) - cnyBasis) - closingFee * (currentRate ?? 0)
   const acquisitionRate = nativeBasis !== 0 ? cnyBasis / nativeBasis : null
   const floatingPriceContribution =
     remainingQuantity === 0
       ? 0
       : acquisitionRate === null
         ? null
-        : sign * (marketValue - nativeBasis) * acquisitionRate
+        : (sign * (marketValue - nativeBasis) - closingFee) * acquisitionRate
   const realizedProfit = realizedComplete ? roundMoney(realizedCny) : null
   const floatingProfit = floatingComplete ? roundMoney(floatingCny) : null
   const totalProfit =
