@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   DEFAULT_APP_SETTINGS,
   DEFAULT_WATCHLIST_COLUMN_ORDER,
@@ -106,6 +106,10 @@ describe('QuoteRuntime tracking review quotes', () => {
     vi.mocked(fetchQuotes).mockReset()
   })
 
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('refreshes and retains a tracked stock that is no longer in the watchlist', async () => {
     const profile = trackingProfile()
     const state = appState(profile)
@@ -145,6 +149,8 @@ describe('QuoteRuntime tracking review quotes', () => {
   })
 
   it('uses the complete enabled watchlist for radar refreshes and refreshes all rows after an update', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-08-14T02:00:00.000Z'))
     const profile = trackingProfile()
     const priority = watchStock('600010', true)
     const regular = watchStock('600011', false)

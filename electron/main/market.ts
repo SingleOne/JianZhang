@@ -690,12 +690,12 @@ export async function fetchQuotes(
       ...quote,
       radarSignals: radarSignals.get(quote.quoteId)
     }))
-  const stocksByMarket = new Map<StockMarket, WatchStock[]>()
+  const stocksByGroup = new Map<StockMarket | 'sector', WatchStock[]>()
   for (const stock of stocks) {
-    const market = marketFromQuoteId(stock.quoteId)
-    stocksByMarket.set(market, [...(stocksByMarket.get(market) ?? []), stock])
+    const group = stock.quoteId.startsWith('90.') ? 'sector' : marketFromQuoteId(stock.quoteId)
+    stocksByGroup.set(group, [...(stocksByGroup.get(group) ?? []), stock])
   }
-  const groupedStocks = [...stocksByMarket]
+  const groupedStocks = [...stocksByGroup]
   const validateQuoteBatch = (
     marketStocks: readonly WatchStock[],
     quotes: readonly StockQuote[]
@@ -707,7 +707,7 @@ export async function fetchQuotes(
     }
   }
   const groupResults = await Promise.allSettled(
-    groupedStocks.map(async ([market, marketStocks]) => {
+    groupedStocks.map(async ([group, marketStocks]) => {
       const sources: Array<[string, string, () => Promise<StockQuote[]>]> = [
         [
           '东方财富主节点',
@@ -718,10 +718,12 @@ export async function fetchQuotes(
           '东方财富镜像节点',
           'eastmoney-delay',
           () => fetchEastmoneyQuotes(marketStocks, true, caller)
-        ],
-        ['腾讯行情', 'tencent', () => fetchTencentQuotes(marketStocks, caller)]
+        ]
       ]
-      if (market === 'CN') {
+      if (group !== 'sector') {
+        sources.push(['腾讯行情', 'tencent', () => fetchTencentQuotes(marketStocks, caller)])
+      }
+      if (group === 'CN') {
         sources.push(['新浪行情', 'sina', () => fetchSinaQuotes(marketStocks, caller)])
       }
       const failures: string[] = []
@@ -729,12 +731,13 @@ export async function fetchQuotes(
         try {
           const quotes = await fetchSource()
           validateQuoteBatch(marketStocks, quotes)
-          return { market, quotes, source }
+          return { quotes, source }
         } catch (error) {
           failures.push(`${name}：${error instanceof Error ? error.message : '请求失败'}`)
         }
       }
-      throw new Error(`${market} 行情数据源均不可用（${failures.join('；')}）`)
+      const label = group === 'sector' ? '行业板块' : `${group} `
+      throw new Error(`${label}行情数据源均不可用（${failures.join('；')}）`)
     })
   )
   const successful = groupResults.flatMap((result) =>
