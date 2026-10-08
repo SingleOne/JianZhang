@@ -69,6 +69,7 @@ import {
   STOCK_CURRENCY_SYMBOLS
 } from '../../shared/stock-market'
 import { ExpandedStockDetails } from '../ExpandedStockDetails'
+import { AnimatedNumber } from '../AnimatedNumber'
 import { FiveLevelAlertBadges } from '../FiveLevelAlertBadges'
 import { TAlertBadges } from '../TAlertBadges'
 import { TFloatingProfitAlertBadge } from '../TFloatingProfitAlertBadge'
@@ -584,7 +585,9 @@ export const WatchlistRow = memo(function WatchlistRow({
               return (
                 <td key={columnId}>
                   <div className={`latest-cell ${quoteDirection}`}>
-                    <strong className="latest-price">{formatPrice(quote?.latest)}</strong>
+                    <strong className="latest-price">
+                      <AnimatedNumber value={quote?.latest} formatValue={formatPrice} />
+                    </strong>
                     <small>
                       {quote?.change === null || quote?.change === undefined
                         ? '--'

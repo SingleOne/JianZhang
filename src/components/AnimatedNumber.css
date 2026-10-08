@@ -1,0 +1,68 @@
+.animated-number {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+  line-height: 1.25;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.animated-number-motion {
+  display: inline-grid;
+  vertical-align: top;
+}
+
+.animated-number-current,
+.animated-number-previous {
+  grid-area: 1 / 1;
+}
+
+.animated-number-motion[data-direction='up'] {
+  --animated-number-offset: 100%;
+}
+
+.animated-number-motion[data-direction='down'] {
+  --animated-number-offset: -100%;
+}
+
+.animated-number-motion[data-direction] .animated-number-current {
+  animation: animated-number-enter var(--animated-number-duration) cubic-bezier(0.22, 1, 0.36, 1)
+    both;
+}
+
+.animated-number-motion[data-direction] .animated-number-previous {
+  animation: animated-number-leave var(--animated-number-duration) cubic-bezier(0.22, 1, 0.36, 1)
+    both;
+}
+
+@keyframes animated-number-enter {
+  from {
+    transform: translateY(var(--animated-number-offset));
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes animated-number-leave {
+  from {
+    transform: translateY(0);
+  }
+
+  to {
+    transform: translateY(calc(var(--animated-number-offset) * -1));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animated-number-motion[data-direction] .animated-number-current,
+  .animated-number-motion[data-direction] .animated-number-previous {
+    animation-duration: 1ms;
+    transform: none;
+  }
+
+  .animated-number-previous {
+    visibility: hidden;
+  }
+}
