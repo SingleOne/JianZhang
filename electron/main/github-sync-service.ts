@@ -10,6 +10,7 @@ import type {
 } from '../../src/shared/types'
 import { atomicWriteFileSync, atomicWriteJsonSync } from './file-storage'
 import { decryptGitHubGistBackup, encryptGitHubGistBackup } from './github-gist-crypto'
+import { BROWSER_USER_AGENT } from './http-user-agent'
 
 interface StoredGitHubSyncSettings {
   syncTarget?: 'gist'
@@ -562,7 +563,7 @@ export class GitHubSyncService {
     return {
       Accept: 'application/json',
       'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': 'jianzhang-stock-desktop'
+      'User-Agent': BROWSER_USER_AGENT
     }
   }
 
@@ -571,7 +572,7 @@ export class GitHubSyncService {
       Accept: 'application/vnd.github+json',
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
-      'User-Agent': 'jianzhang-stock-desktop',
+      'User-Agent': BROWSER_USER_AGENT,
       'X-GitHub-Api-Version': '2022-11-28'
     }
   }

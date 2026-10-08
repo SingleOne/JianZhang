@@ -1,3 +1,4 @@
+import { BROWSER_USER_AGENT } from '../../../../../electron/main/http-user-agent'
 import type {
   AiConnectionResult,
   AiModelOption,
@@ -22,6 +23,7 @@ const ANTHROPIC_VERSION = '2023-06-01'
 
 function headers(apiKey: string): Record<string, string> {
   return {
+    'User-Agent': BROWSER_USER_AGENT,
     'x-api-key': apiKey,
     'anthropic-version': ANTHROPIC_VERSION
   }

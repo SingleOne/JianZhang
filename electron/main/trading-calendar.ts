@@ -1,3 +1,5 @@
+import { BROWSER_USER_AGENT } from './http-user-agent'
+
 const SSE_TRADING_CALENDAR_URL = 'https://www.sse.com.cn/disclosure/dealinstruc/closed/'
 const DAY_IN_MILLISECONDS = 86_400_000
 
@@ -65,7 +67,7 @@ function closedDatesFromRow(rowHtml: string, calendarYear: number): string[] {
 export async function fetchSseTradingCalendar(expectedYear: number): Promise<SseTradingCalendar> {
   const response = await fetch(SSE_TRADING_CALENDAR_URL, {
     headers: {
-      'User-Agent': 'Jianzhang Stock Desktop',
+      'User-Agent': BROWSER_USER_AGENT,
       Referer: 'https://www.sse.com.cn/'
     },
     signal: AbortSignal.timeout(20_000)
@@ -100,7 +102,7 @@ export async function fetchHkexTradingCalendar(expectedYear: number): Promise<Hk
   url.searchParams.set('order', 'asc')
   const response = await fetch(url, {
     headers: {
-      'User-Agent': 'Jianzhang Stock Desktop',
+      'User-Agent': BROWSER_USER_AGENT,
       Referer: 'https://www.hkex.com.hk/'
     },
     signal: AbortSignal.timeout(20_000)

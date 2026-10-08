@@ -17,6 +17,7 @@ import { atomicWriteJsonSync } from './file-storage'
 import type { CompanyReportService } from './company-report-service'
 import { reportCodeFromQuoteId } from './company-report-provider'
 import { SecEdgarClient, type SecSubmissionsRecent } from './sec-edgar-client'
+import { BROWSER_USER_AGENT } from './http-user-agent'
 
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000
 const MONTH_NUMBERS: Record<string, string> = {
@@ -192,7 +193,7 @@ export class GlobalFundamentalService {
     const response = await net.fetch(report.url, {
       headers: {
         Referer: 'https://www1.hkexnews.hk/',
-        'User-Agent': 'JianZhang Desktop stock research app'
+        'User-Agent': BROWSER_USER_AGENT
       },
       signal: AbortSignal.timeout(60_000)
     })

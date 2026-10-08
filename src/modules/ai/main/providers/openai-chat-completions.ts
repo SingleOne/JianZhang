@@ -1,3 +1,4 @@
+import { BROWSER_USER_AGENT } from '../../../../../electron/main/http-user-agent'
 import type {
   AiProviderImage,
   AiProviderRequest,
@@ -96,6 +97,7 @@ async function requestRound(
     method: 'POST',
     signal: options.signal,
     headers: {
+      'User-Agent': BROWSER_USER_AGENT,
       Authorization: `Bearer ${options.apiKey}`,
       'Content-Type': 'application/json'
     },

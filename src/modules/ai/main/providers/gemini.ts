@@ -1,3 +1,4 @@
+import { BROWSER_USER_AGENT } from '../../../../../electron/main/http-user-agent'
 import type {
   AiConnectionResult,
   AiModelOption,
@@ -95,6 +96,7 @@ async function requestRound(
       method: 'POST',
       signal,
       headers: {
+        'User-Agent': BROWSER_USER_AGENT,
         'x-goog-api-key': apiKey,
         'Content-Type': 'application/json'
       },
@@ -160,7 +162,7 @@ export class GeminiProvider implements AiProvider {
   async listModels(apiKey?: string): Promise<AiModelOption[]> {
     if (!apiKey) throw new Error('请先保存 API Key')
     const response = await fetch(`${GEMINI_API_BASE}/models?pageSize=1000`, {
-      headers: { 'x-goog-api-key': apiKey }
+      headers: { 'User-Agent': BROWSER_USER_AGENT, 'x-goog-api-key': apiKey }
     })
     await ensureResponse(response)
     const body = (await response.json()) as { models?: GeminiModel[] }

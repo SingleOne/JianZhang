@@ -31,6 +31,7 @@ import { CninfoCorporateActionProvider } from './cninfo-corporate-action-provide
 import { HkexCorporateActionProvider } from './hkex-corporate-action-provider'
 import { SecCorporateActionProvider } from './sec-corporate-action-provider'
 import { SEC_DOCUMENT_HEADERS, SecEdgarClient } from './sec-edgar-client'
+import { BROWSER_USER_AGENT } from './http-user-agent'
 
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000
 const CACHE_VERSION = 2
@@ -361,7 +362,7 @@ export class CorporateActionService {
             candidate.market === 'HK'
               ? {
                   Referer: 'https://www1.hkexnews.hk/',
-                  'User-Agent': 'JianZhang Desktop stock research app'
+                  'User-Agent': BROWSER_USER_AGENT
                 }
               : { ...SEC_DOCUMENT_HEADERS, Referer: 'https://www.sec.gov/' },
           signal: AbortSignal.timeout(45_000)

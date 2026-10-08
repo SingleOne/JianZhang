@@ -1,4 +1,5 @@
 import type { AiConnectionResult, AiModelOption, AiProviderTurnResult } from '../../shared/types'
+import { BROWSER_USER_AGENT } from '../../../../../electron/main/http-user-agent'
 
 export async function ensureResponse(response: Response): Promise<void> {
   if (response.ok) return
@@ -68,7 +69,7 @@ export async function fetchModelOptions(
   url: string,
   headers: Record<string, string>
 ): Promise<AiModelOption[]> {
-  const response = await fetch(url, { headers })
+  const response = await fetch(url, { headers: { 'User-Agent': BROWSER_USER_AGENT, ...headers } })
   await ensureResponse(response)
   return parseModelOptions(await response.json())
 }

@@ -1,22 +1,24 @@
+import { BROWSER_USER_AGENT } from './http-user-agent'
+
 export const EASTMONEY_SEARCH_TOKEN = 'D43BF722C8E33A67B1BDCC6FDED9C901'
 export const EASTMONEY_RADAR_TOKEN = '7eea3edcaed734bea9cbfc24409ed989'
 
 export const EASTMONEY_HEADERS: Record<string, string> = {
   Accept: 'application/json, text/plain, */*',
   Referer: 'https://quote.eastmoney.com/',
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+  'User-Agent': BROWSER_USER_AGENT
 }
 
 export const TENCENT_HEADERS: Record<string, string> = {
   Accept: 'application/json, text/plain, */*',
   Referer: 'https://gu.qq.com/',
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+  'User-Agent': BROWSER_USER_AGENT
 }
 
 export const SINA_HEADERS: Record<string, string> = {
   Accept: '*/*',
   Referer: 'https://finance.sina.com.cn/',
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+  'User-Agent': BROWSER_USER_AGENT
 }
 
 export const MARKET_INDEX_QUOTE_IDS = new Set([

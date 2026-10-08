@@ -1,3 +1,5 @@
+import { BROWSER_USER_AGENT } from './http-user-agent'
+
 const SAFE_EXCHANGE_RATE_URL = 'https://www.safe.gov.cn/AppStructured/hlw/RMBQuery.do'
 
 export interface SafeExchangeRateSnapshot {
@@ -39,7 +41,7 @@ export function parseSafeExchangeRateHtml(html: string): SafeExchangeRateSnapsho
 export async function fetchSafeExchangeRates(): Promise<SafeExchangeRateSnapshot> {
   const response = await fetch(SAFE_EXCHANGE_RATE_URL, {
     headers: {
-      'User-Agent': 'Jianzhang Stock Desktop',
+      'User-Agent': BROWSER_USER_AGENT,
       Referer: 'https://www.safe.gov.cn/safe/rmbhlzjj/'
     },
     signal: AbortSignal.timeout(20_000)

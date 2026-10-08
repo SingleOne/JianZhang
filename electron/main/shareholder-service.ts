@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ShareholderSnapshot } from '../../src/shared/types'
 import { atomicWriteJsonSync } from './file-storage'
+import { BROWSER_USER_AGENT } from './http-user-agent'
 import {
   eastmoneyShareholderCode,
   normalizeEastmoneyShareholderPayload,
@@ -68,7 +69,7 @@ export class ShareholderService {
       const response = await this.fetcher(url.toString(), {
         headers: {
           Referer: 'https://emweb.eastmoney.com/',
-          'User-Agent': 'Mozilla/5.0'
+          'User-Agent': BROWSER_USER_AGENT
         },
         signal: AbortSignal.timeout(15_000)
       })

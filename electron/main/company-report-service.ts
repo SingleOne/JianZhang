@@ -23,7 +23,8 @@ import type { CompanyReportProvider } from './company-report-provider'
 import { CninfoCompanyReportProvider } from './cninfo-company-report-provider'
 import { HkexCompanyReportProvider } from './hkex-company-report-provider'
 import { SecCompanyReportProvider } from './sec-company-report-provider'
-import { SecEdgarClient } from './sec-edgar-client'
+import { SEC_DOCUMENT_HEADERS, SecEdgarClient } from './sec-edgar-client'
+import { BROWSER_USER_AGENT } from './http-user-agent'
 
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000
 const SUMMARY_PROMPT = `你是上市公司定期报告摘要助手。只能依据用户提供的官方财报原文摘录，不得补充外部信息或猜测未披露内容。
@@ -90,8 +91,8 @@ export class CompanyReportService {
     this.validateReportUrl(report.url)
     const response = await net.fetch(report.url, {
       headers: {
-        Referer: this.refererForReport(report),
-        'User-Agent': 'JianZhang Desktop stock research app'
+        ...(report.market === 'US' ? SEC_DOCUMENT_HEADERS : { 'User-Agent': BROWSER_USER_AGENT }),
+        Referer: this.refererForReport(report)
       },
       signal: AbortSignal.timeout(60_000)
     })

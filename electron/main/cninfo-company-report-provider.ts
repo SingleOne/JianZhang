@@ -1,4 +1,5 @@
 import { net } from 'electron'
+import { BROWSER_USER_AGENT } from './http-user-agent'
 import {
   companyReportVariant,
   companyReportYear,
@@ -34,7 +35,7 @@ const REQUEST_HEADERS = {
   Accept: 'application/json, text/plain, */*',
   Origin: 'https://www.cninfo.com.cn',
   Referer: 'https://www.cninfo.com.cn/',
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+  'User-Agent': BROWSER_USER_AGENT,
   'X-Requested-With': 'XMLHttpRequest'
 }
 

@@ -1,3 +1,4 @@
+import { BROWSER_USER_AGENT } from '../../../../../electron/main/http-user-agent'
 import type {
   AiConnectionResult,
   AiModelOption,
@@ -61,6 +62,7 @@ async function requestRound(
     method: 'POST',
     signal,
     headers: {
+      'User-Agent': BROWSER_USER_AGENT,
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json'
     },

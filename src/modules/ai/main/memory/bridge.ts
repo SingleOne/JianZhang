@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { safeStorage } from 'electron'
 import { atomicWriteFileSync, atomicWriteJsonSync } from '../../../../../electron/main/file-storage'
+import { BROWSER_USER_AGENT } from '../../../../../electron/main/http-user-agent'
 import type {
   AiConversation,
   AiMessageContextUse,
@@ -262,6 +263,7 @@ export class MemoryBridge {
     const response = await fetch(`${url}${path}`, {
       method,
       headers: {
+        'User-Agent': BROWSER_USER_AGENT,
         authorization: `Bearer ${token}`,
         ...(body ? { 'content-type': 'application/json' } : {})
       },

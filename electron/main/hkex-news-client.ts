@@ -1,4 +1,5 @@
 import { net } from 'electron'
+import { BROWSER_USER_AGENT } from './http-user-agent'
 
 const HKEX_BASE_URL = 'https://www1.hkexnews.hk'
 const HKEX_SEARCH_URL = `${HKEX_BASE_URL}/search/titleSearchServlet.do`
@@ -6,7 +7,7 @@ const HKEX_PREFIX_URL = `${HKEX_BASE_URL}/search/prefix.do`
 const HKEX_HEADERS = {
   Accept: 'application/json, text/plain, */*',
   Referer: `${HKEX_BASE_URL}/search/titlesearch.xhtml?lang=en`,
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+  'User-Agent': BROWSER_USER_AGENT
 }
 
 export interface HkexStockInfo {

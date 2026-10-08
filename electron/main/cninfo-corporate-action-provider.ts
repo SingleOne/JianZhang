@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { net } from 'electron'
 import pdfParse from 'pdf-parse'
+import { BROWSER_USER_AGENT } from './http-user-agent'
 import {
   extractCnCorporateActionEffects,
   extractCorporateActionDates,
@@ -26,18 +27,17 @@ const SEARCH_KEYWORDS = [
   '派息',
   '配股'
 ] as const
-const CNINFO_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 const API_REQUEST_HEADERS = {
   Accept: 'application/json, text/plain, */*',
   Origin: 'https://www.cninfo.com.cn',
   Referer: 'https://www.cninfo.com.cn/',
-  'User-Agent': CNINFO_USER_AGENT,
+  'User-Agent': BROWSER_USER_AGENT,
   'X-Requested-With': 'XMLHttpRequest'
 }
 const DOCUMENT_REQUEST_HEADERS = {
   Accept: 'application/pdf, application/octet-stream;q=0.9, */*;q=0.8',
   Referer: 'https://www.cninfo.com.cn/',
-  'User-Agent': CNINFO_USER_AGENT
+  'User-Agent': BROWSER_USER_AGENT
 }
 const DISTRIBUTION_ACTION_KEYWORDS = /权益分派|利润分配|分红派息|现金红利|现金股利|派息/
 const DISTRIBUTION_IMPLEMENTATION_KEYWORDS = /实施|结果|发放|派发|派息/

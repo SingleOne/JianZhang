@@ -1,9 +1,10 @@
 import { net } from 'electron'
+import { BROWSER_USER_AGENT } from '../../../../../../electron/main/http-user-agent'
 import type { MarketNewsItem } from '../../../shared/types'
 
 const DEFAULT_HEADERS = {
   Accept: 'application/json, text/plain, text/html, */*',
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+  'User-Agent': BROWSER_USER_AGENT
 }
 
 export async function requestText(url: string, init: RequestInit = {}): Promise<string> {
