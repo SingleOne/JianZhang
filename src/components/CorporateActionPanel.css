@@ -23,6 +23,12 @@
   gap: 3px;
 }
 
+.corporate-action-editor > header > .corporate-action-editor-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .corporate-action-header strong,
 .corporate-action-editor strong {
   font-size: 14px;
@@ -42,10 +48,7 @@
   justify-content: flex-end;
 }
 
-.corporate-action-manual-type-select {
-  min-width: 150px;
-}
-
+.corporate-action-manual-type-select,
 .corporate-action-view-select {
   min-width: 150px;
 }
@@ -71,7 +74,8 @@
   max-width: 100%;
 }
 
-.corporate-action-manual-type-select .app-select-trigger {
+.corporate-action-manual-type-select .app-select-trigger,
+.corporate-action-view-select .app-select-trigger {
   height: 42px;
   min-height: 42px;
   gap: 7px;
@@ -88,17 +92,21 @@
 }
 
 .corporate-action-manual-type-select .app-select-trigger:hover,
-.corporate-action-manual-type-select .app-select-trigger.is-open {
+.corporate-action-manual-type-select .app-select-trigger.is-open,
+.corporate-action-view-select .app-select-trigger:hover,
+.corporate-action-view-select .app-select-trigger.is-open {
   border-color: #bbc5d3;
   background: #f8fafc;
   box-shadow: none;
 }
 
-.corporate-action-manual-type-select .app-select-trigger:active:not(:disabled) {
+.corporate-action-manual-type-select .app-select-trigger:active:not(:disabled),
+.corporate-action-view-select .app-select-trigger:active:not(:disabled) {
   transform: translateY(1px);
 }
 
-.corporate-action-manual-type-select .app-select-menu {
+.corporate-action-manual-type-select .app-select-menu,
+.corporate-action-view-select .app-select-menu {
   min-width: 190px;
   max-height: 220px;
   overflow-y: auto;
@@ -106,13 +114,17 @@
 
 .corporate-action-form-grid input,
 .corporate-action-form-grid .app-select-trigger {
-  min-height: 32px;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  min-height: 36px;
   border: 1px solid var(--border);
   border-radius: 7px;
   background: var(--surface);
   color: var(--text-primary);
-  font-size: 12px;
-  padding: 5px 8px;
+  font-size: 13px;
+  padding: 0 10px;
 }
 
 .corporate-action-field-select {
@@ -156,7 +168,7 @@
 .corporate-action-timeline {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: start;
+  align-items: stretch;
   gap: 7px;
 }
 
@@ -170,10 +182,6 @@
 .corporate-action-card {
   padding: 9px 12px;
   box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
-}
-
-.corporate-action-editor {
-  padding: 14px;
 }
 
 .corporate-action-card-heading {
@@ -370,12 +378,15 @@
   color: var(--accent);
 }
 
-:root[data-theme='dark'] .corporate-action-manual-type-select .app-select-trigger {
+:root[data-theme='dark'] .corporate-action-manual-type-select .app-select-trigger,
+:root[data-theme='dark'] .corporate-action-view-select .app-select-trigger {
   color: #e6edf7;
 }
 
 :root[data-theme='dark'] .corporate-action-manual-type-select .app-select-trigger:hover,
-:root[data-theme='dark'] .corporate-action-manual-type-select .app-select-trigger.is-open {
+:root[data-theme='dark'] .corporate-action-manual-type-select .app-select-trigger.is-open,
+:root[data-theme='dark'] .corporate-action-view-select .app-select-trigger:hover,
+:root[data-theme='dark'] .corporate-action-view-select .app-select-trigger.is-open {
   border-color: #34445d;
   background: #111827;
   box-shadow: none;
@@ -407,6 +418,26 @@
   padding: 10px 11px;
 }
 
+.corporate-action-ai-summary-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.corporate-action-ai-summary-toggle {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 4px;
+  min-height: 24px;
+}
+
+.corporate-action-ai-summary-content:not([hidden]) {
+  display: grid;
+  gap: 6px;
+}
+
 .corporate-action-ai-summary strong,
 .corporate-action-ai-summary p,
 .corporate-action-ai-summary small {
@@ -424,29 +455,86 @@
 
 .corporate-action-editor {
   display: grid;
-  gap: 13px;
+  container: corporate-action-editor / inline-size;
+  min-width: 0;
+  gap: 16px;
+  padding: 16px;
   border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
 }
 
-.corporate-action-editor-host {
-  margin-top: 12px;
+.corporate-action-editor > header {
+  align-items: flex-start;
 }
 
-.corporate-action-editor-host .corporate-action-editor {
-  background: var(--surface-muted);
+.corporate-action-editor > header > div {
+  min-width: 0;
+  gap: 5px;
+}
+
+.corporate-action-editor > header strong {
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+
+.corporate-action-editor > header > .text-button {
+  flex-shrink: 0;
+}
+
+.corporate-action-editor-account-context {
+  display: grid;
+  grid-template-columns: auto minmax(0, 240px) auto auto;
+  justify-content: start;
+  gap: 6px 10px;
+  padding: 10px 12px;
+}
+
+.corporate-action-editor-account-context .corporate-action-account-select {
+  width: 100%;
+  min-width: 0;
+}
+
+.corporate-action-editor-account-context .app-select-trigger {
+  height: 36px;
+  min-height: 36px;
+}
+
+.corporate-action-account-hints {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .corporate-action-form-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(150px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: start;
+  gap: 14px 12px;
 }
 
-.corporate-action-form-grid label {
+.corporate-action-form-grid label,
+.corporate-action-form-field {
   display: grid;
-  gap: 5px;
+  align-content: start;
+  min-width: 0;
+  gap: 6px;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.corporate-action-field-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.corporate-action-form-grid > label,
+.corporate-action-form-field {
+  grid-template-rows: 20px 36px;
+}
+
+.corporate-action-form-grid small {
+  line-height: 1.5;
 }
 
 .corporate-action-form-grid .is-wide {
@@ -455,12 +543,13 @@
 
 .corporate-action-preview {
   display: grid;
-  grid-template-columns: repeat(3, minmax(140px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 9px;
 }
 
 .corporate-action-preview > div {
   display: grid;
+  min-width: 0;
   gap: 3px;
   border-radius: 8px;
   background: var(--surface-muted);
@@ -491,6 +580,38 @@
 
 .corporate-action-preview strong {
   font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.corporate-action-preview-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.corporate-action-preview-primary-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.corporate-action-preview-actions .corporate-action-preview-primary-actions > .app-hint-trigger {
+  width: 20px;
+  height: 20px;
+  min-height: 20px;
+}
+
+.corporate-action-preview-actions button {
+  height: 36px;
+  min-height: 36px;
+  font-size: 13px;
+}
+
+.corporate-action-ignore-action {
+  margin-right: auto;
 }
 
 .corporate-action-preview .is-up {
@@ -512,8 +633,7 @@
 }
 
 @media (max-width: 980px) {
-  .corporate-action-header,
-  .corporate-action-editor > header {
+  .corporate-action-header {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -522,10 +642,40 @@
     width: 100%;
     justify-content: flex-start;
   }
+}
 
+@container corporate-action-editor (max-width: 620px) {
   .corporate-action-form-grid,
   .corporate-action-preview {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container corporate-action-editor (max-width: 400px) {
+  .corporate-action-form-grid,
+  .corporate-action-preview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .corporate-action-editor-account-context {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .corporate-action-editor-account-context .corporate-action-status {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .corporate-action-account-hints {
+    grid-column: 2;
+  }
+
+  .corporate-action-preview-primary-actions {
+    width: 100%;
+  }
+
+  .corporate-action-preview-primary-actions button:not(.app-hint-trigger) {
+    flex: 1 1 130px;
   }
 }
 

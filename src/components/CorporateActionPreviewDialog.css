@@ -1,0 +1,108 @@
+.corporate-action-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(2px);
+  animation: corporate-action-preview-backdrop-in 120ms ease-out both;
+}
+
+.corporate-action-preview-backdrop.is-closing {
+  animation: corporate-action-preview-backdrop-out 100ms ease-in both;
+}
+
+.corporate-action-editor.corporate-action-preview-dialog {
+  width: min(900px, 100%);
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+  padding: 0;
+  border-radius: 12px;
+  color: var(--text-primary);
+  font-size: 13px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24);
+  animation: corporate-action-preview-in 120ms ease-out both;
+}
+
+.corporate-action-editor.corporate-action-preview-dialog.is-closing {
+  animation: corporate-action-preview-out 100ms ease-in both;
+}
+
+.corporate-action-preview-dialog > header {
+  flex-shrink: 0;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.corporate-action-preview-dialog > header > .text-button {
+  font-size: 13px;
+}
+
+.corporate-action-preview-dialog-body {
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  padding: 16px 20px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.corporate-action-preview-dialog > .corporate-action-preview-actions {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 12px 20px;
+  background: var(--surface-muted);
+}
+
+@keyframes corporate-action-preview-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes corporate-action-preview-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.94);
+  }
+}
+
+@keyframes corporate-action-preview-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes corporate-action-preview-backdrop-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .corporate-action-preview-backdrop,
+  .corporate-action-editor.corporate-action-preview-dialog {
+    animation-duration: 1ms;
+  }
+}
