@@ -1791,9 +1791,12 @@ export default function App() {
                       </div>
                     </div>
                     <span>
-                      {state.watchlist.length} 只股票 ·{' '}
-                      {state.watchlist.filter((stock) => stock.isPriority).length} 只重点 ·{' '}
-                      {portfolioSummary.positionCount} 只有持仓 · 点击股票行展开行情详情
+                      <span>
+                        {state.watchlist.length} 只股票 ·{' '}
+                        {state.watchlist.filter((stock) => stock.isPriority).length} 只重点 ·{' '}
+                        {portfolioSummary.positionCount} 只有持仓
+                      </span>
+                      <span>点击股票行展开行情详情</span>
                     </span>
                   </div>
                   <div id="portfolio-quality-slot" className="portfolio-quality-slot" />

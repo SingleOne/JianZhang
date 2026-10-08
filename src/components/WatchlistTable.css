@@ -75,6 +75,12 @@
   white-space: nowrap;
 }
 
+.panel-title > span > span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .panel-heading-side {
   flex: 0 0 auto;
   display: grid;
