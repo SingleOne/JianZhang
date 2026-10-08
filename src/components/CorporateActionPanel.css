@@ -46,6 +46,31 @@
   min-width: 150px;
 }
 
+.corporate-action-view-select {
+  min-width: 150px;
+}
+
+.corporate-action-account-context {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-muted);
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.corporate-action-account-context small {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.corporate-action-account-select {
+  min-width: 160px;
+  max-width: 100%;
+}
+
 .corporate-action-manual-type-select .app-select-trigger {
   height: 42px;
   min-height: 42px;

@@ -1,6 +1,6 @@
 import { ExternalLink, Plus, RefreshCcw, RotateCcw, Sparkles } from 'lucide-react'
 import type { ReactElement } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { formatCost, formatMoney, formatShares } from '../lib/format'
 import {
@@ -12,7 +12,9 @@ import { exchangeRateForCurrency } from '../shared/exchange-rates'
 import { stockApi } from '../lib/api'
 import { emitCompletionNotification } from '../lib/completion-notifications'
 import { calculatePortfolioLedgerMetrics } from '../lib/portfolio-ledger'
+import { recordsForAccount } from '../shared/stock-accounts'
 import { AppSelect, type AppSelectOption } from './AppSelect'
+import { AppButton } from './AppButton'
 import type {
   CorporateActionCandidate,
   CorporateActionConfirmation,
@@ -34,6 +36,8 @@ export interface CorporateActionPanelProps {
   accountDisabled?: boolean
   stock: WatchStock
   account?: TTradingAccount
+  accountOptions?: readonly AppSelectOption<string>[]
+  onAccountChange?: (accountId: string) => void
   records: CorporateActionRecords
   exchangeRates: ExchangeRateSettings
   onCommit: (
@@ -42,6 +46,28 @@ export interface CorporateActionPanelProps {
     record: CorporateActionRecord
   ) => string | void
   onRecordChange: (record: CorporateActionRecord) => void
+}
+
+type TimelineView = 'announcements' | 'records'
+const TIMELINE_VIEW_OPTIONS = [
+  { value: 'announcements', label: '公司行动公告' },
+  { value: 'records', label: '账户处理记录' }
+] satisfies readonly AppSelectOption<TimelineView>[]
+
+function mergeAccountCandidate(
+  candidate: CorporateActionCandidate,
+  records: CorporateActionRecords
+): CorporateActionCandidate {
+  const saved = records[candidate.id]
+  if (!saved) return candidate
+  return saved.contentHash === candidate.contentHash
+    ? { ...saved, aiSummary: candidate.aiSummary ?? saved.aiSummary }
+    : {
+        ...candidate,
+        status: 'revised',
+        reviewedAt: saved.reviewedAt,
+        appliedEntryIds: saved.appliedEntryIds
+      }
 }
 
 interface ConfirmationDraft {
@@ -306,8 +332,11 @@ export default function CorporateActionPanel({
   onCommit,
   onRecordChange,
   hidden = false,
-  accountDisabled = false
+  accountDisabled = false,
+  accountOptions = [],
+  onAccountChange
 }: CorporateActionPanelProps) {
+  const [timelineView, setTimelineView] = useState<TimelineView>('announcements')
   const [candidates, setCandidates] = useState<CorporateActionCandidate[]>([])
   const [source, setSource] = useState('')
   const [fetchedAt, setFetchedAt] = useState('')
@@ -316,7 +345,13 @@ export default function CorporateActionPanel({
   const [error, setError] = useState('')
   const [selected, setSelected] = useState<CorporateActionCandidate | null>(null)
   const [draft, setDraft] = useState<ConfirmationDraft | null>(null)
-  const [preview, setPreview] = useState<CorporateActionImpactPreview | null>(null)
+  const [previewResult, setPreviewResult] = useState<{
+    accountId: string | undefined
+    value: CorporateActionImpactPreview
+  } | null>(null)
+  const preview = previewResult?.accountId === account?.accountId ? previewResult?.value : null
+  const previewRequest = useRef(0)
+  const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>()
   const [previewing, setPreviewing] = useState(false)
   const [manualType, setManualType] = useState<CorporateActionType>('manualCash')
   const [summarizingId, setSummarizingId] = useState<string | null>(null)
@@ -354,7 +389,8 @@ export default function CorporateActionPanel({
   useEffect(() => {
     setSelected(null)
     setDraft(null)
-    setPreview(null)
+    setPreviewResult(null)
+    previewRequest.current += 1
     setSummarizingId(null)
     setAiFeedback(null)
     void load()
@@ -363,36 +399,42 @@ export default function CorporateActionPanel({
   const selectedEditorCandidateId =
     selected && selected.providerId !== 'manual' ? selected.id : null
 
-  useEffect(() => {
-    setEditorHost(
-      selectedEditorCandidateId
-        ? document.getElementById(
-            editorHostId(`${account?.accountId}:${selectedEditorCandidateId}`)
-          )
-        : null
-    )
-  }, [selectedEditorCandidateId, hidden, account?.accountId])
-
-  const timeline = useMemo(() => {
-    const merged: CorporateActionCandidate[] = candidates.map((candidate) => {
-      const saved = records[candidate.id] as CorporateActionRecord | undefined
-      if (!saved) return candidate
-      return saved.contentHash === candidate.contentHash
-        ? { ...saved, aiSummary: candidate.aiSummary ?? saved.aiSummary }
-        : {
-            ...candidate,
-            status: 'revised',
-            reviewedAt: saved.reviewedAt,
-            appliedEntryIds: saved.appliedEntryIds
-          }
-    })
-    const manual = Object.values(records).filter(
+  const accountRecords = useMemo(
+    () => (account?.accountId ? recordsForAccount(records, account.accountId) : {}),
+    [account?.accountId, records]
+  )
+  const announcements = useMemo(
+    () =>
+      [...candidates].sort((left, right) =>
+        right.announcementDate.localeCompare(left.announcementDate)
+      ),
+    [candidates]
+  )
+  const accountTimeline = useMemo(() => {
+    const merged = candidates.map((candidate) => mergeAccountCandidate(candidate, accountRecords))
+    const manual = Object.values(accountRecords).filter(
       (record) => record.quoteId === stock.quoteId && !merged.some((item) => item.id === record.id)
     )
     return [...merged, ...manual].sort((left, right) =>
       right.announcementDate.localeCompare(left.announcementDate)
     )
-  }, [candidates, records, stock.quoteId])
+  }, [candidates, accountRecords, stock.quoteId])
+  const timeline =
+    timelineView === 'announcements'
+      ? announcements
+      : accountTimeline.filter((candidate) => accountRecords[candidate.id])
+  const selectedInTimeline = Boolean(selected && timeline.some((item) => item.id === selected.id))
+
+  useEffect(() => {
+    setEditorHost(
+      selectedEditorCandidateId && selectedInTimeline
+        ? document.getElementById(
+            editorHostId(`${account?.accountId}:${selectedEditorCandidateId}`)
+          )
+        : null
+    )
+  }, [selectedEditorCandidateId, selectedInTimeline, hidden, account?.accountId, timelineView])
+
   const currentCandidateIds = useMemo(
     () => new Set(candidates.map((candidate) => candidate.id)),
     [candidates]
@@ -402,21 +444,66 @@ export default function CorporateActionPanel({
     if (
       selected &&
       selected.providerId !== 'manual' &&
-      !timeline.some(
+      !accountTimeline.some(
         (candidate) =>
           candidate.id === selected.id && candidate.contentHash === selected.contentHash
       )
     ) {
       setSelected(null)
       setDraft(null)
-      setPreview(null)
+      setPreviewResult(null)
+      setPreviewing(false)
+      previewRequest.current += 1
     }
-  }, [selected, timeline])
+  }, [selected, accountTimeline])
+
+  useEffect(() => {
+    if (selected && selectedAccountId !== account?.accountId) {
+      setSelected(null)
+      setDraft(null)
+      setPreviewResult(null)
+      setPreviewing(false)
+      previewRequest.current += 1
+    }
+  }, [account?.accountId, selectedAccountId, selected])
 
   const chooseCandidate = (candidate: CorporateActionCandidate) => {
-    setSelected(candidate)
-    setDraft(createDraft(candidate, stock, exchangeRates))
-    setPreview(null)
+    const resolved = mergeAccountCandidate(candidate, accountRecords)
+    setSelected(resolved)
+    setSelectedAccountId(account?.accountId)
+    setDraft(createDraft(resolved, stock, exchangeRates))
+    setPreviewResult(null)
+    setPreviewing(false)
+    setError('')
+    previewRequest.current += 1
+  }
+
+  const closeEditor = () => {
+    setSelected(null)
+    setDraft(null)
+    setPreviewResult(null)
+    setPreviewing(false)
+    previewRequest.current += 1
+  }
+
+  const changeAccount = (accountId: string) => {
+    if (accountId === account?.accountId) return
+    setPreviewResult(null)
+    setPreviewing(false)
+    setError('')
+    previewRequest.current += 1
+    if (selected) {
+      const candidate = candidates.find((item) => item.id === selected.id) ?? selected
+      if (candidate.providerId === 'manual' && accountRecords[candidate.id]) {
+        closeEditor()
+      } else {
+        const resolved = mergeAccountCandidate(candidate, recordsForAccount(records, accountId))
+        setSelected(resolved)
+        setSelectedAccountId(accountId)
+        setDraft(createDraft(resolved, stock, exchangeRates))
+      }
+    }
+    onAccountChange?.(accountId)
   }
 
   const startManual = () => {
@@ -441,12 +528,23 @@ export default function CorporateActionPanel({
 
   const updateDraft = (field: keyof ConfirmationDraft, value: string) => {
     setDraft((current) => (current ? { ...current, [field]: value } : current))
-    setPreview(null)
+    setPreviewResult(null)
+    previewRequest.current += 1
+    setPreviewing(false)
   }
 
   const runPreview = async () => {
-    if (!selected || !draft) return
+    if (
+      !selected ||
+      !draft ||
+      !account ||
+      selected.status === 'applied' ||
+      selected.status === 'reversed'
+    )
+      return
+    const requestId = ++previewRequest.current
     setPreviewing(true)
+    setPreviewResult(null)
     setError('')
     try {
       const workingAccount = accountForStock(stock, account)
@@ -465,21 +563,25 @@ export default function CorporateActionPanel({
           },
           workingAccount
         )
+        if (requestId !== previewRequest.current) return
         setSelected(result.candidate)
-        setPreview(result.preview)
+        setPreviewResult({ accountId: account.accountId, value: result.preview })
       } else {
         const result = await stockApi.previewCorporateAction({
           candidate: selected,
           account: workingAccount,
           confirmation
         })
+        if (requestId !== previewRequest.current) return
         if (result.resolvedCandidate) setSelected(result.resolvedCandidate)
-        setPreview(result)
+        setPreviewResult({ accountId: account.accountId, value: result })
       }
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '影响预览生成失败')
+      if (requestId === previewRequest.current) {
+        setError(reason instanceof Error ? reason.message : '影响预览生成失败')
+      }
     } finally {
-      setPreviewing(false)
+      if (requestId === previewRequest.current) setPreviewing(false)
     }
   }
 
@@ -491,7 +593,9 @@ export default function CorporateActionPanel({
     const confirmsRightsNonParticipation =
       selected?.type === 'rightsIssue' && optionalNumber(draft?.subscribedQuantity ?? '') === 0
     if (
+      !account ||
       !selected ||
+      selectedAccountId !== account.accountId ||
       !preview ||
       preview.missingFields.length > 0 ||
       (preview.entries.length === 0 && !confirmsRightsNonParticipation)
@@ -546,22 +650,27 @@ export default function CorporateActionPanel({
       setError(commitError)
       return
     }
-    setSelected(null)
-    setDraft(null)
-    setPreview(null)
+    closeEditor()
   }
 
   const confirmsRightsNonParticipation =
     selected?.type === 'rightsIssue' && optionalNumber(draft?.subscribedQuantity ?? '') === 0
   const canApplyPreview = Boolean(
+    account &&
+    !accountDisabled &&
+    !previewing &&
+    selectedAccountId === account.accountId &&
     preview &&
     preview.missingFields.length === 0 &&
     (preview.entries.length > 0 || confirmsRightsNonParticipation)
   )
 
   const ignore = async (candidate: CorporateActionCandidate) => {
+    if (!account) return
+    const requestId = previewRequest.current
     try {
       onRecordChange(await stockApi.ignoreCorporateAction(candidate))
+      if (requestId === previewRequest.current) closeEditor()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '忽略公司行动失败')
     }
@@ -652,19 +761,41 @@ export default function CorporateActionPanel({
     }
   }
 
+  const accountSelector =
+    account && accountOptions.length ? (
+      <AppSelect
+        value={account.accountId ?? ''}
+        options={accountOptions}
+        label="公司行动股票账户"
+        className="corporate-action-account-select"
+        onChange={changeAccount}
+      />
+    ) : null
+  const selectedProcessed = selected?.status === 'applied' || selected?.status === 'reversed'
+
   if (hidden) return null
 
   return (
     <div className="corporate-action-panel" role="tabpanel">
       <header className="corporate-action-header">
         <div>
-          <strong>{account?.accountName} · 公司行动时间线</strong>
+          <strong>公司行动时间线</strong>
           <span>
             {source || '官方来源'}
             {fetchedAt ? ` · 更新于 ${new Date(fetchedAt).toLocaleString()}` : ''}
           </span>
         </div>
         <div className="corporate-action-actions">
+          <AppSelect
+            className="corporate-action-view-select"
+            value={timelineView}
+            options={TIMELINE_VIEW_OPTIONS}
+            label="公司行动查看内容"
+            onChange={(view) => {
+              closeEditor()
+              setTimelineView(view)
+            }}
+          />
           <AppSelect
             className="corporate-action-manual-type-select"
             value={manualType}
@@ -688,6 +819,13 @@ export default function CorporateActionPanel({
         </div>
       </header>
 
+      {timelineView === 'records' ? (
+        <div className="corporate-action-account-context">
+          <span>股票账户</span>
+          {accountSelector}
+          <small>查看该账户的确认、入账、忽略与撤销记录</small>
+        </div>
+      ) : null}
       {warning ? <div className="corporate-action-warning">{warning}</div> : null}
       {error ? <div className="corporate-action-error">{error}</div> : null}
       {loading && timeline.length === 0 ? (
@@ -695,7 +833,11 @@ export default function CorporateActionPanel({
       ) : null}
       {!loading && timeline.length === 0 ? (
         <div className="corporate-action-empty">
-          最近两年没有发现公司行动候选，可使用手工录入补齐券商实际入账。
+          {timelineView === 'records'
+            ? account
+              ? '该账户暂无公司行动处理记录。'
+              : '请在设置的“管理股票账户”中新增该市场账户，再处理公司行动。'
+            : '最近两年没有发现公司行动候选，可使用手工录入补齐券商实际入账。'}
         </div>
       ) : null}
 
@@ -713,10 +855,11 @@ export default function CorporateActionPanel({
           const canSummarize = currentCandidateIds.has(candidate.id)
           const canPreview = candidate.status !== 'applied' && candidate.status !== 'reversed'
           const canIgnore =
-            candidate.status === 'detected' ||
-            candidate.status === 'needsReview' ||
-            candidate.status === 'revised'
-          const canReverse = candidate.status === 'applied'
+            timelineView === 'records' &&
+            (candidate.status === 'detected' ||
+              candidate.status === 'needsReview' ||
+              candidate.status === 'revised')
+          const canReverse = timelineView === 'records' && candidate.status === 'applied'
           const hasSourceActions = Boolean(evidenceUrl || canSummarize)
           const hasDecisionActions = canPreview || canIgnore || canReverse
           return (
@@ -883,10 +1026,34 @@ export default function CorporateActionPanel({
                   <strong>{selected.title}</strong>
                   <span>确认前不会修改持仓或账本</span>
                 </div>
-                <button className="text-button" type="button" onClick={() => setSelected(null)}>
+                <AppButton variant="text" onClick={closeEditor}>
                   关闭
-                </button>
+                </AppButton>
               </header>
+              {account ? (
+                <div className="corporate-action-account-context">
+                  <span>入账账户</span>
+                  {accountSelector}
+                  <span className={`corporate-action-status is-${selected.status}`}>
+                    {CORPORATE_ACTION_STATUS_LABELS[selected.status]}
+                  </span>
+                  <small>影响预览与确认结果仅用于此账户</small>
+                </div>
+              ) : (
+                <div className="corporate-action-warning">
+                  请在设置的“管理股票账户”中新增该市场账户，再预览或入账。
+                </div>
+              )}
+              {selectedProcessed ? (
+                <div className="corporate-action-warning">
+                  {selected.status === 'applied'
+                    ? '此账户已入账。可切换其他账户处理，或在“账户处理记录”中撤销。'
+                    : '此账户已撤销该事件，可切换其他账户查看处理状态。'}
+                </div>
+              ) : null}
+              {accountDisabled ? (
+                <div className="corporate-action-warning">该账户已停用，恢复启用后可确认入账。</div>
+              ) : null}
               <div className="corporate-action-form-grid">
                 {selected.type === 'cashDividend' || selected.type === 'returnOfCapital' ? (
                   <>
@@ -1074,7 +1241,7 @@ export default function CorporateActionPanel({
                 <button
                   className="secondary-button"
                   type="button"
-                  disabled={previewing}
+                  disabled={previewing || !account || selectedProcessed}
                   onClick={() => void runPreview()}
                 >
                   {previewing ? '正在计算…' : '生成影响预览'}
@@ -1089,6 +1256,15 @@ export default function CorporateActionPanel({
                     ? '确认不参与供股'
                     : '确认并写入账本'}
                 </button>
+                {account &&
+                (selected.status === 'detected' ||
+                  selected.status === 'needsReview' ||
+                  selected.status === 'revised') &&
+                selected.providerId !== 'manual' ? (
+                  <AppButton variant="text" onClick={() => void ignore(selected)}>
+                    忽略此账户事件
+                  </AppButton>
+                ) : null}
               </div>
               {preview ? (
                 <div className="corporate-action-preview">
@@ -1196,7 +1372,7 @@ export default function CorporateActionPanel({
               ) : null}
             </section>,
             editorHost,
-            selected.providerId === 'manual'
+            selected.providerId === 'manual' || !selectedInTimeline
           )
         : null}
     </div>

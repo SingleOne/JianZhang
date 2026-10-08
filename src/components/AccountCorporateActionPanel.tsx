@@ -1,52 +1,44 @@
 import CorporateActionPanel, { type CorporateActionPanelProps } from './CorporateActionPanel'
-import { StockAccountBoundary, useStockAccountScope } from './SecuritiesAccountContext'
-import { recordsForAccount } from '../shared/stock-accounts'
+import { useSecuritiesAccountState, useStockAccountScope } from './SecuritiesAccountContext'
+import { listAccountsForMarket } from '../shared/stock-accounts'
+import { marketFromQuoteId } from '../shared/stock-market'
 import type { StockTradingBook, TTradingAccount } from '../shared/types'
 
-type PanelProps = Omit<CorporateActionPanelProps, 'account'> & {
+type PanelProps = Omit<
+  CorporateActionPanelProps,
+  'account' | 'accountOptions' | 'onAccountChange'
+> & {
   account?: StockTradingBook | TTradingAccount
 }
-function AccountDraft({
-  props,
-  accountId,
-  hidden
-}: {
-  props: PanelProps
-  accountId: string
-  hidden: boolean
-}) {
-  const scope = useStockAccountScope(props.stock, accountId)
-  return (
-    <CorporateActionPanel
-      {...props}
-      hidden={hidden}
-      stock={scope.stock}
-      account={scope.book}
-      accountDisabled={!scope.owner.enabled}
-      records={recordsForAccount(props.records, accountId)}
-      onCommit={(account, position, record) =>
-        props.onCommit(account, position, { ...record, accountId })
-      }
-      onRecordChange={(record) => props.onRecordChange({ ...record, accountId })}
-    />
-  )
-}
 export default function AccountCorporateActionPanel(props: PanelProps) {
-  return (
-    <StockAccountBoundary stock={props.stock}>
-      <CorporateActionWithAccounts {...props} />
-    </StockAccountBoundary>
-  )
+  const state = useSecuritiesAccountState()
+  const market = props.stock.market ?? marketFromQuoteId(props.stock.quoteId)
+  if (listAccountsForMarket(state.securitiesAccounts, market, true).length) {
+    return <CorporateActionWithAccounts {...props} />
+  }
+  return <CorporateActionPanel {...props} account={undefined} />
 }
 
 function CorporateActionWithAccounts(props: PanelProps) {
   const scope = useStockAccountScope(props.stock)
+  const market = props.stock.market ?? marketFromQuoteId(props.stock.quoteId)
   return (
-    <>
-      {scope.selector}
-      {scope.visited.map((id) => (
-        <AccountDraft key={id} props={props} accountId={id} hidden={id !== scope.accountId} />
-      ))}
-    </>
+    <CorporateActionPanel
+      {...props}
+      stock={scope.stock}
+      account={scope.book}
+      accountDisabled={!scope.owner.enabled}
+      accountOptions={listAccountsForMarket(scope.state.securitiesAccounts, market, true).map(
+        (owner) => ({
+          value: owner.id,
+          label: `${owner.name}${owner.enabled ? '' : '（已停用）'}`
+        })
+      )}
+      onAccountChange={(id) => void scope.select(id)}
+      onCommit={(account, position, record) =>
+        props.onCommit(account, position, { ...record, accountId: scope.accountId })
+      }
+      onRecordChange={(record) => props.onRecordChange({ ...record, accountId: scope.accountId })}
+    />
   )
 }
