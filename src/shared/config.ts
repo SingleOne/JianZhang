@@ -60,6 +60,9 @@ function isCompatibleAppSettings(value: unknown): boolean {
   const settings = value as Partial<AppSettings>
   return (
     (settings.autoRefreshQuotes === undefined || typeof settings.autoRefreshQuotes === 'boolean') &&
+    (settings.autoRefreshQuoteScope === undefined ||
+      settings.autoRefreshQuoteScope === 'all' ||
+      settings.autoRefreshQuoteScope === 'priority') &&
     typeof settings.priorityRefreshSeconds === 'number' &&
     typeof settings.regularRefreshSeconds === 'number' &&
     typeof settings.startWithWindows === 'boolean' &&

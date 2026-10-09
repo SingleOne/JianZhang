@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { getTaskbarVisibleStocks, shouldShowTaskbarTicker } from '../../src/lib/taskbar-visibility'
 import type {
   AppState,
+  AutoRefreshQuoteScope,
   StockSelectionRequest,
   TaskbarLayout,
   TaskbarTooltipAnchor,
@@ -32,7 +33,7 @@ interface WindowManagerDependencies {
   getState: () => AppState
   isQuitting: () => boolean
   refreshQuotes: () => Promise<unknown>
-  setAutoRefreshQuotes: (enabled: boolean) => void
+  setAutoRefreshQuotes: (scope: AutoRefreshQuoteScope) => void
   quit: () => void
 }
 
@@ -230,6 +231,7 @@ export class WindowManager {
 
   updateTrayMenu(): void {
     if (!this.appTray) return
+    const settings = this.dependencies.getState().settings
 
     this.appTray.setContextMenu(
       Menu.buildFromTemplate([
@@ -241,11 +243,17 @@ export class WindowManager {
           click: () => this.setTaskbarMode(!this.taskbarMode)
         },
         {
-          label: `自动刷新行情${this.dependencies.getState().settings.autoRefreshQuotes ? '  ✓' : ''}`,
-          click: () =>
-            this.dependencies.setAutoRefreshQuotes(
-              !this.dependencies.getState().settings.autoRefreshQuotes
-            )
+          label: '自动刷新行情',
+          submenu: [
+            {
+              label: `全部${settings.autoRefreshQuotes && settings.autoRefreshQuoteScope === 'all' ? '  ✓' : ''}`,
+              click: () => this.dependencies.setAutoRefreshQuotes('all')
+            },
+            {
+              label: `重点关注${settings.autoRefreshQuotes && settings.autoRefreshQuoteScope === 'priority' ? '  ✓' : ''}`,
+              click: () => this.dependencies.setAutoRefreshQuotes('priority')
+            }
+          ]
         },
         { type: 'separator' },
         { label: '退出', click: this.dependencies.quit }

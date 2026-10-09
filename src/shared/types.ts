@@ -5,6 +5,7 @@ import {
 } from './market-calendar'
 import { isAfterMarketClose, marketDateKey } from './market-hours'
 import { marketFromQuoteId, stockMarketIdentity, type StockMarket } from './stock-market'
+import { normalizeWatchlistAddedDate } from './watchlist-date'
 export type {
   StockCurrency,
   StockExchange,
@@ -55,6 +56,7 @@ export interface WatchStock {
   positionSnapshots?: StockPositionSnapshot[]
   alertRules?: StockAlertRule[]
   groupIds?: string[]
+  /** 添加当天的本地日期，格式为 YYYY-MM-DD。 */
   addedAt?: string
   addedPrice?: number
 }
@@ -412,7 +414,9 @@ export function normalizeWatchlist(stocks: readonly WatchStock[]): WatchStock[] 
     return {
       ...stock,
       ...identity,
-      addedAt: typeof stock.addedAt === 'string' && stock.addedAt ? stock.addedAt : undefined,
+      addedAt: normalizeWatchlistAddedDate(
+        typeof stock.addedAt === 'string' ? stock.addedAt : undefined
+      ),
       addedPrice:
         typeof stock.addedPrice === 'number' &&
         Number.isFinite(stock.addedPrice) &&
@@ -2482,11 +2486,13 @@ export const DEFAULT_T_PLAN_SETTINGS: TPlanDefaultSettings = {
 
 export type AppThemePreference = 'system' | 'light' | 'dark'
 export type DailyKlineIndicator = 'movingAverage' | 'bollinger' | 'none'
+export type AutoRefreshQuoteScope = 'all' | 'priority'
 
 export interface AppSettings {
   lastUsedAccountIdByMarket?: Partial<Record<StockMarket, string>>
   theme: AppThemePreference
   autoRefreshQuotes: boolean
+  autoRefreshQuoteScope: AutoRefreshQuoteScope
   priorityRefreshSeconds: number
   regularRefreshSeconds: number
   marketIndexIds: MarketIndexId[]
@@ -2508,6 +2514,7 @@ export interface AppSettings {
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   theme: 'system',
   autoRefreshQuotes: true,
+  autoRefreshQuoteScope: 'all',
   priorityRefreshSeconds: 5,
   regularRefreshSeconds: 10,
   marketIndexIds: [...DEFAULT_MARKET_INDEX_IDS],
@@ -2727,6 +2734,7 @@ export function normalizeAppSettings(settings: Partial<AppSettings> | undefined)
       Math.max(3, settings?.regularRefreshSeconds ?? DEFAULT_APP_SETTINGS.regularRefreshSeconds)
     ),
     autoRefreshQuotes: settings?.autoRefreshQuotes ?? DEFAULT_APP_SETTINGS.autoRefreshQuotes,
+    autoRefreshQuoteScope: settings?.autoRefreshQuoteScope === 'priority' ? 'priority' : 'all',
     marketIndexIds: normalizeMarketIndexIds(settings?.marketIndexIds),
     startWithWindows: settings?.startWithWindows ?? DEFAULT_APP_SETTINGS.startWithWindows,
     minimizeToTray: settings?.minimizeToTray ?? DEFAULT_APP_SETTINGS.minimizeToTray,

@@ -457,6 +457,8 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
     const normalizedState = dependencies.normalizeState(nextState)
     const refreshSettingsChanged =
       currentState.settings.autoRefreshQuotes !== normalizedState.settings.autoRefreshQuotes ||
+      currentState.settings.autoRefreshQuoteScope !==
+        normalizedState.settings.autoRefreshQuoteScope ||
       currentState.settings.priorityRefreshSeconds !==
         normalizedState.settings.priorityRefreshSeconds ||
       currentState.settings.regularRefreshSeconds !== normalizedState.settings.regularRefreshSeconds

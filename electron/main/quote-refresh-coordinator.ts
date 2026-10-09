@@ -19,18 +19,15 @@ export interface QuoteRefreshBatch {
 }
 
 interface PendingRefresh<T> {
-  scopes: Set<QuoteRefreshScope>
-  reasons: Set<string>
-  stockQuoteIds: Set<string>
-  sectorQuoteIds: Set<string>
-  automatic: boolean
+  inputs: QuoteRefreshInput[]
   waiters: Array<{ resolve: (value: T) => void; reject: (reason: unknown) => void }>
 }
 
 export interface QuoteRefreshCoordinatorOptions<T> {
   getPriorityIntervalMilliseconds: () => number
-  getRegularIntervalMilliseconds: () => number
+  getRegularIntervalMilliseconds: () => number | null
   canAutoRefresh: () => boolean
+  prepareInput?: (input: QuoteRefreshInput) => QuoteRefreshInput | null
   run: (batch: QuoteRefreshBatch) => Promise<T>
 }
 
@@ -51,25 +48,18 @@ export class QuoteRefreshCoordinator<T> {
     this.stopSchedule()
     const now = Date.now()
     this.nextPriorityAt = now + this.options.getPriorityIntervalMilliseconds()
-    this.nextRegularAt = now + this.options.getRegularIntervalMilliseconds()
+    const regularInterval = this.options.getRegularIntervalMilliseconds()
+    this.nextRegularAt = regularInterval === null ? Infinity : now + regularInterval
     this.scheduleNextTimer()
   }
 
   request(input: QuoteRefreshInput): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       const pending = this.pending ?? {
-        scopes: new Set<QuoteRefreshScope>(),
-        reasons: new Set<string>(),
-        stockQuoteIds: new Set<string>(),
-        sectorQuoteIds: new Set<string>(),
-        automatic: true,
+        inputs: [],
         waiters: []
       }
-      if (input.scope) pending.scopes.add(input.scope)
-      pending.reasons.add(input.reason)
-      pending.automatic = pending.automatic && Boolean(input.automatic)
-      for (const quoteId of input.stockQuoteIds ?? []) pending.stockQuoteIds.add(quoteId)
-      for (const quoteId of input.sectorQuoteIds ?? []) pending.sectorQuoteIds.add(quoteId)
+      pending.inputs.push(input)
       pending.waiters.push({ resolve, reject })
       this.pending = pending
       queueMicrotask(() => void this.drain())
@@ -100,7 +90,8 @@ export class QuoteRefreshCoordinator<T> {
     }
     if (now + TIMER_COALESCING_TOLERANCE_MILLISECONDS >= this.nextRegularAt) {
       dueScopes.push('regular')
-      this.nextRegularAt = now + this.options.getRegularIntervalMilliseconds()
+      const regularInterval = this.options.getRegularIntervalMilliseconds()
+      this.nextRegularAt = regularInterval === null ? Infinity : now + regularInterval
     }
     this.scheduleNextTimer()
 
@@ -116,12 +107,16 @@ export class QuoteRefreshCoordinator<T> {
     this.pending = null
     this.inFlight = true
     try {
+      // 在执行前按当前设置筛选每个请求，再合并，保留手动刷新各自的范围。
+      const inputs = current.inputs
+        .map((input) => (this.options.prepareInput ? this.options.prepareInput(input) : input))
+        .filter((input): input is QuoteRefreshInput => input !== null)
       const value = await this.options.run({
-        scopes: current.scopes,
-        reasons: current.reasons,
-        stockQuoteIds: current.stockQuoteIds,
-        sectorQuoteIds: current.sectorQuoteIds,
-        automatic: current.automatic
+        scopes: new Set(inputs.flatMap((input) => (input.scope ? [input.scope] : []))),
+        reasons: new Set(inputs.map((input) => input.reason)),
+        stockQuoteIds: new Set(inputs.flatMap((input) => input.stockQuoteIds ?? [])),
+        sectorQuoteIds: new Set(inputs.flatMap((input) => input.sectorQuoteIds ?? [])),
+        automatic: inputs.every((input) => Boolean(input.automatic))
       })
       for (const waiter of current.waiters) waiter.resolve(value)
     } catch (reason) {

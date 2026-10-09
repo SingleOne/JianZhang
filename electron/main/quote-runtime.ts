@@ -23,7 +23,11 @@ import {
 import { fetchQuotes } from './market'
 import type { MarketRequestLogger } from './market-request-logger'
 import type { OrderBookHub } from './order-book-hub'
-import { QuoteRefreshCoordinator, type QuoteRefreshBatch } from './quote-refresh-coordinator'
+import {
+  QuoteRefreshCoordinator,
+  type QuoteRefreshBatch,
+  type QuoteRefreshInput
+} from './quote-refresh-coordinator'
 import type { SectorMarketCache } from './sector-market-cache'
 
 interface QuoteRuntimeDependencies {
@@ -56,9 +60,14 @@ export class QuoteRuntime {
     this.coordinator = new QuoteRefreshCoordinator<StockQuote[]>({
       getPriorityIntervalMilliseconds: () =>
         this.dependencies.getState().settings.priorityRefreshSeconds * 1000,
-      getRegularIntervalMilliseconds: () =>
-        this.dependencies.getState().settings.regularRefreshSeconds * 1000,
+      getRegularIntervalMilliseconds: () => {
+        const settings = this.dependencies.getState().settings
+        return settings.autoRefreshQuoteScope === 'priority'
+          ? null
+          : settings.regularRefreshSeconds * 1000
+      },
       canAutoRefresh: () => this.isAutoRefreshTime(),
+      prepareInput: (input) => this.prepareRefreshInput(input),
       run: (batch) => this.executeRefresh(batch)
     })
   }
@@ -97,7 +106,11 @@ export class QuoteRuntime {
 
   refreshAutomatically(reason = 'automatic'): Promise<StockQuote[]> {
     return this.isAutoRefreshTime()
-      ? this.coordinator.request({ scope: 'all', reason, automatic: true })
+      ? this.coordinator.request({
+          scope: this.dependencies.getState().settings.autoRefreshQuoteScope,
+          reason,
+          automatic: true
+        })
       : Promise.resolve(this.latestQuotes)
   }
 
@@ -121,7 +134,7 @@ export class QuoteRuntime {
       .then((changed) => {
         if (!changed || !refreshWhenReady || !this.isAutoRefreshTime()) return
         const sectorQuoteIds = this.dependencies.sectorMarketCache
-          .dueBoardStocks(this.dependencies.getState().watchlist)
+          .dueBoardStocks(this.autoRefreshWatchlist(this.dependencies.getState()))
           .map((stock) => stock.quoteId)
         if (sectorQuoteIds.length > 0) {
           void this.coordinator.request({
@@ -184,15 +197,47 @@ export class QuoteRuntime {
     const state = this.dependencies.getState()
     if (!state.settings.autoRefreshQuotes) return false
     const markets = new Set([
-      ...state.watchlist.map((stock) => marketFromQuoteId(stock.quoteId)),
-      ...Object.values(state.stockTrackingProfiles).map((profile) =>
-        marketFromQuoteId(profile.quoteId)
-      ),
-      ...(state.settings.marketIndexIds.length > 0 ? ['CN' as const] : [])
+      ...this.autoRefreshWatchlist(state).map((stock) => marketFromQuoteId(stock.quoteId)),
+      ...(state.settings.autoRefreshQuoteScope === 'all'
+        ? [
+            ...Object.values(state.stockTrackingProfiles).map((profile) =>
+              marketFromQuoteId(profile.quoteId)
+            ),
+            ...(state.settings.marketIndexIds.length > 0 ? ['CN' as const] : [])
+          ]
+        : [])
     ])
     return [...markets].some((market) =>
       isMarketOpen(market, new Date(), state.settings.tradingCalendar.markets[market])
     )
+  }
+
+  private autoRefreshWatchlist(state: AppState): WatchStock[] {
+    return state.settings.autoRefreshQuoteScope === 'priority'
+      ? state.watchlist.filter((stock) => stock.isPriority)
+      : state.watchlist
+  }
+
+  private prepareRefreshInput(input: QuoteRefreshInput): QuoteRefreshInput | null {
+    if (!input.automatic) return input
+    const state = this.dependencies.getState()
+    if (!state.settings.autoRefreshQuotes) return null
+    if (state.settings.autoRefreshQuoteScope === 'all') return input
+    const stocks = this.autoRefreshWatchlist(state)
+    const stockQuoteIds = new Set(stocks.map((stock) => stock.quoteId))
+    const sectorQuoteIds =
+      input.sectorQuoteIds && input.sectorQuoteIds.length > 0
+        ? new Set(
+            this.dependencies.sectorMarketCache.dueBoardStocks(stocks).map((stock) => stock.quoteId)
+          )
+        : new Set<string>()
+    return {
+      ...input,
+      scope:
+        input.scope === 'all' ? 'priority' : input.scope === 'regular' ? undefined : input.scope,
+      stockQuoteIds: input.stockQuoteIds?.filter((quoteId) => stockQuoteIds.has(quoteId)),
+      sectorQuoteIds: input.sectorQuoteIds?.filter((quoteId) => sectorQuoteIds.has(quoteId))
+    }
   }
 
   private mergeQuotes(refreshedQuotes: StockQuote[]): void {
@@ -309,6 +354,7 @@ export class QuoteRuntime {
     const radarStocks = state.watchlist.filter(
       (stock) =>
         stock.showRadarSignals &&
+        (!batch.automatic || state.settings.autoRefreshQuoteScope === 'all' || stock.isPriority) &&
         marketCapabilitiesForQuoteId(stock.quoteId).radar &&
         (!batch.automatic || isOpen(stock))
     )
@@ -341,11 +387,7 @@ export class QuoteRuntime {
         radarStocks,
         `quote-cycle:${reasons.join('+')}`,
         () => {
-          void this.coordinator.request({
-            scope: 'all',
-            reason: 'radar-updated',
-            automatic: true
-          })
+          void this.refreshAutomatically('radar-updated')
         }
       )
       const sectorQuoteIds = new Set(sectorStocks.map((stock) => stock.quoteId))

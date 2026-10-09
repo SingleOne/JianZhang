@@ -30,6 +30,7 @@ import {
   type FundamentalScreeningEvaluation
 } from './lib/fundamental-screening'
 import { calculatePortfolioSummary } from './lib/portfolio'
+import { watchlistAddedDate } from './shared/watchlist-date'
 import { calculateCurrentPositionProfitOverrides } from './lib/portfolio-performance'
 import { reconcileStockQuotes } from './lib/quote-state'
 import {
@@ -685,7 +686,7 @@ export default function App() {
       const groupIds = new Set(existing?.groupIds ?? [])
       targetGroups.forEach((group) => groupIds.add(group.id))
       const knownQuote = quotes.find((quote) => quote.quoteId === result.quoteId)
-      const addedAt = new Date().toISOString()
+      const addedAt = watchlistAddedDate()
       const nextStock = existing
         ? { ...existing, groupIds: [...groupIds] }
         : {

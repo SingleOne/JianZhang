@@ -224,7 +224,8 @@ function reloadStateFromDiskIfChanged(): boolean {
   if (loaded.warning) startupWarning = loaded.warning
   if (JSON.stringify(loaded.state) === previousContent) return false
   const autoRefreshChanged =
-    state.settings.autoRefreshQuotes !== loaded.state.settings.autoRefreshQuotes
+    state.settings.autoRefreshQuotes !== loaded.state.settings.autoRefreshQuotes ||
+    state.settings.autoRefreshQuoteScope !== loaded.state.settings.autoRefreshQuoteScope
   state = loaded.state
   if (autoRefreshChanged) quoteRuntime?.restartSchedule()
   sendToWindows('state:updated', state)
@@ -233,8 +234,13 @@ function reloadStateFromDiskIfChanged(): boolean {
   return true
 }
 
-function setAutoRefreshQuotes(enabled: boolean): void {
-  state = { ...state, settings: { ...state.settings, autoRefreshQuotes: enabled } }
+function setAutoRefreshQuotes(scope: AppState['settings']['autoRefreshQuoteScope']): void {
+  const enabled =
+    !state.settings.autoRefreshQuotes || state.settings.autoRefreshQuoteScope !== scope
+  state = {
+    ...state,
+    settings: { ...state.settings, autoRefreshQuotes: enabled, autoRefreshQuoteScope: scope }
+  }
   persistState()
   sendToWindows('state:updated', state)
   windowManager?.updateTrayMenu()
