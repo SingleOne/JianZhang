@@ -34,7 +34,7 @@ import { SEC_DOCUMENT_HEADERS, SecEdgarClient } from './sec-edgar-client'
 import { BROWSER_USER_AGENT } from './http-user-agent'
 
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000
-const CACHE_VERSION = 2
+const CACHE_VERSION: Record<StockMarket, number> = { CN: 3, HK: 2, US: 2 }
 const OFFICIAL_HOSTS = new Set([
   'www1.hkexnews.hk',
   'www.hkexnews.hk',
@@ -165,7 +165,7 @@ export class CorporateActionService {
       })
     }
     const storedCache = this.readCache(quoteId, market)
-    const cached = storedCache?.cacheVersion === CACHE_VERSION ? storedCache : null
+    const cached = storedCache?.cacheVersion === CACHE_VERSION[market] ? storedCache : null
     if (
       !forceRefresh &&
       cached &&
@@ -186,7 +186,7 @@ export class CorporateActionService {
           ? { ...candidate, status: 'revised' as const }
           : candidate
       })
-      const result = { ...fetched, candidates, cacheVersion: CACHE_VERSION }
+      const result = { ...fetched, candidates, cacheVersion: CACHE_VERSION[market] }
       this.writeCache(result)
       return this.attachSummaries(result)
     } catch (reason) {

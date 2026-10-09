@@ -8,6 +8,7 @@ import {
   extractCorporateActionTerms
 } from '../../src/lib/corporate-actions'
 import type { CorporateActionCandidate, CorporateActionListResult } from '../../src/shared/types'
+import { beijingDateKey } from '../../src/shared/market-hours'
 import {
   corporateActionCodeFromQuoteId,
   corporateActionPeriodRange,
@@ -44,7 +45,7 @@ const DISTRIBUTION_IMPLEMENTATION_KEYWORDS = /实施|结果|发放|派发|派息
 const RIGHTS_ACTION_KEYWORDS = /配股/
 const RIGHTS_IMPLEMENTATION_KEYWORDS = /发行|实施|结果|股份变动|获配股票上市|上市/
 const NON_ACTIONABLE_TITLE =
-  /预案|草案|议案|政策|税率|说明|指引|规则|董事会决议|股东大会决议|提示性公告|问询函|回复公告|取消|终止/
+  /预案|草案|议案|政策|税率|说明|指引|规则|董事会决议|股东大会决议|提示性公告|问询函|回复公告|取消|终止|(?:权益分派|利润分配|分红派息|派息).*后.*调整/
 const BODY_FETCH_CONCURRENCY = 3
 
 interface CninfoStock {
@@ -336,9 +337,10 @@ export class CninfoCorporateActionProvider implements CorporateActionProvider {
       if (effects.length === 0) return { candidates: [], unparsed: true }
       const dates = extractCorporateActionDates(text)
       const detectedAt = new Date().toISOString()
+      const announcementDate = beijingDateKey(new Date(announcement.publishedAt))
       const eventKey = distributionEventKey(
         announcement.title,
-        dates.recordDate ?? dates.exDate ?? announcement.publishedAt.slice(0, 10)
+        dates.recordDate ?? dates.exDate ?? announcementDate
       )
       return {
         candidates: effects.map((effect): CorporateActionCandidate => {
@@ -351,7 +353,7 @@ export class CninfoCorporateActionProvider implements CorporateActionProvider {
             type: effect.type,
             status: dates.recordDate ? 'detected' : 'needsReview',
             title: `${announcement.title} · ${titleSuffix}`,
-            announcementDate: announcement.publishedAt.slice(0, 10),
+            announcementDate,
             ...dates,
             terms: effect.terms,
             evidence: [
@@ -389,7 +391,8 @@ export class CninfoCorporateActionProvider implements CorporateActionProvider {
     text: string
   ): CorporateActionCandidate {
     const dates = extractCorporateActionDates(text)
-    const eventDate = dates.recordDate ?? announcement.publishedAt.slice(0, 10)
+    const announcementDate = beijingDateKey(new Date(announcement.publishedAt))
+    const eventDate = dates.recordDate ?? announcementDate
     return {
       id: `cninfo:${quoteId}:${eventDate}:rights`,
       quoteId,
@@ -397,7 +400,7 @@ export class CninfoCorporateActionProvider implements CorporateActionProvider {
       type: 'rightsIssue',
       status: 'needsReview',
       title: announcement.title,
-      announcementDate: announcement.publishedAt.slice(0, 10),
+      announcementDate,
       ...dates,
       terms: extractCorporateActionTerms('rightsIssue', text, quoteId),
       evidence: [

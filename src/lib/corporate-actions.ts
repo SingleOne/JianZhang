@@ -252,12 +252,32 @@ function chineseShareActionMatch(
         const amountEnd = amountStart + amountMatch[0].length
         const amount = numeric(amountMatch[1])
         if (amount === undefined || amountStart < 0) continue
-        if (amountUnit === '股' && amountStart < baseEnd && amountEnd > baseStart) continue
+        if (amountUnit === '股' && amountStart < baseEnd) {
+          const trailingBase =
+            amountEnd <= baseStart &&
+            /^\s*[（(/]?\s*(?:按)?\s*$/.test(clause.slice(amountEnd, baseStart))
+          if (!trailingBase) continue
+        }
 
         for (const keyword of keywords) {
           const keywordStart = keyword.index ?? -1
           const keywordEnd = keywordStart + keyword[0].length
           if (keywordStart < 0) continue
+          if (amountUnit === '股') {
+            const prefix = clause.slice(0, keywordStart)
+            if (
+              /(?:不|未)(?:进行|实施)?(?:以)?(?:资本)?(?:公积金)?\s*$|不以[^,，。；;]*$/.test(
+                prefix
+              )
+            )
+              continue
+            if (keywordEnd > amountStart) continue
+            const between = clause.slice(keywordEnd, amountStart).replace(base[0], '')
+            if (
+              /[,，、]|每|元|现金|红利|股利|基数|后|总股本|股本总额|合计|共计|送|转增/.test(between)
+            )
+              continue
+          }
           const evidenceStart = Math.min(baseStart, amountStart, keywordStart)
           const evidenceEnd = Math.max(baseEnd, amountEnd, keywordEnd)
           if (evidenceEnd - evidenceStart > 140) continue
@@ -303,8 +323,12 @@ export function extractCnCorporateActionEffects(text: string): CnCorporateAction
     /现金红利|现金股利|现金分红|分红派息|派息|派发|派现|分配|派/g,
     '元'
   )
-  const bonus = chineseShareActionMatch(normalized, /送红股|送股|送/g, '股')
-  const capitalized = chineseShareActionMatch(normalized, /资本公积金|转增/g, '股')
+  const bonus = chineseShareActionMatch(
+    normalized,
+    /送红股|送股|(?<!派)送(?!现金|红利|股利)/g,
+    '股'
+  )
+  const capitalized = chineseShareActionMatch(normalized, /转增/g, '股')
   const effects: CnCorporateActionEffect[] = []
   if (cash && cash.amount > 0) {
     effects.push({

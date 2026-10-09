@@ -109,6 +109,59 @@ describe('corporate action extraction', () => {
     })
   })
 
+  it.each([
+    '以公司现有总股本9,912,905,548股剔除已回购股份154,672,920股后的9,758,232,628股为基数，向全体股东每10股派1.168230元（含税），合计派发现金红利总额1,139,986,272.88元（含税），剩余未分配利润结转以后年度，不进行资本公积金转增股本，不送红股。',
+    '以总股本9,914,086,060股为基数，其中A股8,272,471,283股，B股1,641,614,777股，向全体股东每10股派送现金红利人民币2.95元（含税），不送红股，不以公积金转增股本。'
+  ])('does not interpret Changan cash-only distributions as share distributions: %s', (text) => {
+    const effects = extractCnCorporateActionEffects(text)
+
+    expect(effects).toHaveLength(1)
+    expect(effects[0].type).toBe('cashDividend')
+  })
+
+  it.each([
+    '每10股派现金红利1元，送红股或转增后的总股本为100000000股。',
+    '每10股派现金红利1元，转增后股数为100股。'
+  ])('does not use total share counts as a distribution quantity: %s', (text) => {
+    expect(extractCnCorporateActionEffects(text)).toMatchObject([
+      { type: 'cashDividend', terms: { amountPerShare: { value: 0.1 } } }
+    ])
+  })
+
+  it('keeps zero share quantities separate from subsequent total share counts', () => {
+    expect(
+      extractCnCorporateActionEffects(
+        '每10股送红股0股，转增0股，派现金红利1.50元，分派后总股本100000000股。'
+      )
+    ).toMatchObject([{ type: 'cashDividend', terms: { amountPerShare: { value: 0.15 } } }])
+  })
+
+  it('extracts bonus and capitalization quantities using a shared share basis', () => {
+    expect(
+      extractCnCorporateActionEffects(
+        '向全体股东每10股派现金红利1.50元，送红股1股，以资本公积金转增2股，实施后总股本100000000股。'
+      )
+    ).toMatchObject([
+      { type: 'cashDividend', terms: { amountPerShare: { value: 0.15 } } },
+      { type: 'stockDividend', terms: { oldShares: { value: 10 }, newShares: { value: 13 } } }
+    ])
+  })
+
+  it('extracts share distributions with action keywords before the share basis', () => {
+    expect(extractCnCorporateActionEffects('送股按每10股1股，转增按每10股2股。')).toMatchObject([
+      { type: 'stockDividend', terms: { oldShares: { value: 10 }, newShares: { value: 13 } } }
+    ])
+  })
+
+  it.each([
+    '送红股1股（每10股），转增2股（每10股）。',
+    '送红股1股（按每10股），转增2股（按每10股）。'
+  ])('extracts share distributions when the share basis follows the quantity: %s', (text) => {
+    expect(extractCnCorporateActionEffects(text)).toMatchObject([
+      { type: 'stockDividend', terms: { oldShares: { value: 10 }, newShares: { value: 13 } } }
+    ])
+  })
+
   it('does not treat narrative date labels as a flattened table', () => {
     const text = [
       '股权登记日：2026年6月18日，除权（息）日：2026年6月19日，',
