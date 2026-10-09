@@ -223,11 +223,25 @@ function reloadStateFromDiskIfChanged(): boolean {
   const loaded = stateStore.load()
   if (loaded.warning) startupWarning = loaded.warning
   if (JSON.stringify(loaded.state) === previousContent) return false
+  const autoRefreshChanged =
+    state.settings.autoRefreshQuotes !== loaded.state.settings.autoRefreshQuotes
   state = loaded.state
+  if (autoRefreshChanged) quoteRuntime?.restartSchedule()
   sendToWindows('state:updated', state)
   windowManager?.updateTrayMenu()
   windowManager?.syncTaskbarWindow()
   return true
+}
+
+function setAutoRefreshQuotes(enabled: boolean): void {
+  state = { ...state, settings: { ...state.settings, autoRefreshQuotes: enabled } }
+  persistState()
+  sendToWindows('state:updated', state)
+  windowManager?.updateTrayMenu()
+  quoteRuntime?.restartSchedule()
+  if (enabled) {
+    void quoteRuntime?.refreshAutomatically('auto-refresh-enabled')
+  }
 }
 
 function applyPreparedUserDataBackup(
@@ -947,6 +961,7 @@ if (!hasSingleInstanceLock) {
         getState: () => state,
         isQuitting: () => isQuitting,
         refreshQuotes: () => quoteRuntime!.refreshAll(),
+        setAutoRefreshQuotes,
         quit: quitApp
       },
       app.getPath('userData')

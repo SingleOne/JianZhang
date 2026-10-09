@@ -48,7 +48,7 @@ export class QuoteRefreshCoordinator<T> {
   }
 
   restartSchedule(): void {
-    if (this.timer) clearTimeout(this.timer)
+    this.stopSchedule()
     const now = Date.now()
     this.nextPriorityAt = now + this.options.getPriorityIntervalMilliseconds()
     this.nextRegularAt = now + this.options.getRegularIntervalMilliseconds()
@@ -76,9 +76,13 @@ export class QuoteRefreshCoordinator<T> {
     })
   }
 
-  dispose(): void {
+  stopSchedule(): void {
     if (this.timer) clearTimeout(this.timer)
     this.timer = null
+  }
+
+  dispose(): void {
+    this.stopSchedule()
   }
 
   private scheduleNextTimer(): void {

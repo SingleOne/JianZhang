@@ -32,6 +32,7 @@ interface WindowManagerDependencies {
   getState: () => AppState
   isQuitting: () => boolean
   refreshQuotes: () => Promise<unknown>
+  setAutoRefreshQuotes: (enabled: boolean) => void
   quit: () => void
 }
 
@@ -233,13 +234,19 @@ export class WindowManager {
     this.appTray.setContextMenu(
       Menu.buildFromTemplate([
         { label: '打开见涨', click: () => this.showMainWindow() },
-        {
-          label: '任务栏模式',
-          type: 'checkbox',
-          checked: this.taskbarMode,
-          click: (item) => this.setTaskbarMode(item.checked)
-        },
         { label: '立即刷新', click: () => void this.dependencies.refreshQuotes() },
+        { type: 'separator' },
+        {
+          label: `任务栏模式${this.taskbarMode ? '  ✓' : ''}`,
+          click: () => this.setTaskbarMode(!this.taskbarMode)
+        },
+        {
+          label: `自动刷新行情${this.dependencies.getState().settings.autoRefreshQuotes ? '  ✓' : ''}`,
+          click: () =>
+            this.dependencies.setAutoRefreshQuotes(
+              !this.dependencies.getState().settings.autoRefreshQuotes
+            )
+        },
         { type: 'separator' },
         { label: '退出', click: this.dependencies.quit }
       ])

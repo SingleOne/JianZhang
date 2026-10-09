@@ -64,7 +64,7 @@ export class QuoteRuntime {
   }
 
   start(): void {
-    this.coordinator.start()
+    this.restartSchedule()
   }
 
   dispose(): void {
@@ -102,7 +102,11 @@ export class QuoteRuntime {
   }
 
   restartSchedule(): void {
-    this.coordinator.restartSchedule()
+    if (this.dependencies.getState().settings.autoRefreshQuotes) {
+      this.coordinator.restartSchedule()
+    } else {
+      this.coordinator.stopSchedule()
+    }
   }
 
   primeSectorBindings(refreshWhenReady: boolean): Promise<void> {
@@ -178,6 +182,7 @@ export class QuoteRuntime {
 
   private isAutoRefreshTime(): boolean {
     const state = this.dependencies.getState()
+    if (!state.settings.autoRefreshQuotes) return false
     const markets = new Set([
       ...state.watchlist.map((stock) => marketFromQuoteId(stock.quoteId)),
       ...Object.values(state.stockTrackingProfiles).map((profile) =>
@@ -278,6 +283,7 @@ export class QuoteRuntime {
 
   private async executeRefresh(batch: QuoteRefreshBatch): Promise<StockQuote[]> {
     const state = this.dependencies.getState()
+    if (batch.automatic && !state.settings.autoRefreshQuotes) return this.latestQuotes
     const now = new Date()
     const isOpen = (stock: WatchStock) =>
       isMarketOpen(

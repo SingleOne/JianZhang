@@ -2486,6 +2486,7 @@ export type DailyKlineIndicator = 'movingAverage' | 'bollinger' | 'none'
 export interface AppSettings {
   lastUsedAccountIdByMarket?: Partial<Record<StockMarket, string>>
   theme: AppThemePreference
+  autoRefreshQuotes: boolean
   priorityRefreshSeconds: number
   regularRefreshSeconds: number
   marketIndexIds: MarketIndexId[]
@@ -2506,6 +2507,7 @@ export interface AppSettings {
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   theme: 'system',
+  autoRefreshQuotes: true,
   priorityRefreshSeconds: 5,
   regularRefreshSeconds: 10,
   marketIndexIds: [...DEFAULT_MARKET_INDEX_IDS],
@@ -2724,6 +2726,7 @@ export function normalizeAppSettings(settings: Partial<AppSettings> | undefined)
       300,
       Math.max(3, settings?.regularRefreshSeconds ?? DEFAULT_APP_SETTINGS.regularRefreshSeconds)
     ),
+    autoRefreshQuotes: settings?.autoRefreshQuotes ?? DEFAULT_APP_SETTINGS.autoRefreshQuotes,
     marketIndexIds: normalizeMarketIndexIds(settings?.marketIndexIds),
     startWithWindows: settings?.startWithWindows ?? DEFAULT_APP_SETTINGS.startWithWindows,
     minimizeToTray: settings?.minimizeToTray ?? DEFAULT_APP_SETTINGS.minimizeToTray,

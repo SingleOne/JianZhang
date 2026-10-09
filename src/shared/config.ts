@@ -59,6 +59,7 @@ function isCompatibleAppSettings(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false
   const settings = value as Partial<AppSettings>
   return (
+    (settings.autoRefreshQuotes === undefined || typeof settings.autoRefreshQuotes === 'boolean') &&
     typeof settings.priorityRefreshSeconds === 'number' &&
     typeof settings.regularRefreshSeconds === 'number' &&
     typeof settings.startWithWindows === 'boolean' &&
