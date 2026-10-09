@@ -140,7 +140,6 @@ export function TrayHoverSummary() {
             {tSummaries.length ? (
               tSummaries.map(({ account: owner, metrics: tMetrics }) => (
                 <div className="tray-summary-t" key={owner.accountId}>
-                  <span>{owner.accountName}</span>
                   <span>
                     {tMetrics.direction === 'reverse' ? '反T' : '正T'}{' '}
                     {formatShares(tMetrics.remainingQuantity)}

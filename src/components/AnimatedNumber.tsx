@@ -27,7 +27,7 @@ export const AnimatedNumber = memo(function AnimatedNumber({
   value,
   formatValue = formatNumber,
   className = '',
-  durationMs = 280
+  durationMs = 1000
 }: AnimatedNumberProps) {
   const text = formatValue(value)
   const [display, setDisplay] = useState<NumberDisplay>(() => ({
