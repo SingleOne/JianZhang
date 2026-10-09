@@ -981,5 +981,5 @@ if (!hasSingleInstanceLock) {
 app.on('before-quit', cleanupBeforeQuit)
 
 app.on('window-all-closed', () => {
-  if (!state.settings.minimizeToTray) app.quit()
+  if (!state.settings.minimizeToTray && !windowManager?.isTaskbarMode()) app.quit()
 })

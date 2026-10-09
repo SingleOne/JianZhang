@@ -127,7 +127,11 @@ const api: StockDesktopApi = {
   onStateUpdated: (callback) => subscribe<AppState>('state:updated', callback),
   onTaskbarLayout: (callback) => subscribe<TaskbarLayout>('taskbar:layout', callback),
   onTaskbarTooltipStock: (callback) => subscribe<string>('taskbar:tooltip-stock', callback),
-  onSelectStock: (callback) => subscribe<StockSelectionRequest>('stock:selected', callback),
+  onSelectStock: (callback) => {
+    const unsubscribe = subscribe<StockSelectionRequest>('stock:selected', callback)
+    ipcRenderer.send('main-window:ready')
+    return unsubscribe
+  },
   onDataError: (callback) => subscribe<string>('data:error', callback),
   onOptionalModulesStateUpdated: (callback) =>
     subscribe<OptionalModulesState>('app:optional-modules:updated', callback),

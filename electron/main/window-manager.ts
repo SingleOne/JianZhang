@@ -35,6 +35,11 @@ interface WindowManagerDependencies {
   quit: () => void
 }
 
+interface MainWindowState {
+  visible: boolean
+  taskbarMode: boolean
+}
+
 export class WindowManager {
   private mainWindow: BrowserWindow | null = null
   private taskbarWindow: BrowserWindow | null = null
@@ -51,7 +56,11 @@ export class WindowManager {
   private stockSelectionSequence = 0
   private readonly windowStatePath: string
   private mainWindowVisible: boolean
+  private taskbarMode: boolean
+  private mainWindowReady = false
   private mainWindowHasBeenShown = false
+  private mainWindowSelectionReady = false
+  private pendingStockSelection: StockSelectionRequest | null = null
 
   private readonly handleDisplayMetricsChanged = (): void => {
     this.syncTaskbarWindow()
@@ -71,12 +80,14 @@ export class WindowManager {
     userDataDirectory: string
   ) {
     this.windowStatePath = join(userDataDirectory, 'window-state.json')
-    this.mainWindowVisible = this.loadMainWindowVisible()
+    const windowState = this.loadMainWindowState()
+    this.mainWindowVisible = windowState.visible
+    this.taskbarMode = windowState.taskbarMode
   }
 
   create(): void {
     this.syncNativeThemeSource()
-    this.createMainWindow()
+    if (!this.taskbarMode) this.createMainWindow()
     this.syncTaskbarWindow()
     this.createTray()
     nativeTheme.on('updated', this.handleNativeThemeUpdated)
@@ -87,6 +98,10 @@ export class WindowManager {
 
   getMainWindow(): BrowserWindow | null {
     return this.mainWindow && !this.mainWindow.isDestroyed() ? this.mainWindow : null
+  }
+
+  isTaskbarMode(): boolean {
+    return this.taskbarMode
   }
 
   getTaskbarLayout(): TaskbarLayout {
@@ -141,8 +156,24 @@ export class WindowManager {
     scrollAlignment?: StockSelectionRequest['scrollAlignment'],
     detailTarget?: StockSelectionRequest['detailTarget']
   ): void {
+    if (this.disposed || this.dependencies.isQuitting()) return
+    if (quoteId) {
+      this.stockSelectionSequence += 1
+      this.pendingStockSelection = {
+        id: `${Date.now()}-${this.stockSelectionSequence}`,
+        quoteId,
+        scrollAlignment,
+        detailTarget
+      }
+    }
+    this.saveMainWindowState(true, false)
+    this.updateTrayMenu()
     const window = this.getMainWindow()
-    if (!window) return
+    if (!window) {
+      this.createMainWindow()
+      return
+    }
+    if (!this.mainWindowReady) return
     if (!this.mainWindowHasBeenShown) {
       this.mainWindowHasBeenShown = true
       window.maximize()
@@ -150,23 +181,32 @@ export class WindowManager {
     if (window.isMinimized()) window.restore()
     window.show()
     window.focus()
-    this.saveMainWindowVisible(true)
-    if (quoteId) {
-      this.stockSelectionSequence += 1
-      window.webContents.send('stock:selected', {
-        id: `${Date.now()}-${this.stockSelectionSequence}`,
-        quoteId,
-        scrollAlignment,
-        detailTarget
-      } satisfies StockSelectionRequest)
-    }
+    this.sendPendingStockSelection()
   }
 
   hideMainWindow(): void {
     const window = this.getMainWindow()
     if (!window) return
     window.hide()
-    this.saveMainWindowVisible(false)
+    this.saveMainWindowState(false)
+  }
+
+  private setTaskbarMode(enabled: boolean): void {
+    if (!enabled) {
+      this.showMainWindow()
+      return
+    }
+    this.saveMainWindowState(false, true)
+    this.pendingStockSelection = null
+    this.getMainWindow()?.destroy()
+    this.updateTrayMenu()
+  }
+
+  private sendPendingStockSelection(): void {
+    const window = this.getMainWindow()
+    if (!window || !this.mainWindowSelectionReady || !this.pendingStockSelection) return
+    window.webContents.send('stock:selected', this.pendingStockSelection)
+    this.pendingStockSelection = null
   }
 
   sendToWindows(channel: string, payload: unknown): void {
@@ -193,6 +233,12 @@ export class WindowManager {
     this.appTray.setContextMenu(
       Menu.buildFromTemplate([
         { label: '打开见涨', click: () => this.showMainWindow() },
+        {
+          label: '任务栏模式',
+          type: 'checkbox',
+          checked: this.taskbarMode,
+          click: (item) => this.setTaskbarMode(item.checked)
+        },
         { label: '立即刷新', click: () => void this.dependencies.refreshQuotes() },
         { type: 'separator' },
         { label: '退出', click: this.dependencies.quit }
@@ -270,20 +316,25 @@ export class WindowManager {
     })
   }
 
-  private loadMainWindowVisible(): boolean {
-    if (!existsSync(this.windowStatePath)) return true
+  private loadMainWindowState(): MainWindowState {
+    const defaultState: MainWindowState = { visible: true, taskbarMode: false }
+    if (!existsSync(this.windowStatePath)) return defaultState
     try {
-      const state = JSON.parse(readFileSync(this.windowStatePath, 'utf8')) as { visible?: unknown }
-      return state.visible !== false
+      const state = JSON.parse(readFileSync(this.windowStatePath, 'utf8')) as {
+        visible?: unknown
+        taskbarMode?: unknown
+      }
+      return { visible: state.visible !== false, taskbarMode: state.taskbarMode === true }
     } catch {
-      return true
+      return defaultState
     }
   }
 
-  private saveMainWindowVisible(visible: boolean): void {
-    if (this.mainWindowVisible === visible) return
+  private saveMainWindowState(visible: boolean, taskbarMode = this.taskbarMode): void {
+    if (this.mainWindowVisible === visible && this.taskbarMode === taskbarMode) return
     this.mainWindowVisible = visible
-    atomicWriteJsonSync(this.windowStatePath, { visible })
+    this.taskbarMode = taskbarMode
+    atomicWriteJsonSync(this.windowStatePath, { visible, taskbarMode } satisfies MainWindowState)
   }
 
   private trayPopupSize(): { width: number; height: number } {
@@ -620,10 +671,18 @@ export class WindowManager {
       }
     })
     this.mainWindow = window
+    this.mainWindowReady = false
+    this.mainWindowHasBeenShown = false
+    this.mainWindowSelectionReady = false
 
     window.setMenuBarVisibility(false)
-    window.on('ready-to-show', () => {
+    window.once('ready-to-show', () => {
+      this.mainWindowReady = true
       if (this.mainWindowVisible) this.showMainWindow()
+    })
+    window.webContents.ipc.on('main-window:ready', () => {
+      this.mainWindowSelectionReady = true
+      this.sendPendingStockSelection()
     })
     window.on('close', (event) => {
       if (!this.dependencies.isQuitting() && this.dependencies.getState().settings.minimizeToTray) {
@@ -632,7 +691,12 @@ export class WindowManager {
       }
     })
     window.on('closed', () => {
-      if (this.mainWindow === window) this.mainWindow = null
+      if (this.mainWindow === window) {
+        this.mainWindow = null
+        this.mainWindowReady = false
+        this.mainWindowSelectionReady = false
+        this.pendingStockSelection = null
+      }
     })
 
     if (process.env.ELECTRON_RENDERER_URL) {
