@@ -2554,96 +2554,94 @@ export function ExpandedStockDetails({
         />
       ) : activeTab === 'market' ? (
         <div className="market-tab-panel" role="tabpanel">
-          <div className="market-chart-tabs" role="tablist" aria-label="行情图表类型">
-            {PRICE_TABS.map((tab) => (
+          <div className="overview-header market-overview-header">
+            <div>
+              <strong>{priceTab ? '今日概览' : '板块行情'}</strong>
+              <span>
+                {priceTab
+                  ? `${overviewBar?.time || data?.tradingDate || '最近交易日'} · ${tabMeta?.description}`
+                  : quote?.sector?.name || '所属行业板块指数'}
+              </span>
+              {isFiveMinuteFallback ? (
+                <em className="intraday-fallback-badge">5分钟备用行情</em>
+              ) : null}
+              {data?.source ? (
+                <em
+                  className="overview-data-badge"
+                  title={data.fetchedAt ? `获取时间：${data.fetchedAt}` : undefined}
+                >
+                  {STOCK_QUOTE_SOURCE_LABELS[data.source]}
+                </em>
+              ) : null}
+              {data?.adjustment === 'forward' ? (
+                <em className="overview-data-badge">前复权</em>
+              ) : null}
+              {data?.fromCache ? <em className="overview-data-badge is-cache">本地缓存</em> : null}
+            </div>
+            <div className="market-chart-tabs" role="tablist" aria-label="行情图表类型">
+              {PRICE_TABS.map((tab) => (
+                <AppButton
+                  variant="plain"
+                  className={activeMarketTab === tab.id ? 'is-active' : ''}
+                  role="tab"
+                  aria-selected={activeMarketTab === tab.id}
+                  onClick={() => setActiveMarketTab(tab.id)}
+                  key={tab.id}
+                >
+                  {tab.label}
+                </AppButton>
+              ))}
+              {capabilities.sector ? (
+                <AppButton
+                  variant="plain"
+                  className={activeMarketTab === 'sector' ? 'is-active' : ''}
+                  role="tab"
+                  aria-selected={activeMarketTab === 'sector'}
+                  onClick={() => setActiveMarketTab('sector')}
+                >
+                  <Layers size={14} />
+                  板块
+                </AppButton>
+              ) : null}
+            </div>
+            <div className="overview-header-actions">
+              {priceTab ? (
+                <div className="chart-legend" aria-label="图表图例">
+                  <span className={isHistorical ? 'legend-candlestick' : 'legend-price'}>
+                    {isHistorical ? 'K线' : '价格'}
+                  </span>
+                  {priceTab === 'trend' && isAStock ? (
+                    <span className="legend-auction-price">集合竞价</span>
+                  ) : null}
+                  {priceTab === 'trend' ? <span className="legend-average-price">VWAP</span> : null}
+                  <span className="legend-volume">成交量</span>
+                  {priceTab === 'daily' && capabilities.chipDistribution ? (
+                    <button
+                      className={`chip-distribution-toggle ${chipDistributionEnabled ? 'is-active' : ''}`}
+                      type="button"
+                      role="switch"
+                      aria-checked={chipDistributionEnabled}
+                      onClick={toggleChipDistribution}
+                    >
+                      <span aria-hidden="true">
+                        <i />
+                      </span>
+                      筹码分布
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
               <AppButton
-                variant="plain"
-                className={activeMarketTab === tab.id ? 'is-active' : ''}
-                role="tab"
-                aria-selected={activeMarketTab === tab.id}
-                onClick={() => setActiveMarketTab(tab.id)}
-                key={tab.id}
+                className="stock-cache-button"
+                onClick={() => setStockCacheDialogOpen(true)}
               >
-                {tab.label}
+                <Database size={14} />
+                清理缓存
               </AppButton>
-            ))}
-            {capabilities.sector ? (
-              <AppButton
-                variant="plain"
-                className={activeMarketTab === 'sector' ? 'is-active' : ''}
-                role="tab"
-                aria-selected={activeMarketTab === 'sector'}
-                onClick={() => setActiveMarketTab('sector')}
-              >
-                <Layers size={14} />
-                板块
-              </AppButton>
-            ) : null}
+            </div>
           </div>
           {priceTab ? (
             <div className="trend-tab-panel" role="tabpanel">
-              <div className="overview-header">
-                <div>
-                  <strong>今日概览</strong>
-                  <span>
-                    {overviewBar?.time || data?.tradingDate || '最近交易日'} ·{' '}
-                    {tabMeta?.description}
-                  </span>
-                  {isFiveMinuteFallback ? (
-                    <em className="intraday-fallback-badge">5分钟备用行情</em>
-                  ) : null}
-                  {data?.source ? (
-                    <em
-                      className="overview-data-badge"
-                      title={data.fetchedAt ? `获取时间：${data.fetchedAt}` : undefined}
-                    >
-                      {STOCK_QUOTE_SOURCE_LABELS[data.source]}
-                    </em>
-                  ) : null}
-                  {data?.adjustment === 'forward' ? (
-                    <em className="overview-data-badge">前复权</em>
-                  ) : null}
-                  {data?.fromCache ? (
-                    <em className="overview-data-badge is-cache">本地缓存</em>
-                  ) : null}
-                </div>
-                <div className="overview-header-actions">
-                  <div className="chart-legend" aria-label="图表图例">
-                    <span className={isHistorical ? 'legend-candlestick' : 'legend-price'}>
-                      {isHistorical ? 'K线' : '价格'}
-                    </span>
-                    {priceTab === 'trend' && isAStock ? (
-                      <span className="legend-auction-price">集合竞价</span>
-                    ) : null}
-                    {priceTab === 'trend' ? (
-                      <span className="legend-average-price">VWAP</span>
-                    ) : null}
-                    <span className="legend-volume">成交量</span>
-                    {priceTab === 'daily' && capabilities.chipDistribution ? (
-                      <button
-                        className={`chip-distribution-toggle ${chipDistributionEnabled ? 'is-active' : ''}`}
-                        type="button"
-                        role="switch"
-                        aria-checked={chipDistributionEnabled}
-                        onClick={toggleChipDistribution}
-                      >
-                        <span aria-hidden="true">
-                          <i />
-                        </span>
-                        筹码分布
-                      </button>
-                    ) : null}
-                  </div>
-                  <button
-                    className="secondary-button stock-cache-button"
-                    type="button"
-                    onClick={() => setStockCacheDialogOpen(true)}
-                  >
-                    <Database size={14} />
-                    清理缓存
-                  </button>
-                </div>
-              </div>
               <div className="overview-grid">
                 {overview.map(([label, value]) => (
                   <div className="overview-item" key={label}>
