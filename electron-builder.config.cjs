@@ -50,5 +50,8 @@ module.exports = {
     createStartMenuShortcut: true,
     shortcutName: '见涨',
     uninstallDisplayName: '见涨股票行情'
+  },
+  portable: {
+    artifactName: '见涨-portable-${version}-${arch}.${ext}'
   }
 }

@@ -48,6 +48,8 @@ npm run package:mac
 | `package:portable` | build + icon + Windows portable 包                                                     |
 | `package:mac`      | build + icon + macOS DMG，分别生成 x64 和 arm64 安装镜像                               |
 
+Windows portable 产物命名为 `见涨-portable-<版本>-<架构>.exe`，例如 `见涨-portable-18.0.5-x64.exe`。
+
 应用图标默认使用白底红箭头。通过编译环境变量可统一切换 exe、主窗体和托盘图标：
 
 ```powershell
