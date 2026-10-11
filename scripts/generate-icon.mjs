@@ -1,9 +1,8 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { PNG } from 'pngjs'
 
-const outputSize = 256
 const scale = 4
-const size = outputSize * scale
+const size = 256 * scale
 const red = [220, 55, 66]
 const white = [255, 255, 255]
 const black = [17, 17, 17]
@@ -34,7 +33,8 @@ function distanceToSegment(px, py, x1, y1, x2, y2) {
   return Math.sqrt(dx * dx + dy * dy)
 }
 
-function renderIcon(background, foreground) {
+function renderIcon(background, foreground, outputSize = 256) {
+  const sampleScale = size / outputSize
   const pixels = new Uint8ClampedArray(size * size * 4)
 
   function setPixel(x, y, color, alpha = 255) {
@@ -87,16 +87,16 @@ function renderIcon(background, foreground) {
   for (let y = 0; y < outputSize; y += 1) {
     for (let x = 0; x < outputSize; x += 1) {
       const totals = [0, 0, 0, 0]
-      for (let sy = 0; sy < scale; sy += 1) {
-        for (let sx = 0; sx < scale; sx += 1) {
-          const source = ((y * scale + sy) * size + (x * scale + sx)) * 4
+      for (let sy = 0; sy < sampleScale; sy += 1) {
+        for (let sx = 0; sx < sampleScale; sx += 1) {
+          const source = ((y * sampleScale + sy) * size + (x * sampleScale + sx)) * 4
           for (let channel = 0; channel < 4; channel += 1)
             totals[channel] += pixels[source + channel]
         }
       }
       const destination = (y * outputSize + x) * 4
       for (let channel = 0; channel < 4; channel += 1)
-        png.data[destination + channel] = totals[channel] / (scale * scale)
+        png.data[destination + channel] = totals[channel] / (sampleScale * sampleScale)
     }
   }
 
@@ -107,3 +107,6 @@ mkdirSync('build', { recursive: true })
 writeFileSync('build/icon.png', renderIcon(red, white))
 writeFileSync('build/icon-white.png', renderIcon(white, red))
 writeFileSync('build/icon-black.png', renderIcon(black, red))
+writeFileSync('build/icon-mac.png', renderIcon(red, white, 1024))
+writeFileSync('build/icon-white-mac.png', renderIcon(white, red, 1024))
+writeFileSync('build/icon-black-mac.png', renderIcon(black, red, 1024))

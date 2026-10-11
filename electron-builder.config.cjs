@@ -8,6 +8,11 @@ const iconFiles = {
   red: 'build/icon.png',
   black: 'build/icon-black.png'
 }
+const macIconFiles = {
+  white: 'build/icon-white-mac.png',
+  red: 'build/icon-mac.png',
+  black: 'build/icon-black-mac.png'
+}
 
 module.exports = {
   appId: 'com.jianzhang.stock',
@@ -31,6 +36,12 @@ module.exports = {
     icon: iconFiles[iconVariant],
     target: [{ target: 'nsis', arch: ['x64'] }],
     artifactName: '见涨-Setup-${version}-${arch}.${ext}'
+  },
+  mac: {
+    icon: macIconFiles[iconVariant],
+    category: 'public.app-category.finance',
+    target: [{ target: 'dmg', arch: ['x64', 'arm64'] }],
+    artifactName: '见涨-${version}-mac-${arch}.${ext}'
   },
   nsis: {
     oneClick: false,

@@ -4,16 +4,16 @@
 
 ## 技术栈
 
-| 类别         | 当前方案                       |
-| ------------ | ------------------------------ |
-| 桌面壳       | Electron 43                    |
-| 前端         | React 19                       |
-| 语言         | TypeScript 5.9，`strict: true` |
-| 构建         | Vite 7 + electron-vite 5       |
-| 图表         | Lightweight Charts 5           |
-| 图标         | Lucide React                   |
-| Windows 打包 | electron-builder 26            |
-| Node.js      | README 要求 20+                |
+| 类别     | 当前方案                       |
+| -------- | ------------------------------ |
+| 桌面壳   | Electron 43                    |
+| 前端     | React 19                       |
+| 语言     | TypeScript 5.9，`strict: true` |
+| 构建     | Vite 7 + electron-vite 5       |
+| 图表     | Lightweight Charts 5           |
+| 图标     | Lucide React                   |
+| 桌面打包 | electron-builder 26            |
+| Node.js  | README 要求 20+                |
 
 当前应用版本从 `package.json` 读取，并在主窗口状态栏展示。
 
@@ -30,6 +30,7 @@ npm run build
 npm run build:unpacked
 npm run package:win
 npm run package:portable
+npm run package:mac
 ```
 
 | 命令               | 作用                                                                                   |
@@ -42,9 +43,10 @@ npm run package:portable
 | `format:check`     | 用 Prettier 检查代码格式；当前仍会列出尚未批量格式化的历史文件                         |
 | `build`            | 先 `tsc --noEmit`，再构建 main/preload/renderer                                        |
 | `build:unpacked`   | 完成类型检查、生产构建和图标生成，并更新 `release/win-unpacked` 开发预览，不生成安装包 |
-| `generate:icon`    | 生成白底、红底和黑底三套应用图标                                                       |
+| `generate:icon`    | 生成白底、红底和黑底三套图标，Windows 为 256px、macOS 为 1024px                        |
 | `package:win`      | build + icon + NSIS x64 安装包                                                         |
 | `package:portable` | build + icon + Windows portable 包                                                     |
+| `package:mac`      | build + icon + macOS DMG，分别生成 x64 和 arm64 安装镜像                               |
 
 应用图标默认使用白底红箭头。通过编译环境变量可统一切换 exe、主窗体和托盘图标：
 
@@ -60,16 +62,31 @@ Remove-Item Env:JIANZHANG_ICON_VARIANT
 | `red`           | `build/icon.png`       | 红底白箭头 |
 | `black`         | `build/icon-black.png` | 黑底红箭头 |
 
-三个版本的 PNG 都会由 `generate:icon` 保留在 `build/`。
+三个版本的 PNG 都会由 `generate:icon` 保留在 `build/`。macOS 另生成 `icon-white-mac.png`、`icon-mac.png` 和 `icon-black-mac.png`，沿用同一个 `JIANZHANG_ICON_VARIANT` 配色选项。
+
+### macOS 打包
+
+在 macOS 上安装依赖后执行：
+
+```sh
+npm run package:mac
+```
+
+命令自动执行类型检查、main/preload/renderer 生产构建和图标生成，再通过 `electron-builder.config.cjs` 中的 `mac` 配置打包。产物位于 `release/`：
+
+- `见涨-<版本>-mac-x64.dmg`：Intel Mac。
+- `见涨-<版本>-mac-arm64.dmg`：Apple Silicon Mac。
+
+DMG 制作使用 macOS 的系统工具，需在 Mac 上运行。签名和公证凭据由 electron-builder 的环境变量或系统钥匙串提供，仓库不内置凭据；对外分发前需完成签名、公证以及 macOS 运行验证。当前增加的是打包命令与配置，尚未在 macOS 上验证运行和界面兼容性。
 
 ## 构建输出
 
-| 目录       | 内容                                                           | Git  |
-| ---------- | -------------------------------------------------------------- | ---- |
-| `out/`     | electron-vite 构建结果                                         | 忽略 |
-| `build/`   | 动态生成图标等资源                                             | 忽略 |
-| `release/` | electron-builder 安装包、portable 包和 `win-unpacked` 开发预览 | 忽略 |
-| `outputs/` | 其他交付输出                                                   | 忽略 |
+| 目录       | 内容                                                                       | Git  |
+| ---------- | -------------------------------------------------------------------------- | ---- |
+| `out/`     | electron-vite 构建结果                                                     | 忽略 |
+| `build/`   | 动态生成图标等资源                                                         | 忽略 |
+| `release/` | electron-builder 安装包、portable 包、macOS DMG 和 `win-unpacked` 开发预览 | 忽略 |
+| `outputs/` | 其他交付输出                                                               | 忽略 |
 
 主进程入口：
 
@@ -136,7 +153,7 @@ flowchart LR
     CHANGE["完成变更"] --> VERSION["按规则确定并更新版本"]
     VERSION --> STATUS["检查 git status/diff"]
     STATUS --> COMMIT["提交功能和目标版本"]
-    COMMIT --> PACKAGE["执行 package:win / portable"]
+    COMMIT --> PACKAGE["执行 package:win / portable / mac"]
     PACKAGE --> ARTIFACT["检查 release 产物"]
 ```
 
