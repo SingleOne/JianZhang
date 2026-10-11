@@ -1,4 +1,4 @@
-import { net } from 'electron'
+import { net, type Session } from 'electron'
 import { get as httpsGet } from 'node:https'
 import type {
   FundsFlowResult,
@@ -23,6 +23,7 @@ import {
 } from '../../src/shared/stock-market'
 import type { MarketRequestLogger } from './market-request-logger'
 import type { SectorBinding } from './sector-market-cache'
+import { eastmoneyHistorySession } from './eastmoney-history-session'
 import {
   EASTMONEY_FIELDS,
   EASTMONEY_FIXED_PARAMS,
@@ -140,6 +141,8 @@ interface MarketRequestOptions<T> {
   fallbackFrom?: string
   requestedCount?: number
   maxAttempts?: number
+  attempt?: number
+  session?: Session
   headers?: Record<string, string>
   returnedCount?: (value: T) => number
 }
@@ -187,12 +190,15 @@ async function requestJson<T>(url: string, options: MarketRequestOptions<T>): Pr
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
       return await trackedRequest(
-        { ...options, attempt: attempt + 1 },
+        { ...options, attempt: (options.attempt ?? 1) + attempt },
         async () => {
-          const response = await net.fetch(url, {
+          const init: RequestInit = {
             headers: options.headers ?? EASTMONEY_HEADERS,
             signal: AbortSignal.timeout(12_000)
-          })
+          }
+          const response = options.session
+            ? await options.session.fetch(url, { ...init, credentials: 'include' })
+            : await net.fetch(url, init)
 
           if (!response.ok) throw new Error(`行情服务返回 ${response.status}`)
           return (await response.json()) as T
@@ -1576,10 +1582,13 @@ async function fetchHistoricalKline(
     url.searchParams.set('fields2', EASTMONEY_FIELDS.historicalKlineSecondary)
     return url
   }
-  const fetchFrom = async (url: URL, source: string, host?: string) => {
+  let primarySessionGeneration = 0
+  const fetchFrom = async (url: URL, source: string, host?: string, attempt = 1) => {
     type HistoricalKlinePayload = {
       data?: { name?: string; klines?: string[] }
     }
+    const browserSession = await eastmoneyHistorySession.getSession()
+    if (!host) primarySessionGeneration = eastmoneyHistorySession.generation
     const payload = host
       ? await requestJsonWithHost<HistoricalKlinePayload>(url.toString(), host, {
           dataType: `kline:${klt}`,
@@ -1587,6 +1596,11 @@ async function fetchHistoricalKline(
           source,
           fallbackFrom: 'eastmoney-history-primary',
           requestedCount: 1,
+          headers: {
+            ...EASTMONEY_HEADERS,
+            // Mirror routing retains the primary Host, so use cookies for that origin.
+            ...(await eastmoneyHistorySession.getCookieHeader(primaryUrl.toString()))
+          },
           returnedCount: (value) => value.data?.klines?.length ?? 0
         })
       : await requestJson<HistoricalKlinePayload>(url.toString(), {
@@ -1595,6 +1609,8 @@ async function fetchHistoricalKline(
           source,
           requestedCount: 1,
           maxAttempts: 1,
+          attempt,
+          session: browserSession,
           returnedCount: (value) => value.data?.klines?.length ?? 0
         })
 
@@ -1609,7 +1625,18 @@ async function fetchHistoricalKline(
 
   try {
     return await fetchFrom(primaryUrl, 'eastmoney-history-primary')
-  } catch (primaryError) {
+  } catch (initialError) {
+    let primaryError = initialError
+    const message = initialError instanceof Error ? initialError.message : ''
+    if (/ERR_EMPTY_RESPONSE|ECONNRESET|socket hang up|行情服务返回 (401|403)/.test(message)) {
+      try {
+        if (await eastmoneyHistorySession.refresh(primarySessionGeneration)) {
+          return await fetchFrom(primaryUrl, 'eastmoney-history-primary', undefined, 2)
+        }
+      } catch (refreshError) {
+        primaryError = refreshError
+      }
+    }
     const delayUrl = createUrl('https://push2delay.eastmoney.com')
     try {
       const result = await fetchFrom(delayUrl, 'eastmoney-delay', primaryUrl.host)

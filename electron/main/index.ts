@@ -51,6 +51,7 @@ import { CompletionNotificationStore } from './completion-notification-store'
 import { DailyMarketScanService } from './daily-market-scan-service'
 import { DividendFinancingService } from './dividend-financing-service'
 import { ExchangeRateRuntime } from './exchange-rate-runtime'
+import { eastmoneyHistorySession } from './eastmoney-history-session'
 import { FundsFlowHub } from './funds-flow-hub'
 import { FundamentalDataService } from './fundamental-data-service'
 import { GlobalFundamentalService } from './global-fundamental-service'
@@ -541,6 +542,7 @@ function initializeOptionalModules(): void {
 function cleanupBeforeQuit(): void {
   if (isQuitting) return
   isQuitting = true
+  eastmoneyHistorySession.dispose()
   closeRetainedSystemNotifications()
   optionalModuleRuntime.dispose()
   aiTAdviceRuntime?.dispose()

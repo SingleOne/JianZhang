@@ -1,11 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { netFetch } = vi.hoisted(() => ({
-  netFetch: vi.fn()
+const { netFetch, historyRefresh, historyCookies } = vi.hoisted(() => ({
+  netFetch: vi.fn(),
+  historyRefresh: vi.fn(async () => false),
+  historyCookies: vi.fn(async () => ({ Cookie: 'history-session=test' }))
 }))
 
 vi.mock('electron', () => ({
   net: { fetch: netFetch }
+}))
+
+vi.mock('./eastmoney-history-session', () => ({
+  eastmoneyHistorySession: {
+    getSession: async () => ({ fetch: netFetch }),
+    getCookieHeader: historyCookies,
+    refresh: historyRefresh,
+    generation: 0
+  }
 }))
 
 import {
