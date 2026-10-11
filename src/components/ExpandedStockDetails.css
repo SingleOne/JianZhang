@@ -2143,7 +2143,22 @@
   padding-top: 14px;
 }
 
-.detail-tabs button {
+.market-chart-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  margin-bottom: 14px;
+  padding: 4px;
+  background: #f1f5fb;
+  border: 1px solid #e5eaf1;
+  border-radius: 9px;
+}
+
+.detail-tabs button,
+.market-chart-tabs button {
   height: 32px;
   display: inline-flex;
   align-items: center;
@@ -2158,12 +2173,14 @@
   cursor: pointer;
 }
 
-.detail-tabs button:hover {
+.detail-tabs button:hover,
+.market-chart-tabs button:hover {
   color: #3f6fad;
   background: #f1f5fb;
 }
 
-.detail-tabs button.is-active {
+.detail-tabs button.is-active,
+.market-chart-tabs button.is-active {
   color: var(--blue);
   background: #eaf2ff;
 }

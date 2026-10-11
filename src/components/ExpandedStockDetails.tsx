@@ -113,6 +113,7 @@ import type {
   WatchStock
 } from '../shared/types'
 import { FundsFlowPanel, clearFundsFlowCache } from './FundsFlowPanel'
+import { AppButton } from './AppButton'
 import { ChipDistributionPanel } from './ChipDistributionPanel'
 import { CompanyReportLibrary, FundamentalReadingGuide } from './CompanyReportLibrary'
 import { InvestmentValueMetrics } from './InvestmentValueMetrics'
@@ -152,8 +153,9 @@ const AiTAdvicePanel = __JIANZHANG_AI_T_ADVICE_MODULE_ENABLED__
   : null
 
 type PriceTab = Exclude<KlinePeriod, 'intraday'> | 'trend'
+type MarketTab = PriceTab | 'sector'
 type DetailTab =
-  | PriceTab
+  | 'market'
   | 'dividendFinancing'
   | 'fundamental'
   | 'shareholders'
@@ -161,7 +163,6 @@ type DetailTab =
   | 'corporateActions'
   | 'tracking'
   | 'funds'
-  | 'sector'
   | 'insight'
   | 'ai'
   | 't-advice'
@@ -181,8 +182,6 @@ const PRICE_TABS: Array<{ id: PriceTab; label: string; description: string }> = 
   { id: 'weekly', label: '周K', description: '周 K 线' },
   { id: 'monthly', label: '月K', description: '月 K 线' }
 ]
-const LEADING_PRICE_TABS = PRICE_TABS.filter((tab) => tab.id === 'trend')
-const TRAILING_PRICE_TABS = PRICE_TABS.filter((tab) => tab.id !== 'trend')
 const PRICE_TAB_IDS = new Set<PriceTab>(PRICE_TABS.map((tab) => tab.id))
 const EMPTY_KLINE_BARS: KlineBar[] = []
 const INITIAL_HISTORY_LIMITS: Record<HistoricalPeriod, number> = {
@@ -200,19 +199,18 @@ function isHistoricalTab(tab: PriceTab): tab is HistoricalPeriod {
   return tab === 'daily' || tab === 'weekly' || tab === 'monthly'
 }
 
-function isPriceTab(tab: DetailTab): tab is PriceTab {
+function isPriceTab(tab: MarketTab): tab is PriceTab {
   return PRICE_TAB_IDS.has(tab as PriceTab)
 }
 
 function supportsDetailTab(tab: DetailTab, capabilities: StockMarketCapabilities): boolean {
-  if (isPriceTab(tab) || tab === 'tracking') return true
+  if (tab === 'market' || tab === 'tracking') return true
   if (tab === 'dividendFinancing') return capabilities.dividendFinancing
   if (tab === 'fundamental') return capabilities.fundamentals
   if (tab === 'shareholders') return capabilities.shareholders
   if (tab === 'reports') return capabilities.companyReports
   if (tab === 'corporateActions') return capabilities.corporateActions
   if (tab === 'funds') return capabilities.fundsFlow
-  if (tab === 'sector') return capabilities.sector
   if (tab === 'insight') return capabilities.marketInsight
   if (tab === 'ai') return capabilities.aiAnalysis
   return capabilities.aiTAdvice
@@ -1938,7 +1936,9 @@ export function ExpandedStockDetails({
   const marketCalendar = tradingCalendar.markets[market]
   const volumeUnit = volumeUnitForMarket(market)
   const initialTrend = klineCache.get(cacheKey(cacheScope, stock.quoteId, 'trend'))?.data
-  const [activeTab, setActiveTab] = useState<DetailTab>('trend')
+  const [activeTab, setActiveTab] = useState<DetailTab>('market')
+  const [activeMarketTab, setActiveMarketTab] = useState<MarketTab>('trend')
+  const priceTab = activeTab === 'market' && isPriceTab(activeMarketTab) ? activeMarketTab : null
   const [aiAnalysisType, setAiAnalysisType] = useState<AiAnalysisType>('short-term')
   const [dataByTab, setDataByTab] = useState<Partial<Record<PriceTab, KlineResult>>>(() =>
     initialTrend ? { trend: initialTrend } : {}
@@ -1964,7 +1964,7 @@ export function ExpandedStockDetails({
   const [aiEnabled, setAiEnabled] = useState(false)
   const [aiStatusLoaded, setAiStatusLoaded] = useState(false)
   const activeHistoricalLimit =
-    isPriceTab(activeTab) && isHistoricalTab(activeTab) ? historyLimits[activeTab] : undefined
+    priceTab && isHistoricalTab(priceTab) ? historyLimits[priceTab] : undefined
 
   useEffect(() => {
     if (!fundamentalTabRequested || !capabilities.fundamentals) return
@@ -1973,8 +1973,12 @@ export function ExpandedStockDetails({
   }, [capabilities.fundamentals, fundamentalTabRequested, onFundamentalTabRequestHandled])
 
   useEffect(() => {
-    if (!supportsDetailTab(activeTab, capabilities)) setActiveTab('trend')
+    if (!supportsDetailTab(activeTab, capabilities)) setActiveTab('market')
   }, [activeTab, capabilities])
+
+  useEffect(() => {
+    if (activeMarketTab === 'sector' && !capabilities.sector) setActiveMarketTab('trend')
+  }, [activeMarketTab, capabilities.sector])
 
   useEffect(() => {
     if (!trackingTabRequested) return
@@ -2010,7 +2014,8 @@ export function ExpandedStockDetails({
       return
     }
     if (detailNavigationTarget === 'trend') {
-      setActiveTab('trend')
+      setActiveMarketTab('trend')
+      setActiveTab('market')
     } else if (detailNavigationTarget === 'tracking') {
       setActiveTab('tracking')
     } else if (detailNavigationTarget === 'reports') {
@@ -2035,7 +2040,7 @@ export function ExpandedStockDetails({
 
   useEffect(() => {
     setHoveredBar(null)
-  }, [activeTab, stock.quoteId])
+  }, [activeTab, activeMarketTab, stock.quoteId])
 
   useEffect(() => {
     setMarketInsightSnapshot(null)
@@ -2078,14 +2083,14 @@ export function ExpandedStockDetails({
 
   useEffect(() => {
     if (aiStatusLoaded && !aiEnabled && (activeTab === 'ai' || activeTab === 't-advice')) {
-      setActiveTab('trend')
+      setActiveTab('market')
     }
   }, [activeTab, aiEnabled, aiStatusLoaded])
 
   useEffect(() => {
-    if (!isPriceTab(activeTab)) return
+    if (!priceTab) return
 
-    const tab = activeTab
+    const tab = priceTab
     const key = cacheKey(cacheScope, stock.quoteId, tab)
     const cached = klineCache.get(key)
     const isLiveChart = tab === 'trend' || tab === 'fiveDay'
@@ -2165,7 +2170,7 @@ export function ExpandedStockDetails({
     }
   }, [
     activeHistoricalLimit,
-    activeTab,
+    priceTab,
     cacheScope,
     market,
     marketCalendar,
@@ -2173,7 +2178,6 @@ export function ExpandedStockDetails({
     stock.quoteId
   ])
 
-  const priceTab = isPriceTab(activeTab) ? activeTab : null
   const data = priceTab ? (dataByTab[priceTab] ?? null) : null
   const error = priceTab ? (errors[priceTab] ?? '') : ''
   const tabMeta = priceTab ? PRICE_TABS.find((item) => item.id === priceTab) : undefined
@@ -2190,7 +2194,7 @@ export function ExpandedStockDetails({
       ? chipAutoRange
         ? ('ready' as const)
         : ('missing-turnover' as const)
-      : loadingTab === 'daily' || (activeTab === 'daily' && !dataByTab.daily && !errors.daily)
+      : loadingTab === 'daily' || (priceTab === 'daily' && !dataByTab.daily && !errors.daily)
         ? ('loading' as const)
         : errors.daily
           ? ('failed' as const)
@@ -2271,14 +2275,14 @@ export function ExpandedStockDetails({
   }, [])
 
   useEffect(() => {
-    if (!chipDistributionEnabled || activeTab !== 'daily' || !chipAutoRange) return
+    if (!chipDistributionEnabled || priceTab !== 'daily' || !chipAutoRange) return
     if (chipAutoRange.reachedThreshold || dailyBars.length < historyLimits.daily) return
     const estimatedLimit = estimateChipHistoryLimit(dailyBars, MAX_HISTORY_LIMITS.daily)
     if (estimatedLimit === null) return
     setHistoryLimits((current) =>
       current.daily >= estimatedLimit ? current : { ...current, daily: estimatedLimit }
     )
-  }, [activeTab, chipAutoRange, chipDistributionEnabled, dailyBars, historyLimits.daily])
+  }, [priceTab, chipAutoRange, chipDistributionEnabled, dailyBars, historyLimits.daily])
 
   const toggleChipDistribution = () => {
     const enabled = !chipDistributionEnabled
@@ -2361,19 +2365,16 @@ export function ExpandedStockDetails({
   return (
     <section className="stock-details" aria-label={`${stock.name} 行情详情`}>
       <div className="detail-tabs" role="tablist" aria-label="行情详情类型">
-        {LEADING_PRICE_TABS.map((tab) => (
-          <button
-            className={activeTab === tab.id ? 'is-active' : ''}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab.id}
-            onClick={(event) => changeDetailTab(tab.id, event.currentTarget)}
-            key={tab.id}
-          >
-            <BarChart3 size={15} />
-            {tab.label}
-          </button>
-        ))}
+        <AppButton
+          variant="plain"
+          className={activeTab === 'market' ? 'is-active' : ''}
+          role="tab"
+          aria-selected={activeTab === 'market'}
+          onClick={(event) => changeDetailTab('market', event.currentTarget)}
+        >
+          <BarChart3 size={15} />
+          行情
+        </AppButton>
         {capabilities.fundsFlow ? (
           <button
             className={activeTab === 'funds' ? 'is-active' : ''}
@@ -2454,31 +2455,6 @@ export function ExpandedStockDetails({
           >
             <Radar size={15} />
             市场观察
-          </button>
-        ) : null}
-        {TRAILING_PRICE_TABS.map((tab) => (
-          <button
-            className={activeTab === tab.id ? 'is-active' : ''}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab.id}
-            onClick={(event) => changeDetailTab(tab.id, event.currentTarget)}
-            key={tab.id}
-          >
-            <BarChart3 size={15} />
-            {tab.label}
-          </button>
-        ))}
-        {capabilities.sector ? (
-          <button
-            className={activeTab === 'sector' ? 'is-active' : ''}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'sector'}
-            onClick={(event) => changeDetailTab('sector', event.currentTarget)}
-          >
-            <Layers size={15} />
-            板块
           </button>
         ) : null}
         {capabilities.shareholders ? (
@@ -2576,202 +2552,243 @@ export function ExpandedStockDetails({
           onStopTracking={onStopTracking}
           onRestartTracking={onRestartTracking}
         />
-      ) : priceTab ? (
-        <div className="trend-tab-panel" role="tabpanel">
-          <div className="overview-header">
-            <div>
-              <strong>今日概览</strong>
-              <span>
-                {overviewBar?.time || data?.tradingDate || '最近交易日'} · {tabMeta?.description}
-              </span>
-              {isFiveMinuteFallback ? (
-                <em className="intraday-fallback-badge">5分钟备用行情</em>
-              ) : null}
-              {data?.source ? (
-                <em
-                  className="overview-data-badge"
-                  title={data.fetchedAt ? `获取时间：${data.fetchedAt}` : undefined}
-                >
-                  {STOCK_QUOTE_SOURCE_LABELS[data.source]}
-                </em>
-              ) : null}
-              {data?.adjustment === 'forward' ? (
-                <em className="overview-data-badge">前复权</em>
-              ) : null}
-              {data?.fromCache ? <em className="overview-data-badge is-cache">本地缓存</em> : null}
-            </div>
-            <div className="overview-header-actions">
-              <div className="chart-legend" aria-label="图表图例">
-                <span className={isHistorical ? 'legend-candlestick' : 'legend-price'}>
-                  {isHistorical ? 'K线' : '价格'}
-                </span>
-                {priceTab === 'trend' && isAStock ? (
-                  <span className="legend-auction-price">集合竞价</span>
-                ) : null}
-                {priceTab === 'trend' ? <span className="legend-average-price">VWAP</span> : null}
-                <span className="legend-volume">成交量</span>
-                {priceTab === 'daily' && capabilities.chipDistribution ? (
-                  <button
-                    className={`chip-distribution-toggle ${chipDistributionEnabled ? 'is-active' : ''}`}
-                    type="button"
-                    role="switch"
-                    aria-checked={chipDistributionEnabled}
-                    onClick={toggleChipDistribution}
-                  >
-                    <span aria-hidden="true">
-                      <i />
-                    </span>
-                    筹码分布
-                  </button>
-                ) : null}
-              </div>
-              <button
-                className="secondary-button stock-cache-button"
-                type="button"
-                onClick={() => setStockCacheDialogOpen(true)}
+      ) : activeTab === 'market' ? (
+        <div className="market-tab-panel" role="tabpanel">
+          <div className="market-chart-tabs" role="tablist" aria-label="行情图表类型">
+            {PRICE_TABS.map((tab) => (
+              <AppButton
+                variant="plain"
+                className={activeMarketTab === tab.id ? 'is-active' : ''}
+                role="tab"
+                aria-selected={activeMarketTab === tab.id}
+                onClick={() => setActiveMarketTab(tab.id)}
+                key={tab.id}
               >
-                <Database size={14} />
-                清理缓存
-              </button>
-            </div>
-          </div>
-          <div className="overview-grid">
-            {overview.map(([label, value]) => (
-              <div className="overview-item" key={label}>
-                <span>{label}</span>
-                <strong>{value}</strong>
-              </div>
+                {tab.label}
+              </AppButton>
             ))}
-          </div>
-          <div
-            className={`chart-panel ${priceTab === 'trend' && capabilities.orderBook ? 'has-order-book' : ''} ${historicalPeriod ? 'has-kline-indicator-toolbar' : ''} ${priceTab === 'daily' && chipDistributionEnabled && capabilities.chipDistribution ? 'has-chip-distribution' : ''}`}
-          >
-            <div className="chart-content">
-              {(error && data) || isFiveMinuteFallback ? (
-                <div
-                  className="chart-refresh-warning"
-                  title={isFiveMinuteFallback ? data?.fallbackReason : error}
-                >
-                  <AlertCircle size={14} />
-                  <span>
-                    {isFiveMinuteFallback
-                      ? '1分钟分时暂不可用，当前显示5分钟备用行情'
-                      : priceTab === 'trend'
-                        ? '1分钟分时刷新失败，当前显示最近一次1分钟数据'
-                        : `${tabMeta?.label}数据刷新失败，当前显示最近一次数据`}
-                  </span>
-                  <button type="button" onClick={retryCurrentTab}>
-                    重试
-                  </button>
-                </div>
-              ) : null}
-              {isLoading && data && isHistorical ? (
-                <div className="chart-history-loading">
-                  {priceTab === 'daily' &&
-                  chipDistributionEnabled &&
-                  chipAutoRangeMode &&
-                  chipAutoRange &&
-                  !chipAutoRange.reachedThreshold
-                    ? `正在补取更早日 K：累计换手 ${chipAutoRange.cumulativeTurnover.toFixed(2)}%，目标 100%`
-                    : '正在加载更早数据…'}
-                </div>
-              ) : null}
-              {isLoading && !data ? (
-                <div className="chart-loading">
-                  <BarChart3 size={28} />
-                  <span>正在加载{tabMeta?.label}数据…</span>
-                </div>
-              ) : error && !data ? (
-                <div className="chart-error">
-                  <AlertCircle size={18} />
-                  <span>{error}</span>
-                  <button
-                    className="secondary-button chart-retry-button"
-                    type="button"
-                    onClick={retryCurrentTab}
-                  >
-                    <RefreshCw size={14} />
-                    重新获取
-                  </button>
-                </div>
-              ) : data && data.bars.length > 0 ? (
-                <Suspense fallback={<div className="chart-loading">正在初始化图表…</div>}>
-                  {historicalPeriod ? (
-                    <PeriodKlineChart
-                      bars={data.bars}
-                      period={historicalPeriod}
-                      market={market}
-                      onHoverBar={handleHoverBar}
-                      onRequestMore={requestMoreHistory}
-                      requestedVisibleBars={
-                        historicalPeriod === 'daily' && chipDistributionEnabled && chipAutoRangeMode
-                          ? chipAutoRange?.barCount
-                          : undefined
-                      }
-                      visibleRangeRequestKey={chipRangeRequestKey}
-                      onVisibleRangeChange={
-                        historicalPeriod === 'daily' ? handleDailyVisibleRangeChange : undefined
-                      }
-                      bollingerBandsEnabled={bollingerBandsEnabled}
-                      onBollingerBandsEnabledChange={onBollingerBandsEnabledChange}
-                      dailyKlineIndicator={dailyKlineIndicator}
-                      onDailyKlineIndicatorChange={onDailyKlineIndicatorChange}
-                      trackingStartedAt={
-                        historicalPeriod === 'daily' ? trackingProfile?.startedAt : undefined
-                      }
-                      trackingStoppedAt={
-                        historicalPeriod === 'daily' ? trackingProfile?.stoppedAt : undefined
-                      }
-                      height={historicalPeriod === 'daily' && chipDistributionEnabled ? 360 : 320}
-                    />
-                  ) : (
-                    <CandlestickChart
-                      bars={data.bars}
-                      market={market}
-                      variant={priceTab === 'fiveDay' ? 'fiveDay' : 'intraday'}
-                      onHoverBar={priceTab === 'trend' ? undefined : handleHoverBar}
-                      marketInsightOverlay={
-                        priceTab === 'trend' && showInsightOverlay
-                          ? marketInsightSnapshot?.chartOverlay
-                          : null
-                      }
-                    />
-                  )}
-                </Suspense>
-              ) : (
-                <div className="chart-loading">最近交易日暂无{tabMeta?.label}数据</div>
-              )}
-            </div>
-            {priceTab === 'trend' && capabilities.orderBook ? (
-              <OrderBookPanel
-                key={cacheRevisions['market-details'] ?? 0}
-                stock={stock}
-                refreshSeconds={refreshSeconds}
-                autoRefresh={autoRefreshOrderBook}
-              />
-            ) : priceTab === 'daily' && chipDistributionEnabled && capabilities.chipDistribution ? (
-              <ChipDistributionPanel
-                key={cacheRevisions['market-details'] ?? 0}
-                quoteId={stock.quoteId}
-                quoteName={stock.name}
-                bars={chipBars}
-                dataStatus={chipDataStatus}
-                statusDetail={chipStatusDetail}
-                isAutoRange={chipAutoRangeMode}
-                onRestoreAutoRange={restoreChipAutoRange}
-              />
+            {capabilities.sector ? (
+              <AppButton
+                variant="plain"
+                className={activeMarketTab === 'sector' ? 'is-active' : ''}
+                role="tab"
+                aria-selected={activeMarketTab === 'sector'}
+                onClick={() => setActiveMarketTab('sector')}
+              >
+                <Layers size={14} />
+                板块
+              </AppButton>
             ) : null}
           </div>
+          {priceTab ? (
+            <div className="trend-tab-panel" role="tabpanel">
+              <div className="overview-header">
+                <div>
+                  <strong>今日概览</strong>
+                  <span>
+                    {overviewBar?.time || data?.tradingDate || '最近交易日'} ·{' '}
+                    {tabMeta?.description}
+                  </span>
+                  {isFiveMinuteFallback ? (
+                    <em className="intraday-fallback-badge">5分钟备用行情</em>
+                  ) : null}
+                  {data?.source ? (
+                    <em
+                      className="overview-data-badge"
+                      title={data.fetchedAt ? `获取时间：${data.fetchedAt}` : undefined}
+                    >
+                      {STOCK_QUOTE_SOURCE_LABELS[data.source]}
+                    </em>
+                  ) : null}
+                  {data?.adjustment === 'forward' ? (
+                    <em className="overview-data-badge">前复权</em>
+                  ) : null}
+                  {data?.fromCache ? (
+                    <em className="overview-data-badge is-cache">本地缓存</em>
+                  ) : null}
+                </div>
+                <div className="overview-header-actions">
+                  <div className="chart-legend" aria-label="图表图例">
+                    <span className={isHistorical ? 'legend-candlestick' : 'legend-price'}>
+                      {isHistorical ? 'K线' : '价格'}
+                    </span>
+                    {priceTab === 'trend' && isAStock ? (
+                      <span className="legend-auction-price">集合竞价</span>
+                    ) : null}
+                    {priceTab === 'trend' ? (
+                      <span className="legend-average-price">VWAP</span>
+                    ) : null}
+                    <span className="legend-volume">成交量</span>
+                    {priceTab === 'daily' && capabilities.chipDistribution ? (
+                      <button
+                        className={`chip-distribution-toggle ${chipDistributionEnabled ? 'is-active' : ''}`}
+                        type="button"
+                        role="switch"
+                        aria-checked={chipDistributionEnabled}
+                        onClick={toggleChipDistribution}
+                      >
+                        <span aria-hidden="true">
+                          <i />
+                        </span>
+                        筹码分布
+                      </button>
+                    ) : null}
+                  </div>
+                  <button
+                    className="secondary-button stock-cache-button"
+                    type="button"
+                    onClick={() => setStockCacheDialogOpen(true)}
+                  >
+                    <Database size={14} />
+                    清理缓存
+                  </button>
+                </div>
+              </div>
+              <div className="overview-grid">
+                {overview.map(([label, value]) => (
+                  <div className="overview-item" key={label}>
+                    <span>{label}</span>
+                    <strong>{value}</strong>
+                  </div>
+                ))}
+              </div>
+              <div
+                className={`chart-panel ${priceTab === 'trend' && capabilities.orderBook ? 'has-order-book' : ''} ${historicalPeriod ? 'has-kline-indicator-toolbar' : ''} ${priceTab === 'daily' && chipDistributionEnabled && capabilities.chipDistribution ? 'has-chip-distribution' : ''}`}
+              >
+                <div className="chart-content">
+                  {(error && data) || isFiveMinuteFallback ? (
+                    <div
+                      className="chart-refresh-warning"
+                      title={isFiveMinuteFallback ? data?.fallbackReason : error}
+                    >
+                      <AlertCircle size={14} />
+                      <span>
+                        {isFiveMinuteFallback
+                          ? '1分钟分时暂不可用，当前显示5分钟备用行情'
+                          : priceTab === 'trend'
+                            ? '1分钟分时刷新失败，当前显示最近一次1分钟数据'
+                            : `${tabMeta?.label}数据刷新失败，当前显示最近一次数据`}
+                      </span>
+                      <button type="button" onClick={retryCurrentTab}>
+                        重试
+                      </button>
+                    </div>
+                  ) : null}
+                  {isLoading && data && isHistorical ? (
+                    <div className="chart-history-loading">
+                      {priceTab === 'daily' &&
+                      chipDistributionEnabled &&
+                      chipAutoRangeMode &&
+                      chipAutoRange &&
+                      !chipAutoRange.reachedThreshold
+                        ? `正在补取更早日 K：累计换手 ${chipAutoRange.cumulativeTurnover.toFixed(2)}%，目标 100%`
+                        : '正在加载更早数据…'}
+                    </div>
+                  ) : null}
+                  {isLoading && !data ? (
+                    <div className="chart-loading">
+                      <BarChart3 size={28} />
+                      <span>正在加载{tabMeta?.label}数据…</span>
+                    </div>
+                  ) : error && !data ? (
+                    <div className="chart-error">
+                      <AlertCircle size={18} />
+                      <span>{error}</span>
+                      <button
+                        className="secondary-button chart-retry-button"
+                        type="button"
+                        onClick={retryCurrentTab}
+                      >
+                        <RefreshCw size={14} />
+                        重新获取
+                      </button>
+                    </div>
+                  ) : data && data.bars.length > 0 ? (
+                    <Suspense fallback={<div className="chart-loading">正在初始化图表…</div>}>
+                      {historicalPeriod ? (
+                        <PeriodKlineChart
+                          bars={data.bars}
+                          period={historicalPeriod}
+                          market={market}
+                          onHoverBar={handleHoverBar}
+                          onRequestMore={requestMoreHistory}
+                          requestedVisibleBars={
+                            historicalPeriod === 'daily' &&
+                            chipDistributionEnabled &&
+                            chipAutoRangeMode
+                              ? chipAutoRange?.barCount
+                              : undefined
+                          }
+                          visibleRangeRequestKey={chipRangeRequestKey}
+                          onVisibleRangeChange={
+                            historicalPeriod === 'daily' ? handleDailyVisibleRangeChange : undefined
+                          }
+                          bollingerBandsEnabled={bollingerBandsEnabled}
+                          onBollingerBandsEnabledChange={onBollingerBandsEnabledChange}
+                          dailyKlineIndicator={dailyKlineIndicator}
+                          onDailyKlineIndicatorChange={onDailyKlineIndicatorChange}
+                          trackingStartedAt={
+                            historicalPeriod === 'daily' ? trackingProfile?.startedAt : undefined
+                          }
+                          trackingStoppedAt={
+                            historicalPeriod === 'daily' ? trackingProfile?.stoppedAt : undefined
+                          }
+                          height={
+                            historicalPeriod === 'daily' && chipDistributionEnabled ? 360 : 320
+                          }
+                        />
+                      ) : (
+                        <CandlestickChart
+                          bars={data.bars}
+                          market={market}
+                          variant={priceTab === 'fiveDay' ? 'fiveDay' : 'intraday'}
+                          onHoverBar={priceTab === 'trend' ? undefined : handleHoverBar}
+                          marketInsightOverlay={
+                            priceTab === 'trend' && showInsightOverlay
+                              ? marketInsightSnapshot?.chartOverlay
+                              : null
+                          }
+                        />
+                      )}
+                    </Suspense>
+                  ) : (
+                    <div className="chart-loading">最近交易日暂无{tabMeta?.label}数据</div>
+                  )}
+                </div>
+                {priceTab === 'trend' && capabilities.orderBook ? (
+                  <OrderBookPanel
+                    key={cacheRevisions['market-details'] ?? 0}
+                    stock={stock}
+                    refreshSeconds={refreshSeconds}
+                    autoRefresh={autoRefreshOrderBook}
+                  />
+                ) : priceTab === 'daily' &&
+                  chipDistributionEnabled &&
+                  capabilities.chipDistribution ? (
+                  <ChipDistributionPanel
+                    key={cacheRevisions['market-details'] ?? 0}
+                    quoteId={stock.quoteId}
+                    quoteName={stock.name}
+                    bars={chipBars}
+                    dataStatus={chipDataStatus}
+                    statusDetail={chipStatusDetail}
+                    isAutoRange={chipAutoRangeMode}
+                    onRestoreAutoRange={restoreChipAutoRange}
+                  />
+                ) : null}
+              </div>
+            </div>
+          ) : capabilities.sector && activeMarketTab === 'sector' ? (
+            <div className="sector-tab-panel" role="tabpanel">
+              <Suspense fallback={<div className="chart-loading">正在加载板块详情…</div>}>
+                <SectorIndexPanel key={cacheRevisions['market-details'] ?? 0} stock={stock} />
+              </Suspense>
+            </div>
+          ) : null}
         </div>
       ) : capabilities.fundsFlow && activeTab === 'funds' ? (
         <div className="funds-tab-panel" role="tabpanel">
           <FundsFlowPanel key={cacheRevisions['market-details'] ?? 0} stock={stock} />
-        </div>
-      ) : capabilities.sector && activeTab === 'sector' ? (
-        <div className="sector-tab-panel" role="tabpanel">
-          <Suspense fallback={<div className="chart-loading">正在加载板块详情…</div>}>
-            <SectorIndexPanel key={cacheRevisions['market-details'] ?? 0} stock={stock} />
-          </Suspense>
         </div>
       ) : capabilities.aiAnalysis && activeTab === 'ai' && AiAnalysisPanel ? (
         <Suspense fallback={<div className="chart-loading">正在初始化 AI 分析…</div>}>

@@ -1391,14 +1391,21 @@
   border-bottom: 1px solid #263449;
   box-shadow: 0 5px 8px -8px rgba(0, 4, 13, 0.57);
 }
-:root[data-theme='dark'] .detail-tabs button {
+:root[data-theme='dark'] .market-chart-tabs {
+  background: #111827;
+  border-color: #263449;
+}
+:root[data-theme='dark'] .detail-tabs button,
+:root[data-theme='dark'] .market-chart-tabs button {
   color: #cbd5e3;
 }
-:root[data-theme='dark'] .detail-tabs button:hover {
+:root[data-theme='dark'] .detail-tabs button:hover,
+:root[data-theme='dark'] .market-chart-tabs button:hover {
   color: #5b8cff;
   background: rgba(91, 140, 255, 0.14);
 }
-:root[data-theme='dark'] .detail-tabs button.is-active {
+:root[data-theme='dark'] .detail-tabs button.is-active,
+:root[data-theme='dark'] .market-chart-tabs button.is-active {
   background: rgba(91, 140, 255, 0.14);
 }
 :root[data-theme='dark'] .insight-disabled-state {
