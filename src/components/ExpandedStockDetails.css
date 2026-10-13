@@ -4423,8 +4423,7 @@
 }
 
 .chart-loading,
-.chart-error,
-.initial-loading {
+.chart-error {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4484,9 +4483,4 @@
 
 .chart-refresh-warning button:hover {
   text-decoration: underline;
-}
-
-.initial-loading {
-  min-height: 0;
-  flex: 1;
 }

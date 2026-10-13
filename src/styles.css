@@ -542,6 +542,17 @@ tr:focus-visible {
   font-size: 13px;
 }
 
+.initial-loading {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #7b8798;
+  font-size: 12px;
+}
+
 .search-loader {
   width: 15px;
   height: 15px;
