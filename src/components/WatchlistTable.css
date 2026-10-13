@@ -1,3 +1,7 @@
+:root {
+  --watchlist-styles-ready: 1;
+}
+
 .watchlist-panel {
   min-height: 0;
   flex: 1;

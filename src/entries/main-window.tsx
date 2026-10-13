@@ -3,6 +3,7 @@ import { ConfirmDialogProvider } from '../components/ConfirmDialog'
 import { useLayoutEffect } from 'react'
 import { renderWindow } from './render-window'
 import '../styles.css'
+import '../components/WatchlistTable.css'
 import '../components/ConfirmDialog.css'
 import '../styles/app-feedback.css'
 
@@ -11,11 +12,12 @@ function StartupShellDismiss() {
     let frame = 0
 
     const dismissWhenStylesReady = () => {
-      const stylesReady = getComputedStyle(document.documentElement)
-        .getPropertyValue('--app-styles-ready')
-        .trim()
+      const rootStyles = getComputedStyle(document.documentElement)
+      const appStylesReady = rootStyles.getPropertyValue('--app-styles-ready').trim() === '1'
+      const watchlistStylesReady =
+        rootStyles.getPropertyValue('--watchlist-styles-ready').trim() === '1'
 
-      if (stylesReady !== '1') {
+      if (!appStylesReady || !watchlistStylesReady) {
         frame = window.requestAnimationFrame(dismissWhenStylesReady)
         return
       }

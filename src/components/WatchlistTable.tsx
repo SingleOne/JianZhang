@@ -88,7 +88,6 @@ import { WatchlistFilters } from './watchlist-table/WatchlistFilters'
 import { FundamentalWatchlistOverview } from './watchlist-table/FundamentalWatchlistOverview'
 import { todayRadarSignals, WatchlistRow } from './watchlist-table/WatchlistRow'
 import { useDragReorder } from './watchlist-table/useDragReorder'
-import './WatchlistTable.css'
 import './AlertBadges.css'
 import './WatchlistDialogs.css'
 
