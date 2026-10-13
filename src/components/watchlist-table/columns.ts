@@ -66,8 +66,9 @@ export function calculatePreviousCloseDividendYield(
   dividend: DividendFinancingRankingItem | undefined,
   quote: StockQuote | undefined
 ): PreviousCloseDividendYield | null {
+  const previousYear = Number(currentDateKey().slice(0, 4)) - 1
   const annualDividend = dividend?.annualDividends?.find(
-    (point) => point.year === dividend.lastDividendYear
+    (point) => point.year === previousYear
   )
   const latest = quote?.latest
   const previousClose = quote?.previousClose
