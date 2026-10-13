@@ -663,9 +663,12 @@ export class WindowManager {
 
   private createMainWindow(): void {
     const colors = this.mainWindowThemeColors()
+    const { workArea } = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
     const window = new BrowserWindow({
-      width: 1380,
-      height: 860,
+      x: workArea.x,
+      y: workArea.y,
+      width: workArea.width,
+      height: workArea.height,
       minWidth: 1080,
       minHeight: 700,
       show: false,
