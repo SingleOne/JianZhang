@@ -8,7 +8,25 @@ import '../styles/app-feedback.css'
 
 function StartupShellDismiss() {
   useLayoutEffect(() => {
-    document.getElementById('startup-shell')?.remove()
+    let frame = 0
+
+    const dismissWhenStylesReady = () => {
+      const stylesReady = getComputedStyle(document.documentElement)
+        .getPropertyValue('--app-styles-ready')
+        .trim()
+
+      if (stylesReady !== '1') {
+        frame = window.requestAnimationFrame(dismissWhenStylesReady)
+        return
+      }
+
+      frame = window.requestAnimationFrame(() => {
+        document.getElementById('startup-shell')?.remove()
+      })
+    }
+
+    dismissWhenStylesReady()
+    return () => window.cancelAnimationFrame(frame)
   }, [])
 
   return null
