@@ -3,6 +3,7 @@ import type { WebContents } from 'electron'
 import type { MarketInsightSnapshot } from '../../market-insight/shared/types'
 import type { MemoryDocumentProcessingJob } from '../shared/memory-types'
 import {
+  AI_ANALYSIS_SCHEMA_VERSION,
   AI_DEFAULT_MODELS,
   AI_LONG_TERM_PROMPT_VERSION,
   AI_PROMPT_VERSION
@@ -53,6 +54,7 @@ import { MARKET_INTERPRETATION_PROMPT } from '../prompts/market-interpretation'
 import { LONG_TERM_VALUE_PROMPT } from '../prompts/long-term-value'
 import { buildLongTermContext, type CompactLongTermContext } from './analysis/long-term-context'
 import { parseLongTermInterpretation } from './analysis/long-term-interpretation'
+import { assertObjectiveAnalysisOutput } from './analysis/objective-output'
 import { DeepSeekProvider } from './providers/deepseek'
 import { AnthropicProvider } from './providers/anthropic'
 import { GeminiProvider } from './providers/gemini'
@@ -335,11 +337,11 @@ function parseInterpretation(
         if (!item || typeof item !== 'object' || Array.isArray(item)) return []
         const fact = item as Record<string, unknown>
         const name = asText(fact.name)
-        const interpretation = asText(fact.interpretation)
+        const observation = asText(fact.observation)
         const evidence = Array.isArray(fact.evidence)
           ? fact.evidence.flatMap((entry) => (asText(entry) ? [asText(entry) as string] : []))
           : []
-        return name && interpretation ? [{ name, interpretation, evidence }] : []
+        return name && observation ? [{ name, observation, evidence }] : []
       })
     : []
   const newsReferences = Array.isArray(record.newsReferences)
@@ -357,7 +359,16 @@ function parseInterpretation(
   const uncertainties = Array.isArray(record.uncertainties)
     ? record.uncertainties.flatMap((item) => (asText(item) ? [asText(item) as string] : []))
     : []
-  return { summary, indicatorFacts, newsReferences, uncertainties, generatedAt }
+  const interpretation: AiInterpretation = {
+    schemaVersion: AI_ANALYSIS_SCHEMA_VERSION,
+    summary,
+    indicatorFacts,
+    newsReferences,
+    uncertainties,
+    generatedAt
+  }
+  assertObjectiveAnalysisOutput(interpretation)
+  return interpretation
 }
 
 export class AiService {
@@ -930,14 +941,14 @@ export class AiService {
     const credential = this.getCredential(settings.providerId)
     report(
       'loading-snapshot',
-      '正在读取日 K 行情快照',
+      '正在读取技术面数据',
       '加载当前股票的日 K 指标、新闻、公告事件与最后一次筹码分布。'
     )
     const snapshot = await this.dependencies.getMarketInsightSnapshot(quoteId)
     if (!snapshot) throw new Error('当前还没有可解读的市场观察快照，请先打开市场观察并刷新')
     const compact = this.persistShortTermSnapshot(snapshot)
     const cacheKey = `${compact.snapshotId}:${settings.providerId}:${settings.model}:${AI_PROMPT_VERSION}`
-    report('checking-cache', '正在检查已有分析', '相同快照和模型已有结果时将直接使用本地缓存。')
+    report('checking-cache', '正在检查已有结果', '相同快照和模型已有结果时将直接使用本地缓存。')
     const cached = this.storage.getInterpretation<AiInterpretation>(cacheKey)
     const sources = compact.news.map((item) => ({
       id: item.id,
@@ -961,8 +972,8 @@ export class AiService {
     const controller = new AbortController()
     report(
       'analyzing',
-      'AI 正在生成短期行情解读',
-      `正在调用 ${settings.model} 按日 K 尺度分析技术指标、新闻、公告事件与筹码分布。`
+      'AI 正在提炼技术面特征',
+      `正在调用 ${settings.model} 按日 K 尺度提炼历史技术指标、新闻、公告事件与筹码分布。`
     )
     const result = await provider.streamChat(
       credential,
@@ -976,7 +987,11 @@ export class AiService {
       () => undefined,
       controller.signal
     )
-    report('validating', 'AI 已返回，正在校验结果', '检查解读结构、引用来源并保存本次结果。')
+    report(
+      'validating',
+      'AI 已返回，正在校验结果',
+      '检查数据结构、引用来源与合规措辞并保存本次结果。'
+    )
     const interpretation = parseInterpretation(result.content, now(), compact)
     this.storage.saveInterpretation(cacheKey, interpretation)
     const interpretationResult: AiInterpretationResult = {
@@ -991,7 +1006,8 @@ export class AiService {
   }
 
   getLatestInterpretation(quoteId: string): AiInterpretationResult | null {
-    return this.storage.getLatestInterpretation<AiInterpretationResult>(quoteId)
+    const result = this.storage.getLatestInterpretation<AiInterpretationResult>(quoteId)
+    return result?.interpretation.schemaVersion === AI_ANALYSIS_SCHEMA_VERSION ? result : null
   }
 
   async interpretLongTerm(
@@ -1007,15 +1023,15 @@ export class AiService {
     const credential = this.getCredential(settings.providerId)
     report(
       'loading-snapshot',
-      '正在读取长期价值数据',
-      '加载五年财务、财报 AI 总结、DCF、分红融资、当前估值和长期价格强弱。'
+      '正在读取基本面数据',
+      '加载五年财务、财报 AI 总结、DCF、分红融资、估值指标和历史价格统计。'
     )
     const [fundamentalSnapshot, dividendSnapshot] = await Promise.all([
       this.dependencies.getFundamentalSnapshot(),
       this.dependencies.getDividendFinancingSnapshot()
     ])
     if (!fundamentalSnapshot && !dividendSnapshot) {
-      throw new Error('当前还没有基本面或分红融资快照，长期价值分析暂不可用')
+      throw new Error('当前还没有基本面或分红融资快照，基本面透视暂不可用')
     }
     const quote = this.dependencies.getLatestQuote(quoteId)
     const [dailyKline, valuationHistory] = await Promise.all([
@@ -1038,8 +1054,8 @@ export class AiService {
     const cacheKey = `${context.snapshotId}:${settings.providerId}:${settings.model}:${AI_LONG_TERM_PROMPT_VERSION}`
     report(
       'checking-cache',
-      '正在检查长期分析缓存',
-      '财务、DCF、估值和价格强弱均相同时直接使用本地结果。'
+      '正在检查基本面结果缓存',
+      '财务、DCF、估值和历史价格统计均相同时直接使用本地结果。'
     )
     const cached = this.storage.getInterpretation<AiLongTermInterpretation>(cacheKey)
     if (cached) {
@@ -1065,8 +1081,8 @@ export class AiService {
     const controller = new AbortController()
     report(
       'analyzing',
-      'AI 正在分析长期价值',
-      `正在调用 ${settings.model} 分析经营质量、估值与价格时机。`
+      'AI 正在提炼基本面数据',
+      `正在调用 ${settings.model} 提炼历史经营、财务结构、估值模型与价格统计。`
     )
     const result = await provider.streamChat(
       credential,
@@ -1080,7 +1096,7 @@ export class AiService {
       () => undefined,
       controller.signal
     )
-    report('validating', 'AI 已返回，正在校验结果', '检查长期价值维度、证据和风险边界并保存结果。')
+    report('validating', 'AI 已返回，正在校验结果', '检查指标分组、数据证据与合规措辞并保存结果。')
     const interpretation = parseLongTermInterpretation(result.content, now())
     this.storage.saveInterpretation(cacheKey, interpretation)
     const interpretationResult: AiLongTermInterpretationResult = {
@@ -1103,9 +1119,10 @@ export class AiService {
   }
 
   getLatestLongTermInterpretation(quoteId: string): AiLongTermInterpretationResult | null {
-    return this.storage.getLatestInterpretation<AiLongTermInterpretationResult>(
+    const result = this.storage.getLatestInterpretation<AiLongTermInterpretationResult>(
       `${quoteId}:long-term`
     )
+    return result?.interpretation.schemaVersion === AI_ANALYSIS_SCHEMA_VERSION ? result : null
   }
 
   async runStructuredTask(

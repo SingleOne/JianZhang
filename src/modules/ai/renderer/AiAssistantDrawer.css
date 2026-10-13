@@ -1847,7 +1847,7 @@
   padding: 0 11px;
   font-size: 12px;
 }
-.ai-analysis-disclaimer {
+.ai-analysis-description {
   color: #8290a3;
   font-size: 12px;
   line-height: 1.6;
@@ -1891,6 +1891,26 @@
   color: inherit;
   font-size: 12px;
   opacity: 0.78;
+}
+.ai-analysis-legal-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 11px 12px;
+  color: #704e13;
+  background: #fff8e8;
+  border: 1px solid #ead29b;
+  border-radius: 8px;
+}
+.ai-analysis-legal-notice > svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: #a66b00;
+}
+.ai-analysis-legal-notice p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.7;
 }
 .ai-analysis-error {
   display: flex;
@@ -2055,7 +2075,7 @@
 }
 .ai-long-term-dimensions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 .ai-long-term-dimensions article {
@@ -2066,9 +2086,7 @@
   border: 1px solid #dfe8dc;
   border-radius: 8px;
 }
-.ai-long-term-dimensions article.is-valuation,
-.ai-long-term-dimensions article.is-priceTiming,
-.ai-long-term-dimensions article.is-currentPrice {
+.ai-long-term-dimensions article.is-valuationMetrics {
   background: #fffaf0;
   border-color: #eee0ba;
 }
@@ -2076,9 +2094,7 @@
   color: #416039;
   font-size: 13px;
 }
-.ai-long-term-dimensions article.is-valuation strong,
-.ai-long-term-dimensions article.is-priceTiming strong,
-.ai-long-term-dimensions article.is-currentPrice strong {
+.ai-long-term-dimensions article.is-valuationMetrics strong {
   color: #83631c;
 }
 .ai-long-term-dimensions p {
@@ -2091,32 +2107,6 @@
   color: #7c8b78;
   font-size: 12px;
   line-height: 1.55;
-}
-.ai-long-term-conclusions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-.ai-long-term-conclusions article {
-  display: grid;
-  gap: 6px;
-  padding: 12px;
-  border: 1px solid #dce5ef;
-  border-radius: 8px;
-  background: #f8fafc;
-}
-.ai-long-term-conclusions article > span,
-.ai-long-term-conclusions article > p {
-  color: #6f7e91;
-  font-size: 12px;
-}
-.ai-long-term-conclusions article > strong {
-  color: #34465d;
-  font-size: 15px;
-}
-.ai-long-term-conclusions article > p {
-  margin: 0;
-  line-height: 1.6;
 }
 .ai-analysis-risks {
   display: grid;
@@ -2529,8 +2519,7 @@
   }
   .ai-t-metrics,
   .ai-t-reason-grid,
-  .ai-long-term-dimensions,
-  .ai-long-term-conclusions {
+  .ai-long-term-dimensions {
     grid-template-columns: 1fr;
   }
 }
@@ -2743,9 +2732,7 @@
   box-shadow: inset 0 0 0 1px #355579;
 }
 
-:root[data-theme='dark'] .ai-long-term-dimensions article.is-valuation,
-:root[data-theme='dark'] .ai-long-term-dimensions article.is-priceTiming,
-:root[data-theme='dark'] .ai-long-term-dimensions article.is-currentPrice {
+:root[data-theme='dark'] .ai-long-term-dimensions article.is-valuationMetrics {
   background: #3a3324;
   border-color: #655633;
 }
@@ -2754,9 +2741,7 @@
   color: #c2deb9;
 }
 
-:root[data-theme='dark'] .ai-long-term-dimensions article.is-valuation strong,
-:root[data-theme='dark'] .ai-long-term-dimensions article.is-priceTiming strong,
-:root[data-theme='dark'] .ai-long-term-dimensions article.is-currentPrice strong {
+:root[data-theme='dark'] .ai-long-term-dimensions article.is-valuationMetrics strong {
   color: #efd083;
 }
 
@@ -2768,18 +2753,14 @@
   color: #aab8a6;
 }
 
-:root[data-theme='dark'] .ai-long-term-conclusions article {
-  background: #253348;
-  border-color: #4a4b49;
+:root[data-theme='dark'] .ai-analysis-legal-notice {
+  color: #e8d3a9;
+  background: #3a3022;
+  border-color: #604f31;
 }
 
-:root[data-theme='dark'] .ai-long-term-conclusions article > span,
-:root[data-theme='dark'] .ai-long-term-conclusions article > p {
-  color: #aab8c8;
-}
-
-:root[data-theme='dark'] .ai-long-term-conclusions article > strong {
-  color: #dbe5f0;
+:root[data-theme='dark'] .ai-analysis-legal-notice > svg {
+  color: #f0c36b;
 }
 
 :root[data-theme='dark'] .ai-t-metrics > div {

@@ -376,10 +376,11 @@ export interface AiConversationExport {
 }
 
 export interface AiInterpretation {
+  schemaVersion: 2
   summary: string
   indicatorFacts: Array<{
     name: string
-    interpretation: string
+    observation: string
     evidence: string[]
   }>
   newsReferences: Array<{
@@ -405,43 +406,17 @@ export interface AiInterpretationResult {
   }>
 }
 
-export type AiLongTermDimensionId =
-  | 'businessQuality'
-  | 'cashFlow'
-  | 'capitalEfficiency'
-  | 'balanceSheet'
-  | 'valuation'
-  | 'shareholderReturn'
-  | 'priceTiming'
-
-export type AiLongTermSectionId = 'enterpriseQuality' | 'financialSafety' | 'currentPrice'
-
-export type AiLongTermValueLevel = 'high' | 'medium' | 'low' | 'insufficient'
-export type AiLongTermPriceTimingLevel = 'favorable' | 'neutral' | 'unfavorable' | 'insufficient'
+export type AiLongTermSectionId = 'operatingMetrics' | 'financialStructure' | 'valuationMetrics'
 
 export interface AiLongTermInterpretation {
+  schemaVersion: 2
   summary: string
   sections: Array<{
     id: AiLongTermSectionId
-    conclusion: string
+    observation: string
     evidence: string[]
   }>
-  conclusion: {
-    longTermValue: {
-      level: AiLongTermValueLevel
-      reason: string
-    }
-    priceTiming: {
-      level: AiLongTermPriceTimingLevel
-      reason: string
-    }
-  }
-  dimensions?: Array<{
-    id: AiLongTermDimensionId
-    conclusion: string
-    evidence: string[]
-  }>
-  risks: string[]
+  riskFacts: string[]
   uncertainties: string[]
   generatedAt: string
 }

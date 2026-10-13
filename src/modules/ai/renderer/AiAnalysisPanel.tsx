@@ -4,22 +4,20 @@ import {
   ChartNoAxesCombined,
   Landmark,
   LoaderCircle,
-  MessageSquare,
   RefreshCw,
+  ShieldAlert,
   Sparkles
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { AppButton } from '../../../components/AppButton'
 import { emitCompletionNotification } from '../../../lib/completion-notifications'
 import type { StockQuote, WatchStock } from '../../../shared/types'
 import type {
   AiAnalysisProgressEvent,
   AiAnalysisType,
   AiInterpretationResult,
-  AiLongTermDimensionId,
   AiLongTermInterpretationResult,
-  AiLongTermPriceTimingLevel,
-  AiLongTermSectionId,
-  AiLongTermValueLevel
+  AiLongTermSectionId
 } from '../shared/types'
 
 interface AiAnalysisPanelProps {
@@ -29,36 +27,12 @@ interface AiAnalysisPanelProps {
   onAnalysisTypeChange: (analysisType: AiAnalysisType) => void
 }
 
-const ANALYSIS_STEPS = ['检查配置', '读取快照', '检查缓存', 'AI 解读', '校验结果'] as const
-
-const LONG_TERM_DIMENSION_LABELS: Record<AiLongTermDimensionId, string> = {
-  businessQuality: '经营质量',
-  cashFlow: '现金质量',
-  capitalEfficiency: '资本效率',
-  balanceSheet: '财务结构',
-  valuation: '当前估值',
-  shareholderReturn: '股东回报',
-  priceTiming: '价格时机'
-}
+const ANALYSIS_STEPS = ['检查配置', '读取快照', '检查缓存', 'AI 提炼', '校验结果'] as const
 
 const LONG_TERM_SECTION_LABELS: Record<AiLongTermSectionId, string> = {
-  enterpriseQuality: '企业质量',
-  financialSafety: '财务安全',
-  currentPrice: '当前价格'
-}
-
-const LONG_TERM_VALUE_LABELS: Record<AiLongTermValueLevel, string> = {
-  high: '较高',
-  medium: '中性',
-  low: '较低',
-  insufficient: '数据不足'
-}
-
-const PRICE_TIMING_LABELS: Record<AiLongTermPriceTimingLevel, string> = {
-  favorable: '较好',
-  neutral: '中性',
-  unfavorable: '偏差',
-  insufficient: '数据不足'
+  operatingMetrics: '经营与现金流指标',
+  financialStructure: '财务结构指标',
+  valuationMetrics: '估值模型与价格统计'
 }
 
 function analysisStep(phase: AiAnalysisProgressEvent['phase']): number {
@@ -72,14 +46,6 @@ function analysisStep(phase: AiAnalysisProgressEvent['phase']): number {
           : index === 3
             ? phase === 'analyzing'
             : phase === 'validating'
-  )
-}
-
-function openAssistant(stock: WatchStock): void {
-  window.dispatchEvent(
-    new CustomEvent('ai:open-assistant', {
-      detail: { quoteId: stock.quoteId, quoteName: stock.name }
-    })
   )
 }
 
@@ -122,7 +88,7 @@ function ShortTermResult({ result }: { result: AiInterpretationResult }) {
       </div>
       <section className="ai-analysis-summary">
         <div>
-          <strong>短期行情解读</strong>
+          <strong>技术面特征摘要</strong>
           <small>{result.cached ? '相同快照缓存结果' : '最近一次生成结果'}</small>
         </div>
         <p>{result.interpretation.summary}</p>
@@ -132,9 +98,9 @@ function ShortTermResult({ result }: { result: AiInterpretationResult }) {
           <h4>指标事实与解读</h4>
           <div className="ai-analysis-facts">
             {result.interpretation.indicatorFacts.map((fact) => (
-              <article key={`${fact.name}-${fact.interpretation}`}>
+              <article key={`${fact.name}-${fact.observation}`}>
                 <strong>{fact.name}</strong>
-                <p>{fact.interpretation}</p>
+                <p>{fact.observation}</p>
                 {fact.evidence.length > 0 ? <small>{fact.evidence.join(' · ')}</small> : null}
               </article>
             ))}
@@ -189,37 +155,6 @@ function ShortTermResult({ result }: { result: AiInterpretationResult }) {
 
 function LongTermResult({ result }: { result: AiLongTermInterpretationResult }) {
   const interpretation = result.interpretation
-  const sections =
-    interpretation.sections ??
-    [
-      {
-        id: 'enterpriseQuality' as const,
-        dimensions: [
-          'businessQuality',
-          'cashFlow',
-          'capitalEfficiency',
-          'shareholderReturn'
-        ] as AiLongTermDimensionId[]
-      },
-      { id: 'financialSafety' as const, dimensions: ['balanceSheet'] as AiLongTermDimensionId[] },
-      {
-        id: 'currentPrice' as const,
-        dimensions: ['valuation', 'priceTiming'] as AiLongTermDimensionId[]
-      }
-    ].map(({ id, dimensions }) => {
-      const legacy = (interpretation.dimensions ?? []).filter((item) =>
-        dimensions.includes(item.id)
-      )
-      return {
-        id,
-        conclusion:
-          legacy
-            .map((item) => `${LONG_TERM_DIMENSION_LABELS[item.id]}：${item.conclusion}`)
-            .join('；') || '旧版结果未提供该部分',
-        evidence: legacy.flatMap((item) => item.evidence)
-      }
-    })
-  const conclusion = interpretation.conclusion
 
   return (
     <div className="ai-analysis-result is-long-term">
@@ -247,7 +182,7 @@ function LongTermResult({ result }: { result: AiLongTermInterpretationResult }) 
       </div>
       <section className="ai-analysis-summary">
         <div>
-          <strong>长期价值结论</strong>
+          <strong>基本面数据摘要</strong>
           <small>
             {result.cached ? '相同数据缓存结果' : '最近一次生成结果'} · 价格数据{' '}
             {result.priceDataAt ? formatSnapshotTime(result.priceDataAt) : '--'}
@@ -256,41 +191,22 @@ function LongTermResult({ result }: { result: AiLongTermInterpretationResult }) 
         <p>{result.interpretation.summary}</p>
       </section>
       <section>
-        <h4>企业、财务与价格</h4>
+        <h4>历史指标与模型结果</h4>
         <div className="ai-long-term-dimensions">
-          {sections.map((section) => (
+          {interpretation.sections.map((section) => (
             <article className={`is-${section.id}`} key={section.id}>
               <strong>{LONG_TERM_SECTION_LABELS[section.id]}</strong>
-              <p>{section.conclusion}</p>
+              <p>{section.observation}</p>
               {section.evidence.length > 0 ? <small>{section.evidence.join(' · ')}</small> : null}
             </article>
           ))}
         </div>
       </section>
-      <section>
-        <h4>结论</h4>
-        {conclusion ? (
-          <div className="ai-long-term-conclusions">
-            <article className={`is-${conclusion.longTermValue.level}`}>
-              <span>长期价值</span>
-              <strong>{LONG_TERM_VALUE_LABELS[conclusion.longTermValue.level]}</strong>
-              <p>{conclusion.longTermValue.reason}</p>
-            </article>
-            <article className={`is-${conclusion.priceTiming.level}`}>
-              <span>当前时机</span>
-              <strong>{PRICE_TIMING_LABELS[conclusion.priceTiming.level]}</strong>
-              <p>{conclusion.priceTiming.reason}</p>
-            </article>
-          </div>
-        ) : (
-          <p>{interpretation.summary}</p>
-        )}
-      </section>
-      {result.interpretation.risks.length > 0 ? (
+      {result.interpretation.riskFacts.length > 0 ? (
         <section>
-          <h4>长期风险</h4>
+          <h4>已披露或规则命中的风险事实</h4>
           <ul className="ai-analysis-risks">
-            {result.interpretation.risks.map((item) => (
+            {result.interpretation.riskFacts.map((item) => (
               <li key={item}>{item}</li>
             ))}
           </ul>
@@ -392,7 +308,7 @@ export function AiAnalysisPanel({
       emitCompletionNotification({
         quoteId: stock.quoteId,
         target: requestedAnalysisType === 'short-term' ? 'ai-short-term' : 'ai-long-term',
-        message: `${stock.name} ${requestedAnalysisType === 'short-term' ? '短期行情' : '长期价值'}已生成`
+        message: `${stock.name} ${requestedAnalysisType === 'short-term' ? '技术面特征' : '基本面透视'}已生成`
       })
     } catch (reason) {
       setErrors((current) => ({
@@ -413,22 +329,18 @@ export function AiAnalysisPanel({
           <span>
             <h3>AI 分析</h3>
           </span>
-          <span className="ai-analysis-disclaimer">
+          <span className="ai-analysis-description">
             {analysisType === 'short-term'
-              ? '短期行情只读取日 K 指标、新闻、公告事件和筹码，不使用分时、盘口或基本面结论。'
-              : '长期价值分别判断经营质量、估值和价格时机；股价强弱不会改变企业质量结论。'}
+              ? '技术面特征仅提炼历史日 K 指标、新闻、公告事件和筹码分布。'
+              : '基本面透视仅提炼历史财务指标、估值模型与价格统计。'}
             {quote?.updatedAt
               ? ` 当前行情更新时间：${new Date(quote.updatedAt).toLocaleString('zh-CN')}`
               : ''}
           </span>
         </div>
         <div>
-          <button className="secondary-button" type="button" onClick={() => openAssistant(stock)}>
-            <MessageSquare size={15} />问 AI
-          </button>
-          <button
-            className="primary-button"
-            type="button"
+          <AppButton
+            variant="primary"
             disabled={Boolean(loadingType)}
             onClick={() => void interpret()}
           >
@@ -440,37 +352,47 @@ export function AiAnalysisPanel({
               <Sparkles size={15} />
             )}
             {currentResult ? '重新生成' : '开始分析'}
-          </button>
+          </AppButton>
         </div>
       </header>
 
-      <div className="ai-analysis-mode-tabs" role="tablist" aria-label="AI 分析周期">
-        <button
+      <div className="ai-analysis-mode-tabs" role="tablist" aria-label="AI 分析类型">
+        <AppButton
+          variant="plain"
           className={analysisType === 'short-term' ? 'is-active' : ''}
-          type="button"
           role="tab"
           aria-selected={analysisType === 'short-term'}
           onClick={() => onAnalysisTypeChange('short-term')}
         >
           <ChartNoAxesCombined size={16} />
           <span>
-            <strong>短期行情</strong>
-            <small>日 K、新闻、公告与筹码</small>
+            <strong>技术面特征</strong>
+            <small>历史日 K、新闻、公告与筹码</small>
           </span>
-        </button>
-        <button
+        </AppButton>
+        <AppButton
+          variant="plain"
           className={analysisType === 'long-term' ? 'is-active' : ''}
-          type="button"
           role="tab"
           aria-selected={analysisType === 'long-term'}
           onClick={() => onAnalysisTypeChange('long-term')}
         >
           <Landmark size={16} />
           <span>
-            <strong>长期价值</strong>
-            <small>财务、估值、股东回报与价格时机</small>
+            <strong>基本面透视</strong>
+            <small>历史财务、估值模型与价格统计</small>
           </span>
-        </button>
+        </AppButton>
+      </div>
+
+      <div className="ai-analysis-legal-notice" role="note">
+        <ShieldAlert size={18} aria-hidden="true" />
+        <p>
+          <strong>重要声明：</strong>
+          本板块所有内容均由 AI
+          技术基于历史公开市场量价数据及上市企业官方财务报告自动提炼、计算所得。AI
+          并非持牌证券投资顾问，不具备证券投资咨询资质。所有分析结果不包含任何主观投资倾向，亦不构成任何买卖建议或对未来行情的预测。数理模型计算结果受预设参数影响较大，请投资者务必保持独立思考，审慎决策，据此操作风险自担。
+        </p>
       </div>
 
       {errors[analysisType] ? (
@@ -523,8 +445,8 @@ export function AiAnalysisPanel({
           <strong>按需分析，不自动调用模型</strong>
           <span>
             {analysisType === 'short-term'
-              ? '短期行情按日 K 尺度读取技术、新闻、公告和筹码，不使用分时或盘口。'
-              : '长期价值读取财务、估值和长期价格位置，不使用分时、盘口或筹码。'}
+              ? '技术面特征按日 K 尺度提炼历史指标、新闻、公告和筹码，不预测后续行情。'
+              : '基本面透视提炼历史财务指标、估值模型和价格统计，不进行价值评级或择时判断。'}
           </span>
         </div>
       ) : null}

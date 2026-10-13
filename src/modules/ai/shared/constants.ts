@@ -80,5 +80,6 @@ export const AI_DEFAULT_MODELS = {
   anthropic: 'claude-sonnet-5'
 } satisfies Record<AiProviderId, string>
 
-export const AI_PROMPT_VERSION = '2026-08-07.1'
-export const AI_LONG_TERM_PROMPT_VERSION = '2026-08-07.2'
+export const AI_ANALYSIS_SCHEMA_VERSION = 2
+export const AI_PROMPT_VERSION = '2026-10-13.1'
+export const AI_LONG_TERM_PROMPT_VERSION = '2026-10-13.1'
