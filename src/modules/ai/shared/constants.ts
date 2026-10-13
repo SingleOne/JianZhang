@@ -80,6 +80,8 @@ export const AI_DEFAULT_MODELS = {
   anthropic: 'claude-sonnet-5'
 } satisfies Record<AiProviderId, string>
 
-export const AI_ANALYSIS_SCHEMA_VERSION = 2
-export const AI_PROMPT_VERSION = '2026-10-13.1'
-export const AI_LONG_TERM_PROMPT_VERSION = '2026-10-13.1'
+export const AI_ANALYSIS_SCHEMA_VERSION = 3
+export const AI_PROMPT_VERSION = '2026-10-13.2'
+export const AI_LONG_TERM_PROMPT_VERSION = '2026-10-13.2'
+export const AI_TECHNICAL_RISK_NOTICE =
+  '提示：历史技术指标存在严重的滞后性，量价特征仅代表过去，不能作为预测未来走势的依据。'

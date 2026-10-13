@@ -8,7 +8,7 @@ import {
   ShieldAlert,
   Sparkles
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AppButton } from '../../../components/AppButton'
 import { emitCompletionNotification } from '../../../lib/completion-notifications'
 import type { StockQuote, WatchStock } from '../../../shared/types'
@@ -30,9 +30,9 @@ interface AiAnalysisPanelProps {
 const ANALYSIS_STEPS = ['检查配置', '读取快照', '检查缓存', 'AI 提炼', '校验结果'] as const
 
 const LONG_TERM_SECTION_LABELS: Record<AiLongTermSectionId, string> = {
-  operatingMetrics: '经营与现金流指标',
-  financialStructure: '财务结构指标',
-  valuationMetrics: '估值模型与价格统计'
+  operatingMetrics: '历史财务表现摘要',
+  financialStructure: '财务结构与负债提示',
+  valuationMetrics: '数理模型计算参考'
 }
 
 function analysisStep(phase: AiAnalysisProgressEvent['phase']): number {
@@ -62,14 +62,6 @@ function formatSnapshotTime(value: string): string {
 }
 
 function ShortTermResult({ result }: { result: AiInterpretationResult }) {
-  const references = useMemo(() => {
-    const sourceMap = new Map(result.sources.map((source) => [source.id, source]))
-    return result.interpretation.newsReferences.flatMap((reference) => {
-      const source = sourceMap.get(reference.sourceId)
-      return source ? [{ ...reference, source }] : []
-    })
-  }, [result])
-
   return (
     <div className="ai-analysis-result">
       <div className="ai-result-time-banner">
@@ -88,14 +80,14 @@ function ShortTermResult({ result }: { result: AiInterpretationResult }) {
       </div>
       <section className="ai-analysis-summary">
         <div>
-          <strong>技术面特征摘要</strong>
+          <strong>近期量价客观现状</strong>
           <small>{result.cached ? '相同快照缓存结果' : '最近一次生成结果'}</small>
         </div>
         <p>{result.interpretation.summary}</p>
       </section>
       {result.interpretation.indicatorFacts.length > 0 ? (
         <section>
-          <h4>指标事实与解读</h4>
+          <h4>技术指标状态呈现</h4>
           <div className="ai-analysis-facts">
             {result.interpretation.indicatorFacts.map((fact) => (
               <article key={`${fact.name}-${fact.observation}`}>
@@ -107,41 +99,9 @@ function ShortTermResult({ result }: { result: AiInterpretationResult }) {
           </div>
         </section>
       ) : null}
-      {references.length > 0 ? (
-        <section>
-          <h4>要闻参考</h4>
-          <div className="ai-analysis-news">
-            {references.map((reference) => (
-              <article key={reference.sourceId}>
-                <div>
-                  <strong>{reference.source.title}</strong>
-                  <small>
-                    {reference.source.source} ·{' '}
-                    {new Date(reference.source.publishedAt).toLocaleString('zh-CN')}
-                  </small>
-                </div>
-                <p>{reference.summary}</p>
-                <span>{reference.relevance}</span>
-                <a
-                  href={reference.source.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={(event) => {
-                    if (!window.marketInsightApi) return
-                    event.preventDefault()
-                    void window.marketInsightApi.openSource(reference.source.url)
-                  }}
-                >
-                  查看原始来源
-                </a>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
       {result.interpretation.uncertainties.length > 0 ? (
         <section>
-          <h4>不确定性</h4>
+          <h4>数据边界</h4>
           <ul className="ai-analysis-uncertainties">
             {result.interpretation.uncertainties.map((item) => (
               <li key={item}>{item}</li>
@@ -149,6 +109,10 @@ function ShortTermResult({ result }: { result: AiInterpretationResult }) {
           </ul>
         </section>
       ) : null}
+      <section>
+        <h4>风险提示</h4>
+        <p className="ai-analysis-risk-notice">{result.interpretation.riskNotice}</p>
+      </section>
     </div>
   )
 }
@@ -191,12 +155,17 @@ function LongTermResult({ result }: { result: AiLongTermInterpretationResult }) 
         <p>{result.interpretation.summary}</p>
       </section>
       <section>
-        <h4>历史指标与模型结果</h4>
+        <h4>财报与模型数据</h4>
         <div className="ai-long-term-dimensions">
           {interpretation.sections.map((section) => (
             <article className={`is-${section.id}`} key={section.id}>
               <strong>{LONG_TERM_SECTION_LABELS[section.id]}</strong>
               <p>{section.observation}</p>
+              {section.id === 'valuationMetrics' && interpretation.modelCalculationReference ? (
+                <p className="ai-model-calculation-reference">
+                  {interpretation.modelCalculationReference}
+                </p>
+              ) : null}
               {section.evidence.length > 0 ? <small>{section.evidence.join(' · ')}</small> : null}
             </article>
           ))}
@@ -308,7 +277,7 @@ export function AiAnalysisPanel({
       emitCompletionNotification({
         quoteId: stock.quoteId,
         target: requestedAnalysisType === 'short-term' ? 'ai-short-term' : 'ai-long-term',
-        message: `${stock.name} ${requestedAnalysisType === 'short-term' ? '技术面特征' : '基本面透视'}已生成`
+        message: `${stock.name} ${requestedAnalysisType === 'short-term' ? '近期动能分析' : '基本面透视'}已生成`
       })
     } catch (reason) {
       setErrors((current) => ({
@@ -331,7 +300,7 @@ export function AiAnalysisPanel({
           </span>
           <span className="ai-analysis-description">
             {analysisType === 'short-term'
-              ? '技术面特征仅提炼历史日 K 指标、新闻、公告事件和筹码分布。'
+              ? '近期动能分析仅提炼历史日 K 量价与技术指标。'
               : '基本面透视仅提炼历史财务指标、估值模型与价格统计。'}
             {quote?.updatedAt
               ? ` 当前行情更新时间：${new Date(quote.updatedAt).toLocaleString('zh-CN')}`
@@ -366,8 +335,8 @@ export function AiAnalysisPanel({
         >
           <ChartNoAxesCombined size={16} />
           <span>
-            <strong>技术面特征</strong>
-            <small>历史日 K、新闻、公告与筹码</small>
+            <strong>近期动能分析</strong>
+            <small>历史日 K 量价与技术指标</small>
           </span>
         </AppButton>
         <AppButton
@@ -445,7 +414,7 @@ export function AiAnalysisPanel({
           <strong>按需分析，不自动调用模型</strong>
           <span>
             {analysisType === 'short-term'
-              ? '技术面特征按日 K 尺度提炼历史指标、新闻、公告和筹码，不预测后续行情。'
+              ? '近期动能分析按日 K 尺度提炼历史量价与技术指标，不预测后续行情。'
               : '基本面透视提炼历史财务指标、估值模型和价格统计，不进行价值评级或择时判断。'}
           </span>
         </div>

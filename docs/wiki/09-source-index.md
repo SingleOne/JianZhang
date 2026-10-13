@@ -159,19 +159,19 @@
 
 ## 可选模块
 
-| 目录/文件                                                                                                                    | 职责                                                                                          |
-| ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| [`src/modules/market-insight`](../../src/modules/market-insight/)                                                            | 确定性指标、客观事件、公告/要闻、快照和独立调度/存储                                          |
-| [`src/modules/ai`](../../src/modules/ai/)                                                                                    | Provider、加密凭证、会话、`@股票` 完整市场上下文、日 K 技术面特征/基本面透视和独立 IPC/UI    |
-| [`src/modules/ai/main/conversations/context-builder.ts`](../../src/modules/ai/main/conversations/context-builder.ts)         | 最近消息与多股票快照组装，加入筹码分布缓存                                                    |
-| [`src/modules/ai/main/analysis/long-term-context.ts`](../../src/modules/ai/main/analysis/long-term-context.ts)               | 组合五年财务、DCF、分红融资、估值分位及历史价格统计，生成基本面透视快照指纹                   |
+| 目录/文件                                                                                                                    | 职责                                                                                         |
+| ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| [`src/modules/market-insight`](../../src/modules/market-insight/)                                                            | 确定性指标、客观事件、公告/要闻、快照和独立调度/存储                                         |
+| [`src/modules/ai`](../../src/modules/ai/)                                                                                    | Provider、加密凭证、会话、`@股票` 完整市场上下文、近期动能分析/基本面透视和独立 IPC/UI       |
+| [`src/modules/ai/main/conversations/context-builder.ts`](../../src/modules/ai/main/conversations/context-builder.ts)         | 最近消息与多股票快照组装，加入筹码分布缓存                                                   |
+| [`src/modules/ai/main/analysis/long-term-context.ts`](../../src/modules/ai/main/analysis/long-term-context.ts)               | 组合五年财务、DCF、分红融资、估值分位及历史价格统计，生成基本面透视快照指纹                  |
 | [`src/modules/ai/main/analysis/long-term-interpretation.ts`](../../src/modules/ai/main/analysis/long-term-interpretation.ts) | 校验经营指标、财务结构、估值模型三部分客观输出和合规措辞                                     |
 | [`src/modules/ai/prompts/long-term-value.ts`](../../src/modules/ai/prompts/long-term-value.ts)                               | 约束财报提炼、DCF 模型说明以及去预测、去评级、去决策化输出                                   |
-| [`src/modules/ai/renderer/AiAssistantDrawer.tsx`](../../src/modules/ai/renderer/AiAssistantDrawer.tsx)                       | 会话管理、流式聊天和 `@自选股` 选择                                                           |
-| [`src/components/InvestmentValueMetrics.tsx`](../../src/components/InvestmentValueMetrics.tsx)                               | 基本面与市场观察复用的 PE/PB/PCF历史与行业分位、PCF/PE剪刀差、总市值、流通市值和资本回报展示  |
-| [`electron/main/valuation-history-service.ts`](../../electron/main/valuation-history-service.ts)                             | 按股票获取并缓存近五年日度 PE TTM/PB/PCF TTM历史序列                                          |
-| [`src/lib/valuation-analysis.ts`](../../src/lib/valuation-analysis.ts)                                                       | 计算 PE/PB/PCF历史与同行分位、PCF/PE剪刀差及备用行情市值换算                                  |
-| [`src/modules/ai-t-advice`](../../src/modules/ai-t-advice/)                                                                  | 结构化只读做 T 参考、确定性事件、校验和独立历史                                               |
+| [`src/modules/ai/renderer/AiAssistantDrawer.tsx`](../../src/modules/ai/renderer/AiAssistantDrawer.tsx)                       | 会话管理、流式聊天和 `@自选股` 选择                                                          |
+| [`src/components/InvestmentValueMetrics.tsx`](../../src/components/InvestmentValueMetrics.tsx)                               | 基本面与市场观察复用的 PE/PB/PCF历史与行业分位、PCF/PE剪刀差、总市值、流通市值和资本回报展示 |
+| [`electron/main/valuation-history-service.ts`](../../electron/main/valuation-history-service.ts)                             | 按股票获取并缓存近五年日度 PE TTM/PB/PCF TTM历史序列                                         |
+| [`src/lib/valuation-analysis.ts`](../../src/lib/valuation-analysis.ts)                                                       | 计算 PE/PB/PCF历史与同行分位、PCF/PE剪刀差及备用行情市值换算                                 |
+| [`src/modules/ai-t-advice`](../../src/modules/ai-t-advice/)                                                                  | 结构化只读做 T 参考、确定性事件、校验和独立历史                                              |
 
 ## 脚本和历史文档
 

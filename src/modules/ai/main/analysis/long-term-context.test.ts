@@ -7,7 +7,11 @@ import type {
   StockQuote,
   StockValuationHistory
 } from '../../../../shared/types'
-import { buildLongTermContext, calculateLongTermPriceStrength } from './long-term-context'
+import {
+  buildLongTermContext,
+  calculateLongTermPriceStrength,
+  toLongTermProviderContext
+} from './long-term-context'
 
 const readyState: DataSnapshotRuntimeState = {
   status: 'ready',
@@ -228,26 +232,24 @@ describe('long-term AI context', () => {
         currentValue: 1.8,
         historicalPercentile: 50,
         industryPercentile: 36
-      },
-      dcf: {
-        available: true,
-        forecastYears: 5,
-        discountRate: 10,
-        terminalGrowthRate: 3,
-        currentPrice: 120,
-        lowValueThresholdPercent: 70,
-        belowLowValueThreshold: true
       }
     })
-    expect(
-      context.valuation.dcf.available && context.valuation.dcf.fairValuePerShare
-    ).toBeGreaterThan(0)
-    expect(
-      context.valuation.dcf.available && context.valuation.dcf.fairValueToPricePercent
-    ).toBeLessThan(70)
-    expect(
-      context.valuation.dcf.available && context.valuation.dcf.priceToFairValuePercent
-    ).toBeGreaterThan(100)
+    expect(context.valuation.strictDcf?.analysis?.rangeLow).toBeGreaterThan(0)
+    expect(context.valuation.strictDcf?.analysis?.rangeHigh).toBeGreaterThan(
+      context.valuation.strictDcf?.analysis?.rangeLow ?? 0
+    )
+    expect(context.valuation.strictDcf?.analysis?.scenarios[0]).toEqual(
+      expect.objectContaining({
+        scenario: 'conservative',
+        forecastGrowthRate: expect.any(Number),
+        discountRate: expect.any(Number)
+      })
+    )
+    expect(JSON.stringify(context.valuation.strictDcf)).not.toContain('fairValuePerShare')
+    expect(JSON.stringify(context.valuation.strictDcf)).not.toContain('conclusion')
+    expect('dcf' in context.valuation).toBe(false)
+    const providerContext = toLongTermProviderContext(context)
+    expect('strictDcf' in providerContext.valuation).toBe(false)
     expect(context.fundamental.company?.annualReports.at(-1)).toMatchObject({
       roic: 14,
       freeCashFlow: 100
@@ -343,10 +345,9 @@ describe('long-term AI context', () => {
     expect(context.fundamental.company?.annualReports.at(-1)?.freeCashFlow).toBeNull()
     expect(context.fundamental.company?.latestBalanceSheet.netDebt).toBeNull()
     expect(context.valuation.priceBookRatio.industryPercentile).toBe(36)
-    expect(context.valuation.dcf).toEqual({
-      available: false,
-      unavailableReason: 'not-applicable'
-    })
+    expect(context.valuation.strictDcf?.analysis).toBeNull()
+    expect(context.valuation.strictDcf?.unavailableReason).toBe('not-applicable')
+    expect('dcf' in context.valuation).toBe(false)
   })
 
   it('reuses the fingerprint when only the quote refresh timestamp changes', () => {

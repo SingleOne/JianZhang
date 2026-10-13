@@ -6,7 +6,8 @@ import {
   AI_ANALYSIS_SCHEMA_VERSION,
   AI_DEFAULT_MODELS,
   AI_LONG_TERM_PROMPT_VERSION,
-  AI_PROMPT_VERSION
+  AI_PROMPT_VERSION,
+  AI_TECHNICAL_RISK_NOTICE
 } from '../shared/constants'
 import type {
   AiChatSendInput,
@@ -47,13 +48,21 @@ import {
   compactShortTermSnapshot,
   toProviderMessages,
   type AiChatStockContext,
-  type CompactMarketSnapshot
+  type CompactMarketSnapshot,
+  type CompactShortTermSnapshot
 } from './conversations/context-builder'
 import { createConversationTitle } from './conversations/title-generator'
 import { MARKET_INTERPRETATION_PROMPT } from '../prompts/market-interpretation'
 import { LONG_TERM_VALUE_PROMPT } from '../prompts/long-term-value'
-import { buildLongTermContext, type CompactLongTermContext } from './analysis/long-term-context'
-import { parseLongTermInterpretation } from './analysis/long-term-interpretation'
+import {
+  buildLongTermContext,
+  toLongTermProviderContext,
+  type CompactLongTermContext
+} from './analysis/long-term-context'
+import {
+  createModelCalculationReference,
+  parseLongTermInterpretation
+} from './analysis/long-term-interpretation'
 import { assertObjectiveAnalysisOutput } from './analysis/objective-output'
 import { DeepSeekProvider } from './providers/deepseek'
 import { AnthropicProvider } from './providers/anthropic'
@@ -311,11 +320,7 @@ function asText(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null
 }
 
-function parseInterpretation(
-  content: string,
-  generatedAt: string,
-  snapshot: CompactMarketSnapshot
-): AiInterpretation {
+function parseInterpretation(content: string, generatedAt: string): AiInterpretation {
   const json = content
     .trim()
     .replace(/^```(?:json)?\s*/i, '')
@@ -331,7 +336,6 @@ function parseInterpretation(
   const record = raw as Record<string, unknown>
   const summary = asText(record.summary)
   if (!summary) throw new Error('模型解读缺少摘要，请重试')
-  const validSourceIds = new Set(snapshot.news.map((item) => item.id))
   const indicatorFacts = Array.isArray(record.indicatorFacts)
     ? record.indicatorFacts.flatMap((item) => {
         if (!item || typeof item !== 'object' || Array.isArray(item)) return []
@@ -344,18 +348,6 @@ function parseInterpretation(
         return name && observation ? [{ name, observation, evidence }] : []
       })
     : []
-  const newsReferences = Array.isArray(record.newsReferences)
-    ? record.newsReferences.flatMap((item) => {
-        if (!item || typeof item !== 'object' || Array.isArray(item)) return []
-        const reference = item as Record<string, unknown>
-        const sourceId = asText(reference.sourceId)
-        const relevance = asText(reference.relevance)
-        const itemSummary = asText(reference.summary)
-        return sourceId && relevance && itemSummary && validSourceIds.has(sourceId)
-          ? [{ sourceId, relevance, summary: itemSummary }]
-          : []
-      })
-    : []
   const uncertainties = Array.isArray(record.uncertainties)
     ? record.uncertainties.flatMap((item) => (asText(item) ? [asText(item) as string] : []))
     : []
@@ -363,8 +355,8 @@ function parseInterpretation(
     schemaVersion: AI_ANALYSIS_SCHEMA_VERSION,
     summary,
     indicatorFacts,
-    newsReferences,
     uncertainties,
+    riskNotice: AI_TECHNICAL_RISK_NOTICE,
     generatedAt
   }
   assertObjectiveAnalysisOutput(interpretation)
@@ -942,7 +934,7 @@ export class AiService {
     report(
       'loading-snapshot',
       '正在读取技术面数据',
-      '加载当前股票的日 K 指标、新闻、公告事件与最后一次筹码分布。'
+      '加载当前股票的历史日 K 指标与最后一次筹码分布。'
     )
     const snapshot = await this.dependencies.getMarketInsightSnapshot(quoteId)
     if (!snapshot) throw new Error('当前还没有可解读的市场观察快照，请先打开市场观察并刷新')
@@ -950,13 +942,7 @@ export class AiService {
     const cacheKey = `${compact.snapshotId}:${settings.providerId}:${settings.model}:${AI_PROMPT_VERSION}`
     report('checking-cache', '正在检查已有结果', '相同快照和模型已有结果时将直接使用本地缓存。')
     const cached = this.storage.getInterpretation<AiInterpretation>(cacheKey)
-    const sources = compact.news.map((item) => ({
-      id: item.id,
-      title: item.title,
-      source: item.source,
-      publishedAt: item.publishedAt,
-      url: item.url
-    }))
+    const sources: AiInterpretationResult['sources'] = []
     if (cached) {
       const cachedResult: AiInterpretationResult = {
         snapshotId: compact.snapshotId,
@@ -972,8 +958,8 @@ export class AiService {
     const controller = new AbortController()
     report(
       'analyzing',
-      'AI 正在提炼技术面特征',
-      `正在调用 ${settings.model} 按日 K 尺度提炼历史技术指标、新闻、公告事件与筹码分布。`
+      'AI 正在进行近期动能分析',
+      `正在调用 ${settings.model} 按日 K 尺度提炼历史量价与技术指标。`
     )
     const result = await provider.streamChat(
       credential,
@@ -992,7 +978,7 @@ export class AiService {
       'AI 已返回，正在校验结果',
       '检查数据结构、引用来源与合规措辞并保存本次结果。'
     )
-    const interpretation = parseInterpretation(result.content, now(), compact)
+    const interpretation = parseInterpretation(result.content, now())
     this.storage.saveInterpretation(cacheKey, interpretation)
     const interpretationResult: AiInterpretationResult = {
       snapshotId: compact.snapshotId,
@@ -1090,14 +1076,18 @@ export class AiService {
         model: settings.model,
         messages: [
           { role: 'system', content: LONG_TERM_VALUE_PROMPT },
-          { role: 'user', content: JSON.stringify(context) }
+          { role: 'user', content: JSON.stringify(toLongTermProviderContext(context)) }
         ]
       },
       () => undefined,
       controller.signal
     )
     report('validating', 'AI 已返回，正在校验结果', '检查指标分组、数据证据与合规措辞并保存结果。')
-    const interpretation = parseLongTermInterpretation(result.content, now())
+    const interpretation = parseLongTermInterpretation(
+      result.content,
+      now(),
+      createModelCalculationReference(context)
+    )
     this.storage.saveInterpretation(cacheKey, interpretation)
     const interpretationResult: AiLongTermInterpretationResult = {
       snapshotId: context.snapshotId,
@@ -1479,7 +1469,7 @@ export class AiService {
     return compact
   }
 
-  private persistShortTermSnapshot(snapshot: MarketInsightSnapshot): CompactMarketSnapshot {
+  private persistShortTermSnapshot(snapshot: MarketInsightSnapshot): CompactShortTermSnapshot {
     const compact = compactShortTermSnapshot(
       snapshot,
       this.dependencies.getChipDistributionCache(snapshot.quoteId)

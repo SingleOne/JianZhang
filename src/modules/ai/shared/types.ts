@@ -376,19 +376,15 @@ export interface AiConversationExport {
 }
 
 export interface AiInterpretation {
-  schemaVersion: 2
+  schemaVersion: 3
   summary: string
   indicatorFacts: Array<{
     name: string
     observation: string
     evidence: string[]
   }>
-  newsReferences: Array<{
-    sourceId: string
-    relevance: string
-    summary: string
-  }>
   uncertainties: string[]
+  riskNotice: string
   generatedAt: string
 }
 
@@ -409,13 +405,14 @@ export interface AiInterpretationResult {
 export type AiLongTermSectionId = 'operatingMetrics' | 'financialStructure' | 'valuationMetrics'
 
 export interface AiLongTermInterpretation {
-  schemaVersion: 2
+  schemaVersion: 3
   summary: string
   sections: Array<{
     id: AiLongTermSectionId
     observation: string
     evidence: string[]
   }>
+  modelCalculationReference: string | null
   riskFacts: string[]
   uncertainties: string[]
   generatedAt: string

@@ -32,6 +32,8 @@ export interface CompactMarketSnapshot {
   events: Array<{ title: string; facts: string[]; occurredAt: string; severity: string }>
 }
 
+export type CompactShortTermSnapshot = Omit<CompactMarketSnapshot, 'news' | 'events'>
+
 export interface AiChatStockContext {
   source: 'conversation' | 'mention'
   quoteName?: string
@@ -111,15 +113,13 @@ export function compactMarketSnapshot(
 export function compactShortTermSnapshot(
   snapshot: MarketInsightSnapshot,
   chipDistribution: ChipDistributionCacheEntry | null
-): CompactMarketSnapshot {
+): CompactShortTermSnapshot {
   const indicators = compactIndicators([
     ['technical', snapshot.indicators.technical],
     ['trend', snapshot.indicators.trend],
     ['momentum', snapshot.indicators.momentum],
     ['volatility', snapshot.indicators.volatility]
   ])
-  const news = compactNews(snapshot)
-  const events = compactEvents(snapshot.events.filter((event) => event.type === 'new_announcement'))
   const dailySource = snapshot.sourceStates?.find((source) => source.id === 'daily')
   const dataCutoffAt = dailySource?.dataCutoffAt ?? snapshot.dataCutoffAt
   const dataState =
@@ -131,8 +131,6 @@ export function compactShortTermSnapshot(
         dataCutoffAt,
         dataState,
         indicators,
-        news,
-        events,
         chipDistribution
       })
     )
@@ -145,9 +143,7 @@ export function compactShortTermSnapshot(
     dataCutoffAt,
     dataState,
     chipDistribution,
-    indicators,
-    news,
-    events
+    indicators
   }
 }
 

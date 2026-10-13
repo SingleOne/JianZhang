@@ -112,7 +112,7 @@ function snapshot(): MarketInsightSnapshot {
 }
 
 describe('compactShortTermSnapshot', () => {
-  it('keeps daily indicators, announcements and chip distribution while excluding instant trading data', () => {
+  it('keeps historical daily indicators and chip distribution without news or instant trading data', () => {
     const compact = compactShortTermSnapshot(snapshot(), chipDistribution)
 
     expect(compact.indicators.map((item) => item.group)).toEqual([
@@ -124,7 +124,8 @@ describe('compactShortTermSnapshot', () => {
     expect(compact.indicators.map((item) => item.name)).not.toContain('分时 VWAP 偏离')
     expect(compact.indicators.map((item) => item.name)).not.toContain('盘口失衡')
     expect(compact.indicators.map((item) => item.name)).not.toContain('即时相对强弱')
-    expect(compact.events.map((item) => item.title)).toEqual(['新增公告'])
+    expect('news' in compact).toBe(false)
+    expect('events' in compact).toBe(false)
     expect(compact.chipDistribution).toEqual(chipDistribution)
     expect(compact.dataCutoffAt).toBe('2026-08-07')
     expect(compact.dataState).toBe('cached')

@@ -22,14 +22,6 @@ import type {
   StockQuote,
   StockValuationHistory
 } from '../../../../shared/types'
-import {
-  DCF_DISCOUNT_RATE,
-  DCF_FORECAST_YEARS,
-  DCF_LOW_VALUE_THRESHOLD_PERCENT,
-  DCF_MAX_FORECAST_GROWTH_RATE,
-  DCF_MIN_FORECAST_GROWTH_RATE,
-  DCF_TERMINAL_GROWTH_RATE
-} from '../../../../lib/dcf-analysis'
 import { createFundamentalValuationSummary } from '../../../../lib/fundamental-valuation'
 import {
   createStockValuationAnalysis,
@@ -160,47 +152,41 @@ export function buildLongTermContext(input: LongTermContextInput) {
   const fundamentalValuation = fundamentalCompany
     ? createFundamentalValuationSummary(fundamentalCompany, input.quote?.latest)
     : null
-  const dcfResult = fundamentalValuation?.dcf ?? null
-  const dcf = dcfResult?.analysis
+  const strictDcfResult = fundamentalValuation?.strictDcf ?? null
+  const strictDcf = strictDcfResult
     ? {
-        available: true as const,
-        unavailableReason: null,
-        normalizedFreeCashFlow: dcfResult.analysis.normalizedFreeCashFlow,
-        historicalGrowthRate: dcfResult.analysis.historicalGrowthRate,
-        forecastGrowthRate: dcfResult.analysis.forecastGrowthRate,
-        forecastYears: DCF_FORECAST_YEARS,
-        discountRate: DCF_DISCOUNT_RATE,
-        terminalGrowthRate: DCF_TERMINAL_GROWTH_RATE,
-        forecastGrowthRateRange: {
-          minimum: DCF_MIN_FORECAST_GROWTH_RATE,
-          maximum: DCF_MAX_FORECAST_GROWTH_RATE
-        },
-        enterpriseValue: dcfResult.analysis.enterpriseValue,
-        equityValue: dcfResult.analysis.equityValue,
-        sharesOutstanding: dcfResult.analysis.sharesOutstanding,
-        fairValuePerShare: dcfResult.analysis.fairValuePerShare,
-        currentPrice: dcfResult.analysis.currentPrice,
-        differencePercent: dcfResult.analysis.differencePercent,
-        fairValueToPricePercent: dcfResult.analysis.fairValueToPricePercent,
-        priceToFairValuePercent: dcfResult.analysis.priceToFairValuePercent,
-        lowValueThresholdPercent: DCF_LOW_VALUE_THRESHOLD_PERCENT,
-        belowLowValueThreshold: dcfResult.analysis.belowLowValueThreshold
+        analysis: strictDcfResult.analysis
+          ? {
+              modelVersion: strictDcfResult.analysis.modelVersion,
+              normalizedFcff: strictDcfResult.analysis.normalizedFcff,
+              normalizationYears: strictDcfResult.analysis.normalizationYears,
+              historicalGrowthRate: strictDcfResult.analysis.historicalGrowthRate,
+              wacc: strictDcfResult.analysis.wacc,
+              scenarios: strictDcfResult.analysis.scenarios.map((scenario) => ({
+                scenario: scenario.scenario,
+                forecastGrowthRate: scenario.forecastGrowthRate,
+                discountRate: scenario.discountRate,
+                terminalGrowthRate: scenario.terminalGrowthRate
+              })),
+              rangeLow: strictDcfResult.analysis.rangeLow,
+              rangeHigh: strictDcfResult.analysis.rangeHigh,
+              warnings: strictDcfResult.analysis.warnings
+            }
+          : null,
+        unavailableReason: strictDcfResult.unavailableReason,
+        wacc: strictDcfResult.wacc
       }
-    : {
-        available: false as const,
-        unavailableReason: dcfResult?.unavailableReason ?? 'company-not-covered'
-      }
+    : null
   const valuation = {
     ...marketValuation,
     profile: fundamentalValuation?.profile ?? null,
     fcff: fundamentalValuation?.fcff ?? null,
     fcffModelVersion: fundamentalValuation?.fcffModelVersion ?? null,
-    strictDcf: fundamentalValuation?.strictDcf ?? null,
+    strictDcf,
     strictDcfModelVersion: fundamentalValuation?.strictDcfModelVersion ?? null,
     financialValuation: fundamentalValuation?.financialValuation ?? null,
     dataDate: fundamentalValuation?.dataDate ?? null,
-    modelVersion: fundamentalValuation?.modelVersion ?? null,
-    dcf
+    modelVersion: fundamentalValuation?.modelVersion ?? null
   }
 
   const fundamental = {
@@ -367,3 +353,13 @@ export function buildLongTermContext(input: LongTermContextInput) {
 }
 
 export type CompactLongTermContext = ReturnType<typeof buildLongTermContext>
+
+export function toLongTermProviderContext(context: CompactLongTermContext) {
+  const valuation = Object.fromEntries(
+    Object.entries(context.valuation).filter(([key]) => key !== 'strictDcf')
+  )
+  return {
+    ...context,
+    valuation
+  }
+}
