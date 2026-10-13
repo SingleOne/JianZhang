@@ -49,7 +49,10 @@ export default defineConfig({
     plugins: [react()],
     build: {
       rollupOptions: {
-        input: resolve(__dirname, 'index.html')
+        input: {
+          index: resolve(__dirname, 'index.html'),
+          main: resolve(__dirname, 'main.html')
+        }
       }
     }
   }

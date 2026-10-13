@@ -4,6 +4,8 @@ import {
   reestimateTradeExecution,
   type AccountTradeFeeContext
 } from '../lib/account-trade-fees'
+import './TTradingDrawer.css'
+import './TTradingDrawerLayout.css'
 import { PencilLine, Plus, Repeat2, Trash2, X } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'

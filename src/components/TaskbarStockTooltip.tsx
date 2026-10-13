@@ -15,6 +15,7 @@ import { calculatePositionMetrics } from '../lib/portfolio'
 import { calculateCurrentPositionProfitOverride } from '../lib/portfolio-performance'
 import { formatStockAlertValue, STOCK_ALERT_METRIC_LABELS } from '../lib/stock-alerts'
 import { marketFromQuoteId, STOCK_CURRENCY_SYMBOLS } from '../shared/stock-market'
+import { applyAppThemePreference } from '../lib/theme'
 import type { AppState, KlineBar, KlineResult, StockQuote, TaskbarLayout } from '../shared/types'
 
 const SPARKLINE_WIDTH = 76
@@ -140,6 +141,10 @@ export function TaskbarStockTooltip() {
     taskbarHeight: 48,
     taskbarEdge: 'bottom'
   })
+
+  useEffect(() => {
+    applyAppThemePreference(state.settings.theme)
+  }, [state.settings.theme])
 
   useEffect(() => {
     let active = true

@@ -13,6 +13,7 @@ import { calculatePositionMetrics } from '../lib/portfolio'
 import { calculateCurrentPositionProfitOverride } from '../lib/portfolio-performance'
 import { stockTOverview } from '../lib/stock-accounts'
 import { getTaskbarVisibleStocks } from '../lib/taskbar-visibility'
+import { applyAppThemePreference } from '../lib/theme'
 import type { AppState, StockQuote } from '../shared/types'
 
 function valueClass(value: number | null | undefined): string {
@@ -23,6 +24,10 @@ function valueClass(value: number | null | undefined): string {
 export function TrayHoverSummary() {
   const [state, setState] = useState<AppState>(initialState)
   const [quotes, setQuotes] = useState<StockQuote[]>([])
+
+  useEffect(() => {
+    applyAppThemePreference(state.settings.theme)
+  }, [state.settings.theme])
 
   useEffect(() => {
     let active = true

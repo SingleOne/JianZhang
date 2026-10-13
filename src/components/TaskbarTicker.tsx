@@ -5,6 +5,7 @@ import { formatPercent, formatPrice } from '../lib/format'
 import { getTriggeredStockAlertDirection } from '../lib/stock-alerts'
 import { getTaskbarVisibleStocks } from '../lib/taskbar-visibility'
 import { marketFromQuoteId } from '../shared/stock-market'
+import { applyAppThemePreference } from '../lib/theme'
 import type { AppState, StockQuote } from '../shared/types'
 import { FiveLevelAlertBadges } from './FiveLevelAlertBadges'
 import { TAlertBadges } from './TAlertBadges'
@@ -19,6 +20,10 @@ export function TaskbarTicker() {
   const [state, setState] = useState<AppState>(initialState)
   const [quotes, setQuotes] = useState<StockQuote[]>([])
   const tickerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    applyAppThemePreference(state.settings.theme)
+  }, [state.settings.theme])
 
   useEffect(() => {
     let active = true

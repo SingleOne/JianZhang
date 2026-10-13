@@ -1,4 +1,5 @@
 import { useSecuritiesAccountState } from './SecuritiesAccountContext'
+import './PositionDialogResponsive.css'
 import { reconcileStockTBatches, toStockTradingBook } from '../lib/stock-t-trading'
 import type { ReactNode } from 'react'
 import {

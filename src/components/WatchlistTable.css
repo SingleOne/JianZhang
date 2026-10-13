@@ -2075,6 +2075,14 @@ button.value-screening-badge:focus-visible {
   overflow: clip;
 }
 
+.expanded-row-loading {
+  min-height: 120px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .expanded-row.is-opening .expanded-row-motion {
   animation: stock-details-open 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }

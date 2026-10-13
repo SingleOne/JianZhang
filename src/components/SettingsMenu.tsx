@@ -30,6 +30,7 @@ import {
 } from '../shared/types'
 import { applyAppThemePreference } from '../lib/theme'
 import { AppButton } from './AppButton'
+import './SettingsMenu.css'
 
 const MarketInsightSettingsToggle = __JIANZHANG_MARKET_INSIGHT_ENABLED__
   ? lazy(() =>

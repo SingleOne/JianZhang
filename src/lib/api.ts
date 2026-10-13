@@ -97,6 +97,19 @@ const DEFAULT_STATE: AppState = {
   portfolioPerformanceAdjustments: {}
 }
 
+const DESKTOP_INITIAL_STATE: AppState = {
+  revision: 0,
+  watchlist: [],
+  watchlistGroups: DEFAULT_WATCHLIST_GROUPS.map((group) => ({ ...group })),
+  stockTrackingProfiles: {},
+  columnOrder: [...DEFAULT_WATCHLIST_COLUMN_ORDER],
+  columnOrderVersion: WATCHLIST_COLUMN_ORDER_VERSION,
+  settings: { ...DEFAULT_APP_SETTINGS },
+  stockTradingBooks: {},
+  corporateActionApplications: {},
+  portfolioPerformanceAdjustments: {}
+}
+
 const DEMO_TRACKING_ARCHIVES_KEY = 'jianzhang-demo-tracking-archives-v1'
 
 function loadDemoTrackingArchives(): Record<string, StockTrackingProfile[]> {
@@ -1141,9 +1154,11 @@ const demoApi: StockDesktopApi = {
   onDailyMarketScanProgress: noSubscribe
 }
 
-export const stockApi = window.stockApi ?? demoApi
+export const stockApi = import.meta.env.PROD ? window.stockApi! : (window.stockApi ?? demoApi)
 export const isDesktopRuntime = Boolean(window.stockApi)
-export const initialState = normalizeAccountState(DEFAULT_STATE)
+export const initialState = normalizeAccountState(
+  import.meta.env.PROD ? DESKTOP_INITIAL_STATE : DEFAULT_STATE
+)
 
 let initialBootstrapPromise: Promise<BootstrapResult> | null = null
 

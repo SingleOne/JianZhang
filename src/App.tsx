@@ -1,7 +1,5 @@
 import { applyAccountSecurityConversion } from './lib/stock-accounts'
 import { SecuritiesAccountProvider } from './components/SecuritiesAccountContext'
-import { SecuritiesAccountManager } from './components/SecuritiesAccountManager'
-import { FeeSchemeManager } from './components/FeeSchemeManager'
 import {
   upsertStockAccount,
   upsertStockTradingBook,
@@ -14,9 +12,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { AppTitlebar, MarketTradingState } from './components/AppTitlebar'
 import { useConfirmDialog } from './components/ConfirmDialog'
 import { SearchBar } from './components/SearchBar'
-import { SettingsMenu } from './components/SettingsMenu'
 import { TitlebarToolsMenu } from './components/TitlebarToolsMenu'
-import { WatchlistTable } from './components/WatchlistTable'
 import { getInitialBootstrap, initialState, isDesktopRuntime, stockApi } from './lib/api'
 import {
   APP_COMPLETION_NOTIFICATION_EVENT,
@@ -33,6 +29,7 @@ import { calculatePortfolioSummary } from './lib/portfolio'
 import { watchlistAddedDate } from './shared/watchlist-date'
 import { calculateCurrentPositionProfitOverrides } from './lib/portfolio-performance'
 import { reconcileStockQuotes } from './lib/quote-state'
+import { applyAppThemePreference } from './lib/theme'
 import {
   createStockTrackingSource,
   startStockTracking,
@@ -106,6 +103,23 @@ const StockTrackingDialog = lazy(() =>
 )
 const CorporateActionCenterDialog = lazy(() => import('./components/CorporateActionCenterDialog'))
 const PortfolioPerformanceDialog = lazy(() => import('./components/PortfolioPerformanceDialog'))
+const SettingsMenu = lazy(() =>
+  import('./components/SettingsMenu').then((module) => ({ default: module.SettingsMenu }))
+)
+const SecuritiesAccountManager = lazy(() =>
+  import('./components/SecuritiesAccountManager').then((module) => ({
+    default: module.SecuritiesAccountManager
+  }))
+)
+const FeeSchemeManager = lazy(() =>
+  import('./components/FeeSchemeManager').then((module) => ({
+    default: module.FeeSchemeManager
+  }))
+)
+const loadWatchlistTable = () => import('./components/WatchlistTable')
+const WatchlistTable = lazy(() =>
+  loadWatchlistTable().then((module) => ({ default: module.WatchlistTable }))
+)
 
 interface StockAddOptions {
   startTracking?: boolean
@@ -183,6 +197,15 @@ export default function App() {
   const [refreshing, setRefreshing] = useState(false)
   const [calendarRefreshing, setCalendarRefreshing] = useState(false)
   const [exchangeRatesRefreshing, setExchangeRatesRefreshing] = useState(false)
+
+  useEffect(() => {
+    applyAppThemePreference(state.settings.theme)
+  }, [state.settings.theme])
+
+  useEffect(() => {
+    const preloadTimer = window.setTimeout(() => void loadWatchlistTable(), 0)
+    return () => window.clearTimeout(preloadTimer)
+  }, [])
   const [configBusy, setConfigBusy] = useState(false)
   const [cacheSummary, setCacheSummary] = useState<CacheSummary | null>(null)
   const [cacheBusy, setCacheBusy] = useState(false)
@@ -1731,46 +1754,48 @@ export default function App() {
                   </span>
                 </button>
               ) : null}
-              <SettingsMenu
-                onManageAccounts={() => {
-                  setFeeSchemeManagerOpen(false)
-                  setAccountManagerOpen(true)
-                }}
-                onManageFeeSchemes={() => {
-                  setAccountManagerOpen(false)
-                  setFeeSchemeManagerOpen(true)
-                }}
-                settings={state.settings}
-                onChange={updateSettings}
-                onImportConfig={importConfig}
-                onExportConfig={exportConfig}
-                configBusy={configBusy}
-                githubSyncSettings={githubSyncSettings}
-                githubSyncPassword={githubSyncPassword}
-                githubGistLoading={githubGistLoading}
-                githubSyncPasswordSaving={githubSyncPasswordSaving}
-                githubSyncError={githubSyncError}
-                githubDeviceAuthorization={githubDeviceAuthorization}
-                githubSyncBusy={githubSyncBusy}
-                githubSyncUploading={githubSyncUploading}
-                githubSyncDownloading={githubSyncDownloading}
-                onConnectGitHub={connectGitHub}
-                onDisconnectGitHub={disconnectGitHub}
-                onGenerateGitHubSyncPassword={generateGitHubSyncPassword}
-                onSaveGitHubSyncPassword={saveGitHubSyncPassword}
-                onUploadUserDataToGitHub={uploadUserDataToGitHub}
-                onDownloadUserDataFromGitHub={downloadUserDataFromGitHub}
-                onRefreshTradingCalendar={refreshTradingCalendar}
-                calendarRefreshing={calendarRefreshing}
-                onRefreshExchangeRates={refreshExchangeRates}
-                exchangeRatesRefreshing={exchangeRatesRefreshing}
-                fundamentalDataState={fundamentalDataState}
-                onUpdateFundamentalData={updateFundamentalData}
-                cacheSummary={cacheSummary}
-                cacheBusy={cacheBusy}
-                onRefreshCacheSummary={refreshCacheSummary}
-                onClearCaches={clearCaches}
-              />
+              <Suspense fallback={null}>
+                <SettingsMenu
+                  onManageAccounts={() => {
+                    setFeeSchemeManagerOpen(false)
+                    setAccountManagerOpen(true)
+                  }}
+                  onManageFeeSchemes={() => {
+                    setAccountManagerOpen(false)
+                    setFeeSchemeManagerOpen(true)
+                  }}
+                  settings={state.settings}
+                  onChange={updateSettings}
+                  onImportConfig={importConfig}
+                  onExportConfig={exportConfig}
+                  configBusy={configBusy}
+                  githubSyncSettings={githubSyncSettings}
+                  githubSyncPassword={githubSyncPassword}
+                  githubGistLoading={githubGistLoading}
+                  githubSyncPasswordSaving={githubSyncPasswordSaving}
+                  githubSyncError={githubSyncError}
+                  githubDeviceAuthorization={githubDeviceAuthorization}
+                  githubSyncBusy={githubSyncBusy}
+                  githubSyncUploading={githubSyncUploading}
+                  githubSyncDownloading={githubSyncDownloading}
+                  onConnectGitHub={connectGitHub}
+                  onDisconnectGitHub={disconnectGitHub}
+                  onGenerateGitHubSyncPassword={generateGitHubSyncPassword}
+                  onSaveGitHubSyncPassword={saveGitHubSyncPassword}
+                  onUploadUserDataToGitHub={uploadUserDataToGitHub}
+                  onDownloadUserDataFromGitHub={downloadUserDataFromGitHub}
+                  onRefreshTradingCalendar={refreshTradingCalendar}
+                  calendarRefreshing={calendarRefreshing}
+                  onRefreshExchangeRates={refreshExchangeRates}
+                  exchangeRatesRefreshing={exchangeRatesRefreshing}
+                  fundamentalDataState={fundamentalDataState}
+                  onUpdateFundamentalData={updateFundamentalData}
+                  cacheSummary={cacheSummary}
+                  cacheBusy={cacheBusy}
+                  onRefreshCacheSummary={refreshCacheSummary}
+                  onClearCaches={clearCaches}
+                />
+              </Suspense>
             </div>
           </section>
         </AppTitlebar>
@@ -1883,75 +1908,84 @@ export default function App() {
                   正在读取自选行情…
                 </div>
               ) : (
-                <WatchlistTable
-                  watchlist={state.watchlist}
-                  watchlistGroups={state.watchlistGroups}
-                  quotes={quotes}
-                  dividendFinancingByCode={dividendFinancingByCode}
-                  dividendFinancingSnapshotDate={dividendFinancingOverview?.snapshotDate}
-                  dividendFinancingStaleReason={
-                    dividendFinancingState.status === 'stale'
-                      ? dividendFinancingState.staleReason
-                      : null
+                <Suspense
+                  fallback={
+                    <div className="initial-loading">
+                      <span className="search-loader" />
+                      正在准备自选行情…
+                    </div>
                   }
-                  fundamentalScreeningByCode={fundamentalScreeningByCode}
-                  fundamentalPeerComparisonsByCode={fundamentalPeerComparisonsByCode}
-                  fundamentalSnapshotDate={fundamentalOverview?.snapshotDate}
-                  fundamentalGeneratedAt={fundamentalOverview?.generatedAt}
-                  fundamentalSnapshotSchemaVersion={fundamentalOverview?.snapshotSchemaVersion}
-                  fundamentalStaleReason={
-                    fundamentalDataState.status === 'stale'
-                      ? fundamentalDataState.staleReason
-                      : null
-                  }
-                  columnOrder={state.columnOrder}
-                  priorityRefreshSeconds={state.settings.priorityRefreshSeconds}
-                  regularRefreshSeconds={state.settings.regularRefreshSeconds}
-                  chipDistributionEnabled={state.settings.showChipDistribution}
-                  bollingerBandsEnabled={state.settings.showBollingerBands}
-                  dailyKlineIndicator={state.settings.dailyKlineIndicator}
-                  selectedQuoteId={selectedQuoteId}
-                  stockSelectionRequest={stockSelectionRequest}
-                  detailNavigationRequest={detailNavigationRequest}
-                  stockTradingBooks={state.stockTradingBooks}
-                  corporateActionApplications={state.corporateActionApplications}
-                  tTradingFees={state.settings.tTradingFees}
-                  marketTradeFees={state.settings.marketTradeFees}
-                  tPlanDefaults={state.settings.tPlanDefaults}
-                  tFloatingProfitAlertDefaultThreshold={
-                    state.settings.tFloatingProfitAlertDefaultThreshold
-                  }
-                  portfolioSummary={portfolioSummary}
-                  portfolioExposureText={portfolioExposureText}
-                  tradingCalendar={state.settings.tradingCalendar}
-                  exchangeRates={state.settings.exchangeRates}
-                  positionProfitOverrides={positionProfitOverrides}
-                  onSelect={selectWatchlistStock}
-                  onStockSelectionPositioned={handleStockSelectionPositioned}
-                  onDetailNavigationHandled={handleDetailNavigationHandled}
-                  onToggleTaskbar={toggleTaskbar}
-                  onTogglePriority={togglePriority}
-                  onEditPosition={updatePosition}
-                  onUpdateTTrading={updateTTrading}
-                  onUpdateStockTradingBook={updateStockTradingBook}
-                  onApplyCorporateAction={applyCorporateAction}
-                  onUpdateCorporateActionRecord={updateCorporateActionRecord}
-                  onUpdateStockAlerts={updateStockAlerts}
-                  stockTrackingProfiles={state.stockTrackingProfiles}
-                  onStartTracking={startManualTracking}
-                  onUpdateTracking={saveTrackingProfile}
-                  onStopTracking={stopTracking}
-                  onRestartTracking={restartTracking}
-                  onReorder={reorderWatchlist}
-                  onPin={pinStock}
-                  onColumnOrderChange={updateColumnOrder}
-                  onUpdateWatchlistGroups={updateWatchlistGroups}
-                  onUpdateStockGroups={updateStockGroups}
-                  onChipDistributionEnabledChange={updateChipDistributionEnabled}
-                  onBollingerBandsEnabledChange={updateBollingerBandsEnabled}
-                  onDailyKlineIndicatorChange={updateDailyKlineIndicator}
-                  onRemove={removeStock}
-                />
+                >
+                  <WatchlistTable
+                    watchlist={state.watchlist}
+                    watchlistGroups={state.watchlistGroups}
+                    quotes={quotes}
+                    dividendFinancingByCode={dividendFinancingByCode}
+                    dividendFinancingSnapshotDate={dividendFinancingOverview?.snapshotDate}
+                    dividendFinancingStaleReason={
+                      dividendFinancingState.status === 'stale'
+                        ? dividendFinancingState.staleReason
+                        : null
+                    }
+                    fundamentalScreeningByCode={fundamentalScreeningByCode}
+                    fundamentalPeerComparisonsByCode={fundamentalPeerComparisonsByCode}
+                    fundamentalSnapshotDate={fundamentalOverview?.snapshotDate}
+                    fundamentalGeneratedAt={fundamentalOverview?.generatedAt}
+                    fundamentalSnapshotSchemaVersion={fundamentalOverview?.snapshotSchemaVersion}
+                    fundamentalStaleReason={
+                      fundamentalDataState.status === 'stale'
+                        ? fundamentalDataState.staleReason
+                        : null
+                    }
+                    columnOrder={state.columnOrder}
+                    priorityRefreshSeconds={state.settings.priorityRefreshSeconds}
+                    regularRefreshSeconds={state.settings.regularRefreshSeconds}
+                    chipDistributionEnabled={state.settings.showChipDistribution}
+                    bollingerBandsEnabled={state.settings.showBollingerBands}
+                    dailyKlineIndicator={state.settings.dailyKlineIndicator}
+                    selectedQuoteId={selectedQuoteId}
+                    stockSelectionRequest={stockSelectionRequest}
+                    detailNavigationRequest={detailNavigationRequest}
+                    stockTradingBooks={state.stockTradingBooks}
+                    corporateActionApplications={state.corporateActionApplications}
+                    tTradingFees={state.settings.tTradingFees}
+                    marketTradeFees={state.settings.marketTradeFees}
+                    tPlanDefaults={state.settings.tPlanDefaults}
+                    tFloatingProfitAlertDefaultThreshold={
+                      state.settings.tFloatingProfitAlertDefaultThreshold
+                    }
+                    portfolioSummary={portfolioSummary}
+                    portfolioExposureText={portfolioExposureText}
+                    tradingCalendar={state.settings.tradingCalendar}
+                    exchangeRates={state.settings.exchangeRates}
+                    positionProfitOverrides={positionProfitOverrides}
+                    onSelect={selectWatchlistStock}
+                    onStockSelectionPositioned={handleStockSelectionPositioned}
+                    onDetailNavigationHandled={handleDetailNavigationHandled}
+                    onToggleTaskbar={toggleTaskbar}
+                    onTogglePriority={togglePriority}
+                    onEditPosition={updatePosition}
+                    onUpdateTTrading={updateTTrading}
+                    onUpdateStockTradingBook={updateStockTradingBook}
+                    onApplyCorporateAction={applyCorporateAction}
+                    onUpdateCorporateActionRecord={updateCorporateActionRecord}
+                    onUpdateStockAlerts={updateStockAlerts}
+                    stockTrackingProfiles={state.stockTrackingProfiles}
+                    onStartTracking={startManualTracking}
+                    onUpdateTracking={saveTrackingProfile}
+                    onStopTracking={stopTracking}
+                    onRestartTracking={restartTracking}
+                    onReorder={reorderWatchlist}
+                    onPin={pinStock}
+                    onColumnOrderChange={updateColumnOrder}
+                    onUpdateWatchlistGroups={updateWatchlistGroups}
+                    onUpdateStockGroups={updateStockGroups}
+                    onChipDistributionEnabledChange={updateChipDistributionEnabled}
+                    onBollingerBandsEnabledChange={updateBollingerBandsEnabled}
+                    onDailyKlineIndicatorChange={updateDailyKlineIndicator}
+                    onRemove={removeStock}
+                  />
+                </Suspense>
               )}
             </section>
           </div>
@@ -2103,31 +2137,35 @@ export default function App() {
           </Suspense>
         ) : null}
         {accountManagerOpen ? (
-          <SecuritiesAccountManager
-            state={state}
-            onClose={() => setAccountManagerOpen(false)}
-            onSave={async (accounts) =>
-              Boolean(
-                await persist(
-                  normalizeAccountState({
-                    ...state,
-                    securitiesAccounts: accounts
-                  })
+          <Suspense fallback={null}>
+            <SecuritiesAccountManager
+              state={state}
+              onClose={() => setAccountManagerOpen(false)}
+              onSave={async (accounts) =>
+                Boolean(
+                  await persist(
+                    normalizeAccountState({
+                      ...state,
+                      securitiesAccounts: accounts
+                    })
+                  )
                 )
-              )
-            }
-          />
+              }
+            />
+          </Suspense>
         ) : null}
         {feeSchemeManagerOpen ? (
-          <FeeSchemeManager
-            state={state}
-            onClose={() => setFeeSchemeManagerOpen(false)}
-            onSave={async (feeSchemes, fixedFeeDefaults) =>
-              Boolean(
-                await persist(normalizeAccountState({ ...state, feeSchemes, fixedFeeDefaults }))
-              )
-            }
-          />
+          <Suspense fallback={null}>
+            <FeeSchemeManager
+              state={state}
+              onClose={() => setFeeSchemeManagerOpen(false)}
+              onSave={async (feeSchemes, fixedFeeDefaults) =>
+                Boolean(
+                  await persist(normalizeAccountState({ ...state, feeSchemes, fixedFeeDefaults }))
+                )
+              }
+            />
+          </Suspense>
         ) : null}
         {portfolioPerformanceOpen ? (
           <Suspense fallback={null}>
@@ -2143,10 +2181,10 @@ export default function App() {
             />
           </Suspense>
         ) : null}
-        {aiRuntimeAvailable && AiAssistantDrawer ? (
+        {aiAssistantOpen && aiRuntimeAvailable && AiAssistantDrawer ? (
           <Suspense fallback={null}>
             <AiAssistantDrawer
-              open={aiAssistantOpen}
+              open
               context={aiAssistantContext}
               stocks={state.watchlist}
               onClose={() => setAiAssistantOpen(false)}

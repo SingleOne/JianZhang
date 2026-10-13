@@ -1,4 +1,5 @@
 import { Building2, Database, RefreshCw, TriangleAlert, UserRound, UsersRound } from 'lucide-react'
+import './ShareholderPanel.css'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { stockApi } from '../lib/api'
 import { formatAmount, formatSignedAmount } from '../lib/format'

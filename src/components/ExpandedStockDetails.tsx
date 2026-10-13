@@ -1,4 +1,5 @@
 import type { StockTradingBook } from '../shared/types'
+import './ExpandedStockDetails.css'
 import {
   AlertCircle,
   BarChart3,

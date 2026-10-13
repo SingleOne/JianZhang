@@ -12,7 +12,7 @@ import {
   Star,
   Trash2
 } from 'lucide-react'
-import { Fragment, memo, type DragEvent, useCallback, useState } from 'react'
+import { Fragment, lazy, memo, Suspense, type DragEvent, useCallback, useState } from 'react'
 import {
   formatAmount,
   formatCost,
@@ -68,12 +68,17 @@ import {
   marketFromQuoteId,
   STOCK_CURRENCY_SYMBOLS
 } from '../../shared/stock-market'
-import { ExpandedStockDetails } from '../ExpandedStockDetails'
 import { AnimatedNumber } from '../AnimatedNumber'
 import { FiveLevelAlertBadges } from '../FiveLevelAlertBadges'
 import { TAlertBadges } from '../TAlertBadges'
 import { TFloatingProfitAlertBadge } from '../TFloatingProfitAlertBadge'
 import { calculatePreviousCloseDividendYield, calculateSinceAddedPerformance } from './columns'
+
+const ExpandedStockDetails = lazy(() =>
+  import('../ExpandedStockDetails').then((module) => ({
+    default: module.ExpandedStockDetails
+  }))
+)
 
 function valueClass(value: number | null | undefined): string {
   if (value === null || value === undefined || value === 0) return 'is-flat'
@@ -867,44 +872,48 @@ export const WatchlistRow = memo(function WatchlistRow({
               }}
             >
               <div className="expanded-row-content">
-                <ExpandedStockDetails
-                  stock={stock}
-                  quote={quote}
-                  dividendFinancing={dividendFinancing}
-                  dividendFinancingSnapshotDate={dividendFinancingSnapshotDate}
-                  fundamentalScreening={fundamentalScreening}
-                  fundamentalPeerComparison={fundamentalPeerComparison}
-                  fundamentalSnapshotDate={companyFundamentalSnapshotDate}
-                  fundamentalGeneratedAt={companyFundamentalGeneratedAt}
-                  fundamentalStaleReason={companyFundamentalStaleReason}
-                  fundamentalTabRequested={fundamentalTabRequested}
-                  onFundamentalTabRequestHandled={() => setFundamentalTabRequested(false)}
-                  trackingTabRequested={trackingTabRequested}
-                  onTrackingTabRequestHandled={() => setTrackingTabRequested(false)}
-                  detailNavigationRequest={detailNavigationRequest}
-                  onDetailNavigationHandled={onDetailNavigationHandled}
-                  refreshSeconds={stock.isPriority ? priorityRefreshSeconds : regularRefreshSeconds}
-                  autoRefreshOrderBook={overview.summaries.length > 0}
-                  chipDistributionEnabled={chipDistributionEnabled}
-                  bollingerBandsEnabled={bollingerBandsEnabled}
-                  dailyKlineIndicator={dailyKlineIndicator}
-                  tradingCalendar={tradingCalendar}
-                  exchangeRates={exchangeRates}
-                  tradingAccount={tradingAccount}
-                  corporateActionApplications={corporateActionApplications}
-                  onApplyCorporateAction={(account, position, record) =>
-                    onApplyCorporateAction(stock.quoteId, account, position, record)
-                  }
-                  onUpdateCorporateActionRecord={onUpdateCorporateActionRecord}
-                  trackingProfile={trackingProfile}
-                  onStartTracking={onStartTracking}
-                  onUpdateTracking={onUpdateTracking}
-                  onStopTracking={onStopTracking}
-                  onRestartTracking={onRestartTracking}
-                  onChipDistributionEnabledChange={onChipDistributionEnabledChange}
-                  onBollingerBandsEnabledChange={onBollingerBandsEnabledChange}
-                  onDailyKlineIndicatorChange={onDailyKlineIndicatorChange}
-                />
+                <Suspense fallback={<div className="expanded-row-loading">正在准备行情详情…</div>}>
+                  <ExpandedStockDetails
+                    stock={stock}
+                    quote={quote}
+                    dividendFinancing={dividendFinancing}
+                    dividendFinancingSnapshotDate={dividendFinancingSnapshotDate}
+                    fundamentalScreening={fundamentalScreening}
+                    fundamentalPeerComparison={fundamentalPeerComparison}
+                    fundamentalSnapshotDate={companyFundamentalSnapshotDate}
+                    fundamentalGeneratedAt={companyFundamentalGeneratedAt}
+                    fundamentalStaleReason={companyFundamentalStaleReason}
+                    fundamentalTabRequested={fundamentalTabRequested}
+                    onFundamentalTabRequestHandled={() => setFundamentalTabRequested(false)}
+                    trackingTabRequested={trackingTabRequested}
+                    onTrackingTabRequestHandled={() => setTrackingTabRequested(false)}
+                    detailNavigationRequest={detailNavigationRequest}
+                    onDetailNavigationHandled={onDetailNavigationHandled}
+                    refreshSeconds={
+                      stock.isPriority ? priorityRefreshSeconds : regularRefreshSeconds
+                    }
+                    autoRefreshOrderBook={overview.summaries.length > 0}
+                    chipDistributionEnabled={chipDistributionEnabled}
+                    bollingerBandsEnabled={bollingerBandsEnabled}
+                    dailyKlineIndicator={dailyKlineIndicator}
+                    tradingCalendar={tradingCalendar}
+                    exchangeRates={exchangeRates}
+                    tradingAccount={tradingAccount}
+                    corporateActionApplications={corporateActionApplications}
+                    onApplyCorporateAction={(account, position, record) =>
+                      onApplyCorporateAction(stock.quoteId, account, position, record)
+                    }
+                    onUpdateCorporateActionRecord={onUpdateCorporateActionRecord}
+                    trackingProfile={trackingProfile}
+                    onStartTracking={onStartTracking}
+                    onUpdateTracking={onUpdateTracking}
+                    onStopTracking={onStopTracking}
+                    onRestartTracking={onRestartTracking}
+                    onChipDistributionEnabledChange={onChipDistributionEnabledChange}
+                    onBollingerBandsEnabledChange={onBollingerBandsEnabledChange}
+                    onDailyKlineIndicatorChange={onDailyKlineIndicatorChange}
+                  />
+                </Suspense>
               </div>
             </div>
           </td>

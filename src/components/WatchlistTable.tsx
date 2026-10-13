@@ -12,7 +12,16 @@ import {
   RotateCcw,
   X
 } from 'lucide-react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import {
   calculatePositionMetrics,
   type PortfolioSummary,
@@ -66,14 +75,6 @@ import {
 } from '../lib/fundamental-screening'
 import { normalizeWatchlistColumnOrder } from '../shared/types'
 import {
-  AccountPositionEditor as PositionEditor,
-  AccountTTradingDrawer as TTradingDrawer
-} from './AccountTradingEditors'
-import { PortfolioQualityDialog } from './PortfolioQualityDialog'
-import { StockAlertDialog } from './StockAlertDialog'
-import { StockGroupQuickPopover } from './StockGroupQuickPopover'
-import { WatchlistGroupDialog } from './WatchlistGroupDialog'
-import {
   COLUMN_META,
   DELETE_COLUMN_WIDTH,
   ORDER_COLUMN_WIDTH,
@@ -87,6 +88,38 @@ import { WatchlistFilters } from './watchlist-table/WatchlistFilters'
 import { FundamentalWatchlistOverview } from './watchlist-table/FundamentalWatchlistOverview'
 import { todayRadarSignals, WatchlistRow } from './watchlist-table/WatchlistRow'
 import { useDragReorder } from './watchlist-table/useDragReorder'
+import './WatchlistTable.css'
+import './AlertBadges.css'
+import './WatchlistDialogs.css'
+
+const PositionEditor = lazy(() =>
+  import('./AccountTradingEditors').then((module) => ({
+    default: module.AccountPositionEditor
+  }))
+)
+const TTradingDrawer = lazy(() =>
+  import('./AccountTradingEditors').then((module) => ({
+    default: module.AccountTTradingDrawer
+  }))
+)
+const PortfolioQualityDialog = lazy(() =>
+  import('./PortfolioQualityDialog').then((module) => ({
+    default: module.PortfolioQualityDialog
+  }))
+)
+const StockAlertDialog = lazy(() =>
+  import('./StockAlertDialog').then((module) => ({ default: module.StockAlertDialog }))
+)
+const StockGroupQuickPopover = lazy(() =>
+  import('./StockGroupQuickPopover').then((module) => ({
+    default: module.StockGroupQuickPopover
+  }))
+)
+const WatchlistGroupDialog = lazy(() =>
+  import('./WatchlistGroupDialog').then((module) => ({
+    default: module.WatchlistGroupDialog
+  }))
+)
 
 const DIVIDEND_FINANCING_SORT_OPTIONS = [
   { metric: 'ratio', label: '分红融资比' },
@@ -1461,113 +1494,128 @@ export function WatchlistTable({
       ) : null}
 
       {groupPopover && activeGroupStock ? (
-        <StockGroupQuickPopover
-          id="watchlist-group-quick-popover"
-          stock={activeGroupStock}
-          groups={watchlistGroups}
-          groupCount={activeGroupCount}
-          placement={groupPopover.placement}
-          style={{ left: groupPopover.left, top: groupPopover.top }}
-          popoverRef={groupPopoverRef}
-          onToggleGroup={toggleStockGroup}
-          onManageGroups={openGroupDialog}
-          onClose={() => setGroupPopover(null)}
-        />
+        <Suspense fallback={null}>
+          <StockGroupQuickPopover
+            id="watchlist-group-quick-popover"
+            stock={activeGroupStock}
+            groups={watchlistGroups}
+            groupCount={activeGroupCount}
+            placement={groupPopover.placement}
+            style={{ left: groupPopover.left, top: groupPopover.top }}
+            popoverRef={groupPopoverRef}
+            onToggleGroup={toggleStockGroup}
+            onManageGroups={openGroupDialog}
+            onClose={() => setGroupPopover(null)}
+          />
+        </Suspense>
       ) : null}
 
       {editingStock ? (
-        <PositionEditor
-          key={editingStock.quoteId}
-          stock={watchlist.find((stock) => stock.quoteId === editingStock.quoteId) ?? editingStock}
-          quote={quotes.find((quote) => quote.quoteId === editingStock.quoteId)}
-          account={stockTradingBooks[editingStock.quoteId]}
-          planDefaults={tPlanDefaults}
-          exchangeRates={exchangeRates}
-          marketTradeFees={marketTradeFees}
-          tradingCalendar={tradingCalendar}
-          onClose={() => setEditingStock(null)}
-          onSave={(position, showRadarSignals, positionSnapshots, updatedAccount) => {
-            onEditPosition(
-              editingStock.quoteId,
-              position,
-              showRadarSignals,
-              positionSnapshots,
-              updatedAccount
-            )
-            setEditingStock(null)
-          }}
-        />
+        <Suspense fallback={null}>
+          <PositionEditor
+            key={editingStock.quoteId}
+            stock={
+              watchlist.find((stock) => stock.quoteId === editingStock.quoteId) ?? editingStock
+            }
+            quote={quotes.find((quote) => quote.quoteId === editingStock.quoteId)}
+            account={stockTradingBooks[editingStock.quoteId]}
+            planDefaults={tPlanDefaults}
+            exchangeRates={exchangeRates}
+            marketTradeFees={marketTradeFees}
+            tradingCalendar={tradingCalendar}
+            onClose={() => setEditingStock(null)}
+            onSave={(position, showRadarSignals, positionSnapshots, updatedAccount) => {
+              onEditPosition(
+                editingStock.quoteId,
+                position,
+                showRadarSignals,
+                positionSnapshots,
+                updatedAccount
+              )
+              setEditingStock(null)
+            }}
+          />
+        </Suspense>
       ) : null}
 
       {tTradingStock ? (
-        <TTradingDrawer
-          key={tTradingStock.quoteId}
-          stock={
-            watchlist.find((stock) => stock.quoteId === tTradingStock.quoteId) ?? tTradingStock
-          }
-          quote={quotes.find((quote) => quote.quoteId === tTradingStock.quoteId)}
-          account={stockTradingBooks[tTradingStock.quoteId]}
-          holdingCost={
-            rows.find(({ stock }) => stock.quoteId === tTradingStock.quoteId)?.metrics.holdingCost
-          }
-          holdingCostBasis={
-            rows.find(({ stock }) => stock.quoteId === tTradingStock.quoteId)?.metrics
-              .holdingCostBasis
-          }
-          feeSettings={tTradingFees}
-          marketTradeFees={marketTradeFees}
-          planDefaults={tPlanDefaults}
-          tradingCalendar={tradingCalendar}
-          exchangeRates={exchangeRates}
-          floatingProfitAlertDefaultThreshold={tFloatingProfitAlertDefaultThreshold}
-          onClose={() => setTTradingStock(null)}
-          onApply={(account, position) => {
-            onUpdateTTrading(tTradingStock.quoteId, account, position)
-          }}
-          onApplyBook={onUpdateStockTradingBook}
-        />
+        <Suspense fallback={null}>
+          <TTradingDrawer
+            key={tTradingStock.quoteId}
+            stock={
+              watchlist.find((stock) => stock.quoteId === tTradingStock.quoteId) ?? tTradingStock
+            }
+            quote={quotes.find((quote) => quote.quoteId === tTradingStock.quoteId)}
+            account={stockTradingBooks[tTradingStock.quoteId]}
+            holdingCost={
+              rows.find(({ stock }) => stock.quoteId === tTradingStock.quoteId)?.metrics.holdingCost
+            }
+            holdingCostBasis={
+              rows.find(({ stock }) => stock.quoteId === tTradingStock.quoteId)?.metrics
+                .holdingCostBasis
+            }
+            feeSettings={tTradingFees}
+            marketTradeFees={marketTradeFees}
+            planDefaults={tPlanDefaults}
+            tradingCalendar={tradingCalendar}
+            exchangeRates={exchangeRates}
+            floatingProfitAlertDefaultThreshold={tFloatingProfitAlertDefaultThreshold}
+            onClose={() => setTTradingStock(null)}
+            onApply={(account, position) => {
+              onUpdateTTrading(tTradingStock.quoteId, account, position)
+            }}
+            onApplyBook={onUpdateStockTradingBook}
+          />
+        </Suspense>
       ) : null}
 
       {stockAlertStock ? (
-        <StockAlertDialog
-          key={stockAlertStock.quoteId}
-          stock={
-            watchlist.find((stock) => stock.quoteId === stockAlertStock.quoteId) ?? stockAlertStock
-          }
-          quote={quotes.find((quote) => quote.quoteId === stockAlertStock.quoteId)}
-          account={stockTradingBooks[stockAlertStock.quoteId]}
-          exchangeRates={exchangeRates}
-          profitOverride={positionProfitOverrides[stockAlertStock.quoteId]}
-          onClose={() => setStockAlertStock(null)}
-          onSave={(rules) => {
-            onUpdateStockAlerts(stockAlertStock.quoteId, rules)
-            setStockAlertStock(null)
-          }}
-        />
+        <Suspense fallback={null}>
+          <StockAlertDialog
+            key={stockAlertStock.quoteId}
+            stock={
+              watchlist.find((stock) => stock.quoteId === stockAlertStock.quoteId) ??
+              stockAlertStock
+            }
+            quote={quotes.find((quote) => quote.quoteId === stockAlertStock.quoteId)}
+            account={stockTradingBooks[stockAlertStock.quoteId]}
+            exchangeRates={exchangeRates}
+            profitOverride={positionProfitOverrides[stockAlertStock.quoteId]}
+            onClose={() => setStockAlertStock(null)}
+            onSave={(rules) => {
+              onUpdateStockAlerts(stockAlertStock.quoteId, rules)
+              setStockAlertStock(null)
+            }}
+          />
+        </Suspense>
       ) : null}
 
       {groupDialogOpen ? (
-        <WatchlistGroupDialog
-          groups={watchlistGroups}
-          stocks={watchlist}
-          quotes={quotes}
-          onClose={() => setGroupDialogOpen(false)}
-          onSave={(groups, groupIdsByQuoteId) => {
-            onUpdateWatchlistGroups(groups, groupIdsByQuoteId)
-            setGroupDialogOpen(false)
-          }}
-        />
+        <Suspense fallback={null}>
+          <WatchlistGroupDialog
+            groups={watchlistGroups}
+            stocks={watchlist}
+            quotes={quotes}
+            onClose={() => setGroupDialogOpen(false)}
+            onSave={(groups, groupIdsByQuoteId) => {
+              onUpdateWatchlistGroups(groups, groupIdsByQuoteId)
+              setGroupDialogOpen(false)
+            }}
+          />
+        </Suspense>
       ) : null}
       {portfolioQualityOpen ? (
-        <PortfolioQualityDialog
-          summary={portfolioQualitySummary}
-          fundamentalSnapshotDate={fundamentalSnapshotDate}
-          dividendSnapshotDate={dividendFinancingSnapshotDate}
-          fundamentalStaleReason={fundamentalStaleReason}
-          dividendStaleReason={dividendFinancingStaleReason}
-          onLocateStock={locatePortfolioHolding}
-          onClose={() => setPortfolioQualityOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <PortfolioQualityDialog
+            summary={portfolioQualitySummary}
+            fundamentalSnapshotDate={fundamentalSnapshotDate}
+            dividendSnapshotDate={dividendFinancingSnapshotDate}
+            fundamentalStaleReason={fundamentalStaleReason}
+            dividendStaleReason={dividendFinancingStaleReason}
+            onLocateStock={locatePortfolioHolding}
+            onClose={() => setPortfolioQualityOpen(false)}
+          />
+        </Suspense>
       ) : null}
     </div>
   )

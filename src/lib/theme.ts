@@ -5,6 +5,7 @@ export type ResolvedAppTheme = 'light' | 'dark'
 export const APP_THEME_CHANGED_EVENT = 'jianzhang:theme-changed'
 
 const THEME_STORAGE_KEY = 'jianzhang-theme-preference-v1'
+let darkThemeStylesPromise: Promise<unknown> | null = null
 
 export interface AppThemeChangeDetail {
   preference: AppThemePreference
@@ -43,6 +44,7 @@ export function getResolvedAppTheme(): ResolvedAppTheme {
 
 export function applyAppThemePreference(preference: AppThemePreference): void {
   const resolvedTheme = resolveAppTheme(preference)
+  if (resolvedTheme === 'dark') void ensureAppThemeStyles(resolvedTheme)
   const previousTheme = getResolvedAppTheme()
   if (readCachedAppThemePreference() !== preference) {
     window.localStorage.setItem(THEME_STORAGE_KEY, preference)
@@ -57,8 +59,16 @@ export function applyAppThemePreference(preference: AppThemePreference): void {
   )
 }
 
-export function initializeAppTheme(): void {
-  applyAppThemePreference(readCachedAppThemePreference())
+export function initializeAppTheme(): ResolvedAppTheme {
+  const preference = readCachedAppThemePreference()
+  applyAppThemePreference(preference)
+  return resolveAppTheme(preference)
+}
+
+export function ensureAppThemeStyles(theme: ResolvedAppTheme): Promise<unknown> {
+  if (theme !== 'dark') return Promise.resolve()
+  darkThemeStylesPromise ??= import('../styles/dark-theme.css')
+  return darkThemeStylesPromise
 }
 
 export function getChartThemeColors(theme: ResolvedAppTheme): ChartThemeColors {

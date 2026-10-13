@@ -1,4 +1,5 @@
 import { ChartPie, FilterX, LocateFixed, ShieldAlert, X } from 'lucide-react'
+import './PortfolioQualityDialog.css'
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { formatCurrency } from '../lib/format'
