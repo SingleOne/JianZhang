@@ -142,6 +142,11 @@ export interface PortfolioPerformanceReport {
   portfolioRow: PortfolioPerformanceAggregate
 }
 
+export interface WatchlistProfitOverview {
+  currentPositionProfitOverrides: Record<string, PositionProfitOverride>
+  cumulativeProfitByQuoteId: Record<string, number | null>
+}
+
 type ComponentKey =
   | 'realizedProfit'
   | 'unrealizedProfit'
@@ -1098,5 +1103,59 @@ export function calculatePortfolioPerformanceReport(
     accountRows,
     currencyRows,
     portfolioRow: aggregateStocks('portfolio', '全部组合', 'portfolio', stocks)
+  }
+}
+
+export function calculateWatchlistProfitOverview(
+  watchlist: readonly WatchStock[],
+  quotes: readonly StockQuote[],
+  accounts: StockTradingBooks,
+  exchangeRates: ExchangeRateSettings,
+  adjustments: Readonly<PortfolioPerformanceAdjustments> = {},
+  securitiesAccounts: SecuritiesAccounts = {}
+): WatchlistProfitOverview {
+  const report = calculatePortfolioPerformanceReport(
+    watchlist,
+    quotes,
+    accounts,
+    exchangeRates,
+    adjustments,
+    securitiesAccounts
+  )
+  const resultsByQuoteId = new Map<string, PortfolioPerformanceStockResult[]>()
+  for (const stock of report.stocks) {
+    resultsByQuoteId.set(stock.quoteId, [...(resultsByQuoteId.get(stock.quoteId) ?? []), stock])
+  }
+
+  const currentPositionProfitOverrides = Object.fromEntries(
+    [...resultsByQuoteId.entries()].flatMap(([quoteId, results]) => {
+      if (!accounts[quoteId]) return []
+      const native = results.map(
+        (result) =>
+          result.currentCycle.native.find((slice) => slice.currency === result.securityCurrency)
+            ?.totalProfit ?? null
+      )
+      const cny = results.map((result) => result.currentCycle.cny.totalProfit)
+      return [
+        [
+          quoteId,
+          {
+            totalProfit: native.some((value) => value === null)
+              ? null
+              : roundMoney(native.reduce<number>((sum, value) => sum + (value ?? 0), 0)),
+            cnyTotalProfit: cny.some((value) => value === null)
+              ? null
+              : roundMoney(cny.reduce<number>((sum, value) => sum + (value ?? 0), 0))
+          }
+        ] as const
+      ]
+    })
+  )
+
+  return {
+    currentPositionProfitOverrides,
+    cumulativeProfitByQuoteId: Object.fromEntries(
+      report.stockRows.map((row) => [row.id, row.cumulative.cny.totalProfit])
+    )
   }
 }

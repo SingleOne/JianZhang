@@ -27,7 +27,7 @@ import {
 } from './lib/fundamental-screening'
 import { calculatePortfolioSummary } from './lib/portfolio'
 import { watchlistAddedDate } from './shared/watchlist-date'
-import { calculateCurrentPositionProfitOverrides } from './lib/portfolio-performance'
+import { calculateWatchlistProfitOverview } from './lib/portfolio-performance'
 import { reconcileStockQuotes } from './lib/quote-state'
 import { applyAppThemePreference } from './lib/theme'
 import {
@@ -575,23 +575,27 @@ export default function App() {
       ),
     [fundamentalOverview]
   )
-  const positionProfitOverrides = useMemo(
+  const watchlistProfitOverview = useMemo(
     () =>
-      calculateCurrentPositionProfitOverrides(
+      calculateWatchlistProfitOverview(
         state.watchlist,
         quotes,
         state.stockTradingBooks,
         state.settings.exchangeRates,
-        state.portfolioPerformanceAdjustments ?? {}
+        state.portfolioPerformanceAdjustments ?? {},
+        state.securitiesAccounts ?? {}
       ),
     [
       quotes,
       state.portfolioPerformanceAdjustments,
+      state.securitiesAccounts,
       state.settings.exchangeRates,
       state.stockTradingBooks,
       state.watchlist
     ]
   )
+  const positionProfitOverrides = watchlistProfitOverview.currentPositionProfitOverrides
+  const cumulativeProfitByQuoteId = watchlistProfitOverview.cumulativeProfitByQuoteId
   const portfolioSummary = useMemo(
     () =>
       calculatePortfolioSummary(
@@ -1959,6 +1963,7 @@ export default function App() {
                     tradingCalendar={state.settings.tradingCalendar}
                     exchangeRates={state.settings.exchangeRates}
                     positionProfitOverrides={positionProfitOverrides}
+                    cumulativeProfitByQuoteId={cumulativeProfitByQuoteId}
                     onSelect={selectWatchlistStock}
                     onStockSelectionPositioned={handleStockSelectionPositioned}
                     onDetailNavigationHandled={handleDetailNavigationHandled}

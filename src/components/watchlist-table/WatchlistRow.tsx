@@ -72,6 +72,7 @@ import { AnimatedNumber } from '../AnimatedNumber'
 import { FiveLevelAlertBadges } from '../FiveLevelAlertBadges'
 import { TAlertBadges } from '../TAlertBadges'
 import { TFloatingProfitAlertBadge } from '../TFloatingProfitAlertBadge'
+import { Tooltip } from '../Tooltip'
 import { calculatePreviousCloseDividendYield, calculateSinceAddedPerformance } from './columns'
 
 const ExpandedStockDetails = lazy(() =>
@@ -129,6 +130,7 @@ interface WatchlistRowProps {
   stock: WatchStock
   quote: StockQuote | undefined
   metrics: PositionMetrics
+  cumulativeProfit: number | null | undefined
   dividendFinancing: DividendFinancingRankingItem | undefined
   dividendFinancingSnapshotDate: string | undefined
   fundamentalScreening: FundamentalScreeningEvaluation | undefined
@@ -204,6 +206,7 @@ export const WatchlistRow = memo(function WatchlistRow({
   stock,
   quote,
   metrics,
+  cumulativeProfit,
   dividendFinancing,
   dividendFinancingSnapshotDate,
   fundamentalScreening,
@@ -295,6 +298,13 @@ export const WatchlistRow = memo(function WatchlistRow({
   const sinceAddedPerformance = calculateSinceAddedPerformance(stock, quote)
   const sinceAddedDirection = valueClass(sinceAddedPerformance?.changePercent)
   const dividendYield = calculatePreviousCloseDividendYield(dividendFinancing, quote)
+  const hasPosition = (stock.position?.quantity ?? 0) > 0
+  const displayedTotalProfit = hasPosition ? metrics.totalProfit : cumulativeProfit
+  const totalProfitTooltip = hasPosition
+    ? '当前有持仓，显示当前持仓周期收益；第二行为持仓收益率。'
+    : cumulativeProfit === null || cumulativeProfit === undefined
+      ? '当前无持仓，跨市场收益分析暂无可用的累计收益。'
+      : '当前无持仓，显示跨市场收益分析中的累计收益（人民币）。'
   const currentRadarSignals =
     capabilities.radar && stock.showRadarSignals ? todayRadarSignals(quote?.radarSignals) : []
   const latestRadarSignal = currentRadarSignals[0]
@@ -831,14 +841,23 @@ export const WatchlistRow = memo(function WatchlistRow({
             case 'totalProfit':
               return (
                 <td key={columnId}>
-                  <span className="combined-profit-cell">
-                    <span className={valueClass(metrics.totalProfit)}>
-                      {formatMoneyProfit(metrics.totalProfit, metrics.currency)}
+                  <Tooltip content={totalProfitTooltip}>
+                    <span className="combined-profit-cell">
+                      <span className={valueClass(displayedTotalProfit)}>
+                        {formatMoneyProfit(
+                          displayedTotalProfit,
+                          hasPosition ? metrics.currency : 'CNY'
+                        )}
+                      </span>
+                      {hasPosition ? (
+                        <span className={valueClass(metrics.profitPercent)}>
+                          {formatPercent(metrics.profitPercent)}
+                        </span>
+                      ) : (
+                        <small className="cumulative-profit-label">累计收益</small>
+                      )}
                     </span>
-                    <span className={valueClass(metrics.profitPercent)}>
-                      {formatPercent(metrics.profitPercent)}
-                    </span>
-                  </span>
+                  </Tooltip>
                 </td>
               )
             case 'operation':

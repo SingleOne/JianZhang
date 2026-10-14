@@ -1596,6 +1596,12 @@ button.value-screening-badge:focus-visible {
   line-height: 1.1;
 }
 
+.combined-profit-cell .cumulative-profit-label {
+  color: #8490a3;
+  font-size: 12px;
+  font-weight: 500;
+}
+
 .row-action-button {
   width: 28px;
   height: 28px;

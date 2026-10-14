@@ -145,11 +145,27 @@ describe('watchlist column sorting', () => {
       row('loss', 'Loss', 10, 0, { totalProfit: -200 }),
       row('profit', 'Profit', 10, 1, { totalProfit: 500 })
     ]
+    rows.forEach(({ stock: item }) => {
+      item.position = { quantity: 100, cost: 10, openedToday: false }
+    })
 
     const sorted = sortRows(rows, { column: 'totalProfit', direction: 'desc' }, [])
 
     expect(sorted.map(({ stock }) => stock.quoteId)).toEqual(['profit', 'loss'])
     expect(rows.map(({ stock }) => stock.quoteId)).toEqual(['loss', 'profit'])
+  })
+
+  it('sorts cumulative profit when the stock has no position', () => {
+    const loss = row('loss', 'Loss', 10, 0)
+    loss.cumulativeProfit = -200
+    const profit = row('profit', 'Profit', 10, 1)
+    profit.cumulativeProfit = 500
+
+    expect(
+      sortRows([loss, profit], { column: 'totalProfit', direction: 'desc' }, []).map(
+        ({ stock }) => stock.quoteId
+      )
+    ).toEqual(['profit', 'loss'])
   })
 
   it('sorts the dividend financing ratio and leaves stocks outside the snapshot last', () => {

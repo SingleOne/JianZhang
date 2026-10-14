@@ -27,6 +27,7 @@ export interface StockRowData {
   fundamentalScreening: FundamentalScreeningEvaluation | undefined
   fundamentalPeerComparison: FundamentalPeerComparison | undefined
   metrics: PositionMetrics
+  cumulativeProfit?: number | null
   manualIndex: number
 }
 
@@ -67,9 +68,7 @@ export function calculatePreviousCloseDividendYield(
   quote: StockQuote | undefined
 ): PreviousCloseDividendYield | null {
   const previousYear = Number(currentDateKey().slice(0, 4)) - 1
-  const annualDividend = dividend?.annualDividends?.find(
-    (point) => point.year === previousYear
-  )
+  const annualDividend = dividend?.annualDividends?.find((point) => point.year === previousYear)
   const latest = quote?.latest
   const previousClose = quote?.previousClose
   const totalMarketValue = quote?.totalMarketValue
@@ -176,7 +175,9 @@ export function sortValue(
     case 'todayProfit':
       return row.metrics.todayProfit
     case 'totalProfit':
-      return row.metrics.totalProfit
+      return (row.stock.position?.quantity ?? 0) > 0
+        ? row.metrics.totalProfit
+        : row.cumulativeProfit
     case 'operation':
       return null
   }

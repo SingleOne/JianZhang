@@ -158,6 +158,7 @@ interface WatchlistTableProps {
   tradingCalendar: TradingCalendarSettings
   exchangeRates: ExchangeRateSettings
   positionProfitOverrides: Readonly<Record<string, PositionProfitOverride>>
+  cumulativeProfitByQuoteId: Readonly<Record<string, number | null>>
   onSelect: (quoteId: string) => void
   onStockSelectionPositioned: (request: StockSelectionRequest) => void
   onDetailNavigationHandled: (requestId: string) => void
@@ -308,6 +309,7 @@ export function WatchlistTable({
   tradingCalendar,
   exchangeRates,
   positionProfitOverrides,
+  cumulativeProfitByQuoteId,
   onSelect,
   onStockSelectionPositioned,
   onDetailNavigationHandled,
@@ -465,11 +467,13 @@ export function WatchlistTable({
           exchangeRates,
           positionProfitOverrides[stock.quoteId]
         ),
+        cumulativeProfit: cumulativeProfitByQuoteId[stock.quoteId],
         manualIndex
       }
     })
   }, [
     dividendFinancingByCode,
+    cumulativeProfitByQuoteId,
     fundamentalPeerComparisonsByCode,
     fundamentalScreeningByCode,
     exchangeRates,
@@ -1355,6 +1359,7 @@ export function WatchlistTable({
               fundamentalScreening,
               fundamentalPeerComparison,
               metrics,
+              cumulativeProfit,
               manualIndex
             }) => (
               <tbody
@@ -1373,6 +1378,7 @@ export function WatchlistTable({
                   fundamentalScreening={fundamentalScreening}
                   fundamentalPeerComparison={fundamentalPeerComparison}
                   metrics={metrics}
+                  cumulativeProfit={cumulativeProfit}
                   fundamentalSnapshotDate={fundamentalSnapshotDate}
                   fundamentalGeneratedAt={fundamentalGeneratedAt}
                   fundamentalSnapshotSchemaVersion={fundamentalSnapshotSchemaVersion}
