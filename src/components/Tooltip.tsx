@@ -1,4 +1,12 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode
+} from 'react'
 import { createPortal } from 'react-dom'
 import './Tooltip.css'
 
@@ -13,12 +21,16 @@ interface TooltipPosition {
   placement: 'top' | 'bottom'
 }
 
+const TOOLTIP_EXIT_DURATION_MS = 180
+
 export function Tooltip({ children, content }: TooltipProps) {
   const triggerRef = useRef<HTMLSpanElement>(null)
   const tooltipRef = useRef<HTMLSpanElement>(null)
   const hideTimerRef = useRef<number | undefined>(undefined)
+  const exitTimerRef = useRef<number | undefined>(undefined)
   const tooltipId = useId()
   const [open, setOpen] = useState(false)
+  const [rendered, setRendered] = useState(false)
   const [position, setPosition] = useState<TooltipPosition | null>(null)
 
   const clearScheduledHide = () => {
@@ -28,25 +40,45 @@ export function Tooltip({ children, content }: TooltipProps) {
 
   const showTooltip = () => {
     clearScheduledHide()
+    window.clearTimeout(exitTimerRef.current)
+    exitTimerRef.current = undefined
+    setRendered(true)
     setOpen(true)
   }
 
+  const startExit = useCallback(() => {
+    window.clearTimeout(hideTimerRef.current)
+    hideTimerRef.current = undefined
+    setOpen(false)
+    window.clearTimeout(exitTimerRef.current)
+    const finishExit = () => {
+      setRendered(false)
+      setPosition(null)
+      exitTimerRef.current = undefined
+    }
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      finishExit()
+      return
+    }
+    exitTimerRef.current = window.setTimeout(() => {
+      finishExit()
+    }, TOOLTIP_EXIT_DURATION_MS)
+  }, [])
+
   const hideTooltip = () => {
     clearScheduledHide()
-    setOpen(false)
-    setPosition(null)
+    startExit()
   }
 
   const scheduleHide = () => {
     clearScheduledHide()
     hideTimerRef.current = window.setTimeout(() => {
-      setOpen(false)
-      setPosition(null)
+      startExit()
     }, 120)
   }
 
   useLayoutEffect(() => {
-    if (!open) return
+    if (!rendered || !open) return
     const trigger = triggerRef.current
     const tooltip = tooltipRef.current
     if (!trigger || !tooltip) return
@@ -65,23 +97,26 @@ export function Tooltip({ children, content }: TooltipProps) {
       top: placement === 'top' ? rect.top - 8 : rect.bottom + 8,
       placement
     })
-  }, [content, open])
+  }, [content, open, rendered])
 
   useEffect(() => {
     if (!open) return
-    const closeTooltip = () => {
-      setOpen(false)
-      setPosition(null)
-    }
+    const closeTooltip = () => startExit()
     window.addEventListener('resize', closeTooltip)
     window.addEventListener('scroll', closeTooltip, true)
     return () => {
       window.removeEventListener('resize', closeTooltip)
       window.removeEventListener('scroll', closeTooltip, true)
     }
-  }, [open])
+  }, [open, startExit])
 
-  useEffect(() => () => window.clearTimeout(hideTimerRef.current), [])
+  useEffect(
+    () => () => {
+      window.clearTimeout(hideTimerRef.current)
+      window.clearTimeout(exitTimerRef.current)
+    },
+    []
+  )
 
   return (
     <span
@@ -98,13 +133,14 @@ export function Tooltip({ children, content }: TooltipProps) {
       }}
     >
       {children}
-      {open
+      {rendered
         ? createPortal(
             <span
               ref={tooltipRef}
               id={tooltipId}
               className="app-tooltip-content"
               data-placement={position?.placement ?? 'top'}
+              data-state={open && position ? 'open' : 'closed'}
               role="tooltip"
               style={
                 position
