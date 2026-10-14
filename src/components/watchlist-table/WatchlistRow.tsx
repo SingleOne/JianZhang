@@ -86,6 +86,18 @@ function valueClass(value: number | null | undefined): string {
   return value > 0 ? 'is-up' : 'is-down'
 }
 
+function formatPerformanceCacheTime(value: string): string {
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  }).format(new Date(value))
+}
+
 function isChiNextStock(code: string): boolean {
   return code.startsWith('300') || code.startsWith('301')
 }
@@ -131,6 +143,7 @@ interface WatchlistRowProps {
   quote: StockQuote | undefined
   metrics: PositionMetrics
   cumulativeProfit: number | null | undefined
+  cumulativeProfitGeneratedAt: string | undefined
   dividendFinancing: DividendFinancingRankingItem | undefined
   dividendFinancingSnapshotDate: string | undefined
   fundamentalScreening: FundamentalScreeningEvaluation | undefined
@@ -207,6 +220,7 @@ export const WatchlistRow = memo(function WatchlistRow({
   quote,
   metrics,
   cumulativeProfit,
+  cumulativeProfitGeneratedAt,
   dividendFinancing,
   dividendFinancingSnapshotDate,
   fundamentalScreening,
@@ -300,11 +314,14 @@ export const WatchlistRow = memo(function WatchlistRow({
   const dividendYield = calculatePreviousCloseDividendYield(dividendFinancing, quote)
   const hasPosition = (stock.position?.quantity ?? 0) > 0
   const displayedTotalProfit = hasPosition ? metrics.totalProfit : cumulativeProfit
+  const cumulativeProfitSnapshotTime = cumulativeProfitGeneratedAt
+    ? formatPerformanceCacheTime(cumulativeProfitGeneratedAt)
+    : '--'
   const totalProfitTooltip = hasPosition
     ? '当前有持仓，显示当前持仓周期收益；第二行为持仓收益率。'
     : cumulativeProfit === null || cumulativeProfit === undefined
-      ? '当前无持仓，跨市场收益分析暂无可用的累计收益。'
-      : '当前无持仓，显示跨市场收益分析中的累计收益（人民币）。'
+      ? '当前无持仓；本地尚无累计收益快照，请打开跨市场收益分析进行计算。'
+      : `当前无持仓，显示跨市场收益分析保存的累计收益（人民币）；快照时间 ${cumulativeProfitSnapshotTime}。`
   const currentRadarSignals =
     capabilities.radar && stock.showRadarSignals ? todayRadarSignals(quote?.radarSignals) : []
   const latestRadarSignal = currentRadarSignals[0]

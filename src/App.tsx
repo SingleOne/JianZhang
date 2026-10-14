@@ -27,7 +27,7 @@ import {
 } from './lib/fundamental-screening'
 import { calculatePortfolioSummary } from './lib/portfolio'
 import { watchlistAddedDate } from './shared/watchlist-date'
-import { calculateWatchlistProfitOverview } from './lib/portfolio-performance'
+import { calculateCurrentPositionProfitOverrides } from './lib/portfolio-performance'
 import { reconcileStockQuotes } from './lib/quote-state'
 import { applyAppThemePreference } from './lib/theme'
 import {
@@ -63,6 +63,7 @@ import type {
   GitHubDeviceAuthorization,
   GitHubSyncSettings,
   OptionalModulesState,
+  PortfolioPerformanceCache,
   PortfolioPerformanceAdjustments,
   SearchResult,
   StockPosition,
@@ -139,6 +140,8 @@ const EMPTY_DATA_SNAPSHOT_STATE: DataSnapshotRuntimeState = {
   periodLabel: null,
   staleReason: null
 }
+
+const EMPTY_CUMULATIVE_PROFIT_BY_QUOTE_ID: Readonly<Record<string, number | null>> = {}
 
 const INITIAL_OPTIONAL_MODULES_STATE: OptionalModulesState = {
   marketInsight: {
@@ -575,27 +578,26 @@ export default function App() {
       ),
     [fundamentalOverview]
   )
-  const watchlistProfitOverview = useMemo(
+  const positionProfitOverrides = useMemo(
     () =>
-      calculateWatchlistProfitOverview(
+      calculateCurrentPositionProfitOverrides(
         state.watchlist,
         quotes,
         state.stockTradingBooks,
         state.settings.exchangeRates,
-        state.portfolioPerformanceAdjustments ?? {},
-        state.securitiesAccounts ?? {}
+        state.portfolioPerformanceAdjustments ?? {}
       ),
     [
       quotes,
       state.portfolioPerformanceAdjustments,
-      state.securitiesAccounts,
       state.settings.exchangeRates,
       state.stockTradingBooks,
       state.watchlist
     ]
   )
-  const positionProfitOverrides = watchlistProfitOverview.currentPositionProfitOverrides
-  const cumulativeProfitByQuoteId = watchlistProfitOverview.cumulativeProfitByQuoteId
+  const cumulativeProfitByQuoteId =
+    state.portfolioPerformanceCache?.cumulativeProfitByQuoteId ??
+    EMPTY_CUMULATIVE_PROFIT_BY_QUOTE_ID
   const portfolioSummary = useMemo(
     () =>
       calculatePortfolioSummary(
@@ -1082,6 +1084,12 @@ export default function App() {
         }
       return Boolean(await persist(next, false))
     },
+    [persist, state]
+  )
+
+  const savePortfolioPerformanceCache = useCallback(
+    async (cache: PortfolioPerformanceCache) =>
+      Boolean(await persist({ ...state, portfolioPerformanceCache: cache }, false)),
     [persist, state]
   )
 
@@ -1964,6 +1972,7 @@ export default function App() {
                     exchangeRates={state.settings.exchangeRates}
                     positionProfitOverrides={positionProfitOverrides}
                     cumulativeProfitByQuoteId={cumulativeProfitByQuoteId}
+                    cumulativeProfitGeneratedAt={state.portfolioPerformanceCache?.generatedAt}
                     onSelect={selectWatchlistStock}
                     onStockSelectionPositioned={handleStockSelectionPositioned}
                     onDetailNavigationHandled={handleDetailNavigationHandled}
@@ -2181,6 +2190,7 @@ export default function App() {
               exchangeRates={state.settings.exchangeRates}
               adjustments={state.portfolioPerformanceAdjustments ?? {}}
               onSaveAdjustments={savePortfolioPerformanceAdjustments}
+              onSavePerformanceCache={savePortfolioPerformanceCache}
               onRecalculateStock={recalculatePortfolioPerformanceStock}
               onClose={() => setPortfolioPerformanceOpen(false)}
             />

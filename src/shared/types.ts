@@ -2778,9 +2778,16 @@ export interface AppState {
   stockTradingBooks: StockTradingBooks
   corporateActionApplications: CorporateActionRecords
   portfolioPerformanceAdjustments?: PortfolioPerformanceAdjustments
+  portfolioPerformanceCache?: PortfolioPerformanceCache
 }
 
 export type PortfolioPerformanceAdjustments = Record<string, number>
+
+export interface PortfolioPerformanceCache {
+  schemaVersion: 1
+  generatedAt: string
+  cumulativeProfitByQuoteId: Record<string, number | null>
+}
 
 export function normalizePortfolioPerformanceAdjustments(
   adjustments: PortfolioPerformanceAdjustments | undefined,
@@ -2792,6 +2799,34 @@ export function normalizePortfolioPerformanceAdjustments(
       ([quoteId, value]) => quoteIds.has(quoteId) && Number.isFinite(value) && value !== 0
     )
   )
+}
+
+export function normalizePortfolioPerformanceCache(
+  value: unknown,
+  watchlist: readonly WatchStock[]
+): PortfolioPerformanceCache | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const cache = value as Partial<PortfolioPerformanceCache>
+  if (
+    cache.schemaVersion !== 1 ||
+    typeof cache.generatedAt !== 'string' ||
+    !Number.isFinite(Date.parse(cache.generatedAt)) ||
+    !cache.cumulativeProfitByQuoteId ||
+    typeof cache.cumulativeProfitByQuoteId !== 'object' ||
+    Array.isArray(cache.cumulativeProfitByQuoteId)
+  ) {
+    return undefined
+  }
+  const quoteIds = new Set(watchlist.map((stock) => stock.quoteId))
+  return {
+    schemaVersion: 1,
+    generatedAt: cache.generatedAt,
+    cumulativeProfitByQuoteId: Object.fromEntries(
+      Object.entries(cache.cumulativeProfitByQuoteId).filter(
+        ([quoteId, profit]) => quoteIds.has(quoteId) && (profit === null || Number.isFinite(profit))
+      )
+    )
+  }
 }
 
 export type CompletionNotificationTarget =

@@ -3,6 +3,7 @@ import {
   WATCHLIST_COLUMN_ORDER_VERSION,
   normalizeAppSettings,
   normalizeCorporateActionRecords,
+  normalizePortfolioPerformanceCache,
   normalizePortfolioPerformanceAdjustments,
   normalizeStockTrackingProfiles,
   normalizeWatchlist,
@@ -120,6 +121,10 @@ export function parseImportedAppState(value: unknown): AppState {
     ),
     portfolioPerformanceAdjustments: normalizePortfolioPerformanceAdjustments(
       importedState.portfolioPerformanceAdjustments,
+      watchlist
+    ),
+    portfolioPerformanceCache: normalizePortfolioPerformanceCache(
+      importedState.portfolioPerformanceCache,
       watchlist
     )
   })

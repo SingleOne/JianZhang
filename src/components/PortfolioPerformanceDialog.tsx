@@ -2,7 +2,7 @@ import { useSecuritiesAccountState } from './SecuritiesAccountContext'
 import { listStockAccountBooks, getStockAccountBook } from '../shared/stock-accounts'
 import type { StockTradingBooks } from '../shared/types'
 import { ChartPie, CircleAlert, History, PencilLine, RefreshCw, Save, X } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { formatMoneyProfit } from '../lib/format'
 import {
@@ -16,6 +16,7 @@ import {
 import type {
   ExchangeRateSettings,
   PortfolioPerformanceAdjustments,
+  PortfolioPerformanceCache,
   StockQuote,
   WatchStock
 } from '../shared/types'
@@ -32,6 +33,7 @@ interface PortfolioPerformanceDialogProps {
     adjustments: PortfolioPerformanceAdjustments,
     accountId?: string
   ) => Promise<boolean>
+  onSavePerformanceCache: (cache: PortfolioPerformanceCache) => Promise<boolean>
   onRecalculateStock: (quoteId: string) => Promise<void>
   onClose: () => void
 }
@@ -147,6 +149,7 @@ export default function PortfolioPerformanceDialog({
   exchangeRates,
   adjustments,
   onSaveAdjustments,
+  onSavePerformanceCache,
   onRecalculateStock,
   onClose
 }: PortfolioPerformanceDialogProps) {
@@ -160,6 +163,7 @@ export default function PortfolioPerformanceDialog({
   const [recalculatingQuoteId, setRecalculatingQuoteId] = useState<string | null>(null)
   const [recalculationErrorQuoteId, setRecalculationErrorQuoteId] = useState<string | null>(null)
   const [cycleDetailQuoteId, setCycleDetailQuoteId] = useState<string | null>(null)
+  const savedCumulativeProfitSignatureRef = useRef<string | null>(null)
   const visibleBooks = useMemo(
     () =>
       accountFilter === 'all'
@@ -208,6 +212,27 @@ export default function PortfolioPerformanceDialog({
       accountState.securitiesAccounts
     ]
   )
+  useEffect(() => {
+    if (accountFilter !== 'all') return
+    const cumulativeProfitByQuoteId = Object.fromEntries(
+      report.stockRows.map((row) => [row.id, row.cumulative.cny.totalProfit])
+    )
+    const signature = JSON.stringify(cumulativeProfitByQuoteId)
+    if (signature === savedCumulativeProfitSignatureRef.current) return
+    savedCumulativeProfitSignatureRef.current = signature
+    const clearFailedSignature = () => {
+      if (savedCumulativeProfitSignatureRef.current === signature) {
+        savedCumulativeProfitSignatureRef.current = null
+      }
+    }
+    void onSavePerformanceCache({
+      schemaVersion: 1,
+      generatedAt: report.generatedAt,
+      cumulativeProfitByQuoteId
+    }).then((saved) => {
+      if (!saved) clearFailedSignature()
+    }, clearFailedSignature)
+  }, [accountFilter, onSavePerformanceCache, report])
   const rows = useMemo(() => {
     if (dimension === 'stock') return report.stockRows
     if (dimension === 'market') return report.marketRows

@@ -6,6 +6,7 @@ import {
   WATCHLIST_COLUMN_ORDER_VERSION,
   normalizeAppSettings,
   normalizeCorporateActionRecords,
+  normalizePortfolioPerformanceCache,
   normalizePortfolioPerformanceAdjustments,
   normalizeStockTrackingProfiles,
   normalizeWatchlist,
@@ -75,6 +76,7 @@ type PortfolioMetaState = Pick<
   AppState,
   | 'corporateActionApplications'
   | 'portfolioPerformanceAdjustments'
+  | 'portfolioPerformanceCache'
   | 'securitiesAccounts'
   | 'feeSchemes'
   | 'fixedFeeDefaults'
@@ -273,6 +275,10 @@ export class StateStore {
       portfolioPerformanceAdjustments: normalizePortfolioPerformanceAdjustments(
         state.portfolioPerformanceAdjustments,
         watchlist
+      ),
+      portfolioPerformanceCache: normalizePortfolioPerformanceCache(
+        state.portfolioPerformanceCache,
+        watchlist
       )
     })
   }
@@ -433,6 +439,10 @@ export class StateStore {
       portfolioPerformanceAdjustments: normalizePortfolioPerformanceAdjustments(
         saved.portfolioPerformanceAdjustments,
         watchlist
+      ),
+      portfolioPerformanceCache: normalizePortfolioPerformanceCache(
+        saved.portfolioPerformanceCache,
+        watchlist
       )
     })
   }
@@ -466,7 +476,8 @@ export class StateStore {
         feeSchemes: state.feeSchemes,
         fixedFeeDefaults: state.fixedFeeDefaults,
         portfolioSchemaVersion: state.portfolioSchemaVersion,
-        portfolioPerformanceAdjustments: state.portfolioPerformanceAdjustments ?? {}
+        portfolioPerformanceAdjustments: state.portfolioPerformanceAdjustments ?? {},
+        portfolioPerformanceCache: state.portfolioPerformanceCache
       } satisfies PortfolioMetaState,
       revision,
       previous?.portfolioMeta

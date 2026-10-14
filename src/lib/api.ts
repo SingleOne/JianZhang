@@ -6,6 +6,7 @@ import {
   WATCHLIST_COLUMN_ORDER_VERSION,
   getMarketIndexStocks,
   normalizeAppSettings,
+  normalizePortfolioPerformanceCache,
   normalizePortfolioPerformanceAdjustments,
   normalizeStockTrackingProfiles,
   normalizeWatchlist,
@@ -293,6 +294,10 @@ function loadDemoState(): AppState {
       parsed.corporateActionApplications ?? parsed.corporateActionRecords ?? {},
     portfolioPerformanceAdjustments: normalizePortfolioPerformanceAdjustments(
       parsed.portfolioPerformanceAdjustments,
+      watchlist
+    ),
+    portfolioPerformanceCache: normalizePortfolioPerformanceCache(
+      parsed.portfolioPerformanceCache,
       watchlist
     )
   })
