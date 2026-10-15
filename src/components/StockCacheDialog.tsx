@@ -1,3 +1,4 @@
+import { Tooltip } from './Tooltip'
 import { Database, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -90,27 +91,36 @@ export function StockCacheDialog({ stock, onClose, onCleared }: StockCacheDialog
               {stock.name}（{stock.code}）：只清理本股勾选的缓存，默认不选择。
             </p>
           </div>
-          <button
-            ref={closeButtonRef}
-            className="icon-button confirm-dialog-close"
-            type="button"
-            onClick={onClose}
-            disabled={busy}
-            aria-label="关闭缓存清理弹窗"
-            title="关闭"
-          >
-            <X size={16} />
-          </button>
+          <Tooltip content="关闭">
+            <button
+              ref={closeButtonRef}
+              className="icon-button confirm-dialog-close"
+              type="button"
+              onClick={onClose}
+              disabled={busy}
+              aria-label="关闭缓存清理弹窗"
+            >
+              <X size={16} />
+            </button>
+          </Tooltip>
         </header>
 
         {!result ? (
           <div className="stock-cache-dialog-body">
             <div className="stock-cache-selection-actions">
               <span>可清理的缓存</span>
-              <button type="button" onClick={() => setSelected(categories.map(({ id }) => id))} disabled={busy}>
+              <button
+                type="button"
+                onClick={() => setSelected(categories.map(({ id }) => id))}
+                disabled={busy}
+              >
                 全选
               </button>
-              <button type="button" onClick={() => setSelected([])} disabled={busy || selected.length === 0}>
+              <button
+                type="button"
+                onClick={() => setSelected([])}
+                disabled={busy || selected.length === 0}
+              >
                 清空
               </button>
             </div>

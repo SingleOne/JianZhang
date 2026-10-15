@@ -1,3 +1,4 @@
+import { Tooltip } from './Tooltip'
 import {
   ColorType,
   createChart,
@@ -166,7 +167,11 @@ export default function StockTrackingRealtimeVolumeRatioChart({
         </span>
         <span>累计量 {formatVolume(displayedPoint?.cumulativeVolume, volumeUnit)}</span>
         <span>进度预期量 {formatVolume(displayedPoint?.expectedVolume, volumeUnit)}</span>
-        {intervalMinutes === 5 ? <i title={fallbackReason}>5分钟备用行情</i> : null}
+        {intervalMinutes === 5 ? (
+          <Tooltip content={fallbackReason}>
+            <i>5分钟备用行情</i>
+          </Tooltip>
+        ) : null}
       </div>
       <div ref={containerRef} />
     </div>

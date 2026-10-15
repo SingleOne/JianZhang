@@ -382,46 +382,37 @@ export const WatchlistRow = memo(function WatchlistRow({
       >
         <td className="order-column">
           <div className="row-order-actions">
-            <span
-              className={`row-drag-handle ${dragDisabled ? 'is-disabled' : ''}`}
-              draggable={!dragDisabled}
-              onClick={(event) => event.stopPropagation()}
-              onDragStart={(event) => onDragStart(stock.quoteId, event)}
-              onDragEnd={onDragEnd}
-              title={dragDisabled ? '请先恢复手动排序' : '拖动调整股票顺序'}
-            >
-              <GripVertical size={15} />
-            </span>
+            <Tooltip content={dragDisabled ? '请先恢复手动排序' : '拖动调整股票顺序'}>
+              <span
+                className={`row-drag-handle ${dragDisabled ? 'is-disabled' : ''}`}
+                draggable={!dragDisabled}
+                onClick={(event) => event.stopPropagation()}
+                onDragStart={(event) => onDragStart(stock.quoteId, event)}
+                onDragEnd={onDragEnd}
+              >
+                <GripVertical size={15} />
+              </span>
+            </Tooltip>
           </div>
         </td>
         <td className="settings-column">
           <div className="row-actions">
-            <button
-              className="row-action-button is-pin-action"
-              type="button"
-              disabled={!dragDisabled && manualIndex === 0}
-              onClick={(event) => {
-                event.stopPropagation()
-                onPin(stock.quoteId)
-              }}
-              aria-label={`置顶 ${stock.name}`}
-              title={dragDisabled ? '置顶并恢复手动排序' : '置顶'}
-            >
-              <ArrowUpToLine size={15} />
-            </button>
-            <button
-              className={`row-action-button is-priority-action ${stock.isPriority ? 'is-active' : ''} ${stock.position ? 'is-locked' : ''}`}
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation()
-                onTogglePriority(stock.quoteId)
-              }}
-              aria-pressed={stock.isPriority}
-              aria-disabled={Boolean(stock.position)}
-              aria-label={
-                stock.isPriority ? `取消重点关注 ${stock.name}` : `重点关注 ${stock.name}`
-              }
-              title={
+            <Tooltip content={dragDisabled ? '置顶并恢复手动排序' : '置顶'}>
+              <button
+                className="row-action-button is-pin-action"
+                type="button"
+                disabled={!dragDisabled && manualIndex === 0}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onPin(stock.quoteId)
+                }}
+                aria-label={`置顶 ${stock.name}`}
+              >
+                <ArrowUpToLine size={15} />
+              </button>
+            </Tooltip>
+            <Tooltip
+              content={
                 stock.position
                   ? '持仓股票已自动设为重点关注'
                   : stock.isPriority
@@ -429,67 +420,79 @@ export const WatchlistRow = memo(function WatchlistRow({
                     : '设为重点关注'
               }
             >
-              <Star size={15} fill={stock.isPriority ? 'currentColor' : 'none'} />
-            </button>
-            <button
-              className={`row-action-button is-taskbar-action ${stock.showInTaskbar ? 'is-active' : ''}`}
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation()
-                onToggleTaskbar(stock.quoteId)
-              }}
-              aria-pressed={stock.showInTaskbar}
-              aria-label={
-                stock.showInTaskbar
-                  ? `取消在任务栏显示 ${stock.name}`
-                  : `在任务栏显示 ${stock.name}`
-              }
-              title={stock.showInTaskbar ? '取消任务栏展示' : '直接在任务栏显示实时价格'}
+              <button
+                className={`row-action-button is-priority-action ${stock.isPriority ? 'is-active' : ''} ${stock.position ? 'is-locked' : ''}`}
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onTogglePriority(stock.quoteId)
+                }}
+                aria-pressed={stock.isPriority}
+                aria-disabled={Boolean(stock.position)}
+                aria-label={
+                  stock.isPriority ? `取消重点关注 ${stock.name}` : `重点关注 ${stock.name}`
+                }
+              >
+                <Star size={15} fill={stock.isPriority ? 'currentColor' : 'none'} />
+              </button>
+            </Tooltip>
+            <Tooltip content={stock.showInTaskbar ? '取消任务栏展示' : '直接在任务栏显示实时价格'}>
+              <button
+                className={`row-action-button is-taskbar-action ${stock.showInTaskbar ? 'is-active' : ''}`}
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onToggleTaskbar(stock.quoteId)
+                }}
+                aria-pressed={stock.showInTaskbar}
+                aria-label={
+                  stock.showInTaskbar
+                    ? `取消在任务栏显示 ${stock.name}`
+                    : `在任务栏显示 ${stock.name}`
+                }
+              >
+                <MonitorUp size={15} />
+              </button>
+            </Tooltip>
+            <Tooltip
+              content={groupCount > 0 ? `调整分组，已加入 ${groupCount} 个分组` : '加入分组'}
             >
-              <MonitorUp size={15} />
-            </button>
-            <button
-              className={`row-action-button is-group-action ${groupCount > 0 || groupPopoverOpen ? 'is-active' : ''}`}
-              type="button"
-              aria-haspopup="dialog"
-              aria-expanded={groupPopoverOpen}
-              aria-controls={groupPopoverOpen ? 'watchlist-group-quick-popover' : undefined}
-              onKeyDown={(event) => event.stopPropagation()}
-              onClick={(event) => {
-                event.stopPropagation()
-                onOpenGroups(stock.quoteId, event.currentTarget)
-              }}
-              aria-label={`调整 ${stock.name} 的分组`}
-              title={groupCount > 0 ? `调整分组，已加入 ${groupCount} 个分组` : '加入分组'}
-            >
-              <FolderPlus size={15} />
-            </button>
+              <button
+                className={`row-action-button is-group-action ${groupCount > 0 || groupPopoverOpen ? 'is-active' : ''}`}
+                type="button"
+                aria-haspopup="dialog"
+                aria-expanded={groupPopoverOpen}
+                aria-controls={groupPopoverOpen ? 'watchlist-group-quick-popover' : undefined}
+                onKeyDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onOpenGroups(stock.quoteId, event.currentTarget)
+                }}
+                aria-label={`调整 ${stock.name} 的分组`}
+              >
+                <FolderPlus size={15} />
+              </button>
+            </Tooltip>
             {capabilities.position || capabilities.tTrading ? (
               <>
                 {capabilities.position ? (
-                  <button
-                    className={`row-action-button is-position-action ${stock.position ? 'has-position' : ''}`}
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      onEditPosition(stock)
-                    }}
-                    aria-label={`编辑 ${stock.name} 的持仓`}
-                    title="编辑持仓数量和成本"
-                  >
-                    <PencilLine size={15} />
-                  </button>
+                  <Tooltip content="编辑持仓数量和成本">
+                    <button
+                      className={`row-action-button is-position-action ${stock.position ? 'has-position' : ''}`}
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onEditPosition(stock)
+                      }}
+                      aria-label={`编辑 ${stock.name} 的持仓`}
+                    >
+                      <PencilLine size={15} />
+                    </button>
+                  </Tooltip>
                 ) : null}
                 {capabilities.tTrading ? (
-                  <button
-                    className={`row-action-button is-t-action ${tButtonState}`}
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      onOpenTTrading(stock)
-                    }}
-                    aria-label={`打开 ${stock.name} 的交易管理`}
-                    title={
+                  <Tooltip
+                    content={
                       overview.summaries.length > 1
                         ? `${overview.summaries.length} 个账户正在做 T`
                         : overview.summaries.length
@@ -497,42 +500,56 @@ export const WatchlistRow = memo(function WatchlistRow({
                           : '交易管理'
                     }
                   >
-                    <span className="t-letter-icon" aria-hidden="true">
-                      T
-                    </span>
-                  </button>
+                    <button
+                      className={`row-action-button is-t-action ${tButtonState}`}
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onOpenTTrading(stock)
+                      }}
+                      aria-label={`打开 ${stock.name} 的交易管理`}
+                    >
+                      <span className="t-letter-icon" aria-hidden="true">
+                        T
+                      </span>
+                    </button>
+                  </Tooltip>
                 ) : null}
               </>
             ) : null}
-            <button
-              className={`row-action-button is-alert-action ${stockAlertClass || (enabledStockAlertCount > 0 ? 'is-active' : '')}`}
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation()
-                onOpenStockAlert(stock)
-              }}
-              aria-label={`设置 ${stock.name} 的股价提醒`}
-              title={
+            <Tooltip
+              content={
                 enabledStockAlertCount > 0
                   ? `已启用 ${enabledStockAlertCount} 条股价提醒`
                   : '设置股价、涨幅或收益率提醒'
               }
             >
-              <BellRing size={15} />
-            </button>
-            <button
-              className="row-action-button is-bottom-action"
-              type="button"
-              disabled={!dragDisabled && isLastInManualOrder}
-              onClick={(event) => {
-                event.stopPropagation()
-                onMoveToBottom(stock.quoteId)
-              }}
-              aria-label={`将 ${stock.name} 移到底部`}
-              title={dragDisabled ? '移到底部并恢复手动排序' : '移到底部'}
-            >
-              <ArrowDownToLine size={15} />
-            </button>
+              <button
+                className={`row-action-button is-alert-action ${stockAlertClass || (enabledStockAlertCount > 0 ? 'is-active' : '')}`}
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onOpenStockAlert(stock)
+                }}
+                aria-label={`设置 ${stock.name} 的股价提醒`}
+              >
+                <BellRing size={15} />
+              </button>
+            </Tooltip>
+            <Tooltip content={dragDisabled ? '移到底部并恢复手动排序' : '移到底部'}>
+              <button
+                className="row-action-button is-bottom-action"
+                type="button"
+                disabled={!dragDisabled && isLastInManualOrder}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onMoveToBottom(stock.quoteId)
+                }}
+                aria-label={`将 ${stock.name} 移到底部`}
+              >
+                <ArrowDownToLine size={15} />
+              </button>
+            </Tooltip>
           </div>
         </td>
         {columnOrder.map((columnId) => {
@@ -545,36 +562,36 @@ export const WatchlistRow = memo(function WatchlistRow({
                       <span className="stock-name-line">
                         <strong>{stock.name}</strong>
                         {isAStock && isChiNextStock(stock.code) ? (
-                          <span className="stock-board-badge" title="创业板">
-                            创
-                          </span>
+                          <Tooltip content="创业板">
+                            <span className="stock-board-badge">创</span>
+                          </Tooltip>
                         ) : null}
                         {isAStock && isStarMarketStock(stock.code) ? (
-                          <span className="stock-board-badge is-star" title="科创板">
-                            科
-                          </span>
+                          <Tooltip content="科创板">
+                            <span className="stock-board-badge is-star">科</span>
+                          </Tooltip>
                         ) : null}
                         {quoteExpired ? (
-                          <span
-                            className="stock-quote-expired-badge"
-                            title={`${quoteSourceLabel}行情已超过 5 分钟未更新 · 行情时间 ${quote?.dataAt ?? '未知'} · 请求时间 ${quote?.updatedAt ?? '未知'}`}
+                          <Tooltip
+                            content={`${quoteSourceLabel}行情已超过 5 分钟未更新 · 行情时间 ${quote?.dataAt ?? '未知'} · 请求时间 ${quote?.updatedAt ?? '未知'}`}
                           >
-                            过期
-                          </span>
+                            <span className="stock-quote-expired-badge">过期</span>
+                          </Tooltip>
                         ) : null}
                         {trackingProfile?.status === 'tracking' ? (
-                          <button
-                            className="stock-tracking-row-badge"
-                            type="button"
-                            title="打开选股追踪"
-                            aria-label={`打开 ${stock.name} 的选股追踪`}
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              handleTrackingBadgeClick()
-                            }}
-                          >
-                            追踪
-                          </button>
+                          <Tooltip content="打开选股追踪">
+                            <button
+                              className="stock-tracking-row-badge"
+                              type="button"
+                              aria-label={`打开 ${stock.name} 的选股追踪`}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                handleTrackingBadgeClick()
+                              }}
+                            >
+                              追踪
+                            </button>
+                          </Tooltip>
                         ) : null}
                         <FiveLevelAlertBadges
                           alerts={
@@ -583,27 +600,28 @@ export const WatchlistRow = memo(function WatchlistRow({
                           compact
                         />
                         {tAlertBadges.length > 0 || tFloatingProfitAlert ? (
-                          <button
-                            type="button"
-                            className="t-alert-cell-button"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              onOpenTTrading(stock)
-                            }}
-                            title="查看当前 T 仓提醒"
-                          >
-                            <TAlertBadges badges={tAlertBadges} compact />
-                            {overview.floatingAlerts.map((summary) => (
-                              <TFloatingProfitAlertBadge
-                                key={summary.account.accountId}
-                                accountName={summary.account.accountName}
-                                batch={summary.batch}
-                                floatingProfit={summary.metrics.floatingProfit}
-                                currency={metrics.currency}
-                                compact
-                              />
-                            ))}
-                          </button>
+                          <Tooltip content="查看当前 T 仓提醒">
+                            <button
+                              type="button"
+                              className="t-alert-cell-button"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                onOpenTTrading(stock)
+                              }}
+                            >
+                              <TAlertBadges badges={tAlertBadges} compact />
+                              {overview.floatingAlerts.map((summary) => (
+                                <TFloatingProfitAlertBadge
+                                  key={summary.account.accountId}
+                                  accountName={summary.account.accountName}
+                                  batch={summary.batch}
+                                  floatingProfit={summary.metrics.floatingProfit}
+                                  currency={metrics.currency}
+                                  compact
+                                />
+                              ))}
+                            </button>
+                          </Tooltip>
                         ) : null}
                       </span>
                       <small>
@@ -630,68 +648,73 @@ export const WatchlistRow = memo(function WatchlistRow({
               )
             case 'changePercent':
               return (
-                <td
+                <Tooltip
                   key={columnId}
-                  title={
+                  content={
                     quote?.sector
                       ? `${quote.sector.name}（${quote.sector.code}）`
                       : '暂无所属行业板块行情'
                   }
                 >
-                  <span className="change-percent-cell">
-                    <strong className={`change-percent ${quoteDirection}`}>
-                      {formatPercent(quote?.changePercent)}
-                    </strong>
-                    <small className={sectorDirection}>
-                      板块 {formatPercent(quote?.sector?.changePercent)}
-                    </small>
-                  </span>
-                </td>
+                  <td>
+                    <span className="change-percent-cell">
+                      <strong className={`change-percent ${quoteDirection}`}>
+                        {formatPercent(quote?.changePercent)}
+                      </strong>
+                      <small className={sectorDirection}>
+                        板块 {formatPercent(quote?.sector?.changePercent)}
+                      </small>
+                    </span>
+                  </td>
+                </Tooltip>
               )
             case 'sinceAddedChange':
               return (
-                <td
+                <Tooltip
                   key={columnId}
-                  title={
+                  content={
                     sinceAddedPerformance
                       ? `添加时间 ${stock.addedAt ?? '--'}，添加基准价 ${formatPrice(stock.addedPrice)}`
                       : '旧数据未记录添加时价格；新添加股票会自动记录'
                   }
                 >
-                  <span className="since-added-change-cell">
-                    <strong className={sinceAddedDirection}>
-                      {formatPercent(sinceAddedPerformance?.changePercent)}
-                    </strong>
-                    <small className={sinceAddedDirection}>
-                      {formatSigned(sinceAddedPerformance?.change, 3)}
-                    </small>
-                  </span>
-                </td>
+                  <td>
+                    <span className="since-added-change-cell">
+                      <strong className={sinceAddedDirection}>
+                        {formatPercent(sinceAddedPerformance?.changePercent)}
+                      </strong>
+                      <small className={sinceAddedDirection}>
+                        {formatSigned(sinceAddedPerformance?.change, 3)}
+                      </small>
+                    </span>
+                  </td>
+                </Tooltip>
               )
             case 'dividendFinancingRatio':
               return (
-                <td
-                  key={columnId}
-                  title={
+                <Tooltip
+                  content={
                     dividendFinancing
                       ? `累计A股分红 ${dividendFinancing.dividendYi.toLocaleString('zh-CN')} 亿元，累计A股融资 ${dividendFinancing.financingYi.toLocaleString('zh-CN')} 亿元；净回报 ${(dividendFinancing.netReturnYi ?? dividendFinancing.dividendYi - dividendFinancing.financingYi).toLocaleString('zh-CN')} 亿元；${dividendYield ? `${dividendYield.dividendYear} 年每股分红约 ${formatPrice(dividendYield.dividendPerShare)} 元，按昨收 ${formatPrice(quote?.previousClose)} 计算股息率` : '缺少上一年度分红、最新价、总市值或昨收数据，暂不能计算股息率'}；快照 ${dividendFinancingSnapshotDate ?? '--'}`
                       : `当前全量快照暂无完整的分红、融资数据；快照 ${dividendFinancingSnapshotDate ?? '--'}`
                   }
                 >
-                  {dividendFinancing ? (
-                    <span className="dividend-financing-cell">
-                      <strong>{dividendFinancing.ratio.toFixed(2)}%</strong>
-                      <small className={valueClass(dividendYield?.yieldPercent)}>
-                        股息率 {formatPercent(dividendYield?.yieldPercent)}
-                      </small>
-                    </span>
-                  ) : (
-                    <span className="dividend-financing-cell is-empty">
-                      <strong>--</strong>
-                      <small>股息率 --</small>
-                    </span>
-                  )}
-                </td>
+                  <td key={columnId}>
+                    {dividendFinancing ? (
+                      <span className="dividend-financing-cell">
+                        <strong>{dividendFinancing.ratio.toFixed(2)}%</strong>
+                        <small className={valueClass(dividendYield?.yieldPercent)}>
+                          股息率 {formatPercent(dividendYield?.yieldPercent)}
+                        </small>
+                      </span>
+                    ) : (
+                      <span className="dividend-financing-cell is-empty">
+                        <strong>--</strong>
+                        <small>股息率 --</small>
+                      </span>
+                    )}
+                  </td>
+                </Tooltip>
               )
             case 'valueTags': {
               const fundamentalBadge =
@@ -717,46 +740,51 @@ export const WatchlistRow = memo(function WatchlistRow({
                 <td key={columnId}>
                   <span className="value-tag-cell">
                     {fundamentalBadge && fundamentalScreening ? (
-                      <button
-                        className={`value-screening-badge ${fundamentalBadge.className}`}
-                        type="button"
-                        title={fundamentalBadgeTitle(
+                      <Tooltip
+                        content={fundamentalBadgeTitle(
                           fundamentalScreening,
                           fundamentalSummary,
                           companyFundamentalSnapshotDate
                         )}
-                        aria-label={`打开${stock.name}基本面详情`}
-                        onKeyDown={(event) => event.stopPropagation()}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          handleFundamentalBadgeClick()
-                        }}
                       >
-                        {fundamentalBadge.label}
-                      </button>
+                        <button
+                          className={`value-screening-badge ${fundamentalBadge.className}`}
+                          type="button"
+                          aria-label={`打开${stock.name}基本面详情`}
+                          onKeyDown={(event) => event.stopPropagation()}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            handleFundamentalBadgeClick()
+                          }}
+                        >
+                          {fundamentalBadge.label}
+                        </button>
+                      </Tooltip>
                     ) : null}
                     {hasRiskBadge ? (
-                      <button
-                        className={`value-screening-badge is-risk-${riskSeverity}`}
-                        type="button"
-                        title={`基本面${riskSeverity === 'critical' ? '风险' : '关注'}：${riskMessages.join('、')}；点击查看详情`}
-                        aria-label={`打开${stock.name}基本面风险详情`}
-                        onKeyDown={(event) => event.stopPropagation()}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          handleFundamentalBadgeClick()
-                        }}
+                      <Tooltip
+                        content={`基本面${riskSeverity === 'critical' ? '风险' : '关注'}：${riskMessages.join('、')}；点击查看详情`}
                       >
-                        {riskSeverity === 'critical' ? '风险' : '关注'}
-                      </button>
+                        <button
+                          className={`value-screening-badge is-risk-${riskSeverity}`}
+                          type="button"
+                          aria-label={`打开${stock.name}基本面风险详情`}
+                          onKeyDown={(event) => event.stopPropagation()}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            handleFundamentalBadgeClick()
+                          }}
+                        >
+                          {riskSeverity === 'critical' ? '风险' : '关注'}
+                        </button>
+                      </Tooltip>
                     ) : null}
                     {hasDividendBadge ? (
-                      <span
-                        className="value-screening-badge is-dividend"
-                        title={`分红融资比超过100%；当前比值 ${dividendFinancing?.ratio.toFixed(2) ?? '--'}%，全量排名第 ${dividendFinancing?.rank ?? '--'} 名；快照 ${dividendFinancingSnapshotDate ?? '--'}`}
+                      <Tooltip
+                        content={`分红融资比超过100%；当前比值 ${dividendFinancing?.ratio.toFixed(2) ?? '--'}%，全量排名第 ${dividendFinancing?.rank ?? '--'} 名；快照 ${dividendFinancingSnapshotDate ?? '--'}`}
                       >
-                        分红
-                      </span>
+                        <span className="value-screening-badge is-dividend">分红</span>
+                      </Tooltip>
                     ) : null}
                     {!fundamentalBadge && !hasRiskBadge && !hasDividendBadge ? (
                       <span className="value-tag-empty">--</span>
@@ -768,27 +796,29 @@ export const WatchlistRow = memo(function WatchlistRow({
             case 'open':
               return (
                 <td key={columnId}>
-                  <span
-                    className="today-market-cell"
-                    title={`今开 ${formatPrice(quote?.open)}，昨收 ${formatPrice(quote?.previousClose)}，最低 ${formatPrice(quote?.low)}，最高 ${formatPrice(quote?.high)}`}
+                  <Tooltip
+                    content={`今开 ${formatPrice(quote?.open)}，昨收 ${formatPrice(quote?.previousClose)}，最低 ${formatPrice(quote?.low)}，最高 ${formatPrice(quote?.high)}`}
                   >
-                    <span>今开：{formatPrice(quote?.open)}</span>
-                    <span>昨收：{formatPrice(quote?.previousClose)}</span>
-                    <span>最低：{formatPrice(quote?.low)}</span>
-                    <span>最高：{formatPrice(quote?.high)}</span>
-                  </span>
+                    <span className="today-market-cell">
+                      <span>今开：{formatPrice(quote?.open)}</span>
+                      <span>昨收：{formatPrice(quote?.previousClose)}</span>
+                      <span>最低：{formatPrice(quote?.low)}</span>
+                      <span>最高：{formatPrice(quote?.high)}</span>
+                    </span>
+                  </Tooltip>
                 </td>
               )
             case 'trading':
               return (
                 <td key={columnId}>
-                  <span
-                    className="trading-market-cell"
-                    title={`成交额 ${formatAmount(quote?.amount)}，换手率 ${formatTurnoverRate(quote?.turnoverRate)}`}
+                  <Tooltip
+                    content={`成交额 ${formatAmount(quote?.amount)}，换手率 ${formatTurnoverRate(quote?.turnoverRate)}`}
                   >
-                    <span>成交额：{formatAmount(quote?.amount)}</span>
-                    <span>换手率：{formatTurnoverRate(quote?.turnoverRate)}</span>
-                  </span>
+                    <span className="trading-market-cell">
+                      <span>成交额：{formatAmount(quote?.amount)}</span>
+                      <span>换手率：{formatTurnoverRate(quote?.turnoverRate)}</span>
+                    </span>
+                  </Tooltip>
                 </td>
               )
             case 'amount':
@@ -797,19 +827,22 @@ export const WatchlistRow = memo(function WatchlistRow({
               return (
                 <td className="radar-column" key={columnId}>
                   {latestRadarSignal ? (
-                    <button
-                      className={`radar-summary-button is-${latestRadarSignal.direction}`}
-                      type="button"
-                      aria-expanded={radarExpanded}
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        onOpenRadar(stock.quoteId, event.currentTarget)
-                      }}
-                      title={`今日 ${currentRadarSignals.length} 条异动，点击查看近 5 日详情`}
+                    <Tooltip
+                      content={`今日 ${currentRadarSignals.length} 条异动，点击查看近 5 日详情`}
                     >
-                      <span>今日有异动</span>
-                      <b>{currentRadarSignals.length}</b>
-                    </button>
+                      <button
+                        className={`radar-summary-button is-${latestRadarSignal.direction}`}
+                        type="button"
+                        aria-expanded={radarExpanded}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          onOpenRadar(stock.quoteId, event.currentTarget)
+                        }}
+                      >
+                        <span>今日有异动</span>
+                        <b>{currentRadarSignals.length}</b>
+                      </button>
+                    </Tooltip>
                   ) : (
                     '--'
                   )}
@@ -821,9 +854,9 @@ export const WatchlistRow = memo(function WatchlistRow({
                   <span className="position-quantity-cell">
                     <span>{formatShares(stock.position?.quantity)}</span>
                     {availablePositionQuantity !== null ? (
-                      <small title="已扣除今日买入数量">
-                        可用 {formatShares(availablePositionQuantity)}
-                      </small>
+                      <Tooltip content="已扣除今日买入数量">
+                        <small>可用 {formatShares(availablePositionQuantity)}</small>
+                      </Tooltip>
                     ) : null}
                   </span>
                 </td>
@@ -882,18 +915,19 @@ export const WatchlistRow = memo(function WatchlistRow({
           }
         })}
         <td className="delete-column">
-          <button
-            className="icon-button remove-button"
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation()
-              onRemove(stock.quoteId)
-            }}
-            aria-label={`移除 ${stock.name}`}
-            title="移除自选"
-          >
-            <Trash2 size={15} />
-          </button>
+          <Tooltip content="移除自选">
+            <button
+              className="icon-button remove-button"
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                onRemove(stock.quoteId)
+              }}
+              aria-label={`移除 ${stock.name}`}
+            >
+              <Trash2 size={15} />
+            </button>
+          </Tooltip>
         </td>
       </tr>
       {selected || closing ? (

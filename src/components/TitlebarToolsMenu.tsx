@@ -1,3 +1,4 @@
+import { Tooltip } from './Tooltip'
 import {
   Activity,
   Binoculars,
@@ -53,10 +54,12 @@ export function TitlebarToolsMenu({
 
   return (
     <details className="titlebar-tools-menu" ref={menuRef}>
-      <summary className="secondary-button" title="更多功能">
-        <Menu size={17} />
-        <span>功能</span>
-      </summary>
+      <Tooltip content="更多功能">
+        <summary className="secondary-button">
+          <Menu size={17} />
+          <span>功能</span>
+        </summary>
+      </Tooltip>
       <div className="titlebar-tools-popover" role="menu" aria-label="更多功能">
         <ToolButton
           icon={<Trophy size={17} />}

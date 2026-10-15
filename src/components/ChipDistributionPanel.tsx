@@ -1,3 +1,4 @@
+import { Tooltip } from './Tooltip'
 import { RotateCcw } from 'lucide-react'
 import { useEffect, useMemo, useState, type PointerEvent } from 'react'
 import { stockApi } from '../lib/api'
@@ -74,15 +75,16 @@ export function ChipDistributionPanel({
           <strong>筹码分布</strong>
           <span>{isAutoRange ? '100%换手自动范围' : '当前可视范围'}</span>
         </div>
-        <button
-          type="button"
-          onClick={onRestoreAutoRange}
-          disabled={isAutoRange}
-          aria-label="恢复100%换手自动范围"
-          title="恢复100%换手自动范围"
-        >
-          <RotateCcw size={15} />
-        </button>
+        <Tooltip content="恢复100%换手自动范围">
+          <button
+            type="button"
+            onClick={onRestoreAutoRange}
+            disabled={isAutoRange}
+            aria-label="恢复100%换手自动范围"
+          >
+            <RotateCcw size={15} />
+          </button>
+        </Tooltip>
       </header>
 
       {distribution ? (
@@ -108,55 +110,69 @@ export function ChipDistributionPanel({
                 {formatChipPercent(distribution.profitPercent)}
               </strong>
             </span>
-            <button
-              className={highlightedBucketIndex === peakIndexes.highest ? 'is-active' : ''}
-              type="button"
-              onPointerEnter={() => setHighlightedBucketIndex(peakIndexes.highest)}
-              onPointerLeave={() => setHighlightedBucketIndex(null)}
-              onFocus={() => setHighlightedBucketIndex(peakIndexes.highest)}
-              onBlur={() => setHighlightedBucketIndex(null)}
-              title={`最高峰筹码占比 ${formatChipPercent(distribution.buckets[peakIndexes.highest].percent)}`}
+            <Tooltip
+              content={`最高峰筹码占比 ${formatChipPercent(distribution.buckets[peakIndexes.highest].percent)}`}
             >
-              <small>最高峰</small>
-              <strong>{formatChipPrice(distribution.buckets[peakIndexes.highest].price)}</strong>
-            </button>
-            <span title={`70%筹码集中度 ${formatChipPercent(distribution.cost70.concentration)}`}>
-              <small>70%成本</small>
-              <strong>
-                {formatChipPrice(distribution.cost70.low)}–
-                {formatChipPrice(distribution.cost70.high)}
-              </strong>
-            </span>
-            <span title={`90%筹码集中度 ${formatChipPercent(distribution.cost90.concentration)}`}>
-              <small>90%成本</small>
-              <strong>
-                {formatChipPrice(distribution.cost90.low)}–
-                {formatChipPrice(distribution.cost90.high)}
-              </strong>
-            </span>
-            <button
-              className={
-                highlightedBucketIndex === peakIndexes.firstAboveCurrent ? 'is-active' : ''
-              }
-              type="button"
-              disabled={peakIndexes.firstAboveCurrent < 0}
-              onPointerEnter={() => setHighlightedBucketIndex(peakIndexes.firstAboveCurrent)}
-              onPointerLeave={() => setHighlightedBucketIndex(null)}
-              onFocus={() => setHighlightedBucketIndex(peakIndexes.firstAboveCurrent)}
-              onBlur={() => setHighlightedBucketIndex(null)}
-              title={
+              <button
+                className={highlightedBucketIndex === peakIndexes.highest ? 'is-active' : ''}
+                type="button"
+                onPointerEnter={() => setHighlightedBucketIndex(peakIndexes.highest)}
+                onPointerLeave={() => setHighlightedBucketIndex(null)}
+                onFocus={() => setHighlightedBucketIndex(peakIndexes.highest)}
+                onBlur={() => setHighlightedBucketIndex(null)}
+              >
+                <small>最高峰</small>
+                <strong>{formatChipPrice(distribution.buckets[peakIndexes.highest].price)}</strong>
+              </button>
+            </Tooltip>
+            <Tooltip
+              content={`70%筹码集中度 ${formatChipPercent(distribution.cost70.concentration)}`}
+            >
+              <span>
+                <small>70%成本</small>
+                <strong>
+                  {formatChipPrice(distribution.cost70.low)}–
+                  {formatChipPrice(distribution.cost70.high)}
+                </strong>
+              </span>
+            </Tooltip>
+            <Tooltip
+              content={`90%筹码集中度 ${formatChipPercent(distribution.cost90.concentration)}`}
+            >
+              <span>
+                <small>90%成本</small>
+                <strong>
+                  {formatChipPrice(distribution.cost90.low)}–
+                  {formatChipPrice(distribution.cost90.high)}
+                </strong>
+              </span>
+            </Tooltip>
+            <Tooltip
+              content={
                 peakIndexes.firstAboveCurrent < 0
                   ? '当前价格上方没有形成局部峰值'
                   : `筹码占比 ${formatChipPercent(distribution.buckets[peakIndexes.firstAboveCurrent].percent)}`
               }
             >
-              <small>现价上方首峰</small>
-              <strong>
-                {peakIndexes.firstAboveCurrent < 0
-                  ? '—'
-                  : formatChipPrice(distribution.buckets[peakIndexes.firstAboveCurrent].price)}
-              </strong>
-            </button>
+              <button
+                className={
+                  highlightedBucketIndex === peakIndexes.firstAboveCurrent ? 'is-active' : ''
+                }
+                type="button"
+                disabled={peakIndexes.firstAboveCurrent < 0}
+                onPointerEnter={() => setHighlightedBucketIndex(peakIndexes.firstAboveCurrent)}
+                onPointerLeave={() => setHighlightedBucketIndex(null)}
+                onFocus={() => setHighlightedBucketIndex(peakIndexes.firstAboveCurrent)}
+                onBlur={() => setHighlightedBucketIndex(null)}
+              >
+                <small>现价上方首峰</small>
+                <strong>
+                  {peakIndexes.firstAboveCurrent < 0
+                    ? '—'
+                    : formatChipPrice(distribution.buckets[peakIndexes.firstAboveCurrent].price)}
+                </strong>
+              </button>
+            </Tooltip>
           </div>
 
           <ChipDistributionChart
@@ -204,10 +220,12 @@ function ChipDistributionStatus({ status, detail, bars }: ChipDistributionStatus
   }
 
   return (
-    <div className={`chip-distribution-empty is-${status}`} title={description}>
-      <strong>{title}</strong>
-      <span>{description}</span>
-    </div>
+    <Tooltip content={description}>
+      <div className={`chip-distribution-empty is-${status}`}>
+        <strong>{title}</strong>
+        <span>{description}</span>
+      </div>
+    </Tooltip>
   )
 }
 

@@ -1,3 +1,4 @@
+import { Tooltip } from './Tooltip'
 import {
   calculateAccountTradeFees,
   getAccountTradeFeeContext,
@@ -346,15 +347,16 @@ function TBaseLedgerCard({ accounts, stock, onApply, renderTradeEditor }: TBaseL
                   </small>
                 </span>
                 <span className="t-trade-actions">
-                  <button
-                    className="icon-button"
-                    type="button"
-                    disabled={!isDeletable}
-                    onClick={() => deleteCashEntry(account, entry)}
-                    title={isDeletable ? '删除现金流水' : '请在公司行动中撤销'}
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  <Tooltip content={isDeletable ? '删除现金流水' : '请在公司行动中撤销'}>
+                    <button
+                      className="icon-button"
+                      type="button"
+                      disabled={!isDeletable}
+                      onClick={() => deleteCashEntry(account, entry)}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </Tooltip>
                 </span>
               </div>
             )
@@ -400,21 +402,23 @@ function TBaseLedgerCard({ accounts, stock, onApply, renderTradeEditor }: TBaseL
                   </small>
                 </span>
                 <span className="t-trade-actions">
-                  <AppButton
-                    variant="icon"
-                    onClick={() => (isEditing ? finishEditing() : editTrade(account, trade))}
-                    title={isEditing ? '取消编辑底仓交易' : '修改底仓交易'}
-                  >
-                    {isEditing ? <X size={14} /> : <PencilLine size={14} />}
-                  </AppButton>
-                  <button
-                    className="icon-button"
-                    type="button"
-                    onClick={() => deleteTrade(account, trade)}
-                    title="删除底仓交易"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  <Tooltip content={isEditing ? '取消编辑底仓交易' : '修改底仓交易'}>
+                    <AppButton
+                      variant="icon"
+                      onClick={() => (isEditing ? finishEditing() : editTrade(account, trade))}
+                    >
+                      {isEditing ? <X size={14} /> : <PencilLine size={14} />}
+                    </AppButton>
+                  </Tooltip>
+                  <Tooltip content="删除底仓交易">
+                    <button
+                      className="icon-button"
+                      type="button"
+                      onClick={() => deleteTrade(account, trade)}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </Tooltip>
                 </span>
               </div>
               {isEditing ? (
@@ -1729,35 +1733,41 @@ function TTradeEntry({
                 ) : null}
               </div>
               {editingTrade ? (
-                <AppButton
-                  variant="text"
-                  className="bordered-text-button text-button"
-                  title={
+                <Tooltip
+                  content={
                     editingTrade.splitSource
                       ? '按整笔成交重新估算后分摊，将更新关联流水的费用及成本 / 收益'
                       : '按该流水所属账户当前方案重新估算，保存后更新成本 / 收益'
                   }
-                  onClick={() => {
-                    const keep = feeModeEdited && !manualFees
-                    setFeeModeEdited(!keep)
-                    setManualFees(keep ? market === 'CN' || !editingTrade.feeTemplate : false)
-                    setEditingFees(false)
-                    feeEditSnapshotRef.current = null
-                    setError('')
-                  }}
                 >
-                  {feeModeEdited && !manualFees ? '保留原费用' : '重新估算费用'}
-                </AppButton>
+                  <AppButton
+                    variant="text"
+                    className="bordered-text-button text-button"
+                    onClick={() => {
+                      const keep = feeModeEdited && !manualFees
+                      setFeeModeEdited(!keep)
+                      setManualFees(keep ? market === 'CN' || !editingTrade.feeTemplate : false)
+                      setEditingFees(false)
+                      feeEditSnapshotRef.current = null
+                      setError('')
+                    }}
+                  >
+                    {feeModeEdited && !manualFees ? '保留原费用' : '重新估算费用'}
+                  </AppButton>
+                </Tooltip>
               ) : null}
-              <AppButton
-                variant="text"
-                className="bordered-text-button text-button"
-                disabled={Boolean(editingTrade?.splitSource)}
-                title={editingTrade?.splitSource ? '拆分成交保留整笔成交分摊的费用' : undefined}
-                onClick={toggleFeeEditing}
+              <Tooltip
+                content={editingTrade?.splitSource ? '拆分成交保留整笔成交分摊的费用' : undefined}
               >
-                {editingFees ? '取消修改' : '手动修改费用'}
-              </AppButton>
+                <AppButton
+                  variant="text"
+                  className="bordered-text-button text-button"
+                  disabled={Boolean(editingTrade?.splitSource)}
+                  onClick={toggleFeeEditing}
+                >
+                  {editingFees ? '取消修改' : '手动修改费用'}
+                </AppButton>
+              </Tooltip>
             </>
           ) : null}
         </div>

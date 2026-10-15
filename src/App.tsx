@@ -1,3 +1,4 @@
+import { Tooltip } from './components/Tooltip'
 import { applyAccountSecurityConversion } from './lib/stock-accounts'
 import { SecuritiesAccountProvider } from './components/SecuritiesAccountContext'
 import {
@@ -1707,15 +1708,16 @@ export default function App() {
               <SearchBar onAdd={addStock} existingQuoteIds={quoteIds} onError={reportError} />
             </div>
             <div className="titlebar-command-actions">
-              <button
-                className="secondary-button refresh-button"
-                onClick={refreshNow}
-                disabled={refreshing}
-                title="立即刷新"
-              >
-                <RefreshCw size={17} className={refreshing ? 'is-spinning' : ''} />
-                <span>立即刷新</span>
-              </button>
+              <Tooltip content="立即刷新">
+                <button
+                  className="secondary-button refresh-button"
+                  onClick={refreshNow}
+                  disabled={refreshing}
+                >
+                  <RefreshCw size={17} className={refreshing ? 'is-spinning' : ''} />
+                  <span>立即刷新</span>
+                </button>
+              </Tooltip>
               <TitlebarToolsMenu
                 onOpenDividendRanking={() => {
                   loadDialog('dividend-ranking')
@@ -1740,15 +1742,8 @@ export default function App() {
                 onOpenPortfolioPerformance={() => setPortfolioPerformanceOpen(true)}
               />
               {aiModulePresent ? (
-                <button
-                  className="secondary-button ai-assistant-trigger"
-                  type="button"
-                  disabled={!aiRuntimeAvailable}
-                  onClick={() => {
-                    setAiAssistantContext(null)
-                    setAiAssistantOpen(true)
-                  }}
-                  title={
+                <Tooltip
+                  content={
                     optionalModulesState.ai.status === 'initializing'
                       ? 'AI 模块正在初始化'
                       : optionalModulesState.ai.status === 'failed'
@@ -1756,15 +1751,25 @@ export default function App() {
                         : 'AI 助手'
                   }
                 >
-                  <Bot size={17} />
-                  <span>
-                    {optionalModulesState.ai.status === 'initializing'
-                      ? 'AI 初始化中'
-                      : optionalModulesState.ai.status === 'failed'
-                        ? 'AI 不可用'
-                        : 'AI 助手'}
-                  </span>
-                </button>
+                  <button
+                    className="secondary-button ai-assistant-trigger"
+                    type="button"
+                    disabled={!aiRuntimeAvailable}
+                    onClick={() => {
+                      setAiAssistantContext(null)
+                      setAiAssistantOpen(true)
+                    }}
+                  >
+                    <Bot size={17} />
+                    <span>
+                      {optionalModulesState.ai.status === 'initializing'
+                        ? 'AI 初始化中'
+                        : optionalModulesState.ai.status === 'failed'
+                          ? 'AI 不可用'
+                          : 'AI 助手'}
+                    </span>
+                  </button>
+                </Tooltip>
               ) : null}
               <Suspense fallback={null}>
                 <SettingsMenu
@@ -1819,14 +1824,13 @@ export default function App() {
                   <div className="panel-title">
                     <div className="panel-title-heading">
                       <h1>我的自选</h1>
-                      <div
-                        className="auto-refresh-state panel-title-refresh"
-                        title="仅在北京时间 09:15:00–11:30:30、12:59:30–15:30:30 自动刷新"
-                      >
-                        <span className="live-dot" />
-                        重点 {state.settings.priorityRefreshSeconds} 秒 · 其余{' '}
-                        {state.settings.regularRefreshSeconds} 秒刷新
-                      </div>
+                      <Tooltip content="仅在北京时间 09:15:00–11:30:30、12:59:30–15:30:30 自动刷新">
+                        <div className="auto-refresh-state panel-title-refresh">
+                          <span className="live-dot" />
+                          重点 {state.settings.priorityRefreshSeconds} 秒 · 其余{' '}
+                          {state.settings.regularRefreshSeconds} 秒刷新
+                        </div>
+                      </Tooltip>
                     </div>
                     <span>
                       <span>
@@ -1844,19 +1848,22 @@ export default function App() {
                       aria-label="大盘指数行情"
                     >
                       {marketIndexQuotes.map(({ index, quote }) => (
-                        <span
-                          className={`market-index-card ${cardDirectionClass(quote?.changePercent)}`}
-                          title={`${index.name} ${formatPrice(quote?.latest)} ${formatPercent(quote?.changePercent)}`}
+                        <Tooltip
                           key={index.id}
+                          content={`${index.name} ${formatPrice(quote?.latest)} ${formatPercent(quote?.changePercent)}`}
                         >
-                          <small>{index.name}</small>
-                          <span>
-                            <strong>{formatPrice(quote?.latest)}</strong>
-                            <em className={directionClass(quote?.changePercent)}>
-                              {formatPercent(quote?.changePercent)}
-                            </em>
+                          <span
+                            className={`market-index-card ${cardDirectionClass(quote?.changePercent)}`}
+                          >
+                            <small>{index.name}</small>
+                            <span>
+                              <strong>{formatPrice(quote?.latest)}</strong>
+                              <em className={directionClass(quote?.changePercent)}>
+                                {formatPercent(quote?.changePercent)}
+                              </em>
+                            </span>
                           </span>
-                        </span>
+                        </Tooltip>
                       ))}
                     </div>
                   ) : null}
@@ -2019,18 +2026,19 @@ export default function App() {
           {completionNotifications[0] ? (
             <>
               <span className="status-separator" />
-              <button
-                className="status-completion-notification"
-                type="button"
-                onClick={() => openCompletionNotification(completionNotifications[0])}
-                title={`${completionNotifications[0].message}，点击查看`}
-              >
-                <CircleCheck size={14} />
-                <span>{completionNotifications[0].message}</span>
-                {completionNotifications.length > 1 ? (
-                  <em>+{completionNotifications.length - 1}</em>
-                ) : null}
-              </button>
+              <Tooltip content={`${completionNotifications[0].message}，点击查看`}>
+                <button
+                  className="status-completion-notification"
+                  type="button"
+                  onClick={() => openCompletionNotification(completionNotifications[0])}
+                >
+                  <CircleCheck size={14} />
+                  <span>{completionNotifications[0].message}</span>
+                  {completionNotifications.length > 1 ? (
+                    <em>+{completionNotifications.length - 1}</em>
+                  ) : null}
+                </button>
+              </Tooltip>
             </>
           ) : null}
           <span className="status-spacer" />

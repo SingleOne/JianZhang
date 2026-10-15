@@ -15,6 +15,7 @@ import {
 } from '../lib/trade-records'
 import { currencyForMarket, marketFromQuoteId } from '../shared/stock-market'
 import { withLedgerTradeRecords } from '../shared/types'
+import { Tooltip } from './Tooltip'
 import type {
   StockTradingBook,
   TPlanDefaultSettings,
@@ -156,16 +157,17 @@ export function TTradeInlineEditor({
       <div className="t-form-grid t-inline-edit-grid">
         <label>
           <span>数量</span>
-          <AppInput
-            type="number"
-            min={market === 'CN' ? 100 : 1}
-            step="100"
-            autoFocus
-            value={quantity}
-            disabled={fixedQuantity}
-            title={fixedQuantity ? '多用途成交保留原数量分配' : undefined}
-            onChange={(event) => setQuantity(event.target.value)}
-          />
+          <Tooltip content={fixedQuantity ? '多用途成交保留原数量分配' : undefined}>
+            <AppInput
+              type="number"
+              min={market === 'CN' ? 100 : 1}
+              step="100"
+              autoFocus
+              value={quantity}
+              disabled={fixedQuantity}
+              onChange={(event) => setQuantity(event.target.value)}
+            />
+          </Tooltip>
         </label>
         <label>
           <span>价格</span>

@@ -1,3 +1,4 @@
+import { Tooltip } from './Tooltip'
 import { formatCost, formatMoneyProfit, formatShares } from '../lib/format'
 import type { TAlertSide, TPlanRow } from '../lib/t-alerts'
 import type { StockCurrency } from '../shared/stock-market'
@@ -80,9 +81,15 @@ export function TPlanTable({
             </>
           ) : (
             <>
-              <span title="本档价差收益">本档</span>
-              <span title="累计价差收益">累计</span>
-              <span title="全仓价差收益">全仓</span>
+              <Tooltip content="本档价差收益">
+                <span>本档</span>
+              </Tooltip>
+              <Tooltip content="累计价差收益">
+                <span>累计</span>
+              </Tooltip>
+              <Tooltip content="全仓价差收益">
+                <span>全仓</span>
+              </Tooltip>
             </>
           )}
         </div>
@@ -91,21 +98,24 @@ export function TPlanTable({
           return (
             <div className="t-plan-level" key={level.index}>
               {alertEnabled && status !== 'armed' ? (
-                <button
-                  type="button"
-                  className={`t-plan-alert-action is-${status}`}
-                  onClick={() => {
-                    if (status === 'triggered') onHandleAlert(level.index)
-                    else onRestoreAlert(level.index)
-                  }}
-                  title={
+                <Tooltip
+                  content={
                     status === 'triggered'
                       ? `标记 T${level.index + 1} 已处理`
                       : `恢复 T${level.index + 1} 提醒`
                   }
                 >
-                  T{level.index + 1}
-                </button>
+                  <button
+                    type="button"
+                    className={`t-plan-alert-action is-${status}`}
+                    onClick={() => {
+                      if (status === 'triggered') onHandleAlert(level.index)
+                      else onRestoreAlert(level.index)
+                    }}
+                  >
+                    T{level.index + 1}
+                  </button>
+                </Tooltip>
               ) : (
                 <strong>T{level.index + 1}</strong>
               )}

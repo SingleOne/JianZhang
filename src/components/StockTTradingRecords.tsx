@@ -1,3 +1,4 @@
+import { Tooltip } from './Tooltip'
 import { PencilLine, RefreshCcw, Trash2, X } from 'lucide-react'
 import {
   Fragment,
@@ -174,24 +175,22 @@ function BatchTrades({
                 <small>{trade.note || 'T仓交易'}</small>
               </span>
               <span className="t-trade-actions">
-                <AppButton
-                  variant="icon"
-                  title={isEditing ? '取消编辑T仓交易' : '修改T仓交易'}
-                  onClick={() => {
-                    if (renderTradeEditor) setEditingKey(isEditing ? null : key)
-                    else onEdit(trade)
-                  }}
-                >
-                  {isEditing ? <X size={14} /> : <PencilLine size={14} />}
-                </AppButton>
-                <button
-                  className="icon-button"
-                  type="button"
-                  title="删除T仓交易"
-                  onClick={() => onDelete(trade)}
-                >
-                  <Trash2 size={14} />
-                </button>
+                <Tooltip content={isEditing ? '取消编辑T仓交易' : '修改T仓交易'}>
+                  <AppButton
+                    variant="icon"
+                    onClick={() => {
+                      if (renderTradeEditor) setEditingKey(isEditing ? null : key)
+                      else onEdit(trade)
+                    }}
+                  >
+                    {isEditing ? <X size={14} /> : <PencilLine size={14} />}
+                  </AppButton>
+                </Tooltip>
+                <Tooltip content="删除T仓交易">
+                  <button className="icon-button" type="button" onClick={() => onDelete(trade)}>
+                    <Trash2 size={14} />
+                  </button>
+                </Tooltip>
               </span>
             </div>
             {isEditing && renderTradeEditor ? (
@@ -312,40 +311,39 @@ function ActiveBatchCard({
               {tradeTime(batch.openedAt)}
             </small>
           </span>
-          <div
-            className="t-floating-profit-alert-inline"
-            title="浮动盈亏达到正负阈值时提醒，回到区间后自动恢复"
-          >
-            <AppSwitch
-              className="t-alert-toggle"
-              label="浮动盈亏提醒"
-              checked={Boolean(batch.floatingProfitAlert?.enabled)}
-              onChange={(event) =>
-                change(setTFloatingProfitAlertEnabled(batch, event.target.checked))
-              }
-              aria-label="启用浮动盈亏提醒"
-            />
-            <label className="t-floating-profit-alert-threshold">
-              <span>±</span>
-              <AppInput
-                type="number"
-                min="1"
-                step="1"
-                value={batch.floatingProfitAlert?.threshold ?? 100}
+          <Tooltip content="浮动盈亏达到正负阈值时提醒，回到区间后自动恢复">
+            <div className="t-floating-profit-alert-inline">
+              <AppSwitch
+                className="t-alert-toggle"
+                label="浮动盈亏提醒"
+                checked={Boolean(batch.floatingProfitAlert?.enabled)}
                 onChange={(event) =>
-                  change(setTFloatingProfitAlertThreshold(batch, Number(event.target.value)))
+                  change(setTFloatingProfitAlertEnabled(batch, event.target.checked))
                 }
-                aria-label="浮动盈亏提醒阈值"
+                aria-label="启用浮动盈亏提醒"
               />
-              <em>{currency === 'CNY' ? '元' : currency}</em>
-            </label>
-            <TFloatingProfitAlertBadge
-              batch={batch}
-              floatingProfit={metrics.floatingProfit}
-              currency={currency}
-              compact
-            />
-          </div>
+              <label className="t-floating-profit-alert-threshold">
+                <span>±</span>
+                <AppInput
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={batch.floatingProfitAlert?.threshold ?? 100}
+                  onChange={(event) =>
+                    change(setTFloatingProfitAlertThreshold(batch, Number(event.target.value)))
+                  }
+                  aria-label="浮动盈亏提醒阈值"
+                />
+                <em>{currency === 'CNY' ? '元' : currency}</em>
+              </label>
+              <TFloatingProfitAlertBadge
+                batch={batch}
+                floatingProfit={metrics.floatingProfit}
+                currency={currency}
+                compact
+              />
+            </div>
+          </Tooltip>
           <div className="t-batch-summary">
             <span>
               <small>{metrics.direction === 'reverse' ? '待回补数量' : '当前T仓'}</small>
@@ -362,11 +360,11 @@ function ActiveBatchCard({
               </strong>
             </span>
             <span>
-              <small
-                title={`已扣除按 ${feeContext.accountName} 方案预计平仓费用 ${formatMoney(metrics.closingFee, currency)}`}
+              <Tooltip
+                content={`已扣除按 ${feeContext.accountName} 方案预计平仓费用 ${formatMoney(metrics.closingFee, currency)}`}
               >
-                浮动净收益
-              </small>
+                <small>浮动净收益</small>
+              </Tooltip>
               <strong className={valueClass(metrics.floatingProfit)}>
                 {formatMoneyProfit(metrics.floatingProfit, currency)}
                 <small

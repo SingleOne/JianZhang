@@ -1,3 +1,4 @@
+import { Tooltip } from './Tooltip'
 import { Activity } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { isMarketOpen, millisecondsUntilNextMarketOpen } from '../shared/market-hours'
@@ -58,14 +59,12 @@ export function MarketTradingState({ tradingCalendar }: MarketTradingStateProps)
   return (
     <div className="market-state-list" aria-label="市场交易状态">
       {markets.map((market) => (
-        <div
-          className={`market-state ${market.open ? 'is-open' : ''}`}
-          title={market.detail}
-          key={market.market}
-        >
-          <Activity size={13} />
-          <span>{market.label}</span>
-        </div>
+        <Tooltip content={market.detail} key={market.market}>
+          <div className={`market-state ${market.open ? 'is-open' : ''}`}>
+            <Activity size={13} />
+            <span>{market.label}</span>
+          </div>
+        </Tooltip>
       ))}
     </div>
   )

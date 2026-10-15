@@ -1,3 +1,4 @@
+import { Tooltip } from '../../../components/Tooltip'
 import { CircleHelp, X } from 'lucide-react'
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -67,15 +68,11 @@ function IndicatorExplanationPopover({
             </small>
             <h4 id={titleId}>{value.label}</h4>
           </div>
-          <button
-            type="button"
-            autoFocus
-            onClick={onClose}
-            aria-label={`关闭${value.label}说明`}
-            title="关闭"
-          >
-            <X size={16} />
-          </button>
+          <Tooltip content="关闭">
+            <button type="button" autoFocus onClick={onClose} aria-label={`关闭${value.label}说明`}>
+              <X size={16} />
+            </button>
+          </Tooltip>
         </header>
         <div className="insight-indicator-help-content">
           <p>{explanation.definition}</p>
@@ -128,58 +125,58 @@ export function IndicatorGrid({
   return (
     <section className={`insight-indicator-section${variant === 'summary' ? ' is-summary' : ''}`}>
       <div className="insight-indicator-heading">
-        <div
-          className={`insight-indicator-title${titleHint ? ' has-hint' : ''}`}
-          tabIndex={titleHint ? 0 : undefined}
-          aria-label={titleHint ? `${title}：${titleHint}` : undefined}
-        >
-          <h3>{title}</h3>
-          {titleHint ? (
-            <>
-              <CircleHelp size={13} />
-              <span className="insight-group-tooltip" role="tooltip">
-                {titleHint}
-              </span>
-            </>
-          ) : null}
-        </div>
+        <Tooltip content={titleHint}>
+          <div
+            className={`insight-indicator-title${titleHint ? ' has-hint' : ''}`}
+            tabIndex={titleHint ? 0 : undefined}
+            aria-label={titleHint ? `${title}：${titleHint}` : undefined}
+          >
+            <h3>{title}</h3>
+            {titleHint ? <CircleHelp size={13} /> : null}
+          </div>
+        </Tooltip>
         {headingValue ? (
-          <span className="insight-heading-value" title={`数据周期：${headingValue.sourcePeriod}`}>
-            <span>{headingValue.label}</span>
-            <strong className={`is-${headingValue.state}`}>{formatIndicator(headingValue)}</strong>
-          </span>
+          <Tooltip content={`数据周期：${headingValue.sourcePeriod}`}>
+            <span className="insight-heading-value">
+              <span>{headingValue.label}</span>
+              <strong className={`is-${headingValue.state}`}>
+                {formatIndicator(headingValue)}
+              </strong>
+            </span>
+          </Tooltip>
         ) : null}
       </div>
       {gridValues.length > 0 ? (
         <div className="insight-indicator-grid">
           {gridValues.map((value) => (
-            <div
-              className={`insight-indicator ${explanations?.[value.id] ? 'has-description' : ''}`}
-              key={value.id}
-              title={`数据周期：${value.sourcePeriod}`}
-            >
-              {explanations?.[value.id] ? (
-                <button
-                  className="insight-indicator-label-button"
-                  type="button"
-                  aria-haspopup="dialog"
-                  aria-expanded={explainedIndicatorId === value.id}
-                  onClick={() => setExplainedIndicatorId(value.id)}
-                  title={`点击查看${value.label}说明`}
-                >
+            <Tooltip content={`数据周期：${value.sourcePeriod}`} key={value.id}>
+              <div
+                className={`insight-indicator ${explanations?.[value.id] ? 'has-description' : ''}`}
+              >
+                {explanations?.[value.id] ? (
+                  <Tooltip content={`点击查看${value.label}说明`}>
+                    <button
+                      className="insight-indicator-label-button"
+                      type="button"
+                      aria-haspopup="dialog"
+                      aria-expanded={explainedIndicatorId === value.id}
+                      onClick={() => setExplainedIndicatorId(value.id)}
+                    >
+                      <span>{value.label}</span>
+                      <CircleHelp size={11} />
+                    </button>
+                  </Tooltip>
+                ) : (
                   <span>{value.label}</span>
-                  <CircleHelp size={11} />
-                </button>
-              ) : (
-                <span>{value.label}</span>
-              )}
-              <strong className={`is-${value.state}`}>{formatIndicator(value)}</strong>
-              {value.status ? (
-                <small className={`insight-indicator-status is-${value.state}`}>
-                  {value.status}
-                </small>
-              ) : null}
-            </div>
+                )}
+                <strong className={`is-${value.state}`}>{formatIndicator(value)}</strong>
+                {value.status ? (
+                  <small className={`insight-indicator-status is-${value.state}`}>
+                    {value.status}
+                  </small>
+                ) : null}
+              </div>
+            </Tooltip>
           ))}
         </div>
       ) : null}

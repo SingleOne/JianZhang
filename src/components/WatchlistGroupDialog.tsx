@@ -1,3 +1,4 @@
+import { Tooltip } from './Tooltip'
 import { FolderPlus, Folders, Search, Trash2, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -194,16 +195,17 @@ export function WatchlistGroupDialog({
                 placeholder="输入新分组名称"
                 aria-label="新分组名称"
               />
-              <button
-                className="secondary-button"
-                type="button"
-                disabled={!canAddGroup}
-                onClick={addGroup}
-                title="新建分组"
-              >
-                <FolderPlus size={15} />
-                新建
-              </button>
+              <Tooltip content="新建分组">
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={!canAddGroup}
+                  onClick={addGroup}
+                >
+                  <FolderPlus size={15} />
+                  新建
+                </button>
+              </Tooltip>
             </div>
             <div className="watchlist-group-list">
               {groups.map((group) => (
@@ -216,19 +218,20 @@ export function WatchlistGroupDialog({
                     <small>{groupStockCount(group.id)} 只股票</small>
                   </button>
                   {isSystemWatchlistGroup(group) ? (
-                    <span className="watchlist-system-group-badge" title="系统默认分组">
-                      系统
-                    </span>
+                    <Tooltip content="系统默认分组">
+                      <span className="watchlist-system-group-badge">系统</span>
+                    </Tooltip>
                   ) : (
-                    <button
-                      className="icon-button"
-                      type="button"
-                      onClick={() => deleteGroup(group)}
-                      aria-label={`删除分组 ${group.name}`}
-                      title="删除分组"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    <Tooltip content="删除分组">
+                      <button
+                        className="icon-button"
+                        type="button"
+                        onClick={() => deleteGroup(group)}
+                        aria-label={`删除分组 ${group.name}`}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </Tooltip>
                   )}
                 </div>
               ))}
@@ -244,23 +247,26 @@ export function WatchlistGroupDialog({
                 <div className="watchlist-group-content-heading">
                   <label>
                     <span>分组名称</span>
-                    <input
-                      type="text"
-                      value={selectedGroup.name}
-                      disabled={isSystemWatchlistGroup(selectedGroup)}
-                      title={
+                    <Tooltip
+                      content={
                         isSystemWatchlistGroup(selectedGroup) ? '系统默认分组不可改名' : undefined
                       }
-                      onChange={(event) =>
-                        setGroups((current) =>
-                          current.map((group) =>
-                            group.id === selectedGroup.id
-                              ? { ...group, name: event.target.value }
-                              : group
+                    >
+                      <input
+                        type="text"
+                        value={selectedGroup.name}
+                        disabled={isSystemWatchlistGroup(selectedGroup)}
+                        onChange={(event) =>
+                          setGroups((current) =>
+                            current.map((group) =>
+                              group.id === selectedGroup.id
+                                ? { ...group, name: event.target.value }
+                                : group
+                            )
                           )
-                        )
-                      }
-                    />
+                        }
+                      />
+                    </Tooltip>
                   </label>
                   <div className="watchlist-group-stock-search">
                     <Search size={15} aria-hidden="true" />

@@ -1,3 +1,4 @@
+import { Tooltip } from './Tooltip'
 import type { StockTradingBook } from '../shared/types'
 import { BellRing, Plus, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
@@ -260,17 +261,18 @@ export function StockAlertDialog({
                     />
                     <span>启用</span>
                   </label>
-                  <button
-                    className="icon-button stock-alert-delete"
-                    type="button"
-                    onClick={() =>
-                      setRules((current) => current.filter((item) => item.id !== rule.id))
-                    }
-                    title="删除提醒条件"
-                    aria-label={`删除提醒条件 ${index + 1}`}
-                  >
-                    <Trash2 size={15} />
-                  </button>
+                  <Tooltip content="删除提醒条件">
+                    <button
+                      className="icon-button stock-alert-delete"
+                      type="button"
+                      onClick={() =>
+                        setRules((current) => current.filter((item) => item.id !== rule.id))
+                      }
+                      aria-label={`删除提醒条件 ${index + 1}`}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </Tooltip>
                 </div>
               )
             })}

@@ -1,62 +1,89 @@
 import {
+  cloneElement,
   useCallback,
   useEffect,
   useId,
   useLayoutEffect,
   useRef,
   useState,
+  type FocusEvent,
+  type KeyboardEvent,
+  type PointerEvent,
+  type ReactElement,
   type ReactNode
 } from 'react'
 import { createPortal } from 'react-dom'
 import './Tooltip.css'
 
 interface TooltipProps {
-  children: ReactNode
+  children: ReactElement
   content: ReactNode
+}
+
+interface TooltipTargetProps {
+  'aria-describedby'?: string
+  'data-app-tooltip-trigger'?: string
+  onBlur?: (event: FocusEvent<Element>) => void
+  onFocus?: (event: FocusEvent<Element>) => void
+  onKeyDown?: (event: KeyboardEvent<Element>) => void
+  onPointerEnter?: (event: PointerEvent<Element>) => void
+  onPointerLeave?: (event: PointerEvent<Element>) => void
 }
 
 interface TooltipPosition {
   left: number
   top: number
+  originLeft: number
+  originTop: number
   placement: 'top' | 'bottom'
 }
 
 const TOOLTIP_EXIT_DURATION_MS = 180
+let closeActiveTooltip: ((immediate?: boolean) => void) | null = null
 
 export function Tooltip({ children, content }: TooltipProps) {
-  const triggerRef = useRef<HTMLSpanElement>(null)
+  const target = children as ReactElement<TooltipTargetProps>
+  const triggerRef = useRef<Element | null>(null)
   const tooltipRef = useRef<HTMLSpanElement>(null)
-  const hideTimerRef = useRef<number | undefined>(undefined)
   const exitTimerRef = useRef<number | undefined>(undefined)
+  const enterFrameRef = useRef<number | undefined>(undefined)
+  const enteringRef = useRef(false)
+  const pointerInsideRef = useRef(false)
   const tooltipId = useId()
   const [open, setOpen] = useState(false)
   const [rendered, setRendered] = useState(false)
+  const [entryRevision, setEntryRevision] = useState(0)
   const [position, setPosition] = useState<TooltipPosition | null>(null)
 
-  const clearScheduledHide = () => {
-    window.clearTimeout(hideTimerRef.current)
-    hideTimerRef.current = undefined
-  }
-
-  const showTooltip = () => {
-    clearScheduledHide()
+  const showTooltip = (trigger: Element) => {
+    triggerRef.current = trigger
     window.clearTimeout(exitTimerRef.current)
     exitTimerRef.current = undefined
-    setRendered(true)
-    setOpen(true)
+    if (enteringRef.current) return
+    if (!open) {
+      if (closeActiveTooltip && closeActiveTooltip !== startExit) closeActiveTooltip(true)
+      closeActiveTooltip = startExit
+      enteringRef.current = true
+      setOpen(false)
+      setRendered(true)
+      setEntryRevision((revision) => revision + 1)
+      return
+    }
   }
 
-  const startExit = useCallback(() => {
-    window.clearTimeout(hideTimerRef.current)
-    hideTimerRef.current = undefined
+  const startExit = useCallback((immediate = false) => {
+    enteringRef.current = false
+    window.cancelAnimationFrame(enterFrameRef.current ?? 0)
+    enterFrameRef.current = undefined
     setOpen(false)
     window.clearTimeout(exitTimerRef.current)
     const finishExit = () => {
+      if (closeActiveTooltip === startExit) closeActiveTooltip = null
       setRendered(false)
       setPosition(null)
       exitTimerRef.current = undefined
     }
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (immediate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       finishExit()
       return
     }
@@ -66,19 +93,28 @@ export function Tooltip({ children, content }: TooltipProps) {
   }, [])
 
   const hideTooltip = () => {
-    clearScheduledHide()
     startExit()
   }
 
-  const scheduleHide = () => {
-    clearScheduledHide()
-    hideTimerRef.current = window.setTimeout(() => {
-      startExit()
-    }, 120)
+  const handlePointerEnter = (event: PointerEvent<Element>) => {
+    target.props.onPointerEnter?.(event)
+    if (
+      event.target instanceof Element &&
+      event.target.closest('[data-app-tooltip-trigger]') !== event.currentTarget
+    )
+      return
+    pointerInsideRef.current = true
+    showTooltip(event.currentTarget)
+  }
+
+  const handlePointerLeave = (event: PointerEvent<Element>) => {
+    target.props.onPointerLeave?.(event)
+    pointerInsideRef.current = false
+    hideTooltip()
   }
 
   useLayoutEffect(() => {
-    if (!rendered || !open) return
+    if (!rendered || (!open && !enteringRef.current)) return
     const trigger = triggerRef.current
     const tooltip = tooltipRef.current
     if (!trigger || !tooltip) return
@@ -95,44 +131,82 @@ export function Tooltip({ children, content }: TooltipProps) {
         Math.min(window.innerWidth - 12 - halfWidth, rect.left + rect.width / 2)
       ),
       top: placement === 'top' ? rect.top - 8 : rect.bottom + 8,
+      originLeft: rect.left + rect.width / 2,
+      originTop: rect.top + rect.height / 2,
       placement
     })
-  }, [content, open, rendered])
+    if (enteringRef.current) {
+      window.cancelAnimationFrame(enterFrameRef.current ?? 0)
+      enterFrameRef.current = window.requestAnimationFrame(() => {
+        enterFrameRef.current = window.requestAnimationFrame(() => {
+          enteringRef.current = false
+          enterFrameRef.current = undefined
+          setOpen(true)
+        })
+      })
+    }
+  }, [content, entryRevision, open, rendered])
 
-  useEffect(() => {
-    if (!open) return
-    const closeTooltip = () => startExit()
+  useLayoutEffect(() => {
+    if (!rendered) return
+    const closeTooltip = () => {
+      if (open || enteringRef.current) startExit()
+    }
     window.addEventListener('resize', closeTooltip)
     window.addEventListener('scroll', closeTooltip, true)
     return () => {
       window.removeEventListener('resize', closeTooltip)
       window.removeEventListener('scroll', closeTooltip, true)
     }
-  }, [open, startExit])
+  }, [open, rendered, startExit])
 
   useEffect(
     () => () => {
-      window.clearTimeout(hideTimerRef.current)
+      if (closeActiveTooltip === startExit) closeActiveTooltip = null
       window.clearTimeout(exitTimerRef.current)
+      window.cancelAnimationFrame(enterFrameRef.current ?? 0)
     },
-    []
+    [startExit]
   )
 
+  if (content === null || content === undefined || content === false || content === '') {
+    return children
+  }
+
+  const describedBy = open
+    ? [target.props['aria-describedby'], tooltipId].filter(Boolean).join(' ')
+    : target.props['aria-describedby']
+
   return (
-    <span
-      ref={triggerRef}
-      className="app-tooltip-trigger"
-      tabIndex={0}
-      aria-describedby={open ? tooltipId : undefined}
-      onPointerEnter={showTooltip}
-      onPointerLeave={scheduleHide}
-      onFocus={showTooltip}
-      onBlur={hideTooltip}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') hideTooltip()
-      }}
-    >
-      {children}
+    <>
+      {cloneElement(target, {
+        'aria-describedby': describedBy,
+        'data-app-tooltip-trigger': '',
+        onPointerEnter: handlePointerEnter,
+        onPointerLeave: handlePointerLeave,
+        onFocus: (event) => {
+          target.props.onFocus?.(event)
+          if (
+            event.target instanceof Element &&
+            event.target.closest('[data-app-tooltip-trigger]') !== event.currentTarget
+          )
+            return
+          showTooltip(event.currentTarget)
+        },
+        onBlur: (event) => {
+          target.props.onBlur?.(event)
+          if (
+            event.relatedTarget instanceof Node &&
+            event.currentTarget.contains(event.relatedTarget)
+          )
+            return
+          if (!pointerInsideRef.current) hideTooltip()
+        },
+        onKeyDown: (event) => {
+          target.props.onKeyDown?.(event)
+          if (event.key === 'Escape') hideTooltip()
+        }
+      })}
       {rendered
         ? createPortal(
             <span
@@ -140,21 +214,22 @@ export function Tooltip({ children, content }: TooltipProps) {
               id={tooltipId}
               className="app-tooltip-content"
               data-placement={position?.placement ?? 'top'}
-              data-state={open && position ? 'open' : 'closed'}
+              data-state={open && position ? 'open' : enteringRef.current ? 'preparing' : 'closed'}
               role="tooltip"
               style={
                 position
-                  ? { left: position.left, top: position.top }
+                  ? {
+                      left: open ? position.left : position.originLeft,
+                      top: open ? position.top : position.originTop
+                    }
                   : { left: 0, top: 0, visibility: 'hidden' }
               }
-              onPointerEnter={clearScheduledHide}
-              onPointerLeave={scheduleHide}
             >
               {content}
             </span>,
             document.body
           )
         : null}
-    </span>
+    </>
   )
 }

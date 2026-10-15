@@ -1,3 +1,4 @@
+import { Tooltip } from './Tooltip'
 import { ExternalLink, RefreshCw, TriangleAlert } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { stockApi } from '../lib/api'
@@ -214,13 +215,11 @@ export default function GlobalFundamentalPanel({ stock }: { stock: WatchStock })
                       )
                     })}
                     <td>
-                      <button
-                        type="button"
-                        onClick={() => openSource(period.sourceUrl)}
-                        title="打开官方原文"
-                      >
-                        <ExternalLink size={15} />
-                      </button>
+                      <Tooltip content="打开官方原文">
+                        <button type="button" onClick={() => openSource(period.sourceUrl)}>
+                          <ExternalLink size={15} />
+                        </button>
+                      </Tooltip>
                     </td>
                   </tr>
                 ))}

@@ -1547,12 +1547,6 @@
 :root[data-theme='dark'] .insight-indicator-title > svg {
   color: #98a6ba;
 }
-:root[data-theme='dark'] .insight-group-tooltip {
-  color: #5b8cff;
-  background: #1b2638;
-  border: 1px solid #34445d;
-  box-shadow: 0 10px 28px rgba(0, 4, 13, 0.33);
-}
 :root[data-theme='dark'] .insight-heading-value,
 :root[data-theme='dark'] .insight-t-heading-metric {
   color: #cbd5e3;

@@ -1,3 +1,4 @@
+import { Tooltip } from './Tooltip'
 import {
   ChevronDown,
   ChevronUp,
@@ -877,20 +878,21 @@ export default function CorporateActionPanel({
                           </button>
                         ) : null}
                         {canSummarize ? (
-                          <button
-                            className="secondary-button corporate-action-ai-button"
-                            type="button"
-                            disabled={summarizingId !== null}
-                            onClick={() => void summarizeCandidate(candidate)}
-                            title="使用当前 AI 模型总结公司行动条款、影响和待核事项"
-                          >
-                            <Sparkles size={14} />
-                            {summarizingId === candidate.id
-                              ? '总结中…'
-                              : candidate.aiSummary
-                                ? '重新总结'
-                                : 'AI 总结'}
-                          </button>
+                          <Tooltip content="使用当前 AI 模型总结公司行动条款、影响和待核事项">
+                            <button
+                              className="secondary-button corporate-action-ai-button"
+                              type="button"
+                              disabled={summarizingId !== null}
+                              onClick={() => void summarizeCandidate(candidate)}
+                            >
+                              <Sparkles size={14} />
+                              {summarizingId === candidate.id
+                                ? '总结中…'
+                                : candidate.aiSummary
+                                  ? '重新总结'
+                                  : 'AI 总结'}
+                            </button>
+                          </Tooltip>
                         ) : null}
                       </div>
                     ) : null}
@@ -929,9 +931,9 @@ export default function CorporateActionPanel({
                   </div>
                 ) : null}
                 <div className="corporate-action-card-summary-row">
-                  <strong className="corporate-action-card-title" title={candidate.title}>
-                    {candidate.title}
-                  </strong>
+                  <Tooltip content={candidate.title}>
+                    <strong className="corporate-action-card-title">{candidate.title}</strong>
+                  </Tooltip>
                   <div className="corporate-action-announcement-date">
                     <span>公告日期</span>
                     <time dateTime={candidate.announcementDate}>{candidate.announcementDate}</time>
@@ -944,7 +946,9 @@ export default function CorporateActionPanel({
                   {termsSummary ? (
                     <div className="corporate-action-terms">
                       <span>关键方案</span>
-                      <strong title={termsSummary}>{termsSummary}</strong>
+                      <Tooltip content={termsSummary}>
+                        <strong>{termsSummary}</strong>
+                      </Tooltip>
                     </div>
                   ) : null}
                   {hasEventDates ? (

@@ -1,3 +1,4 @@
+import { Tooltip } from './Tooltip'
 import { formatPrice } from '../lib/format'
 import type { FiveLevelLargeOrderAlert } from '../shared/types'
 
@@ -26,17 +27,16 @@ export function FiveLevelAlertBadges({
       {alerts.map((alert) => {
         const sideLabel = alert.side === 'buy' ? '买' : '卖'
         return (
-          <span
-            className={`t-alert-badge five-level-alert-badge is-${alert.side}`}
+          <Tooltip
             key={alert.side}
-            title={
+            content={
               showTitle
                 ? `${sideLabel}${alert.level}明显大单，价格 ${formatPrice(alert.price)}，该档挂单量 ${formatVolume(alert.volume)}，其余四档合计 ${formatVolume(alert.otherLevelsVolume)}`
                 : undefined
             }
           >
-            五
-          </span>
+            <span className={`t-alert-badge five-level-alert-badge is-${alert.side}`}>五</span>
+          </Tooltip>
         )
       })}
     </span>

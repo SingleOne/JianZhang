@@ -1,3 +1,4 @@
+import { Tooltip } from './Tooltip'
 import { Binoculars, History, Play, Search, Trash2, X } from 'lucide-react'
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -658,26 +659,27 @@ export function StockTrackingDialog({
                                 · {formatPercent(cycle.trackingReturn)}
                               </small>
                             </button>
-                            <button
-                              className="icon-button"
-                              type="button"
-                              aria-label={`删除 ${cycle.name} 的该追踪周期`}
-                              title="删除该追踪周期"
-                              onClick={() => {
-                                void onDeleteArchiveCycle(cycle).then((deleted) => {
-                                  if (!deleted) return
-                                  archiveCacheRef.current.delete(
-                                    `${cycle.quoteId}:${cycle.cycleId}`
-                                  )
-                                  if (selectedCycleId === cycle.cycleId) {
-                                    setArchiveProfile(null)
-                                    setSelectedCycleId('')
-                                  }
-                                })
-                              }}
-                            >
-                              <Trash2 size={14} />
-                            </button>
+                            <Tooltip content="删除该追踪周期">
+                              <button
+                                className="icon-button"
+                                type="button"
+                                aria-label={`删除 ${cycle.name} 的该追踪周期`}
+                                onClick={() => {
+                                  void onDeleteArchiveCycle(cycle).then((deleted) => {
+                                    if (!deleted) return
+                                    archiveCacheRef.current.delete(
+                                      `${cycle.quoteId}:${cycle.cycleId}`
+                                    )
+                                    if (selectedCycleId === cycle.cycleId) {
+                                      setArchiveProfile(null)
+                                      setSelectedCycleId('')
+                                    }
+                                  })
+                                }}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </Tooltip>
                           </article>
                         ))
                       )}

@@ -1,3 +1,4 @@
+import { Tooltip } from './Tooltip'
 import {
   CandlestickSeries,
   ColorType,
@@ -588,51 +589,55 @@ export default function PeriodKlineChart({
       >
         {period === 'daily' ? (
           <div className="kline-indicator-selector" role="group" aria-label="选择日 K 叠加指标">
-            <button
-              className={activeIndicator === 'movingAverage' ? 'is-active' : ''}
-              type="button"
-              aria-pressed={activeIndicator === 'movingAverage'}
-              title="显示 MA5、MA10、MA20 和 MA60"
-              onClick={() => onDailyKlineIndicatorChange('movingAverage')}
-            >
-              MA
-            </button>
-            <button
-              className={activeIndicator === 'bollinger' ? 'is-active' : ''}
-              type="button"
-              aria-pressed={activeIndicator === 'bollinger'}
-              title={`显示 BOLL(${BOLLINGER_PERIOD},${BOLLINGER_MULTIPLIER})`}
-              onClick={() => onDailyKlineIndicatorChange('bollinger')}
-            >
-              BOLL
-            </button>
-            <button
-              className={activeIndicator === 'none' ? 'is-active' : ''}
-              type="button"
-              aria-pressed={activeIndicator === 'none'}
-              title="关闭日 K 叠加指标"
-              onClick={() => onDailyKlineIndicatorChange('none')}
-            >
-              关闭
-            </button>
+            <Tooltip content="显示 MA5、MA10、MA20 和 MA60">
+              <button
+                className={activeIndicator === 'movingAverage' ? 'is-active' : ''}
+                type="button"
+                aria-pressed={activeIndicator === 'movingAverage'}
+                onClick={() => onDailyKlineIndicatorChange('movingAverage')}
+              >
+                MA
+              </button>
+            </Tooltip>
+            <Tooltip content={`显示 BOLL(${BOLLINGER_PERIOD},${BOLLINGER_MULTIPLIER})`}>
+              <button
+                className={activeIndicator === 'bollinger' ? 'is-active' : ''}
+                type="button"
+                aria-pressed={activeIndicator === 'bollinger'}
+                onClick={() => onDailyKlineIndicatorChange('bollinger')}
+              >
+                BOLL
+              </button>
+            </Tooltip>
+            <Tooltip content="关闭日 K 叠加指标">
+              <button
+                className={activeIndicator === 'none' ? 'is-active' : ''}
+                type="button"
+                aria-pressed={activeIndicator === 'none'}
+                onClick={() => onDailyKlineIndicatorChange('none')}
+              >
+                关闭
+              </button>
+            </Tooltip>
           </div>
         ) : (
-          <button
-            className={`bollinger-toggle ${bollingerBandsEnabled ? 'is-active' : ''}`}
-            type="button"
-            role="switch"
-            aria-checked={bollingerBandsEnabled}
-            title={bollingerBandsEnabled ? '隐藏 BOLL 线' : '显示 BOLL 线'}
-            onClick={() => onBollingerBandsEnabledChange(!bollingerBandsEnabled)}
-          >
-            <span aria-hidden="true">
-              <i />
-            </span>
-            <strong>BOLL</strong>
-            <em>
-              ({BOLLINGER_PERIOD}, {BOLLINGER_MULTIPLIER})
-            </em>
-          </button>
+          <Tooltip content={bollingerBandsEnabled ? '隐藏 BOLL 线' : '显示 BOLL 线'}>
+            <button
+              className={`bollinger-toggle ${bollingerBandsEnabled ? 'is-active' : ''}`}
+              type="button"
+              role="switch"
+              aria-checked={bollingerBandsEnabled}
+              onClick={() => onBollingerBandsEnabledChange(!bollingerBandsEnabled)}
+            >
+              <span aria-hidden="true">
+                <i />
+              </span>
+              <strong>BOLL</strong>
+              <em>
+                ({BOLLINGER_PERIOD}, {BOLLINGER_MULTIPLIER})
+              </em>
+            </button>
+          </Tooltip>
         )}
         {activeIndicator === 'movingAverage' ? (
           <div className="moving-average-values">

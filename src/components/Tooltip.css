@@ -1,15 +1,3 @@
-.app-tooltip-trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  outline: none;
-}
-
-.app-tooltip-trigger:focus-visible {
-  border-radius: 4px;
-  box-shadow: 0 0 0 2px rgba(47, 111, 237, 0.24);
-}
-
 .app-tooltip-content {
   position: fixed;
   z-index: 1200;
@@ -28,7 +16,8 @@
   cursor: default;
   opacity: 0;
   pointer-events: none;
-  will-change: opacity, transform;
+  transform: translate(-50%, -50%) scale(0.98);
+  will-change: opacity, transform, left, top;
   transition:
     opacity 160ms ease,
     transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
@@ -37,12 +26,10 @@
 }
 
 .app-tooltip-content[data-placement='top'] {
-  transform: translate(-50%, calc(-100% + 5px)) scale(0.98);
   transform-origin: 50% 100%;
 }
 
 .app-tooltip-content[data-placement='bottom'] {
-  transform: translate(-50%, -5px) scale(0.98);
   transform-origin: 50% 0;
 }
 
@@ -56,7 +43,10 @@
 
 .app-tooltip-content[data-state='open'] {
   opacity: 1;
-  pointer-events: auto;
+}
+
+.app-tooltip-content[data-state='preparing'] {
+  transition: none;
 }
 
 :root[data-theme='dark'] .app-tooltip-content {
