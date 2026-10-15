@@ -1,4 +1,3 @@
-import { Tooltip } from './Tooltip'
 import { useSecuritiesAccountState } from './SecuritiesAccountContext'
 import {
   ArrowDown,
@@ -1162,17 +1161,16 @@ export function WatchlistTable({
             onManageGroups={openGroupDialog}
             onChooseStock={scrollToStock}
           />
-          <Tooltip content="返回最近一次手动调整并保存的顺序">
-            <button
-              className="secondary-button table-tool-button"
-              type="button"
-              disabled={!sort}
-              onClick={() => setSort(null)}
-            >
-              <RotateCcw size={15} />
-              恢复手动排序
-            </button>
-          </Tooltip>
+          <button
+            className="secondary-button table-tool-button"
+            type="button"
+            disabled={!sort}
+            onClick={() => setSort(null)}
+            title="返回最近一次手动调整并保存的顺序"
+          >
+            <RotateCcw size={15} />
+            恢复手动排序
+          </button>
           <details
             className="column-order-menu"
             onToggle={(event) => {
@@ -1197,50 +1195,46 @@ export function WatchlistTable({
                   <div className="column-order-item" key={columnId}>
                     <span>{COLUMN_META[columnId].label}</span>
                     <span>
-                      <Tooltip content={isFixed ? '股票名称列固定在左侧' : '移到最左侧'}>
-                        <button
-                          className="icon-button column-move-button"
-                          type="button"
-                          disabled={isFixed || isFirst}
-                          onClick={() => moveColumn(columnId, 'start')}
-                          aria-label={`将${COLUMN_META[columnId].label}列移到最左侧`}
-                        >
-                          <ChevronsLeft size={14} />
-                        </button>
-                      </Tooltip>
-                      <Tooltip content={isFixed ? '股票名称列固定在左侧' : '向左移动一列'}>
-                        <button
-                          className="icon-button column-move-button"
-                          type="button"
-                          disabled={isFixed || isFirst}
-                          onClick={() => moveColumn(columnId, -1)}
-                          aria-label={`向左移动${COLUMN_META[columnId].label}列`}
-                        >
-                          <ArrowLeft size={14} />
-                        </button>
-                      </Tooltip>
-                      <Tooltip content={isFixed ? '股票名称列固定在左侧' : '向右移动一列'}>
-                        <button
-                          className="icon-button column-move-button"
-                          type="button"
-                          disabled={isFixed || isLast}
-                          onClick={() => moveColumn(columnId, 1)}
-                          aria-label={`向右移动${COLUMN_META[columnId].label}列`}
-                        >
-                          <ArrowRight size={14} />
-                        </button>
-                      </Tooltip>
-                      <Tooltip content={isFixed ? '股票名称列固定在左侧' : '移到最右侧'}>
-                        <button
-                          className="icon-button column-move-button"
-                          type="button"
-                          disabled={isFixed || isLast}
-                          onClick={() => moveColumn(columnId, 'end')}
-                          aria-label={`将${COLUMN_META[columnId].label}列移到最右侧`}
-                        >
-                          <ChevronsRight size={14} />
-                        </button>
-                      </Tooltip>
+                      <button
+                        className="icon-button column-move-button"
+                        type="button"
+                        disabled={isFixed || isFirst}
+                        onClick={() => moveColumn(columnId, 'start')}
+                        aria-label={`将${COLUMN_META[columnId].label}列移到最左侧`}
+                        title={isFixed ? '股票名称列固定在左侧' : '移到最左侧'}
+                      >
+                        <ChevronsLeft size={14} />
+                      </button>
+                      <button
+                        className="icon-button column-move-button"
+                        type="button"
+                        disabled={isFixed || isFirst}
+                        onClick={() => moveColumn(columnId, -1)}
+                        aria-label={`向左移动${COLUMN_META[columnId].label}列`}
+                        title={isFixed ? '股票名称列固定在左侧' : '向左移动一列'}
+                      >
+                        <ArrowLeft size={14} />
+                      </button>
+                      <button
+                        className="icon-button column-move-button"
+                        type="button"
+                        disabled={isFixed || isLast}
+                        onClick={() => moveColumn(columnId, 1)}
+                        aria-label={`向右移动${COLUMN_META[columnId].label}列`}
+                        title={isFixed ? '股票名称列固定在左侧' : '向右移动一列'}
+                      >
+                        <ArrowRight size={14} />
+                      </button>
+                      <button
+                        className="icon-button column-move-button"
+                        type="button"
+                        disabled={isFixed || isLast}
+                        onClick={() => moveColumn(columnId, 'end')}
+                        aria-label={`将${COLUMN_META[columnId].label}列移到最右侧`}
+                        title={isFixed ? '股票名称列固定在左侧' : '移到最右侧'}
+                      >
+                        <ChevronsRight size={14} />
+                      </button>
                     </span>
                   </div>
                 )
@@ -1314,44 +1308,42 @@ export function WatchlistTable({
                             Boolean(activeSort) &&
                             (activeSort?.dividendFinancingMetric ?? 'ratio') === metric
                           return (
-                            <Tooltip content={`按${label}排序`}>
-                              <button
-                                className={`column-sort-button dividend-financing-sort-button ${isActive ? 'is-active' : ''}`}
-                                type="button"
-                                key={metric}
-                                aria-pressed={isActive}
-                                onClick={() => changeSort(columnId, metric)}
-                              >
-                                <span>{label}</span>
-                                {isActive && activeSort?.direction === 'asc' ? (
-                                  <ArrowUp size={12} />
-                                ) : isActive && activeSort?.direction === 'desc' ? (
-                                  <ArrowDown size={12} />
-                                ) : (
-                                  <ArrowUpDown size={12} />
-                                )}
-                              </button>
-                            </Tooltip>
+                            <button
+                              className={`column-sort-button dividend-financing-sort-button ${isActive ? 'is-active' : ''}`}
+                              type="button"
+                              key={metric}
+                              aria-pressed={isActive}
+                              onClick={() => changeSort(columnId, metric)}
+                              title={`按${label}排序`}
+                            >
+                              <span>{label}</span>
+                              {isActive && activeSort?.direction === 'asc' ? (
+                                <ArrowUp size={12} />
+                              ) : isActive && activeSort?.direction === 'desc' ? (
+                                <ArrowDown size={12} />
+                              ) : (
+                                <ArrowUpDown size={12} />
+                              )}
+                            </button>
                           )
                         })}
                       </div>
                     ) : meta.sortable ? (
-                      <Tooltip content={`按${meta.label}排序`}>
-                        <button
-                          className={`column-sort-button ${activeSort ? 'is-active' : ''}`}
-                          type="button"
-                          onClick={() => changeSort(columnId)}
-                        >
-                          <span>{meta.label}</span>
-                          {activeSort?.direction === 'asc' ? (
-                            <ArrowUp size={13} />
-                          ) : activeSort?.direction === 'desc' ? (
-                            <ArrowDown size={13} />
-                          ) : (
-                            <ArrowUpDown size={13} />
-                          )}
-                        </button>
-                      </Tooltip>
+                      <button
+                        className={`column-sort-button ${activeSort ? 'is-active' : ''}`}
+                        type="button"
+                        onClick={() => changeSort(columnId)}
+                        title={`按${meta.label}排序`}
+                      >
+                        <span>{meta.label}</span>
+                        {activeSort?.direction === 'asc' ? (
+                          <ArrowUp size={13} />
+                        ) : activeSort?.direction === 'desc' ? (
+                          <ArrowDown size={13} />
+                        ) : (
+                          <ArrowUpDown size={13} />
+                        )}
+                      </button>
                     ) : (
                       meta.label
                     )}
@@ -1482,16 +1474,15 @@ export function WatchlistTable({
               <small>{activeRadarRow.stock.code}</small>
             </span>
             <b>近 5 日异动</b>
-            <Tooltip content="关闭">
-              <button
-                className="icon-button radar-popover-close"
-                type="button"
-                onClick={() => setRadarPopover(null)}
-                aria-label="关闭异动提示"
-              >
-                <X size={14} />
-              </button>
-            </Tooltip>
+            <button
+              className="icon-button radar-popover-close"
+              type="button"
+              onClick={() => setRadarPopover(null)}
+              aria-label="关闭异动提示"
+              title="关闭"
+            >
+              <X size={14} />
+            </button>
           </div>
           <div className="radar-popover-list">
             {activeRadarRow.quote.radarSignals.map((signal) => (
@@ -1502,9 +1493,7 @@ export function WatchlistTable({
                 <time>
                   {signal.date.slice(4, 6)}-{signal.date.slice(6, 8)} {signal.time}
                 </time>
-                <Tooltip content={RADAR_SIGNAL_DESCRIPTIONS[signal.type]}>
-                  <strong>{signal.label}</strong>
-                </Tooltip>
+                <strong title={RADAR_SIGNAL_DESCRIPTIONS[signal.type]}>{signal.label}</strong>
                 {signal.info ? <small>{signal.info}</small> : null}
               </div>
             ))}

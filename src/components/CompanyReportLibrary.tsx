@@ -1,4 +1,3 @@
-import { Tooltip } from './Tooltip'
 import {
   BookOpen,
   ExternalLink,
@@ -243,29 +242,27 @@ function ReportRow({
       <span className="company-report-badges">
         <em>{COMPANY_REPORT_TYPE_LABELS[report.reportType]}</em>
         <em className={`is-${report.variant}`}>{REPORT_VARIANT_LABELS[report.variant]}</em>
-        <Tooltip content={`打开${REPORT_VARIANT_LABELS[report.variant]}`}>
-          <button
-            className="company-report-open"
-            type="button"
-            onClick={onOpen}
-            aria-label={`打开${report.title}`}
-          >
-            <ExternalLink size={15} />
-          </button>
-        </Tooltip>
+        <button
+          className="company-report-open"
+          type="button"
+          onClick={onOpen}
+          title={`打开${REPORT_VARIANT_LABELS[report.variant]}`}
+          aria-label={`打开${report.title}`}
+        >
+          <ExternalLink size={15} />
+        </button>
         {report.amended ? <em className="is-amended">修订</em> : null}
       </span>
-      <Tooltip content="下载官方财报原文，使用当前 AI 模型生成总结并保存到本地">
-        <button
-          className="company-report-summary-action"
-          type="button"
-          onClick={onSummarize}
-          disabled={summarizing}
-        >
-          {summarizing ? <RefreshCw size={14} className="is-spinning" /> : <Sparkles size={14} />}
-          {summarizing ? '总结中' : report.summary ? '重新总结' : 'AI 总结'}
-        </button>
-      </Tooltip>
+      <button
+        className="company-report-summary-action"
+        type="button"
+        onClick={onSummarize}
+        disabled={summarizing}
+        title="下载官方财报原文，使用当前 AI 模型生成总结并保存到本地"
+      >
+        {summarizing ? <RefreshCw size={14} className="is-spinning" /> : <Sparkles size={14} />}
+        {summarizing ? '总结中' : report.summary ? '重新总结' : 'AI 总结'}
+      </button>
     </div>
   )
 }

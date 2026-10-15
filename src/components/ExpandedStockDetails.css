@@ -2607,6 +2607,36 @@
   color: #92a0b2;
 }
 
+.insight-group-tooltip {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 30;
+  width: max-content;
+  max-width: min(380px, calc(100vw - 64px));
+  padding: 9px 11px;
+  color: #eaf1f8;
+  background: #253448;
+  border: 1px solid #42536a;
+  border-radius: 7px;
+  box-shadow: 0 10px 28px rgba(24, 35, 51, 0.22);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.6;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-3px);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.insight-indicator-title.has-hint:hover .insight-group-tooltip,
+.insight-indicator-title.has-hint:focus-visible .insight-group-tooltip {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .insight-heading-value,
 .insight-t-heading-metric {
   display: inline-flex;

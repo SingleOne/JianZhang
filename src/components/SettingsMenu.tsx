@@ -1,4 +1,3 @@
-import { Tooltip } from './Tooltip'
 import {
   CloudDownload,
   CloudUpload,
@@ -282,12 +281,10 @@ export function SettingsMenu({
 
   return (
     <details className="settings-menu">
-      <Tooltip content="设置">
-        <summary className="secondary-button">
-          <Settings2 size={17} />
-          <span>设置</span>
-        </summary>
-      </Tooltip>
+      <summary className="secondary-button" title="设置">
+        <Settings2 size={17} />
+        <span>设置</span>
+      </summary>
       <div className="settings-popover">
         <div className="settings-heading">
           <strong>应用设置</strong>
@@ -868,17 +865,16 @@ export function SettingsMenu({
                     <span>请在已打开的 GitHub 网页输入验证码</span>
                     <span className="github-device-code-value">
                       <strong>{githubDeviceAuthorization.userCode}</strong>
-                      <Tooltip content="复制验证码">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void navigator.clipboard.writeText(githubDeviceAuthorization.userCode)
-                          }
-                          aria-label="复制 GitHub 设备验证码"
-                        >
-                          <Copy size={15} />
-                        </button>
-                      </Tooltip>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void navigator.clipboard.writeText(githubDeviceAuthorization.userCode)
+                        }
+                        aria-label="复制 GitHub 设备验证码"
+                        title="复制验证码"
+                      >
+                        <Copy size={15} />
+                      </button>
                     </span>
                     <small>验证码已复制，完成授权后应用会自动继续</small>
                   </div>
@@ -921,30 +917,28 @@ export function SettingsMenu({
                           readOnly
                           aria-label="本机保存的 GitHub Gist 同步密码"
                         />
-                        <Tooltip content={githubPasswordVisible ? '隐藏同步密码' : '显示同步密码'}>
-                          <button
-                            type="button"
-                            onClick={() => setGitHubPasswordVisible((visible) => !visible)}
-                            disabled={githubControlsDisabled}
-                            aria-label={githubPasswordVisible ? '隐藏同步密码' : '显示同步密码'}
-                          >
-                            {githubPasswordVisible ? <EyeOff size={15} /> : <Eye size={15} />}
-                          </button>
-                        </Tooltip>
-                        <Tooltip content="复制同步密码">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (githubSyncPassword) {
-                                void navigator.clipboard.writeText(githubSyncPassword)
-                              }
-                            }}
-                            disabled={githubControlsDisabled}
-                            aria-label="复制同步密码"
-                          >
-                            <Copy size={15} />
-                          </button>
-                        </Tooltip>
+                        <button
+                          type="button"
+                          onClick={() => setGitHubPasswordVisible((visible) => !visible)}
+                          disabled={githubControlsDisabled}
+                          aria-label={githubPasswordVisible ? '隐藏同步密码' : '显示同步密码'}
+                          title={githubPasswordVisible ? '隐藏同步密码' : '显示同步密码'}
+                        >
+                          {githubPasswordVisible ? <EyeOff size={15} /> : <Eye size={15} />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (githubSyncPassword) {
+                              void navigator.clipboard.writeText(githubSyncPassword)
+                            }
+                          }}
+                          disabled={githubControlsDisabled}
+                          aria-label="复制同步密码"
+                          title="复制同步密码"
+                        >
+                          <Copy size={15} />
+                        </button>
                       </div>
                     ) : githubSyncSettings.connected ? (
                       <div className="github-password-editor">

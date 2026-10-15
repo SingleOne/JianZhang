@@ -1,4 +1,3 @@
-import { Tooltip } from './Tooltip'
 import {
   AlertCircle,
   Building2,
@@ -952,16 +951,15 @@ export function FundamentalScreeningDialog({
               </span>
             </div>
           ) : null}
-          <Tooltip content="关闭">
-            <button
-              className="icon-button fundamental-screening-close"
-              type="button"
-              onClick={onClose}
-              aria-label="关闭基本面初筛"
-            >
-              <X size={19} />
-            </button>
-          </Tooltip>
+          <button
+            className="icon-button fundamental-screening-close"
+            type="button"
+            onClick={onClose}
+            aria-label="关闭基本面初筛"
+            title="关闭"
+          >
+            <X size={19} />
+          </button>
         </header>
 
         {loading && !snapshot ? (
@@ -1067,19 +1065,16 @@ export function FundamentalScreeningDialog({
                     </span>
                   </div>
                 ) : null}
-                <Tooltip
-                  content={isDesktopRuntime ? '手动更新基本面数据' : '仅桌面版支持运行更新脚本'}
+                <button
+                  className="secondary-button fundamental-screening-update"
+                  type="button"
+                  onClick={runUpdate}
+                  disabled={!isDesktopRuntime || updateRunning}
+                  title={isDesktopRuntime ? '手动更新基本面数据' : '仅桌面版支持运行更新脚本'}
                 >
-                  <button
-                    className="secondary-button fundamental-screening-update"
-                    type="button"
-                    onClick={runUpdate}
-                    disabled={!isDesktopRuntime || updateRunning}
-                  >
-                    <RefreshCw size={14} className={updateRunning ? 'is-spinning' : ''} />
-                    {updateRunning ? '数据更新中' : '更新数据'}
-                  </button>
-                </Tooltip>
+                  <RefreshCw size={14} className={updateRunning ? 'is-spinning' : ''} />
+                  {updateRunning ? '数据更新中' : '更新数据'}
+                </button>
               </div>
             </div>
 
@@ -1180,18 +1175,17 @@ export function FundamentalScreeningDialog({
                     {FUNDAMENTAL_QUALITY_TAGS.map((tag) => {
                       const selected = qualityTags.includes(tag)
                       return (
-                        <Tooltip content={FUNDAMENTAL_QUALITY_TAG_DESCRIPTIONS[tag]}>
-                          <button
-                            className={`${selected ? 'is-active' : ''} ${tag === 'improving' ? 'is-improving' : ''}`}
-                            type="button"
-                            aria-pressed={selected}
-                            onClick={() => toggleQualityTag(tag)}
-                            key={tag}
-                          >
-                            <span>{FUNDAMENTAL_QUALITY_TAG_LABELS[tag]}</span>
-                            <strong>{qualityTagCounts[tag].toLocaleString('zh-CN')}</strong>
-                          </button>
-                        </Tooltip>
+                        <button
+                          className={`${selected ? 'is-active' : ''} ${tag === 'improving' ? 'is-improving' : ''}`}
+                          type="button"
+                          aria-pressed={selected}
+                          title={FUNDAMENTAL_QUALITY_TAG_DESCRIPTIONS[tag]}
+                          onClick={() => toggleQualityTag(tag)}
+                          key={tag}
+                        >
+                          <span>{FUNDAMENTAL_QUALITY_TAG_LABELS[tag]}</span>
+                          <strong>{qualityTagCounts[tag].toLocaleString('zh-CN')}</strong>
+                        </button>
                       )
                     })}
                     {qualityTags.length > 0 ? (
@@ -1218,18 +1212,17 @@ export function FundamentalScreeningDialog({
                     {FUNDAMENTAL_RISK_TAGS.map((tag) => {
                       const selected = riskTags.includes(tag)
                       return (
-                        <Tooltip content={FUNDAMENTAL_RISK_TAG_DESCRIPTIONS[tag]}>
-                          <button
-                            className={`${selected ? 'is-active' : ''} is-${FUNDAMENTAL_RISK_TAG_SEVERITY[tag]}`}
-                            type="button"
-                            aria-pressed={selected}
-                            onClick={() => toggleRiskTag(tag)}
-                            key={tag}
-                          >
-                            <span>{FUNDAMENTAL_RISK_TAG_LABELS[tag]}</span>
-                            <strong>{riskTagCounts[tag].toLocaleString('zh-CN')}</strong>
-                          </button>
-                        </Tooltip>
+                        <button
+                          className={`${selected ? 'is-active' : ''} is-${FUNDAMENTAL_RISK_TAG_SEVERITY[tag]}`}
+                          type="button"
+                          aria-pressed={selected}
+                          title={FUNDAMENTAL_RISK_TAG_DESCRIPTIONS[tag]}
+                          onClick={() => toggleRiskTag(tag)}
+                          key={tag}
+                        >
+                          <span>{FUNDAMENTAL_RISK_TAG_LABELS[tag]}</span>
+                          <strong>{riskTagCounts[tag].toLocaleString('zh-CN')}</strong>
+                        </button>
                       )
                     })}
                     {riskTags.length > 0 ? (

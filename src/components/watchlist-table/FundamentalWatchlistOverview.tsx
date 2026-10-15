@@ -1,4 +1,3 @@
-import { Tooltip } from '../Tooltip'
 import { ArrowDown, ArrowUp, ChartPie, RotateCcw, ScanSearch } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -113,62 +112,59 @@ export function FundamentalWatchlistOverview({
     setPortfolioQualitySlot(document.getElementById('portfolio-quality-slot'))
   }, [])
   const portfolioQualityTrigger = (
-    <Tooltip
-      content={
+    <button
+      className="portfolio-quality-trigger"
+      type="button"
+      disabled={portfolioQuality.positionCount === 0}
+      onClick={onOpenPortfolioQuality}
+      title={
         portfolioQuality.positionCount > 0 ? '查看全部持仓的质量与风险市值分布' : '当前没有持仓'
       }
     >
-      <button
-        className="portfolio-quality-trigger"
-        type="button"
-        disabled={portfolioQuality.positionCount === 0}
-        onClick={onOpenPortfolioQuality}
-      >
-        <ChartPie size={18} />
-        <span className="portfolio-card-content">
-          <span className="portfolio-card-heading">
-            <strong>持仓</strong>
-            <small>
-              {portfolioQuality.positionCount === 0
-                ? '暂无持仓'
-                : portfolioQuality.totalMarketValue === null
-                  ? `${portfolioQuality.positionCount} 只 · 暂无计价`
-                  : `${portfolioQuality.positionCount} 只 · 双优 ${shareText(dualPercent)} · 风险 ${shareText(riskPercent)}`}
-            </small>
-          </span>
-          {portfolioQuality.positionCount > 0 ? (
-            <span className="portfolio-card-metrics">
-              <span>
-                <small>总市值</small>
-                <b>{formatMoney(portfolioSummary.marketValue, 'CNY')}</b>
-              </span>
-              <span>
-                <small>总收益</small>
-                <b
-                  className={
-                    portfolioSummary.totalProfit === null || portfolioSummary.totalProfit === 0
-                      ? 'is-flat'
-                      : portfolioSummary.totalProfit > 0
-                        ? 'is-up'
-                        : 'is-down'
-                  }
-                >
-                  {formatMoneyProfit(portfolioSummary.totalProfit, 'CNY')}
-                </b>
-              </span>
-            </span>
-          ) : null}
-          {portfolioExposureText ? (
-            <small className="portfolio-card-exposure">市场 / 币种：{portfolioExposureText}</small>
-          ) : null}
-          {portfolioSummary.unconvertedPositionCount > 0 ? (
-            <small className="portfolio-card-warning">
-              {portfolioSummary.unconvertedPositionCount} 只外币持仓未计入人民币收益
-            </small>
-          ) : null}
+      <ChartPie size={18} />
+      <span className="portfolio-card-content">
+        <span className="portfolio-card-heading">
+          <strong>持仓</strong>
+          <small>
+            {portfolioQuality.positionCount === 0
+              ? '暂无持仓'
+              : portfolioQuality.totalMarketValue === null
+                ? `${portfolioQuality.positionCount} 只 · 暂无计价`
+                : `${portfolioQuality.positionCount} 只 · 双优 ${shareText(dualPercent)} · 风险 ${shareText(riskPercent)}`}
+          </small>
         </span>
-      </button>
-    </Tooltip>
+        {portfolioQuality.positionCount > 0 ? (
+          <span className="portfolio-card-metrics">
+            <span>
+              <small>总市值</small>
+              <b>{formatMoney(portfolioSummary.marketValue, 'CNY')}</b>
+            </span>
+            <span>
+              <small>总收益</small>
+              <b
+                className={
+                  portfolioSummary.totalProfit === null || portfolioSummary.totalProfit === 0
+                    ? 'is-flat'
+                    : portfolioSummary.totalProfit > 0
+                      ? 'is-up'
+                      : 'is-down'
+                }
+              >
+                {formatMoneyProfit(portfolioSummary.totalProfit, 'CNY')}
+              </b>
+            </span>
+          </span>
+        ) : null}
+        {portfolioExposureText ? (
+          <small className="portfolio-card-exposure">市场 / 币种：{portfolioExposureText}</small>
+        ) : null}
+        {portfolioSummary.unconvertedPositionCount > 0 ? (
+          <small className="portfolio-card-warning">
+            {portfolioSummary.unconvertedPositionCount} 只外币持仓未计入人民币收益
+          </small>
+        ) : null}
+      </span>
+    </button>
   )
   return (
     <section className="fundamental-watchlist-overview" aria-label="当前列表价值与基本面概览">
@@ -176,39 +172,37 @@ export function FundamentalWatchlistOverview({
         ? createPortal(portfolioQualityTrigger, portfolioQualitySlot)
         : portfolioQualityTrigger}
       <div className="fundamental-overview-row">
-        <Tooltip
-          content={
+        <div
+          className={`fundamental-overview-values ${valueDataReady ? '' : 'is-pending'}`}
+          title={
             valueDataReady
               ? valueDataStaleReason || '数量基于当前分组与板块，不受价值组合、基本面和风险筛选影响'
               : '基本面和分红融资两份快照均就绪后才计算价值组合'
           }
         >
-          <div className={`fundamental-overview-values ${valueDataReady ? '' : 'is-pending'}`}>
-            <span className="fundamental-overview-group-label">
-              <strong>{valueDataReady ? '价值组合' : '价值待数'}</strong>
-              <small>{valueDataStaleReason ? '快照过期' : '当前范围'}</small>
-            </span>
-            {VALUE_FILTERS.map((option) => {
-              const count = valueSummary?.[option.count]
-              const active = activeValueFilter === option.id
-              return (
-                <Tooltip content={valueDataReady ? option.description : '价值组合数据尚未就绪'}>
-                  <button
-                    className={`is-${option.id} ${active ? 'is-active' : ''}`}
-                    type="button"
-                    aria-pressed={active}
-                    disabled={!valueDataReady || (count === 0 && !active)}
-                    onClick={() => selectValueFilter(option.id)}
-                    key={option.id}
-                  >
-                    <span>{option.label}</span>
-                    <strong>{count ?? '--'}</strong>
-                  </button>
-                </Tooltip>
-              )
-            })}
-          </div>
-        </Tooltip>
+          <span className="fundamental-overview-group-label">
+            <strong>{valueDataReady ? '价值组合' : '价值待数'}</strong>
+            <small>{valueDataStaleReason ? '快照过期' : '当前范围'}</small>
+          </span>
+          {VALUE_FILTERS.map((option) => {
+            const count = valueSummary?.[option.count]
+            const active = activeValueFilter === option.id
+            return (
+              <button
+                className={`is-${option.id} ${active ? 'is-active' : ''}`}
+                type="button"
+                aria-pressed={active}
+                disabled={!valueDataReady || (count === 0 && !active)}
+                title={valueDataReady ? option.description : '价值组合数据尚未就绪'}
+                onClick={() => selectValueFilter(option.id)}
+                key={option.id}
+              >
+                <span>{option.label}</span>
+                <strong>{count ?? '--'}</strong>
+              </button>
+            )
+          })}
+        </div>
 
         <div className="fundamental-overview-heading">
           <ScanSearch size={17} />
@@ -224,19 +218,18 @@ export function FundamentalWatchlistOverview({
             const count = summary[option.count]
             const active = activeFilter === option.id
             return (
-              <Tooltip content={`筛选${option.label}状态股票，可与价值组合和风险条件叠加`}>
-                <button
-                  className={`is-${option.tone} ${active ? 'is-active' : ''}`}
-                  type="button"
-                  aria-pressed={active}
-                  disabled={count === 0 && !active}
-                  onClick={() => selectFilter(option.id)}
-                  key={option.id}
-                >
-                  <span>{option.label}</span>
-                  <strong>{count}</strong>
-                </button>
-              </Tooltip>
+              <button
+                className={`is-${option.tone} ${active ? 'is-active' : ''}`}
+                type="button"
+                aria-pressed={active}
+                disabled={count === 0 && !active}
+                title={`筛选${option.label}状态股票，可与价值组合和风险条件叠加`}
+                onClick={() => selectFilter(option.id)}
+                key={option.id}
+              >
+                <span>{option.label}</span>
+                <strong>{count}</strong>
+              </button>
             )
           })}
         </div>
@@ -246,55 +239,50 @@ export function FundamentalWatchlistOverview({
             const count = summary[option.count]
             const active = activeFilter === option.id
             return (
-              <Tooltip content={`只看${option.label}待核股票，可与价值组合和风险条件叠加`}>
-                <button
-                  className={active ? 'is-active' : ''}
-                  type="button"
-                  aria-pressed={active}
-                  disabled={count === 0 && !active}
-                  onClick={() => selectFilter(option.id)}
-                  key={option.id}
-                >
-                  <span>{option.label}</span>
-                  <strong>{count}</strong>
-                </button>
-              </Tooltip>
+              <button
+                className={active ? 'is-active' : ''}
+                type="button"
+                aria-pressed={active}
+                disabled={count === 0 && !active}
+                title={`只看${option.label}待核股票，可与价值组合和风险条件叠加`}
+                onClick={() => selectFilter(option.id)}
+                key={option.id}
+              >
+                <span>{option.label}</span>
+                <strong>{count}</strong>
+              </button>
             )
           })}
         </div>
         <div className="fundamental-overview-risk">
           <span>风险提示</span>
-          <Tooltip content="与价值组合和基本面状态组合，只看存在基本面风险提示的股票">
-            <button
-              className={riskOnly ? 'is-active' : ''}
-              type="button"
-              aria-pressed={riskOnly}
-              disabled={summary.risk === 0 && !riskOnly}
-              onClick={() => onRiskOnlyChange(!riskOnly)}
-            >
-              <span>风险</span>
-              <strong>{summary.risk}</strong>
-            </button>
-          </Tooltip>
+          <button
+            className={riskOnly ? 'is-active' : ''}
+            type="button"
+            aria-pressed={riskOnly}
+            disabled={summary.risk === 0 && !riskOnly}
+            title="与价值组合和基本面状态组合，只看存在基本面风险提示的股票"
+            onClick={() => onRiskOnlyChange(!riskOnly)}
+          >
+            <span>风险</span>
+            <strong>{summary.risk}</strong>
+          </button>
         </div>
-        <Tooltip
-          content={
+        <button
+          className={`fundamental-value-sort ${valueTagSortDirection ? 'is-active' : ''}`}
+          type="button"
+          disabled={!valueDataReady}
+          onClick={onValueTagSortToggle}
+          title={
             valueDataReady
               ? '依次切换：正面标签数量降序、升序、恢复手动排序'
               : '价值组合数据尚未就绪'
           }
         >
-          <button
-            className={`fundamental-value-sort ${valueTagSortDirection ? 'is-active' : ''}`}
-            type="button"
-            disabled={!valueDataReady}
-            onClick={onValueTagSortToggle}
-          >
-            {valueTagSortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
-            标签数
-            {valueTagSortDirection === 'desc' ? '↓' : valueTagSortDirection === 'asc' ? '↑' : ''}
-          </button>
-        </Tooltip>
+          {valueTagSortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+          标签数
+          {valueTagSortDirection === 'desc' ? '↓' : valueTagSortDirection === 'asc' ? '↑' : ''}
+        </button>
         <button
           className="fundamental-overview-reset"
           type="button"

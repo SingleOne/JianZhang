@@ -1,4 +1,3 @@
-import { Tooltip } from './Tooltip'
 import { stockTOverview } from '../lib/stock-accounts'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { getInitialBootstrap, initialState, stockApi } from '../lib/api'
@@ -261,14 +260,12 @@ export function TaskbarStockTooltip() {
             <strong>{stock?.name ?? quote?.name ?? '--'}</strong>
             <span>{stock?.code ?? quote?.code ?? '--'}</span>
             {quote?.sector ? (
-              <Tooltip content={quote.sector.name}>
-                <span className="taskbar-tooltip-sector">
-                  <span>{quote.sector.name}</span>
-                  <b className={valueClass(quote.sector.changePercent)}>
-                    {formatPercent(quote.sector.changePercent)}
-                  </b>
-                </span>
-              </Tooltip>
+              <span className="taskbar-tooltip-sector" title={quote.sector.name}>
+                <span>{quote.sector.name}</span>
+                <b className={valueClass(quote.sector.changePercent)}>
+                  {formatPercent(quote.sector.changePercent)}
+                </b>
+              </span>
             ) : null}
             <span className="taskbar-tooltip-market">{stock?.marketLabel ?? '实时行情'}</span>
           </span>

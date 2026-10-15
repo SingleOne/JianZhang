@@ -1,4 +1,3 @@
-import { Tooltip } from './Tooltip'
 import { AlertCircle, RefreshCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { stockApi } from '../lib/api'
@@ -105,15 +104,14 @@ export function OrderBookPanel({ stock, refreshSeconds, autoRefresh }: OrderBook
           <strong>五档盘口</strong>
           <span>委托量（手）</span>
         </div>
-        <Tooltip content="刷新五档盘口">
-          <button
-            type="button"
-            aria-label="刷新五档盘口"
-            onClick={() => setRefreshVersion((current) => current + 1)}
-          >
-            <RefreshCw size={13} className={loading ? 'is-spinning' : ''} />
-          </button>
-        </Tooltip>
+        <button
+          type="button"
+          aria-label="刷新五档盘口"
+          title="刷新五档盘口"
+          onClick={() => setRefreshVersion((current) => current + 1)}
+        >
+          <RefreshCw size={13} className={loading ? 'is-spinning' : ''} />
+        </button>
       </header>
 
       {loading && !data ? (

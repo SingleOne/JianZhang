@@ -1,4 +1,3 @@
-import { Tooltip } from './Tooltip'
 import { Building2, Database, RefreshCw, TriangleAlert, UserRound, UsersRound } from 'lucide-react'
 import './ShareholderPanel.css'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
@@ -62,9 +61,7 @@ function HoldingTable({ rows }: { rows: ShareholderHolding[] }) {
           {rows.map((item) => (
             <tr key={`${item.rank}:${item.name}`}>
               <td>{item.rank}</td>
-              <Tooltip content={item.name}>
-                <td>{item.name}</td>
-              </Tooltip>
+              <td title={item.name}>{item.name}</td>
               <td>{item.holderType ?? '--'}</td>
               <td>{item.sharesType ?? '--'}</td>
               <td>{formatAmount(item.holdingShares)}股</td>

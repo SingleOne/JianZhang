@@ -1,4 +1,3 @@
-import { Tooltip } from './Tooltip'
 import {
   BookOpenText,
   CircleStop,
@@ -193,21 +192,18 @@ export function StockTrackingEditor({
         </div>
         <div className="stock-tracking-editor-actions">
           {!readOnly && onOpenGroups ? (
-            <Tooltip
-              content={groupCount > 0 ? `调整分组，已加入 ${groupCount} 个分组` : '加入分组'}
+            <button
+              className={`secondary-button stock-tracking-group-trigger ${groupCount > 0 || groupPopoverOpen ? 'is-active' : ''}`}
+              type="button"
+              aria-haspopup="dialog"
+              aria-expanded={groupPopoverOpen}
+              aria-controls={groupPopoverOpen ? 'stock-tracking-group-quick-popover' : undefined}
+              onClick={(event) => onOpenGroups(event.currentTarget)}
+              title={groupCount > 0 ? `调整分组，已加入 ${groupCount} 个分组` : '加入分组'}
             >
-              <button
-                className={`secondary-button stock-tracking-group-trigger ${groupCount > 0 || groupPopoverOpen ? 'is-active' : ''}`}
-                type="button"
-                aria-haspopup="dialog"
-                aria-expanded={groupPopoverOpen}
-                aria-controls={groupPopoverOpen ? 'stock-tracking-group-quick-popover' : undefined}
-                onClick={(event) => onOpenGroups(event.currentTarget)}
-              >
-                <FolderPlus size={14} />
-                管理分组
-              </button>
-            </Tooltip>
+              <FolderPlus size={14} />
+              管理分组
+            </button>
           ) : null}
           {onViewStock ? (
             <button className="secondary-button" type="button" onClick={onViewStock}>
@@ -229,30 +225,28 @@ export function StockTrackingEditor({
                 停止追踪
               </button>
               {onDeleteStock ? (
-                <Tooltip content="从股票列表中删除并停止追踪">
-                  <button
-                    className="icon-button stock-tracking-delete-stock"
-                    type="button"
-                    onClick={onDeleteStock}
-                    aria-label={`从股票列表中删除 ${profile.name} 并停止追踪`}
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </Tooltip>
+                <button
+                  className="icon-button stock-tracking-delete-stock"
+                  type="button"
+                  onClick={onDeleteStock}
+                  aria-label={`从股票列表中删除 ${profile.name} 并停止追踪`}
+                  title="从股票列表中删除并停止追踪"
+                >
+                  <Trash2 size={16} />
+                </button>
               ) : null}
             </>
           ) : !readOnly ? (
-            <Tooltip content={canRestart ? undefined : '请先重新加入自选，再恢复追踪'}>
-              <button
-                className="primary-button stock-tracking-restart"
-                type="button"
-                onClick={() => onRestartTracking(profile.quoteId)}
-                disabled={!canRestart}
-              >
-                <Play size={15} />
-                开始新一轮追踪
-              </button>
-            </Tooltip>
+            <button
+              className="primary-button stock-tracking-restart"
+              type="button"
+              onClick={() => onRestartTracking(profile.quoteId)}
+              disabled={!canRestart}
+              title={canRestart ? undefined : '请先重新加入自选，再恢复追踪'}
+            >
+              <Play size={15} />
+              开始新一轮追踪
+            </button>
           ) : null}
         </div>
       </header>
@@ -384,8 +378,12 @@ export function StockTrackingEditor({
           <Tag size={16} />
           <strong>标签与特点</strong>
           {!readOnly ? (
-            <Tooltip
-              content={
+            <button
+              className="stock-tracking-source-tags-button"
+              type="button"
+              onClick={addSourceTags}
+              disabled={missingSourceTags.length === 0}
+              title={
                 missingSourceTags.length > 0
                   ? `添加来源标签：${missingSourceTags.join('、')}`
                   : sourceTags.length > 0
@@ -393,16 +391,9 @@ export function StockTrackingEditor({
                     : '当前来源没有可添加的标签'
               }
             >
-              <button
-                className="stock-tracking-source-tags-button"
-                type="button"
-                onClick={addSourceTags}
-                disabled={missingSourceTags.length === 0}
-              >
-                <Plus size={13} />
-                一键添加来源标签
-              </button>
-            </Tooltip>
+              <Plus size={13} />
+              一键添加来源标签
+            </button>
           ) : null}
         </div>
         <div className="stock-tracking-tags">

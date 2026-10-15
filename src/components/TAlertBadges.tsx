@@ -1,4 +1,3 @@
-import { Tooltip } from './Tooltip'
 import { formatPrice } from '../lib/format'
 import type { TAlertBadge } from '../lib/t-alerts'
 
@@ -17,16 +16,17 @@ export function TAlertBadges({ badges, compact = false, showTitle = true }: TAle
       aria-label="当前 T 仓价格提醒"
     >
       {badges.map((badge) => (
-        <Tooltip
+        <span
+          className={`t-alert-badge is-${badge.side}`}
           key={`${badge.accountId ?? ''}-${badge.side}-${badge.index}`}
-          content={
+          title={
             showTitle
               ? `${badge.accountName ? badge.accountName + ' · ' : ''}${badge.side === 'buy' ? '买入' : '卖出'} ${badge.label}，目标价 ${formatPrice(badge.targetPrice)}`
               : undefined
           }
         >
-          <span className={`t-alert-badge is-${badge.side}`}>{badge.label}</span>
-        </Tooltip>
+          {badge.label}
+        </span>
       ))}
     </span>
   )

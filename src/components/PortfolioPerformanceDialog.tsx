@@ -1,4 +1,3 @@
-import { Tooltip } from './Tooltip'
 import { useSecuritiesAccountState } from './SecuritiesAccountContext'
 import { listStockAccountBooks, getStockAccountBook } from '../shared/stock-accounts'
 import type { StockTradingBooks } from '../shared/types'
@@ -385,16 +384,15 @@ export default function PortfolioPerformanceDialog({
               {report.accountReturnReason} · 汇率日期 {report.exchangeRateDate ?? '缺失'}
             </small>
           </span>
-          <Tooltip content="关闭">
-            <button
-              className="icon-button portfolio-performance-close"
-              type="button"
-              onClick={onClose}
-              aria-label="关闭跨市场收益分析"
-            >
-              <X size={19} />
-            </button>
-          </Tooltip>
+          <button
+            className="icon-button portfolio-performance-close"
+            type="button"
+            onClick={onClose}
+            aria-label="关闭跨市场收益分析"
+            title="关闭"
+          >
+            <X size={19} />
+          </button>
         </header>
 
         <div className="portfolio-performance-body">
@@ -538,36 +536,33 @@ export default function PortfolioPerformanceDialog({
                               void saveAdjustment()
                             }}
                           >
-                            <Tooltip content="留空后保存可恢复账本计算值">
-                              <input
-                                autoFocus
-                                type="number"
-                                step="0.01"
-                                value={adjustmentDraft}
-                                placeholder={rawStockProfit?.toFixed(2)}
-                                aria-label={`${row.label}券商人民币持仓收益`}
-                                onChange={(event) => setAdjustmentDraft(event.target.value)}
-                              />
-                            </Tooltip>
-                            <Tooltip content="保存">
-                              <button
-                                type="submit"
-                                disabled={savingAdjustments}
-                                aria-label={`保存${row.label}人民币收益调整`}
-                              >
-                                <Save size={14} />
-                              </button>
-                            </Tooltip>
-                            <Tooltip content="取消">
-                              <button
-                                type="button"
-                                disabled={savingAdjustments}
-                                aria-label={`取消${row.label}人民币收益调整`}
-                                onClick={closeAdjustmentEditor}
-                              >
-                                <X size={14} />
-                              </button>
-                            </Tooltip>
+                            <input
+                              autoFocus
+                              type="number"
+                              step="0.01"
+                              value={adjustmentDraft}
+                              placeholder={rawStockProfit?.toFixed(2)}
+                              aria-label={`${row.label}券商人民币持仓收益`}
+                              title="留空后保存可恢复账本计算值"
+                              onChange={(event) => setAdjustmentDraft(event.target.value)}
+                            />
+                            <button
+                              type="submit"
+                              disabled={savingAdjustments}
+                              aria-label={`保存${row.label}人民币收益调整`}
+                              title="保存"
+                            >
+                              <Save size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={savingAdjustments}
+                              aria-label={`取消${row.label}人民币收益调整`}
+                              title="取消"
+                              onClick={closeAdjustmentEditor}
+                            >
+                              <X size={14} />
+                            </button>
                             {adjustmentError ? <small>{adjustmentError}</small> : null}
                           </form>
                         ) : (
@@ -576,16 +571,15 @@ export default function PortfolioPerformanceDialog({
                               {formatMoneyProfit(currentCycle.cny.totalProfit, 'CNY')}
                               {editableStock &&
                               editableStock.currentCycle.cny.totalProfit !== null ? (
-                                <Tooltip content="调整人民币收益">
-                                  <button
-                                    className="performance-adjustment-edit"
-                                    type="button"
-                                    aria-label={`调整${row.label}人民币收益`}
-                                    onClick={() => openAdjustmentEditor(editableStock.quoteId)}
-                                  >
-                                    <PencilLine size={13} />
-                                  </button>
-                                </Tooltip>
+                                <button
+                                  className="performance-adjustment-edit"
+                                  type="button"
+                                  aria-label={`调整${row.label}人民币收益`}
+                                  title="调整人民币收益"
+                                  onClick={() => openAdjustmentEditor(editableStock.quoteId)}
+                                >
+                                  <PencilLine size={13} />
+                                </button>
                               ) : null}
                             </span>
                             {currentCycle.cny.manualAdjustment !== 0 ? (
@@ -632,43 +626,41 @@ export default function PortfolioPerformanceDialog({
                       <td>
                         {editableStock ? (
                           <span className="performance-row-operation">
-                            <Tooltip content="刷新该股票行情，并按当前交易账本重新计算">
-                              <button
-                                className="performance-row-recalculate"
-                                type="button"
-                                disabled={recalculatingQuoteId !== null}
-                                aria-label={`重新计算${row.label}收益`}
-                                onClick={() => void recalculateStock(editableStock.quoteId)}
-                              >
-                                <RefreshCw
-                                  size={13}
-                                  className={
-                                    recalculatingQuoteId === editableStock.quoteId
-                                      ? 'is-spinning'
-                                      : undefined
-                                  }
-                                />
-                                <span>
-                                  {recalculatingQuoteId === editableStock.quoteId
-                                    ? '计算中'
-                                    : '重新计算'}
-                                </span>
-                              </button>
-                            </Tooltip>
-                            <Tooltip content="查看所有持仓周期收益">
-                              <button
-                                className="performance-row-cycles"
-                                type="button"
-                                aria-label={`查看${row.label}所有持仓周期收益`}
-                                onClick={() => {
-                                  closeAdjustmentEditor()
-                                  setCycleDetailQuoteId(editableStock.quoteId)
-                                }}
-                              >
-                                <History size={13} />
-                                <span>周期明细</span>
-                              </button>
-                            </Tooltip>
+                            <button
+                              className="performance-row-recalculate"
+                              type="button"
+                              disabled={recalculatingQuoteId !== null}
+                              aria-label={`重新计算${row.label}收益`}
+                              title="刷新该股票行情，并按当前交易账本重新计算"
+                              onClick={() => void recalculateStock(editableStock.quoteId)}
+                            >
+                              <RefreshCw
+                                size={13}
+                                className={
+                                  recalculatingQuoteId === editableStock.quoteId
+                                    ? 'is-spinning'
+                                    : undefined
+                                }
+                              />
+                              <span>
+                                {recalculatingQuoteId === editableStock.quoteId
+                                  ? '计算中'
+                                  : '重新计算'}
+                              </span>
+                            </button>
+                            <button
+                              className="performance-row-cycles"
+                              type="button"
+                              aria-label={`查看${row.label}所有持仓周期收益`}
+                              title="查看所有持仓周期收益"
+                              onClick={() => {
+                                closeAdjustmentEditor()
+                                setCycleDetailQuoteId(editableStock.quoteId)
+                              }}
+                            >
+                              <History size={13} />
+                              <span>周期明细</span>
+                            </button>
                             {recalculationErrorQuoteId === editableStock.quoteId ? (
                               <small className="performance-row-recalculation-error">
                                 重新计算失败，请重试

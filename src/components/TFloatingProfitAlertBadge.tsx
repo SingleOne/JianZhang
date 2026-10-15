@@ -1,4 +1,3 @@
-import { Tooltip } from './Tooltip'
 import { formatMoneyProfit } from '../lib/format'
 import { getTriggeredTFloatingProfitAlert } from '../lib/t-alerts'
 import type { TTradingBatch } from '../shared/types'
@@ -34,15 +33,16 @@ export function TFloatingProfitAlertBadge({
       className={`t-alert-badges t-floating-profit-alert-badges ${compact ? 'is-compact' : ''}`}
       aria-label={`${accountName ?? ''} T仓${direction === 'profit' ? '浮盈' : '浮亏'}提醒`}
     >
-      <Tooltip
-        content={
+      <span
+        className={`t-alert-badge is-${direction}`}
+        title={
           showTitle
             ? `${accountName ?? ''} 当前浮动收益 ${formatMoneyProfit(floatingProfit, currency)}，已达到 ${formatMoneyProfit(target, currency)} 提醒值`
             : undefined
         }
       >
-        <span className={`t-alert-badge is-${direction}`}>{label}</span>
-      </Tooltip>
+        {label}
+      </span>
     </span>
   )
 }

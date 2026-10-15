@@ -1,4 +1,3 @@
-import { Tooltip } from './Tooltip'
 import {
   ChevronLeft,
   ChevronRight,
@@ -767,16 +766,15 @@ export function DividendFinancingRankingDialog({
               ))}
             </div>
           ) : null}
-          <Tooltip content="关闭">
-            <button
-              className="icon-button dividend-ranking-close"
-              type="button"
-              onClick={closeDialog}
-              aria-label="关闭分红融资榜"
-            >
-              <X size={18} />
-            </button>
-          </Tooltip>
+          <button
+            className="icon-button dividend-ranking-close"
+            type="button"
+            onClick={closeDialog}
+            aria-label="关闭分红融资榜"
+            title="关闭"
+          >
+            <X size={18} />
+          </button>
         </header>
 
         {loading ? (
@@ -904,21 +902,18 @@ export function DividendFinancingRankingDialog({
                     </div>
                   ) : null}
                 </div>
-                <Tooltip
-                  content={
+                <button
+                  className="secondary-button dividend-ranking-update"
+                  type="button"
+                  onClick={runUpdate}
+                  disabled={!isDesktopRuntime || updateRunning}
+                  title={
                     isDesktopRuntime ? '手动运行 Python 数据更新脚本' : '仅桌面版支持运行更新脚本'
                   }
                 >
-                  <button
-                    className="secondary-button dividend-ranking-update"
-                    type="button"
-                    onClick={runUpdate}
-                    disabled={!isDesktopRuntime || updateRunning}
-                  >
-                    <RefreshCw size={15} className={updateRunning ? 'is-spinning' : ''} />
-                    {updateRunning ? '脚本运行中' : '运行更新脚本'}
-                  </button>
-                </Tooltip>
+                  <RefreshCw size={15} className={updateRunning ? 'is-spinning' : ''} />
+                  {updateRunning ? '脚本运行中' : '运行更新脚本'}
+                </button>
               </div>
             </div>
 
@@ -1027,19 +1022,17 @@ export function DividendFinancingRankingDialog({
                     />{' '}
                     %
                   </label>
-                  <Tooltip content="适当提高此值可排除小融资分母造成的极端比例">
-                    <label>
-                      累计融资 ≥{' '}
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={minFinancing}
-                        onChange={(event) => setMinFinancing(Number(event.target.value))}
-                      />{' '}
-                      亿
-                    </label>
-                  </Tooltip>
+                  <label title="适当提高此值可排除小融资分母造成的极端比例">
+                    累计融资 ≥{' '}
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={minFinancing}
+                      onChange={(event) => setMinFinancing(Number(event.target.value))}
+                    />{' '}
+                    亿
+                  </label>
                   <label>
                     连续分红 ≥{' '}
                     <input

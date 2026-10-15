@@ -1,4 +1,3 @@
-import { Tooltip } from './Tooltip'
 import { Folders, X } from 'lucide-react'
 import type { CSSProperties, Ref } from 'react'
 import { isHoldingWatchlistGroup, isTrackingWatchlistGroup } from '../shared/types'
@@ -47,16 +46,15 @@ export function StockGroupQuickPopover({
             {stock.code} · 已加入 {groupCount} 个分组
           </small>
         </span>
-        <Tooltip content="关闭">
-          <button
-            className="icon-button watchlist-group-quick-close"
-            type="button"
-            onClick={onClose}
-            aria-label="关闭分组选择"
-          >
-            <X size={14} />
-          </button>
-        </Tooltip>
+        <button
+          className="icon-button watchlist-group-quick-close"
+          type="button"
+          onClick={onClose}
+          aria-label="关闭分组选择"
+          title="关闭"
+        >
+          <X size={14} />
+        </button>
       </div>
       <div className="watchlist-group-quick-list">
         {groups.map((group) => {
@@ -66,32 +64,29 @@ export function StockGroupQuickPopover({
           const automaticGroup = trackingGroup || holdingGroup
           const automaticDescription = trackingGroup ? '由追踪状态自动维护' : '由持仓数量自动维护'
           return (
-            <Tooltip
+            <label
+              className={`watchlist-group-quick-row ${checked ? 'is-selected' : ''} ${automaticGroup ? 'is-readonly' : ''}`}
               key={group.id}
-              content={automaticGroup ? `${group.name}分组${automaticDescription}` : undefined}
+              title={automaticGroup ? `${group.name}分组${automaticDescription}` : undefined}
             >
-              <label
-                className={`watchlist-group-quick-row ${checked ? 'is-selected' : ''} ${automaticGroup ? 'is-readonly' : ''}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  disabled={automaticGroup}
-                  onChange={(event) => onToggleGroup(group.id, event.target.checked)}
-                  aria-label={
-                    automaticGroup
-                      ? `${group.name}分组${automaticDescription}`
-                      : `${checked ? '移出' : '加入'}分组 ${group.name}`
-                  }
-                />
-                <span>
-                  <strong>{group.name}</strong>
-                  <small>
-                    {automaticGroup ? automaticDescription : checked ? '已加入' : '点击加入'}
-                  </small>
-                </span>
-              </label>
-            </Tooltip>
+              <input
+                type="checkbox"
+                checked={checked}
+                disabled={automaticGroup}
+                onChange={(event) => onToggleGroup(group.id, event.target.checked)}
+                aria-label={
+                  automaticGroup
+                    ? `${group.name}分组${automaticDescription}`
+                    : `${checked ? '移出' : '加入'}分组 ${group.name}`
+                }
+              />
+              <span>
+                <strong>{group.name}</strong>
+                <small>
+                  {automaticGroup ? automaticDescription : checked ? '已加入' : '点击加入'}
+                </small>
+              </span>
+            </label>
           )
         })}
       </div>

@@ -1,4 +1,3 @@
-import { Tooltip } from './Tooltip'
 import { History, X } from 'lucide-react'
 import { useMemo } from 'react'
 import { createPortal } from 'react-dom'
@@ -146,16 +145,15 @@ export default function PortfolioPerformanceCyclesDialog({
               {performance.code} · 共 {cycles.length} 个收益周期 · 当前累计纳入 {includedCount} 个
             </small>
           </span>
-          <Tooltip content="关闭">
-            <button
-              className="icon-button portfolio-performance-cycles-close"
-              type="button"
-              aria-label="关闭持仓周期收益"
-              onClick={onClose}
-            >
-              <X size={19} />
-            </button>
-          </Tooltip>
+          <button
+            className="icon-button portfolio-performance-cycles-close"
+            type="button"
+            aria-label="关闭持仓周期收益"
+            title="关闭"
+            onClick={onClose}
+          >
+            <X size={19} />
+          </button>
         </header>
 
         <div className="portfolio-performance-cycles-body">

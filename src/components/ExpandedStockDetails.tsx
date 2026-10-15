@@ -1,4 +1,3 @@
-import { Tooltip } from './Tooltip'
 import type { StockTradingBook } from '../shared/types'
 import './ExpandedStockDetails.css'
 import {
@@ -454,22 +453,20 @@ function DividendFinancingDeepDetails({ item }: { item: DividendFinancingRanking
           {annualDividends.length > 0 ? (
             <div className="annual-dividend-chart">
               {annualDividends.map((point) => (
-                <Tooltip
+                <div
                   key={point.year}
-                  content={`${point.year}年 · ${dividendAmount(point.amountYi)} · ${point.eventCount}次`}
+                  title={`${point.year}年 · ${dividendAmount(point.amountYi)} · ${point.eventCount}次`}
                 >
-                  <div>
-                    <span>
-                      {point.amountYi.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}
-                    </span>
-                    <i
-                      style={{
-                        height: `${Math.max(4, (point.amountYi / maxAnnualDividend) * 100)}%`
-                      }}
-                    />
-                    <strong>{point.year}</strong>
-                  </div>
-                </Tooltip>
+                  <span>
+                    {point.amountYi.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}
+                  </span>
+                  <i
+                    style={{
+                      height: `${Math.max(4, (point.amountYi / maxAnnualDividend) * 100)}%`
+                    }}
+                  />
+                  <strong>{point.year}</strong>
+                </div>
               ))}
             </div>
           ) : (
@@ -837,25 +834,23 @@ function StrictFcffPanel({
             {company.annualReports.map((report) => {
               const item = report.fcffBreakdown
               return (
-                <Tooltip content={item?.unavailableReason ?? undefined} key={report.year}>
-                  <tr>
-                    <td>{report.year}</td>
-                    <td>{fundamentalAmount(item?.adjustedEbit ?? null)}</td>
-                    <td>{fundamentalPercent(item?.effectiveTaxRate)}</td>
-                    <td>{fundamentalAmount(item?.nopat ?? null)}</td>
-                    <td>{fundamentalAmount(item?.depreciationAndAmortization ?? null)}</td>
-                    <td>{fundamentalAmount(item?.capitalExpenditure ?? null)}</td>
-                    <td>{fundamentalAmount(item?.operatingWorkingCapital ?? null)}</td>
-                    <td className={signedValueClass(item?.operatingWorkingCapitalChange ?? 0)}>
-                      {fundamentalAmount(item?.operatingWorkingCapitalChange ?? null)}
-                    </td>
-                    <td className={signedValueClass(item?.fcff ?? 0)}>
-                      {item?.fcff === null || item?.fcff === undefined
-                        ? (item?.unavailableReason ?? '旧快照未提供')
-                        : fundamentalAmount(item.fcff)}
-                    </td>
-                  </tr>
-                </Tooltip>
+                <tr key={report.year} title={item?.unavailableReason ?? undefined}>
+                  <td>{report.year}</td>
+                  <td>{fundamentalAmount(item?.adjustedEbit ?? null)}</td>
+                  <td>{fundamentalPercent(item?.effectiveTaxRate)}</td>
+                  <td>{fundamentalAmount(item?.nopat ?? null)}</td>
+                  <td>{fundamentalAmount(item?.depreciationAndAmortization ?? null)}</td>
+                  <td>{fundamentalAmount(item?.capitalExpenditure ?? null)}</td>
+                  <td>{fundamentalAmount(item?.operatingWorkingCapital ?? null)}</td>
+                  <td className={signedValueClass(item?.operatingWorkingCapitalChange ?? 0)}>
+                    {fundamentalAmount(item?.operatingWorkingCapitalChange ?? null)}
+                  </td>
+                  <td className={signedValueClass(item?.fcff ?? 0)}>
+                    {item?.fcff === null || item?.fcff === undefined
+                      ? (item?.unavailableReason ?? '旧快照未提供')
+                      : fundamentalAmount(item.fcff)}
+                  </td>
+                </tr>
               )
             })}
           </tbody>
@@ -1024,9 +1019,9 @@ function FinancialValuationPanel({ summary }: { summary: FundamentalValuationSum
         <strong>完整结论仍需以下专用指标</strong>
         <div>
           {analysis.requiredMetrics.map((metric) => (
-            <Tooltip content={metric.reason} key={metric.id}>
-              <span>{metric.label} · 未接入</span>
-            </Tooltip>
+            <span key={metric.id} title={metric.reason}>
+              {metric.label} · 未接入
+            </span>
           ))}
         </div>
       </div>
@@ -1478,12 +1473,10 @@ function FinancialMineHelp({ indicatorId }: { indicatorId: FinancialMineIndicato
   const meta = FINANCIAL_MINE_INDICATOR_META[indicatorId]
   return (
     <details className="financial-mine-help">
-      <Tooltip content={`说明：${meta.title}`}>
-        <summary aria-label={`查看${meta.title}说明`}>
-          <Info size={14} />
-        </summary>
-      </Tooltip>
-      <span>
+      <summary title={`说明：${meta.title}`} aria-label={`查看${meta.title}说明`}>
+        <Info size={14} />
+      </summary>
+      <span role="tooltip">
         <strong>{meta.title}</strong>
         {meta.explanation}
       </span>
@@ -1609,30 +1602,24 @@ function FundamentalPanel({
         <Database size={26} />
         <strong>当前股票暂无基本面财务数据</strong>
         <span>当前快照可能尚未覆盖这只股票，可在“基本面初筛”中查看或更新数据。</span>
-        <Tooltip
-          content={
+        <button
+          className="fundamental-stock-update-button"
+          type="button"
+          disabled={stockUpdateStatus === 'updating' || !currentStockUpdateAvailable}
+          title={
             currentStockUpdateAvailable
               ? '单独更新当前股票的基本面数据'
               : '尚无全量基本面快照，请先在设置中更新基本面数据'
           }
+          onClick={() => void updateCurrentStockFundamentals()}
         >
-          <button
-            className="fundamental-stock-update-button"
-            type="button"
-            disabled={stockUpdateStatus === 'updating' || !currentStockUpdateAvailable}
-            onClick={() => void updateCurrentStockFundamentals()}
-          >
-            <RefreshCw
-              size={16}
-              className={stockUpdateStatus === 'updating' ? 'is-spinning' : ''}
-            />
-            {stockUpdateStatus === 'updating'
-              ? '正在更新'
-              : currentStockUpdateAvailable
-                ? '更新当前股票'
-                : '请先更新全量数据'}
-          </button>
-        </Tooltip>
+          <RefreshCw size={16} className={stockUpdateStatus === 'updating' ? 'is-spinning' : ''} />
+          {stockUpdateStatus === 'updating'
+            ? '正在更新'
+            : currentStockUpdateAvailable
+              ? '更新当前股票'
+              : '请先更新全量数据'}
+        </button>
         {stockUpdateMessage ? (
           <span
             className={`fundamental-stock-update-message is-${stockUpdateStatus}`}
@@ -2580,9 +2567,12 @@ export function ExpandedStockDetails({
                 <em className="intraday-fallback-badge">5分钟备用行情</em>
               ) : null}
               {data?.source ? (
-                <Tooltip content={data.fetchedAt ? `获取时间：${data.fetchedAt}` : undefined}>
-                  <em className="overview-data-badge">{STOCK_QUOTE_SOURCE_LABELS[data.source]}</em>
-                </Tooltip>
+                <em
+                  className="overview-data-badge"
+                  title={data.fetchedAt ? `获取时间：${data.fetchedAt}` : undefined}
+                >
+                  {STOCK_QUOTE_SOURCE_LABELS[data.source]}
+                </em>
               ) : null}
               {data?.adjustment === 'forward' ? (
                 <em className="overview-data-badge">前复权</em>
@@ -2666,21 +2656,22 @@ export function ExpandedStockDetails({
               >
                 <div className="chart-content">
                   {(error && data) || isFiveMinuteFallback ? (
-                    <Tooltip content={isFiveMinuteFallback ? data?.fallbackReason : error}>
-                      <div className="chart-refresh-warning">
-                        <AlertCircle size={14} />
-                        <span>
-                          {isFiveMinuteFallback
-                            ? '1分钟分时暂不可用，当前显示5分钟备用行情'
-                            : priceTab === 'trend'
-                              ? '1分钟分时刷新失败，当前显示最近一次1分钟数据'
-                              : `${tabMeta?.label}数据刷新失败，当前显示最近一次数据`}
-                        </span>
-                        <button type="button" onClick={retryCurrentTab}>
-                          重试
-                        </button>
-                      </div>
-                    </Tooltip>
+                    <div
+                      className="chart-refresh-warning"
+                      title={isFiveMinuteFallback ? data?.fallbackReason : error}
+                    >
+                      <AlertCircle size={14} />
+                      <span>
+                        {isFiveMinuteFallback
+                          ? '1分钟分时暂不可用，当前显示5分钟备用行情'
+                          : priceTab === 'trend'
+                            ? '1分钟分时刷新失败，当前显示最近一次1分钟数据'
+                            : `${tabMeta?.label}数据刷新失败，当前显示最近一次数据`}
+                      </span>
+                      <button type="button" onClick={retryCurrentTab}>
+                        重试
+                      </button>
+                    </div>
                   ) : null}
                   {isLoading && data && isHistorical ? (
                     <div className="chart-history-loading">

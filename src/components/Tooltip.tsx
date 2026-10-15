@@ -23,6 +23,7 @@ interface TooltipProps {
 interface TooltipTargetProps {
   'aria-describedby'?: string
   'data-app-tooltip-trigger'?: string
+  tabIndex?: number
   onBlur?: (event: FocusEvent<Element>) => void
   onFocus?: (event: FocusEvent<Element>) => void
   onKeyDown?: (event: KeyboardEvent<Element>) => void
@@ -43,6 +44,8 @@ let closeActiveTooltip: ((immediate?: boolean) => void) | null = null
 
 export function Tooltip({ children, content }: TooltipProps) {
   const target = children as ReactElement<TooltipTargetProps>
+  const hasContent =
+    content !== null && content !== undefined && content !== false && content !== ''
   const triggerRef = useRef<Element | null>(null)
   const tooltipRef = useRef<HTMLSpanElement>(null)
   const exitTimerRef = useRef<number | undefined>(undefined)
@@ -169,7 +172,11 @@ export function Tooltip({ children, content }: TooltipProps) {
     [startExit]
   )
 
-  if (content === null || content === undefined || content === false || content === '') {
+  useEffect(() => {
+    if (!hasContent && (open || rendered || enteringRef.current)) startExit(true)
+  }, [hasContent, open, rendered, startExit])
+
+  if (!hasContent) {
     return children
   }
 
@@ -182,6 +189,7 @@ export function Tooltip({ children, content }: TooltipProps) {
       {cloneElement(target, {
         'aria-describedby': describedBy,
         'data-app-tooltip-trigger': '',
+        tabIndex: target.props.tabIndex ?? 0,
         onPointerEnter: handlePointerEnter,
         onPointerLeave: handlePointerLeave,
         onFocus: (event) => {

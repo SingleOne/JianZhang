@@ -1,4 +1,3 @@
-import { Tooltip } from './Tooltip'
 import { AlertTriangle, X } from 'lucide-react'
 import {
   createContext,
@@ -71,16 +70,15 @@ function ActiveConfirmDialog({
             <p id="confirm-dialog-message">{request.message}</p>
           </div>
           {request.dismissible !== false ? (
-            <Tooltip content="关闭">
-              <button
-                className="icon-button confirm-dialog-close"
-                type="button"
-                onClick={() => onFinish(false)}
-                aria-label="关闭确认弹窗"
-              >
-                <X size={16} />
-              </button>
-            </Tooltip>
+            <button
+              className="icon-button confirm-dialog-close"
+              type="button"
+              onClick={() => onFinish(false)}
+              aria-label="关闭确认弹窗"
+              title="关闭"
+            >
+              <X size={16} />
+            </button>
           ) : null}
         </header>
         <footer>

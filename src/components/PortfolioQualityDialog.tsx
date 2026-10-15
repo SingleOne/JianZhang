@@ -1,4 +1,3 @@
-import { Tooltip } from './Tooltip'
 import { ChartPie, FilterX, LocateFixed, ShieldAlert, X } from 'lucide-react'
 import './PortfolioQualityDialog.css'
 import { useEffect, useMemo, useState } from 'react'
@@ -153,16 +152,15 @@ export function PortfolioQualityDialog({
               {dividendSnapshotDate ?? '暂无'}
             </small>
           </span>
-          <Tooltip content="关闭">
-            <button
-              className="icon-button portfolio-quality-close"
-              type="button"
-              onClick={onClose}
-              aria-label="关闭持仓质量概览"
-            >
-              <X size={19} />
-            </button>
-          </Tooltip>
+          <button
+            className="icon-button portfolio-quality-close"
+            type="button"
+            onClick={onClose}
+            aria-label="关闭持仓质量概览"
+            title="关闭"
+          >
+            <X size={19} />
+          </button>
         </header>
 
         <div className="portfolio-quality-body">
@@ -209,12 +207,12 @@ export function PortfolioQualityDialog({
                 {VALUE_CATEGORY_ORDER.map((category) => {
                   const bucket = summary.valueBuckets[category]
                   return bucket.percent && bucket.percent > 0 ? (
-                    <Tooltip
+                    <span
+                      className={`is-${category}`}
+                      style={{ width: `${bucket.percent}%` }}
+                      title={`${VALUE_CATEGORY_META[category].label} ${formatShare(bucket.percent)}`}
                       key={category}
-                      content={`${VALUE_CATEGORY_META[category].label} ${formatShare(bucket.percent)}`}
-                    >
-                      <span className={`is-${category}`} style={{ width: `${bucket.percent}%` }} />
-                    </Tooltip>
+                    />
                   ) : null
                 })}
               </div>
@@ -359,12 +357,12 @@ export function PortfolioQualityDialog({
                       {VALUE_CATEGORY_ORDER.map((category) => {
                         const percent = industry.valueBuckets[category].percent
                         return percent && percent > 0 ? (
-                          <Tooltip
+                          <i
+                            className={`is-${category}`}
+                            style={{ width: `${percent}%` }}
+                            title={`${VALUE_CATEGORY_META[category].label} ${formatShare(percent)}`}
                             key={category}
-                            content={`${VALUE_CATEGORY_META[category].label} ${formatShare(percent)}`}
-                          >
-                            <i className={`is-${category}`} style={{ width: `${percent}%` }} />
-                          </Tooltip>
+                          />
                         ) : null
                       })}
                     </span>

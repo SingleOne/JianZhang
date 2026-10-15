@@ -1,4 +1,3 @@
-import { Tooltip } from './Tooltip'
 import {
   Activity,
   AlertCircle,
@@ -357,16 +356,15 @@ export function DailyMarketScanDialog({
                 : '扫描全市场活跃股票的量价与技术形态'}
             </span>
           </div>
-          <Tooltip content="关闭">
-            <button
-              className="icon-button daily-scan-close"
-              type="button"
-              onClick={onClose}
-              aria-label="关闭收盘扫描"
-            >
-              <X size={19} />
-            </button>
-          </Tooltip>
+          <button
+            className="icon-button daily-scan-close"
+            type="button"
+            onClick={onClose}
+            aria-label="关闭收盘扫描"
+            title="关闭"
+          >
+            <X size={19} />
+          </button>
         </header>
 
         {scanState.running ? (
@@ -449,11 +447,14 @@ export function DailyMarketScanDialog({
                     aria-label="筛选收盘扫描结果"
                   />
                   {query ? (
-                    <Tooltip content="清空筛选">
-                      <button type="button" onClick={() => setQuery('')} aria-label="清空筛选">
-                        <X size={14} />
-                      </button>
-                    </Tooltip>
+                    <button
+                      type="button"
+                      onClick={() => setQuery('')}
+                      aria-label="清空筛选"
+                      title="清空筛选"
+                    >
+                      <X size={14} />
+                    </button>
                   ) : null}
                 </label>
                 <button

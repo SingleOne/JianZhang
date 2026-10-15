@@ -1,4 +1,3 @@
-import { Tooltip } from '../../../components/Tooltip'
 import { ChatSourcePreview } from './ChatSourcePreview'
 import {
   AlertCircle,
@@ -106,15 +105,14 @@ const MarkdownSourceContext = createContext<(url: string) => void>(() => undefin
 function MarkdownLink({ href, children }: ComponentPropsWithoutRef<'a'>) {
   const onOpenSource = useContext(MarkdownSourceContext)
   return (
-    <Tooltip content={href}>
-      <button
-        className="ai-message-markdown-link"
-        type="button"
-        onClick={() => href && onOpenSource(href)}
-      >
-        {children}
-      </button>
-    </Tooltip>
+    <button
+      className="ai-message-markdown-link"
+      type="button"
+      title={href}
+      onClick={() => href && onOpenSource(href)}
+    >
+      {children}
+    </button>
   )
 }
 
@@ -196,9 +194,9 @@ function MessageSources({
           const presentation = citationPresentation(citation)
           const body = (
             <>
-              <Tooltip content="本条消息的引用编号">
-                <span aria-label={`本条消息引用编号 ${citation.id}`}>[{citation.id}]</span>
-              </Tooltip>
+              <span title="本条消息的引用编号" aria-label={`本条消息引用编号 ${citation.id}`}>
+                [{citation.id}]
+              </span>
               <span>
                 <b>{presentation.title}</b>
                 <small>{presentation.detail}</small>
@@ -322,24 +320,22 @@ function ConversationList({
                 </span>
               </button>
               <div className="ai-conversation-item-actions">
-                <Tooltip content="重命名">
-                  <button
-                    type="button"
-                    aria-label={`重命名${conversation.title}`}
-                    onClick={() => onRename(conversation)}
-                  >
-                    <Pencil size={13} />
-                  </button>
-                </Tooltip>
-                <Tooltip content="删除">
-                  <button
-                    type="button"
-                    aria-label={`删除${conversation.title}`}
-                    onClick={() => onDelete(conversation)}
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </Tooltip>
+                <button
+                  type="button"
+                  title="重命名"
+                  aria-label={`重命名${conversation.title}`}
+                  onClick={() => onRename(conversation)}
+                >
+                  <Pencil size={13} />
+                </button>
+                <button
+                  type="button"
+                  title="删除"
+                  aria-label={`删除${conversation.title}`}
+                  onClick={() => onDelete(conversation)}
+                >
+                  <Trash2 size={13} />
+                </button>
               </div>
             </div>
           ))
@@ -393,16 +389,15 @@ function ChatThread({
           <h2>{conversation?.title ?? '选择或创建一个对话'}</h2>
         </div>
         {conversation ? (
-          <Tooltip content="导出此对话">
-            <button
-              className="icon-button ai-thread-export"
-              type="button"
-              aria-label="导出此对话"
-              onClick={onExport}
-            >
-              <Download size={16} />
-            </button>
-          </Tooltip>
+          <button
+            className="icon-button ai-thread-export"
+            type="button"
+            title="导出此对话"
+            aria-label="导出此对话"
+            onClick={onExport}
+          >
+            <Download size={16} />
+          </button>
         ) : null}
       </header>
       <div className="ai-message-stream">
@@ -1286,16 +1281,15 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="ai-drawer-header">
-          <Tooltip content="关闭 AI 助手">
-            <button
-              className="icon-button ai-drawer-close"
-              type="button"
-              aria-label="关闭 AI 助手"
-              onClick={onClose}
-            >
-              <X size={18} />
-            </button>
-          </Tooltip>
+          <button
+            className="icon-button ai-drawer-close"
+            type="button"
+            title="关闭 AI 助手"
+            aria-label="关闭 AI 助手"
+            onClick={onClose}
+          >
+            <X size={18} />
+          </button>
           <div>
             <Bot size={19} />
             <span>
@@ -1377,40 +1371,36 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
                         className={`ai-context-chip${includeStockContext ? '' : ' is-disabled'}`}
                       >
                         上下文：{activeConversation.quoteName ?? activeConversation.quoteId}
-                        <Tooltip
-                          content={
+                        <button
+                          type="button"
+                          title={
                             includeStockContext
                               ? '移除本次消息的股票上下文'
                               : '恢复本次消息的股票上下文'
                           }
+                          aria-label={
+                            includeStockContext
+                              ? '移除本次消息的股票上下文'
+                              : '恢复本次消息的股票上下文'
+                          }
+                          onClick={() => setIncludeStockContext((current) => !current)}
                         >
-                          <button
-                            type="button"
-                            aria-label={
-                              includeStockContext
-                                ? '移除本次消息的股票上下文'
-                                : '恢复本次消息的股票上下文'
-                            }
-                            onClick={() => setIncludeStockContext((current) => !current)}
-                          >
-                            {includeStockContext ? <X size={13} /> : <Plus size={13} />}
-                          </button>
-                        </Tooltip>
+                          {includeStockContext ? <X size={13} /> : <Plus size={13} />}
+                        </button>
                       </span>
                     ) : null}
                     {mentionedStocks.map((stock) => (
                       <span className="ai-context-chip is-mention" key={stock.quoteId}>
                         @{stock.name}
                         <small>{stock.code}</small>
-                        <Tooltip content={`移除${stock.name}引用`}>
-                          <button
-                            type="button"
-                            aria-label={`移除${stock.name}引用`}
-                            onClick={() => removeMention(stock)}
-                          >
-                            <X size={13} />
-                          </button>
-                        </Tooltip>
+                        <button
+                          type="button"
+                          title={`移除${stock.name}引用`}
+                          aria-label={`移除${stock.name}引用`}
+                          onClick={() => removeMention(stock)}
+                        >
+                          <X size={13} />
+                        </button>
                       </span>
                     ))}
                     <button
@@ -1422,26 +1412,23 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
                       <AtSign size={14} />
                       股票
                     </button>
-                    <Tooltip
-                      content={
+                    <button
+                      className={`ai-stock-search-toggle${
+                        officialSearchEnabled ? ' is-active' : ''
+                      }`}
+                      type="button"
+                      disabled={sendingMessage || !stockSearchAvailable}
+                      title={
                         stockSearchAvailable
                           ? `让 ${activeProviderLabel} 联网检索当前消息股票的官方公开信息`
                           : '请先添加当前股票上下文或通过 @ 引用股票'
                       }
+                      aria-pressed={officialSearchEnabled}
+                      onClick={() => setOfficialSearch((current) => !current)}
                     >
-                      <button
-                        className={`ai-stock-search-toggle${
-                          officialSearchEnabled ? ' is-active' : ''
-                        }`}
-                        type="button"
-                        disabled={sendingMessage || !stockSearchAvailable}
-                        aria-pressed={officialSearchEnabled}
-                        onClick={() => setOfficialSearch((current) => !current)}
-                      >
-                        <Globe2 size={14} />
-                        联网搜索
-                      </button>
-                    </Tooltip>
+                      <Globe2 size={14} />
+                      联网搜索
+                    </button>
                   </div>
                   <div className="ai-composer-editor">
                     <textarea

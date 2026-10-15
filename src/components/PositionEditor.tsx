@@ -1,4 +1,3 @@
-import { Tooltip } from './Tooltip'
 import { useSecuritiesAccountState } from './SecuritiesAccountContext'
 import './PositionDialogResponsive.css'
 import { reconcileStockTBatches, toStockTradingBook } from '../lib/stock-t-trading'
@@ -426,20 +425,19 @@ function TradeRecordList({
                   数量变化 {quantityChange > 0 ? '+' : ''}
                   {formatShares(quantityChange)}
                 </strong>
-                <Tooltip content={entry.note || undefined}>
-                  <small>{entry.resetsPerformance ? '收益基准重置' : entry.note || '--'}</small>
-                </Tooltip>
+                <small title={entry.note || undefined}>
+                  {entry.resetsPerformance ? '收益基准重置' : entry.note || '--'}
+                </small>
                 <span className="trade-record-actions">
-                  <Tooltip content="删除持仓校准记录">
-                    <button
-                      className="icon-button is-delete"
-                      type="button"
-                      onClick={() => onDelete(entry)}
-                      aria-label="删除持仓校准记录"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </Tooltip>
+                  <button
+                    className="icon-button is-delete"
+                    type="button"
+                    onClick={() => onDelete(entry)}
+                    title="删除持仓校准记录"
+                    aria-label="删除持仓校准记录"
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </span>
               </div>
             )
@@ -576,21 +574,18 @@ function TradeRecordList({
                       </label>
                     ) : null}
                   </div>
-                  <Tooltip
-                    content={
+                  <AppButton
+                    variant="text"
+                    className="text-button"
+                    title={
                       record.splitSource
                         ? '整笔重新估算并分摊到所有关联流水，保存后更新成本与收益'
                         : '保存后按当前方案更新费用及相关成本与收益'
                     }
+                    onClick={() => onDraftChange({ recalculateFees: !draft.recalculateFees })}
                   >
-                    <AppButton
-                      variant="text"
-                      className="text-button"
-                      onClick={() => onDraftChange({ recalculateFees: !draft.recalculateFees })}
-                    >
-                      {draft.recalculateFees ? '保留已保存费用' : '按当前账户重算费用'}
-                    </AppButton>
-                  </Tooltip>
+                    {draft.recalculateFees ? '保留已保存费用' : '按当前账户重算费用'}
+                  </AppButton>
                   <small className="trade-record-create-preview">
                     {draft.recalculateFees
                       ? feePreview
@@ -654,49 +649,43 @@ function TradeRecordList({
                 <strong>
                   {formatShares(record.quantity)} × {formatPrice(record.price)}
                 </strong>
-                <Tooltip content={feeDetails}>
-                  <small>
-                    费用 {formatMoney(fees, currency)}
-                    {feeDetails ? ` · ${feeDetails}` : ''}
-                    {market !== 'CN'
-                      ? ` · ${record.feeSource === 'actual' || record.feeItems?.some((item) => item.code === 'manual') ? '券商实际' : record.feeTemplate ? '模板估算' : '来源未标记'}`
-                      : ''}
-                    {record.feeTemplate
-                      ? ` · ${record.feeTemplate.label} v${record.feeTemplate.version}`
-                      : ''}
-                    {record.exchangeRate ? ` · 汇率 ${record.exchangeRate.toFixed(6)}` : ''}
-                  </small>
-                </Tooltip>
+                <small title={feeDetails}>
+                  费用 {formatMoney(fees, currency)}
+                  {feeDetails ? ` · ${feeDetails}` : ''}
+                  {market !== 'CN'
+                    ? ` · ${record.feeSource === 'actual' || record.feeItems?.some((item) => item.code === 'manual') ? '券商实际' : record.feeTemplate ? '模板估算' : '来源未标记'}`
+                    : ''}
+                  {record.feeTemplate
+                    ? ` · ${record.feeTemplate.label} v${record.feeTemplate.version}`
+                    : ''}
+                  {record.exchangeRate ? ` · 汇率 ${record.exchangeRate.toFixed(6)}` : ''}
+                </small>
               </span>
               <strong className={valueClass(amountChange)}>
                 金额变动 {formatMoneyProfit(amountChange, currency)}
               </strong>
-              <Tooltip content={record.note || undefined}>
-                <small>{record.note || '--'}</small>
-              </Tooltip>
+              <small title={record.note || undefined}>{record.note || '--'}</small>
               <span className="trade-record-actions">
-                <Tooltip content={isCrossBatch ? '请在交易管理中处理跨批次成交' : '编辑本条交易'}>
-                  <button
-                    className="icon-button"
-                    type="button"
-                    disabled={isCrossBatch}
-                    onClick={() => onStartEdit(record)}
-                    aria-label="编辑本条交易"
-                  >
-                    <PencilLine size={14} />
-                  </button>
-                </Tooltip>
-                <Tooltip content={isCrossBatch ? '请在交易管理中处理跨批次成交' : '删除本条交易'}>
-                  <button
-                    className="icon-button is-delete"
-                    type="button"
-                    disabled={isCrossBatch}
-                    onClick={() => onDelete(entry)}
-                    aria-label="删除本条交易"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </Tooltip>
+                <button
+                  className="icon-button"
+                  type="button"
+                  disabled={isCrossBatch}
+                  onClick={() => onStartEdit(record)}
+                  title={isCrossBatch ? '请在交易管理中处理跨批次成交' : '编辑本条交易'}
+                  aria-label="编辑本条交易"
+                >
+                  <PencilLine size={14} />
+                </button>
+                <button
+                  className="icon-button is-delete"
+                  type="button"
+                  disabled={isCrossBatch}
+                  onClick={() => onDelete(entry)}
+                  title={isCrossBatch ? '请在交易管理中处理跨批次成交' : '删除本条交易'}
+                  aria-label="删除本条交易"
+                >
+                  <Trash2 size={14} />
+                </button>
               </span>
             </div>
           )
@@ -1743,20 +1732,19 @@ export function PositionEditor({
                         <span className={valueClass(profitDifference)}>
                           {formatMoneyProfit(profitDifference, currency)}
                         </span>
-                        <Tooltip content={`删除${formatSnapshotTime(snapshot.createdAt)}快照`}>
-                          <button
-                            className="icon-button position-snapshot-delete"
-                            type="button"
-                            onClick={() =>
-                              setPositionSnapshots((current) =>
-                                current.filter((item) => item.id !== snapshot.id)
-                              )
-                            }
-                            aria-label={`删除${formatSnapshotTime(snapshot.createdAt)}快照`}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </Tooltip>
+                        <button
+                          className="icon-button position-snapshot-delete"
+                          type="button"
+                          onClick={() =>
+                            setPositionSnapshots((current) =>
+                              current.filter((item) => item.id !== snapshot.id)
+                            )
+                          }
+                          title={`删除${formatSnapshotTime(snapshot.createdAt)}快照`}
+                          aria-label={`删除${formatSnapshotTime(snapshot.createdAt)}快照`}
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     )
                   })}
@@ -2006,15 +1994,14 @@ export function PositionEditor({
                 <button className="secondary-button compact-button" type="button" onClick={onClose}>
                   取消
                 </button>
-                <Tooltip content={editingTradeId ? '请先保存或取消当前交易记录编辑' : undefined}>
-                  <button
-                    className="primary-button compact-button"
-                    type="submit"
-                    disabled={editingTradeId !== null}
-                  >
-                    保存设置
-                  </button>
-                </Tooltip>
+                <button
+                  className="primary-button compact-button"
+                  type="submit"
+                  disabled={editingTradeId !== null}
+                  title={editingTradeId ? '请先保存或取消当前交易记录编辑' : undefined}
+                >
+                  保存设置
+                </button>
               </span>
             </footer>
           </form>
