@@ -39,8 +39,8 @@ interface TooltipPosition {
   placement: 'top' | 'bottom'
 }
 
-const TOOLTIP_ENTER_DELAY_MS = 300
-const TOOLTIP_EXIT_DURATION_MS = 180
+const TOOLTIP_ENTER_DELAY_MS = 500
+const TOOLTIP_EXIT_DURATION_MS = 360
 let closeActiveTooltip: ((immediate?: boolean) => void) | null = null
 
 export function Tooltip({ children, content }: TooltipProps) {
@@ -70,13 +70,21 @@ export function Tooltip({ children, content }: TooltipProps) {
       closeActiveTooltip = startExit
       enteringRef.current = true
       setOpen(false)
-      enterTimerRef.current = window.setTimeout(() => {
-        enterTimerRef.current = undefined
-        setRendered(true)
-        setEntryRevision((revision) => revision + 1)
-      }, TOOLTIP_ENTER_DELAY_MS)
+      setRendered(true)
+      setEntryRevision((revision) => revision + 1)
       return
     }
+  }
+
+  const scheduleShowTooltip = (trigger: Element) => {
+    window.clearTimeout(exitTimerRef.current)
+    exitTimerRef.current = undefined
+    if (open || enteringRef.current) return
+    window.clearTimeout(enterTimerRef.current)
+    enterTimerRef.current = window.setTimeout(() => {
+      enterTimerRef.current = undefined
+      showTooltip(trigger)
+    }, TOOLTIP_ENTER_DELAY_MS)
   }
 
   const startExit = useCallback((immediate = false) => {
@@ -114,7 +122,7 @@ export function Tooltip({ children, content }: TooltipProps) {
     )
       return
     pointerInsideRef.current = true
-    showTooltip(event.currentTarget)
+    scheduleShowTooltip(event.currentTarget)
   }
 
   const handlePointerLeave = (event: PointerEvent<Element>) => {
@@ -182,7 +190,11 @@ export function Tooltip({ children, content }: TooltipProps) {
   )
 
   useEffect(() => {
-    if (!hasContent && (open || rendered || enteringRef.current)) startExit(true)
+    if (
+      !hasContent &&
+      (open || rendered || enteringRef.current || enterTimerRef.current !== undefined)
+    )
+      startExit(true)
   }, [hasContent, open, rendered, startExit])
 
   if (!hasContent) {
@@ -208,7 +220,7 @@ export function Tooltip({ children, content }: TooltipProps) {
             event.target.closest('[data-app-tooltip-trigger]') !== event.currentTarget
           )
             return
-          showTooltip(event.currentTarget)
+          scheduleShowTooltip(event.currentTarget)
         },
         onBlur: (event) => {
           target.props.onBlur?.(event)
