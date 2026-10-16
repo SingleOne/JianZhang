@@ -630,17 +630,17 @@ if (!hasSingleInstanceLock) {
       app.getPath('userData'),
       __JIANZHANG_GITHUB_OAUTH_CLIENT_ID__,
       () => userDataBackupService!.getLocalDataUpdatedAt(stateStore!.getCommittedAt()),
-      () =>
-        Buffer.byteLength(
-          JSON.stringify(
-            userDataBackupService!.create(
-              stateStore!.exportCommittedState(),
-              app.getVersion(),
-              aiSecrets!.exportAll()
-            )
-          ),
-          'utf8'
+      () => {
+        const document = userDataBackupService!.create(
+          stateStore!.exportCommittedState(),
+          app.getVersion(),
+          aiSecrets!.exportAll()
         )
+        return {
+          generatedAt: document.exportedAt,
+          sizeBytes: Buffer.byteLength(JSON.stringify(document), 'utf8')
+        }
+      }
     )
     aiSecrets = new AiSecrets(join(app.getPath('userData'), 'modules', 'ai'))
 

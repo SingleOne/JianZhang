@@ -2884,9 +2884,12 @@ export interface GitHubSyncSettings {
   gistId?: string
   gistUrl?: string
   localDataUpdatedAt?: string
+  localDataGeneratedAt?: string
   localDataSizeBytes?: number
   remoteDataUpdatedAt?: string
+  remoteDataGeneratedAt?: string
   remoteDataSizeBytes?: number
+  remoteFileHash?: string
   remoteVersion?: string
 }
 

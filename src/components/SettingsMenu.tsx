@@ -1045,27 +1045,42 @@ export function SettingsMenu({
                     </button>
                   </div>
                 ) : null}
-                {githubSyncSettings.localDataUpdatedAt || githubSyncSettings.remoteDataUpdatedAt ? (
+                {githubSyncSettings.localDataGeneratedAt || githubSyncSettings.gistId ? (
                   <small className="github-sync-status">
-                    <span>
-                      本地版本：
-                      {githubSyncSettings.localDataUpdatedAt
-                        ? `${formatCalendarRefreshTime(githubSyncSettings.localDataUpdatedAt)}${
-                            githubSyncSettings.localDataSizeBytes !== undefined
-                              ? ` · ${formatCacheSize(githubSyncSettings.localDataSizeBytes)}`
-                              : ''
-                          }`
-                        : '暂无数据'}
+                    <span className="github-sync-version">
+                      <span>
+                        本地版本
+                        {githubSyncSettings.localDataSizeBytes !== undefined
+                          ? ` · ${formatCacheSize(githubSyncSettings.localDataSizeBytes)}`
+                          : ''}
+                      </span>
+                      <span>
+                        档案生成时间：
+                        {githubSyncSettings.localDataGeneratedAt
+                          ? formatCalendarRefreshTime(githubSyncSettings.localDataGeneratedAt)
+                          : '暂无数据'}
+                      </span>
                     </span>
-                    <span>
-                      远程版本：
-                      {githubSyncSettings.remoteDataUpdatedAt
-                        ? `${formatCalendarRefreshTime(githubSyncSettings.remoteDataUpdatedAt)}${
-                            githubSyncSettings.remoteDataSizeBytes !== undefined
-                              ? ` · ${formatCacheSize(githubSyncSettings.remoteDataSizeBytes)}`
-                              : ''
-                          }`
-                        : '暂无备份'}
+                    <span className="github-sync-version">
+                      <span>
+                        远程版本
+                        {githubSyncSettings.remoteDataSizeBytes !== undefined
+                          ? ` · ${formatCacheSize(githubSyncSettings.remoteDataSizeBytes)}`
+                          : ''}
+                      </span>
+                      <span>
+                        档案生成时间：
+                        {githubSyncSettings.remoteDataGeneratedAt
+                          ? formatCalendarRefreshTime(githubSyncSettings.remoteDataGeneratedAt)
+                          : githubSyncSettings.gistId
+                            ? '暂不可读取，请检查同步密码'
+                            : '暂无备份'}
+                      </span>
+                      {githubSyncSettings.remoteFileHash ? (
+                        <span className="github-sync-file-hash">
+                          文件 SHA-256：{githubSyncSettings.remoteFileHash}
+                        </span>
+                      ) : null}
                     </span>
                   </small>
                 ) : null}

@@ -1,4 +1,4 @@
-import { randomInt, randomUUID } from 'node:crypto'
+import { createHash, randomInt, randomUUID } from 'node:crypto'
 import { clipboard, shell, safeStorage } from 'electron'
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
@@ -18,7 +18,9 @@ interface StoredGitHubSyncSettings {
   gistId?: string
   gistUrl?: string
   remoteDataUpdatedAt?: string
+  remoteDataGeneratedAt?: string
   remoteDataSizeBytes?: number
+  remoteFileHash?: string
   remoteVersion?: string
   lastSynchronizedVersion?: string
   passwordGistId?: string
@@ -99,7 +101,8 @@ export class GitHubSyncService {
     userDataDirectory: string,
     private readonly oauthClientId: string,
     private readonly getLocalDataUpdatedAt: () => string | undefined = () => undefined,
-    private readonly getLocalDataSizeBytes: () => number | undefined = () => undefined
+    private readonly getLocalDataMetadata: () =>
+      { generatedAt: string; sizeBytes: number } | undefined = () => undefined
   ) {
     this.directory = join(userDataDirectory, 'github-sync')
     this.settingsPath = join(this.directory, 'settings.json')
@@ -111,7 +114,7 @@ export class GitHubSyncService {
   getSettings(): GitHubSyncSettings {
     const saved = this.readSettings()
     const localDataUpdatedAt = this.getLocalDataUpdatedAt()
-    const localDataSizeBytes = this.getLocalDataSizeBytes()
+    const localDataMetadata = this.getLocalDataMetadata()
     const hasStoredPassword = existsSync(this.passwordPath)
     const syncPasswordReady =
       hasStoredPassword && (!saved.gistId || saved.passwordGistId === saved.gistId)
@@ -127,10 +130,17 @@ export class GitHubSyncService {
       gistId: saved.gistId,
       gistUrl: saved.gistUrl,
       remoteDataUpdatedAt: saved.remoteDataUpdatedAt,
+      remoteDataGeneratedAt: saved.remoteDataGeneratedAt,
       remoteDataSizeBytes: saved.remoteDataSizeBytes,
+      remoteFileHash: saved.remoteFileHash,
       remoteVersion: saved.remoteVersion,
       ...(localDataUpdatedAt ? { localDataUpdatedAt } : {}),
-      ...(localDataSizeBytes !== undefined ? { localDataSizeBytes } : {})
+      ...(localDataMetadata
+        ? {
+            localDataGeneratedAt: localDataMetadata.generatedAt,
+            localDataSizeBytes: localDataMetadata.sizeBytes
+          }
+        : {})
     }
   }
 
@@ -193,15 +203,16 @@ export class GitHubSyncService {
       this.getAccountLogin(token),
       this.resolveGist(token, saved.gistId)
     ])
+    const remoteDataSettings = gist
+      ? await this.readRemoteDataSettings(gist, token, saved)
+      : undefined
     const next: StoredGitHubSyncSettings = gist
       ? {
           syncTarget: 'gist',
           accountLogin,
           gistId: gist.id,
           gistUrl: gist.url,
-          remoteDataUpdatedAt: gist.updatedAt,
-          ...(gist.size !== undefined ? { remoteDataSizeBytes: gist.size } : {}),
-          remoteVersion: gist.version,
+          ...remoteDataSettings,
           ...(saved.gistId === gist.id && saved.lastSynchronizedVersion
             ? { lastSynchronizedVersion: saved.lastSynchronizedVersion }
             : {}),
@@ -264,15 +275,17 @@ export class GitHubSyncService {
           ...saved,
           gistId: updated.id,
           gistUrl: updated.url,
-          remoteDataUpdatedAt: updated.updatedAt,
-          ...(updated.size !== undefined ? { remoteDataSizeBytes: updated.size } : {}),
-          remoteVersion: updated.version,
+          ...this.remoteDataSettings(updated, encryptedContent, plainContent),
           ...(saved.lastSynchronizedVersion === remote.version
             ? { lastSynchronizedVersion: updated.version }
             : {})
         })
       } else if (!currentPassword || current.passwordGistId !== remote.id) {
-        await decryptGitHubGistBackup(remoteContent, password)
+        const plainContent = await decryptGitHubGistBackup(remoteContent, password)
+        this.writeSettings({
+          ...this.readSettings(),
+          ...this.remoteDataSettings(remote, remoteContent, plainContent)
+        })
       }
     }
     this.writePassword(password)
@@ -311,9 +324,7 @@ export class GitHubSyncService {
       ...this.readSettings(),
       gistId: uploaded.id,
       gistUrl: uploaded.url,
-      remoteDataUpdatedAt: uploaded.updatedAt,
-      ...(uploaded.size !== undefined ? { remoteDataSizeBytes: uploaded.size } : {}),
-      remoteVersion: uploaded.version,
+      ...this.remoteDataSettings(uploaded, encryptedContent, content),
       lastSynchronizedVersion: uploaded.version,
       passwordGistId: uploaded.id
     })
@@ -334,8 +345,13 @@ export class GitHubSyncService {
     if (!settings.gistId) throw new Error('当前 GitHub 账号中还没有见涨用户数据 Gist')
     const remote = await this.getGist(settings.gistId, token)
     const encryptedContent = await this.readGistContent(remote.response, token)
+    const content = await decryptGitHubGistBackup(encryptedContent, password)
+    this.writeSettings({
+      ...this.readSettings(),
+      ...this.remoteDataSettings(remote, encryptedContent, content)
+    })
     return {
-      content: await decryptGitHubGistBackup(encryptedContent, password),
+      content,
       version: remote.version
     }
   }
@@ -497,6 +513,45 @@ export class GitHubSyncService {
     const response = await fetch(file.raw_url, { headers: this.apiHeaders(token) })
     if (!response.ok) throw await this.githubError(response, '下载 GitHub Gist 用户数据失败')
     return response.text()
+  }
+
+  private remoteDataSettings(gist: RemoteGist, encryptedContent: string, plainContent?: string) {
+    const document = plainContent
+      ? (JSON.parse(plainContent) as { exportedAt?: string })
+      : undefined
+    return {
+      remoteDataUpdatedAt: gist.updatedAt,
+      remoteDataGeneratedAt: document?.exportedAt,
+      remoteDataSizeBytes: Buffer.byteLength(encryptedContent, 'utf8'),
+      remoteFileHash: createHash('sha256').update(encryptedContent, 'utf8').digest('hex'),
+      remoteVersion: gist.version
+    }
+  }
+
+  private async readRemoteDataSettings(
+    gist: RemoteGist,
+    token: string,
+    saved: StoredGitHubSyncSettings
+  ) {
+    const encryptedContent = await this.readGistContent(gist.response, token)
+    const settings = this.remoteDataSettings(gist, encryptedContent)
+    if (saved.gistId === gist.id && saved.remoteFileHash === settings.remoteFileHash) {
+      settings.remoteDataGeneratedAt = saved.remoteDataGeneratedAt
+    }
+    const password = saved.passwordGistId === gist.id ? this.getSyncPassword() : null
+    if (!settings.remoteDataGeneratedAt && password) {
+      try {
+        const content = await decryptGitHubGistBackup(encryptedContent, password)
+        settings.remoteDataGeneratedAt = this.remoteDataSettings(
+          gist,
+          encryptedContent,
+          content
+        ).remoteDataGeneratedAt
+      } catch {
+        // A password change on another device must not prevent Gist discovery.
+      }
+    }
+    return settings
   }
 
   private readSettings(): StoredGitHubSyncSettings {

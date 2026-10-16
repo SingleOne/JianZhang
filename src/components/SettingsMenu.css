@@ -769,14 +769,22 @@
 }
 
 .github-sync-status {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
   gap: 12px;
+  line-height: 1.6;
 }
 
-.github-sync-status span {
-  white-space: nowrap;
+.github-sync-version {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.github-sync-file-hash {
+  overflow-wrap: anywhere;
+  user-select: text;
 }
 
 .github-sync-actions button {
