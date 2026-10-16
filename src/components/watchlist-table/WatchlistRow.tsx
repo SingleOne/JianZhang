@@ -314,9 +314,10 @@ export const WatchlistRow = memo(function WatchlistRow({
   const dividendYield = calculatePreviousCloseDividendYield(dividendFinancing, quote)
   const hasPosition = (stock.position?.quantity ?? 0) > 0
   const displayedTotalProfit = hasPosition ? metrics.totalProfit : cumulativeProfit
+  const hasTotalProfit = displayedTotalProfit !== null && displayedTotalProfit !== undefined
   const cumulativeProfitSnapshotTime = cumulativeProfitGeneratedAt
     ? formatPerformanceCacheTime(cumulativeProfitGeneratedAt)
-    : '--'
+    : '-'
   const totalProfitTooltip = hasPosition
     ? '当前有持仓，显示当前持仓周期收益；第二行为持仓收益率。'
     : cumulativeProfit === null || cumulativeProfit === undefined
@@ -676,21 +677,22 @@ export const WatchlistRow = memo(function WatchlistRow({
                   <Tooltip
                     content={
                       dividendFinancing
-                        ? `累计A股分红 ${dividendFinancing.dividendYi.toLocaleString('zh-CN')} 亿元，累计A股融资 ${dividendFinancing.financingYi.toLocaleString('zh-CN')} 亿元；净回报 ${(dividendFinancing.netReturnYi ?? dividendFinancing.dividendYi - dividendFinancing.financingYi).toLocaleString('zh-CN')} 亿元；${dividendYield ? `${dividendYield.dividendYear} 年每股分红约 ${formatPrice(dividendYield.dividendPerShare)} 元，按昨收 ${formatPrice(quote?.previousClose)} 计算股息率` : '缺少上一年度分红、最新价、总市值或昨收数据，暂不能计算股息率'}；快照 ${dividendFinancingSnapshotDate ?? '--'}`
-                        : `当前全量快照暂无完整的分红、融资数据；快照 ${dividendFinancingSnapshotDate ?? '--'}`
+                        ? `累计A股分红 ${dividendFinancing.dividendYi.toLocaleString('zh-CN')} 亿元，累计A股融资 ${dividendFinancing.financingYi.toLocaleString('zh-CN')} 亿元；净回报 ${(dividendFinancing.netReturnYi ?? dividendFinancing.dividendYi - dividendFinancing.financingYi).toLocaleString('zh-CN')} 亿元；${dividendYield ? `${dividendYield.dividendYear} 年每股分红约 ${formatPrice(dividendYield.dividendPerShare)} 元，按昨收 ${formatPrice(quote?.previousClose)} 计算股息率` : '缺少上一年度分红、最新价、总市值或昨收数据，暂不能计算股息率'}；快照 ${dividendFinancingSnapshotDate ?? '-'}`
+                        : `当前全量快照暂无完整的分红、融资数据；快照 ${dividendFinancingSnapshotDate ?? '-'}`
                     }
                   >
                     {dividendFinancing ? (
                       <span className="dividend-financing-cell">
                         <strong>{dividendFinancing.ratio.toFixed(2)}%</strong>
                         <small className={valueClass(dividendYield?.yieldPercent)}>
-                          股息率 {formatPercent(dividendYield?.yieldPercent)}
+                          {dividendYield
+                            ? `股息率 ${formatPercent(dividendYield.yieldPercent)}`
+                            : '-'}
                         </small>
                       </span>
                     ) : (
                       <span className="dividend-financing-cell is-empty">
-                        <strong>--</strong>
-                        <small>股息率 --</small>
+                        <strong>-</strong>
                       </span>
                     )}
                   </Tooltip>
@@ -794,7 +796,7 @@ export const WatchlistRow = memo(function WatchlistRow({
                 </td>
               )
             case 'amount':
-              return <td key={columnId}>{holdingDays ? `${holdingDays} 天` : '--'}</td>
+              return <td key={columnId}>{holdingDays ? `${holdingDays} 天` : '-'}</td>
             case 'radar':
               return (
                 <td className="radar-column" key={columnId}>
@@ -816,7 +818,7 @@ export const WatchlistRow = memo(function WatchlistRow({
                       </button>
                     </Tooltip>
                   ) : (
-                    '--'
+                    '-'
                   )}
                 </td>
               )
@@ -824,8 +826,8 @@ export const WatchlistRow = memo(function WatchlistRow({
               return (
                 <td className="position-value-cell" key={columnId}>
                   <span className="position-quantity-cell">
-                    <span>{formatShares(stock.position?.quantity)}</span>
-                    {availablePositionQuantity !== null ? (
+                    <span>{stock.position ? formatShares(stock.position.quantity) : '-'}</span>
+                    {hasPosition && availablePositionQuantity !== null ? (
                       <small title="已扣除今日买入数量">
                         可用 {formatShares(availablePositionQuantity)}
                       </small>
@@ -837,13 +839,17 @@ export const WatchlistRow = memo(function WatchlistRow({
               return (
                 <td className="position-value-cell" key={columnId}>
                   <span className="combined-position-cell">
-                    <span>{formatMoney(metrics.marketValue, metrics.currency)}</span>
-                    <small>
-                      成本{' '}
-                      {metrics.holdingCost !== null
-                        ? `${STOCK_CURRENCY_SYMBOLS[metrics.currency]}${formatCost(metrics.holdingCost)}`
-                        : '--'}
-                    </small>
+                    <span>
+                      {metrics.marketValue !== null
+                        ? formatMoney(metrics.marketValue, metrics.currency)
+                        : '-'}
+                    </span>
+                    {metrics.holdingCost !== null ? (
+                      <small>
+                        成本 {STOCK_CURRENCY_SYMBOLS[metrics.currency]}
+                        {formatCost(metrics.holdingCost)}
+                      </small>
+                    ) : null}
                   </span>
                 </td>
               )
@@ -852,11 +858,17 @@ export const WatchlistRow = memo(function WatchlistRow({
                 <td key={columnId}>
                   <span className="combined-profit-cell">
                     <span className={valueClass(metrics.todayProfit)}>
-                      {formatMoneyProfit(metrics.todayProfit, metrics.currency)}
+                      {metrics.todayProfit !== null
+                        ? formatMoneyProfit(metrics.todayProfit, metrics.currency)
+                        : '-'}
                     </span>
-                    <span className={valueClass(metrics.todayProfitPercent)}>
-                      {formatPercent(metrics.todayProfitPercent)}
-                    </span>
+                    {metrics.todayProfit !== null || metrics.todayProfitPercent !== null ? (
+                      <span className={valueClass(metrics.todayProfitPercent)}>
+                        {metrics.todayProfitPercent !== null
+                          ? formatPercent(metrics.todayProfitPercent)
+                          : '-'}
+                      </span>
+                    ) : null}
                   </span>
                 </td>
               )
@@ -866,18 +878,24 @@ export const WatchlistRow = memo(function WatchlistRow({
                   <Tooltip content={totalProfitTooltip}>
                     <span className="combined-profit-cell">
                       <span className={valueClass(displayedTotalProfit)}>
-                        {formatMoneyProfit(
-                          displayedTotalProfit,
-                          hasPosition ? metrics.currency : 'CNY'
-                        )}
+                        {hasTotalProfit
+                          ? formatMoneyProfit(
+                              displayedTotalProfit,
+                              hasPosition ? metrics.currency : 'CNY'
+                            )
+                          : '-'}
                       </span>
-                      {hasPosition ? (
-                        <span className={valueClass(metrics.profitPercent)}>
-                          {formatPercent(metrics.profitPercent)}
-                        </span>
-                      ) : (
-                        <small className="cumulative-profit-label">累计收益</small>
-                      )}
+                      {hasTotalProfit ? (
+                        hasPosition ? (
+                          <span className={valueClass(metrics.profitPercent)}>
+                            {metrics.profitPercent !== null
+                              ? formatPercent(metrics.profitPercent)
+                              : '-'}
+                          </span>
+                        ) : (
+                          <small className="cumulative-profit-label">累计收益</small>
+                        )
+                      ) : null}
                     </span>
                   </Tooltip>
                 </td>
