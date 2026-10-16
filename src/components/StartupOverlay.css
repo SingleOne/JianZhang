@@ -43,8 +43,11 @@
 
 .startup-content {
   flex: 1;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
 }
 
 .startup-status {
@@ -56,13 +59,44 @@
   font-weight: 600;
 }
 
-.startup-spinner {
-  width: 18px;
-  height: 18px;
-  border: 2px solid #dbe4f0;
-  border-top-color: #2563eb;
-  border-radius: 50%;
-  animation: startup-spin 720ms linear infinite;
+.startup-trend {
+  width: 144px;
+  height: 144px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: #dc3742;
+  stroke-width: 18;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.startup-trend-track {
+  opacity: 0.12;
+}
+
+.startup-trend-line,
+.startup-trend-tip,
+.startup-trend-arrow {
+  animation-duration: 2200ms;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  animation-delay: var(--startup-trend-delay, 0ms);
+}
+
+.startup-trend-line {
+  stroke-dasharray: 100;
+  animation-name: startup-trend-draw;
+}
+
+.startup-trend-tip {
+  stroke: #ffffff;
+  stroke-width: 8;
+  stroke-dasharray: 0.01 100;
+  animation-name: startup-trend-travel;
+}
+
+.startup-trend-arrow {
+  animation-name: startup-trend-arrow;
 }
 
 .startup-overlay.is-opening {
@@ -84,14 +118,70 @@
   color: #98a6ba;
 }
 
-:root[data-theme='dark'] .startup-spinner {
-  border-color: #34445d;
-  border-top-color: #5b8cff;
+:root[data-theme='dark'] .startup-trend {
+  stroke: #ff6b75;
 }
 
-@keyframes startup-spin {
-  to {
-    transform: rotate(360deg);
+@keyframes startup-trend-draw {
+  0% {
+    stroke-dashoffset: 100;
+    opacity: 1;
+  }
+
+  68%,
+  86% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+
+  96% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+
+  100% {
+    stroke-dashoffset: 100;
+    opacity: 0;
+  }
+}
+
+@keyframes startup-trend-travel {
+  0% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+
+  68%,
+  86% {
+    stroke-dashoffset: -100;
+    opacity: 1;
+  }
+
+  96% {
+    stroke-dashoffset: -100;
+    opacity: 0;
+  }
+
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+
+@keyframes startup-trend-arrow {
+  0%,
+  68% {
+    opacity: 0;
+  }
+
+  76%,
+  86% {
+    opacity: 1;
+  }
+
+  96%,
+  100% {
+    opacity: 0;
   }
 }
 
@@ -106,8 +196,14 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .startup-spinner {
+  .startup-trend-line,
+  .startup-trend-arrow {
     animation: none;
+  }
+
+  .startup-trend-tip {
+    animation: none;
+    display: none;
   }
 
   .startup-overlay.is-opening {
