@@ -68,6 +68,7 @@ interface SettingsMenuProps {
   onSaveGitHubSyncPassword: (password: string) => Promise<boolean>
   onUploadUserDataToGitHub: () => void
   onDownloadUserDataFromGitHub: () => void
+  onRefreshGitHubSyncSettings: () => void
   onRefreshTradingCalendar: () => void
   calendarRefreshing: boolean
   onRefreshExchangeRates: () => void
@@ -173,6 +174,7 @@ export function SettingsMenu({
   onSaveGitHubSyncPassword,
   onUploadUserDataToGitHub,
   onDownloadUserDataFromGitHub,
+  onRefreshGitHubSyncSettings,
   onRefreshTradingCalendar,
   calendarRefreshing,
   onRefreshExchangeRates,
@@ -280,7 +282,12 @@ export function SettingsMenu({
   }
 
   return (
-    <details className="settings-menu">
+    <details
+      className="settings-menu"
+      onToggle={(event) => {
+        if (event.currentTarget.open && activeTab === 'data') onRefreshGitHubSyncSettings()
+      }}
+    >
       <summary className="secondary-button" title="设置">
         <Settings2 size={17} />
         <span>设置</span>
@@ -298,7 +305,10 @@ export function SettingsMenu({
               aria-selected={activeTab === tab.id}
               aria-controls={`settings-panel-${tab.id}`}
               className={activeTab === tab.id ? 'is-active' : ''}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => {
+                setActiveTab(tab.id)
+                if (tab.id === 'data') onRefreshGitHubSyncSettings()
+              }}
               key={tab.id}
             >
               {tab.label}
@@ -1054,11 +1064,14 @@ export function SettingsMenu({
                           ? ` · ${formatCacheSize(githubSyncSettings.localDataSizeBytes)}`
                           : ''}
                       </span>
+                      <span className="github-sync-archive-version">
+                        版本号：{githubSyncSettings.localDataVersion?.slice(0, 12) ?? '--'}
+                      </span>
                       <span>
-                        档案生成时间：
+                        时间：
                         {githubSyncSettings.localDataGeneratedAt
                           ? formatCalendarRefreshTime(githubSyncSettings.localDataGeneratedAt)
-                          : '暂无数据'}
+                          : '--'}
                       </span>
                     </span>
                     <span className="github-sync-version">
@@ -1068,19 +1081,19 @@ export function SettingsMenu({
                           ? ` · ${formatCacheSize(githubSyncSettings.remoteDataSizeBytes)}`
                           : ''}
                       </span>
+                      <span className="github-sync-archive-version">
+                        版本号：
+                        {githubSyncSettings.remoteDataVersion?.slice(0, 12) ??
+                          (githubSyncSettings.gistId ? '旧备份，重新上传后可直接读取' : '--')}
+                      </span>
                       <span>
-                        档案生成时间：
+                        时间：
                         {githubSyncSettings.remoteDataGeneratedAt
                           ? formatCalendarRefreshTime(githubSyncSettings.remoteDataGeneratedAt)
                           : githubSyncSettings.gistId
-                            ? '暂不可读取，请检查同步密码'
+                            ? '旧备份，重新上传后可直接读取'
                             : '暂无备份'}
                       </span>
-                      {githubSyncSettings.remoteFileHash ? (
-                        <span className="github-sync-file-hash">
-                          文件 SHA-256：{githubSyncSettings.remoteFileHash}
-                        </span>
-                      ) : null}
                     </span>
                   </small>
                 ) : null}

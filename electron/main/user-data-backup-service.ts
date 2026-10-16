@@ -20,6 +20,7 @@ import {
 } from '../../src/shared/user-data-backup'
 import type { AppState, UserDataBackupSummary } from '../../src/shared/types'
 import { atomicWriteFileSync, atomicWriteJsonSync } from './file-storage'
+import { getUserDataArchiveMetadata, type UserDataArchiveMetadata } from './user-data-archive'
 
 interface PreparedUserDataImport {
   id: string
@@ -43,7 +44,8 @@ interface ApplyUserDataBackupOptions {
   afterApply?: () => void
 }
 
-const LOCAL_SNAPSHOT_PATHS = ['modules/ai/credentials.bin'] as const
+const ARCHIVE_METADATA_PATH = 'user-data-archive.json'
+const LOCAL_SNAPSHOT_PATHS = ['modules/ai/credentials.bin', ARCHIVE_METADATA_PATH] as const
 const STATE_RECOVERY_POINT_DIRECTORY_NAME = 'core-state'
 const RESTORE_SNAPSHOT_LIMIT = 5
 
@@ -78,8 +80,18 @@ export class UserDataBackupService {
   create(
     state: AppState,
     applicationVersion: string,
-    aiApiKeys: UserDataBackupApiKeys
+    aiApiKeys: UserDataBackupApiKeys,
+    generatedAt?: string
   ): JianzhangUserDataBackupDocument {
+    return this.createArchive(state, applicationVersion, aiApiKeys, generatedAt).document
+  }
+
+  createArchive(
+    state: AppState,
+    applicationVersion: string,
+    aiApiKeys: UserDataBackupApiKeys,
+    generatedAt?: string
+  ): { document: JianzhangUserDataBackupDocument; metadata: UserDataArchiveMetadata } {
     const files: UserDataBackupFile[] = []
     for (const relativePath of USER_DATA_BACKUP_SINGLE_FILES) {
       const filePath = this.filePath(relativePath)
@@ -91,7 +103,21 @@ export class UserDataBackupService {
       this.collectDirectory(relativeDirectory, files)
     }
     files.sort((left, right) => left.path.localeCompare(right.path))
-    return createUserDataBackupDocument(state, applicationVersion, files, aiApiKeys)
+    const document = createUserDataBackupDocument(state, applicationVersion, files, aiApiKeys)
+    const metadata = getUserDataArchiveMetadata(JSON.stringify(document))
+    const saved = this.readArchiveMetadata()
+    if (generatedAt) {
+      document.exportedAt = generatedAt
+    } else if (saved?.version === metadata.version) {
+      document.exportedAt = saved.generatedAt
+    }
+    if (saved?.version !== metadata.version || saved.generatedAt !== document.exportedAt) {
+      atomicWriteJsonSync(this.filePath(ARCHIVE_METADATA_PATH), {
+        version: metadata.version,
+        generatedAt: document.exportedAt
+      })
+    }
+    return { document, metadata: { version: metadata.version, generatedAt: document.exportedAt } }
   }
 
   prepare(value: unknown, sourceVersion?: string): PreparedUserDataImportResult {
@@ -142,6 +168,12 @@ export class UserDataBackupService {
         }
         options.replaceAiApiKeys(document.aiApiKeys)
         const savedState = options.replaceState(document.state)
+        this.create(
+          savedState,
+          document.applicationVersion,
+          document.aiApiKeys,
+          document.exportedAt
+        )
         atomicWriteJsonSync(join(snapshotDirectory, 'restore-manifest.json'), {
           createdAt: new Date().toISOString(),
           importedApplicationVersion: document.applicationVersion,
@@ -273,5 +305,15 @@ export class UserDataBackupService {
 
   private filePath(relativePath: string): string {
     return join(this.userDataDirectory, ...relativePath.split('/'))
+  }
+
+  private readArchiveMetadata(): UserDataArchiveMetadata | undefined {
+    const path = this.filePath(ARCHIVE_METADATA_PATH)
+    if (!existsSync(path)) return undefined
+    try {
+      return JSON.parse(readFileSync(path, 'utf8')) as UserDataArchiveMetadata
+    } catch {
+      return undefined
+    }
   }
 }

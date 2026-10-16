@@ -9,8 +9,13 @@ import type {
   GitHubSyncUploadResult
 } from '../../src/shared/types'
 import { atomicWriteFileSync, atomicWriteJsonSync } from './file-storage'
-import { decryptGitHubGistBackup, encryptGitHubGistBackup } from './github-gist-crypto'
+import {
+  decryptGitHubGistBackup,
+  encryptGitHubGistBackup,
+  readGitHubGistBackupMetadata
+} from './github-gist-crypto'
 import { BROWSER_USER_AGENT } from './http-user-agent'
+import { getUserDataArchiveMetadata } from './user-data-archive'
 
 interface StoredGitHubSyncSettings {
   syncTarget?: 'gist'
@@ -19,6 +24,7 @@ interface StoredGitHubSyncSettings {
   gistUrl?: string
   remoteDataUpdatedAt?: string
   remoteDataGeneratedAt?: string
+  remoteDataVersion?: string
   remoteDataSizeBytes?: number
   remoteFileHash?: string
   remoteVersion?: string
@@ -102,7 +108,7 @@ export class GitHubSyncService {
     private readonly oauthClientId: string,
     private readonly getLocalDataUpdatedAt: () => string | undefined = () => undefined,
     private readonly getLocalDataMetadata: () =>
-      { generatedAt: string; sizeBytes: number } | undefined = () => undefined
+      { generatedAt: string; version: string; sizeBytes: number } | undefined = () => undefined
   ) {
     this.directory = join(userDataDirectory, 'github-sync')
     this.settingsPath = join(this.directory, 'settings.json')
@@ -131,6 +137,7 @@ export class GitHubSyncService {
       gistUrl: saved.gistUrl,
       remoteDataUpdatedAt: saved.remoteDataUpdatedAt,
       remoteDataGeneratedAt: saved.remoteDataGeneratedAt,
+      remoteDataVersion: saved.remoteDataVersion,
       remoteDataSizeBytes: saved.remoteDataSizeBytes,
       remoteFileHash: saved.remoteFileHash,
       remoteVersion: saved.remoteVersion,
@@ -138,6 +145,7 @@ export class GitHubSyncService {
       ...(localDataMetadata
         ? {
             localDataGeneratedAt: localDataMetadata.generatedAt,
+            localDataVersion: localDataMetadata.version,
             localDataSizeBytes: localDataMetadata.sizeBytes
           }
         : {})
@@ -516,12 +524,13 @@ export class GitHubSyncService {
   }
 
   private remoteDataSettings(gist: RemoteGist, encryptedContent: string, plainContent?: string) {
-    const document = plainContent
-      ? (JSON.parse(plainContent) as { exportedAt?: string })
-      : undefined
+    const archive =
+      readGitHubGistBackupMetadata(encryptedContent) ??
+      (plainContent ? getUserDataArchiveMetadata(plainContent) : undefined)
     return {
       remoteDataUpdatedAt: gist.updatedAt,
-      remoteDataGeneratedAt: document?.exportedAt,
+      remoteDataGeneratedAt: archive?.generatedAt,
+      remoteDataVersion: archive?.version,
       remoteDataSizeBytes: Buffer.byteLength(encryptedContent, 'utf8'),
       remoteFileHash: createHash('sha256').update(encryptedContent, 'utf8').digest('hex'),
       remoteVersion: gist.version
@@ -535,20 +544,22 @@ export class GitHubSyncService {
   ) {
     const encryptedContent = await this.readGistContent(gist.response, token)
     const settings = this.remoteDataSettings(gist, encryptedContent)
+    if (settings.remoteDataGeneratedAt && settings.remoteDataVersion) return settings
     if (saved.gistId === gist.id && saved.remoteFileHash === settings.remoteFileHash) {
       settings.remoteDataGeneratedAt = saved.remoteDataGeneratedAt
+      settings.remoteDataVersion = saved.remoteDataVersion
     }
-    const password = saved.passwordGistId === gist.id ? this.getSyncPassword() : null
-    if (!settings.remoteDataGeneratedAt && password) {
-      try {
-        const content = await decryptGitHubGistBackup(encryptedContent, password)
-        settings.remoteDataGeneratedAt = this.remoteDataSettings(
-          gist,
-          encryptedContent,
-          content
-        ).remoteDataGeneratedAt
-      } catch {
-        // A password change on another device must not prevent Gist discovery.
+    if (!settings.remoteDataGeneratedAt || !settings.remoteDataVersion) {
+      const password = saved.passwordGistId === gist.id ? this.getSyncPassword() : null
+      if (password) {
+        try {
+          const content = await decryptGitHubGistBackup(encryptedContent, password)
+          const archive = getUserDataArchiveMetadata(content)
+          settings.remoteDataGeneratedAt = archive.generatedAt
+          settings.remoteDataVersion = archive.version
+        } catch {
+          // Legacy backups need the matching password to expose their archive metadata.
+        }
       }
     }
     return settings

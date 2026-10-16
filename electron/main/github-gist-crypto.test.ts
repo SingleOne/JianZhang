@@ -1,8 +1,13 @@
 import { createCipheriv, randomBytes, scryptSync } from 'node:crypto'
+import { gzipSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
-import { decryptGitHubGistBackup, encryptGitHubGistBackup } from './github-gist-crypto'
+import {
+  decryptGitHubGistBackup,
+  encryptGitHubGistBackup,
+  readGitHubGistBackupMetadata
+} from './github-gist-crypto'
 
-function encryptLegacyBackup(content: string, password: string): string {
+function encryptLegacyBackup(content: string, password: string, schemaVersion: 1 | 2 = 1): string {
   const salt = randomBytes(16)
   const iv = randomBytes(12)
   const kdf = {
@@ -19,10 +24,13 @@ function encryptLegacyBackup(content: string, password: string): string {
     maxmem: 128 * 1024 * 1024
   })
   const cipher = createCipheriv('aes-256-gcm', key, iv)
-  const ciphertext = Buffer.concat([cipher.update(content, 'utf8'), cipher.final()])
+  const payload =
+    schemaVersion === 2 ? gzipSync(Buffer.from(content, 'utf8')) : Buffer.from(content)
+  const ciphertext = Buffer.concat([cipher.update(payload), cipher.final()])
   return JSON.stringify({
     format: 'jianzhang-gist-encrypted-backup',
-    schemaVersion: 1,
+    schemaVersion,
+    ...(schemaVersion === 2 ? { compression: { name: 'gzip' } } : {}),
     kdf,
     cipher: {
       name: 'aes-256-gcm',
@@ -35,7 +43,12 @@ function encryptLegacyBackup(content: string, password: string): string {
 
 describe('GitHub Gist backup encryption', () => {
   it('encrypts the complete backup and decrypts it with the same password', async () => {
-    const backup = JSON.stringify({ state: { watchlist: [] }, aiApiKeys: { openai: 'secret' } })
+    const exportedAt = '2026-10-16T04:00:00.000Z'
+    const backup = JSON.stringify({
+      exportedAt,
+      state: { watchlist: [] },
+      aiApiKeys: { openai: 'secret' }
+    })
     const encrypted = await encryptGitHubGistBackup(backup, 'my-sync-password')
     const envelope = JSON.parse(encrypted) as {
       schemaVersion: number
@@ -43,8 +56,30 @@ describe('GitHub Gist backup encryption', () => {
     }
 
     expect(encrypted).not.toContain('secret')
-    expect(envelope).toMatchObject({ schemaVersion: 2, compression: { name: 'gzip' } })
+    expect(envelope).toMatchObject({ schemaVersion: 3, compression: { name: 'gzip' } })
+    expect(readGitHubGistBackupMetadata(encrypted)).toEqual({
+      version: expect.stringMatching(/^[a-f0-9]{64}$/),
+      generatedAt: exportedAt
+    })
     await expect(decryptGitHubGistBackup(encrypted, 'my-sync-password')).resolves.toBe(backup)
+  })
+
+  it('continues to decrypt legacy compressed schema version 2 backups', async () => {
+    const backup = JSON.stringify({ state: { watchlist: [] } })
+    const encrypted = encryptLegacyBackup(backup, 'legacy-password', 2)
+
+    expect(readGitHubGistBackupMetadata(encrypted)).toBeUndefined()
+    await expect(decryptGitHubGistBackup(encrypted, 'legacy-password')).resolves.toBe(backup)
+  })
+
+  it('rejects a changed public generation time during authenticated decryption', async () => {
+    const encrypted = await encryptGitHubGistBackup('{"value":1}', 'sync-password')
+    const envelope = JSON.parse(encrypted)
+    envelope.archive.generatedAt = '2026-10-16T05:00:00.000Z'
+
+    await expect(
+      decryptGitHubGistBackup(JSON.stringify(envelope), 'sync-password')
+    ).rejects.toThrow('同步密码不正确')
   })
 
   it('continues to decrypt legacy schema version 1 backups', async () => {

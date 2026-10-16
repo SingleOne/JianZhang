@@ -1568,6 +1568,14 @@ export default function App() {
     [reportError, reportSuccess]
   )
 
+  const refreshGitHubSyncSettings = useCallback(async () => {
+    try {
+      setGitHubSyncSettings(await stockApi.getGitHubSyncSettings())
+    } catch (reason) {
+      reportError(reason instanceof Error ? reason.message : '无法读取本地档案信息')
+    }
+  }, [reportError])
+
   const uploadUserDataToGitHub = useCallback(async () => {
     setGitHubSyncBusy(true)
     setGitHubSyncUploading(true)
@@ -1796,6 +1804,7 @@ export default function App() {
                   onSaveGitHubSyncPassword={saveGitHubSyncPassword}
                   onUploadUserDataToGitHub={uploadUserDataToGitHub}
                   onDownloadUserDataFromGitHub={downloadUserDataFromGitHub}
+                  onRefreshGitHubSyncSettings={refreshGitHubSyncSettings}
                   onRefreshTradingCalendar={refreshTradingCalendar}
                   calendarRefreshing={calendarRefreshing}
                   onRefreshExchangeRates={refreshExchangeRates}

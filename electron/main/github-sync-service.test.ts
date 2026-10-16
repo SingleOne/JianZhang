@@ -180,7 +180,12 @@ describe('GitHubSyncService Gist sync', () => {
     await completeAuthorization(second)
     const discovered = await second.refreshGist()
 
-    expect(discovered).toMatchObject({ gistId: 'gist-1', hasStoredPassword: false })
+    expect(discovered).toMatchObject({
+      gistId: 'gist-1',
+      hasStoredPassword: false,
+      remoteDataVersion: first.getSettings().remoteDataVersion,
+      remoteDataGeneratedAt: first.getSettings().remoteDataGeneratedAt
+    })
     await expect(second.saveSyncPassword('wrong-password')).rejects.toThrow('同步密码不正确')
     await second.saveSyncPassword('shared-password')
     expect(second.getSettings().requiresRemoteRestore).toBe(true)

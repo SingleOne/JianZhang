@@ -631,13 +631,13 @@ if (!hasSingleInstanceLock) {
       __JIANZHANG_GITHUB_OAUTH_CLIENT_ID__,
       () => userDataBackupService!.getLocalDataUpdatedAt(stateStore!.getCommittedAt()),
       () => {
-        const document = userDataBackupService!.create(
+        const { document, metadata } = userDataBackupService!.createArchive(
           stateStore!.exportCommittedState(),
           app.getVersion(),
           aiSecrets!.exportAll()
         )
         return {
-          generatedAt: document.exportedAt,
+          ...metadata,
           sizeBytes: Buffer.byteLength(JSON.stringify(document), 'utf8')
         }
       }

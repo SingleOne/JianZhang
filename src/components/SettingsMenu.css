@@ -787,6 +787,10 @@
   user-select: text;
 }
 
+.github-sync-archive-version {
+  user-select: text;
+}
+
 .github-sync-actions button {
   height: 34px;
   display: inline-flex;

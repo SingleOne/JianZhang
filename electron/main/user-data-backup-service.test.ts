@@ -9,7 +9,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   DEFAULT_APP_SETTINGS,
   DEFAULT_WATCHLIST_COLUMN_ORDER,
@@ -23,6 +23,7 @@ import { UserDataBackupService } from './user-data-backup-service'
 const directories: string[] = []
 
 afterEach(() => {
+  vi.useRealTimers()
   for (const directory of directories.splice(0)) rmSync(directory, { force: true, recursive: true })
 })
 
@@ -52,6 +53,25 @@ function write(directory: string, relativePath: string, content: string): void {
 }
 
 describe('UserDataBackupService', () => {
+  it('keeps archive identity across reads and restarts until the data changes', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime('2026-10-16T04:00:00.000Z')
+    const directory = temporaryDirectory()
+    const first = new UserDataBackupService(directory).createArchive(state(), '18.0.6', {
+      openai: 'first-key'
+    })
+
+    vi.setSystemTime('2026-10-16T05:00:00.000Z')
+    const restarted = new UserDataBackupService(directory)
+    const sameData = restarted.createArchive(state(), '18.0.7', { openai: 'first-key' })
+    expect(sameData.metadata).toEqual(first.metadata)
+    expect(sameData.document.exportedAt).toBe(first.document.exportedAt)
+
+    const changedData = restarted.createArchive(state(), '18.0.7', { openai: 'changed-key' })
+    expect(changedData.metadata.version).not.toBe(first.metadata.version)
+    expect(changedData.metadata.generatedAt).toBe('2026-10-16T05:00:00.000Z')
+  })
+
   it('reports the latest modification time from local data included in backups', () => {
     const directory = temporaryDirectory()
     write(directory, 'modules/ai/conversations/conversation.json', '{}')

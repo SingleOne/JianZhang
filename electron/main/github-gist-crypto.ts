@@ -1,5 +1,6 @@
 import { createCipheriv, createDecipheriv, randomBytes, scrypt } from 'node:crypto'
 import { gunzipSync, gzipSync } from 'node:zlib'
+import { getUserDataArchiveMetadata, type UserDataArchiveMetadata } from './user-data-archive'
 
 interface EncryptedGitHubGistBackupBase {
   format: 'jianzhang-gist-encrypted-backup'
@@ -29,7 +30,16 @@ interface EncryptedGitHubGistBackupV2 extends EncryptedGitHubGistBackupBase {
   }
 }
 
-type EncryptedGitHubGistBackup = EncryptedGitHubGistBackupV1 | EncryptedGitHubGistBackupV2
+interface EncryptedGitHubGistBackupV3 extends EncryptedGitHubGistBackupBase {
+  schemaVersion: 3
+  compression: {
+    name: 'gzip'
+  }
+  archive: UserDataArchiveMetadata
+}
+
+type EncryptedGitHubGistBackup =
+  EncryptedGitHubGistBackupV1 | EncryptedGitHubGistBackupV2 | EncryptedGitHubGistBackupV3
 
 const SCRYPT_COST = 65_536
 const SCRYPT_BLOCK_SIZE = 8
@@ -71,14 +81,22 @@ function parseEnvelope(content: string): EncryptedGitHubGistBackup {
     format?: unknown
     schemaVersion?: unknown
     compression?: { name?: unknown }
+    archive?: Partial<UserDataArchiveMetadata>
     kdf?: Partial<EncryptedGitHubGistBackupBase['kdf']>
     cipher?: Partial<EncryptedGitHubGistBackupBase['cipher']>
     ciphertext?: unknown
   }
   if (
     envelope.format !== 'jianzhang-gist-encrypted-backup' ||
-    (envelope.schemaVersion !== 1 && envelope.schemaVersion !== 2) ||
-    (envelope.schemaVersion === 2 && envelope.compression?.name !== 'gzip') ||
+    (envelope.schemaVersion !== 1 &&
+      envelope.schemaVersion !== 2 &&
+      envelope.schemaVersion !== 3) ||
+    (envelope.schemaVersion !== 1 && envelope.compression?.name !== 'gzip') ||
+    (envelope.schemaVersion === 3 &&
+      (typeof envelope.archive?.version !== 'string' ||
+        !/^[a-f0-9]{64}$/.test(envelope.archive.version) ||
+        typeof envelope.archive.generatedAt !== 'string' ||
+        !Number.isFinite(Date.parse(envelope.archive.generatedAt)))) ||
     envelope.kdf?.name !== 'scrypt' ||
     envelope.cipher?.name !== 'aes-256-gcm' ||
     typeof envelope.kdf.salt !== 'string' ||
@@ -94,6 +112,15 @@ function parseEnvelope(content: string): EncryptedGitHubGistBackup {
   return envelope as EncryptedGitHubGistBackup
 }
 
+function archiveAdditionalData(archive: UserDataArchiveMetadata): Buffer {
+  return Buffer.from(JSON.stringify({ version: archive.version, generatedAt: archive.generatedAt }))
+}
+
+export function readGitHubGistBackupMetadata(content: string): UserDataArchiveMetadata | undefined {
+  const envelope = parseEnvelope(content)
+  return envelope.schemaVersion === 3 ? envelope.archive : undefined
+}
+
 export async function encryptGitHubGistBackup(content: string, password: string): Promise<string> {
   const salt = randomBytes(16)
   const iv = randomBytes(12)
@@ -106,12 +133,15 @@ export async function encryptGitHubGistBackup(content: string, password: string)
   }
   const key = await deriveKey(password, salt, kdf)
   const cipher = createCipheriv('aes-256-gcm', key, iv)
+  const archive = getUserDataArchiveMetadata(content)
+  cipher.setAAD(archiveAdditionalData(archive))
   const compressed = gzipSync(Buffer.from(content, 'utf8'))
   const ciphertext = Buffer.concat([cipher.update(compressed), cipher.final()])
-  const envelope: EncryptedGitHubGistBackupV2 = {
+  const envelope: EncryptedGitHubGistBackupV3 = {
     format: 'jianzhang-gist-encrypted-backup',
-    schemaVersion: 2,
+    schemaVersion: 3,
     compression: { name: 'gzip' },
+    archive,
     kdf,
     cipher: {
       name: 'aes-256-gcm',
@@ -128,12 +158,13 @@ export async function decryptGitHubGistBackup(content: string, password: string)
   try {
     const key = await deriveKey(password, Buffer.from(envelope.kdf.salt, 'base64'), envelope.kdf)
     const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(envelope.cipher.iv, 'base64'))
+    if (envelope.schemaVersion === 3) decipher.setAAD(archiveAdditionalData(envelope.archive))
     decipher.setAuthTag(Buffer.from(envelope.cipher.authTag, 'base64'))
     const plainContent = Buffer.concat([
       decipher.update(Buffer.from(envelope.ciphertext, 'base64')),
       decipher.final()
     ])
-    return (envelope.schemaVersion === 2 ? gunzipSync(plainContent) : plainContent).toString('utf8')
+    return (envelope.schemaVersion === 1 ? plainContent : gunzipSync(plainContent)).toString('utf8')
   } catch {
     throw new Error('同步密码不正确，无法解密 GitHub Gist 用户数据')
   }
