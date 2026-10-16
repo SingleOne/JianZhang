@@ -39,6 +39,7 @@ interface TooltipPosition {
   placement: 'top' | 'bottom'
 }
 
+const TOOLTIP_ENTER_DELAY_MS = 300
 const TOOLTIP_EXIT_DURATION_MS = 180
 let closeActiveTooltip: ((immediate?: boolean) => void) | null = null
 
@@ -48,6 +49,7 @@ export function Tooltip({ children, content }: TooltipProps) {
     content !== null && content !== undefined && content !== false && content !== ''
   const triggerRef = useRef<Element | null>(null)
   const tooltipRef = useRef<HTMLSpanElement>(null)
+  const enterTimerRef = useRef<number | undefined>(undefined)
   const exitTimerRef = useRef<number | undefined>(undefined)
   const enterFrameRef = useRef<number | undefined>(undefined)
   const enteringRef = useRef(false)
@@ -68,14 +70,19 @@ export function Tooltip({ children, content }: TooltipProps) {
       closeActiveTooltip = startExit
       enteringRef.current = true
       setOpen(false)
-      setRendered(true)
-      setEntryRevision((revision) => revision + 1)
+      enterTimerRef.current = window.setTimeout(() => {
+        enterTimerRef.current = undefined
+        setRendered(true)
+        setEntryRevision((revision) => revision + 1)
+      }, TOOLTIP_ENTER_DELAY_MS)
       return
     }
   }
 
   const startExit = useCallback((immediate = false) => {
     enteringRef.current = false
+    window.clearTimeout(enterTimerRef.current)
+    enterTimerRef.current = undefined
     window.cancelAnimationFrame(enterFrameRef.current ?? 0)
     enterFrameRef.current = undefined
     setOpen(false)
@@ -167,6 +174,8 @@ export function Tooltip({ children, content }: TooltipProps) {
     () => () => {
       if (closeActiveTooltip === startExit) closeActiveTooltip = null
       window.clearTimeout(exitTimerRef.current)
+      window.clearTimeout(enterTimerRef.current)
+      enterTimerRef.current = undefined
       window.cancelAnimationFrame(enterFrameRef.current ?? 0)
     },
     [startExit]
