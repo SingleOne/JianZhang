@@ -12,6 +12,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { AppTitlebar, MarketTradingState } from './components/AppTitlebar'
 import { useConfirmDialog } from './components/ConfirmDialog'
 import { SearchBar } from './components/SearchBar'
+import { StartupOverlay } from './components/StartupOverlay'
 import { TitlebarToolsMenu } from './components/TitlebarToolsMenu'
 import { getInitialBootstrap, initialState, isDesktopRuntime, stockApi } from './lib/api'
 import {
@@ -197,6 +198,8 @@ export default function App() {
     useState<StockDetailNavigationRequest | null>(null)
   const [source, setSource] = useState<'eastmoney' | 'demo'>('eastmoney')
   const [initializing, setInitializing] = useState(true)
+  const [startupVisible, setStartupVisible] = useState(true)
+  const [watchlistRendered, setWatchlistRendered] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [calendarRefreshing, setCalendarRefreshing] = useState(false)
   const [exchangeRatesRefreshing, setExchangeRatesRefreshing] = useState(false)
@@ -275,6 +278,8 @@ export default function App() {
   const updateQuotes = useCallback((incoming: StockQuote[]) => {
     setQuotes((current) => reconcileStockQuotes(current, incoming))
   }, [])
+
+  const handleWatchlistInitialRender = useCallback(() => setWatchlistRendered(true), [])
 
   const reportError = useCallback((message: string) => {
     setNotice('')
@@ -1708,7 +1713,14 @@ export default function App() {
       accountNavigation={accountNavigation}
       onNavigationHandled={clearAccountNavigation}
     >
-      <div className="app-shell">
+      {startupVisible ? (
+        <StartupOverlay
+          initializing={initializing}
+          watchlistRendered={watchlistRendered}
+          onExited={() => setStartupVisible(false)}
+        />
+      ) : null}
+      <div className="app-shell" inert={startupVisible} aria-busy={startupVisible}>
         <AppTitlebar>
           <section className="titlebar-command-bar" aria-label="自选股操作">
             <div className="titlebar-command-main">
@@ -1923,21 +1935,10 @@ export default function App() {
                   </div>
                 </div>
               </div>
-              {initializing ? (
-                <div className="initial-loading">
-                  <span className="search-loader" />
-                  正在读取自选行情…
-                </div>
-              ) : (
-                <Suspense
-                  fallback={
-                    <div className="initial-loading">
-                      <span className="search-loader" />
-                      正在准备自选行情…
-                    </div>
-                  }
-                >
+              {!initializing ? (
+                <Suspense fallback={null}>
                   <WatchlistTable
+                    onInitialRender={handleWatchlistInitialRender}
                     watchlist={state.watchlist}
                     watchlistGroups={state.watchlistGroups}
                     quotes={quotes}
@@ -2009,7 +2010,7 @@ export default function App() {
                     onRemove={removeStock}
                   />
                 </Suspense>
-              )}
+              ) : null}
             </section>
           </div>
         </main>

@@ -126,6 +126,7 @@ const DIVIDEND_FINANCING_SORT_OPTIONS = [
 ] as const
 
 interface WatchlistTableProps {
+  onInitialRender: () => void
   watchlist: WatchStock[]
   watchlistGroups: WatchlistGroup[]
   quotes: StockQuote[]
@@ -278,6 +279,7 @@ const RADAR_SIGNAL_DESCRIPTIONS: Record<string, string> = {
 }
 
 export function WatchlistTable({
+  onInitialRender,
   watchlist,
   watchlistGroups,
   quotes,
@@ -338,6 +340,10 @@ export function WatchlistTable({
   onDailyKlineIndicatorChange,
   onRemove
 }: WatchlistTableProps) {
+  useEffect(() => {
+    onInitialRender()
+  }, [onInitialRender])
+
   const [sort, setSort] = useState<SortState | null>(null)
   const { clearAccountNavigation, securitiesAccounts, feeSchemes, settings } =
     useSecuritiesAccountState()

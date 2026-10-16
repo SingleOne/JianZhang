@@ -2084,8 +2084,7 @@
   border: 1px solid rgba(91, 140, 255, 0.48);
 }
 :root[data-theme='dark'] .chart-loading,
-:root[data-theme='dark'] .chart-error,
-:root[data-theme='dark'] .initial-loading {
+:root[data-theme='dark'] .chart-error {
   color: #cbd5e3;
 }
 :root[data-theme='dark'] .chart-loading svg {
