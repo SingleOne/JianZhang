@@ -630,67 +630,70 @@ export const WatchlistRow = memo(function WatchlistRow({
               )
             case 'changePercent':
               return (
-                <td
-                  key={columnId}
-                  title={
-                    quote?.sector
-                      ? `${quote.sector.name}（${quote.sector.code}）`
-                      : '暂无所属行业板块行情'
-                  }
-                >
-                  <span className="change-percent-cell">
-                    <strong className={`change-percent ${quoteDirection}`}>
-                      {formatPercent(quote?.changePercent)}
-                    </strong>
-                    <small className={sectorDirection}>
-                      板块 {formatPercent(quote?.sector?.changePercent)}
-                    </small>
-                  </span>
+                <td key={columnId}>
+                  <Tooltip
+                    content={
+                      quote?.sector
+                        ? `${quote.sector.name}（${quote.sector.code}）`
+                        : '暂无所属行业板块行情'
+                    }
+                  >
+                    <span className="change-percent-cell">
+                      <strong className={`change-percent ${quoteDirection}`}>
+                        {formatPercent(quote?.changePercent)}
+                      </strong>
+                      <small className={sectorDirection}>
+                        板块 {formatPercent(quote?.sector?.changePercent)}
+                      </small>
+                    </span>
+                  </Tooltip>
                 </td>
               )
             case 'sinceAddedChange':
               return (
-                <td
-                  key={columnId}
-                  title={
-                    sinceAddedPerformance
-                      ? `添加时间 ${stock.addedAt ?? '--'}，添加基准价 ${formatPrice(stock.addedPrice)}`
-                      : '旧数据未记录添加时价格；新添加股票会自动记录'
-                  }
-                >
-                  <span className="since-added-change-cell">
-                    <strong className={sinceAddedDirection}>
-                      {formatPercent(sinceAddedPerformance?.changePercent)}
-                    </strong>
-                    <small className={sinceAddedDirection}>
-                      {formatSigned(sinceAddedPerformance?.change, 3)}
-                    </small>
-                  </span>
+                <td key={columnId}>
+                  <Tooltip
+                    content={
+                      sinceAddedPerformance
+                        ? `添加时间 ${stock.addedAt ?? '--'}，添加基准价 ${formatPrice(stock.addedPrice)}`
+                        : '旧数据未记录添加时价格；新添加股票会自动记录'
+                    }
+                  >
+                    <span className="since-added-change-cell">
+                      <strong className={sinceAddedDirection}>
+                        {formatPercent(sinceAddedPerformance?.changePercent)}
+                      </strong>
+                      <small className={sinceAddedDirection}>
+                        {formatSigned(sinceAddedPerformance?.change, 3)}
+                      </small>
+                    </span>
+                  </Tooltip>
                 </td>
               )
             case 'dividendFinancingRatio':
               return (
-                <td
-                  key={columnId}
-                  title={
-                    dividendFinancing
-                      ? `累计A股分红 ${dividendFinancing.dividendYi.toLocaleString('zh-CN')} 亿元，累计A股融资 ${dividendFinancing.financingYi.toLocaleString('zh-CN')} 亿元；净回报 ${(dividendFinancing.netReturnYi ?? dividendFinancing.dividendYi - dividendFinancing.financingYi).toLocaleString('zh-CN')} 亿元；${dividendYield ? `${dividendYield.dividendYear} 年每股分红约 ${formatPrice(dividendYield.dividendPerShare)} 元，按昨收 ${formatPrice(quote?.previousClose)} 计算股息率` : '缺少上一年度分红、最新价、总市值或昨收数据，暂不能计算股息率'}；快照 ${dividendFinancingSnapshotDate ?? '--'}`
-                      : `当前全量快照暂无完整的分红、融资数据；快照 ${dividendFinancingSnapshotDate ?? '--'}`
-                  }
-                >
-                  {dividendFinancing ? (
-                    <span className="dividend-financing-cell">
-                      <strong>{dividendFinancing.ratio.toFixed(2)}%</strong>
-                      <small className={valueClass(dividendYield?.yieldPercent)}>
-                        股息率 {formatPercent(dividendYield?.yieldPercent)}
-                      </small>
-                    </span>
-                  ) : (
-                    <span className="dividend-financing-cell is-empty">
-                      <strong>--</strong>
-                      <small>股息率 --</small>
-                    </span>
-                  )}
+                <td key={columnId}>
+                  <Tooltip
+                    content={
+                      dividendFinancing
+                        ? `累计A股分红 ${dividendFinancing.dividendYi.toLocaleString('zh-CN')} 亿元，累计A股融资 ${dividendFinancing.financingYi.toLocaleString('zh-CN')} 亿元；净回报 ${(dividendFinancing.netReturnYi ?? dividendFinancing.dividendYi - dividendFinancing.financingYi).toLocaleString('zh-CN')} 亿元；${dividendYield ? `${dividendYield.dividendYear} 年每股分红约 ${formatPrice(dividendYield.dividendPerShare)} 元，按昨收 ${formatPrice(quote?.previousClose)} 计算股息率` : '缺少上一年度分红、最新价、总市值或昨收数据，暂不能计算股息率'}；快照 ${dividendFinancingSnapshotDate ?? '--'}`
+                        : `当前全量快照暂无完整的分红、融资数据；快照 ${dividendFinancingSnapshotDate ?? '--'}`
+                    }
+                  >
+                    {dividendFinancing ? (
+                      <span className="dividend-financing-cell">
+                        <strong>{dividendFinancing.ratio.toFixed(2)}%</strong>
+                        <small className={valueClass(dividendYield?.yieldPercent)}>
+                          股息率 {formatPercent(dividendYield?.yieldPercent)}
+                        </small>
+                      </span>
+                    ) : (
+                      <span className="dividend-financing-cell is-empty">
+                        <strong>--</strong>
+                        <small>股息率 --</small>
+                      </span>
+                    )}
+                  </Tooltip>
                 </td>
               )
             case 'valueTags': {
@@ -717,46 +720,51 @@ export const WatchlistRow = memo(function WatchlistRow({
                 <td key={columnId}>
                   <span className="value-tag-cell">
                     {fundamentalBadge && fundamentalScreening ? (
-                      <button
-                        className={`value-screening-badge ${fundamentalBadge.className}`}
-                        type="button"
-                        title={fundamentalBadgeTitle(
+                      <Tooltip
+                        content={fundamentalBadgeTitle(
                           fundamentalScreening,
                           fundamentalSummary,
                           companyFundamentalSnapshotDate
                         )}
-                        aria-label={`打开${stock.name}基本面详情`}
-                        onKeyDown={(event) => event.stopPropagation()}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          handleFundamentalBadgeClick()
-                        }}
                       >
-                        {fundamentalBadge.label}
-                      </button>
+                        <button
+                          className={`value-screening-badge ${fundamentalBadge.className}`}
+                          type="button"
+                          aria-label={`打开${stock.name}基本面详情`}
+                          onKeyDown={(event) => event.stopPropagation()}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            handleFundamentalBadgeClick()
+                          }}
+                        >
+                          {fundamentalBadge.label}
+                        </button>
+                      </Tooltip>
                     ) : null}
                     {hasRiskBadge ? (
-                      <button
-                        className={`value-screening-badge is-risk-${riskSeverity}`}
-                        type="button"
-                        title={`基本面${riskSeverity === 'critical' ? '风险' : '关注'}：${riskMessages.join('、')}；点击查看详情`}
-                        aria-label={`打开${stock.name}基本面风险详情`}
-                        onKeyDown={(event) => event.stopPropagation()}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          handleFundamentalBadgeClick()
-                        }}
+                      <Tooltip
+                        content={`基本面${riskSeverity === 'critical' ? '风险' : '关注'}：${riskMessages.join('、')}；点击查看详情`}
                       >
-                        {riskSeverity === 'critical' ? '风险' : '关注'}
-                      </button>
+                        <button
+                          className={`value-screening-badge is-risk-${riskSeverity}`}
+                          type="button"
+                          aria-label={`打开${stock.name}基本面风险详情`}
+                          onKeyDown={(event) => event.stopPropagation()}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            handleFundamentalBadgeClick()
+                          }}
+                        >
+                          {riskSeverity === 'critical' ? '风险' : '关注'}
+                        </button>
+                      </Tooltip>
                     ) : null}
                     {hasDividendBadge ? (
-                      <span
-                        className="value-screening-badge is-dividend"
-                        title={`分红融资比超过100%；当前比值 ${dividendFinancing?.ratio.toFixed(2) ?? '--'}%，全量排名第 ${dividendFinancing?.rank ?? '--'} 名；快照 ${dividendFinancingSnapshotDate ?? '--'}`}
+                      <Tooltip
+                        content={`分红融资比超过100%；当前比值 ${dividendFinancing?.ratio.toFixed(2) ?? '--'}%，全量排名第 ${dividendFinancing?.rank ?? '--'} 名；快照 ${dividendFinancingSnapshotDate ?? '--'}`}
                       >
-                        分红
-                      </span>
+                        <span className="value-screening-badge is-dividend">分红</span>
+                      </Tooltip>
                     ) : null}
                     {!fundamentalBadge && !hasRiskBadge && !hasDividendBadge ? (
                       <span className="value-tag-empty">--</span>
@@ -768,10 +776,7 @@ export const WatchlistRow = memo(function WatchlistRow({
             case 'open':
               return (
                 <td key={columnId}>
-                  <span
-                    className="today-market-cell"
-                    title={`今开 ${formatPrice(quote?.open)}，昨收 ${formatPrice(quote?.previousClose)}，最低 ${formatPrice(quote?.low)}，最高 ${formatPrice(quote?.high)}`}
-                  >
+                  <span className="today-market-cell">
                     <span>今开：{formatPrice(quote?.open)}</span>
                     <span>昨收：{formatPrice(quote?.previousClose)}</span>
                     <span>最低：{formatPrice(quote?.low)}</span>
@@ -782,10 +787,7 @@ export const WatchlistRow = memo(function WatchlistRow({
             case 'trading':
               return (
                 <td key={columnId}>
-                  <span
-                    className="trading-market-cell"
-                    title={`成交额 ${formatAmount(quote?.amount)}，换手率 ${formatTurnoverRate(quote?.turnoverRate)}`}
-                  >
+                  <span className="trading-market-cell">
                     <span>成交额：{formatAmount(quote?.amount)}</span>
                     <span>换手率：{formatTurnoverRate(quote?.turnoverRate)}</span>
                   </span>
@@ -797,19 +799,22 @@ export const WatchlistRow = memo(function WatchlistRow({
               return (
                 <td className="radar-column" key={columnId}>
                   {latestRadarSignal ? (
-                    <button
-                      className={`radar-summary-button is-${latestRadarSignal.direction}`}
-                      type="button"
-                      aria-expanded={radarExpanded}
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        onOpenRadar(stock.quoteId, event.currentTarget)
-                      }}
-                      title={`今日 ${currentRadarSignals.length} 条异动，点击查看近 5 日详情`}
+                    <Tooltip
+                      content={`今日 ${currentRadarSignals.length} 条异动，点击查看近 5 日详情`}
                     >
-                      <span>今日有异动</span>
-                      <b>{currentRadarSignals.length}</b>
-                    </button>
+                      <button
+                        className={`radar-summary-button is-${latestRadarSignal.direction}`}
+                        type="button"
+                        aria-expanded={radarExpanded}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          onOpenRadar(stock.quoteId, event.currentTarget)
+                        }}
+                      >
+                        <span>今日有异动</span>
+                        <b>{currentRadarSignals.length}</b>
+                      </button>
+                    </Tooltip>
                   ) : (
                     '--'
                   )}
