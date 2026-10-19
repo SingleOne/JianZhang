@@ -13,7 +13,7 @@ import type {
 import { atomicWriteJsonSync } from './file-storage'
 import { createAppIcon } from './tray-icons'
 
-const TASKBAR_TOOLTIP_WIDTH = 450
+const TASKBAR_TOOLTIP_WIDTH = 550
 const TASKBAR_TOOLTIP_DEFAULT_HEIGHT = 260
 const MAIN_WINDOW_TITLEBAR_HEIGHT = 44
 const MAIN_WINDOW_THEME_COLORS = {
@@ -133,6 +133,7 @@ export class WindowManager {
     this.taskbarTooltipAnchor = anchor
     if (!anchor) {
       if (this.taskbarTooltipWindow && !this.taskbarTooltipWindow.isDestroyed()) {
+        this.taskbarTooltipWindow.webContents.send('taskbar:tooltip-stock', null)
         this.taskbarTooltipWindow.hide()
       }
       return
@@ -218,7 +219,9 @@ export class WindowManager {
       this.taskbarTooltipWindow,
       this.trayPopupWindow
     ]) {
-      if (window && !window.isDestroyed()) window.webContents.send(channel, payload)
+      if (!window || window.isDestroyed()) continue
+      if (window === this.taskbarTooltipWindow && !window.isVisible()) continue
+      window.webContents.send(channel, payload)
     }
   }
 
@@ -510,7 +513,11 @@ export class WindowManager {
       height
     })
     this.taskbarWindow.webContents.send('taskbar:layout', this.taskbarLayout)
-    if (this.taskbarTooltipWindow && !this.taskbarTooltipWindow.isDestroyed()) {
+    if (
+      this.taskbarTooltipWindow &&
+      !this.taskbarTooltipWindow.isDestroyed() &&
+      this.taskbarTooltipWindow.isVisible()
+    ) {
       this.taskbarTooltipWindow.webContents.send('taskbar:layout', this.taskbarLayout)
     }
     this.taskbarWindow.setAlwaysOnTop(true, 'pop-up-menu')

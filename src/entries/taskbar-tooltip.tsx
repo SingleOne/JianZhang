@@ -1,8 +1,13 @@
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
 import { TaskbarStockTooltip } from '../components/TaskbarStockTooltip'
-import { renderWindow } from './render-window'
 import '../styles/window-surface.css'
 import '../components/TaskbarTicker.css'
 
 export function renderTaskbarTooltip(): void {
-  renderWindow(<TaskbarStockTooltip />)
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <TaskbarStockTooltip />
+    </StrictMode>
+  )
 }

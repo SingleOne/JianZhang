@@ -1,6 +1,6 @@
 import { stockTOverview } from '../lib/stock-accounts'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { getInitialBootstrap, initialState, stockApi } from '../lib/api'
+import { initialState, stockApi } from '../lib/api'
 import {
   formatCost,
   formatMoney,
@@ -11,12 +11,25 @@ import {
   formatSigned,
   formatUpdateTime
 } from '../lib/format'
-import { calculatePositionMetrics } from '../lib/portfolio'
+import { calculatePositionMetrics, getPositionHoldingDays } from '../lib/portfolio'
 import { calculateCurrentPositionProfitOverride } from '../lib/portfolio-performance'
 import { formatStockAlertValue, STOCK_ALERT_METRIC_LABELS } from '../lib/stock-alerts'
-import { marketFromQuoteId, STOCK_CURRENCY_SYMBOLS } from '../shared/stock-market'
+import {
+  marketCapabilitiesForQuoteId,
+  marketFromQuoteId,
+  STOCK_CURRENCY_SYMBOLS
+} from '../shared/stock-market'
 import { applyAppThemePreference } from '../lib/theme'
-import type { AppState, KlineBar, KlineResult, StockQuote, TaskbarLayout } from '../shared/types'
+import type {
+  AppState,
+  KlineBar,
+  KlineResult,
+  OrderBookLevel,
+  StockOrderBook,
+  StockQuote,
+  TaskbarLayout
+} from '../shared/types'
+import { AppThemeController } from './AppThemeController'
 
 const SPARKLINE_WIDTH = 76
 const SPARKLINE_HEIGHT = 26
@@ -30,6 +43,30 @@ function valueClass(value: number | null | undefined): string {
 
 function formatLargeOrderVolume(volume: number): string {
   return volume >= 10_000 ? `${(volume / 10_000).toFixed(2)}万` : volume.toLocaleString('zh-CN')
+}
+
+function formatOrderVolumeTotal(levels: readonly OrderBookLevel[] | undefined): string {
+  const volumes = levels?.slice(0, 5).map((level) => level.volume)
+  if (!volumes?.length || volumes.some((volume) => volume === null)) return '--'
+  return `${formatLargeOrderVolume(volumes.reduce<number>((total, volume) => total + volume!, 0))}手`
+}
+
+function FiveLevelVolumes({ orderBook }: { orderBook: StockOrderBook | null }) {
+  return (
+    <div className="taskbar-tooltip-order-volumes">
+      <dt>五档数量</dt>
+      <dd>
+        <span className="taskbar-tooltip-stacked-values">
+          <span>
+            <i>买</i> {formatOrderVolumeTotal(orderBook?.bids)}
+          </span>
+          <span>
+            <i>卖</i> {formatOrderVolumeTotal(orderBook?.asks)}
+          </span>
+        </span>
+      </dd>
+    </div>
+  )
 }
 
 function minuteTimestamp(time: string): number | null {
@@ -117,7 +154,7 @@ function MiniPriceSparkline({ prices }: { prices: readonly number[] }) {
           ) : null}
           <circle className="is-latest" cx={lastPoint.x} cy={lastPoint.y} r="2.4" />
         </svg>
-        <span className="taskbar-tooltip-sparkline-range" aria-hidden="true">
+        <span className="taskbar-tooltip-stacked-values" aria-hidden="true">
           <span>
             <i>高</i> {formatPrice(maximum)}
           </span>
@@ -131,66 +168,92 @@ function MiniPriceSparkline({ prices }: { prices: readonly number[] }) {
 }
 
 export function TaskbarStockTooltip() {
+  const sequence = useRef(0)
+  const [session, setSession] = useState<{ quoteId: string; sequence: number } | null>(null)
+
+  useEffect(() => {
+    let active = true
+    let receivedTooltipEvent = false
+
+    const updateSession = (quoteId: string | null) => {
+      setSession(quoteId === null ? null : { quoteId, sequence: ++sequence.current })
+    }
+    const unsubscribeTooltip = stockApi.onTaskbarTooltipStock((quoteId) => {
+      receivedTooltipEvent = true
+      updateSession(quoteId)
+    })
+
+    void stockApi.getTaskbarTooltipQuoteId().then((quoteId) => {
+      if (active && !receivedTooltipEvent) updateSession(quoteId)
+    })
+
+    return () => {
+      active = false
+      unsubscribeTooltip()
+    }
+  }, [])
+
+  return session ? <TaskbarTooltipContent key={session.sequence} quoteId={session.quoteId} /> : null
+}
+
+function TaskbarTooltipContent({ quoteId }: { quoteId: string }) {
   const shellRef = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<AppState>(initialState)
+  const [stateReady, setStateReady] = useState(false)
   const [quotes, setQuotes] = useState<StockQuote[]>([])
-  const [quoteId, setQuoteId] = useState<string | null>(null)
   const [intraday, setIntraday] = useState<KlineResult | null>(null)
-  const [intradayRequestVersion, setIntradayRequestVersion] = useState(0)
+  const [orderBook, setOrderBook] = useState<StockOrderBook | null>(null)
   const [layout, setLayout] = useState<TaskbarLayout>({
     taskbarHeight: 48,
     taskbarEdge: 'bottom'
   })
 
   useEffect(() => {
-    applyAppThemePreference(state.settings.theme)
-  }, [state.settings.theme])
+    if (stateReady) applyAppThemePreference(state.settings.theme)
+  }, [stateReady, state.settings.theme])
 
   useEffect(() => {
     let active = true
-    let receivedTooltipEvent = false
+    let receivedQuotesEvent = false
+    let receivedStateEvent = false
     let receivedLayoutEvent = false
 
-    const unsubscribeQuotes = stockApi.onQuotesUpdated(setQuotes)
-    const unsubscribeState = stockApi.onStateUpdated(setState)
-    const unsubscribeTooltip = stockApi.onTaskbarTooltipStock((nextQuoteId) => {
-      receivedTooltipEvent = true
-      setQuoteId(nextQuoteId)
-      setIntradayRequestVersion((current) => current + 1)
+    const unsubscribeQuotes = stockApi.onQuotesUpdated((nextQuotes) => {
+      receivedQuotesEvent = true
+      setQuotes(nextQuotes)
+    })
+    const unsubscribeState = stockApi.onStateUpdated((nextState) => {
+      receivedStateEvent = true
+      setState(nextState)
+      setStateReady(true)
     })
     const unsubscribeLayout = stockApi.onTaskbarLayout((nextLayout) => {
       receivedLayoutEvent = true
       setLayout(nextLayout)
     })
 
-    void Promise.all([
-      getInitialBootstrap(),
-      stockApi.getTaskbarTooltipQuoteId(),
-      stockApi.getTaskbarLayout()
-    ]).then(([bootstrap, currentQuoteId, taskbarLayout]) => {
-      if (!active) return
-      setState(bootstrap.state)
-      setQuotes(bootstrap.quotes)
-      if (!receivedTooltipEvent) setQuoteId(currentQuoteId)
-      if (!receivedLayoutEvent) setLayout(taskbarLayout)
-    })
+    void Promise.all([stockApi.getBootstrap(), stockApi.getTaskbarLayout()]).then(
+      ([bootstrap, taskbarLayout]) => {
+        if (!active) return
+        if (!receivedStateEvent) {
+          setState(bootstrap.state)
+          setStateReady(true)
+        }
+        if (!receivedQuotesEvent) setQuotes(bootstrap.quotes)
+        if (!receivedLayoutEvent) setLayout(taskbarLayout)
+      }
+    )
 
     return () => {
       active = false
       unsubscribeQuotes()
       unsubscribeState()
-      unsubscribeTooltip()
       unsubscribeLayout()
     }
   }, [])
 
   useEffect(() => {
-    if (!quoteId) {
-      setIntraday(null)
-      return
-    }
     let active = true
-    setIntraday((current) => (current?.quoteId === quoteId ? current : null))
     void stockApi.getKline(quoteId, 'intraday').then(
       (result) => {
         if (active) setIntraday(result)
@@ -199,21 +262,40 @@ export function TaskbarStockTooltip() {
         if (active) setIntraday(null)
       }
     )
+    if (marketCapabilitiesForQuoteId(quoteId).orderBook) {
+      void stockApi.getOrderBook(quoteId).then(
+        (result) => {
+          if (active) setOrderBook(result)
+        },
+        () => {
+          if (active) setOrderBook(null)
+        }
+      )
+    }
     return () => {
       active = false
     }
-  }, [intradayRequestVersion, quoteId])
+  }, [quoteId])
 
   const stock = state.watchlist.find((item) => item.quoteId === quoteId)
   const quote = quotes.find((item) => item.quoteId === quoteId)
+  const market = stock?.market ?? marketFromQuoteId(quoteId)
+  const tradingCalendar = state.settings.tradingCalendar.markets[market]
+  const holdingDays = getPositionHoldingDays(
+    stock?.position,
+    tradingCalendar.closedDates,
+    market,
+    tradingCalendar.halfDayDates
+  )
   const currentIntraday = intraday?.quoteId === quoteId ? intraday : null
+  const currentOrderBook = orderBook?.quoteId === quoteId ? orderBook : null
   const sparklinePrices = useMemo(
     () => recentFifteenMinutePrices(currentIntraday?.bars ?? []),
     [currentIntraday]
   )
-  const account = quoteId ? state.stockTradingBooks[quoteId] : undefined
+  const account = state.stockTradingBooks[quoteId]
   const overview = stockTOverview(account, quote?.latest, {
-    market: stock?.market ?? marketFromQuoteId(quoteId ?? ''),
+    market,
     instrumentType: stock?.instrumentType,
     feeState: state
   })
@@ -254,6 +336,7 @@ export function TaskbarStockTooltip() {
       className={`taskbar-stock-tooltip-shell ${layout.taskbarEdge === 'top' ? 'is-taskbar-top' : ''}`}
       ref={shellRef}
     >
+      <AppThemeController />
       <article className="taskbar-stock-tooltip">
         <header>
           <span className="taskbar-tooltip-identity">
@@ -306,6 +389,7 @@ export function TaskbarStockTooltip() {
             <dd>{formatPercent(quote?.turnoverRate)}</dd>
           </div>
           <MiniPriceSparkline prices={sparklinePrices} />
+          <FiveLevelVolumes orderBook={currentOrderBook} />
         </dl>
 
         <section className="taskbar-tooltip-section">
@@ -313,6 +397,10 @@ export function TaskbarStockTooltip() {
             <span>
               <small>持仓</small>
               <b>{formatShares(stock?.position?.quantity)}</b>
+            </span>
+            <span>
+              <small>天数</small>
+              <b>{holdingDays === null ? '--' : `${holdingDays} 天`}</b>
             </span>
             <span>
               <small>成本</small>

@@ -3106,7 +3106,7 @@ export interface StockDesktopApi {
   onQuotesUpdated: (callback: (quotes: StockQuote[]) => void) => () => void
   onStateUpdated: (callback: (state: AppState) => void) => () => void
   onTaskbarLayout: (callback: (layout: TaskbarLayout) => void) => () => void
-  onTaskbarTooltipStock: (callback: (quoteId: string) => void) => () => void
+  onTaskbarTooltipStock: (callback: (quoteId: string | null) => void) => () => void
   onSelectStock: (callback: (request: StockSelectionRequest) => void) => () => void
   onDataError: (callback: (message: string) => void) => () => void
   onOptionalModulesStateUpdated: (callback: (state: OptionalModulesState) => void) => () => void

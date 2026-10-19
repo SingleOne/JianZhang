@@ -387,7 +387,7 @@
 
 .taskbar-tooltip-details {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) 140px;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) 140px 92px;
   gap: 8px;
   margin: 0;
 }
@@ -407,7 +407,8 @@
   font-weight: 700;
 }
 
-.taskbar-tooltip-sparkline dd {
+.taskbar-tooltip-sparkline dd,
+.taskbar-tooltip-order-volumes dd {
   height: 26px;
   display: flex;
   align-items: center;
@@ -439,7 +440,7 @@
   stroke-width: 1.5;
 }
 
-.taskbar-tooltip-sparkline-range {
+.taskbar-tooltip-stacked-values {
   height: 26px;
   display: grid;
   align-content: space-between;
@@ -449,7 +450,7 @@
   white-space: nowrap;
 }
 
-.taskbar-tooltip-sparkline-range i {
+.taskbar-tooltip-stacked-values i {
   color: #8a94a6;
   font-style: normal;
   font-weight: 400;
@@ -476,7 +477,7 @@
 
 .taskbar-tooltip-position-grid {
   display: grid;
-  grid-template-columns: 0.75fr 0.85fr 1.15fr 1.15fr 0.9fr;
+  grid-template-columns: 0.75fr 0.55fr 0.85fr 1.15fr 1.15fr 0.9fr;
   gap: 8px 12px;
 }
 
@@ -737,11 +738,11 @@ html[data-theme='dark'].tray-mode #root {
   border-color: #48566c;
 }
 
-:root[data-theme='dark'] .taskbar-tooltip-sparkline-range {
+:root[data-theme='dark'] .taskbar-tooltip-stacked-values {
   color: #c5cedb;
 }
 
-:root[data-theme='dark'] .taskbar-tooltip-sparkline-range i {
+:root[data-theme='dark'] .taskbar-tooltip-stacked-values i {
   color: #a8b3c3;
 }
 
