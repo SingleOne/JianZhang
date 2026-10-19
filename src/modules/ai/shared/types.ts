@@ -335,7 +335,7 @@ export interface WebCitation {
   url: string
   publishedAt: string | null
   retrievedAt: string
-  evidenceType: 'summary' | 'content'
+  evidenceType: 'summary' | 'content' | 'source'
   providedExcerpts: CitationExcerpt[]
 }
 
@@ -584,6 +584,10 @@ export interface AiProviderRequest {
   messages: AiProviderRequestMessage[]
   images?: AiProviderImage[]
   tools?: AiProviderTool[]
+  webSearch?: {
+    onActivity: (activity: NonNullable<AiMessage['activity']>) => void
+    registerSource: (source: { url: string; title?: string }) => string | undefined
+  }
 }
 
 export interface AiProviderImage {

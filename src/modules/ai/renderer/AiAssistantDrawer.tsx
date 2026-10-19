@@ -39,6 +39,7 @@ import { AppSelect, type AppSelectOption } from '../../../components/AppSelect'
 import { AppButton } from '../../../components/AppButton'
 import { useConfirmDialog } from '../../../components/ConfirmDialog'
 import { supportsImageUnderstanding } from '../shared/model-capabilities'
+import { getWebSearchBackend } from '../shared/web-search'
 import { TradeImportPanel } from './TradeImportPanel'
 import { MemoryPanel } from './MemoryPanel'
 import type {
@@ -166,7 +167,11 @@ function citationPresentation(citation: MessageCitation): {
       title: citation.title,
       detail: [
         citation.source,
-        citation.evidenceType === 'content' ? '网页正文' : '搜索摘要',
+        citation.evidenceType === 'content'
+          ? '网页正文'
+          : citation.evidenceType === 'source'
+            ? '服务端搜索来源'
+            : '搜索摘要',
         citation.publishedAt
           ? `发布于 ${new Date(citation.publishedAt).toLocaleDateString('zh-CN')}`
           : '',
@@ -862,13 +867,21 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
   const stockSearchAvailable = Boolean(
     (activeConversation?.scope === 'stock' && includeStockContext) || mentionedStocks.length > 0
   )
-  const webSearchAvailable = Boolean(status?.credentials.deepseek.configured)
+  const searchBackend =
+    settings && status ? getWebSearchBackend(settings.providerId, status.credentials) : undefined
+  const webSearchAvailable = Boolean(searchBackend)
   const webSearchEnabled = onlineSearch && webSearchAvailable
   const officialSearchEnabled = onlineSearch && !webSearchAvailable && stockSearchAvailable
   const onlineSearchEnabled = webSearchEnabled || officialSearchEnabled
   const activeProviderLabel =
     status?.providers.find((provider) => provider.id === settings?.providerId)?.label ??
     '当前 Provider'
+  const webSearchHint =
+    searchBackend === 'minimax'
+      ? '通过 MiniMax 官方搜索查询公开网页，需要具有搜索权限的订阅 Key；普通按量 Key 不保证可用'
+      : searchBackend === 'kimi' || searchBackend === 'grok'
+        ? `使用 ${activeProviderLabel} 的服务端搜索和对应平台额度`
+        : '通过 DeepSeek 搜索公开网页并按需读取原文，按成功请求计费'
   const imageUnderstandingAvailable = Boolean(
     settings && supportsImageUnderstanding(settings.providerId, settings.model)
   )
@@ -1447,7 +1460,7 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
                       disabled={sendingMessage || (!webSearchAvailable && !stockSearchAvailable)}
                       title={
                         webSearchAvailable
-                          ? '通过 DeepSeek 搜索公开网页并按需读取原文，按成功请求计费'
+                          ? webSearchHint
                           : stockSearchAvailable
                             ? `让 ${activeProviderLabel} 联网检索当前消息股票的官方公开信息`
                             : '请先添加当前股票上下文或通过 @ 引用股票'

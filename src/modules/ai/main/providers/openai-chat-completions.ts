@@ -27,6 +27,7 @@ type OpenAiChatMessage =
   | {
       role: 'assistant'
       content: string | null
+      reasoning_content?: string
       tool_calls: Array<{
         id: string
         type: 'function'
@@ -37,6 +38,7 @@ type OpenAiChatMessage =
 
 interface OpenAiChatRoundResult {
   content: string
+  reasoningContent: string
   responseId?: string
   toolCalls: AiProviderToolCall[]
 }
@@ -111,6 +113,7 @@ async function requestRound(
   })
   await ensureResponse(response)
   let content = ''
+  let reasoningContent = ''
   let responseId: string | undefined
   const toolCalls = new Map<number, OpenAiToolCallAccumulator>()
   await readSse(response, (payload) => {
@@ -121,6 +124,7 @@ async function requestRound(
       choices?: Array<{
         delta?: {
           content?: string | null
+          reasoning_content?: string | null
           tool_calls?: Array<{
             index: number
             id?: string
@@ -132,6 +136,7 @@ async function requestRound(
     if (chunk.error) throw new Error(chunk.error.message ?? `${options.label} 响应失败`)
     responseId = chunk.id ?? responseId
     const delta = chunk.choices?.[0]?.delta
+    reasoningContent += delta?.reasoning_content ?? ''
     const contentDelta = delta?.content ?? ''
     if (contentDelta) {
       content += contentDelta
@@ -147,6 +152,7 @@ async function requestRound(
   })
   return {
     content,
+    reasoningContent,
     responseId,
     toolCalls: [...toolCalls.entries()]
       .sort(([left], [right]) => left - right)
@@ -180,6 +186,7 @@ export async function streamOpenAiChatCompletions(
     messages.push({
       role: 'assistant',
       content: selection.content || null,
+      ...(selection.reasoningContent ? { reasoning_content: selection.reasoningContent } : {}),
       tool_calls: selection.toolCalls.map((call) => ({
         id: call.id,
         type: 'function',

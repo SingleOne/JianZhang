@@ -12,7 +12,7 @@ import type {
   MessageCitation
 } from '../shared/types'
 import { AI_PROVIDER_IDS } from '../shared/types'
-import { webPageUrl } from './web-search/tool'
+import { webPageUrl } from './web-search/sources'
 
 const DEFAULT_SETTINGS: AiSettings = {
   enabled: true,

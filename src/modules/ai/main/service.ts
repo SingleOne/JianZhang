@@ -42,6 +42,7 @@ import type {
 } from '../shared/types'
 import { AI_PROVIDER_IDS } from '../shared/types'
 import { supportsImageUnderstanding } from '../shared/model-capabilities'
+import { getWebSearchBackend, type AiWebSearchBackend } from '../shared/web-search'
 import { addOfficialModelDescriptions } from '../shared/model-descriptions'
 import {
   compactMarketSnapshot,
@@ -69,10 +70,13 @@ import { AnthropicProvider } from './providers/anthropic'
 import { GeminiProvider } from './providers/gemini'
 import { OpenAiCompatibleProvider } from './providers/openai-compatible'
 import { OpenAiApiProvider } from './providers/openai-api'
+import { ServerSearchProvider } from './providers/server-search'
 import { AiSecrets } from './secrets'
 import { AiStorage } from './storage'
 import { isOfficialStockSourceUrl } from './official-source'
-import { WEB_SEARCH_TOOLS, WebSearchSession, webPageUrl } from './web-search/tool'
+import { WEB_SEARCH_TOOLS, WebSearchSession } from './web-search/tool'
+import { MINIMAX_SEARCH_TOOL, MiniMaxSearchSession } from './web-search/minimax'
+import { WebSearchSources, webPageUrl } from './web-search/sources'
 import { MemoryBridge } from './memory/bridge'
 import { TurnSourceRegistry } from './citations/registry'
 import {
@@ -137,7 +141,8 @@ const PROVIDERS: AiProviderDescriptor[] = [
   {
     id: 'kimi',
     label: 'Kimi',
-    billingHint: '使用 Moonshot AI 开放平台 API Key 和对应平台额度。',
+    billingHint:
+      '使用 Moonshot AI 开放平台 API Key；网页搜索通过 Responses 服务端工具计费，推荐 Kimi K3。',
     defaultModel: AI_DEFAULT_MODELS.kimi,
     authMode: 'apiKey',
     capabilities: {
@@ -150,7 +155,8 @@ const PROVIDERS: AiProviderDescriptor[] = [
   {
     id: 'minimax',
     label: 'MiniMax',
-    billingHint: '使用 MiniMax 开放平台 API Key 和对应平台额度。',
+    billingHint:
+      '使用 MiniMax 开放平台 API Key；网页搜索需要具有搜索权限的订阅 Key，普通按量 Key 不保证可用。',
     defaultModel: AI_DEFAULT_MODELS.minimax,
     authMode: 'apiKey',
     capabilities: {
@@ -215,7 +221,7 @@ const PROVIDERS: AiProviderDescriptor[] = [
   {
     id: 'grok',
     label: 'Grok',
-    billingHint: '使用 xAI Console API Key 和对应平台额度。',
+    billingHint: '使用 xAI Console API Key；网页搜索通过 Responses 服务端工具使用对应平台额度。',
     defaultModel: AI_DEFAULT_MODELS.grok,
     authMode: 'apiKey',
     capabilities: {
@@ -388,7 +394,7 @@ export class AiService {
         apiBase: 'https://open.bigmodel.cn/api/paas/v4',
         filterModel: (model) => /^glm-/i.test(model.id)
       }),
-      new OpenAiCompatibleProvider({
+      new ServerSearchProvider({
         id: 'kimi',
         label: 'Kimi',
         apiBase: 'https://api.moonshot.cn/v1',
@@ -428,7 +434,7 @@ export class AiService {
         apiBase: 'https://api.xiaomimimo.com/v1',
         filterModel: (model) => /^mimo-v2/i.test(model.id) && !/(?:tts|asr|speech)/i.test(model.id)
       }),
-      new OpenAiCompatibleProvider({
+      new ServerSearchProvider({
         id: 'grok',
         label: 'Grok',
         apiBase: 'https://api.x.ai/v1',
@@ -741,8 +747,11 @@ export class AiService {
     const content = input.content.trim()
     if (!content) throw new Error('请输入消息')
     if (this.activeChats.has(conversation.id)) throw new Error('当前会话正在生成，请先停止')
-    if (input.webSearch && !this.getCredential('deepseek')) {
-      throw new Error('请先在服务设置中配置 DeepSeek API Key，才能搜索或读取网页')
+    const searchBackend = input.webSearch
+      ? getWebSearchBackend(settings.providerId, this.getStatus().credentials)
+      : undefined
+    if (input.webSearch && !searchBackend) {
+      throw new Error('请先在服务设置中配置当前服务商或 DeepSeek 的搜索 API Key')
     }
 
     const stockRequests = this.getStockContextRequests(
@@ -812,7 +821,14 @@ export class AiService {
       messageCount: conversation.messageCount + 1
     })
 
-    void this.runChat(webContents, assistantMessage, contexts, stockDataSession, stockSearchSession)
+    void this.runChat(
+      webContents,
+      assistantMessage,
+      contexts,
+      stockDataSession,
+      stockSearchSession,
+      searchBackend
+    )
     return { userMessage, assistantMessage }
   }
 
@@ -1179,7 +1195,8 @@ export class AiService {
     pendingMessage: AiMessage,
     contexts: AiChatStockContext[],
     stockDataSession?: StockDataToolSession,
-    stockSearchSession?: StockInformationSearchSession
+    stockSearchSession?: StockInformationSearchSession,
+    searchBackend?: AiWebSearchBackend
   ): Promise<void> {
     const settings = this.storage.getSettings()
     const providerId = pendingMessage.providerId ?? settings.providerId
@@ -1188,22 +1205,35 @@ export class AiService {
     this.activeChats.set(pendingMessage.conversationId, controller)
     const sourceRegistry = new TurnSourceRegistry()
     const streamFilter = new CitationStreamFilter(() => sourceRegistry.registered())
-    const webSearchSession = pendingMessage.webSearch
-      ? new WebSearchSession(
-          pendingMessage.id,
-          () => this.getCredential('deepseek'),
-          (activity) =>
-            this.send(webContents, 'ai:chat:delta', {
-              conversationId: pendingMessage.conversationId,
-              messageId: pendingMessage.id,
-              delta: '',
-              activity
-            })
-        )
-      : undefined
+    const onSearchActivity = (activity: NonNullable<AiMessage['activity']>) =>
+      this.send(webContents, 'ai:chat:delta', {
+        conversationId: pendingMessage.conversationId,
+        messageId: pendingMessage.id,
+        delta: '',
+        activity
+      })
+    const webSearchSession =
+      searchBackend === 'deepseek'
+        ? new WebSearchSession(
+            pendingMessage.id,
+            () => this.getCredential('deepseek'),
+            onSearchActivity
+          )
+        : searchBackend === 'minimax'
+          ? new MiniMaxSearchSession(
+              pendingMessage.id,
+              () => this.getCredential('minimax'),
+              onSearchActivity
+            )
+          : undefined
+    const webTools = searchBackend === 'minimax' ? [MINIMAX_SEARCH_TOOL] : WEB_SEARCH_TOOLS
+    const serverSearchSources = new WebSearchSources(pendingMessage.id)
+    const nativeSearch = searchBackend === 'kimi' || searchBackend === 'grok'
     let prepared: Awaited<ReturnType<MemoryBridge['prepare']>> = null
     let memoryAvailable = false
     try {
+      if (pendingMessage.webSearch && !searchBackend)
+        throw new Error('网页搜索的 API Key 已被清除，请重新配置后重试')
       const credential = this.getCredential(providerId)
       const messages = this.storage
         .getMessages(pendingMessage.conversationId)
@@ -1224,7 +1254,7 @@ export class AiService {
         ...(stockDataSession
           ? [STOCK_DATA_TOOL, ...(stockSearchSession ? [STOCK_INFORMATION_SEARCH_TOOL] : [])]
           : []),
-        ...(webSearchSession ? WEB_SEARCH_TOOLS : []),
+        ...(webSearchSession ? webTools : []),
         ...(memoryAvailable ? MEMORY_TOOLS : [])
       ]
       const result = await this.requireProvider(providerId).streamChat(
@@ -1237,9 +1267,29 @@ export class AiService {
             stockDataSession?.manifest,
             Boolean(stockSearchSession),
             memoryContext,
-            Boolean(webSearchSession)
+            nativeSearch
+              ? 'native'
+              : searchBackend === 'minimax'
+                ? 'minimax'
+                : Boolean(webSearchSession)
           ),
-          tools: tools.length ? tools : undefined
+          tools: tools.length ? tools : undefined,
+          webSearch: nativeSearch
+            ? {
+                onActivity: onSearchActivity,
+                registerSource: (source) => {
+                  let url: URL
+                  try {
+                    url = webPageUrl(source.url)
+                  } catch {
+                    return undefined
+                  }
+                  const citation = serverSearchSources.record(url, source.title ?? '', '', 'source')
+                  sourceRegistry.registerWeb(serverSearchSources.citations())
+                  return citation.id
+                }
+              }
+            : undefined
         },
         (delta) => {
           const validatedDelta = streamFilter.push(delta)
@@ -1253,7 +1303,7 @@ export class AiService {
         controller.signal,
         stockDataSession || memoryAvailable || webSearchSession
           ? async (call, signal) => {
-              if (webSearchSession && WEB_SEARCH_TOOLS.some((tool) => tool.name === call.name)) {
+              if (webSearchSession && webTools.some((tool) => tool.name === call.name)) {
                 const output = await webSearchSession.execute(call, signal)
                 sourceRegistry.registerWeb(webSearchSession.citations())
                 return output

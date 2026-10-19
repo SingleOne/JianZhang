@@ -12,9 +12,11 @@
 - 页面常驻非持牌证券投资咨询免责声明。两类结果按股票保存在 `cache/latest-interpretations.json`；合规 schema 与提示词版本升级后，旧版含预测/评级结构的结果不再恢复展示，新生成的合规结果仍可在切换标签或重启应用后恢复。
 - 当前支持 OpenAI、DeepSeek、智谱 GLM、Kimi、MiniMax、腾讯混元、文心一言、阿里千问、小米 MiMo、Grok、Gemini 和 Anthropic。保存 API Key 前会由主进程向对应 Provider 查询账号可用模型，服务设置中的模型 ID 只能从实时返回的列表中选择。
 - 对话中带有当前股票上下文或 `@股票` 时，DeepSeek 默认使用带 `stockRef` 的数据目录；其他 Provider 在开启“联网搜索”后使用同一目录。模型选择必要的 `datasetId` 后，主进程才通过 `read_stock_data` 读取对应明细；工具不能访问本条消息未授权的股票。所有 Provider 均支持受限的连续多轮工具调用。
-- 未配置 DeepSeek API Key 时，所有 Provider 的消息仍可按需开启原有“联网搜索”。`search_stock_information` 只检索授权股票的现有官方来源：A 股巨潮资讯、证监会和沪深北交易所，港股 HKEXnews，美股 SEC EDGAR，以及公司行动的官方证据。这项能力不依赖 DeepSeek API Key。
-- 配置 DeepSeek API Key 后，同一入口显示“网页搜索”，所有对话 Provider 均可使用。开启后，模型通过 `search_web` 调用 DeepSeek Search API 搜索公开网页（默认 5 条摘要），通过 `fetch_webpage` 调用 Fetch API 读取指定网页；两者都在主进程单独读取 DeepSeek 密钥，每次请求前检查凭证，支持停止和超时。普通对话无需关联股票；带股票上下文时还可使用现有官方信息工具。搜索与抓取按成功请求独立计费，复用现有每轮及整轮工具调用次数限制，单页正文最多提供 12,000 字符，并向模型标明截断状态。
-- 官方信息与网页结果都使用消息级唯一引用编号，引用来源随消息保存并用于重试、导出和重启后的展示。网页来源区分搜索摘要与抓取正文，记录发布时间（未知时留空）及获取时间；只有本对话保存的网页引用可通过来源入口打开，原有官方来源规则保持兼容。
+- 搜索仍使用同一个开关。当前 Provider 为 Kimi、MiniMax 或 Grok 且已配置其 Key 时，显示“网页搜索”并使用该厂家的搜索服务；其他 Provider 配置 DeepSeek Key 后使用 DeepSeek 搜索。没有可用网页搜索 Key 时，同一入口显示原有“联网搜索”，`search_stock_information` 只检索授权股票的现有官方来源：A 股巨潮资讯、证监会和沪深北交易所，港股 HKEXnews，美股 SEC EDGAR，以及公司行动的官方证据；该能力不依赖 DeepSeek Key。
+- Kimi 开启网页搜索后使用国内 `/v1/responses` 和原生 `web_search`，推荐 Kimi K3；普通聊天仍使用 Chat Completions。工具续轮原样回传全部 output（包括 reasoning），不使用 Kimi 不支持的 `previous_response_id`。Grok 改用 `/v1/responses`，开启网页搜索时添加原生 `web_search`，自定义工具续轮通过 `previous_response_id` 连接。两家均复用各自模型 Key 和平台额度，不调用 DeepSeek 搜索；保留股票数据与记忆工具的受限多轮调用。
+- MiniMax 保留 Chat Completions，通过 `search_web` 调用官方 MCP 同源的 `/v1/coding_plan/search`（`q` 参数），使用当前 MiniMax Key。该搜索要求具有搜索权限的订阅 Key（M Plan/Token Plan），普通按量 Key 不保证可用，配置提示和搜索失败信息会说明权限要求；不自动切换其他付费搜索。只提供搜索摘要，不提供全文抓取；最多返回 10 条，每条摘要最多 2,000 字符，支持停止和 30 秒超时。
+- DeepSeek 接入保持不变：`search_web` 使用 Search API（默认 5 条摘要），`fetch_webpage` 使用 Fetch API，主进程每次请求前单独读取 DeepSeek 密钥。普通对话无需关联股票；带股票上下文时还可使用现有官方信息工具。搜索与抓取按成功请求独立计费，复用现有每轮及整轮工具调用次数限制，单页正文最多提供 12,000 字符，并向模型标明截断状态。
+- 官方信息与网页结果都使用消息级唯一引用编号，引用来源随消息保存并用于重试、导出和重启后的展示。原生服务端搜索的 URL 注解转换为应用引用；只返回命中 URL 时，在回答后列出“搜索来源”，标记为“服务端搜索来源”，不伪造摘要、正文或原文证据。其他网页来源区分搜索摘要与抓取正文，记录发布时间（未知时留空）及获取时间；只有本对话保存的网页引用可通过来源入口打开，原有官方来源规则保持兼容。
 - “券商导入”支持粘贴文字、TXT、XLSX 和图片，识别已成交买卖、税前现金分红和红利税。TXT/XLSX 在本地读取；图片能力同时按 Provider 适配器和当前模型 ID 判断，不支持图片理解的模型在点击上传、拖入和主进程提交识别前都会被阻止。识别结果会匹配当前自选股票、校验市场数量规则、汇率、重复流水和完整账本回放，并展示导入后的持仓/成本预览；所有选中记录作为一个 revision 原子提交，成交默认作为底仓交易，不自动写入 T 批次。
 
 ## 存储与凭证

@@ -1,7 +1,7 @@
-import { createHash } from 'node:crypto'
 import { BROWSER_USER_AGENT } from '../../../../../electron/main/http-user-agent'
 import type { AiMessage, AiProviderTool, AiProviderToolCall, WebCitation } from '../../shared/types'
 import { neutralizeHistoricalCitationMarkers } from '../citations/markers'
+import { WebSearchSources, webPageUrl } from './sources'
 
 const API_BASE = 'https://api.deepseek.com/v1/tools'
 const MAX_RESULTS = 10
@@ -46,20 +46,6 @@ interface SearchResult {
   authority: number
 }
 
-export function webPageUrl(value: string): URL {
-  const url = new URL(value)
-  if (
-    value.length > 8192 ||
-    !['http:', 'https:'].includes(url.protocol) ||
-    !url.hostname ||
-    url.username ||
-    url.password
-  ) {
-    throw new Error('网页地址必须是有效的 HTTP/HTTPS 链接，且不能包含用户名或密码')
-  }
-  return url
-}
-
 const REQUEST_ERRORS: Record<number, string> = {
   400: '网页搜索或抓取的请求参数无效',
   401: 'DeepSeek API Key 无效，请在服务设置中重新配置',
@@ -70,18 +56,20 @@ const REQUEST_ERRORS: Record<number, string> = {
 }
 
 export class WebSearchSession {
-  private readonly citationsByUrl = new Map<string, WebCitation>()
+  private readonly sources: WebSearchSources
   private searches = 0
   private fetches = 0
 
   constructor(
-    private readonly turnId: string,
+    turnId: string,
     private readonly getApiKey: () => string | undefined,
     private readonly onActivity: (activity: NonNullable<AiMessage['activity']>) => void
-  ) {}
+  ) {
+    this.sources = new WebSearchSources(turnId)
+  }
 
   citations(): WebCitation[] {
-    return [...this.citationsByUrl.values()]
+    return this.sources.citations()
   }
 
   async execute(call: AiProviderToolCall, signal: AbortSignal): Promise<string> {
@@ -117,7 +105,7 @@ export class WebSearchSession {
             0,
             2000
           )
-          const citation = this.recordCitation(
+          const citation = this.sources.record(
             url,
             item.title,
             summary,
@@ -153,7 +141,7 @@ export class WebSearchSession {
       if (!page.content?.trim()) throw new Error('未能取得网页正文')
       const sanitized = neutralizeHistoricalCitationMarkers(page.content)
       const content = sanitized.slice(0, MAX_PAGE_LENGTH)
-      const citation = this.recordCitation(url, page.title, content, 'content')
+      const citation = this.sources.record(url, page.title, content, 'content')
       return JSON.stringify({
         ok: true,
         citationId: citation.id,
@@ -200,42 +188,6 @@ export class WebSearchSession {
           `DeepSeek 网页请求失败（HTTP ${response.status}），请稍后重试`
       )
     return response.json() as Promise<T>
-  }
-
-  private recordCitation(
-    url: URL,
-    title: string,
-    text: string,
-    evidenceType: WebCitation['evidenceType'],
-    source?: string | null,
-    publishedAt?: string | null
-  ): WebCitation {
-    const existing = this.citationsByUrl.get(url.href)
-    const citation: WebCitation = {
-      id: existing?.id ?? `Sweb${this.turnId.slice(0, 8)}-${this.citationsByUrl.size + 1}`,
-      kind: 'web',
-      sourceRef: `web:${url.href}`,
-      title: neutralizeHistoricalCitationMarkers(title || existing?.title || url.hostname).slice(
-        0,
-        500
-      ),
-      source: neutralizeHistoricalCitationMarkers(source || existing?.source || url.hostname),
-      url: url.href,
-      publishedAt: publishedAt ?? existing?.publishedAt ?? null,
-      retrievedAt: new Date().toISOString(),
-      evidenceType: existing?.evidenceType === 'content' ? 'content' : evidenceType,
-      providedExcerpts: [
-        ...(existing?.providedExcerpts ?? []),
-        {
-          hash: createHash('sha256').update(text).digest('hex'),
-          start: 0,
-          end: text.length,
-          length: text.length
-        }
-      ]
-    }
-    this.citationsByUrl.set(url.href, citation)
-    return citation
   }
 
   private reportActivity(): void {
