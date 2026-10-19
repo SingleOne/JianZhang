@@ -11,6 +11,7 @@ import {
   DEFAULT_WATCHLIST_COLUMN_ORDER,
   WATCHLIST_COLUMN_ORDER_VERSION,
   type AppState,
+  type FloatingTickerPreferences,
   type KlinePeriod,
   type StockQuote,
   type StockDetailNavigationTarget,
@@ -281,6 +282,20 @@ function applyPreparedUserDataBackup(
 
 function sendToWindows(channel: string, payload: unknown): void {
   windowManager?.sendToWindows(channel, payload)
+}
+
+function updateFloatingTickerPreferences(preferences: Partial<FloatingTickerPreferences>): void {
+  if (process.platform !== 'darwin') return
+  if (
+    Object.entries(preferences).every(
+      ([key, value]) => state.settings[key as keyof FloatingTickerPreferences] === value
+    )
+  )
+    return
+  state = { ...state, settings: { ...state.settings, ...preferences } }
+  persistState()
+  sendToWindows('state:updated', state)
+  syncWindowSurfaces()
 }
 
 function showStockNavigationNotification(
@@ -957,6 +972,12 @@ if (!hasSingleInstanceLock) {
       showStockAlertNotification,
       showTFloatingProfitAlertNotification,
       hideMainWindow: () => windowManager?.hideMainWindow(),
+      showMainWindow: (quoteId) => windowManager?.showMainWindow(quoteId, 'sticky-top'),
+      closeMenuBarPanel: () => windowManager?.closeMenuBarPanel(),
+      resizeMenuBarPanel: (height) => windowManager?.resizeMenuBarPanel(height),
+      updateFloatingTickerPreferences,
+      resizeFloatingTicker: (height) => windowManager?.resizeFloatingTicker(height),
+      resetFloatingTickerPosition: () => windowManager?.resetFloatingTickerPosition(),
       restart: () => {
         app.relaunch()
         quitApp()
@@ -967,6 +988,14 @@ if (!hasSingleInstanceLock) {
     windowManager = new WindowManager(
       {
         getState: () => state,
+        getQuotes: getLatestQuotes,
+        updateFloatingTickerPreferences,
+        setMenuBarQuoteId: (quoteId) => {
+          state = { ...state, settings: { ...state.settings, menuBarQuoteId: quoteId } }
+          persistState()
+          sendToWindows('state:updated', state)
+          syncWindowSurfaces()
+        },
         isQuitting: () => isQuitting,
         refreshQuotes: () => quoteRuntime!.refreshAll(),
         setAutoRefreshQuotes,
@@ -1002,6 +1031,10 @@ if (!hasSingleInstanceLock) {
 }
 
 app.on('before-quit', cleanupBeforeQuit)
+
+app.on('activate', () => {
+  windowManager?.showMainWindow()
+})
 
 app.on('window-all-closed', () => {
   if (!state.settings.minimizeToTray && !windowManager?.isTaskbarMode()) app.quit()

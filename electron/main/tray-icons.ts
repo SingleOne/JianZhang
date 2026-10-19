@@ -66,3 +66,40 @@ export function createAppIcon(): NativeImage {
 
   return nativeImage.createFromBuffer(PNG.sync.write(png))
 }
+
+export function createMenuBarIcon(): NativeImage {
+  const image = nativeImage.createEmpty()
+  for (const scale of [1, 2]) {
+    const png = new PNG({ width: 16 * scale, height: 16 * scale })
+    const black: Color = [0, 0, 0, 255]
+    const points = [
+      [2, 12],
+      [6, 8],
+      [9, 10],
+      [14, 3]
+    ]
+    for (let index = 1; index < points.length; index += 1) {
+      const [startX, startY] = points[index - 1]
+      const [endX, endY] = points[index]
+      const steps = Math.max(Math.abs(endX - startX), Math.abs(endY - startY)) * scale
+      for (let step = 0; step <= steps; step += 1) {
+        const x = Math.round((startX + ((endX - startX) * step) / steps) * scale)
+        const y = Math.round((startY + ((endY - startY) * step) / steps) * scale)
+        for (let offsetX = 0; offsetX < scale; offsetX += 1) {
+          for (let offsetY = 0; offsetY < scale; offsetY += 1) {
+            setPixel(png, x + offsetX, y + offsetY, black)
+          }
+        }
+      }
+    }
+    for (let coordinate = 10 * scale; coordinate <= 14 * scale; coordinate += 1) {
+      for (let offset = 0; offset < scale; offset += 1) {
+        setPixel(png, coordinate, 3 * scale + offset, black)
+        setPixel(png, 14 * scale + offset, coordinate - 7 * scale, black)
+      }
+    }
+    image.addRepresentation({ scaleFactor: scale, buffer: PNG.sync.write(png) })
+  }
+  image.setTemplateImage(true)
+  return image
+}

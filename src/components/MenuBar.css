@@ -1,0 +1,118 @@
+html.menu-bar-mode #root {
+  overflow-y: auto;
+  border-radius: 10px;
+  color-scheme: light;
+}
+
+html.menu-bar-mode[data-theme='dark'] #root {
+  color-scheme: dark;
+}
+
+.tray-summary-panel.is-interactive {
+  height: auto;
+  min-height: 160px;
+  pointer-events: auto;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.is-interactive .tray-summary-list {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.is-interactive .tray-summary-item {
+  gap: 8px;
+  padding: 12px;
+}
+
+.is-interactive .tray-summary-heading,
+.is-interactive .tray-summary-profit,
+.is-interactive .tray-summary-t {
+  flex-wrap: wrap;
+}
+
+.is-interactive > header {
+  flex-wrap: wrap;
+  padding: 12px;
+}
+
+.is-interactive button {
+  padding: 5px 8px;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.is-interactive button:hover {
+  background: rgba(128, 128, 128, 0.13);
+}
+
+.is-interactive button:focus-visible {
+  outline: 2px solid #568be5;
+  outline-offset: 1px;
+}
+
+.is-interactive button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.is-interactive .menu-bar-stock-link {
+  overflow: hidden;
+  padding: 3px 0;
+  font-size: 14px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-bar-quote-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: #657187;
+  font-size: 12px;
+}
+
+.menu-bar-hint,
+.menu-bar-empty {
+  margin: 0;
+  padding: 16px 12px;
+  color: #657187;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.menu-bar-footer {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid rgba(128, 128, 128, 0.18);
+  font-size: 12px;
+}
+
+.menu-bar-footer > div {
+  display: flex;
+  justify-content: space-between;
+}
+
+.menu-bar-alert,
+.menu-bar-error {
+  color: #b15d17;
+  font-size: 12px;
+}
+
+:root[data-theme='dark'] .menu-bar-hint,
+:root[data-theme='dark'] .menu-bar-empty,
+:root[data-theme='dark'] .menu-bar-quote-meta {
+  color: #a4b0c2;
+}
+
+:root[data-theme='dark'] .menu-bar-alert,
+:root[data-theme='dark'] .menu-bar-error {
+  color: #efbb73;
+}

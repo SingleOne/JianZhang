@@ -30,6 +30,8 @@ import {
 } from '../shared/types'
 import { applyAppThemePreference } from '../lib/theme'
 import { AppButton } from './AppButton'
+import { stockApi } from '../lib/api'
+import { MenuBarSettings } from './MenuBarSettings'
 import './SettingsMenu.css'
 
 const MarketInsightSettingsToggle = __JIANZHANG_MARKET_INSIGHT_ENABLED__
@@ -186,6 +188,7 @@ export function SettingsMenu({
   onRefreshCacheSummary,
   onClearCaches
 }: SettingsMenuProps) {
+  const isMacOS = stockApi.platform === 'macos'
   const [activeTab, setActiveTab] = useState<SettingsTab>('market')
   const [githubPasswordEditing, setGitHubPasswordEditing] = useState(false)
   const [githubPasswordVisible, setGitHubPasswordVisible] = useState(false)
@@ -532,7 +535,7 @@ export function SettingsMenu({
               </div>
               <label className="setting-row">
                 <span>
-                  <strong>任务栏行情</strong>
+                  <strong>{isMacOS ? '菜单栏行情' : '任务栏行情'}</strong>
                   <small>显示已在“操作”列选中的股票</small>
                 </span>
                 <input
@@ -544,34 +547,41 @@ export function SettingsMenu({
                   }
                 />
               </label>
-              <label className="setting-row setting-row-position">
-                <span>
-                  <strong>任务栏横向位置</strong>
-                  <small>拖动滑块，避开任务栏已有内容</small>
-                </span>
-                <span className="position-slider-wrap">
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="1"
-                    value={settings.taskbarPositionPercent}
-                    onChange={(event) => {
-                      onChange({ ...settings, taskbarPositionPercent: Number(event.target.value) })
-                    }}
-                    aria-label="任务栏行情横向位置"
-                  />
-                  <span className="position-slider-labels">
-                    <span>最左</span>
-                    <output>{settings.taskbarPositionPercent}%</output>
-                    <span>最右</span>
+              {isMacOS ? (
+                <MenuBarSettings settings={settings} onChange={onChange} />
+              ) : (
+                <label className="setting-row setting-row-position">
+                  <span>
+                    <strong>任务栏横向位置</strong>
+                    <small>拖动滑块，避开任务栏已有内容</small>
                   </span>
-                </span>
-              </label>
+                  <span className="position-slider-wrap">
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={settings.taskbarPositionPercent}
+                      onChange={(event) => {
+                        onChange({
+                          ...settings,
+                          taskbarPositionPercent: Number(event.target.value)
+                        })
+                      }}
+                      aria-label="任务栏行情横向位置"
+                    />
+                    <span className="position-slider-labels">
+                      <span>最左</span>
+                      <output>{settings.taskbarPositionPercent}%</output>
+                      <span>最右</span>
+                    </span>
+                  </span>
+                </label>
+              )}
               <label className="setting-row">
                 <span>
                   <strong>开机自动启动</strong>
-                  <small>登录 Windows 后自动运行</small>
+                  <small>{isMacOS ? '登录 macOS 后自动运行' : '登录 Windows 后自动运行'}</small>
                 </span>
                 <input
                   className="switch-input"
@@ -585,7 +595,11 @@ export function SettingsMenu({
               <label className="setting-row">
                 <span>
                   <strong>关闭后驻留</strong>
-                  <small>继续在任务栏直接显示行情并后台刷新</small>
+                  <small>
+                    {isMacOS
+                      ? '继续在菜单栏显示行情并后台刷新'
+                      : '继续在任务栏直接显示行情并后台刷新'}
+                  </small>
                 </span>
                 <input
                   className="switch-input"

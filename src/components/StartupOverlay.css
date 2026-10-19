@@ -22,6 +22,10 @@
   -webkit-app-region: drag;
 }
 
+:root[data-platform='macos'] .startup-titlebar {
+  padding-left: 86px;
+}
+
 .startup-brand-mark {
   width: 25px;
   height: 25px;

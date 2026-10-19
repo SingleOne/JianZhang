@@ -1,4 +1,5 @@
 import type { StockTradingBook } from '../../shared/types'
+import { stockApi } from '../../lib/api'
 import { stockTOverview } from '../../lib/stock-accounts'
 import type { AccountFeeState } from '../../lib/account-trade-fees'
 import {
@@ -442,10 +443,14 @@ export const WatchlistRow = memo(function WatchlistRow({
               aria-pressed={stock.showInTaskbar}
               aria-label={
                 stock.showInTaskbar
-                  ? `取消在任务栏显示 ${stock.name}`
-                  : `在任务栏显示 ${stock.name}`
+                  ? `取消在${stockApi.platform === 'macos' ? '菜单栏' : '任务栏'}显示 ${stock.name}`
+                  : `在${stockApi.platform === 'macos' ? '菜单栏' : '任务栏'}显示 ${stock.name}`
               }
-              title={stock.showInTaskbar ? '取消任务栏展示' : '直接在任务栏显示实时价格'}
+              title={
+                stock.showInTaskbar
+                  ? `取消${stockApi.platform === 'macos' ? '菜单栏' : '任务栏'}展示`
+                  : `在${stockApi.platform === 'macos' ? '菜单栏' : '任务栏'}展示实时行情`
+              }
             >
               <MonitorUp size={15} />
             </button>

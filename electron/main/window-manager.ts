@@ -1,17 +1,21 @@
-import { BrowserWindow, Menu, nativeTheme, screen, Tray } from 'electron'
+import { BrowserWindow, Menu, MenuItem, nativeTheme, screen, Tray } from 'electron'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { getTaskbarVisibleStocks, shouldShowTaskbarTicker } from '../../src/lib/taskbar-visibility'
 import type {
   AppState,
   AutoRefreshQuoteScope,
+  FloatingTickerPreferences,
   StockSelectionRequest,
+  StockQuote,
   TaskbarLayout,
   TaskbarTooltipAnchor,
   WatchStock
 } from '../../src/shared/types'
 import { atomicWriteJsonSync } from './file-storage'
 import { createAppIcon } from './tray-icons'
+import { MacMenuBar } from './mac-menu-bar'
+import { MacFloatingTicker } from './mac-floating-ticker'
 
 const TASKBAR_TOOLTIP_WIDTH = 550
 const TASKBAR_TOOLTIP_DEFAULT_HEIGHT = 260
@@ -31,6 +35,9 @@ const MAIN_WINDOW_THEME_COLORS = {
 
 interface WindowManagerDependencies {
   getState: () => AppState
+  getQuotes: () => StockQuote[]
+  setMenuBarQuoteId: (quoteId: string) => void
+  updateFloatingTickerPreferences: (preferences: Partial<FloatingTickerPreferences>) => void
   isQuitting: () => boolean
   refreshQuotes: () => Promise<unknown>
   setAutoRefreshQuotes: (scope: AutoRefreshQuoteScope) => void
@@ -48,6 +55,8 @@ export class WindowManager {
   private taskbarTooltipWindow: BrowserWindow | null = null
   private trayPopupWindow: BrowserWindow | null = null
   private appTray: Tray | null = null
+  private macMenuBar: MacMenuBar | null = null
+  private floatingTicker: MacFloatingTicker | null = null
   private trayPopupShowTimer: NodeJS.Timeout | null = null
   private taskbarLayout: TaskbarLayout = { taskbarHeight: 48, taskbarEdge: 'bottom' }
   private taskbarContentSize: { width: number; height: number } | null = null
@@ -67,10 +76,13 @@ export class WindowManager {
   private readonly handleDisplayMetricsChanged = (): void => {
     this.syncTaskbarWindow()
     this.positionTrayPopupIfVisible()
+    this.floatingTicker?.restorePosition()
   }
 
   private readonly handleDisplayChanged = (): void => {
     this.syncTaskbarWindow()
+    this.positionTrayPopupIfVisible()
+    this.floatingTicker?.restorePosition()
   }
 
   private readonly handleNativeThemeUpdated = (): void => {
@@ -79,7 +91,7 @@ export class WindowManager {
 
   constructor(
     private readonly dependencies: WindowManagerDependencies,
-    userDataDirectory: string
+    private readonly userDataDirectory: string
   ) {
     this.windowStatePath = join(userDataDirectory, 'window-state.json')
     const windowState = this.loadMainWindowState()
@@ -90,8 +102,14 @@ export class WindowManager {
   create(): void {
     this.syncNativeThemeSource()
     if (!this.taskbarMode) this.createMainWindow()
+    if (process.platform === 'darwin') {
+      this.macMenuBar = new MacMenuBar(this.dependencies)
+      this.floatingTicker = new MacFloatingTicker(this.dependencies, this.userDataDirectory)
+      this.updateTrayMenu()
+    } else {
+      this.createTray()
+    }
     this.syncTaskbarWindow()
-    this.createTray()
     nativeTheme.on('updated', this.handleNativeThemeUpdated)
     screen.on('display-metrics-changed', this.handleDisplayMetricsChanged)
     screen.on('display-added', this.handleDisplayChanged)
@@ -160,6 +178,7 @@ export class WindowManager {
     detailTarget?: StockSelectionRequest['detailTarget']
   ): void {
     if (this.disposed || this.dependencies.isQuitting()) return
+    this.macMenuBar?.hidePanel()
     if (quoteId) {
       this.stockSelectionSequence += 1
       this.pendingStockSelection = {
@@ -213,6 +232,8 @@ export class WindowManager {
   }
 
   sendToWindows(channel: string, payload: unknown): void {
+    this.macMenuBar?.send(channel, payload)
+    this.floatingTicker?.send(channel, payload)
     for (const window of [
       this.mainWindow,
       this.taskbarWindow,
@@ -233,38 +254,105 @@ export class WindowManager {
   }
 
   updateTrayMenu(): void {
-    if (!this.appTray) return
+    if (!this.appTray && !this.macMenuBar) return
     const settings = this.dependencies.getState().settings
-
-    this.appTray.setContextMenu(
-      Menu.buildFromTemplate([
-        { label: '打开见涨', click: () => this.showMainWindow() },
-        { label: '立即刷新', click: () => void this.dependencies.refreshQuotes() },
-        { type: 'separator' },
-        {
-          label: `任务栏模式${this.taskbarMode ? '  ✓' : ''}`,
-          click: () => this.setTaskbarMode(!this.taskbarMode)
-        },
-        {
-          label: '自动刷新行情',
+    const selectedStocks = this.taskbarVisibleStocks()
+    const menu = Menu.buildFromTemplate([
+      { label: '打开见涨', click: () => this.showMainWindow() },
+      { label: '立即刷新', click: () => void this.dependencies.refreshQuotes() },
+      { type: 'separator' },
+      {
+        label: `${process.platform === 'darwin' ? '仅菜单栏模式' : '任务栏模式'}${this.taskbarMode ? '  ✓' : ''}`,
+        click: () => this.setTaskbarMode(!this.taskbarMode)
+      },
+      {
+        label: '自动刷新行情',
+        submenu: [
+          {
+            label: `全部${settings.autoRefreshQuotes && settings.autoRefreshQuoteScope === 'all' ? '  ✓' : ''}`,
+            click: () => this.dependencies.setAutoRefreshQuotes('all')
+          },
+          {
+            label: `重点关注${settings.autoRefreshQuotes && settings.autoRefreshQuoteScope === 'priority' ? '  ✓' : ''}`,
+            click: () => this.dependencies.setAutoRefreshQuotes('priority')
+          }
+        ]
+      },
+      { type: 'separator' },
+      { label: '退出', click: this.dependencies.quit }
+    ])
+    if (this.macMenuBar) {
+      const fixedQuoteId = selectedStocks.some((stock) => stock.quoteId === settings.menuBarQuoteId)
+        ? settings.menuBarQuoteId
+        : selectedStocks[0]?.quoteId
+      menu.insert(
+        2,
+        new MenuItem({
+          label: '固定显示股票',
+          submenu:
+            selectedStocks.length > 0
+              ? selectedStocks.map((stock) => ({
+                  label: stock.name,
+                  type: 'radio' as const,
+                  checked: stock.quoteId === fixedQuoteId,
+                  click: () => this.dependencies.setMenuBarQuoteId(stock.quoteId)
+                }))
+              : [{ label: '请先在自选列表中选择展示股票', enabled: false }]
+        })
+      )
+      menu.insert(
+        3,
+        new MenuItem({
+          label: '独立行情浮窗',
           submenu: [
             {
-              label: `全部${settings.autoRefreshQuotes && settings.autoRefreshQuoteScope === 'all' ? '  ✓' : ''}`,
-              click: () => this.dependencies.setAutoRefreshQuotes('all')
+              label: '显示浮窗',
+              type: 'checkbox',
+              checked: settings.showFloatingTicker,
+              click: () =>
+                this.dependencies.updateFloatingTickerPreferences({
+                  showFloatingTicker: !settings.showFloatingTicker
+                })
             },
             {
-              label: `重点关注${settings.autoRefreshQuotes && settings.autoRefreshQuoteScope === 'priority' ? '  ✓' : ''}`,
-              click: () => this.dependencies.setAutoRefreshQuotes('priority')
+              label: '窗口置顶',
+              type: 'checkbox',
+              checked: settings.floatingTickerAlwaysOnTop,
+              click: () =>
+                this.dependencies.updateFloatingTickerPreferences({
+                  floatingTickerAlwaysOnTop: !settings.floatingTickerAlwaysOnTop
+                })
+            },
+            {
+              label: '所有桌面显示',
+              type: 'checkbox',
+              checked: settings.floatingTickerAllWorkspaces,
+              click: () =>
+                this.dependencies.updateFloatingTickerPreferences({
+                  floatingTickerAllWorkspaces: !settings.floatingTickerAllWorkspaces
+                })
+            },
+            { type: 'separator' },
+            {
+              label: '重置浮窗位置',
+              enabled: settings.showFloatingTicker,
+              click: () => this.floatingTicker?.resetPosition()
             }
           ]
-        },
-        { type: 'separator' },
-        { label: '退出', click: this.dependencies.quit }
-      ])
-    )
+        })
+      )
+      this.macMenuBar.setMenu(menu)
+    } else {
+      this.appTray?.setContextMenu(menu)
+    }
   }
 
   syncTaskbarWindow(): void {
+    if (process.platform === 'darwin') {
+      this.macMenuBar?.sync()
+      this.floatingTicker?.sync()
+      return
+    }
     const state = this.dependencies.getState()
     const shouldShow = shouldShowTaskbarTicker(state.settings.showTaskbarTicker, state.watchlist)
 
@@ -283,12 +371,17 @@ export class WindowManager {
   }
 
   positionTrayPopupIfVisible(): void {
+    this.macMenuBar?.positionPanelIfVisible()
     if (this.trayPopupWindow?.isVisible()) this.positionTrayPopupWindow()
   }
 
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
+    this.macMenuBar?.dispose()
+    this.macMenuBar = null
+    this.floatingTicker?.dispose()
+    this.floatingTicker = null
     screen.removeListener('display-metrics-changed', this.handleDisplayMetricsChanged)
     screen.removeListener('display-added', this.handleDisplayChanged)
     screen.removeListener('display-removed', this.handleDisplayChanged)
@@ -327,11 +420,28 @@ export class WindowManager {
     if (!window) return
     const colors = this.mainWindowThemeColors()
     window.setBackgroundColor(colors.background)
-    window.setTitleBarOverlay({
-      color: colors.titleBar,
-      symbolColor: colors.symbols,
-      height: MAIN_WINDOW_TITLEBAR_HEIGHT
-    })
+    if (process.platform !== 'darwin')
+      window.setTitleBarOverlay({
+        color: colors.titleBar,
+        symbolColor: colors.symbols,
+        height: MAIN_WINDOW_TITLEBAR_HEIGHT
+      })
+  }
+
+  closeMenuBarPanel(): void {
+    this.macMenuBar?.hidePanel()
+  }
+
+  resizeMenuBarPanel(height: number): void {
+    this.macMenuBar?.resizePanel(height)
+  }
+
+  resizeFloatingTicker(height: number): void {
+    this.floatingTicker?.resize(height)
+  }
+
+  resetFloatingTickerPosition(): void {
+    this.floatingTicker?.resetPosition()
   }
 
   private loadMainWindowState(): MainWindowState {
@@ -680,13 +790,16 @@ export class WindowManager {
       minHeight: 700,
       show: false,
       backgroundColor: colors.background,
-      backgroundMaterial: 'mica',
-      titleBarStyle: 'hidden',
-      titleBarOverlay: {
-        color: colors.titleBar,
-        symbolColor: colors.symbols,
-        height: MAIN_WINDOW_TITLEBAR_HEIGHT
-      },
+      backgroundMaterial: process.platform === 'win32' ? 'mica' : undefined,
+      titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden',
+      titleBarOverlay:
+        process.platform === 'darwin'
+          ? undefined
+          : {
+              color: colors.titleBar,
+              symbolColor: colors.symbols,
+              height: MAIN_WINDOW_TITLEBAR_HEIGHT
+            },
       icon: createAppIcon(),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
@@ -721,6 +834,14 @@ export class WindowManager {
         this.mainWindowReady = false
         this.mainWindowSelectionReady = false
         this.pendingStockSelection = null
+      }
+      if (
+        process.platform === 'darwin' &&
+        !this.dependencies.isQuitting() &&
+        !this.taskbarMode &&
+        !this.dependencies.getState().settings.minimizeToTray
+      ) {
+        this.dependencies.quit()
       }
     })
 

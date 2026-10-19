@@ -27,6 +27,15 @@ function subscribe<T>(channel: string, callback: (payload: T) => void): () => vo
 }
 
 const api: StockDesktopApi = {
+  platform:
+    process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : 'other',
+  showMainWindow: (quoteId) => ipcRenderer.invoke('app:show', quoteId),
+  closeMenuBarPanel: () => ipcRenderer.invoke('menu-bar:close'),
+  resizeMenuBarPanel: (height) => ipcRenderer.invoke('menu-bar:resize', height),
+  updateFloatingTickerPreferences: (preferences) =>
+    ipcRenderer.invoke('floating-ticker:preferences:set', preferences),
+  resizeFloatingTicker: (height) => ipcRenderer.invoke('floating-ticker:resize', height),
+  resetFloatingTickerPosition: () => ipcRenderer.invoke('floating-ticker:position:reset'),
   getBootstrap: () => ipcRenderer.invoke('app:bootstrap'),
   getStockTrackingArchiveCycle: (quoteId, cycleId) =>
     ipcRenderer.invoke('tracking:archive-cycle:get', quoteId, cycleId),

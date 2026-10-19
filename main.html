@@ -6,6 +6,7 @@
     <meta name="theme-color" content="#ffffff" />
     <title>见涨</title>
     <script>
+      document.documentElement.dataset.platform = window.stockApi?.platform || 'other'
       const themePreference = localStorage.getItem('jianzhang-theme-preference-v1')
       const startupTheme =
         themePreference === 'dark' ||

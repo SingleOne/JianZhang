@@ -836,6 +836,10 @@
   border-radius: 8px;
 }
 
+.theme-option-group.floating-ticker-setting-options {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .theme-option-group button {
   min-width: 78px;
   height: 31px;

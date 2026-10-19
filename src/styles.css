@@ -83,6 +83,10 @@ tr:focus-visible {
   user-select: none;
 }
 
+:root[data-platform='macos'] .titlebar {
+  padding: 0 16px 0 86px;
+}
+
 .brand-mark {
   width: 25px;
   height: 25px;
