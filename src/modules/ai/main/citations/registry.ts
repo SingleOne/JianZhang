@@ -7,7 +7,8 @@ import type {
   DocumentCitation,
   FactCitation,
   HistoryCitation,
-  StockCitation
+  StockCitation,
+  WebCitation
 } from '../../shared/types'
 import { neutralizeHistoricalCitationMarkers } from './markers'
 
@@ -108,6 +109,10 @@ export class TurnSourceRegistry {
       }
       this.citationsByRef.set(sourceRef, normalized)
     }
+  }
+
+  registerWeb(citations: readonly WebCitation[]): void {
+    for (const citation of citations) this.citationsByRef.set(citation.sourceRef, citation)
   }
 
   markerForMemory(source: MemorySource, identity: MemoryCitationIdentity): string | null {

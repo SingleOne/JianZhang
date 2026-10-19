@@ -12,6 +12,7 @@ import type {
   MessageCitation
 } from '../shared/types'
 import { AI_PROVIDER_IDS } from '../shared/types'
+import { webPageUrl } from './web-search/tool'
 
 const DEFAULT_SETTINGS: AiSettings = {
   enabled: true,
@@ -37,6 +38,23 @@ function normalizeCitation(value: unknown): MessageCitation | null {
   if (!value || typeof value !== 'object') return null
   const citation = value as Record<string, unknown>
   if (typeof citation.id !== 'string') return null
+  if (citation.kind === 'web') {
+    if (
+      typeof citation.url !== 'string' ||
+      typeof citation.title !== 'string' ||
+      typeof citation.source !== 'string' ||
+      typeof citation.sourceRef !== 'string' ||
+      typeof citation.retrievedAt !== 'string' ||
+      !Array.isArray(citation.providedExcerpts)
+    )
+      return null
+    try {
+      webPageUrl(citation.url)
+      return value as MessageCitation
+    } catch {
+      return null
+    }
+  }
   if (citation.kind === 'document' || citation.kind === 'history' || citation.kind === 'fact')
     return value as MessageCitation
   if (

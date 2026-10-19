@@ -36,6 +36,7 @@ import {
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { AppSelect, type AppSelectOption } from '../../../components/AppSelect'
+import { AppButton } from '../../../components/AppButton'
 import { useConfirmDialog } from '../../../components/ConfirmDialog'
 import { supportsImageUnderstanding } from '../shared/model-capabilities'
 import { TradeImportPanel } from './TradeImportPanel'
@@ -141,7 +142,7 @@ function MarkdownMessage({
 }
 
 function citationPresentation(citation: MessageCitation): {
-  kind: 'stock' | 'document' | 'history' | 'fact'
+  kind: 'stock' | 'web' | 'document' | 'history' | 'fact'
   title: string
   detail: string
   url?: string
@@ -159,6 +160,22 @@ function citationPresentation(citation: MessageCitation): {
       detail: `历史消息${citation.occurredAt ? ` · ${new Date(citation.occurredAt).toLocaleString('zh-CN')}` : ''}`
     }
   if (citation.kind === 'fact') return { kind: 'fact', title: citation.key, detail: '用户信息' }
+  if (citation.kind === 'web')
+    return {
+      kind: 'web',
+      title: citation.title,
+      detail: [
+        citation.source,
+        citation.evidenceType === 'content' ? '网页正文' : '搜索摘要',
+        citation.publishedAt
+          ? `发布于 ${new Date(citation.publishedAt).toLocaleDateString('zh-CN')}`
+          : '',
+        `获取于 ${new Date(citation.retrievedAt).toLocaleString('zh-CN')}`
+      ]
+        .filter(Boolean)
+        .join(' · '),
+      url: citation.url
+    }
   return {
     kind: 'stock',
     title: citation.title,
@@ -201,22 +218,19 @@ function MessageSources({
                 <b>{presentation.title}</b>
                 <small>{presentation.detail}</small>
               </span>
-              {presentation.kind === 'stock' ? (
-                <ExternalLink size={13} />
-              ) : (
-                <ReceiptText size={13} />
-              )}
+              {presentation.url ? <ExternalLink size={13} /> : <ReceiptText size={13} />}
             </>
           )
           return presentation.url ? (
-            <button
+            <AppButton
+              variant="plain"
               className="ai-message-source"
               type="button"
               key={`${citation.id}:${presentation.url}`}
               onClick={() => onOpenSource(presentation.url!)}
             >
               {body}
-            </button>
+            </AppButton>
           ) : (
             <button
               type="button"
@@ -425,6 +439,7 @@ function ChatThread({
                       </small>
                     ))}
                     {message.officialSearch ? <small>联网搜索</small> : null}
+                    {message.webSearch ? <small>网页搜索</small> : null}
                   </div>
                   {message.role === 'assistant' ? (
                     <MarkdownMessage
@@ -432,9 +447,13 @@ function ChatThread({
                       content={
                         message.content ||
                         (message.status === 'pending' || message.status === 'streaming'
-                          ? message.officialSearch
-                            ? '正在联网搜索股票信息…'
-                            : '正在生成…'
+                          ? message.activity === 'searching'
+                            ? '正在搜索网页…'
+                            : message.activity === 'fetching'
+                              ? '正在读取网页…'
+                              : message.officialSearch
+                                ? '正在联网搜索股票信息…'
+                                : '正在生成…'
                           : '')
                       }
                     />
@@ -808,7 +827,7 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
   const [mentionTrigger, setMentionTrigger] = useState<MentionTrigger | null>(null)
   const [activeMentionIndex, setActiveMentionIndex] = useState(0)
   const [includeStockContext, setIncludeStockContext] = useState(true)
-  const [officialSearch, setOfficialSearch] = useState(false)
+  const [onlineSearch, setOnlineSearch] = useState(false)
   const [sendingMessage, setSendingMessage] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -843,7 +862,10 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
   const stockSearchAvailable = Boolean(
     (activeConversation?.scope === 'stock' && includeStockContext) || mentionedStocks.length > 0
   )
-  const officialSearchEnabled = officialSearch && stockSearchAvailable
+  const webSearchAvailable = Boolean(status?.credentials.deepseek.configured)
+  const webSearchEnabled = onlineSearch && webSearchAvailable
+  const officialSearchEnabled = onlineSearch && !webSearchAvailable && stockSearchAvailable
+  const onlineSearchEnabled = webSearchEnabled || officialSearchEnabled
   const activeProviderLabel =
     status?.providers.find((provider) => provider.id === settings?.providerId)?.label ??
     '当前 Provider'
@@ -947,7 +969,7 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
     setComposer('')
     setMentionedStocks([])
     setMentionTrigger(null)
-    setOfficialSearch(false)
+    setOnlineSearch(false)
   }, [activeConversationId])
 
   useEffect(() => {
@@ -965,12 +987,17 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
       )
       void loadConversations(search)
     }
-    const unDelta = api.onChatDelta(({ conversationId, messageId, delta }) => {
+    const unDelta = api.onChatDelta(({ conversationId, messageId, delta, activity }) => {
       if (conversationId !== activeConversationId) return
       setMessages((current) =>
         current.map((message) =>
           message.id === messageId
-            ? { ...message, content: `${message.content}${delta}`, status: 'streaming' }
+            ? {
+                ...message,
+                content: `${message.content}${delta}`,
+                status: 'streaming',
+                activity: activity ?? 'thinking'
+              }
             : message
         )
       )
@@ -1062,7 +1089,8 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
         content,
         includeStockContext,
         mentionedStocks: messageMentions,
-        officialSearch: officialSearchEnabled
+        officialSearch: officialSearchEnabled,
+        webSearch: webSearchEnabled
       })
       setMessages((current) => [...current, result.userMessage, result.assistantMessage])
       await loadConversations(search)
@@ -1357,9 +1385,9 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
                 onExport={() => void exportConversation()}
                 onOpenSource={(url) =>
                   void api
-                    .openSource(url)
+                    .openSource(url, activeConversation?.id)
                     .catch((reason: unknown) =>
-                      setError(reason instanceof Error ? reason.message : '无法打开官方来源')
+                      setError(reason instanceof Error ? reason.message : '无法打开来源')
                     )
                 }
               />
@@ -1412,23 +1440,24 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
                       <AtSign size={14} />
                       股票
                     </button>
-                    <button
-                      className={`ai-stock-search-toggle${
-                        officialSearchEnabled ? ' is-active' : ''
-                      }`}
+                    <AppButton
+                      variant="plain"
+                      className={`ai-stock-search-toggle${onlineSearchEnabled ? ' is-active' : ''}`}
                       type="button"
-                      disabled={sendingMessage || !stockSearchAvailable}
+                      disabled={sendingMessage || (!webSearchAvailable && !stockSearchAvailable)}
                       title={
-                        stockSearchAvailable
-                          ? `让 ${activeProviderLabel} 联网检索当前消息股票的官方公开信息`
-                          : '请先添加当前股票上下文或通过 @ 引用股票'
+                        webSearchAvailable
+                          ? '通过 DeepSeek 搜索公开网页并按需读取原文，按成功请求计费'
+                          : stockSearchAvailable
+                            ? `让 ${activeProviderLabel} 联网检索当前消息股票的官方公开信息`
+                            : '请先添加当前股票上下文或通过 @ 引用股票'
                       }
-                      aria-pressed={officialSearchEnabled}
-                      onClick={() => setOfficialSearch((current) => !current)}
+                      aria-pressed={onlineSearchEnabled}
+                      onClick={() => setOnlineSearch((current) => !current)}
                     >
                       <Globe2 size={14} />
-                      联网搜索
-                    </button>
+                      {webSearchAvailable ? '网页搜索' : '联网搜索'}
+                    </AppButton>
                   </div>
                   <div className="ai-composer-editor">
                     <textarea

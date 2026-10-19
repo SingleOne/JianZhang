@@ -71,6 +71,8 @@ import { OpenAiCompatibleProvider } from './providers/openai-compatible'
 import { OpenAiApiProvider } from './providers/openai-api'
 import { AiSecrets } from './secrets'
 import { AiStorage } from './storage'
+import { isOfficialStockSourceUrl } from './official-source'
+import { WEB_SEARCH_TOOLS, WebSearchSession, webPageUrl } from './web-search/tool'
 import { MemoryBridge } from './memory/bridge'
 import { TurnSourceRegistry } from './citations/registry'
 import {
@@ -714,6 +716,24 @@ export class AiService {
       .map((conversation) => this.storage.exportConversation(conversation.id))
   }
 
+  assertSourceUrl(url: string, conversationId?: string): void {
+    if (isOfficialStockSourceUrl(url)) return
+    const page = webPageUrl(url)
+    if (!conversationId) throw new Error('请从对话中的网页引用打开来源')
+    this.requireConversation(conversationId)
+    if (
+      !this.storage
+        .getMessages(conversationId)
+        .some((message) =>
+          message.citations?.some(
+            (citation) => citation.kind === 'web' && citation.url === page.href
+          )
+        )
+    ) {
+      throw new Error('只能打开本对话已引用的网页或受支持的官方来源')
+    }
+  }
+
   async sendChat(webContents: WebContents, input: AiChatSendInput): Promise<AiChatStartResult> {
     const settings = this.storage.getSettings()
     if (!settings.enabled) throw new Error('AI 助手当前已关闭')
@@ -721,6 +741,9 @@ export class AiService {
     const content = input.content.trim()
     if (!content) throw new Error('请输入消息')
     if (this.activeChats.has(conversation.id)) throw new Error('当前会话正在生成，请先停止')
+    if (input.webSearch && !this.getCredential('deepseek')) {
+      throw new Error('请先在服务设置中配置 DeepSeek API Key，才能搜索或读取网页')
+    }
 
     const stockRequests = this.getStockContextRequests(
       conversation,
@@ -731,11 +754,12 @@ export class AiService {
       throw new Error('请先添加当前股票上下文或通过 @ 引用股票')
     }
     const stockDataSession =
-      (settings.providerId === 'deepseek' || input.officialSearch) && stockRequests.length > 0
+      (settings.providerId === 'deepseek' || input.officialSearch || input.webSearch) &&
+      stockRequests.length > 0
         ? new StockDataToolSession(stockRequests, this.dependencies)
         : undefined
     const stockSearchSession =
-      input.officialSearch && stockDataSession
+      (input.officialSearch || input.webSearch) && stockDataSession
         ? new StockInformationSearchSession(stockDataSession.manifest, this.dependencies)
         : undefined
     const contexts = stockDataSession ? [] : await this.getConversationContexts(stockRequests)
@@ -761,7 +785,8 @@ export class AiService {
       status: 'completed',
       createdAt,
       contextRefs: contextRefs.length > 0 ? contextRefs : undefined,
-      officialSearch: input.officialSearch || undefined
+      officialSearch: input.officialSearch || undefined,
+      webSearch: input.webSearch || undefined
     }
     const assistantMessage: AiMessage = {
       id: randomUUID(),
@@ -773,7 +798,8 @@ export class AiService {
       providerId: settings.providerId,
       model: settings.model,
       contextRefs: userMessage.contextRefs,
-      officialSearch: input.officialSearch || undefined
+      officialSearch: input.officialSearch || undefined,
+      webSearch: input.webSearch || undefined
     }
     this.storage.appendMessage(userMessage)
     this.storage.saveConversation({
@@ -826,7 +852,8 @@ export class AiService {
           name: context.quoteName ?? context.quoteId,
           marketLabel: context.marketLabel ?? ''
         })),
-      officialSearch: userMessage.officialSearch
+      officialSearch: userMessage.officialSearch,
+      webSearch: userMessage.webSearch
     })
   }
 
@@ -1161,6 +1188,19 @@ export class AiService {
     this.activeChats.set(pendingMessage.conversationId, controller)
     const sourceRegistry = new TurnSourceRegistry()
     const streamFilter = new CitationStreamFilter(() => sourceRegistry.registered())
+    const webSearchSession = pendingMessage.webSearch
+      ? new WebSearchSession(
+          pendingMessage.id,
+          () => this.getCredential('deepseek'),
+          (activity) =>
+            this.send(webContents, 'ai:chat:delta', {
+              conversationId: pendingMessage.conversationId,
+              messageId: pendingMessage.id,
+              delta: '',
+              activity
+            })
+        )
+      : undefined
     let prepared: Awaited<ReturnType<MemoryBridge['prepare']>> = null
     let memoryAvailable = false
     try {
@@ -1184,6 +1224,7 @@ export class AiService {
         ...(stockDataSession
           ? [STOCK_DATA_TOOL, ...(stockSearchSession ? [STOCK_INFORMATION_SEARCH_TOOL] : [])]
           : []),
+        ...(webSearchSession ? WEB_SEARCH_TOOLS : []),
         ...(memoryAvailable ? MEMORY_TOOLS : [])
       ]
       const result = await this.requireProvider(providerId).streamChat(
@@ -1195,7 +1236,8 @@ export class AiService {
             contexts,
             stockDataSession?.manifest,
             Boolean(stockSearchSession),
-            memoryContext
+            memoryContext,
+            Boolean(webSearchSession)
           ),
           tools: tools.length ? tools : undefined
         },
@@ -1209,8 +1251,13 @@ export class AiService {
             })
         },
         controller.signal,
-        stockDataSession || memoryAvailable
+        stockDataSession || memoryAvailable || webSearchSession
           ? async (call, signal) => {
+              if (webSearchSession && WEB_SEARCH_TOOLS.some((tool) => tool.name === call.name)) {
+                const output = await webSearchSession.execute(call, signal)
+                sourceRegistry.registerWeb(webSearchSession.citations())
+                return output
+              }
               if (memoryAvailable && call.name === 'search_user_context') {
                 const args = JSON.parse(call.arguments) as { query: string }
                 const sources = await this.memory.search(
@@ -1362,7 +1409,7 @@ export class AiService {
   ): import('../shared/types').AiMessageContextUse[] | undefined {
     const refs = new Set(cited.map((citation) => citation.sourceRef))
     const uses = registry.provided().flatMap((citation) =>
-      citation.kind === 'stock'
+      citation.kind === 'stock' || citation.kind === 'web'
         ? []
         : [
             {

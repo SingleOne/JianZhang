@@ -4,12 +4,7 @@ import { join } from 'node:path'
 import { safeStorage } from 'electron'
 import { atomicWriteFileSync, atomicWriteJsonSync } from '../../../../../electron/main/file-storage'
 import { BROWSER_USER_AGENT } from '../../../../../electron/main/http-user-agent'
-import type {
-  AiConversation,
-  AiMessageContextUse,
-  ChatCitation,
-  StockCitation
-} from '../../shared/types'
+import type { AiConversation, AiMessageContextUse, MemoryCitation } from '../../shared/types'
 import type {
   MemoryCandidate,
   MemoryCapabilities,
@@ -592,7 +587,7 @@ export class MemoryBridge {
   }
   async readChatSource(
     conversationId: string,
-    citation: Exclude<ChatCitation, StockCitation>
+    citation: MemoryCitation
   ): Promise<ChatMemorySourceResult> {
     const profile = this.active()
     const binding = this.state.bindings[conversationId]

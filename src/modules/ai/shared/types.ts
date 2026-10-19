@@ -246,6 +246,8 @@ export interface AiMessage {
   contextRefs?: AiContextRef[]
   sourceIds?: string[]
   officialSearch?: boolean
+  webSearch?: boolean
+  activity?: 'searching' | 'fetching' | 'thinking'
   citations?: MessageCitation[]
   contextUses?: AiMessageContextUse[]
   errorMessage?: string
@@ -324,14 +326,28 @@ export type StockCitation = AiSourceCitation & {
   providedExcerpts: CitationExcerpt[]
 }
 
-export type ChatCitation = StockCitation | DocumentCitation | HistoryCitation | FactCitation
+export interface WebCitation {
+  id: string
+  kind: 'web'
+  sourceRef: string
+  title: string
+  source: string
+  url: string
+  publishedAt: string | null
+  retrievedAt: string
+  evidenceType: 'summary' | 'content'
+  providedExcerpts: CitationExcerpt[]
+}
+
+export type MemoryCitation = DocumentCitation | HistoryCitation | FactCitation
+export type ChatCitation = StockCitation | WebCitation | MemoryCitation
 
 export type MessageCitation = AiSourceCitation | ChatCitation
 
 export interface AiMessageContextUse {
   turnId: string
   usage: 'provided' | 'cited'
-  citation: Exclude<ChatCitation, StockCitation>
+  citation: MemoryCitation
 }
 
 export interface AiCreateConversationInput {
@@ -346,6 +362,7 @@ export interface AiChatSendInput {
   includeStockContext?: boolean
   mentionedStocks?: AiStockMention[]
   officialSearch?: boolean
+  webSearch?: boolean
 }
 
 export interface AiChatStartResult {
@@ -357,6 +374,7 @@ export interface AiChatDeltaEvent {
   conversationId: string
   messageId: string
   delta: string
+  activity?: AiMessage['activity']
 }
 
 export interface AiChatCompletedEvent {
@@ -471,7 +489,7 @@ export interface AiApi {
   retryChat: (conversationId: string, messageId: string) => Promise<AiChatStartResult>
   prepareTradeImport: (input: AiTradeImportPrepareInput) => Promise<AiTradeImportDraft>
   commitTradeImport: (input: AiTradeImportCommitInput) => Promise<AiTradeImportCommitResult>
-  openSource: (url: string) => Promise<void>
+  openSource: (url: string, conversationId?: string) => Promise<void>
   getLatestInterpretation: (quoteId: string) => Promise<AiInterpretationResult | null>
   interpret: (quoteId: string) => Promise<AiInterpretationResult>
   getLatestLongTermInterpretation: (

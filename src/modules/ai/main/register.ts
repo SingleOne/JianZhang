@@ -12,7 +12,6 @@ import type {
 } from '../shared/types'
 import { AiService } from './service'
 import { AiStorage } from './storage'
-import { assertOfficialStockSourceUrl } from './official-source'
 
 export { applyTradeImportToState } from './trade-import/commit'
 
@@ -196,8 +195,8 @@ export function installAi(dependencies: AiModuleDependencies): AiRuntime {
   handle(AI_IPC.tradeImportCommit, (_event, input: AiTradeImportCommitInput) =>
     service.commitTradeImport(input)
   )
-  handle(AI_IPC.sourceOpen, (_event, url: string) => {
-    assertOfficialStockSourceUrl(url)
+  handle(AI_IPC.sourceOpen, (_event, url: string, conversationId?: string) => {
+    service.assertSourceUrl(url, conversationId)
     return shell.openExternal(url)
   })
   handle(AI_IPC.analysisLatestGet, (_event, quoteId: string) =>
