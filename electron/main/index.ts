@@ -11,7 +11,6 @@ import {
   DEFAULT_WATCHLIST_COLUMN_ORDER,
   WATCHLIST_COLUMN_ORDER_VERSION,
   type AppState,
-  type FloatingTickerPreferences,
   type KlinePeriod,
   type StockQuote,
   type StockDetailNavigationTarget,
@@ -282,20 +281,6 @@ function applyPreparedUserDataBackup(
 
 function sendToWindows(channel: string, payload: unknown): void {
   windowManager?.sendToWindows(channel, payload)
-}
-
-function updateFloatingTickerPreferences(preferences: Partial<FloatingTickerPreferences>): void {
-  if (process.platform !== 'darwin') return
-  if (
-    Object.entries(preferences).every(
-      ([key, value]) => state.settings[key as keyof FloatingTickerPreferences] === value
-    )
-  )
-    return
-  state = { ...state, settings: { ...state.settings, ...preferences } }
-  persistState()
-  sendToWindows('state:updated', state)
-  syncWindowSurfaces()
 }
 
 function showStockNavigationNotification(
@@ -975,9 +960,6 @@ if (!hasSingleInstanceLock) {
       showMainWindow: (quoteId) => windowManager?.showMainWindow(quoteId, 'sticky-top'),
       closeMenuBarPanel: () => windowManager?.closeMenuBarPanel(),
       resizeMenuBarPanel: (height) => windowManager?.resizeMenuBarPanel(height),
-      updateFloatingTickerPreferences,
-      resizeFloatingTicker: (height) => windowManager?.resizeFloatingTicker(height),
-      resetFloatingTickerPosition: () => windowManager?.resetFloatingTickerPosition(),
       restart: () => {
         app.relaunch()
         quitApp()
@@ -989,7 +971,6 @@ if (!hasSingleInstanceLock) {
       {
         getState: () => state,
         getQuotes: getLatestQuotes,
-        updateFloatingTickerPreferences,
         setMenuBarQuoteId: (quoteId) => {
           state = { ...state, settings: { ...state.settings, menuBarQuoteId: quoteId } }
           persistState()

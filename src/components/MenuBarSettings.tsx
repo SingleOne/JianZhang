@@ -1,6 +1,5 @@
 import type { AppSettings } from '../shared/types'
 import { AppButton } from './AppButton'
-import { FloatingTickerSettings } from './FloatingTickerSettings'
 
 const DISPLAY_OPTIONS = [
   { value: 'stock', label: '单股行情' },
@@ -59,7 +58,6 @@ export function MenuBarSettings({
           </div>
         </div>
       ) : null}
-      <FloatingTickerSettings settings={settings} onChange={onChange} />
     </>
   )
 }

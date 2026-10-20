@@ -2506,9 +2506,6 @@ export interface AppSettings {
   menuBarDisplayMode: 'stock' | 'profit' | 'icon'
   menuBarQuoteId: string | null
   menuBarRotationSeconds: number
-  showFloatingTicker: boolean
-  floatingTickerAlwaysOnTop: boolean
-  floatingTickerAllWorkspaces: boolean
   tTradingFees: TTradingFeeSettings
   marketTradeFees: MarketTradeFeeSettings
   tPlanDefaults: TPlanDefaultSettings
@@ -2516,11 +2513,6 @@ export interface AppSettings {
   tradingCalendar: TradingCalendarSettings
   exchangeRates: ExchangeRateSettings
 }
-
-export type FloatingTickerPreferences = Pick<
-  AppSettings,
-  'showFloatingTicker' | 'floatingTickerAlwaysOnTop' | 'floatingTickerAllWorkspaces'
->
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   theme: 'system',
@@ -2539,9 +2531,6 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   menuBarDisplayMode: 'stock',
   menuBarQuoteId: null,
   menuBarRotationSeconds: 0,
-  showFloatingTicker: false,
-  floatingTickerAlwaysOnTop: true,
-  floatingTickerAllWorkspaces: false,
   tTradingFees: { ...DEFAULT_T_TRADING_FEE_SETTINGS },
   marketTradeFees: structuredClone(DEFAULT_MARKET_TRADE_FEE_SETTINGS),
   tPlanDefaults: structuredClone(DEFAULT_T_PLAN_SETTINGS),
@@ -2773,9 +2762,6 @@ export function normalizeAppSettings(settings: Partial<AppSettings> | undefined)
     menuBarRotationSeconds: [5, 10, 15, 30].includes(menuBarRotationSeconds)
       ? menuBarRotationSeconds
       : 0,
-    showFloatingTicker: settings?.showFloatingTicker === true,
-    floatingTickerAlwaysOnTop: settings?.floatingTickerAlwaysOnTop !== false,
-    floatingTickerAllWorkspaces: settings?.floatingTickerAllWorkspaces === true,
     tTradingFees: normalizeTTradingFeeSettings(settings?.tTradingFees),
     marketTradeFees: normalizeMarketTradeFeeSettings(settings?.marketTradeFees),
     tPlanDefaults: normalizeTPlanDefaultSettings(settings?.tPlanDefaults),
@@ -3028,11 +3014,6 @@ export interface StockDesktopApi {
   showMainWindow: (quoteId?: string) => Promise<void>
   closeMenuBarPanel: () => Promise<void>
   resizeMenuBarPanel: (height: number) => Promise<void>
-  updateFloatingTickerPreferences: (
-    preferences: Partial<FloatingTickerPreferences>
-  ) => Promise<void>
-  resizeFloatingTicker: (height: number) => Promise<void>
-  resetFloatingTickerPosition: () => Promise<void>
   getBootstrap: () => Promise<BootstrapResult>
   getStockTrackingArchiveCycle: (quoteId: string, cycleId: string) => Promise<StockTrackingProfile>
   archiveStockTrackingCycle: (

@@ -7,22 +7,16 @@ const taskbarMode = windowMode === 'taskbar'
 const taskbarTooltipMode = windowMode === 'taskbar-tooltip'
 const trayMode = windowMode === 'tray'
 const menuBarMode = windowMode === 'menu-bar'
-const floatingTickerMode = windowMode === 'floating-ticker'
 document.documentElement.classList.toggle('taskbar-mode', taskbarMode)
 document.documentElement.classList.toggle('taskbar-tooltip-mode', taskbarTooltipMode)
 document.documentElement.classList.toggle('tray-mode', trayMode)
 document.documentElement.classList.toggle('menu-bar-mode', menuBarMode)
-document.documentElement.classList.toggle('floating-ticker-mode', floatingTickerMode)
 
 if (taskbarMode) {
   void import('./entries/taskbar-ticker').then(({ renderTaskbarTicker }) => renderTaskbarTicker())
 } else if (taskbarTooltipMode) {
   void import('./entries/taskbar-tooltip').then(({ renderTaskbarTooltip }) =>
     renderTaskbarTooltip()
-  )
-} else if (floatingTickerMode) {
-  void import('./entries/floating-ticker').then(({ renderFloatingTicker }) =>
-    renderFloatingTicker()
   )
 } else if (menuBarMode) {
   void import('./entries/menu-bar').then(({ renderMenuBar }) => renderMenuBar())

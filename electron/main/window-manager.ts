@@ -5,7 +5,6 @@ import { getTaskbarVisibleStocks, shouldShowTaskbarTicker } from '../../src/lib/
 import type {
   AppState,
   AutoRefreshQuoteScope,
-  FloatingTickerPreferences,
   StockSelectionRequest,
   StockQuote,
   TaskbarLayout,
@@ -15,7 +14,6 @@ import type {
 import { atomicWriteJsonSync } from './file-storage'
 import { createAppIcon } from './tray-icons'
 import { MacMenuBar } from './mac-menu-bar'
-import { MacFloatingTicker } from './mac-floating-ticker'
 
 const TASKBAR_TOOLTIP_WIDTH = 550
 const TASKBAR_TOOLTIP_DEFAULT_HEIGHT = 260
@@ -37,7 +35,6 @@ interface WindowManagerDependencies {
   getState: () => AppState
   getQuotes: () => StockQuote[]
   setMenuBarQuoteId: (quoteId: string) => void
-  updateFloatingTickerPreferences: (preferences: Partial<FloatingTickerPreferences>) => void
   isQuitting: () => boolean
   refreshQuotes: () => Promise<unknown>
   setAutoRefreshQuotes: (scope: AutoRefreshQuoteScope) => void
@@ -56,7 +53,6 @@ export class WindowManager {
   private trayPopupWindow: BrowserWindow | null = null
   private appTray: Tray | null = null
   private macMenuBar: MacMenuBar | null = null
-  private floatingTicker: MacFloatingTicker | null = null
   private trayPopupShowTimer: NodeJS.Timeout | null = null
   private taskbarLayout: TaskbarLayout = { taskbarHeight: 48, taskbarEdge: 'bottom' }
   private taskbarContentSize: { width: number; height: number } | null = null
@@ -76,13 +72,11 @@ export class WindowManager {
   private readonly handleDisplayMetricsChanged = (): void => {
     this.syncTaskbarWindow()
     this.positionTrayPopupIfVisible()
-    this.floatingTicker?.restorePosition()
   }
 
   private readonly handleDisplayChanged = (): void => {
     this.syncTaskbarWindow()
     this.positionTrayPopupIfVisible()
-    this.floatingTicker?.restorePosition()
   }
 
   private readonly handleNativeThemeUpdated = (): void => {
@@ -91,7 +85,7 @@ export class WindowManager {
 
   constructor(
     private readonly dependencies: WindowManagerDependencies,
-    private readonly userDataDirectory: string
+    userDataDirectory: string
   ) {
     this.windowStatePath = join(userDataDirectory, 'window-state.json')
     const windowState = this.loadMainWindowState()
@@ -104,7 +98,6 @@ export class WindowManager {
     if (!this.taskbarMode) this.createMainWindow()
     if (process.platform === 'darwin') {
       this.macMenuBar = new MacMenuBar(this.dependencies)
-      this.floatingTicker = new MacFloatingTicker(this.dependencies, this.userDataDirectory)
       this.updateTrayMenu()
     } else {
       this.createTray()
@@ -233,7 +226,6 @@ export class WindowManager {
 
   sendToWindows(channel: string, payload: unknown): void {
     this.macMenuBar?.send(channel, payload)
-    this.floatingTicker?.send(channel, payload)
     for (const window of [
       this.mainWindow,
       this.taskbarWindow,
@@ -300,47 +292,6 @@ export class WindowManager {
               : [{ label: '请先在自选列表中选择展示股票', enabled: false }]
         })
       )
-      menu.insert(
-        3,
-        new MenuItem({
-          label: '独立行情浮窗',
-          submenu: [
-            {
-              label: '显示浮窗',
-              type: 'checkbox',
-              checked: settings.showFloatingTicker,
-              click: () =>
-                this.dependencies.updateFloatingTickerPreferences({
-                  showFloatingTicker: !settings.showFloatingTicker
-                })
-            },
-            {
-              label: '窗口置顶',
-              type: 'checkbox',
-              checked: settings.floatingTickerAlwaysOnTop,
-              click: () =>
-                this.dependencies.updateFloatingTickerPreferences({
-                  floatingTickerAlwaysOnTop: !settings.floatingTickerAlwaysOnTop
-                })
-            },
-            {
-              label: '所有桌面显示',
-              type: 'checkbox',
-              checked: settings.floatingTickerAllWorkspaces,
-              click: () =>
-                this.dependencies.updateFloatingTickerPreferences({
-                  floatingTickerAllWorkspaces: !settings.floatingTickerAllWorkspaces
-                })
-            },
-            { type: 'separator' },
-            {
-              label: '重置浮窗位置',
-              enabled: settings.showFloatingTicker,
-              click: () => this.floatingTicker?.resetPosition()
-            }
-          ]
-        })
-      )
       this.macMenuBar.setMenu(menu)
     } else {
       this.appTray?.setContextMenu(menu)
@@ -350,7 +301,6 @@ export class WindowManager {
   syncTaskbarWindow(): void {
     if (process.platform === 'darwin') {
       this.macMenuBar?.sync()
-      this.floatingTicker?.sync()
       return
     }
     const state = this.dependencies.getState()
@@ -380,8 +330,6 @@ export class WindowManager {
     this.disposed = true
     this.macMenuBar?.dispose()
     this.macMenuBar = null
-    this.floatingTicker?.dispose()
-    this.floatingTicker = null
     screen.removeListener('display-metrics-changed', this.handleDisplayMetricsChanged)
     screen.removeListener('display-added', this.handleDisplayChanged)
     screen.removeListener('display-removed', this.handleDisplayChanged)
@@ -434,14 +382,6 @@ export class WindowManager {
 
   resizeMenuBarPanel(height: number): void {
     this.macMenuBar?.resizePanel(height)
-  }
-
-  resizeFloatingTicker(height: number): void {
-    this.floatingTicker?.resize(height)
-  }
-
-  resetFloatingTickerPosition(): void {
-    this.floatingTicker?.resetPosition()
   }
 
   private loadMainWindowState(): MainWindowState {

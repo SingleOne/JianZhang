@@ -687,9 +687,6 @@ const demoApi: StockDesktopApi = {
   async showMainWindow() {},
   async closeMenuBarPanel() {},
   async resizeMenuBarPanel() {},
-  async updateFloatingTickerPreferences() {},
-  async resizeFloatingTicker() {},
-  async resetFloatingTickerPosition() {},
   async getBootstrap(): Promise<BootstrapResult> {
     const state = loadDemoState()
     const marketIndices = getMarketIndexStocks(state.settings.marketIndexIds)

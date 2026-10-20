@@ -49,7 +49,6 @@ import type {
   FundamentalSnapshot,
   FundamentalStockUpdateResult,
   FundamentalUpdateResult,
-  FloatingTickerPreferences,
   GlobalFundamentalSnapshot,
   FundsFlowResult,
   GitHubDeviceAuthorization,
@@ -214,9 +213,6 @@ interface IpcHandlerDependencies {
   showMainWindow: (quoteId?: string) => void
   closeMenuBarPanel: () => void
   resizeMenuBarPanel: (height: number) => void
-  updateFloatingTickerPreferences: (preferences: Partial<FloatingTickerPreferences>) => void
-  resizeFloatingTicker: (height: number) => void
-  resetFloatingTickerPosition: () => void
   restart: () => void
   quit: () => void
 }
@@ -225,9 +221,6 @@ const CHANNELS = [
   'app:show',
   'menu-bar:close',
   'menu-bar:resize',
-  'floating-ticker:preferences:set',
-  'floating-ticker:resize',
-  'floating-ticker:position:reset',
   'app:bootstrap',
   'tracking:archive-cycle:get',
   'tracking:archive',
@@ -324,25 +317,6 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
   ipcMain.handle('menu-bar:resize', (_event, height: number) => {
     if (Number.isFinite(height)) dependencies.resizeMenuBarPanel(height)
   })
-  ipcMain.handle(
-    'floating-ticker:preferences:set',
-    (_event, preferences: Partial<FloatingTickerPreferences>) => {
-      if (!preferences || typeof preferences !== 'object') return
-      const next: Partial<FloatingTickerPreferences> = {}
-      for (const key of [
-        'showFloatingTicker',
-        'floatingTickerAlwaysOnTop',
-        'floatingTickerAllWorkspaces'
-      ] as const) {
-        if (typeof preferences[key] === 'boolean') next[key] = preferences[key]
-      }
-      dependencies.updateFloatingTickerPreferences(next)
-    }
-  )
-  ipcMain.handle('floating-ticker:resize', (_event, height: number) => {
-    if (Number.isFinite(height)) dependencies.resizeFloatingTicker(height)
-  })
-  ipcMain.handle('floating-ticker:position:reset', () => dependencies.resetFloatingTickerPosition())
   ipcMain.handle('app:bootstrap', async () => ({
     state: dependencies.getState(),
     trackingArchiveIndex: dependencies.getStockTrackingArchiveIndex(),
