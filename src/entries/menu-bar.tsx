@@ -4,6 +4,7 @@ import '../styles/window-surface.css'
 import '../components/TaskbarTicker.css'
 import '../components/AlertBadges.css'
 import '../components/MenuBar.css'
+import '../styles/macos-popovers.css'
 
 export function renderMenuBar(): void {
   renderWindow(<TrayHoverSummary interactive />)

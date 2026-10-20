@@ -655,6 +655,9 @@ export class WindowManager {
       type: process.platform === 'darwin' ? 'panel' : undefined,
       transparent: true,
       backgroundColor: '#00000000',
+      vibrancy: process.platform === 'darwin' ? 'popover' : undefined,
+      visualEffectState: process.platform === 'darwin' ? 'active' : undefined,
+      roundedCorners: true,
       resizable: false,
       movable: false,
       minimizable: false,
@@ -663,7 +666,7 @@ export class WindowManager {
       focusable: false,
       skipTaskbar: true,
       alwaysOnTop: true,
-      hasShadow: false,
+      hasShadow: process.platform === 'darwin',
       parent: this.getTaskbarTooltipParent() ?? undefined,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
