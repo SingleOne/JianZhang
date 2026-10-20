@@ -3000,6 +3000,8 @@ export interface TaskbarTooltipAnchor {
   quoteId: string
   left: number
   width: number
+  top?: number
+  height?: number
 }
 
 export interface StockSelectionRequest {

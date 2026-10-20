@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { stockApi } from '../lib/api'
 import {
   formatCost,
@@ -30,8 +31,24 @@ export function MenuBarStockRow({ summary, status }: MenuBarStockRowProps) {
   const priceAlert = getTriggeredStockAlertDirection(stock.alertRules)
   const statusLabel = STOCK_QUOTE_DATA_STATE_LABELS[status]
 
+  useEffect(() => () => void stockApi.setTaskbarTooltip(null), [])
+
   return (
-    <section className="tray-summary-item menu-bar-stock-row" aria-label={stock.name}>
+    <section
+      className="tray-summary-item menu-bar-stock-row"
+      aria-label={stock.name}
+      onMouseEnter={(event) => {
+        const bounds = event.currentTarget.getBoundingClientRect()
+        void stockApi.setTaskbarTooltip({
+          quoteId: stock.quoteId,
+          left: bounds.left,
+          width: bounds.width,
+          top: bounds.top,
+          height: bounds.height
+        })
+      }}
+      onMouseLeave={() => void stockApi.setTaskbarTooltip(null)}
+    >
       <div className="menu-bar-quote-row">
         <div className="menu-bar-stock-identity">
           <AppButton

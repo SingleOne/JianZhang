@@ -74,10 +74,14 @@ export function TrayHoverSummary({ interactive = false }: { interactive?: boolea
     const observer = new ResizeObserver(() => {
       void stockApi.resizeMenuBarPanel(Math.ceil(panel.getBoundingClientRect().height))
     })
+    const hideStockTooltip = () => void stockApi.setTaskbarTooltip(null)
     observer.observe(panel)
+    document.addEventListener('scroll', hideStockTooltip, true)
     const timer = window.setInterval(() => setStatusTick((tick) => tick + 1), 30_000)
     return () => {
       observer.disconnect()
+      document.removeEventListener('scroll', hideStockTooltip, true)
+      hideStockTooltip()
       window.clearInterval(timer)
     }
   }, [interactive])

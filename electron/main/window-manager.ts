@@ -14,6 +14,7 @@ import type {
 import { atomicWriteJsonSync } from './file-storage'
 import { createAppIcon } from './tray-icons'
 import { MacMenuBar } from './mac-menu-bar'
+import { getMenuBarTooltipBounds } from './menu-bar-tooltip'
 
 const TASKBAR_TOOLTIP_WIDTH = 550
 const TASKBAR_TOOLTIP_DEFAULT_HEIGHT = 260
@@ -97,7 +98,10 @@ export class WindowManager {
     this.syncNativeThemeSource()
     if (!this.taskbarMode) this.createMainWindow()
     if (process.platform === 'darwin') {
-      this.macMenuBar = new MacMenuBar(this.dependencies)
+      this.macMenuBar = new MacMenuBar({
+        ...this.dependencies,
+        hideStockTooltip: () => this.setTaskbarTooltip(null)
+      })
       this.updateTrayMenu()
     } else {
       this.createTray()
@@ -141,6 +145,7 @@ export class WindowManager {
   }
 
   setTaskbarTooltip(anchor: TaskbarTooltipAnchor | null): void {
+    if (anchor && process.platform === 'darwin' && !this.macMenuBar?.getPanel()?.isVisible()) return
     this.taskbarTooltipAnchor = anchor
     if (!anchor) {
       if (this.taskbarTooltipWindow && !this.taskbarTooltipWindow.isDestroyed()) {
@@ -580,11 +585,12 @@ export class WindowManager {
   }
 
   private positionTaskbarTooltipWindow(): void {
+    const parent = this.getTaskbarTooltipParent()
     if (
       !this.taskbarTooltipWindow ||
       this.taskbarTooltipWindow.isDestroyed() ||
-      !this.taskbarWindow ||
-      this.taskbarWindow.isDestroyed() ||
+      !parent ||
+      parent.isDestroyed() ||
       !this.taskbarTooltipAnchor
     ) {
       return
@@ -593,8 +599,17 @@ export class WindowManager {
     const width = TASKBAR_TOOLTIP_WIDTH
     const height = this.taskbarTooltipHeight
     const margin = 8
-    const taskbarBounds = this.taskbarWindow.getBounds()
+    const taskbarBounds = parent.getBounds()
     const display = screen.getDisplayMatching(taskbarBounds)
+    if (process.platform === 'darwin') {
+      this.taskbarTooltipWindow.setBounds(
+        getMenuBarTooltipBounds(taskbarBounds, this.taskbarTooltipAnchor, display.workArea, {
+          width,
+          height
+        })
+      )
+      return
+    }
     const anchorCenter =
       taskbarBounds.x + this.taskbarTooltipAnchor.left + this.taskbarTooltipAnchor.width / 2
     const minX = display.workArea.x + margin
@@ -623,6 +638,12 @@ export class WindowManager {
     window.moveTop()
   }
 
+  private getTaskbarTooltipParent(): BrowserWindow | null {
+    return process.platform === 'darwin'
+      ? (this.macMenuBar?.getPanel() ?? null)
+      : this.taskbarWindow
+  }
+
   private createTaskbarTooltipWindow(): void {
     if (this.taskbarTooltipWindow && !this.taskbarTooltipWindow.isDestroyed()) return
 
@@ -631,6 +652,7 @@ export class WindowManager {
       height: TASKBAR_TOOLTIP_DEFAULT_HEIGHT,
       show: false,
       frame: false,
+      type: process.platform === 'darwin' ? 'panel' : undefined,
       transparent: true,
       backgroundColor: '#00000000',
       resizable: false,
@@ -642,7 +664,7 @@ export class WindowManager {
       skipTaskbar: true,
       alwaysOnTop: true,
       hasShadow: false,
-      parent: this.taskbarWindow ?? undefined,
+      parent: this.getTaskbarTooltipParent() ?? undefined,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         contextIsolation: true,
@@ -654,6 +676,12 @@ export class WindowManager {
     this.taskbarTooltipWindow = window
 
     window.setAlwaysOnTop(true, 'pop-up-menu')
+    if (process.platform === 'darwin') {
+      window.setVisibleOnAllWorkspaces(true, {
+        visibleOnFullScreen: true,
+        skipTransformProcessType: true
+      })
+    }
     window.setIgnoreMouseEvents(true)
     window.setMenuBarVisibility(false)
     window.on('closed', () => {

@@ -333,7 +333,7 @@ function TaskbarTooltipContent({ quoteId }: { quoteId: string }) {
 
   return (
     <div
-      className={`taskbar-stock-tooltip-shell ${layout.taskbarEdge === 'top' ? 'is-taskbar-top' : ''}`}
+      className={`taskbar-stock-tooltip-shell ${stockApi.platform === 'macos' ? 'is-menu-bar-tooltip' : layout.taskbarEdge === 'top' ? 'is-taskbar-top' : ''}`}
       ref={shellRef}
     >
       <AppThemeController />

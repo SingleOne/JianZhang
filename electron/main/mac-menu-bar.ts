@@ -8,6 +8,7 @@ import { createMenuBarIcon } from './tray-icons'
 interface MacMenuBarDependencies {
   getState: () => AppState
   getQuotes: () => StockQuote[]
+  hideStockTooltip: () => void
 }
 
 export class MacMenuBar {
@@ -77,13 +78,19 @@ export class MacMenuBar {
 
   hidePanel(): void {
     this.openRequested = false
+    this.dependencies.hideStockTooltip()
     if (this.panel?.isVisible()) {
       this.lastHiddenAt = Date.now()
       this.panel.hide()
     }
   }
 
+  getPanel(): BrowserWindow | null {
+    return this.panel
+  }
+
   resizePanel(height: number): void {
+    this.dependencies.hideStockTooltip()
     this.panelHeight = Math.max(96, Math.min(720, Math.ceil(height)))
     this.positionPanelIfVisible()
   }
@@ -95,6 +102,7 @@ export class MacMenuBar {
   dispose(): void {
     clearInterval(this.timer)
     this.openRequested = false
+    this.dependencies.hideStockTooltip()
     this.panel?.destroy()
     this.panel = null
     this.tray.destroy()
@@ -119,7 +127,17 @@ export class MacMenuBar {
       workArea.y + margin,
       Math.min(bounds.y + bounds.height + margin, workArea.y + workArea.height - height - margin)
     )
-    this.panel.setBounds({ x: Math.round(x), y: Math.round(y), width, height })
+    const nextBounds = { x: Math.round(x), y: Math.round(y), width, height }
+    const previousBounds = this.panel.getBounds()
+    if (
+      previousBounds.x !== nextBounds.x ||
+      previousBounds.y !== nextBounds.y ||
+      previousBounds.width !== width ||
+      previousBounds.height !== height
+    ) {
+      this.dependencies.hideStockTooltip()
+      this.panel.setBounds(nextBounds)
+    }
   }
 
   private showPanel(): void {
@@ -167,6 +185,7 @@ export class MacMenuBar {
       }
     })
     panel.on('closed', () => {
+      this.dependencies.hideStockTooltip()
       this.panel = null
       this.panelReady = false
       this.openRequested = false
