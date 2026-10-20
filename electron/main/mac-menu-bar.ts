@@ -84,7 +84,7 @@ export class MacMenuBar {
   }
 
   resizePanel(height: number): void {
-    this.panelHeight = Math.max(160, Math.min(720, Math.ceil(height)))
+    this.panelHeight = Math.max(96, Math.min(720, Math.ceil(height)))
     this.positionPanelIfVisible()
   }
 
@@ -109,7 +109,7 @@ export class MacMenuBar {
     }
     const { workArea } = screen.getDisplayNearestPoint(center)
     const margin = 8
-    const width = Math.min(480, workArea.width - margin * 2)
+    const width = Math.min(560, workArea.width - margin * 2)
     const height = Math.min(this.panelHeight, workArea.height - margin * 2)
     const x = Math.max(
       workArea.x + margin,
@@ -133,7 +133,7 @@ export class MacMenuBar {
 
   private createPanel(): void {
     const panel = new BrowserWindow({
-      width: 480,
+      width: 560,
       height: this.panelHeight,
       show: false,
       frame: false,

@@ -11,13 +11,10 @@ import {
 } from '../lib/format'
 import { getTraySummaryStocks, getTrayTodayProfitTotal } from '../lib/tray-summary'
 import { getMenuBarQuoteStatus } from '../lib/menu-bar'
-import { STOCK_QUOTE_DATA_STATE_LABELS } from '../lib/quote-state'
-import { getTriggeredStockAlertDirection } from '../lib/stock-alerts'
 import { applyAppThemePreference } from '../lib/theme'
 import type { AppState, StockQuote } from '../shared/types'
 import { AppButton } from './AppButton'
-import { TAlertBadges } from './TAlertBadges'
-import { TFloatingProfitAlertBadge } from './TFloatingProfitAlertBadge'
+import { MenuBarStockRow } from './MenuBarStockRow'
 
 function valueClass(value: number | null | undefined): string {
   if (value === null || value === undefined || value === 0) return 'is-flat'
@@ -105,9 +102,12 @@ export function TrayHoverSummary({ interactive = false }: { interactive?: boolea
   return (
     <aside ref={panelRef} className={`tray-summary-panel${interactive ? ' is-interactive' : ''}`}>
       <header>
-        <span>{interactive ? '见涨 · 行情概览' : '今日收益与 T 仓概览'}</span>
-        <span className="tray-summary-total">
-          {interactive ? '所选今日收益（人民币）' : '今日收益合计'}
+        <span>{interactive ? '行情概览' : '今日收益与 T 仓概览'}</span>
+        <span
+          className="tray-summary-total"
+          title={interactive ? '所选股票今日收益合计（人民币）' : undefined}
+        >
+          {interactive ? '今日合计' : '今日收益合计'}
           <b className={valueClass(todayProfitTotal)}>
             {formatMoneyProfit(todayProfitTotal, 'CNY')}
           </b>
@@ -122,22 +122,22 @@ export function TrayHoverSummary({ interactive = false }: { interactive?: boolea
         </p>
       ) : null}
       <div className="tray-summary-list">
-        {selectedStocks.map(
-          ({ stock, quote, positionMetrics, tSummaries, alertBadges, floatingAlerts }) => (
+        {selectedStocks.map((summary) => {
+          const { stock, quote, positionMetrics, tSummaries } = summary
+          if (interactive) {
+            return (
+              <MenuBarStockRow
+                key={stock.quoteId}
+                summary={summary}
+                status={getMenuBarQuoteStatus(state, quote)}
+              />
+            )
+          }
+          return (
             <section className="tray-summary-item" key={stock.quoteId}>
               <div className="tray-summary-heading">
                 <div className="tray-summary-stock">
-                  {interactive ? (
-                    <AppButton
-                      variant="plain"
-                      className="menu-bar-stock-link"
-                      onClick={() => void stockApi.showMainWindow(stock.quoteId)}
-                    >
-                      {stock.name}
-                    </AppButton>
-                  ) : (
-                    <strong>{stock.name}</strong>
-                  )}
+                  <strong>{stock.name}</strong>
                   <b className={valueClass(quote?.change)}>
                     {formatPrice(quote?.latest)}（{formatSigned(quote?.change)}）
                   </b>
@@ -152,27 +152,6 @@ export function TrayHoverSummary({ interactive = false }: { interactive?: boolea
                   </b>
                 </span>
               </div>
-              {interactive ? (
-                <div className="menu-bar-quote-meta">
-                  <span className={valueClass(quote?.changePercent)}>
-                    {formatPercent(quote?.changePercent)}
-                  </span>
-                  <span>{STOCK_QUOTE_DATA_STATE_LABELS[getMenuBarQuoteStatus(state, quote)]}</span>
-                  <TAlertBadges badges={alertBadges} />
-                  {floatingAlerts.map((summary) => (
-                    <TFloatingProfitAlertBadge
-                      key={summary.account.accountId}
-                      accountName={summary.account.accountName}
-                      batch={summary.batch}
-                      floatingProfit={summary.metrics.floatingProfit}
-                      currency={positionMetrics.currency}
-                    />
-                  ))}
-                  {getTriggeredStockAlertDirection(stock.alertRules) ? (
-                    <span className="menu-bar-alert">股价提醒已触发</span>
-                  ) : null}
-                </div>
-              ) : null}
               <div className="tray-summary-profit">
                 <span>
                   持仓 <b>{formatMoney(positionMetrics.marketValue, positionMetrics.currency)}</b>
@@ -212,7 +191,7 @@ export function TrayHoverSummary({ interactive = false }: { interactive?: boolea
               )}
             </section>
           )
-        )}
+        })}
       </div>
       {interactive ? (
         <footer className="menu-bar-footer">
