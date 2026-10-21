@@ -29,21 +29,6 @@ function decimal(value: DecimalInput): Decimal {
     : { numerator: coefficient * 10n ** BigInt(-scale), denominator: 1n }
 }
 
-function add(a: Decimal, b: Decimal): Decimal {
-  return {
-    numerator: a.numerator * b.denominator + b.numerator * a.denominator,
-    denominator: a.denominator * b.denominator
-  }
-}
-function subtract(a: Decimal, b: Decimal): Decimal {
-  return {
-    numerator: a.numerator * b.denominator - b.numerator * a.denominator,
-    denominator: a.denominator * b.denominator
-  }
-}
-function nonnegative(value: Decimal): Decimal {
-  return value.numerator < 0n ? ZERO : value
-}
 function rateFee(amount: Decimal, rate: number): Decimal {
   const rateValue = decimal(rate)
   return {
@@ -122,13 +107,13 @@ function calculateCnTradeFees(
       return [code, fee]
     })
   ) as Record<FixedFeeCode, Decimal>
-  const includedRaw = rule.includedFees.reduce((total, code) => add(total, rawFees[code]), ZERO)
-  const netCommission = nonnegative(subtract(rateFee(amount, rule.ratePerTenThousand), includedRaw))
   const fixedCents = Object.fromEntries(
     FIXED_FEE_CODES.map((code) => [code, cents(rawFees[code], scheme.roundingMode)])
   ) as Record<FixedFeeCode, bigint>
-  let commissionCents = cents(netCommission, scheme.roundingMode)
+  // 先取整佣金报价合计，再拆出包含费用，避免各项独立取整导致佣金总额差一分。
+  const bundleCents = cents(rateFee(amount, rule.ratePerTenThousand), scheme.roundingMode)
   const includedCents = rule.includedFees.reduce((total, code) => total + fixedCents[code], 0n)
+  let commissionCents = bundleCents > includedCents ? bundleCents - includedCents : 0n
   const shortfall =
     cents(decimal(rule.minimumCommission), scheme.roundingMode) - commissionCents - includedCents
   const topUp = shortfall > 0n ? shortfall : 0n

@@ -44,6 +44,55 @@ describe('broker scheme fee calculation', () => {
   ])('rounds decimal %s without binary floating point drift', (value, expected) => {
     expect(roundFeeAmount(value, 'half-up')).toBe(expected)
   })
+  it.each([
+    ['half-up', 13.13, 0.84, 0.49],
+    ['next-digit-up', 13.11, 0.85, 0.5]
+  ] as const)(
+    'keeps the quoted commission total when splitting included fees with %s',
+    (roundingMode, commission, handling, regulatory) => {
+      const fees = scheme()
+      fees.roundingMode = roundingMode
+      fees.commission.SH = {
+        ratePerTenThousand: 5.854,
+        minimumCommission: 5,
+        includedFees: ['handling', 'regulatory']
+      }
+      expect(calculateSchemeExecutionFees('22.45', 1100, 'buy', fees, 'SH')).toEqual({
+        fees: { commission, handling, regulatory, transfer: 0.25, stampDuty: 0 },
+        total: 14.71,
+        minimumTopUp: 0
+      })
+      expect(calculateSchemeTradeFees('24695', 'sell', fees, 'SH')).toEqual({
+        fees: { commission, handling, regulatory, transfer: 0.25, stampDuty: 12.35 },
+        total: 27.06,
+        minimumTopUp: 0
+      })
+    }
+  )
+  it('does not overcharge when included fees round upward separately', () => {
+    const fees = scheme()
+    fees.fixedFees = { handling: 0.5, regulatory: 0.5, transfer: 0, stampDuty: 0 }
+    fees.commission.SH = {
+      ratePerTenThousand: 100,
+      minimumCommission: 0,
+      includedFees: ['handling', 'regulatory']
+    }
+    expect(calculateSchemeTradeFees('100', 'buy', fees, 'SH')).toEqual({
+      fees: { commission: 0.98, handling: 0.01, regulatory: 0.01, transfer: 0, stampDuty: 0 },
+      total: 1,
+      minimumTopUp: 0
+    })
+  })
+  it('keeps net commission nonnegative when included fees exceed the quoted total', () => {
+    const fees = scheme()
+    fees.commission.SZ.ratePerTenThousand = 0
+    fees.commission.SZ.minimumCommission = 0
+    expect(calculateSchemeTradeFees('8957', 'buy', fees, 'SZ')).toEqual({
+      fees: { commission: 0, handling: 0.31, regulatory: 0.18, transfer: 0.09, stampDuty: 0 },
+      total: 0.58,
+      minimumTopUp: 0
+    })
+  })
   it('tops up the net commission after rounding each included fee', () => {
     expect(calculateSchemeTradeFees('8957', 'buy', scheme(), 'SZ')).toEqual({
       fees: { commission: 0.42, handling: 0.31, regulatory: 0.18, transfer: 0.09, stampDuty: 0 },

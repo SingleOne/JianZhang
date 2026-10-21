@@ -301,7 +301,7 @@ export function FeeSchemeEditor({
           </label>
           <p className="account-manager-notice">
             见分进位：1.231 → 1.24，1.23001 →
-            1.23。每项费用取整后，佣金不足最低起收的部分补入净佣金。
+            1.23。佣金合计先取整，再拆分已包含费用；不足最低起收的部分补入净佣金。
           </p>
           <FeeSchemePreview draft={draft} disabled={disabled} />
         </>

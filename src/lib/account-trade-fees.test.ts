@@ -82,6 +82,35 @@ describe('account fee scheme execution entry points', () => {
       1.09
     )
   })
+  it('corrects the opening commission only when the saved execution is reestimated', () => {
+    const fees = createCnFeeScheme('zhaoshang', '招商证券')
+    fees.commission.SH = {
+      ratePerTenThousand: 5.854,
+      minimumCommission: 5,
+      includedFees: ['handling', 'regulatory']
+    }
+    const c = { ...context('zhaoshang', '1.600999'), scheme: fees }
+    const opening = record('opening', 1100, {
+      accountId: c.accountId,
+      price: 22.45,
+      tradedAt: '2024-10-09T10:02',
+      marketDate: '2024-10-09',
+      fees: { commission: 13.12, handling: 0.84, regulatory: 0.49, transfer: 0.25, stampDuty: 0 },
+      feeSource: 'estimated'
+    })
+    const [updated] = reestimateTradeExecution([opening], opening.id, c)
+    expect(updated.fees).toEqual({
+      commission: 13.13,
+      handling: 0.84,
+      regulatory: 0.49,
+      transfer: 0.25,
+      stampDuty: 0
+    })
+    expect(totalRecordedTradeFees(updated)).toBe(14.71)
+    expect(updated.feeSource).toBe('estimated')
+    expect(opening.fees.commission).toBe(13.12)
+    expect(totalRecordedTradeFees(opening)).toBe(14.7)
+  })
   it('reestimates one full execution and allocates its minimum once without touching other accounts', () => {
     const source = { id: 'whole', quantity: 1300 }
     const records = [
