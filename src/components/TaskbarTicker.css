@@ -13,6 +13,35 @@ html.tray-mode #root {
   padding: var(--floating-window-shadow-padding);
 }
 
+.tray-summary-panel,
+.taskbar-stock-tooltip {
+  --stock-popover-surface: rgba(248, 248, 250, 0.94);
+  --stock-popover-highlight: rgba(255, 255, 255, 0.62);
+  --stock-popover-rim: rgba(255, 255, 255, 0.84);
+  --stock-popover-outline: rgba(60, 60, 67, 0.18);
+  --stock-popover-text: #1d1d1f;
+  --stock-popover-secondary: #626269;
+  --stock-popover-separator: rgba(60, 60, 67, 0.12);
+  --stock-popover-inset: rgba(0, 0, 0, 0.035);
+  --stock-popover-shadow: rgba(15, 18, 24, 0.2);
+  --stock-popover-contact-shadow: rgba(15, 18, 24, 0.12);
+
+  color: var(--stock-popover-text);
+  background:
+    linear-gradient(155deg, var(--stock-popover-highlight), transparent 58%),
+    var(--stock-popover-surface);
+  border: 1px solid var(--stock-popover-outline);
+  border-radius: 20px;
+  box-shadow:
+    0 6px 14px -4px var(--stock-popover-shadow),
+    0 2px 6px -2px var(--stock-popover-contact-shadow),
+    inset 0 1px 0 var(--stock-popover-rim),
+    inset 0 -1px 0 var(--stock-popover-inset);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei UI', sans-serif;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
 .taskbar-ticker {
   width: max-content;
   display: grid;
@@ -34,13 +63,6 @@ html.tray-mode #root {
   height: 100%;
   overflow: hidden;
   pointer-events: none;
-  color: #344054;
-  background: rgba(255, 255, 255, 0.97);
-  border: 1px solid rgba(193, 202, 216, 0.92);
-  border-radius: 10px;
-  box-shadow:
-    0 6px 14px -4px rgba(15, 23, 42, 0.2),
-    0 2px 6px -2px rgba(15, 23, 42, 0.12);
 }
 
 .tray-summary-panel > header {
@@ -49,10 +71,10 @@ html.tray-mode #root {
   justify-content: space-between;
   gap: 10px;
   padding: 8px 10px 6px;
-  color: #657187;
-  border-bottom: 1px solid #edf0f4;
+  color: var(--stock-popover-secondary);
+  border-bottom: 1px solid var(--stock-popover-separator);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -73,8 +95,8 @@ html.tray-mode #root {
   display: grid;
   gap: 5px;
   padding: 7px 10px;
-  border-right: 1px solid #edf0f4;
-  border-bottom: 1px solid #edf0f4;
+  border-right: 1px solid var(--stock-popover-separator);
+  border-bottom: 1px solid var(--stock-popover-separator);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
@@ -93,7 +115,7 @@ html.tray-mode #root {
 .tray-summary-heading > span,
 .tray-summary-profit,
 .tray-summary-t {
-  color: #657187;
+  color: var(--stock-popover-secondary);
 }
 
 .tray-summary-heading > span,
@@ -112,6 +134,7 @@ html.tray-mode #root {
 
 .tray-summary-stock > strong {
   overflow: hidden;
+  font-weight: 600;
   text-overflow: ellipsis;
 }
 
@@ -121,7 +144,7 @@ html.tray-mode #root {
 
 .tray-summary-heading b,
 .tray-summary-profit b {
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .tray-summary-t {
@@ -143,7 +166,7 @@ html.tray-mode #root {
 
 .tray-summary-t.is-empty {
   justify-content: flex-start;
-  color: #98a2b3;
+  color: var(--stock-popover-secondary);
 }
 
 .tray-summary-panel .is-up {
@@ -155,7 +178,7 @@ html.tray-mode #root {
 }
 
 .tray-summary-panel .is-flat {
-  color: #657187;
+  color: var(--stock-popover-secondary);
 }
 
 .taskbar-ticker.is-single {
@@ -236,44 +259,14 @@ html.tray-mode #root {
 }
 
 .taskbar-stock-tooltip {
-  --taskbar-tooltip-surface: #fff;
+  --taskbar-tooltip-surface: #f8f8fa;
 
   position: relative;
   display: flex;
   flex-direction: column;
   gap: 10px;
   padding: 12px 14px 10px;
-  color: #344054;
-  background: rgba(255, 255, 255, 0.98);
-  border: 1px solid rgba(193, 202, 216, 0.95);
-  border-radius: 10px;
-  box-shadow:
-    0 6px 14px -4px rgba(15, 23, 42, 0.2),
-    0 2px 6px -2px rgba(15, 23, 42, 0.12);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
-.taskbar-stock-tooltip::after {
-  position: absolute;
-  bottom: -7px;
-  left: 50%;
-  width: 13px;
-  height: 13px;
-  background: inherit;
-  border-right: 1px solid rgba(193, 202, 216, 0.95);
-  border-bottom: 1px solid rgba(193, 202, 216, 0.95);
-  content: '';
-  transform: translateX(-50%) rotate(45deg);
-}
-
-.taskbar-stock-tooltip-shell.is-taskbar-top .taskbar-stock-tooltip::after {
-  top: -7px;
-  bottom: auto;
-  border-top: 1px solid rgba(193, 202, 216, 0.95);
-  border-right: 0;
-  border-bottom: 0;
-  border-left: 1px solid rgba(193, 202, 216, 0.95);
+  line-height: 16px;
 }
 
 .taskbar-stock-tooltip > header,
@@ -295,8 +288,9 @@ html.tray-mode #root {
 
 .taskbar-tooltip-identity strong {
   overflow: hidden;
-  color: #111827;
+  color: var(--stock-popover-text);
   font-size: 14px;
+  font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -304,7 +298,7 @@ html.tray-mode #root {
 .taskbar-tooltip-identity span,
 .taskbar-tooltip-market,
 .taskbar-tooltip-update-time {
-  color: #7a8598;
+  color: var(--stock-popover-secondary);
 }
 
 .taskbar-tooltip-header-meta {
@@ -322,7 +316,7 @@ html.tray-mode #root {
 .taskbar-tooltip-market {
   flex: none;
   padding: 2px 6px;
-  background: #f1f4f8;
+  background: var(--stock-popover-inset);
   border-radius: 999px;
 }
 
@@ -332,8 +326,8 @@ html.tray-mode #root {
   align-items: center;
   gap: 4px;
   padding: 0 7px;
-  border-right: 1px solid #d7dde7;
-  border-left: 1px solid #d7dde7;
+  border-right: 1px solid var(--stock-popover-separator);
+  border-left: 1px solid var(--stock-popover-separator);
   white-space: nowrap;
 }
 
@@ -356,7 +350,7 @@ html.tray-mode #root {
 }
 
 .taskbar-tooltip-sector b.is-flat {
-  color: #657187;
+  color: var(--stock-popover-secondary);
 }
 
 .taskbar-tooltip-price-row {
@@ -365,6 +359,8 @@ html.tray-mode #root {
 
 .taskbar-tooltip-price-row strong {
   font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.5px;
   line-height: 24px;
 }
 
@@ -386,7 +382,7 @@ html.tray-mode #root {
 }
 
 .taskbar-tooltip-price-row.is-flat {
-  color: #657187;
+  color: var(--stock-popover-secondary);
 }
 
 .taskbar-tooltip-price-row .taskbar-tooltip-today-profit.is-up {
@@ -398,7 +394,7 @@ html.tray-mode #root {
 }
 
 .taskbar-tooltip-price-row .taskbar-tooltip-today-profit.is-flat {
-  color: #657187;
+  color: var(--stock-popover-secondary);
 }
 
 .taskbar-tooltip-details {
@@ -414,13 +410,13 @@ html.tray-mode #root {
 }
 
 .taskbar-tooltip-details dt {
-  color: #8a94a6;
+  color: var(--stock-popover-secondary);
 }
 
 .taskbar-tooltip-details dd {
   margin: 0;
-  color: #344054;
-  font-weight: 700;
+  color: var(--stock-popover-text);
+  font-weight: 600;
 }
 
 .taskbar-tooltip-sparkline dd,
@@ -460,14 +456,14 @@ html.tray-mode #root {
   height: 26px;
   display: grid;
   align-content: space-between;
-  color: #657187;
+  color: var(--stock-popover-secondary);
   font-size: 12px;
   line-height: 12px;
   white-space: nowrap;
 }
 
 .taskbar-tooltip-stacked-values i {
-  color: #8a94a6;
+  color: var(--stock-popover-secondary);
   font-style: normal;
   font-weight: 400;
 }
@@ -481,14 +477,14 @@ html.tray-mode #root {
 }
 
 .taskbar-tooltip-sparkline.is-flat dd {
-  color: #657187;
+  color: var(--stock-popover-secondary);
 }
 
 .taskbar-tooltip-section {
   display: grid;
   gap: 7px;
   padding-top: 9px;
-  border-top: 1px solid #edf0f4;
+  border-top: 1px solid var(--stock-popover-separator);
 }
 
 .taskbar-tooltip-position-grid {
@@ -504,7 +500,7 @@ html.tray-mode #root {
 }
 
 .taskbar-tooltip-position-grid small {
-  color: #8a94a6;
+  color: var(--stock-popover-secondary);
   font-size: 12px;
 }
 
@@ -514,8 +510,9 @@ html.tray-mode #root {
   align-items: baseline;
   gap: 5px;
   overflow: hidden;
-  color: #344054;
+  color: var(--stock-popover-text);
   font-size: 12px;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -532,7 +529,7 @@ html.tray-mode #root {
 
 .taskbar-tooltip-position-grid b.is-flat,
 .taskbar-tooltip-t-summary .is-flat {
-  color: #657187;
+  color: var(--stock-popover-secondary);
 }
 
 .taskbar-tooltip-t-summary {
@@ -540,14 +537,15 @@ html.tray-mode #root {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  color: #657187;
+  color: var(--stock-popover-secondary);
   font-size: 12px;
   white-space: nowrap;
 }
 
 .taskbar-tooltip-t-summary strong {
-  color: #344054;
+  color: var(--stock-popover-text);
   font-size: 12px;
+  font-weight: 600;
 }
 
 .taskbar-tooltip-alert-list {
@@ -564,15 +562,16 @@ html.tray-mode #root {
   align-items: start;
   gap: 7px;
   padding: 5px 7px;
-  color: #657187;
-  background: #f7f9fc;
-  border-radius: 6px;
+  color: var(--stock-popover-secondary);
+  background: var(--stock-popover-inset);
+  border-radius: 8px;
   font-size: 12px;
   line-height: 17px;
 }
 
 .taskbar-tooltip-alert-list b {
-  color: #344054;
+  color: var(--stock-popover-text);
+  font-weight: 600;
 }
 
 .taskbar-tooltip-alert-list .is-gte b,
@@ -651,29 +650,18 @@ html[data-theme='dark'].tray-mode #root {
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.55);
 }
 
-:root[data-theme='dark'] .tray-summary-panel {
-  color: #e2e8f0;
-  background: rgba(24, 32, 46, 0.97);
-  border-color: rgba(96, 111, 132, 0.88);
-  box-shadow:
-    0 6px 14px -4px rgba(0, 0, 0, 0.4),
-    0 2px 6px -2px rgba(0, 0, 0, 0.24);
-}
-
-:root[data-theme='dark'] .tray-summary-panel > header,
-:root[data-theme='dark'] .tray-summary-item {
-  border-color: rgba(96, 111, 132, 0.38);
-}
-
-:root[data-theme='dark'] .tray-summary-panel > header,
-:root[data-theme='dark'] .tray-summary-heading > span,
-:root[data-theme='dark'] .tray-summary-t {
-  color: #b6c0ce;
-}
-
-:root[data-theme='dark'] .tray-summary-t.is-empty,
-:root[data-theme='dark'] .tray-summary-panel .is-flat {
-  color: #98a6b8;
+:root[data-theme='dark'] .tray-summary-panel,
+:root[data-theme='dark'] .taskbar-stock-tooltip {
+  --stock-popover-surface: rgba(35, 35, 38, 0.96);
+  --stock-popover-highlight: rgba(255, 255, 255, 0.055);
+  --stock-popover-rim: rgba(255, 255, 255, 0.16);
+  --stock-popover-outline: rgba(0, 0, 0, 0.34);
+  --stock-popover-text: #f5f5f7;
+  --stock-popover-secondary: #b1b1b9;
+  --stock-popover-separator: rgba(235, 235, 245, 0.13);
+  --stock-popover-inset: rgba(255, 255, 255, 0.06);
+  --stock-popover-shadow: rgba(0, 0, 0, 0.4);
+  --stock-popover-contact-shadow: rgba(0, 0, 0, 0.24);
 }
 
 :root[data-theme='dark'] .tray-summary-panel .is-up {
@@ -697,37 +685,7 @@ html[data-theme='dark'].tray-mode #root {
 }
 
 :root[data-theme='dark'] .taskbar-stock-tooltip {
-  --taskbar-tooltip-surface: #18202e;
-
-  color: #d7deea;
-  background: rgba(24, 32, 46, 0.98);
-  border-color: rgba(96, 111, 132, 0.9);
-  box-shadow:
-    0 6px 14px -4px rgba(0, 0, 0, 0.4),
-    0 2px 6px -2px rgba(0, 0, 0, 0.24);
-}
-
-:root[data-theme='dark'] .taskbar-stock-tooltip::after {
-  border-color: rgba(96, 111, 132, 0.9);
-}
-
-:root[data-theme='dark'] .taskbar-tooltip-identity strong {
-  color: #f8fafc;
-}
-
-:root[data-theme='dark'] .taskbar-tooltip-identity span,
-:root[data-theme='dark'] .taskbar-tooltip-market,
-:root[data-theme='dark'] .taskbar-tooltip-update-time,
-:root[data-theme='dark'] .taskbar-tooltip-details dt {
-  color: #a8b3c3;
-}
-
-:root[data-theme='dark'] .taskbar-tooltip-market {
-  background: #303b4d;
-}
-
-:root[data-theme='dark'] .taskbar-tooltip-details dd {
-  color: #e2e8f0;
+  --taskbar-tooltip-surface: #232326;
 }
 
 :root[data-theme='dark'] .taskbar-tooltip-sparkline.is-up dd {
@@ -739,7 +697,7 @@ html[data-theme='dark'].tray-mode #root {
 }
 
 :root[data-theme='dark'] .taskbar-tooltip-sparkline.is-flat dd {
-  color: #c5cedb;
+  color: var(--stock-popover-secondary);
 }
 
 :root[data-theme='dark'] .taskbar-tooltip-sector b.is-up {
@@ -751,39 +709,7 @@ html[data-theme='dark'].tray-mode #root {
 }
 
 :root[data-theme='dark'] .taskbar-tooltip-sector b.is-flat {
-  color: #c5cedb;
-}
-
-:root[data-theme='dark'] .taskbar-tooltip-sector {
-  border-color: #48566c;
-}
-
-:root[data-theme='dark'] .taskbar-tooltip-stacked-values {
-  color: #c5cedb;
-}
-
-:root[data-theme='dark'] .taskbar-tooltip-stacked-values i {
-  color: #a8b3c3;
-}
-
-:root[data-theme='dark'] .taskbar-tooltip-section {
-  border-color: rgba(96, 111, 132, 0.38);
-}
-
-:root[data-theme='dark'] .taskbar-tooltip-position-grid b,
-:root[data-theme='dark'] .taskbar-tooltip-t-summary strong,
-:root[data-theme='dark'] .taskbar-tooltip-alert-list b {
-  color: #e2e8f0;
-}
-
-:root[data-theme='dark'] .taskbar-tooltip-position-grid small,
-:root[data-theme='dark'] .taskbar-tooltip-t-summary,
-:root[data-theme='dark'] .taskbar-tooltip-alert-list li {
-  color: #a8b3c3;
-}
-
-:root[data-theme='dark'] .taskbar-tooltip-alert-list li {
-  background: #253043;
+  color: var(--stock-popover-secondary);
 }
 
 :root[data-theme='dark'] .taskbar-tooltip-price-row.is-up,
@@ -818,5 +744,35 @@ html[data-theme='dark'].tray-mode #root {
 :root[data-theme='dark'] .taskbar-tooltip-price-row .taskbar-tooltip-today-profit.is-flat,
 :root[data-theme='dark'] .taskbar-tooltip-position-grid b.is-flat,
 :root[data-theme='dark'] .taskbar-tooltip-t-summary .is-flat {
-  color: #c5cedb;
+  color: var(--stock-popover-secondary);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .tray-summary-panel,
+  .taskbar-stock-tooltip {
+    --stock-popover-surface: #f5f5f7;
+    --stock-popover-highlight: transparent;
+  }
+
+  :root[data-theme='dark'] .tray-summary-panel,
+  :root[data-theme='dark'] .taskbar-stock-tooltip {
+    --stock-popover-surface: #262629;
+    --stock-popover-highlight: transparent;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .tray-summary-panel,
+  .taskbar-stock-tooltip {
+    --stock-popover-outline: #76767c;
+    --stock-popover-secondary: #44444b;
+    --stock-popover-separator: #76767c;
+  }
+
+  :root[data-theme='dark'] .tray-summary-panel,
+  :root[data-theme='dark'] .taskbar-stock-tooltip {
+    --stock-popover-outline: #9b9ba3;
+    --stock-popover-secondary: #dedee4;
+    --stock-popover-separator: #9b9ba3;
+  }
 }
