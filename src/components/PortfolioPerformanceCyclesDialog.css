@@ -73,6 +73,36 @@
   padding: 10px 16px 16px;
 }
 
+.portfolio-performance-cycles-account {
+  display: grid;
+  min-width: 0;
+  gap: 9px;
+}
+
+.portfolio-performance-cycles-account + .portfolio-performance-cycles-account {
+  margin-top: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.portfolio-performance-cycles-account-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.portfolio-performance-cycles-account-heading h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.portfolio-performance-cycles-account-heading > span {
+  color: var(--subtle);
+  font-size: 12px;
+}
+
 .portfolio-performance-cycles-summary {
   display: grid;
   grid-template-columns: repeat(9, minmax(128px, 1fr));

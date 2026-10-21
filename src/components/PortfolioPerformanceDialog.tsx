@@ -260,9 +260,25 @@ export default function PortfolioPerformanceDialog({
     portfolio.currentCycle.cny.totalProfit === null
       ? null
       : portfolio.currentCycle.cny.totalProfit - portfolio.currentCycle.cny.manualAdjustment
-  const cycleDetailPerformance = cycleDetailQuoteId
-    ? stocksByQuoteId.get(cycleDetailQuoteId)
-    : undefined
+  const cycleDetailAccounts = useMemo(
+    () =>
+      report.stocks.flatMap((performance) => {
+        if (performance.quoteId !== cycleDetailQuoteId) return []
+        const account = getStockAccountBook(accounts, performance.quoteId, performance.accountId)
+        if (!account) return []
+        const legacyAdjustment = Number.isFinite(adjustments[performance.quoteId])
+          ? adjustments[performance.quoteId]
+          : 0
+        return [
+          {
+            account,
+            performance,
+            manualAdjustment: account.performanceAdjustmentCny ?? legacyAdjustment
+          }
+        ]
+      }),
+    [accounts, adjustments, cycleDetailQuoteId, report.stocks]
+  )
   const cycleDetailStock = cycleDetailQuoteId
     ? watchlistByQuoteId.get(cycleDetailQuoteId)
     : undefined
@@ -480,7 +496,7 @@ export default function PortfolioPerformanceDialog({
                   setCycleDetailQuoteId(null)
                 }}
               />
-              <small>选择具体账户后可调整收益和查看独立持仓周期</small>
+              <small>周期明细按账户独立展示；选择具体账户后可调整收益</small>
             </div>
           </div>
           <div className="portfolio-performance-table-wrap">
@@ -513,6 +529,8 @@ export default function PortfolioPerformanceDialog({
                     report.stocks.filter((stock) => stock.quoteId === row.id).length === 1
                       ? stocksByQuoteId.get(row.id)
                       : undefined
+                  const hasCycleDetails =
+                    row.scope === 'stock' && listStockAccountBooks(visibleBooks[row.id]).length > 0
                   const editingAdjustment = editingAdjustmentQuoteId === editableStock?.quoteId
                   const rawStockProfit = editableStock
                     ? editableStock.currentCycle.cny.totalProfit === null
@@ -630,44 +648,51 @@ export default function PortfolioPerformanceDialog({
                         </div>
                       </td>
                       <td>
-                        {editableStock ? (
+                        {editableStock || hasCycleDetails ? (
                           <span className="performance-row-operation">
-                            <button
-                              className="performance-row-recalculate"
-                              type="button"
-                              disabled={recalculatingQuoteId !== null}
-                              aria-label={`重新计算${row.label}收益`}
-                              title="刷新该股票行情，并按当前交易账本重新计算"
-                              onClick={() => void recalculateStock(editableStock.quoteId)}
-                            >
-                              <RefreshCw
-                                size={13}
-                                className={
-                                  recalculatingQuoteId === editableStock.quoteId
-                                    ? 'is-spinning'
-                                    : undefined
-                                }
-                              />
-                              <span>
-                                {recalculatingQuoteId === editableStock.quoteId
-                                  ? '计算中'
-                                  : '重新计算'}
-                              </span>
-                            </button>
-                            <button
-                              className="performance-row-cycles"
-                              type="button"
-                              aria-label={`查看${row.label}所有持仓周期收益`}
-                              title="查看所有持仓周期收益"
-                              onClick={() => {
-                                closeAdjustmentEditor()
-                                setCycleDetailQuoteId(editableStock.quoteId)
-                              }}
-                            >
-                              <History size={13} />
-                              <span>周期明细</span>
-                            </button>
-                            {recalculationErrorQuoteId === editableStock.quoteId ? (
+                            {editableStock ? (
+                              <AppButton
+                                variant="plain"
+                                className="performance-row-recalculate"
+                                type="button"
+                                disabled={recalculatingQuoteId !== null}
+                                aria-label={`重新计算${row.label}收益`}
+                                title="刷新该股票行情，并按当前交易账本重新计算"
+                                onClick={() => void recalculateStock(editableStock.quoteId)}
+                              >
+                                <RefreshCw
+                                  size={13}
+                                  className={
+                                    recalculatingQuoteId === editableStock.quoteId
+                                      ? 'is-spinning'
+                                      : undefined
+                                  }
+                                />
+                                <span>
+                                  {recalculatingQuoteId === editableStock.quoteId
+                                    ? '计算中'
+                                    : '重新计算'}
+                                </span>
+                              </AppButton>
+                            ) : null}
+                            {hasCycleDetails ? (
+                              <AppButton
+                                variant="plain"
+                                className="performance-row-cycles"
+                                type="button"
+                                aria-label={`查看${row.label}所有持仓周期收益`}
+                                title="查看所有持仓周期收益"
+                                onClick={() => {
+                                  closeAdjustmentEditor()
+                                  setCycleDetailQuoteId(row.id)
+                                }}
+                              >
+                                <History size={13} />
+                                <span>周期明细</span>
+                              </AppButton>
+                            ) : null}
+                            {editableStock &&
+                            recalculationErrorQuoteId === editableStock.quoteId ? (
                               <small className="performance-row-recalculation-error">
                                 重新计算失败，请重试
                               </small>
@@ -692,31 +717,13 @@ export default function PortfolioPerformanceDialog({
           </div>
         </div>
       </section>
-      {cycleDetailPerformance && cycleDetailStock ? (
+      {cycleDetailAccounts.length > 0 && cycleDetailStock ? (
         <PortfolioPerformanceCyclesDialog
-          stock={{
-            ...cycleDetailStock,
-            position: getStockAccountBook(
-              accounts,
-              cycleDetailStock.quoteId,
-              cycleDetailPerformance.accountId
-            )?.position
-          }}
-          performance={cycleDetailPerformance}
+          key={cycleDetailStock.quoteId}
+          stock={cycleDetailStock}
+          accounts={cycleDetailAccounts}
           quote={quotesByQuoteId.get(cycleDetailStock.quoteId)}
-          account={getStockAccountBook(
-            accounts,
-            cycleDetailStock.quoteId,
-            cycleDetailPerformance.accountId
-          )}
           exchangeRates={exchangeRates}
-          manualAdjustment={
-            getStockAccountBook(
-              accounts,
-              cycleDetailStock.quoteId,
-              cycleDetailPerformance.accountId
-            )?.performanceAdjustmentCny ?? 0
-          }
           onClose={() => setCycleDetailQuoteId(null)}
         />
       ) : null}
