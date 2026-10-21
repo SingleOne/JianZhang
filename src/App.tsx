@@ -129,6 +129,14 @@ interface StockAddOptions {
 }
 
 type DeferredDialogId = 'dividend-ranking' | 'fundamental-screening' | 'daily-scan' | 'tracking'
+type TitlebarPanelId =
+  | DeferredDialogId
+  | 'tools'
+  | 'settings'
+  | 'ai-assistant'
+  | 'portfolio-performance'
+  | 'account-manager'
+  | 'fee-scheme-manager'
 
 const EMPTY_DATA_SNAPSHOT_STATE: DataSnapshotRuntimeState = {
   status: 'missing',
@@ -175,8 +183,7 @@ function cardDirectionClass(value: number | null | undefined): string {
 }
 
 export default function App() {
-  const [accountManagerOpen, setAccountManagerOpen] = useState(false)
-  const [feeSchemeManagerOpen, setFeeSchemeManagerOpen] = useState(false)
+  const [activeTitlebarPanel, setActiveTitlebarPanel] = useState<TitlebarPanelId | null>(null)
   const confirm = useConfirmDialog()
   const [state, setState] = useState<AppState>(initialState)
   const [trackingArchiveIndex, setTrackingArchiveIndex] = useState<StockTrackingArchiveIndex>({})
@@ -228,13 +235,7 @@ export default function App() {
     useState<GitHubDeviceAuthorization | null>(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const [aiAssistantOpen, setAiAssistantOpen] = useState(false)
-  const [dividendRankingOpen, setDividendRankingOpen] = useState(false)
-  const [fundamentalScreeningOpen, setFundamentalScreeningOpen] = useState(false)
-  const [dailyMarketScanOpen, setDailyMarketScanOpen] = useState(false)
-  const [stockTrackingOpen, setStockTrackingOpen] = useState(false)
   const [loadedDialogs, setLoadedDialogs] = useState<Set<DeferredDialogId>>(() => new Set())
-  const [portfolioPerformanceOpen, setPortfolioPerformanceOpen] = useState(false)
   const [dividendFinancingSnapshot, setDividendFinancingSnapshot] =
     useState<DividendFinancingSnapshot | null>(null)
   const [dividendFinancingOverview, setDividendFinancingOverview] =
@@ -258,6 +259,14 @@ export default function App() {
   } | null>(null)
   const aiModulePresent = Boolean(AiAssistantDrawer && window.aiApi)
   const aiRuntimeAvailable = aiModulePresent && optionalModulesState.ai.status === 'ready'
+
+  const toggleTitlebarMenu = useCallback((menu: 'tools' | 'settings') => {
+    setActiveTitlebarPanel((current) => (current === menu ? null : menu))
+  }, [])
+
+  const closeTitlebarPanel = useCallback((panel: TitlebarPanelId) => {
+    setActiveTitlebarPanel((current) => (current === panel ? null : current))
+  }, [])
 
   const loadDialog = useCallback((dialogId: DeferredDialogId) => {
     setLoadedDialogs((current) => {
@@ -516,7 +525,7 @@ export default function App() {
       const detail = (event as CustomEvent<{ quoteId: string; quoteName?: string }>).detail
       if (!detail?.quoteId) return
       setAiAssistantContext(detail)
-      setAiAssistantOpen(true)
+      setActiveTitlebarPanel('ai-assistant')
     }
     window.addEventListener('ai:open-assistant', openWithStockContext)
     return () => window.removeEventListener('ai:open-assistant', openWithStockContext)
@@ -1319,26 +1328,26 @@ export default function App() {
 
   const viewWatchlistStockFromRanking = useCallback(
     (quoteId: string) => {
-      setDividendRankingOpen(false)
+      closeTitlebarPanel('dividend-ranking')
       requestWatchlistStockPosition(quoteId, 'dividend-ranking', true)
     },
-    [requestWatchlistStockPosition]
+    [closeTitlebarPanel, requestWatchlistStockPosition]
   )
 
   const viewWatchlistStockFromFundamentals = useCallback(
     (quoteId: string) => {
-      setFundamentalScreeningOpen(false)
+      closeTitlebarPanel('fundamental-screening')
       requestWatchlistStockPosition(quoteId, 'fundamental-screening', true)
     },
-    [requestWatchlistStockPosition]
+    [closeTitlebarPanel, requestWatchlistStockPosition]
   )
 
   const viewWatchlistStockFromDailyScan = useCallback(
     (quoteId: string) => {
-      setDailyMarketScanOpen(false)
+      closeTitlebarPanel('daily-scan')
       requestWatchlistStockPosition(quoteId, 'daily-scan', true)
     },
-    [requestWatchlistStockPosition]
+    [closeTitlebarPanel, requestWatchlistStockPosition]
   )
 
   const viewWatchlistStockFromTracking = useCallback(
@@ -1677,23 +1686,25 @@ export default function App() {
                 <span>立即刷新</span>
               </button>
               <TitlebarToolsMenu
+                open={activeTitlebarPanel === 'tools'}
+                onToggle={() => toggleTitlebarMenu('tools')}
                 onOpenDividendRanking={() => {
                   loadDialog('dividend-ranking')
-                  setDividendRankingOpen(true)
+                  setActiveTitlebarPanel('dividend-ranking')
                 }}
                 onOpenFundamentalScreening={() => {
                   loadDialog('fundamental-screening')
-                  setFundamentalScreeningOpen(true)
+                  setActiveTitlebarPanel('fundamental-screening')
                 }}
                 onOpenDailyMarketScan={() => {
                   loadDialog('daily-scan')
-                  setDailyMarketScanOpen(true)
+                  setActiveTitlebarPanel('daily-scan')
                 }}
                 onOpenStockTracking={() => {
                   loadDialog('tracking')
-                  setStockTrackingOpen(true)
+                  setActiveTitlebarPanel('tracking')
                 }}
-                onOpenPortfolioPerformance={() => setPortfolioPerformanceOpen(true)}
+                onOpenPortfolioPerformance={() => setActiveTitlebarPanel('portfolio-performance')}
               />
               {aiModulePresent ? (
                 <button
@@ -1702,7 +1713,7 @@ export default function App() {
                   disabled={!aiRuntimeAvailable}
                   onClick={() => {
                     setAiAssistantContext(null)
-                    setAiAssistantOpen(true)
+                    setActiveTitlebarPanel('ai-assistant')
                   }}
                   title={
                     optionalModulesState.ai.status === 'initializing'
@@ -1724,14 +1735,10 @@ export default function App() {
               ) : null}
               <Suspense fallback={null}>
                 <SettingsMenu
-                  onManageAccounts={() => {
-                    setFeeSchemeManagerOpen(false)
-                    setAccountManagerOpen(true)
-                  }}
-                  onManageFeeSchemes={() => {
-                    setAccountManagerOpen(false)
-                    setFeeSchemeManagerOpen(true)
-                  }}
+                  open={activeTitlebarPanel === 'settings'}
+                  onToggle={() => toggleTitlebarMenu('settings')}
+                  onManageAccounts={() => setActiveTitlebarPanel('account-manager')}
+                  onManageFeeSchemes={() => setActiveTitlebarPanel('fee-scheme-manager')}
                   settings={state.settings}
                   onChange={updateSettings}
                   onImportConfig={importConfig}
@@ -1976,7 +1983,7 @@ export default function App() {
         {loadedDialogs.has('dividend-ranking') ? (
           <Suspense fallback={null}>
             <DividendFinancingRankingDialog
-              open={dividendRankingOpen}
+              open={activeTitlebarPanel === 'dividend-ranking'}
               cachedSnapshot={dividendFinancingSnapshot}
               cachedChangeReport={dividendFinancingChangeReport}
               dataState={dividendFinancingState}
@@ -1986,14 +1993,14 @@ export default function App() {
               onViewStock={viewWatchlistStockFromRanking}
               onSnapshotChange={setDividendFinancingSnapshot}
               onChangeReportChange={setDividendFinancingChangeReport}
-              onClose={() => setDividendRankingOpen(false)}
+              onClose={() => closeTitlebarPanel('dividend-ranking')}
             />
           </Suspense>
         ) : null}
         {loadedDialogs.has('fundamental-screening') ? (
           <Suspense fallback={null}>
             <FundamentalScreeningDialog
-              open={fundamentalScreeningOpen}
+              open={activeTitlebarPanel === 'fundamental-screening'}
               cachedSnapshot={fundamentalSnapshot}
               cachedChangeReport={fundamentalChangeReport}
               dataState={fundamentalDataState}
@@ -2003,14 +2010,14 @@ export default function App() {
               onViewStock={viewWatchlistStockFromFundamentals}
               onSnapshotChange={setFundamentalSnapshot}
               onChangeReportChange={setFundamentalChangeReport}
-              onClose={() => setFundamentalScreeningOpen(false)}
+              onClose={() => closeTitlebarPanel('fundamental-screening')}
             />
           </Suspense>
         ) : null}
         {loadedDialogs.has('daily-scan') ? (
           <Suspense fallback={null}>
             <DailyMarketScanDialog
-              open={dailyMarketScanOpen}
+              open={activeTitlebarPanel === 'daily-scan'}
               watchlist={state.watchlist}
               trackingProfiles={state.stockTrackingProfiles}
               dividendFinancingByCode={dividendFinancingByCode}
@@ -2030,14 +2037,14 @@ export default function App() {
               exchangeRates={state.settings.exchangeRates}
               onAddStock={addDailyMarketScanStock}
               onViewStock={viewWatchlistStockFromDailyScan}
-              onClose={() => setDailyMarketScanOpen(false)}
+              onClose={() => closeTitlebarPanel('daily-scan')}
             />
           </Suspense>
         ) : null}
         {loadedDialogs.has('tracking') ? (
           <Suspense fallback={null}>
             <StockTrackingDialog
-              open={stockTrackingOpen}
+              open={activeTitlebarPanel === 'tracking'}
               profiles={state.stockTrackingProfiles}
               archiveIndex={trackingArchiveIndex}
               watchlist={state.watchlist}
@@ -2056,15 +2063,15 @@ export default function App() {
               onBollingerBandsEnabledChange={updateBollingerBandsEnabled}
               dailyKlineIndicator={state.settings.dailyKlineIndicator}
               onDailyKlineIndicatorChange={updateDailyKlineIndicator}
-              onClose={() => setStockTrackingOpen(false)}
+              onClose={() => closeTitlebarPanel('tracking')}
             />
           </Suspense>
         ) : null}
-        {accountManagerOpen ? (
+        {activeTitlebarPanel === 'account-manager' ? (
           <Suspense fallback={null}>
             <SecuritiesAccountManager
               state={state}
-              onClose={() => setAccountManagerOpen(false)}
+              onClose={() => closeTitlebarPanel('account-manager')}
               onSave={async (accounts) =>
                 Boolean(
                   await persist(
@@ -2078,11 +2085,11 @@ export default function App() {
             />
           </Suspense>
         ) : null}
-        {feeSchemeManagerOpen ? (
+        {activeTitlebarPanel === 'fee-scheme-manager' ? (
           <Suspense fallback={null}>
             <FeeSchemeManager
               state={state}
-              onClose={() => setFeeSchemeManagerOpen(false)}
+              onClose={() => closeTitlebarPanel('fee-scheme-manager')}
               onSave={async (feeSchemes, fixedFeeDefaults) =>
                 Boolean(
                   await persist(normalizeAccountState({ ...state, feeSchemes, fixedFeeDefaults }))
@@ -2091,7 +2098,7 @@ export default function App() {
             />
           </Suspense>
         ) : null}
-        {portfolioPerformanceOpen ? (
+        {activeTitlebarPanel === 'portfolio-performance' ? (
           <Suspense fallback={null}>
             <PortfolioPerformanceDialog
               watchlist={state.watchlist}
@@ -2102,17 +2109,17 @@ export default function App() {
               onSaveAdjustments={savePortfolioPerformanceAdjustments}
               onSavePerformanceCache={savePortfolioPerformanceCache}
               onRecalculateStock={recalculatePortfolioPerformanceStock}
-              onClose={() => setPortfolioPerformanceOpen(false)}
+              onClose={() => closeTitlebarPanel('portfolio-performance')}
             />
           </Suspense>
         ) : null}
-        {aiAssistantOpen && aiRuntimeAvailable && AiAssistantDrawer ? (
+        {activeTitlebarPanel === 'ai-assistant' && aiRuntimeAvailable && AiAssistantDrawer ? (
           <Suspense fallback={null}>
             <AiAssistantDrawer
               open
               context={aiAssistantContext}
               stocks={state.watchlist}
-              onClose={() => setAiAssistantOpen(false)}
+              onClose={() => closeTitlebarPanel('ai-assistant')}
             />
           </Suspense>
         ) : null}

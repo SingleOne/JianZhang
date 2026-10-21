@@ -48,6 +48,8 @@ const MARKET_INDEX_GROUPS = (['CN', 'HK', 'US'] as const).map((market) => ({
 }))
 
 interface SettingsMenuProps {
+  open: boolean
+  onToggle: () => void
   onManageAccounts: () => void
   onManageFeeSchemes: () => void
   settings: AppSettings
@@ -154,6 +156,8 @@ function formatCacheSize(bytes: number): string {
 }
 
 export function SettingsMenu({
+  open,
+  onToggle,
   onManageAccounts,
   onManageFeeSchemes,
   settings,
@@ -287,11 +291,19 @@ export function SettingsMenu({
   return (
     <details
       className="settings-menu"
+      open={open}
       onToggle={(event) => {
         if (event.currentTarget.open && activeTab === 'data') onRefreshGitHubSyncSettings()
       }}
     >
-      <summary className="secondary-button" title="设置">
+      <summary
+        className="secondary-button"
+        title="设置"
+        onClick={(event) => {
+          event.preventDefault()
+          onToggle()
+        }}
+      >
         <Settings2 size={17} />
         <span>设置</span>
       </summary>
