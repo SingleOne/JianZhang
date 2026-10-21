@@ -215,6 +215,72 @@ html:root[data-theme] body {
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 20%, transparent);
   }
 
+  & .settings-popover {
+    padding: 16px;
+  }
+
+  & .settings-popover > .settings-heading {
+    gap: 12px;
+    padding: 2px 2px 14px;
+    background: transparent;
+    border-bottom: 0;
+    box-shadow: none;
+  }
+
+  & .settings-popover > .settings-heading strong {
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+  }
+
+  & .settings-popover > .settings-heading span {
+    color: var(--muted);
+  }
+
+  & .settings-popover > .settings-tabs {
+    gap: 4px;
+    margin: 0 0 12px;
+    padding: 4px;
+    background: var(--surface-muted);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+
+  & .settings-popover > .settings-tabs > button {
+    min-width: 0;
+    height: 32px;
+    color: var(--muted);
+    background: transparent;
+    border-color: transparent;
+    border-radius: 8px;
+    box-shadow: none;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  &
+    .settings-popover
+    > .settings-tabs
+    > button:hover:not(:disabled, .is-active, [aria-selected='true']) {
+    color: var(--text);
+    background: var(--surface-hover);
+  }
+
+  & .settings-popover > .settings-tabs > button:is(.is-active, [aria-selected='true']) {
+    color: var(--blue);
+    background: var(--surface);
+    border-color: var(--border);
+    box-shadow:
+      0 1px 3px var(--detail-contact-shadow),
+      inset 0 1px 0 var(--detail-rim);
+  }
+
+  & .settings-popover > .settings-tabs > button:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 1px;
+  }
+
   &
     :is(
       .app-select-menu,
