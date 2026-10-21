@@ -32,7 +32,11 @@ export interface PositionLedgerIdentity {
   currency: StockCurrency
 }
 
-export type PositionRecordLedgerEntry = TradeLedgerEntry | PositionAdjustmentLedgerEntry
+export type PositionRecordBoundary = 'opening' | 'closing'
+
+export type PositionRecordLedgerEntry = (TradeLedgerEntry | PositionAdjustmentLedgerEntry) & {
+  positionBoundary?: PositionRecordBoundary
+}
 
 export interface PositionRecordDeletionPreview {
   target: PositionRecordLedgerEntry
@@ -44,12 +48,35 @@ export function positionRecordLedgerEntries(
   account: TTradingAccount | undefined
 ): PositionRecordLedgerEntry[] {
   if (!account) return []
-  return activePortfolioLedgerEntries(account)
-    .filter(
-      (entry): entry is PositionRecordLedgerEntry =>
-        entry.kind === 'trade' || entry.kind === 'positionAdjustment'
-    )
-    .reverse()
+  const records: PositionRecordLedgerEntry[] = []
+  let quantity = 0
+  for (const entry of activePortfolioLedgerEntries(account)) {
+    const previousQuantity = quantity
+    if (entry.kind === 'trade') {
+      if (entry.record.side === 'buy') quantity += entry.record.quantity
+      else if (entry.record.quantity <= quantity + 0.000_001) {
+        quantity = Math.max(0, quantity - entry.record.quantity)
+      }
+    } else if (
+      entry.kind === 'positionAdjustment' ||
+      entry.kind === 'shareAdjustment' ||
+      entry.kind === 'securityConversion'
+    ) {
+      quantity = entry.quantityAfter
+    } else if (entry.kind === 'rightsSubscription') {
+      quantity += entry.quantity
+    }
+
+    if (entry.kind !== 'trade' && entry.kind !== 'positionAdjustment') continue
+    const positionBoundary =
+      previousQuantity === 0 && quantity > 0
+        ? 'opening'
+        : previousQuantity > 0 && quantity === 0
+          ? 'closing'
+          : undefined
+    records.push({ ...entry, positionBoundary })
+  }
+  return records.reverse()
 }
 
 export function previewPositionRecordDeletion(

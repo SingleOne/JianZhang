@@ -10,7 +10,17 @@ import {
 import { resolveAccountSelection } from '../shared/stock-accounts'
 import { AppButton } from './AppButton'
 import { AppInput } from './AppFormControls'
-import { BriefcaseBusiness, Camera, Check, PencilLine, ReceiptText, Trash2, X } from 'lucide-react'
+import {
+  BriefcaseBusiness,
+  Camera,
+  Check,
+  CircleCheck,
+  Flag,
+  PencilLine,
+  ReceiptText,
+  Trash2,
+  X
+} from 'lucide-react'
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -32,6 +42,7 @@ import {
   previewPositionRecordDeletion,
   removePositionRecordEntries,
   shouldCreateInitialPositionRecord,
+  type PositionRecordBoundary,
   type PositionRecordLedgerEntry,
   positionsMatch
 } from '../lib/position-ledger'
@@ -361,6 +372,7 @@ function updateTradeAccount(
 
 interface TradeRecordListProps {
   records: readonly PositionRecordLedgerEntry[]
+  showPositionBoundaries?: boolean
   market: StockMarket
   currency: StockCurrency
   editingTradeId: string | null
@@ -374,8 +386,38 @@ interface TradeRecordListProps {
   onDelete: (entry: PositionRecordLedgerEntry) => void
 }
 
+function TradeRecordType({
+  side,
+  boundary,
+  children
+}: {
+  side: TTradeSide | 'adjustment'
+  boundary?: PositionRecordBoundary
+  children: ReactNode
+}) {
+  const label = <span className={`trade-record-side is-${side}`}>{children}</span>
+  if (!boundary) return label
+  return (
+    <span className="trade-record-type">
+      {label}
+      <span
+        className={`trade-record-boundary is-${boundary}`}
+        title={boundary === 'opening' ? '本条记录使持仓从零变为正数' : '本条记录使持仓归零'}
+      >
+        {boundary === 'opening' ? (
+          <Flag size={12} aria-hidden="true" />
+        ) : (
+          <CircleCheck size={12} aria-hidden="true" />
+        )}
+        {boundary === 'opening' ? '建仓' : '清仓'}
+      </span>
+    </span>
+  )
+}
+
 function TradeRecordList({
   records,
+  showPositionBoundaries = false,
   market,
   currency,
   editingTradeId,
@@ -401,11 +443,14 @@ function TradeRecordList({
           <span>操作</span>
         </div>
         {records.map((entry) => {
+          const boundary = showPositionBoundaries ? entry.positionBoundary : undefined
           if (entry.kind === 'positionAdjustment') {
             const quantityChange = entry.quantityAfter - entry.quantityBefore
             return (
               <div className="trade-record-row" key={entry.id}>
-                <span className="trade-record-side is-adjustment">持仓校准</span>
+                <TradeRecordType side="adjustment" boundary={boundary}>
+                  持仓校准
+                </TradeRecordType>
                 <span>
                   <strong>持仓校准</strong>
                   <small>
@@ -622,9 +667,9 @@ function TradeRecordList({
           }
           return (
             <div className="trade-record-row" key={entry.id}>
-              <span className={`trade-record-side is-${record.side}`}>
+              <TradeRecordType side={record.side} boundary={boundary}>
                 {tradeRecordLabel(record)}
-              </span>
+              </TradeRecordType>
               <span>
                 <strong>{tradeRecordContext(record)}</strong>
                 <small>
@@ -2047,7 +2092,11 @@ export function PositionEditor({
               </button>
             </header>
             <div className="trade-record-dialog-content">
-              <TradeRecordList records={visiblePositionRecords} {...tradeRecordListProps} />
+              <TradeRecordList
+                records={visiblePositionRecords}
+                showPositionBoundaries
+                {...tradeRecordListProps}
+              />
             </div>
             <footer className="trade-record-dialog-footer">
               <span>每页 {TRADE_RECORD_PAGE_SIZE} 条</span>

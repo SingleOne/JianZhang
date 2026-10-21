@@ -696,6 +696,31 @@
   background: var(--blue-soft);
 }
 
+.trade-record-row > span.trade-record-type {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.trade-record-boundary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  color: var(--muted);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.trade-record-boundary.is-opening {
+  color: var(--blue);
+  background: var(--blue-soft);
+}
+
 .trade-record-empty {
   padding: 22px;
   color: var(--subtle);
@@ -726,9 +751,14 @@
 }
 
 .trade-record-dialog-content .trade-record-list {
+  min-width: 1060px;
   overflow: hidden;
   border: 1px solid #e5e9f0;
   border-radius: 8px;
+}
+
+.trade-record-dialog-content .trade-record-row {
+  grid-template-columns: 185px 170px 270px 170px minmax(120px, 1fr) 70px;
 }
 
 .trade-record-dialog-footer {
