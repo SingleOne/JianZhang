@@ -828,7 +828,11 @@ export function calculateCurrentPositionProfitOverride(
   manualAdjustment = 0
 ): PositionProfitOverride | undefined {
   if (!account) return undefined
-  const results = listStockAccountBooks(account).flatMap((child) => {
+  const children = listStockAccountBooks(account)
+  const holdingAccounts = children.filter(
+    (child) => ((child.accountId ? child.position : stock.position)?.quantity ?? 0) > 0
+  )
+  const results = (holdingAccounts.length ? holdingAccounts : children).flatMap((child) => {
     const calculation = stockPerformance(
       stock,
       quote,

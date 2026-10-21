@@ -8,6 +8,7 @@ import type {
   WatchStock
 } from '../shared/types'
 import {
+  calculateCurrentPositionProfitOverride,
   calculatePortfolioPerformanceCycles,
   calculatePortfolioPerformanceReport
 } from './portfolio-performance'
@@ -138,6 +139,61 @@ function exchangeRates(hkd: number | null = 0.92): ExchangeRateSettings {
     source: 'safe-cfets'
   }
 }
+
+describe('current position profit', () => {
+  it('sums only holding accounts while keeping closed cycles in cumulative performance', () => {
+    const closed = {
+      ...account([
+        trade('closed-buy', 'buy', 100, 10, 0.9, 5),
+        trade('close', 'sell', 100, 15, 0.95, 5)
+      ]),
+      accountId: 'closed'
+    }
+    const firstHolding = {
+      ...account([trade('first-buy', 'buy', 60, 11, 0.91, 2)]),
+      accountId: 'first',
+      position: stock(60).position
+    }
+    const secondHolding = {
+      ...account([trade('second-buy', 'buy', 40, 10, 0.9, 1)]),
+      accountId: 'second',
+      position: stock(40).position
+    }
+    const book = {
+      quoteId: '116.00700',
+      accounts: { closed, first: firstHolding, second: secondHolding }
+    }
+
+    expect(
+      calculateCurrentPositionProfitOverride(stock(100), quote(), book, exchangeRates())
+    ).toEqual({ totalProfit: 137, cnyTotalProfit: 140.68 })
+
+    const report = calculatePortfolioPerformanceReport(
+      [stock(100)],
+      [quote()],
+      { '116.00700': book },
+      exchangeRates()
+    )
+    expect(report.stockRows[0].cumulative.native[0].totalProfit).toBe(627)
+    expect(report.stockRows[0].cumulative.cny.totalProfit).toBe(656.43)
+  })
+
+  it('preserves the legacy single-account position and the latest closed-cycle result', () => {
+    const entries = [trade('buy', 'buy', 100, 10, 0.9, 5)]
+    expect(
+      calculateCurrentPositionProfitOverride(stock(100), quote(), account(entries), exchangeRates())
+    ).toEqual({ totalProfit: 195, cnyTotalProfit: 199.5 })
+
+    const closed = {
+      ...account([...entries, trade('close', 'sell', 100, 15, 0.95, 5)]),
+      accountId: 'closed'
+    }
+    const noPosition = { ...stock(), position: undefined }
+    expect(
+      calculateCurrentPositionProfitOverride(noPosition, quote(), closed, exchangeRates())
+    ).toEqual({ totalProfit: 490, cnyTotalProfit: 515.75 })
+  })
+})
 
 describe('portfolio performance report', () => {
   it('separates profit categories and reconciles price and FX contribution', () => {
