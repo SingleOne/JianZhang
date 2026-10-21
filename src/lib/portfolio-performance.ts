@@ -100,6 +100,7 @@ export type PortfolioPerformanceCycleStatus = 'open' | 'closed' | 'excluded' | '
 
 export interface PortfolioPerformanceCycleResult extends PortfolioPerformanceSnapshot {
   id: string
+  entries: readonly PortfolioLedgerEntry[]
   sequence: number
   startedAt: string
   endedAt?: string
@@ -806,6 +807,7 @@ export function calculatePortfolioPerformanceCycles(
           : 'closed'
     return {
       id: cycle.id,
+      entries: cycle.entries,
       sequence: cycle.sequence,
       startedAt: cycle.startedAt,
       endedAt: cycle.endedAt,

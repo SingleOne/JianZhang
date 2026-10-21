@@ -1,5 +1,5 @@
-import { History, X } from 'lucide-react'
-import { useMemo } from 'react'
+import { ChevronDown, ChevronRight, History, X } from 'lucide-react'
+import { Fragment, useId, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { formatMoneyProfit } from '../lib/format'
 import {
@@ -11,6 +11,8 @@ import {
   type PortfolioPerformanceStockResult
 } from '../lib/portfolio-performance'
 import type { ExchangeRateSettings, StockQuote, TTradingAccount, WatchStock } from '../shared/types'
+import { AppButton } from './AppButton'
+import PortfolioPerformanceCycleRecords from './PortfolioPerformanceCycleRecords'
 import './PortfolioPerformanceCyclesDialog.css'
 
 interface PortfolioPerformanceCyclesDialogProps {
@@ -110,6 +112,8 @@ export default function PortfolioPerformanceCyclesDialog({
   manualAdjustment,
   onClose
 }: PortfolioPerformanceCyclesDialogProps) {
+  const [expandedCycleId, setExpandedCycleId] = useState<string | null>(null)
+  const detailsId = useId()
   const cycles = useMemo(
     () =>
       calculatePortfolioPerformanceCycles(stock, quote, account, exchangeRates, manualAdjustment),
@@ -145,7 +149,8 @@ export default function PortfolioPerformanceCyclesDialog({
               {performance.code} · 共 {cycles.length} 个收益周期 · 当前累计纳入 {includedCount} 个
             </small>
           </span>
-          <button
+          <AppButton
+            variant="plain"
             className="icon-button portfolio-performance-cycles-close"
             type="button"
             aria-label="关闭持仓周期收益"
@@ -153,7 +158,7 @@ export default function PortfolioPerformanceCyclesDialog({
             onClick={onClose}
           >
             <X size={19} />
-          </button>
+          </AppButton>
         </header>
 
         <div className="portfolio-performance-cycles-body">
@@ -208,59 +213,90 @@ export default function PortfolioPerformanceCyclesDialog({
               <tbody>
                 {rows.map((cycle) => {
                   const expense = expenseValue(cycle.cny)
+                  const expanded = expandedCycleId === cycle.id
+                  const tradeCount = cycle.entries.filter(
+                    (entry) => entry.kind === 'trade' && entry.record.origin !== 'opening-balance'
+                  ).length
+                  const panelId = `${detailsId}-${cycle.id}`
                   return (
-                    <tr
-                      key={cycle.id}
-                      className={cycle.includedInCumulative ? undefined : 'is-excluded'}
-                    >
-                      <td>
-                        <span className="performance-cycle-label">
-                          <strong>{cycleLabel(cycle)}</strong>
-                          {cycle.startedByPerformanceReset ? <small>收益基准重置</small> : null}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`performance-cycle-status is-${cycle.status}`}>
-                          {cycleStatus(cycle)}
-                        </span>
-                      </td>
-                      <td>{formatCycleDate(cycle.startedAt)}</td>
-                      <td>{cycle.status === 'open' ? '持仓中' : formatCycleDate(cycle.endedAt)}</td>
-                      <td>{formatShares(cycle.endingQuantity)}</td>
-                      <td>
-                        <CycleNativeProfit cycle={cycle} />
-                      </td>
-                      <td className={valueClass(cycle.cny.totalProfit)}>
-                        {formatMoneyProfit(cycle.cny.totalProfit, 'CNY')}
-                        {cycle.cny.manualAdjustment !== 0 ? (
-                          <small className="performance-cycle-adjustment">
-                            含调整 {formatMoneyProfit(cycle.cny.manualAdjustment, 'CNY')}
-                          </small>
-                        ) : null}
-                      </td>
-                      <td className={valueClass(cycle.cny.realizedProfit)}>
-                        {formatMoneyProfit(cycle.cny.realizedProfit, 'CNY')}
-                      </td>
-                      <td className={valueClass(cycle.cny.unrealizedProfit)}>
-                        {formatMoneyProfit(cycle.cny.unrealizedProfit, 'CNY')}
-                      </td>
-                      <td className={valueClass(cycle.cny.dividendIncome)}>
-                        {formatMoneyProfit(cycle.cny.dividendIncome, 'CNY')}
-                      </td>
-                      <td className={valueClass(expense)}>{formatMoneyProfit(expense, 'CNY')}</td>
-                      <td className={valueClass(cycle.cny.corporateActionIncome)}>
-                        {formatMoneyProfit(cycle.cny.corporateActionIncome, 'CNY')}
-                      </td>
-                      <td className={valueClass(cycle.cny.priceContribution)}>
-                        {formatMoneyProfit(cycle.cny.priceContribution, 'CNY')}
-                      </td>
-                      <td className={valueClass(cycle.cny.exchangeRateContribution)}>
-                        {formatMoneyProfit(cycle.cny.exchangeRateContribution, 'CNY')}
-                      </td>
-                      <td>
-                        <CycleCompleteness cycle={cycle} />
-                      </td>
-                    </tr>
+                    <Fragment key={cycle.id}>
+                      <tr className={cycle.includedInCumulative ? undefined : 'is-excluded'}>
+                        <td>
+                          <span className="performance-cycle-label">
+                            <strong>{cycleLabel(cycle)}</strong>
+                            {cycle.startedByPerformanceReset ? <small>收益基准重置</small> : null}
+                            <AppButton
+                              variant="text"
+                              className="performance-cycle-expand"
+                              aria-expanded={expanded}
+                              aria-controls={panelId}
+                              aria-label={`${expanded ? '收起' : '查看'}${cycleLabel(cycle)}交易记录`}
+                              onClick={() => setExpandedCycleId(expanded ? null : cycle.id)}
+                            >
+                              {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                              交易记录（{tradeCount}笔）
+                            </AppButton>
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`performance-cycle-status is-${cycle.status}`}>
+                            {cycleStatus(cycle)}
+                          </span>
+                        </td>
+                        <td>{formatCycleDate(cycle.startedAt)}</td>
+                        <td>
+                          {cycle.status === 'open' ? '持仓中' : formatCycleDate(cycle.endedAt)}
+                        </td>
+                        <td>{formatShares(cycle.endingQuantity)}</td>
+                        <td>
+                          <CycleNativeProfit cycle={cycle} />
+                        </td>
+                        <td className={valueClass(cycle.cny.totalProfit)}>
+                          {formatMoneyProfit(cycle.cny.totalProfit, 'CNY')}
+                          {cycle.cny.manualAdjustment !== 0 ? (
+                            <small className="performance-cycle-adjustment">
+                              含调整 {formatMoneyProfit(cycle.cny.manualAdjustment, 'CNY')}
+                            </small>
+                          ) : null}
+                        </td>
+                        <td className={valueClass(cycle.cny.realizedProfit)}>
+                          {formatMoneyProfit(cycle.cny.realizedProfit, 'CNY')}
+                        </td>
+                        <td className={valueClass(cycle.cny.unrealizedProfit)}>
+                          {formatMoneyProfit(cycle.cny.unrealizedProfit, 'CNY')}
+                        </td>
+                        <td className={valueClass(cycle.cny.dividendIncome)}>
+                          {formatMoneyProfit(cycle.cny.dividendIncome, 'CNY')}
+                        </td>
+                        <td className={valueClass(expense)}>{formatMoneyProfit(expense, 'CNY')}</td>
+                        <td className={valueClass(cycle.cny.corporateActionIncome)}>
+                          {formatMoneyProfit(cycle.cny.corporateActionIncome, 'CNY')}
+                        </td>
+                        <td className={valueClass(cycle.cny.priceContribution)}>
+                          {formatMoneyProfit(cycle.cny.priceContribution, 'CNY')}
+                        </td>
+                        <td className={valueClass(cycle.cny.exchangeRateContribution)}>
+                          {formatMoneyProfit(cycle.cny.exchangeRateContribution, 'CNY')}
+                        </td>
+                        <td>
+                          <CycleCompleteness cycle={cycle} />
+                        </td>
+                      </tr>
+                      {expanded ? (
+                        <tr className="performance-cycle-detail-row">
+                          <td colSpan={15}>
+                            <PortfolioPerformanceCycleRecords
+                              key={cycle.id}
+                              id={panelId}
+                              cycle={cycle}
+                              currency={performance.securityCurrency}
+                              accountLabel={performance.accountLabel}
+                              tradeCount={tradeCount}
+                            />
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
                   )
                 })}
                 {rows.length === 0 ? (
