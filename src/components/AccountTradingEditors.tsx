@@ -1,8 +1,7 @@
-import { useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { PositionEditor, type PositionEditorProps } from './PositionEditor'
 import { TTradingDrawer, type TTradingDrawerProps } from './TTradingDrawer'
 import { StockAccountBoundary, useStockAccountScope } from './SecuritiesAccountContext'
-import { AccountLedgerOverview } from './AccountLedgerOverview'
 import type { StockTradingBook, TTradingAccount } from '../shared/types'
 
 type BookInput = StockTradingBook | TTradingAccount | undefined
@@ -54,25 +53,14 @@ export function AccountPositionEditor(props: PositionProps) {
 
 function PositionEditorWithAccounts(props: PositionProps) {
   const scope = useStockAccountScope(props.stock, props.initialAccountId)
-  const [epoch, setEpoch] = useState(0)
-  const selector = (
-    <>
-      {scope.selector}
-      <AccountLedgerOverview
-        stock={props.stock}
-        onSelect={(id) => void scope.select(id)}
-        onMoved={() => setEpoch((value) => value + 1)}
-      />
-    </>
-  )
   return (
     <>
       {scope.visited.map((id) => (
         <PositionAccountDraft
-          key={`${id}:${epoch}`}
+          key={id}
           props={props}
           accountId={id}
-          selector={selector}
+          selector={scope.selector}
           hidden={id !== scope.accountId}
         />
       ))}

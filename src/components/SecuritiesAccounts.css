@@ -10,33 +10,8 @@
   min-width: 160px;
   max-width: 100%;
 }
-.securities-account-selector small,
-.account-ledger-overview {
+.securities-account-selector small {
   font-size: 12px;
-}
-.account-ledger-overview {
-  margin: 0 16px 12px;
-}
-.account-ledger-overview summary {
-  cursor: pointer;
-  padding: 8px 0;
-}
-.account-table-scroll {
-  max-height: 260px;
-  overflow: auto;
-  margin-top: 8px;
-}
-.account-table-scroll table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-}
-.account-table-scroll th,
-.account-table-scroll td {
-  padding: 8px;
-  text-align: left;
-  border-bottom: 1px solid var(--border-color, #dce2eb);
-  white-space: nowrap;
 }
 .account-manager-backdrop {
   position: fixed;
