@@ -13,15 +13,7 @@ export interface StockDetailNavigationRequest {
 
 let notificationSequence = 0
 
-type CompletionNotificationInput =
-  | Pick<
-      Extract<AppCompletionNotification, { target: 'corporate-action-center' }>,
-      'target' | 'message'
-    >
-  | Pick<
-      Exclude<AppCompletionNotification, { target: 'corporate-action-center' }>,
-      'quoteId' | 'target' | 'message'
-    >
+type CompletionNotificationInput = Pick<AppCompletionNotification, 'quoteId' | 'target' | 'message'>
 
 export function emitCompletionNotification(notification: CompletionNotificationInput): void {
   notificationSequence += 1

@@ -103,7 +103,6 @@ const StockTrackingDialog = lazy(() =>
     default: module.StockTrackingDialog
   }))
 )
-const CorporateActionCenterDialog = lazy(() => import('./components/CorporateActionCenterDialog'))
 const PortfolioPerformanceDialog = lazy(() => import('./components/PortfolioPerformanceDialog'))
 const SettingsMenu = lazy(() =>
   import('./components/SettingsMenu').then((module) => ({ default: module.SettingsMenu }))
@@ -178,9 +177,6 @@ function cardDirectionClass(value: number | null | undefined): string {
 export default function App() {
   const [accountManagerOpen, setAccountManagerOpen] = useState(false)
   const [feeSchemeManagerOpen, setFeeSchemeManagerOpen] = useState(false)
-  const [accountNavigation, setAccountNavigation] = useState<
-    { quoteId: string; accountId: string } | undefined
-  >()
   const confirm = useConfirmDialog()
   const [state, setState] = useState<AppState>(initialState)
   const [trackingArchiveIndex, setTrackingArchiveIndex] = useState<StockTrackingArchiveIndex>({})
@@ -193,7 +189,6 @@ export default function App() {
     AppCompletionNotification[]
   >([])
   const dismissedCompletionNotificationIds = useRef(new Set<string>())
-  const corporateActionCenterNotificationsDismissed = useRef(false)
   const [detailNavigationRequest, setDetailNavigationRequest] =
     useState<StockDetailNavigationRequest | null>(null)
   const [source, setSource] = useState<'eastmoney' | 'demo'>('eastmoney')
@@ -239,8 +234,6 @@ export default function App() {
   const [dailyMarketScanOpen, setDailyMarketScanOpen] = useState(false)
   const [stockTrackingOpen, setStockTrackingOpen] = useState(false)
   const [loadedDialogs, setLoadedDialogs] = useState<Set<DeferredDialogId>>(() => new Set())
-  const [corporateActionCenterOpen, setCorporateActionCenterOpen] = useState(false)
-  const [corporateActionCenterNotifyOnLoad, setCorporateActionCenterNotifyOnLoad] = useState(true)
   const [portfolioPerformanceOpen, setPortfolioPerformanceOpen] = useState(false)
   const [dividendFinancingSnapshot, setDividendFinancingSnapshot] =
     useState<DividendFinancingSnapshot | null>(null)
@@ -292,7 +285,6 @@ export default function App() {
   }, [])
 
   const handleStockSelection = useCallback((request: StockSelectionRequest) => {
-    setAccountNavigation(undefined)
     if (request.detailTarget && request.scrollAlignment === 'sticky-top') {
       setSelectedQuoteId(null)
       setDetailNavigationRequest(null)
@@ -488,20 +480,11 @@ export default function App() {
       .then((saved) => {
         setCompletionNotifications((current) => {
           const currentIds = new Set(current.map((item) => item.id))
-          const hasCurrentCorporateActionCenter = current.some(
-            (item) => item.target === 'corporate-action-center'
-          )
           const merged = [
             ...current,
             ...saved.filter(
               (item) =>
-                !currentIds.has(item.id) &&
-                !dismissedCompletionNotificationIds.current.has(item.id) &&
-                !(
-                  item.target === 'corporate-action-center' &&
-                  (corporateActionCenterNotificationsDismissed.current ||
-                    hasCurrentCorporateActionCenter)
-                )
+                !currentIds.has(item.id) && !dismissedCompletionNotificationIds.current.has(item.id)
             )
           ]
           void stockApi.saveCompletionNotifications(merged)
@@ -516,19 +499,8 @@ export default function App() {
       const notification = (event as CustomEvent<AppCompletionNotification>).detail
       if (!notification) return
       dismissedCompletionNotificationIds.current.delete(notification.id)
-      if (notification.target === 'corporate-action-center') {
-        corporateActionCenterNotificationsDismissed.current = false
-      }
       setCompletionNotifications((current) => {
-        const next = [
-          notification,
-          ...current.filter(
-            (item) =>
-              item.id !== notification.id &&
-              (notification.target !== 'corporate-action-center' ||
-                item.target !== 'corporate-action-center')
-          )
-        ]
+        const next = [notification, ...current.filter((item) => item.id !== notification.id)]
         void stockApi.saveCompletionNotifications(next)
         return next
       })
@@ -688,7 +660,6 @@ export default function App() {
     async (next: AppState) => Boolean(await persist(next)),
     [persist]
   )
-  const clearAccountNavigation = useCallback(() => setAccountNavigation(undefined), [])
 
   const requestWatchlistStockPosition = useCallback(
     (quoteId: string, requestSource: string, expandDetails = false) => {
@@ -1206,18 +1177,6 @@ export default function App() {
     [persist, state]
   )
 
-  const viewCorporateActionStock = useCallback((quoteId: string, accountId?: string) => {
-    setAccountNavigation(accountId ? { quoteId, accountId } : undefined)
-    setCorporateActionCenterOpen(false)
-    setSelectedQuoteId(quoteId)
-    setDetailNavigationRequest({
-      id: `corporate-action:${quoteId}:${Date.now()}`,
-      quoteId,
-      target: 'corporate-actions',
-      scrollAlignment: 'sticky-top'
-    })
-  }, [])
-
   const updateStockAlerts = useCallback(
     (quoteId: string, alertRules: StockAlertRule[]) => {
       const nextWatchlist = state.watchlist.map((stock) =>
@@ -1339,26 +1298,12 @@ export default function App() {
   }, [])
 
   const openCompletionNotification = useCallback((notification: AppCompletionNotification) => {
-    setAccountNavigation(undefined)
-    if (notification.target === 'corporate-action-center') {
-      corporateActionCenterNotificationsDismissed.current = true
-    } else {
-      dismissedCompletionNotificationIds.current.add(notification.id)
-    }
+    dismissedCompletionNotificationIds.current.add(notification.id)
     setCompletionNotifications((current) => {
-      const next = current.filter((item) =>
-        notification.target === 'corporate-action-center'
-          ? item.target !== 'corporate-action-center'
-          : item.id !== notification.id
-      )
+      const next = current.filter((item) => item.id !== notification.id)
       void stockApi.saveCompletionNotifications(next)
       return next
     })
-    if (notification.target === 'corporate-action-center') {
-      setCorporateActionCenterNotifyOnLoad(false)
-      setCorporateActionCenterOpen(true)
-      return
-    }
     setSelectedQuoteId(notification.quoteId)
     setDetailNavigationRequest({
       id: notification.id,
@@ -1707,12 +1652,7 @@ export default function App() {
   }
 
   return (
-    <SecuritiesAccountProvider
-      state={state}
-      onSave={commitAccountState}
-      accountNavigation={accountNavigation}
-      onNavigationHandled={clearAccountNavigation}
-    >
+    <SecuritiesAccountProvider state={state} onSave={commitAccountState}>
       {startupVisible ? (
         <StartupOverlay
           initializing={initializing}
@@ -1752,10 +1692,6 @@ export default function App() {
                 onOpenStockTracking={() => {
                   loadDialog('tracking')
                   setStockTrackingOpen(true)
-                }}
-                onOpenCorporateActionCenter={() => {
-                  setCorporateActionCenterNotifyOnLoad(true)
-                  setCorporateActionCenterOpen(true)
                 }}
                 onOpenPortfolioPerformance={() => setPortfolioPerformanceOpen(true)}
               />
@@ -2121,18 +2057,6 @@ export default function App() {
               dailyKlineIndicator={state.settings.dailyKlineIndicator}
               onDailyKlineIndicatorChange={updateDailyKlineIndicator}
               onClose={() => setStockTrackingOpen(false)}
-            />
-          </Suspense>
-        ) : null}
-        {corporateActionCenterOpen ? (
-          <Suspense fallback={null}>
-            <CorporateActionCenterDialog
-              open
-              notifyOnLoadComplete={corporateActionCenterNotifyOnLoad}
-              watchlist={state.watchlist}
-              records={state.corporateActionApplications}
-              onViewStock={viewCorporateActionStock}
-              onClose={() => setCorporateActionCenterOpen(false)}
             />
           </Suspense>
         ) : null}

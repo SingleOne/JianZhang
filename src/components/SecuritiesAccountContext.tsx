@@ -1,12 +1,4 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode
-} from 'react'
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
   accountFeeSettings,
@@ -20,33 +12,25 @@ import { AppSelect } from './AppSelect'
 import './SecuritiesAccounts.css'
 
 type AccountContextState = AppState & {
-  clearAccountNavigation: () => void
   commitAccountState: (state: AppState) => Promise<boolean>
-  accountNavigation?: { quoteId: string; accountId: string }
 }
 const AccountContext = createContext<AccountContextState | null>(null)
 
 export function SecuritiesAccountProvider({
   state,
   children,
-  onSave,
-  accountNavigation,
-  onNavigationHandled
+  onSave
 }: {
   state: AppState
   children: ReactNode
-  onNavigationHandled: () => void
   onSave: (state: AppState) => Promise<boolean>
-  accountNavigation?: { quoteId: string; accountId: string }
 }) {
   const value = useMemo<AccountContextState>(
     () => ({
       ...state,
-      commitAccountState: onSave,
-      accountNavigation,
-      clearAccountNavigation: onNavigationHandled
+      commitAccountState: onSave
     }),
-    [accountNavigation, onNavigationHandled, onSave, state]
+    [onSave, state]
   )
 
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>
@@ -119,30 +103,12 @@ export function useStockAccountScope(stock: WatchStock, preferredId?: string) {
   const state = useSecuritiesAccountState()
   const market = stock.market ?? marketFromQuoteId(stock.quoteId)
   const [selection, setSelection] = useState(() => {
-    const preferred =
-      preferredId ??
-      (state.accountNavigation?.quoteId === stock.quoteId
-        ? state.accountNavigation.accountId
-        : undefined)
-    return preferred && state.securitiesAccounts?.[preferred]?.market === market
-      ? preferred
+    return preferredId && state.securitiesAccounts?.[preferredId]?.market === market
+      ? preferredId
       : resolveAccountSelection(state, market) ||
           listAccountsForMarket(state.securitiesAccounts, market, true)[0].id
   })
   const [visited, setVisited] = useState<string[]>([selection])
-  const consumedNavigation = useRef<typeof state.accountNavigation>(undefined)
-  useEffect(() => {
-    if (consumedNavigation.current === state.accountNavigation) return
-    consumedNavigation.current = state.accountNavigation
-    const id =
-      state.accountNavigation?.quoteId === stock.quoteId
-        ? state.accountNavigation.accountId
-        : undefined
-    if (!preferredId && id && state.securitiesAccounts?.[id]?.market === market) {
-      setSelection(id)
-      setVisited((current) => (current.includes(id) ? current : [...current, id]))
-    }
-  }, [state.accountNavigation, preferredId, stock.quoteId, market, state.securitiesAccounts])
   const accountId =
     state.securitiesAccounts?.[selection]?.market === market
       ? selection

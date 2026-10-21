@@ -15,7 +15,6 @@ const STOCK_TARGETS: readonly string[] = [
 function normalize(
   notifications: readonly AppCompletionNotification[]
 ): AppCompletionNotification[] {
-  let hasCorporateActionCenter = false
   return notifications
     .filter(
       (item) =>
@@ -23,17 +22,10 @@ function normalize(
         typeof item.id === 'string' &&
         typeof item.message === 'string' &&
         typeof item.createdAt === 'string' &&
-        (item.target === 'corporate-action-center'
-          ? item.quoteId === undefined
-          : typeof item.quoteId === 'string' && STOCK_TARGETS.includes(item.target))
+        typeof item.quoteId === 'string' &&
+        STOCK_TARGETS.includes(item.target)
     )
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
-    .filter((item) => {
-      if (item.target !== 'corporate-action-center') return true
-      if (hasCorporateActionCenter) return false
-      hasCorporateActionCenter = true
-      return true
-    })
     .slice(0, MAX_NOTIFICATIONS)
 }
 

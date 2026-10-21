@@ -155,14 +155,6 @@
   background: #ffc96f;
   border-color: rgba(255, 201, 111, 0.62);
 }
-/*  src/components/CorporateActionCenterDialog.css  */
-:root[data-theme='dark'] .corporate-action-center-error {
-  color: #ff6b75;
-}
-:root[data-theme='dark'] .corporate-action-center-list em {
-  background: color-mix(in srgb, #a66b16 12%, transparent);
-  color: #f3b85b;
-}
 /*  src/components/CorporateActionPanel.css  */
 :root[data-theme='dark'] .corporate-action-warning {
   background: color-mix(in srgb, #a66b16 10%, transparent);

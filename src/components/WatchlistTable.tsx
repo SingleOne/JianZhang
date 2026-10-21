@@ -345,8 +345,7 @@ export function WatchlistTable({
   }, [onInitialRender])
 
   const [sort, setSort] = useState<SortState | null>(null)
-  const { clearAccountNavigation, securitiesAccounts, feeSchemes, settings } =
-    useSecuritiesAccountState()
+  const { securitiesAccounts, feeSchemes, settings } = useSecuritiesAccountState()
   const feeState = useMemo(
     () => ({ securitiesAccounts, feeSchemes, settings }),
     [securitiesAccounts, feeSchemes, settings]
@@ -1006,21 +1005,9 @@ export function WatchlistTable({
     },
     [onReorder, watchlist]
   )
-  const openPositionEditor = useCallback(
-    (stock: WatchStock) => {
-      clearAccountNavigation()
-      setEditingStock(stock)
-    },
-    [clearAccountNavigation]
-  )
+  const openPositionEditor = useCallback((stock: WatchStock) => setEditingStock(stock), [])
   const openStockAlert = useCallback((stock: WatchStock) => setStockAlertStock(stock), [])
-  const openTTrading = useCallback(
-    (stock: WatchStock) => {
-      clearAccountNavigation()
-      setTTradingStock(stock)
-    },
-    [clearAccountNavigation]
-  )
+  const openTTrading = useCallback((stock: WatchStock) => setTTradingStock(stock), [])
   const openGroupDialog = useCallback(() => {
     setGroupPopover(null)
     setGroupDialogOpen(true)

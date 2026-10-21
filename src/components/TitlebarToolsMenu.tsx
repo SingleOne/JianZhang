@@ -1,12 +1,4 @@
-import {
-  Activity,
-  Binoculars,
-  ChartPie,
-  CircleDollarSign,
-  Filter,
-  Menu,
-  Trophy
-} from 'lucide-react'
+import { Activity, Binoculars, ChartPie, Filter, Menu, Trophy } from 'lucide-react'
 import { useRef, type ReactNode } from 'react'
 
 interface TitlebarToolsMenuProps {
@@ -14,7 +6,6 @@ interface TitlebarToolsMenuProps {
   onOpenFundamentalScreening: () => void
   onOpenDailyMarketScan: () => void
   onOpenStockTracking: () => void
-  onOpenCorporateActionCenter: () => void
   onOpenPortfolioPerformance: () => void
 }
 
@@ -42,7 +33,6 @@ export function TitlebarToolsMenu({
   onOpenFundamentalScreening,
   onOpenDailyMarketScan,
   onOpenStockTracking,
-  onOpenCorporateActionCenter,
   onOpenPortfolioPerformance
 }: TitlebarToolsMenuProps) {
   const menuRef = useRef<HTMLDetailsElement>(null)
@@ -81,12 +71,6 @@ export function TitlebarToolsMenu({
           label="追踪复盘"
           description="管理选股追踪与复盘"
           onClick={() => openTool(onOpenStockTracking)}
-        />
-        <ToolButton
-          icon={<CircleDollarSign size={17} />}
-          label="公司行动"
-          description="处理待确认公司行动"
-          onClick={() => openTool(onOpenCorporateActionCenter)}
         />
         <ToolButton
           icon={<ChartPie size={17} />}

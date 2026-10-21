@@ -55,15 +55,9 @@ import { previewCorporateAction, reversalEntries } from './portfolio-ledger'
 function normalizeDemoCompletionNotifications(
   notifications: readonly AppCompletionNotification[]
 ): AppCompletionNotification[] {
-  let hasCorporateActionCenter = false
   return [...notifications]
+    .filter((notification) => typeof notification.quoteId === 'string')
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
-    .filter((notification) => {
-      if (notification.target !== 'corporate-action-center') return true
-      if (hasCorporateActionCenter) return false
-      hasCorporateActionCenter = true
-      return true
-    })
     .slice(0, 100)
 }
 

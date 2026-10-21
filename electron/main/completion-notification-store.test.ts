@@ -25,7 +25,8 @@ describe('CompletionNotificationStore', () => {
       },
       {
         id: 'newer',
-        target: 'corporate-action-center',
+        quoteId: '1.600519',
+        target: 't-advice',
         message: '新通知',
         createdAt: '2026-08-13T00:00:00.000Z'
       },
@@ -35,12 +36,6 @@ describe('CompletionNotificationStore', () => {
         target: 'corporate-actions',
         message: '公司行动候选已更新',
         createdAt: '2026-08-12T12:00:00.000Z'
-      },
-      {
-        id: 'older-center',
-        target: 'corporate-action-center',
-        message: '旧的中心加载通知',
-        createdAt: '2026-08-11T00:00:00.000Z'
       }
     ])
 
@@ -52,9 +47,37 @@ describe('CompletionNotificationStore', () => {
     expect(readFileSync(join(directory, 'completion-notifications.json'), 'utf8')).toContain(
       '新通知'
     )
-    expect(readFileSync(join(directory, 'completion-notifications.json'), 'utf8')).not.toContain(
-      '旧的中心加载通知'
+  })
+
+  it('discards retired center notifications when restoring saved data', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'jianzhang-notifications-'))
+    directories.push(directory)
+    const filePath = join(directory, 'completion-notifications.json')
+    writeFileSync(
+      filePath,
+      JSON.stringify([
+        {
+          id: 'retired-center',
+          target: 'corporate-action-center',
+          message: '旧的中心加载通知',
+          createdAt: '2026-08-13T00:00:00.000Z'
+        },
+        {
+          id: 'stock-action',
+          quoteId: '105.AAPL',
+          target: 'corporate-actions',
+          message: '公司行动候选已更新',
+          createdAt: '2026-08-12T00:00:00.000Z'
+        }
+      ]),
+      'utf8'
     )
+
+    const store = new CompletionNotificationStore(directory)
+    const restored = store.load()
+    expect(restored.map((item) => item.id)).toEqual(['stock-action'])
+    store.save(restored)
+    expect(readFileSync(filePath, 'utf8')).not.toContain('retired-center')
   })
 
   it('returns an empty list for damaged data', () => {

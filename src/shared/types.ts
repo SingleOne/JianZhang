@@ -2845,35 +2845,17 @@ export function normalizePortfolioPerformanceCache(
 }
 
 export type CompletionNotificationTarget =
-  | 'reports'
-  | 'corporate-actions'
-  | 'corporate-action-center'
-  | 'ai-short-term'
-  | 'ai-long-term'
-  | 't-advice'
+  'reports' | 'corporate-actions' | 'ai-short-term' | 'ai-long-term' | 't-advice'
 
-export type StockCompletionNotificationTarget = Exclude<
-  CompletionNotificationTarget,
-  'corporate-action-center'
->
+export type StockDetailNavigationTarget = CompletionNotificationTarget | 'trend' | 'tracking'
 
-export type StockDetailNavigationTarget = StockCompletionNotificationTarget | 'trend' | 'tracking'
-
-interface AppCompletionNotificationBase {
+export interface AppCompletionNotification {
   id: string
+  quoteId: string
+  target: CompletionNotificationTarget
   message: string
   createdAt: string
 }
-
-export type AppCompletionNotification =
-  | (AppCompletionNotificationBase & {
-      quoteId: string
-      target: StockCompletionNotificationTarget
-    })
-  | (AppCompletionNotificationBase & {
-      quoteId?: never
-      target: 'corporate-action-center'
-    })
 
 export interface ConfigExportResult {
   canceled: boolean
