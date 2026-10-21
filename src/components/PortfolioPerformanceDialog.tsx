@@ -4,6 +4,7 @@ import type { StockTradingBooks } from '../shared/types'
 import { ChartPie, CircleAlert, History, PencilLine, RefreshCw, Save, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { AppSelect } from './AppSelect'
 import { formatMoneyProfit } from '../lib/format'
 import {
   calculatePortfolioPerformanceReport,
@@ -457,26 +458,28 @@ export default function PortfolioPerformanceDialog({
             ))}
           </nav>
 
-          <label className="securities-account-selector">
+          <div className="securities-account-selector">
             <span>账户范围</span>
-            <select
+            <AppSelect
+              label="账户范围"
+              className="securities-account-select"
               value={accountFilter}
-              onChange={(event) => {
-                setAccountFilter(event.target.value)
+              options={[
+                { value: 'all', label: '全部账户汇总' },
+                ...Object.values(accountState.securitiesAccounts ?? {}).map((account) => ({
+                  value: account.id,
+                  label: `${account.name}${account.enabled ? '' : '（已停用）'}`
+                }))
+              ]}
+              onChange={(value) => {
+                if (value === accountFilter) return
+                setAccountFilter(value)
                 closeAdjustmentEditor()
                 setCycleDetailQuoteId(null)
               }}
-            >
-              <option value="all">全部账户汇总</option>
-              {Object.values(accountState.securitiesAccounts ?? {}).map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name}
-                  {account.enabled ? '' : '（已停用）'}
-                </option>
-              ))}
-            </select>
+            />
             <small>选择具体账户后可调整收益和查看独立持仓周期</small>
-          </label>
+          </div>
           <div className="portfolio-performance-table-wrap">
             <table className="portfolio-performance-table">
               <thead>
