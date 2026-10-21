@@ -5515,7 +5515,6 @@ html[data-theme='dark'][data-theme='dark'].tray-mode #root {
 }
 /*  src/styles.css  */
 :root[data-theme='dark'] button:focus-visible,
-:root[data-theme='dark'] input:focus-visible,
 :root[data-theme='dark'] summary:focus-visible,
 :root[data-theme='dark'] tr:focus-visible {
   outline: 2px solid rgba(91, 140, 255, 0.52);

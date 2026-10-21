@@ -54,7 +54,6 @@ button {
 }
 
 button:focus-visible,
-input:focus-visible,
 summary:focus-visible,
 tr:focus-visible {
   outline: 2px solid rgba(37, 99, 235, 0.52);

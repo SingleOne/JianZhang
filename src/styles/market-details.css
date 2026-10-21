@@ -185,7 +185,6 @@ html:root[data-theme] body {
     border-radius: 10px;
   }
 
-  & :is([aria-modal='true'], .settings-popover) :is(input, textarea):focus-visible,
   & .app-select-trigger:focus-visible {
     outline: 2px solid var(--blue);
     outline-offset: 2px;
