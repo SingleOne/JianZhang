@@ -115,6 +115,11 @@ html:root[data-theme] body {
     box-shadow: inset 0 1px 0 var(--detail-rim);
   }
 
+  & [aria-labelledby='account-manager-title'] > :is(header, footer) {
+    background: transparent;
+    box-shadow: none;
+  }
+
   & :is([aria-modal='true'], .settings-popover, .stock-details) :is(h2, h3) {
     font-weight: 650;
     letter-spacing: -0.02em;
