@@ -18,6 +18,8 @@ import { getMenuBarTooltipBounds } from './menu-bar-tooltip'
 
 const TASKBAR_TOOLTIP_WIDTH = 550
 const TASKBAR_TOOLTIP_DEFAULT_HEIGHT = 260
+// Keep in sync with --floating-window-shadow-padding in TaskbarTicker.css.
+const FLOATING_WINDOW_SHADOW_PADDING = 24
 const MAIN_WINDOW_TITLEBAR_HEIGHT = 44
 const MAIN_WINDOW_THEME_COLORS = {
   light: {
@@ -58,7 +60,9 @@ export class WindowManager {
   private taskbarLayout: TaskbarLayout = { taskbarHeight: 48, taskbarEdge: 'bottom' }
   private taskbarContentSize: { width: number; height: number } | null = null
   private taskbarTooltipAnchor: TaskbarTooltipAnchor | null = null
-  private taskbarTooltipHeight = TASKBAR_TOOLTIP_DEFAULT_HEIGHT
+  private taskbarTooltipHeight =
+    TASKBAR_TOOLTIP_DEFAULT_HEIGHT +
+    (process.platform === 'darwin' ? 0 : FLOATING_WINDOW_SHADOW_PADDING * 2)
   private trayHovered = false
   private disposed = false
   private stockSelectionSequence = 0
@@ -164,7 +168,8 @@ export class WindowManager {
   }
 
   resizeTaskbarTooltip(height: number): void {
-    const nextHeight = Math.min(560, Math.max(200, Math.ceil(height)))
+    const shadowHeight = process.platform === 'darwin' ? 0 : FLOATING_WINDOW_SHADOW_PADDING * 2
+    const nextHeight = Math.min(560 + shadowHeight, Math.max(200 + shadowHeight, Math.ceil(height)))
     if (this.taskbarTooltipHeight === nextHeight) return
     this.taskbarTooltipHeight = nextHeight
     if (this.taskbarTooltipWindow?.isVisible()) this.positionTaskbarTooltipWindow()
@@ -415,8 +420,8 @@ export class WindowManager {
     const columns = selectedCount > 1 ? 2 : 1
     const rows = Math.ceil(selectedCount / columns)
     return {
-      width: columns === 2 ? 638 : 369,
-      height: 35 + rows * 78
+      width: (columns === 2 ? 638 : 369) + FLOATING_WINDOW_SHADOW_PADDING * 2,
+      height: 35 + rows * 78 + FLOATING_WINDOW_SHADOW_PADDING * 2
     }
   }
 
@@ -437,11 +442,15 @@ export class WindowManager {
     const x = Math.min(maxX, Math.max(minX, trayCenter.x - Math.floor(width / 2)))
     const workAreaBottom = display.workArea.y + display.workArea.height
     const trayIsBelowWorkArea = trayCenter.y >= workAreaBottom
+    const maxY = workAreaBottom - height - margin + FLOATING_WINDOW_SHADOW_PADDING
     const y = trayIsBelowWorkArea
-      ? workAreaBottom - height - margin
+      ? maxY
       : Math.min(
-          workAreaBottom - height - margin,
-          Math.max(display.workArea.y + margin, trayBounds.y + trayBounds.height + margin)
+          maxY,
+          Math.max(
+            display.workArea.y + margin,
+            trayBounds.y + trayBounds.height + margin - FLOATING_WINDOW_SHADOW_PADDING
+          )
         )
 
     this.trayPopupWindow.setBounds({ x, y, width, height })
@@ -481,9 +490,10 @@ export class WindowManager {
   private createTrayPopupWindow(): void {
     if (this.trayPopupWindow && !this.trayPopupWindow.isDestroyed()) return
 
+    const { width, height } = this.trayPopupSize()
     const window = new BrowserWindow({
-      width: 369,
-      height: 113,
+      width,
+      height,
       show: false,
       frame: false,
       transparent: true,
@@ -496,7 +506,7 @@ export class WindowManager {
       focusable: false,
       skipTaskbar: true,
       alwaysOnTop: true,
-      hasShadow: true,
+      hasShadow: false,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         contextIsolation: true,
@@ -596,7 +606,9 @@ export class WindowManager {
       return
     }
 
-    const width = TASKBAR_TOOLTIP_WIDTH
+    const width =
+      TASKBAR_TOOLTIP_WIDTH +
+      (process.platform === 'darwin' ? 0 : FLOATING_WINDOW_SHADOW_PADDING * 2)
     const height = this.taskbarTooltipHeight
     const margin = 8
     const taskbarBounds = parent.getBounds()
@@ -619,9 +631,12 @@ export class WindowManager {
       this.taskbarLayout.taskbarEdge === 'top'
         ? Math.min(
             display.workArea.y + display.workArea.height - height - margin,
-            taskbarBounds.y + taskbarBounds.height + margin
+            taskbarBounds.y + taskbarBounds.height + margin - FLOATING_WINDOW_SHADOW_PADDING
           )
-        : Math.max(display.workArea.y + margin, taskbarBounds.y - height - margin)
+        : Math.max(
+            display.workArea.y + margin,
+            taskbarBounds.y - height - margin + FLOATING_WINDOW_SHADOW_PADDING
+          )
 
     this.taskbarTooltipWindow.setBounds({ x, y, width, height })
   }
@@ -648,8 +663,10 @@ export class WindowManager {
     if (this.taskbarTooltipWindow && !this.taskbarTooltipWindow.isDestroyed()) return
 
     const window = new BrowserWindow({
-      width: TASKBAR_TOOLTIP_WIDTH,
-      height: TASKBAR_TOOLTIP_DEFAULT_HEIGHT,
+      width:
+        TASKBAR_TOOLTIP_WIDTH +
+        (process.platform === 'darwin' ? 0 : FLOATING_WINDOW_SHADOW_PADDING * 2),
+      height: this.taskbarTooltipHeight,
       show: false,
       frame: false,
       type: process.platform === 'darwin' ? 'panel' : undefined,
