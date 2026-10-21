@@ -10,6 +10,7 @@ import {
 import { resolveAccountSelection } from '../shared/stock-accounts'
 import { AppButton } from './AppButton'
 import { AppInput } from './AppFormControls'
+import { Tooltip } from './Tooltip'
 import {
   BriefcaseBusiness,
   Camera,
@@ -457,18 +458,21 @@ function TradeRecordList({
           const boundary = showPositionBoundaries ? entry.positionBoundary : undefined
           if (entry.kind === 'positionAdjustment') {
             const quantityChange = entry.quantityAfter - entry.quantityBefore
+            const accountName = securitiesAccounts?.[entry.accountId]?.name ?? '默认账户'
+            const occurredAt = formatTradeTime(entry.occurredAt)
             return (
               <div className="trade-record-row" key={entry.id}>
                 <TradeRecordType side="adjustment" boundary={boundary}>
                   持仓校准
                 </TradeRecordType>
-                <span>
-                  <strong>持仓校准</strong>
-                  <small>
-                    {securitiesAccounts?.[entry.accountId]?.name} ·{' '}
-                    {formatTradeTime(entry.occurredAt)}
-                  </small>
-                </span>
+                <Tooltip content={`持仓校准；账户：${accountName}；${occurredAt}`}>
+                  <span className="trade-record-context">
+                    <strong>持仓校准</strong>
+                    <small>
+                      {accountName} · {occurredAt}
+                    </small>
+                  </span>
+                </Tooltip>
                 <span>
                   <strong>
                     {formatShares(entry.quantityBefore)} → {formatShares(entry.quantityAfter)}
@@ -675,31 +679,50 @@ function TradeRecordList({
               </div>
             )
           }
+          const batchLabel = tradeRecordContext(record)
+          const accountLabel = `账户：${securitiesAccounts?.[record.accountId ?? '']?.name ?? '默认账户'}`
+          const timingLabel = `${formatTradeTime(record.tradedAt)} · ${
+            record.actualSettlementDate
+              ? `实际交收 ${record.actualSettlementDate}`
+              : record.estimatedSettlementDate
+                ? `预计交收 ${record.estimatedSettlementDate}`
+                : '交收日 --'
+          }${record.settlementRule ? ` · ${record.settlementRule.label}` : ''}`
           return (
             <div className="trade-record-row" key={entry.id}>
               <TradeRecordType side={record.side} boundary={boundary}>
                 {tradeRecordLabel(record)}
               </TradeRecordType>
-              <span>
-                <strong>{tradeRecordContext(record)}</strong>
-                <small>
-                  账户：{securitiesAccounts?.[record.accountId ?? '']?.name ?? '默认账户'}
-                </small>
-                <small>
-                  {formatTradeTime(record.tradedAt)} ·{' '}
-                  {record.actualSettlementDate
-                    ? `实际交收 ${record.actualSettlementDate}`
-                    : record.estimatedSettlementDate
-                      ? `预计交收 ${record.estimatedSettlementDate}`
-                      : '交收日 --'}
-                  {record.settlementRule ? ` · ${record.settlementRule.label}` : ''}
-                </small>
-                {record.splitSource ? (
-                  <small>
-                    <TradeSplitSource trade={record} />
-                  </small>
-                ) : null}
-              </span>
+              <Tooltip
+                content={
+                  <>
+                    {batchLabel}
+                    <br />
+                    {accountLabel}
+                    <br />
+                    {timingLabel}
+                    {record.splitSource ? (
+                      <>
+                        <br />
+                        同笔成交拆分 · 原成交 {formatShares(record.splitSource.quantity)}
+                        <br />
+                        原成交编号：{record.splitSource.id}
+                      </>
+                    ) : null}
+                  </>
+                }
+              >
+                <span className="trade-record-context">
+                  <strong>{batchLabel}</strong>
+                  <small>{accountLabel}</small>
+                  <small>{timingLabel}</small>
+                  {record.splitSource ? (
+                    <small>
+                      <TradeSplitSource trade={record} showTitle={false} />
+                    </small>
+                  ) : null}
+                </span>
+              </Tooltip>
               <span>
                 <strong>
                   {formatShares(record.quantity)} × {formatPrice(record.price)}

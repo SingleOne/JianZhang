@@ -182,8 +182,11 @@
 }
 
 .position-snapshot-panel > header > span {
+  min-width: 0;
   display: grid;
-  gap: 3px;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: baseline;
+  gap: 3px 12px;
 }
 
 .position-snapshot-panel > header strong {
@@ -336,8 +339,11 @@
 }
 
 .trade-record-panel > header > span {
+  min-width: 0;
   display: grid;
-  gap: 3px;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: baseline;
+  gap: 3px 12px;
 }
 
 .trade-record-panel > header strong {
@@ -348,6 +354,10 @@
 .trade-record-panel > header small {
   color: var(--subtle);
   font-size: 12px;
+}
+
+.trade-ledger-summary {
+  grid-column: 1 / -1;
 }
 
 .trade-ledger-summary b {
@@ -452,7 +462,7 @@
 .trade-record-row {
   min-height: 50px;
   display: grid;
-  grid-template-columns: 105px 170px 270px 170px minmax(120px, 1fr) 70px;
+  grid-template-columns: 105px 250px 190px 170px minmax(120px, 1fr) 70px;
   align-items: center;
   gap: 10px;
   padding: 7px 10px;
@@ -496,6 +506,12 @@
 
 .trade-record-row strong.is-down {
   color: var(--green);
+}
+
+.trade-record-context > strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .trade-record-row small {
@@ -774,7 +790,7 @@
 }
 
 .trade-record-dialog-content .trade-record-row {
-  grid-template-columns: 185px 170px 270px 170px minmax(120px, 1fr) 70px;
+  grid-template-columns: 185px 250px 190px 170px minmax(120px, 1fr) 70px;
 }
 
 .trade-record-dialog-footer {
