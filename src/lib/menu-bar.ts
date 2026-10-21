@@ -33,15 +33,13 @@ export function getMenuBarPresentation(
   const stocks = getTraySummaryStocks(state, quotes)
   const { settings } = state
   if (!settings.showTaskbarTicker || stocks.length === 0) {
-    return { title: '', tooltip: '见涨 · 点击查看行情，右键打开菜单' }
+    return { title: '', tooltip: '见涨 · 点击查看行情，右键打开菜单', quoteId: null, titles: [] }
   }
   const fixedIndex = Math.max(
     0,
     stocks.findIndex(({ stock }) => stock.quoteId === settings.menuBarQuoteId)
   )
   const selected = stocks[(fixedIndex + rotationIndex) % stocks.length]
-  const { stock, quote } = selected
-  const status = getMenuBarQuoteStatus(state, quote, now)
   const hasAlert = stocks.some(
     (item) =>
       getTriggeredStockAlertDirection(item.stock.alertRules) ||
@@ -55,7 +53,9 @@ export function getMenuBarPresentation(
       return `${item.stock.name} ${formatPrice(item.quote?.latest)} ${formatPercent(item.quote?.changePercent)} · ${STOCK_QUOTE_DATA_STATE_LABELS[dataState]}`
     })
     .join('\n')
-  if (settings.menuBarDisplayMode === 'icon') return { title: hasAlert ? '!' : '', tooltip }
+  if (settings.menuBarDisplayMode === 'icon') {
+    return { title: hasAlert ? '!' : '', tooltip, quoteId: null, titles: [] }
+  }
   if (settings.menuBarDisplayMode === 'profit') {
     const total = getTrayTodayProfitTotal(stocks)
     const incomplete = stocks.some(
@@ -75,17 +75,27 @@ export function getMenuBarPresentation(
           : ''
     return {
       title: `${alertPrefix}今日 ${colored(formatMoneyProfit(total, 'CNY'), total)}${suffix}`,
-      tooltip: `所选股票今日收益合计（人民币）\n${tooltip}`
+      tooltip: `所选股票今日收益合计（人民币）\n${tooltip}`,
+      quoteId: null,
+      titles: []
     }
   }
-  const name = Array.from(
-    stock.name.replaceAll('\u001b', '').replaceAll('\r', '').replaceAll('\n', '')
-  )
-    .slice(0, 6)
-    .join('')
-  const statusSuffix = status === 'live' ? '' : ` · ${STOCK_QUOTE_DATA_STATE_LABELS[status]}`
+  const titles = stocks.map(({ stock, quote }) => {
+    const name = Array.from(
+      stock.name.replaceAll('\u001b', '').replaceAll('\r', '').replaceAll('\n', '')
+    )
+      .slice(0, 6)
+      .join('')
+    const status = getMenuBarQuoteStatus(state, quote, now)
+    const statusSuffix = status === 'live' ? '' : ` · ${STOCK_QUOTE_DATA_STATE_LABELS[status]}`
+    return `${alertPrefix}${name} ${formatPrice(quote?.latest)} ${colored(formatPercent(quote?.changePercent), quote?.changePercent)}${statusSuffix}`
+  })
   return {
-    title: `${alertPrefix}${name} ${formatPrice(quote?.latest)} ${colored(formatPercent(quote?.changePercent), quote?.changePercent)}${statusSuffix}`,
-    tooltip
+    title: titles[(fixedIndex + rotationIndex) % stocks.length],
+    tooltip,
+    quoteId: selected.stock.quoteId,
+    titles
   }
 }
+
+export type MenuBarPresentation = ReturnType<typeof getMenuBarPresentation>

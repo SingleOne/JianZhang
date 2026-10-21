@@ -31,8 +31,18 @@
   --mac-popover-down: #51d39e;
 }
 
+/* Keep app theme backgrounds out of the native popover's transparent surface. */
+:root.macos-popover[data-theme],
+:root.macos-popover[data-theme] body,
+:root.macos-popover[data-theme] #root {
+  height: auto;
+  background: transparent;
+}
+
 /* Native vibrancy and the window shadow supply the backdrop and exterior elevation. */
 :root.macos-popover[data-theme] #root {
+  max-height: 100vh;
+  overflow-y: auto;
   border-radius: var(--mac-popover-radius);
   color: var(--mac-popover-text);
   font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
@@ -76,8 +86,8 @@
 
 :root.macos-popover[data-theme] .menu-bar-stock-row {
   position: relative;
-  gap: 3px;
-  padding: 6px 5px;
+  gap: 0;
+  padding: 0;
   border: 0;
   border-radius: 10px;
   transition: background-color 120ms ease;
@@ -98,22 +108,18 @@
 }
 
 :root.macos-popover[data-theme] .menu-bar-stock-row:hover,
-:root.macos-popover[data-theme] .menu-bar-stock-row:focus-within {
+:root.macos-popover[data-theme] .menu-bar-stock-row:focus-within,
+:root.macos-popover[data-theme] .menu-bar-stock-row.is-expanded {
   background: var(--mac-popover-hover);
 }
 
-:root.macos-popover[data-theme] .menu-bar-stock-link {
+:root.macos-popover[data-theme] .menu-bar-stock-name {
   color: var(--mac-popover-text);
   font-weight: 600;
 }
 
-:root.macos-popover[data-theme] .menu-bar-stock-link:hover {
-  color: var(--mac-popover-accent);
-  background: transparent;
-}
-
-:root.macos-popover[data-theme] :is(.menu-bar-stock-code, .menu-bar-status),
-:root.macos-popover[data-theme] :is(.menu-bar-metrics-line, .menu-bar-t-summary),
+:root.macos-popover[data-theme]
+  :is(.menu-bar-stock-code, .menu-bar-status, .menu-bar-stock-market, .menu-bar-stock-time),
 :root.macos-popover[data-theme] :is(.menu-bar-hint, .menu-bar-empty) {
   color: var(--mac-popover-secondary);
 }
@@ -122,10 +128,6 @@
   padding: 0 5px;
   background: var(--mac-popover-hover);
   border-radius: 5px;
-}
-
-:root.macos-popover[data-theme] .menu-bar-metric b {
-  font-weight: 600;
 }
 
 :root.macos-popover[data-theme] .menu-bar-footer {
@@ -161,10 +163,6 @@
 :root.macos-popover[data-theme] :is(.menu-bar-alert, .menu-bar-error),
 :root.macos-popover[data-theme] :is(.menu-bar-status.is-stale, .menu-bar-status.is-unknown) {
   color: var(--mac-popover-warning);
-}
-
-:root.macos-popover[data-theme] .taskbar-stock-tooltip-shell {
-  padding: 0;
 }
 
 :root.macos-popover[data-theme] .taskbar-stock-tooltip {
@@ -259,6 +257,201 @@
   border-radius: 8px;
 }
 
+:root.macos-popover[data-theme] .menu-bar-stock-details {
+  margin: 0 12px 10px;
+  border-top: 1px solid var(--mac-popover-separator);
+}
+
+:root.macos-popover[data-theme] .is-expanded .menu-bar-stock-toggle {
+  padding: 12px;
+}
+
+:root.macos-popover[data-theme] .is-expanded .menu-bar-quote-row {
+  grid-template-columns: minmax(0, 1fr) 14px;
+}
+
+:root.macos-popover[data-theme] .is-expanded .menu-bar-stock-name {
+  font-size: 15px;
+  font-weight: 650;
+}
+
+:root.macos-popover[data-theme] .is-expanded .menu-bar-expand-icon {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+:root.macos-popover[data-theme] .taskbar-stock-tooltip.is-inline {
+  gap: 12px;
+  padding: 12px 0 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-price-row {
+  gap: 6px 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--mac-popover-separator);
+}
+
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-price-row strong {
+  color: var(--mac-popover-text);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 36px;
+  white-space: nowrap;
+}
+
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-price-change {
+  display: inline-flex;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-price-change > span {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-today-profit {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-left: auto;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-today-label {
+  color: var(--mac-popover-secondary);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-details {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--mac-popover-separator);
+}
+
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-details > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+
+:root.macos-popover[data-theme] .taskbar-tooltip-inline-market {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 130px;
+  gap: 14px;
+  margin: 0;
+}
+
+:root.macos-popover[data-theme] .taskbar-tooltip-inline-market dt {
+  color: var(--mac-popover-secondary);
+}
+
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-sparkline,
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-order-volumes {
+  min-width: 0;
+  display: grid;
+  grid-column: auto;
+  align-content: start;
+  gap: 8px;
+}
+
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-sparkline dd {
+  height: 88px;
+  margin: 0;
+  color: inherit;
+  background-image:
+    linear-gradient(to right, var(--mac-popover-separator) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--mac-popover-separator) 1px, transparent 1px);
+  background-size:
+    12.5% 100%,
+    100% 22px;
+}
+
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-sparkline.is-flat dd {
+  justify-content: center;
+}
+
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-sparkline svg {
+  flex: 1;
+  width: 100%;
+  height: 88px;
+}
+
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-order-volumes {
+  padding-left: 14px;
+  border-left: 1px solid var(--mac-popover-separator);
+}
+
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-order-volumes dd,
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-stacked-values {
+  height: auto;
+  margin: 0;
+}
+
+:root.macos-popover[data-theme]
+  .is-inline
+  .taskbar-tooltip-order-volumes
+  .taskbar-tooltip-stacked-values {
+  gap: 16px;
+  padding-top: 4px;
+  font-size: 16px;
+  line-height: 22px;
+}
+
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-order-volumes .is-buy {
+  color: var(--mac-popover-up);
+}
+
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-order-volumes .is-sell {
+  color: var(--mac-popover-down);
+}
+
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-order-volumes i {
+  margin-right: 8px;
+  color: inherit;
+}
+
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-position-grid {
+  grid-template-columns:
+    minmax(0, 0.6fr) minmax(0, 0.5fr) minmax(0, 0.95fr) minmax(0, 1.3fr)
+    minmax(0, 1.35fr) minmax(0, 0.8fr);
+  gap: 6px 8px;
+}
+
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-section {
+  padding-top: 12px;
+}
+
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-t-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) auto auto minmax(0, 1.6fr);
+  gap: 6px 12px;
+  white-space: normal;
+}
+
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-t-summary > span:last-child {
+  text-align: right;
+}
+
+:root.macos-popover[data-theme] .menu-bar-detail-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+:root.macos-popover[data-theme] .menu-bar-detail-actions button {
+  color: var(--mac-popover-accent);
+}
+
 :root.macos-popover[data-theme] :is(.tray-summary-panel, .taskbar-stock-tooltip) .is-up,
 :root.macos-popover[data-theme] .taskbar-tooltip-price-row .taskbar-tooltip-today-profit.is-up,
 :root.macos-popover[data-theme] .taskbar-tooltip-sparkline.is-up dd {
@@ -286,12 +479,21 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  :root.macos-popover[data-theme] :is(.taskbar-tooltip-sparkline, .taskbar-tooltip-order-volumes) {
-    grid-column: span 2;
-  }
-
   :root.macos-popover[data-theme] .taskbar-tooltip-position-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  :root.macos-popover[data-theme] .is-inline .taskbar-tooltip-position-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  :root.macos-popover[data-theme] .taskbar-tooltip-inline-market {
+    grid-template-columns: minmax(0, 1fr) 118px;
+    gap: 10px;
+  }
+
+  :root.macos-popover[data-theme] .is-inline .taskbar-tooltip-t-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

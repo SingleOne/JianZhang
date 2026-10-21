@@ -14,7 +14,6 @@ import type {
 import { atomicWriteJsonSync } from './file-storage'
 import { createAppIcon } from './tray-icons'
 import { MacMenuBar } from './mac-menu-bar'
-import { getMenuBarTooltipBounds } from './menu-bar-tooltip'
 
 const TASKBAR_TOOLTIP_WIDTH = 550
 const TASKBAR_TOOLTIP_DEFAULT_HEIGHT = 260
@@ -60,9 +59,7 @@ export class WindowManager {
   private taskbarLayout: TaskbarLayout = { taskbarHeight: 48, taskbarEdge: 'bottom' }
   private taskbarContentSize: { width: number; height: number } | null = null
   private taskbarTooltipAnchor: TaskbarTooltipAnchor | null = null
-  private taskbarTooltipHeight =
-    TASKBAR_TOOLTIP_DEFAULT_HEIGHT +
-    (process.platform === 'darwin' ? 0 : FLOATING_WINDOW_SHADOW_PADDING * 2)
+  private taskbarTooltipHeight = TASKBAR_TOOLTIP_DEFAULT_HEIGHT + FLOATING_WINDOW_SHADOW_PADDING * 2
   private trayHovered = false
   private disposed = false
   private stockSelectionSequence = 0
@@ -102,10 +99,7 @@ export class WindowManager {
     this.syncNativeThemeSource()
     if (!this.taskbarMode) this.createMainWindow()
     if (process.platform === 'darwin') {
-      this.macMenuBar = new MacMenuBar({
-        ...this.dependencies,
-        hideStockTooltip: () => this.setTaskbarTooltip(null)
-      })
+      this.macMenuBar = new MacMenuBar(this.dependencies)
       this.updateTrayMenu()
     } else {
       this.createTray()
@@ -149,7 +143,7 @@ export class WindowManager {
   }
 
   setTaskbarTooltip(anchor: TaskbarTooltipAnchor | null): void {
-    if (anchor && process.platform === 'darwin' && !this.macMenuBar?.getPanel()?.isVisible()) return
+    if (process.platform === 'darwin') return
     this.taskbarTooltipAnchor = anchor
     if (!anchor) {
       if (this.taskbarTooltipWindow && !this.taskbarTooltipWindow.isDestroyed()) {
@@ -168,7 +162,8 @@ export class WindowManager {
   }
 
   resizeTaskbarTooltip(height: number): void {
-    const shadowHeight = process.platform === 'darwin' ? 0 : FLOATING_WINDOW_SHADOW_PADDING * 2
+    if (process.platform === 'darwin') return
+    const shadowHeight = FLOATING_WINDOW_SHADOW_PADDING * 2
     const nextHeight = Math.min(560 + shadowHeight, Math.max(200 + shadowHeight, Math.ceil(height)))
     if (this.taskbarTooltipHeight === nextHeight) return
     this.taskbarTooltipHeight = nextHeight
@@ -595,7 +590,7 @@ export class WindowManager {
   }
 
   private positionTaskbarTooltipWindow(): void {
-    const parent = this.getTaskbarTooltipParent()
+    const parent = this.taskbarWindow
     if (
       !this.taskbarTooltipWindow ||
       this.taskbarTooltipWindow.isDestroyed() ||
@@ -606,22 +601,11 @@ export class WindowManager {
       return
     }
 
-    const width =
-      TASKBAR_TOOLTIP_WIDTH +
-      (process.platform === 'darwin' ? 0 : FLOATING_WINDOW_SHADOW_PADDING * 2)
+    const width = TASKBAR_TOOLTIP_WIDTH + FLOATING_WINDOW_SHADOW_PADDING * 2
     const height = this.taskbarTooltipHeight
     const margin = 8
     const taskbarBounds = parent.getBounds()
     const display = screen.getDisplayMatching(taskbarBounds)
-    if (process.platform === 'darwin') {
-      this.taskbarTooltipWindow.setBounds(
-        getMenuBarTooltipBounds(taskbarBounds, this.taskbarTooltipAnchor, display.workArea, {
-          width,
-          height
-        })
-      )
-      return
-    }
     const anchorCenter =
       taskbarBounds.x + this.taskbarTooltipAnchor.left + this.taskbarTooltipAnchor.width / 2
     const minX = display.workArea.x + margin
@@ -653,27 +637,16 @@ export class WindowManager {
     window.moveTop()
   }
 
-  private getTaskbarTooltipParent(): BrowserWindow | null {
-    return process.platform === 'darwin'
-      ? (this.macMenuBar?.getPanel() ?? null)
-      : this.taskbarWindow
-  }
-
   private createTaskbarTooltipWindow(): void {
     if (this.taskbarTooltipWindow && !this.taskbarTooltipWindow.isDestroyed()) return
 
     const window = new BrowserWindow({
-      width:
-        TASKBAR_TOOLTIP_WIDTH +
-        (process.platform === 'darwin' ? 0 : FLOATING_WINDOW_SHADOW_PADDING * 2),
+      width: TASKBAR_TOOLTIP_WIDTH + FLOATING_WINDOW_SHADOW_PADDING * 2,
       height: this.taskbarTooltipHeight,
       show: false,
       frame: false,
-      type: process.platform === 'darwin' ? 'panel' : undefined,
       transparent: true,
       backgroundColor: '#00000000',
-      vibrancy: process.platform === 'darwin' ? 'popover' : undefined,
-      visualEffectState: process.platform === 'darwin' ? 'active' : undefined,
       roundedCorners: true,
       resizable: false,
       movable: false,
@@ -683,8 +656,8 @@ export class WindowManager {
       focusable: false,
       skipTaskbar: true,
       alwaysOnTop: true,
-      hasShadow: process.platform === 'darwin',
-      parent: this.getTaskbarTooltipParent() ?? undefined,
+      hasShadow: false,
+      parent: this.taskbarWindow ?? undefined,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         contextIsolation: true,
@@ -696,12 +669,6 @@ export class WindowManager {
     this.taskbarTooltipWindow = window
 
     window.setAlwaysOnTop(true, 'pop-up-menu')
-    if (process.platform === 'darwin') {
-      window.setVisibleOnAllWorkspaces(true, {
-        visibleOnFullScreen: true,
-        skipTransformProcessType: true
-      })
-    }
     window.setIgnoreMouseEvents(true)
     window.setMenuBarVisibility(false)
     window.on('closed', () => {

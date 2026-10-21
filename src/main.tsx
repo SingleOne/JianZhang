@@ -11,10 +11,7 @@ document.documentElement.classList.toggle('taskbar-mode', taskbarMode)
 document.documentElement.classList.toggle('taskbar-tooltip-mode', taskbarTooltipMode)
 document.documentElement.classList.toggle('tray-mode', trayMode)
 document.documentElement.classList.toggle('menu-bar-mode', menuBarMode)
-document.documentElement.classList.toggle(
-  'macos-popover',
-  menuBarMode || (taskbarTooltipMode && window.stockApi?.platform === 'macos')
-)
+document.documentElement.classList.toggle('macos-popover', menuBarMode)
 
 if (taskbarMode) {
   void import('./entries/taskbar-ticker').then(({ renderTaskbarTicker }) => renderTaskbarTicker())

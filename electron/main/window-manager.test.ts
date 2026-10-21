@@ -10,7 +10,10 @@ const { windows, trays } = vi.hoisted(() => ({
 }))
 
 class MockWindow extends EventEmitter {
-  readonly webContents = Object.assign(new EventEmitter(), { send: vi.fn() })
+  readonly webContents = Object.assign(new EventEmitter(), {
+    send: vi.fn(),
+    getZoomFactor: vi.fn(() => 1)
+  })
   private visible = false
   private destroyed = false
   private bounds: Rectangle
@@ -84,6 +87,7 @@ vi.mock('electron', () => {
       }
       setIgnoreDoubleClickEvents() {}
       setTitle() {}
+      setImage() {}
       setToolTip() {}
       setContextMenu() {}
       popUpContextMenu() {}
@@ -156,90 +160,99 @@ function openPanel() {
 
 const anchor = { quoteId: '1.600000', left: 0, top: 40, width: 560, height: 52 }
 
-describe('menu bar stock details', () => {
-  it('reuses the taskbar detail renderer in a non-focusing child of the macOS panel', () => {
+describe('menu bar inline details', () => {
+  it('keeps a single macOS panel and ignores obsolete secondary tooltip requests', () => {
     const panel = openPanel()
     manager.setTaskbarTooltip(anchor)
-    const tooltip = windows[1]
-    tooltip.webContents.emit('did-finish-load')
-
-    expect(tooltip.options.parent).toBe(panel)
-    expect(tooltip.options.focusable).toBe(false)
-    expect(tooltip.loadFile).toHaveBeenCalledWith(expect.any(String), {
-      query: { mode: 'taskbar-tooltip' }
-    })
-    expect(tooltip.setIgnoreMouseEvents).toHaveBeenCalledWith(true)
-    expect(tooltip.showInactive).toHaveBeenCalledOnce()
-    expect(tooltip.focus).not.toHaveBeenCalled()
-    expect(panel.isVisible()).toBe(true)
-    expect(tooltip.getBounds().x + tooltip.getBounds().width).toBeLessThan(panel.getBounds().x)
-
-    manager.setTaskbarTooltip({ ...anchor, quoteId: '0.300750', top: 92 })
-    expect(windows).toHaveLength(2)
-    expect(tooltip.webContents.send).toHaveBeenLastCalledWith('taskbar:tooltip-stock', '0.300750')
-  })
-
-  it('does not reopen a late-loading tooltip after the panel closes', () => {
-    const panel = openPanel()
-    manager.setTaskbarTooltip(anchor)
-    const tooltip = windows[1]
-    panel.emit('blur')
-    tooltip.webContents.emit('did-finish-load')
-    manager.setTaskbarTooltip(anchor)
-
-    expect(panel.isVisible()).toBe(false)
-    expect(tooltip.isVisible()).toBe(false)
+    manager.resizeTaskbarTooltip(177.25)
+    expect(windows).toHaveLength(1)
     expect(manager.getTaskbarTooltipQuoteId()).toBeNull()
-    expect(tooltip.showInactive).not.toHaveBeenCalled()
+    expect(panel.isVisible()).toBe(true)
   })
 
-  it.each(['leave', 'close', 'escape', 'resize', 'destroy'])(
-    'clears stock details on %s so no card survives the panel interaction',
-    (action) => {
+  it('shrinks the panel after inline details collapse without reserving a footer gap', () => {
+    const panel = openPanel()
+    manager.resizeMenuBarPanel(520.5)
+    expect(panel.getBounds().height).toBe(521)
+    manager.resizeMenuBarPanel(83.25)
+    expect(panel.getBounds().height).toBe(84)
+    expect(panel.isVisible()).toBe(true)
+  })
+
+  it.each([1.2 ** -0.5, 1.2 ** -1, 1.2])(
+    'converts expanded and collapsed CSS heights at zoom %s',
+    (zoomFactor) => {
       const panel = openPanel()
-      manager.setTaskbarTooltip(anchor)
-      const tooltip = windows[1]
-      tooltip.webContents.emit('did-finish-load')
-
-      if (action === 'leave') manager.setTaskbarTooltip(null)
-      if (action === 'close') manager.closeMenuBarPanel()
-      if (action === 'escape') {
-        panel.webContents.emit('before-input-event', { preventDefault: vi.fn() }, { key: 'Escape' })
-      }
-      if (action === 'resize') manager.resizeMenuBarPanel(400)
-      if (action === 'destroy') panel.destroy()
-
-      expect(tooltip.isVisible()).toBe(false)
-      expect(manager.getTaskbarTooltipQuoteId()).toBeNull()
+      panel.webContents.getZoomFactor.mockReturnValue(zoomFactor)
+      manager.resizeMenuBarPanel(520.25)
+      expect(panel.getBounds().height).toBe(Math.ceil(520.25 * zoomFactor))
+      manager.resizeMenuBarPanel(280.25)
+      expect(panel.getBounds().height).toBe(Math.ceil(280.25 * zoomFactor))
+      expect(windows).toHaveLength(1)
     }
   )
 
-  it('preserves the Windows taskbar tooltip without macOS row coordinates', () => {
+  it.each(['close', 'escape', 'blur'])('closes the single panel on %s', (action) => {
+    const panel = openPanel()
+    if (action === 'close') manager.closeMenuBarPanel()
+    if (action === 'blur') panel.emit('blur')
+    if (action === 'escape') {
+      panel.webContents.emit('before-input-event', { preventDefault: vi.fn() }, { key: 'Escape' })
+    }
+    expect(panel.isVisible()).toBe(false)
+    manager.setTaskbarTooltip(anchor)
+    expect(windows).toHaveLength(1)
+  })
+
+  it('caps long inline content at the panel height limit', () => {
+    const panel = openPanel()
+    manager.resizeMenuBarPanel(900)
+    const bounds = panel.getBounds()
+    manager.resizeMenuBarPanel(950)
+    expect(panel.getBounds()).toEqual(bounds)
+    expect(bounds.height).toBe(720)
+    expect(panel.isVisible()).toBe(true)
+  })
+})
+
+describe('Windows taskbar details', () => {
+  function openTooltip() {
     Object.defineProperty(process, 'platform', { value: 'win32' })
     manager.create()
     manager.resizeTaskbarTicker(200, 36)
     manager.setTaskbarTooltip({ quoteId: anchor.quoteId, left: 0, width: 100 })
     const [taskbar, tooltip] = windows
     tooltip.webContents.emit('did-finish-load')
+    return { taskbar, tooltip }
+  }
 
+  it('preserves a non-focusing taskbar tooltip with transparent shadow padding', () => {
+    const { taskbar, tooltip } = openTooltip()
     expect(tooltip.options.parent).toBe(taskbar)
     expect(tooltip.options.type).toBeUndefined()
-    expect(tooltip.getBounds().y + tooltip.getBounds().height).toBeLessThan(taskbar.getBounds().y)
+    expect(tooltip.options.hasShadow).toBe(false)
+    expect(tooltip.options.width).toBe(550 + 24 * 2)
+    expect(tooltip.setIgnoreMouseEvents).toHaveBeenCalledWith(true)
+    // The transparent 24px shadow gutter may overlap the taskbar; the card must not.
+    const cardBottom = tooltip.getBounds().y + tooltip.getBounds().height - 24
+    expect(cardBottom).toBeLessThan(taskbar.getBounds().y)
     expect(tooltip.isVisible()).toBe(true)
+    expect(tooltip.focus).not.toHaveBeenCalled()
     expect(tooltip.setVisibleOnAllWorkspaces).not.toHaveBeenCalled()
   })
 
-  it('hides details after content grows even when the panel is already at its height limit', () => {
-    const panel = openPanel()
-    manager.resizeMenuBarPanel(900)
-    const previousBounds = panel.getBounds()
-    manager.setTaskbarTooltip(anchor)
-    const tooltip = windows[1]
-    tooltip.webContents.emit('did-finish-load')
+  it('keeps the detail minimum height and shadow gutter', () => {
+    const { tooltip } = openTooltip()
+    manager.resizeTaskbarTooltip(153.5)
+    expect(tooltip.getBounds().height).toBe(200 + 24 * 2)
+  })
 
-    manager.resizeMenuBarPanel(950)
-
-    expect(panel.getBounds()).toEqual(previousBounds)
+  it('reuses the window across stocks and hides it when the hover ends', () => {
+    const { tooltip } = openTooltip()
+    manager.setTaskbarTooltip({ quoteId: '0.300750', left: 100, width: 100 })
+    expect(windows).toHaveLength(2)
+    expect(tooltip.webContents.send).toHaveBeenLastCalledWith('taskbar:tooltip-stock', '0.300750')
+    manager.setTaskbarTooltip(null)
     expect(tooltip.isVisible()).toBe(false)
     expect(manager.getTaskbarTooltipQuoteId()).toBeNull()
   })

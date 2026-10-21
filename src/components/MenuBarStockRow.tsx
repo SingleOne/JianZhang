@@ -1,14 +1,6 @@
-import { useEffect } from 'react'
-import { stockApi } from '../lib/api'
-import {
-  formatCost,
-  formatMoney,
-  formatMoneyProfit,
-  formatPercent,
-  formatPrice,
-  formatShares,
-  formatSigned
-} from '../lib/format'
+import { useId, type ReactNode } from 'react'
+import { ChevronRight } from 'lucide-react'
+import { formatPercent, formatPrice, formatSigned, formatUpdateTime } from '../lib/format'
 import type { getMenuBarQuoteStatus } from '../lib/menu-bar'
 import { STOCK_QUOTE_DATA_STATE_LABELS } from '../lib/quote-state'
 import { getTriggeredStockAlertDirection } from '../lib/stock-alerts'
@@ -24,71 +16,64 @@ function valueClass(value: number | null | undefined): string {
 interface MenuBarStockRowProps {
   summary: ReturnType<typeof getTraySummaryStocks>[number]
   status: ReturnType<typeof getMenuBarQuoteStatus>
+  expanded: boolean
+  onToggle: () => void
+  children?: ReactNode
 }
 
-export function MenuBarStockRow({ summary, status }: MenuBarStockRowProps) {
-  const { stock, quote, positionMetrics, tSummaries, alertBadges, floatingAlerts } = summary
+export function MenuBarStockRow({
+  summary,
+  status,
+  expanded,
+  onToggle,
+  children
+}: MenuBarStockRowProps) {
+  const { stock, quote, positionMetrics, alertBadges, floatingAlerts } = summary
   const priceAlert = getTriggeredStockAlertDirection(stock.alertRules)
   const statusLabel = STOCK_QUOTE_DATA_STATE_LABELS[status]
 
-  useEffect(() => () => void stockApi.setTaskbarTooltip(null), [])
+  const triggerId = useId()
+  const detailsId = useId()
 
   return (
     <section
-      className="tray-summary-item menu-bar-stock-row"
+      className={`tray-summary-item menu-bar-stock-row${expanded ? ' is-expanded' : ''}`}
       aria-label={stock.name}
-      onMouseEnter={(event) => {
-        const bounds = event.currentTarget.getBoundingClientRect()
-        void stockApi.setTaskbarTooltip({
-          quoteId: stock.quoteId,
-          left: bounds.left,
-          width: bounds.width,
-          top: bounds.top,
-          height: bounds.height
-        })
-      }}
-      onMouseLeave={() => void stockApi.setTaskbarTooltip(null)}
     >
-      <div className="menu-bar-quote-row">
-        <div className="menu-bar-stock-identity">
-          <AppButton
-            variant="plain"
-            className="menu-bar-stock-link"
-            title={`${stock.name} · ${stock.code} · ${statusLabel}`}
-            onClick={() => void stockApi.showMainWindow(stock.quoteId)}
-          >
-            {stock.name}
-          </AppButton>
-          <span className="menu-bar-stock-code">{stock.code}</span>
-          <span className={`menu-bar-status is-${status}`}>{statusLabel}</span>
-        </div>
-        <span className="menu-bar-quote-values">
-          <b className={valueClass(quote?.change)}>{formatPrice(quote?.latest)}</b>
-          <span className={valueClass(quote?.change)}>{formatSigned(quote?.change)}</span>
-          <b className={valueClass(quote?.changePercent)}>{formatPercent(quote?.changePercent)}</b>
-        </span>
-      </div>
-      <div className="menu-bar-metrics-line">
-        <span className="menu-bar-metric">
-          今日
-          <b className={valueClass(positionMetrics.todayProfit)}>
-            {formatMoneyProfit(positionMetrics.todayProfit, positionMetrics.currency)}
-          </b>
-          <span className={valueClass(positionMetrics.todayProfitPercent)}>
-            ({formatPercent(positionMetrics.todayProfitPercent)})
+      <AppButton
+        id={triggerId}
+        variant="plain"
+        className="menu-bar-stock-toggle"
+        aria-expanded={expanded}
+        aria-controls={detailsId}
+        title={`${expanded ? '收起' : '展开'}${stock.name}详细行情`}
+        onClick={onToggle}
+      >
+        <span className="menu-bar-quote-row">
+          <span className="menu-bar-stock-identity">
+            <strong className="menu-bar-stock-name">{stock.name}</strong>
+            <span className="menu-bar-stock-code">{stock.code}</span>
+            {expanded ? (
+              <>
+                <span className="menu-bar-stock-market">{stock.marketLabel}</span>
+                <span className="menu-bar-stock-time">
+                  {formatUpdateTime(quote?.dataAt ?? quote?.updatedAt).slice(0, 5)}
+                </span>
+              </>
+            ) : (
+              <span className={`menu-bar-status is-${status}`}>{statusLabel}</span>
+            )}
           </span>
-        </span>
-        <span className="menu-bar-metric">
-          持仓
-          <b className={valueClass(positionMetrics.totalProfit)}>
-            {formatMoneyProfit(positionMetrics.totalProfit, positionMetrics.currency)}
-          </b>
-          <span className={valueClass(positionMetrics.profitPercent)}>
-            ({formatPercent(positionMetrics.profitPercent)})
-          </span>
-        </span>
-        <span className="menu-bar-metric">
-          市值 <b>{formatMoney(positionMetrics.marketValue, positionMetrics.currency)}</b>
+          {expanded ? null : (
+            <span className="menu-bar-quote-values">
+              <b className={valueClass(quote?.change)}>{formatPrice(quote?.latest)}</b>
+              <span className={valueClass(quote?.change)}>{formatSigned(quote?.change)}</span>
+              <b className={valueClass(quote?.changePercent)}>
+                {formatPercent(quote?.changePercent)}
+              </b>
+            </span>
+          )}
+          <ChevronRight className="menu-bar-expand-icon" size={14} aria-hidden="true" />
         </span>
         {priceAlert || alertBadges.length > 0 || floatingAlerts.length > 0 ? (
           <span className="menu-bar-alerts">
@@ -106,30 +91,16 @@ export function MenuBarStockRow({ summary, status }: MenuBarStockRowProps) {
             {priceAlert ? <span className="menu-bar-alert">股价提醒</span> : null}
           </span>
         ) : null}
+      </AppButton>
+      <div
+        id={detailsId}
+        className="menu-bar-stock-details"
+        role="region"
+        aria-labelledby={triggerId}
+        hidden={!expanded}
+      >
+        {expanded ? children : null}
       </div>
-      {tSummaries.map(({ account: owner, metrics }) => (
-        <div className="menu-bar-t-summary" key={owner.accountId}>
-          <span className="menu-bar-metric">
-            {owner.accountName} · {metrics.direction === 'reverse' ? '反T' : '正T'}
-            <b>{formatShares(metrics.remainingQuantity)}</b>
-          </span>
-          <span className="menu-bar-metric">
-            {metrics.direction === 'reverse' ? '基准' : '成本'}
-            <b>{formatCost(metrics.averageCost)}</b>
-          </span>
-          <span className="menu-bar-metric">
-            浮动
-            <b className={valueClass(metrics.floatingProfit)}>
-              {formatMoneyProfit(metrics.floatingProfit, positionMetrics.currency)}
-            </b>
-            {metrics.floatingProfitRate === null ? null : (
-              <span className={valueClass(metrics.floatingProfitRate)}>
-                ({formatPercent(metrics.floatingProfitRate)})
-              </span>
-            )}
-          </span>
-        </div>
-      ))}
     </section>
   )
 }

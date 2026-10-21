@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { getInitialBootstrap, initialState, stockApi } from '../lib/api'
 import {
   formatCost,
@@ -12,9 +12,11 @@ import {
 import { getTraySummaryStocks, getTrayTodayProfitTotal } from '../lib/tray-summary'
 import { getMenuBarQuoteStatus } from '../lib/menu-bar'
 import { applyAppThemePreference } from '../lib/theme'
+import { observeContentHeight } from '../lib/observe-content-height'
 import type { AppState, StockQuote } from '../shared/types'
 import { AppButton } from './AppButton'
 import { MenuBarStockRow } from './MenuBarStockRow'
+import { StockQuoteDetails } from './TaskbarStockTooltip'
 
 function valueClass(value: number | null | undefined): string {
   if (value === null || value === undefined || value === 0) return 'is-flat'
@@ -27,12 +29,22 @@ export function TrayHoverSummary({ interactive = false }: { interactive?: boolea
   const [error, setError] = useState('')
   const [refreshing, setRefreshing] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null)
   const [, setStatusTick] = useState(0)
   const panelRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
     applyAppThemePreference(state.settings.theme)
   }, [state.settings.theme])
+
+  useEffect(() => {
+    if (!interactive) return
+    setExpandedQuoteId((current) =>
+      state.watchlist.some((stock) => stock.quoteId === current && stock.showInTaskbar)
+        ? current
+        : null
+    )
+  }, [interactive, state.watchlist])
 
   useEffect(() => {
     let active = true
@@ -68,20 +80,22 @@ export function TrayHoverSummary({ interactive = false }: { interactive?: boolea
     }
   }, [])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!interactive || !panelRef.current) return
-    const panel = panelRef.current
-    const observer = new ResizeObserver(() => {
-      void stockApi.resizeMenuBarPanel(Math.ceil(panel.getBoundingClientRect().height))
+    return observeContentHeight(panelRef.current, (height) => {
+      void stockApi.resizeMenuBarPanel(height)
     })
-    const hideStockTooltip = () => void stockApi.setTaskbarTooltip(null)
-    observer.observe(panel)
-    document.addEventListener('scroll', hideStockTooltip, true)
+  }, [interactive])
+
+  useEffect(() => {
+    if (!interactive) return
+    const resetExpandedStock = () => {
+      if (document.hidden) setExpandedQuoteId(null)
+    }
+    document.addEventListener('visibilitychange', resetExpandedStock)
     const timer = window.setInterval(() => setStatusTick((tick) => tick + 1), 30_000)
     return () => {
-      observer.disconnect()
-      document.removeEventListener('scroll', hideStockTooltip, true)
-      hideStockTooltip()
+      document.removeEventListener('visibilitychange', resetExpandedStock)
       window.clearInterval(timer)
     }
   }, [interactive])
@@ -134,7 +148,23 @@ export function TrayHoverSummary({ interactive = false }: { interactive?: boolea
                 key={stock.quoteId}
                 summary={summary}
                 status={getMenuBarQuoteStatus(state, quote)}
-              />
+                expanded={expandedQuoteId === stock.quoteId}
+                onToggle={() =>
+                  setExpandedQuoteId((current) =>
+                    current === stock.quoteId ? null : stock.quoteId
+                  )
+                }
+              >
+                {expandedQuoteId === stock.quoteId ? (
+                  <StockQuoteDetails
+                    key={stock.quoteId}
+                    quoteId={stock.quoteId}
+                    state={state}
+                    quotes={quotes}
+                    embedded
+                  />
+                ) : null}
+              </MenuBarStockRow>
             )
           }
           return (

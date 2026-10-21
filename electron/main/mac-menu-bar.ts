@@ -1,18 +1,21 @@
-import { BrowserWindow, screen, Tray, type Menu } from 'electron'
+import { BrowserWindow, nativeTheme, screen, Tray, type Menu } from 'electron'
 import { join } from 'node:path'
 import type { AppState, StockQuote } from '../../src/shared/types'
 import { getMenuBarPresentation } from '../../src/lib/menu-bar'
 import { getTaskbarVisibleStocks } from '../../src/lib/taskbar-visibility'
 import { createMenuBarIcon } from './tray-icons'
+import { MenuBarTitleAnimator } from './menu-bar-title-animator'
 
 interface MacMenuBarDependencies {
   getState: () => AppState
   getQuotes: () => StockQuote[]
-  hideStockTooltip: () => void
 }
 
 export class MacMenuBar {
   private readonly tray = new Tray(createMenuBarIcon())
+  private readonly titleAnimator = new MenuBarTitleAnimator(this.tray, () =>
+    this.positionPanelIfVisible()
+  )
   private panel: BrowserWindow | null = null
   private menu: Menu | null = null
   private openRequested = false
@@ -23,6 +26,10 @@ export class MacMenuBar {
   private presentationKey = ''
   private lastHiddenAt = 0
   private readonly timer: NodeJS.Timeout
+  private readonly handleThemeUpdated = () => {
+    this.presentationKey = ''
+    this.sync()
+  }
 
   constructor(private readonly dependencies: MacMenuBarDependencies) {
     this.tray.setIgnoreDoubleClickEvents(true)
@@ -36,6 +43,7 @@ export class MacMenuBar {
       if (this.menu) this.tray.popUpContextMenu(this.menu)
     })
     this.timer = setInterval(() => this.sync(), 5_000)
+    nativeTheme.on('updated', this.handleThemeUpdated)
     this.sync()
   }
 
@@ -54,7 +62,8 @@ export class MacMenuBar {
       state.settings.menuBarDisplayMode,
       state.settings.showTaskbarTicker
     ])
-    if (this.selectionKey !== key) {
+    const selectionChanged = this.selectionKey !== key
+    if (selectionChanged) {
       this.selectionKey = key
       this.rotationStartedAt = Date.now()
     }
@@ -63,9 +72,9 @@ export class MacMenuBar {
       seconds > 0 ? Math.floor((Date.now() - this.rotationStartedAt) / (seconds * 1000)) : 0
     const presentation = getMenuBarPresentation(state, this.dependencies.getQuotes(), rotationIndex)
     const nextKey = JSON.stringify(presentation)
-    if (nextKey !== this.presentationKey) {
+    if (selectionChanged || nextKey !== this.presentationKey) {
       this.presentationKey = nextKey
-      this.tray.setTitle(presentation.title, { fontType: 'monospacedDigit' })
+      this.titleAnimator.update(presentation, seconds > 0, selectionChanged)
       this.tray.setToolTip(presentation.tooltip)
       this.positionPanelIfVisible()
     }
@@ -78,20 +87,15 @@ export class MacMenuBar {
 
   hidePanel(): void {
     this.openRequested = false
-    this.dependencies.hideStockTooltip()
     if (this.panel?.isVisible()) {
       this.lastHiddenAt = Date.now()
       this.panel.hide()
     }
   }
 
-  getPanel(): BrowserWindow | null {
-    return this.panel
-  }
-
   resizePanel(height: number): void {
-    this.dependencies.hideStockTooltip()
-    this.panelHeight = Math.max(96, Math.min(720, Math.ceil(height)))
+    const zoomFactor = this.panel?.webContents.getZoomFactor() ?? 1
+    this.panelHeight = Math.max(1, Math.min(720, Math.ceil(height * zoomFactor)))
     this.positionPanelIfVisible()
   }
 
@@ -101,8 +105,9 @@ export class MacMenuBar {
 
   dispose(): void {
     clearInterval(this.timer)
+    nativeTheme.removeListener('updated', this.handleThemeUpdated)
+    this.titleAnimator.dispose()
     this.openRequested = false
-    this.dependencies.hideStockTooltip()
     this.panel?.destroy()
     this.panel = null
     this.tray.destroy()
@@ -135,7 +140,6 @@ export class MacMenuBar {
       previousBounds.width !== width ||
       previousBounds.height !== height
     ) {
-      this.dependencies.hideStockTooltip()
       this.panel.setBounds(nextBounds)
     }
   }
@@ -188,7 +192,6 @@ export class MacMenuBar {
       }
     })
     panel.on('closed', () => {
-      this.dependencies.hideStockTooltip()
       this.panel = null
       this.panelReady = false
       this.openRequested = false
