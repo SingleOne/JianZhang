@@ -1720,7 +1720,7 @@ export default function App() {
           onExited={() => setStartupVisible(false)}
         />
       ) : null}
-      <div className="app-shell" inert={startupVisible} aria-busy={startupVisible}>
+      <div className="app-shell market-window" inert={startupVisible} aria-busy={startupVisible}>
         <AppTitlebar>
           <section className="titlebar-command-bar" aria-label="自选股操作">
             <div className="titlebar-command-main">
@@ -1886,29 +1886,13 @@ export default function App() {
                   <div className="portfolio-summary" aria-label="全部持仓收益汇总">
                     <span className={cardDirectionClass(portfolioSummary.todayProfit)}>
                       <small>今日总收益</small>
-                      <strong
-                        className={
-                          portfolioSummary.todayProfit === null
-                            ? 'is-flat'
-                            : portfolioSummary.todayProfit >= 0
-                              ? 'is-up'
-                              : 'is-down'
-                        }
-                      >
+                      <strong className={directionClass(portfolioSummary.todayProfit)}>
                         {formatMoneyProfit(portfolioSummary.todayProfit, 'CNY')}
                       </strong>
                     </span>
                     <span className={cardDirectionClass(portfolioSummary.todayProfitPercent)}>
                       <small>今日收益率</small>
-                      <strong
-                        className={
-                          portfolioSummary.todayProfitPercent === null
-                            ? 'is-flat'
-                            : portfolioSummary.todayProfitPercent >= 0
-                              ? 'is-up'
-                              : 'is-down'
-                        }
-                      >
+                      <strong className={directionClass(portfolioSummary.todayProfitPercent)}>
                         {formatPercent(portfolioSummary.todayProfitPercent)}
                       </strong>
                     </span>
@@ -1920,15 +1904,7 @@ export default function App() {
                     </span>
                     <span className={cardDirectionClass(portfolioSummary.profitPercent)}>
                       <small>持仓收益率</small>
-                      <strong
-                        className={
-                          portfolioSummary.profitPercent === null
-                            ? 'is-flat'
-                            : portfolioSummary.profitPercent >= 0
-                              ? 'is-up'
-                              : 'is-down'
-                        }
-                      >
+                      <strong className={directionClass(portfolioSummary.profitPercent)}>
                         {formatPercent(portfolioSummary.profitPercent)}
                       </strong>
                     </span>

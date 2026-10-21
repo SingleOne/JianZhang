@@ -1162,13 +1162,7 @@ export function DividendFinancingRankingDialog({
                               {item.ratio.toFixed(2)}%
                             </strong>
                           </td>
-                          <td
-                            className={`dividend-ranking-number ${
-                              item.dividendYield === null || item.dividendYield === undefined
-                                ? ''
-                                : signedClass(item.dividendYield)
-                            }`}
-                          >
+                          <td className="dividend-ranking-number">
                             {item.dividendYield === null || item.dividendYield === undefined
                               ? '--'
                               : item.dividendYield.toFixed(2)}

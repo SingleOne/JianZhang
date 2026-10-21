@@ -689,7 +689,7 @@ export const WatchlistRow = memo(function WatchlistRow({
                     {dividendFinancing ? (
                       <span className="dividend-financing-cell">
                         <strong>{dividendFinancing.ratio.toFixed(2)}%</strong>
-                        <small className={valueClass(dividendYield?.yieldPercent)}>
+                        <small>
                           {dividendYield
                             ? `股息率 ${formatPercent(dividendYield.yieldPercent)}`
                             : '-'}

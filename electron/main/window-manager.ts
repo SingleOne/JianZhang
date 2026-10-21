@@ -23,14 +23,14 @@ const FLOATING_WINDOW_SHADOW_PADDING = 24
 const MAIN_WINDOW_TITLEBAR_HEIGHT = 44
 const MAIN_WINDOW_THEME_COLORS = {
   light: {
-    background: '#ffffff',
-    titleBar: '#ffffff',
-    symbols: '#334155'
+    background: '#f5f5f7',
+    titleBar: '#f5f5f7',
+    symbols: '#3a3a3c'
   },
   dark: {
-    background: '#0b1220',
-    titleBar: '#111827',
-    symbols: '#e6edf7'
+    background: '#1c1c1e',
+    titleBar: '#252528',
+    symbols: '#f5f5f7'
   }
 } as const
 
