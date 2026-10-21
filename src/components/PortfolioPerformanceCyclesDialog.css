@@ -160,11 +160,27 @@
   color: var(--subtle);
 }
 
-.performance-cycle-label,
 .performance-cycle-native-values,
 .performance-cycle-completeness {
   display: grid;
   gap: 3px;
+}
+
+.performance-cycle-label {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  align-items: center;
+  gap: 3px 8px;
+}
+
+.performance-cycle-label > small {
+  grid-column: 1 / -1;
+}
+
+.portfolio-performance-cycles-table > thead > tr > th:nth-child(2),
+.portfolio-performance-cycles-table > tbody > tr > td:nth-child(2) {
+  width: 1%;
+  padding-inline: 6px;
 }
 
 .performance-cycle-label strong,
@@ -186,7 +202,7 @@
   align-items: center;
   border-radius: 999px;
   font-size: 12px;
-  padding: 2px 8px;
+  padding: 2px 6px;
 }
 
 .performance-cycle-status.is-open {
@@ -256,6 +272,8 @@
 
 .performance-cycle-expand {
   display: inline-flex;
+  grid-column: 2;
+  grid-row: 1;
   align-items: center;
   justify-self: start;
   gap: 3px;
