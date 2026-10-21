@@ -74,11 +74,11 @@ export function ensureAppThemeStyles(theme: ResolvedAppTheme): Promise<unknown> 
 export function getChartThemeColors(theme: ResolvedAppTheme): ChartThemeColors {
   if (theme === 'dark') {
     return {
-      background: '#111827',
-      text: '#98a6ba',
-      grid: '#263449',
-      border: '#34445d',
-      accent: '#5b8cff',
+      background: '#232326',
+      text: '#b1b1b9',
+      grid: '#333337',
+      border: '#424247',
+      accent: '#75b5ff',
       red: '#ff6b75',
       green: '#35c98b',
       amber: '#f3b85b',
@@ -87,10 +87,10 @@ export function getChartThemeColors(theme: ResolvedAppTheme): ChartThemeColors {
   }
   return {
     background: '#ffffff',
-    text: '#64748b',
-    grid: '#eef2f7',
-    border: '#cbd5e1',
-    accent: '#2563eb',
+    text: '#626269',
+    grid: '#ececee',
+    border: '#dedee3',
+    accent: '#0064d1',
     red: '#ef4444',
     green: '#16a085',
     amber: '#d97706',

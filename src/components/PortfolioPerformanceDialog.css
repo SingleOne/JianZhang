@@ -15,11 +15,11 @@
   width: min(1480px, calc(100vw - 48px));
   max-height: calc(100vh - 48px);
   overflow: hidden;
-  border: 1px solid #dfe6ef;
+  border: 1px solid var(--border-strong);
   border-radius: 14px;
-  background: #fff;
+  background: var(--surface);
   box-shadow: 0 24px 70px rgb(15 23 42 / 26%);
-  color: #253247;
+  color: var(--text);
   animation: dialog-in 160ms ease-out;
 }
 
@@ -38,7 +38,7 @@
   width: 42px;
   height: 42px;
   border-radius: 11px;
-  background: #edf4ff;
+  background: var(--blue-soft);
   color: #2563b8;
 }
 
@@ -69,7 +69,7 @@
 }
 
 .portfolio-performance-header small {
-  color: #7b8798;
+  color: var(--subtle);
   font-size: 12px;
 }
 
@@ -77,7 +77,7 @@
   width: 34px;
   height: 34px;
   border-radius: 8px;
-  color: #7b8798;
+  color: var(--subtle);
 }
 
 .portfolio-performance-body {
@@ -102,15 +102,15 @@
 .portfolio-performance-summary > span {
   display: grid;
   gap: 3px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: 9px;
-  background: #f8fafc;
+  background: var(--surface-muted);
   padding: 10px 12px;
 }
 
 .portfolio-performance-summary small,
 .portfolio-performance-summary em {
-  color: #7b8798;
+  color: var(--subtle);
   font-size: 12px;
   font-style: normal;
 }
@@ -137,7 +137,7 @@
   min-height: 32px;
   border: 1px solid #d8e0ea;
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface);
   color: #526174;
   cursor: pointer;
   font-family: inherit;
@@ -177,8 +177,8 @@
   position: sticky;
   z-index: 2;
   top: 0;
-  background: #f5f7fa;
-  color: #667085;
+  background: var(--surface-muted);
+  color: var(--muted);
   font-size: 12px;
   font-weight: 600;
 }
@@ -197,7 +197,7 @@
 }
 
 .portfolio-performance-table tbody tr:hover {
-  background: #fafcff;
+  background: var(--surface-muted);
 }
 
 .performance-row-identity,
@@ -229,7 +229,7 @@
 .performance-native-values small,
 .performance-completeness small,
 .performance-empty-value {
-  color: #7b8798;
+  color: var(--subtle);
   font-size: 12px;
 }
 
@@ -331,7 +331,7 @@
   min-height: 28px;
   border: 1px solid #9eb9d8;
   border-radius: 6px;
-  color: #334155;
+  color: var(--text);
   font-family: inherit;
   font-size: 12px;
   padding: 4px 7px;
@@ -352,7 +352,7 @@
 }
 
 .performance-adjusted-total small {
-  color: #7b8798;
+  color: var(--subtle);
   font-size: 12px;
 }
 
@@ -365,11 +365,11 @@
 }
 
 .portfolio-performance-dialog .is-flat {
-  color: #64748b;
+  color: var(--muted);
 }
 
 .portfolio-performance-empty {
-  color: #7b8798;
+  color: var(--subtle);
   font-size: 12px;
   padding: 28px !important;
   text-align: center !important;

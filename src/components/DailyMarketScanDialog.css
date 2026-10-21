@@ -17,8 +17,8 @@
   flex-direction: column;
   overflow: hidden;
   color: var(--text);
-  background: #ffffff;
-  border: 1px solid #dfe6ef;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
   border-radius: 14px;
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24);
   animation: dialog-in 160ms ease-out;
@@ -58,7 +58,7 @@
 .daily-scan-close {
   width: 34px;
   height: 34px;
-  color: #7b8798;
+  color: var(--subtle);
   border-radius: 8px;
 }
 
@@ -131,7 +131,7 @@
 }
 
 .daily-scan-empty strong {
-  color: #344054;
+  color: var(--text);
   font-size: 16px;
 }
 
@@ -164,8 +164,8 @@
   justify-content: space-between;
   gap: 8px;
   padding: 5px 9px;
-  background: #ffffff;
-  border: 1px solid #e7ebf1;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 8px;
 }
 
@@ -205,7 +205,7 @@
   gap: 7px;
   padding: 0 8px 0 10px;
   color: #7f8b9c;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid #d7dee8;
   border-radius: 7px;
 }
@@ -220,7 +220,7 @@
   min-width: 0;
   flex: 1;
   padding: 0;
-  color: #344054;
+  color: var(--text);
   background: transparent;
   border: 0;
   outline: 0;
@@ -256,14 +256,14 @@
   gap: 4px;
   overflow-x: auto;
   padding: 8px 20px;
-  background: #ffffff;
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
 
 .daily-scan-combination-hint {
   flex: 0 0 auto;
   margin-right: 4px;
-  color: #667085;
+  color: var(--muted);
   font-size: 12px;
   font-weight: 650;
   white-space: nowrap;
@@ -275,7 +275,7 @@
   align-items: center;
   gap: 7px;
   padding: 0 12px;
-  color: #667085;
+  color: var(--muted);
   background: transparent;
   border: 1px solid transparent;
   border-radius: 7px;
@@ -287,7 +287,7 @@
 .daily-scan-tabs button span {
   min-width: 22px;
   padding: 1px 5px;
-  color: #667085;
+  color: var(--muted);
   background: #eef1f5;
   border-radius: 99px;
   text-align: center;
@@ -347,8 +347,8 @@
   top: 0;
   z-index: 2;
   padding: 9px 10px;
-  color: #667085;
-  background: #f8fafc;
+  color: var(--muted);
+  background: var(--surface-muted);
   border-bottom: 1px solid #dfe4ea;
   text-align: right;
   white-space: nowrap;
@@ -362,7 +362,7 @@
 
 .daily-scan-table td {
   padding: 9px 10px;
-  border-bottom: 1px solid #edf0f4;
+  border-bottom: 1px solid var(--border);
   text-align: right;
   white-space: nowrap;
 }
@@ -390,7 +390,7 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  color: #344054;
+  color: var(--text);
   font-size: 13px;
 }
 
@@ -485,7 +485,7 @@
   gap: 4px;
   padding: 0 8px;
   color: #6d28d9;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid #cdb5f5;
   border-radius: 6px;
   font-size: 12px;
@@ -501,12 +501,12 @@
 
 .daily-scan-details-row > td {
   padding: 0;
-  background: #f8fafc;
+  background: var(--surface-muted);
   white-space: normal;
 }
 
 .daily-scan-details-row:hover {
-  background: #f8fafc !important;
+  background: var(--surface-muted) !important;
 }
 
 .daily-scan-temporary-details {
@@ -518,8 +518,8 @@
 .daily-scan-temporary-note {
   margin-bottom: 8px;
   padding: 7px 10px;
-  color: #667085;
-  background: #ffffff;
+  color: var(--muted);
+  background: var(--surface);
   border: 1px solid #e4e7ec;
   border-radius: 7px;
   font-size: 12px;
@@ -554,8 +554,8 @@
   height: 30px;
   display: grid;
   place-items: center;
-  color: #475467;
-  background: #ffffff;
+  color: var(--muted);
+  background: var(--surface);
   border: 1px solid #d0d5dd;
   border-radius: 6px;
   cursor: pointer;

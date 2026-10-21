@@ -1,0 +1,328 @@
+/* The main renderer owns these tokens, including dialogs portalled to document.body. */
+html:root[data-theme] {
+  --surface: #ffffff;
+  --surface-muted: #f8f8fa;
+  --surface-raised: #f2f2f5;
+  --surface-hover: #f2f2f5;
+  --surface-selected: #edf3fc;
+  --canvas: #f5f5f7;
+  --text: #1d1d1f;
+  --muted: #626269;
+  --subtle: #76767d;
+  --border: rgba(60, 60, 67, 0.12);
+  --border-strong: rgba(60, 60, 67, 0.18);
+  --blue: #0064d1;
+  --blue-hover: #0054b5;
+  --blue-soft: rgba(0, 100, 209, 0.09);
+  --detail-chrome: #f5f5f7;
+  --detail-popover: rgba(248, 248, 250, 0.97);
+  --detail-rim: rgba(255, 255, 255, 0.84);
+  --detail-backdrop: rgba(18, 18, 22, 0.34);
+  --detail-shadow: rgba(15, 18, 24, 0.18);
+  --detail-contact-shadow: rgba(15, 18, 24, 0.08);
+  --detail-on-accent: #ffffff;
+  --text-primary: var(--text);
+  --text-secondary: var(--muted);
+  --text-color: var(--text);
+  --border-color: var(--border);
+  --accent: var(--blue);
+  --stock-up-color: var(--red);
+  --stock-down-color: var(--green);
+  --shadow-sm: 0 1px 3px var(--detail-contact-shadow);
+  --shadow-menu:
+    0 8px 22px -6px var(--detail-shadow), 0 2px 6px -2px var(--detail-contact-shadow),
+    inset 0 1px 0 var(--detail-rim);
+
+  color: var(--text);
+  background: var(--canvas);
+}
+
+html:root[data-theme='dark'] {
+  --surface: #232326;
+  --surface-muted: #28282c;
+  --surface-raised: #2e2e32;
+  --surface-hover: #2e2e32;
+  --surface-selected: #29384c;
+  --canvas: #1c1c1e;
+  --text: #f5f5f7;
+  --muted: #b1b1b9;
+  --subtle: #9a9aa2;
+  --border: rgba(235, 235, 245, 0.1);
+  --border-strong: rgba(235, 235, 245, 0.18);
+  --blue: #75b5ff;
+  --blue-hover: #a1ccff;
+  --blue-soft: rgba(117, 181, 255, 0.13);
+  --detail-chrome: #252528;
+  --detail-popover: rgba(35, 35, 38, 0.98);
+  --detail-rim: rgba(255, 255, 255, 0.12);
+  --detail-backdrop: rgba(0, 0, 0, 0.48);
+  --detail-shadow: rgba(0, 0, 0, 0.4);
+  --detail-contact-shadow: rgba(0, 0, 0, 0.12);
+  --detail-on-accent: #141416;
+}
+
+html:root[data-theme] body {
+  background: var(--canvas);
+
+  & #root {
+    background: var(--canvas);
+  }
+
+  & :has(> [aria-modal='true']) {
+    background: var(--detail-backdrop);
+    backdrop-filter: blur(3px);
+  }
+
+  & :is([aria-modal='true'], .settings-popover) {
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: 20px;
+    box-shadow:
+      0 18px 48px -12px var(--detail-shadow),
+      0 4px 12px -4px var(--detail-contact-shadow),
+      inset 0 1px 0 var(--detail-rim);
+  }
+
+  & :is(.t-trading-drawer, .ai-assistant-drawer)[aria-modal='true'] {
+    background: var(--canvas);
+    border-radius: 20px 0 0 20px;
+  }
+
+  & :is([aria-modal='true'], .settings-popover, .stock-details) {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei UI', sans-serif;
+    font-size: 13px;
+    scrollbar-color: var(--border-strong) var(--surface-muted);
+  }
+
+  & [aria-modal='true'] > :is(header, footer),
+  &
+    :is(
+      .position-dialog-header,
+      .t-trading-header,
+      .ai-drawer-header,
+      .dividend-ranking-header,
+      .portfolio-quality-header,
+      .portfolio-performance-header,
+      .portfolio-performance-cycles-header,
+      .fundamental-screening-header,
+      .daily-scan-header,
+      .stock-tracking-dialog-header,
+      .settings-heading
+    ) {
+    background: var(--detail-chrome);
+    border-color: var(--border);
+    box-shadow: inset 0 1px 0 var(--detail-rim);
+  }
+
+  & :is([aria-modal='true'], .settings-popover, .stock-details) :is(h2, h3) {
+    font-weight: 650;
+    letter-spacing: -0.02em;
+  }
+
+  &
+    :is([aria-modal='true'], .settings-popover, .stock-details)
+    .secondary-button:not(.app-button-danger) {
+    color: var(--text);
+    background: var(--surface);
+    border-color: var(--border-strong);
+    border-radius: 10px;
+    box-shadow: inset 0 1px 0 var(--detail-rim);
+  }
+
+  &
+    :is([aria-modal='true'], .settings-popover, .stock-details)
+    .secondary-button:hover:not(:disabled, .app-button-danger) {
+    background: var(--surface-hover);
+    border-color: var(--border-strong);
+  }
+
+  & :is([aria-modal='true'], .settings-popover, .stock-details) .primary-button {
+    color: var(--detail-on-accent);
+    background: var(--blue);
+    border-color: var(--blue);
+    border-radius: 10px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  }
+
+  &
+    :is([aria-modal='true'], .settings-popover, .stock-details)
+    .primary-button:hover:not(:disabled) {
+    background: var(--blue-hover);
+    border-color: var(--blue-hover);
+  }
+
+  & :is([aria-modal='true'], .settings-popover, .stock-details) .app-button-danger {
+    color: var(--red);
+    background: var(--red-soft);
+    border-color: color-mix(in srgb, var(--red) 32%, var(--border));
+    border-radius: 10px;
+  }
+
+  &
+    :is([aria-modal='true'], .settings-popover, .stock-details)
+    .app-button-danger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--red) 14%, var(--surface));
+    border-color: var(--red);
+  }
+
+  &
+    :is([aria-modal='true'], .settings-popover, .stock-details)
+    :is(.primary-button, .secondary-button):disabled {
+    color: var(--subtle);
+    background: var(--surface-muted);
+    border-color: var(--border);
+    box-shadow: none;
+  }
+
+  & :is([aria-modal='true'], .settings-popover) :is(input, textarea),
+  & .app-select-trigger {
+    border-radius: 10px;
+  }
+
+  & :is([aria-modal='true'], .settings-popover) :is(input, textarea):focus-visible,
+  & .app-select-trigger:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+  }
+
+  & :is(.detail-tabs, .market-chart-tabs, .settings-tabs, .t-segmented, [role='tablist']) {
+    background: var(--surface-muted);
+    border-color: var(--border);
+  }
+
+  & :is(.detail-tabs, .market-chart-tabs, .settings-tabs, .t-segmented, [role='tablist']) button {
+    border-radius: 9px;
+    font-weight: 600;
+  }
+
+  &
+    :is(.detail-tabs, .market-chart-tabs, .settings-tabs, .t-segmented, [role='tablist'])
+    button:hover:not(:disabled, .is-active, [aria-selected='true']) {
+    background: var(--surface-hover);
+  }
+
+  &
+    :is(.detail-tabs, .market-chart-tabs, .settings-tabs, [role='tablist'])
+    button:is(.is-active, [aria-selected='true']) {
+    color: var(--blue);
+    background: var(--blue-soft);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 20%, transparent);
+  }
+
+  &
+    :is(
+      .app-select-menu,
+      .watchlist-group-quick-popover,
+      .radar-popover,
+      .intraday-price-tooltip,
+      .intraday-volume-tooltip,
+      .app-tooltip-content
+    ) {
+    color: var(--text);
+    background: var(--detail-popover);
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    box-shadow: var(--shadow-menu);
+  }
+
+  & .app-select-trigger {
+    color: var(--text);
+    background: var(--surface);
+    border-color: var(--border-strong);
+    box-shadow: inset 0 1px 0 var(--detail-rim);
+  }
+
+  & .radar-popover-heading > b {
+    font-size: 12px;
+  }
+
+  & .app-select-option {
+    color: var(--text);
+    border-radius: 8px;
+  }
+
+  & .app-select-option:is(:hover, .is-selected) {
+    background: var(--blue-soft);
+  }
+
+  & .expanded-row > td,
+  & .stock-details {
+    background: var(--surface-muted);
+    border-color: var(--border);
+  }
+
+  &
+    .stock-details
+    :is(
+      .overview-item,
+      .chart-panel,
+      .order-book-panel,
+      .chip-distribution-panel,
+      .dividend-financing-history,
+      .fundamental-business-profile,
+      .fundamental-valuation-section,
+      .fundamental-peer-section,
+      .fundamental-quality-section,
+      .fundamental-risk-section,
+      .fundamental-annual-section
+    ) {
+    background: var(--surface);
+    border-color: var(--border);
+    border-radius: 14px;
+  }
+
+  &
+    :is(
+      .t-card,
+      .t-trade-entry,
+      .t-dual-plan-card,
+      .t-settlement-card,
+      .t-history-card,
+      .t-overview-grid > span
+    ) {
+    background: var(--surface);
+    border-color: var(--border);
+    border-radius: 14px;
+    box-shadow: inset 0 1px 0 var(--detail-rim);
+  }
+
+  & :is(.stock-details, [aria-modal='true']) table {
+    border-color: var(--border);
+  }
+
+  & :is(.stock-details, [aria-modal='true']) th {
+    background: var(--surface-muted);
+    border-color: var(--border);
+  }
+
+  & :is(.stock-details, [aria-modal='true']) td {
+    border-color: var(--border);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  html:root[data-theme] {
+    --detail-popover: var(--surface);
+  }
+
+  html:root[data-theme] body :has(> [aria-modal='true']) {
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  html:root[data-theme] {
+    --border: #76767c;
+    --border-strong: #76767c;
+    --muted: #44444b;
+    --subtle: #626269;
+  }
+
+  html:root[data-theme='dark'] {
+    --border: #9b9ba3;
+    --border-strong: #9b9ba3;
+    --muted: #dedee4;
+    --subtle: #b1b1b9;
+  }
+}

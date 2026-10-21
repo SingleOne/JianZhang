@@ -285,7 +285,7 @@
   border-radius: 999px;
   padding: 3px 8px;
   background: #f1f5f9;
-  color: #64748b;
+  color: var(--muted);
   font-size: 12px;
   font-style: normal;
   font-weight: 700;
@@ -414,21 +414,21 @@
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 11px;
-  background: #ffffff;
+  background: var(--surface);
 }
 
 .stock-tracking-daily-kline {
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 11px;
-  background: #ffffff;
+  background: var(--surface);
 }
 
 .stock-tracking-daily-kline-overview {
   display: grid;
   grid-template-columns: repeat(9, minmax(0, 1fr));
-  border-bottom: 1px solid #edf1f7;
-  background: #fafcff;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-muted);
 }
 
 .stock-tracking-daily-kline-overview > span {
@@ -436,7 +436,7 @@
   display: grid;
   gap: 3px;
   padding: 8px 10px;
-  border-right: 1px solid #edf1f7;
+  border-right: 1px solid var(--border);
 }
 
 .stock-tracking-daily-kline-overview > span:last-child {
@@ -456,7 +456,7 @@
 }
 
 .stock-tracking-daily-kline-overview strong {
-  color: #334155;
+  color: var(--text);
   font-variant-numeric: tabular-nums;
 }
 
@@ -477,9 +477,9 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 8px 16px;
-  border-bottom: 1px solid #edf1f7;
+  border-bottom: 1px solid var(--border);
   padding: 9px 12px;
-  color: #64748b;
+  color: var(--muted);
   font-size: 12px;
 }
 
@@ -491,7 +491,7 @@
 
 .stock-tracking-metrics-chart-legend strong {
   min-width: 78px;
-  color: #334155;
+  color: var(--text);
 }
 
 .stock-tracking-metrics-chart-legend span {
@@ -515,13 +515,13 @@
   flex-wrap: wrap;
   gap: 7px 15px;
   padding: 8px 12px;
-  color: #64748b;
+  color: var(--muted);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
 .stock-tracking-price-volume-legend {
-  border-bottom: 1px solid #edf1f7;
+  border-bottom: 1px solid var(--border);
 }
 
 .stock-tracking-price-volume-legend strong,
@@ -534,7 +534,7 @@
 
 .stock-tracking-price-volume-legend strong {
   min-width: 78px;
-  color: #334155;
+  color: var(--text);
 }
 
 .stock-tracking-price-volume-legend span em,
@@ -590,8 +590,8 @@
 }
 
 .stock-tracking-price-average-legend {
-  border-bottom: 1px solid #edf1f7;
-  background: #fafcff;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-muted);
 }
 
 .stock-tracking-realtime-volume-ratio-legend {
@@ -599,9 +599,9 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 8px 16px;
-  border-bottom: 1px solid #edf1f7;
+  border-bottom: 1px solid var(--border);
   padding: 9px 12px;
-  color: #64748b;
+  color: var(--muted);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
@@ -615,7 +615,7 @@
 
 .stock-tracking-realtime-volume-ratio-legend strong {
   min-width: 52px;
-  color: #334155;
+  color: var(--text);
 }
 
 .stock-tracking-realtime-volume-ratio-legend em {
@@ -739,9 +739,9 @@
 }
 
 .stock-tracking-source-tags-button:disabled {
-  color: #98a2b3;
+  color: var(--subtle);
   background: #f6f8fa;
-  border-color: #e2e8f0;
+  border-color: var(--border);
   cursor: default;
 }
 

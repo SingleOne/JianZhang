@@ -22,7 +22,7 @@
   flex: 0 0 auto;
   place-items: center;
   color: #406fae;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid #d8e3f1;
   border-radius: 10px;
 }
@@ -34,7 +34,7 @@
 }
 
 .shareholder-header small {
-  color: #7b899c;
+  color: var(--subtle);
   font-size: 12px;
 }
 
@@ -56,7 +56,7 @@
   margin-left: auto;
   padding: 0 12px;
   color: #3f6fad;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid #cfdced;
   border-radius: 7px;
   font-size: 12px;
@@ -99,9 +99,9 @@
   align-items: center;
   justify-content: center;
   gap: 9px;
-  color: #7b899c;
-  background: #f8fafc;
-  border: 1px dashed #d7dfe9;
+  color: var(--subtle);
+  background: var(--surface-muted);
+  border: 1px dashed var(--border);
   border-radius: 9px;
   font-size: 12px;
 }
@@ -124,7 +124,7 @@
   justify-content: center;
   gap: 6px;
   padding: 12px;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid #e1e7ef;
   border-radius: 9px;
 }
@@ -165,7 +165,7 @@
 .shareholder-section {
   min-width: 0;
   overflow: hidden;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid #e1e7ef;
   border-radius: 9px;
 }
@@ -188,7 +188,7 @@
 
 .shareholder-section-title small,
 .shareholder-holding-heading > small {
-  color: #8793a4;
+  color: var(--subtle);
   font-size: 12px;
 }
 
@@ -230,8 +230,8 @@
 .shareholder-list-tabs button {
   min-height: 29px;
   padding: 0 11px;
-  color: #718096;
-  background: #f5f7fa;
+  color: var(--muted);
+  background: var(--surface-muted);
   border: 1px solid #e1e6ed;
   border-radius: 6px;
   font-size: 12px;
@@ -241,7 +241,7 @@
 
 .shareholder-list-tabs button.is-active {
   color: #3f6fad;
-  background: #eaf2ff;
+  background: var(--blue-soft);
   border-color: #cadef6;
 }
 
@@ -268,7 +268,7 @@
 
 .shareholder-table th {
   color: #78869a;
-  background: #f8fafc;
+  background: var(--surface-muted);
   font-weight: 650;
 }
 
@@ -311,7 +311,7 @@
 }
 
 .shareholder-table .is-zero {
-  color: #7b8798;
+  color: var(--subtle);
 }
 
 .shareholder-source {
@@ -319,7 +319,7 @@
   flex-wrap: wrap;
   gap: 7px 18px;
   padding: 0 2px;
-  color: #8793a4;
+  color: var(--subtle);
   font-size: 12px;
 }
 

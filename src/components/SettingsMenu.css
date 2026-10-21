@@ -14,7 +14,7 @@
 .settings-menu[open] summary {
   color: var(--blue);
   border-color: #a9c3f8;
-  background: #f7faff;
+  background: var(--surface-muted);
 }
 
 .settings-popover {
@@ -28,7 +28,7 @@
   grid-template-rows: auto auto minmax(0, 1fr);
   padding: 9px 14px 12px;
   overflow: hidden;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 11px;
   box-shadow: var(--shadow-menu);
@@ -39,7 +39,7 @@
   align-items: baseline;
   justify-content: space-between;
   padding: 9px 3px 11px;
-  border-bottom: 1px solid #edf0f5;
+  border-bottom: 1px solid var(--border);
 }
 
 .settings-heading strong {
@@ -48,7 +48,7 @@
 
 .settings-heading span {
   color: var(--subtle);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .settings-tabs {
@@ -56,13 +56,13 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 5px;
   padding: 9px 2px;
-  border-bottom: 1px solid #edf0f5;
+  border-bottom: 1px solid var(--border);
 }
 
 .settings-tabs button {
   height: 34px;
-  color: #667085;
-  background: #f7f8fa;
+  color: var(--muted);
+  background: var(--surface-muted);
   border: 1px solid transparent;
   border-radius: 7px;
   font-size: 12px;
@@ -71,8 +71,8 @@
 }
 
 .settings-tabs button:hover {
-  color: #344054;
-  background: #f1f4f8;
+  color: var(--text);
+  background: var(--surface-raised);
 }
 
 .settings-tabs button.is-active {
@@ -94,12 +94,12 @@
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  border-bottom: 1px solid #f0f2f6;
+  border-bottom: 1px solid var(--border);
   cursor: pointer;
 }
 
 .setting-row:last-child {
-  border-bottom: 1px solid #f0f2f6;
+  border-bottom: 1px solid var(--border);
 }
 
 .setting-row > span:first-child {
@@ -108,7 +108,7 @@
 }
 
 .setting-row strong {
-  color: #344054;
+  color: var(--text);
   font-size: 12px;
   font-weight: 650;
 }
@@ -123,7 +123,7 @@
   display: grid;
   gap: 9px;
   padding: 13px 0 14px;
-  border-bottom: 1px solid #f0f2f6;
+  border-bottom: 1px solid var(--border);
 }
 
 .cache-management-heading {
@@ -150,7 +150,7 @@
 }
 
 .cache-management-heading strong {
-  color: #586579;
+  color: var(--muted);
   font-weight: 650;
 }
 
@@ -196,7 +196,7 @@
   justify-content: center;
   padding: 0 9px;
   color: #445268;
-  background: #f8fafc;
+  background: var(--surface-muted);
   border: 1px solid var(--border-strong);
   border-radius: 7px;
   font-weight: 600;
@@ -207,7 +207,7 @@
 .cache-advanced-clear-button:hover:not(:disabled) {
   color: var(--blue);
   border-color: #a9c3f8;
-  background: #f7faff;
+  background: var(--surface-muted);
 }
 
 .cache-management-actions button:disabled,
@@ -221,7 +221,7 @@
   gap: 8px;
   padding: 10px;
   background: #fafbfc;
-  border: 1px solid #edf0f5;
+  border: 1px solid var(--border);
   border-radius: 8px;
 }
 
@@ -244,7 +244,7 @@
 }
 
 .cache-category-option strong {
-  color: #586579;
+  color: var(--muted);
   font-weight: 650;
 }
 
@@ -258,7 +258,7 @@
   align-items: center;
   gap: 10px;
   padding: 12px 0;
-  border-bottom: 1px solid #f0f2f6;
+  border-bottom: 1px solid var(--border);
 }
 
 .trading-calendar-setting > span {
@@ -268,13 +268,13 @@
 }
 
 .trading-calendar-setting strong {
-  color: #344054;
+  color: var(--text);
   font-size: 12px;
   font-weight: 650;
 }
 
 .trading-calendar-setting small {
-  color: #8a94a6;
+  color: var(--subtle);
   font-size: 12px;
   line-height: 1.35;
 }
@@ -299,7 +299,7 @@
   grid-template-columns: max-content minmax(150px, 220px) minmax(0, 1fr);
   align-items: center;
   gap: 8px;
-  color: #586579;
+  color: var(--muted);
   font-size: 12px;
 }
 
@@ -307,8 +307,8 @@
   min-width: 0;
   height: 30px;
   padding: 0 8px;
-  color: #344054;
-  background: #fff;
+  color: var(--text);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 12px;
@@ -333,7 +333,7 @@
   gap: 5px;
   padding: 0 9px;
   color: var(--blue);
-  background: #f7faff;
+  background: var(--surface-muted);
   border: 1px solid #b9cdf7;
   border-radius: 7px;
   font-size: 12px;
@@ -347,9 +347,9 @@
 }
 
 .trading-calendar-setting button:disabled {
-  color: #98a2b3;
+  color: var(--subtle);
   border-color: var(--border);
-  background: #f8fafc;
+  background: var(--surface-muted);
   cursor: default;
 }
 
@@ -359,7 +359,7 @@
   align-items: center;
   gap: 10px;
   padding: 12px 0;
-  border-bottom: 1px solid #f0f2f6;
+  border-bottom: 1px solid var(--border);
 }
 
 .fundamental-data-setting > span {
@@ -375,12 +375,12 @@
 }
 
 .fundamental-data-setting strong {
-  color: #344054;
+  color: var(--text);
   font-weight: 650;
 }
 
 .fundamental-data-setting small {
-  color: #8a94a6;
+  color: var(--subtle);
   line-height: 1.4;
 }
 
@@ -400,7 +400,7 @@
   gap: 5px;
   padding: 0 9px;
   color: var(--blue);
-  background: #f7faff;
+  background: var(--surface-muted);
   border: 1px solid #b9cdf7;
   border-radius: 7px;
   font-weight: 650;
@@ -408,9 +408,9 @@
 }
 
 .fundamental-data-setting button:disabled {
-  color: #98a2b3;
+  color: var(--subtle);
   border-color: var(--border);
-  background: #f8fafc;
+  background: var(--surface-muted);
   cursor: default;
 }
 
@@ -420,7 +420,7 @@
 }
 
 .config-management strong {
-  color: #586579;
+  color: var(--muted);
   font-weight: 600;
 }
 
@@ -442,7 +442,7 @@
   justify-content: center;
   gap: 6px;
   color: #445268;
-  background: #f8fafc;
+  background: var(--surface-muted);
   border: 1px solid var(--border-strong);
   border-radius: 7px;
   font-size: 12px;
@@ -453,7 +453,7 @@
 .config-management-actions button:hover:not(:disabled) {
   color: var(--blue);
   border-color: #a9c3f8;
-  background: #f7faff;
+  background: var(--surface-muted);
 }
 
 .config-management-actions button:disabled {
@@ -473,7 +473,7 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  color: #586579;
+  color: var(--muted);
 }
 
 .github-sync-heading-copy {
@@ -504,7 +504,7 @@
 
 .github-connection-summary button {
   padding: 0;
-  color: #2563eb;
+  color: var(--blue);
   background: transparent;
   border: 0;
   font-size: 12px;
@@ -550,7 +550,7 @@
 
 .github-connect-button:disabled {
   color: #a1a9b8;
-  background: #f8fafc;
+  background: var(--surface-muted);
   border-color: var(--border-strong);
   cursor: default;
 }
@@ -564,7 +564,7 @@
   overflow: hidden;
   padding: 9px 10px;
   color: #526075;
-  background: #f8fafc;
+  background: var(--surface-muted);
   border: 1px solid var(--border);
   border-radius: 7px;
   font-size: 12px;
@@ -614,7 +614,7 @@
   gap: 4px;
   padding: 0 8px;
   color: #526075;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: 6px;
   font-size: 12px;
@@ -640,8 +640,8 @@
   min-width: 0;
   height: 34px;
   padding: 0 9px;
-  color: #344054;
-  background: #ffffff;
+  color: var(--text);
+  background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: 6px;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
@@ -723,8 +723,8 @@
   display: grid;
   gap: 4px;
   padding: 10px;
-  color: #586579;
-  background: #f7faff;
+  color: var(--muted);
+  background: var(--surface-muted);
   border: 1px solid #c9d9fa;
   border-radius: 7px;
   font-size: 12px;
@@ -751,14 +751,14 @@
   height: 28px;
   padding: 0;
   color: var(--blue);
-  background: #fff;
+  background: var(--surface);
   border: 1px solid #c9d9fa;
   border-radius: 6px;
   cursor: pointer;
 }
 
 .github-device-code-value button:hover {
-  background: #edf4ff;
+  background: var(--blue-soft);
   border-color: var(--blue);
 }
 
@@ -798,7 +798,7 @@
   justify-content: center;
   gap: 6px;
   color: #445268;
-  background: #f8fafc;
+  background: var(--surface-muted);
   border: 1px solid var(--border-strong);
   border-radius: 7px;
   font-size: 12px;
@@ -809,7 +809,7 @@
 .github-sync-actions button:hover:not(:disabled) {
   color: var(--blue);
   border-color: #a9c3f8;
-  background: #f7faff;
+  background: var(--surface-muted);
 }
 
 .github-sync-actions button:disabled {
@@ -818,7 +818,7 @@
 }
 
 .setting-row small {
-  color: #8a94a6;
+  color: var(--subtle);
   font-size: 12px;
 }
 
@@ -831,7 +831,7 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
   padding: 3px;
-  background: #f1f4f8;
+  background: var(--surface-raised);
   border: 1px solid #e5e9f0;
   border-radius: 8px;
 }
@@ -844,7 +844,7 @@
   justify-content: center;
   gap: 5px;
   padding: 0 8px;
-  color: #667085;
+  color: var(--muted);
   background: transparent;
   border: 0;
   border-radius: 6px;
@@ -854,13 +854,13 @@
 }
 
 .theme-option-group button:hover {
-  color: #344054;
+  color: var(--text);
   background: rgba(255, 255, 255, 0.72);
 }
 
 .theme-option-group button.is-selected {
   color: var(--blue);
-  background: #ffffff;
+  background: var(--surface);
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.14);
 }
 
@@ -874,7 +874,7 @@
   display: grid;
   gap: 8px;
   padding: 12px 0 13px;
-  border-bottom: 1px solid #f0f2f6;
+  border-bottom: 1px solid var(--border);
 }
 
 .settings-section-heading {
@@ -883,13 +883,13 @@
 }
 
 .settings-section-heading strong {
-  color: #344054;
+  color: var(--text);
   font-size: 12px;
   font-weight: 650;
 }
 
 .settings-section-heading small {
-  color: #8a94a6;
+  color: var(--subtle);
   font-size: 12px;
 }
 
@@ -906,7 +906,7 @@
 }
 
 .market-index-market > strong {
-  color: #667085;
+  color: var(--muted);
   font-size: 12px;
   font-weight: 600;
 }
@@ -924,9 +924,9 @@
   align-items: center;
   gap: 5px;
   padding: 0 6px;
-  color: #586579;
-  background: #f8fafc;
-  border: 1px solid #edf0f4;
+  color: var(--muted);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 12px;
   cursor: pointer;
@@ -958,8 +958,8 @@
   grid-template-columns: 60px minmax(0, 1fr) 28px;
   align-items: center;
   overflow: hidden;
-  color: #586579;
-  background: #f8fafc;
+  color: var(--muted);
+  background: var(--surface-muted);
   border: 1px solid #e5e9f0;
   border-radius: 6px;
   font-size: 12px;
@@ -974,7 +974,7 @@
   height: 100%;
   padding: 0 4px;
   color: #27364c;
-  background: #ffffff;
+  background: var(--surface);
   border: 0;
   border-right: 1px solid #e5e9f0;
   border-left: 1px solid #e5e9f0;
@@ -983,7 +983,7 @@
 }
 
 .trading-fee-grid em {
-  color: #8a94a6;
+  color: var(--subtle);
   font-style: normal;
   text-align: center;
 }
@@ -1009,7 +1009,7 @@
 .t-plan-default-group {
   min-width: 0;
   padding: 7px;
-  background: #f8fafc;
+  background: var(--surface-muted);
   border: 1px solid #e5e9f0;
   border-radius: 7px;
 }
@@ -1032,14 +1032,14 @@
 
 .t-plan-default-level.is-head {
   margin-top: 0;
-  color: #98a2b3;
-  font-size: 9px;
+  color: var(--subtle);
+  font-size: 12px;
   text-align: center;
 }
 
 .t-plan-default-level b {
-  color: #667085;
-  font-size: 9px;
+  color: var(--muted);
+  font-size: 12px;
   font-weight: 650;
 }
 
@@ -1049,7 +1049,7 @@
   height: 27px;
   padding: 0 3px;
   color: #27364c;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid #dfe4ec;
   border-radius: 5px;
   outline: 0;
@@ -1074,8 +1074,8 @@
   width: 53px;
   height: 100%;
   padding: 0 4px 0 9px;
-  color: #344054;
-  background: #ffffff;
+  color: var(--text);
+  background: var(--surface);
   border: 0;
   outline: 0;
   font-size: 12px;
@@ -1088,9 +1088,9 @@
   align-items: center;
   padding: 0 8px;
   color: #7b8493;
-  background: #f7f8fa;
+  background: var(--surface-muted);
   border-left: 1px solid var(--border);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .t-floating-profit-alert-default-setting small {
@@ -1125,13 +1125,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: #8a94a6;
+  color: var(--subtle);
   font-size: 12px;
 }
 
 .position-slider-labels output {
   color: var(--blue);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -1155,7 +1155,7 @@
   width: 14px;
   height: 14px;
   content: '';
-  background: #ffffff;
+  background: var(--surface);
   border-radius: 50%;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.25);
   transition: transform 150ms ease;

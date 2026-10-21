@@ -121,8 +121,8 @@
   flex: 0 0 auto;
   padding: 1px 6px;
   border-radius: 999px;
-  color: #2563eb;
-  background: #eaf2ff;
+  color: var(--blue);
+  background: var(--blue-soft);
   font-size: 12px;
   font-weight: 600;
   line-height: 1.4;

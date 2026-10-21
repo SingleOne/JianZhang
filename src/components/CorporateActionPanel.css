@@ -81,7 +81,7 @@
   gap: 7px;
   border-color: var(--border-strong);
   border-radius: 9px;
-  color: #344054;
+  color: var(--text);
   padding: 0 15px;
   font-size: 13px;
   font-weight: 650;
@@ -96,7 +96,7 @@
 .corporate-action-view-select .app-select-trigger:hover,
 .corporate-action-view-select .app-select-trigger.is-open {
   border-color: #bbc5d3;
-  background: #f8fafc;
+  background: var(--surface-muted);
   box-shadow: none;
 }
 
@@ -380,15 +380,15 @@
 
 :root[data-theme='dark'] .corporate-action-manual-type-select .app-select-trigger,
 :root[data-theme='dark'] .corporate-action-view-select .app-select-trigger {
-  color: #e6edf7;
+  color: var(--text);
 }
 
 :root[data-theme='dark'] .corporate-action-manual-type-select .app-select-trigger:hover,
 :root[data-theme='dark'] .corporate-action-manual-type-select .app-select-trigger.is-open,
 :root[data-theme='dark'] .corporate-action-view-select .app-select-trigger:hover,
 :root[data-theme='dark'] .corporate-action-view-select .app-select-trigger.is-open {
-  border-color: #34445d;
-  background: #111827;
+  border-color: var(--border-strong);
+  background: var(--surface);
   box-shadow: none;
 }
 

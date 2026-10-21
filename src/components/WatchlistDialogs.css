@@ -15,7 +15,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid rgba(255, 255, 255, 0.76);
   border-radius: 13px;
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
@@ -44,12 +44,12 @@
 }
 
 .position-dialog-header strong {
-  color: #1f293b;
+  color: var(--text);
   font-size: 14px;
 }
 
 .position-dialog-header small {
-  color: #8a94a6;
+  color: var(--subtle);
   font-size: 13px;
 }
 
@@ -63,8 +63,8 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #667085;
-  font-size: 11px;
+  color: var(--muted);
+  font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -87,13 +87,13 @@
 .dialog-close {
   width: 30px;
   height: 30px;
-  color: #8490a3;
+  color: var(--subtle);
   border-radius: 7px;
 }
 
 .dialog-close:hover {
-  color: #344054;
-  background: #f2f4f7;
+  color: var(--text);
+  background: var(--surface-muted);
 }
 
 .position-form {
@@ -113,7 +113,7 @@
 .position-fields > label {
   display: grid;
   gap: 7px;
-  color: #475467;
+  color: var(--muted);
   font-size: 12px;
   font-weight: 650;
 }
@@ -123,7 +123,7 @@
   display: flex;
   align-items: center;
   overflow: hidden;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: 8px;
 }
@@ -138,7 +138,7 @@
   height: 100%;
   flex: 1;
   padding: 0 11px;
-  color: #263044;
+  color: var(--text);
   border: 0;
   outline: 0;
   font-variant-numeric: tabular-nums;
@@ -151,14 +151,14 @@
   align-items: center;
   padding: 0 11px;
   color: #7b8493;
-  background: #f7f8fa;
+  background: var(--surface-muted);
   border-left: 1px solid var(--border);
   font-size: 12px;
   font-weight: 500;
 }
 
 .position-fields > label > small {
-  color: #8a94a6;
+  color: var(--subtle);
   font-size: 12px;
   font-weight: 400;
   line-height: 1.4;
@@ -177,7 +177,7 @@
   justify-content: space-between;
   gap: 16px;
   padding: 9px 12px;
-  background: #f8fafc;
+  background: var(--surface-muted);
   border-bottom: 1px solid #e4e9f0;
 }
 
@@ -187,13 +187,13 @@
 }
 
 .position-snapshot-panel > header strong {
-  color: #344054;
+  color: var(--text);
   font-size: 12px;
 }
 
 .position-snapshot-panel > header small {
-  color: #8490a3;
-  font-size: 11px;
+  color: var(--subtle);
+  font-size: 12px;
 }
 
 .position-snapshot-add {
@@ -203,7 +203,7 @@
   gap: 5px;
   flex: none;
   padding: 0 10px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .position-snapshot-add:disabled {
@@ -227,7 +227,7 @@
   gap: 8px;
   padding: 6px 10px;
   color: #566277;
-  border-bottom: 1px solid #edf0f4;
+  border-bottom: 1px solid var(--border);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   text-align: center;
@@ -241,18 +241,18 @@
   min-height: 30px;
   padding-top: 4px;
   padding-bottom: 4px;
-  color: #8490a3;
+  color: var(--subtle);
   background: #fbfcfd;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 650;
 }
 
 .position-snapshot-row.is-current {
-  background: #f3f7ff;
+  background: var(--blue-soft);
 }
 
 .position-snapshot-row.is-current > strong {
-  color: #334155;
+  color: var(--text);
 }
 
 .position-snapshot-name {
@@ -264,12 +264,12 @@
 
 .position-snapshot-name strong {
   color: #1f3f75;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .position-snapshot-name small {
   overflow: hidden;
-  color: #8a94a6;
+  color: var(--subtle);
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -286,7 +286,7 @@
   height: 28px;
   padding: 0 7px;
   color: #3d4a5f;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid #dfe5ec;
   border-radius: 6px;
   outline: 0;
@@ -313,7 +313,7 @@
 
 .position-snapshot-empty {
   padding: 18px;
-  color: #8a94a6;
+  color: var(--subtle);
   text-align: center;
   font-size: 12px;
 }
@@ -331,7 +331,7 @@
   justify-content: space-between;
   gap: 16px;
   padding: 9px 12px;
-  background: #f8fafc;
+  background: var(--surface-muted);
   border-bottom: 1px solid #e4e9f0;
 }
 
@@ -341,12 +341,12 @@
 }
 
 .trade-record-panel > header strong {
-  color: #344054;
+  color: var(--text);
   font-size: 12px;
 }
 
 .trade-record-panel > header small {
-  color: #8490a3;
+  color: var(--subtle);
   font-size: 12px;
 }
 
@@ -396,9 +396,9 @@
   min-width: 0;
   height: 32px;
   padding: 0 8px;
-  color: #344054;
-  background: #ffffff;
-  border: 1px solid #d6deea;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   outline: 0;
   font-size: 12px;
@@ -456,8 +456,8 @@
   align-items: center;
   gap: 10px;
   padding: 7px 10px;
-  color: #687386;
-  border-bottom: 1px solid #edf0f4;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
@@ -470,7 +470,7 @@
   min-height: 34px;
   padding-block: 5px;
   color: #7b8799;
-  background: #f8fafc;
+  background: var(--surface-muted);
   font-weight: 650;
 }
 
@@ -486,7 +486,7 @@
 
 .trade-record-row strong {
   min-width: 0;
-  color: #344054;
+  color: var(--text);
   font-size: 12px;
 }
 
@@ -501,7 +501,7 @@
 .trade-record-row small {
   min-width: 0;
   overflow: hidden;
-  color: #8a94a6;
+  color: var(--subtle);
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -512,7 +512,7 @@
   min-height: auto;
   display: block;
   padding: 12px;
-  background: #f8fbff;
+  background: var(--surface-muted);
 }
 
 .trade-record-row.is-editing select,
@@ -521,9 +521,9 @@
   min-width: 0;
   height: 36px;
   padding: 0 10px;
-  color: #344054;
-  background: #ffffff;
-  border: 1px solid #d6deea;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   outline: 0;
   font-size: 12px;
@@ -556,14 +556,14 @@
 }
 
 .trade-record-edit-title > strong {
-  color: #344054;
+  color: var(--text);
   font-size: 13px;
 }
 
 .trade-record-edit-title > small {
   max-width: 360px;
   padding: 3px 8px;
-  color: #667085;
+  color: var(--muted);
   background: #eef3f9;
   border-radius: 999px;
   font-size: 12px;
@@ -585,8 +585,8 @@
   gap: 5px;
   padding: 0 12px;
   color: #5f6c80;
-  background: #ffffff;
-  border: 1px solid #d6deea;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   font-size: 12px;
   cursor: pointer;
@@ -650,7 +650,7 @@
 .trade-record-actions .icon-button {
   width: 30px;
   height: 30px;
-  color: #687386;
+  color: var(--muted);
   border-radius: 6px;
 }
 
@@ -698,7 +698,7 @@
 
 .trade-record-empty {
   padding: 22px;
-  color: #8a94a6;
+  color: var(--subtle);
   font-size: 12px;
   text-align: center;
 }
@@ -755,8 +755,8 @@
   min-height: 30px;
   padding: 0 10px;
   color: #4f5d73;
-  background: #ffffff;
-  border: 1px solid #dce3ec;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   font-size: 12px;
   cursor: pointer;
@@ -770,7 +770,7 @@
 
 .trade-record-pagination button:disabled {
   color: #a9b2c0;
-  background: #f7f8fa;
+  background: var(--surface-muted);
   cursor: default;
 }
 
@@ -816,7 +816,7 @@
   display: grid;
   gap: 5px;
   padding: 12px 14px;
-  background: #f7f9fc;
+  background: var(--surface-muted);
   border: 1px solid #e6ebf1;
   border-radius: 9px;
 }
@@ -824,13 +824,13 @@
 .stock-alert-current-values small,
 .stock-alert-list-heading small,
 .stock-alert-actions > small {
-  color: #7b8798;
+  color: var(--subtle);
   font-size: 12px;
   line-height: 1.5;
 }
 
 .stock-alert-current-values strong {
-  color: #334155;
+  color: var(--text);
   font-size: 16px;
 }
 
@@ -846,7 +846,7 @@
 
 .stock-alert-current-values strong.is-flat,
 .stock-alert-rule .is-flat {
-  color: #64748b;
+  color: var(--muted);
 }
 
 .stock-alert-list-heading {
@@ -862,7 +862,7 @@
 }
 
 .stock-alert-list-heading strong {
-  color: #334155;
+  color: var(--text);
   font-size: 13px;
 }
 
@@ -915,7 +915,7 @@
   height: 34px;
   padding: 0 9px;
   color: #39485e;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid #d8e0e9;
   border-radius: 7px;
   outline: 0;
@@ -961,13 +961,13 @@
 .stock-alert-status {
   display: grid;
   gap: 2px;
-  color: #59677a;
+  color: var(--muted);
   font-size: 12px;
   font-weight: 700;
 }
 
 .stock-alert-status small {
-  color: #8793a4;
+  color: var(--subtle);
   font-size: 12px;
   font-weight: 500;
 }
@@ -1022,7 +1022,7 @@
 
 .stock-alert-actions {
   padding-top: 4px;
-  border-top: 1px solid #edf0f4;
+  border-top: 1px solid var(--border);
 }
 
 .watchlist-group-dialog {
@@ -1043,7 +1043,7 @@
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   padding: 14px;
-  background: #f7f9fc;
+  background: var(--surface-muted);
   border-right: 1px solid #e3e8ef;
 }
 
@@ -1060,8 +1060,8 @@
   min-width: 0;
   height: 34px;
   padding: 0 9px;
-  color: #344054;
-  background: #ffffff;
+  color: var(--text);
+  background: var(--surface);
   border: 1px solid #d8e0ea;
   border-radius: 7px;
   outline: 0;
@@ -1098,7 +1098,7 @@
 }
 
 .watchlist-group-list-item.is-active {
-  background: #eaf2ff;
+  background: var(--blue-soft);
   border-color: #c5d8fb;
 }
 
@@ -1115,7 +1115,7 @@
 
 .watchlist-group-list-item strong {
   overflow: hidden;
-  color: #344054;
+  color: var(--text);
   font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1147,8 +1147,8 @@
 }
 
 .watchlist-group-content-heading input:disabled {
-  color: #667085;
-  background: #f2f4f7;
+  color: var(--muted);
+  background: var(--surface-muted);
   cursor: not-allowed;
 }
 
@@ -1176,7 +1176,7 @@
 .watchlist-group-content-heading > label {
   display: grid;
   gap: 6px;
-  color: #667085;
+  color: var(--muted);
   font-size: 12px;
 }
 
@@ -1186,8 +1186,8 @@
   align-items: center;
   gap: 6px;
   padding-left: 9px;
-  color: #8490a3;
-  background: #ffffff;
+  color: var(--subtle);
+  background: var(--surface);
   border: 1px solid #d8e0ea;
   border-radius: 7px;
 }
@@ -1209,7 +1209,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  color: #718096;
+  color: var(--muted);
   font-size: 12px;
 }
 
@@ -1239,7 +1239,7 @@
   gap: 9px;
   padding: 6px 10px;
   color: #6f7c90;
-  border-bottom: 1px solid #edf0f4;
+  border-bottom: 1px solid var(--border);
   font-size: 12px;
   cursor: pointer;
 }
@@ -1260,7 +1260,7 @@
 
 .watchlist-group-stock-row strong {
   overflow: hidden;
-  color: #344054;
+  color: var(--text);
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1277,7 +1277,7 @@
 
 .watchlist-group-stock-empty {
   padding: 36px 12px;
-  color: #8a94a6;
+  color: var(--subtle);
   font-size: 12px;
   text-align: center;
 }
@@ -1288,7 +1288,7 @@
   place-items: center;
   align-content: center;
   gap: 8px;
-  color: #8a94a6;
+  color: var(--subtle);
   font-size: 12px;
 }
 
@@ -1304,8 +1304,8 @@
   justify-content: space-between;
   gap: 12px;
   padding: 10px 16px;
-  color: #7b8798;
-  background: #ffffff;
+  color: var(--subtle);
+  background: var(--surface);
   border-top: 1px solid #e3e8ef;
   font-size: 12px;
 }
@@ -1332,6 +1332,6 @@
   color: var(--red);
   background: transparent;
   border: 0;
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
 }

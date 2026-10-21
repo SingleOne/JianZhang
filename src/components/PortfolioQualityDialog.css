@@ -16,8 +16,8 @@
   flex-direction: column;
   overflow: hidden;
   color: var(--text);
-  background: #ffffff;
-  border: 1px solid #dfe6ef;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
   border-radius: 14px;
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24);
   animation: dialog-in 160ms ease-out;
@@ -60,13 +60,13 @@
 .portfolio-quality-close {
   width: 34px;
   height: 34px;
-  color: #7b8798;
+  color: var(--subtle);
   border-radius: 8px;
 }
 
 .portfolio-quality-close:hover {
-  color: #334155;
-  background: #f0f3f7;
+  color: var(--text);
+  background: var(--surface-raised);
 }
 
 .portfolio-quality-body {
@@ -98,7 +98,7 @@
   display: grid;
   gap: 3px;
   padding: 11px 12px;
-  background: #f8fafc;
+  background: var(--surface-muted);
   border: 1px solid #e3e8ef;
   border-radius: 9px;
 }
@@ -110,13 +110,13 @@
 
 .portfolio-quality-summary small,
 .portfolio-quality-summary em {
-  color: #7b8798;
+  color: var(--subtle);
   font-size: 12px;
   font-style: normal;
 }
 
 .portfolio-quality-summary strong {
-  color: #253247;
+  color: var(--text);
   font-size: 16px;
   font-variant-numeric: tabular-nums;
 }
@@ -126,7 +126,7 @@
   display: grid;
   gap: 11px;
   padding: 14px;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid #e1e7ef;
   border-radius: 10px;
 }
@@ -142,7 +142,7 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  color: #344054;
+  color: var(--text);
 }
 
 .portfolio-quality-section-heading strong {
@@ -150,7 +150,7 @@
 }
 
 .portfolio-quality-section-heading small {
-  color: #7b8798;
+  color: var(--subtle);
   font-size: 12px;
 }
 
@@ -179,13 +179,13 @@
 }
 
 .portfolio-quality-bar .is-unlabeled {
-  background: #98a2b3;
+  background: var(--subtle);
 }
 
 .portfolio-quality-no-price {
   padding: 10px 12px;
-  color: #667085;
-  background: #f7f8fa;
+  color: var(--muted);
+  background: var(--surface-muted);
   border-radius: 8px;
   font-size: 12px;
 }
@@ -204,9 +204,9 @@
   padding: 10px;
   background: #fafbfc;
   border: 1px solid #e3e8ef;
-  border-top: 3px solid #98a2b3;
+  border-top: 3px solid var(--subtle);
   border-radius: 8px;
-  color: #344054;
+  color: var(--text);
   font-family: inherit;
   cursor: pointer;
   text-align: left;
@@ -292,12 +292,12 @@
 }
 
 .portfolio-risk-tag-heading strong {
-  color: #475467;
+  color: var(--muted);
   font-size: 13px;
 }
 
 .portfolio-risk-tag-heading small {
-  color: #7b8798;
+  color: var(--subtle);
   font-size: 12px;
 }
 
@@ -347,7 +347,7 @@
 }
 
 .portfolio-risk-tags button small {
-  color: #7b8798;
+  color: var(--subtle);
 }
 
 .portfolio-industry-list {
@@ -364,7 +364,7 @@
   align-items: center;
   gap: 12px;
   padding: 7px 10px;
-  color: #344054;
+  color: var(--text);
   background: #fafbfc;
   border: 1px solid #e3e8ef;
   border-radius: 8px;
@@ -398,7 +398,7 @@
 }
 
 .portfolio-industry-name small {
-  color: #7b8798;
+  color: var(--subtle);
 }
 
 .portfolio-industry-percent {
@@ -432,11 +432,11 @@
 }
 
 .portfolio-industry-value-bar .is-unlabeled {
-  background: #98a2b3;
+  background: var(--subtle);
 }
 
 .portfolio-industry-risk {
-  color: #667085;
+  color: var(--muted);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   text-align: right;
@@ -448,7 +448,7 @@
 }
 
 .portfolio-industry-note {
-  color: #7b8798;
+  color: var(--subtle);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -492,8 +492,8 @@
   z-index: 1;
   top: 0;
   padding: 9px 10px;
-  color: #667085;
-  background: #f7f8fa;
+  color: var(--muted);
+  background: var(--surface-muted);
   border-bottom: 1px solid #dfe4eb;
   font-weight: 650;
   text-align: left;
@@ -502,7 +502,7 @@
 
 .portfolio-quality-table-scroller td {
   padding: 9px 10px;
-  border-bottom: 1px solid #edf0f4;
+  border-bottom: 1px solid var(--border);
   font-variant-numeric: tabular-nums;
   vertical-align: middle;
 }
@@ -513,7 +513,7 @@
 
 .portfolio-quality-filter-empty {
   height: 80px;
-  color: #7b8798;
+  color: var(--subtle);
   font-size: 12px;
   text-align: center;
 }
@@ -528,16 +528,16 @@
 .portfolio-quality-table-scroller td:first-child small,
 .portfolio-unpriced-value small,
 .portfolio-risk-state small {
-  color: #7b8798;
+  color: var(--subtle);
   font-size: 12px;
 }
 
 .portfolio-value-tag {
   display: inline-flex;
   padding: 4px 8px;
-  color: #667085;
-  background: #f2f4f7;
-  border: 1px solid #d8dee7;
+  color: var(--muted);
+  background: var(--surface-muted);
+  border: 1px solid var(--border-strong);
   border-radius: 999px;
   font-size: 12px;
   font-weight: 650;
@@ -575,7 +575,7 @@
 }
 
 .portfolio-risk-state.is-unassessed strong {
-  color: #667085;
+  color: var(--muted);
 }
 
 .portfolio-locate-button {
@@ -589,7 +589,7 @@
 
 .portfolio-quality-methodology {
   margin: 0;
-  color: #7b8798;
+  color: var(--subtle);
   font-size: 12px;
   line-height: 1.6;
 }

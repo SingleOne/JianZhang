@@ -12,8 +12,8 @@
 .confirm-dialog {
   width: min(430px, calc(100vw - 48px));
   overflow: hidden;
-  background: #ffffff;
-  border: 1px solid #dfe6ef;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
   border-radius: 12px;
   box-shadow: 0 22px 60px rgba(15, 23, 42, 0.22);
   animation: dialog-in 160ms ease-out;
@@ -44,13 +44,13 @@
 
 .confirm-dialog h2 {
   margin: 1px 0 6px;
-  color: #26364d;
+  color: var(--text);
   font-size: 16px;
 }
 
 .confirm-dialog p {
   margin: 0;
-  color: #6f7e91;
+  color: var(--muted);
   font-size: 13px;
   line-height: 1.65;
 }
@@ -58,13 +58,13 @@
 .confirm-dialog-close {
   width: 30px;
   height: 30px;
-  color: #8a96a6;
+  color: var(--subtle);
   border-radius: 7px;
 }
 
 .confirm-dialog-close:hover {
   color: #455468;
-  background: #f0f3f7;
+  background: var(--surface-raised);
 }
 
 .confirm-dialog > footer {
@@ -72,8 +72,8 @@
   justify-content: flex-end;
   gap: 8px;
   padding: 13px 20px;
-  background: #f8fafc;
-  border-top: 1px solid #e5eaf1;
+  background: var(--surface-muted);
+  border-top: 1px solid var(--border);
 }
 
 .confirm-dialog > footer button {
@@ -126,7 +126,7 @@
 }
 
 :root[data-theme='dark'] .confirm-dialog h2 {
-  color: #eef4fb;
+  color: var(--text);
 }
 
 :root[data-theme='dark'] .confirm-dialog p {

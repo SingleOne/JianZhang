@@ -14,7 +14,7 @@
   display: grid;
   grid-template-rows: 68px minmax(0, 1fr);
   overflow: hidden;
-  background: #f5f7fa;
+  background: var(--surface-muted);
   border-left: 1px solid rgba(255, 255, 255, 0.8);
   box-shadow: -24px 0 70px rgba(15, 23, 42, 0.2);
   animation: t-drawer-in 180ms ease-out;
@@ -25,7 +25,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 18px;
-  background: #ffffff;
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
 
@@ -41,12 +41,12 @@
 }
 
 .t-trading-header strong {
-  color: #1f293b;
+  color: var(--text);
   font-size: 15px;
 }
 
 .t-trading-header small {
-  color: #8490a3;
+  color: var(--subtle);
   font-size: 14px;
 }
 
@@ -56,7 +56,7 @@
   display: grid;
   place-items: center;
   color: var(--blue);
-  background: #edf4ff;
+  background: var(--blue-soft);
   border-radius: 10px;
 }
 
@@ -80,8 +80,8 @@
   justify-items: center;
   gap: 5px;
   padding: 10px 11px;
-  background: #ffffff;
-  border: 1px solid #e1e6ee;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 9px;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.025);
   text-align: center;
@@ -89,7 +89,7 @@
 
 .t-overview-grid small,
 .t-settlement-preview small {
-  color: #8490a3;
+  color: var(--subtle);
   font-size: 13px;
 }
 
@@ -119,7 +119,7 @@
 
 .t-card {
   padding: 14px;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid #e0e5ed;
   border-radius: 10px;
   box-shadow: 0 2px 10px rgba(15, 23, 42, 0.025);
@@ -197,7 +197,7 @@
 }
 
 .t-batch-summary strong.is-flat {
-  color: #687386;
+  color: var(--muted);
 }
 
 .t-batch-summary strong .t-floating-profit-rate {
@@ -222,7 +222,7 @@
   padding: 9px 11px;
   border: 1px solid #e3e8ef;
   border-radius: 8px;
-  background: #f8fafc;
+  background: var(--surface-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -232,12 +232,12 @@
 }
 
 .t-batch-cny-summary small {
-  color: #687386;
+  color: var(--muted);
   font-size: 12px;
 }
 
 .t-batch-cny-summary strong {
-  color: #687386;
+  color: var(--muted);
   font-size: 13px;
 }
 
@@ -275,8 +275,8 @@
 .t-segmented button {
   height: 30px;
   padding: 0 12px;
-  color: #687386;
-  background: #f7f8fa;
+  color: var(--muted);
+  background: var(--surface-muted);
   border: 1px solid #e1e5eb;
   border-radius: 7px;
   font-size: 12px;
@@ -297,14 +297,14 @@
 }
 
 .t-segmented button.is-active {
-  color: #ffffff;
+  color: var(--detail-on-accent);
   background: var(--blue);
   border-color: var(--blue);
 }
 
 .t-segmented button.is-purpose-active {
   color: var(--blue);
-  background: #edf4ff;
+  background: var(--blue-soft);
   border-color: #b9d0fb;
 }
 
@@ -324,7 +324,7 @@
   min-width: 0;
   display: grid;
   gap: 5px;
-  color: #687386;
+  color: var(--muted);
   font-size: 12px;
 }
 
@@ -337,9 +337,9 @@
   min-width: 0;
   height: 34px;
   padding: 0 9px;
-  color: #263044;
-  background: #ffffff;
-  border: 1px solid #dce2ea;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 7px;
   outline: 0;
   font-size: 12px;
@@ -398,7 +398,7 @@
   min-height: 34px;
   padding: 6px 10px;
   color: #516078;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid #ccd6e6;
   border-radius: 7px;
   font-size: 12px;
@@ -407,7 +407,7 @@
 
 .t-overflow-options button.is-selected {
   color: var(--blue);
-  background: #edf4ff;
+  background: var(--blue-soft);
   border-color: #8cb1ff;
   font-weight: 700;
 }
@@ -461,7 +461,7 @@
 }
 
 .t-entry-actions > span {
-  color: #8490a3;
+  color: var(--subtle);
   font-size: 12px;
 }
 
@@ -485,7 +485,7 @@
   align-items: center;
   gap: 8px;
   padding: 6px 9px;
-  border-bottom: 1px solid #edf0f4;
+  border-bottom: 1px solid var(--border);
 }
 
 .t-trade-row:last-child {
@@ -495,7 +495,7 @@
 .t-trade-more-button {
   min-height: 34px;
   color: var(--blue);
-  background: #f7faff;
+  background: var(--surface-muted);
   border: 0;
   border-top: 1px solid #e3e9f3;
   font-size: 12px;
@@ -504,7 +504,7 @@
 }
 
 .t-trade-more-button:hover {
-  background: #edf4ff;
+  background: var(--blue-soft);
 }
 
 .t-trade-side {
@@ -533,12 +533,12 @@
 }
 
 .t-trade-row strong {
-  color: #344054;
+  color: var(--text);
   font-size: 12px;
 }
 
 .t-trade-row small {
-  color: #8a94a6;
+  color: var(--subtle);
   font-size: 12px;
 }
 
@@ -546,7 +546,7 @@
   display: grid;
   justify-items: end;
   gap: 3px;
-  color: #586579;
+  color: var(--muted);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   text-align: right;
@@ -574,7 +574,7 @@
 
 .t-trade-actions .icon-button:hover {
   color: var(--blue);
-  background: #edf4ff;
+  background: var(--blue-soft);
 }
 
 .t-sell-levels {
@@ -591,8 +591,8 @@
   align-items: center;
   gap: 7px;
   padding: 4px 9px;
-  color: #586579;
-  border-bottom: 1px solid #edf0f4;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   text-align: center;
@@ -605,7 +605,7 @@
 .t-sell-level-head {
   min-height: 32px;
   color: #7b8493;
-  background: #f8fafc;
+  background: var(--surface-muted);
   font-weight: 650;
 }
 
@@ -618,8 +618,8 @@
   display: flex;
   align-items: center;
   overflow: hidden;
-  background: #ffffff;
-  border: 1px solid #dce2ea;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 6px;
 }
 
@@ -635,7 +635,7 @@
 
 .t-sell-level label span {
   padding: 0 6px;
-  color: #8a94a6;
+  color: var(--subtle);
   font-size: 12px;
 }
 
@@ -688,8 +688,8 @@
   gap: 12px;
   margin: -2px 0 12px;
   padding: 8px 10px;
-  background: #f8fafc;
-  border: 1px solid #e4e9f1;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
   border-radius: 8px;
 }
 
@@ -700,7 +700,7 @@
 }
 
 .t-floating-profit-alert-settings strong {
-  color: #344054;
+  color: var(--text);
   font-size: 12px;
 }
 
@@ -724,8 +724,8 @@
   display: inline-flex;
   align-items: center;
   overflow: hidden;
-  color: #657187;
-  background: #ffffff;
+  color: var(--muted);
+  background: var(--surface);
   border: 1px solid #d5dce7;
   border-radius: 6px;
   font-size: 12px;
@@ -739,10 +739,10 @@
   width: 62px;
   height: 100%;
   padding: 0 4px;
-  color: #344054;
+  color: var(--text);
   background: transparent;
   border: 0;
-  border-left: 1px solid #e4e9f1;
+  border-left: 1px solid var(--border);
   outline: 0;
   font-size: 12px;
   font-weight: 650;
@@ -759,7 +759,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #657187;
+  color: var(--muted);
   font-size: 12px;
   cursor: pointer;
 }
@@ -792,7 +792,7 @@
   width: 12px;
   height: 12px;
   content: '';
-  background: #ffffff;
+  background: var(--surface);
   border-radius: 50%;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.22);
   transition: transform 150ms ease;
@@ -820,7 +820,7 @@
 
 .t-plan-table {
   overflow: hidden;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid #dfe5ed;
   border-radius: 8px;
 }
@@ -850,7 +850,7 @@
   justify-content: space-between;
   gap: 6px;
   padding: 4px 7px;
-  background: #f8fafc;
+  background: var(--surface-muted);
   border-bottom: 1px solid #e8edf3;
 }
 
@@ -862,7 +862,7 @@
 }
 
 .t-plan-table-heading strong {
-  color: #344054;
+  color: var(--text);
   font-size: 12px;
 }
 
@@ -900,8 +900,8 @@
   align-items: center;
   gap: 3px;
   padding: 3px 4px;
-  color: #586579;
-  border-bottom: 1px solid #edf0f4;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   text-align: center;
@@ -918,7 +918,7 @@
 .t-plan-level-head {
   min-height: 28px;
   color: #7b8493;
-  background: #f8fafc;
+  background: var(--surface-muted);
   font-size: 12px;
   font-weight: 650;
 }
@@ -932,8 +932,8 @@
   display: flex;
   align-items: center;
   overflow: hidden;
-  background: #ffffff;
-  border: 1px solid #dce2ea;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 5px;
 }
 
@@ -950,7 +950,7 @@
 
 .t-plan-level label span {
   padding: 0 3px;
-  color: #8a94a6;
+  color: var(--subtle);
   font-size: 12px;
 }
 
@@ -976,7 +976,7 @@
 }
 
 .t-plan-alert-action.is-handled {
-  color: #657187;
+  color: var(--muted);
   background: #e9eef5;
 }
 
@@ -1011,14 +1011,14 @@
   display: grid;
   gap: 4px;
   padding: 8px 10px;
-  background: #f8fafc;
+  background: var(--surface-muted);
   border-radius: 7px;
 }
 
 .t-cost-profit-preview {
   margin-top: 9px;
   padding: 8px 10px;
-  color: #687386;
+  color: var(--muted);
   background: #f2f6ff;
   border-radius: 7px;
   font-size: 12px;
@@ -1044,8 +1044,8 @@
   min-height: 26px;
   padding: 0 8px;
   color: #4f5d73;
-  background: #ffffff;
-  border: 1px solid #dce3ec;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
   border-radius: 5px;
   font-size: 12px;
   cursor: pointer;
@@ -1059,7 +1059,7 @@
 
 .t-history-pagination button:disabled {
   color: #a9b2c0;
-  background: #f7f8fa;
+  background: var(--surface-muted);
   cursor: default;
 }
 
@@ -1096,7 +1096,7 @@
 }
 
 .t-history-list summary strong {
-  color: #344054;
+  color: var(--text);
   font-size: 12px;
 }
 
@@ -1109,7 +1109,7 @@
 }
 
 .t-history-list summary small {
-  color: #8a94a6;
+  color: var(--subtle);
   font-size: 12px;
 }
 
@@ -1117,7 +1117,7 @@
   display: grid;
   gap: 5px;
   padding: 9px 11px;
-  background: #f8fafc;
+  background: var(--surface-muted);
   border-top: 1px solid #e8ecf2;
 }
 
@@ -1126,7 +1126,7 @@
   grid-template-columns: 0.8fr 1.5fr 1.5fr 0.9fr 1.35fr;
   align-items: center;
   gap: 8px;
-  color: #687386;
+  color: var(--muted);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
@@ -1150,7 +1150,7 @@
 
 .t-history-list p {
   margin: 3px 0 0;
-  color: #586579;
+  color: var(--muted);
   font-size: 12px;
 }
 
@@ -1197,7 +1197,7 @@
 .t-history-profit-editor label {
   display: grid;
   gap: 4px;
-  color: #687386;
+  color: var(--muted);
   font-size: 12px;
 }
 
@@ -1205,7 +1205,7 @@
   width: 150px;
   height: 30px;
   padding: 0 8px;
-  border: 1px solid #dce2ea;
+  border: 1px solid var(--border);
   border-radius: 6px;
   outline: 0;
   font-size: 12px;

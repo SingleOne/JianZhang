@@ -6,6 +6,7 @@ import '../components/WatchlistTable.css'
 import '../components/ConfirmDialog.css'
 import '../styles/app-feedback.css'
 import '../styles/main-market.css'
+import '../styles/market-details.css'
 
 export function renderMainWindow(): void {
   renderWindow(
