@@ -68,7 +68,6 @@ import type {
   PortfolioPerformanceAdjustments,
   SearchResult,
   StockPosition,
-  StockPositionSnapshot,
   StockAlertRule,
   StockTrackingConclusionResult,
   StockTrackingArchiveIndex,
@@ -636,7 +635,7 @@ export default function App() {
   }, undefined)
 
   const persist = useCallback(
-    async (nextState: AppState, refreshDemoQuotes = true) => {
+    async (nextState: AppState, refreshDemoQuotes = true, rethrowSaveError = false) => {
       const synchronizedState = {
         ...nextState,
         watchlist: synchronizeWatchlistGroupMemberships(
@@ -659,6 +658,7 @@ export default function App() {
             setTrackingArchiveIndex(bootstrap.trackingArchiveIndex)
           })
         }
+        if (rethrowSaveError) throw reason
         return null
       }
     },
@@ -1101,27 +1101,20 @@ export default function App() {
   )
 
   const updatePosition = useCallback(
-    (
-      quoteId: string,
-      position: StockPosition | undefined,
-      showRadarSignals: boolean,
-      positionSnapshots: StockPositionSnapshot[],
-      updatedAccount?: TTradingAccount
-    ) => {
+    async (quoteId: string, book: StockTradingBook, showRadarSignals: boolean) => {
       const nextWatchlist = state.watchlist.map((stock) =>
         stock.quoteId === quoteId
           ? {
               ...stock,
-              position,
-              positionSnapshots,
               showRadarSignals,
-              isPriority: position ? true : stock.isPriority
+              isPriority: Object.values(book.accounts).some((account) => account.position)
+                ? true
+                : stock.isPriority
             }
           : stock
       )
       const nextState = { ...state, watchlist: nextWatchlist }
-      if (updatedAccount) void persist(upsertStockAccount(nextState, updatedAccount, position))
-      else void persist(nextState)
+      return Boolean(await persist(upsertStockTradingBook(nextState, book), true, true))
     },
     [persist, state]
   )

@@ -53,6 +53,9 @@
   color: var(--muted);
   font-size: 13px;
   line-height: 1.65;
+  white-space: pre-line;
+  max-height: min(55vh, 420px);
+  overflow-y: auto;
 }
 
 .confirm-dialog-close {

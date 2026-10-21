@@ -640,6 +640,22 @@
   font-size: 12px;
 }
 
+.trade-record-operation-error {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0;
+  padding: 10px;
+  background: var(--surface);
+}
+
+.position-draft-notice {
+  padding: 10px 12px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .trade-record-actions {
   display: flex !important;
   align-items: center;

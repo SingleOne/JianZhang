@@ -40,7 +40,6 @@ import type {
   MarketTradeFeeSettings,
   StockAlertRule,
   StockPosition,
-  StockPositionSnapshot,
   StockQuote,
   StockSelectionRequest,
   StockTrackingConclusionResult,
@@ -168,11 +167,9 @@ interface WatchlistTableProps {
   onTogglePriority: (quoteId: string) => void
   onEditPosition: (
     quoteId: string,
-    position: StockPosition | undefined,
-    showRadarSignals: boolean,
-    positionSnapshots: StockPositionSnapshot[],
-    updatedAccount?: TTradingAccount
-  ) => void
+    book: StockTradingBook,
+    showRadarSignals: boolean
+  ) => Promise<boolean>
   onUpdateTTrading: (
     quoteId: string,
     account: TTradingAccount,
@@ -1525,15 +1522,10 @@ export function WatchlistTable({
             marketTradeFees={marketTradeFees}
             tradingCalendar={tradingCalendar}
             onClose={() => setEditingStock(null)}
-            onSave={(position, showRadarSignals, positionSnapshots, updatedAccount) => {
-              onEditPosition(
-                editingStock.quoteId,
-                position,
-                showRadarSignals,
-                positionSnapshots,
-                updatedAccount
-              )
-              setEditingStock(null)
+            onSave={async (book, showRadarSignals) => {
+              const saved = await onEditPosition(editingStock.quoteId, book, showRadarSignals)
+              if (saved) setEditingStock(null)
+              return saved
             }}
           />
         </Suspense>

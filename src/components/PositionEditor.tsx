@@ -1,6 +1,6 @@
 import { useSecuritiesAccountState } from './SecuritiesAccountContext'
 import './PositionDialogResponsive.css'
-import { reconcileStockTBatches, toStockTradingBook } from '../lib/stock-t-trading'
+import { reconcileStockTBatches } from '../lib/stock-t-trading'
 import type { ReactNode } from 'react'
 import {
   calculateAccountTradeFees,
@@ -40,12 +40,12 @@ import {
   createInitialPositionAccount,
   positionRecordLedgerEntries,
   previewPositionRecordDeletion,
-  removePositionRecordEntries,
   shouldCreateInitialPositionRecord,
   type PositionRecordBoundary,
   type PositionRecordLedgerEntry,
   positionsMatch
 } from '../lib/position-ledger'
+import { previewStockPositionRecordDeletion } from '../lib/position-record-deletion'
 import {
   detachTradeRecordsFromBatch,
   getTradeAllocations,
@@ -76,6 +76,7 @@ import type {
   StockCurrency,
   StockPosition,
   StockPositionSnapshot,
+  StockTradingBook,
   StockQuote,
   StockMarket,
   ExchangeRateSettings,
@@ -110,6 +111,11 @@ export interface PositionEditorProps {
   stock: WatchStock
   quote: StockQuote | undefined
   account: TTradingAccount | undefined
+  tradingBook: StockTradingBook
+  accountRevision: number
+  draftNotice?: string
+  onAccountChange: (account: TTradingAccount) => void
+  onBookChange: (book: StockTradingBook) => void
   planDefaults: TPlanDefaultSettings
   exchangeRates: ExchangeRateSettings
   marketTradeFees: MarketTradeFeeSettings
@@ -119,7 +125,7 @@ export interface PositionEditorProps {
     showRadarSignals: boolean,
     positionSnapshots: StockPositionSnapshot[],
     updatedAccount?: TTradingAccount
-  ) => void
+  ) => Promise<boolean>
   onClose: () => void
 }
 
@@ -433,6 +439,11 @@ function TradeRecordList({
   const { securitiesAccounts } = useSecuritiesAccountState()
   return (
     <div className="trade-record-scroll">
+      {error ? (
+        <div className="position-form-error trade-record-operation-error" role="alert">
+          {error}
+        </div>
+      ) : null}
       <div className="trade-record-list">
         <div className="trade-record-row trade-record-table-header">
           <span>交易类型</span>
@@ -660,7 +671,6 @@ function TradeRecordList({
                       />
                     </label>
                   </div>
-                  {error ? <small className="trade-record-edit-error">{error}</small> : null}
                 </div>
               </div>
             )
@@ -746,17 +756,21 @@ export function PositionEditor({
   stock,
   quote,
   account,
+  tradingBook,
+  accountRevision,
+  draftNotice,
+  onAccountChange,
+  onBookChange,
   planDefaults,
   exchangeRates,
   tradingCalendar,
   onSave,
-  onClose,
+  onClose: closeEditor,
   hidden = false,
   accountDisabled = false
 }: PositionEditorProps) {
   const confirm = useConfirmDialog()
   const accountState = useSecuritiesAccountState()
-  const { stockTradingBooks } = accountState
   const market = marketFromQuoteId(stock.quoteId)
   const feeContext = getAccountTradeFeeContext(
     accountState,
@@ -780,7 +794,7 @@ export function PositionEditor({
   const [positionSnapshots, setPositionSnapshots] = useState<StockPositionSnapshot[]>(
     () => stock.positionSnapshots ?? []
   )
-  const [editedAccount, setEditedAccount] = useState<TTradingAccount | undefined>()
+  const [seenAccountRevision, setSeenAccountRevision] = useState(accountRevision)
   const [editingTradeId, setEditingTradeId] = useState<string | null>(null)
   const [tradeRecordDraft, setTradeRecordDraft] = useState<TradeRecordDraft | null>(null)
   const [tradeRecordExchangeRateEdited, setTradeRecordExchangeRateEdited] = useState(false)
@@ -800,11 +814,26 @@ export function PositionEditor({
   const [showAllTradeRecords, setShowAllTradeRecords] = useState(false)
   const [tradeRecordPage, setTradeRecordPage] = useState(0)
   const [positionError, setPositionError] = useState('')
+  const [saving, setSaving] = useState(false)
+  const onClose = () => {
+    if (!saving) closeEditor()
+  }
+  if (seenAccountRevision !== accountRevision) {
+    setSeenAccountRevision(accountRevision)
+    setQuantity(account?.position?.quantity.toString() ?? '')
+    setCost(account?.position?.cost.toString() ?? '')
+    setCostExchangeRate(account?.position?.costExchangeRate?.toString() ?? '')
+    setOpenedOn(account?.position?.openedOn ?? currentMarketDateTime.slice(0, 10))
+    setEditingTradeId(null)
+    setTradeRecordDraft(null)
+    setTradeRecordError('')
+    setPositionError('')
+  }
   const hasPositionInput = quantity.trim() !== '' || cost.trim() !== ''
   const currentQuantity = Number(quantity) || 0
   const currentCost = Number(cost) || 0
   const currentMetrics = calculateVersionMetrics(currentQuantity, currentCost, quote?.latest)
-  const workingAccount = editedAccount ?? account
+  const workingAccount = account
   const tradeRecords = workingAccount?.tradeRecords ?? []
   const positionRecords = positionRecordLedgerEntries(workingAccount)
   const ledgerMetrics =
@@ -895,7 +924,7 @@ export function PositionEditor({
     includeAStock = false
   ): boolean => {
     try {
-      const parent = toStockTradingBook(stockTradingBooks[stock.quoteId], stock.quoteId)
+      const parent = tradingBook
       reconcileStockTBatches(
         { ...parent, accounts: { ...parent.accounts, [nextAccount.accountId!]: nextAccount } },
         planDefaults,
@@ -951,12 +980,13 @@ export function PositionEditor({
   }
 
   const savePosition = async (nextPosition: StockPosition | undefined) => {
+    if (saving) return
     if (accountDisabled && (nextPosition?.quantity ?? 0) > 0) {
       setPositionError('请先恢复启用该账户')
       return
     }
     let resolvedPosition = nextPosition
-    let updatedAccount = capabilities.tradeLedger ? editedAccount : undefined
+    let updatedAccount = capabilities.tradeLedger ? workingAccount : undefined
     if (
       capabilities.tradeLedger &&
       nextPosition &&
@@ -1006,7 +1036,7 @@ export function PositionEditor({
     }
     if (updatedAccount) {
       try {
-        const parent = toStockTradingBook(stockTradingBooks[stock.quoteId], stock.quoteId)
+        const parent = tradingBook
         reconcileStockTBatches(
           {
             ...parent,
@@ -1020,12 +1050,21 @@ export function PositionEditor({
         return
       }
     }
-    onSave(
-      resolvedPosition,
-      capabilities.radar ? showRadarSignals : stock.showRadarSignals,
-      positionSnapshots,
-      updatedAccount
-    )
+    setSaving(true)
+    setPositionError('')
+    try {
+      const saved = await onSave(
+        resolvedPosition,
+        capabilities.radar ? showRadarSignals : stock.showRadarSignals,
+        positionSnapshots,
+        updatedAccount
+      )
+      if (!saved) setPositionError('保存设置失败，草稿已保留，请重试。')
+    } catch (reason) {
+      setPositionError(reason instanceof Error ? reason.message : '保存设置失败，草稿已保留')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const addTradeRecord = () => {
@@ -1139,7 +1178,7 @@ export function PositionEditor({
       setNewTradeError('卖出数量不能超过交易流水中的可用持仓数量')
       return
     }
-    setEditedAccount(nextAccount)
+    onAccountChange(nextAccount)
     setNewTradeDraft((current) => ({
       ...current,
       tradedAt: marketDateTimeInput(market),
@@ -1289,7 +1328,7 @@ export function PositionEditor({
           )
         )
         if (!applyGlobalLedgerPosition(updated, true)) return
-        setEditedAccount(updated)
+        onAccountChange(updated)
         cancelEditingTradeRecord()
       } catch (reason) {
         setTradeRecordError(reason instanceof Error ? reason.message : '重新估算失败')
@@ -1311,7 +1350,7 @@ export function PositionEditor({
         applyReestimatedAccount(result.account)
         return
       }
-      setEditedAccount(result.account)
+      onAccountChange(result.account)
       applyResolvedPosition(result.position)
       cancelEditingTradeRecord()
       return
@@ -1332,7 +1371,7 @@ export function PositionEditor({
       setTradeRecordDraft(createTradeRecordDraft(record))
       return
     }
-    setEditedAccount(result.account)
+    onAccountChange(result.account)
     if (result.updatesPosition && !useFullLedgerPosition) {
       setQuantity(result.position?.quantity.toString() ?? '')
       setCost(result.position?.cost.toString() ?? '')
@@ -1363,7 +1402,7 @@ export function PositionEditor({
         setTradeRecordError(result.error)
         return
       }
-      setEditedAccount(result.account)
+      onAccountChange(result.account)
       applyResolvedPosition(result.position)
       if (editingTradeId === record.id) cancelEditingTradeRecord()
       return
@@ -1382,7 +1421,7 @@ export function PositionEditor({
       setTradeRecordDraft(createTradeRecordDraft(record))
       return
     }
-    setEditedAccount(result.account)
+    onAccountChange(result.account)
     if (result.updatesPosition && !useFullLedgerPosition) {
       setQuantity(result.position?.quantity.toString() ?? '')
       setCost(result.position?.cost.toString() ?? '')
@@ -1392,83 +1431,69 @@ export function PositionEditor({
 
   const deletePositionRecord = async (entry: PositionRecordLedgerEntry) => {
     if (!workingAccount) return
+    // 拆分成交保持单笔删除语义；从校准或较早普通记录发起的级联删除才展开关联批次。
     if (entry.kind === 'trade' && entry.record.splitSource) {
       await deleteTradeRecord(entry.record)
       return
     }
     const preview = previewPositionRecordDeletion(workingAccount, entry.id)
     if (!preview) return
+    // 最新一笔成交沿用直接删除；其后存在记录时才进入级联预览。
     if (entry.kind === 'trade' && preview.laterRecordCount === 0) {
       await deleteTradeRecord(entry.record)
       return
     }
 
-    const affectedBatchIds = new Set(
-      preview.entries.flatMap((recordEntry) =>
-        recordEntry.kind === 'trade'
-          ? getTradeAllocations(recordEntry.record).flatMap((allocation) =>
-              allocation.batchId ? [allocation.batchId] : []
-            )
-          : []
+    setTradeRecordError('')
+    let deletion
+    try {
+      deletion = previewStockPositionRecordDeletion(
+        tradingBook,
+        workingAccount.accountId!,
+        entry.id,
+        planDefaults
       )
-    )
+    } catch (reason) {
+      setTradeRecordError(reason instanceof Error ? reason.message : String(reason))
+      return
+    }
+    if (!deletion) return
     const targetLabel =
       entry.kind === 'positionAdjustment' ? '持仓校准' : tradeRecordLabel(entry.record)
-    const cascadeDescription =
-      preview.laterRecordCount > 0
-        ? `删除后会影响后续持仓和收益计算，并同时删除之后 ${preview.laterRecordCount} 条记录${affectedBatchIds.size > 0 ? `，涉及 ${affectedBatchIds.size} 个 T 批次` : ''}。`
-        : ''
+    const accountDetails = deletion.accounts.map((item) => {
+      const name = accountState.securitiesAccounts?.[item.accountId]?.name ?? item.accountId
+      const records = [...item.entries]
+        .sort((left, right) => left.occurredAt.localeCompare(right.occurredAt))
+        .map((record) => {
+          const label =
+            record.kind === 'trade'
+              ? `${tradeRecordLabel(record.record)} ${formatShares(record.record.quantity)} 股`
+              : record.kind === 'positionAdjustment'
+                ? '持仓校准'
+                : '撤销流水'
+          const earlier = record.occurredAt < entry.occurredAt ? '（早于目标记录）' : ''
+          return `${formatTradeTime(record.occurredAt)} ${label}${earlier}`
+        })
+      return `${name}：${item.entries.length} 条，买入 ${formatShares(item.buyQuantity)} 股，卖出 ${formatShares(item.sellQuantity)} 股\n${records.join('\n')}`
+    })
+    const batchDetails = deletion.batches.length
+      ? `将完整删除关联 T 批次 ${deletion.batches.map((batch) => `#${batch.sequence}`).join('、')}，包含各账户的关联成交、结算和成本校准。`
+      : ''
     const confirmed = await confirm({
-      title: preview.laterRecordCount > 0 ? '删除记录及后续记录' : '删除持仓校准',
-      message: `确定删除 ${formatTradeTime(entry.occurredAt)} 的${targetLabel}记录吗？${cascadeDescription}保存设置后生效。`,
-      confirmLabel:
-        preview.laterRecordCount > 0 ? `删除 ${preview.entries.length} 条记录` : '删除记录',
+      title: deletion.accounts.length > 1 ? '跨账户删除记录及关联批次' : '删除记录及关联记录',
+      message: [
+        `确定删除 ${formatTradeTime(entry.occurredAt)} 的${targetLabel}记录${preview.laterRecordCount > 0 ? `及当前账户之后 ${preview.laterRecordCount} 条记录` : ''}吗？`,
+        batchDetails,
+        ...accountDetails,
+        '受影响账户的持仓和收益将按剩余流水重算，替换尚未保存的持仓数量及成本。保存设置后生效。'
+      ]
+        .filter(Boolean)
+        .join('\n\n'),
+      confirmLabel: `删除 ${deletion.entryCount} 条记录`,
       tone: 'danger'
     })
     if (!confirmed) return
-
-    const deletedEntryIds = new Set(preview.entries.map((recordEntry) => recordEntry.id))
-    const accountWithoutRecords = removePositionRecordEntries(workingAccount, deletedEntryIds)
-    const remainingTradeRecords = accountWithoutRecords.tradeRecords
-    const activeBatch = workingAccount.activeBatch
-      ? (() => {
-          const batchTrades = sortTradeRecords(
-            remainingTradeRecords.filter((record) =>
-              tradeReferencesBatch(record, workingAccount.activeBatch!.id)
-            ),
-            'ascending'
-          )
-          return batchTrades.some((record) =>
-            hasTAllocationForBatch(record, workingAccount.activeBatch!.id)
-          )
-            ? rebalanceTBatchPlans(workingAccount.activeBatch!, batchTrades, planDefaults, market)
-            : undefined
-        })()
-      : undefined
-    const history = workingAccount.history.flatMap((batch) => {
-      const batchTrades = sortTradeRecords(
-        remainingTradeRecords.filter((record) => tradeReferencesBatch(record, batch.id)),
-        'ascending'
-      )
-      return batchTrades.length > 0 ? [refreshBatchSettlement(batch, batchTrades)] : []
-    })
-    const nextAccount = { ...accountWithoutRecords, activeBatch, history }
-    if (!applyGlobalLedgerPosition(nextAccount, true)) return
-    const replay = calculatePortfolioLedgerPosition(nextAccount, market, currency)
-    if (replay.error) {
-      setTradeRecordError(replay.error)
-      return
-    }
-    setEditedAccount(nextAccount)
-    applyResolvedPosition(replay.position)
-    if (
-      editingTradeId &&
-      preview.entries.some(
-        (recordEntry) => recordEntry.kind === 'trade' && recordEntry.record.id === editingTradeId
-      )
-    ) {
-      cancelEditingTradeRecord()
-    }
+    onBookChange(deletion.nextBook)
   }
 
   const tradeRecordFeePreview = (() => {
@@ -1520,6 +1545,7 @@ export function PositionEditor({
       <div className="position-dialog-backdrop" role="presentation" onMouseDown={onClose}>
         <section
           className="position-dialog"
+          inert={saving}
           role="dialog"
           aria-modal="true"
           aria-labelledby="position-dialog-title"
@@ -1804,6 +1830,11 @@ export function PositionEditor({
 
             {capabilities.tradeLedger ? (
               <section className="trade-record-panel">
+                {draftNotice ? (
+                  <div className="position-draft-notice" role="status">
+                    {draftNotice}
+                  </div>
+                ) : null}
                 <header>
                   <span>
                     <strong>交易记录</strong>
@@ -2024,29 +2055,36 @@ export function PositionEditor({
 
             <footer className="position-dialog-actions">
               {stock.position ? (
-                <button
+                <AppButton
+                  variant="plain"
                   className="clear-position-button"
                   type="button"
-                  disabled={editingTradeId !== null}
+                  disabled={saving || editingTradeId !== null}
                   onClick={() => void savePosition(undefined)}
                 >
                   清空持仓
-                </button>
+                </AppButton>
               ) : (
                 <span />
               )}
               <span>
-                <button className="secondary-button compact-button" type="button" onClick={onClose}>
+                <AppButton
+                  variant="secondary"
+                  className="compact-button"
+                  onClick={onClose}
+                  disabled={saving}
+                >
                   取消
-                </button>
-                <button
-                  className="primary-button compact-button"
+                </AppButton>
+                <AppButton
+                  variant="primary"
+                  className="compact-button"
                   type="submit"
-                  disabled={editingTradeId !== null}
+                  disabled={saving || editingTradeId !== null}
                   title={editingTradeId ? '请先保存或取消当前交易记录编辑' : undefined}
                 >
-                  保存设置
-                </button>
+                  {saving ? '保存中…' : '保存设置'}
+                </AppButton>
               </span>
             </footer>
           </form>
