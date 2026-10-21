@@ -787,7 +787,7 @@ function TTradeEntry({
   )
   const [entryMode, setEntryMode] = useState<EntryMode>('trade')
   const [side, setSide] = useState<TTradeSide>('buy')
-  const [purpose, setPurpose] = useState<TTradePurpose>('t')
+  const [purpose, setPurpose] = useState<TTradePurpose>('base')
   const [price, setPrice] = useState(clearEntry ? '' : (quote?.latest?.toString() ?? ''))
   const [quantity, setQuantity] = useState('')
   const [tradedAt, setTradedAt] = useState(() => marketDateTimeInput(market))
@@ -1013,7 +1013,7 @@ function TTradeEntry({
   const resetTradeForm = useCallback(() => {
     setEntryMode('trade')
     setSide('buy')
-    setPurpose('t')
+    setPurpose('base')
     setPrice(quote?.latest?.toString() ?? '')
     setQuantity('')
     setTradedAt(marketDateTimeInput(market))
@@ -1628,47 +1628,35 @@ function TTradeEntry({
 
         <div className="t-entry-top-row">
           <div className="t-segmented">
-            <button
+            <AppButton
+              variant="plain"
               className={entryMode === 'trade' && side === 'buy' ? 'is-active' : ''}
-              type="button"
               disabled={hasFixedAllocations}
               onClick={() => {
                 setEntryMode('trade')
                 setSide('buy')
-                setPurpose('t')
+                setPurpose('base')
                 setCashError('')
               }}
             >
               买入
-            </button>
-            <button
+            </AppButton>
+            <AppButton
+              variant="plain"
               className={entryMode === 'trade' && side === 'sell' ? 'is-active' : ''}
-              type="button"
               disabled={hasFixedAllocations}
               onClick={() => {
                 setEntryMode('trade')
                 setSide('sell')
-                setPurpose('t')
+                setPurpose('base')
                 setCashError('')
               }}
             >
               卖出
-            </button>
-            <button
-              className={entryMode === 'trade' && purpose === 't' ? 'is-purpose-active' : ''}
-              type="button"
-              disabled={hasFixedAllocations}
-              onClick={() => {
-                setEntryMode('trade')
-                setPurpose('t')
-                setCashError('')
-              }}
-            >
-              {tPurposeLabel}
-            </button>
-            <button
+            </AppButton>
+            <AppButton
+              variant="plain"
               className={entryMode === 'trade' && purpose === 'base' ? 'is-purpose-active' : ''}
-              type="button"
               disabled={hasFixedAllocations}
               onClick={() => {
                 setEntryMode('trade')
@@ -1677,10 +1665,22 @@ function TTradeEntry({
               }}
             >
               {basePurposeLabel}
-            </button>
-            <button
+            </AppButton>
+            <AppButton
+              variant="plain"
+              className={entryMode === 'trade' && purpose === 't' ? 'is-purpose-active' : ''}
+              disabled={hasFixedAllocations}
+              onClick={() => {
+                setEntryMode('trade')
+                setPurpose('t')
+                setCashError('')
+              }}
+            >
+              {tPurposeLabel}
+            </AppButton>
+            <AppButton
+              variant="plain"
               className={entryMode === 'cash' ? 'is-purpose-active' : ''}
-              type="button"
               disabled={Boolean(editingTradeId)}
               onClick={() => {
                 setEntryMode('cash')
@@ -1689,7 +1689,7 @@ function TTradeEntry({
               }}
             >
               分红与缴税
-            </button>
+            </AppButton>
           </div>
 
           {entryMode === 'trade' ? (

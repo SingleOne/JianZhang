@@ -154,6 +154,10 @@
   grid-column: auto;
 }
 
+.t-trading-ledger-history > .t-base-ledger-card:only-child {
+  grid-column: 1 / -1;
+}
+
 .t-trading-ledger-history .t-trade-row {
   grid-template-columns: 72px minmax(0, 1fr) minmax(80px, 0.65fr) 62px;
 }
