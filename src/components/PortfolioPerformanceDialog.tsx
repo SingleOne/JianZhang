@@ -4,6 +4,7 @@ import type { StockTradingBooks } from '../shared/types'
 import { ChartPie, CircleAlert, History, PencilLine, RefreshCw, Save, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { AppButton } from './AppButton'
 import { AppSelect } from './AppSelect'
 import { formatMoneyProfit } from '../lib/format'
 import {
@@ -442,43 +443,45 @@ export default function PortfolioPerformanceDialog({
             除累计收益小计和累计收益列外，其余收益分项均为当前或最近持仓周期。证券价格贡献按历史加权购入汇率折算；汇率贡献按当前或卖出证券价值的汇率变化计算。手动调整计入当前周期，并随周期汇总计入累计收益。
           </div>
 
-          <nav className="portfolio-performance-dimensions" aria-label="收益汇总维度">
-            {(Object.keys(DIMENSION_LABELS) as PerformanceDimension[]).map((key) => (
-              <button
-                className={dimension === key ? 'is-active' : ''}
-                type="button"
-                key={key}
-                onClick={() => {
-                  setDimension(key)
-                  closeAdjustmentEditor()
-                }}
-              >
-                {DIMENSION_LABELS[key]}
-              </button>
-            ))}
-          </nav>
+          <div className="portfolio-performance-toolbar">
+            <nav className="portfolio-performance-dimensions" aria-label="收益汇总维度">
+              {(Object.keys(DIMENSION_LABELS) as PerformanceDimension[]).map((key) => (
+                <AppButton
+                  variant="plain"
+                  className={dimension === key ? 'is-active' : ''}
+                  key={key}
+                  onClick={() => {
+                    setDimension(key)
+                    closeAdjustmentEditor()
+                  }}
+                >
+                  {DIMENSION_LABELS[key]}
+                </AppButton>
+              ))}
+            </nav>
 
-          <div className="securities-account-selector">
-            <span>账户范围</span>
-            <AppSelect
-              label="账户范围"
-              className="securities-account-select"
-              value={accountFilter}
-              options={[
-                { value: 'all', label: '全部账户汇总' },
-                ...Object.values(accountState.securitiesAccounts ?? {}).map((account) => ({
-                  value: account.id,
-                  label: `${account.name}${account.enabled ? '' : '（已停用）'}`
-                }))
-              ]}
-              onChange={(value) => {
-                if (value === accountFilter) return
-                setAccountFilter(value)
-                closeAdjustmentEditor()
-                setCycleDetailQuoteId(null)
-              }}
-            />
-            <small>选择具体账户后可调整收益和查看独立持仓周期</small>
+            <div className="securities-account-selector">
+              <span>账户范围</span>
+              <AppSelect
+                label="账户范围"
+                className="securities-account-select"
+                value={accountFilter}
+                options={[
+                  { value: 'all', label: '全部账户汇总' },
+                  ...Object.values(accountState.securitiesAccounts ?? {}).map((account) => ({
+                    value: account.id,
+                    label: `${account.name}${account.enabled ? '' : '（已停用）'}`
+                  }))
+                ]}
+                onChange={(value) => {
+                  if (value === accountFilter) return
+                  setAccountFilter(value)
+                  closeAdjustmentEditor()
+                  setCycleDetailQuoteId(null)
+                }}
+              />
+              <small>选择具体账户后可调整收益和查看独立持仓周期</small>
+            </div>
           </div>
           <div className="portfolio-performance-table-wrap">
             <table className="portfolio-performance-table">

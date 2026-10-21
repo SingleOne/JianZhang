@@ -127,6 +127,19 @@
   padding: 9px 11px;
 }
 
+.portfolio-performance-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+.portfolio-performance-toolbar .securities-account-selector {
+  flex: 1 1 440px;
+  min-width: 0;
+  padding: 0;
+}
+
 .portfolio-performance-dimensions {
   display: flex;
   flex-wrap: wrap;
@@ -169,7 +182,7 @@
   border-bottom: 1px solid #e8edf3;
   padding: 10px 9px;
   text-align: right;
-  vertical-align: top;
+  vertical-align: middle;
   white-space: nowrap;
 }
 
