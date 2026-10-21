@@ -129,6 +129,15 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.t-inline-edit-grid .app-select {
+  min-width: 0;
+}
+
+.t-inline-edit-hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .t-inline-edit-actions {
   display: flex;
   align-items: center;

@@ -585,6 +585,7 @@ export function TTradingDrawer(props: TTradingDrawerProps) {
         trade={trade}
         planDefaults={props.planDefaults}
         tradingCalendar={props.tradingCalendar}
+        floatingProfitAlertDefaultThreshold={props.floatingProfitAlertDefaultThreshold}
         onApply={applyBook}
         onComplete={onComplete}
       />
