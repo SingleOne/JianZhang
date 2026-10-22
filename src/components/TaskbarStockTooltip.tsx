@@ -392,14 +392,6 @@ export function StockQuoteDetails({
           <span className="taskbar-tooltip-identity">
             <strong>{stock?.name ?? quote?.name ?? '--'}</strong>
             <span>{stock?.code ?? quote?.code ?? '--'}</span>
-            {quote?.sector ? (
-              <span className="taskbar-tooltip-sector" title={quote.sector.name}>
-                <span>{quote.sector.name}</span>
-                <b className={valueClass(quote.sector.changePercent)}>
-                  {formatPercent(quote.sector.changePercent)}
-                </b>
-              </span>
-            ) : null}
             <span className="taskbar-tooltip-market">{stock?.marketLabel ?? '实时行情'}</span>
           </span>
           <span className="taskbar-tooltip-header-meta">
@@ -416,6 +408,14 @@ export function StockQuoteDetails({
           <span>{formatSigned(quote?.change)}</span>
           <span>{formatPercent(quote?.changePercent)}</span>
         </span>
+        {quote?.sector ? (
+          <span className="taskbar-tooltip-sector" title={quote.sector.name}>
+            <span>{quote.sector.name}</span>
+            <b className={valueClass(quote.sector.changePercent)}>
+              {formatPercent(quote.sector.changePercent)}
+            </b>
+          </span>
+        ) : null}
         <span className={`taskbar-tooltip-today-profit ${valueClass(positionMetrics.todayProfit)}`}>
           <span className="taskbar-tooltip-today-label">今日</span>
           {formatMoneyProfit(positionMetrics.todayProfit, positionMetrics.currency)}

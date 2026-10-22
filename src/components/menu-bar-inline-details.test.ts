@@ -123,10 +123,19 @@ describe('inline menu bar stock details', () => {
     expect(standalone).toContain('taskbar-tooltip-price-row')
     expect(standalone).toContain('taskbar-tooltip-sector" title="白酒"')
     expect(standalone).toContain('<b class="is-up">+0.67%</b>')
+    expect(standalone.split('</header>')[0]).not.toContain('taskbar-tooltip-sector')
+    expect(standalone).toMatch(
+      /taskbar-tooltip-price-change[\s\S]*\+3\.96%[\s\S]*taskbar-tooltip-sector/
+    )
     expect(standalone).not.toContain('在主窗口查看')
     expect(embedded).not.toContain('贵州茅台')
     expect(embedded).not.toContain('<header')
     expect(embedded).toContain('taskbar-tooltip-price-row')
+    expect(embedded).toContain('taskbar-tooltip-sector" title="白酒"')
+    expect(embedded).toContain('<b class="is-up">+0.67%</b>')
+    expect(embedded).toMatch(
+      /taskbar-tooltip-price-change[\s\S]*\+3\.96%[\s\S]*taskbar-tooltip-sector/
+    )
     expect(embedded).toContain('1,247.52')
     expect(embedded).toContain('taskbar-tooltip-today-label">今日')
     expect(standalone).toContain('taskbar-tooltip-inline-market')
