@@ -3,7 +3,7 @@ import { AppSelect, type AppSelectOption } from '../../../components/AppSelect'
 import { AppTable, type AppTableColumn } from '../../../components/AppTable'
 import { useSecuritiesAccountState } from '../../../components/SecuritiesAccountContext'
 import { listAccountsForMarket } from '../../../shared/stock-accounts'
-import { marketFromQuoteId } from '../../../shared/stock-market'
+import { tradeImportItemMarket } from '../shared/trade-import-defaults'
 import type { AiTradeImportEntryKind, AiTradeImportItem } from '../shared/types'
 
 const KIND_OPTIONS: readonly AppSelectOption<AiTradeImportEntryKind>[] = [
@@ -12,7 +12,8 @@ const KIND_OPTIONS: readonly AppSelectOption<AiTradeImportEntryKind>[] = [
   { value: 'withholdingTax', label: '红利税', description: '实际扣缴金额' }
 ]
 
-const SIDE_OPTIONS: readonly AppSelectOption<'buy' | 'sell'>[] = [
+const SIDE_OPTIONS: readonly AppSelectOption<'' | 'buy' | 'sell'>[] = [
+  { value: '', label: '请选择方向' },
   { value: 'buy', label: '买入' },
   { value: 'sell', label: '卖出' }
 ]
@@ -55,25 +56,16 @@ export function TradeImportTable({
     },
     {
       key: 'kind',
-      title: '流水类型 / 置信度',
-      width: 150,
+      title: '流水类型',
+      width: 140,
       render: (item, index) => (
-        <div className="ai-trade-import-row-kind">
-          <AppSelect
-            value={item.kind}
-            options={KIND_OPTIONS}
-            label={`第 ${index + 1} 条流水类型`}
-            portal
-            onChange={(kind) => onUpdate(item.id, { kind })}
-          />
-          <span className={`ai-trade-import-confidence is-confidence-${item.confidence}`}>
-            {item.confidence === 'high'
-              ? '高置信'
-              : item.confidence === 'medium'
-                ? '中置信'
-                : '低置信'}
-          </span>
-        </div>
+        <AppSelect
+          value={item.kind}
+          options={KIND_OPTIONS}
+          label={`第 ${index + 1} 条流水类型`}
+          portal
+          onChange={(kind) => onUpdate(item.id, { kind })}
+        />
       )
     },
     {
@@ -96,54 +88,81 @@ export function TradeImportTable({
       key: 'account',
       title: '股票账户',
       width: 160,
-      render: (item, index) => (
-        <AppSelect
-          value={item.accountId ?? ''}
-          options={[
-            { value: '', label: '请选择账户' },
-            ...(item.quoteId
-              ? listAccountsForMarket(
-                  accountState.securitiesAccounts,
-                  marketFromQuoteId(item.quoteId)
-                ).map((account) => ({ value: account.id, label: account.name }))
-              : [])
-          ]}
-          label={`第 ${index + 1} 条股票账户`}
-          disabled={!item.quoteId}
-          portal
-          onChange={(accountId) => onUpdate(item.id, { accountId })}
-        />
-      )
+      render: (item, index) => {
+        const market = tradeImportItemMarket(item)
+        return (
+          <AppSelect
+            value={item.accountId ?? ''}
+            options={[
+              { value: '', label: '请选择账户' },
+              ...(market
+                ? listAccountsForMarket(accountState.securitiesAccounts, market).map((account) => ({
+                    value: account.id,
+                    label: account.name
+                  }))
+                : [])
+            ]}
+            label={`第 ${index + 1} 条股票账户`}
+            disabled={!market}
+            portal
+            onChange={(accountId) => onUpdate(item.id, { accountId })}
+          />
+        )
+      }
     },
     {
       key: 'occurredAt',
-      title: '发生时间',
-      width: 180,
-      render: (item, index) => (
-        <AppInput
-          aria-label={`第 ${index + 1} 条发生时间`}
-          value={item.occurredAt ?? ''}
-          placeholder="2026-09-17T10:30"
-          onChange={(event) => onUpdate(item.id, { occurredAt: event.target.value })}
-        />
-      )
+      title: '发生日期 / 时间',
+      width: 270,
+      render: (item, index) => {
+        const [date = '', time = '09:30'] = (item.occurredAt ?? '').split('T')
+        return (
+          <div className="ai-trade-import-row-time">
+            <AppInput
+              type="date"
+              aria-label={`第 ${index + 1} 条发生日期`}
+              value={date}
+              onChange={(event) =>
+                onUpdate(item.id, { occurredAt: `${event.target.value}T${time || '09:30'}` })
+              }
+            />
+            <AppInput
+              type="time"
+              step="1"
+              aria-label={`第 ${index + 1} 条发生时间`}
+              value={time || '09:30'}
+              onChange={(event) =>
+                onUpdate(item.id, { occurredAt: `${date}T${event.target.value || '09:30'}` })
+              }
+            />
+          </div>
+        )
+      }
     },
     {
       key: 'side',
-      title: '方向',
-      width: 100,
-      render: (item, index) =>
-        item.kind === 'trade' ? (
-          <AppSelect
-            value={item.side ?? 'buy'}
-            options={SIDE_OPTIONS}
-            label={`第 ${index + 1} 条成交方向`}
-            portal
-            onChange={(side) => onUpdate(item.id, { side })}
-          />
-        ) : (
-          '—'
-        )
+      title: '置信度 / 方向',
+      width: 200,
+      render: (item, index) => (
+        <div className="ai-trade-import-row-direction">
+          <span className={`ai-trade-import-confidence is-confidence-${item.confidence}`}>
+            {item.confidence === 'high'
+              ? '高置信'
+              : item.confidence === 'medium'
+                ? '中置信'
+                : '低置信'}
+          </span>
+          {item.kind === 'trade' ? (
+            <AppSelect
+              value={item.side ?? ''}
+              options={SIDE_OPTIONS}
+              label={`第 ${index + 1} 条成交方向`}
+              portal
+              onChange={(side) => onUpdate(item.id, { side: side || undefined })}
+            />
+          ) : null}
+        </div>
+      )
     },
     {
       key: 'price',
@@ -191,11 +210,19 @@ export function TradeImportTable({
         item.kind === 'trade' ? (
           <AppInput
             aria-label={`第 ${index + 1} 条实际费用`}
+            title="缺失费用按所选账户模板估算；切换账户或修改成交数据时重算，可手动修改"
             type="number"
             min="0"
             step="0.01"
             value={item.fees ?? ''}
-            onChange={(event) => onUpdate(item.id, { fees: optionalNumber(event.target.value) })}
+            onChange={(event) => {
+              const fees = optionalNumber(event.target.value)
+              onUpdate(item.id, {
+                fees,
+                feeSource: fees === undefined ? undefined : 'actual',
+                feeEstimate: undefined
+              })
+            }}
           />
         ) : (
           '—'
@@ -272,6 +299,8 @@ export function TradeImportTable({
       render: (item, index) => (
         <AppInput
           aria-label={`第 ${index + 1} 条券商编号`}
+          placeholder="可留空"
+          title="券商原始成交或流水编号，用于来源追溯及重复导入检查"
           value={item.externalId ?? ''}
           onChange={(event) => onUpdate(item.id, { externalId: event.target.value || undefined })}
         />

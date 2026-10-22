@@ -29,7 +29,8 @@ import type {
   ShareholderSnapshot,
   StockOrderBook,
   StockQuote,
-  StockValuationHistory
+  StockValuationHistory,
+  TTrade
 } from '../../../shared/types'
 
 export const AI_PROVIDER_IDS = [
@@ -135,6 +136,8 @@ export interface AiTradeImportItem {
   price?: number
   quantity?: number
   fees?: number
+  feeSource?: 'estimated' | 'actual'
+  feeEstimate?: Pick<TTrade, 'fees' | 'feeItems' | 'feeTemplate'>
   amount?: number
   eligibleQuantity?: number
   currency?: 'CNY' | 'HKD' | 'USD'

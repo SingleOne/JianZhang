@@ -1071,12 +1071,25 @@
   font-weight: 700;
 }
 
-.ai-trade-import-row-kind {
+.ai-trade-import-row-direction {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+}
+
+.ai-trade-import-row-direction .app-select {
+  flex: 1;
+}
+
+.ai-trade-import-row-time {
   display: grid;
-  gap: 5px;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 6px;
 }
 
 .ai-trade-import-confidence {
+  flex: 0 0 auto;
   width: fit-content;
   padding: 3px 6px;
   border-radius: 5px;
@@ -1098,22 +1111,39 @@
   background: #fff0f1;
 }
 
-.ai-trade-import-fields {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 9px;
+.ai-trade-import-bulk-fields {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 3px 0;
 }
 
-.ai-trade-import-bulk-account {
+.ai-trade-import-bulk-control {
+  flex: 0 0 220px;
   min-width: 0;
-  display: grid;
-  align-content: start;
-  gap: 5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   color: #63748a;
   font-size: 12px;
 }
 
-.ai-trade-import-fields .app-select,
+.ai-trade-import-bulk-control > span {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.ai-trade-import-bulk-stock {
+  flex-basis: 300px;
+}
+
+.ai-trade-import-bulk-control .app-select {
+  flex: 1;
+}
+
+.ai-trade-import-bulk-control .app-select,
 .ai-trade-import-table .app-select {
   width: 100%;
   min-width: 0;
@@ -1121,7 +1151,7 @@
 
 .ai-trade-import-table input:not([type='checkbox']),
 .ai-trade-import-table .app-select-trigger,
-.ai-trade-import-fields .app-select-trigger {
+.ai-trade-import-bulk-control .app-select-trigger {
   width: 100%;
   min-width: 0;
   height: 34px;
@@ -1198,11 +1228,6 @@
   margin-left: auto;
 }
 
-@media (max-width: 900px) {
-  .ai-trade-import-fields {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
 .ai-context-chip {
   width: fit-content;
   display: inline-flex;
@@ -3001,7 +3026,7 @@
 :root[data-theme='dark'] .ai-trade-import-table,
 :root[data-theme='dark'] .ai-trade-import-table input:not([type='checkbox']),
 :root[data-theme='dark'] .ai-trade-import-table .app-select-trigger,
-:root[data-theme='dark'] .ai-trade-import-fields .app-select-trigger {
+:root[data-theme='dark'] .ai-trade-import-bulk-control .app-select-trigger {
   color: #c8d5e5;
   background: #202c3e;
   border-color: #3a4a61;
@@ -3013,7 +3038,7 @@
 }
 
 :root[data-theme='dark'] .ai-trade-import-source > label,
-:root[data-theme='dark'] .ai-trade-import-bulk-account,
+:root[data-theme='dark'] .ai-trade-import-bulk-control,
 :root[data-theme='dark'] .ai-trade-import-impacts > div {
   color: #aebed1;
 }

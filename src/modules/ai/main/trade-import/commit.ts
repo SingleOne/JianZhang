@@ -28,6 +28,7 @@ import {
 import { createInitialPositionAccount } from '../../../../lib/position-ledger'
 import { roundMoney, totalRecordedTradeFees } from '../../../../lib/t-trading'
 import { upsertTradeRecord } from '../../../../lib/trade-records'
+import { defaultTradeImportTime, fillTradeImportDefaults } from '../../shared/trade-import-defaults'
 import type {
   AiTradeImportDraft,
   AiTradeImportItem,
@@ -187,6 +188,7 @@ export function validateTradeImportItems(
   const sourceLocations = new Set<string>()
 
   return items.map((item) => {
+    item = { ...item, occurredAt: defaultTradeImportTime(item.occurredAt) }
     const issues: AiTradeImportIssue[] = []
     const stock = resolveStock(state, item)
     const source = sourcesById.get(item.sourceId)
@@ -229,6 +231,15 @@ export function validateTradeImportItems(
         issues.push(issue('error', '港股或美股流水必须确认成交汇率', 'exchangeRate'))
       }
 
+      const accountId =
+        nextItem.accountId ?? resolveAccountSelection(state, marketFromQuoteId(stock.quoteId))
+      nextItem.accountId = accountId
+      const owner = state.securitiesAccounts?.[accountId]
+      if (!owner?.enabled || owner.market !== marketFromQuoteId(stock.quoteId))
+        issues.push(issue('error', '请选择股票所属市场的启用账户', 'accountId'))
+      nextItem = fillTradeImportDefaults(state, { ...nextItem, issues: [] })
+      issues.push(...nextItem.issues)
+
       if (nextItem.kind === 'trade') {
         if (nextItem.side !== 'buy' && nextItem.side !== 'sell') {
           issues.push(issue('error', '请确认买入或卖出方向', 'side'))
@@ -267,12 +278,6 @@ export function validateTradeImportItems(
         }
       }
 
-      const accountId =
-        nextItem.accountId ?? resolveAccountSelection(state, marketFromQuoteId(stock.quoteId))
-      nextItem.accountId = accountId
-      const owner = state.securitiesAccounts?.[accountId]
-      if (!owner?.enabled || owner.market !== marketFromQuoteId(stock.quoteId))
-        issues.push(issue('error', '请选择股票所属市场的启用账户', 'accountId'))
       issues.push(
         ...duplicateIssues(
           getStockAccountBook(state.stockTradingBooks, stock.quoteId, nextItem.accountId),
@@ -455,6 +460,7 @@ export function applyTradeImportToState(
 
       if (item.kind === 'trade') {
         const actualFees = roundMoney(item.fees ?? 0)
+        const estimate = item.feeSource === 'estimated' ? item.feeEstimate : undefined
         const record: TTrade = {
           id: `broker:${importId}:${suffix}`,
           accountId,
@@ -463,12 +469,16 @@ export function applyTradeImportToState(
           tradedAt: item.occurredAt!,
           price: item.price!,
           quantity: item.quantity!,
-          fees: market === 'CN' ? { ...EMPTY_FEES, commission: actualFees } : { ...EMPTY_FEES },
-          feeItems:
-            market !== 'CN' && actualFees > 0
+          fees:
+            estimate?.fees ??
+            (market === 'CN' ? { ...EMPTY_FEES, commission: actualFees } : { ...EMPTY_FEES }),
+          feeItems: estimate
+            ? estimate.feeItems
+            : market !== 'CN' && actualFees > 0
               ? [{ code: 'manual', label: '券商实际费用', amount: actualFees }]
               : undefined,
-          feeSource: market !== 'CN' && item.fees !== undefined ? 'actual' : undefined,
+          feeSource: item.feeSource ?? (item.fees !== undefined ? 'actual' : undefined),
+          feeTemplate: estimate?.feeTemplate,
           market,
           currency,
           marketDate: item.occurredAt!.slice(0, 10),

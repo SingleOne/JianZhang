@@ -1,6 +1,6 @@
 import { useSecuritiesAccountState } from '../../../components/SecuritiesAccountContext'
 import { listAccountsForMarket, resolveAccountSelection } from '../../../shared/stock-accounts'
-import { STOCK_MARKET_LABELS } from '../../../shared/stock-market'
+import { STOCK_MARKET_LABELS, type StockMarket } from '../../../shared/stock-market'
 import {
   AlertTriangle,
   CheckCircle2,
@@ -15,6 +15,7 @@ import { useMemo, useRef, useState, type ChangeEvent, type DragEvent } from 'rea
 import { AppSelect, type AppSelectOption } from '../../../components/AppSelect'
 import { useConfirmDialog } from '../../../components/ConfirmDialog'
 import { TradeImportTable } from './TradeImportTable'
+import { fillTradeImportDefaults, tradeImportItemMarket } from '../shared/trade-import-defaults'
 import { currencyForMarket, marketFromQuoteId } from '../../../shared/stock-market'
 import type {
   AiApi,
@@ -31,6 +32,17 @@ function formatCost(value: number | null): string {
 function isImageFile(file: File): boolean {
   return file.type.startsWith('image/') || /\.(?:png|jpe?g|webp|gif)$/i.test(file.name)
 }
+
+const IMPORT_MARKETS: readonly StockMarket[] = ['CN', 'HK', 'US']
+const FEE_FIELDS = [
+  'accountId',
+  'quoteId',
+  'kind',
+  'side',
+  'price',
+  'quantity',
+  'occurredAt'
+] as const
 
 interface TradeImportPanelProps {
   api: AiApi
@@ -56,6 +68,8 @@ export function TradeImportPanel({
   const [draft, setDraft] = useState<AiTradeImportDraft | null>(null)
   const [busy, setBusy] = useState(false)
   const [dirty, setDirty] = useState(false)
+  const [bulkStock, setBulkStock] = useState('')
+  const [bulkAccounts, setBulkAccounts] = useState<Partial<Record<StockMarket, string>>>({})
   const [commitResult, setCommitResult] = useState<Extract<
     AiTradeImportCommitResult,
     { status: 'committed' }
@@ -83,6 +97,8 @@ export function TradeImportPanel({
     setFiles([])
     setDraft(null)
     setDirty(false)
+    setBulkStock('')
+    setBulkAccounts({})
     setCommitResult(null)
     if (documentInputRef.current) documentInputRef.current.value = ''
     if (imageInputRef.current) imageInputRef.current.value = ''
@@ -162,34 +178,75 @@ export function TradeImportPanel({
     }
   }
 
-  const updateItem = (itemId: string, changes: Partial<AiTradeImportItem>) => {
+  const updateItems = (transform: (item: AiTradeImportItem) => AiTradeImportItem) => {
     setDraft((current) =>
       current
         ? {
             ...current,
             impacts: [],
             warnings: [],
-            items: current.items.map((item) =>
-              item.id === itemId ? { ...item, ...changes, issues: [] } : item
-            )
+            items: current.items.map(transform)
           }
         : current
     )
     setDirty(true)
   }
 
-  const mapStock = (item: AiTradeImportItem, quoteId: string) => {
+  const updateItem = (itemId: string, changes: Partial<AiTradeImportItem>) => {
+    updateItems((item) =>
+      item.id === itemId
+        ? fillTradeImportDefaults(
+            accountState,
+            { ...item, ...changes, issues: [] },
+            FEE_FIELDS.some((field) => field in changes && changes[field] !== item[field])
+          )
+        : item
+    )
+  }
+
+  const mappedStock = (item: AiTradeImportItem, quoteId: string): AiTradeImportItem => {
     const stock = stocks.find((candidate) => candidate.quoteId === quoteId)
     const currency = stock ? currencyForMarket(marketFromQuoteId(stock.quoteId)) : item.currency
-    updateItem(item.id, {
-      quoteId: quoteId || undefined,
-      stockCode: stock?.code ?? item.stockCode,
-      stockName: stock?.name ?? item.stockName,
-      currency,
-      accountId: quoteId
-        ? resolveAccountSelection(accountState, marketFromQuoteId(quoteId))
-        : undefined,
-      exchangeRate: currency === 'CNY' ? 1 : item.exchangeRate
+    const market = marketFromQuoteId(quoteId)
+    const currentAccount = accountState.securitiesAccounts?.[item.accountId ?? '']
+    const preferredAccount =
+      currentAccount?.enabled && currentAccount.market === market
+        ? currentAccount.id
+        : bulkAccounts[market]
+    return fillTradeImportDefaults(
+      accountState,
+      {
+        ...item,
+        quoteId: quoteId || undefined,
+        stockCode: stock?.code ?? item.stockCode,
+        stockName: stock?.name ?? item.stockName,
+        currency,
+        accountId: quoteId
+          ? resolveAccountSelection(accountState, market, preferredAccount)
+          : undefined,
+        exchangeRate: currency === 'CNY' ? 1 : item.exchangeRate,
+        issues: []
+      },
+      true
+    )
+  }
+
+  const mapStock = (item: AiTradeImportItem, quoteId: string) => {
+    updateItems((current) => (current.id === item.id ? mappedStock(current, quoteId) : current))
+  }
+
+  const mapBulkStock = (quoteId: string) => {
+    setBulkStock(quoteId)
+    if (quoteId) updateItems((item) => mappedStock(item, quoteId))
+  }
+
+  const mapBulkAccount = (market: StockMarket, accountId: string) => {
+    setBulkAccounts((current) => ({ ...current, [market]: accountId }))
+    if (!accountId) return
+    updateItems((item) => {
+      return tradeImportItemMarket(item) === market
+        ? fillTradeImportDefaults(accountState, { ...item, accountId, issues: [] }, true)
+        : item
     })
   }
 
@@ -379,52 +436,36 @@ export function TradeImportPanel({
               ))}
             </section>
           ) : null}
-          <div className="ai-trade-import-fields">
-            {draft.sources.flatMap((source) =>
-              [
-                ...new Set(
-                  draft.items
-                    .filter((item) => item.sourceId === source.id && item.quoteId)
-                    .map((item) => marketFromQuoteId(item.quoteId!))
-                )
-              ].map((market) => (
-                <div className="ai-trade-import-bulk-account" key={`${source.id}:${market}`}>
-                  <span>
-                    {source.name} · {STOCK_MARKET_LABELS[market]}批量账户
-                  </span>
-                  <AppSelect
-                    value=""
-                    label={`${source.name} · ${STOCK_MARKET_LABELS[market]}批量账户`}
-                    options={[
-                      { value: '', label: '批量指定账户' },
-                      ...listAccountsForMarket(accountState.securitiesAccounts, market).map(
-                        (account) => ({ value: account.id, label: account.name })
-                      )
-                    ]}
-                    portal
-                    onChange={(accountId) => {
-                      if (!accountId) return
-                      setDraft((current) =>
-                        current
-                          ? {
-                              ...current,
-                              impacts: [],
-                              items: current.items.map((item) =>
-                                item.sourceId === source.id &&
-                                item.quoteId &&
-                                marketFromQuoteId(item.quoteId) === market
-                                  ? { ...item, accountId, issues: [] }
-                                  : item
-                              )
-                            }
-                          : current
-                      )
-                      setDirty(true)
-                    }}
-                  />
-                </div>
-              ))
-            )}
+          <div className="ai-trade-import-bulk-fields">
+            <div className="ai-trade-import-bulk-control ai-trade-import-bulk-stock">
+              <span>批量指定股票</span>
+              <AppSelect
+                value={bulkStock}
+                options={stockOptions}
+                label="批量指定股票"
+                searchable
+                searchPlaceholder="输入股票名称或代码"
+                portal
+                onChange={mapBulkStock}
+              />
+            </div>
+            {IMPORT_MARKETS.map((market) => (
+              <div className="ai-trade-import-bulk-control" key={market}>
+                <span>{STOCK_MARKET_LABELS[market]}批量账户</span>
+                <AppSelect
+                  value={bulkAccounts[market] ?? ''}
+                  label={`${STOCK_MARKET_LABELS[market]}批量账户`}
+                  options={[
+                    { value: '', label: '批量指定账户' },
+                    ...listAccountsForMarket(accountState.securitiesAccounts, market).map(
+                      (account) => ({ value: account.id, label: account.name })
+                    )
+                  ]}
+                  portal
+                  onChange={(accountId) => mapBulkAccount(market, accountId)}
+                />
+              </div>
+            ))}
           </div>
           <TradeImportTable
             items={draft.items}
