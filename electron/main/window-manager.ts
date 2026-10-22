@@ -164,7 +164,13 @@ export class WindowManager {
   resizeTaskbarTooltip(height: number): void {
     if (process.platform === 'darwin') return
     const shadowHeight = FLOATING_WINDOW_SHADOW_PADDING * 2
-    const nextHeight = Math.min(560 + shadowHeight, Math.max(200 + shadowHeight, Math.ceil(height)))
+    const display = this.taskbarWindow
+      ? screen.getDisplayMatching(this.taskbarWindow.getBounds())
+      : screen.getPrimaryDisplay()
+    const nextHeight = Math.min(
+      display.workArea.height - 16,
+      Math.max(200 + shadowHeight, Math.ceil(height))
+    )
     if (this.taskbarTooltipHeight === nextHeight) return
     this.taskbarTooltipHeight = nextHeight
     if (this.taskbarTooltipWindow?.isVisible()) this.positionTaskbarTooltipWindow()

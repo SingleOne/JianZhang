@@ -38,6 +38,7 @@ const quotes = [
     high: 1250,
     low: 1190,
     turnoverRate: 0.28,
+    sector: { code: 'BK0896', name: '白酒', quoteId: '90.BK0896', changePercent: 0.67 },
     dataAt: '2026-10-21T15:00:00+08:00'
   }
 ] as StockQuote[]
@@ -120,13 +121,17 @@ describe('inline menu bar stock details', () => {
     const embedded = renderToStaticMarkup(details(0, true))
     expect(standalone).toContain('贵州茅台')
     expect(standalone).toContain('taskbar-tooltip-price-row')
+    expect(standalone).toContain('taskbar-tooltip-sector" title="白酒"')
+    expect(standalone).toContain('<b class="is-up">+0.67%</b>')
     expect(standalone).not.toContain('在主窗口查看')
     expect(embedded).not.toContain('贵州茅台')
     expect(embedded).not.toContain('<header')
     expect(embedded).toContain('taskbar-tooltip-price-row')
     expect(embedded).toContain('1,247.52')
     expect(embedded).toContain('taskbar-tooltip-today-label">今日')
-    expect(standalone).not.toContain('taskbar-tooltip-inline-market')
+    expect(standalone).toContain('taskbar-tooltip-inline-market')
+    expect(standalone).toContain('is-expanded-chart')
+    expect(standalone).toContain('taskbar-tooltip-today-label">今日')
   })
 })
 

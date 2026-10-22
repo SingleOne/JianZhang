@@ -411,19 +411,13 @@ export function StockQuoteDetails({
       )}
 
       <div className={`taskbar-tooltip-price-row ${valueClass(quote?.changePercent)}`}>
-        <strong>{embedded ? formatCurrency(quote?.latest) : formatPrice(quote?.latest)}</strong>
-        {embedded ? (
-          <span className="taskbar-tooltip-price-change">
-            <span>{formatSigned(quote?.change)}</span>
-            <span>{formatPercent(quote?.changePercent)}</span>
-          </span>
-        ) : (
-          <span>
-            {formatSigned(quote?.change)} {formatPercent(quote?.changePercent)}
-          </span>
-        )}
+        <strong>{formatCurrency(quote?.latest)}</strong>
+        <span className="taskbar-tooltip-price-change">
+          <span>{formatSigned(quote?.change)}</span>
+          <span>{formatPercent(quote?.changePercent)}</span>
+        </span>
         <span className={`taskbar-tooltip-today-profit ${valueClass(positionMetrics.todayProfit)}`}>
-          {embedded ? <span className="taskbar-tooltip-today-label">今日</span> : null}
+          <span className="taskbar-tooltip-today-label">今日</span>
           {formatMoneyProfit(positionMetrics.todayProfit, positionMetrics.currency)}
         </span>
       </div>
@@ -431,38 +425,26 @@ export function StockQuoteDetails({
       <dl className="taskbar-tooltip-details">
         <div>
           <dt>今开</dt>
-          <dd>{embedded ? formatCurrency(quote?.open) : formatPrice(quote?.open)}</dd>
+          <dd>{formatCurrency(quote?.open)}</dd>
         </div>
         <div>
           <dt>最高</dt>
-          <dd>{embedded ? formatCurrency(quote?.high) : formatPrice(quote?.high)}</dd>
+          <dd>{formatCurrency(quote?.high)}</dd>
         </div>
         <div>
           <dt>最低</dt>
-          <dd>{embedded ? formatCurrency(quote?.low) : formatPrice(quote?.low)}</dd>
+          <dd>{formatCurrency(quote?.low)}</dd>
         </div>
         <div>
           <dt>换手</dt>
-          <dd>
-            {embedded
-              ? formatPercent(quote?.turnoverRate).replace(/^\+/, '')
-              : formatPercent(quote?.turnoverRate)}
-          </dd>
+          <dd>{formatPercent(quote?.turnoverRate).replace(/^\+/, '')}</dd>
         </div>
-        {embedded ? null : (
-          <>
-            <MiniPriceSparkline prices={sparklinePrices} />
-            <FiveLevelVolumes orderBook={currentOrderBook} />
-          </>
-        )}
       </dl>
 
-      {embedded ? (
-        <dl className="taskbar-tooltip-inline-market">
-          <MiniPriceSparkline prices={sparklinePrices} expanded />
-          <FiveLevelVolumes orderBook={currentOrderBook} />
-        </dl>
-      ) : null}
+      <dl className="taskbar-tooltip-inline-market">
+        <MiniPriceSparkline prices={sparklinePrices} expanded />
+        <FiveLevelVolumes orderBook={currentOrderBook} />
+      </dl>
 
       <section className="taskbar-tooltip-section">
         <div className="taskbar-tooltip-position-grid">

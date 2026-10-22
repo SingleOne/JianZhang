@@ -264,9 +264,9 @@ html.tray-mode #root {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px 10px;
-  line-height: 16px;
+  gap: 12px;
+  padding: 12px 14px;
+  line-height: 18px;
 }
 
 .taskbar-stock-tooltip > header,
@@ -277,22 +277,22 @@ html.tray-mode #root {
 }
 
 .taskbar-stock-tooltip > header {
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
 
 .taskbar-tooltip-identity {
   min-width: 0;
-  gap: 7px;
+  flex-wrap: wrap;
+  gap: 2px 6px;
 }
 
 .taskbar-tooltip-identity strong {
-  overflow: hidden;
   color: var(--stock-popover-text);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .taskbar-tooltip-identity span,
@@ -354,23 +354,46 @@ html.tray-mode #root {
 }
 
 .taskbar-tooltip-price-row {
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--stock-popover-separator);
 }
 
 .taskbar-tooltip-price-row strong {
-  font-size: 22px;
-  font-weight: 650;
+  color: var(--stock-popover-text);
+  font-size: 30px;
+  font-weight: 700;
   letter-spacing: -0.5px;
-  line-height: 24px;
+  line-height: 36px;
+  white-space: nowrap;
 }
 
-.taskbar-tooltip-price-row span {
-  font-size: 13px;
-  font-weight: 700;
+.taskbar-tooltip-price-change {
+  display: inline-flex;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.taskbar-tooltip-price-change > span {
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .taskbar-tooltip-price-row .taskbar-tooltip-today-profit {
-  margin-left: 2px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-left: auto;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.taskbar-tooltip-today-label {
+  color: var(--stock-popover-secondary);
+  font-size: 12px;
+  font-weight: 400;
 }
 
 .taskbar-tooltip-price-row.is-up {
@@ -399,14 +422,18 @@ html.tray-mode #root {
 
 .taskbar-tooltip-details {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) 140px 92px;
-  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px 12px;
   margin: 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--stock-popover-separator);
 }
 
 .taskbar-tooltip-details > div {
-  display: grid;
-  gap: 2px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
 }
 
 .taskbar-tooltip-details dt {
@@ -480,17 +507,89 @@ html.tray-mode #root {
   color: var(--stock-popover-secondary);
 }
 
+.taskbar-tooltip-inline-market {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 130px;
+  gap: 14px;
+  margin: 0;
+}
+
+.taskbar-tooltip-inline-market dt {
+  color: var(--stock-popover-secondary);
+}
+
+.taskbar-tooltip-inline-market > div {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.taskbar-tooltip-sparkline.is-expanded-chart dd {
+  height: 88px;
+  margin: 0;
+  background-image:
+    linear-gradient(to right, var(--stock-popover-separator) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--stock-popover-separator) 1px, transparent 1px);
+  background-size:
+    12.5% 100%,
+    100% 22px;
+}
+
+.taskbar-tooltip-sparkline.is-expanded-chart.is-flat dd {
+  justify-content: center;
+}
+
+.taskbar-tooltip-sparkline.is-expanded-chart svg {
+  flex: 1;
+  width: 100%;
+  height: 88px;
+}
+
+.taskbar-tooltip-inline-market .taskbar-tooltip-order-volumes {
+  padding-left: 14px;
+  border-left: 1px solid var(--stock-popover-separator);
+}
+
+.taskbar-tooltip-inline-market .taskbar-tooltip-order-volumes dd,
+.taskbar-tooltip-inline-market .taskbar-tooltip-stacked-values {
+  height: auto;
+  margin: 0;
+}
+
+.taskbar-tooltip-inline-market .taskbar-tooltip-stacked-values {
+  gap: 16px;
+  padding-top: 4px;
+  font-size: 16px;
+  line-height: 22px;
+}
+
+.taskbar-tooltip-order-volumes .is-buy {
+  color: #c92733;
+}
+
+.taskbar-tooltip-order-volumes .is-sell {
+  color: #087c57;
+}
+
+.taskbar-tooltip-inline-market .taskbar-tooltip-order-volumes i {
+  margin-right: 8px;
+  color: inherit;
+}
+
 .taskbar-tooltip-section {
   display: grid;
   gap: 7px;
-  padding-top: 9px;
+  padding-top: 12px;
   border-top: 1px solid var(--stock-popover-separator);
 }
 
 .taskbar-tooltip-position-grid {
   display: grid;
-  grid-template-columns: 0.75fr 0.55fr 0.85fr 1.15fr 1.15fr 0.9fr;
-  gap: 8px 12px;
+  grid-template-columns:
+    minmax(0, 0.6fr) minmax(0, 0.5fr) minmax(0, 0.95fr) minmax(0, 1.3fr)
+    minmax(0, 1.35fr) minmax(0, 0.8fr);
+  gap: 6px 8px;
 }
 
 .taskbar-tooltip-position-grid > span {
@@ -509,12 +608,10 @@ html.tray-mode #root {
   display: flex;
   align-items: baseline;
   gap: 5px;
-  overflow: hidden;
   color: var(--stock-popover-text);
   font-size: 12px;
   font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .taskbar-tooltip-position-grid b.is-up,
@@ -533,13 +630,17 @@ html.tray-mode #root {
 }
 
 .taskbar-tooltip-t-summary {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) auto auto minmax(0, 1.6fr);
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px 12px;
   color: var(--stock-popover-secondary);
   font-size: 12px;
-  white-space: nowrap;
+}
+
+.taskbar-tooltip-t-summary > span:last-child {
+  text-align: right;
 }
 
 .taskbar-tooltip-t-summary strong {
@@ -692,6 +793,14 @@ html[data-theme='dark'].tray-mode #root {
   color: #ff6b75;
 }
 
+:root[data-theme='dark'] .taskbar-tooltip-order-volumes .is-buy {
+  color: #ff6b75;
+}
+
+:root[data-theme='dark'] .taskbar-tooltip-order-volumes .is-sell {
+  color: #51d39e;
+}
+
 :root[data-theme='dark'] .taskbar-tooltip-sparkline.is-down dd {
   color: #51d39e;
 }
@@ -745,6 +854,25 @@ html[data-theme='dark'].tray-mode #root {
 :root[data-theme='dark'] .taskbar-tooltip-position-grid b.is-flat,
 :root[data-theme='dark'] .taskbar-tooltip-t-summary .is-flat {
   color: var(--stock-popover-secondary);
+}
+
+@media (max-width: 480px) {
+  .taskbar-stock-tooltip > header {
+    flex-wrap: wrap;
+  }
+
+  .taskbar-tooltip-position-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .taskbar-tooltip-inline-market {
+    grid-template-columns: minmax(0, 1fr) 118px;
+    gap: 10px;
+  }
+
+  .taskbar-tooltip-t-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (prefers-reduced-transparency: reduce) {
