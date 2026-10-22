@@ -455,6 +455,18 @@ tr:focus-visible {
   justify-self: end;
 }
 
+.text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px;
+  color: var(--blue);
+  background: transparent;
+  border: 0;
+  font-size: 12px;
+  cursor: pointer;
+}
+
 .text-button.bordered-text-button {
   width: max-content;
   padding: 3px 8px;
