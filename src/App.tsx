@@ -2102,6 +2102,7 @@ export default function App() {
               onSaveAdjustments={savePortfolioPerformanceAdjustments}
               onSavePerformanceCache={savePortfolioPerformanceCache}
               onRecalculateStock={recalculatePortfolioPerformanceStock}
+              onSaveTradingBook={updatePosition}
               onClose={() => closeTitlebarPanel('portfolio-performance')}
             />
           </Suspense>

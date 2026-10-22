@@ -105,6 +105,10 @@ import {
 import { useConfirmDialog } from './ConfirmDialog'
 
 export interface PositionEditorProps {
+  tradeRecordsView?: {
+    entryIds: readonly string[]
+    label: string
+  }
   hidden?: boolean
   accountDisabled?: boolean
   accountSelector?: ReactNode
@@ -774,6 +778,7 @@ function TradeRecordList({
 }
 
 export function PositionEditor({
+  tradeRecordsView,
   accountSelector,
   onDraftChange,
   stock,
@@ -834,7 +839,7 @@ export function PositionEditor({
   }))
   const [newTradeExchangeRateEdited, setNewTradeExchangeRateEdited] = useState(false)
   const [newTradeError, setNewTradeError] = useState('')
-  const [showAllTradeRecords, setShowAllTradeRecords] = useState(false)
+  const [showAllTradeRecords, setShowAllTradeRecords] = useState(Boolean(tradeRecordsView))
   const [tradeRecordPage, setTradeRecordPage] = useState(0)
   const [positionError, setPositionError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -858,7 +863,10 @@ export function PositionEditor({
   const currentMetrics = calculateVersionMetrics(currentQuantity, currentCost, quote?.latest)
   const workingAccount = account
   const tradeRecords = workingAccount?.tradeRecords ?? []
-  const positionRecords = positionRecordLedgerEntries(workingAccount)
+  const recordFilterIds = tradeRecordsView ? new Set(tradeRecordsView.entryIds) : null
+  const positionRecords = positionRecordLedgerEntries(workingAccount).filter(
+    (entry) => !recordFilterIds || recordFilterIds.has(entry.id)
+  )
   const ledgerMetrics =
     market === 'CN' ? null : calculateMarketLedgerMetrics(tradeRecords, market, currency)
   const newTradePrice = Number(newTradeDraft.price)
@@ -938,6 +946,10 @@ export function PositionEditor({
   }
 
   const closeAllTradeRecords = () => {
+    if (tradeRecordsView) {
+      onClose()
+      return
+    }
     setShowAllTradeRecords(false)
     cancelEditingTradeRecord()
   }
@@ -1508,7 +1520,7 @@ export function PositionEditor({
         `确定删除 ${formatTradeTime(entry.occurredAt)} 的${targetLabel}记录${preview.laterRecordCount > 0 ? `及当前账户之后 ${preview.laterRecordCount} 条记录` : ''}吗？`,
         batchDetails,
         ...accountDetails,
-        '受影响账户的持仓和收益将按剩余流水重算，替换尚未保存的持仓数量及成本。保存设置后生效。'
+        `受影响账户的持仓和收益将按剩余流水重算，替换尚未保存的持仓数量及成本。${tradeRecordsView ? '保存变更' : '保存设置'}后生效。`
       ]
         .filter(Boolean)
         .join('\n\n'),
@@ -1565,7 +1577,12 @@ export function PositionEditor({
 
   return createPortal(
     <>
-      <div className="position-dialog-backdrop" role="presentation" onMouseDown={onClose}>
+      <div
+        className="position-dialog-backdrop"
+        hidden={Boolean(tradeRecordsView)}
+        role="presentation"
+        onMouseDown={onClose}
+      >
         <section
           className="position-dialog"
           inert={saving}
@@ -2116,18 +2133,22 @@ export function PositionEditor({
 
       {capabilities.tradeLedger && showAllTradeRecords ? (
         <div
-          className="trade-record-dialog-backdrop"
+          className={`trade-record-dialog-backdrop${tradeRecordsView ? ' performance-cycle-trade-records-backdrop' : ''}`}
           role="presentation"
           onMouseDown={closeAllTradeRecords}
         >
           <section
             className="position-dialog trade-record-dialog"
+            inert={saving}
             role="dialog"
             aria-modal="true"
             aria-labelledby="trade-record-dialog-title"
             onMouseDown={(event) => event.stopPropagation()}
             onKeyDown={(event) => {
-              if (event.key === 'Escape') closeAllTradeRecords()
+              if (event.key === 'Escape') {
+                event.stopPropagation()
+                closeAllTradeRecords()
+              }
             }}
           >
             <header className="position-dialog-header">
@@ -2139,10 +2160,12 @@ export function PositionEditor({
                   <strong id="trade-record-dialog-title">全部交易记录</strong>
                   <small>
                     {stock.name} · {stock.code} · 共 {positionRecords.length} 条
+                    {tradeRecordsView ? ` · ${tradeRecordsView.label}` : ''}
                   </small>
                 </span>
               </div>
-              <button
+              <AppButton
+                variant="plain"
                 className="icon-button dialog-close"
                 type="button"
                 autoFocus
@@ -2150,29 +2173,45 @@ export function PositionEditor({
                 aria-label="关闭全部交易记录"
               >
                 <X size={18} />
-              </button>
+              </AppButton>
             </header>
             <div className="trade-record-dialog-content">
+              {tradeRecordsView ? (
+                <div className="position-draft-notice">
+                  {draftNotice?.replace('保存设置', '保存变更') ||
+                    '修改记录后，点击“保存变更”生效。'}
+                </div>
+              ) : null}
+              {tradeRecordsView && positionError ? (
+                <div className="position-form-error" role="alert">
+                  {positionError}
+                </div>
+              ) : null}
               <TradeRecordList
                 records={visiblePositionRecords}
                 showPositionBoundaries
                 {...tradeRecordListProps}
               />
+              {positionRecords.length === 0 ? (
+                <div className="trade-record-empty">当前筛选下暂无交易记录</div>
+              ) : null}
             </div>
             <footer className="trade-record-dialog-footer">
               <span>每页 {TRADE_RECORD_PAGE_SIZE} 条</span>
               <div className="trade-record-pagination" aria-label="全部交易记录分页">
-                <button
+                <AppButton
+                  variant="plain"
                   type="button"
                   onClick={() => setTradeRecordPage((current) => Math.max(0, current - 1))}
                   disabled={currentTradeRecordPage === 0}
                 >
                   上一页
-                </button>
+                </AppButton>
                 <span>
                   {currentTradeRecordPage + 1} / {tradeRecordPageCount}
                 </span>
-                <button
+                <AppButton
+                  variant="plain"
                   type="button"
                   onClick={() =>
                     setTradeRecordPage((current) => Math.min(tradeRecordPageCount - 1, current + 1))
@@ -2180,8 +2219,28 @@ export function PositionEditor({
                   disabled={currentTradeRecordPage === tradeRecordPageCount - 1}
                 >
                   下一页
-                </button>
+                </AppButton>
               </div>
+              {tradeRecordsView ? (
+                <AppButton
+                  variant="primary"
+                  disabled={saving || editingTradeId !== null}
+                  onClick={() => {
+                    const replay = calculatePortfolioLedgerPosition(
+                      workingAccount!,
+                      market,
+                      currency
+                    )
+                    if (replay.error) {
+                      setPositionError(replay.error)
+                      return
+                    }
+                    void savePosition(replay.position)
+                  }}
+                >
+                  {saving ? '保存中…' : '保存变更'}
+                </AppButton>
+              ) : null}
             </footer>
           </section>
         </div>

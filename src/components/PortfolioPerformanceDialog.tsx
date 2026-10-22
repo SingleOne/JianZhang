@@ -1,6 +1,6 @@
 import { useSecuritiesAccountState } from './SecuritiesAccountContext'
 import { listStockAccountBooks, getStockAccountBook } from '../shared/stock-accounts'
-import type { StockTradingBooks } from '../shared/types'
+import type { StockTradingBook, StockTradingBooks } from '../shared/types'
 import { ChartPie, CircleAlert, History, PencilLine, RefreshCw, Save, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -37,6 +37,11 @@ interface PortfolioPerformanceDialogProps {
   ) => Promise<boolean>
   onSavePerformanceCache: (cache: PortfolioPerformanceCache) => Promise<boolean>
   onRecalculateStock: (quoteId: string) => Promise<void>
+  onSaveTradingBook: (
+    quoteId: string,
+    book: StockTradingBook,
+    showRadarSignals: boolean
+  ) => Promise<boolean>
   onClose: () => void
 }
 
@@ -153,6 +158,7 @@ export default function PortfolioPerformanceDialog({
   onSaveAdjustments,
   onSavePerformanceCache,
   onRecalculateStock,
+  onSaveTradingBook,
   onClose
 }: PortfolioPerformanceDialogProps) {
   const [dimension, setDimension] = useState<PerformanceDimension>('stock')
@@ -722,8 +728,10 @@ export default function PortfolioPerformanceDialog({
           key={cycleDetailStock.quoteId}
           stock={cycleDetailStock}
           accounts={cycleDetailAccounts}
+          tradingBook={accounts[cycleDetailStock.quoteId]}
           quote={quotesByQuoteId.get(cycleDetailStock.quoteId)}
           exchangeRates={exchangeRates}
+          onSaveTradingBook={onSaveTradingBook}
           onClose={() => setCycleDetailQuoteId(null)}
         />
       ) : null}

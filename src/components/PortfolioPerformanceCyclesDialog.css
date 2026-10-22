@@ -142,7 +142,6 @@
 .portfolio-performance-cycles-table-wrap {
   min-width: 0;
   overflow: auto;
-  container-type: inline-size;
   border: 1px solid #dde5ee;
   border-radius: 10px;
 }
@@ -279,10 +278,7 @@
 }
 
 .portfolio-performance-cycles-table > thead > tr > th:first-child,
-.portfolio-performance-cycles-table
-  > tbody
-  > tr:not(.performance-cycle-detail-row)
-  > td:first-child {
+.portfolio-performance-cycles-table > tbody > tr > td:first-child {
   position: sticky;
   z-index: 1;
   left: 0;
@@ -300,7 +296,7 @@
   background: var(--surface-muted);
 }
 
-.performance-cycle-expand {
+.performance-cycle-records-button {
   display: inline-flex;
   grid-column: 2;
   grid-row: 1;
@@ -312,113 +308,10 @@
   font-size: 12px;
 }
 
-.performance-cycle-expand[aria-expanded='true'] {
-  font-weight: 600;
+.trade-record-dialog-backdrop.performance-cycle-trade-records-backdrop {
+  z-index: 1280;
 }
 
-.portfolio-performance-cycles-table > tbody > .performance-cycle-detail-row > td {
-  padding: 0;
-  background: var(--surface-muted);
-  white-space: normal;
-}
-
-.performance-cycle-records {
-  position: sticky;
-  left: 0;
-  box-sizing: border-box;
-  width: 100cqw;
-  padding: 12px;
-  color: var(--text);
-  font-size: 12px;
-}
-
-.performance-cycle-records-heading,
-.performance-cycle-records-footer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.performance-cycle-records-heading {
-  margin-bottom: 10px;
-}
-
-.performance-cycle-records-heading > span,
-.performance-cycle-records-footer {
-  color: var(--subtle);
-}
-
-.performance-cycle-records-adjustment {
-  margin-bottom: 10px;
-}
-
-.performance-cycle-records-scroll {
-  max-height: 360px;
-  overflow: auto;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-}
-
-.performance-cycle-records-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
-.performance-cycle-records-table th,
-.performance-cycle-records-table td {
-  border-bottom: 1px solid var(--border);
-  padding: 8px;
-  text-align: right;
-  vertical-align: top;
-  white-space: nowrap;
-}
-
-.performance-cycle-records-table th {
-  position: sticky;
-  z-index: 1;
-  top: 0;
-  background: var(--surface-muted);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.performance-cycle-records-table th:nth-child(-n + 3),
-.performance-cycle-records-table td:nth-child(-n + 3),
-.performance-cycle-records-table th:last-child,
-.performance-cycle-records-table td:last-child {
-  text-align: left;
-}
-
-.performance-cycle-records-table tr:last-child td {
-  border-bottom: 0;
-}
-
-.performance-cycle-records-table .performance-cycle-record-context,
-.performance-cycle-records-table .performance-cycle-record-note {
-  min-width: 130px;
-  max-width: 240px;
-  overflow-wrap: anywhere;
-  white-space: normal;
-}
-
-.performance-cycle-records-footer {
-  margin-top: 10px;
-}
-
-.performance-cycle-records-pagination {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.performance-cycle-records-pagination button {
-  min-height: 28px;
-  padding: 4px 10px;
-  font-size: 12px;
+body:has(.performance-cycle-trade-records-backdrop) .confirm-dialog-backdrop {
+  z-index: 1290;
 }
