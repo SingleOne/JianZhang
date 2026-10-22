@@ -648,14 +648,17 @@ if (!hasSingleInstanceLock) {
     const quoteSnapshotCache = new QuoteSnapshotCache(app.getPath('userData'))
     valuationHistoryService = new ValuationHistoryService(marketCacheDirectory)
     shareholderService = new ShareholderService(marketCacheDirectory)
-    const pythonTaskQueue = new PythonTaskQueue((message) => {
-      void dialog.showMessageBox({
-        type: 'warning',
-        title: 'Python 环境不可用',
-        message,
-        buttons: ['知道了']
-      })
-    })
+    const pythonTaskQueue = new PythonTaskQueue(
+      (message) => {
+        void dialog.showMessageBox({
+          type: 'warning',
+          title: 'Python 环境不可用',
+          message,
+          buttons: ['知道了']
+        })
+      },
+      join(app.getPath('userData'), 'python-env')
+    )
     dividendFinancingService = new DividendFinancingService(
       app.getPath('userData'),
       pythonTaskQueue,

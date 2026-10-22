@@ -82,6 +82,15 @@
 
 安装包不内置会过期的生产快照，只附带两个 Python 抓取脚本。首次启动发现某类快照不存在时会自动排队获取；分红融资榜超过 7 天、基本面快照超过 90 天、完整财年落后或仍为缺少 DCF 换算字段的旧版 schema 时，只在对应界面提示，不会自动刷新。运行脚本需要本机安装 Python 3 和 `requests`，环境缺失时软件会明确提示。
 
+应用优先检查用户数据目录中的 `python-env` 独立环境，再检查 `python3`、`python`（Windows 优先检查 `py -3`）。macOS 还会检查 Homebrew 和 Python.org 的常见安装路径，避免从 Finder 启动时因 PATH 不同而漏检。缺少 `requests` 时，提示会给出创建独立环境和安装依赖的命令。macOS 默认可在终端执行：
+
+```bash
+python3 -m venv "$HOME/Library/Application Support/jianzhang-stock-desktop/python-env"
+"$HOME/Library/Application Support/jianzhang-stock-desktop/python-env/bin/python3" -m pip install requests
+```
+
+安装后重新获取数据即可，无需向 Homebrew 管理的 Python 强制安装依赖。
+
 ## 本地数据
 
 自选股和设置保存在 Electron 的用户数据目录中，通常位于：
