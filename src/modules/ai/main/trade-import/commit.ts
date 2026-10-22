@@ -280,7 +280,7 @@ export function validateTradeImportItems(
 
       issues.push(
         ...duplicateIssues(
-          getStockAccountBook(state.stockTradingBooks, stock.quoteId, nextItem.accountId),
+          getStockAccountBook(state.stockTradingBooks, stock.quoteId, accountId),
           nextItem,
           source
         )
@@ -492,7 +492,7 @@ export function applyTradeImportToState(
           settlementRule: settlementRuleForTradeDate(market, item.occurredAt!.slice(0, 10)),
           origin: 'execution',
           brokerImport: provenance,
-          note: item.note?.trim() || undefined
+          note: item.note?.trim() ?? ''
         }
         account = withLedgerTradeRecords(account, upsertTradeRecord(account.tradeRecords, record))
         continue

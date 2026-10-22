@@ -7,6 +7,7 @@ import { createPortal } from 'react-dom'
 import { AppButton } from './AppButton'
 import { AppSelect } from './AppSelect'
 import { formatMoneyProfit } from '../lib/format'
+import { toStockTradingBook } from '../lib/stock-t-trading'
 import {
   calculatePortfolioPerformanceReport,
   PORTFOLIO_PERFORMANCE_ISSUE_LABELS,
@@ -728,7 +729,10 @@ export default function PortfolioPerformanceDialog({
           key={cycleDetailStock.quoteId}
           stock={cycleDetailStock}
           accounts={cycleDetailAccounts}
-          tradingBook={accounts[cycleDetailStock.quoteId]}
+          tradingBook={toStockTradingBook(
+            accounts[cycleDetailStock.quoteId],
+            cycleDetailStock.quoteId
+          )}
           quote={quotesByQuoteId.get(cycleDetailStock.quoteId)}
           exchangeRates={exchangeRates}
           onSaveTradingBook={onSaveTradingBook}
