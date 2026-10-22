@@ -1166,14 +1166,16 @@
 .ai-trade-import-row-details {
   flex: 1;
   min-width: 0;
-  display: grid;
-  gap: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 7px 9px;
   background: linear-gradient(90deg, var(--surface-muted) 60%, transparent 100%);
   border-left: 3px solid #b8c9df;
 }
 
 .ai-trade-import-row-details blockquote {
+  min-width: 0;
   max-width: 900px;
   margin: 0;
   padding: 0;
@@ -1184,6 +1186,7 @@
 }
 
 .ai-trade-import-issues {
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;

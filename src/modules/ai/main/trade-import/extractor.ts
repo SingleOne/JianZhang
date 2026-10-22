@@ -16,7 +16,7 @@ export const TRADE_IMPORT_SYSTEM_PROMPT = `你负责从券商成交记录中提�
 
 不得提取委托、撤单、申报、银证转账、利息、基金、债券或无法确认已经发生的流水。不要推测缺失的股票代码、时间、价格、数量、费用、金额、汇率或成交编号；缺失时省略字段。费用使用券商记录中的实际总费用，不自行按费率计算。金额始终输出正数，由 kind 表达流入或流出。
 
-note 只保留原始记录中明确出现的业务备注，没有原始备注就留空或省略。不要在 note 中复述成交额、价格或数量，不要写“界面显示”“截图显示约多少”等显示说明、估算、识别过程或解释。用于核对的原始证据放在 evidence 中。
+note 只能填写原始记录中明确出现的简短交易提示：建仓、加仓、补仓、减仓、清仓、止盈、止损；多项提示用“、”分隔。原始记录没有这些提示时留空或省略，不得根据买卖方向或数量猜测建仓、清仓。不要在 note 中复述成交额、价格或数量，不要写“界面显示”“截图显示约多少”等说明、估算、识别过程或解释。用于核对的原始证据放在 evidence 中。
 
 只返回 JSON，不要使用 Markdown。格式：
 {"items":[{"kind":"trade|cashDividend|withholdingTax","stockCode":"","stockName":"","side":"buy|sell","occurredAt":"YYYY-MM-DDTHH:mm 或 YYYY-MM-DD","price":0,"quantity":0,"fees":0,"amount":0,"eligibleQuantity":0,"currency":"CNY|HKD|USD","exchangeRate":0,"externalId":"券商成交编号","note":"","sourceId":"输入中标注的来源ID","sourceLocator":"工作表/行号或图片中的位置","confidence":"high|medium|low","evidence":"不超过80字的原始证据"}]}
@@ -31,6 +31,16 @@ function record(value: unknown): Record<string, unknown> | null {
 
 function text(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+const NOTE_HINTS = new Set(['建仓', '加仓', '补仓', '减仓', '清仓', '止盈', '止损'])
+
+function tradeNote(value: unknown): string | undefined {
+  const hints =
+    text(value)
+      ?.split(/[、，,；;。\s]+/)
+      .filter((hint) => NOTE_HINTS.has(hint)) ?? []
+  return hints.length > 0 ? [...new Set(hints)].join('、') : undefined
 }
 
 function number(value: unknown): number | undefined {
@@ -99,7 +109,7 @@ export function parseTradeImportExtraction(
             : undefined,
         exchangeRate: number(raw.exchangeRate),
         externalId: text(raw.externalId),
-        note: text(raw.note),
+        note: tradeNote(raw.note),
         sourceId,
         sourceLocator: text(raw.sourceLocator),
         confidence: confidence(raw.confidence),

@@ -492,7 +492,7 @@ export function applyTradeImportToState(
           settlementRule: settlementRuleForTradeDate(market, item.occurredAt!.slice(0, 10)),
           origin: 'execution',
           brokerImport: provenance,
-          note: item.note?.trim() || '券商流水导入'
+          note: item.note?.trim() || undefined
         }
         account = withLedgerTradeRecords(account, upsertTradeRecord(account.tradeRecords, record))
         continue
