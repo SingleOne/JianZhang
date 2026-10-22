@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { StockQuote } from '../shared/types'
-import { isStockQuoteExpired, reconcileStockQuotes } from './quote-state'
+import { isStockQuoteExpired, reconcileStockQuotes, stockQuoteDataState } from './quote-state'
 
 function quote(quoteId: string, latest: number): StockQuote {
   return {
@@ -90,5 +90,60 @@ describe('quote expiry indicator', () => {
     expect(isStockQuoteExpired(current, new Date('2026-07-31T02:00:00.000Z'))).toBe(false)
     expect(isStockQuoteExpired(current, new Date('2026-07-31T02:00:00.001Z'))).toBe(true)
     expect(isStockQuoteExpired(current, new Date('2026-07-31T04:00:00.000Z'))).toBe(false)
+  })
+})
+
+describe('quote market status', () => {
+  it.each([
+    ['1.600000', '2026-07-31T08:00:00.000Z'],
+    ['116.00700', '2026-07-31T09:00:00.000Z'],
+    ['105.AAPL', '2026-07-31T21:00:00.000Z']
+  ])(
+    'shows closed for %s outside trading hours even without a valid quote time',
+    (quoteId, now) => {
+      for (const dataAt of [undefined, '', 'invalid-time']) {
+        const current = { ...quote(quoteId, 10), dataAt }
+        expect(stockQuoteDataState(current, new Date(now))).toBe('closed')
+      }
+    }
+  )
+
+  it.each([
+    ['1.600000', '2026-07-31T02:00:00.000Z'],
+    ['116.00700', '2026-07-31T02:00:00.000Z'],
+    ['105.AAPL', '2026-07-31T14:00:00.000Z']
+  ])(
+    'keeps the unknown state for %s during trading hours when quote time is missing',
+    (quoteId, now) => {
+      for (const dataAt of [undefined, '', 'invalid-time']) {
+        const current = { ...quote(quoteId, 10), dataAt }
+        expect(stockQuoteDataState(current, new Date(now))).toBe('unknown')
+      }
+    }
+  )
+
+  it('uses lunch breaks, weekends and configured holidays even when quote time is missing', () => {
+    const current = quote('1.600000', 10)
+    expect(stockQuoteDataState(current, new Date('2026-07-31T04:00:00.000Z'))).toBe('closed')
+    expect(stockQuoteDataState(current, new Date('2026-08-01T02:00:00.000Z'))).toBe('closed')
+    expect(
+      stockQuoteDataState(current, new Date('2026-07-31T02:00:00.000Z'), {
+        closedDates: ['2026-07-31'],
+        halfDayDates: []
+      })
+    ).toBe('closed')
+  })
+
+  it('does not report a missing quote as available while the market is closed', () => {
+    expect(stockQuoteDataState(undefined, new Date('2026-08-01T02:00:00.000Z'))).toBe('unknown')
+  })
+
+  it('still distinguishes fresh and stale quotes during trading hours', () => {
+    const current = quote('1.600000', 10)
+    const now = new Date('2026-07-31T02:00:00.000Z')
+    current.dataAt = '2026-07-31T01:59:00.000Z'
+    expect(stockQuoteDataState(current, now)).toBe('live')
+    current.dataAt = '2026-07-31T01:50:00.000Z'
+    expect(stockQuoteDataState(current, now)).toBe('stale')
   })
 })

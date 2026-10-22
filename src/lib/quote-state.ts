@@ -33,11 +33,12 @@ export function stockQuoteDataState(
   now = new Date(),
   calendar?: MarketCalendarDates
 ): StockQuoteDataState {
-  if (!quote?.dataAt) return 'unknown'
-  const dataTime = new Date(quote.dataAt).getTime()
-  if (!Number.isFinite(dataTime)) return 'unknown'
+  if (!quote) return 'unknown'
   const market = marketFromQuoteId(quote.quoteId)
   if (!isMarketOpen(market, now, calendar)) return 'closed'
+  if (!quote.dataAt) return 'unknown'
+  const dataTime = new Date(quote.dataAt).getTime()
+  if (!Number.isFinite(dataTime)) return 'unknown'
   const age = now.getTime() - dataTime
   return age >= -FUTURE_QUOTE_TOLERANCE_MILLISECONDS && age <= LIVE_QUOTE_MAX_AGE_MILLISECONDS
     ? 'live'

@@ -1,7 +1,14 @@
 html.menu-bar-mode #root {
   overflow-y: auto;
+  scrollbar-width: none;
   border-radius: 10px;
   color-scheme: light;
+}
+
+html.menu-bar-mode #root::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 html.menu-bar-mode[data-theme='dark'] #root {
