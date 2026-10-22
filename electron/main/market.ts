@@ -598,6 +598,7 @@ async function fetchTencentQuotes(stocks: WatchStock[], caller: string): Promise
     const fields = match[2].split('~')
     const summary = fields[35]?.split('/') ?? []
     const identity = stockMarketIdentity(stock.quoteId, stock.instrumentType)
+    const totalMarketValueYi = quoteNumber(fields[45])
     return [
       {
         code: stock.code,
@@ -617,6 +618,8 @@ async function fetchTencentQuotes(stocks: WatchStock[], caller: string): Promise
         volume: quoteNumber(fields[36] || fields[6]),
         amount: quoteNumber(summary[2]),
         turnoverRate: quoteNumber(fields[38]),
+        // Tencent reports market value in hundreds of millions of the market currency.
+        totalMarketValue: totalMarketValueYi === null ? null : totalMarketValueYi * 100_000_000,
         priceEarningsRatioTtm: quoteNumber(fields[39]),
         priceBookRatio: quoteNumber(fields[46]),
         updatedAt: now,

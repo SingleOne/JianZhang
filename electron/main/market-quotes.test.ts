@@ -33,7 +33,7 @@ function textResponse(value: string): Response {
   } as Response
 }
 
-function tencentQuote(): string {
+function tencentQuote(totalMarketValueYi = '12.34'): string {
   const fields = Array<string>(55).fill('')
   fields[1] = 'TestStock'
   fields[3] = '10.5'
@@ -41,6 +41,7 @@ function tencentQuote(): string {
   fields[30] = '20261008150000'
   fields[31] = '0.5'
   fields[32] = '5'
+  fields[45] = totalMarketValueYi
   return `v_sh600000="${fields.join('~')}";`
 }
 
@@ -77,6 +78,25 @@ describe('fetchQuotes sector isolation', () => {
       requests.filter((url) => url.hostname === 'qt.gtimg.cn').map((url) => url.pathname)
     ).toEqual(['/q=sh600000'])
     expect(requests.some((url) => url.hostname === 'hq.sinajs.cn')).toBe(false)
+  })
+
+  it('preserves Tencent total market value in yuan for dividend yield calculations', async () => {
+    const result = await fetchQuotes([stock], [], 'quote-cycle:manual')
+
+    expect(result.quotes[0]).toMatchObject({
+      source: 'tencent',
+      latest: 10.5,
+      previousClose: 10,
+      totalMarketValue: 1_234_000_000
+    })
+  })
+
+  it.each(['', '-'])('keeps unavailable Tencent market value %j as null', async (value) => {
+    netFetch.mockResolvedValue(textResponse(tencentQuote(value)))
+
+    const result = await fetchQuotes([stock], [], 'quote-cycle:manual')
+
+    expect(result.quotes[0].totalMarketValue).toBeNull()
   })
 
   it('retains both stock and sector quotes when Eastmoney succeeds', async () => {
