@@ -119,17 +119,19 @@ export function MiniPriceSparkline({
   const minimum = Math.min(...prices)
   const maximum = Math.max(...prices)
   const range = maximum - minimum
-  const availableHeight = height - SPARKLINE_PADDING * 2
+  const paddingX = expanded ? 4 : SPARKLINE_PADDING
+  const paddingY = expanded ? 20 : SPARKLINE_PADDING
+  const availableHeight = height - paddingY * 2
   const coordinates = prices.map((price, index) => ({
     x:
       prices.length === 1
         ? width / 2
-        : SPARKLINE_PADDING + (index / (prices.length - 1)) * (width - SPARKLINE_PADDING * 2),
-    y: range === 0 ? height / 2 : SPARKLINE_PADDING + ((maximum - price) / range) * availableHeight
+        : paddingX + (index / (prices.length - 1)) * (width - paddingX * 2),
+    y: range === 0 ? height / 2 : paddingY + ((maximum - price) / range) * availableHeight
   }))
   const path =
     coordinates.length === 1
-      ? `M ${SPARKLINE_PADDING} ${coordinates[0].y} L ${width - SPARKLINE_PADDING} ${coordinates[0].y}`
+      ? `M ${paddingX} ${coordinates[0].y} L ${width - paddingX} ${coordinates[0].y}`
       : coordinates
           .map(
             (point, index) =>
@@ -165,23 +167,47 @@ export function MiniPriceSparkline({
                 </linearGradient>
               </defs>
               <path
-                d={`${path} L ${width - SPARKLINE_PADDING} ${height} L ${SPARKLINE_PADDING} ${height} Z`}
+                d={`${path} L ${width - paddingX} ${height} L ${paddingX} ${height} Z`}
                 style={{ fill: `url(#${fillId})`, stroke: 'none' }}
               />
             </>
           ) : null}
           <path d={path} vectorEffect={expanded ? 'non-scaling-stroke' : undefined} />
-          {!expanded && maximumIndex !== lastIndex ? (
-            <circle className="is-extreme" cx={maximumPoint.x} cy={maximumPoint.y} r="2.2" />
+          {expanded || maximumIndex !== lastIndex ? (
+            <circle
+              className="is-extreme is-maximum"
+              cx={maximumPoint.x}
+              cy={maximumPoint.y}
+              r="2.2"
+            />
           ) : null}
-          {!expanded && minimumIndex !== maximumIndex && minimumIndex !== lastIndex ? (
-            <circle className="is-extreme" cx={minimumPoint.x} cy={minimumPoint.y} r="2.2" />
+          {minimumIndex !== maximumIndex && (expanded || minimumIndex !== lastIndex) ? (
+            <circle
+              className="is-extreme is-minimum"
+              cx={minimumPoint.x}
+              cy={minimumPoint.y}
+              r="2.2"
+            />
           ) : null}
           {expanded ? null : (
             <circle className="is-latest" cx={lastPoint.x} cy={lastPoint.y} r="2.4" />
           )}
         </svg>
-        {expanded ? null : (
+        {expanded ? (
+          [
+            { kind: 'maximum', label: '最高', price: maximum, point: maximumPoint },
+            { kind: 'minimum', label: '最低', price: minimum, point: minimumPoint }
+          ].map(({ kind, label, price, point }) => (
+            <span
+              key={kind}
+              className={`taskbar-tooltip-extreme-label is-${kind}${point.x > width / 2 ? ' is-right-aligned' : ''}`}
+              style={{ left: `${(point.x / width) * 100}%`, top: `${(point.y / height) * 100}%` }}
+              aria-hidden="true"
+            >
+              {label} {formatPrice(price)}
+            </span>
+          ))
+        ) : (
           <span className="taskbar-tooltip-stacked-values" aria-hidden="true">
             <span>
               <i>高</i> {formatPrice(maximum)}
@@ -403,10 +429,31 @@ export function StockQuoteDetails({
       )}
 
       <div className={`taskbar-tooltip-price-row ${valueClass(quote?.changePercent)}`}>
-        <strong>{formatCurrency(quote?.latest)}</strong>
+        <strong>
+          <span
+            className={embedded ? 'menu-bar-animated-value' : undefined}
+            data-menu-bar-value={embedded ? 'price' : undefined}
+          >
+            {formatCurrency(quote?.latest)}
+          </span>
+        </strong>
         <span className="taskbar-tooltip-price-change">
-          <span>{formatSigned(quote?.change)}</span>
-          <span>{formatPercent(quote?.changePercent)}</span>
+          <span>
+            <span
+              className={embedded ? 'menu-bar-animated-value' : undefined}
+              data-menu-bar-value={embedded ? 'change' : undefined}
+            >
+              {formatSigned(quote?.change)}
+            </span>
+          </span>
+          <span>
+            <span
+              className={embedded ? 'menu-bar-animated-value' : undefined}
+              data-menu-bar-value={embedded ? 'changePercent' : undefined}
+            >
+              {formatPercent(quote?.changePercent)}
+            </span>
+          </span>
         </span>
         {quote?.sector ? (
           <span className="taskbar-tooltip-sector" title={quote.sector.name}>
@@ -418,7 +465,12 @@ export function StockQuoteDetails({
         ) : null}
         <span className={`taskbar-tooltip-today-profit ${valueClass(positionMetrics.todayProfit)}`}>
           <span className="taskbar-tooltip-today-label">今日</span>
-          {formatMoneyProfit(positionMetrics.todayProfit, positionMetrics.currency)}
+          <span
+            className={embedded ? 'menu-bar-animated-value' : undefined}
+            data-menu-bar-value={embedded ? 'todayProfit' : undefined}
+          >
+            {formatMoneyProfit(positionMetrics.todayProfit, positionMetrics.currency)}
+          </span>
         </span>
       </div>
 

@@ -86,11 +86,11 @@
 
 :root.macos-popover[data-theme] .menu-bar-stock-row {
   position: relative;
+  align-content: start;
   gap: 0;
   padding: 0;
   border: 0;
   border-radius: 10px;
-  transition: background-color 120ms ease;
 }
 
 :root.macos-popover[data-theme] .menu-bar-stock-row::after {
@@ -107,9 +107,13 @@
   display: none;
 }
 
-:root.macos-popover[data-theme] .menu-bar-stock-row:hover,
-:root.macos-popover[data-theme] .menu-bar-stock-row:focus-within,
-:root.macos-popover[data-theme] .menu-bar-stock-row.is-expanded {
+:root.macos-popover[data-theme] .menu-bar-stock-toggle {
+  border-radius: 10px;
+  transition: background-color 120ms ease;
+}
+
+:root.macos-popover[data-theme] .menu-bar-stock-toggle:hover,
+:root.macos-popover[data-theme] .menu-bar-stock-row.is-expanded > .menu-bar-stock-toggle {
   background: var(--mac-popover-hover);
 }
 
@@ -315,6 +319,10 @@
   font-weight: 600;
 }
 
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-sector {
+  font-size: 15px;
+}
+
 :root.macos-popover[data-theme] .is-inline .taskbar-tooltip-today-profit {
   display: inline-flex;
   align-items: baseline;
@@ -366,7 +374,7 @@
 }
 
 :root.macos-popover[data-theme] .is-inline .taskbar-tooltip-sparkline dd {
-  height: 48px;
+  height: 88px;
   margin: 0;
   color: inherit;
   background-image:
@@ -384,7 +392,7 @@
 :root.macos-popover[data-theme] .is-inline .taskbar-tooltip-sparkline svg {
   flex: 1;
   width: 100%;
-  height: 48px;
+  height: 88px;
 }
 
 :root.macos-popover[data-theme] .is-inline .taskbar-tooltip-order-volumes {

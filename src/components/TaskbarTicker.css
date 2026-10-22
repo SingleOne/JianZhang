@@ -527,7 +527,8 @@ html.tray-mode #root {
 }
 
 .taskbar-tooltip-sparkline.is-expanded-chart dd {
-  height: 48px;
+  position: relative;
+  height: 88px;
   margin: 0;
   background-image:
     linear-gradient(to right, var(--stock-popover-separator) 1px, transparent 1px),
@@ -544,7 +545,26 @@ html.tray-mode #root {
 .taskbar-tooltip-sparkline.is-expanded-chart svg {
   flex: 1;
   width: 100%;
-  height: 48px;
+  height: 88px;
+}
+
+.taskbar-tooltip-extreme-label {
+  --extreme-label-x: 0%;
+
+  position: absolute;
+  font-size: 12px;
+  line-height: 14px;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(var(--extreme-label-x), calc(-100% - 4px));
+}
+
+.taskbar-tooltip-extreme-label.is-minimum {
+  transform: translate(var(--extreme-label-x), 4px);
+}
+
+.taskbar-tooltip-extreme-label.is-right-aligned {
+  --extreme-label-x: -100%;
 }
 
 .taskbar-tooltip-inline-market .taskbar-tooltip-order-volumes {

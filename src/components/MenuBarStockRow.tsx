@@ -1,6 +1,12 @@
 import { useId, type ReactNode } from 'react'
 import { ChevronRight } from 'lucide-react'
-import { formatPercent, formatPrice, formatSigned, formatUpdateTime } from '../lib/format'
+import {
+  formatCurrency,
+  formatMoneyProfit,
+  formatPercent,
+  formatSigned,
+  formatUpdateTime
+} from '../lib/format'
 import type { getMenuBarQuoteStatus } from '../lib/menu-bar'
 import { STOCK_QUOTE_DATA_STATE_LABELS } from '../lib/quote-state'
 import { getTriggeredStockAlertDirection } from '../lib/stock-alerts'
@@ -39,6 +45,7 @@ export function MenuBarStockRow({
     <section
       className={`tray-summary-item menu-bar-stock-row${expanded ? ' is-expanded' : ''}`}
       aria-label={stock.name}
+      data-menu-bar-row={stock.quoteId}
     >
       <AppButton
         id={triggerId}
@@ -57,7 +64,7 @@ export function MenuBarStockRow({
               <>
                 <span className="menu-bar-stock-market">{stock.marketLabel}</span>
                 <span className="menu-bar-stock-time">
-                  {formatUpdateTime(quote?.dataAt ?? quote?.updatedAt).slice(0, 5)}
+                  {formatUpdateTime(quote?.dataAt ?? quote?.updatedAt)}
                 </span>
               </>
             ) : (
@@ -66,11 +73,29 @@ export function MenuBarStockRow({
           </span>
           {expanded ? null : (
             <span className="menu-bar-quote-values">
-              <b className={valueClass(quote?.change)}>{formatPrice(quote?.latest)}</b>
-              <span className={valueClass(quote?.change)}>{formatSigned(quote?.change)}</span>
-              <b className={valueClass(quote?.changePercent)}>
-                {formatPercent(quote?.changePercent)}
+              <b className={valueClass(quote?.change)}>
+                <span className="menu-bar-animated-value" data-menu-bar-value="price">
+                  {formatCurrency(quote?.latest)}
+                </span>
               </b>
+              <span className={valueClass(quote?.change)}>
+                <span className="menu-bar-animated-value" data-menu-bar-value="change">
+                  {formatSigned(quote?.change)}
+                </span>
+              </span>
+              <b className={valueClass(quote?.changePercent)}>
+                <span className="menu-bar-animated-value" data-menu-bar-value="changePercent">
+                  {formatPercent(quote?.changePercent)}
+                </span>
+              </b>
+              <span
+                className={`menu-bar-today-profit ${valueClass(positionMetrics.todayProfit)}`}
+                title="今日涨跌额"
+              >
+                <span className="menu-bar-animated-value" data-menu-bar-value="todayProfit">
+                  {formatMoneyProfit(positionMetrics.todayProfit, positionMetrics.currency)}
+                </span>
+              </span>
             </span>
           )}
           <ChevronRight className="menu-bar-expand-icon" size={14} aria-hidden="true" />

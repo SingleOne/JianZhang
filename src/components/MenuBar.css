@@ -88,7 +88,7 @@ html.menu-bar-mode[data-theme='dark'] #root {
 
 .menu-bar-expand-icon {
   color: var(--mac-popover-secondary, #657187);
-  transition: transform 140ms ease;
+  transition: transform 520ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .is-expanded .menu-bar-expand-icon {
@@ -97,7 +97,9 @@ html.menu-bar-mode[data-theme='dark'] #root {
 
 .menu-bar-quote-values {
   display: grid;
-  grid-template-columns: minmax(64px, auto) minmax(52px, auto) minmax(60px, auto);
+  grid-template-columns:
+    minmax(64px, auto) minmax(52px, auto) minmax(60px, auto)
+    minmax(88px, auto);
   align-items: baseline;
   gap: 8px;
   font-variant-numeric: tabular-nums;
@@ -109,6 +111,11 @@ html.menu-bar-mode[data-theme='dark'] #root {
   font-size: 15px;
   font-weight: 650;
   letter-spacing: -0.2px;
+}
+
+.menu-bar-animated-value {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
 }
 
 .menu-bar-stock-identity {
@@ -189,7 +196,7 @@ html.menu-bar-mode[data-theme='dark'] #root {
   .menu-bar-quote-values {
     grid-column: 1;
     grid-row: 2;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     white-space: normal;
     overflow-wrap: anywhere;
   }

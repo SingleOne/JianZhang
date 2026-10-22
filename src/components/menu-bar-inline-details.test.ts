@@ -73,7 +73,7 @@ describe('inline menu bar stock details', () => {
     expect(html).toContain('aria-expanded="false"')
     expect(html).toContain('hidden=""')
     expect(html).toContain('贵州茅台')
-    expect(html).toContain('1247.52')
+    expect(html).toContain('1,247.52')
     expect(html).not.toContain('最近15分钟')
     expect(html).not.toContain('<article')
     expect(html.match(/<button/g)).toHaveLength(1)
@@ -141,19 +141,31 @@ describe('inline menu bar stock details', () => {
     expect(standalone).toContain('taskbar-tooltip-inline-market')
     expect(standalone).toContain('is-expanded-chart')
     expect(standalone).toContain('taskbar-tooltip-today-label">今日')
+    expect(standalone).not.toContain('data-menu-bar-value')
+    const collapsed = renderToStaticMarkup(row(0, false))
+    for (const field of ['price', 'change', 'changePercent', 'todayProfit']) {
+      expect(collapsed.match(new RegExp(`data-menu-bar-value="${field}"`, 'g'))).toHaveLength(1)
+      expect(embedded.match(new RegExp(`data-menu-bar-value="${field}"`, 'g'))).toHaveLength(1)
+      const value = new RegExp(`data-menu-bar-value="${field}">([^<]+)</span>`)
+      expect(collapsed.match(value)?.[1]).toBe(embedded.match(value)?.[1])
+    }
   })
 })
 
 describe('expanded inline price chart', () => {
-  it('uses the supplied prices for an accessible area chart without compact extrema labels', () => {
+  it('marks the highest and lowest prices on the accessible area chart', () => {
     const html = renderToStaticMarkup(
       createElement(MiniPriceSparkline, { prices: [10, 10.5, 10.2, 11], expanded: true })
     )
     expect(html).toContain('viewBox="0 0 360 88"')
     expect(html).toContain('最近15分钟价格从 10 变化至 11，最高 11，最低 10')
     expect(html).toContain('<linearGradient')
-    expect(html).toContain('M 2.00 86.00 L 120.67 44.00 L 239.33 69.20 L 358.00 2.00')
-    expect(html).not.toContain('<circle')
+    expect(html).toContain('M 4.00 68.00 L 121.33 44.00 L 238.67 58.40 L 356.00 20.00')
+    expect(html).toContain('<circle class="is-extreme is-maximum" cx="356" cy="20"')
+    expect(html).toContain('<circle class="is-extreme is-minimum" cx="4" cy="68"')
+    expect(html).toContain('taskbar-tooltip-extreme-label is-maximum is-right-aligned')
+    expect(html).toContain('最高 11</span>')
+    expect(html).toContain('最低 10</span>')
     expect(html).not.toContain('taskbar-tooltip-stacked-values')
   })
 

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { getInitialBootstrap, initialState, stockApi } from '../lib/api'
 import {
   formatCost,
@@ -13,6 +14,7 @@ import { getTraySummaryStocks, getTrayTodayProfitTotal } from '../lib/tray-summa
 import { getMenuBarQuoteStatus } from '../lib/menu-bar'
 import { applyAppThemePreference } from '../lib/theme'
 import { observeContentHeight } from '../lib/observe-content-height'
+import { createMenuBarDisclosureAnimator } from '../lib/menu-bar-disclosure-animation'
 import type { AppState, StockQuote } from '../shared/types'
 import { AppButton } from './AppButton'
 import { MenuBarStockRow } from './MenuBarStockRow'
@@ -32,6 +34,7 @@ export function TrayHoverSummary({ interactive = false }: { interactive?: boolea
   const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null)
   const [, setStatusTick] = useState(0)
   const panelRef = useRef<HTMLElement>(null)
+  const disclosureAnimator = useRef<ReturnType<typeof createMenuBarDisclosureAnimator> | null>(null)
 
   useEffect(() => {
     applyAppThemePreference(state.settings.theme)
@@ -82,15 +85,25 @@ export function TrayHoverSummary({ interactive = false }: { interactive?: boolea
 
   useLayoutEffect(() => {
     if (!interactive || !panelRef.current) return
-    return observeContentHeight(panelRef.current, (height) => {
+    const animator = createMenuBarDisclosureAnimator(panelRef.current)
+    disclosureAnimator.current = animator
+    const stopObserving = observeContentHeight(panelRef.current, (height) => {
       void stockApi.resizeMenuBarPanel(height)
     })
+    return () => {
+      stopObserving()
+      animator.cancel()
+      disclosureAnimator.current = null
+    }
   }, [interactive])
 
   useEffect(() => {
     if (!interactive) return
     const resetExpandedStock = () => {
-      if (document.hidden) setExpandedQuoteId(null)
+      if (document.hidden) {
+        disclosureAnimator.current?.cancel()
+        setExpandedQuoteId(null)
+      }
     }
     document.addEventListener('visibilitychange', resetExpandedStock)
     const timer = window.setInterval(() => setStatusTick((tick) => tick + 1), 30_000)
@@ -102,6 +115,15 @@ export function TrayHoverSummary({ interactive = false }: { interactive?: boolea
 
   const selectedStocks = useMemo(() => getTraySummaryStocks(state, quotes), [state, quotes])
   const todayProfitTotal = getTrayTodayProfitTotal(selectedStocks)
+
+  const toggleStock = (quoteId: string) => {
+    const update = () =>
+      flushSync(() => {
+        setExpandedQuoteId((current) => (current === quoteId ? null : quoteId))
+      })
+    if (disclosureAnimator.current) disclosureAnimator.current.transition(update)
+    else update()
+  }
 
   const refresh = async () => {
     setRefreshing(true)
@@ -149,11 +171,7 @@ export function TrayHoverSummary({ interactive = false }: { interactive?: boolea
                 summary={summary}
                 status={getMenuBarQuoteStatus(state, quote)}
                 expanded={expandedQuoteId === stock.quoteId}
-                onToggle={() =>
-                  setExpandedQuoteId((current) =>
-                    current === stock.quoteId ? null : stock.quoteId
-                  )
-                }
+                onToggle={() => toggleStock(stock.quoteId)}
               >
                 {expandedQuoteId === stock.quoteId ? (
                   <StockQuoteDetails
