@@ -958,9 +958,11 @@
 }
 
 .ai-trade-import-review {
+  min-width: 0;
   display: grid;
   align-content: start;
-  gap: 12px;
+  gap: 8px;
+  padding: 8px 22px !important;
 }
 
 .ai-trade-import-summary {
@@ -1023,61 +1025,75 @@
   font-weight: 700;
 }
 
-.ai-trade-import-items {
-  display: grid;
-  gap: 10px;
-}
-
-.ai-trade-import-item {
-  display: grid;
-  gap: 10px;
-  padding: 12px;
+.ai-trade-import-table {
+  min-width: 0;
+  max-height: 62vh;
+  overflow: auto;
   background: var(--surface);
   border: 1px solid #dbe4ee;
-  border-radius: 9px;
+  border-radius: 8px;
 }
 
-.ai-trade-import-item.is-disabled {
+.ai-trade-import-table table {
+  width: 100%;
+  table-layout: fixed;
+  border-spacing: 0;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.ai-trade-import-table th,
+.ai-trade-import-table td {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.ai-trade-import-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface-muted);
+  white-space: nowrap;
+}
+
+.ai-trade-import-table tr.is-disabled {
   opacity: 0.58;
 }
 
-.ai-trade-import-item > header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.ai-trade-import-item > header > label {
+.ai-trade-import-row-selection {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #344860;
-  font-size: 12px;
+  min-height: 34px;
+  white-space: nowrap;
   font-weight: 700;
 }
 
-.ai-trade-import-kind {
-  width: 150px;
+.ai-trade-import-row-kind {
+  display: grid;
+  gap: 5px;
 }
 
-.ai-trade-import-item > header > span:last-child {
-  margin-left: auto;
+.ai-trade-import-confidence {
+  width: fit-content;
   padding: 3px 6px;
   border-radius: 5px;
   font-size: 12px;
 }
 
-.ai-trade-import-item .is-confidence-high {
+.ai-trade-import-table .is-confidence-high {
   color: #247b55;
   background: #e9f7f0;
 }
 
-.ai-trade-import-item .is-confidence-medium {
+.ai-trade-import-table .is-confidence-medium {
   color: #8a621b;
   background: #fff6dd;
 }
 
-.ai-trade-import-item .is-confidence-low {
+.ai-trade-import-table .is-confidence-low {
   color: #b23f4d;
   background: #fff0f1;
 }
@@ -1088,7 +1104,7 @@
   gap: 9px;
 }
 
-.ai-trade-import-fields > label {
+.ai-trade-import-bulk-account {
   min-width: 0;
   display: grid;
   align-content: start;
@@ -1097,11 +1113,14 @@
   font-size: 12px;
 }
 
-.ai-trade-import-fields > label.is-wide {
-  grid-column: span 2;
+.ai-trade-import-fields .app-select,
+.ai-trade-import-table .app-select {
+  width: 100%;
+  min-width: 0;
 }
 
-.ai-trade-import-fields input,
+.ai-trade-import-table input:not([type='checkbox']),
+.ai-trade-import-table .app-select-trigger,
 .ai-trade-import-fields .app-select-trigger {
   width: 100%;
   min-width: 0;
@@ -1115,16 +1134,17 @@
   font-size: 12px;
 }
 
-.ai-trade-import-fields input:focus {
+.ai-trade-import-table input:focus {
   border-color: #84aaf0;
 }
 
-.ai-trade-import-fields .app-select-menu {
-  max-height: 220px;
-  overflow-y: auto;
+.ai-trade-import-row-details {
+  display: grid;
+  gap: 6px;
 }
 
-.ai-trade-import-item blockquote {
+.ai-trade-import-row-details blockquote {
+  max-width: 900px;
   margin: 0;
   padding: 7px 9px;
   color: #697a90;
@@ -1132,6 +1152,7 @@
   border-left: 3px solid #b8c9df;
   font-size: 12px;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .ai-trade-import-issues {
@@ -1158,11 +1179,11 @@
 
 .ai-trade-import-review > footer {
   position: sticky;
-  bottom: -22px;
+  bottom: -8px;
   display: flex;
   align-items: center;
   gap: 12px;
-  margin: 0 -22px -22px;
+  margin: 0 -22px -8px;
   padding: 12px 22px;
   background: rgba(255, 255, 255, 0.96);
   border-top: 1px solid #dfe7f0;
@@ -2960,7 +2981,6 @@
 
 :root[data-theme='dark'] .ai-trade-import-heading strong,
 :root[data-theme='dark'] .ai-trade-import-success strong,
-:root[data-theme='dark'] .ai-trade-import-item > header > label,
 :root[data-theme='dark'] .ai-trade-import-impacts > div > span:first-child {
   color: #e2ebf6;
 }
@@ -2978,8 +2998,9 @@
 :root[data-theme='dark'] .ai-trade-import-files button,
 :root[data-theme='dark'] .ai-trade-import-summary > span,
 :root[data-theme='dark'] .ai-trade-import-impacts,
-:root[data-theme='dark'] .ai-trade-import-item,
-:root[data-theme='dark'] .ai-trade-import-fields input,
+:root[data-theme='dark'] .ai-trade-import-table,
+:root[data-theme='dark'] .ai-trade-import-table input:not([type='checkbox']),
+:root[data-theme='dark'] .ai-trade-import-table .app-select-trigger,
 :root[data-theme='dark'] .ai-trade-import-fields .app-select-trigger {
   color: #c8d5e5;
   background: #202c3e;
@@ -2992,7 +3013,7 @@
 }
 
 :root[data-theme='dark'] .ai-trade-import-source > label,
-:root[data-theme='dark'] .ai-trade-import-fields > label,
+:root[data-theme='dark'] .ai-trade-import-bulk-account,
 :root[data-theme='dark'] .ai-trade-import-impacts > div {
   color: #aebed1;
 }
@@ -3010,7 +3031,7 @@
   border-color: #665532;
 }
 
-:root[data-theme='dark'] .ai-trade-import-item blockquote {
+:root[data-theme='dark'] .ai-trade-import-row-details blockquote {
   color: #aebed1;
   background: #1b2637;
   border-left-color: #53677f;

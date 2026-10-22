@@ -14,32 +14,15 @@ import {
 import { useMemo, useRef, useState, type ChangeEvent, type DragEvent } from 'react'
 import { AppSelect, type AppSelectOption } from '../../../components/AppSelect'
 import { useConfirmDialog } from '../../../components/ConfirmDialog'
+import { TradeImportTable } from './TradeImportTable'
 import { currencyForMarket, marketFromQuoteId } from '../../../shared/stock-market'
 import type {
   AiApi,
   AiTradeImportCommitResult,
   AiTradeImportDraft,
-  AiTradeImportEntryKind,
   AiTradeImportItem,
   AiStockMention
 } from '../shared/types'
-
-const KIND_OPTIONS: readonly AppSelectOption<AiTradeImportEntryKind>[] = [
-  { value: 'trade', label: '成交', description: '买入或卖出' },
-  { value: 'cashDividend', label: '现金分红', description: '税前分红金额' },
-  { value: 'withholdingTax', label: '红利税', description: '实际扣缴金额' }
-]
-
-const SIDE_OPTIONS: readonly AppSelectOption<'buy' | 'sell'>[] = [
-  { value: 'buy', label: '买入' },
-  { value: 'sell', label: '卖出' }
-]
-
-function optionalNumber(value: string): number | undefined {
-  if (!value.trim()) return undefined
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : undefined
-}
 
 function formatCost(value: number | null): string {
   return value === null ? '--' : value.toFixed(4)
@@ -405,14 +388,21 @@ export function TradeImportPanel({
                     .map((item) => marketFromQuoteId(item.quoteId!))
                 )
               ].map((market) => (
-                <label key={`${source.id}:${market}`}>
+                <div className="ai-trade-import-bulk-account" key={`${source.id}:${market}`}>
                   <span>
                     {source.name} · {STOCK_MARKET_LABELS[market]}批量账户
                   </span>
-                  <select
+                  <AppSelect
                     value=""
-                    onChange={(event) => {
-                      const accountId = event.target.value
+                    label={`${source.name} · ${STOCK_MARKET_LABELS[market]}批量账户`}
+                    options={[
+                      { value: '', label: '批量指定账户' },
+                      ...listAccountsForMarket(accountState.securitiesAccounts, market).map(
+                        (account) => ({ value: account.id, label: account.name })
+                      )
+                    ]}
+                    portal
+                    onChange={(accountId) => {
                       if (!accountId) return
                       setDraft((current) =>
                         current
@@ -431,218 +421,17 @@ export function TradeImportPanel({
                       )
                       setDirty(true)
                     }}
-                  >
-                    <option value="">批量指定账户</option>
-                    {listAccountsForMarket(accountState.securitiesAccounts, market).map(
-                      (account) => (
-                        <option key={account.id} value={account.id}>
-                          {account.name}
-                        </option>
-                      )
-                    )}
-                  </select>
-                </label>
+                  />
+                </div>
               ))
             )}
           </div>
-          <div className="ai-trade-import-items">
-            {draft.items.map((item, index) => (
-              <article
-                className={`ai-trade-import-item${item.selected ? '' : ' is-disabled'}`}
-                key={item.id}
-              >
-                <header>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={item.selected}
-                      onChange={(event) => updateItem(item.id, { selected: event.target.checked })}
-                    />
-                    第 {index + 1} 条
-                  </label>
-                  <AppSelect
-                    className="ai-trade-import-kind"
-                    value={item.kind}
-                    options={KIND_OPTIONS}
-                    label={`第 ${index + 1} 条流水类型`}
-                    onChange={(kind) => updateItem(item.id, { kind })}
-                  />
-                  <span className={`is-confidence-${item.confidence}`}>
-                    {item.confidence === 'high'
-                      ? '高置信'
-                      : item.confidence === 'medium'
-                        ? '中置信'
-                        : '低置信'}
-                  </span>
-                </header>
-                <div className="ai-trade-import-fields">
-                  <label className="is-wide">
-                    <span>股票</span>
-                    <AppSelect
-                      value={item.quoteId ?? ''}
-                      options={stockOptions}
-                      label={`第 ${index + 1} 条股票`}
-                      onChange={(quoteId) => mapStock(item, quoteId)}
-                    />
-                  </label>
-                  <label>
-                    <span>股票账户</span>
-                    <select
-                      value={item.accountId ?? ''}
-                      disabled={!item.quoteId}
-                      onChange={(event) => updateItem(item.id, { accountId: event.target.value })}
-                    >
-                      <option value="">请选择账户</option>
-                      {item.quoteId
-                        ? listAccountsForMarket(
-                            accountState.securitiesAccounts,
-                            marketFromQuoteId(item.quoteId)
-                          ).map((account) => (
-                            <option key={account.id} value={account.id}>
-                              {account.name}
-                            </option>
-                          ))
-                        : null}
-                    </select>
-                  </label>
-                  <label>
-                    <span>发生时间</span>
-                    <input
-                      type="text"
-                      value={item.occurredAt ?? ''}
-                      placeholder="2026-09-17T10:30"
-                      onChange={(event) => updateItem(item.id, { occurredAt: event.target.value })}
-                    />
-                  </label>
-                  {item.kind === 'trade' ? (
-                    <>
-                      <label>
-                        <span>方向</span>
-                        <AppSelect
-                          value={item.side ?? 'buy'}
-                          options={SIDE_OPTIONS}
-                          label={`第 ${index + 1} 条成交方向`}
-                          onChange={(side) => updateItem(item.id, { side })}
-                        />
-                      </label>
-                      <label>
-                        <span>成交价</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.0001"
-                          value={item.price ?? ''}
-                          onChange={(event) =>
-                            updateItem(item.id, { price: optionalNumber(event.target.value) })
-                          }
-                        />
-                      </label>
-                      <label>
-                        <span>成交数量</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="100"
-                          value={item.quantity ?? ''}
-                          onChange={(event) =>
-                            updateItem(item.id, { quantity: optionalNumber(event.target.value) })
-                          }
-                        />
-                      </label>
-                      <label>
-                        <span>实际费用</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={item.fees ?? ''}
-                          onChange={(event) =>
-                            updateItem(item.id, { fees: optionalNumber(event.target.value) })
-                          }
-                        />
-                      </label>
-                    </>
-                  ) : (
-                    <>
-                      <label>
-                        <span>{item.kind === 'cashDividend' ? '税前分红' : '红利税'}</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={item.amount ?? ''}
-                          onChange={(event) =>
-                            updateItem(item.id, { amount: optionalNumber(event.target.value) })
-                          }
-                        />
-                      </label>
-                      {item.kind === 'cashDividend' ? (
-                        <label>
-                          <span>登记股数</span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="100"
-                            value={item.eligibleQuantity ?? ''}
-                            onChange={(event) =>
-                              updateItem(item.id, {
-                                eligibleQuantity: optionalNumber(event.target.value)
-                              })
-                            }
-                          />
-                        </label>
-                      ) : null}
-                    </>
-                  )}
-                  {item.currency && item.currency !== 'CNY' ? (
-                    <label>
-                      <span>成交汇率</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.000001"
-                        value={item.exchangeRate ?? ''}
-                        onChange={(event) =>
-                          updateItem(item.id, { exchangeRate: optionalNumber(event.target.value) })
-                        }
-                      />
-                    </label>
-                  ) : null}
-                  <label>
-                    <span>券商编号</span>
-                    <input
-                      value={item.externalId ?? ''}
-                      onChange={(event) =>
-                        updateItem(item.id, { externalId: event.target.value || undefined })
-                      }
-                    />
-                  </label>
-                  <label className="is-wide">
-                    <span>备注</span>
-                    <input
-                      value={item.note ?? ''}
-                      onChange={(event) =>
-                        updateItem(item.id, { note: event.target.value || undefined })
-                      }
-                    />
-                  </label>
-                </div>
-                {item.evidence ? <blockquote>{item.evidence}</blockquote> : null}
-                {item.issues.length > 0 ? (
-                  <div className="ai-trade-import-issues">
-                    {item.issues.map((entry, issueIndex) => (
-                      <span
-                        className={`is-${entry.severity}`}
-                        key={`${entry.message}:${issueIndex}`}
-                      >
-                        {entry.message}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-              </article>
-            ))}
-          </div>
+          <TradeImportTable
+            items={draft.items}
+            stockOptions={stockOptions}
+            onUpdate={updateItem}
+            onMapStock={mapStock}
+          />
           <footer>
             <span>提交前会再次校验；所有选中记录作为一个事务保存。</span>
             <button

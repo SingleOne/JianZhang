@@ -320,7 +320,7 @@ export const WatchlistRow = memo(function WatchlistRow({
     ? formatPerformanceCacheTime(cumulativeProfitGeneratedAt)
     : '-'
   const totalProfitTooltip = hasPosition
-    ? '当前有持仓，显示当前持仓周期收益；第二行为持仓收益率。'
+    ? '当前有持仓，显示当前持仓周期收益'
     : cumulativeProfit === null || cumulativeProfit === undefined
       ? '当前无持仓；本地尚无累计收益快照，请打开跨市场收益分析进行计算。'
       : `当前无持仓，显示跨市场收益分析保存的累计收益（人民币）；快照时间 ${cumulativeProfitSnapshotTime}。`

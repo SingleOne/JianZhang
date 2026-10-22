@@ -59,6 +59,9 @@
   top: calc(100% + 5px);
   left: 0;
   z-index: 100;
+  display: flex;
+  flex-direction: column;
+  max-height: 300px;
   min-width: max(100%, 178px);
   overflow: hidden;
   padding: 5px;
@@ -66,6 +69,46 @@
   border-radius: 9px;
   background: var(--surface);
   box-shadow: var(--shadow-menu);
+}
+
+.app-select-menu.is-portal {
+  position: fixed;
+  top: auto;
+  z-index: 1000;
+  min-width: 0;
+}
+
+.app-select-options {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.app-select-search {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  padding: 7px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.app-select-search input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.app-select-empty {
+  padding: 10px 7px;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .app-select-option {
