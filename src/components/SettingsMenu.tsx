@@ -47,6 +47,15 @@ const MARKET_INDEX_GROUPS = (['CN', 'HK', 'US'] as const).map((market) => ({
   options: MARKET_INDEX_OPTIONS.filter((index) => index.market === market)
 }))
 
+export type GitHubSyncUploadPhase = 'idle' | 'checking' | 'confirming' | 'uploading'
+
+const GITHUB_UPLOAD_LABELS: Record<GitHubSyncUploadPhase, string> = {
+  idle: '上传到 Gist',
+  checking: '检查远程版本…',
+  confirming: '等待确认…',
+  uploading: '上传中…'
+}
+
 interface SettingsMenuProps {
   open: boolean
   onToggle: () => void
@@ -64,7 +73,7 @@ interface SettingsMenuProps {
   githubSyncError: string
   githubDeviceAuthorization: GitHubDeviceAuthorization | null
   githubSyncBusy: boolean
-  githubSyncUploading: boolean
+  githubSyncUploadPhase: GitHubSyncUploadPhase
   githubSyncDownloading: boolean
   onConnectGitHub: () => void
   onDisconnectGitHub: () => void
@@ -172,7 +181,7 @@ export function SettingsMenu({
   githubSyncError,
   githubDeviceAuthorization,
   githubSyncBusy,
-  githubSyncUploading,
+  githubSyncUploadPhase,
   githubSyncDownloading,
   onConnectGitHub,
   onDisconnectGitHub,
@@ -1067,18 +1076,23 @@ export function SettingsMenu({
                       )}
                       {githubSyncDownloading ? '恢复中…' : '从 GitHub 恢复'}
                     </button>
-                    <button
-                      type="button"
+                    <AppButton
+                      variant="plain"
                       onClick={onUploadUserDataToGitHub}
                       disabled={githubControlsDisabled || !githubSyncSettings.syncPasswordReady}
+                      aria-busy={
+                        githubSyncUploadPhase === 'checking' ||
+                        githubSyncUploadPhase === 'uploading'
+                      }
                     >
-                      {githubSyncUploading ? (
+                      {githubSyncUploadPhase === 'checking' ||
+                      githubSyncUploadPhase === 'uploading' ? (
                         <RefreshCw size={15} className="is-spinning" />
                       ) : (
                         <CloudUpload size={15} />
                       )}
-                      {githubSyncUploading ? '上传中…' : '上传到 Gist'}
-                    </button>
+                      {GITHUB_UPLOAD_LABELS[githubSyncUploadPhase]}
+                    </AppButton>
                   </div>
                 ) : null}
                 {githubSyncSettings.localDataGeneratedAt || githubSyncSettings.gistId ? (

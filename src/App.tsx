@@ -10,7 +10,9 @@ import {
 import { Bot, CircleCheck, RefreshCw, Signal, WifiOff } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AppTitlebar, MarketTradingState } from './components/AppTitlebar'
+import { AppButton } from './components/AppButton'
 import { useConfirmDialog } from './components/ConfirmDialog'
+import type { GitHubSyncUploadPhase } from './components/SettingsMenu'
 import { SearchBar } from './components/SearchBar'
 import { StartupOverlay } from './components/StartupOverlay'
 import { TitlebarToolsMenu } from './components/TitlebarToolsMenu'
@@ -217,7 +219,8 @@ export default function App() {
   const [cacheSummary, setCacheSummary] = useState<CacheSummary | null>(null)
   const [cacheBusy, setCacheBusy] = useState(false)
   const [githubSyncBusy, setGitHubSyncBusy] = useState(false)
-  const [githubSyncUploading, setGitHubSyncUploading] = useState(false)
+  const [githubSyncUploadPhase, setGitHubSyncUploadPhase] = useState<GitHubSyncUploadPhase>('idle')
+  const [githubUploadNotice, setGitHubUploadNotice] = useState('')
   const [githubSyncDownloading, setGitHubSyncDownloading] = useState(false)
   const [githubSyncSettings, setGitHubSyncSettings] = useState<GitHubSyncSettings>({
     oauthAvailable: false,
@@ -1530,7 +1533,11 @@ export default function App() {
 
   const uploadUserDataToGitHub = useCallback(async () => {
     setGitHubSyncBusy(true)
-    setGitHubSyncUploading(true)
+    setGitHubSyncUploadPhase('checking')
+    setGitHubSyncError('')
+    setError('')
+    setNotice('')
+    setGitHubUploadNotice('')
     try {
       if (!githubSyncSettings.syncPasswordReady) throw new Error('请先设置并保存 Gist 同步密码')
       const latestSettings = await stockApi.refreshGitHubGist()
@@ -1550,6 +1557,7 @@ export default function App() {
               : '本机与远程显示相同的更新时间，但远程版本已经变化。'
           : '远程备份版本与本机上次同步记录不一致。'
         : ''
+      setGitHubSyncUploadPhase('confirming')
       const confirmed = await confirm({
         title: '上传用户数据到 GitHub Gist',
         message: latestSettings.gistId
@@ -1559,16 +1567,19 @@ export default function App() {
         tone: 'default'
       })
       if (!confirmed) return
+      setGitHubSyncUploadPhase('uploading')
       const result = await stockApi.uploadUserDataToGitHub(latestSettings.requiresRemoteRestore)
       setGitHubSyncSettings(await stockApi.getGitHubSyncSettings())
-      reportSuccess(`用户数据已加密上传到 GitHub Gist，版本 ${result.version.slice(0, 7)}`)
+      setGitHubUploadNotice(`用户数据已加密上传到 GitHub Gist，版本 ${result.version.slice(0, 7)}`)
     } catch (reason) {
-      reportError(reason instanceof Error ? reason.message : 'GitHub 上传失败')
+      const message = reason instanceof Error ? reason.message : 'GitHub 上传失败'
+      setGitHubSyncError(message)
+      reportError(message)
     } finally {
-      setGitHubSyncUploading(false)
+      setGitHubSyncUploadPhase('idle')
       setGitHubSyncBusy(false)
     }
-  }, [confirm, githubSyncSettings.syncPasswordReady, reportError, reportSuccess])
+  }, [confirm, githubSyncSettings.syncPasswordReady, reportError])
 
   const downloadUserDataFromGitHub = useCallback(async () => {
     setGitHubSyncBusy(true)
@@ -1744,7 +1755,7 @@ export default function App() {
                   githubSyncError={githubSyncError}
                   githubDeviceAuthorization={githubDeviceAuthorization}
                   githubSyncBusy={githubSyncBusy}
-                  githubSyncUploading={githubSyncUploading}
+                  githubSyncUploadPhase={githubSyncUploadPhase}
                   githubSyncDownloading={githubSyncDownloading}
                   onConnectGitHub={connectGitHub}
                   onDisconnectGitHub={disconnectGitHub}
@@ -1938,6 +1949,21 @@ export default function App() {
           <span>
             {error ? '行情连接异常，保留最近数据' : `最近更新 ${formatUpdateTime(lastUpdated)}`}
           </span>
+          {githubUploadNotice ? (
+            <>
+              <span className="status-separator" />
+              <AppButton
+                variant="plain"
+                className="status-completion-notification"
+                onClick={() => setGitHubUploadNotice('')}
+                title={`${githubUploadNotice}，点击清除`}
+                aria-label={`${githubUploadNotice}，点击清除`}
+              >
+                <CircleCheck size={14} />
+                <span>{githubUploadNotice}</span>
+              </AppButton>
+            </>
+          ) : null}
           {completionNotifications[0] ? (
             <>
               <span className="status-separator" />
