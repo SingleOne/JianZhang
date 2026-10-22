@@ -18,6 +18,35 @@ const SIDE_OPTIONS: readonly AppSelectOption<'' | 'buy' | 'sell'>[] = [
   { value: 'sell', label: '卖出' }
 ]
 
+const EVIDENCE_ACTION_COLORS: Record<string, string> = {
+  买入: 'var(--green)',
+  卖出: 'var(--red)',
+  现金分红: 'var(--red)',
+  分红: 'var(--red)',
+  股息: 'var(--red)',
+  红利税: 'var(--green)',
+  预扣税: 'var(--green)',
+  缴税: 'var(--green)',
+  扣税: 'var(--green)'
+}
+const EVIDENCE_ACTION_PATTERN = new RegExp(
+  `(${Object.keys(EVIDENCE_ACTION_COLORS).join('|')})`,
+  'g'
+)
+
+function renderEvidence(evidence: string) {
+  return evidence.split(EVIDENCE_ACTION_PATTERN).map((part, index) => {
+    const color = EVIDENCE_ACTION_COLORS[part]
+    return color ? (
+      <span key={index} style={{ color }}>
+        {part}
+      </span>
+    ) : (
+      part
+    )
+  })
+}
+
 function optionalNumber(value: string): number | undefined {
   if (!value.trim()) return undefined
   const parsed = Number(value)
@@ -331,7 +360,7 @@ export function TradeImportTable({
           </span>
           {item.evidence || item.issues.length > 0 ? (
             <div className="ai-trade-import-row-details">
-              {item.evidence ? <blockquote>{item.evidence}</blockquote> : null}
+              {item.evidence ? <blockquote>{renderEvidence(item.evidence)}</blockquote> : null}
               {item.issues.length > 0 ? (
                 <div className="ai-trade-import-issues">
                   {item.issues.map((entry, index) => (
