@@ -141,28 +141,20 @@ export function TradeImportTable({
     },
     {
       key: 'side',
-      title: '置信度 / 方向',
-      width: 200,
-      render: (item, index) => (
-        <div className="ai-trade-import-row-direction">
-          <span className={`ai-trade-import-confidence is-confidence-${item.confidence}`}>
-            {item.confidence === 'high'
-              ? '高置信'
-              : item.confidence === 'medium'
-                ? '中置信'
-                : '低置信'}
-          </span>
-          {item.kind === 'trade' ? (
-            <AppSelect
-              value={item.side ?? ''}
-              options={SIDE_OPTIONS}
-              label={`第 ${index + 1} 条成交方向`}
-              portal
-              onChange={(side) => onUpdate(item.id, { side: side || undefined })}
-            />
-          ) : null}
-        </div>
-      )
+      title: '方向',
+      width: 110,
+      render: (item, index) =>
+        item.kind === 'trade' ? (
+          <AppSelect
+            value={item.side ?? ''}
+            options={SIDE_OPTIONS}
+            label={`第 ${index + 1} 条成交方向`}
+            portal
+            onChange={(side) => onUpdate(item.id, { side: side || undefined })}
+          />
+        ) : (
+          '—'
+        )
     },
     {
       key: 'price',
@@ -328,22 +320,31 @@ export function TradeImportTable({
       columns={columns}
       rowKey={(item) => item.id}
       rowClassName={(item) => (item.selected ? '' : 'is-disabled')}
-      renderDetails={(item) =>
-        item.evidence || item.issues.length > 0 ? (
-          <div className="ai-trade-import-row-details">
-            {item.evidence ? <blockquote>{item.evidence}</blockquote> : null}
-            {item.issues.length > 0 ? (
-              <div className="ai-trade-import-issues">
-                {item.issues.map((entry, index) => (
-                  <span className={`is-${entry.severity}`} key={`${entry.message}:${index}`}>
-                    {entry.message}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        ) : null
-      }
+      renderDetails={(item) => (
+        <div className="ai-trade-import-row-summary">
+          <span className={`ai-trade-import-confidence is-confidence-${item.confidence}`}>
+            {item.confidence === 'high'
+              ? '高置信'
+              : item.confidence === 'medium'
+                ? '中置信'
+                : '低置信'}
+          </span>
+          {item.evidence || item.issues.length > 0 ? (
+            <div className="ai-trade-import-row-details">
+              {item.evidence ? <blockquote>{item.evidence}</blockquote> : null}
+              {item.issues.length > 0 ? (
+                <div className="ai-trade-import-issues">
+                  {item.issues.map((entry, index) => (
+                    <span className={`is-${entry.severity}`} key={`${entry.message}:${index}`}>
+                      {entry.message}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      )}
     />
   )
 }
