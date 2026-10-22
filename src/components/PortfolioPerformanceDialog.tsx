@@ -1,7 +1,18 @@
 import { useSecuritiesAccountState } from './SecuritiesAccountContext'
 import { listStockAccountBooks, getStockAccountBook } from '../shared/stock-accounts'
 import type { StockTradingBook, StockTradingBooks } from '../shared/types'
-import { ChartPie, CircleAlert, History, PencilLine, RefreshCw, Save, X } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  ChartPie,
+  CircleAlert,
+  History,
+  PencilLine,
+  RefreshCw,
+  Save,
+  X
+} from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AppButton } from './AppButton'
@@ -16,6 +27,11 @@ import {
   type PortfolioPerformanceAggregateSummary,
   type PortfolioPerformanceIssueCode
 } from '../lib/portfolio-performance'
+import {
+  sortPortfolioPerformanceRows,
+  type PortfolioPerformanceSort,
+  type PortfolioPerformanceSortKey
+} from '../lib/portfolio-performance-sort'
 import type {
   ExchangeRateSettings,
   PortfolioPerformanceAdjustments,
@@ -55,6 +71,25 @@ const DIMENSION_LABELS: Record<PerformanceDimension, string> = {
   currency: '按币种',
   portfolio: '组合汇总'
 }
+
+const SORTABLE_COLUMNS: {
+  key: PortfolioPerformanceSortKey
+  label: string
+  note?: string
+}[] = [
+  { key: 'label', label: '汇总对象' },
+  { key: 'native', label: '当前周期原币', note: '先按币种组合，再按各币种原币收益排序' },
+  { key: 'totalProfit', label: '当前周期收益' },
+  { key: 'cumulativeProfit', label: '累计收益' },
+  { key: 'realizedProfit', label: '已实现' },
+  { key: 'unrealizedProfit', label: '未实现' },
+  { key: 'dividendIncome', label: '税前分红' },
+  { key: 'expenses', label: '费用' },
+  { key: 'corporateActionIncome', label: '公司行动' },
+  { key: 'priceContribution', label: '价格贡献' },
+  { key: 'exchangeRateContribution', label: '汇率贡献' },
+  { key: 'completeness', label: '完整性', note: '按当前、累计纳入股票的完整比例排序' }
+]
 
 function valueClass(value: number | null): string {
   if (value === null || value === 0) return 'is-flat'
@@ -163,6 +198,7 @@ export default function PortfolioPerformanceDialog({
   onClose
 }: PortfolioPerformanceDialogProps) {
   const [dimension, setDimension] = useState<PerformanceDimension>('stock')
+  const [sort, setSort] = useState<PortfolioPerformanceSort | null>(null)
   const [editingAdjustmentQuoteId, setEditingAdjustmentQuoteId] = useState<string | null>(null)
   const [adjustmentDraft, setAdjustmentDraft] = useState('')
   const accountState = useSecuritiesAccountState()
@@ -242,13 +278,17 @@ export default function PortfolioPerformanceDialog({
       if (!saved) clearFailedSignature()
     }, clearFailedSignature)
   }, [accountFilter, onSavePerformanceCache, report])
-  const rows = useMemo(() => {
+  const dimensionRows = useMemo(() => {
     if (dimension === 'stock') return report.stockRows
     if (dimension === 'market') return report.marketRows
     if (dimension === 'account') return report.accountRows
     if (dimension === 'currency') return report.currencyRows
     return [report.portfolioRow]
   }, [dimension, report])
+  const rows = useMemo(
+    () => sortPortfolioPerformanceRows(dimensionRows, sort),
+    [dimensionRows, sort]
+  )
   const stocksByQuoteId = useMemo(
     () => new Map(report.stocks.map((stock) => [stock.quoteId, stock])),
     [report.stocks]
@@ -510,18 +550,45 @@ export default function PortfolioPerformanceDialog({
             <table className="portfolio-performance-table">
               <thead>
                 <tr>
-                  <th>汇总对象</th>
-                  <th>当前周期原币</th>
-                  <th>当前周期收益</th>
-                  <th>累计收益</th>
-                  <th>已实现</th>
-                  <th>未实现</th>
-                  <th>税前分红</th>
-                  <th>费用</th>
-                  <th>公司行动</th>
-                  <th>价格贡献</th>
-                  <th>汇率贡献</th>
-                  <th>完整性</th>
+                  {SORTABLE_COLUMNS.map((column) => {
+                    const active = sort?.key === column.key
+                    const nextDirection = active
+                      ? sort.direction === 'asc'
+                        ? 'desc'
+                        : 'asc'
+                      : column.key === 'label' || column.key === 'completeness'
+                        ? 'asc'
+                        : 'desc'
+                    const actionLabel = `按${column.label}${nextDirection === 'asc' ? '升序' : '降序'}排列`
+                    return (
+                      <th
+                        key={column.key}
+                        scope="col"
+                        aria-sort={
+                          active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'
+                        }
+                      >
+                        <AppButton
+                          variant="plain"
+                          className={`performance-sort-button${active ? ' is-active' : ''}`}
+                          aria-label={actionLabel}
+                          title={column.note ? `${actionLabel}；${column.note}` : actionLabel}
+                          onClick={() => setSort({ key: column.key, direction: nextDirection })}
+                        >
+                          {column.label}
+                          {active ? (
+                            sort.direction === 'asc' ? (
+                              <ArrowUp size={13} aria-hidden="true" />
+                            ) : (
+                              <ArrowDown size={13} aria-hidden="true" />
+                            )
+                          ) : (
+                            <ArrowUpDown size={13} aria-hidden="true" />
+                          )}
+                        </AppButton>
+                      </th>
+                    )
+                  })}
                   <th>操作</th>
                 </tr>
               </thead>

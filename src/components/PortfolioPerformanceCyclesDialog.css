@@ -156,8 +156,8 @@
 .portfolio-performance-cycles-table > tbody > tr > td {
   border-bottom: 1px solid #e8edf3;
   padding: 10px 9px;
-  text-align: right;
-  vertical-align: top;
+  text-align: center;
+  vertical-align: middle;
   white-space: nowrap;
 }
 
@@ -169,15 +169,6 @@
   color: var(--muted);
   font-size: 12px;
   font-weight: 600;
-}
-
-.portfolio-performance-cycles-table > thead > tr > th:first-child,
-.portfolio-performance-cycles-table > tbody > tr > td:first-child,
-.portfolio-performance-cycles-table > thead > tr > th:nth-child(2),
-.portfolio-performance-cycles-table > tbody > tr > td:nth-child(2),
-.portfolio-performance-cycles-table > thead > tr > th:last-child,
-.portfolio-performance-cycles-table > tbody > tr > td:last-child {
-  text-align: left;
 }
 
 .portfolio-performance-cycles-table > tbody > tr:last-child > td {
@@ -192,6 +183,7 @@
 .performance-cycle-native-values,
 .performance-cycle-completeness {
   display: grid;
+  justify-items: center;
   gap: 3px;
 }
 
@@ -199,6 +191,7 @@
   display: grid;
   grid-template-columns: max-content max-content;
   align-items: center;
+  justify-content: center;
   gap: 3px 8px;
 }
 
@@ -301,7 +294,8 @@
   grid-column: 2;
   grid-row: 1;
   align-items: center;
-  justify-self: start;
+  justify-content: center;
+  justify-self: center;
   gap: 3px;
   min-height: 28px;
   padding: 2px 0;
