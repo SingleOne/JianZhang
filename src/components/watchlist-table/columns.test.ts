@@ -205,8 +205,7 @@ describe('watchlist column sorting', () => {
     for (const item of [lower, higher]) {
       item.quote = {
         ...item.quote!,
-        previousClose: 10,
-        totalMarketValue: 1_000_000_000
+        previousClose: 10
       }
     }
     lower.dividendFinancing = {
@@ -218,7 +217,7 @@ describe('watchlist column sorting', () => {
       financingYi: 4,
       ratio: 500,
       lastDividendYear: 2025,
-      annualDividends: [{ year: 2025, amountYi: 0.5, eventCount: 1 }]
+      annualDividends: [{ year: 2025, amountYi: 0.5, eventCount: 1, dividendPerShare: 0.5 }]
     }
     higher.dividendFinancing = {
       ...lower.dividendFinancing,
@@ -226,7 +225,7 @@ describe('watchlist column sorting', () => {
       code: 'higher',
       name: 'Higher',
       ratio: 200,
-      annualDividends: [{ year: 2025, amountYi: 1, eventCount: 1 }]
+      annualDividends: [{ year: 2025, amountYi: 1, eventCount: 1, dividendPerShare: 1 }]
     }
 
     expect(
@@ -256,10 +255,9 @@ describe('watchlist column sorting', () => {
     ).toBeNull()
   })
 
-  it('calculates the last annual dividend yield from previous close', () => {
-    const currentQuote = quote('yield', 10)
+  it('uses reported annual per-share dividends without a latest price or market value', () => {
+    const currentQuote = quote('yield', null)
     currentQuote.previousClose = 8
-    currentQuote.totalMarketValue = 10_000_000_000
 
     expect(
       calculatePreviousCloseDividendYield(
@@ -272,7 +270,7 @@ describe('watchlist column sorting', () => {
           financingYi: 5,
           ratio: 200,
           lastDividendYear: 2025,
-          annualDividends: [{ year: 2025, amountYi: 2, eventCount: 1 }]
+          annualDividends: [{ year: 2025, amountYi: null, eventCount: 1, dividendPerShare: 0.2 }]
         },
         currentQuote
       )
@@ -280,6 +278,82 @@ describe('watchlist column sorting', () => {
       dividendPerShare: 0.2,
       dividendYear: 2025,
       yieldPercent: 2.5
+    })
+  })
+
+  it('does not estimate per-share dividends from legacy annual amounts and market value', () => {
+    const currentQuote = { ...quote('yield', 10), previousClose: 8, totalMarketValue: 1e10 }
+    const dividend = {
+      rank: 1,
+      code: 'yield',
+      name: 'Yield',
+      market: 'SH' as const,
+      dividendYi: 10,
+      financingYi: 5,
+      ratio: 200,
+      dividendYield: 99,
+      annualDividends: [{ year: 2025, amountYi: 2, eventCount: 1 }]
+    }
+
+    expect(calculatePreviousCloseDividendYield(dividend, currentQuote)).toBeNull()
+  })
+
+  it('only uses the previous report year even when other years have reported dividends', () => {
+    const dividend = {
+      rank: 1,
+      code: 'yield',
+      name: 'Yield',
+      market: 'SH' as const,
+      dividendYi: 10,
+      financingYi: 5,
+      ratio: 200,
+      annualDividends: [
+        { year: 2024, amountYi: 2, eventCount: 1, dividendPerShare: 0.5 },
+        { year: 2026, amountYi: 2, eventCount: 1, dividendPerShare: 0.8 }
+      ]
+    }
+
+    expect(
+      calculatePreviousCloseDividendYield(dividend, { ...quote('yield', 10), previousClose: 8 })
+    ).toBeNull()
+  })
+
+  it.each([null, undefined, -1, Number.NaN, Number.POSITIVE_INFINITY])(
+    'does not calculate a yield for unavailable or invalid reported dividend %s',
+    (dividendPerShare) => {
+      const dividend = {
+        rank: 1,
+        code: 'yield',
+        name: 'Yield',
+        market: 'SH' as const,
+        dividendYi: 10,
+        financingYi: 5,
+        ratio: 200,
+        annualDividends: [{ year: 2025, amountYi: 2, eventCount: 1, dividendPerShare }]
+      }
+      expect(
+        calculatePreviousCloseDividendYield(dividend, { ...quote('yield', 10), previousClose: 8 })
+      ).toBeNull()
+    }
+  )
+
+  it('keeps an explicitly reported zero dividend distinct from missing data', () => {
+    const dividend = {
+      rank: 1,
+      code: 'yield',
+      name: 'Yield',
+      market: 'SH' as const,
+      dividendYi: 10,
+      financingYi: 5,
+      ratio: 200,
+      annualDividends: [{ year: 2025, amountYi: 0, eventCount: 1, dividendPerShare: 0 }]
+    }
+    expect(
+      calculatePreviousCloseDividendYield(dividend, { ...quote('yield', null), previousClose: 8 })
+    ).toEqual({
+      dividendPerShare: 0,
+      dividendYear: 2025,
+      yieldPercent: 0
     })
   })
 

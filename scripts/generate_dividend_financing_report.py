@@ -281,13 +281,13 @@ def aggregate_approx_dividends(
     events: list[dict], active_names: dict[str, str]
 ) -> tuple[
     dict[str, float],
-    dict[str, dict[int, float]],
+    dict[str, dict[int, float | None]],
     dict[str, dict[int, int]],
     dict[str, dict[int, float]],
     set[str],
 ]:
     totals: defaultdict[str, float] = defaultdict(float)
-    annual_totals: defaultdict[str, defaultdict[int, float]] = defaultdict(
+    annual_totals: defaultdict[str, defaultdict[int, float | None]] = defaultdict(
         lambda: defaultdict(float)
     )
     annual_event_counts: defaultdict[str, defaultdict[int, int]] = defaultdict(
@@ -310,20 +310,29 @@ def aggregate_approx_dividends(
             continue
         try:
             cash_per_ten = float(pretax)
+        except (TypeError, ValueError):
+            incomplete.add(code)
+            continue
+        if not math.isfinite(cash_per_ten) or cash_per_ten <= 0:
+            continue
+        report_date = str(row.get("REPORT_DATE") or "")
+        year = int(report_date[:4]) if re.match(r"\d{4}", report_date) else None
+        if year is not None:
+            annual_event_counts[code][year] += 1
+            annual_dividends_per_share[code][year] += cash_per_ten / 10.0
+        try:
             total_shares = float(shares)
         except (TypeError, ValueError):
-            if float(pretax or 0) > 0:
-                incomplete.add(code)
+            total_shares = 0.0
+        if not math.isfinite(total_shares) or total_shares <= 0:
+            incomplete.add(code)
+            if year is not None:
+                annual_totals[code][year] = None
             continue
-        if cash_per_ten > 0 and total_shares > 0:
-            amount = cash_per_ten / 10.0 * total_shares
-            totals[code] += amount
-            report_date = str(row.get("REPORT_DATE") or "")
-            if re.match(r"\d{4}", report_date):
-                year = int(report_date[:4])
-                annual_totals[code][year] += amount
-                annual_event_counts[code][year] += 1
-                annual_dividends_per_share[code][year] += cash_per_ten / 10.0
+        amount = cash_per_ten / 10.0 * total_shares
+        totals[code] += amount
+        if year is not None and annual_totals[code][year] is not None:
+            annual_totals[code][year] += amount
     return (
         dict(totals),
         {code: dict(values) for code, values in annual_totals.items()},
@@ -400,7 +409,7 @@ def enrich_ranked_items(
     *,
     snapshot_date: str,
     approx_dividends: dict[str, float],
-    annual_dividends: dict[str, dict[int, float]],
+    annual_dividends: dict[str, dict[int, float | None]],
     annual_event_counts: dict[str, dict[int, int]],
     annual_dividends_per_share: dict[str, dict[int, float]],
     previous_closes: dict[str, float],
@@ -417,29 +426,28 @@ def enrich_ranked_items(
         annual_yi = {
             year: amount * scale / 100_000_000.0
             for year, amount in annual_dividends.get(code, {}).items()
-            if amount > 0
+            if amount is not None and amount > 0
         }
+        reported_per_share = annual_dividends_per_share.get(code, {})
+        dividend_year_keys = set(annual_yi) | set(reported_per_share)
         annual_points = [
             {
                 "year": year,
-                "amount_yi": round(amount, 4),
+                "amount_yi": round(annual_yi[year], 4) if year in annual_yi else None,
                 "event_count": annual_event_counts.get(code, {}).get(year, 0),
+                "dividend_per_share": reported_per_share.get(year),
             }
-            for year, amount in sorted(annual_yi.items())
+            for year in sorted(dividend_year_keys)
         ]
-        completed_dividend_years = [year for year in annual_yi if year <= completed_year]
+        completed_dividend_years = [year for year in dividend_year_keys if year <= completed_year]
         last_dividend_year = (
             max(completed_dividend_years) if completed_dividend_years else None
         )
-        dividend_per_share = (
-            annual_dividends_per_share.get(code, {}).get(last_dividend_year, 0.0) * scale
-            if last_dividend_year is not None
-            else 0.0
-        )
+        dividend_per_share = reported_per_share.get(completed_year)
         previous_close = previous_closes.get(code, 0.0)
         dividend_yield = (
             dividend_per_share / previous_close * 100.0
-            if dividend_per_share > 0 and previous_close > 0
+            if dividend_per_share is not None and dividend_per_share >= 0 and previous_close > 0
             else None
         )
         events = financing_events.get(code, [])
@@ -462,14 +470,14 @@ def enrich_ranked_items(
                 for event in events
                 if re.match(r"\d{4}", event["date"])
             ]
-        if not listing_year_candidates and annual_yi:
-            listing_year_candidates = [min(annual_yi)]
+        if not listing_year_candidates and dividend_year_keys:
+            listing_year_candidates = [min(dividend_year_keys)]
         listing_year = min(listing_year_candidates) if listing_year_candidates else completed_year
         listed_years = max(1, completed_year - listing_year + 1)
-        dividend_years = len(annual_yi)
+        dividend_years = len(dividend_year_keys)
         consecutive_years = 0
         for year in range(completed_year, listing_year - 1, -1):
-            if annual_yi.get(year, 0.0) <= 0:
+            if year not in dividend_year_keys:
                 break
             consecutive_years += 1
 
@@ -590,7 +598,8 @@ def write_report(
         "- 股票范围为统计日仍可取得实时行情、且可取得历史现金分红与A股股权融资数据的沪深北A股；不再按分红融资比设入选门槛，退市股票不纳入。",
         "- 分红累计值来自同花顺F10，融资明细与募集净额来自东方财富F10。金额单位均为人民币亿元。",
         "- 年度分红根据东方财富已实施分红事件拆分，并按同花顺精确累计分红总额等比例校准；质量评分只在本榜单内比较。",
-        "- 股息率 = 最近一个有分红的完整年度每股分红 ÷ 更新时前收盘价 × 100%；数据不完整时记为--。",
+        "- 每股税前分红直接汇总东方财富已实施方案的每10股派息÷10，不按累计分红总额校准，也不根据市值或股本反推。",
+        "- 股息率 = 上一报告年度已实施的每股税前现金分红合计 ÷ 更新时前收盘价 × 100%；数据不完整时记为--。",
         "- 该指标只反映历史现金回报与股权融资的比例，不代表未来收益或投资建议。",
         "",
         "## 排名",
@@ -649,7 +658,7 @@ def write_json_snapshot(
     dual_listed: set[str],
 ) -> None:
     payload = {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "scoreMethodologyVersion": 2,
         "snapshotDate": snapshot_date,
         "generatedAt": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -692,6 +701,7 @@ def write_json_snapshot(
                         "year": point["year"],
                         "amountYi": point["amount_yi"],
                         "eventCount": point["event_count"],
+                        "dividendPerShare": point["dividend_per_share"],
                     }
                     for point in item["annual_dividends"]
                 ],

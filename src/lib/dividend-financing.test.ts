@@ -79,13 +79,16 @@ describe('createDividendFinancingChangeReport', () => {
 })
 
 describe('snapshot compatibility', () => {
-  it('accepts schema v2 snapshots and rejects legacy snapshots', () => {
-    const current = snapshot('2026-08-03', [])
-    const legacy = { ...snapshot('2026-07-22', []), schemaVersion: 1 as const }
+  it.each([2, 3] as const)(
+    'accepts schema v%s snapshots and rejects legacy snapshots',
+    (schemaVersion) => {
+      const current = { ...snapshot('2026-08-03', []), schemaVersion }
+      const legacy = { ...snapshot('2026-07-22', []), schemaVersion: 1 as const }
 
-    expect(parseDividendFinancingSnapshot(JSON.stringify(current))).toEqual(current)
-    expect(() => parseDividendFinancingSnapshot(JSON.stringify(legacy))).toThrow('schema v2')
-  })
+      expect(parseDividendFinancingSnapshot(JSON.stringify(current))).toEqual(current)
+      expect(() => parseDividendFinancingSnapshot(JSON.stringify(legacy))).toThrow('schema v2')
+    }
+  )
 })
 
 describe('dividend financing label', () => {

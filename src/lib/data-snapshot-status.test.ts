@@ -9,6 +9,7 @@ import {
 describe('data snapshot status', () => {
   it('marks dividend data stale after seven days', () => {
     const snapshot = {
+      schemaVersion: 3,
       generatedAt: '2026-08-01T00:00:00+08:00',
       thresholdPercent: 0
     } as DividendFinancingSnapshot
@@ -20,6 +21,7 @@ describe('data snapshot status', () => {
 
   it('marks thresholded dividend data stale regardless of age', () => {
     const snapshot = {
+      schemaVersion: 2,
       generatedAt: '2026-08-07T23:59:59+08:00',
       thresholdPercent: 100
     } as DividendFinancingSnapshot
@@ -27,6 +29,24 @@ describe('data snapshot status', () => {
     expect(dividendFinancingStaleReason(snapshot, new Date('2026-08-08T00:00:00+08:00'))).toContain(
       '全量股票'
     )
+  })
+
+  it('requires refreshing old dividend snapshots even when they were just generated', () => {
+    const snapshot = {
+      schemaVersion: 2,
+      generatedAt: '2026-10-22T12:00:00+08:00',
+      thresholdPercent: 0
+    } as DividendFinancingSnapshot
+
+    expect(dividendFinancingStaleReason(snapshot, new Date('2026-10-22T13:00:00+08:00'))).toContain(
+      '每股派息'
+    )
+    expect(
+      dividendFinancingStaleReason(
+        { ...snapshot, schemaVersion: 3 },
+        new Date('2026-10-22T13:00:00+08:00')
+      )
+    ).toBeNull()
   })
 
   it('uses May 1 as the completed annual report boundary', () => {

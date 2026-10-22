@@ -13,11 +13,14 @@ function olderThanDays(generatedAt: string, days: number, now: Date): boolean {
 }
 
 export function dividendFinancingStaleReason(
-  snapshot: Pick<DividendFinancingSnapshot, 'generatedAt' | 'thresholdPercent'>,
+  snapshot: Pick<DividendFinancingSnapshot, 'schemaVersion' | 'generatedAt' | 'thresholdPercent'>,
   now = new Date()
 ): string | null {
   if (snapshot.thresholdPercent !== DIVIDEND_FINANCING_FULL_SCOPE_THRESHOLD_PERCENT) {
     return '当前快照仍只包含部分分红融资比区间，建议手动更新为全量股票数据。'
+  }
+  if (snapshot.schemaVersion < 3) {
+    return '当前快照缺少直接每股派息数据，请更新分红融资榜后查看股息率。'
   }
   return olderThanDays(snapshot.generatedAt, 7, now)
     ? '数据生成时间已超过7天，建议手动更新后再进行比较。'

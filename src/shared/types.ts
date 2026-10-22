@@ -1796,8 +1796,10 @@ export type DividendTrend = 'growing' | 'stable' | 'declining' | 'insufficient'
 
 export interface AnnualDividendPoint {
   year: number
-  amountYi: number
+  amountYi: number | null
   eventCount: number
+  /** 已实施的每股税前现金分红合计（元/股），直接来自分红方案。 */
+  dividendPerShare?: number | null
 }
 
 export interface DividendFinancingEvent {
@@ -1844,7 +1846,7 @@ export interface DividendFinancingRankingItem {
 }
 
 export interface DividendFinancingSnapshot {
-  schemaVersion: 1 | 2
+  schemaVersion: 1 | 2 | 3
   scoreMethodologyVersion?: 1 | 2
   snapshotDate: string
   generatedAt: string
@@ -1859,6 +1861,7 @@ export interface DividendFinancingSnapshot {
 
 export interface DividendFinancingOverview {
   schemaVersion: 1
+  snapshotSchemaVersion?: DividendFinancingSnapshot['schemaVersion']
   snapshotDate: string
   generatedAt: string
   thresholdPercent: number

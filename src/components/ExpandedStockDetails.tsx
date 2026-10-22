@@ -384,7 +384,7 @@ function DcfPanel({ result }: { result: DcfAnalysisResult }) {
 
 function DividendFinancingDeepDetails({ item }: { item: DividendFinancingRankingItem }) {
   const annualDividends = (item.annualDividends ?? []).slice(-12)
-  const maxAnnualDividend = Math.max(...annualDividends.map((point) => point.amountYi), 0.0001)
+  const maxAnnualDividend = Math.max(...annualDividends.map((point) => point.amountYi ?? 0), 0.0001)
   const scoreParts = item.qualityScoreBreakdown
     ? ([
         ['分红融资比分位', item.qualityScoreBreakdown.ratio, 30],
@@ -455,14 +455,17 @@ function DividendFinancingDeepDetails({ item }: { item: DividendFinancingRanking
               {annualDividends.map((point) => (
                 <div
                   key={point.year}
-                  title={`${point.year}年 · ${dividendAmount(point.amountYi)} · ${point.eventCount}次`}
+                  title={`${point.year}年 · ${point.amountYi === null ? '分红总额缺失' : dividendAmount(point.amountYi)} · ${point.eventCount}次`}
                 >
                   <span>
-                    {point.amountYi.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}
+                    {point.amountYi?.toLocaleString('zh-CN', { maximumFractionDigits: 2 }) ?? '--'}
                   </span>
                   <i
                     style={{
-                      height: `${Math.max(4, (point.amountYi / maxAnnualDividend) * 100)}%`
+                      height:
+                        point.amountYi === null
+                          ? '0%'
+                          : `${Math.max(4, (point.amountYi / maxAnnualDividend) * 100)}%`
                     }}
                   />
                   <strong>{point.year}</strong>

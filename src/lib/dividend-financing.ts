@@ -17,8 +17,12 @@ export function hasDividendFinancingLabel(
 
 export function parseDividendFinancingSnapshot(content: string): DividendFinancingSnapshot {
   const snapshot = JSON.parse(content) as DividendFinancingSnapshot
-  if (snapshot.schemaVersion !== 2 || !snapshot.snapshotDate || !Array.isArray(snapshot.rows)) {
-    throw new Error('分红融资榜快照不是受支持的 schema v2 格式')
+  if (
+    (snapshot.schemaVersion !== 2 && snapshot.schemaVersion !== 3) ||
+    !snapshot.snapshotDate ||
+    !Array.isArray(snapshot.rows)
+  ) {
+    throw new Error('分红融资榜快照不是受支持的 schema v2/v3 格式')
   }
   return snapshot
 }

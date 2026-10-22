@@ -294,7 +294,11 @@ export class DividendFinancingService {
     snapshot: DividendFinancingSnapshot | DividendFinancingOverviewMetadata | null
   ): DataSnapshotRuntimeState {
     if (!snapshot) return { ...EMPTY_STATE }
-    const staleReason = dividendFinancingStaleReason(snapshot)
+    const staleReason = dividendFinancingStaleReason({
+      ...snapshot,
+      schemaVersion:
+        'recordCount' in snapshot ? (snapshot.snapshotSchemaVersion ?? 2) : snapshot.schemaVersion
+    })
     return {
       status: staleReason ? 'stale' : 'ready',
       progressMessage: null,

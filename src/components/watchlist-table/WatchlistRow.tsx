@@ -682,7 +682,7 @@ export const WatchlistRow = memo(function WatchlistRow({
                   <Tooltip
                     content={
                       dividendFinancing
-                        ? `累计A股分红 ${dividendFinancing.dividendYi.toLocaleString('zh-CN')} 亿元，累计A股融资 ${dividendFinancing.financingYi.toLocaleString('zh-CN')} 亿元；净回报 ${(dividendFinancing.netReturnYi ?? dividendFinancing.dividendYi - dividendFinancing.financingYi).toLocaleString('zh-CN')} 亿元；${dividendYield ? `${dividendYield.dividendYear} 年每股分红约 ${formatPrice(dividendYield.dividendPerShare)} 元，按昨收 ${formatPrice(quote?.previousClose)} 计算股息率` : '缺少上一年度分红、最新价、总市值或昨收数据，暂不能计算股息率'}；快照 ${dividendFinancingSnapshotDate ?? '-'}`
+                        ? `累计A股分红 ${dividendFinancing.dividendYi.toLocaleString('zh-CN')} 亿元，累计A股融资 ${dividendFinancing.financingYi.toLocaleString('zh-CN')} 亿元；净回报 ${(dividendFinancing.netReturnYi ?? dividendFinancing.dividendYi - dividendFinancing.financingYi).toLocaleString('zh-CN')} 亿元；${dividendYield ? `${dividendYield.dividendYear} 年已实施每股税前分红 ${formatPrice(dividendYield.dividendPerShare)} 元，按昨收 ${formatPrice(quote?.previousClose)} 计算股息率` : '缺少上一年度直接每股派息或有效昨收数据，暂不能计算股息率；旧快照请更新分红融资榜'}；快照 ${dividendFinancingSnapshotDate ?? '-'}`
                         : `当前全量快照暂无完整的分红、融资数据；快照 ${dividendFinancingSnapshotDate ?? '-'}`
                     }
                   >

@@ -504,7 +504,7 @@ function makeDemoSectorIndex(stockQuoteId: string): SectorIndexResult {
 const noSubscribe = (): (() => void) => () => undefined
 
 const DEMO_DIVIDEND_FINANCING_SNAPSHOT: DividendFinancingSnapshot = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   scoreMethodologyVersion: 2,
   snapshotDate: '2026-08-04',
   generatedAt: '2026-08-04T12:00:00+08:00',
@@ -526,7 +526,7 @@ const DEMO_DIVIDEND_FINANCING_SNAPSHOT: DividendFinancingSnapshot = {
       ratio: 14260.25,
       netReturnYi: 3177.56,
       lastDividendYear: 2025,
-      annualDividends: [],
+      annualDividends: [{ year: 2025, amountYi: 600, eventCount: 2, dividendPerShare: 50 }],
       financingEvents: [],
       financingCount: 0,
       qualityScore: 96,
@@ -748,6 +748,7 @@ const demoApi: StockDesktopApi = {
     const requestedCodes = new Set(codes)
     return {
       schemaVersion: 1,
+      snapshotSchemaVersion: DEMO_DIVIDEND_FINANCING_SNAPSHOT.schemaVersion,
       snapshotDate: DEMO_DIVIDEND_FINANCING_SNAPSHOT.snapshotDate,
       generatedAt: DEMO_DIVIDEND_FINANCING_SNAPSHOT.generatedAt,
       thresholdPercent: DEMO_DIVIDEND_FINANCING_SNAPSHOT.thresholdPercent,

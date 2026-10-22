@@ -69,28 +69,23 @@ export function calculatePreviousCloseDividendYield(
 ): PreviousCloseDividendYield | null {
   const previousYear = Number(currentDateKey().slice(0, 4)) - 1
   const annualDividend = dividend?.annualDividends?.find((point) => point.year === previousYear)
-  const latest = quote?.latest
+  const dividendPerShare = annualDividend?.dividendPerShare
   const previousClose = quote?.previousClose
-  const totalMarketValue = quote?.totalMarketValue
   if (
-    !annualDividend ||
-    latest === null ||
-    latest === undefined ||
-    latest <= 0 ||
+    dividendPerShare === null ||
+    dividendPerShare === undefined ||
+    !Number.isFinite(dividendPerShare) ||
+    dividendPerShare < 0 ||
     previousClose === null ||
     previousClose === undefined ||
-    previousClose <= 0 ||
-    totalMarketValue === null ||
-    totalMarketValue === undefined ||
-    totalMarketValue <= 0
+    !Number.isFinite(previousClose) ||
+    previousClose <= 0
   ) {
     return null
   }
-  const totalShares = totalMarketValue / latest
-  const dividendPerShare = (annualDividend.amountYi * 100_000_000) / totalShares
   return {
     dividendPerShare,
-    dividendYear: annualDividend.year,
+    dividendYear: previousYear,
     yieldPercent: (dividendPerShare / previousClose) * 100
   }
 }
