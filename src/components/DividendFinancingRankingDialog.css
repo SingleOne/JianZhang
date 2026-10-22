@@ -154,7 +154,7 @@
 
 .dividend-ranking-summary {
   display: grid;
-  grid-template-columns: repeat(4, minmax(92px, 118px));
+  grid-template-columns: repeat(4, minmax(max-content, 1fr));
   gap: 7px;
 }
 
@@ -212,6 +212,12 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 9px;
+  white-space: nowrap;
+}
+
+.dividend-ranking-summary > div > span,
+.dividend-ranking-summary > div > strong {
+  flex-shrink: 0;
 }
 
 .dividend-ranking-summary > div span {
@@ -1048,7 +1054,7 @@
 
 @media (max-width: 1160px) {
   .dividend-ranking-summary {
-    grid-template-columns: repeat(4, minmax(82px, 105px));
+    grid-template-columns: repeat(2, minmax(max-content, 1fr));
   }
 
   .dividend-ranking-toolbar {
