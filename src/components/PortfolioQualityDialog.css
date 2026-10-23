@@ -518,14 +518,14 @@
   text-align: center;
 }
 
-.portfolio-quality-table-scroller td:first-child,
+.portfolio-holding-name,
 .portfolio-unpriced-value,
 .portfolio-risk-state {
   display: grid;
   gap: 2px;
 }
 
-.portfolio-quality-table-scroller td:first-child small,
+.portfolio-holding-name small,
 .portfolio-unpriced-value small,
 .portfolio-risk-state small {
   color: var(--subtle);

@@ -2709,7 +2709,7 @@
 :root[data-theme='dark'] .portfolio-quality-filter-empty {
   color: var(--muted);
 }
-:root[data-theme='dark'] .portfolio-quality-table-scroller td:first-child small,
+:root[data-theme='dark'] .portfolio-holding-name small,
 :root[data-theme='dark'] .portfolio-unpriced-value small,
 :root[data-theme='dark'] .portfolio-risk-state small {
   color: var(--muted);

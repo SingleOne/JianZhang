@@ -419,8 +419,10 @@ export function PortfolioQualityDialog({
                   {filteredHoldings.map((holding) => (
                     <tr key={holding.quoteId}>
                       <td>
-                        <strong>{holding.name}</strong>
-                        <small>{holding.code}</small>
+                        <span className="portfolio-holding-name">
+                          <strong>{holding.name}</strong>
+                          <small>{holding.code}</small>
+                        </span>
                       </td>
                       <td>{holding.industryName}</td>
                       <td>
