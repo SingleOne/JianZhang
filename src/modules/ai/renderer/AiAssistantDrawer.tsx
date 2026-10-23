@@ -168,11 +168,13 @@ function citationPresentation(citation: MessageCitation): {
       title: citation.title,
       detail: [
         citation.source,
-        citation.evidenceType === 'content'
-          ? '网页正文'
-          : citation.evidenceType === 'source'
-            ? '服务端搜索来源'
-            : '搜索摘要',
+        citation.evidenceType === 'pdf'
+          ? 'PDF 正文'
+          : citation.evidenceType === 'content'
+            ? '网页正文'
+            : citation.evidenceType === 'source'
+              ? '服务端搜索来源'
+              : '搜索摘要',
         citation.publishedAt
           ? `发布于 ${new Date(citation.publishedAt).toLocaleDateString('zh-CN')}`
           : '',
@@ -460,7 +462,7 @@ function ChatThread({
                           ? message.activity === 'searching'
                             ? '正在搜索网页…'
                             : message.activity === 'fetching'
-                              ? '正在读取网页…'
+                              ? '正在读取资料…'
                               : message.officialSearch
                                 ? '正在联网搜索股票信息…'
                                 : '正在生成…'

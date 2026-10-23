@@ -13,6 +13,7 @@
 - 当前支持 OpenAI、DeepSeek、智谱 GLM、Kimi、MiniMax、腾讯混元、文心一言、阿里千问、小米 MiMo、Grok、Gemini 和 Anthropic。保存 API Key 前会由主进程向对应 Provider 查询账号可用模型，服务设置中的模型 ID 只能从实时返回的列表中选择。
 - 对话中带有当前股票上下文或 `@股票` 时，DeepSeek 默认使用带 `stockRef` 的数据目录；其他 Provider 在开启“联网搜索”后使用同一目录。模型选择必要的 `datasetId` 后，主进程才通过 `read_stock_data` 读取对应明细；工具不能访问本条消息未授权的股票。所有 Provider 均支持受限的连续多轮工具调用。
 - 普通回答使用中文业务名称说明数据来源、日期和缺失情况，内部数据集标识与字段路径仅用于取数；用户主动询问接口或调试细节时可以展示。股票取数结果附带中文 `datasetLabel`。
+- 所有聊天 Provider 均支持 `read_pdf_document`，在有股票上下文、搜索、近期用户 HTTPS 链接或已有 PDF 引用时提供该工具；直接粘贴现有官方来源白名单内的 HTTPS 公告 PDF 链接即可读取，不依赖 DeepSeek Key 或网页搜索开关。主进程使用已有 `pdf-parse` 提取文字并附上物理页码，生成轻量 Markdown；单个 PDF 最多 32 MB、提取文本最多 200 万字符，解析结果在 `cache/pdf-documents/` 缓存 24 小时。每次最多提供 12,000 字符，支持 `keyword` 定位和 `cursor` 续读。来源保留实际传入模型片段的摘要与位置并随消息保存，界面标记为“PDF 正文”。扫描页、未提取页及复杂表格限制会明确返回，不提供 OCR 或表格结构恢复，也不会将片段冒充全文。
 - 每条用户消息允许最多 8 轮、每轮最多 8 次、累计最多 32 次应用工具调用，下一条消息重新计数；服务商原生搜索内部的执行次数不由此计数器控制。超过单轮或累计额度的调用会收到明确的未执行结果，随后关闭工具入口，让模型依据已取得的资料完成回答；轮数耗尽时同样进入最终回答，不再因调用额度直接报错。
 - 搜索仍使用同一个开关。当前 Provider 为 Kimi、MiniMax 或 Grok 且已配置其 Key 时，显示“网页搜索”并使用该厂家的搜索服务；其他 Provider 配置 DeepSeek Key 后使用 DeepSeek 搜索。没有可用网页搜索 Key 时，同一入口显示原有“联网搜索”，`search_stock_information` 只检索授权股票的现有官方来源：A 股巨潮资讯、证监会和沪深北交易所，港股 HKEXnews，美股 SEC EDGAR，以及公司行动的官方证据；该能力不依赖 DeepSeek Key。
 - Kimi 开启网页搜索后使用国内 `/v1/responses` 和原生 `web_search`，推荐 Kimi K3；普通聊天仍使用 Chat Completions。工具续轮原样回传全部 output（包括 reasoning），不使用 Kimi 不支持的 `previous_response_id`。Grok 改用 `/v1/responses`，开启网页搜索时添加原生 `web_search`，自定义工具续轮通过 `previous_response_id` 连接。两家均复用各自模型 Key 和平台额度，不调用 DeepSeek 搜索；保留股票数据与记忆工具的受限多轮调用。

@@ -338,7 +338,7 @@ export interface WebCitation {
   url: string
   publishedAt: string | null
   retrievedAt: string
-  evidenceType: 'summary' | 'content' | 'source'
+  evidenceType: 'summary' | 'content' | 'source' | 'pdf'
   providedExcerpts: CitationExcerpt[]
 }
 

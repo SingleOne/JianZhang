@@ -77,6 +77,8 @@ import { isOfficialStockSourceUrl } from './official-source'
 import { WEB_SEARCH_TOOLS, WebSearchSession } from './web-search/tool'
 import { MINIMAX_SEARCH_TOOL, MiniMaxSearchSession } from './web-search/minimax'
 import { WebSearchSources, webPageUrl } from './web-search/sources'
+import { PdfDocumentReader } from './documents/pdf-reader'
+import { PDF_DOCUMENT_TOOL, PdfDocumentSession } from './documents/tool'
 import { MemoryBridge } from './memory/bridge'
 import { TurnSourceRegistry } from './citations/registry'
 import {
@@ -377,6 +379,7 @@ export class AiService {
   private readonly activeChats = new Map<string, AbortController>()
   private readonly tradeImportSessions = new Map<string, TradeImportSession>()
   private readonly memory: MemoryBridge
+  private readonly pdfDocuments: PdfDocumentReader
 
   constructor(
     private readonly storage: AiStorage,
@@ -385,6 +388,7 @@ export class AiService {
   ) {
     this.secrets = new AiSecrets(storage.rootDirectory)
     this.memory = new MemoryBridge(storage)
+    this.pdfDocuments = new PdfDocumentReader(storage.cacheDirectory)
     const providers: AiProvider[] = [
       new OpenAiApiProvider(),
       new DeepSeekProvider(),
@@ -1228,6 +1232,11 @@ export class AiService {
           : undefined
     const webTools = searchBackend === 'minimax' ? [MINIMAX_SEARCH_TOOL] : WEB_SEARCH_TOOLS
     const serverSearchSources = new WebSearchSources(pendingMessage.id)
+    const pdfSession = new PdfDocumentSession(
+      pendingMessage.id,
+      this.pdfDocuments,
+      onSearchActivity
+    )
     const nativeSearch = searchBackend === 'kimi' || searchBackend === 'grok'
     let prepared: Awaited<ReturnType<MemoryBridge['prepare']>> = null
     let memoryAvailable = false
@@ -1238,6 +1247,19 @@ export class AiService {
       const messages = this.storage
         .getMessages(pendingMessage.conversationId)
         .slice(-settings.maxContextMessages)
+      const pdfAvailable = Boolean(
+        stockDataSession ||
+        stockSearchSession ||
+        searchBackend ||
+        contexts.length ||
+        messages.some(
+          (message) =>
+            (message.role === 'user' && message.content.includes('https://')) ||
+            message.citations?.some(
+              (citation) => citation.kind === 'web' && citation.evidenceType === 'pdf'
+            )
+        )
+      )
       const conversation = this.requireConversation(pendingMessage.conversationId)
       const question =
         [...messages].reverse().find((message) => message.role === 'user')?.content ?? ''
@@ -1251,6 +1273,7 @@ export class AiService {
           ? sourceRegistry.buildMemoryContext(prepared)
           : undefined
       const tools = [
+        ...(pdfAvailable ? [PDF_DOCUMENT_TOOL] : []),
         ...(stockDataSession
           ? [STOCK_DATA_TOOL, ...(stockSearchSession ? [STOCK_INFORMATION_SEARCH_TOOL] : [])]
           : []),
@@ -1271,7 +1294,8 @@ export class AiService {
               ? 'native'
               : searchBackend === 'minimax'
                 ? 'minimax'
-                : Boolean(webSearchSession)
+                : Boolean(webSearchSession),
+            pdfAvailable
           ),
           tools: tools.length ? tools : undefined,
           webSearch: nativeSearch
@@ -1301,8 +1325,13 @@ export class AiService {
             })
         },
         controller.signal,
-        stockDataSession || memoryAvailable || webSearchSession
+        tools.length
           ? async (call, signal) => {
+              if (pdfAvailable && call.name === PDF_DOCUMENT_TOOL.name) {
+                const output = await pdfSession.execute(call, signal)
+                sourceRegistry.registerWeb(pdfSession.citations())
+                return output
+              }
               if (webSearchSession && webTools.some((tool) => tool.name === call.name)) {
                 const output = await webSearchSession.execute(call, signal)
                 sourceRegistry.registerWeb(webSearchSession.citations())

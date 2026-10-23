@@ -6,6 +6,7 @@ import { neutralizeHistoricalCitationMarkers } from '../citations/markers'
 import type { StockDataManifest } from '../stock-data/tool'
 import {
   GENERAL_CHAT_POLICY,
+  PDF_DOCUMENT_POLICY,
   OFFICIAL_STOCK_SEARCH_POLICY,
   WEB_SEARCH_POLICY,
   MINIMAX_WEB_SEARCH_POLICY,
@@ -159,7 +160,8 @@ export function toProviderMessages(
   stockDataManifest?: StockDataManifest,
   officialSearch = false,
   memoryContext?: string,
-  webSearch: boolean | 'native' | 'minimax' = false
+  webSearch: boolean | 'native' | 'minimax' = false,
+  pdfDocuments = false
 ): AiProviderRequestMessage[] {
   const stockDataPolicy = stockDataManifest
     ? `\n\n当前消息关联了股票，但这里只提供数据目录，不包含目录所描述的详细数据。你必须先判断回答真正需要哪些数据，再调用 read_stock_data；使用清单中的 stockRef 和 datasetId，一次调用批量请求所需数据。不得把 availability、description 或数据集名称当成股票事实，也不得猜测未读取的数据。工具返回后，用目录的 label 或结果的 datasetLabel 说明关键数据的中文来源名称、时间或缺失状态，不向用户复述内部标识。若问题不需要股票明细，可以不调用工具。\n股票数据目录：\n${JSON.stringify(stockDataManifest)}`
@@ -183,7 +185,7 @@ export function toProviderMessages(
         : webSearch
           ? WEB_SEARCH_POLICY
           : ''
-  const policy = `${policyBase}${officialSearch ? OFFICIAL_STOCK_SEARCH_POLICY : ''}${webPolicy}${backgroundPolicy}`
+  const policy = `${policyBase}${pdfDocuments ? PDF_DOCUMENT_POLICY : ''}${officialSearch ? OFFICIAL_STOCK_SEARCH_POLICY : ''}${webPolicy}${backgroundPolicy}`
   return [
     { role: 'system', content: policy },
     ...(memoryContext
