@@ -421,7 +421,12 @@ export class StockDataToolSession {
           return { ok: false, ...request, error: 'datasetId 不在该股票的数据清单中' }
         }
         if (manifestDataset.availability === 'unsupported') {
-          return { ok: false, ...request, error: '当前市场不支持该数据集' }
+          return {
+            ok: false,
+            ...request,
+            datasetLabel: manifestDataset.label,
+            error: '当前市场不支持该数据集'
+          }
         }
         try {
           const data = await this.load(target, request)
@@ -430,6 +435,7 @@ export class StockDataToolSession {
             ok: true,
             stockRef: request.stockRef,
             datasetId: request.datasetId,
+            datasetLabel: manifestDataset.label,
             generatedAt: new Date().toISOString(),
             data
           }
@@ -438,6 +444,7 @@ export class StockDataToolSession {
             ok: false,
             stockRef: request.stockRef,
             datasetId: request.datasetId,
+            datasetLabel: manifestDataset.label,
             error: error instanceof Error ? error.message : '数据读取失败'
           }
         }

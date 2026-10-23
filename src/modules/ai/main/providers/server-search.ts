@@ -8,7 +8,7 @@ import type {
 import { supportsImageUnderstanding } from '../../shared/model-capabilities'
 import { OpenAiCompatibleProvider } from './openai-compatible'
 import { completed, ensureResponse, readSse } from './provider'
-import { countToolCalls, executeToolCalls, MAX_TOOL_ROUNDS } from './tool-loop'
+import { executeToolCalls, MAX_TOOL_ROUNDS, TOOL_COMPLETION_INSTRUCTION } from './tool-loop'
 
 interface UrlCitation {
   type: string
@@ -85,15 +85,16 @@ export class ServerSearchProvider extends OpenAiCompatibleProvider {
     }))
     let responseId: string | undefined
     let totalCalls = 0
+    let toolsFinished = false
     const sources = new Map<string, { url: string; title?: string }>()
     request.webSearch?.onActivity('thinking')
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
-      const allowTools = round < MAX_TOOL_ROUNDS
+      const allowTools = round < MAX_TOOL_ROUNDS && !toolsFinished
       const streaming = !request.webSearch && (!request.tools?.length || !allowTools)
       const result = await this.requestRound(
         apiKey,
         request,
-        instructions,
+        allowTools ? instructions : `${instructions}\n\n${TOOL_COMPLETION_INSTRUCTION}`,
         input,
         signal,
         allowTools,
@@ -123,9 +124,10 @@ export class ServerSearchProvider extends OpenAiCompatibleProvider {
       if (!allowTools)
         throw new Error(`${this.searchConfig.label} 在工具调用结束后仍返回了工具请求`)
       if (!executeTool) throw new Error(`${this.searchConfig.label} 工具执行器未配置`)
-      totalCalls = countToolCalls(result.toolCalls, totalCalls)
-      const outputs = await executeToolCalls(result.toolCalls, executeTool, signal)
-      const toolOutputs = outputs.map(({ call, output }) => ({
+      const batch = await executeToolCalls(result.toolCalls, executeTool, signal, totalCalls)
+      totalCalls = batch.totalCalls
+      toolsFinished = batch.limitReached
+      const toolOutputs = batch.outputs.map(({ call, output }) => ({
         type: 'function_call_output',
         call_id: call.id,
         output

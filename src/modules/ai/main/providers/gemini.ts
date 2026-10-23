@@ -11,7 +11,7 @@ import type {
   AiProviderTurnResult
 } from '../../shared/types'
 import { completed, connectionResultFromError, ensureResponse, readSse } from './provider'
-import { countToolCalls, executeToolCalls, MAX_TOOL_ROUNDS } from './tool-loop'
+import { executeToolCalls, MAX_TOOL_ROUNDS, TOOL_COMPLETION_INSTRUCTION } from './tool-loop'
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
 
@@ -244,12 +244,12 @@ export class GeminiProvider implements AiProvider {
         if (selection.content) emit(selection.content)
         return completed(selection.content, responseId)
       }
-      totalToolCalls = countToolCalls(selection.toolCalls, totalToolCalls)
       contents.push(selection.modelContent)
-      const outputs = await executeToolCalls(selection.toolCalls, executeTool, signal)
+      const batch = await executeToolCalls(selection.toolCalls, executeTool, signal, totalToolCalls)
+      totalToolCalls = batch.totalCalls
       contents.push({
         role: 'user',
-        parts: outputs.map(({ call, output }) => {
+        parts: batch.outputs.map(({ call, output }) => {
           const geminiCall = call as GeminiToolCall
           return {
             functionResponse: {
@@ -260,13 +260,14 @@ export class GeminiProvider implements AiProvider {
           }
         })
       })
+      if (batch.limitReached) break
     }
 
     const answer = await requestRound(
       apiKey,
       request.model,
       contents,
-      systemText,
+      `${systemText}\n\n${TOOL_COMPLETION_INSTRUCTION}`,
       signal,
       undefined,
       emit

@@ -9,7 +9,7 @@ import type {
   AiProviderTurnResult
 } from '../../shared/types'
 import { completed, ensureResponse, readSse } from './provider'
-import { countToolCalls, executeToolCalls, MAX_TOOL_ROUNDS } from './tool-loop'
+import { executeToolCalls, MAX_TOOL_ROUNDS, TOOL_COMPLETION_INSTRUCTION } from './tool-loop'
 
 interface OpenAiToolCallAccumulator {
   id: string
@@ -182,7 +182,6 @@ export async function streamOpenAiChatCompletions(
       if (selection.content) options.emit(selection.content)
       return completed(selection.content, responseId)
     }
-    totalToolCalls = countToolCalls(selection.toolCalls, totalToolCalls)
     messages.push({
       role: 'assistant',
       content: selection.content || null,
@@ -193,16 +192,24 @@ export async function streamOpenAiChatCompletions(
         function: { name: call.name, arguments: call.arguments }
       }))
     })
-    const outputs = await executeToolCalls(selection.toolCalls, options.executeTool, options.signal)
+    const batch = await executeToolCalls(
+      selection.toolCalls,
+      options.executeTool,
+      options.signal,
+      totalToolCalls
+    )
+    totalToolCalls = batch.totalCalls
     messages.push(
-      ...outputs.map(({ call, output }) => ({
+      ...batch.outputs.map(({ call, output }) => ({
         role: 'tool' as const,
         tool_call_id: call.id,
         content: output
       }))
     )
+    if (batch.limitReached) break
   }
 
+  messages.push({ role: 'system', content: TOOL_COMPLETION_INSTRUCTION })
   const answer = await requestRound(options, messages, options.request.tools, options.emit, 'none')
   return completed(answer.content, answer.responseId ?? responseId)
 }

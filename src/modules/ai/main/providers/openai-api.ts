@@ -16,7 +16,7 @@ import {
   fetchModelOptions,
   readSse
 } from './provider'
-import { countToolCalls, executeToolCalls, MAX_TOOL_ROUNDS } from './tool-loop'
+import { executeToolCalls, MAX_TOOL_ROUNDS, TOOL_COMPLETION_INSTRUCTION } from './tool-loop'
 
 const OPENAI_API_BASE = 'https://api.openai.com/v1'
 
@@ -210,15 +210,17 @@ export class OpenAiApiProvider implements AiProvider {
       }
       if (!selection.responseId) throw new Error('OpenAI 工具调用响应缺少 response id')
       responseId = selection.responseId
-      totalToolCalls = countToolCalls(selection.toolCalls, totalToolCalls)
-      const outputs = await executeToolCalls(selection.toolCalls, executeTool, signal)
-      input = outputs.map(({ call, output }) => ({
+      const batch = await executeToolCalls(selection.toolCalls, executeTool, signal, totalToolCalls)
+      totalToolCalls = batch.totalCalls
+      input = batch.outputs.map(({ call, output }) => ({
         type: 'function_call_output' as const,
         call_id: call.id,
         output
       }))
+      if (batch.limitReached) break
     }
 
+    input.push({ role: 'developer', content: TOOL_COMPLETION_INSTRUCTION })
     const answer = await requestRound(
       apiKey,
       request.model,

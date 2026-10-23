@@ -16,7 +16,7 @@ import {
   fetchModelOptions,
   readSse
 } from './provider'
-import { countToolCalls, executeToolCalls, MAX_TOOL_ROUNDS } from './tool-loop'
+import { executeToolCalls, MAX_TOOL_ROUNDS, TOOL_COMPLETION_INSTRUCTION } from './tool-loop'
 
 const ANTHROPIC_API_BASE = 'https://api.anthropic.com/v1'
 const ANTHROPIC_VERSION = '2023-06-01'
@@ -261,24 +261,25 @@ export class AnthropicProvider implements AiProvider {
         if (selection.content) emit(selection.content)
         return completed(selection.content, responseId)
       }
-      totalToolCalls = countToolCalls(selection.toolCalls, totalToolCalls)
       messages.push({ role: 'assistant', content: selection.assistantContent })
-      const outputs = await executeToolCalls(selection.toolCalls, executeTool, signal)
+      const batch = await executeToolCalls(selection.toolCalls, executeTool, signal, totalToolCalls)
+      totalToolCalls = batch.totalCalls
       messages.push({
         role: 'user',
-        content: outputs.map(({ call, output }) => ({
+        content: batch.outputs.map(({ call, output }) => ({
           type: 'tool_result' as const,
           tool_use_id: call.id,
           content: output
         }))
       })
+      if (batch.limitReached) break
     }
 
     const answer = await requestRound(
       apiKey,
       request.model,
       messages,
-      system,
+      `${system}\n\n${TOOL_COMPLETION_INSTRUCTION}`,
       signal,
       undefined,
       emit
