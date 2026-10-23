@@ -1,4 +1,5 @@
 import { ChatSourcePreview } from './ChatSourcePreview'
+import { ChatMessageViewport } from './ChatMessageViewport'
 import {
   AlertCircle,
   AtSign,
@@ -395,6 +396,7 @@ function ChatThread({
   onExport,
   onOpenSource
 }: ChatThreadProps) {
+  const latestUserMessageId = messages.filter((message) => message.role === 'user').at(-1)?.id
   const isGenerating = messages.some(
     (message) =>
       message.role === 'assistant' &&
@@ -419,7 +421,10 @@ function ChatThread({
           </button>
         ) : null}
       </header>
-      <div className="ai-message-stream">
+      <ChatMessageViewport
+        key={conversation?.id ?? 'empty'}
+        latestUserMessageId={latestUserMessageId}
+      >
         {conversation ? (
           messages.length > 0 ? (
             messages.map((message) => (
@@ -523,7 +528,7 @@ function ChatThread({
             <span>从左侧创建一个新对话即可开始。</span>
           </div>
         )}
-      </div>
+      </ChatMessageViewport>
       {isGenerating ? (
         <div className="ai-generation-controls">
           <span>
