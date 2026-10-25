@@ -99,7 +99,7 @@ export const COLUMN_META: Record<WatchlistColumnId, ColumnMeta> = {
   valueTags: { label: '价值标签', width: 112, sortable: true },
   open: { label: '今日概览', width: 190, sortable: true },
   trading: { label: '成交', width: 112, sortable: true },
-  amount: { label: '持仓天数', width: 80, sortable: true },
+  amount: { label: '持仓天数', width: 100, sortable: true },
   radar: { label: '异动提示', width: 100, sortable: true, className: 'radar-column' },
   positionQuantity: { label: '持仓数量', width: 84, sortable: true },
   marketValue: { label: '持仓', width: 108, sortable: true },
