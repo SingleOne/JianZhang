@@ -42,7 +42,8 @@ import { calculateTrendIndicators } from './indicators/trend'
 import { calculateVolatilityIndicators } from './indicators/volatility'
 import { detectNewAnnouncementEvents, detectWatchEvents } from './events/detect'
 import { acknowledgeWatchEvent, pruneWatchEvents, reconcileWatchEvents } from './events/lifecycle'
-import { MarketNewsRegistry } from './news/registry'
+import { MarketNewsRegistry, newsErrorMessage, summarizeNewsFailures } from './news/registry'
+import type { NewsFetchResult } from './news/types'
 import { LayeredRefreshScheduler } from './scheduler'
 import { MarketInsightStorage } from './storage'
 
@@ -106,15 +107,16 @@ export class MarketInsightService {
   private readonly snapshotPersistedAt = new Map<string, number>()
   private readonly quotes = new Map<string, StockQuote>()
   private readonly refreshes = new Map<string, Promise<MarketInsightSnapshot>>()
-  private readonly newsRefreshes = new Map<string, Promise<MarketNewsItem[]>>()
+  private readonly newsRefreshes = new Map<string, Promise<NewsFetchResult>>()
+  private readonly newsResults = new Map<string, Pick<NewsFetchResult, 'failures' | 'refreshed'>>()
+  private readonly newsRetryAt = new Map<string, number>()
+  private scheduledNewsRefresh: Promise<void> | null = null
   private settings: MarketInsightSettings
   private events: WatchEvent[]
   private readonly newsIndex: Record<string, string[]>
   private readonly regularNewsQueryDates: Record<string, string>
   private readonly newsScheduleTimer: ReturnType<typeof setInterval>
   private lastBuildMilliseconds: number | null = null
-  private lastNewsError: string | null = null
-  private lastNewsWarning: string | null = null
 
   constructor(
     private readonly storage: MarketInsightStorage,
@@ -148,17 +150,24 @@ export class MarketInsightService {
 
   getStatus(): MarketInsightStatus {
     const state = this.news.state
+    const watched = new Set(this.dependencies.getState().watchlist.map((stock) => stock.quoteId))
+    const results = [...this.newsResults].flatMap(([quoteId, result]) =>
+      watched.has(quoteId) ? [result] : []
+    )
+    const failures = results.flatMap((result) => result.failures)
+    const failureMessage =
+      failures.length > 0
+        ? `${results.some((result) => result.refreshed) ? '部分新闻来源刷新失败' : '新闻来源刷新失败'}，将自动重试。${summarizeNewsFailures(failures)}`
+        : null
     return {
       enabled: this.settings.enabled,
       watchedQuoteIds: this.settings.watchedQuoteIds,
       newsProviderState: state,
-      newsMessage: this.lastNewsError
-        ? `新闻来源刷新失败，当前保留最近缓存：${this.lastNewsError}`
-        : this.lastNewsWarning
-          ? `新闻源已就绪；${this.lastNewsWarning}`
-          : state === 'ready'
-            ? '新闻源已就绪'
-            : '桌面版尚未配置已确认使用条件的新闻来源；不会将空结果表示为“无新闻”。',
+      newsMessage:
+        failureMessage ??
+        (state === 'ready'
+          ? '新闻源已就绪'
+          : '桌面版尚未配置已确认使用条件的新闻来源；不会将空结果表示为“无新闻”。'),
       performance: {
         snapshotCount: this.snapshots.size,
         eventCount: this.events.length,
@@ -191,6 +200,10 @@ export class MarketInsightService {
     this.scheduler.clear(quoteId)
     this.snapshots.delete(quoteId)
     this.snapshotPersistedAt.delete(quoteId)
+    this.newsResults.delete(quoteId)
+    this.newsRetryAt.delete(quoteId)
+    delete this.regularNewsQueryDates[quoteId]
+    this.storage.saveRegularNewsQueryDates(this.regularNewsQueryDates)
     delete this.newsIndex[quoteId]
     this.storage.clearCache(quoteId)
   }
@@ -324,12 +337,9 @@ export class MarketInsightService {
     let news = previous?.news ?? this.storage.loadNews(quoteId)
     if (this.news.state === 'ready' && force) {
       try {
-        news = await this.fetchNews(stock, calculatedAt)
-        this.lastNewsError = null
-        this.lastNewsWarning = this.news.lastWarning
-      } catch (reason) {
-        this.lastNewsError = reason instanceof Error ? reason.message : '未知新闻来源错误'
-        this.lastNewsWarning = null
+        news = (await this.fetchNews(stock, calculatedAt)).items
+      } catch {
+        // Keep the previous timeline; fetchNews records the failure for status and retry.
       }
     }
     const provisional: MarketInsightSnapshot = {
@@ -564,18 +574,51 @@ export class MarketInsightService {
     const current = this.newsRefreshes.get(stock.quoteId)
     if (current) return current
     const task = this.news
-      .fetch({
-        quoteId: stock.quoteId,
-        code: stock.code,
-        sectorQuoteId: this.quotes.get(stock.quoteId)?.sector?.quoteId,
-        fetchedAt,
-        newsLookbackDays: this.settings.includeOlderNews ? 30 : 7
+      .fetchResult(
+        {
+          quoteId: stock.quoteId,
+          code: stock.code,
+          sectorQuoteId: this.quotes.get(stock.quoteId)?.sector?.quoteId,
+          fetchedAt,
+          newsLookbackDays: this.settings.includeOlderNews ? 30 : 7
+        },
+        this.storage.loadNews(stock.quoteId)
+      )
+      .then((result) => {
+        if (result.refreshed) {
+          this.newsIndex[stock.quoteId] = result.items.map((item) => item.id)
+          this.storage.saveNewsIndex(this.newsIndex)
+          this.storage.saveNews(stock.quoteId, result.items, this.settings.newsCacheHours)
+        }
+        this.newsResults.set(stock.quoteId, {
+          failures: result.failures,
+          refreshed: result.refreshed
+        })
+        if (result.failures.length > 0) {
+          this.newsRetryAt.set(
+            stock.quoteId,
+            Date.now() + MARKET_INSIGHT_REFRESH_INTERVALS.newsRetry
+          )
+        } else {
+          this.newsRetryAt.delete(stock.quoteId)
+          const date = regularNewsQueryDate(
+            new Date(fetchedAt),
+            this.dependencies.getState().settings.tradingCalendar.closedDates
+          )
+          if (!stock.isPriority && date) {
+            this.regularNewsQueryDates[stock.quoteId] = date
+            this.storage.saveRegularNewsQueryDates(this.regularNewsQueryDates)
+          }
+        }
+        return result
       })
-      .then((items) => {
-        this.newsIndex[stock.quoteId] = items.map((item) => item.id)
-        this.storage.saveNewsIndex(this.newsIndex)
-        this.storage.saveNews(stock.quoteId, items, this.settings.newsCacheHours)
-        return items
+      .catch((error: unknown) => {
+        this.newsResults.set(stock.quoteId, {
+          refreshed: false,
+          failures: [{ source: '资讯服务', message: newsErrorMessage(error) }]
+        })
+        this.newsRetryAt.set(stock.quoteId, Date.now() + MARKET_INSIGHT_REFRESH_INTERVALS.newsRetry)
+        throw error
       })
       .finally(() => {
         this.newsRefreshes.delete(stock.quoteId)
@@ -584,13 +627,24 @@ export class MarketInsightService {
     return task
   }
 
-  private async refreshScheduledNews(): Promise<void> {
+  private refreshScheduledNews(): Promise<void> {
+    if (this.scheduledNewsRefresh) return this.scheduledNewsRefresh
+    const task = this.refreshScheduledNewsBatch().finally(() => {
+      this.scheduledNewsRefresh = null
+    })
+    this.scheduledNewsRefresh = task
+    return task
+  }
+
+  private async refreshScheduledNewsBatch(): Promise<void> {
     if (!this.settings.enabled || this.news.state !== 'ready') return
     const state = this.dependencies.getState()
     const now = new Date()
     const fetchedAt = now.toISOString()
     const regularDate = regularNewsQueryDate(now, state.settings.tradingCalendar.closedDates)
     const due = state.watchlist.filter((stock) => {
+      const retryAt = this.newsRetryAt.get(stock.quoteId)
+      if (retryAt !== undefined) return now.getTime() >= retryAt
       if (stock.isPriority) {
         return this.scheduler.shouldRefresh(
           stock.quoteId,
@@ -599,30 +653,18 @@ export class MarketInsightService {
           false
         )
       }
-      if (!regularDate || this.regularNewsQueryDates[stock.quoteId] === regularDate) return false
-      this.regularNewsQueryDates[stock.quoteId] = regularDate
-      return true
+      return Boolean(regularDate && this.regularNewsQueryDates[stock.quoteId] !== regularDate)
     })
     if (due.length === 0) return
-    if (regularDate && due.some((stock) => !stock.isPriority)) {
-      this.storage.saveRegularNewsQueryDates(this.regularNewsQueryDates)
-    }
-    const results = await Promise.allSettled(
+    await Promise.allSettled(
       due.map(async (stock) => {
         const previousNews = this.storage.loadNews(stock.quoteId)
-        const items = await this.fetchNews(stock, fetchedAt)
-        await this.applyBackgroundNews(stock, previousNews, items, fetchedAt)
+        const result = await this.fetchNews(stock, fetchedAt)
+        if (result.refreshed)
+          await this.applyBackgroundNews(stock, previousNews, result.items, fetchedAt)
       })
     )
-    const errors = results.flatMap((result, index) =>
-      result.status === 'rejected'
-        ? [
-            `${due[index].name}：${result.reason instanceof Error ? result.reason.message : '未知错误'}`
-          ]
-        : []
-    )
-    this.lastNewsError = errors.length > 0 ? errors.join('；') : null
-    this.lastNewsWarning = this.news.lastWarning
+    for (const stock of due) this.dependencies.onUpdated(stock.quoteId)
   }
 
   private async applyBackgroundNews(

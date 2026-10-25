@@ -7,30 +7,38 @@ const DEFAULT_HEADERS = {
   'User-Agent': BROWSER_USER_AGENT
 }
 
+class NewsHttpError extends Error {}
+
 export async function requestText(url: string, init: RequestInit = {}): Promise<string> {
-  const response = await net.fetch(url, {
+  const headers = new Headers(DEFAULT_HEADERS)
+  new Headers(init.headers).forEach((value, name) => headers.set(name, value))
+  const options = {
     ...init,
-    headers: {
-      ...DEFAULT_HEADERS,
-      ...init.headers
-    },
-    signal: AbortSignal.timeout(12_000)
-  })
-  if (!response.ok) throw new Error(`请求 ${new URL(url).hostname} 失败：HTTP ${response.status}`)
-  return response.text()
+    headers,
+    // An empty POST still needs a zero-length body on some official endpoints.
+    body: init.body ?? (init.method?.toUpperCase() === 'POST' ? '' : undefined)
+  }
+  const signal = () =>
+    init.signal
+      ? AbortSignal.any([init.signal, AbortSignal.timeout(12_000)])
+      : AbortSignal.timeout(12_000)
+  const read = async (response: Response) => {
+    if (!response.ok)
+      throw new NewsHttpError(`请求 ${new URL(url).hostname} 失败：HTTP ${response.status}`)
+    return response.text()
+  }
+  try {
+    return await read(await net.fetch(url, { ...options, signal: signal() }))
+  } catch (error) {
+    if (error instanceof NewsHttpError || init.signal?.aborted) throw error
+    // Chromium follows system PAC/WPAD settings. Node provides a separate route
+    // when proxy resolution or the Chromium connection stalls.
+    return read(await fetch(url, { ...options, signal: signal() }))
+  }
 }
 
 export async function requestJson<T>(url: string, init: RequestInit = {}): Promise<T> {
-  const response = await net.fetch(url, {
-    ...init,
-    headers: {
-      ...DEFAULT_HEADERS,
-      ...init.headers
-    },
-    signal: AbortSignal.timeout(12_000)
-  })
-  if (!response.ok) throw new Error(`请求 ${new URL(url).hostname} 失败：HTTP ${response.status}`)
-  return response.json() as Promise<T>
+  return JSON.parse(await requestText(url, init)) as T
 }
 
 export function decodeHtml(value: string): string {

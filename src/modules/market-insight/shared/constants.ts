@@ -35,7 +35,8 @@ export const MARKET_INSIGHT_REFRESH_INTERVALS = {
   orderBook: 30_000,
   fundsFlow: FUNDS_FLOW_REFRESH_MILLISECONDS,
   sector: 2 * 60_000,
-  news: 15 * 60_000
+  news: 15 * 60_000,
+  newsRetry: 5 * 60_000
 } as const
 
 export const MARKET_INSIGHT_RESOURCE_LIMITS = {

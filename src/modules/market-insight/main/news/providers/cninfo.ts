@@ -31,6 +31,7 @@ interface CninfoAnnouncementResponse {
 
 export class CninfoAnnouncementProvider implements MarketNewsProvider {
   readonly id = 'cninfo-announcement'
+  readonly name = '巨潮资讯'
   private stockOrganizations: Promise<Map<string, string>> | null = null
 
   fetchSectorNews = emptyNews

@@ -12,6 +12,7 @@ import {
 
 abstract class MarketOnlyProvider implements MarketNewsProvider {
   abstract readonly id: string
+  abstract readonly name: string
   private cache: { items: MarketNewsItem[]; expiresAt: number; lookbackDays: number } | null = null
   private refresh: { task: Promise<MarketNewsItem[]>; lookbackDays: number } | null = null
 
@@ -61,6 +62,7 @@ interface CsrcListResponse {
 
 export class CsrcNewsProvider extends MarketOnlyProvider {
   readonly id = 'csrc-news'
+  readonly name = '中国证监会'
 
   protected async loadMarketNews(input: NewsQuery): Promise<MarketNewsItem[]> {
     const pageSize = input.newsLookbackDays > 7 ? 100 : 20
@@ -92,6 +94,7 @@ export class CsrcNewsProvider extends MarketOnlyProvider {
 
 export class SseNoticeProvider extends MarketOnlyProvider {
   readonly id = 'sse-notice'
+  readonly name = '上海证券交易所'
 
   protected async loadMarketNews(input: NewsQuery): Promise<MarketNewsItem[]> {
     const pageUrl = 'https://www.sse.com.cn/disclosure/announcement/general/s_list.shtml'
@@ -120,6 +123,7 @@ export class SseNoticeProvider extends MarketOnlyProvider {
 
 export class SzseNoticeProvider extends MarketOnlyProvider {
   readonly id = 'szse-notice'
+  readonly name = '深圳证券交易所'
 
   protected async loadMarketNews(input: NewsQuery): Promise<MarketNewsItem[]> {
     const pageUrl = 'https://www.szse.cn/disclosure/notice/general/index.html'
@@ -148,6 +152,7 @@ export class SzseNoticeProvider extends MarketOnlyProvider {
 
 export class BseNoticeProvider extends MarketOnlyProvider {
   readonly id = 'bse-notice'
+  readonly name = '北京证券交易所'
 
   protected async loadMarketNews(input: NewsQuery): Promise<MarketNewsItem[]> {
     const pageUrl = 'https://www.bse.cn/disclosure/vocational.html'
