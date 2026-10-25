@@ -820,11 +820,11 @@ export const WatchlistRow = memo(function WatchlistRow({
                     }
                   >
                     <span className="combined-position-cell">
-                      <span>{holdingDays ? `${holdingDays} 天` : '-'}</span>
+                      <span>交：{holdingDays ? `${holdingDays} 天` : '-'}</span>
                       {hasPosition ? (
-                        <small>
-                          自然日 {holdingCalendarDays === null ? '-' : `${holdingCalendarDays} 天`}
-                        </small>
+                        <span>
+                          自：{holdingCalendarDays === null ? '-' : `${holdingCalendarDays} 天`}
+                        </span>
                       ) : null}
                     </span>
                   </Tooltip>
