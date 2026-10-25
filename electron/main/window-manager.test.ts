@@ -1,17 +1,20 @@
 import { EventEmitter } from 'node:events'
-import type { BrowserWindowConstructorOptions, Rectangle } from 'electron'
+import { app, Menu, type BrowserWindowConstructorOptions, type Rectangle } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_APP_SETTINGS, type AppState } from '../../src/shared/types'
+import { atomicWriteJsonSync } from './file-storage'
 import { WindowManager } from './window-manager'
 
-const { windows, trays } = vi.hoisted(() => ({
+const { windows, trays, windowState } = vi.hoisted(() => ({
   windows: [] as MockWindow[],
-  trays: [] as EventEmitter[]
+  trays: [] as EventEmitter[],
+  windowState: { visible: false, taskbarMode: true }
 }))
 
 class MockWindow extends EventEmitter {
   readonly webContents = Object.assign(new EventEmitter(), {
     send: vi.fn(),
+    ipc: new EventEmitter(),
     getZoomFactor: vi.fn(() => 1)
   })
   private visible = false
@@ -23,6 +26,9 @@ class MockWindow extends EventEmitter {
   readonly setMenuBarVisibility = vi.fn()
   readonly moveTop = vi.fn()
   readonly focus = vi.fn()
+  readonly maximize = vi.fn()
+  readonly isMinimized = vi.fn(() => false)
+  readonly restore = vi.fn()
   readonly loadURL = vi.fn()
   readonly loadFile = vi.fn()
   readonly showInactive = vi.fn(() => {
@@ -77,6 +83,7 @@ vi.mock('electron', () => {
     workArea: { x: 0, y: 25, width: 1440, height: 827 }
   }
   return {
+    app: { setActivationPolicy: vi.fn() },
     BrowserWindow: vi.fn(function (options: BrowserWindowConstructorOptions) {
       return new MockWindow(options)
     }),
@@ -96,7 +103,7 @@ vi.mock('electron', () => {
       }
       destroy() {}
     },
-    Menu: { buildFromTemplate: () => ({ insert: vi.fn() }) },
+    Menu: { buildFromTemplate: vi.fn(() => ({ insert: vi.fn() })) },
     MenuItem: class {},
     nativeTheme: Object.assign(new EventEmitter(), { themeSource: 'system' }),
     screen: Object.assign(new EventEmitter(), {
@@ -113,19 +120,16 @@ vi.mock('electron', () => {
 
 vi.mock('node:fs', () => ({
   existsSync: () => true,
-  readFileSync: () => JSON.stringify({ visible: false, taskbarMode: true })
+  readFileSync: () => JSON.stringify(windowState)
 }))
+vi.mock('./file-storage', () => ({ atomicWriteJsonSync: vi.fn() }))
 vi.mock('./tray-icons', () => ({ createAppIcon: vi.fn(), createMenuBarIcon: vi.fn() }))
 
 const platformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform')!
 let manager: WindowManager
 
-beforeEach(() => {
-  Object.defineProperty(process, 'platform', { value: 'darwin' })
-  vi.useFakeTimers()
-  windows.length = 0
-  trays.length = 0
-  manager = new WindowManager(
+function createManager() {
+  return new WindowManager(
     {
       getState: () =>
         ({
@@ -142,6 +146,16 @@ beforeEach(() => {
     },
     '/unused-test-state'
   )
+}
+
+beforeEach(() => {
+  Object.defineProperty(process, 'platform', { value: 'darwin' })
+  vi.useFakeTimers()
+  windows.length = 0
+  trays.length = 0
+  windowState.visible = false
+  windowState.taskbarMode = true
+  manager = createManager()
 })
 
 afterEach(() => {
@@ -158,7 +172,92 @@ function openPanel() {
   return panel
 }
 
+function toggleMenuBarMode() {
+  const template = vi.mocked(Menu.buildFromTemplate).mock.lastCall![0]
+  const toggle = template.find((item) => item.label?.startsWith('仅菜单栏模式'))!
+    .click as () => void
+  toggle()
+}
+
 const anchor = { quoteId: '1.600000', left: 0, top: 40, width: 560, height: 52 }
+
+describe('macOS application visibility', () => {
+  it.each([true, false])(
+    'keeps the Dock entry in normal mode when the saved main window visibility is %s',
+    (visible) => {
+      windowState.visible = visible
+      windowState.taskbarMode = false
+      manager = createManager()
+      manager.create()
+      const main = windows[0]
+      main.emit('ready-to-show')
+      expect(app.setActivationPolicy).toHaveBeenLastCalledWith('regular')
+      expect(main.isVisible()).toBe(visible)
+
+      manager.showMainWindow()
+      expect(main.isVisible()).toBe(true)
+      expect(main.focus).toHaveBeenCalled()
+      expect(app.setActivationPolicy).toHaveBeenLastCalledWith('regular')
+      manager.hideMainWindow()
+      expect(main.isVisible()).toBe(false)
+      expect(app.setActivationPolicy).toHaveBeenLastCalledWith('regular')
+    }
+  )
+
+  it('restores the app when leaving menu bar mode and keeps the same panel usable', () => {
+    const panel = openPanel()
+    expect(app.setActivationPolicy).toHaveBeenLastCalledWith('accessory')
+
+    manager.showMainWindow()
+    const main = windows[1]
+    expect(app.setActivationPolicy).toHaveBeenLastCalledWith('regular')
+    expect(atomicWriteJsonSync).toHaveBeenLastCalledWith('/unused-test-state/window-state.json', {
+      visible: true,
+      taskbarMode: false
+    })
+    main.emit('ready-to-show')
+    expect(main.isVisible()).toBe(true)
+    expect(panel.isVisible()).toBe(false)
+
+    vi.mocked(app.setActivationPolicy).mockClear()
+    vi.advanceTimersByTime(201)
+    trays[0].emit('click')
+    expect(panel.isVisible()).toBe(true)
+    panel.emit('blur')
+    expect(panel.isVisible()).toBe(false)
+    expect(main.isVisible()).toBe(true)
+    expect(windows).toHaveLength(2)
+    expect(app.setActivationPolicy).not.toHaveBeenCalled()
+  })
+
+  it('hides the app only in menu bar mode and restores it on repeated mode switches', () => {
+    const panel = openPanel()
+    toggleMenuBarMode()
+    const main = windows[1]
+    main.emit('ready-to-show')
+    expect(app.setActivationPolicy).toHaveBeenLastCalledWith('regular')
+
+    toggleMenuBarMode()
+    expect(main.isDestroyed()).toBe(true)
+    expect(manager.isTaskbarMode()).toBe(true)
+    expect(app.setActivationPolicy).toHaveBeenLastCalledWith('accessory')
+    expect(atomicWriteJsonSync).toHaveBeenLastCalledWith('/unused-test-state/window-state.json', {
+      visible: false,
+      taskbarMode: true
+    })
+
+    vi.advanceTimersByTime(201)
+    trays[0].emit('click')
+    expect(panel.isVisible()).toBe(true)
+    expect(app.setActivationPolicy).toHaveBeenLastCalledWith('accessory')
+    toggleMenuBarMode()
+    windows[2].emit('ready-to-show')
+    expect(panel.isVisible()).toBe(false)
+    expect(windows[2].isVisible()).toBe(true)
+    expect(manager.isTaskbarMode()).toBe(false)
+    expect(app.setActivationPolicy).toHaveBeenLastCalledWith('regular')
+  })
+})
 
 describe('menu bar inline details', () => {
   it('keeps a single macOS panel and ignores obsolete secondary tooltip requests', () => {
@@ -166,6 +265,13 @@ describe('menu bar inline details', () => {
     manager.setTaskbarTooltip(anchor)
     manager.resizeTaskbarTooltip(177.25)
     expect(windows).toHaveLength(1)
+    expect(panel.options.type).toBe('panel')
+    expect(panel.setAlwaysOnTop).toHaveBeenCalledWith(true, 'pop-up-menu')
+    // Fullscreen support must not implicitly switch the entire app out of the Dock.
+    expect(panel.setVisibleOnAllWorkspaces).toHaveBeenCalledWith(true, {
+      visibleOnFullScreen: true,
+      skipTransformProcessType: true
+    })
     expect(manager.getTaskbarTooltipQuoteId()).toBeNull()
     expect(panel.isVisible()).toBe(true)
   })
@@ -239,6 +345,7 @@ describe('Windows taskbar details', () => {
     expect(tooltip.isVisible()).toBe(true)
     expect(tooltip.focus).not.toHaveBeenCalled()
     expect(tooltip.setVisibleOnAllWorkspaces).not.toHaveBeenCalled()
+    expect(app.setActivationPolicy).not.toHaveBeenCalled()
   })
 
   it('keeps the detail minimum height and shadow gutter', () => {

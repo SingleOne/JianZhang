@@ -183,7 +183,11 @@ export class MacMenuBar {
     this.panel = panel
     this.panelReady = false
     panel.setAlwaysOnTop(true, 'pop-up-menu')
-    panel.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    // WindowManager owns the app's Dock visibility; this panel must not hide the app.
+    panel.setVisibleOnAllWorkspaces(true, {
+      visibleOnFullScreen: true,
+      skipTransformProcessType: true
+    })
     panel.on('blur', () => this.hidePanel())
     panel.webContents.on('before-input-event', (event, input) => {
       if (input.key === 'Escape') {

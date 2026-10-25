@@ -1,4 +1,4 @@
-import { BrowserWindow, Menu, MenuItem, nativeTheme, screen, Tray } from 'electron'
+import { app, BrowserWindow, Menu, MenuItem, nativeTheme, screen, Tray } from 'electron'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { getTaskbarVisibleStocks, shouldShowTaskbarTicker } from '../../src/lib/taskbar-visibility'
@@ -97,6 +97,7 @@ export class WindowManager {
 
   create(): void {
     this.syncNativeThemeSource()
+    this.syncMacActivationPolicy()
     if (!this.taskbarMode) this.createMainWindow()
     if (process.platform === 'darwin') {
       this.macMenuBar = new MacMenuBar(this.dependencies)
@@ -193,6 +194,7 @@ export class WindowManager {
       }
     }
     this.saveMainWindowState(true, false)
+    this.syncMacActivationPolicy()
     this.updateTrayMenu()
     const window = this.getMainWindow()
     if (!window) {
@@ -225,6 +227,7 @@ export class WindowManager {
     this.saveMainWindowState(false, true)
     this.pendingStockSelection = null
     this.getMainWindow()?.destroy()
+    this.syncMacActivationPolicy()
     this.updateTrayMenu()
   }
 
@@ -359,6 +362,12 @@ export class WindowManager {
 
   private taskbarVisibleStocks(): WatchStock[] {
     return getTaskbarVisibleStocks(this.dependencies.getState().watchlist)
+  }
+
+  private syncMacActivationPolicy(): void {
+    if (process.platform === 'darwin') {
+      app.setActivationPolicy(this.taskbarMode ? 'accessory' : 'regular')
+    }
   }
 
   private syncNativeThemeSource(): void {
