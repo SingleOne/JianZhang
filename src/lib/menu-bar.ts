@@ -88,7 +88,7 @@ export function getMenuBarPresentation(
       .join('')
     const status = getMenuBarQuoteStatus(state, quote, now)
     const statusSuffix = status === 'live' ? '' : ` · ${STOCK_QUOTE_DATA_STATE_LABELS[status]}`
-    return `${alertPrefix}${name} ${formatPrice(quote?.latest)} ${colored(formatPercent(quote?.changePercent), quote?.changePercent)}${statusSuffix}`
+    return `${alertPrefix}${name} ${colored(formatPrice(quote?.latest), quote?.changePercent)} ${colored(formatPercent(quote?.changePercent), quote?.changePercent)}${statusSuffix}`
   })
   return {
     title: titles[(fixedIndex + rotationIndex) % stocks.length],

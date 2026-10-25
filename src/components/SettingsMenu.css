@@ -824,11 +824,20 @@
 
 .theme-setting-row {
   align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  padding: 10px 0;
+}
+
+.theme-setting-row > span:first-child {
+  flex: 1 1 180px;
+  min-width: 0;
 }
 
 .theme-option-group {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(max-content, 1fr));
+  flex-shrink: 0;
   gap: 4px;
   padding: 3px;
   background: var(--surface-raised);
@@ -850,7 +859,12 @@
   border-radius: 6px;
   font-size: 12px;
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
+}
+
+.theme-option-group button svg {
+  flex-shrink: 0;
 }
 
 .theme-option-group button:hover {
