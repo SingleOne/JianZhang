@@ -106,6 +106,18 @@ export function getPositionHoldingDays(
   return holdingDays > 0 ? holdingDays : null
 }
 
+export function getPositionHoldingCalendarDays(
+  position: StockPosition | undefined,
+  market: StockMarket = 'CN'
+): number | null {
+  if (!position?.openedOn) return null
+
+  const start = Date.parse(`${position.openedOn}T00:00:00Z`)
+  const end = Date.parse(`${marketDateKey(new Date(), market)}T00:00:00Z`)
+  const holdingDays = (end - start) / 86_400_000 + 1
+  return holdingDays > 0 ? holdingDays : null
+}
+
 function getTradeFees(trade: TTrade): number {
   return (
     trade.fees.commission +

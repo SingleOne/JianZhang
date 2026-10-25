@@ -1,9 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { StockQuote, TTradingAccount, TTradeRecord, WatchStock } from '../shared/types'
+import type {
+  StockPosition,
+  StockQuote,
+  TTradingAccount,
+  TTradeRecord,
+  WatchStock
+} from '../shared/types'
 import {
   calculatePortfolioSummary,
   calculatePositionMetrics,
-  getAvailablePositionQuantity
+  getAvailablePositionQuantity,
+  getPositionHoldingCalendarDays,
+  getPositionHoldingDays
 } from './portfolio'
 
 const EMPTY_FEES = {
@@ -13,6 +21,72 @@ const EMPTY_FEES = {
   transfer: 0,
   stampDuty: 0
 }
+
+describe('position holding days', () => {
+  const position: StockPosition = {
+    quantity: 100,
+    cost: 10,
+    openedToday: false,
+    openedOn: '2026-07-24'
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-31T10:00:00+08:00'))
+  })
+
+  afterEach(() => vi.useRealTimers())
+
+  it('includes both endpoints while keeping weekends in calendar days only', () => {
+    expect(getPositionHoldingDays(position)).toBe(6)
+    expect(getPositionHoldingCalendarDays(position)).toBe(8)
+  })
+
+  it('excludes additional market closures from trading days only', () => {
+    expect(getPositionHoldingDays(position, ['2026-07-27'])).toBe(5)
+    expect(getPositionHoldingCalendarDays(position)).toBe(8)
+  })
+
+  it('counts the opening day as one day', () => {
+    const openedToday = { ...position, openedOn: '2026-07-31', openedToday: true }
+    expect(getPositionHoldingDays(openedToday)).toBe(1)
+    expect(getPositionHoldingCalendarDays(openedToday)).toBe(1)
+  })
+
+  it('uses the current date in the stock market time zone', () => {
+    vi.setSystemTime(new Date('2026-08-01T00:30:00+08:00'))
+    const openedYesterday = { ...position, openedOn: '2026-07-30' }
+    expect(getPositionHoldingCalendarDays(openedYesterday, 'CN')).toBe(3)
+    expect(getPositionHoldingCalendarDays(openedYesterday, 'HK')).toBe(3)
+    expect(getPositionHoldingCalendarDays(openedYesterday, 'US')).toBe(2)
+    expect(getPositionHoldingDays(openedYesterday, [], 'US')).toBe(2)
+  })
+
+  it('counts whole calendar dates across a daylight saving transition', () => {
+    vi.setSystemTime(new Date('2026-03-09T12:00:00-04:00'))
+    const beforeDaylightSaving = { ...position, openedOn: '2026-03-06' }
+    expect(getPositionHoldingCalendarDays(beforeDaylightSaving, 'US')).toBe(4)
+    expect(getPositionHoldingDays(beforeDaylightSaving, [], 'US')).toBe(2)
+  })
+
+  it('keeps holidays in calendar days and counts a half trading day as one day', () => {
+    vi.setSystemTime(new Date('2026-11-27T14:00:00-05:00'))
+    const beforeThanksgiving = { ...position, openedOn: '2026-11-25' }
+    expect(getPositionHoldingCalendarDays(beforeThanksgiving, 'US')).toBe(3)
+    expect(getPositionHoldingDays(beforeThanksgiving, [], 'US', ['2026-11-27'])).toBe(2)
+  })
+
+  it('leaves absent, unknown, invalid and future opening dates unavailable', () => {
+    for (const unavailablePosition of [
+      undefined,
+      { ...position, openedOn: undefined },
+      { ...position, openedOn: 'invalid' },
+      { ...position, openedOn: '2026-08-01' }
+    ]) {
+      expect(getPositionHoldingCalendarDays(unavailablePosition)).toBeNull()
+    }
+  })
+})
 
 function quote(overrides: Partial<StockQuote> = {}): StockQuote {
   return {

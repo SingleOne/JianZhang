@@ -30,6 +30,7 @@ import { isStockQuoteExpired, STOCK_QUOTE_SOURCE_LABELS } from '../../lib/quote-
 import {
   currentDateKey,
   getAvailablePositionQuantity,
+  getPositionHoldingCalendarDays,
   getPositionHoldingDays,
   type PositionMetrics
 } from '../../lib/portfolio'
@@ -346,6 +347,7 @@ export const WatchlistRow = memo(function WatchlistRow({
     market,
     tradingCalendar.markets[market].halfDayDates
   )
+  const holdingCalendarDays = getPositionHoldingCalendarDays(stock.position, market)
   const availablePositionQuantity = getAvailablePositionQuantity(
     stock.position,
     tradingAccount,
@@ -801,7 +803,26 @@ export const WatchlistRow = memo(function WatchlistRow({
                 </td>
               )
             case 'amount':
-              return <td key={columnId}>{holdingDays ? `${holdingDays} 天` : '-'}</td>
+              return (
+                <td key={columnId}>
+                  <Tooltip
+                    content={
+                      hasPosition ? (
+                        <>
+                          持仓开始日期：{stock.position?.openedOn || '未记录'}
+                          <br />
+                          按交易日计：{holdingDays === null ? '-' : `${holdingDays} 天`}
+                          <br />
+                          按自然日计：
+                          {holdingCalendarDays === null ? '-' : `${holdingCalendarDays} 天`}
+                        </>
+                      ) : null
+                    }
+                  >
+                    <span>{holdingDays ? `${holdingDays} 天` : '-'}</span>
+                  </Tooltip>
+                </td>
+              )
             case 'radar':
               return (
                 <td className="radar-column" key={columnId}>
