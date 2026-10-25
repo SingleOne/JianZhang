@@ -412,6 +412,7 @@ export default function MarketInsightPanel({
           />
           <TPlanDistanceCard distances={snapshot.existingTPlanDistances} />
           <NewsTimeline
+            quoteId={stock.quoteId}
             news={snapshot.news}
             status={status}
             includeOlderNews={settings?.includeOlderNews ?? false}

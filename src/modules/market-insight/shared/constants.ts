@@ -16,6 +16,7 @@ export const MARKET_INSIGHT_IPC = {
   eventAcknowledge: 'insight:event:acknowledge',
   eventsClearExpired: 'insight:events:clear-expired',
   sourceOpen: 'insight:source:open',
+  newsSummaryGenerate: 'insight:news:summary:generate',
   updated: 'insight:updated'
 } as const
 

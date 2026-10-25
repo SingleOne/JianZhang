@@ -8,7 +8,7 @@ import type {
   StockQuote
 } from '../../../shared/types'
 import { MARKET_INSIGHT_IPC } from '../shared/constants'
-import type { MarketInsightSettings } from '../shared/types'
+import type { MarketInsightSettings, MarketNewsItem } from '../shared/types'
 import { normalizeMarketInsightSettings } from '../shared/normalize'
 import { MarketNewsRegistry } from './news/registry'
 import type { NewsQuery } from './news/types'
@@ -21,6 +21,7 @@ import {
 } from './news/providers/official-market'
 import { MarketInsightService } from './service'
 import { MarketInsightStorage } from './storage'
+import { MarketNewsSummaryService, type RunNewsSummaryTask } from './news/summary'
 
 export interface MarketDataHub {
   subscribe: (listener: (quotes: readonly StockQuote[]) => void) => () => void
@@ -33,6 +34,7 @@ export interface MarketInsightDependencies {
   getOrderBook: (quoteId: string) => Promise<StockOrderBook>
   getFundsFlow: (quoteId: string) => Promise<FundsFlowResult>
   notifyUpdated: (quoteId: string) => void
+  runNewsSummaryTask: RunNewsSummaryTask
 }
 
 export interface MarketInsightRuntime {
@@ -56,12 +58,14 @@ export function installMarketInsight(
     new SzseNoticeProvider(),
     new BseNoticeProvider()
   ])
+  const summaries = new MarketNewsSummaryService(storage)
   const service = new MarketInsightService(storage, news, {
     getState: dependencies.getState,
     getKline: dependencies.getKline,
     getOrderBook: dependencies.getOrderBook,
     getFundsFlow: dependencies.getFundsFlow,
-    onUpdated: dependencies.notifyUpdated
+    onUpdated: dependencies.notifyUpdated,
+    attachNewsSummaries: (items) => summaries.attach(items)
   })
   const unsubscribe = dependencies.marketDataHub.subscribe((quotes) =>
     service.onMarketDataUpdated(quotes)
@@ -93,6 +97,15 @@ export function installMarketInsight(
       throw new Error('仅支持打开 HTTP 或 HTTPS 原始来源')
     return shell.openExternal(url)
   })
+  ipcMain.handle(MARKET_INSIGHT_IPC.newsSummaryGenerate, async (_event, item: MarketNewsItem) => {
+    const summary = await summaries.generate(item, dependencies.runNewsSummaryTask)
+    const quoteIds =
+      item.scope === 'stock'
+        ? item.relatedQuoteIds
+        : dependencies.getState().watchlist.map((stock) => stock.quoteId)
+    for (const quoteId of new Set(quoteIds)) dependencies.notifyUpdated(quoteId)
+    return summary
+  })
 
   return {
     clearCache: (quoteId) => service.clearCache(quoteId),
@@ -111,6 +124,7 @@ export function installMarketInsight(
       ipcMain.removeHandler(MARKET_INSIGHT_IPC.eventAcknowledge)
       ipcMain.removeHandler(MARKET_INSIGHT_IPC.eventsClearExpired)
       ipcMain.removeHandler(MARKET_INSIGHT_IPC.sourceOpen)
+      ipcMain.removeHandler(MARKET_INSIGHT_IPC.newsSummaryGenerate)
     }
   }
 }

@@ -24,6 +24,7 @@ export function installMarketInsightPreload(): void {
     acknowledgeEvent: (eventId) => invoke(MARKET_INSIGHT_IPC.eventAcknowledge, eventId),
     clearExpiredEvents: (quoteId) => invoke(MARKET_INSIGHT_IPC.eventsClearExpired, quoteId),
     openSource: (url) => invoke(MARKET_INSIGHT_IPC.sourceOpen, url),
+    generateNewsSummary: (item) => invoke(MARKET_INSIGHT_IPC.newsSummaryGenerate, item),
     onUpdated: (listener) => subscribe<string>(MARKET_INSIGHT_IPC.updated, listener)
   }
   contextBridge.exposeInMainWorld('marketInsightApi', api)

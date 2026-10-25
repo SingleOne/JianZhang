@@ -2000,11 +2000,13 @@ export function ExpandedStockDetails({
         ? true
         : detailNavigationTarget === 'reports'
           ? capabilities.companyReports
-          : detailNavigationTarget === 'corporate-actions'
-            ? capabilities.corporateActions
-            : detailNavigationTarget === 't-advice'
-              ? capabilities.aiTAdvice
-              : capabilities.aiAnalysis
+          : detailNavigationTarget === 'insight'
+            ? capabilities.marketInsight
+            : detailNavigationTarget === 'corporate-actions'
+              ? capabilities.corporateActions
+              : detailNavigationTarget === 't-advice'
+                ? capabilities.aiTAdvice
+                : capabilities.aiAnalysis
     if (!targetSupported) {
       onDetailNavigationHandled(detailNavigationId)
       return
@@ -2024,6 +2026,8 @@ export function ExpandedStockDetails({
       setActiveTab('tracking')
     } else if (detailNavigationTarget === 'reports') {
       setActiveTab('reports')
+    } else if (detailNavigationTarget === 'insight') {
+      setActiveTab('insight')
     } else if (detailNavigationTarget === 'corporate-actions') {
       setActiveTab('corporateActions')
     } else if (detailNavigationTarget === 't-advice') {

@@ -142,6 +142,11 @@ describe('UserDataBackupService', () => {
     const source = temporaryDirectory()
     write(source, 'modules/ai/conversations/index.json', '[{"id":"from-backup"}]')
     write(source, 'modules/market-insight/events.json', '[{"id":"event-1"}]')
+    write(
+      source,
+      'modules/market-insight/news-summaries.json',
+      '{"csrc:1":{"content":"已保存的资讯总结"}}'
+    )
     const sourceService = new UserDataBackupService(source)
     const document = sourceService.create(state(), '8.3.0', { deepseek: 'deepseek-key' })
 
@@ -170,6 +175,9 @@ describe('UserDataBackupService', () => {
     expect(readFileSync(join(target, 'modules/ai/conversations/index.json'), 'utf8')).toContain(
       'from-backup'
     )
+    expect(
+      readFileSync(join(target, 'modules/market-insight/news-summaries.json'), 'utf8')
+    ).toContain('已保存的资讯总结')
     expect(
       readFileSync(join(target, 'modules/ai/transient-provider-cache/session.json'), 'utf8')
     ).toContain('keep')

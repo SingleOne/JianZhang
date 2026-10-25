@@ -80,7 +80,8 @@ function setup(watchlist: WatchStock[], load: MarketNewsProvider['fetchStockNews
     getKline: vi.fn(),
     getOrderBook: vi.fn(),
     getFundsFlow: vi.fn(),
-    onUpdated
+    onUpdated,
+    attachNewsSummaries: (items) => [...items]
   })
   return { service, storage, onUpdated }
 }

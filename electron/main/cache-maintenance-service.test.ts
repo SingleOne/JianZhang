@@ -56,13 +56,15 @@ describe('CacheMaintenanceService', () => {
     )
   })
 
-  it('clears selected files without deleting report summaries', async () => {
+  it('clears selected files without deleting report or news summaries', async () => {
     const root = temporaryDirectory()
     write(root, 'market-cache/klines/1_600519-daily.json', 'kline')
     write(root, 'logs/market-requests-2026-08-24.jsonl', 'log')
     write(root, 'market-cache/shareholders/1_600519.json', 'shareholder')
     write(root, 'company-reports/600519.json', 'reports')
     write(root, 'company-reports/summaries.json', 'summary')
+    write(root, 'modules/market-insight/cache/0.000876-news-timeline.json', 'news')
+    write(root, 'modules/market-insight/news-summaries.json', 'news summary')
     write(root, 'corporate-actions/candidates/HK/116.01810.json', 'candidate')
     write(root, 'corporate-actions/summaries.json', 'action summary')
 
@@ -71,10 +73,14 @@ describe('CacheMaintenanceService', () => {
       'temporary-market',
       'diagnostic-logs',
       'company-reports',
+      'market-insight',
       'corporate-actions'
     ])
 
-    expect(result.clearedFileCount).toBe(4)
+    expect(result.clearedFileCount).toBe(5)
+    expect(readFileSync(join(root, 'modules/market-insight/news-summaries.json'), 'utf8')).toBe(
+      'news summary'
+    )
     expect(readFileSync(join(root, 'company-reports/summaries.json'), 'utf8')).toBe('summary')
     expect(readFileSync(join(root, 'corporate-actions/summaries.json'), 'utf8')).toBe(
       'action summary'

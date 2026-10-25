@@ -323,6 +323,9 @@ export const marketInsightDemoApi: MarketInsightApi = {
   async openSource(url) {
     window.open(url, '_blank', 'noopener,noreferrer')
   },
+  async generateNewsSummary() {
+    throw new Error('请在桌面版读取官方资讯原文并生成 AI 总结；浏览器预览仅展示固定演示资讯。')
+  },
   onUpdated(listener) {
     listeners.add(listener)
     return () => listeners.delete(listener)

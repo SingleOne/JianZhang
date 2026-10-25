@@ -48,7 +48,7 @@ describe('official news requests', () => {
   it('also recovers when the response body stalls', async () => {
     vi.mocked(net.fetch).mockResolvedValue({
       ok: true,
-      text: () => Promise.reject(new DOMException('timeout', 'TimeoutError'))
+      arrayBuffer: () => Promise.reject(new DOMException('timeout', 'TimeoutError'))
     } as Response)
     nodeFetch.mockResolvedValue(new Response('recovered'))
 

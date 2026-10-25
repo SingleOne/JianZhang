@@ -1,8 +1,13 @@
-import { ExternalLink } from 'lucide-react'
-import { useMemo, useState } from 'react'
-import type { MarketInsightStatus, MarketNewsItem } from '../shared/types'
+import { ExternalLink, RefreshCw, Sparkles } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
+import { AppButton } from '../../../components/AppButton'
+import { emitCompletionNotification } from '../../../lib/completion-notifications'
+import { newsSummaryKey } from '../shared/news-summary'
+import type { MarketInsightStatus, MarketNewsItem, MarketNewsSummary } from '../shared/types'
+import { marketInsightApi } from './api'
 
 interface NewsTimelineProps {
+  quoteId: string
   news: readonly MarketNewsItem[]
   status: MarketInsightStatus | null
   includeOlderNews: boolean
@@ -10,7 +15,93 @@ interface NewsTimelineProps {
   onOpenSource: (url: string) => void
 }
 
+function NewsRow({
+  item,
+  quoteId,
+  onOpenSource
+}: {
+  item: MarketNewsItem
+  quoteId: string
+  onOpenSource: (url: string) => void
+}) {
+  const [generatedSummary, setGeneratedSummary] = useState<MarketNewsSummary | null>(null)
+  const [generating, setGenerating] = useState(false)
+  const [error, setError] = useState('')
+  const pending = useRef(false)
+  const summary =
+    generatedSummary && (!item.summary || generatedSummary.generatedAt >= item.summary.generatedAt)
+      ? generatedSummary
+      : item.summary
+
+  const summarize = async () => {
+    if (pending.current) return
+    pending.current = true
+    setGenerating(true)
+    setError('')
+    try {
+      const result = await marketInsightApi.generateNewsSummary(item)
+      setGeneratedSummary(result)
+      emitCompletionNotification({
+        quoteId,
+        target: 'insight',
+        message: `${item.title} AI 总结已生成`
+      })
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'AI 资讯总结生成失败')
+    } finally {
+      pending.current = false
+      setGenerating(false)
+    }
+  }
+
+  return (
+    <div className="insight-news-item">
+      <div className="insight-news-copy">
+        <AppButton
+          variant="plain"
+          className="insight-news-source"
+          onClick={() => onOpenSource(item.url)}
+          title={`打开原文：${item.title}`}
+        >
+          <strong>{item.title}</strong>
+          <ExternalLink size={14} />
+        </AppButton>
+        <span>
+          {item.source} · {new Date(item.publishedAt).toLocaleString('zh-CN', { hour12: false })}
+        </span>
+        {summary ? (
+          <div className="insight-news-summary" aria-live="polite">
+            <strong>AI 总结</strong>
+            <p>{summary.content}</p>
+            <small>
+              {summary.model} ·{' '}
+              {new Date(summary.generatedAt).toLocaleString('zh-CN', { hour12: false })}
+            </small>
+          </div>
+        ) : null}
+        {error ? (
+          <p className="insight-news-summary-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </div>
+      <AppButton
+        variant="plain"
+        className="insight-news-summary-action"
+        onClick={() => void summarize()}
+        disabled={generating}
+        aria-label={`${generating ? '正在总结' : summary ? '重新总结' : 'AI 总结'}：${item.title}`}
+        title="读取官方资讯原文，使用当前 AI 模型生成总结并保存到本地"
+      >
+        {generating ? <RefreshCw size={14} className="is-spinning" /> : <Sparkles size={14} />}
+        {generating ? '总结中' : summary ? '重新总结' : 'AI 总结'}
+      </AppButton>
+    </div>
+  )
+}
+
 export function NewsTimeline({
+  quoteId,
   news,
   status,
   includeOlderNews,
@@ -89,22 +180,12 @@ export function NewsTimeline({
       ) : (
         <div className="insight-news-list">
           {visibleItems.map((item) => (
-            <button
-              className="insight-news-item"
-              type="button"
-              onClick={() => onOpenSource(item.url)}
-              key={item.id}
-            >
-              <div>
-                <strong>{item.title}</strong>
-                <span>
-                  {item.source} ·{' '}
-                  {new Date(item.publishedAt).toLocaleString('zh-CN', { hour12: false })} ·{' '}
-                  {item.category}
-                </span>
-              </div>
-              <ExternalLink size={14} />
-            </button>
+            <NewsRow
+              item={item}
+              quoteId={quoteId}
+              onOpenSource={onOpenSource}
+              key={newsSummaryKey(item)}
+            />
           ))}
         </div>
       )}

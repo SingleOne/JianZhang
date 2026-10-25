@@ -40,6 +40,18 @@ export interface IndicatorSnapshot {
 export type MarketNewsCategory = 'announcement' | 'policy' | 'finance' | 'industry' | 'market'
 export type MarketNewsScope = 'stock' | 'sector' | 'market'
 
+export interface MarketNewsSummary {
+  newsId: string
+  title: string
+  url: string
+  source: string
+  publishedAt: string
+  content: string
+  generatedAt: string
+  providerId: string
+  model: string
+}
+
 export interface MarketNewsItem {
   id: string
   title: string
@@ -50,6 +62,7 @@ export interface MarketNewsItem {
   scope: MarketNewsScope
   relatedQuoteIds: string[]
   fetchedAt: string
+  summary?: MarketNewsSummary
 }
 
 export type WatchEventType =
@@ -143,6 +156,7 @@ export interface MarketInsightApi {
   acknowledgeEvent: (eventId: string) => Promise<void>
   clearExpiredEvents: (quoteId: string) => Promise<void>
   openSource: (url: string) => Promise<void>
+  generateNewsSummary: (item: MarketNewsItem) => Promise<MarketNewsSummary>
   onUpdated: (listener: (quoteId: string) => void) => () => void
 }
 

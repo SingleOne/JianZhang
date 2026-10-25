@@ -9,7 +9,11 @@ const DEFAULT_HEADERS = {
 
 class NewsHttpError extends Error {}
 
-export async function requestText(url: string, init: RequestInit = {}): Promise<string> {
+export async function requestBytes(
+  url: string,
+  init: RequestInit = {},
+  timeoutMilliseconds = 12_000
+): Promise<{ bytes: Uint8Array; contentType: string }> {
   const headers = new Headers(DEFAULT_HEADERS)
   new Headers(init.headers).forEach((value, name) => headers.set(name, value))
   const options = {
@@ -20,12 +24,15 @@ export async function requestText(url: string, init: RequestInit = {}): Promise<
   }
   const signal = () =>
     init.signal
-      ? AbortSignal.any([init.signal, AbortSignal.timeout(12_000)])
-      : AbortSignal.timeout(12_000)
+      ? AbortSignal.any([init.signal, AbortSignal.timeout(timeoutMilliseconds)])
+      : AbortSignal.timeout(timeoutMilliseconds)
   const read = async (response: Response) => {
     if (!response.ok)
       throw new NewsHttpError(`请求 ${new URL(url).hostname} 失败：HTTP ${response.status}`)
-    return response.text()
+    return {
+      bytes: new Uint8Array(await response.arrayBuffer()),
+      contentType: response.headers.get('content-type') ?? ''
+    }
   }
   try {
     return await read(await net.fetch(url, { ...options, signal: signal() }))
@@ -35,6 +42,12 @@ export async function requestText(url: string, init: RequestInit = {}): Promise<
     // when proxy resolution or the Chromium connection stalls.
     return read(await fetch(url, { ...options, signal: signal() }))
   }
+}
+
+export async function requestText(url: string, init: RequestInit = {}): Promise<string> {
+  const { bytes, contentType } = await requestBytes(url, init)
+  const encoding = contentType.match(/charset\s*=\s*["']?([\w-]+)/i)?.[1] ?? 'utf-8'
+  return new TextDecoder(encoding).decode(bytes)
 }
 
 export async function requestJson<T>(url: string, init: RequestInit = {}): Promise<T> {

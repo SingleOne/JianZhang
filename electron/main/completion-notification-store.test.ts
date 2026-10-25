@@ -36,10 +36,18 @@ describe('CompletionNotificationStore', () => {
         target: 'corporate-actions',
         message: '公司行动候选已更新',
         createdAt: '2026-08-12T12:00:00.000Z'
+      },
+      {
+        id: 'news-summary',
+        quoteId: '0.000876',
+        target: 'insight',
+        message: '资讯 AI 总结已生成',
+        createdAt: '2026-08-13T12:00:00.000Z'
       }
     ])
 
     expect(new CompletionNotificationStore(directory).load().map((item) => item.id)).toEqual([
+      'news-summary',
       'newer',
       'corporate-action',
       'older'

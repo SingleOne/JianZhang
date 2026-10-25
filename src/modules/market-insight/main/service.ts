@@ -53,6 +53,7 @@ interface MarketInsightServiceDependencies {
   getOrderBook: (quoteId: string) => Promise<StockOrderBook>
   getFundsFlow: (quoteId: string) => Promise<FundsFlowResult>
   onUpdated: (quoteId: string) => void
+  attachNewsSummaries: (items: readonly MarketNewsItem[]) => MarketNewsItem[]
 }
 
 interface CachedSource<T> {
@@ -361,7 +362,7 @@ export class MarketInsightService {
         orderBook: orderBookIndicators.values,
         relativeStrength: relative.values
       },
-      news,
+      news: this.dependencies.attachNewsSummaries(news),
       events: [],
       existingTPlanDistances: distances,
       chartOverlay: {
@@ -487,7 +488,7 @@ export class MarketInsightService {
         : age > 2_000
           ? 'cached'
           : snapshot.dataState
-    return dataState === snapshot.dataState ? snapshot : { ...snapshot, dataState }
+    return { ...snapshot, dataState, news: this.dependencies.attachNewsSummaries(snapshot.news) }
   }
 
   private calculateTPlanDistances(stock: WatchStock, latest: number | null): TPlanDistance[] {

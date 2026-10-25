@@ -5,6 +5,7 @@ import type {
   MarketInsightSettings,
   MarketInsightSnapshot,
   MarketNewsItem,
+  MarketNewsSummary,
   WatchEvent
 } from '../shared/types'
 import { normalizeMarketInsightSettings } from '../shared/normalize'
@@ -118,6 +119,14 @@ export class MarketInsightStorage {
       items[0]?.publishedAt ?? new Date().toISOString(),
       cacheHours * 60 * 60_000
     )
+  }
+
+  loadNewsSummaries(): Record<string, MarketNewsSummary> {
+    return this.read('news-summaries.json', {})
+  }
+
+  saveNewsSummaries(summaries: Readonly<Record<string, MarketNewsSummary>>): void {
+    this.write('news-summaries.json', summaries)
   }
 
   loadRegularNewsQueryDates(): Record<string, string> {

@@ -365,7 +365,12 @@ async function initializeMarketInsightModule(): Promise<boolean> {
           caller: 'market-insight'
         }),
       getFundsFlow: (quoteId) => getFundsFlow(quoteId, 'market-insight'),
-      notifyUpdated: (quoteId) => sendToWindows('insight:updated', quoteId)
+      notifyUpdated: (quoteId) => sendToWindows('insight:updated', quoteId),
+      runNewsSummaryTask: async (request, signal) => {
+        await optionalModuleRuntime.waitUntilReady('ai')
+        if (!aiRuntime) throw new Error('AI 功能初始化失败')
+        return aiRuntime.runStructuredTask(request, signal)
+      }
     })
     if (isQuitting) {
       runtime.dispose()

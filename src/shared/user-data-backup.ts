@@ -40,6 +40,7 @@ export interface JianzhangUserDataBackupDocument {
 const BACKUP_SINGLE_FILES = new Set([
   'modules/market-insight/settings.json',
   'modules/market-insight/events.json',
+  'modules/market-insight/news-summaries.json',
   'modules/ai/settings.json',
   'modules/ai-t-advice/settings.json',
   'modules/ai-t-advice/advice-history.jsonl',
