@@ -355,7 +355,7 @@
 
 :root.macos-popover[data-theme] .taskbar-tooltip-inline-market {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
   gap: 8px;
   margin: 0;
 }
@@ -396,7 +396,7 @@
 }
 
 :root.macos-popover[data-theme] .is-inline .taskbar-tooltip-order-book {
-  padding-left: 8px;
+  padding-left: 6px;
   border-left: 1px solid var(--mac-popover-separator);
 }
 
@@ -407,11 +407,25 @@
   border-color: var(--mac-popover-separator);
 }
 
-:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-order-book .is-buy {
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-order-row {
+  color: var(--mac-popover-secondary);
+}
+
+:root.macos-popover[data-theme]
+  .is-inline
+  .taskbar-tooltip-order-book
+  .is-buy
+  .taskbar-tooltip-order-row
+  > span:nth-child(2) {
   color: var(--mac-popover-up);
 }
 
-:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-order-book .is-sell {
+:root.macos-popover[data-theme]
+  .is-inline
+  .taskbar-tooltip-order-book
+  .is-sell
+  .taskbar-tooltip-order-row
+  > span:nth-child(2) {
   color: var(--mac-popover-down);
 }
 
