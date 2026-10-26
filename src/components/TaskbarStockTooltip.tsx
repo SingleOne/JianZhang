@@ -65,7 +65,9 @@ function FiveLevelOrderBook({ orderBook }: { orderBook: StockOrderBook | null })
                   {label}
                   {levelLabel}
                 </span>
-                <span>{formatPrice(levels?.[index]?.price)}</span>
+                <span>
+                  {levels?.[index]?.price === 0 ? '-' : formatPrice(levels?.[index]?.price)}
+                </span>
                 <span>{formatLargeOrderVolume(levels?.[index]?.volume)}</span>
               </div>
             ))}
