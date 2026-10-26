@@ -5,10 +5,11 @@ import { DEFAULT_APP_SETTINGS, type AppState } from '../../src/shared/types'
 import { atomicWriteJsonSync } from './file-storage'
 import { WindowManager } from './window-manager'
 
-const { windows, trays, windowState } = vi.hoisted(() => ({
+const { windows, trays, windowState, cursor } = vi.hoisted(() => ({
   windows: [] as MockWindow[],
   trays: [] as EventEmitter[],
-  windowState: { visible: false, taskbarMode: true }
+  windowState: { visible: false, taskbarMode: true },
+  cursor: { x: 1200, y: 0 }
 }))
 
 class MockWindow extends EventEmitter {
@@ -113,7 +114,7 @@ vi.mock('electron', () => {
       }),
       getDisplayNearestPoint: () => display,
       getDisplayMatching: () => display,
-      getCursorScreenPoint: () => ({ x: 1200, y: 0 })
+      getCursorScreenPoint: () => cursor
     })
   }
 })
@@ -155,6 +156,8 @@ beforeEach(() => {
   trays.length = 0
   windowState.visible = false
   windowState.taskbarMode = true
+  cursor.x = 1200
+  cursor.y = 0
   manager = createManager()
 })
 
@@ -338,7 +341,7 @@ describe('Windows taskbar details', () => {
     expect(tooltip.options.type).toBeUndefined()
     expect(tooltip.options.hasShadow).toBe(false)
     expect(tooltip.options.width).toBe(550 + 24 * 2)
-    expect(tooltip.setIgnoreMouseEvents).toHaveBeenCalledWith(true)
+    expect(tooltip.setIgnoreMouseEvents).toHaveBeenCalledWith(false)
     // The transparent 24px shadow gutter may overlap the taskbar; the card must not.
     const cardBottom = tooltip.getBounds().y + tooltip.getBounds().height - 24
     expect(cardBottom).toBeLessThan(taskbar.getBounds().y)
@@ -362,5 +365,30 @@ describe('Windows taskbar details', () => {
     manager.setTaskbarTooltip(null)
     expect(tooltip.isVisible()).toBe(false)
     expect(manager.getTaskbarTooltipQuoteId()).toBeNull()
+  })
+
+  it('allows moving into the tooltip to click actions and hides after leaving the card', () => {
+    const { tooltip } = openTooltip()
+    const bounds = tooltip.getBounds()
+    manager.scheduleTaskbarTooltipHide()
+    cursor.x = bounds.x + bounds.width / 2
+    cursor.y = bounds.y + bounds.height / 2
+    vi.advanceTimersByTime(500)
+    expect(tooltip.isVisible()).toBe(true)
+    expect(manager.getTaskbarTooltipQuoteId()).toBe(anchor.quoteId)
+
+    cursor.x = bounds.x - 1
+    vi.advanceTimersByTime(250)
+    expect(tooltip.isVisible()).toBe(false)
+    expect(manager.getTaskbarTooltipQuoteId()).toBeNull()
+  })
+
+  it('cancels the pending hide when another taskbar stock is entered', () => {
+    const { tooltip } = openTooltip()
+    manager.scheduleTaskbarTooltipHide()
+    manager.setTaskbarTooltip({ quoteId: '0.300750', left: 100, width: 100 })
+    vi.advanceTimersByTime(250)
+    expect(tooltip.isVisible()).toBe(true)
+    expect(manager.getTaskbarTooltipQuoteId()).toBe('0.300750')
   })
 })

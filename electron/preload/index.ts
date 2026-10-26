@@ -102,6 +102,7 @@ const api: StockDesktopApi = {
   refreshTradingCalendar: () => ipcRenderer.invoke('trading-calendar:refresh'),
   refreshExchangeRates: () => ipcRenderer.invoke('exchange-rates:refresh'),
   saveState: (state) => ipcRenderer.invoke('state:save', state),
+  muteTAlertForToday: (request) => ipcRenderer.invoke('t-alerts:mute-today', request),
   getCompletionNotifications: () => ipcRenderer.invoke('completion-notifications:get'),
   saveCompletionNotifications: (notifications) =>
     ipcRenderer.invoke('completion-notifications:save', notifications),

@@ -11,6 +11,7 @@ import { join } from 'node:path'
 import { atomicWriteFileSync } from './file-storage'
 import {
   applyTAlertTriggersToAccounts,
+  muteTAlertForToday,
   type TriggeredTFloatingProfitAlert
 } from '../../src/lib/t-alerts'
 import { applyStockAlertTriggers, type TriggeredStockAlert } from '../../src/lib/stock-alerts'
@@ -75,6 +76,7 @@ import type {
   TaskbarTooltipAnchor,
   TradingCalendarSettings,
   TTradingAccount,
+  TAlertMuteRequest,
   UserDataBackupSummary
 } from '../../src/shared/types'
 
@@ -275,6 +277,7 @@ const CHANNELS = [
   'trading-calendar:refresh',
   'exchange-rates:refresh',
   'state:save',
+  't-alerts:mute-today',
   'completion-notifications:get',
   'completion-notifications:save',
   'cache:summary',
@@ -464,6 +467,14 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
   )
   ipcMain.handle('trading-calendar:refresh', () => dependencies.refreshTradingCalendar())
   ipcMain.handle('exchange-rates:refresh', () => dependencies.refreshExchangeRates())
+  ipcMain.handle('t-alerts:mute-today', (_event, request: TAlertMuteRequest) => {
+    const savedState = muteTAlertForToday(dependencies.getState(), request)
+    dependencies.setState(savedState)
+    dependencies.persistState()
+    dependencies.sendToWindows('state:updated', savedState)
+    dependencies.syncWindowSurfaces()
+    return savedState
+  })
   ipcMain.handle('state:save', async (_event, nextState: AppState) => {
     dependencies.assertStateRevision(nextState)
     const currentState = dependencies.getState()

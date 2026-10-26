@@ -27,6 +27,7 @@ import type {
   TPlanLevel,
   TTradingAccount,
   TTradingBatch,
+  TAlertMuteRequest,
   TTradingFeeSettings,
   TTrade,
   WatchStock
@@ -72,6 +73,64 @@ export interface TPlanFeeOptions {
   stampDutyExempt?: boolean
   instrumentType?: TPlanPriceRule['instrumentType']
   accountFeeContext?: AccountTradeFeeContext
+}
+
+function isAlertMuted(mutedUntil: string | undefined): boolean {
+  return mutedUntil !== undefined && Date.parse(mutedUntil) > Date.now()
+}
+
+export function muteTAlertForToday(state: AppState, request: TAlertMuteRequest): AppState {
+  const book = state.stockTradingBooks[request.quoteId]
+  const batch = getStockTBatches(book).find(
+    (item) => item.id === request.batchId && !item.settlement
+  )
+  if (!book || !batch) throw new Error('该 T 仓批次已结束，请刷新后重试')
+
+  const expiresAt = new Date()
+  expiresAt.setHours(24, 0, 0, 0)
+  const mutedUntil = expiresAt.toISOString()
+  let nextBatch: TTradingBatch
+  if (request.kind === 'price') {
+    nextBatch = replaceLevels(
+      {
+        ...batch,
+        priceAlertMutedUntil: { ...batch.priceAlertMutedUntil, [request.side]: mutedUntil }
+      },
+      request.side,
+      levelsForSide(batch, request.side).map((level) =>
+        level.alertStatus === 'handled'
+          ? level
+          : { ...level, alertStatus: 'armed', triggeredAt: undefined }
+      )
+    )
+  } else {
+    if (!batch.floatingProfitAlert) throw new Error('该 T 仓尚未设置盈亏提醒')
+    nextBatch = {
+      ...batch,
+      floatingProfitAlert: {
+        ...batch.floatingProfitAlert,
+        mutedUntil,
+        status: 'armed',
+        triggeredAt: undefined
+      }
+    }
+  }
+
+  return {
+    ...state,
+    stockTradingBooks: {
+      ...state.stockTradingBooks,
+      [request.quoteId]:
+        'accounts' in book
+          ? {
+              ...book,
+              tBatches: getStockTBatches(book).map((item) =>
+                item.id === batch.id ? nextBatch : item
+              )
+            }
+          : { ...book, activeBatch: nextBatch }
+    }
+  }
 }
 
 function levelsForSide(batch: TTradingBatch, side: TAlertSide): TPlanLevel[] {
@@ -205,6 +264,7 @@ export function getTriggeredTAlertBadges(
   if (!batch?.alertEnabled) return []
   const averageCost = calculateTBatchMetrics(batch, trades).averageCost
   return (['buy', 'sell'] as const).flatMap((side) => {
+    if (isAlertMuted(batch.priceAlertMutedUntil?.[side])) return []
     const levels = levelsForSide(batch, side)
     let index = levels.length - 1
     while (index >= 0 && (levels[index].quantity <= 0 || levels[index].alertStatus !== 'triggered'))
@@ -250,6 +310,7 @@ export function applyTAlertTriggers(
   let nextBatch = batch
 
   for (const side of ['buy', 'sell'] as const) {
+    if (isAlertMuted(batch.priceAlertMutedUntil?.[side])) continue
     const nextLevels = levelsForSide(nextBatch, side).map((level) => {
       const targetPrice = tPlanTargetPrice(averageCost, side, level.targetPercent, priceRule)
       const status = level.alertStatus ?? 'armed'
@@ -282,7 +343,8 @@ export function applyTAlertTriggers(
 export function getTriggeredTFloatingProfitAlert(
   batch: TTradingBatch | undefined
 ): TFloatingProfitAlertDirection | null {
-  if (!batch?.floatingProfitAlert?.enabled) return null
+  if (!batch?.floatingProfitAlert?.enabled || isAlertMuted(batch.floatingProfitAlert.mutedUntil))
+    return null
   if (batch.floatingProfitAlert.status === 'profit-triggered') return 'profit'
   if (batch.floatingProfitAlert.status === 'loss-triggered') return 'loss'
   return null
@@ -300,7 +362,7 @@ export function applyTFloatingProfitAlert(
   triggered?: Omit<TriggeredTFloatingProfitAlert, 'quoteId' | 'name' | 'currency'>
 } {
   const alert = batch.floatingProfitAlert
-  if (!alert?.enabled) return { batch, changed: false }
+  if (!alert?.enabled || isAlertMuted(alert.mutedUntil)) return { batch, changed: false }
 
   const metrics = feeContext
     ? calculateTBatchForecastMetrics(batch, trades, latest, feeContext, stampDutyExempt)
