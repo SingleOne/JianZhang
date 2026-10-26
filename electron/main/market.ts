@@ -1269,11 +1269,33 @@ async function fetchTencentKline(
   limit: number,
   caller: string
 ): Promise<KlineResult> {
+  const failures: string[] = []
+  for (const useWebNode of [false, true]) {
+    const host = useWebNode ? 'web.ifzq.gtimg.cn' : 'ifzq.gtimg.cn'
+    try {
+      return await fetchTencentKlineFrom(quoteId, period, limit, caller, useWebNode)
+    } catch (error) {
+      failures.push(`${host}：${error instanceof Error ? error.message : '请求失败'}`)
+    }
+  }
+  throw new Error(`腾讯行情节点均不可用（${failures.join('；')}）`)
+}
+
+async function fetchTencentKlineFrom(
+  quoteId: string,
+  period: KlinePeriod,
+  limit: number,
+  caller: string,
+  useWebNode: boolean
+): Promise<KlineResult> {
   const symbol = toTencentSymbol(quoteId)
-  const url =
+  const origin = `https://${useWebNode ? 'web.ifzq.gtimg.cn' : 'ifzq.gtimg.cn'}`
+  const url = new URL(
     period === 'fiveDay' || period === 'intraday'
-      ? new URL('https://ifzq.gtimg.cn/appstock/app/kline/mkline')
-      : new URL('https://ifzq.gtimg.cn/appstock/app/fqkline/get')
+      ? '/appstock/app/kline/mkline'
+      : '/appstock/app/fqkline/get',
+    origin
+  )
 
   if (period === 'fiveDay' || period === 'intraday') {
     const minutePeriod = period === 'intraday' ? 'm1' : 'm5'
@@ -1290,9 +1312,10 @@ async function fetchTencentKline(
   }>(url.toString(), {
     dataType: `kline:${period}`,
     caller,
-    source: 'tencent',
-    fallbackFrom: 'eastmoney-delay',
+    source: useWebNode ? 'tencent-web' : 'tencent',
+    fallbackFrom: useWebNode ? 'tencent' : 'eastmoney-delay',
     requestedCount: 1,
+    maxAttempts: 1,
     headers: TENCENT_HEADERS,
     returnedCount: (value) => {
       const source = value.data?.[symbol]

@@ -29,6 +29,8 @@
 
 历史 K 线同样先单次请求 `push2his.eastmoney.com`，失败后立即通过 Node HTTPS 请求 `push2delay.eastmoney.com`，并保留历史 K 线主机路由；两个东方财富节点都失败时才切换到腾讯行情。五档盘口依次请求东方财富主节点、东方财富镜像节点和腾讯盘口，下一次刷新仍从主节点开始；分时接口暂不使用镜像节点。东方财富搜索 token、请求头、固定参数和字段列表集中在 `market-constants.ts`，移动这些常量不会改变请求内容。
 
+腾讯 K 线先请求 `ifzq.gtimg.cn`，HTTP 错误（包括 WAF 返回的 501）、连接异常、JSON 解析失败、业务错误或缺少 K 线数据时，切换到 `web.ifzq.gtimg.cn` 的同一路径与参数，每个节点只请求一次。该回退覆盖日/周/月 K、五日线和 A 股一分钟 K；港美股分时继续使用已有的 `web.ifzq.gtimg.cn/appstock/app/minute/query`。每次新请求仍从腾讯主域名开始，行情日志使用 `tencent`、`tencent-web` 区分两个节点，备用节点的 `fallbackFrom` 为 `tencent`。
+
 ## 报价标识
 
 代码使用东方财富 `quoteId` 作为跨模块主键，例如：

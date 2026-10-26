@@ -201,6 +201,7 @@ describe('fetchKline intraday sources', () => {
       .mockResolvedValueOnce(jsonResponse({ data: null }))
       .mockResolvedValueOnce(jsonResponse({ data: null }))
       .mockResolvedValueOnce(jsonResponse({ code: 1, msg: '腾讯分时不可用' }))
+      .mockResolvedValueOnce(jsonResponse({ code: 1, msg: '腾讯备用分时不可用' }))
       .mockResolvedValueOnce(jsonResponse(sinaMinutePayload()))
 
     const result = await fetchKline('1.600000', 'intraday', undefined, 'test')
@@ -209,10 +210,31 @@ describe('fetchKline intraday sources', () => {
       'push2.eastmoney.com',
       'push2delay.eastmoney.com',
       'ifzq.gtimg.cn',
+      'web.ifzq.gtimg.cn',
       'quotes.sina.cn'
     ])
     expect(result).toMatchObject({ source: 'sina', intervalMinutes: 1 })
     expect(result.bars[0].volume).toBe(100)
+  })
+
+  it('tries the Tencent web node before Sina when the primary one-minute node fails', async () => {
+    netFetch
+      .mockResolvedValueOnce(jsonResponse({ data: null }))
+      .mockResolvedValueOnce(jsonResponse({ data: null }))
+      .mockResolvedValueOnce(new Response('WAF', { status: 501 }))
+      .mockResolvedValueOnce(jsonResponse(tencentMinutePayload()))
+
+    const result = await fetchKline('1.600000', 'intraday', undefined, 'test')
+
+    expect(netFetch.mock.calls.map(([url]) => new URL(url).hostname)).toEqual([
+      'push2.eastmoney.com',
+      'push2delay.eastmoney.com',
+      'ifzq.gtimg.cn',
+      'web.ifzq.gtimg.cn'
+    ])
+    expect(new URL(netFetch.mock.calls[3][0]).searchParams.get('param')).toBe('sh600000,m1,,480')
+    expect(result).toMatchObject({ source: 'tencent', intervalMinutes: 1 })
+    expect(result.bars).toHaveLength(2)
   })
 
   it('uses the Tencent minute endpoint for Hong Kong stocks', async () => {
@@ -241,6 +263,7 @@ describe('fetchKline intraday sources', () => {
       .mockResolvedValueOnce(jsonResponse({ data: null }))
       .mockResolvedValueOnce(jsonResponse({ data: null }))
       .mockResolvedValueOnce(jsonResponse({ code: 1, msg: '腾讯分时不可用' }))
+      .mockResolvedValueOnce(jsonResponse({ code: 1, msg: '腾讯备用分时不可用' }))
       .mockResolvedValueOnce(
         jsonResponse({ result: { status: { code: 1, msg: '新浪分时不可用' } } })
       )
@@ -262,6 +285,7 @@ describe('fetchKline intraday sources', () => {
       'push2.eastmoney.com',
       'push2delay.eastmoney.com',
       'ifzq.gtimg.cn',
+      'web.ifzq.gtimg.cn',
       'quotes.sina.cn',
       'push2his.eastmoney.com'
     ])
