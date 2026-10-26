@@ -789,7 +789,7 @@ function TTradeEntry({
   const [entryMode, setEntryMode] = useState<EntryMode>('trade')
   const [side, setSide] = useState<TTradeSide>('buy')
   const [purpose, setPurpose] = useState<TTradePurpose>('base')
-  const [price, setPrice] = useState(clearEntry ? '' : (quote?.latest?.toString() ?? ''))
+  const [price, setPrice] = useState(quote?.latest?.toString() ?? '')
   const [quantity, setQuantity] = useState('')
   const [tradedAt, setTradedAt] = useState(() => marketDateTimeInput(market))
   const [actualSettlementDate, setActualSettlementDate] = useState('')
