@@ -26,7 +26,6 @@ import type {
   AppState,
   KlineBar,
   KlineResult,
-  OrderBookLevel,
   StockOrderBook,
   StockQuote,
   TaskbarLayout
@@ -38,35 +37,40 @@ const SPARKLINE_WIDTH = 76
 const SPARKLINE_HEIGHT = 26
 const SPARKLINE_PADDING = 2
 const FIFTEEN_MINUTES = 15 * 60_000
+const ORDER_BOOK_LEVEL_LABELS = ['一', '二', '三', '四', '五']
 
 function valueClass(value: number | null | undefined): string {
   if (value === null || value === undefined || value === 0) return 'is-flat'
   return value > 0 ? 'is-up' : 'is-down'
 }
 
-function formatLargeOrderVolume(volume: number): string {
+function formatLargeOrderVolume(volume: number | null | undefined): string {
+  if (volume === null || volume === undefined) return '--'
   return volume >= 10_000 ? `${(volume / 10_000).toFixed(2)}万` : volume.toLocaleString('zh-CN')
 }
 
-function formatOrderVolumeTotal(levels: readonly OrderBookLevel[] | undefined): string {
-  const volumes = levels?.slice(0, 5).map((level) => level.volume)
-  if (!volumes?.length || volumes.some((volume) => volume === null)) return '--'
-  return `${formatLargeOrderVolume(volumes.reduce<number>((total, volume) => total + volume!, 0))}手`
-}
-
-function FiveLevelVolumes({ orderBook }: { orderBook: StockOrderBook | null }) {
+function FiveLevelOrderBook({ orderBook }: { orderBook: StockOrderBook | null }) {
   return (
-    <div className="taskbar-tooltip-order-volumes">
-      <dt>五档数量</dt>
+    <div className="taskbar-tooltip-order-book">
+      <dt>五档盘口（手）</dt>
       <dd>
-        <span className="taskbar-tooltip-stacked-values">
-          <span className="is-buy">
-            <i>买</i> {formatOrderVolumeTotal(orderBook?.bids)}
-          </span>
-          <span className="is-sell">
-            <i>卖</i> {formatOrderVolumeTotal(orderBook?.asks)}
-          </span>
-        </span>
+        {[
+          { side: 'buy', label: '买', levels: orderBook?.bids },
+          { side: 'sell', label: '卖', levels: orderBook?.asks }
+        ].map(({ side, label, levels }) => (
+          <div className={`taskbar-tooltip-order-side is-${side}`} key={side}>
+            {ORDER_BOOK_LEVEL_LABELS.map((levelLabel, index) => (
+              <div className="taskbar-tooltip-order-row" key={levelLabel}>
+                <span>
+                  {label}
+                  {levelLabel}
+                </span>
+                <span>{formatPrice(levels?.[index]?.price)}</span>
+                <span>{formatLargeOrderVolume(levels?.[index]?.volume)}</span>
+              </div>
+            ))}
+          </div>
+        ))}
       </dd>
     </div>
   )
@@ -495,7 +499,7 @@ export function StockQuoteDetails({
 
       <dl className="taskbar-tooltip-inline-market">
         <MiniPriceSparkline prices={sparklinePrices} expanded />
-        <FiveLevelVolumes orderBook={currentOrderBook} />
+        <FiveLevelOrderBook orderBook={currentOrderBook} />
       </dl>
 
       <section className="taskbar-tooltip-section">

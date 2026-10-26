@@ -89,7 +89,7 @@ describe('inline menu bar stock details', () => {
       '最低',
       '换手',
       '最近15分钟',
-      '五档数量',
+      '五档盘口',
       '持仓',
       '市值',
       '收益率',

@@ -355,7 +355,7 @@
 
 :root.macos-popover[data-theme] .taskbar-tooltip-inline-market {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 130px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
   gap: 8px;
   margin: 0;
 }
@@ -365,7 +365,7 @@
 }
 
 :root.macos-popover[data-theme] .is-inline .taskbar-tooltip-sparkline,
-:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-order-volumes {
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-order-book {
   min-width: 0;
   display: grid;
   grid-column: auto;
@@ -395,38 +395,24 @@
   height: 88px;
 }
 
-:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-order-volumes {
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-order-book {
   padding-left: 8px;
   border-left: 1px solid var(--mac-popover-separator);
 }
 
-:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-order-volumes dd,
-:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-stacked-values {
-  height: auto;
-  margin: 0;
-}
-
 :root.macos-popover[data-theme]
   .is-inline
-  .taskbar-tooltip-order-volumes
-  .taskbar-tooltip-stacked-values {
-  gap: 4px;
-  padding-top: 0;
-  font-size: 12px;
-  line-height: 18px;
+  .taskbar-tooltip-order-side
+  + .taskbar-tooltip-order-side {
+  border-color: var(--mac-popover-separator);
 }
 
-:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-order-volumes .is-buy {
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-order-book .is-buy {
   color: var(--mac-popover-up);
 }
 
-:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-order-volumes .is-sell {
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-order-book .is-sell {
   color: var(--mac-popover-down);
-}
-
-:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-order-volumes i {
-  margin-right: 8px;
-  color: inherit;
 }
 
 :root.macos-popover[data-theme] .is-inline .taskbar-tooltip-position-grid {
@@ -496,8 +482,14 @@
   }
 
   :root.macos-popover[data-theme] .taskbar-tooltip-inline-market {
-    grid-template-columns: minmax(0, 1fr) 118px;
+    grid-template-columns: minmax(0, 1fr);
     gap: 8px;
+  }
+
+  :root.macos-popover[data-theme] .is-inline .taskbar-tooltip-order-book {
+    padding-left: 0;
+    border-top-color: var(--mac-popover-separator);
+    border-left: 0;
   }
 
   :root.macos-popover[data-theme] .is-inline .taskbar-tooltip-t-summary {
