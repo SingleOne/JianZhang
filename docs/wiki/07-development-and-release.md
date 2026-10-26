@@ -79,6 +79,10 @@ npm run package:mac
 - `见涨-<版本>-mac-x64.dmg`：Intel Mac。
 - `见涨-<版本>-mac-arm64.dmg`：Apple Silicon Mac。
 
+macOS 打包入口会将 npm 已解析的重复依赖引用降为调试日志；设置 `DEBUG=electron-builder` 可查看，未解析引用和依赖缺失仍保留警告。
+
+在 macOS 27 及以上，入口通过 `diskutil image` 创建、挂载和压缩 APFS 镜像，通过 `diskutil eject` 卸载，避免调用已弃用的 `hdiutil`；仍使用 electron-builder 自带的 dmgbuild 运行时生成背景、应用图标位置和 `/Applications` 快捷入口，无需另外安装 Python 包。旧版 macOS 保留原有 DMG 流程。显式设置 `CUSTOM_DMGBUILD_PATH` 时使用指定工具。
+
 DMG 制作使用 macOS 的系统工具，需在 Mac 上运行。签名和公证凭据由 electron-builder 的环境变量或系统钥匙串提供，仓库不内置凭据；对外分发前需完成签名、公证以及 macOS 运行验证。当前增加的是打包命令与配置，尚未在 macOS 上验证运行和界面兼容性。
 
 ## 构建输出
