@@ -675,6 +675,7 @@ export class WindowManager {
     if (!window || window.isDestroyed() || !anchor) return
 
     this.positionTaskbarTooltipWindow()
+    if (process.platform === 'win32') window.setIgnoreMouseEvents(true, { forward: true })
     window.webContents.send('taskbar:tooltip-stock', anchor.quoteId)
     window.setAlwaysOnTop(true, 'pop-up-menu')
     window.showInactive()
@@ -713,7 +714,10 @@ export class WindowManager {
     this.taskbarTooltipWindow = window
 
     window.setAlwaysOnTop(true, 'pop-up-menu')
-    window.setIgnoreMouseEvents(false)
+    window.setIgnoreMouseEvents(process.platform === 'win32', { forward: true })
+    window.webContents.ipc.on('taskbar-tooltip:interactive', (_event, interactive: boolean) => {
+      window.setIgnoreMouseEvents(!interactive, { forward: true })
+    })
     window.setMenuBarVisibility(false)
     window.on('closed', () => {
       if (this.taskbarTooltipWindow === window) this.taskbarTooltipWindow = null

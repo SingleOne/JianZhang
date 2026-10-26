@@ -341,7 +341,7 @@ describe('Windows taskbar details', () => {
     expect(tooltip.options.type).toBeUndefined()
     expect(tooltip.options.hasShadow).toBe(false)
     expect(tooltip.options.width).toBe(550 + 24 * 2)
-    expect(tooltip.setIgnoreMouseEvents).toHaveBeenCalledWith(false)
+    expect(tooltip.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true, { forward: true })
     // The transparent 24px shadow gutter may overlap the taskbar; the card must not.
     const cardBottom = tooltip.getBounds().y + tooltip.getBounds().height - 24
     expect(cardBottom).toBeLessThan(taskbar.getBounds().y)
@@ -355,6 +355,24 @@ describe('Windows taskbar details', () => {
     const { tooltip } = openTooltip()
     manager.resizeTaskbarTooltip(153.5)
     expect(tooltip.getBounds().height).toBe(200 + 24 * 2)
+  })
+
+  it('only accepts pointer events inside the card and resets pass-through when reused', () => {
+    const { taskbar, tooltip } = openTooltip()
+    // The shadow overlaps the first taskbar row, so it must start with mouse pass-through.
+    expect(tooltip.getBounds().y + tooltip.getBounds().height).toBeGreaterThan(
+      taskbar.getBounds().y
+    )
+    expect(tooltip.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true, { forward: true })
+
+    tooltip.webContents.ipc.emit('taskbar-tooltip:interactive', {}, true)
+    expect(tooltip.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false, { forward: true })
+    tooltip.webContents.ipc.emit('taskbar-tooltip:interactive', {}, false)
+    expect(tooltip.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true, { forward: true })
+
+    tooltip.webContents.ipc.emit('taskbar-tooltip:interactive', {}, true)
+    manager.setTaskbarTooltip({ quoteId: '0.300750', left: 100, width: 100 })
+    expect(tooltip.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true, { forward: true })
   })
 
   it('reuses the window across stocks and hides it when the hover ends', () => {
