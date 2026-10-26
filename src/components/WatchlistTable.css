@@ -1602,6 +1602,11 @@ button.value-screening-badge:focus-visible {
   font-weight: 500;
 }
 
+.holding-profit-tooltip-row {
+  display: block;
+  white-space: nowrap;
+}
+
 .row-action-button {
   width: 28px;
   height: 28px;

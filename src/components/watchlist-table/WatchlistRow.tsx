@@ -88,18 +88,6 @@ function valueClass(value: number | null | undefined): string {
   return value > 0 ? 'is-up' : 'is-down'
 }
 
-function formatPerformanceCacheTime(value: string): string {
-  return new Intl.DateTimeFormat('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false
-  }).format(new Date(value))
-}
-
 function isChiNextStock(code: string): boolean {
   return code.startsWith('300') || code.startsWith('301')
 }
@@ -145,7 +133,6 @@ interface WatchlistRowProps {
   quote: StockQuote | undefined
   metrics: PositionMetrics
   cumulativeProfit: number | null | undefined
-  cumulativeProfitGeneratedAt: string | undefined
   dividendFinancing: DividendFinancingRankingItem | undefined
   dividendFinancingSnapshotDate: string | undefined
   fundamentalScreening: FundamentalScreeningEvaluation | undefined
@@ -222,7 +209,6 @@ export const WatchlistRow = memo(function WatchlistRow({
   quote,
   metrics,
   cumulativeProfit,
-  cumulativeProfitGeneratedAt,
   dividendFinancing,
   dividendFinancingSnapshotDate,
   fundamentalScreening,
@@ -315,16 +301,9 @@ export const WatchlistRow = memo(function WatchlistRow({
   const sinceAddedDirection = valueClass(sinceAddedPerformance?.changePercent)
   const dividendYield = calculatePreviousCloseDividendYield(dividendFinancing, quote)
   const hasPosition = (stock.position?.quantity ?? 0) > 0
+  const currentCycleProfit = hasPosition ? metrics.totalProfit : null
   const displayedTotalProfit = hasPosition ? metrics.totalProfit : cumulativeProfit
   const hasTotalProfit = displayedTotalProfit !== null && displayedTotalProfit !== undefined
-  const cumulativeProfitSnapshotTime = cumulativeProfitGeneratedAt
-    ? formatPerformanceCacheTime(cumulativeProfitGeneratedAt)
-    : '-'
-  const totalProfitTooltip = hasPosition
-    ? '当前有持仓，显示当前持仓周期收益'
-    : cumulativeProfit === null || cumulativeProfit === undefined
-      ? '当前无持仓；本地尚无累计收益快照，请打开跨市场收益分析进行计算。'
-      : `当前无持仓，显示跨市场收益分析保存的累计收益（人民币）；快照时间 ${cumulativeProfitSnapshotTime}。`
   const currentRadarSignals =
     capabilities.radar && stock.showRadarSignals ? todayRadarSignals(quote?.radarSignals) : []
   const latestRadarSignal = currentRadarSignals[0]
@@ -908,7 +887,24 @@ export const WatchlistRow = memo(function WatchlistRow({
             case 'totalProfit':
               return (
                 <td key={columnId}>
-                  <Tooltip content={totalProfitTooltip}>
+                  <Tooltip
+                    content={
+                      <>
+                        <span className="holding-profit-tooltip-row">
+                          当前周期收益：
+                          <span className={valueClass(currentCycleProfit)}>
+                            {formatMoneyProfit(currentCycleProfit, metrics.currency)}
+                          </span>
+                        </span>
+                        <span className="holding-profit-tooltip-row">
+                          累计收益：
+                          <span className={valueClass(cumulativeProfit)}>
+                            {formatMoneyProfit(cumulativeProfit, 'CNY')}
+                          </span>
+                        </span>
+                      </>
+                    }
+                  >
                     <span className="combined-profit-cell">
                       <span className={valueClass(displayedTotalProfit)}>
                         {hasTotalProfit

@@ -1905,7 +1905,6 @@ export default function App() {
                     exchangeRates={state.settings.exchangeRates}
                     positionProfitOverrides={positionProfitOverrides}
                     cumulativeProfitByQuoteId={cumulativeProfitByQuoteId}
-                    cumulativeProfitGeneratedAt={state.portfolioPerformanceCache?.generatedAt}
                     onSelect={selectWatchlistStock}
                     onStockSelectionPositioned={handleStockSelectionPositioned}
                     onDetailNavigationHandled={handleDetailNavigationHandled}
