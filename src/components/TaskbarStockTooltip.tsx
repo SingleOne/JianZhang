@@ -28,7 +28,6 @@ import type {
   KlineResult,
   StockOrderBook,
   StockQuote,
-  TAlertMuteRequest,
   TaskbarLayout
 } from '../shared/types'
 import { AppThemeController } from './AppThemeController'
@@ -323,7 +322,7 @@ function TaskbarTooltipContent({ quoteId }: { quoteId: string }) {
       ref={shellRef}
     >
       <AppThemeController />
-      <StockQuoteDetails quoteId={quoteId} state={state} quotes={quotes} onStateChange={setState} />
+      <StockQuoteDetails quoteId={quoteId} state={state} quotes={quotes} />
     </div>
   )
 }
@@ -332,31 +331,15 @@ export function StockQuoteDetails({
   quoteId,
   state,
   quotes,
-  onStateChange,
   embedded = false
 }: {
   quoteId: string
   state: AppState
   quotes: readonly StockQuote[]
-  onStateChange: (state: AppState) => void
   embedded?: boolean
 }) {
   const [intraday, setIntraday] = useState<KlineResult | null>(null)
   const [orderBook, setOrderBook] = useState<StockOrderBook | null>(null)
-  const [mutingAlert, setMutingAlert] = useState(false)
-  const [muteError, setMuteError] = useState('')
-
-  async function muteAlert(request: TAlertMuteRequest) {
-    setMutingAlert(true)
-    setMuteError('')
-    try {
-      onStateChange(await stockApi.muteTAlertForToday(request))
-    } catch (error) {
-      setMuteError(error instanceof Error ? error.message : '暂停提醒失败，请重试')
-    } finally {
-      setMutingAlert(false)
-    }
-  }
 
   useEffect(() => {
     let active = true
@@ -577,7 +560,7 @@ export function StockQuoteDetails({
         </section>
       ))}
 
-      {alertCount > 0 || muteError ? (
+      {alertCount > 0 ? (
         <section className="taskbar-tooltip-section taskbar-tooltip-alert-section">
           <ul className="taskbar-tooltip-alert-list">
             {triggeredStockAlerts.map((rule) => {
@@ -603,7 +586,7 @@ export function StockQuoteDetails({
             })}
             {tAlertBadges.map((badge) => (
               <li
-                className={`has-action is-${badge.side}`}
+                className={`is-${badge.side}`}
                 key={`${badge.accountId}-${badge.side}-${badge.index}`}
               >
                 <b>T价位</b>
@@ -611,22 +594,6 @@ export function StockQuoteDetails({
                   {badge.accountName} · {badge.side === 'buy' ? '买入' : '卖出'} {badge.label}
                   ，目标价 {formatPrice(badge.targetPrice)}
                 </span>
-                <AppButton
-                  variant="text"
-                  className="taskbar-tooltip-mute-button"
-                  disabled={mutingAlert}
-                  aria-label={`${badge.accountName} ${badge.side === 'buy' ? '买入' : '卖出'}价格提醒今日不再提醒`}
-                  onClick={() =>
-                    void muteAlert({
-                      quoteId,
-                      batchId: badge.accountId!,
-                      kind: 'price',
-                      side: badge.side
-                    })
-                  }
-                >
-                  今日不再提醒
-                </AppButton>
               </li>
             ))}
             {fiveLevelAlerts.map((alert) => (
@@ -641,7 +608,7 @@ export function StockQuoteDetails({
               </li>
             ))}
             {overview.floatingAlerts.map((summary) => (
-              <li key={summary.batch.id} className={`has-action is-${summary.floatingAlert}`}>
+              <li key={summary.account.accountId} className={`is-${summary.floatingAlert}`}>
                 <b>T浮动收益</b>
                 <span>
                   {summary.account.accountName} · 当前{' '}
@@ -653,25 +620,9 @@ export function StockQuoteDetails({
                     positionMetrics.currency
                   )}
                 </span>
-                <AppButton
-                  variant="text"
-                  className="taskbar-tooltip-mute-button"
-                  disabled={mutingAlert}
-                  aria-label={`${summary.account.accountName} 盈亏提醒今日不再提醒`}
-                  onClick={() =>
-                    void muteAlert({ quoteId, batchId: summary.batch.id, kind: 'floating-profit' })
-                  }
-                >
-                  今日不再提醒
-                </AppButton>
               </li>
             ))}
           </ul>
-          {muteError ? (
-            <div className="taskbar-tooltip-mute-error" role="alert">
-              {muteError}
-            </div>
-          ) : null}
         </section>
       ) : null}
       {embedded ? (

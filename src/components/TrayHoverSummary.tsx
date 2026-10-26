@@ -179,7 +179,6 @@ export function TrayHoverSummary({ interactive = false }: { interactive?: boolea
                     quoteId={stock.quoteId}
                     state={state}
                     quotes={quotes}
-                    onStateChange={setState}
                     embedded
                   />
                 ) : null}

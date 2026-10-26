@@ -1,21 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  DEFAULT_APP_SETTINGS,
-  normalizeActiveTTradingBatch,
-  type AppState,
-  type StockQuote,
-  type TPlanLevel,
-  type TTrade,
-  type TTradingBatch,
-  type WatchStock
-} from '../shared/types'
-import { getStockTBatches } from '../shared/stock-t-batches'
+import type { StockQuote, TPlanLevel, TTrade, TTradingBatch, WatchStock } from '../shared/types'
 import {
   applyTFloatingProfitAlert,
   applyTAlertTriggers,
   getTriggeredTAlertBadges,
-  getTriggeredTFloatingProfitAlert,
-  muteTAlertForToday
+  getTriggeredTFloatingProfitAlert
 } from './t-alerts'
 import { applyStockAlertTriggers } from './stock-alerts'
 
@@ -57,20 +46,6 @@ function tBatch(): TTradingBatch {
     buyLevels: levels(),
     sellLevels: levels(),
     alertEnabled: true
-  }
-}
-
-function stateWithBatches(batches: TTradingBatch[]): AppState {
-  return {
-    watchlist: [],
-    watchlistGroups: [],
-    stockTrackingProfiles: {},
-    settings: DEFAULT_APP_SETTINGS,
-    columnOrder: [],
-    stockTradingBooks: {
-      '1.600000': { quoteId: '1.600000', accounts: {}, tBatches: batches }
-    },
-    corporateActionApplications: {}
   }
 }
 
@@ -210,79 +185,6 @@ describe('T floating profit alerts', () => {
     const profit = applyTFloatingProfitAlert(loss.batch, [tTrade()], 10.1)
     expect(profit.triggered?.direction).toBe('profit')
     expect(profit.batch.floatingProfitAlert?.status).toBe('profit-triggered')
-  })
-})
-
-describe('daily T alert muting', () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-10-26T12:00:00+08:00'))
-  })
-
-  afterEach(() => vi.useRealTimers())
-
-  it('mutes all price levels on the selected side until midnight and preserves other alerts', () => {
-    const batch = applyTAlertTriggers(tBatch(), [tTrade()], 10.31).batch
-    batch.floatingProfitAlert = { enabled: true, threshold: 100, status: 'profit-triggered' }
-    const otherBatch = { ...tBatch(), id: 'batch-2' }
-    const state = stateWithBatches([batch, otherBatch])
-    const saved = muteTAlertForToday(state, {
-      quoteId: '1.600000',
-      batchId: batch.id,
-      kind: 'price',
-      side: 'sell'
-    })
-    const [muted, untouched] = getStockTBatches(saved.stockTradingBooks['1.600000'])
-    const restored = normalizeActiveTTradingBatch(
-      JSON.parse(JSON.stringify(muted)) as TTradingBatch,
-      [tTrade()]
-    )
-
-    expect(untouched).toBe(otherBatch)
-    expect(getTriggeredTAlertBadges(batch, [tTrade()])[0].label).toBe('T3')
-    expect(getTriggeredTAlertBadges(restored, [tTrade()])).toEqual([])
-    expect(
-      getTriggeredTAlertBadges(applyTAlertTriggers(restored, [tTrade()], 11).batch, [tTrade()])
-    ).toEqual([])
-    expect(getTriggeredTFloatingProfitAlert(restored)).toBe('profit')
-    expect(
-      getTriggeredTAlertBadges(applyTAlertTriggers(restored, [tTrade()], 9.69).batch, [tTrade()])
-    ).toMatchObject([{ side: 'buy', label: 'T3' }])
-
-    vi.setSystemTime(new Date(restored.priceAlertMutedUntil!.sell!))
-    expect(
-      getTriggeredTAlertBadges(applyTAlertTriggers(restored, [tTrade()], 10.31).batch, [tTrade()])
-    ).toMatchObject([{ side: 'sell', label: 'T3' }])
-  })
-
-  it('persists the profit mute and resumes notifications at the start of the next day', () => {
-    const batch = applyTAlertTriggers(tBatch(), [tTrade()], 10.31).batch
-    batch.floatingProfitAlert = { enabled: true, threshold: 100, status: 'profit-triggered' }
-    const saved = muteTAlertForToday(stateWithBatches([batch]), {
-      quoteId: '1.600000',
-      batchId: batch.id,
-      kind: 'floating-profit'
-    })
-    const restored = normalizeActiveTTradingBatch(
-      JSON.parse(
-        JSON.stringify(getStockTBatches(saved.stockTradingBooks['1.600000'])[0])
-      ) as TTradingBatch,
-      [tTrade()]
-    )
-
-    expect(getTriggeredTAlertBadges(restored, [tTrade()])).toMatchObject([{ side: 'sell' }])
-    expect(getTriggeredTFloatingProfitAlert(restored)).toBeNull()
-    expect(applyTFloatingProfitAlert(restored, [tTrade()], 9.8).triggered).toBeUndefined()
-    const midnight = new Date(restored.floatingProfitAlert!.mutedUntil!)
-    expect(midnight.getHours()).toBe(0)
-    expect(midnight.getDate()).not.toBe(new Date().getDate())
-    vi.setSystemTime(midnight.getTime() - 1)
-    expect(applyTFloatingProfitAlert(restored, [tTrade()], 10.2).triggered).toBeUndefined()
-
-    vi.setSystemTime(midnight)
-    const resumed = applyTFloatingProfitAlert(restored, [tTrade()], 10.2)
-    expect(resumed.triggered?.direction).toBe('profit')
-    expect(getTriggeredTFloatingProfitAlert(resumed.batch)).toBe('profit')
   })
 })
 

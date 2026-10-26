@@ -49,7 +49,6 @@ function details(index: number, embedded: boolean) {
     quoteId: summaries[index].stock.quoteId,
     state,
     quotes,
-    onStateChange: vi.fn(),
     embedded
   })
 }

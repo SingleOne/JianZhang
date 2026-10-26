@@ -713,32 +713,6 @@ html.tray-mode #root {
   font-weight: 600;
 }
 
-.taskbar-tooltip-alert-list li.has-action {
-  grid-template-columns: 68px minmax(0, 1fr) auto;
-}
-
-.taskbar-tooltip-alert-list li.has-action > span {
-  overflow-wrap: anywhere;
-}
-
-.taskbar-tooltip-mute-button {
-  padding: 0;
-  font-size: 12px;
-  line-height: 17px;
-  white-space: nowrap;
-}
-
-.taskbar-tooltip-mute-button:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.taskbar-tooltip-mute-error {
-  color: #c92733;
-  font-size: 12px;
-  line-height: 17px;
-}
-
 .taskbar-tooltip-alert-list .is-gte b,
 .taskbar-tooltip-alert-list .is-sell b,
 .taskbar-tooltip-alert-list .is-profit b {

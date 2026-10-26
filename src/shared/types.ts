@@ -1082,13 +1082,7 @@ export interface TFloatingProfitAlert {
   threshold: number
   status: TFloatingProfitAlertStatus
   triggeredAt?: string
-  mutedUntil?: string
 }
-
-export type TAlertMuteRequest = {
-  quoteId: string
-  batchId: string
-} & ({ kind: 'price'; side: 'buy' | 'sell' } | { kind: 'floating-profit' })
 
 export interface TPlanLevel {
   targetPercent: number
@@ -1137,8 +1131,6 @@ export interface TTradingBatch {
   sellLevels: TPlanLevel[]
   /** 当前批次的买卖十档价格提醒总开关。 */
   alertEnabled?: boolean
-  /** 按买卖方向暂停价格提醒，时间到达后自动恢复。 */
-  priceAlertMutedUntil?: Partial<Record<'buy' | 'sell', string>>
   /** 当前批次的双向浮动盈亏金额提醒。 */
   floatingProfitAlert?: TFloatingProfitAlert
   settlement?: TBatchSettlement
@@ -1318,8 +1310,7 @@ function normalizeTFloatingProfitAlert(
     enabled,
     threshold: Math.max(1, alert?.threshold ?? DEFAULT_T_FLOATING_PROFIT_ALERT_THRESHOLD),
     status,
-    triggeredAt: status === 'armed' ? undefined : alert?.triggeredAt,
-    mutedUntil: alert?.mutedUntil
+    triggeredAt: status === 'armed' ? undefined : alert?.triggeredAt
   }
 }
 
@@ -3092,7 +3083,6 @@ export interface StockDesktopApi {
   refreshTradingCalendar: () => Promise<TradingCalendarSettings>
   refreshExchangeRates: () => Promise<ExchangeRateSettings>
   saveState: (state: AppState) => Promise<AppState>
-  muteTAlertForToday: (request: TAlertMuteRequest) => Promise<AppState>
   getCompletionNotifications: () => Promise<AppCompletionNotification[]>
   saveCompletionNotifications: (
     notifications: AppCompletionNotification[]

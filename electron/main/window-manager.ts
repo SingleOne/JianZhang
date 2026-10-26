@@ -17,7 +17,6 @@ import { MacMenuBar } from './mac-menu-bar'
 
 const TASKBAR_TOOLTIP_WIDTH = 550
 const TASKBAR_TOOLTIP_DEFAULT_HEIGHT = 260
-const TASKBAR_TOOLTIP_HIDE_DELAY_MS = 250
 // Keep in sync with --floating-window-shadow-padding in TaskbarTicker.css.
 const FLOATING_WINDOW_SHADOW_PADDING = 24
 const MAIN_WINDOW_TITLEBAR_HEIGHT = 44
@@ -60,7 +59,6 @@ export class WindowManager {
   private taskbarLayout: TaskbarLayout = { taskbarHeight: 48, taskbarEdge: 'bottom' }
   private taskbarContentSize: { width: number; height: number } | null = null
   private taskbarTooltipAnchor: TaskbarTooltipAnchor | null = null
-  private taskbarTooltipHideTimer: NodeJS.Timeout | null = null
   private taskbarTooltipHeight = TASKBAR_TOOLTIP_DEFAULT_HEIGHT + FLOATING_WINDOW_SHADOW_PADDING * 2
   private trayHovered = false
   private disposed = false
@@ -147,8 +145,6 @@ export class WindowManager {
 
   setTaskbarTooltip(anchor: TaskbarTooltipAnchor | null): void {
     if (process.platform === 'darwin') return
-    if (this.taskbarTooltipHideTimer) clearTimeout(this.taskbarTooltipHideTimer)
-    this.taskbarTooltipHideTimer = null
     this.taskbarTooltipAnchor = anchor
     if (!anchor) {
       if (this.taskbarTooltipWindow && !this.taskbarTooltipWindow.isDestroyed()) {
@@ -164,29 +160,6 @@ export class WindowManager {
     }
 
     this.showTaskbarTooltipWindow()
-  }
-
-  scheduleTaskbarTooltipHide(): void {
-    if (this.taskbarTooltipHideTimer) clearTimeout(this.taskbarTooltipHideTimer)
-    this.taskbarTooltipHideTimer = setTimeout(() => {
-      this.taskbarTooltipHideTimer = null
-      const window = this.taskbarTooltipWindow
-      if (window && !window.isDestroyed() && window.isVisible()) {
-        const { x, y } = screen.getCursorScreenPoint()
-        const bounds = window.getBounds()
-        const padding = FLOATING_WINDOW_SHADOW_PADDING
-        if (
-          x >= bounds.x + padding &&
-          x < bounds.x + bounds.width - padding &&
-          y >= bounds.y + padding &&
-          y < bounds.y + bounds.height - padding
-        ) {
-          this.scheduleTaskbarTooltipHide()
-          return
-        }
-      }
-      this.setTaskbarTooltip(null)
-    }, TASKBAR_TOOLTIP_HIDE_DELAY_MS)
   }
 
   resizeTaskbarTooltip(height: number): void {
@@ -377,8 +350,6 @@ export class WindowManager {
     nativeTheme.removeListener('updated', this.handleNativeThemeUpdated)
     if (this.trayPopupShowTimer) clearTimeout(this.trayPopupShowTimer)
     this.trayPopupShowTimer = null
-    if (this.taskbarTooltipHideTimer) clearTimeout(this.taskbarTooltipHideTimer)
-    this.taskbarTooltipHideTimer = null
     this.appTray?.destroy()
     this.appTray = null
     this.trayPopupWindow?.destroy()
@@ -675,7 +646,6 @@ export class WindowManager {
     if (!window || window.isDestroyed() || !anchor) return
 
     this.positionTaskbarTooltipWindow()
-    if (process.platform === 'win32') window.setIgnoreMouseEvents(true, { forward: true })
     window.webContents.send('taskbar:tooltip-stock', anchor.quoteId)
     window.setAlwaysOnTop(true, 'pop-up-menu')
     window.showInactive()
@@ -714,10 +684,7 @@ export class WindowManager {
     this.taskbarTooltipWindow = window
 
     window.setAlwaysOnTop(true, 'pop-up-menu')
-    window.setIgnoreMouseEvents(process.platform === 'win32', { forward: true })
-    window.webContents.ipc.on('taskbar-tooltip:interactive', (_event, interactive: boolean) => {
-      window.setIgnoreMouseEvents(!interactive, { forward: true })
-    })
+    window.setIgnoreMouseEvents(true)
     window.setMenuBarVisibility(false)
     window.on('closed', () => {
       if (this.taskbarTooltipWindow === window) this.taskbarTooltipWindow = null

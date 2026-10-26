@@ -827,10 +827,7 @@ if (!hasSingleInstanceLock) {
         windowManager?.getTaskbarLayout() ?? { taskbarHeight: 48, taskbarEdge: 'bottom' },
       getTaskbarTooltipQuoteId: () => windowManager?.getTaskbarTooltipQuoteId() ?? null,
       resizeTaskbarTicker: (width, height) => windowManager?.resizeTaskbarTicker(width, height),
-      setTaskbarTooltip: (anchor) => {
-        if (anchor) windowManager?.setTaskbarTooltip(anchor)
-        else windowManager?.scheduleTaskbarTooltipHide()
-      },
+      setTaskbarTooltip: (anchor) => windowManager?.setTaskbarTooltip(anchor),
       resizeTaskbarTooltip: (height) => windowManager?.resizeTaskbarTooltip(height),
       getMainWindow: () => windowManager?.getMainWindow() ?? null,
       searchStocks,

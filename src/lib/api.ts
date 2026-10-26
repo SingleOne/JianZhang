@@ -49,7 +49,6 @@ import {
   parseUserDataBackupDocument
 } from '../shared/user-data-backup'
 import { DEMO_SECTORS, DEMO_STOCKS, DEMO_VALUES } from './demo-data'
-import { muteTAlertForToday } from './t-alerts'
 import { stockMarketIdentity } from '../shared/stock-market'
 import { previewCorporateAction, reversalEntries } from './portfolio-ledger'
 
@@ -1008,9 +1007,6 @@ const demoApi: StockDesktopApi = {
     const normalized = normalizeAccountState(state)
     localStorage.setItem('jianzhang-demo-state-v1', JSON.stringify(normalized))
     return normalized
-  },
-  async muteTAlertForToday(request) {
-    return demoApi.saveState(muteTAlertForToday(loadDemoState(), request))
   },
   async getCompletionNotifications() {
     const saved = localStorage.getItem('jianzhang-completion-notifications-v1')
