@@ -509,7 +509,7 @@ html.tray-mode #root {
 
 .taskbar-tooltip-inline-market {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  grid-template-columns: minmax(0, 1fr) max-content;
   gap: 8px;
   margin: 0;
 }
@@ -597,15 +597,16 @@ html.tray-mode #root {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: baseline;
-  gap: 3px;
+  gap: 1.5px;
   color: var(--stock-popover-secondary);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   line-height: 16px;
+  text-align: left;
   white-space: nowrap;
 }
 
-.taskbar-tooltip-order-row > span:not(:first-child) {
+.taskbar-tooltip-order-row > span:last-child {
   text-align: right;
 }
 
