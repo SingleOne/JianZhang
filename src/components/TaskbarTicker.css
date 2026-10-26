@@ -597,7 +597,7 @@ html.tray-mode #root {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: baseline;
-  gap: 1.5px;
+  gap: 0;
   color: var(--stock-popover-secondary);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
@@ -606,7 +606,13 @@ html.tray-mode #root {
   white-space: nowrap;
 }
 
+.taskbar-tooltip-order-row > span:nth-child(2) {
+  margin-left: 1.5px;
+}
+
 .taskbar-tooltip-order-row > span:last-child {
+  min-width: 6ch;
+  margin-left: 1ch;
   text-align: right;
 }
 
