@@ -17,6 +17,7 @@
     "build:ai-t": "set JIANZHANG_AI_T_ADVICE_MODULE=1&& tsc --noEmit && electron-vite build",
     "build:unpacked": "npm run build && npm run generate:icon && electron-builder --config electron-builder.config.cjs --win --dir",
     "generate:icon": "node scripts/generate-icon.mjs",
+    "build:mac-widgets": "node scripts/macos-widgets.cjs",
     "package:win": "npm run build && npm run generate:icon && electron-builder --config electron-builder.config.cjs --win nsis",
     "package:portable": "npm run build && npm run generate:icon && electron-builder --config electron-builder.config.cjs --win portable",
     "package:mac": "npm run build && npm run generate:icon && node scripts/package-mac.cjs --config electron-builder.config.cjs --mac"
