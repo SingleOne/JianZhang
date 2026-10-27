@@ -10,7 +10,8 @@ import {
   formatPrice,
   formatShares,
   formatSigned,
-  formatUpdateTime
+  formatUpdateTime,
+  formatVolume
 } from '../lib/format'
 import { calculatePositionMetrics, getPositionHoldingDays } from '../lib/portfolio'
 import { calculateCurrentPositionProfitOverride } from '../lib/portfolio-performance'
@@ -18,7 +19,9 @@ import { formatStockAlertValue, STOCK_ALERT_METRIC_LABELS } from '../lib/stock-a
 import {
   marketCapabilitiesForQuoteId,
   marketFromQuoteId,
-  STOCK_CURRENCY_SYMBOLS
+  STOCK_CURRENCY_SYMBOLS,
+  volumeUnitForMarket,
+  type StockVolumeUnit
 } from '../shared/stock-market'
 import { applyAppThemePreference } from '../lib/theme'
 import { observeContentHeight } from '../lib/observe-content-height'
@@ -36,6 +39,8 @@ import { AppButton } from './AppButton'
 const SPARKLINE_WIDTH = 76
 const SPARKLINE_HEIGHT = 26
 const SPARKLINE_PADDING = 2
+const EXPANDED_SPARKLINE_WIDTH = 360
+const EXPANDED_SPARKLINE_PADDING = 4
 const FIFTEEN_MINUTES = 15 * 60_000
 const ORDER_BOOK_LEVEL_LABELS = ['一', '二', '三', '四', '五']
 
@@ -90,28 +95,89 @@ function minuteTimestamp(time: string): number | null {
   )
 }
 
-function recentFifteenMinutePrices(bars: readonly KlineBar[]): number[] {
+function recentFifteenMinuteBars(bars: readonly KlineBar[]): KlineBar[] {
   const points = bars
-    .map((bar) => ({ time: minuteTimestamp(bar.time), price: bar.close }))
-    .filter((point): point is { time: number; price: number } => point.time !== null)
+    .map((bar) => ({ time: minuteTimestamp(bar.time), bar }))
+    .filter((point): point is { time: number; bar: KlineBar } => point.time !== null)
     .sort((left, right) => left.time - right.time)
   const latestTime = points.at(-1)?.time
   return latestTime === undefined
     ? []
-    : points
-        .filter((point) => point.time >= latestTime - FIFTEEN_MINUTES)
-        .map((point) => point.price)
+    : points.filter((point) => point.time > latestTime - FIFTEEN_MINUTES).map((point) => point.bar)
+}
+
+function sparklineX(index: number, count: number, width: number, padding: number): number {
+  return count === 1 ? width / 2 : padding + (index / (count - 1)) * (width - padding * 2)
+}
+
+function MiniVolumeHistogram({
+  bars,
+  volumeUnit,
+  intervalMinutes
+}: {
+  bars: readonly KlineBar[]
+  volumeUnit: StockVolumeUnit
+  intervalMinutes: 1 | 5
+}) {
+  const width = EXPANDED_SPARKLINE_WIDTH
+  const height = 28
+  const maximum = Math.max(...bars.map((bar) => bar.volume))
+  const total = bars.reduce((sum, bar) => sum + bar.volume, 0)
+  const barWidth = Math.min(8, ((width - EXPANDED_SPARKLINE_PADDING * 2) / bars.length) * 0.65)
+
+  return (
+    <>
+      <dt className="taskbar-tooltip-volume-heading">
+        <span>成交量{intervalMinutes === 5 ? '（5分钟）' : ''}</span>
+        <span>{formatVolume(total, volumeUnit)}</span>
+      </dt>
+      <dd className="taskbar-tooltip-volume-chart">
+        <svg
+          aria-label={`最近15分钟每${intervalMinutes === 1 ? '' : intervalMinutes}分钟成交量，合计 ${formatVolume(total, volumeUnit)}`}
+          role="img"
+          viewBox={`0 0 ${width} ${height}`}
+          preserveAspectRatio="none"
+        >
+          {bars.map((bar, index) => {
+            const barHeight = maximum === 0 ? 0 : (bar.volume / maximum) * (height - 2)
+            const x = sparklineX(index, bars.length, width, EXPANDED_SPARKLINE_PADDING)
+            return (
+              <rect
+                key={bar.time}
+                className={valueClass(bar.close - bar.open)}
+                x={(x - barWidth / 2).toFixed(2)}
+                y={(height - barHeight).toFixed(2)}
+                width={barWidth.toFixed(2)}
+                height={barHeight.toFixed(2)}
+              >
+                <title>
+                  {bar.time.slice(11, 16)} 成交量 {bar.volume.toLocaleString('zh-CN')}
+                  {volumeUnit === 'lot' ? '手' : '股'}
+                </title>
+              </rect>
+            )
+          })}
+        </svg>
+      </dd>
+    </>
+  )
 }
 
 export function MiniPriceSparkline({
   prices,
+  volumeBars,
+  volumeUnit = 'lot',
+  intervalMinutes = 1,
   expanded = false
 }: {
   prices: readonly number[]
+  volumeBars?: readonly KlineBar[]
+  volumeUnit?: StockVolumeUnit
+  intervalMinutes?: 1 | 5
   expanded?: boolean
 }) {
   const fillId = useId()
-  const width = expanded ? 360 : SPARKLINE_WIDTH
+  const width = expanded ? EXPANDED_SPARKLINE_WIDTH : SPARKLINE_WIDTH
   const height = expanded ? 88 : SPARKLINE_HEIGHT
   if (prices.length === 0) {
     return (
@@ -125,14 +191,11 @@ export function MiniPriceSparkline({
   const minimum = Math.min(...prices)
   const maximum = Math.max(...prices)
   const range = maximum - minimum
-  const paddingX = expanded ? 4 : SPARKLINE_PADDING
+  const paddingX = expanded ? EXPANDED_SPARKLINE_PADDING : SPARKLINE_PADDING
   const paddingY = expanded ? 20 : SPARKLINE_PADDING
   const availableHeight = height - paddingY * 2
   const coordinates = prices.map((price, index) => ({
-    x:
-      prices.length === 1
-        ? width / 2
-        : paddingX + (index / (prices.length - 1)) * (width - paddingX * 2),
+    x: sparklineX(index, prices.length, width, paddingX),
     y: range === 0 ? height / 2 : paddingY + ((maximum - price) / range) * availableHeight
   }))
   const path =
@@ -224,6 +287,13 @@ export function MiniPriceSparkline({
           </span>
         )}
       </dd>
+      {expanded && volumeBars?.length ? (
+        <MiniVolumeHistogram
+          bars={volumeBars}
+          volumeUnit={volumeUnit}
+          intervalMinutes={intervalMinutes}
+        />
+      ) : null}
     </div>
   )
 }
@@ -380,8 +450,8 @@ export function StockQuoteDetails({
   )
   const currentIntraday = intraday?.quoteId === quoteId ? intraday : null
   const currentOrderBook = orderBook?.quoteId === quoteId ? orderBook : null
-  const sparklinePrices = useMemo(
-    () => recentFifteenMinutePrices(currentIntraday?.bars ?? []),
+  const sparklineBars = useMemo(
+    () => recentFifteenMinuteBars(currentIntraday?.bars ?? []),
     [currentIntraday]
   )
   const account = state.stockTradingBooks[quoteId]
@@ -500,7 +570,13 @@ export function StockQuoteDetails({
       </dl>
 
       <dl className="taskbar-tooltip-inline-market">
-        <MiniPriceSparkline prices={sparklinePrices} expanded />
+        <MiniPriceSparkline
+          prices={sparklineBars.map((bar) => bar.close)}
+          volumeBars={sparklineBars}
+          volumeUnit={volumeUnitForMarket(market)}
+          intervalMinutes={currentIntraday?.intervalMinutes}
+          expanded
+        />
         <FiveLevelOrderBook orderBook={currentOrderBook} />
       </dl>
 

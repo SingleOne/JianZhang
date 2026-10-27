@@ -395,6 +395,20 @@
   height: 88px;
 }
 
+:root.macos-popover[data-theme]
+  .is-inline
+  .taskbar-tooltip-sparkline
+  .taskbar-tooltip-volume-chart {
+  height: 28px;
+  border-color: var(--mac-popover-separator);
+  background-image: linear-gradient(to right, var(--mac-popover-separator) 1px, transparent 1px);
+  background-size: 12.5% 100%;
+}
+
+:root.macos-popover[data-theme] .is-inline .taskbar-tooltip-volume-chart svg {
+  height: 28px;
+}
+
 :root.macos-popover[data-theme] .is-inline .taskbar-tooltip-order-book {
   padding-left: 6px;
   border-left: 1px solid var(--mac-popover-separator);
