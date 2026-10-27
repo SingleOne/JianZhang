@@ -1,5 +1,5 @@
 const { execFileSync } = require('node:child_process')
-const { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } = require('node:fs')
+const { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } = require('node:fs')
 const path = require('node:path')
 const plist = require('plist')
 const { Arch } = require('builder-util')
@@ -169,6 +169,7 @@ function buildMacWidgets({
   })
   const profile = process.env.JIANZHANG_WIDGET_PROVISIONING_PROFILE
   if (profile) cpSync(profile, path.join(extensionContents, 'embedded.provisionprofile'))
+  else rmSync(path.join(extensionContents, 'embedded.provisionprofile'), { force: true })
   const extensionEntitlements = path.join(work, 'extension-entitlements.plist')
   writePlist(extensionEntitlements, {
     'com.apple.security.app-sandbox': true,
