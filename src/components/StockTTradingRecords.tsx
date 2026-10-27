@@ -54,6 +54,7 @@ import {
 } from '../shared/stock-t-batches'
 import { currencyForMarket, marketFromQuoteId } from '../shared/stock-market'
 import { exchangeRateForCurrency } from '../shared/exchange-rates'
+import { marketDateTimeInput } from '../shared/market-hours'
 import type {
   ExchangeRateSettings,
   MarketTradeFeeSettings,
@@ -621,6 +622,9 @@ export function StockTTradingRecords(props: Props) {
                 const adjustment = batchCalibrationProfit(batch)
                 const finalProfit = batch.settlement!.finalProfit
                 const market = stock.market ?? marketFromQuoteId(stock.quoteId)
+                const endedAt =
+                  trades.at(-1)?.tradedAt ??
+                  marketDateTimeInput(market, new Date(batch.settlement!.settledAt))
                 const cny =
                   market === 'CN'
                     ? null
@@ -644,8 +648,8 @@ export function StockTTradingRecords(props: Props) {
                           {directionLabel(batch)}批次 #{batch.sequence}
                         </strong>
                         <small>
-                          {tradeTime(batch.openedAt)} 至 {tradeTime(batch.settlement!.settledAt)} ·{' '}
-                          {trades.length} 笔流水
+                          {tradeTime(batch.openedAt)} 至 {tradeTime(endedAt)} · {trades.length}{' '}
+                          笔流水
                         </small>
                       </span>
                       <span>
