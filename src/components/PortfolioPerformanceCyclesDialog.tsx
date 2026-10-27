@@ -150,7 +150,7 @@ function AccountCycles({
           value={cumulative.totalProfit}
           note={
             cumulative.manualAdjustment !== 0
-              ? `含当前周期调整 ${formatMoneyProfit(cumulative.manualAdjustment, 'CNY')}`
+              ? `含收益调整 ${formatMoneyProfit(cumulative.manualAdjustment, 'CNY')}`
               : undefined
           }
         />

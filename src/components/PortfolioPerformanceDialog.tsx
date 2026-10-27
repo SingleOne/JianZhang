@@ -153,9 +153,11 @@ function IssueSummary({
     <div className="performance-completeness">
       <strong className={summary.excludedStockCount > 0 ? 'is-warning' : 'is-complete'}>
         {label}：
-        {summary.excludedStockCount > 0
-          ? `仅纳入 ${summary.includedStockCount}/${summary.stockCount} 只`
-          : `${summary.includedStockCount} 只完整`}
+        {label === '当前' && summary.stockCount === 0
+          ? '无持仓周期'
+          : summary.excludedStockCount > 0
+            ? `仅纳入 ${summary.includedStockCount}/${summary.stockCount} 只`
+            : `${summary.includedStockCount} 只完整`}
       </strong>
       {blockingIssues.map(([issue, count]) => (
         <small key={issue}>
@@ -332,7 +334,7 @@ export default function PortfolioPerformanceDialog({
 
   const openAdjustmentEditor = (quoteId: string) => {
     const stock = stocksByQuoteId.get(quoteId)
-    if (!stock || stock.currentCycle.cny.totalProfit === null) return
+    if (!stock || stock.quantity <= 0 || stock.currentCycle.cny.totalProfit === null) return
     setAdjustmentDraft(stock.currentCycle.cny.totalProfit.toFixed(2))
     setAdjustmentError('')
     setEditingAdjustmentQuoteId(quoteId)
@@ -347,7 +349,7 @@ export default function PortfolioPerformanceDialog({
   const saveAdjustment = async () => {
     if (!editingAdjustmentQuoteId) return
     const stock = stocksByQuoteId.get(editingAdjustmentQuoteId)
-    if (!stock) return
+    if (!stock || stock.quantity <= 0) return
     const rawProfit =
       stock.currentCycle.cny.totalProfit === null
         ? null
@@ -466,11 +468,13 @@ export default function PortfolioPerformanceDialog({
               label="当前周期收益小计"
               value={portfolio.currentCycle.cny.totalProfit}
               note={
-                portfolio.currentCycle.cny.manualAdjustment !== 0 && rawPortfolioProfit !== null
-                  ? `计算 ${formatMoneyProfit(rawPortfolioProfit, 'CNY')} · 调整 ${formatMoneyProfit(portfolio.currentCycle.cny.manualAdjustment, 'CNY')}`
-                  : portfolio.currentCycle.excludedStockCount > 0
-                    ? `仅含 ${portfolio.currentCycle.includedStockCount} 只，排除 ${portfolio.currentCycle.excludedStockCount} 只`
-                    : `${portfolio.currentCycle.includedStockCount} 只数据完整`
+                portfolio.currentCycle.stockCount === 0
+                  ? '当前无持仓'
+                  : portfolio.currentCycle.cny.manualAdjustment !== 0 && rawPortfolioProfit !== null
+                    ? `计算 ${formatMoneyProfit(rawPortfolioProfit, 'CNY')} · 调整 ${formatMoneyProfit(portfolio.currentCycle.cny.manualAdjustment, 'CNY')}`
+                    : portfolio.currentCycle.excludedStockCount > 0
+                      ? `仅含 ${portfolio.currentCycle.includedStockCount} 只，排除 ${portfolio.currentCycle.excludedStockCount} 只`
+                      : `${portfolio.currentCycle.includedStockCount} 只数据完整`
               }
             />
             <SummaryValue
@@ -478,7 +482,7 @@ export default function PortfolioPerformanceDialog({
               value={portfolio.cumulative.cny.totalProfit}
               note={
                 portfolio.cumulative.cny.manualAdjustment !== 0
-                  ? `含当前周期调整 ${formatMoneyProfit(portfolio.cumulative.cny.manualAdjustment, 'CNY')}`
+                  ? `含收益调整 ${formatMoneyProfit(portfolio.cumulative.cny.manualAdjustment, 'CNY')}`
                   : portfolio.cumulative.excludedStockCount > 0
                     ? `仅含 ${portfolio.cumulative.includedStockCount} 只，排除 ${portfolio.cumulative.excludedStockCount} 只`
                     : `${portfolio.cumulative.includedStockCount} 只数据完整`
@@ -503,7 +507,7 @@ export default function PortfolioPerformanceDialog({
           </div>
 
           <div className="portfolio-performance-attribution-note">
-            除累计收益小计和累计收益列外，其余收益分项均为当前或最近持仓周期。证券价格贡献按历史加权购入汇率折算；汇率贡献按当前或卖出证券价值的汇率变化计算。手动调整计入当前周期，并随周期汇总计入累计收益。
+            当前周期收益及各收益分项仅统计仍有持仓账户的当前周期，包含本周期部分卖出的已实现收益；已清仓周期仅计入累计收益并保留在周期明细中。证券价格贡献按历史加权购入汇率折算；汇率贡献按当前或卖出证券价值的汇率变化计算。手动调整随所属周期计入累计收益。
           </div>
 
           <div className="portfolio-performance-toolbar">
@@ -605,7 +609,10 @@ export default function PortfolioPerformanceDialog({
                       : undefined
                   const hasCycleDetails =
                     row.scope === 'stock' && listStockAccountBooks(visibleBooks[row.id]).length > 0
-                  const editingAdjustment = editingAdjustmentQuoteId === editableStock?.quoteId
+                  const editingAdjustment =
+                    editableStock &&
+                    editableStock.quantity > 0 &&
+                    editingAdjustmentQuoteId === editableStock.quoteId
                   const rawStockProfit = editableStock
                     ? editableStock.currentCycle.cny.totalProfit === null
                       ? null
@@ -668,6 +675,7 @@ export default function PortfolioPerformanceDialog({
                             <span className="performance-adjusted-value">
                               {formatMoneyProfit(currentCycle.cny.totalProfit, 'CNY')}
                               {editableStock &&
+                              editableStock.quantity > 0 &&
                               editableStock.currentCycle.cny.totalProfit !== null ? (
                                 <button
                                   className="performance-adjustment-edit"
