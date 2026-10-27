@@ -176,6 +176,34 @@ describe('current position profit', () => {
     )
     expect(report.stockRows[0].cumulative.native[0].totalProfit).toBe(627)
     expect(report.stockRows[0].cumulative.cny.totalProfit).toBe(656.43)
+    for (const row of [
+      ...report.stockRows,
+      ...report.marketRows,
+      ...report.currencyRows,
+      report.portfolioRow
+    ]) {
+      expect(row.currentCycle).toMatchObject({
+        stockCount: 1,
+        includedStockCount: 1,
+        excludedStockCount: 0,
+        cny: { realizedProfit: 0, unrealizedProfit: 143.4, tradeFees: 2.72, totalProfit: 140.68 }
+      })
+      expect(row.currentCycle.native[0].totalProfit).toBe(137)
+    }
+    expect(report.accountRows.find((row) => row.id === 'first')?.currentCycle.cny.totalProfit).toBe(
+      59.98
+    )
+    expect(
+      report.accountRows.find((row) => row.id === 'second')?.currentCycle.cny.totalProfit
+    ).toBe(80.7)
+    expect(report.accountRows.find((row) => row.id === 'closed')?.currentCycle).toMatchObject({
+      stockCount: 0,
+      excludedStockCount: 0,
+      cny: { totalProfit: 0 }
+    })
+    const cycles = calculatePortfolioPerformanceCycles(stock(0), quote(), closed, exchangeRates())
+    expect(cycles).toHaveLength(1)
+    expect(cycles[0]).toMatchObject({ status: 'closed', cny: { totalProfit: 515.75 } })
   })
 
   it('preserves the legacy single-account position and the latest closed-cycle result', () => {
@@ -243,7 +271,158 @@ describe('portfolio performance report', () => {
       (result.currentCycle.cny.priceContribution ?? 0) +
         (result.currentCycle.cny.exchangeRateContribution ?? 0)
     )
+    for (const row of [
+      ...report.stockRows,
+      ...report.marketRows,
+      ...report.accountRows,
+      ...report.currencyRows,
+      report.portfolioRow
+    ]) {
+      expect(row.currentCycle.cny).toEqual(result.currentCycle.cny)
+      expect(row.currentCycle.native).toEqual(result.currentCycle.native)
+    }
   })
+
+  it('zeros current-cycle aggregates after closing while preserving cumulative profit and history', () => {
+    const entries = [
+      trade('buy', 'buy', 100, 10, 0.9, 5),
+      trade('close', 'sell', 100, 15, 0.95, 5),
+      cashEntry('cashDividend', 100),
+      cashEntry('withholdingTax', 10),
+      cashEntry('corporateActionFee', 2),
+      cashEntry('cashAdjustment', 20)
+    ]
+    const closed = { ...account(entries), accountId: 'closed', performanceAdjustmentCny: 25.5 }
+    const report = calculatePortfolioPerformanceReport(
+      [stock(0)],
+      [quote()],
+      { '116.00700': closed },
+      exchangeRates()
+    )
+
+    for (const row of [
+      ...report.stockRows,
+      ...report.marketRows,
+      ...report.accountRows,
+      ...report.currencyRows,
+      report.portfolioRow
+    ]) {
+      expect(row.currentCycle).toEqual({
+        stockCount: 0,
+        includedStockCount: 0,
+        excludedStockCount: 0,
+        native: [],
+        cny: {
+          realizedProfit: 0,
+          unrealizedProfit: 0,
+          dividendIncome: 0,
+          withholdingTax: 0,
+          tradeFees: 0,
+          corporateActionFees: 0,
+          corporateActionIncome: 0,
+          totalProfit: 0,
+          priceContribution: 0,
+          exchangeRateContribution: 0,
+          manualAdjustment: 0
+        },
+        issueCounts: {}
+      })
+      expect(row.cumulative.cny.totalProfit).toBe(639.53)
+      expect(row.cumulative.cny.manualAdjustment).toBe(25.5)
+    }
+    expect(report.stocks[0].currentCycle.cny.totalProfit).toBe(639.53)
+    const cycles = calculatePortfolioPerformanceCycles(
+      stock(0),
+      quote(),
+      closed,
+      exchangeRates(),
+      25.5
+    )
+    expect(cycles).toHaveLength(1)
+    expect(cycles[0]).toMatchObject({
+      status: 'closed',
+      includedInCumulative: true,
+      cny: { totalProfit: 639.53, manualAdjustment: 25.5 }
+    })
+  })
+
+  it('excludes incomplete closed accounts from current-cycle completeness only', () => {
+    const closed = {
+      ...account([
+        trade('closed-buy', 'buy', 100, 10, undefined, 0),
+        trade('close', 'sell', 100, 15, 0.95, 0)
+      ]),
+      accountId: 'closed'
+    }
+    const holding = {
+      ...account([trade('buy', 'buy', 100, 10, 0.9, 0)]),
+      accountId: 'holding',
+      position: stock(100).position
+    }
+    const report = calculatePortfolioPerformanceReport(
+      [stock(100)],
+      [quote()],
+      { '116.00700': { quoteId: '116.00700', accounts: { closed, holding } } },
+      exchangeRates()
+    )
+
+    for (const row of [
+      ...report.stockRows,
+      ...report.marketRows,
+      ...report.currencyRows,
+      report.portfolioRow
+    ]) {
+      expect(row.currentCycle).toMatchObject({
+        includedStockCount: 1,
+        excludedStockCount: 0,
+        cny: { totalProfit: 204 },
+        issueCounts: {}
+      })
+      expect(row.cumulative.excludedStockCount).toBe(1)
+      expect(row.cumulative.cny.totalProfit).toBeNull()
+      expect(row.cumulative.issueCounts.missingHistoricalRate).toBe(1)
+    }
+  })
+
+  it.each(['legacy', 'named'] as const)(
+    'uses saved holdings for current-cycle membership when the %s account ledger disagrees',
+    (kind) => {
+      for (const savedQuantity of [0, 100]) {
+        const entries = [trade('buy', 'buy', 100, 10, 0.9, 0)]
+        if (savedQuantity > 0) entries.push(trade('close', 'sell', 100, 15, 0.95, 0))
+        const savedStock = stock(savedQuantity)
+        const book =
+          kind === 'legacy'
+            ? account(entries)
+            : { ...account(entries), accountId: 'holding', position: savedStock.position }
+        const report = calculatePortfolioPerformanceReport(
+          [savedStock],
+          [quote()],
+          { '116.00700': book },
+          exchangeRates()
+        )
+
+        expect(report.stocks[0].quantity).toBe(savedQuantity)
+        expect(report.stocks[0].currentCycle.issues).toContain('positionMismatch')
+        for (const row of [
+          ...report.stockRows,
+          ...report.marketRows,
+          ...report.accountRows,
+          ...report.currencyRows,
+          report.portfolioRow
+        ]) {
+          expect(row.currentCycle.stockCount).toBe(savedQuantity > 0 ? 1 : 0)
+          expect(row.currentCycle.excludedStockCount).toBe(savedQuantity > 0 ? 1 : 0)
+          expect(row.currentCycle.cny.totalProfit).toBe(savedQuantity > 0 ? null : 0)
+          expect(row.currentCycle.issueCounts.positionMismatch).toBe(
+            savedQuantity > 0 ? 1 : undefined
+          )
+          expect(row.cumulative.excludedStockCount).toBe(1)
+          expect(row.cumulative.cny.totalProfit).toBeNull()
+        }
+      }
+    }
+  )
 
   it('excludes a stock from CNY totals when its historical rate is missing', () => {
     const entries = [trade('buy', 'buy', 100, 10, undefined, 0)]

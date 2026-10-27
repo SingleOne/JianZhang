@@ -924,9 +924,11 @@ function issueCounts(
 
 function aggregateStockSnapshots(
   stocks: readonly PortfolioPerformanceStockResult[],
-  select: (stock: PortfolioPerformanceStockResult) => PortfolioPerformanceSnapshot
+  period: 'currentCycle' | 'cumulative'
 ): PortfolioPerformanceAggregateSummary {
-  const snapshots = stocks.map(select)
+  // 周期明细保留最近已清仓周期，当前汇总只纳入仍持仓账户。
+  if (period === 'currentCycle') stocks = stocks.filter((stock) => stock.quantity > 0)
+  const snapshots = stocks.map((stock) => stock[period])
   const quoteIds = [...new Set(stocks.map((stock) => stock.quoteId))]
   const completeIds = quoteIds.filter((id) =>
     stocks.every((stock, index) => stock.quoteId !== id || snapshots[index].complete)
@@ -938,7 +940,7 @@ function aggregateStockSnapshots(
     excludedStockCount: quoteIds.length - completeIds.length,
     native: mergeNativeSlices(snapshots.flatMap((snapshot) => snapshot.native)),
     cny:
-      included.length > 0
+      included.length > 0 || (period === 'currentCycle' && snapshots.length === 0)
         ? combineCny(included.map((snapshot) => snapshot.cny))
         : emptyIncompleteCny(),
     issueCounts: issueCounts(snapshots)
@@ -957,18 +959,19 @@ function aggregateStocks(
     label,
     detail,
     scope,
-    currentCycle: aggregateStockSnapshots(stocks, (stock) => stock.currentCycle),
-    cumulative: aggregateStockSnapshots(stocks, (stock) => stock.cumulative)
+    currentCycle: aggregateStockSnapshots(stocks, 'currentCycle'),
+    cumulative: aggregateStockSnapshots(stocks, 'cumulative')
   }
 }
 
 function aggregateCurrencySnapshots(
   currency: StockCurrency,
   stocks: readonly PortfolioPerformanceStockResult[],
-  select: (stock: PortfolioPerformanceStockResult) => PortfolioPerformanceSnapshot
+  period: 'currentCycle' | 'cumulative'
 ): PortfolioPerformanceAggregateSummary {
+  if (period === 'currentCycle') stocks = stocks.filter((stock) => stock.quantity > 0)
   const members = stocks.flatMap((stock) => {
-    const snapshot = select(stock)
+    const snapshot = stock[period]
     const slice = snapshot.currencySlices.find((item) => item.currency === currency)
     return slice ? [{ stock, snapshot, slice }] : []
   })
@@ -984,7 +987,7 @@ function aggregateCurrencySnapshots(
     excludedStockCount: quoteIds.length - completeIds.length,
     native: mergeNativeSlices(members.map(({ slice }) => slice.native)),
     cny:
-      included.length > 0
+      included.length > 0 || (period === 'currentCycle' && members.length === 0)
         ? combineCny(included.map(({ slice }) => slice.cny))
         : emptyIncompleteCny(),
     issueCounts: issueCounts(memberSnapshots)
@@ -1000,8 +1003,8 @@ function aggregateCurrency(
     label: currency,
     detail: '按原始发生币种汇总',
     scope: 'currency',
-    currentCycle: aggregateCurrencySnapshots(currency, stocks, (stock) => stock.currentCycle),
-    cumulative: aggregateCurrencySnapshots(currency, stocks, (stock) => stock.cumulative)
+    currentCycle: aggregateCurrencySnapshots(currency, stocks, 'currentCycle'),
+    cumulative: aggregateCurrencySnapshots(currency, stocks, 'cumulative')
   }
 }
 
@@ -1048,7 +1051,8 @@ export function calculatePortfolioPerformanceReport(
             accountLabel:
               securitiesAccounts[currentCycle.accountId]?.name ?? currentCycle.accountLabel,
             securityCurrency: currentCycle.securityCurrency,
-            quantity: currentCycle.quantity,
+            // 当前持仓决定是否纳入当前周期，账本数量不一致仍通过完整性提示。
+            quantity: (account?.accountId ? account.position : stock.position)?.quantity ?? 0,
             latest: currentCycle.latest,
             currentCycle: performanceSnapshot(currentCycle),
             cumulative: performanceSnapshot(cumulative)
