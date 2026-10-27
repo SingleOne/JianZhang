@@ -89,6 +89,17 @@ function valueClass(value: number | null | undefined): string {
   return value > 0 ? 'is-up' : 'is-down'
 }
 
+function HoldingProfitValue({ value, className }: { value: string; className: string }) {
+  return (
+    <span className={`holding-profit-value ${className}`}>
+      <span className="holding-profit-shadow" aria-hidden="true">
+        {value}
+      </span>
+      <span className="holding-profit-text">{value}</span>
+    </span>
+  )
+}
+
 function isChiNextStock(code: string): boolean {
   return code.startsWith('300') || code.startsWith('301')
 }
@@ -932,23 +943,32 @@ export const WatchlistRow = memo(function WatchlistRow({
                       }}
                       onKeyDown={(event) => event.stopPropagation()}
                     >
-                      <span className={valueClass(displayedTotalProfit)}>
-                        {hasTotalProfit
-                          ? formatMoneyProfit(
-                              displayedTotalProfit,
-                              hasPosition ? metrics.currency : 'CNY'
-                            )
-                          : '-'}
-                      </span>
+                      <HoldingProfitValue
+                        className={valueClass(displayedTotalProfit)}
+                        value={
+                          hasTotalProfit
+                            ? formatMoneyProfit(
+                                displayedTotalProfit,
+                                hasPosition ? metrics.currency : 'CNY'
+                              )
+                            : '-'
+                        }
+                      />
                       {hasTotalProfit ? (
                         hasPosition ? (
-                          <span className={valueClass(metrics.profitPercent)}>
-                            {metrics.profitPercent !== null
-                              ? formatPercent(metrics.profitPercent)
-                              : '-'}
-                          </span>
+                          <HoldingProfitValue
+                            className={valueClass(metrics.profitPercent)}
+                            value={
+                              metrics.profitPercent !== null
+                                ? formatPercent(metrics.profitPercent)
+                                : '-'
+                            }
+                          />
                         ) : (
-                          <small className="cumulative-profit-label">累计收益</small>
+                          <HoldingProfitValue
+                            className="cumulative-profit-label"
+                            value="累计收益"
+                          />
                         )
                       ) : null}
                     </AppButton>

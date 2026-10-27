@@ -1611,15 +1611,47 @@ button.value-screening-badge:focus-visible {
   cursor: pointer;
 }
 
-.holding-profit-button > * {
-  transition:
-    transform 160ms ease,
-    text-shadow 160ms ease;
+.holding-profit-value {
+  position: relative;
 }
 
-.holding-profit-button:hover > * {
-  transform: translateY(-1px);
-  text-shadow: 0 2px 4px rgb(15 23 42 / 18%);
+.holding-profit-shadow {
+  position: absolute;
+  inset: 0;
+  filter: blur(2px);
+  opacity: 0;
+  transform: translateY(3px);
+  pointer-events: none;
+  user-select: none;
+  transition: opacity 180ms ease;
+}
+
+.holding-profit-text {
+  position: relative;
+  display: inline-block;
+  transition: transform 180ms ease;
+}
+
+.holding-profit-button:hover .holding-profit-shadow,
+.holding-profit-button:focus-visible .holding-profit-shadow {
+  opacity: 0.4;
+}
+
+.holding-profit-button:hover .holding-profit-text,
+.holding-profit-button:focus-visible .holding-profit-text {
+  transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .holding-profit-shadow,
+  .holding-profit-text {
+    transition: none;
+  }
+
+  .holding-profit-button:hover .holding-profit-text,
+  .holding-profit-button:focus-visible .holding-profit-text {
+    transform: none;
+  }
 }
 
 .holding-profit-button:focus-visible {
