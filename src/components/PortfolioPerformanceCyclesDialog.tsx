@@ -344,6 +344,9 @@ export default function PortfolioPerformanceCyclesDialog({
           <div className="portfolio-performance-cycles-note">
             各账户累计收益从该账户最近一次收益基准重置后开始计算；重置前周期仍保留展示，但不计入该账户当前累计。
           </div>
+          {groups.length === 0 ? (
+            <div className="portfolio-performance-cycles-empty">当前没有可查看的持仓周期。</div>
+          ) : null}
           {groups.map(({ performance, cycles }) => (
             <AccountCycles
               key={performance.accountId}

@@ -1602,6 +1602,26 @@ button.value-screening-badge:focus-visible {
   font-weight: 500;
 }
 
+.holding-profit-button {
+  width: 100%;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.holding-profit-button:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.holding-profit-button:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .holding-profit-tooltip-row {
   display: block;
   white-space: nowrap;
