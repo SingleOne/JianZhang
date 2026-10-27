@@ -113,53 +113,39 @@ function sparklineX(index: number, count: number, width: number, padding: number
 function MiniVolumeHistogram({
   bars,
   volumeUnit,
-  intervalMinutes
+  chartHeight
 }: {
   bars: readonly KlineBar[]
   volumeUnit: StockVolumeUnit
-  intervalMinutes: 1 | 5
+  chartHeight: number
 }) {
   const width = EXPANDED_SPARKLINE_WIDTH
-  const height = 28
+  const height = chartHeight * 0.25
   const maximum = Math.max(...bars.map((bar) => bar.volume))
-  const total = bars.reduce((sum, bar) => sum + bar.volume, 0)
   const barWidth = Math.min(8, ((width - EXPANDED_SPARKLINE_PADDING * 2) / bars.length) * 0.65)
 
   return (
-    <>
-      <dt className="taskbar-tooltip-volume-heading">
-        <span>成交量{intervalMinutes === 5 ? '（5分钟）' : ''}</span>
-        <span>{formatVolume(total, volumeUnit)}</span>
-      </dt>
-      <dd className="taskbar-tooltip-volume-chart">
-        <svg
-          aria-label={`最近15分钟每${intervalMinutes === 1 ? '' : intervalMinutes}分钟成交量，合计 ${formatVolume(total, volumeUnit)}`}
-          role="img"
-          viewBox={`0 0 ${width} ${height}`}
-          preserveAspectRatio="none"
-        >
-          {bars.map((bar, index) => {
-            const barHeight = maximum === 0 ? 0 : (bar.volume / maximum) * (height - 2)
-            const x = sparklineX(index, bars.length, width, EXPANDED_SPARKLINE_PADDING)
-            return (
-              <rect
-                key={bar.time}
-                className={valueClass(bar.close - bar.open)}
-                x={(x - barWidth / 2).toFixed(2)}
-                y={(height - barHeight).toFixed(2)}
-                width={barWidth.toFixed(2)}
-                height={barHeight.toFixed(2)}
-              >
-                <title>
-                  {bar.time.slice(11, 16)} 成交量 {bar.volume.toLocaleString('zh-CN')}
-                  {volumeUnit === 'lot' ? '手' : '股'}
-                </title>
-              </rect>
-            )
-          })}
-        </svg>
-      </dd>
-    </>
+    <g className="taskbar-tooltip-volume-chart">
+      {bars.map((bar, index) => {
+        const barHeight = maximum === 0 ? 0 : (bar.volume / maximum) * (height - 2)
+        const x = sparklineX(index, bars.length, width, EXPANDED_SPARKLINE_PADDING)
+        return (
+          <rect
+            key={bar.time}
+            className={valueClass(bar.close - bar.open)}
+            x={(x - barWidth / 2).toFixed(2)}
+            y={(chartHeight - barHeight).toFixed(2)}
+            width={barWidth.toFixed(2)}
+            height={barHeight.toFixed(2)}
+          >
+            <title>
+              {bar.time.slice(11, 16)} 成交量 {bar.volume.toLocaleString('zh-CN')}
+              {volumeUnit === 'lot' ? '手' : '股'}
+            </title>
+          </rect>
+        )
+      })}
+    </g>
   )
 }
 
@@ -191,12 +177,15 @@ export function MiniPriceSparkline({
   const minimum = Math.min(...prices)
   const maximum = Math.max(...prices)
   const range = maximum - minimum
+  const hasVolume = expanded && volumeBars !== undefined && volumeBars.length > 0
+  const volumeTotal = volumeBars?.reduce((sum, bar) => sum + bar.volume, 0) ?? 0
+  const priceHeight = hasVolume ? height * 0.75 : height
   const paddingX = expanded ? EXPANDED_SPARKLINE_PADDING : SPARKLINE_PADDING
   const paddingY = expanded ? 20 : SPARKLINE_PADDING
-  const availableHeight = height - paddingY * 2
+  const availableHeight = priceHeight - paddingY * 2
   const coordinates = prices.map((price, index) => ({
     x: sparklineX(index, prices.length, width, paddingX),
-    y: range === 0 ? height / 2 : paddingY + ((maximum - price) / range) * availableHeight
+    y: range === 0 ? priceHeight / 2 : paddingY + ((maximum - price) / range) * availableHeight
   }))
   const path =
     coordinates.length === 1
@@ -219,10 +208,17 @@ export function MiniPriceSparkline({
     <div
       className={`taskbar-tooltip-sparkline ${valueClass(change)}${expanded ? ' is-expanded-chart' : ''}`}
     >
-      <dt>最近15分钟</dt>
+      <dt className="taskbar-tooltip-chart-heading">
+        <span>最近15分钟</span>
+        {hasVolume ? (
+          <span className="taskbar-tooltip-volume-heading">
+            成交量{intervalMinutes === 5 ? '（5分钟）' : ''} {formatVolume(volumeTotal, volumeUnit)}
+          </span>
+        ) : null}
+      </dt>
       <dd>
         <svg
-          aria-label={`最近15分钟价格从 ${formatPrice(prices[0])} 变化至 ${formatPrice(prices.at(-1))}，最高 ${formatPrice(maximum)}，最低 ${formatPrice(minimum)}`}
+          aria-label={`最近15分钟价格从 ${formatPrice(prices[0])} 变化至 ${formatPrice(prices.at(-1))}，最高 ${formatPrice(maximum)}，最低 ${formatPrice(minimum)}${hasVolume ? `，每${intervalMinutes === 1 ? '' : intervalMinutes}分钟成交量，合计 ${formatVolume(volumeTotal, volumeUnit)}` : ''}`}
           role="img"
           viewBox={`0 0 ${width} ${height}`}
           preserveAspectRatio={expanded ? 'none' : undefined}
@@ -236,10 +232,13 @@ export function MiniPriceSparkline({
                 </linearGradient>
               </defs>
               <path
-                d={`${path} L ${width - paddingX} ${height} L ${paddingX} ${height} Z`}
+                d={`${path} L ${width - paddingX} ${priceHeight} L ${paddingX} ${priceHeight} Z`}
                 style={{ fill: `url(#${fillId})`, stroke: 'none' }}
               />
             </>
+          ) : null}
+          {hasVolume ? (
+            <MiniVolumeHistogram bars={volumeBars} volumeUnit={volumeUnit} chartHeight={height} />
           ) : null}
           <path d={path} vectorEffect={expanded ? 'non-scaling-stroke' : undefined} />
           {expanded || maximumIndex !== lastIndex ? (
@@ -287,13 +286,6 @@ export function MiniPriceSparkline({
           </span>
         )}
       </dd>
-      {expanded && volumeBars?.length ? (
-        <MiniVolumeHistogram
-          bars={volumeBars}
-          volumeUnit={volumeUnit}
-          intervalMinutes={intervalMinutes}
-        />
-      ) : null}
     </div>
   )
 }

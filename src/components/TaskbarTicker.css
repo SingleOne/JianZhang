@@ -547,28 +547,22 @@ html.tray-mode #root {
   height: 88px;
 }
 
-.taskbar-tooltip-volume-heading {
+.taskbar-tooltip-chart-heading {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: 4px;
+  gap: 2px 8px;
   font-size: 12px;
   line-height: 14px;
 }
 
-.taskbar-tooltip-sparkline.is-expanded-chart .taskbar-tooltip-volume-chart {
-  height: 28px;
-  border-bottom: 1px solid var(--stock-popover-separator);
-  background-image: linear-gradient(to right, var(--stock-popover-separator) 1px, transparent 1px);
-  background-size: 12.5% 100%;
-}
-
-.taskbar-tooltip-sparkline.is-expanded-chart .taskbar-tooltip-volume-chart svg {
-  height: 28px;
+.taskbar-tooltip-volume-heading {
+  white-space: nowrap;
 }
 
 .taskbar-tooltip-volume-chart rect {
   fill: currentColor;
-  fill-opacity: 0.7;
+  fill-opacity: 0.35;
 }
 
 .taskbar-tooltip-volume-chart .is-up {
