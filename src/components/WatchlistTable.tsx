@@ -28,6 +28,9 @@ import {
   type PositionProfitOverride
 } from '../lib/portfolio'
 import { calculatePortfolioQualitySummary } from '../lib/portfolio-quality'
+import { calculatePortfolioPerformanceReport } from '../lib/portfolio-performance'
+import { toStockTradingBook } from '../lib/stock-t-trading'
+import { getStockAccountBook } from '../shared/stock-accounts'
 import type { StockDetailNavigationRequest } from '../lib/completion-notifications'
 import { hasDividendFinancingLabel } from '../lib/dividend-financing'
 import type {
@@ -105,6 +108,7 @@ const PortfolioQualityDialog = lazy(() =>
     default: module.PortfolioQualityDialog
   }))
 )
+const PortfolioPerformanceCyclesDialog = lazy(() => import('./PortfolioPerformanceCyclesDialog'))
 const StockAlertDialog = lazy(() =>
   import('./StockAlertDialog').then((module) => ({ default: module.StockAlertDialog }))
 )
@@ -340,7 +344,8 @@ export function WatchlistTable({
   }, [onInitialRender])
 
   const [sort, setSort] = useState<SortState | null>(null)
-  const { securitiesAccounts, feeSchemes, settings } = useSecuritiesAccountState()
+  const { securitiesAccounts, feeSchemes, settings, portfolioPerformanceAdjustments } =
+    useSecuritiesAccountState()
   const feeState = useMemo(
     () => ({ securitiesAccounts, feeSchemes, settings }),
     [securitiesAccounts, feeSchemes, settings]
@@ -348,6 +353,7 @@ export function WatchlistTable({
   const [editingStock, setEditingStock] = useState<WatchStock | null>(null)
   const [tTradingStock, setTTradingStock] = useState<WatchStock | null>(null)
   const [stockAlertStock, setStockAlertStock] = useState<WatchStock | null>(null)
+  const [performanceQuoteId, setPerformanceQuoteId] = useState<string | null>(null)
   const [closingQuoteIds, setClosingQuoteIds] = useState<Set<string>>(() => new Set())
   const [radarPopover, setRadarPopover] = useState<RadarPopoverState | null>(null)
   const [groupPopover, setGroupPopover] = useState<GroupPopoverState | null>(null)
@@ -483,6 +489,46 @@ export function WatchlistTable({
     quotes,
     stockTradingBooks,
     watchlist
+  ])
+
+  const performanceStock = watchlist.find((stock) => stock.quoteId === performanceQuoteId)
+  const performanceQuote = quotes.find((quote) => quote.quoteId === performanceQuoteId)
+  const performanceAccounts = useMemo(() => {
+    if (!performanceStock) return []
+    const adjustments = portfolioPerformanceAdjustments ?? {}
+    const report = calculatePortfolioPerformanceReport(
+      [performanceStock],
+      performanceQuote ? [performanceQuote] : [],
+      stockTradingBooks,
+      exchangeRates,
+      adjustments,
+      securitiesAccounts
+    )
+    return report.stocks.flatMap((performance) => {
+      const account = getStockAccountBook(
+        stockTradingBooks,
+        performance.quoteId,
+        performance.accountId
+      )
+      if (!account) return []
+      const legacyAdjustment = Number.isFinite(adjustments[performance.quoteId])
+        ? adjustments[performance.quoteId]
+        : 0
+      return [
+        {
+          account,
+          performance,
+          manualAdjustment: account.performanceAdjustmentCny ?? legacyAdjustment
+        }
+      ]
+    })
+  }, [
+    exchangeRates,
+    performanceQuote,
+    performanceStock,
+    portfolioPerformanceAdjustments,
+    securitiesAccounts,
+    stockTradingBooks
   ])
 
   const groupCounts = useMemo(
@@ -1419,6 +1465,7 @@ export function WatchlistTable({
                   onEditPosition={openPositionEditor}
                   onOpenStockAlert={openStockAlert}
                   onOpenTTrading={openTTrading}
+                  onOpenPerformanceCycles={setPerformanceQuoteId}
                   onOpenRadar={openRadar}
                   onOpenGroups={openStockGroups}
                   onChipDistributionEnabledChange={onChipDistributionEnabledChange}
@@ -1501,6 +1548,24 @@ export function WatchlistTable({
             onToggleGroup={toggleStockGroup}
             onManageGroups={openGroupDialog}
             onClose={() => setGroupPopover(null)}
+          />
+        </Suspense>
+      ) : null}
+
+      {performanceStock ? (
+        <Suspense fallback={null}>
+          <PortfolioPerformanceCyclesDialog
+            key={performanceStock.quoteId}
+            stock={performanceStock}
+            quote={performanceQuote}
+            accounts={performanceAccounts}
+            tradingBook={toStockTradingBook(
+              stockTradingBooks[performanceStock.quoteId],
+              performanceStock.quoteId
+            )}
+            exchangeRates={exchangeRates}
+            onSaveTradingBook={onEditPosition}
+            onClose={() => setPerformanceQuoteId(null)}
           />
         </Suspense>
       ) : null}

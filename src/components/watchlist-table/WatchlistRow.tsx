@@ -71,6 +71,7 @@ import {
   STOCK_CURRENCY_SYMBOLS
 } from '../../shared/stock-market'
 import { AnimatedNumber } from '../AnimatedNumber'
+import { AppButton } from '../AppButton'
 import { FiveLevelAlertBadges } from '../FiveLevelAlertBadges'
 import { TAlertBadges } from '../TAlertBadges'
 import { TFloatingProfitAlertBadge } from '../TFloatingProfitAlertBadge'
@@ -180,6 +181,7 @@ interface WatchlistRowProps {
   onEditPosition: (stock: WatchStock) => void
   onOpenStockAlert: (stock: WatchStock) => void
   onOpenTTrading: (stock: WatchStock) => void
+  onOpenPerformanceCycles: (quoteId: string) => void
   onOpenRadar: (quoteId: string, anchor: HTMLButtonElement) => void
   onOpenGroups: (quoteId: string, anchor: HTMLButtonElement) => void
   onChipDistributionEnabledChange: (enabled: boolean) => void
@@ -256,6 +258,7 @@ export const WatchlistRow = memo(function WatchlistRow({
   onEditPosition,
   onOpenStockAlert,
   onOpenTTrading,
+  onOpenPerformanceCycles,
   onOpenRadar,
   onOpenGroups,
   onChipDistributionEnabledChange,
@@ -919,7 +922,16 @@ export const WatchlistRow = memo(function WatchlistRow({
                       </>
                     }
                   >
-                    <span className="combined-profit-cell">
+                    <AppButton
+                      variant="plain"
+                      className="combined-profit-cell holding-profit-button"
+                      aria-label={`查看${stock.name}持仓周期收益`}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onOpenPerformanceCycles(stock.quoteId)
+                      }}
+                      onKeyDown={(event) => event.stopPropagation()}
+                    >
                       <span className={valueClass(displayedTotalProfit)}>
                         {hasTotalProfit
                           ? formatMoneyProfit(
@@ -939,7 +951,7 @@ export const WatchlistRow = memo(function WatchlistRow({
                           <small className="cumulative-profit-label">累计收益</small>
                         )
                       ) : null}
-                    </span>
+                    </AppButton>
                   </Tooltip>
                 </td>
               )
