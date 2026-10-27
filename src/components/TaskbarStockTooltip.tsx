@@ -179,6 +179,7 @@ export function MiniPriceSparkline({
   const range = maximum - minimum
   const hasVolume = expanded && volumeBars !== undefined && volumeBars.length > 0
   const volumeTotal = volumeBars?.reduce((sum, bar) => sum + bar.volume, 0) ?? 0
+  const latestVolume = volumeBars?.at(-1)?.volume
   const priceHeight = hasVolume ? height * 0.75 : height
   const paddingX = expanded ? EXPANDED_SPARKLINE_PADDING : SPARKLINE_PADDING
   const paddingY = expanded ? 20 : SPARKLINE_PADDING
@@ -209,16 +210,22 @@ export function MiniPriceSparkline({
       className={`taskbar-tooltip-sparkline ${valueClass(change)}${expanded ? ' is-expanded-chart' : ''}`}
     >
       <dt className="taskbar-tooltip-chart-heading">
-        <span>最近15分钟</span>
+        <span className="taskbar-tooltip-period-heading">
+          <span>最近15分钟</span>
+          {hasVolume ? (
+            <span title="最近15分钟成交量合计">{formatVolume(volumeTotal, volumeUnit)}</span>
+          ) : null}
+        </span>
         {hasVolume ? (
           <span className="taskbar-tooltip-volume-heading">
-            成交量{intervalMinutes === 5 ? '（5分钟）' : ''} {formatVolume(volumeTotal, volumeUnit)}
+            最新量{intervalMinutes === 5 ? '（5分钟）' : ''}{' '}
+            {formatVolume(latestVolume, volumeUnit)}
           </span>
         ) : null}
       </dt>
       <dd>
         <svg
-          aria-label={`最近15分钟价格从 ${formatPrice(prices[0])} 变化至 ${formatPrice(prices.at(-1))}，最高 ${formatPrice(maximum)}，最低 ${formatPrice(minimum)}${hasVolume ? `，每${intervalMinutes === 1 ? '' : intervalMinutes}分钟成交量，合计 ${formatVolume(volumeTotal, volumeUnit)}` : ''}`}
+          aria-label={`最近15分钟价格从 ${formatPrice(prices[0])} 变化至 ${formatPrice(prices.at(-1))}，最高 ${formatPrice(maximum)}，最低 ${formatPrice(minimum)}${hasVolume ? `，每${intervalMinutes === 1 ? '' : intervalMinutes}分钟成交量，合计 ${formatVolume(volumeTotal, volumeUnit)}，最新一根 ${formatVolume(latestVolume, volumeUnit)}` : ''}`}
           role="img"
           viewBox={`0 0 ${width} ${height}`}
           preserveAspectRatio={expanded ? 'none' : undefined}

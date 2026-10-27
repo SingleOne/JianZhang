@@ -556,7 +556,15 @@ html.tray-mode #root {
   line-height: 14px;
 }
 
+.taskbar-tooltip-period-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px;
+}
+
 .taskbar-tooltip-volume-heading {
+  margin-left: auto;
   white-space: nowrap;
 }
 
