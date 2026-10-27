@@ -1611,9 +1611,15 @@ button.value-screening-badge:focus-visible {
   cursor: pointer;
 }
 
-.holding-profit-button:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
+.holding-profit-button > * {
+  transition:
+    transform 160ms ease,
+    text-shadow 160ms ease;
+}
+
+.holding-profit-button:hover > * {
+  transform: translateY(-1px);
+  text-shadow: 0 2px 4px rgb(15 23 42 / 18%);
 }
 
 .holding-profit-button:focus-visible {
