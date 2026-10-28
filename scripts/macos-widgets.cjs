@@ -57,7 +57,8 @@ function nodeIncludeDirectory() {
 function buildMacWidgets({
   arch = process.arch,
   outputDirectory,
-  identity = signingIdentity()
+  identity = signingIdentity(),
+  staging = false
 } = {}) {
   if (process.platform !== 'darwin')
     throw new Error('macOS widgets must be built on macOS with Xcode')
@@ -238,9 +239,12 @@ function buildMacWidgets({
     ])
   }
   if (identity === '-') {
-    console.warn(
-      '小组件使用 ad-hoc 签名完成编译；系统加载和 App Groups 授权需要有效的开发者签名，不能以此构建确认。'
-    )
+    if (staging)
+      console.info('小组件编译完成（临时 ad-hoc 签名）；最终签名状态以应用签名阶段为准。')
+    else
+      console.warn(
+        '小组件使用 ad-hoc 签名完成编译；系统加载和 App Groups 授权需要有效的开发者签名，不能以此构建确认。'
+      )
   }
   return destination
 }
@@ -255,7 +259,7 @@ async function afterPack(context) {
   )
   // The actual signing identity/keychain is selected later by electron-builder,
   // including certificates imported through CSC_LINK. Sign staging artifacts ad-hoc.
-  buildMacWidgets({ arch, outputDirectory: destination, identity: '-' })
+  buildMacWidgets({ arch, outputDirectory: destination, identity: '-', staging: true })
 }
 
 async function signMacWidgets(options) {
@@ -268,7 +272,9 @@ async function signMacWidgets(options) {
       ...(options.keychain ? ['--keychain', options.keychain] : []),
       '--options',
       'runtime',
-      options.identity === '-' ? '--timestamp=none' : '--timestamp',
+      options.identity === '-' || process.env.JIANZHANG_MAC_LOCAL_SIGNING === '1'
+        ? '--timestamp=none'
+        : '--timestamp',
       '--entitlements',
       path.join(buildRoot, 'extension-entitlements.plist'),
       extension

@@ -1,5 +1,6 @@
 const requestedIconVariant = process.env.JIANZHANG_ICON_VARIANT
 const { afterPack, widgetAppGroup, signMacWidgets } = require('./scripts/macos-widgets.cjs')
+const localSigning = process.env.JIANZHANG_MAC_LOCAL_SIGNING === '1'
 const iconVariant =
   requestedIconVariant === 'red' || requestedIconVariant === 'black'
     ? requestedIconVariant
@@ -41,6 +42,9 @@ module.exports = {
     artifactName: '见涨-Setup-${version}-${arch}.${ext}'
   },
   mac: {
+    ...(localSigning
+      ? { type: 'development', timestamp: 'none', preAutoEntitlements: false, notarize: false }
+      : {}),
     identity: process.env.JIANZHANG_WIDGET_SIGN_IDENTITY || undefined,
     sign: signMacWidgets,
     entitlements: 'build/macos-widgets/app-entitlements.plist',
@@ -48,8 +52,10 @@ module.exports = {
     extendInfo: { JZWidgetAppGroup: widgetAppGroup() },
     icon: macIconFiles[iconVariant],
     category: 'public.app-category.finance',
-    target: [{ target: 'dmg', arch: ['x64', 'arm64'] }],
-    artifactName: '见涨-${version}-mac-${arch}.${ext}'
+    target: localSigning ? ['dmg'] : [{ target: 'dmg', arch: ['x64', 'arm64'] }],
+    artifactName: localSigning
+      ? '见涨-${version}-mac-${arch}-local.${ext}'
+      : '见涨-${version}-mac-${arch}.${ext}'
   },
   nsis: {
     oneClick: false,

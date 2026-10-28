@@ -38,6 +38,35 @@ npm run build:mac-widgets -- --arch x64
 
 产物位于忽略目录 `build/macos-widgets/<arch>/Contents`。无证书时允许 ad-hoc 编译，构建会明确提示其限制。
 
+## 本机开发签名（个人 Apple 账户）
+
+本机测试可尝试 Apple Development 证书，不必先购买 Developer ID 分发证书。
+在 Xcode → Settings → Apple Accounts 登录 Apple 账户，选择 Personal Team → Manage Certificates，
+新增 Apple Development。执行 `security find-identity -v -p codesigning`，应出现有效开发签名身份。
+
+如果能找到开发证书和私钥，但有效身份数量仍为零，请检查签发者对应的 Apple WWDR 中间证书。
+Apple Development 使用的 G3 公共中间证书可从 Apple PKI 网站取得：
+`https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer`。
+将正确的中间证书安装到登录钥匙串并保持默认信任，不要把开发证书或中间证书设为“始终信任”。
+
+```bash
+npm run package:mac:local
+```
+
+命令会读取有效开发身份及其公钥证书，从证书的 Organizational Unit 自动取得真实 Team ID，
+配置 `<Team ID>.com.jianzhang.stock` 共享组，并签名主程序、小组件及嵌套二进制。
+证书名称末尾括号中的 ID 可能是 Team Member ID，不能直接拿来当 Team ID。
+私钥由系统 `codesign` 使用，不会导出；首次使用时如有系统钥匙串授权，请在系统弹窗中处理。
+
+默认只生成当前 Mac 架构的包，文件名带 `-local`，不公证、不上传发布。
+该包用于本机开发测试，不作为 Developer ID 正式分发包。
+安装时将其替换到“应用程序”目录并重开见涨，再从系统组件库添加组件。
+开发证书有有效期，签名后还需要执行下面的手工验收，不能仅凭签名校验判断 UI 和 WidgetKit 实际运行成功。
+
+若有多个开发身份，用 `CSC_NAME` 指定完整名称或 SHA-1 指纹；若设置过
+`JIANZHANG_WIDGET_TEAM_ID` 或 `JIANZHANG_WIDGET_APP_GROUP`，它们必须与所选开发证书匹配。
+普通 `npm run package:mac` 保持 Developer ID 正式分发路线；不要把 Apple Development 的完整名称直接填入它。
+
 ## 数据与刷新
 
 - 扩展只读取 App Group 内的 `snapshot.json`，不读取应用完整配置、交易账本或密钥，也不另行发起行情网络请求。
@@ -59,7 +88,15 @@ arm64/x64 原生编译、三种 App Intents 元数据、构建钩子目录和 ad
 Luna 只读静态复核未发现确定的正确性缺陷。变更文件格式检查通过；全仓格式检查仍报告三个未改动文件
 `electron/main/historical-kline-cache.ts`、`electron/main/stock-cache-maintenance-service.ts`、
 `src/components/StockCacheDialog.tsx` 的既有格式问题。
-当前机器没有有效开发者签名，未执行以下界面、安装或系统加载验收，也未生成正式安装包。
+上述初次实现校验时尚无有效开发者签名，未执行以下界面、安装或系统加载验收。
+2026-10-28 已补充 Apple Development 本机路线：验证普通/沙箱宿主共享容器读写、
+真实 Electron 43.1.1 加载桥接，以及沙箱读取 Electron 写入的合成数据。
+本机开发签名验证不等同于 WidgetKit 的桌面显示与交互验收，后者仍需按以下步骤手工确认。
+
+18.5.1 本机包补充校验：11 项本机签名单元测试、Luna 只读静态复核、生产构建、ESLint、
+变更文件格式检查通过；已实际生成并挂载带 `-local` 后缀的 arm64 DMG，验证主程序/扩展的
+开发签名、共享组一致、三种 App Intents 元数据、Applications 链接和 Finder 布局数据，
+并从 DMG 内以无界面模式运行 Electron 验证真实桥接读写。未自动替换已安装应用或执行桌面 UI 验收。
 
 1. 安装签名后的应用并启动一次，在桌面右键「编辑小组件」，搜索「见涨」，确认三种组件均可添加。
 2. 小号编辑选择股票；确认最新价、涨跌额、涨跌幅与主程序一致，负数绿色、正数红色、零值中性。
