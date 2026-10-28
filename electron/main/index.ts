@@ -78,8 +78,6 @@ import { UserDataBackupService } from './user-data-backup-service'
 import { ValuationHistoryService } from './valuation-history-service'
 import { createAppIcon } from './tray-icons'
 import { WindowManager } from './window-manager'
-import { DesktopWidgetRuntime } from './desktop-widget-runtime'
-import { widgetNavigationQuoteId } from '../../src/lib/desktop-widget'
 
 const DEFAULT_WATCHLIST: WatchStock[] = [
   {
@@ -173,8 +171,6 @@ let aiSecrets: AiSecrets | null = null
 let completionNotificationStore: CompletionNotificationStore | null = null
 let marketRequestLogger: MarketRequestLogger | null = null
 let cacheMaintenanceService: CacheMaintenanceService | null = null
-let desktopWidgetRuntime: DesktopWidgetRuntime | null = null
-let pendingWidgetQuoteId: string | null | undefined
 
 const optionalModuleRuntime = new OptionalModuleRuntime(
   {
@@ -286,19 +282,6 @@ function applyPreparedUserDataBackup(
 
 function sendToWindows(channel: string, payload: unknown): void {
   windowManager?.sendToWindows(channel, payload)
-  if (channel === 'state:updated' || channel === 'quotes:updated') desktopWidgetRuntime?.schedule()
-}
-
-function openWidgetUrl(url: string): boolean {
-  const quoteId = widgetNavigationQuoteId(url)
-  if (quoteId === undefined) return false
-  if (!windowManager) pendingWidgetQuoteId = quoteId
-  else
-    windowManager.showMainWindow(
-      quoteId && state.watchlist.some((stock) => stock.quoteId === quoteId) ? quoteId : undefined,
-      'sticky-top'
-    )
-  return true
 }
 
 function showStockNavigationNotification(
@@ -565,8 +548,6 @@ function initializeOptionalModules(): void {
 function cleanupBeforeQuit(): void {
   if (isQuitting) return
   isQuitting = true
-  desktopWidgetRuntime?.dispose()
-  desktopWidgetRuntime = null
   eastmoneyHistorySession.dispose()
   closeRetainedSystemNotifications()
   optionalModuleRuntime.dispose()
@@ -603,17 +584,13 @@ const hasSingleInstanceLock = app.requestSingleInstanceLock()
 if (!hasSingleInstanceLock) {
   app.quit()
 } else {
-  app.on('open-url', (event, url) => {
-    if (openWidgetUrl(url)) event.preventDefault()
-  })
-  app.on('second-instance', (_event, commandLine) => {
+  app.on('second-instance', () => {
     try {
       reloadStateFromDiskIfChanged()
     } catch (reason) {
       sendToWindows('data:error', reason instanceof Error ? reason.message : '重新加载最新配置失败')
     }
-    const widgetUrl = commandLine.find((argument) => argument.startsWith('jianzhang:'))
-    if (!widgetUrl || !openWidgetUrl(widgetUrl)) windowManager?.showMainWindow()
+    windowManager?.showMainWindow()
     windowManager?.syncTaskbarWindow()
     void quoteRuntime?.refreshAutomatically('second-instance')
   })
@@ -1018,24 +995,6 @@ if (!hasSingleInstanceLock) {
       app.getPath('userData')
     )
     windowManager.create()
-    if (process.platform === 'darwin' && app.isPackaged) {
-      app.setAsDefaultProtocolClient('jianzhang')
-      desktopWidgetRuntime = DesktopWidgetRuntime.create(
-        process.resourcesPath,
-        () => state,
-        getLatestQuotes
-      )
-      desktopWidgetRuntime?.start()
-    }
-    const startupWidgetUrl = process.argv.find((argument) => argument.startsWith('jianzhang:'))
-    if (pendingWidgetQuoteId !== undefined) {
-      const quoteId = pendingWidgetQuoteId
-      pendingWidgetQuoteId = undefined
-      windowManager.showMainWindow(
-        quoteId && state.watchlist.some((stock) => stock.quoteId === quoteId) ? quoteId : undefined,
-        'sticky-top'
-      )
-    } else if (startupWidgetUrl) openWidgetUrl(startupWidgetUrl)
     initializeOptionalModules()
     dividendFinancingService.initializeIfMissing()
     fundamentalDataService.initializeIfMissing()

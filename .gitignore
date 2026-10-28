@@ -6,7 +6,6 @@ release-*/
 dist/
 outputs/
 work/
-build/macos-widgets/
 *.log
 .DS_Store
 desktop.ini
