@@ -41,6 +41,7 @@ import type {
   AiTradeImportSourceBinding
 } from '../shared/types'
 import { AI_PROVIDER_IDS } from '../shared/types'
+import { normalizeLongTermInterpretation } from '../shared/long-term-language'
 import { supportsImageUnderstanding } from '../shared/model-capabilities'
 import { getWebSearchBackend, type AiWebSearchBackend } from '../shared/web-search'
 import { addOfficialModelDescriptions } from '../shared/model-descriptions'
@@ -1104,7 +1105,7 @@ export class AiService {
         valuationHistoryPeriodStart: context.valuation.historyPeriodStart,
         valuationHistoryPeriodEnd: context.valuation.historyPeriodEnd,
         valuationIndustryDataAt: context.valuation.industryDataAt,
-        interpretation: cached,
+        interpretation: normalizeLongTermInterpretation(cached),
         cached: true
       }
       this.storage.saveLatestInterpretation(`${quoteId}:long-term`, cachedResult)
@@ -1159,7 +1160,9 @@ export class AiService {
     const result = this.storage.getLatestInterpretation<AiLongTermInterpretationResult>(
       `${quoteId}:long-term`
     )
-    return result?.interpretation.schemaVersion === AI_ANALYSIS_SCHEMA_VERSION ? result : null
+    return result?.interpretation.schemaVersion === AI_ANALYSIS_SCHEMA_VERSION
+      ? { ...result, interpretation: normalizeLongTermInterpretation(result.interpretation) }
+      : null
   }
 
   async runStructuredTask(

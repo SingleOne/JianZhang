@@ -60,6 +60,23 @@ describe('long-term AI interpretation validator', () => {
     ])
   })
 
+  it('converts internal names in a generated result into readable financial terms', () => {
+    const payload = completeResult()
+    payload.sections[0].evidence = [
+      'fundamental.quality.metrics：netProfitCagr=6.0349%、deductedProfitRatio=95.2331%'
+    ]
+    payload.uncertainties = ['companyReportSummaries[0] 是2026年半年报的 AI 二次总结，未经审计。']
+
+    const result = parseLongTermInterpretation(JSON.stringify(payload), '2026-10-28T10:00:00+08:00')
+
+    expect(result.sections[0].evidence).toEqual([
+      '财务质量指标：五年净利润复合年增长率：6.0349%、五年累计扣非归母净利润占归母净利润比例：95.2331%'
+    ])
+    expect(result.uncertainties).toEqual([
+      '财报 AI 二次总结（第1项） 是2026年半年报的 AI 二次总结，未经审计。'
+    ])
+  })
+
   it('rejects output missing a fixed metric section', () => {
     const payload = completeResult()
     payload.sections.pop()

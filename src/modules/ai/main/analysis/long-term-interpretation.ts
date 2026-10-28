@@ -1,4 +1,5 @@
 import { AI_ANALYSIS_SCHEMA_VERSION } from '../../shared/constants'
+import { normalizeLongTermInterpretation } from '../../shared/long-term-language'
 import type { AiLongTermInterpretation, AiLongTermSectionId } from '../../shared/types'
 import type { CompactLongTermContext } from './long-term-context'
 import { assertObjectiveAnalysisOutput } from './objective-output'
@@ -121,5 +122,5 @@ export function parseLongTermInterpretation(
     generatedAt
   }
   assertObjectiveAnalysisOutput(interpretation)
-  return { ...interpretation, modelCalculationReference }
+  return normalizeLongTermInterpretation({ ...interpretation, modelCalculationReference })
 }

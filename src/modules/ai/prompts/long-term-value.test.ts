@@ -12,11 +12,25 @@ describe('long-term value prompt', () => {
     expect(LONG_TERM_VALUE_PROMPT).toContain('在假设折现率X%、未来增长率Y%')
     expect(LONG_TERM_VALUE_PROMPT).toContain('数学区间约为[最小值]元至[最大值]元')
     expect(LONG_TERM_VALUE_PROMPT).toContain('模型计算值不代表对该股票的未来实际定价或投资建议')
-    expect(LONG_TERM_VALUE_PROMPT).toContain('companyReportSummaries 为空时直接忽略')
+    expect(LONG_TERM_VALUE_PROMPT).toContain('为空时直接忽略，不得据此作负面判断')
     expect(LONG_TERM_VALUE_PROMPT).toContain('不是财报原文')
     expect(LONG_TERM_VALUE_PROMPT).toContain(
       '不得输出 conclusion、level、longTermValue、priceTiming'
     )
     expect(LONG_TERM_VALUE_PROMPT).toContain('不得改写为“高估”“低估”“便宜”“昂贵”')
+  })
+
+  it('requires readable Chinese in evidence and limitations while preserving JSON keys', () => {
+    expect(LONG_TERM_VALUE_PROMPT).toContain(
+      'summary、observation、每条 evidence、riskFacts 和 uncertainties'
+    )
+    expect(LONG_TERM_VALUE_PROMPT).toContain(
+      '不得直接复制内部字段名、JSON 路径、数组下标或英文枚举值'
+    )
+    expect(LONG_TERM_VALUE_PROMPT).toContain('JSON 结构的键名和 sections 的 id 仍严格遵守')
+    expect(LONG_TERM_VALUE_PROMPT).toContain('报告期＋中文指标名＋数值＋单位')
+    expect(LONG_TERM_VALUE_PROMPT).toContain('"parentNetProfit":"归母净利润"')
+    expect(LONG_TERM_VALUE_PROMPT).toContain('roeRange 是百分点')
+    expect(LONG_TERM_VALUE_PROMPT).toContain('并不表示连续年数')
   })
 })
