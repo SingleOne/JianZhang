@@ -115,6 +115,12 @@ function buildMacWidgets({
     '-whole-module-optimization',
     '-parse-as-library',
     '-application-extension',
+    // Match Xcode's app-extension entry point so PlugInKit initializes the host
+    // before WidgetBundle.main asks ExtensionFoundation for its running extension.
+    '-Xlinker',
+    '-e',
+    '-Xlinker',
+    '_NSExtensionMain',
     '-module-name',
     'JianZhangWidgets',
     '-emit-const-values-path',
