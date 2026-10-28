@@ -104,6 +104,9 @@ interface IpcHandlerDependencies {
   resizeTaskbarTooltip: (height: number) => void
   getMainWindow: () => BrowserWindow | null
   searchStocks: (query: string) => Promise<SearchResult[]>
+  getMarketChangeDistribution: (
+    forceRefresh?: boolean
+  ) => Promise<import('../../src/shared/market-change-distribution').MarketChangeDistribution>
   getDividendFinancingOverview: (codes: string[]) => DividendFinancingOverview | null
   getDividendFinancingSnapshot: () => Promise<DividendFinancingSnapshot | null>
   getDividendFinancingState: () => DataSnapshotRuntimeState
@@ -234,6 +237,7 @@ const CHANNELS = [
   'taskbar:tooltip:set',
   'taskbar:tooltip:resize',
   'stocks:search',
+  'market-change-distribution:get',
   'dividend-financing:overview:get',
   'dividend-financing:get',
   'dividend-financing:state:get',
@@ -368,6 +372,9 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
     dependencies.resizeTaskbarTooltip(height)
   )
   ipcMain.handle('stocks:search', (_event, query: string) => dependencies.searchStocks(query))
+  ipcMain.handle('market-change-distribution:get', (_event, forceRefresh?: boolean) =>
+    dependencies.getMarketChangeDistribution(forceRefresh === true)
+  )
   ipcMain.handle('dividend-financing:overview:get', (_event, codes: string[]) =>
     dependencies.getDividendFinancingOverview(codes)
   )

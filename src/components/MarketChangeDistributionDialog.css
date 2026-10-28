@@ -1,0 +1,152 @@
+.market-distribution-backdrop {
+  position: fixed;
+  z-index: 1260;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(15 23 42 / 54%);
+  backdrop-filter: blur(2px);
+}
+
+.market-distribution-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(1080px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-menu);
+  animation: dialog-in 160ms ease-out;
+}
+
+.market-distribution-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  padding: 16px 20px;
+}
+
+.market-distribution-header > svg {
+  color: var(--blue);
+}
+.market-distribution-header > span {
+  flex: 1;
+}
+.market-distribution-header h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+.market-distribution-header small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.market-distribution-header .secondary-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.market-distribution-body {
+  overflow: auto;
+  padding: 20px;
+}
+
+.market-distribution-summary {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+.market-distribution-summary > span {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--surface-muted);
+}
+.market-distribution-summary small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.market-distribution-summary strong {
+  font-size: 21px;
+  font-variant-numeric: tabular-nums;
+}
+.market-distribution-summary strong small {
+  margin-left: 4px;
+  color: inherit;
+}
+.market-distribution-chart-scroll {
+  overflow-x: auto;
+}
+.market-distribution-chart {
+  display: grid;
+  grid-template-columns: repeat(13, minmax(64px, 1fr));
+  gap: 6px;
+  margin: 46px 0 20px;
+}
+.market-distribution-column {
+  display: grid;
+  gap: 12px;
+  text-align: center;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.market-distribution-bar-area {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 200px;
+  border-bottom: 1px solid var(--border-strong);
+}
+.market-distribution-bar {
+  position: relative;
+  width: 70%;
+  min-height: 1px;
+  border-radius: 5px 5px 0 0;
+  background: currentColor;
+  opacity: 0.85;
+}
+.market-distribution-bar > strong {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+}
+.market-distribution-column:hover .market-distribution-bar {
+  opacity: 1;
+}
+.market-distribution-note {
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.market-distribution-empty {
+  margin: 30px 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+.market-distribution-error {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--red-soft);
+  color: var(--red);
+  font-size: 12px;
+}
+
+@media (max-width: 840px) {
+  .market-distribution-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

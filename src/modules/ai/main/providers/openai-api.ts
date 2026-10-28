@@ -195,17 +195,17 @@ export class OpenAiApiProvider implements AiProvider {
     let responseId: string | undefined
     let totalToolCalls = 0
     for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+      if (round > 0) request.onTextReset?.('')
       const selection = await requestRound(
         apiKey,
         request.model,
         input,
         signal,
         request.tools,
-        undefined,
+        emit,
         responseId
       )
       if (selection.toolCalls.length === 0) {
-        if (selection.content) emit(selection.content)
         return completed(selection.content, selection.responseId ?? responseId)
       }
       if (!selection.responseId) throw new Error('OpenAI 工具调用响应缺少 response id')
@@ -221,6 +221,7 @@ export class OpenAiApiProvider implements AiProvider {
     }
 
     input.push({ role: 'developer', content: TOOL_COMPLETION_INSTRUCTION })
+    request.onTextReset?.('')
     const answer = await requestRound(
       apiKey,
       request.model,

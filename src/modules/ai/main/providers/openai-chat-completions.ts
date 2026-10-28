@@ -176,10 +176,10 @@ export async function streamOpenAiChatCompletions(
   let responseId: string | undefined
   let totalToolCalls = 0
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
-    const selection = await requestRound(options, messages, options.request.tools, undefined)
+    if (round > 0) options.request.onTextReset?.('')
+    const selection = await requestRound(options, messages, options.request.tools, options.emit)
     responseId = selection.responseId ?? responseId
     if (selection.toolCalls.length === 0) {
-      if (selection.content) options.emit(selection.content)
       return completed(selection.content, responseId)
     }
     messages.push({
@@ -210,6 +210,7 @@ export async function streamOpenAiChatCompletions(
   }
 
   messages.push({ role: 'system', content: TOOL_COMPLETION_INSTRUCTION })
+  options.request.onTextReset?.('')
   const answer = await requestRound(options, messages, options.request.tools, options.emit, 'none')
   return completed(answer.content, answer.responseId ?? responseId)
 }

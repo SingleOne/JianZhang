@@ -1,7 +1,9 @@
 import { History, ReceiptText, X } from 'lucide-react'
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { formatMoneyProfit } from '../lib/format'
+import { formatMoney, formatMoneyProfit, formatPercent } from '../lib/format'
+import { marketDateKey } from '../shared/market-hours'
+import { marketFromQuoteId, type StockMarket } from '../shared/stock-market'
 import {
   calculatePortfolioPerformanceCycles,
   PORTFOLIO_PERFORMANCE_ISSUE_LABELS,
@@ -19,6 +21,7 @@ import type {
 } from '../shared/types'
 import { AppButton } from './AppButton'
 import { useSecuritiesAccountState } from './SecuritiesAccountContext'
+import { Tooltip } from './Tooltip'
 import './PortfolioPerformanceCyclesDialog.css'
 
 const PositionEditor = lazy(() =>
@@ -55,17 +58,32 @@ function expenseValue(cny: CnyProfitComponents): number | null {
   return -(cny.withholdingTax + cny.tradeFees + cny.corporateActionFees)
 }
 
-function formatCycleDate(value: string | undefined): string {
-  return value ? value.slice(0, 10) : '--'
+function formatCycleDate(value: string | undefined, market: StockMarket): string {
+  return value ? cycleDateKey(value, market) : '--'
 }
 
 function formatShares(value: number): string {
   return value.toLocaleString('zh-CN', { maximumFractionDigits: 6 })
 }
 
-function cycleLabel(cycle: PortfolioPerformanceCycleResult): string {
+function cycleDateKey(value: string, market: StockMarket): string {
+  // Trade inputs without an offset already use the security's market-local date.
+  return /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value)
+    ? marketDateKey(new Date(value), market)
+    : value.slice(0, 10)
+}
+
+function cycleLabel(cycle: PortfolioPerformanceCycleResult, market: StockMarket): string {
   if (cycle.sequence === 0) return '未归属事件'
-  return `第 ${cycle.sequence} 期`
+  const endDate = cycle.endedAt
+    ? cycleDateKey(cycle.endedAt, market)
+    : marketDateKey(new Date(), market)
+  const days =
+    (Date.parse(`${endDate}T00:00:00Z`) -
+      Date.parse(`${cycleDateKey(cycle.startedAt, market)}T00:00:00Z`)) /
+      86_400_000 +
+    1
+  return `第${cycle.sequence}期（${days}天）`
 }
 
 function cycleStatus(cycle: PortfolioPerformanceCycleResult): string {
@@ -124,10 +142,12 @@ function SummaryValue({
 function AccountCycles({
   performance,
   cycles,
+  market,
   onViewRecords
 }: {
   performance: PortfolioPerformanceStockResult
   cycles: PortfolioPerformanceCycleResult[]
+  market: StockMarket
   onViewRecords: (cycle: PortfolioPerformanceCycleResult) => void
 }) {
   const rows = useMemo(() => [...cycles].reverse(), [cycles])
@@ -178,6 +198,16 @@ function AccountCycles({
               <th>期末数量</th>
               <th>原币收益</th>
               <th>人民币收益</th>
+              <th>
+                <Tooltip content="周期内累计净支出的最高值，按各笔事件的历史汇率折合人民币。">
+                  <span tabIndex={0}>峰值资金占用（人民币）</span>
+                </Tooltip>
+              </th>
+              <th>
+                <Tooltip content="周期人民币净收益 ÷ 峰值资金占用 × 100%，含已保存收益调整，不年化。">
+                  <span tabIndex={0}>周期收益率（峰值占用）</span>
+                </Tooltip>
+              </th>
               <th>已实现</th>
               <th>未实现</th>
               <th>分红</th>
@@ -201,13 +231,15 @@ function AccountCycles({
                 >
                   <td>
                     <span className="performance-cycle-label">
-                      <strong>{cycleLabel(cycle)}</strong>
+                      <strong title="自然天数，包含起止当天；持仓中计算至今天">
+                        {cycleLabel(cycle, market)}
+                      </strong>
                       {cycle.startedByPerformanceReset ? <small>收益基准重置</small> : null}
                       <AppButton
                         variant="text"
                         className="performance-cycle-records-button"
                         aria-haspopup="dialog"
-                        aria-label={`查看${performance.accountLabel}${cycleLabel(cycle)}交易记录`}
+                        aria-label={`查看${performance.accountLabel}${cycleLabel(cycle, market)}交易记录`}
                         onClick={() => onViewRecords(cycle)}
                       >
                         <ReceiptText size={14} />
@@ -220,8 +252,10 @@ function AccountCycles({
                       {cycleStatus(cycle)}
                     </span>
                   </td>
-                  <td>{formatCycleDate(cycle.startedAt)}</td>
-                  <td>{cycle.status === 'open' ? '持仓中' : formatCycleDate(cycle.endedAt)}</td>
+                  <td>{formatCycleDate(cycle.startedAt, market)}</td>
+                  <td>
+                    {cycle.status === 'open' ? '持仓中' : formatCycleDate(cycle.endedAt, market)}
+                  </td>
                   <td>{formatShares(cycle.endingQuantity)}</td>
                   <td>
                     <CycleNativeProfit cycle={cycle} />
@@ -233,6 +267,19 @@ function AccountCycles({
                         含调整 {formatMoneyProfit(cycle.cny.manualAdjustment, 'CNY')}
                       </small>
                     ) : null}
+                  </td>
+                  <td>{formatMoney(cycle.peakCapitalCny, 'CNY')}</td>
+                  <td>
+                    <Tooltip
+                      content={
+                        cycle.returnUnavailableReason ??
+                        '周期人民币净收益 ÷ 峰值资金占用 × 100%，含已保存收益调整，不年化。'
+                      }
+                    >
+                      <span className={valueClass(cycle.returnPercent)} tabIndex={0}>
+                        {formatPercent(cycle.returnPercent)}
+                      </span>
+                    </Tooltip>
                   </td>
                   <td className={valueClass(cycle.cny.realizedProfit)}>
                     {formatMoneyProfit(cycle.cny.realizedProfit, 'CNY')}
@@ -261,7 +308,7 @@ function AccountCycles({
             })}
             {rows.length === 0 ? (
               <tr>
-                <td className="portfolio-performance-cycles-empty" colSpan={15}>
+                <td className="portfolio-performance-cycles-empty" colSpan={17}>
                   当前没有可查看的持仓周期。
                 </td>
               </tr>
@@ -283,6 +330,7 @@ export default function PortfolioPerformanceCyclesDialog({
   onClose
 }: PortfolioPerformanceCyclesDialogProps) {
   const { settings } = useSecuritiesAccountState()
+  const market = marketFromQuoteId(stock.quoteId)
   const [recordFilter, setRecordFilter] = useState<{
     accountId: string
     entryIds: string[]
@@ -344,6 +392,12 @@ export default function PortfolioPerformanceCyclesDialog({
           <div className="portfolio-performance-cycles-note">
             各账户累计收益从该账户最近一次收益基准重置后开始计算；重置前周期仍保留展示，但不计入该账户当前累计。
           </div>
+          <div className="portfolio-performance-cycles-note">
+            周期收益率（峰值占用）＝周期人民币净收益 ÷ 峰值资金占用 × 100%，不年化。
+            峰值取周期内累计净支出的最高值：买入、配股及税费增加占用，卖出、分红和公司行动现金回款减少占用；
+            期初或收益重置持仓按成本计入，周期内持仓校准按成本差额调整，外币按事件历史汇率折算。
+            收益含已保存调整，调整不改变资金占用；数据不足时收益率显示“--”，悬停可查看原因。
+          </div>
           {groups.length === 0 ? (
             <div className="portfolio-performance-cycles-empty">当前没有可查看的持仓周期。</div>
           ) : null}
@@ -352,11 +406,12 @@ export default function PortfolioPerformanceCyclesDialog({
               key={performance.accountId}
               performance={performance}
               cycles={cycles}
+              market={market}
               onViewRecords={(cycle) => {
                 setRecordFilter({
                   accountId: performance.accountId,
                   entryIds: cycle.entries.map((entry) => entry.id),
-                  label: `${performance.accountLabel} · ${cycleLabel(cycle)} · ${formatCycleDate(cycle.startedAt)} 至 ${cycle.status === 'open' ? '持仓中' : formatCycleDate(cycle.endedAt)}`
+                  label: `${performance.accountLabel} · ${cycleLabel(cycle, market)} · ${formatCycleDate(cycle.startedAt, market)} 至 ${cycle.status === 'open' ? '持仓中' : formatCycleDate(cycle.endedAt, market)}`
                 })
               }}
             />

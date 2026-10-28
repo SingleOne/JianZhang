@@ -50,6 +50,8 @@ const api: StockDesktopApi = {
     ipcRenderer.invoke('taskbar:tooltip:set', anchor),
   resizeTaskbarTooltip: (height) => ipcRenderer.invoke('taskbar:tooltip:resize', height),
   searchStocks: (query) => ipcRenderer.invoke('stocks:search', query),
+  getMarketChangeDistribution: (forceRefresh) =>
+    ipcRenderer.invoke('market-change-distribution:get', forceRefresh),
   getDividendFinancingOverview: (codes) =>
     ipcRenderer.invoke('dividend-financing:overview:get', codes),
   getDividendFinancingSnapshot: () => ipcRenderer.invoke('dividend-financing:get'),

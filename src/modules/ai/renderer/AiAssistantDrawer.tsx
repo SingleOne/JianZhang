@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import {
   createContext,
+  memo,
   useCallback,
   useContext,
   useEffect,
@@ -45,6 +46,7 @@ import { TradeImportPanel } from './TradeImportPanel'
 import { MemoryPanel } from './MemoryPanel'
 import type {
   AiApi,
+  AiChatDeltaEvent,
   AiApiKeyProviderId,
   AiConnectionResult,
   AiConversation,
@@ -125,7 +127,7 @@ function MarkdownImage({ alt }: ComponentPropsWithoutRef<'img'>) {
 
 const MARKDOWN_COMPONENTS: Components = { a: MarkdownLink, img: MarkdownImage }
 
-function MarkdownMessage({
+const MarkdownMessage = memo(function MarkdownMessage({
   content,
   onOpenSource
 }: {
@@ -141,7 +143,7 @@ function MarkdownMessage({
       </div>
     </MarkdownSourceContext.Provider>
   )
-}
+})
 
 function citationPresentation(citation: MessageCitation): {
   kind: 'stock' | 'web' | 'document' | 'history' | 'fact'
@@ -998,8 +1000,29 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
 
   useEffect(() => {
     if (!api) return
+    const pendingDeltas = new Map<string, AiChatDeltaEvent>()
+    let frame: number | null = null
+    const flushDeltas = () => {
+      frame = null
+      const updates = new Map(pendingDeltas)
+      pendingDeltas.clear()
+      setMessages((current) =>
+        current.map<AiMessage>((message) => {
+          const update = updates.get(message.id)
+          return update
+            ? {
+                ...message,
+                content: update.replace ? update.delta : `${message.content}${update.delta}`,
+                status: 'streaming',
+                activity: update.activity ?? 'thinking'
+              }
+            : message
+        })
+      )
+    }
     const mergeMessage = (message: AiMessage) => {
       if (message.conversationId !== activeConversationId) return
+      pendingDeltas.delete(message.id)
       setMessages((current) =>
         current.some((item) => item.id === message.id)
           ? current.map((item) => (item.id === message.id ? message : item))
@@ -1007,29 +1030,37 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
       )
       void loadConversations(search)
     }
-    const unDelta = api.onChatDelta(({ conversationId, messageId, delta, activity }) => {
-      if (conversationId !== activeConversationId) return
-      setMessages((current) =>
-        current.map((message) =>
-          message.id === messageId
-            ? {
-                ...message,
-                content: `${message.content}${delta}`,
-                status: 'streaming',
-                activity: activity ?? 'thinking'
-              }
-            : message
-        )
-      )
+    const unDelta = api.onChatDelta((event) => {
+      if (event.conversationId !== activeConversationId) return
+      const previous = pendingDeltas.get(event.messageId)
+      pendingDeltas.set(event.messageId, {
+        ...event,
+        delta: event.replace ? event.delta : `${previous?.delta ?? ''}${event.delta}`,
+        replace: event.replace || previous?.replace,
+        activity: event.activity ?? previous?.activity
+      })
+      if (frame === null) frame = window.requestAnimationFrame(flushDeltas)
     })
     const unCompleted = api.onChatCompleted(({ message }) => mergeMessage(message))
     const unError = api.onChatError(({ message }) => mergeMessage(message))
     return () => {
+      if (frame !== null) window.cancelAnimationFrame(frame)
       unDelta()
       unCompleted()
       unError()
     }
   }, [activeConversationId, api, loadConversations, search])
+
+  const openSource = useCallback(
+    (url: string) => {
+      void api
+        ?.openSource(url, activeConversationId ?? undefined)
+        .catch((reason: unknown) =>
+          setError(reason instanceof Error ? reason.message : '无法打开来源')
+        )
+    },
+    [api, activeConversationId]
+  )
 
   const createConversation = async () => {
     if (!api) return
@@ -1403,13 +1434,7 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
                 onCancel={() => activeConversation && void api.cancelChat(activeConversation.id)}
                 onRetry={(messageId) => void retryMessage(messageId)}
                 onExport={() => void exportConversation()}
-                onOpenSource={(url) =>
-                  void api
-                    .openSource(url, activeConversation?.id)
-                    .catch((reason: unknown) =>
-                      setError(reason instanceof Error ? reason.message : '无法打开来源')
-                    )
-                }
+                onOpenSource={openSource}
               />
               {activeConversation ? (
                 <footer className="ai-composer">

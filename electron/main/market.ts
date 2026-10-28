@@ -1,4 +1,9 @@
 import { net, type Session } from 'electron'
+import {
+  parseMarketChangeDistribution,
+  type EastmoneyMarketChangeData,
+  type MarketChangeDistribution
+} from '../../src/shared/market-change-distribution'
 import { get as httpsGet } from 'node:https'
 import type {
   FundsFlowResult,
@@ -514,6 +519,51 @@ async function fetchDailyMarketScanQuotesPage(
   return useDelayNode
     ? requestJsonWithHost(url.toString(), primaryHost, options)
     : requestJson(url.toString(), options)
+}
+
+let marketChangeCache: MarketChangeDistribution | null = null
+let marketChangeTask: Promise<MarketChangeDistribution> | null = null
+
+async function loadMarketChangeDistribution(): Promise<MarketChangeDistribution> {
+  const url = new URL('https://push2ex.eastmoney.com/getTopicZDFenBu')
+  url.searchParams.set('ut', EASTMONEY_RADAR_TOKEN)
+  url.searchParams.set('dpt', 'wz.ztzt')
+  const payload = await requestJson<{ rc?: number; data?: EastmoneyMarketChangeData }>(
+    url.toString(),
+    {
+      dataType: 'market-change-distribution',
+      caller: 'market-change-distribution',
+      source: 'eastmoney-push2ex',
+      maxAttempts: 1
+    }
+  )
+  if (payload.rc !== 0 || !payload.data?.qdate || !payload.data.fenbu?.length) {
+    throw new Error('行情服务未返回涨跌分布数据')
+  }
+  return parseMarketChangeDistribution(payload.data, new Date().toISOString())
+}
+
+export function fetchMarketChangeDistribution(
+  forceRefresh = false
+): Promise<MarketChangeDistribution> {
+  if (marketChangeTask) return marketChangeTask
+  if (
+    !forceRefresh &&
+    marketChangeCache &&
+    Date.now() - Date.parse(marketChangeCache.fetchedAt) < 60_000
+  ) {
+    return Promise.resolve(marketChangeCache)
+  }
+  const task = loadMarketChangeDistribution()
+    .then((result) => {
+      marketChangeCache = result
+      return result
+    })
+    .finally(() => {
+      marketChangeTask = null
+    })
+  marketChangeTask = task
+  return task
 }
 
 export async function fetchDailyMarketActiveQuotes(

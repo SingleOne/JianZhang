@@ -230,8 +230,8 @@ export function StockAlertDialog({
                           : ''
                       }
                       type="number"
-                      min={rule.metric === 'price' ? '0.001' : undefined}
-                      step={rule.metric === 'price' ? '0.001' : '0.1'}
+                      min={rule.metric === 'price' ? '0.01' : undefined}
+                      step={rule.metric === 'price' ? '0.01' : '0.1'}
                       required
                       value={rule.target}
                       onChange={(event) => updateRule(rule.id, { target: event.target.value })}

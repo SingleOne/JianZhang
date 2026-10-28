@@ -377,6 +377,7 @@ export interface AiChatDeltaEvent {
   conversationId: string
   messageId: string
   delta: string
+  replace?: boolean
   activity?: AiMessage['activity']
 }
 
@@ -587,6 +588,8 @@ export interface AiProviderRequest {
   messages: AiProviderRequestMessage[]
   images?: AiProviderImage[]
   tools?: AiProviderTool[]
+  // Replace an earlier tool round's text, or apply native-search citation annotations.
+  onTextReset?: (content: string) => void
   webSearch?: {
     onActivity: (activity: NonNullable<AiMessage['activity']>) => void
     registerSource: (source: { url: string; title?: string }) => string | undefined

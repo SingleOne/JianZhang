@@ -223,6 +223,231 @@ describe('current position profit', () => {
   })
 })
 
+describe('holding cycle return on peak capital', () => {
+  it.each([
+    {
+      name: 'reuses sale proceeds instead of accumulating every T buy',
+      entries: [
+        trade('buy', 'buy', 100, 10, 1, 5),
+        trade('sell', 'sell', 50, 12, 1, 2, '2026-01-03T02:00:00.000Z'),
+        trade('rebuy', 'buy', 50, 11, 1, 2, '2026-01-04T02:00:00.000Z')
+      ],
+      quantity: 100,
+      latest: 12,
+      peak: 1005,
+      profit: 241
+    },
+    {
+      name: 'raises the peak when an additional buy needs more capital',
+      entries: [
+        trade('buy', 'buy', 100, 10, 1, 0),
+        trade('sell', 'sell', 50, 10, 1, 0, '2026-01-03T02:00:00.000Z'),
+        trade('rebuy', 'buy', 100, 10, 1, 0, '2026-01-04T02:00:00.000Z')
+      ],
+      quantity: 150,
+      latest: 12,
+      peak: 1500,
+      profit: 300
+    },
+    {
+      name: 'retains negative net outflow so earlier profits can fund later buys',
+      entries: [
+        trade('buy', 'buy', 100, 10, 1, 0),
+        trade('sell', 'sell', 90, 30, 1, 0, '2026-01-03T02:00:00.000Z'),
+        trade('rebuy', 'buy', 100, 20, 1, 0, '2026-01-04T02:00:00.000Z')
+      ],
+      quantity: 110,
+      latest: 20,
+      peak: 1000,
+      profit: 1900
+    },
+    {
+      name: 'counts the temporary capital of buying before selling',
+      entries: [
+        trade('buy', 'buy', 100, 10, 1, 0),
+        trade('t-buy', 'buy', 100, 10, 1, 0, '2026-01-03T02:00:00.000Z'),
+        trade('t-sell', 'sell', 100, 10, 1, 0, '2026-01-03T02:01:00.000Z')
+      ],
+      quantity: 100,
+      latest: 9,
+      peak: 2000,
+      profit: -100
+    },
+    {
+      name: 'converts each cash flow at its historical rate',
+      entries: [
+        trade('buy', 'buy', 100, 10, 0.9, 5),
+        trade('sell', 'sell', 50, 12, 0.95, 2, '2026-01-03T02:00:00.000Z'),
+        trade('rebuy', 'buy', 50, 11, 0.8, 2, '2026-01-04T02:00:00.000Z')
+      ],
+      quantity: 100,
+      latest: 12,
+      peak: 904.5,
+      profit: 326
+    }
+  ])('$name', ({ entries, quantity, latest, peak, profit }) => {
+    const [cycle] = calculatePortfolioPerformanceCycles(
+      stock(quantity),
+      quote(latest),
+      account(entries),
+      exchangeRates(1 === entries[0].exchangeRate ? 1 : 0.92)
+    )
+
+    expect(cycle.peakCapitalCny).toBe(peak)
+    expect(cycle.cny.totalProfit).toBeCloseTo(profit)
+    expect(cycle.returnPercent).toBeCloseTo((profit / peak) * 100)
+    expect(cycle.returnUnavailableReason).toBeUndefined()
+  })
+
+  it('includes dividends, taxes, company cash and fees before a later buy', () => {
+    const cashEntries = [
+      cashEntry('cashDividend', 100),
+      cashEntry('withholdingTax', 10),
+      cashEntry('corporateActionFee', 2),
+      cashEntry('cashAdjustment', 20)
+    ].map((entry) => ({ ...entry, exchangeRate: 1 }))
+    const entries = [
+      trade('buy', 'buy', 100, 10, 1, 0),
+      ...cashEntries,
+      trade('rebuy', 'buy', 100, 10, 1, 0, '2026-04-02T02:00:00.000Z')
+    ]
+    const [cycle] = calculatePortfolioPerformanceCycles(
+      stock(200),
+      quote(10),
+      account(entries),
+      exchangeRates(1)
+    )
+
+    expect(cycle.peakCapitalCny).toBe(1892)
+    expect(cycle.returnPercent).toBeCloseTo((108 / 1892) * 100)
+  })
+
+  it('includes recorded rights subscription cost and its fees', () => {
+    const rights: PortfolioLedgerEntry = {
+      ...cashEntry('corporateActionFee', 0),
+      kind: 'rightsSubscription',
+      quantity: 10,
+      price: 5,
+      cost: 80,
+      fees: 2,
+      exchangeRate: 1
+    }
+    const [cycle] = calculatePortfolioPerformanceCycles(
+      stock(110),
+      quote(10),
+      account([trade('buy', 'buy', 100, 10, 1, 0), rights]),
+      exchangeRates(1)
+    )
+
+    expect(cycle.peakCapitalCny).toBe(1082)
+    expect(cycle.returnPercent).toBeCloseTo((18 / 1082) * 100)
+  })
+
+  it('starts a new peak for each cycle and needs no current quote for closed cycles', () => {
+    const entries = [
+      trade('first-buy', 'buy', 100, 10, 0.9, 0),
+      trade('first-close', 'sell', 100, 15, 0.95, 0),
+      trade('second-buy', 'buy', 60, 11, 0.91, 2, '2026-04-03T02:00:00.000Z')
+    ]
+    const cycles = calculatePortfolioPerformanceCycles(
+      stock(60),
+      undefined,
+      account(entries),
+      exchangeRates()
+    )
+
+    expect(cycles[0].peakCapitalCny).toBe(900)
+    expect(cycles[0].returnPercent).toBeCloseTo((525 / 900) * 100)
+    expect(cycles[1].peakCapitalCny).toBe(602.42)
+    expect(cycles[1].returnPercent).toBeNull()
+    expect(cycles[1].returnUnavailableReason).toBe('周期人民币收益数据不完整')
+  })
+
+  it('includes saved profit adjustment only in the numerator', () => {
+    const entries = [trade('buy', 'buy', 100, 10, 1, 0)]
+    const [cycle] = calculatePortfolioPerformanceCycles(
+      stock(100),
+      quote(10),
+      account(entries),
+      exchangeRates(1),
+      25
+    )
+
+    expect(cycle.peakCapitalCny).toBe(1000)
+    expect(cycle.returnPercent).toBe(2.5)
+  })
+
+  it('does not replace a missing historical rate with the current rate', () => {
+    const [cycle] = calculatePortfolioPerformanceCycles(
+      stock(100),
+      quote(),
+      account([trade('buy', 'buy', 100, 10, undefined, 0)]),
+      exchangeRates()
+    )
+
+    expect(cycle.peakCapitalCny).toBeNull()
+    expect(cycle.returnPercent).toBeNull()
+    expect(cycle.returnUnavailableReason).toBe('资金流水缺少历史人民币汇率')
+  })
+
+  it('does not invent a return for zero capital or mismatched holdings', () => {
+    const [zeroCapital] = calculatePortfolioPerformanceCycles(
+      stock(100),
+      quote(),
+      account([trade('free', 'buy', 100, 0, 1, 0)]),
+      exchangeRates(1)
+    )
+    const [mismatch] = calculatePortfolioPerformanceCycles(
+      stock(60),
+      quote(),
+      account([trade('buy', 'buy', 100, 10, 1, 0)]),
+      exchangeRates(1)
+    )
+
+    expect(zeroCapital.peakCapitalCny).toBe(0)
+    expect(zeroCapital.returnPercent).toBeNull()
+    expect(zeroCapital.returnUnavailableReason).toBe('峰值资金占用不大于零')
+    expect(mismatch.returnPercent).toBeNull()
+    expect(mismatch.returnUnavailableReason).toBe('账本持仓与当前持仓不一致')
+  })
+
+  it("uses reset cost as new capital and does not value an unfinished prior cycle at today's price", () => {
+    const reset: PortfolioLedgerEntry = {
+      ...cashEntry('corporateActionFee', 0),
+      kind: 'positionAdjustment',
+      resetsPerformance: true,
+      quantityBefore: 100,
+      quantityAfter: 60,
+      costBefore: 10,
+      costAfter: 11,
+      exchangeRate: 0.9
+    }
+    const entries = [trade('buy', 'buy', 100, 10, 0.9, 0), reset]
+    const cycles = calculatePortfolioPerformanceCycles(
+      stock(60),
+      quote(),
+      account(entries),
+      exchangeRates()
+    )
+
+    expect(cycles[0].returnPercent).toBeNull()
+    expect(cycles[0].returnUnavailableReason).toBe('重置前周期未清仓，缺少期末持仓估值')
+    expect(cycles[1].peakCapitalCny).toBe(594)
+    expect(cycles[1].returnPercent).toBeCloseTo((68.4 / 594) * 100)
+
+    const missingCost = { ...reset, costAfter: null }
+    const [missingCostCycle] = calculatePortfolioPerformanceCycles(
+      stock(60),
+      quote(),
+      account([missingCost]),
+      exchangeRates()
+    )
+    expect(missingCostCycle.peakCapitalCny).toBeNull()
+    expect(missingCostCycle.returnPercent).toBeNull()
+    expect(missingCostCycle.returnUnavailableReason).toBe('持仓校准缺少成本基数')
+  })
+})
+
 describe('portfolio performance report', () => {
   it('separates profit categories and reconciles price and FX contribution', () => {
     const entries = [
