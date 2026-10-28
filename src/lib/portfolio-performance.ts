@@ -108,6 +108,9 @@ export interface PortfolioPerformanceCycleResult extends PortfolioPerformanceSna
   includedInCumulative: boolean
   status: PortfolioPerformanceCycleStatus
   endingQuantity: number
+  peakCapitalCny: number | null
+  returnPercent: number | null
+  returnUnavailableReason?: string
 }
 
 export type PortfolioPerformanceScope = 'stock' | 'market' | 'account' | 'currency' | 'portfolio'
@@ -374,6 +377,8 @@ interface StockPerformanceCalculation extends PortfolioPerformanceSnapshot {
   securityCurrency: StockCurrency
   quantity: number
   latest: number | null
+  peakCapitalCny: number | null
+  capitalUnavailableReason?: string
 }
 
 interface StockPerformanceOptions {
@@ -434,6 +439,8 @@ function stockPerformance(
       securityCurrency,
       quantity: stock.position?.quantity ?? 0,
       latest: quote?.latest ?? null,
+      peakCapitalCny: null,
+      capitalUnavailableReason: '缺少组合账本',
       currencySlices: [
         {
           currency: securityCurrency,
@@ -454,6 +461,19 @@ function stockPerformance(
   let cnyCost = 0
   let cnyCostComplete = true
   let ledgerError = false
+  let netCapitalCny = 0
+  let peakCapitalCny = 0
+  let capitalUnavailableReason: string | undefined
+
+  const addCapitalOutflow = (amount: number, rate: number | null) => {
+    if (amount === 0) return
+    if (rate === null) {
+      capitalUnavailableReason ??= '资金流水缺少历史人民币汇率'
+      return
+    }
+    netCapitalCny += amount * rate
+    peakCapitalCny = Math.max(peakCapitalCny, netCapitalCny)
+  }
 
   const resetHoldingCycle = () => {
     slices.clear()
@@ -462,6 +482,9 @@ function stockPerformance(
     cnyCost = 0
     cnyCostComplete = true
     ledgerError = false
+    netCapitalCny = 0
+    peakCapitalCny = 0
+    capitalUnavailableReason = undefined
   }
 
   const entries = options.entries ?? activePortfolioLedgerEntries(account)
@@ -485,6 +508,7 @@ function stockPerformance(
       slice.native.values.tradeFees += fees
       addConverted(slice.cny, 'tradeFees', fees, rate, issues)
       if (entry.record.side === 'buy') {
+        addCapitalOutflow(amount + fees, rate)
         quantity += entry.record.quantity
         nativeCost += amount
         if (rate === null) cnyCostComplete = false
@@ -495,6 +519,7 @@ function stockPerformance(
         ledgerError = true
         continue
       }
+      addCapitalOutflow(fees - amount, rate)
       const allocatedNativeCost = quantity > 0 ? (nativeCost / quantity) * entry.record.quantity : 0
       const allocatedCnyCost = quantity > 0 ? (cnyCost / quantity) * entry.record.quantity : 0
       const nativeProfit = amount - allocatedNativeCost
@@ -523,8 +548,15 @@ function stockPerformance(
     }
 
     if (entry.kind === 'positionAdjustment') {
+      const nextNativeCost =
+        entry.quantityAfter > 0 ? entry.quantityAfter * (entry.costAfter ?? 0) : 0
+      if (entry.quantityAfter > 0 && entry.costAfter === null) {
+        capitalUnavailableReason ??= '持仓校准缺少成本基数'
+      }
+      // 期初/重置持仓作为期初投入，周期内校准只调整成本差额。
+      addCapitalOutflow(nextNativeCost - nativeCost, rate)
       quantity = entry.quantityAfter
-      nativeCost = quantity > 0 ? quantity * (entry.costAfter ?? 0) : 0
+      nativeCost = nextNativeCost
       if (nativeCost === 0) {
         cnyCost = 0
         cnyCostComplete = true
@@ -540,6 +572,9 @@ function stockPerformance(
     }
 
     if (entry.kind === 'shareAdjustment' || entry.kind === 'securityConversion') {
+      if (quantity <= 0.000_001 && entry.quantityAfter > 0.000_001) {
+        capitalUnavailableReason ??= '转入持仓缺少期初成本基数'
+      }
       quantity = entry.quantityAfter
       continue
     }
@@ -547,6 +582,7 @@ function stockPerformance(
     if (entry.kind === 'rightsSubscription') {
       if (currency !== securityCurrency) ledgerError = true
       const cost = entry.cost ?? entry.quantity * entry.price
+      addCapitalOutflow(cost + entry.fees, rate)
       quantity += entry.quantity
       nativeCost += cost
       if (rate === null && cost !== 0) cnyCostComplete = false
@@ -557,15 +593,19 @@ function stockPerformance(
     }
 
     if (entry.kind === 'cashDividend') {
+      addCapitalOutflow(-entry.amount, rate)
       slice.native.values.dividendIncome += entry.amount
       addConverted(slice.cny, 'dividendIncome', entry.amount, rate, issues)
     } else if (entry.kind === 'withholdingTax') {
+      addCapitalOutflow(entry.amount, rate)
       slice.native.values.withholdingTax += entry.amount
       addConverted(slice.cny, 'withholdingTax', entry.amount, rate, issues)
     } else if (entry.kind === 'corporateActionFee') {
+      addCapitalOutflow(entry.amount, rate)
       slice.native.values.corporateActionFees += entry.amount
       addConverted(slice.cny, 'corporateActionFees', entry.amount, rate, issues)
     } else if (entry.kind === 'cashAdjustment') {
+      addCapitalOutflow(-entry.amount, rate)
       slice.native.values.corporateActionIncome += entry.amount
       addConverted(slice.cny, 'corporateActionIncome', entry.amount, rate, issues)
     }
@@ -657,6 +697,8 @@ function stockPerformance(
     securityCurrency,
     quantity: rounded(quantity),
     latest: quote?.latest ?? null,
+    peakCapitalCny: capitalUnavailableReason || ledgerError ? null : rounded(peakCapitalCny),
+    capitalUnavailableReason: ledgerError ? '组合账本数量异常' : capitalUnavailableReason,
     currencySlices,
     native,
     cny,
@@ -805,6 +847,29 @@ export function calculatePortfolioPerformanceCycles(
         : index === latestCycleIndex && cycle.endingQuantity > 0.000_001
           ? 'open'
           : 'closed'
+    const savedQuantity = (account.accountId ? account.position : stock.position)?.quantity ?? 0
+    let returnUnavailableReason = calculation.capitalUnavailableReason
+    if (cycle.sequence === 0) {
+      returnUnavailableReason = '未归属事件缺少持仓周期基数'
+    } else if (index !== latestCycleIndex && cycle.endingQuantity > 0.000_001) {
+      returnUnavailableReason = '重置前周期未清仓，缺少期末持仓估值'
+    } else if (
+      index === latestCycleIndex &&
+      Math.abs(savedQuantity - calculation.quantity) > 0.000_001
+    ) {
+      returnUnavailableReason = '账本持仓与当前持仓不一致'
+    } else if (calculation.cny.totalProfit === null) {
+      returnUnavailableReason ??= '周期人民币收益数据不完整'
+    } else if (calculation.peakCapitalCny !== null && calculation.peakCapitalCny <= 0) {
+      returnUnavailableReason ??= '峰值资金占用不大于零'
+    }
+    const returnPercent =
+      !returnUnavailableReason &&
+      calculation.cny.totalProfit !== null &&
+      calculation.peakCapitalCny !== null &&
+      calculation.peakCapitalCny > 0
+        ? (calculation.cny.totalProfit / calculation.peakCapitalCny) * 100
+        : null
     return {
       id: cycle.id,
       entries: cycle.entries,
@@ -815,6 +880,9 @@ export function calculatePortfolioPerformanceCycles(
       includedInCumulative,
       status,
       endingQuantity: rounded(cycle.endingQuantity),
+      peakCapitalCny: calculation.peakCapitalCny,
+      returnPercent,
+      returnUnavailableReason,
       ...performanceSnapshot(calculation)
     }
   })
