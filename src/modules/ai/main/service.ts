@@ -1208,7 +1208,7 @@ export class AiService {
     const controller = new AbortController()
     this.activeChats.set(pendingMessage.conversationId, controller)
     const sourceRegistry = new TurnSourceRegistry()
-    const streamFilter = new CitationStreamFilter(() => sourceRegistry.registered())
+    let streamFilter = new CitationStreamFilter(() => sourceRegistry.registered())
     const onSearchActivity = (activity: NonNullable<AiMessage['activity']>) =>
       this.send(webContents, 'ai:chat:delta', {
         conversationId: pendingMessage.conversationId,
@@ -1298,6 +1298,15 @@ export class AiService {
             pdfAvailable
           ),
           tools: tools.length ? tools : undefined,
+          onTextReset: (content) => {
+            streamFilter = new CitationStreamFilter(() => sourceRegistry.registered())
+            this.send(webContents, 'ai:chat:delta', {
+              conversationId: pendingMessage.conversationId,
+              messageId: pendingMessage.id,
+              delta: streamFilter.push(content),
+              replace: true
+            })
+          },
           webSearch: nativeSearch
             ? {
                 onActivity: onSearchActivity,

@@ -36,6 +36,7 @@ import { AiSecrets } from '../../src/modules/ai/main/secrets'
 import type { MarketInsightRuntime } from '../../src/modules/market-insight/main/register'
 import {
   fetchDailyMarketActiveQuotes,
+  fetchMarketChangeDistribution,
   fetchFundsFlow,
   fetchKline,
   fetchOrderBook,
@@ -791,6 +792,7 @@ if (!hasSingleInstanceLock) {
       },
       persistState,
       getQuotes: getLatestQuotes,
+      getMarketChangeDistribution: fetchMarketChangeDistribution,
       getStartupWarning: () => startupWarning,
       getStockTrackingArchiveIndex: () => stockTrackingArchiveStore!.getIndex(),
       getStockTrackingArchiveCycle: (quoteId, cycleId) =>

@@ -3020,6 +3020,9 @@ export interface StockDesktopApi {
   setTaskbarTooltip: (anchor: TaskbarTooltipAnchor | null) => Promise<void>
   resizeTaskbarTooltip: (height: number) => Promise<void>
   searchStocks: (query: string) => Promise<SearchResult[]>
+  getMarketChangeDistribution: (
+    forceRefresh?: boolean
+  ) => Promise<import('./market-change-distribution').MarketChangeDistribution>
   getDividendFinancingOverview: (codes: string[]) => Promise<DividendFinancingOverview | null>
   getDividendFinancingSnapshot: () => Promise<DividendFinancingSnapshot | null>
   getDividendFinancingState: () => Promise<DataSnapshotRuntimeState>

@@ -678,6 +678,9 @@ function makeDemoShareholderSnapshot(quoteId: string): ShareholderSnapshot {
 
 const demoApi: StockDesktopApi = {
   platform: 'other',
+  async getMarketChangeDistribution() {
+    throw new Error('全市场 A 股涨跌幅分布需要在桌面应用中查看')
+  },
   async showMainWindow() {},
   async closeMenuBarPanel() {},
   async resizeMenuBarPanel() {},

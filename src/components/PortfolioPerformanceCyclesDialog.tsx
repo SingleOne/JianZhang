@@ -2,6 +2,8 @@ import { History, ReceiptText, X } from 'lucide-react'
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { formatMoneyProfit } from '../lib/format'
+import { marketDateKey } from '../shared/market-hours'
+import { marketFromQuoteId, type StockMarket } from '../shared/stock-market'
 import {
   calculatePortfolioPerformanceCycles,
   PORTFOLIO_PERFORMANCE_ISSUE_LABELS,
@@ -55,17 +57,32 @@ function expenseValue(cny: CnyProfitComponents): number | null {
   return -(cny.withholdingTax + cny.tradeFees + cny.corporateActionFees)
 }
 
-function formatCycleDate(value: string | undefined): string {
-  return value ? value.slice(0, 10) : '--'
+function formatCycleDate(value: string | undefined, market: StockMarket): string {
+  return value ? cycleDateKey(value, market) : '--'
 }
 
 function formatShares(value: number): string {
   return value.toLocaleString('zh-CN', { maximumFractionDigits: 6 })
 }
 
-function cycleLabel(cycle: PortfolioPerformanceCycleResult): string {
+function cycleDateKey(value: string, market: StockMarket): string {
+  // Trade inputs without an offset already use the security's market-local date.
+  return /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value)
+    ? marketDateKey(new Date(value), market)
+    : value.slice(0, 10)
+}
+
+function cycleLabel(cycle: PortfolioPerformanceCycleResult, market: StockMarket): string {
   if (cycle.sequence === 0) return '未归属事件'
-  return `第 ${cycle.sequence} 期`
+  const endDate = cycle.endedAt
+    ? cycleDateKey(cycle.endedAt, market)
+    : marketDateKey(new Date(), market)
+  const days =
+    (Date.parse(`${endDate}T00:00:00Z`) -
+      Date.parse(`${cycleDateKey(cycle.startedAt, market)}T00:00:00Z`)) /
+      86_400_000 +
+    1
+  return `第${cycle.sequence}期（${days}天）`
 }
 
 function cycleStatus(cycle: PortfolioPerformanceCycleResult): string {
@@ -124,10 +141,12 @@ function SummaryValue({
 function AccountCycles({
   performance,
   cycles,
+  market,
   onViewRecords
 }: {
   performance: PortfolioPerformanceStockResult
   cycles: PortfolioPerformanceCycleResult[]
+  market: StockMarket
   onViewRecords: (cycle: PortfolioPerformanceCycleResult) => void
 }) {
   const rows = useMemo(() => [...cycles].reverse(), [cycles])
@@ -201,13 +220,15 @@ function AccountCycles({
                 >
                   <td>
                     <span className="performance-cycle-label">
-                      <strong>{cycleLabel(cycle)}</strong>
+                      <strong title="自然天数，包含起止当天；持仓中计算至今天">
+                        {cycleLabel(cycle, market)}
+                      </strong>
                       {cycle.startedByPerformanceReset ? <small>收益基准重置</small> : null}
                       <AppButton
                         variant="text"
                         className="performance-cycle-records-button"
                         aria-haspopup="dialog"
-                        aria-label={`查看${performance.accountLabel}${cycleLabel(cycle)}交易记录`}
+                        aria-label={`查看${performance.accountLabel}${cycleLabel(cycle, market)}交易记录`}
                         onClick={() => onViewRecords(cycle)}
                       >
                         <ReceiptText size={14} />
@@ -220,8 +241,10 @@ function AccountCycles({
                       {cycleStatus(cycle)}
                     </span>
                   </td>
-                  <td>{formatCycleDate(cycle.startedAt)}</td>
-                  <td>{cycle.status === 'open' ? '持仓中' : formatCycleDate(cycle.endedAt)}</td>
+                  <td>{formatCycleDate(cycle.startedAt, market)}</td>
+                  <td>
+                    {cycle.status === 'open' ? '持仓中' : formatCycleDate(cycle.endedAt, market)}
+                  </td>
                   <td>{formatShares(cycle.endingQuantity)}</td>
                   <td>
                     <CycleNativeProfit cycle={cycle} />
@@ -283,6 +306,7 @@ export default function PortfolioPerformanceCyclesDialog({
   onClose
 }: PortfolioPerformanceCyclesDialogProps) {
   const { settings } = useSecuritiesAccountState()
+  const market = marketFromQuoteId(stock.quoteId)
   const [recordFilter, setRecordFilter] = useState<{
     accountId: string
     entryIds: string[]
@@ -352,11 +376,12 @@ export default function PortfolioPerformanceCyclesDialog({
               key={performance.accountId}
               performance={performance}
               cycles={cycles}
+              market={market}
               onViewRecords={(cycle) => {
                 setRecordFilter({
                   accountId: performance.accountId,
                   entryIds: cycle.entries.map((entry) => entry.id),
-                  label: `${performance.accountLabel} · ${cycleLabel(cycle)} · ${formatCycleDate(cycle.startedAt)} 至 ${cycle.status === 'open' ? '持仓中' : formatCycleDate(cycle.endedAt)}`
+                  label: `${performance.accountLabel} · ${cycleLabel(cycle, market)} · ${formatCycleDate(cycle.startedAt, market)} 至 ${cycle.status === 'open' ? '持仓中' : formatCycleDate(cycle.endedAt, market)}`
                 })
               }}
             />

@@ -230,6 +230,7 @@ export class GeminiProvider implements AiProvider {
     let responseId: string | undefined
     let totalToolCalls = 0
     for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+      if (round > 0) request.onTextReset?.('')
       const selection = await requestRound(
         apiKey,
         request.model,
@@ -237,11 +238,10 @@ export class GeminiProvider implements AiProvider {
         systemText,
         signal,
         request.tools,
-        undefined
+        emit
       )
       responseId = selection.responseId ?? responseId
       if (selection.toolCalls.length === 0) {
-        if (selection.content) emit(selection.content)
         return completed(selection.content, responseId)
       }
       contents.push(selection.modelContent)
@@ -263,6 +263,7 @@ export class GeminiProvider implements AiProvider {
       if (batch.limitReached) break
     }
 
+    request.onTextReset?.('')
     const answer = await requestRound(
       apiKey,
       request.model,

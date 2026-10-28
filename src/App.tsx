@@ -7,7 +7,15 @@ import {
   corporateApplicationKey,
   listStockAccountBooks
 } from './shared/stock-accounts'
-import { Bot, CircleCheck, RefreshCw, Signal, WifiOff } from 'lucide-react'
+import {
+  ArrowUpRight,
+  Bot,
+  ChartColumn,
+  CircleCheck,
+  RefreshCw,
+  Signal,
+  WifiOff
+} from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AppTitlebar, MarketTradingState } from './components/AppTitlebar'
 import { AppButton } from './components/AppButton'
@@ -105,6 +113,9 @@ const StockTrackingDialog = lazy(() =>
   }))
 )
 const PortfolioPerformanceDialog = lazy(() => import('./components/PortfolioPerformanceDialog'))
+const MarketChangeDistributionDialog = lazy(
+  () => import('./components/MarketChangeDistributionDialog')
+)
 const SettingsMenu = lazy(() =>
   import('./components/SettingsMenu').then((module) => ({ default: module.SettingsMenu }))
 )
@@ -136,6 +147,7 @@ type TitlebarPanelId =
   | 'settings'
   | 'ai-assistant'
   | 'portfolio-performance'
+  | 'market-change-distribution'
   | 'account-manager'
   | 'fee-scheme-manager'
 
@@ -269,6 +281,10 @@ export default function App() {
   const closeTitlebarPanel = useCallback((panel: TitlebarPanelId) => {
     setActiveTitlebarPanel((current) => (current === panel ? null : current))
   }, [])
+
+  const closeMarketChangeDistribution = useCallback(() => {
+    closeTitlebarPanel('market-change-distribution')
+  }, [closeTitlebarPanel])
 
   const loadDialog = useCallback((dialogId: DeferredDialogId) => {
     setLoadedDialogs((current) => {
@@ -1806,6 +1822,21 @@ export default function App() {
                     </span>
                   </div>
                   <div id="portfolio-quality-slot" className="portfolio-quality-slot" />
+                  <AppButton
+                    variant="plain"
+                    className="market-distribution-trigger"
+                    aria-haspopup="dialog"
+                    onClick={() => setActiveTitlebarPanel('market-change-distribution')}
+                  >
+                    <span>
+                      <ChartColumn size={15} />
+                      涨跌幅分布
+                    </span>
+                    <strong>全市场 A 股</strong>
+                    <small>
+                      点击查看 <ArrowUpRight size={13} />
+                    </small>
+                  </AppButton>
                   {marketIndexQuotes.length > 0 ? (
                     <div
                       className="market-index-summary panel-market-index-summary"
@@ -1818,12 +1849,10 @@ export default function App() {
                           key={index.id}
                         >
                           <small>{index.name}</small>
-                          <span>
-                            <strong>{formatPrice(quote?.latest)}</strong>
-                            <em className={directionClass(quote?.changePercent)}>
-                              {formatPercent(quote?.changePercent)}
-                            </em>
-                          </span>
+                          <strong>{formatPrice(quote?.latest)}</strong>
+                          <em className={directionClass(quote?.changePercent)}>
+                            {formatPercent(quote?.changePercent)}
+                          </em>
                         </span>
                       ))}
                     </div>
@@ -1836,24 +1865,18 @@ export default function App() {
                       <strong className={directionClass(portfolioSummary.todayProfit)}>
                         {formatMoneyProfit(portfolioSummary.todayProfit, 'CNY')}
                       </strong>
-                    </span>
-                    <span className={cardDirectionClass(portfolioSummary.todayProfitPercent)}>
-                      <small>今日收益率</small>
-                      <strong className={directionClass(portfolioSummary.todayProfitPercent)}>
+                      <em className={directionClass(portfolioSummary.todayProfitPercent)}>
                         {formatPercent(portfolioSummary.todayProfitPercent)}
-                      </strong>
+                      </em>
                     </span>
                     <span className={cardDirectionClass(portfolioSummary.totalProfit)}>
                       <small>持仓收益</small>
                       <strong className={directionClass(portfolioSummary.totalProfit)}>
                         {formatMoneyProfit(portfolioSummary.totalProfit, 'CNY')}
                       </strong>
-                    </span>
-                    <span className={cardDirectionClass(portfolioSummary.profitPercent)}>
-                      <small>持仓收益率</small>
-                      <strong className={directionClass(portfolioSummary.profitPercent)}>
+                      <em className={directionClass(portfolioSummary.profitPercent)}>
                         {formatPercent(portfolioSummary.profitPercent)}
-                      </strong>
+                      </em>
                     </span>
                   </div>
                 </div>
@@ -2114,6 +2137,11 @@ export default function App() {
                 )
               }
             />
+          </Suspense>
+        ) : null}
+        {activeTitlebarPanel === 'market-change-distribution' ? (
+          <Suspense fallback={null}>
+            <MarketChangeDistributionDialog onClose={closeMarketChangeDistribution} />
           </Suspense>
         ) : null}
         {activeTitlebarPanel === 'portfolio-performance' ? (

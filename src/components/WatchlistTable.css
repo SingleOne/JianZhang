@@ -39,13 +39,14 @@
   min-width: 0;
   flex: 1 1 auto;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 12px;
 }
 
 .panel-title {
   min-width: 0;
   flex: 0 1 auto;
+  align-self: center;
 }
 
 .panel-title-heading {
@@ -94,7 +95,7 @@
 
 .market-index-summary {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: 4px;
@@ -111,10 +112,12 @@
 }
 
 .market-index-card {
-  min-width: 108px;
+  min-width: 82px;
   display: grid;
+  grid-template-rows: repeat(3, auto);
+  align-content: space-between;
   gap: 2px;
-  padding: 5px 9px;
+  padding: 7px 9px;
   background: #ffffff;
   border: 1px solid #cfd8e6;
   border-left: 3px solid #98a2b3;
@@ -137,13 +140,6 @@
   font-size: 12px;
 }
 
-.market-index-card > span {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 7px;
-}
-
 .market-index-card strong,
 .market-index-card em {
   font-size: 12px;
@@ -154,7 +150,8 @@
 
 .portfolio-summary {
   display: flex;
-  align-items: center;
+  align-items: stretch;
+  height: 100%;
   gap: 4px;
   padding-left: 12px;
   border-left: 1px solid #d8dee8;
@@ -163,6 +160,8 @@
 .portfolio-summary > span {
   min-width: 94px;
   display: grid;
+  grid-template-rows: repeat(3, auto);
+  align-content: space-between;
   gap: 2px;
   padding: 5px 10px;
   background: #f8fafc;
@@ -191,6 +190,13 @@
 .portfolio-summary strong {
   font-size: 12px;
   font-weight: 720;
+  font-variant-numeric: tabular-nums;
+}
+
+.portfolio-summary em {
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 

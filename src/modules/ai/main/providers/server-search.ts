@@ -90,7 +90,7 @@ export class ServerSearchProvider extends OpenAiCompatibleProvider {
     request.webSearch?.onActivity('thinking')
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
       const allowTools = round < MAX_TOOL_ROUNDS && !toolsFinished
-      const streaming = !request.webSearch && (!request.tools?.length || !allowTools)
+      if (round > 0) request.onTextReset?.('')
       const result = await this.requestRound(
         apiKey,
         request,
@@ -98,7 +98,7 @@ export class ServerSearchProvider extends OpenAiCompatibleProvider {
         input,
         signal,
         allowTools,
-        streaming ? emit : undefined,
+        emit,
         responseId
       )
       responseId = result.responseId
@@ -118,7 +118,7 @@ export class ServerSearchProvider extends OpenAiCompatibleProvider {
         const content = request.webSearch
           ? this.withSearchCitations(result, request.webSearch, sources)
           : result.content
-        if (!streaming && content) emit(content)
+        if (request.webSearch && content !== result.content) request.onTextReset?.(content)
         return completed(content, responseId)
       }
       if (!allowTools)
