@@ -3002,6 +3002,7 @@ export interface StockDesktopApi {
   closeMenuBarPanel: () => Promise<void>
   resizeMenuBarPanel: (height: number) => Promise<void>
   getBootstrap: () => Promise<BootstrapResult>
+  notifyInitialRender: () => void
   getStockTrackingArchiveCycle: (quoteId: string, cycleId: string) => Promise<StockTrackingProfile>
   archiveStockTrackingCycle: (
     state: AppState,

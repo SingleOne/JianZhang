@@ -171,6 +171,16 @@ let aiSecrets: AiSecrets | null = null
 let completionNotificationStore: CompletionNotificationStore | null = null
 let marketRequestLogger: MarketRequestLogger | null = null
 let cacheMaintenanceService: CacheMaintenanceService | null = null
+let finishStartupRender!: () => void
+const startupRendered = new Promise<void>((resolve) => {
+  finishStartupRender = resolve
+})
+
+function runAfterStartupRender(action: () => void): void {
+  void startupRendered.then(() => {
+    if (!isQuitting) action()
+  })
+}
 
 const optionalModuleRuntime = new OptionalModuleRuntime(
   {
@@ -229,7 +239,7 @@ function reloadStateFromDiskIfChanged(): boolean {
     state.settings.autoRefreshQuotes !== loaded.state.settings.autoRefreshQuotes ||
     state.settings.autoRefreshQuoteScope !== loaded.state.settings.autoRefreshQuoteScope
   state = loaded.state
-  if (autoRefreshChanged) quoteRuntime?.restartSchedule()
+  if (autoRefreshChanged) runAfterStartupRender(() => quoteRuntime?.restartSchedule())
   sendToWindows('state:updated', state)
   windowManager?.updateTrayMenu()
   windowManager?.syncTaskbarWindow()
@@ -246,10 +256,10 @@ function setAutoRefreshQuotes(scope: AppState['settings']['autoRefreshQuoteScope
   persistState()
   sendToWindows('state:updated', state)
   windowManager?.updateTrayMenu()
-  quoteRuntime?.restartSchedule()
-  if (enabled) {
-    void quoteRuntime?.refreshAutomatically('auto-refresh-enabled')
-  }
+  runAfterStartupRender(() => {
+    quoteRuntime?.restartSchedule()
+    if (enabled) void quoteRuntime?.refreshAutomatically('auto-refresh-enabled')
+  })
 }
 
 function applyPreparedUserDataBackup(
@@ -592,7 +602,7 @@ if (!hasSingleInstanceLock) {
     }
     windowManager?.showMainWindow()
     windowManager?.syncTaskbarWindow()
-    void quoteRuntime?.refreshAutomatically('second-instance')
+    runAfterStartupRender(() => void quoteRuntime?.refreshAutomatically('second-instance'))
   })
 
   app.whenReady().then(async () => {
@@ -778,6 +788,7 @@ if (!hasSingleInstanceLock) {
       }
     })
     disposeIpcHandlers = registerIpcHandlers({
+      waitForStartupRender: () => startupRendered,
       getState: () => state,
       setState: (nextState) => {
         state = nextState
@@ -988,13 +999,19 @@ if (!hasSingleInstanceLock) {
           syncWindowSurfaces()
         },
         isQuitting: () => isQuitting,
-        refreshQuotes: () => quoteRuntime!.refreshAll(),
+        refreshQuotes: async () => {
+          await startupRendered
+          if (!isQuitting) return quoteRuntime?.refreshAll()
+        },
         setAutoRefreshQuotes,
         quit: quitApp
       },
       app.getPath('userData')
     )
     windowManager.create()
+    await windowManager.waitForInitialRender()
+    if (isQuitting) return
+    finishStartupRender()
     initializeOptionalModules()
     dividendFinancingService.initializeIfMissing()
     fundamentalDataService.initializeIfMissing()

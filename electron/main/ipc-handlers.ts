@@ -79,6 +79,7 @@ import type {
 } from '../../src/shared/types'
 
 interface IpcHandlerDependencies {
+  waitForStartupRender: () => Promise<void>
   getState: () => AppState
   setState: (state: AppState) => void
   normalizeState: (state: AppState) => AppState
@@ -314,24 +315,44 @@ function configTimestamp(): string {
 }
 
 export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () => void {
-  ipcMain.handle('app:show', (_event, quoteId?: string) => {
+  // Local bootstrap and window controls must remain available while renderers prepare the UI.
+  const startupChannels = new Set([
+    'app:bootstrap',
+    'app:show',
+    'app:hide',
+    'app:quit',
+    'menu-bar:close',
+    'menu-bar:resize',
+    'taskbar:layout:get',
+    'taskbar:ticker:resize',
+    'taskbar:tooltip:get',
+    'taskbar:tooltip:set',
+    'taskbar:tooltip:resize'
+  ])
+  const handle = (channel: string, listener: Parameters<typeof ipcMain.handle>[1]): void => {
+    ipcMain.handle(channel, async (event, ...args) => {
+      if (!startupChannels.has(channel)) await dependencies.waitForStartupRender()
+      return listener(event, ...args)
+    })
+  }
+  handle('app:show', (_event, quoteId?: string) => {
     dependencies.showMainWindow(typeof quoteId === 'string' ? quoteId : undefined)
   })
-  ipcMain.handle('menu-bar:close', () => dependencies.closeMenuBarPanel())
-  ipcMain.handle('menu-bar:resize', (_event, height: number) => {
+  handle('menu-bar:close', () => dependencies.closeMenuBarPanel())
+  handle('menu-bar:resize', (_event, height: number) => {
     if (Number.isFinite(height)) dependencies.resizeMenuBarPanel(height)
   })
-  ipcMain.handle('app:bootstrap', async () => ({
+  handle('app:bootstrap', async () => ({
     state: dependencies.getState(),
     trackingArchiveIndex: dependencies.getStockTrackingArchiveIndex(),
     quotes: dependencies.getQuotes(),
     source: 'eastmoney' as const,
     warning: dependencies.getStartupWarning()
   }))
-  ipcMain.handle('tracking:archive-cycle:get', (_event, quoteId: string, cycleId: string) =>
+  handle('tracking:archive-cycle:get', (_event, quoteId: string, cycleId: string) =>
     dependencies.getStockTrackingArchiveCycle(quoteId, cycleId)
   )
-  ipcMain.handle(
+  handle(
     'tracking:archive',
     (
       _event,
@@ -350,128 +371,116 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
       return result
     }
   )
-  ipcMain.handle('tracking:archive-cycle:delete', (_event, quoteId: string, cycleId: string) =>
+  handle('tracking:archive-cycle:delete', (_event, quoteId: string, cycleId: string) =>
     dependencies.deleteStockTrackingArchiveCycle(quoteId, cycleId)
   )
-  ipcMain.handle('tracking:archives:delete-all', (_event, quoteId: string) =>
+  handle('tracking:archives:delete-all', (_event, quoteId: string) =>
     dependencies.deleteAllStockTrackingArchives(quoteId)
   )
-  ipcMain.handle('app:optional-modules:get', () => dependencies.getOptionalModulesState())
-  ipcMain.handle('app:optional-module:wait', (_event, moduleId: OptionalModuleId) =>
+  handle('app:optional-modules:get', () => dependencies.getOptionalModulesState())
+  handle('app:optional-module:wait', (_event, moduleId: OptionalModuleId) =>
     dependencies.waitForOptionalModule(moduleId)
   )
-  ipcMain.handle('taskbar:layout:get', () => dependencies.getTaskbarLayout())
-  ipcMain.handle('taskbar:ticker:resize', (_event, width: number, height: number) =>
+  handle('taskbar:layout:get', () => dependencies.getTaskbarLayout())
+  handle('taskbar:ticker:resize', (_event, width: number, height: number) =>
     dependencies.resizeTaskbarTicker(width, height)
   )
-  ipcMain.handle('taskbar:tooltip:get', () => dependencies.getTaskbarTooltipQuoteId())
-  ipcMain.handle('taskbar:tooltip:set', (_event, anchor: TaskbarTooltipAnchor | null) =>
+  handle('taskbar:tooltip:get', () => dependencies.getTaskbarTooltipQuoteId())
+  handle('taskbar:tooltip:set', (_event, anchor: TaskbarTooltipAnchor | null) =>
     dependencies.setTaskbarTooltip(anchor)
   )
-  ipcMain.handle('taskbar:tooltip:resize', (_event, height: number) =>
+  handle('taskbar:tooltip:resize', (_event, height: number) =>
     dependencies.resizeTaskbarTooltip(height)
   )
-  ipcMain.handle('stocks:search', (_event, query: string) => dependencies.searchStocks(query))
-  ipcMain.handle('market-change-distribution:get', (_event, forceRefresh?: boolean) =>
+  handle('stocks:search', (_event, query: string) => dependencies.searchStocks(query))
+  handle('market-change-distribution:get', (_event, forceRefresh?: boolean) =>
     dependencies.getMarketChangeDistribution(forceRefresh === true)
   )
-  ipcMain.handle('dividend-financing:overview:get', (_event, codes: string[]) =>
+  handle('dividend-financing:overview:get', (_event, codes: string[]) =>
     dependencies.getDividendFinancingOverview(codes)
   )
-  ipcMain.handle('dividend-financing:get', () => dependencies.getDividendFinancingSnapshot())
-  ipcMain.handle('dividend-financing:state:get', () => dependencies.getDividendFinancingState())
-  ipcMain.handle('dividend-financing:changes:get', () =>
-    dependencies.getDividendFinancingChangeReport()
-  )
-  ipcMain.handle('dividend-financing:update', () => dependencies.runDividendFinancingUpdate())
-  ipcMain.handle('fundamentals:overview:get', (_event, codes: string[]) =>
+  handle('dividend-financing:get', () => dependencies.getDividendFinancingSnapshot())
+  handle('dividend-financing:state:get', () => dependencies.getDividendFinancingState())
+  handle('dividend-financing:changes:get', () => dependencies.getDividendFinancingChangeReport())
+  handle('dividend-financing:update', () => dependencies.runDividendFinancingUpdate())
+  handle('fundamentals:overview:get', (_event, codes: string[]) =>
     dependencies.getFundamentalOverview(codes)
   )
-  ipcMain.handle('fundamentals:get', () => dependencies.getFundamentalSnapshot())
-  ipcMain.handle('fundamentals:state:get', () => dependencies.getFundamentalState())
-  ipcMain.handle('fundamentals:changes:get', () => dependencies.getFundamentalChangeReport())
-  ipcMain.handle('fundamentals:update', () => dependencies.runFundamentalUpdate())
-  ipcMain.handle('fundamentals:stock:update', (_event, code: string) =>
+  handle('fundamentals:get', () => dependencies.getFundamentalSnapshot())
+  handle('fundamentals:state:get', () => dependencies.getFundamentalState())
+  handle('fundamentals:changes:get', () => dependencies.getFundamentalChangeReport())
+  handle('fundamentals:update', () => dependencies.runFundamentalUpdate())
+  handle('fundamentals:stock:update', (_event, code: string) =>
     dependencies.runFundamentalStockUpdate(code)
   )
-  ipcMain.handle('company-reports:get', (_event, quoteId: string, forceRefresh?: boolean) =>
+  handle('company-reports:get', (_event, quoteId: string, forceRefresh?: boolean) =>
     dependencies.getCompanyReports(quoteId, forceRefresh)
   )
-  ipcMain.handle('global-fundamentals:get', (_event, quoteId: string, forceRefresh?: boolean) =>
+  handle('global-fundamentals:get', (_event, quoteId: string, forceRefresh?: boolean) =>
     dependencies.getGlobalFundamentals(quoteId, forceRefresh)
   )
-  ipcMain.handle('company-reports:summary:generate', (_event, report: CompanyReportItem) =>
+  handle('company-reports:summary:generate', (_event, report: CompanyReportItem) =>
     dependencies.generateCompanyReportSummary(report)
   )
-  ipcMain.handle('company-reports:open', (_event, url: string) =>
-    dependencies.openCompanyReport(url)
-  )
-  ipcMain.handle('corporate-actions:list', (_event, quoteId: string) =>
+  handle('company-reports:open', (_event, url: string) => dependencies.openCompanyReport(url))
+  handle('corporate-actions:list', (_event, quoteId: string) =>
     dependencies.listCorporateActions(quoteId)
   )
-  ipcMain.handle('corporate-actions:refresh', (_event, quoteId: string) =>
+  handle('corporate-actions:refresh', (_event, quoteId: string) =>
     dependencies.listCorporateActions(quoteId, true)
   )
-  ipcMain.handle(
-    'corporate-actions:summary:generate',
-    (_event, candidate: CorporateActionCandidate) =>
-      dependencies.generateCorporateActionSummary(candidate)
+  handle('corporate-actions:summary:generate', (_event, candidate: CorporateActionCandidate) =>
+    dependencies.generateCorporateActionSummary(candidate)
   )
-  ipcMain.handle('corporate-actions:preview', (_event, request: CorporateActionPreviewRequest) =>
+  handle('corporate-actions:preview', (_event, request: CorporateActionPreviewRequest) =>
     dependencies.previewCorporateAction(request)
   )
-  ipcMain.handle('corporate-actions:confirm', (_event, request: CorporateActionPreviewRequest) =>
+  handle('corporate-actions:confirm', (_event, request: CorporateActionPreviewRequest) =>
     dependencies.previewCorporateAction(request)
   )
-  ipcMain.handle('corporate-actions:ignore', (_event, candidate: CorporateActionCandidate) =>
+  handle('corporate-actions:ignore', (_event, candidate: CorporateActionCandidate) =>
     dependencies.ignoreCorporateAction(candidate)
   )
-  ipcMain.handle(
+  handle(
     'corporate-actions:reverse',
     (_event, candidate: CorporateActionCandidate, account: TTradingAccount) =>
       dependencies.reverseCorporateAction(candidate, account)
   )
-  ipcMain.handle(
+  handle(
     'corporate-actions:manual',
     (_event, request: ManualCorporateActionRequest, account: TTradingAccount) =>
       dependencies.createManualCorporateAction(request, account)
   )
-  ipcMain.handle('corporate-actions:open', (_event, url: string) =>
-    dependencies.openCorporateAction(url)
-  )
-  ipcMain.handle('portfolio-ledger:list', (_event, account: TTradingAccount) =>
+  handle('corporate-actions:open', (_event, url: string) => dependencies.openCorporateAction(url))
+  handle('portfolio-ledger:list', (_event, account: TTradingAccount) =>
     dependencies.listPortfolioLedger(account)
   )
-  ipcMain.handle('shareholders:get', (_event, quoteId: string, forceRefresh?: boolean) =>
+  handle('shareholders:get', (_event, quoteId: string, forceRefresh?: boolean) =>
     dependencies.getShareholderSnapshot(quoteId, forceRefresh)
   )
-  ipcMain.handle('valuation-history:get', (_event, quoteId: string) =>
+  handle('valuation-history:get', (_event, quoteId: string) =>
     dependencies.getValuationHistory(quoteId)
   )
-  ipcMain.handle('quotes:refresh', () => dependencies.refreshQuotes())
-  ipcMain.handle('quotes:refresh-one', (_event, quoteId: string) =>
-    dependencies.refreshStock(quoteId)
-  )
-  ipcMain.handle('quotes:refresh-by-ids', (_event, quoteIds: string[]) =>
+  handle('quotes:refresh', () => dependencies.refreshQuotes())
+  handle('quotes:refresh-one', (_event, quoteId: string) => dependencies.refreshStock(quoteId))
+  handle('quotes:refresh-by-ids', (_event, quoteIds: string[]) =>
     dependencies.refreshStocks(quoteIds, 'tracking-review')
   )
-  ipcMain.handle('kline:get', (_event, quoteId: string, period: KlinePeriod, limit?: number) =>
+  handle('kline:get', (_event, quoteId: string, period: KlinePeriod, limit?: number) =>
     dependencies.getKline(quoteId, period, limit)
   )
-  ipcMain.handle('daily-market-scan:get', () => dependencies.getDailyMarketScanResult())
-  ipcMain.handle('daily-market-scan:state:get', () => dependencies.getDailyMarketScanState())
-  ipcMain.handle('daily-market-scan:run', () => dependencies.runDailyMarketScan())
-  ipcMain.handle('chip-distribution:cache:save', (_event, entry: ChipDistributionCacheEntry) =>
+  handle('daily-market-scan:get', () => dependencies.getDailyMarketScanResult())
+  handle('daily-market-scan:state:get', () => dependencies.getDailyMarketScanState())
+  handle('daily-market-scan:run', () => dependencies.runDailyMarketScan())
+  handle('chip-distribution:cache:save', (_event, entry: ChipDistributionCacheEntry) =>
     dependencies.saveChipDistributionCache(entry)
   )
-  ipcMain.handle('order-book:get', (_event, quoteId: string) => dependencies.getOrderBook(quoteId))
-  ipcMain.handle('funds-flow:get', (_event, quoteId: string) => dependencies.getFundsFlow(quoteId))
-  ipcMain.handle('sector-index:get', (_event, quoteId: string) =>
-    dependencies.getSectorIndex(quoteId)
-  )
-  ipcMain.handle('trading-calendar:refresh', () => dependencies.refreshTradingCalendar())
-  ipcMain.handle('exchange-rates:refresh', () => dependencies.refreshExchangeRates())
-  ipcMain.handle('state:save', async (_event, nextState: AppState) => {
+  handle('order-book:get', (_event, quoteId: string) => dependencies.getOrderBook(quoteId))
+  handle('funds-flow:get', (_event, quoteId: string) => dependencies.getFundsFlow(quoteId))
+  handle('sector-index:get', (_event, quoteId: string) => dependencies.getSectorIndex(quoteId))
+  handle('trading-calendar:refresh', () => dependencies.refreshTradingCalendar())
+  handle('exchange-rates:refresh', () => dependencies.refreshExchangeRates())
+  handle('state:save', async (_event, nextState: AppState) => {
     dependencies.assertStateRevision(nextState)
     const currentState = dependencies.getState()
     const normalizedState = dependencies.normalizeState(nextState)
@@ -538,22 +547,18 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
     tAlertUpdate.triggered.forEach(dependencies.showTFloatingProfitAlertNotification)
     return savedState
   })
-  ipcMain.handle('completion-notifications:get', () => dependencies.getCompletionNotifications())
-  ipcMain.handle(
-    'completion-notifications:save',
-    (_event, notifications: AppCompletionNotification[]) =>
-      dependencies.saveCompletionNotifications(notifications)
+  handle('completion-notifications:get', () => dependencies.getCompletionNotifications())
+  handle('completion-notifications:save', (_event, notifications: AppCompletionNotification[]) =>
+    dependencies.saveCompletionNotifications(notifications)
   )
-  ipcMain.handle('cache:summary', () => dependencies.getCacheSummary())
-  ipcMain.handle('cache:clear', (_event, categoryIds: CacheCategoryId[]) =>
+  handle('cache:summary', () => dependencies.getCacheSummary())
+  handle('cache:clear', (_event, categoryIds: CacheCategoryId[]) =>
     dependencies.clearCaches(categoryIds)
   )
-  ipcMain.handle(
-    'stock-cache:clear',
-    (_event, quoteId: string, categoryIds: StockCacheCategoryId[]) =>
-      dependencies.clearStockCaches(quoteId, categoryIds)
+  handle('stock-cache:clear', (_event, quoteId: string, categoryIds: StockCacheCategoryId[]) =>
+    dependencies.clearStockCaches(quoteId, categoryIds)
   )
-  ipcMain.handle('config:export', async (_event, _stateToExport: AppState) => {
+  handle('config:export', async (_event, _stateToExport: AppState) => {
     const options: SaveDialogOptions = {
       title: '导出见涨用户数据',
       defaultPath: join(app.getPath('documents'), `见涨-用户数据-${configTimestamp()}.json`),
@@ -577,7 +582,7 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
       apiKeyCount: Object.keys(document.aiApiKeys).length
     }
   })
-  ipcMain.handle('config:import', async () => {
+  handle('config:import', async () => {
     const options: OpenDialogOptions = {
       title: '导入见涨用户数据',
       properties: ['openFile'],
@@ -603,26 +608,26 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
     }
     return { canceled: false, filePath, state: parseConfigDocument(value) }
   })
-  ipcMain.handle('config:import:apply', (_event, importId: string) => {
+  handle('config:import:apply', (_event, importId: string) => {
     dependencies.applyUserDataBackup(importId)
     setTimeout(dependencies.restart, 300)
   })
-  ipcMain.handle('github-sync:settings:get', () => dependencies.getGitHubSyncSettings())
-  ipcMain.handle('github-sync:login:start', () => dependencies.startGitHubLogin())
-  ipcMain.handle('github-sync:login:complete', (_event, loginId: string) =>
+  handle('github-sync:settings:get', () => dependencies.getGitHubSyncSettings())
+  handle('github-sync:login:start', () => dependencies.startGitHubLogin())
+  handle('github-sync:login:complete', (_event, loginId: string) =>
     dependencies.completeGitHubLogin(loginId)
   )
-  ipcMain.handle('github-sync:gist:refresh', () => dependencies.refreshGitHubGist())
-  ipcMain.handle('github-sync:password:get', () => dependencies.getGitHubSyncPassword())
-  ipcMain.handle('github-sync:password:generate', () => dependencies.generateGitHubSyncPassword())
-  ipcMain.handle('github-sync:password:save', (_event, password: string) =>
+  handle('github-sync:gist:refresh', () => dependencies.refreshGitHubGist())
+  handle('github-sync:password:get', () => dependencies.getGitHubSyncPassword())
+  handle('github-sync:password:generate', () => dependencies.generateGitHubSyncPassword())
+  handle('github-sync:password:save', (_event, password: string) =>
     dependencies.saveGitHubSyncPassword(password)
   )
-  ipcMain.handle('github-sync:disconnect', () => dependencies.disconnectGitHub())
-  ipcMain.handle('github-sync:upload', (_event, overwriteRemote?: boolean) =>
+  handle('github-sync:disconnect', () => dependencies.disconnectGitHub())
+  handle('github-sync:upload', (_event, overwriteRemote?: boolean) =>
     dependencies.uploadUserDataToGitHub(app.getVersion(), overwriteRemote)
   )
-  ipcMain.handle('github-sync:download', async () => {
+  handle('github-sync:download', async () => {
     const prepared = await dependencies.downloadUserDataFromGitHub()
     return {
       canceled: false,
@@ -632,15 +637,12 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
       githubGistVersion: prepared.githubGistVersion
     }
   })
-  ipcMain.handle(
-    'github-sync:gist:restore-apply',
-    async (_event, importId: string, version: string) => {
-      await dependencies.applyGitHubGistRestore(importId, version)
-      setTimeout(dependencies.restart, 300)
-    }
-  )
-  ipcMain.handle('app:hide', () => dependencies.hideMainWindow())
-  ipcMain.handle('app:quit', () => dependencies.quit())
+  handle('github-sync:gist:restore-apply', async (_event, importId: string, version: string) => {
+    await dependencies.applyGitHubGistRestore(importId, version)
+    setTimeout(dependencies.restart, 300)
+  })
+  handle('app:hide', () => dependencies.hideMainWindow())
+  handle('app:quit', () => dependencies.quit())
 
   return () => {
     for (const channel of CHANNELS) ipcMain.removeHandler(channel)

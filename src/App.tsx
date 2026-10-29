@@ -23,6 +23,7 @@ import { useConfirmDialog } from './components/ConfirmDialog'
 import type { GitHubSyncUploadPhase } from './components/SettingsMenu'
 import { SearchBar } from './components/SearchBar'
 import { StartupOverlay } from './components/StartupOverlay'
+import { useInitialRenderReady } from './hooks/useInitialRenderReady'
 import { TitlebarToolsMenu } from './components/TitlebarToolsMenu'
 import { getInitialBootstrap, initialState, isDesktopRuntime, stockApi } from './lib/api'
 import {
@@ -218,6 +219,8 @@ export default function App() {
   const [refreshing, setRefreshing] = useState(false)
   const [calendarRefreshing, setCalendarRefreshing] = useState(false)
   const [exchangeRatesRefreshing, setExchangeRatesRefreshing] = useState(false)
+
+  useInitialRenderReady(!startupVisible)
 
   useEffect(() => {
     applyAppThemePreference(state.settings.theme)

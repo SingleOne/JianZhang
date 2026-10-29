@@ -116,6 +116,26 @@ export class WindowManager {
     return this.mainWindow && !this.mainWindow.isDestroyed() ? this.mainWindow : null
   }
 
+  async waitForInitialRender(): Promise<void> {
+    const windows = [this.getMainWindow(), this.taskbarWindow].filter(
+      (window): window is BrowserWindow => window !== null && !window.isDestroyed()
+    )
+    await Promise.all(
+      windows.map(
+        (window) =>
+          new Promise<void>((resolve) => {
+            const rendered = (): void => {
+              window.webContents.ipc.removeListener('app:renderer-ready', rendered)
+              window.removeListener('closed', rendered)
+              resolve()
+            }
+            window.webContents.ipc.once('app:renderer-ready', rendered)
+            window.once('closed', rendered)
+          })
+      )
+    )
+  }
+
   isTaskbarMode(): boolean {
     return this.taskbarMode
   }
@@ -775,7 +795,8 @@ export class WindowManager {
         preload: join(__dirname, '../preload/index.js'),
         contextIsolation: true,
         sandbox: true,
-        nodeIntegration: false
+        nodeIntegration: false,
+        backgroundThrottling: false
       }
     })
     this.mainWindow = window
@@ -791,6 +812,9 @@ export class WindowManager {
     window.webContents.ipc.on('main-window:ready', () => {
       this.mainWindowSelectionReady = true
       this.sendPendingStockSelection()
+    })
+    window.webContents.ipc.once('app:renderer-ready', () => {
+      window.webContents.setBackgroundThrottling(true)
     })
     window.on('close', (event) => {
       if (!this.dependencies.isQuitting() && this.dependencies.getState().settings.minimizeToTray) {

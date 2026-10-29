@@ -33,6 +33,7 @@ const api: StockDesktopApi = {
   closeMenuBarPanel: () => ipcRenderer.invoke('menu-bar:close'),
   resizeMenuBarPanel: (height) => ipcRenderer.invoke('menu-bar:resize', height),
   getBootstrap: () => ipcRenderer.invoke('app:bootstrap'),
+  notifyInitialRender: () => ipcRenderer.send('app:renderer-ready'),
   getStockTrackingArchiveCycle: (quoteId, cycleId) =>
     ipcRenderer.invoke('tracking:archive-cycle:get', quoteId, cycleId),
   archiveStockTrackingCycle: (state, profile, deletePreviousArchives) =>

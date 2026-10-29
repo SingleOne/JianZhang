@@ -6,6 +6,7 @@ import { getTriggeredStockAlertDirection } from '../lib/stock-alerts'
 import { getTaskbarVisibleStocks } from '../lib/taskbar-visibility'
 import { marketFromQuoteId } from '../shared/stock-market'
 import { applyAppThemePreference } from '../lib/theme'
+import { useInitialRenderReady } from '../hooks/useInitialRenderReady'
 import type { AppState, StockQuote } from '../shared/types'
 import { FiveLevelAlertBadges } from './FiveLevelAlertBadges'
 import { TAlertBadges } from './TAlertBadges'
@@ -19,11 +20,14 @@ function directionClass(changePercent: number | null | undefined): string {
 export function TaskbarTicker() {
   const [state, setState] = useState<AppState>(initialState)
   const [quotes, setQuotes] = useState<StockQuote[]>([])
+  const [initialized, setInitialized] = useState(false)
   const tickerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     applyAppThemePreference(state.settings.theme)
   }, [state.settings.theme])
+
+  useInitialRenderReady(initialized)
 
   useEffect(() => {
     let active = true
@@ -35,6 +39,7 @@ export function TaskbarTicker() {
       if (!active) return
       setState(bootstrap.state)
       setQuotes(bootstrap.quotes)
+      setInitialized(true)
     })
 
     return () => {
