@@ -1,4 +1,6 @@
 const requestedIconVariant = process.env.JIANZHANG_ICON_VARIANT
+const { macOptions } = require('./scripts/mac-package-options.cjs')
+const macMode = process.env.JIANZHANG_MAC_PACKAGE_MODE
 const iconVariant =
   requestedIconVariant === 'red' || requestedIconVariant === 'black'
     ? requestedIconVariant
@@ -18,8 +20,9 @@ module.exports = {
   appId: 'com.jianzhang.stock',
   productName: '见涨',
   asar: true,
+  ...(macMode === 'dist' ? { forceCodeSigning: true } : {}),
   directories: {
-    output: 'release'
+    output: macMode ? `release/mac-${macMode}` : 'release'
   },
   files: ['out/**/*', 'package.json'],
   extraResources: [
@@ -40,8 +43,7 @@ module.exports = {
   mac: {
     icon: macIconFiles[iconVariant],
     category: 'public.app-category.finance',
-    target: [{ target: 'dmg', arch: ['x64', 'arm64'] }],
-    artifactName: '见涨-${version}-mac-${arch}.${ext}'
+    ...macOptions(macMode)
   },
   nsis: {
     oneClick: false,

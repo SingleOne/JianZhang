@@ -31,6 +31,8 @@ npm run build:unpacked
 npm run package:win
 npm run package:portable
 npm run package:mac
+npm run package:mac:local
+npm run package:mac:dist
 ```
 
 | 命令               | 作用                                                                                   |
@@ -46,7 +48,9 @@ npm run package:mac
 | `generate:icon`    | 生成白底、红底和黑底三套图标，Windows 为 256px、macOS 为 1024px                        |
 | `package:win`      | build + icon + NSIS x64 安装包                                                         |
 | `package:portable` | build + icon + Windows portable 包                                                     |
-| `package:mac`      | build + icon + macOS DMG，分别生成 x64 和 arm64 安装镜像                               |
+| `package:mac`      | 本机 macOS 打包的默认别名，同 `package:mac:local`                                      |
+| `package:mac:local` | build + icon + 当前架构 DMG，使用 ad-hoc 签名，无联网时间戳和公证                     |
+| `package:mac:dist` | build + icon + x64/arm64 DMG，要求 Developer ID Application 签名和 Apple 公证          |
 
 Windows portable 产物命名为 `见涨-portable-<版本>-<架构>.exe`，例如 `见涨-portable-18.0.5-x64.exe`。
 
@@ -68,22 +72,61 @@ Remove-Item Env:JIANZHANG_ICON_VARIANT
 
 ### macOS 打包
 
-在 macOS 上安装依赖后执行：
+本机运行在 macOS 上执行：
 
 ```sh
+npm run package:mac:local
+# package:mac 是相同命令的别名
 npm run package:mac
+# 可选：指定另一种架构
+npm run package:mac:local -- --x64
 ```
 
-命令自动执行类型检查、main/preload/renderer 生产构建和图标生成，再通过 `electron-builder.config.cjs` 中的 `mac` 配置打包。产物位于 `release/`：
+命令自动执行类型检查、main/preload/renderer 生产构建和图标生成，再通过 `electron-builder.config.cjs`
+中的本机模式打包。默认只生成当前 Mac 架构，产物为
+`release/mac-local/见涨-<版本>-mac-<架构>-local.dmg`。
+本机模式固定使用 ad-hoc 签名，关闭 Hardened Runtime、联网时间戳和公证；
+忽略并移除传给打包子进程的 `CSC_NAME`、`CSC_LINK`、证书密码等签名凭据，
+避免自动选择旧的 Apple Development 证书或导入分发证书。
+
+对外分发使用：
+
+```sh
+# 先在钥匙串中安装有效的 Developer ID Application 证书及私钥。
+# 交互式保存公证凭据，密码由 notarytool 在终端提示输入，不写入项目。
+xcrun notarytool store-credentials jianzhang-dist
+export APPLE_KEYCHAIN_PROFILE=jianzhang-dist
+npm run package:mac:dist
+```
+
+分发模式默认生成两个镜像，位于 `release/mac-dist/`：
 
 - `见涨-<版本>-mac-x64.dmg`：Intel Mac。
 - `见涨-<版本>-mac-arm64.dmg`：Apple Silicon Mac。
+
+分发模式启用 Hardened Runtime、联网时间戳与公证。只接受 Developer ID Application，
+不会把 Apple Development 当作可分发证书。多个分发证书可用 `CSC_NAME` 指定名称或 SHA-1 指纹；
+CI 也可使用 `CSC_LINK` / `CSC_KEY_PASSWORD` 导入证书，导入后仍会再次检查所选证书类型。
+公证也支持完整的 `APPLE_ID` / `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID`，
+或 `APPLE_API_KEY` / `APPLE_API_KEY_ID` / `APPLE_API_ISSUER` 环境变量。
+这几种凭据使用 electron-builder 的优先次序；不要混用不完整的凭据组。
+没有有效分发证书或完整公证凭据会直接报错；公证失败则打包失败。
+
+两种模式的输出目录分开，均不自动上传发布。需要其他架构时在命令末尾加 `-- --arm64`、
+`-- --x64` 或 `-- --universal`，显式指定时不再额外生成默认架构。
 
 macOS 打包入口会将 npm 已解析的重复依赖引用降为调试日志；设置 `DEBUG=electron-builder` 可查看，未解析引用和依赖缺失仍保留警告。
 
 在 macOS 27 及以上，入口通过 `diskutil image` 创建、挂载和压缩 APFS 镜像，通过 `diskutil eject` 卸载，避免调用已弃用的 `hdiutil`；仍使用 electron-builder 自带的 dmgbuild 运行时生成背景、应用图标位置和 `/Applications` 快捷入口，无需另外安装 Python 包。旧版 macOS 保留原有 DMG 流程。显式设置 `CUSTOM_DMGBUILD_PATH` 时使用指定工具。
 
-DMG 制作使用 macOS 的系统工具，需在 Mac 上运行。签名和公证凭据由 electron-builder 的环境变量或系统钥匙串提供，仓库不内置凭据；对外分发前需完成签名、公证以及 macOS 运行验证。当前增加的是打包命令与配置，尚未在 macOS 上验证运行和界面兼容性。
+DMG 制作使用 macOS 的系统工具，需在 Mac 上运行。仓库不内置证书、密码或公证凭据。
+本机模式的实际安装和界面兼容性仍需人工确认；分发模式还需在具备 Developer ID Application
+与公证凭据的环境中完成完整流程及安装验证。
+
+打包路线与签名边界可用 `node --test scripts/mac-package-options.test.cjs` 校验，无需真实证书。
+20.0.1 已通过 14 项测试、生产构建、lint 和 Luna 静态复核；实际生成并挂载 arm64 本机 DMG，
+验证 ad-hoc 签名、Finder 布局及包内 Electron 无界面运行。当前机器没有 Developer ID Application，
+已验证分发命令明确报错，尚未执行完整分发签名与公证。
 
 ## 构建输出
 

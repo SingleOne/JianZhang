@@ -1,6 +1,6 @@
 {
   "name": "jianzhang-stock-desktop",
-  "version": "20.0.0",
+  "version": "20.0.1",
   "description": "见涨 - 实时股票自选桌面应用",
   "main": "out/main/index.js",
   "author": "star",
@@ -19,7 +19,9 @@
     "generate:icon": "node scripts/generate-icon.mjs",
     "package:win": "npm run build && npm run generate:icon && electron-builder --config electron-builder.config.cjs --win nsis",
     "package:portable": "npm run build && npm run generate:icon && electron-builder --config electron-builder.config.cjs --win portable",
-    "package:mac": "npm run build && npm run generate:icon && node scripts/package-mac.cjs --config electron-builder.config.cjs --mac"
+    "package:mac": "npm run package:mac:local --",
+    "package:mac:local": "npm run build && npm run generate:icon && node scripts/package-mac.cjs --mode local --config electron-builder.config.cjs --mac",
+    "package:mac:dist": "npm run build && npm run generate:icon && node scripts/package-mac.cjs --mode dist --config electron-builder.config.cjs --mac"
   },
   "dependencies": {
     "exceljs": "^4.4.0",

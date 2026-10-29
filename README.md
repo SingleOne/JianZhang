@@ -129,10 +129,20 @@ npm run package:win
 macOS 打包请在 Mac 上执行：
 
 ```sh
+npm run package:mac:local
+# 或使用默认的本机打包别名
 npm run package:mac
 ```
 
-命令依次完成类型检查、生产构建、图标生成和 DMG 打包，在 `release/` 输出 Intel（x64）和 Apple Silicon（arm64）两个安装镜像，命名为 `见涨-<版本>-mac-<架构>.dmg`。DMG 生成依赖 macOS 系统工具；如需对外分发，需另外配置 Apple Developer 签名与公证凭据。当前仅增加打包入口，macOS 运行与界面兼容性尚未验证。
+本机命令完成类型检查、生产构建、图标生成和 DMG 打包，默认只生成当前 Mac 的架构，
+产物为 `release/mac-local/见涨-<版本>-mac-<架构>-local.dmg`。使用 ad-hoc 签名，
+不使用钥匙串中的开发证书、联网时间戳或公证；也不会导入环境变量中配置的签名证书。
+可用 `npm run package:mac:local -- --x64` 或 `--arm64` 指定架构。
+
+对外分发使用 `npm run package:mac:dist`，默认生成 Intel 和 Apple Silicon 两个 DMG，
+位于 `release/mac-dist/`。该命令要求有效的 Developer ID Application 证书及完整的 Apple 公证凭据，
+缺少配置会直接报错，不会改用 Apple Development 或 ad-hoc 签名。
+两种打包命令默认均不上传发布。凭据配置与详细说明见 [开发与发布](docs/wiki/07-development-and-release.md#macos-打包)。
 
 仓库已经内置见涨 OAuth App 的公开 Client ID，直接执行 `npm run build` 即可使用 GitHub 网页授权。需要切换到其他 OAuth App 时，可以在构建前通过环境变量覆盖：
 
