@@ -166,6 +166,22 @@ describe('watchlist normalization', () => {
 })
 
 describe('settings and column migration', () => {
+  it('keeps the reference annual return unset for old settings and preserves explicit zero', () => {
+    expect(DEFAULT_APP_SETTINGS.referenceAnnualRatePercent).toBeNull()
+    expect(normalizeAppSettings(undefined).referenceAnnualRatePercent).toBeNull()
+    expect(normalizeAppSettings({ referenceAnnualRatePercent: 0 }).referenceAnnualRatePercent).toBe(
+      0
+    )
+    expect(
+      normalizeAppSettings({ referenceAnnualRatePercent: 2.5 }).referenceAnnualRatePercent
+    ).toBe(2.5)
+    for (const value of [null, -1, NaN, Infinity]) {
+      expect(
+        normalizeAppSettings({ referenceAnnualRatePercent: value }).referenceAnnualRatePercent
+      ).toBeNull()
+    }
+  })
+
   it('preserves supported themes and defaults legacy or invalid values to system', () => {
     expect(DEFAULT_APP_SETTINGS.theme).toBe('system')
     expect(normalizeAppSettings(undefined).theme).toBe('system')

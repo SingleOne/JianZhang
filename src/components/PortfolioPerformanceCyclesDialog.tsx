@@ -6,6 +6,7 @@ import { marketDateKey } from '../shared/market-hours'
 import { marketFromQuoteId, type StockMarket } from '../shared/stock-market'
 import {
   calculatePortfolioPerformanceCycles,
+  performanceCycleDateKey as cycleDateKey,
   PORTFOLIO_PERFORMANCE_ISSUE_LABELS,
   type CnyProfitComponents,
   type PortfolioPerformanceCycleResult,
@@ -64,13 +65,6 @@ function formatCycleDate(value: string | undefined, market: StockMarket): string
 
 function formatShares(value: number): string {
   return value.toLocaleString('zh-CN', { maximumFractionDigits: 6 })
-}
-
-function cycleDateKey(value: string, market: StockMarket): string {
-  // Trade inputs without an offset already use the security's market-local date.
-  return /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value)
-    ? marketDateKey(new Date(value), market)
-    : value.slice(0, 10)
 }
 
 function cycleLabel(cycle: PortfolioPerformanceCycleResult, market: StockMarket): string {
@@ -139,6 +133,27 @@ function SummaryValue({
   )
 }
 
+function ReferenceValue({
+  value,
+  reason,
+  note
+}: {
+  value: number | null
+  reason?: string
+  note?: string
+}) {
+  return (
+    <Tooltip content={reason ?? note ?? ''}>
+      <span className="performance-cycle-reference" tabIndex={0}>
+        <strong className={valueClass(value)}>
+          {value === null ? '无法计算' : formatMoneyProfit(value, 'CNY')}
+        </strong>
+        {value !== null && note ? <small>{note}</small> : null}
+      </span>
+    </Tooltip>
+  )
+}
+
 function AccountCycles({
   performance,
   cycles,
@@ -197,7 +212,17 @@ function AccountCycles({
               <th>结束</th>
               <th>期末数量</th>
               <th>原币收益</th>
-              <th>人民币收益</th>
+              <th>股票净收益（人民币）</th>
+              <th>
+                <Tooltip content="按全局参考年化和每日净投入计算的假设收益，单利，不代表实际理财产品收益。">
+                  <span tabIndex={0}>理财参考收益（人民币）</span>
+                </Tooltip>
+              </th>
+              <th>
+                <Tooltip content="股票净收益减去理财参考收益；正数表示多赚，负数表示少赚。">
+                  <span tabIndex={0}>较参考多赚 / 少赚（人民币）</span>
+                </Tooltip>
+              </th>
               <th>
                 <Tooltip content="周期内累计净支出的最高值，按各笔事件的历史汇率折合人民币。">
                   <span tabIndex={0}>峰值资金占用（人民币）</span>
@@ -268,6 +293,28 @@ function AccountCycles({
                       </small>
                     ) : null}
                   </td>
+                  <td>
+                    <ReferenceValue
+                      value={cycle.referenceReturnCny}
+                      reason={cycle.referenceUnavailableReason}
+                      note={`计息 ${cycle.referenceDays} 天`}
+                    />
+                  </td>
+                  <td>
+                    <ReferenceValue
+                      value={cycle.referenceExcessCny}
+                      reason={cycle.referenceExcessUnavailableReason}
+                      note={
+                        cycle.referenceExcessCny === null
+                          ? undefined
+                          : cycle.referenceExcessCny > 0
+                            ? '多赚'
+                            : cycle.referenceExcessCny < 0
+                              ? '少赚'
+                              : '与参考持平'
+                      }
+                    />
+                  </td>
                   <td>{formatMoney(cycle.peakCapitalCny, 'CNY')}</td>
                   <td>
                     <Tooltip
@@ -308,7 +355,7 @@ function AccountCycles({
             })}
             {rows.length === 0 ? (
               <tr>
-                <td className="portfolio-performance-cycles-empty" colSpan={17}>
+                <td className="portfolio-performance-cycles-empty" colSpan={19}>
                   当前没有可查看的持仓周期。
                 </td>
               </tr>
@@ -330,6 +377,7 @@ export default function PortfolioPerformanceCyclesDialog({
   onClose
 }: PortfolioPerformanceCyclesDialogProps) {
   const { settings } = useSecuritiesAccountState()
+  const referenceAnnualRatePercent = settings.referenceAnnualRatePercent
   const market = marketFromQuoteId(stock.quoteId)
   const [recordFilter, setRecordFilter] = useState<{
     accountId: string
@@ -345,10 +393,11 @@ export default function PortfolioPerformanceCyclesDialog({
           quote,
           account,
           exchangeRates,
-          manualAdjustment
+          manualAdjustment,
+          { referenceAnnualRatePercent }
         )
       })),
-    [accounts, exchangeRates, quote, stock]
+    [accounts, exchangeRates, quote, referenceAnnualRatePercent, stock]
   )
 
   return createPortal(
@@ -391,6 +440,20 @@ export default function PortfolioPerformanceCyclesDialog({
         <div className="portfolio-performance-cycles-body">
           <div className="portfolio-performance-cycles-note">
             各账户累计收益从该账户最近一次收益基准重置后开始计算；重置前周期仍保留展示，但不计入该账户当前累计。
+          </div>
+          <div className="portfolio-performance-cycles-note">
+            理财参考年化：
+            {referenceAnnualRatePercent === null ? (
+              '未设置，请在设置的“交易”中填写'
+            ) : (
+              <strong className={valueClass(referenceAnnualRatePercent)}>
+                {referenceAnnualRatePercent}%
+              </strong>
+            )}
+            。参考收益＝Σ（各段净投入 × 参考年化收益率 × 计息天数 ÷ 365），按自然日单利计算。
+            起算日计入、截止日不计入，持仓中计至今天零点；同日交易按日终净占用，净投入最低为零，清仓后不再计息。
+            计息天数与包含首尾当天的持仓天数不同；外币投入按事件历史汇率折合人民币，仅表示人民币参考收益。
+            修改全局年化会重新测算全部周期，收益调整不改变参考收益；数据不足时显示“无法计算”，悬停查看原因。
           </div>
           <div className="portfolio-performance-cycles-note">
             周期收益率（峰值占用）＝周期人民币净收益 ÷ 峰值资金占用 × 100%，不年化。

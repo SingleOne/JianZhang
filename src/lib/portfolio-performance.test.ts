@@ -448,6 +448,227 @@ describe('holding cycle return on peak capital', () => {
   })
 })
 
+describe('holding cycle reference return', () => {
+  const options = {
+    referenceAnnualRatePercent: 3.65,
+    asOf: new Date('2026-01-12T12:00:00.000Z')
+  }
+
+  it.each([
+    {
+      name: 'segments actual net cash outflows including trade fees',
+      entries: [
+        trade('buy', 'buy', 100, 10, 1, 5),
+        trade('sell', 'sell', 50, 12, 1, 2, '2026-01-03T02:00:00.000Z'),
+        trade('rebuy', 'buy', 50, 11, 1, 2, '2026-01-04T02:00:00.000Z')
+      ],
+      quantity: 100,
+      reference: 0.91,
+      days: 10
+    },
+    {
+      name: 'uses day-end capital rather than an intraday peak',
+      entries: [
+        trade('buy', 'buy', 100, 10, 1, 0),
+        trade('t-buy', 'buy', 100, 10, 1, 0, '2026-01-03T02:00:00.000Z'),
+        trade('t-sell', 'sell', 100, 10, 1, 0, '2026-01-03T02:01:00.000Z')
+      ],
+      quantity: 100,
+      reference: 1,
+      days: 10
+    },
+    {
+      name: 'floors daily exposure at zero while retaining profits to fund a later buy',
+      entries: [
+        trade('buy', 'buy', 100, 10, 1, 0),
+        trade('sell', 'sell', 90, 30, 1, 0, '2026-01-03T02:00:00.000Z'),
+        trade('rebuy', 'buy', 100, 20, 1, 0, '2026-01-04T02:00:00.000Z')
+      ],
+      quantity: 110,
+      reference: 0.34,
+      days: 10
+    },
+    {
+      name: 'stops at a losing close even when unrecouped capital and later fees remain',
+      entries: [
+        trade('buy', 'buy', 100, 10, 1, 0),
+        trade('close', 'sell', 100, 8, 1, 0, '2026-01-03T02:00:00.000Z'),
+        {
+          ...cashEntry('corporateActionFee', 5),
+          exchangeRate: 1,
+          occurredAt: '2026-01-05T02:00:00.000Z',
+          marketDate: '2026-01-05'
+        }
+      ],
+      quantity: 0,
+      reference: 0.1,
+      days: 1
+    },
+    {
+      name: 'accrues no interest for a same-day round trip',
+      entries: [
+        trade('buy', 'buy', 100, 10, 1, 0),
+        trade('close', 'sell', 100, 12, 1, 0, '2026-01-02T03:00:00.000Z')
+      ],
+      quantity: 0,
+      reference: 0,
+      days: 0
+    }
+  ])('$name', ({ entries, quantity, reference, days }) => {
+    const [cycle] = calculatePortfolioPerformanceCycles(
+      stock(quantity),
+      quote(),
+      account(entries),
+      exchangeRates(1),
+      0,
+      options
+    )
+    expect(cycle.referenceReturnCny).toBe(reference)
+    expect(cycle.referenceDays).toBe(days)
+    expect(cycle.referenceUnavailableReason).toBeUndefined()
+    expect(cycle.referenceExcessCny).toBeCloseTo(cycle.cny.totalProfit! - reference)
+  })
+
+  it('accounts for dividends, taxes, company cash and rights subscription at historical FX', () => {
+    const entries: PortfolioLedgerEntry[] = [
+      trade('buy', 'buy', 100, 10, 1, 0),
+      ...[
+        cashEntry('cashDividend', 100),
+        cashEntry('withholdingTax', 10),
+        cashEntry('corporateActionFee', 2),
+        cashEntry('cashAdjustment', 30),
+        {
+          ...cashEntry('corporateActionFee', 0),
+          id: 'rights',
+          kind: 'rightsSubscription' as const,
+          quantity: 50,
+          price: 2,
+          fees: 1
+        }
+      ].map((entry) => ({ ...entry, exchangeRate: 1 }))
+    ]
+    const [cycle] = calculatePortfolioPerformanceCycles(
+      stock(150),
+      quote(10),
+      account(entries),
+      exchangeRates(1),
+      0,
+      { ...options, asOf: new Date('2026-04-03T12:00:00.000Z') }
+    )
+    expect(cycle.referenceReturnCny).toBe(9.1)
+    expect(cycle.referenceExcessCny).toBe(507.9)
+
+    const [converted] = calculatePortfolioPerformanceCycles(
+      stock(50),
+      quote(),
+      account([
+        trade('buy', 'buy', 100, 10, 0.9, 0),
+        trade('sell', 'sell', 50, 10, 0.8, 0, '2026-01-03T02:00:00.000Z')
+      ]),
+      exchangeRates(),
+      0,
+      options
+    )
+    expect(converted.referenceReturnCny).toBe(0.54)
+  })
+
+  it('uses calendar days through leap day and keeps the annual divisor at 365', () => {
+    const [cycle] = calculatePortfolioPerformanceCycles(
+      stock(100),
+      quote(),
+      account([trade('buy', 'buy', 100, 10, 1, 0, '2024-02-28T02:00:00.000Z')]),
+      exchangeRates(1),
+      0,
+      { ...options, asOf: new Date('2024-03-01T12:00:00.000Z') }
+    )
+    expect(cycle.referenceDays).toBe(2)
+    expect(cycle.referenceReturnCny).toBe(0.2)
+  })
+
+  it('recalculates when the assumption changes and applies profit adjustments only to excess', () => {
+    const entries = [trade('buy', 'buy', 100, 10, 1, 0)]
+    const calculate = (rate: number | null, adjustment: number) =>
+      calculatePortfolioPerformanceCycles(
+        stock(100),
+        quote(10),
+        account(entries),
+        exchangeRates(1),
+        adjustment,
+        { ...options, referenceAnnualRatePercent: rate }
+      )[0]
+    expect(calculate(null, 25).referenceReturnCny).toBeNull()
+    expect(calculate(null, 25).cny.totalProfit).toBe(25)
+    expect(calculate(0, 25)).toMatchObject({ referenceReturnCny: 0, referenceExcessCny: 25 })
+    expect(calculate(3.65, 25)).toMatchObject({ referenceReturnCny: 1, referenceExcessCny: 24 })
+    expect(calculate(7.3, 25)).toMatchObject({ referenceReturnCny: 2, referenceExcessCny: 23 })
+  })
+
+  it('keeps reference income available without a quote but withholds an incomplete comparison', () => {
+    const [cycle] = calculatePortfolioPerformanceCycles(
+      stock(100),
+      undefined,
+      account([trade('buy', 'buy', 100, 10, 1, 0)]),
+      exchangeRates(1),
+      0,
+      options
+    )
+    expect(cycle.referenceReturnCny).toBe(1)
+    expect(cycle.referenceExcessCny).toBeNull()
+    expect(cycle.referenceExcessUnavailableReason).toBe('周期人民币收益数据不完整')
+  })
+
+  it('does not use current FX for missing cash-flow FX or hide a holding mismatch', () => {
+    const [missingFx] = calculatePortfolioPerformanceCycles(
+      stock(100),
+      quote(),
+      account([trade('buy', 'buy', 100, 10, undefined, 0)]),
+      exchangeRates(1),
+      0,
+      options
+    )
+    expect(missingFx.referenceReturnCny).toBeNull()
+    expect(missingFx.referenceExcessCny).toBeNull()
+    expect(missingFx.referenceUnavailableReason).toBe('资金流水缺少历史人民币汇率')
+    const [mismatch] = calculatePortfolioPerformanceCycles(
+      stock(50),
+      quote(),
+      account([trade('buy', 'buy', 100, 10, 1, 0)]),
+      exchangeRates(1),
+      0,
+      options
+    )
+    expect(mismatch.referenceReturnCny).toBeNull()
+    expect(mismatch.referenceUnavailableReason).toBe('账本持仓与当前持仓不一致')
+  })
+
+  it('stops the prior period at a performance reset and starts the new period with reset cost', () => {
+    const reset: PortfolioLedgerEntry = {
+      ...cashEntry('corporateActionFee', 0),
+      exchangeRate: 1,
+      kind: 'positionAdjustment',
+      resetsPerformance: true,
+      quantityBefore: 100,
+      quantityAfter: 60,
+      costBefore: 10,
+      costAfter: 11
+    }
+    const cycles = calculatePortfolioPerformanceCycles(
+      stock(60),
+      quote(),
+      account([trade('buy', 'buy', 100, 10, 1, 0), reset]),
+      exchangeRates(1),
+      0,
+      { ...options, asOf: new Date('2026-04-02T12:00:00.000Z') }
+    )
+    expect(cycles[0]).toMatchObject({
+      status: 'excluded',
+      referenceReturnCny: 8.9,
+      referenceExcessCny: null
+    })
+    expect(cycles[1]).toMatchObject({ referenceReturnCny: 0.07, referenceExcessCny: 59.93 })
+  })
+})
+
 describe('portfolio performance report', () => {
   it('separates profit categories and reconciles price and FX contribution', () => {
     const entries = [

@@ -2521,6 +2521,7 @@ export interface AppSettings {
   marketTradeFees: MarketTradeFeeSettings
   tPlanDefaults: TPlanDefaultSettings
   tFloatingProfitAlertDefaultThreshold: number
+  referenceAnnualRatePercent: number | null
   tradingCalendar: TradingCalendarSettings
   exchangeRates: ExchangeRateSettings
 }
@@ -2546,6 +2547,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   marketTradeFees: structuredClone(DEFAULT_MARKET_TRADE_FEE_SETTINGS),
   tPlanDefaults: structuredClone(DEFAULT_T_PLAN_SETTINGS),
   tFloatingProfitAlertDefaultThreshold: DEFAULT_T_FLOATING_PROFIT_ALERT_THRESHOLD,
+  referenceAnnualRatePercent: null,
   tradingCalendar: structuredClone(DEFAULT_TRADING_CALENDAR_SETTINGS),
   exchangeRates: structuredClone(DEFAULT_EXCHANGE_RATE_SETTINGS)
 }
@@ -2780,6 +2782,12 @@ export function normalizeAppSettings(settings: Partial<AppSettings> | undefined)
       1,
       settings?.tFloatingProfitAlertDefaultThreshold ?? DEFAULT_T_FLOATING_PROFIT_ALERT_THRESHOLD
     ),
+    referenceAnnualRatePercent:
+      typeof settings?.referenceAnnualRatePercent === 'number' &&
+      Number.isFinite(settings.referenceAnnualRatePercent) &&
+      settings.referenceAnnualRatePercent >= 0
+        ? settings.referenceAnnualRatePercent
+        : null,
     tradingCalendar: normalizeTradingCalendarSettings(settings?.tradingCalendar),
     exchangeRates: normalizeExchangeRateSettings(settings?.exchangeRates)
   }

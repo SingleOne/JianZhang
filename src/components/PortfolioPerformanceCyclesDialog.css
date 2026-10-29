@@ -181,6 +181,7 @@
 }
 
 .performance-cycle-native-values,
+.performance-cycle-reference,
 .performance-cycle-completeness {
   display: grid;
   justify-items: center;
@@ -206,7 +207,13 @@
 }
 
 .performance-cycle-label strong,
+.performance-cycle-reference strong,
 .performance-cycle-completeness strong {
+  font-size: 12px;
+}
+
+.performance-cycle-reference small {
+  color: var(--subtle);
   font-size: 12px;
 }
 

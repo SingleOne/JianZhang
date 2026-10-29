@@ -1119,6 +1119,18 @@
   font-size: 12px;
 }
 
+.reference-annual-rate-setting .number-input-wrap input {
+  width: 80px;
+}
+
+.reference-annual-rate-setting .number-input-wrap input.is-up {
+  color: var(--stock-up-color, #c13b3b);
+}
+
+.reference-annual-rate-setting .number-input-wrap input.is-flat {
+  color: var(--muted);
+}
+
 .setting-row-position {
   min-height: 78px;
 }

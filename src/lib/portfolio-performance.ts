@@ -2,6 +2,7 @@ import { listStockAccountBooks } from '../shared/stock-accounts'
 import type { SecuritiesAccounts, StockTradingBook, StockTradingBooks } from '../shared/types'
 import { exchangeRateForCurrency } from '../shared/exchange-rates'
 import { marketFromQuoteId, type StockCurrency, type StockMarket } from '../shared/stock-market'
+import { marketDateKey } from '../shared/market-hours'
 import type {
   ExchangeRateSettings,
   PortfolioPerformanceAdjustments,
@@ -111,6 +112,16 @@ export interface PortfolioPerformanceCycleResult extends PortfolioPerformanceSna
   peakCapitalCny: number | null
   returnPercent: number | null
   returnUnavailableReason?: string
+  referenceDays: number
+  referenceReturnCny: number | null
+  referenceExcessCny: number | null
+  referenceUnavailableReason?: string
+  referenceExcessUnavailableReason?: string
+}
+
+interface PortfolioPerformanceCycleOptions {
+  referenceAnnualRatePercent?: number | null
+  asOf?: Date
 }
 
 export type PortfolioPerformanceScope = 'stock' | 'market' | 'account' | 'currency' | 'portfolio'
@@ -386,6 +397,7 @@ interface StockPerformanceOptions {
   entries?: readonly PortfolioLedgerEntry[]
   checkPositionMismatch?: boolean
   includeUnrealized?: boolean
+  onCapitalOutflow?: (entry: PortfolioLedgerEntry, amountCny: number) => void
 }
 
 function opensHoldingCycle(entry: PortfolioLedgerEntry, quantity: number): boolean {
@@ -465,7 +477,7 @@ function stockPerformance(
   let peakCapitalCny = 0
   let capitalUnavailableReason: string | undefined
 
-  const addCapitalOutflow = (amount: number, rate: number | null) => {
+  const addCapitalOutflow = (entry: PortfolioLedgerEntry, amount: number, rate: number | null) => {
     if (amount === 0) return
     if (rate === null) {
       capitalUnavailableReason ??= '资金流水缺少历史人民币汇率'
@@ -473,6 +485,7 @@ function stockPerformance(
     }
     netCapitalCny += amount * rate
     peakCapitalCny = Math.max(peakCapitalCny, netCapitalCny)
+    options.onCapitalOutflow?.(entry, amount * rate)
   }
 
   const resetHoldingCycle = () => {
@@ -508,7 +521,7 @@ function stockPerformance(
       slice.native.values.tradeFees += fees
       addConverted(slice.cny, 'tradeFees', fees, rate, issues)
       if (entry.record.side === 'buy') {
-        addCapitalOutflow(amount + fees, rate)
+        addCapitalOutflow(entry, amount + fees, rate)
         quantity += entry.record.quantity
         nativeCost += amount
         if (rate === null) cnyCostComplete = false
@@ -519,7 +532,7 @@ function stockPerformance(
         ledgerError = true
         continue
       }
-      addCapitalOutflow(fees - amount, rate)
+      addCapitalOutflow(entry, fees - amount, rate)
       const allocatedNativeCost = quantity > 0 ? (nativeCost / quantity) * entry.record.quantity : 0
       const allocatedCnyCost = quantity > 0 ? (cnyCost / quantity) * entry.record.quantity : 0
       const nativeProfit = amount - allocatedNativeCost
@@ -554,7 +567,7 @@ function stockPerformance(
         capitalUnavailableReason ??= '持仓校准缺少成本基数'
       }
       // 期初/重置持仓作为期初投入，周期内校准只调整成本差额。
-      addCapitalOutflow(nextNativeCost - nativeCost, rate)
+      addCapitalOutflow(entry, nextNativeCost - nativeCost, rate)
       quantity = entry.quantityAfter
       nativeCost = nextNativeCost
       if (nativeCost === 0) {
@@ -582,7 +595,7 @@ function stockPerformance(
     if (entry.kind === 'rightsSubscription') {
       if (currency !== securityCurrency) ledgerError = true
       const cost = entry.cost ?? entry.quantity * entry.price
-      addCapitalOutflow(cost + entry.fees, rate)
+      addCapitalOutflow(entry, cost + entry.fees, rate)
       quantity += entry.quantity
       nativeCost += cost
       if (rate === null && cost !== 0) cnyCostComplete = false
@@ -593,19 +606,19 @@ function stockPerformance(
     }
 
     if (entry.kind === 'cashDividend') {
-      addCapitalOutflow(-entry.amount, rate)
+      addCapitalOutflow(entry, -entry.amount, rate)
       slice.native.values.dividendIncome += entry.amount
       addConverted(slice.cny, 'dividendIncome', entry.amount, rate, issues)
     } else if (entry.kind === 'withholdingTax') {
-      addCapitalOutflow(entry.amount, rate)
+      addCapitalOutflow(entry, entry.amount, rate)
       slice.native.values.withholdingTax += entry.amount
       addConverted(slice.cny, 'withholdingTax', entry.amount, rate, issues)
     } else if (entry.kind === 'corporateActionFee') {
-      addCapitalOutflow(entry.amount, rate)
+      addCapitalOutflow(entry, entry.amount, rate)
       slice.native.values.corporateActionFees += entry.amount
       addConverted(slice.cny, 'corporateActionFees', entry.amount, rate, issues)
     } else if (entry.kind === 'cashAdjustment') {
-      addCapitalOutflow(-entry.amount, rate)
+      addCapitalOutflow(entry, -entry.amount, rate)
       slice.native.values.corporateActionIncome += entry.amount
       addConverted(slice.cny, 'corporateActionIncome', entry.amount, rate, issues)
     }
@@ -808,15 +821,54 @@ function splitPerformanceCycles(account: TTradingAccount): MutablePerformanceCyc
   return cycles
 }
 
+export function performanceCycleDateKey(value: string, market: StockMarket): string {
+  // Without an offset, ledger timestamps already use the security's market-local date.
+  return /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value)
+    ? marketDateKey(new Date(value), market)
+    : value.slice(0, 10)
+}
+
+function calendarDays(start: string, end: string): number {
+  return (Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86_400_000
+}
+
+function referenceReturn(
+  dailyOutflows: ReadonlyMap<string, number>,
+  endDate: string,
+  annualRatePercent: number
+): number {
+  let netCapital = 0
+  let capitalDays = 0
+  let previousDate: string | undefined
+  for (const [date, outflow] of [...dailyOutflows].sort(([left], [right]) =>
+    left.localeCompare(right)
+  )) {
+    if (date >= endDate) break
+    if (previousDate) {
+      capitalDays += Math.max(0, netCapital) * calendarDays(previousDate, date)
+    }
+    netCapital += outflow
+    previousDate = date
+  }
+  if (previousDate) {
+    capitalDays += Math.max(0, netCapital) * calendarDays(previousDate, endDate)
+  }
+  return rounded((capitalDays * annualRatePercent) / 100 / 365)
+}
+
 export function calculatePortfolioPerformanceCycles(
   stock: WatchStock,
   quote: StockQuote | undefined,
   account: TTradingAccount | undefined,
   exchangeRates: ExchangeRateSettings,
-  manualAdjustment = 0
+  manualAdjustment = 0,
+  options: PortfolioPerformanceCycleOptions = {}
 ): PortfolioPerformanceCycleResult[] {
   if (!account) return []
   const cycles = splitPerformanceCycles(account)
+  const market = stock.market ?? marketFromQuoteId(stock.quoteId)
+  const today = marketDateKey(options.asOf ?? new Date(), market)
+  const referenceAnnualRatePercent = options.referenceAnnualRatePercent ?? null
   let latestResetIndex = -1
   for (let index = cycles.length - 1; index >= 0; index -= 1) {
     if (!cycles[index].startedByPerformanceReset) continue
@@ -825,6 +877,7 @@ export function calculatePortfolioPerformanceCycles(
   }
   const latestCycleIndex = cycles.length - 1
   return cycles.map((cycle, index) => {
+    const dailyOutflows = new Map<string, number>()
     const calculation = stockPerformance(
       stock,
       quote,
@@ -835,7 +888,11 @@ export function calculatePortfolioPerformanceCycles(
         entries: cycle.entries,
         checkPositionMismatch: false,
         includeUnrealized: index === latestCycleIndex,
-        resetOnHoldingCycleOpen: true
+        resetOnHoldingCycleOpen: true,
+        onCapitalOutflow: (entry, amountCny) => {
+          const date = performanceCycleDateKey(entry.occurredAt, market)
+          dailyOutflows.set(date, (dailyOutflows.get(date) ?? 0) + amountCny)
+        }
       }
     )
     if (!calculation) throw new Error('持仓周期收益计算失败')
@@ -870,6 +927,40 @@ export function calculatePortfolioPerformanceCycles(
       calculation.peakCapitalCny > 0
         ? (calculation.cny.totalProfit / calculation.peakCapitalCny) * 100
         : null
+    const endedOn = cycle.endedAt ? performanceCycleDateKey(cycle.endedAt, market) : today
+    const referenceEndDate = endedOn < today ? endedOn : today
+    const referenceDays = Math.max(
+      0,
+      calendarDays(performanceCycleDateKey(cycle.startedAt, market), referenceEndDate)
+    )
+    let referenceUnavailableReason = calculation.capitalUnavailableReason
+    if (cycle.sequence === 0) {
+      referenceUnavailableReason = '未归属事件缺少持仓周期基数'
+    } else if (
+      index === latestCycleIndex &&
+      Math.abs(savedQuantity - calculation.quantity) > 0.000_001
+    ) {
+      referenceUnavailableReason = '账本持仓与当前持仓不一致'
+    } else if (referenceAnnualRatePercent === null) {
+      referenceUnavailableReason = '请在设置的“交易”中填写参考年化收益率'
+    }
+    const referenceReturnCny =
+      !referenceUnavailableReason && referenceAnnualRatePercent !== null
+        ? referenceReturn(dailyOutflows, referenceEndDate, referenceAnnualRatePercent)
+        : null
+    const referenceExcessUnavailableReason =
+      referenceUnavailableReason ??
+      (index !== latestCycleIndex && cycle.endingQuantity > 0.000_001
+        ? '重置前周期未清仓，缺少期末持仓估值'
+        : calculation.cny.totalProfit === null
+          ? '周期人民币收益数据不完整'
+          : undefined)
+    const referenceExcessCny =
+      !referenceExcessUnavailableReason &&
+      referenceReturnCny !== null &&
+      calculation.cny.totalProfit !== null
+        ? rounded(calculation.cny.totalProfit - referenceReturnCny)
+        : null
     return {
       id: cycle.id,
       entries: cycle.entries,
@@ -883,6 +974,11 @@ export function calculatePortfolioPerformanceCycles(
       peakCapitalCny: calculation.peakCapitalCny,
       returnPercent,
       returnUnavailableReason,
+      referenceDays,
+      referenceReturnCny,
+      referenceExcessCny,
+      referenceUnavailableReason,
+      referenceExcessUnavailableReason,
       ...performanceSnapshot(calculation)
     }
   })

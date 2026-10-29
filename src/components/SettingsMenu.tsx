@@ -30,6 +30,7 @@ import {
 } from '../shared/types'
 import { applyAppThemePreference } from '../lib/theme'
 import { AppButton } from './AppButton'
+import { AppInput } from './AppFormControls'
 import { stockApi } from '../lib/api'
 import { MenuBarSettings } from './MenuBarSettings'
 import './SettingsMenu.css'
@@ -434,6 +435,38 @@ export function SettingsMenu({
 
           {activeTab === 'trading' ? (
             <>
+              <label className="setting-row setting-row-input reference-annual-rate-setting">
+                <span>
+                  <strong>参考年化收益率</strong>
+                  <small>按此假设年化测算持仓周期的理财参考收益，修改后全部周期重新计算</small>
+                  <small>留空不计算；支持 0%，仅作收益对照</small>
+                </span>
+                <span className="number-input-wrap">
+                  <AppInput
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    placeholder="未设置"
+                    value={settings.referenceAnnualRatePercent ?? ''}
+                    className={
+                      settings.referenceAnnualRatePercent !== null &&
+                      settings.referenceAnnualRatePercent > 0
+                        ? 'is-up'
+                        : 'is-flat'
+                    }
+                    onChange={(event) => {
+                      const value = event.target.valueAsNumber
+                      onChange({
+                        ...settings,
+                        referenceAnnualRatePercent:
+                          Number.isFinite(value) && value >= 0 ? value : null
+                      })
+                    }}
+                    aria-label="参考年化收益率（百分比）"
+                  />
+                  <span>%</span>
+                </span>
+              </label>
               <section className="trading-fee-setting">
                 <span className="settings-section-heading">
                   <strong>股票账户管理</strong>
