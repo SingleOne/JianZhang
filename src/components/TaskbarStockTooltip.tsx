@@ -477,6 +477,12 @@ export function StockQuoteDetails({
     state.settings.exchangeRates,
     positionProfitOverride
   )
+  const hasPosition = (stock?.position?.quantity ?? 0) > 0
+  const displayedTotalProfit = hasPosition
+    ? positionMetrics.totalProfit
+    : state.portfolioPerformanceCache?.cumulativeProfitByQuoteId[quoteId]
+  const displayedProfitCurrency = hasPosition ? positionMetrics.currency : 'CNY'
+  const displayedProfitPercent = hasPosition ? positionMetrics.profitPercent : null
   const triggeredStockAlerts =
     stock?.alertRules?.filter((rule) => rule.enabled && rule.status === 'triggered') ?? []
   const fiveLevelAlerts = overview.summaries.length ? (quote?.fiveLevelLargeOrders ?? []) : []
@@ -602,15 +608,15 @@ export function StockQuoteDetails({
             <b>{formatMoney(positionMetrics.marketValue, positionMetrics.currency)}</b>
           </span>
           <span>
-            <small>收益</small>
-            <b className={valueClass(positionMetrics.totalProfit)}>
-              {formatMoneyProfit(positionMetrics.totalProfit, positionMetrics.currency)}
+            <small>{hasPosition ? '收益' : '累计收益'}</small>
+            <b className={valueClass(displayedTotalProfit)}>
+              {formatMoneyProfit(displayedTotalProfit, displayedProfitCurrency)}
             </b>
           </span>
           <span>
             <small>收益率</small>
-            <b className={valueClass(positionMetrics.profitPercent)}>
-              {formatPercent(positionMetrics.profitPercent)}
+            <b className={valueClass(displayedProfitPercent)}>
+              {formatPercent(displayedProfitPercent)}
             </b>
           </span>
         </div>
