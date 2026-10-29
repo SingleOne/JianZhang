@@ -10,18 +10,9 @@ import {
 import { resolveAccountSelection } from '../shared/stock-accounts'
 import { AppButton } from './AppButton'
 import { AppInput } from './AppFormControls'
+import { PositionBoundaryBadge } from './PositionBoundaryBadge'
 import { Tooltip } from './Tooltip'
-import {
-  BriefcaseBusiness,
-  Camera,
-  Check,
-  CircleCheck,
-  Flag,
-  PencilLine,
-  ReceiptText,
-  Trash2,
-  X
-} from 'lucide-react'
+import { BriefcaseBusiness, Camera, Check, PencilLine, ReceiptText, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -411,17 +402,7 @@ function TradeRecordType({
   return (
     <span className="trade-record-type">
       {label}
-      <span
-        className={`trade-record-boundary is-${boundary}`}
-        title={boundary === 'opening' ? '本条记录使持仓从零变为正数' : '本条记录使持仓归零'}
-      >
-        {boundary === 'opening' ? (
-          <Flag size={12} aria-hidden="true" />
-        ) : (
-          <CircleCheck size={12} aria-hidden="true" />
-        )}
-        {boundary === 'opening' ? '建仓' : '清仓'}
-      </span>
+      <PositionBoundaryBadge boundary={boundary} />
     </span>
   )
 }

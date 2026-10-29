@@ -51,9 +51,14 @@ import {
   calculatePortfolioLedgerPosition
 } from '../lib/portfolio-ledger'
 import { deleteIndependentBaseTrade, upsertIndependentBaseTrade } from '../lib/base-trades'
-import { createInitialPositionAccount } from '../lib/position-ledger'
+import {
+  createInitialPositionAccount,
+  positionRecordLedgerEntries,
+  type PositionRecordBoundary
+} from '../lib/position-ledger'
 import { splitTradeForOverflow } from '../lib/split-trade'
 import { TradeSplitSource } from './TradeSplitSource'
+import { PositionBoundaryBadge } from './PositionBoundaryBadge'
 import { TradingAccountPicker } from './TradingAccountPicker'
 import { useSecuritiesAccountState } from './SecuritiesAccountContext'
 import {
@@ -203,7 +208,10 @@ function cashLedgerSourceLabel(entry: CashLedgerEntry): string {
 type BaseLedgerItem = {
   account: TTradingAccount
   occurredAt: string
-} & ({ kind: 'trade'; trade: TTrade } | { kind: 'cash'; entry: CashLedgerEntry })
+} & (
+  | { kind: 'trade'; trade: TTrade; positionBoundary?: PositionRecordBoundary }
+  | { kind: 'cash'; entry: CashLedgerEntry }
+)
 
 interface TBaseLedgerCardProps extends Pick<TTradingDrawerProps, 'stock' | 'onApply'> {
   accounts: readonly TTradingAccount[]
@@ -221,12 +229,19 @@ function TBaseLedgerCard({ accounts, stock, onApply, renderTradeEditor }: TBaseL
     () =>
       accounts
         .flatMap<BaseLedgerItem>((account) => [
-          ...account.tradeRecords.filter(isIndependentBaseTrade).map((trade) => ({
-            kind: 'trade' as const,
-            occurredAt: trade.tradedAt,
-            account,
-            trade
-          })),
+          ...positionRecordLedgerEntries(account).flatMap<BaseLedgerItem>((entry) =>
+            entry.kind === 'trade' && isIndependentBaseTrade(entry.record)
+              ? [
+                  {
+                    kind: 'trade',
+                    occurredAt: entry.record.tradedAt,
+                    account,
+                    trade: entry.record,
+                    positionBoundary: entry.positionBoundary
+                  }
+                ]
+              : []
+          ),
           ...activePortfolioLedgerEntries(account)
             .filter(isCashLedgerEntry)
             .reverse()
@@ -366,8 +381,11 @@ function TBaseLedgerCard({ accounts, stock, onApply, renderTradeEditor }: TBaseL
           return (
             <Fragment key={`${accountId}:trade:${trade.id}`}>
               <div className="t-trade-row">
-                <span className={`t-trade-side is-${trade.side}`}>
-                  {trade.side === 'buy' ? '底仓买入' : '底仓卖出'}
+                <span className="t-base-trade-type">
+                  <span className={`t-trade-side is-${trade.side}`}>
+                    {trade.side === 'buy' ? '底仓买入' : '底仓卖出'}
+                  </span>
+                  <PositionBoundaryBadge boundary={item.positionBoundary} />
                 </span>
                 <span>
                   <strong>
