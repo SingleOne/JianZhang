@@ -39,29 +39,35 @@ export interface JianzhangUserDataBackupDocument {
 
 const BACKUP_SINGLE_FILES = new Set([
   'modules/market-insight/settings.json',
-  'modules/market-insight/events.json',
-  'modules/market-insight/news-summaries.json',
   'modules/ai/settings.json',
   'modules/ai-t-advice/settings.json',
-  'modules/ai-t-advice/advice-history.jsonl',
   'company-reports/summaries.json',
-  'corporate-actions/summaries.json',
-  'completion-notifications.json'
+  'corporate-actions/summaries.json'
 ])
 
 const BACKUP_DIRECTORY_PREFIXES = [
   'tracking-archives/',
   'modules/ai/conversations/',
-  'modules/ai/snapshots/',
-  'modules/ai/cache/'
+  'modules/ai/snapshots/'
 ] as const
+
+const LEGACY_BACKUP_SINGLE_FILES = new Set([
+  'modules/market-insight/events.json',
+  'modules/market-insight/news-summaries.json',
+  'modules/ai-t-advice/advice-history.jsonl',
+  'completion-notifications.json'
+])
+
+function isLegacyBackupPath(path: string): boolean {
+  return LEGACY_BACKUP_SINGLE_FILES.has(path) || path.startsWith('modules/ai/cache/')
+}
 
 export const USER_DATA_BACKUP_SINGLE_FILES = [...BACKUP_SINGLE_FILES]
 export const USER_DATA_BACKUP_DIRECTORIES = BACKUP_DIRECTORY_PREFIXES.map((path) =>
   path.slice(0, -1)
 )
 
-export function isUserDataBackupPath(path: string): boolean {
+export function isUserDataBackupPath(path: string, includeLegacy = false): boolean {
   const segments = path.split('/')
   if (
     path.includes('\\') ||
@@ -72,7 +78,8 @@ export function isUserDataBackupPath(path: string): boolean {
   }
   return (
     BACKUP_SINGLE_FILES.has(path) ||
-    BACKUP_DIRECTORY_PREFIXES.some((prefix) => path.startsWith(prefix))
+    BACKUP_DIRECTORY_PREFIXES.some((prefix) => path.startsWith(prefix)) ||
+    (includeLegacy && isLegacyBackupPath(path))
   )
 }
 
@@ -96,20 +103,23 @@ export function createUserDataBackupDocument(
 function parseFiles(value: unknown): UserDataBackupFile[] {
   if (!Array.isArray(value)) throw new Error('备份文件列表不完整')
   const paths = new Set<string>()
-  return value.map((entry) => {
-    if (!entry || typeof entry !== 'object') throw new Error('备份中的文件信息无效')
-    const file = entry as Partial<UserDataBackupFile>
-    if (
-      typeof file.path !== 'string' ||
-      !isUserDataBackupPath(file.path) ||
-      typeof file.content !== 'string' ||
-      paths.has(file.path)
-    ) {
-      throw new Error('备份中的文件信息无效')
-    }
-    paths.add(file.path)
-    return { path: file.path, content: file.content }
-  })
+  // 旧备份仍可读取，但已排除的数据不再恢复或覆盖本机内容。
+  return value
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') throw new Error('备份中的文件信息无效')
+      const file = entry as Partial<UserDataBackupFile>
+      if (
+        typeof file.path !== 'string' ||
+        !isUserDataBackupPath(file.path, true) ||
+        typeof file.content !== 'string' ||
+        paths.has(file.path)
+      ) {
+        throw new Error('备份中的文件信息无效')
+      }
+      paths.add(file.path)
+      return { path: file.path, content: file.content }
+    })
+    .filter((file) => isUserDataBackupPath(file.path))
 }
 
 function parseApiKeys(value: unknown): UserDataBackupApiKeys {

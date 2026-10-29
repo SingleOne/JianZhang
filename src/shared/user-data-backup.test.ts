@@ -64,4 +64,42 @@ describe('user data backup document', () => {
 
     expect(() => parseUserDataBackupDocument(document)).toThrow('备份中的文件信息无效')
   })
+
+  it.each([1, 2])('reads format v%s backups while skipping excluded legacy data', (version) => {
+    const retained = [
+      { path: 'modules/ai/settings.json', content: '{"enabled":true}' },
+      { path: 'modules/ai/conversations/index.json', content: '[]' },
+      { path: 'modules/ai/snapshots/snapshot-1.json', content: '{}' }
+    ]
+    const document = createUserDataBackupDocument(
+      state(),
+      '19.0.1',
+      [
+        ...retained,
+        { path: 'modules/ai/cache/interpretations.json', content: '{}' },
+        { path: 'modules/ai/cache/latest-interpretations.json', content: '{}' },
+        { path: 'modules/ai-t-advice/advice-history.jsonl', content: '{}\n' },
+        { path: 'modules/market-insight/events.json', content: '[]' },
+        { path: 'modules/market-insight/news-summaries.json', content: '{}' },
+        { path: 'completion-notifications.json', content: '[]' }
+      ],
+      { openai: 'openai-key' }
+    )
+
+    expect(parseUserDataBackupDocument({ ...document, formatVersion: version })).toMatchObject({
+      files: retained,
+      aiApiKeys: { openai: 'openai-key' }
+    })
+  })
+
+  it('rejects traversal paths in legacy cache entries', () => {
+    const document = createUserDataBackupDocument(
+      state(),
+      '19.0.1',
+      [{ path: 'modules/ai/cache/../credentials.bin', content: 'secret' }],
+      {}
+    )
+
+    expect(() => parseUserDataBackupDocument(document)).toThrow('备份中的文件信息无效')
+  })
 })

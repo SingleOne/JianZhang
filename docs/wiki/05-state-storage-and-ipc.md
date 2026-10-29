@@ -165,7 +165,7 @@ JianzhangUserDataBackupDocument
 └─ aiApiKeys
 ```
 
-`state` 保存完整 `AppState`。`files` 只保存无法通过网络直接恢复的用户数据：市场观察设置与事件、AI 设置/对话/上下文快照/分析结果、AI 做 T 设置与建议历史、完成通知队列，以及用户主动生成的财报 AI 总结。行情、K 线、股东、估值、基本面、分红融资、财报目录和全市场扫描等可重新获取的数据不进入备份。
+`state` 保存完整 `AppState`。`files` 保存追踪归档、市场洞察设置、AI 设置/对话/上下文快照、AI 做 T 设置，以及用户主动生成的财报和公司行动 AI 总结。AI 分析解读缓存、做 T 建议历史、市场洞察关注事件和新闻摘要、功能完成通知不进入备份；行情、K 线、股东、估值、基本面、分红融资、财报目录和全市场扫描等可重新获取的数据也不进入备份。本地导出和 GitHub Gist 上传共用此范围。
 
 `aiApiKeys` 保存 OpenAI 和 DeepSeek API Key。导出时主进程通过 `safeStorage` 解密，导入到另一台电脑时再使用目标电脑的 `safeStorage` 加密。当前备份文件没有密码或二次加密，因此 API Key 在 JSON 中是明文，设置页和导出结果会明确提示用户妥善保管。
 
@@ -185,6 +185,8 @@ JianzhangUserDataBackupDocument
 5. 用户确认后先在临时目录完整写入并校验备份内容，再保存当前 manifest 及全部引用分片、模块文件和凭证到 `restore-backups/`。
 6. 替换受管用户文件、重新加密 API Key，再通过 `StateStore.saveImported()` 提交新本地 revision；任一步骤失败都会按物理恢复点回滚 manifest、分片、模块文件和凭证。
 7. 成功恢复后保留最近 5 份恢复前快照，并自动重启，让各模块重新加载恢复后的设置和历史。
+
+旧备份中包含的 AI 分析解读缓存、做 T 建议历史、市场洞察关注事件和新闻摘要、功能完成通知会在路径校验后跳过，不写入或清理本机已有的这些数据；其余用户数据仍可正常恢复。
 
 独立 `jianzhang-config` 导入仅接受当前格式 3，只恢复其中的核心配置，不触发模块数据替换和应用重启。
 
@@ -231,15 +233,18 @@ localStorage["jianzhang-demo-state-v1"]
 | 路径（相对 `userData`）                                              | 内容                                                                 | 进入备份                                            |
 | -------------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------- |
 | `market-cache/`                                                      | K 线、筹码、股东、估值和板块绑定                                     | 否，可联网重建                                      |
-| `modules/market-insight/settings.json`、`events.json`                | 模块设置和历史观察事件                                               | 是                                                  |
+| `modules/market-insight/settings.json`                               | 市场洞察设置                                                         | 是                                                  |
+| `modules/market-insight/events.json`、`news-summaries.json`          | 关注事件和新闻摘要                                                   | 否                                                  |
 | `modules/market-insight/cache/` 及新闻索引                           | 指标、公告与要闻缓存                                                 | 否，可联网重建                                      |
-| `modules/ai/settings.json`、`conversations/`、`snapshots/`、`cache/` | Provider 设置、对话、引用上下文和 AI 解读                            | 是                                                  |
+| `modules/ai/settings.json`、`conversations/`、`snapshots/`          | Provider 设置、对话和引用上下文                                      | 是                                                  |
+| `modules/ai/cache/`                                                  | AI 分析解读缓存                                                       | 否                                                  |
 | `modules/ai/credentials.bin`                                         | 当前电脑 `safeStorage` 加密的 API Key                                | 不直接复制；以明文 Key 写入备份后在目标电脑重新加密 |
-| `modules/ai-t-advice/`                                               | 做 T 参考设置和历史 JSONL                                            | 是                                                  |
+| `modules/ai-t-advice/settings.json`                                  | 做 T 参考设置                                                        | 是                                                  |
+| `modules/ai-t-advice/advice-history.jsonl`                            | 做 T 建议历史                                                        | 否                                                  |
 | `dividend-financing/`、`fundamentals/`、`daily-market-scan/`         | 可重新获取的运行时快照和报告                                         | 否                                                  |
 | `company-reports/<股票代码>.json`                                    | 可重新获取的财报目录                                                 | 否                                                  |
 | `company-reports/summaries.json`                                     | 用户主动生成的 AI 财报总结                                           | 是                                                  |
-| `completion-notifications.json`                                      | 最近 100 条任务完成通知，点击后移除                                  | 是                                                  |
+| `completion-notifications.json`                                      | 最近 100 条任务完成通知，点击后移除                                  | 否                                                  |
 | `logs/market-requests-*.jsonl`                                       | 行情诊断日志；成功请求抽样，错误、回退和慢请求完整保留；按 5 MB 分片 | 否                                                  |
 
 重要 JSON 文件、模块设置、AI 缓存、用户生成内容和加密凭证统一通过临时文件原子替换。AI 做 T 的 JSONL 历史允许跳过损坏行，超过阈值后保留最近 200 条唯一记录。基本面、分红融资和最近扫描快照改为异步加载，市场观察缓存清理延后到启动完成后执行。
