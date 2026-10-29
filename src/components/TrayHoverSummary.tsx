@@ -185,6 +185,11 @@ export function TrayHoverSummary({ interactive = false }: { interactive?: boolea
               </MenuBarStockRow>
             )
           }
+          const hasPosition = (stock.position?.quantity ?? 0) > 0
+          const displayedTotalProfit = hasPosition
+            ? positionMetrics.totalProfit
+            : state.portfolioPerformanceCache?.cumulativeProfitByQuoteId[stock.quoteId]
+          const displayedProfitCurrency = hasPosition ? positionMetrics.currency : 'CNY'
           return (
             <section className="tray-summary-item" key={stock.quoteId}>
               <div className="tray-summary-heading">
@@ -209,12 +214,15 @@ export function TrayHoverSummary({ interactive = false }: { interactive?: boolea
                   持仓 <b>{formatMoney(positionMetrics.marketValue, positionMetrics.currency)}</b>
                 </span>
                 <span>
-                  <b className={valueClass(positionMetrics.totalProfit)}>
-                    {formatMoneyProfit(positionMetrics.totalProfit, positionMetrics.currency)}
+                  {hasPosition ? null : '累计收益'}
+                  <b className={valueClass(displayedTotalProfit)}>
+                    {formatMoneyProfit(displayedTotalProfit, displayedProfitCurrency)}
                   </b>
-                  <b className={valueClass(positionMetrics.profitPercent)}>
-                    {formatPercent(positionMetrics.profitPercent)}
-                  </b>
+                  {hasPosition ? (
+                    <b className={valueClass(positionMetrics.profitPercent)}>
+                      {formatPercent(positionMetrics.profitPercent)}
+                    </b>
+                  ) : null}
                 </span>
               </div>
               {tSummaries.length ? (
