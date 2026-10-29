@@ -16,6 +16,8 @@ import {
   type AppState
 } from '../../src/shared/types'
 import { atomicWriteFileSync } from './file-storage'
+import { createAppStateUpdate, createStatePatch } from '../../src/shared/state-changes'
+import { normalizeStateChanges } from '../../src/shared/normalize-state-changes'
 
 export const STATE_FILE_NAME = 'settings.json'
 export const LAST_GOOD_STATE_FILE_NAME = 'settings.last-good.json'
@@ -213,6 +215,9 @@ export class StateStore {
   private revision = 0
   private loadedManifestContent: string | null = null
   private currentManifest: StateManifestV1 | null = null
+  private committedState: AppState | null = null
+  private readonly committedDocuments = new Map<string, unknown>()
+  private lastCleanupAt = 0
   private lastHistoryAt = 0
 
   constructor(
@@ -251,7 +256,8 @@ export class StateStore {
     }
   }
 
-  normalize(state: AppState): AppState {
+  normalize(state: AppState, previous?: AppState): AppState {
+    if (previous) return normalizeStateChanges(previous, state)
     const watchlistGroups = normalizeWatchlistGroups(state.watchlistGroups)
     const stockTrackingProfiles = normalizeStockTrackingProfiles(state.stockTrackingProfiles)
     const watchlist = synchronizeWatchlistGroupMemberships(
@@ -290,6 +296,18 @@ export class StateStore {
     } catch {
       return undefined
     }
+  }
+
+  hasExternalChanges(): boolean {
+    return (
+      !existsSync(this.manifestPath) ||
+      readFileSync(this.manifestPath, 'utf8') !== this.loadedManifestContent
+    )
+  }
+
+  getCommittedState(): AppState {
+    if (!this.committedState) throw new Error('配置存储尚未初始化')
+    return this.committedState
   }
 
   exportCommittedState(): AppState {
@@ -331,10 +349,11 @@ export class StateStore {
         // Cleanup is best effort; the recovery manifest is already active.
       }
     }
+    this.cacheCommittedState(normalized)
     return normalized
   }
 
-  save(state: AppState): void {
+  save(state: AppState, options: { incremental?: boolean; minimumRevision?: number } = {}): void {
     const previousManifestContent = existsSync(this.manifestPath)
       ? readFileSync(this.manifestPath, 'utf8')
       : null
@@ -355,8 +374,18 @@ export class StateStore {
       throw new StateStoreRevisionConflictError(this.revision, diskRevision ?? 0)
     }
 
+    if (
+      options.incremental &&
+      this.committedState &&
+      !createAppStateUpdate(this.committedState, state).patch
+    ) {
+      state.revision = this.revision
+      this.cacheCommittedState(state)
+      return
+    }
+
     const previousRevision = state.revision
-    const nextRevision = this.revision + 1
+    const nextRevision = Math.max(this.revision, options.minimumRevision ?? 0) + 1
     if (previousManifestContent && this.revision > 0) {
       this.saveHistorySnapshot(previousManifestContent)
     }
@@ -364,7 +393,7 @@ export class StateStore {
       const checkpointPath = join(this.stateDirectory, ACCOUNT_UPGRADE_MANIFEST_FILE_NAME)
       if (!existsSync(checkpointPath)) this.writeAtomically(checkpointPath, previousManifestContent)
     }
-    const manifest = this.writeStateDocuments(state, nextRevision)
+    const manifest = this.writeStateDocuments(state, nextRevision, options.incremental ?? false)
     const manifestContent = JSON.stringify(manifest, null, 2)
     const lastGoodContent = previousManifestContent ?? manifestContent
 
@@ -380,8 +409,12 @@ export class StateStore {
     state.revision = nextRevision
     this.currentManifest = manifest
     this.loadedManifestContent = manifestContent
+    this.cacheCommittedState(state)
     try {
-      this.cleanupUnreferencedDocuments()
+      if (this.now().getTime() - this.lastCleanupAt >= STATE_HISTORY_MIN_INTERVAL_MILLISECONDS) {
+        this.cleanupUnreferencedDocuments()
+        this.lastCleanupAt = this.now().getTime()
+      }
     } catch {
       // Cleanup is best effort; manifest commit already made the new state durable.
     }
@@ -409,6 +442,7 @@ export class StateStore {
     else if (!existsSync(this.lastGoodManifestPath)) {
       this.writeAtomically(this.lastGoodManifestPath, loaded.content)
     }
+    this.cacheCommittedState(normalized)
     return { state: normalized }
   }
 
@@ -447,7 +481,11 @@ export class StateStore {
     })
   }
 
-  private writeStateDocuments(state: AppState, revision: number): StateManifestV1 {
+  private writeStateDocuments(
+    state: AppState,
+    revision: number,
+    incremental: boolean
+  ): StateManifestV1 {
     const previous = this.currentManifest?.documents
     const preferences = this.writeDocument(
       'preferences',
@@ -457,7 +495,9 @@ export class StateStore {
         columnOrderVersion: state.columnOrderVersion
       } satisfies PreferencesState,
       revision,
-      previous?.preferences
+      previous?.preferences,
+      undefined,
+      incremental
     )
     const watchlist = this.writeDocument(
       'watchlist',
@@ -466,7 +506,9 @@ export class StateStore {
         watchlistGroups: state.watchlistGroups
       } satisfies WatchlistState,
       revision,
-      previous?.watchlist
+      previous?.watchlist,
+      undefined,
+      incremental
     )
     const portfolioMeta = this.writeDocument(
       'portfolio-meta',
@@ -480,7 +522,9 @@ export class StateStore {
         portfolioPerformanceCache: state.portfolioPerformanceCache
       } satisfies PortfolioMetaState,
       revision,
-      previous?.portfolioMeta
+      previous?.portfolioMeta,
+      undefined,
+      incremental
     )
     const trackingProfiles = Object.fromEntries(
       Object.keys(state.stockTrackingProfiles)
@@ -492,7 +536,8 @@ export class StateStore {
             state.stockTrackingProfiles[quoteId],
             revision,
             previous?.trackingProfiles[quoteId],
-            quoteId
+            quoteId,
+            incremental
           )
         ])
     )
@@ -506,7 +551,8 @@ export class StateStore {
             state.stockTradingBooks[quoteId],
             revision,
             previous?.tradingAccounts[quoteId],
-            quoteId
+            quoteId,
+            incremental
           )
         ])
     )
@@ -531,8 +577,13 @@ export class StateStore {
     value: T,
     revision: number,
     previous: StateDocumentRef | undefined,
-    id?: string
+    id?: string,
+    incremental = false
   ): StateDocumentRef {
+    if (incremental && previous && this.committedDocuments.has(`${kind}:${id ?? ''}`)) {
+      const before = this.committedDocuments.get(`${kind}:${id ?? ''}`)
+      if (!createStatePatch(before, value)) return previous
+    }
     const document: StateDocument<T> = {
       format: STATE_DOCUMENT_FORMAT,
       formatVersion: STATE_DOCUMENT_FORMAT_VERSION,
@@ -642,6 +693,36 @@ export class StateStore {
     this.revision = loaded.manifest.revision
     this.currentManifest = loaded.manifest
     this.loadedManifestContent = loaded.content
+    this.cacheCommittedState(loaded.state)
+  }
+
+  private cacheCommittedState(state: AppState): void {
+    this.committedState = { ...state }
+    this.committedDocuments.clear()
+    this.committedDocuments.set('preferences:', {
+      settings: state.settings,
+      columnOrder: state.columnOrder,
+      columnOrderVersion: state.columnOrderVersion
+    } satisfies PreferencesState)
+    this.committedDocuments.set('watchlist:', {
+      watchlist: state.watchlist,
+      watchlistGroups: state.watchlistGroups
+    } satisfies WatchlistState)
+    this.committedDocuments.set('portfolio-meta:', {
+      corporateActionApplications: state.corporateActionApplications,
+      securitiesAccounts: state.securitiesAccounts,
+      feeSchemes: state.feeSchemes,
+      fixedFeeDefaults: state.fixedFeeDefaults,
+      portfolioSchemaVersion: state.portfolioSchemaVersion,
+      portfolioPerformanceAdjustments: state.portfolioPerformanceAdjustments ?? {},
+      portfolioPerformanceCache: state.portfolioPerformanceCache
+    } satisfies PortfolioMetaState)
+    for (const [quoteId, profile] of Object.entries(state.stockTrackingProfiles)) {
+      this.committedDocuments.set(`tracking-profile:${quoteId}`, profile)
+    }
+    for (const [quoteId, book] of Object.entries(state.stockTradingBooks)) {
+      this.committedDocuments.set(`stock-trading-book:${quoteId}`, book)
+    }
   }
 
   private recoverFromInvalidManifest(reason: unknown): StateStoreLoadResult {

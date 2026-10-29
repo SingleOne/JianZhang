@@ -390,7 +390,15 @@ export function synchronizeWatchlistGroupMemberships(
     else groupIds.delete(trackingGroupId)
     if (stock.position && stock.position.quantity > 0) groupIds.add(holdingGroupId)
     else groupIds.delete(holdingGroupId)
-    return { ...stock, groupIds: [...groupIds] }
+    const nextGroupIds = [...groupIds]
+    if (
+      stock.groupIds &&
+      stock.groupIds.length === nextGroupIds.length &&
+      stock.groupIds.every((groupId, index) => groupId === nextGroupIds[index])
+    ) {
+      return stock
+    }
+    return { ...stock, groupIds: nextGroupIds }
   })
 }
 

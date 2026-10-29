@@ -108,18 +108,24 @@ manifest 当前格式版本为 2，股票分片类型为 `stock-trading-book`。
 
 ### 保存
 
-主进程 `persistState` 调用 `StateStore.save()` 保存完整 `state`。常规保存入口仍是 IPC `state:save`：
+renderer 保留完整的本地视图，`App.persist()` 仍接收 `AppState`，但 `src/lib/state-client.ts` 会先对比已确认状态，只把变化字段通过 IPC `state:save` 发给主进程。对象只携带变化键和删除键，数组只携带变化下标及新长度；未变化的指标历史和账本分支通过引用比较直接跳过。普通保存不再跨进程提交或返回完整 `AppState`。
 
-每次成功保存都会递增 `revision`。渲染层提交的版本落后于主进程时会拒绝整份覆盖，并重新读取最新状态，避免后台提醒、追踪指标或交易日历更新被旧界面状态覆盖。
+有实际变化的成功保存会递增 `revision`；无变化保存不写新 manifest，也不递增版本。请求携带 `baseRevision`，落后于主进程时拒绝提交，避免旧界面操作覆盖后台更新。
 
-1. 接收渲染层的完整 `AppState`。
-2. 再次 normalize。
+1. 接收变更并校验版本，在主进程当前状态上合并，保留无关分支的对象引用。
+2. 只 normalize 变化领域；单股账户变化只处理该股票，账户目录或费率配置变化仍检查全部相关账户。编辑追踪标签等元数据时保留原指标历史。
 3. 比较新旧状态中会触发主进程副作用的字段。
-4. 只为变化领域写入新的不可变分片。
+4. `persistState` 使用 `StateStore.save(state, { incremental: true })`。未变化文档在 JSON 序列化和哈希计算之前复用原引用，只为变化领域写入新的不可变分片。
 5. 保存旧当前 manifest 为 last-good，最后原子替换 `manifest.json`。
-6. manifest 成功提交后更新内存 revision，并广播 `state:updated`。
+6. manifest 成功提交后更新内存 revision，返回变更并广播 `state:changed`；客户端按版本合并、去重，并复用未变化对象。保存失败时主进程恢复已提交状态，不广播未保存内容。
 7. 更新托盘菜单和任务栏窗口。
 8. 通知追踪指标运行时检查是否有新开始追踪的股票需要立即采集。
+
+增量存储依赖业务代码以不可变方式更新状态；不要原地修改已经提交的嵌套对象。`StateStore.save()` 默认保留完整校验与哈希比较，供初始化、迁移、导入及可变输入使用。分片清理按至少 15 分钟的间隔执行，避免每次提交都扫描历史 manifest 和目录。
+
+第一次 Bootstrap 仍返回完整核心状态。后续请求携带已知 `revision`，版本一致时省略状态正文，客户端复用本地视图。广播出现版本缺口时重新 Bootstrap 恢复；本地导出、导入和恢复继续使用完整逻辑数据。外部 manifest 未变化时不会重新加载所有分片；重载同版本或更旧的检查点时，会提交一个高于原运行版本的新 revision。
+
+本次优化减少常规保存和同步的序列化、跨进程复制、重复磁盘读取和分片处理，不改变首次启动全量加载或主进程持有完整核心状态的方式。指标历史的详情懒加载仍属于独立的阶段 D。
 
 可能触发的额外动作：
 
@@ -230,22 +236,22 @@ localStorage["jianzhang-demo-state-v1"]
 
 以下数据不会进入 `AppState`。其中只有用户生成或无法等价联网恢复的部分进入用户数据备份：
 
-| 路径（相对 `userData`）                                              | 内容                                                                 | 进入备份                                            |
-| -------------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------- |
-| `market-cache/`                                                      | K 线、筹码、股东、估值和板块绑定                                     | 否，可联网重建                                      |
-| `modules/market-insight/settings.json`                               | 市场洞察设置                                                         | 是                                                  |
-| `modules/market-insight/events.json`、`news-summaries.json`          | 关注事件和新闻摘要                                                   | 否                                                  |
-| `modules/market-insight/cache/` 及新闻索引                           | 指标、公告与要闻缓存                                                 | 否，可联网重建                                      |
-| `modules/ai/settings.json`、`conversations/`、`snapshots/`          | Provider 设置、对话和引用上下文                                      | 是                                                  |
-| `modules/ai/cache/`                                                  | AI 分析解读缓存                                                       | 否                                                  |
-| `modules/ai/credentials.bin`                                         | 当前电脑 `safeStorage` 加密的 API Key                                | 不直接复制；以明文 Key 写入备份后在目标电脑重新加密 |
-| `modules/ai-t-advice/settings.json`                                  | 做 T 参考设置                                                        | 是                                                  |
-| `modules/ai-t-advice/advice-history.jsonl`                            | 做 T 建议历史                                                        | 否                                                  |
-| `dividend-financing/`、`fundamentals/`、`daily-market-scan/`         | 可重新获取的运行时快照和报告                                         | 否                                                  |
-| `company-reports/<股票代码>.json`                                    | 可重新获取的财报目录                                                 | 否                                                  |
-| `company-reports/summaries.json`                                     | 用户主动生成的 AI 财报总结                                           | 是                                                  |
-| `completion-notifications.json`                                      | 最近 100 条任务完成通知，点击后移除                                  | 否                                                  |
-| `logs/market-requests-*.jsonl`                                       | 行情诊断日志；成功请求抽样，错误、回退和慢请求完整保留；按 5 MB 分片 | 否                                                  |
+| 路径（相对 `userData`）                                      | 内容                                                                 | 进入备份                                            |
+| ------------------------------------------------------------ | -------------------------------------------------------------------- | --------------------------------------------------- |
+| `market-cache/`                                              | K 线、筹码、股东、估值和板块绑定                                     | 否，可联网重建                                      |
+| `modules/market-insight/settings.json`                       | 市场洞察设置                                                         | 是                                                  |
+| `modules/market-insight/events.json`、`news-summaries.json`  | 关注事件和新闻摘要                                                   | 否                                                  |
+| `modules/market-insight/cache/` 及新闻索引                   | 指标、公告与要闻缓存                                                 | 否，可联网重建                                      |
+| `modules/ai/settings.json`、`conversations/`、`snapshots/`   | Provider 设置、对话和引用上下文                                      | 是                                                  |
+| `modules/ai/cache/`                                          | AI 分析解读缓存                                                      | 否                                                  |
+| `modules/ai/credentials.bin`                                 | 当前电脑 `safeStorage` 加密的 API Key                                | 不直接复制；以明文 Key 写入备份后在目标电脑重新加密 |
+| `modules/ai-t-advice/settings.json`                          | 做 T 参考设置                                                        | 是                                                  |
+| `modules/ai-t-advice/advice-history.jsonl`                   | 做 T 建议历史                                                        | 否                                                  |
+| `dividend-financing/`、`fundamentals/`、`daily-market-scan/` | 可重新获取的运行时快照和报告                                         | 否                                                  |
+| `company-reports/<股票代码>.json`                            | 可重新获取的财报目录                                                 | 否                                                  |
+| `company-reports/summaries.json`                             | 用户主动生成的 AI 财报总结                                           | 是                                                  |
+| `completion-notifications.json`                              | 最近 100 条任务完成通知，点击后移除                                  | 否                                                  |
+| `logs/market-requests-*.jsonl`                               | 行情诊断日志；成功请求抽样，错误、回退和慢请求完整保留；按 5 MB 分片 | 否                                                  |
 
 重要 JSON 文件、模块设置、AI 缓存、用户生成内容和加密凭证统一通过临时文件原子替换。AI 做 T 的 JSONL 历史允许跳过损坏行，超过阈值后保留最近 200 条唯一记录。基本面、分红融资和最近扫描快照改为异步加载，市场观察缓存清理延后到启动完成后执行。
 
@@ -309,18 +315,18 @@ localStorage["jianzhang-demo-state-v1"]
 
 主进程通过 `sendToWindows` 同时发送给主窗口、任务栏窗口和托盘悬浮窗口。
 
-| preload 订阅                        | 事件 channel                         | 数据                                    |
-| ----------------------------------- | ------------------------------------ | --------------------------------------- |
-| `onQuotesUpdated`                   | `quotes:updated`                     | `StockQuote[]`                          |
-| `onDailyMarketScanProgress`         | `daily-market-scan:progress`         | `DailyMarketScanState`                  |
-| `onStateUpdated`                    | `state:updated`                      | `AppState`                              |
-| `onTaskbarLayout`                   | `taskbar:layout`                     | `TaskbarLayout`                         |
-| `onSelectStock`                     | `stock:selected`                     | `StockSelectionRequest`                 |
-| `onDataError`                       | `data:error`                         | 错误文本                                |
-| `onDividendFinancingUpdateProgress` | `dividend-financing:update-progress` | Python 脚本当前日志或完成/失败状态      |
-| `onDividendFinancingStateUpdated`   | `dividend-financing:state-updated`   | 分红融资榜快照状态变化                  |
-| `onFundamentalUpdateProgress`       | `fundamentals:update-progress`       | 基本面五阶段脚本当前日志或完成/失败状态 |
-| `onFundamentalStateUpdated`         | `fundamentals:state-updated`         | 基本面快照状态变化                      |
+| preload 订阅                        | 事件 channel                         | 数据                                      |
+| ----------------------------------- | ------------------------------------ | ----------------------------------------- |
+| `onQuotesUpdated`                   | `quotes:updated`                     | `StockQuote[]`                            |
+| `onDailyMarketScanProgress`         | `daily-market-scan:progress`         | `DailyMarketScanState`                    |
+| `onStateUpdated`                    | `state:changed`                      | 传输 `AppStateUpdate`，客户端合并本地视图 |
+| `onTaskbarLayout`                   | `taskbar:layout`                     | `TaskbarLayout`                           |
+| `onSelectStock`                     | `stock:selected`                     | `StockSelectionRequest`                   |
+| `onDataError`                       | `data:error`                         | 错误文本                                  |
+| `onDividendFinancingUpdateProgress` | `dividend-financing:update-progress` | Python 脚本当前日志或完成/失败状态        |
+| `onDividendFinancingStateUpdated`   | `dividend-financing:state-updated`   | 分红融资榜快照状态变化                    |
+| `onFundamentalUpdateProgress`       | `fundamentals:update-progress`       | 基本面五阶段脚本当前日志或完成/失败状态   |
+| `onFundamentalStateUpdated`         | `fundamentals:state-updated`         | 基本面快照状态变化                        |
 
 `stock:selected` 用于从托盘菜单点选股票或点击 Windows 系统通知后，让主窗口定位/展开对应股票。系统通知会附带 `scrollAlignment: 'sticky-top'` 和 `detailTarget`，列表清除筛选条件后将目标主行滚动到顶部 sticky 位置并展开详情；普通股票提醒和 T 仓浮盈提醒进入分时页签，量价背离提醒进入追踪复盘页签。
 
@@ -330,19 +336,22 @@ localStorage["jianzhang-demo-state-v1"]
 sequenceDiagram
     participant C as React 组件
     participant A as App.persist
+    participant S as state-client
     participant P as preload
     participant E as Electron
     participant F as state/manifest.json + 分片
 
     C->>A: nextState
     A->>A: 乐观 setState
-    A->>P: saveState(nextState)
+    A->>S: saveState(nextState)
+    S->>P: 仅变化字段与 baseRevision
     P->>E: state:save
-    E->>E: StateStore.normalize + compare
+    E->>E: 合并并规范化变化领域
     E->>F: 写变化分片，最后原子替换 manifest
-    E-->>P: normalized AppState
-    E-->>C: state:updated
-    P-->>A: normalized AppState
+    E-->>P: 变更与新 revision
+    E-->>S: state:changed
+    P-->>S: 保存结果
+    S-->>A: 合并后的本地视图
 ```
 
 ## 敏感数据边界

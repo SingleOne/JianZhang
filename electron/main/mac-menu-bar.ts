@@ -82,7 +82,7 @@ export class MacMenuBar {
 
   send(channel: string, payload: unknown): void {
     if (this.panel && !this.panel.isDestroyed()) this.panel.webContents.send(channel, payload)
-    if (channel === 'quotes:updated' || channel === 'state:updated') this.sync()
+    if (channel === 'quotes:updated' || channel === 'state:changed') this.sync()
   }
 
   hidePanel(): void {

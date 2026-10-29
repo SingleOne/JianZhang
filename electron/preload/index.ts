@@ -1,6 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
-  AppState,
   CacheCategoryId,
   CacheClearResult,
   CacheSummary,
@@ -9,12 +8,12 @@ import type {
   DividendFinancingUpdateProgress,
   FundamentalUpdateProgress,
   OptionalModulesState,
-  StockDesktopApi,
   StockQuote,
   StockSelectionRequest,
   TaskbarLayout,
   TaskbarTooltipAnchor
 } from '../../src/shared/types'
+import type { AppStateUpdate, StockDesktopBridge } from '../../src/shared/state-changes'
 import { installMarketInsightPreload } from '../../src/modules/market-insight/preload/register'
 import { installAiPreload } from '../../src/modules/ai/preload/register'
 import { installAiTAdvicePreload } from '../../src/modules/ai-t-advice/preload/register'
@@ -26,13 +25,13 @@ function subscribe<T>(channel: string, callback: (payload: T) => void): () => vo
   return () => ipcRenderer.removeListener(channel, listener)
 }
 
-const api: StockDesktopApi = {
+const api: StockDesktopBridge = {
   platform:
     process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : 'other',
   showMainWindow: (quoteId) => ipcRenderer.invoke('app:show', quoteId),
   closeMenuBarPanel: () => ipcRenderer.invoke('menu-bar:close'),
   resizeMenuBarPanel: (height) => ipcRenderer.invoke('menu-bar:resize', height),
-  getBootstrap: () => ipcRenderer.invoke('app:bootstrap'),
+  getBootstrap: (knownRevision) => ipcRenderer.invoke('app:bootstrap', knownRevision),
   notifyInitialRender: () => ipcRenderer.send('app:renderer-ready'),
   getStockTrackingArchiveCycle: (quoteId, cycleId) =>
     ipcRenderer.invoke('tracking:archive-cycle:get', quoteId, cycleId),
@@ -104,11 +103,11 @@ const api: StockDesktopApi = {
   getSectorIndex: (quoteId) => ipcRenderer.invoke('sector-index:get', quoteId),
   refreshTradingCalendar: () => ipcRenderer.invoke('trading-calendar:refresh'),
   refreshExchangeRates: () => ipcRenderer.invoke('exchange-rates:refresh'),
-  saveState: (state) => ipcRenderer.invoke('state:save', state),
+  saveStateChanges: (update) => ipcRenderer.invoke('state:save', update),
   getCompletionNotifications: () => ipcRenderer.invoke('completion-notifications:get'),
   saveCompletionNotifications: (notifications) =>
     ipcRenderer.invoke('completion-notifications:save', notifications),
-  exportConfig: (state) => ipcRenderer.invoke('config:export', state),
+  exportConfig: () => ipcRenderer.invoke('config:export'),
   importConfig: () => ipcRenderer.invoke('config:import'),
   applyConfigImport: (importId) => ipcRenderer.invoke('config:import:apply', importId),
   getCacheSummary: () => ipcRenderer.invoke('cache:summary') as Promise<CacheSummary>,
@@ -132,7 +131,7 @@ const api: StockDesktopApi = {
   hideWindow: () => ipcRenderer.invoke('app:hide'),
   quitApp: () => ipcRenderer.invoke('app:quit'),
   onQuotesUpdated: (callback) => subscribe<StockQuote[]>('quotes:updated', callback),
-  onStateUpdated: (callback) => subscribe<AppState>('state:updated', callback),
+  onStateChanged: (callback) => subscribe<AppStateUpdate>('state:changed', callback),
   onTaskbarLayout: (callback) => subscribe<TaskbarLayout>('taskbar:layout', callback),
   onTaskbarTooltipStock: (callback) => subscribe<string | null>('taskbar:tooltip-stock', callback),
   onSelectStock: (callback) => {

@@ -9,7 +9,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   DEFAULT_APP_SETTINGS,
   DEFAULT_WATCHLIST_GROUPS,
@@ -98,6 +98,7 @@ describe('StateStore', () => {
   })
 
   afterEach(() => {
+    vi.restoreAllMocks()
     rmSync(directory, { recursive: true, force: true })
   })
 
@@ -268,6 +269,56 @@ describe('StateStore', () => {
       firstManifest.documents.trackingProfiles['1.600000']
     )
     expect(secondManifest.documents.watchlist).not.toEqual(firstManifest.documents.watchlist)
+  })
+
+  it('does not serialize unchanged history during incremental preference saves', () => {
+    const store = new StateStore(directory, makeState())
+    const first = store.normalize({
+      ...makeState(),
+      stockTrackingProfiles: { '1.600000': makeTrackingProfile() }
+    })
+    store.save(first)
+    const before = readManifest(directory)
+    const stringify = vi.spyOn(JSON, 'stringify')
+    const next = store.normalize(
+      { ...first, settings: { ...first.settings, theme: 'dark' } },
+      first
+    )
+    store.save(next, { incremental: true })
+    expect(
+      stringify.mock.calls.some(([value]) => value === first.stockTrackingProfiles['1.600000'])
+    ).toBe(false)
+    expect(
+      stringify.mock.calls.some(
+        ([value]) =>
+          value && typeof value === 'object' && 'kind' in value && value.kind === 'tracking-profile'
+      )
+    ).toBe(false)
+    expect(readManifest(directory).documents.trackingProfiles).toEqual(
+      before.documents.trackingProfiles
+    )
+    expect(next.stockTradingBooks).toBe(first.stockTradingBooks)
+  })
+
+  it('does not write a new manifest or revision for an unchanged incremental save', () => {
+    const store = new StateStore(directory, makeState())
+    const state = store.load().state
+    const before = readFileSync(statePath(directory, STATE_MANIFEST_FILE_NAME), 'utf8')
+    const revision = state.revision
+    const stringify = vi.spyOn(JSON, 'stringify')
+    store.save({ ...state }, { incremental: true })
+    expect(stringify).not.toHaveBeenCalled()
+    expect(store.getCommittedState().revision).toBe(revision)
+    expect(readFileSync(statePath(directory, STATE_MANIFEST_FILE_NAME), 'utf8')).toBe(before)
+    expect(store.hasExternalChanges()).toBe(false)
+  })
+
+  it('can advance a reloaded checkpoint beyond the previous running revision', () => {
+    const store = new StateStore(directory, makeState())
+    const state = store.load().state
+    store.save(state, { minimumRevision: 20 })
+    expect(state.revision).toBe(21)
+    expect(readManifest(directory).revision).toBe(21)
   })
 
   it('leaves the previous manifest active when the manifest replacement fails', () => {

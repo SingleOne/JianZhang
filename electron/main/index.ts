@@ -22,6 +22,7 @@ import {
   INTRADAY_REFRESH_MILLISECONDS
 } from '../../src/shared/market-hours'
 import { marketFromQuoteId } from '../../src/shared/stock-market'
+import { createAppStateUpdate } from '../../src/shared/state-changes'
 import { formatStockAlertNotification, type TriggeredStockAlert } from '../../src/lib/stock-alerts'
 import {
   formatTFloatingProfitAlertNotification,
@@ -141,6 +142,7 @@ const DEFAULT_STATE: AppState = {
 }
 
 let state: AppState = DEFAULT_STATE
+let publishedState: AppState = { ...DEFAULT_STATE }
 let stateStore: StateStore | null = null
 let stockTrackingArchiveStore: StockTrackingArchiveStore | null = null
 let windowManager: WindowManager | null = null
@@ -222,19 +224,22 @@ function getLatestQuotes(): StockQuote[] {
 function persistState(): void {
   if (!stateStore) throw new Error('配置存储尚未初始化')
   try {
-    stateStore.save(state)
+    stateStore.save(state, { incremental: true })
   } catch (reason) {
+    state = stateStore.getCommittedState()
     if (reason instanceof StateStoreRevisionConflictError) reloadStateFromDiskIfChanged()
     throw reason
   }
 }
 
 function reloadStateFromDiskIfChanged(): boolean {
-  if (!stateStore) return false
-  const previousContent = JSON.stringify(state)
+  if (!stateStore || !stateStore.hasExternalChanges()) return false
+  const previousRevision = state.revision ?? 0
   const loaded = stateStore.load()
   if (loaded.warning) startupWarning = loaded.warning
-  if (JSON.stringify(loaded.state) === previousContent) return false
+  if ((loaded.state.revision ?? 0) <= previousRevision) {
+    stateStore.save(loaded.state, { minimumRevision: previousRevision })
+  }
   const autoRefreshChanged =
     state.settings.autoRefreshQuotes !== loaded.state.settings.autoRefreshQuotes ||
     state.settings.autoRefreshQuoteScope !== loaded.state.settings.autoRefreshQuoteScope
@@ -291,6 +296,15 @@ function applyPreparedUserDataBackup(
 }
 
 function sendToWindows(channel: string, payload: unknown): void {
+  if (channel === 'state:updated') {
+    const next = payload as AppState
+    const update = createAppStateUpdate(publishedState, next)
+    publishedState = { ...next }
+    if (update.patch || update.revision !== update.baseRevision) {
+      windowManager?.sendToWindows('state:changed', update)
+    }
+    return
+  }
   windowManager?.sendToWindows(channel, payload)
 }
 
@@ -630,6 +644,7 @@ if (!hasSingleInstanceLock) {
         persistState()
       }
       startupWarning = [startupWarning, archiveWarning].filter(Boolean).join('；') || undefined
+      publishedState = { ...state }
     } catch (reason) {
       dialog.showErrorBox(
         '见涨配置读取失败',
@@ -793,9 +808,9 @@ if (!hasSingleInstanceLock) {
       setState: (nextState) => {
         state = nextState
       },
-      normalizeState: (nextState) => {
+      normalizeState: (nextState, previousState) => {
         if (!stateStore) throw new Error('配置存储尚未初始化')
-        return stateStore.normalize(nextState)
+        return stateStore.normalize(nextState, previousState)
       },
       assertStateRevision: (nextState) => {
         if (!stateStore) throw new Error('配置存储尚未初始化')
@@ -814,7 +829,7 @@ if (!hasSingleInstanceLock) {
         const archiveSnapshot = stockTrackingArchiveStore.snapshotStock(profile.quoteId)
         stockTrackingArchiveStore.archive(profile, deletePreviousArchives)
         try {
-          state = stateStore.normalize(nextState)
+          state = stateStore.normalize(nextState, previousState)
           persistState()
           return {
             state,

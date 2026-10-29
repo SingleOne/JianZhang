@@ -171,6 +171,22 @@ export function corporateApplicationKey(accountId: string, candidateId: string):
   return `${accountId}::${candidateId}`
 }
 
+export function normalizeAccountCorporateActions(
+  records: CorporateActionRecords,
+  accounts: SecuritiesAccounts
+): CorporateActionRecords {
+  return Object.fromEntries(
+    Object.values(records).map((record) => {
+      const market = record.market ?? marketFromQuoteId(record.quoteId)
+      const accountId = record.accountId ?? defaultAccountId(market)
+      if (!accounts[accountId] || accounts[accountId].market !== market) {
+        throw new Error('公司行动账户归属无效')
+      }
+      return [corporateApplicationKey(accountId, record.id), { ...record, accountId }]
+    })
+  )
+}
+
 export function normalizeAccountState(state: AppState): AppState {
   const settings = normalizeAppSettings(state.settings)
   const { accounts, schemes, fixedFeeDefaults } = migrateAccountFeeConfiguration(
@@ -308,19 +324,10 @@ export function normalizeAccountState(state: AppState): AppState {
     })
     stockTradingBooks[quoteId] = parent
   }
-  const applications: CorporateActionRecords = {}
-  for (const record of Object.values(
-    state.corporateActionApplications ?? state.corporateActionRecords ?? {}
-  )) {
-    const accountId =
-      record.accountId ?? defaultAccountId(record.market ?? marketFromQuoteId(record.quoteId))
-    if (
-      !accounts[accountId] ||
-      accounts[accountId].market !== (record.market ?? marketFromQuoteId(record.quoteId))
-    )
-      throw new Error('公司行动账户归属无效')
-    applications[corporateApplicationKey(accountId, record.id)] = { ...record, accountId }
-  }
+  const applications = normalizeAccountCorporateActions(
+    state.corporateActionApplications ?? state.corporateActionRecords ?? {},
+    accounts
+  )
   const lastUsedAccountIdByMarket = { ...settings.lastUsedAccountIdByMarket }
   for (const market of ACCOUNT_MARKETS) {
     const id = lastUsedAccountIdByMarket[market]

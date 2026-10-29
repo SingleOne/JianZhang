@@ -15,6 +15,11 @@ import {
 } from '../../src/lib/t-alerts'
 import { applyStockAlertTriggers, type TriggeredStockAlert } from '../../src/lib/stock-alerts'
 import { parseConfigDocument } from '../../src/shared/config'
+import {
+  applyAppStateUpdate,
+  createAppStateUpdate,
+  type AppStateUpdate
+} from '../../src/shared/state-changes'
 import type { StockCacheCategoryId, StockCacheClearResult } from '../../src/shared/stock-cache'
 import {
   JIANZHANG_USER_DATA_BACKUP_FORMAT,
@@ -82,7 +87,7 @@ interface IpcHandlerDependencies {
   waitForStartupRender: () => Promise<void>
   getState: () => AppState
   setState: (state: AppState) => void
-  normalizeState: (state: AppState) => AppState
+  normalizeState: (state: AppState, previous?: AppState) => AppState
   assertStateRevision: (state: AppState) => void
   persistState: () => void
   getQuotes: () => StockQuote[]
@@ -342,8 +347,11 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
   handle('menu-bar:resize', (_event, height: number) => {
     if (Number.isFinite(height)) dependencies.resizeMenuBarPanel(height)
   })
-  handle('app:bootstrap', async () => ({
-    state: dependencies.getState(),
+  handle('app:bootstrap', async (_event, knownRevision?: number) => ({
+    state:
+      typeof knownRevision === 'number' && knownRevision === dependencies.getState().revision
+        ? undefined
+        : dependencies.getState(),
     trackingArchiveIndex: dependencies.getStockTrackingArchiveIndex(),
     quotes: dependencies.getQuotes(),
     source: 'eastmoney' as const,
@@ -356,10 +364,12 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
     'tracking:archive',
     (
       _event,
-      nextState: AppState,
+      update: AppStateUpdate,
       profile: StockTrackingProfile,
       deletePreviousArchives: boolean
     ) => {
+      const currentState = dependencies.getState()
+      const nextState = applyAppStateUpdate(currentState, update)
       dependencies.assertStateRevision(nextState)
       const result = dependencies.archiveStockTrackingCycle(
         nextState,
@@ -368,7 +378,10 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
       )
       dependencies.sendToWindows('state:updated', result.state)
       dependencies.syncWindowSurfaces()
-      return result
+      return {
+        update: createAppStateUpdate(currentState, result.state),
+        archiveIndex: result.archiveIndex
+      }
     }
   )
   handle('tracking:archive-cycle:delete', (_event, quoteId: string, cycleId: string) =>
@@ -480,10 +493,11 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
   handle('sector-index:get', (_event, quoteId: string) => dependencies.getSectorIndex(quoteId))
   handle('trading-calendar:refresh', () => dependencies.refreshTradingCalendar())
   handle('exchange-rates:refresh', () => dependencies.refreshExchangeRates())
-  handle('state:save', async (_event, nextState: AppState) => {
-    dependencies.assertStateRevision(nextState)
+  handle('state:save', async (_event, update: AppStateUpdate) => {
     const currentState = dependencies.getState()
-    const normalizedState = dependencies.normalizeState(nextState)
+    const nextState = applyAppStateUpdate(currentState, update)
+    dependencies.assertStateRevision(nextState)
+    const normalizedState = dependencies.normalizeState(nextState, currentState)
     const refreshSettingsChanged =
       currentState.settings.autoRefreshQuotes !== normalizedState.settings.autoRefreshQuotes ||
       currentState.settings.autoRefreshQuoteScope !==
@@ -545,7 +559,7 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
     }
     stockAlertUpdate.triggered.forEach(dependencies.showStockAlertNotification)
     tAlertUpdate.triggered.forEach(dependencies.showTFloatingProfitAlertNotification)
-    return savedState
+    return createAppStateUpdate(currentState, savedState)
   })
   handle('completion-notifications:get', () => dependencies.getCompletionNotifications())
   handle('completion-notifications:save', (_event, notifications: AppCompletionNotification[]) =>

@@ -49,6 +49,7 @@ import {
   parseUserDataBackupDocument
 } from '../shared/user-data-backup'
 import { DEMO_SECTORS, DEMO_STOCKS, DEMO_VALUES } from './demo-data'
+import { createStateClient } from './state-client'
 import { stockMarketIdentity } from '../shared/stock-market'
 import { previewCorporateAction, reversalEntries } from './portfolio-ledger'
 
@@ -1162,7 +1163,10 @@ const demoApi: StockDesktopApi = {
   onDailyMarketScanProgress: noSubscribe
 }
 
-export const stockApi = import.meta.env.PROD ? window.stockApi! : (window.stockApi ?? demoApi)
+const desktopApi = window.stockApi ? createStateClient(window.stockApi) : undefined
+export const stockApi: StockDesktopApi = import.meta.env.PROD
+  ? desktopApi!
+  : (desktopApi ?? demoApi)
 export const isDesktopRuntime = Boolean(window.stockApi)
 export const initialState = normalizeAccountState(
   import.meta.env.PROD ? DESKTOP_INITIAL_STATE : DEFAULT_STATE
