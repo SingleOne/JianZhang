@@ -131,14 +131,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.portfolio-performance-cycles-note {
-  border-left: 3px solid #7ca7de;
-  background: #f4f8fd;
-  color: #52647a;
-  font-size: 12px;
-  padding: 9px 11px;
-}
-
 .portfolio-performance-cycles-table-wrap {
   min-width: 0;
   overflow: auto;
@@ -258,15 +250,18 @@
   color: #a46a00;
 }
 
-.portfolio-performance-cycles-dialog .is-up {
+.portfolio-performance-cycles-dialog .is-up,
+.performance-cycle-reference-rate.is-up {
   color: var(--stock-up-color, #c13b3b);
 }
 
-.portfolio-performance-cycles-dialog .is-down {
+.portfolio-performance-cycles-dialog .is-down,
+.performance-cycle-reference-rate.is-down {
   color: var(--stock-down-color, #1f8f5f);
 }
 
-.portfolio-performance-cycles-dialog .is-flat {
+.portfolio-performance-cycles-dialog .is-flat,
+.performance-cycle-reference-rate.is-flat {
   color: var(--muted);
 }
 

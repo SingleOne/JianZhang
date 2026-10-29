@@ -158,11 +158,13 @@ function AccountCycles({
   performance,
   cycles,
   market,
+  referenceAnnualRatePercent,
   onViewRecords
 }: {
   performance: PortfolioPerformanceStockResult
   cycles: PortfolioPerformanceCycleResult[]
   market: StockMarket
+  referenceAnnualRatePercent: number | null
   onViewRecords: (cycle: PortfolioPerformanceCycleResult) => void
 }) {
   const rows = useMemo(() => [...cycles].reverse(), [cycles])
@@ -206,31 +208,64 @@ function AccountCycles({
         <table className="portfolio-performance-cycles-table">
           <thead>
             <tr>
-              <th>周期</th>
+              <th>
+                <Tooltip content="各账户累计收益从该账户最近一次收益基准重置后开始计算；重置前周期仍保留展示，但不计入该账户当前累计。持仓天数按自然日计算，包含起止当天；持仓中计算至今天。">
+                  <span tabIndex={0}>周期</span>
+                </Tooltip>
+              </th>
               <th>状态</th>
               <th>开始</th>
               <th>结束</th>
               <th>期末数量</th>
               <th>原币收益</th>
-              <th>股票净收益（人民币）</th>
               <th>
-                <Tooltip content="按全局参考年化和每日净投入计算的假设收益，单利，不代表实际理财产品收益。">
-                  <span tabIndex={0}>理财参考收益（人民币）</span>
+                <Tooltip content="周期人民币净收益，含已保存收益调整；收益调整不改变理财参考收益和资金占用。">
+                  <span tabIndex={0}>股票净收益（人民币）</span>
                 </Tooltip>
               </th>
               <th>
-                <Tooltip content="股票净收益减去理财参考收益；正数表示多赚，负数表示少赚。">
-                  <span tabIndex={0}>较参考多赚 / 少赚（人民币）</span>
+                <Tooltip
+                  content={
+                    <>
+                      理财参考年化：
+                      {referenceAnnualRatePercent === null ? (
+                        '未设置，请在设置的“交易”中填写'
+                      ) : (
+                        <strong
+                          className={`performance-cycle-reference-rate ${valueClass(referenceAnnualRatePercent)}`}
+                        >
+                          {referenceAnnualRatePercent}%
+                        </strong>
+                      )}
+                      。
+                      <br />
+                      参考收益＝Σ（各段净投入 × 参考年化收益率 × 计息天数 ÷
+                      365），按自然日单利计算，不代表实际理财产品收益。
+                      <br />
+                      起算日计入、截止日不计入，持仓中计至今天零点；同日交易按日终净占用，净投入最低为零，清仓后不再计息。
+                      <br />
+                      计息天数与包含首尾当天的持仓天数不同；外币投入按事件历史汇率折合人民币，仅表示人民币参考收益。
+                      <br />
+                      修改全局年化会重新测算全部周期，收益调整不改变参考收益；数据不足时显示“无法计算”，悬停单元格查看原因。
+                    </>
+                  }
+                >
+                  <span tabIndex={0}>理财参考收益</span>
                 </Tooltip>
               </th>
               <th>
-                <Tooltip content="周期内累计净支出的最高值，按各笔事件的历史汇率折合人民币。">
-                  <span tabIndex={0}>峰值资金占用（人民币）</span>
+                <Tooltip content="股票净收益减去理财参考收益，以人民币计；正数表示多赚，负数表示少赚，零表示与参考持平。数据不足时显示“无法计算”，悬停单元格查看原因。">
+                  <span tabIndex={0}>收益比较</span>
                 </Tooltip>
               </th>
               <th>
-                <Tooltip content="周期人民币净收益 ÷ 峰值资金占用 × 100%，含已保存收益调整，不年化。">
-                  <span tabIndex={0}>周期收益率（峰值占用）</span>
+                <Tooltip content="周期内累计净支出的最高值，以人民币计。买入、配股及税费增加占用，卖出、分红和公司行动现金回款减少占用；期初或收益重置持仓按成本计入，周期内持仓校准按成本差额调整，外币按事件历史汇率折算。收益调整不改变资金占用。">
+                  <span tabIndex={0}>峰值资金占用</span>
+                </Tooltip>
+              </th>
+              <th>
+                <Tooltip content="周期收益率＝周期人民币净收益 ÷ 峰值资金占用 × 100%，含已保存收益调整，不年化。数据不足时显示“--”，悬停单元格查看原因。">
+                  <span tabIndex={0}>周期收益率</span>
                 </Tooltip>
               </th>
               <th>已实现</th>
@@ -240,7 +275,11 @@ function AccountCycles({
               <th>公司行动</th>
               <th>价格贡献</th>
               <th>汇率贡献</th>
-              <th>完整性</th>
+              <th>
+                <Tooltip content="显示周期数据是否完整及相关问题；含官方估算汇率会单独标注。">
+                  <span tabIndex={0}>完整性</span>
+                </Tooltip>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -438,29 +477,6 @@ export default function PortfolioPerformanceCyclesDialog({
           </AppButton>
         </header>
         <div className="portfolio-performance-cycles-body">
-          <div className="portfolio-performance-cycles-note">
-            各账户累计收益从该账户最近一次收益基准重置后开始计算；重置前周期仍保留展示，但不计入该账户当前累计。
-          </div>
-          <div className="portfolio-performance-cycles-note">
-            理财参考年化：
-            {referenceAnnualRatePercent === null ? (
-              '未设置，请在设置的“交易”中填写'
-            ) : (
-              <strong className={valueClass(referenceAnnualRatePercent)}>
-                {referenceAnnualRatePercent}%
-              </strong>
-            )}
-            。参考收益＝Σ（各段净投入 × 参考年化收益率 × 计息天数 ÷ 365），按自然日单利计算。
-            起算日计入、截止日不计入，持仓中计至今天零点；同日交易按日终净占用，净投入最低为零，清仓后不再计息。
-            计息天数与包含首尾当天的持仓天数不同；外币投入按事件历史汇率折合人民币，仅表示人民币参考收益。
-            修改全局年化会重新测算全部周期，收益调整不改变参考收益；数据不足时显示“无法计算”，悬停查看原因。
-          </div>
-          <div className="portfolio-performance-cycles-note">
-            周期收益率（峰值占用）＝周期人民币净收益 ÷ 峰值资金占用 × 100%，不年化。
-            峰值取周期内累计净支出的最高值：买入、配股及税费增加占用，卖出、分红和公司行动现金回款减少占用；
-            期初或收益重置持仓按成本计入，周期内持仓校准按成本差额调整，外币按事件历史汇率折算。
-            收益含已保存调整，调整不改变资金占用；数据不足时收益率显示“--”，悬停可查看原因。
-          </div>
           {groups.length === 0 ? (
             <div className="portfolio-performance-cycles-empty">当前没有可查看的持仓周期。</div>
           ) : null}
@@ -470,6 +486,7 @@ export default function PortfolioPerformanceCyclesDialog({
               performance={performance}
               cycles={cycles}
               market={market}
+              referenceAnnualRatePercent={referenceAnnualRatePercent}
               onViewRecords={(cycle) => {
                 setRecordFilter({
                   accountId: performance.accountId,
