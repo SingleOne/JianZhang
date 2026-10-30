@@ -610,8 +610,10 @@ export function StockQuoteDetails({
       <section className="taskbar-tooltip-section">
         <div className="taskbar-tooltip-position-grid">
           <span>
-            <small>可用</small>
-            <b>{formatShares(availablePositionQuantity)}</b>
+            <small>持仓 | 可用</small>
+            <b>
+              {formatShares(stock?.position?.quantity)} | {formatShares(availablePositionQuantity)}
+            </b>
           </span>
           <span>
             <small>天数</small>

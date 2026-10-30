@@ -430,7 +430,7 @@
 }
 
 :root.macos-popover[data-theme] .is-inline .taskbar-tooltip-position-grid {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.8fr) repeat(5, minmax(0, 1fr));
   gap: 6px 8px;
 }
 
