@@ -613,7 +613,7 @@ export function StockQuoteDetails({
             <small>持仓 | 可用（股）</small>
             <b>
               {stock?.position?.quantity.toLocaleString('zh-CN') ?? '--'} |{' '}
-              {availablePositionQuantity?.toLocaleString('zh-CN') ?? '--'}
+              {hasPosition ? (availablePositionQuantity?.toLocaleString('zh-CN') ?? '--') : '--'}
             </b>
           </span>
           <span>
