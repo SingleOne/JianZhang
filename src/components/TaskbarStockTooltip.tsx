@@ -632,7 +632,7 @@ export function StockQuoteDetails({
             <span>成本 {formatCost(tMetrics.averageCost)}</span>
             <span className={valueClass(tMetrics.floatingProfit)}>
               浮动 {formatMoneyProfit(tMetrics.floatingProfit, positionMetrics.currency)}
-              {embedded && tMetrics.floatingProfitRate !== null ? (
+              {tMetrics.floatingProfitRate !== null ? (
                 <span className={valueClass(tMetrics.floatingProfitRate)}>
                   {' '}
                   ({formatPercent(tMetrics.floatingProfitRate)})
