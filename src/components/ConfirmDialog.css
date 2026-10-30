@@ -80,6 +80,7 @@
 }
 
 .confirm-dialog > footer button {
+  gap: 6px;
   min-width: 82px;
   height: 36px;
   font-size: 12px;

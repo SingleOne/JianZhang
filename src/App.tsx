@@ -1432,23 +1432,26 @@ export default function App() {
           ? `同时会恢复 ${backupSummary.apiKeyCount} 个 AI API Key。`
           : '备份中没有 AI API Key，当前已配置的 API Key 将被清除。'
         : ''
+      const { importId, githubGistVersion } = result
       const confirmed = await confirm({
         title: result.importId ? '导入用户数据并重启' : '导入并覆盖当前配置',
         message: result.importId
           ? `导入后将用备份中的 ${result.state.watchlist.length} 只股票、全部设置及 ${backupSummary?.fileCount ?? 0} 个持久化数据文件覆盖当前用户数据。${apiKeyMessage}应用将自动重启。`
           : `导入后将用文件中的 ${result.state.watchlist.length} 只股票和全部设置覆盖当前配置。`,
         confirmLabel: result.importId ? '导入并重启' : '继续导入',
+        loadingLabel: githubGistVersion ? '恢复中…' : '导入中…',
+        onConfirm: importId
+          ? () =>
+              githubGistVersion
+                ? stockApi.applyGitHubGistRestore(importId, githubGistVersion)
+                : stockApi.applyConfigImport(importId)
+          : undefined,
         tone
       })
       if (!confirmed) return false
 
       const importedQuoteIds = new Set(result.state.watchlist.map((stock) => stock.quoteId))
       if (result.importId) {
-        if (result.githubGistVersion) {
-          await stockApi.applyGitHubGistRestore(result.importId, result.githubGistVersion)
-        } else {
-          await stockApi.applyConfigImport(result.importId)
-        }
         reportSuccess('用户数据导入完成，应用正在重启')
       } else {
         const saved = await persist(result.state)
@@ -1578,19 +1581,23 @@ export default function App() {
           : '远程备份版本与本机上次同步记录不一致。'
         : ''
       setGitHubSyncUploadPhase('confirming')
-      const confirmed = await confirm({
+      await confirm({
         title: '上传用户数据到 GitHub Gist',
         message: latestSettings.gistId
           ? `${versionWarning}将使用本机同步密码加密全部用户数据并覆盖当前 Secret Gist，包括已配置的 AI API Key。`
           : '将使用本机同步密码加密全部用户数据，并自动创建一个 Secret Gist，包括已配置的 AI API Key。',
         confirmLabel: latestSettings.requiresRemoteRestore ? '仍然上传并覆盖' : '确认上传',
+        loadingLabel: '上传中…',
+        onConfirm: async () => {
+          setGitHubSyncUploadPhase('uploading')
+          const result = await stockApi.uploadUserDataToGitHub(latestSettings.requiresRemoteRestore)
+          setGitHubSyncSettings(await stockApi.getGitHubSyncSettings())
+          setGitHubUploadNotice(
+            `用户数据已加密上传到 GitHub Gist，版本 ${result.version.slice(0, 7)}`
+          )
+        },
         tone: 'default'
       })
-      if (!confirmed) return
-      setGitHubSyncUploadPhase('uploading')
-      const result = await stockApi.uploadUserDataToGitHub(latestSettings.requiresRemoteRestore)
-      setGitHubSyncSettings(await stockApi.getGitHubSyncSettings())
-      setGitHubUploadNotice(`用户数据已加密上传到 GitHub Gist，版本 ${result.version.slice(0, 7)}`)
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : 'GitHub 上传失败'
       setGitHubSyncError(message)
