@@ -610,9 +610,10 @@ export function StockQuoteDetails({
       <section className="taskbar-tooltip-section">
         <div className="taskbar-tooltip-position-grid">
           <span>
-            <small>持仓 | 可用</small>
+            <small>持仓 | 可用（股）</small>
             <b>
-              {formatShares(stock?.position?.quantity)} | {formatShares(availablePositionQuantity)}
+              {stock?.position?.quantity.toLocaleString('zh-CN') ?? '--'} |{' '}
+              {availablePositionQuantity?.toLocaleString('zh-CN') ?? '--'}
             </b>
           </span>
           <span>
