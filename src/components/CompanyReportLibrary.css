@@ -14,8 +14,8 @@
   border-radius: 12px;
   background: linear-gradient(
     135deg,
-    color-mix(in srgb, var(--accent) 10%, var(--surface)) 0%,
-    var(--surface) 65%
+    color-mix(in srgb, var(--accent) 10%, transparent) 0%,
+    transparent 65%
   );
 }
 
