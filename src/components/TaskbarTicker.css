@@ -723,10 +723,18 @@ html.tray-mode #root {
   gap: 6px 12px;
   color: var(--stock-popover-secondary);
   font-size: 12px;
+  line-height: 1.25;
+}
+
+.taskbar-tooltip-t-summary > span {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .taskbar-tooltip-t-summary > span:last-child {
-  text-align: right;
+  justify-content: flex-end;
 }
 
 .taskbar-tooltip-t-summary strong {
