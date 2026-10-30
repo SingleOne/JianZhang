@@ -13,7 +13,11 @@ import {
   formatUpdateTime,
   formatVolume
 } from '../lib/format'
-import { calculatePositionMetrics, getPositionHoldingDays } from '../lib/portfolio'
+import {
+  calculatePositionMetrics,
+  getAvailablePositionQuantity,
+  getPositionHoldingDays
+} from '../lib/portfolio'
 import { calculateCurrentPositionProfitOverride } from '../lib/portfolio-performance'
 import { formatStockAlertValue, STOCK_ALERT_METRIC_LABELS } from '../lib/stock-alerts'
 import {
@@ -459,6 +463,7 @@ export function StockQuoteDetails({
     [currentIntraday]
   )
   const account = state.stockTradingBooks[quoteId]
+  const availablePositionQuantity = getAvailablePositionQuantity(stock?.position, account, market)
   const overview = stockTOverview(account, quote?.latest, {
     market,
     instrumentType: stock?.instrumentType,
@@ -605,8 +610,8 @@ export function StockQuoteDetails({
       <section className="taskbar-tooltip-section">
         <div className="taskbar-tooltip-position-grid">
           <span>
-            <small>持仓</small>
-            <b>{formatShares(stock?.position?.quantity)}</b>
+            <small>可用</small>
+            <b>{formatShares(availablePositionQuantity)}</b>
           </span>
           <span>
             <small>天数</small>
