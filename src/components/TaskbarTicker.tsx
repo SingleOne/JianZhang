@@ -6,8 +6,10 @@ import { getTriggeredStockAlertDirection } from '../lib/stock-alerts'
 import { getTaskbarVisibleStocks } from '../lib/taskbar-visibility'
 import { marketFromQuoteId } from '../shared/stock-market'
 import { applyAppThemePreference } from '../lib/theme'
+import { observeContentHeight } from '../lib/observe-content-height'
 import { useInitialRenderReady } from '../hooks/useInitialRenderReady'
 import type { AppState, StockQuote } from '../shared/types'
+import { AnimatedNumber } from './AnimatedNumber'
 import { FiveLevelAlertBadges } from './FiveLevelAlertBadges'
 import { TAlertBadges } from './TAlertBadges'
 import { TFloatingProfitAlertBadge } from './TFloatingProfitAlertBadge'
@@ -83,9 +85,11 @@ export function TaskbarTicker() {
   useLayoutEffect(() => {
     const ticker = tickerRef.current
     if (!ticker || selectedStocks.length === 0) return
-    const bounds = ticker.getBoundingClientRect()
-    void stockApi.resizeTaskbarTicker(Math.ceil(bounds.width), Math.ceil(bounds.height))
-  }, [selectedStocks])
+    return observeContentHeight(ticker, (height) => {
+      const { width } = ticker.getBoundingClientRect()
+      void stockApi.resizeTaskbarTicker(Math.ceil(width), Math.ceil(height))
+    })
+  }, [selectedStocks.length])
 
   return (
     <div className="taskbar-ticker-shell">
@@ -111,7 +115,9 @@ export function TaskbarTicker() {
                 onMouseLeave={() => void stockApi.setTaskbarTooltip(null)}
               >
                 <span className="taskbar-stock-name">{stock.name}</span>
-                <strong>{formatPrice(quote?.latest)}</strong>
+                <strong>
+                  <AnimatedNumber value={quote?.latest} formatValue={formatPrice} />
+                </strong>
                 <span className="taskbar-stock-change">{formatPercent(quote?.changePercent)}</span>
                 <FiveLevelAlertBadges alerts={fiveLevelAlerts} compact showTitle={false} />
                 <TAlertBadges badges={alertBadges} compact showTitle={false} />

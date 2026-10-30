@@ -146,7 +146,8 @@ describe('inline menu bar stock details', () => {
     for (const field of ['price', 'change', 'changePercent', 'todayProfit']) {
       expect(collapsed.match(new RegExp(`data-menu-bar-value="${field}"`, 'g'))).toHaveLength(1)
       expect(embedded.match(new RegExp(`data-menu-bar-value="${field}"`, 'g'))).toHaveLength(1)
-      const value = new RegExp(`data-menu-bar-value="${field}">([^<]+)</span>`)
+      const value = new RegExp(`data-menu-bar-value="${field}">(?:<[^>]+>)*([^<]+)</span>`)
+      expect(collapsed.match(value)?.[1]).toBeDefined()
       expect(collapsed.match(value)?.[1]).toBe(embedded.match(value)?.[1])
     }
   })

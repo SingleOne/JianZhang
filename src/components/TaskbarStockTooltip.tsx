@@ -35,6 +35,7 @@ import type {
 } from '../shared/types'
 import { AppThemeController } from './AppThemeController'
 import { AppButton } from './AppButton'
+import { AnimatedNumber } from './AnimatedNumber'
 
 const SPARKLINE_WIDTH = 76
 const SPARKLINE_HEIGHT = 26
@@ -71,7 +72,11 @@ function FiveLevelOrderBook({ orderBook }: { orderBook: StockOrderBook | null })
                   {levelLabel}
                 </span>
                 <span>
-                  {levels?.[index]?.price === 0 ? '-' : formatPrice(levels?.[index]?.price)}
+                  {levels?.[index]?.price === 0 ? (
+                    '-'
+                  ) : (
+                    <AnimatedNumber value={levels?.[index]?.price} formatValue={formatPrice} />
+                  )}
                 </span>
                 <span>{formatLargeOrderVolume(levels?.[index]?.volume)}</span>
               </div>
@@ -515,7 +520,7 @@ export function StockQuoteDetails({
             className={embedded ? 'menu-bar-animated-value' : undefined}
             data-menu-bar-value={embedded ? 'price' : undefined}
           >
-            {formatCurrency(quote?.latest)}
+            <AnimatedNumber value={quote?.latest} formatValue={formatCurrency} />
           </span>
         </strong>
         <span className="taskbar-tooltip-price-change">
@@ -524,7 +529,7 @@ export function StockQuoteDetails({
               className={embedded ? 'menu-bar-animated-value' : undefined}
               data-menu-bar-value={embedded ? 'change' : undefined}
             >
-              {formatSigned(quote?.change)}
+              <AnimatedNumber value={quote?.change} formatValue={formatSigned} />
             </span>
           </span>
           <span>
@@ -550,7 +555,13 @@ export function StockQuoteDetails({
             className={embedded ? 'menu-bar-animated-value' : undefined}
             data-menu-bar-value={embedded ? 'todayProfit' : undefined}
           >
-            {formatMoneyProfit(positionMetrics.todayProfit, positionMetrics.currency)}
+            <AnimatedNumber
+              value={positionMetrics.todayProfit}
+              formattedValue={formatMoneyProfit(
+                positionMetrics.todayProfit,
+                positionMetrics.currency
+              )}
+            />
           </span>
         </span>
       </div>
@@ -558,15 +569,21 @@ export function StockQuoteDetails({
       <dl className="taskbar-tooltip-details">
         <div>
           <dt>今开</dt>
-          <dd>{formatCurrency(quote?.open)}</dd>
+          <dd>
+            <AnimatedNumber value={quote?.open} formatValue={formatCurrency} />
+          </dd>
         </div>
         <div>
           <dt>最高</dt>
-          <dd>{formatCurrency(quote?.high)}</dd>
+          <dd>
+            <AnimatedNumber value={quote?.high} formatValue={formatCurrency} />
+          </dd>
         </div>
         <div>
           <dt>最低</dt>
-          <dd>{formatCurrency(quote?.low)}</dd>
+          <dd>
+            <AnimatedNumber value={quote?.low} formatValue={formatCurrency} />
+          </dd>
         </div>
         <div>
           <dt>换手</dt>
@@ -598,19 +615,32 @@ export function StockQuoteDetails({
           <span>
             <small>成本</small>
             <b>
-              {positionMetrics.holdingCost !== null
-                ? `${STOCK_CURRENCY_SYMBOLS[positionMetrics.currency]}${formatCost(positionMetrics.holdingCost)}`
-                : '--'}
+              <AnimatedNumber
+                value={positionMetrics.holdingCost}
+                formattedValue={
+                  positionMetrics.holdingCost !== null
+                    ? `${STOCK_CURRENCY_SYMBOLS[positionMetrics.currency]}${formatCost(positionMetrics.holdingCost)}`
+                    : '--'
+                }
+              />
             </b>
           </span>
           <span>
             <small>市值</small>
-            <b>{formatMoney(positionMetrics.marketValue, positionMetrics.currency)}</b>
+            <b>
+              <AnimatedNumber
+                value={positionMetrics.marketValue}
+                formattedValue={formatMoney(positionMetrics.marketValue, positionMetrics.currency)}
+              />
+            </b>
           </span>
           <span>
             <small>{hasPosition ? '收益' : '累计收益'}</small>
             <b className={valueClass(displayedTotalProfit)}>
-              {formatMoneyProfit(displayedTotalProfit, displayedProfitCurrency)}
+              <AnimatedNumber
+                value={displayedTotalProfit}
+                formattedValue={formatMoneyProfit(displayedTotalProfit, displayedProfitCurrency)}
+              />
             </b>
           </span>
           <span>
@@ -629,9 +659,18 @@ export function StockQuoteDetails({
               {owner.accountName} · {tMetrics.direction === 'reverse' ? '反T' : '正T'}
             </strong>
             <span>剩余 {formatShares(tMetrics.remainingQuantity)}</span>
-            <span>成本 {formatCost(tMetrics.averageCost)}</span>
+            <span>
+              成本 <AnimatedNumber value={tMetrics.averageCost} formatValue={formatCost} />
+            </span>
             <span className={valueClass(tMetrics.floatingProfit)}>
-              浮动 {formatMoneyProfit(tMetrics.floatingProfit, positionMetrics.currency)}
+              浮动{' '}
+              <AnimatedNumber
+                value={tMetrics.floatingProfit}
+                formattedValue={formatMoneyProfit(
+                  tMetrics.floatingProfit,
+                  positionMetrics.currency
+                )}
+              />
               {tMetrics.floatingProfitRate !== null ? (
                 <span className={valueClass(tMetrics.floatingProfitRate)}>
                   {' '}
@@ -659,10 +698,33 @@ export function StockQuoteDetails({
                   <span>
                     {STOCK_ALERT_METRIC_LABELS[rule.metric]}
                     {rule.operator === 'gte' ? ' ≥ ' : ' ≤ '}
-                    {formatStockAlertValue(rule.metric, rule.target, stock?.currency)}，当前{' '}
-                    {actualValue === null || actualValue === undefined
-                      ? '--'
-                      : formatStockAlertValue(rule.metric, actualValue, stock?.currency)}
+                    {rule.metric === 'price' ? (
+                      <AnimatedNumber
+                        value={rule.target}
+                        formattedValue={formatStockAlertValue(
+                          rule.metric,
+                          rule.target,
+                          stock?.currency
+                        )}
+                      />
+                    ) : (
+                      formatStockAlertValue(rule.metric, rule.target, stock?.currency)
+                    )}
+                    ，当前{' '}
+                    {rule.metric === 'price' ? (
+                      <AnimatedNumber
+                        value={actualValue}
+                        formattedValue={
+                          actualValue === null || actualValue === undefined
+                            ? '--'
+                            : formatStockAlertValue(rule.metric, actualValue, stock?.currency)
+                        }
+                      />
+                    ) : actualValue === null || actualValue === undefined ? (
+                      '--'
+                    ) : (
+                      formatStockAlertValue(rule.metric, actualValue, stock?.currency)
+                    )}
                   </span>
                 </li>
               )
@@ -675,7 +737,7 @@ export function StockQuoteDetails({
                 <b>T价位</b>
                 <span>
                   {badge.accountName} · {badge.side === 'buy' ? '买入' : '卖出'} {badge.label}
-                  ，目标价 {formatPrice(badge.targetPrice)}
+                  ，目标价 <AnimatedNumber value={badge.targetPrice} formatValue={formatPrice} />
                 </span>
               </li>
             ))}
@@ -684,27 +746,40 @@ export function StockQuoteDetails({
                 <b>五档大单</b>
                 <span>
                   {alert.side === 'buy' ? '买' : '卖'}
-                  {alert.level} 价格 {formatPrice(alert.price)}，挂单{' '}
-                  {formatLargeOrderVolume(alert.volume)}，其余四档{' '}
+                  {alert.level} 价格{' '}
+                  <AnimatedNumber value={alert.price} formatValue={formatPrice} />
+                  ，挂单 {formatLargeOrderVolume(alert.volume)}，其余四档{' '}
                   {formatLargeOrderVolume(alert.otherLevelsVolume)}
                 </span>
               </li>
             ))}
-            {overview.floatingAlerts.map((summary) => (
-              <li key={summary.account.accountId} className={`is-${summary.floatingAlert}`}>
-                <b>T浮动收益</b>
-                <span>
-                  {summary.account.accountName} · 当前{' '}
-                  {formatMoneyProfit(summary.metrics.floatingProfit, positionMetrics.currency)}
-                  ，提醒值{' '}
-                  {formatMoneyProfit(
-                    (summary.floatingAlert === 'profit' ? 1 : -1) *
-                      summary.batch.floatingProfitAlert!.threshold,
-                    positionMetrics.currency
-                  )}
-                </span>
-              </li>
-            ))}
+            {overview.floatingAlerts.map((summary) => {
+              const threshold =
+                (summary.floatingAlert === 'profit' ? 1 : -1) *
+                summary.batch.floatingProfitAlert!.threshold
+              return (
+                <li key={summary.account.accountId} className={`is-${summary.floatingAlert}`}>
+                  <b>T浮动收益</b>
+                  <span>
+                    {summary.account.accountName} · 当前{' '}
+                    <AnimatedNumber
+                      value={summary.metrics.floatingProfit}
+                      className={valueClass(summary.metrics.floatingProfit)}
+                      formattedValue={formatMoneyProfit(
+                        summary.metrics.floatingProfit,
+                        positionMetrics.currency
+                      )}
+                    />
+                    ，提醒值{' '}
+                    <AnimatedNumber
+                      value={threshold}
+                      className={valueClass(threshold)}
+                      formattedValue={formatMoneyProfit(threshold, positionMetrics.currency)}
+                    />
+                  </span>
+                </li>
+              )
+            })}
           </ul>
         </section>
       ) : null}

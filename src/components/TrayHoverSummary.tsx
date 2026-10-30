@@ -16,6 +16,7 @@ import { applyAppThemePreference } from '../lib/theme'
 import { observeContentHeight } from '../lib/observe-content-height'
 import { createMenuBarDisclosureAnimator } from '../lib/menu-bar-disclosure-animation'
 import type { AppState, StockQuote } from '../shared/types'
+import { AnimatedNumber } from './AnimatedNumber'
 import { AppButton } from './AppButton'
 import { MenuBarStockRow } from './MenuBarStockRow'
 import { StockQuoteDetails } from './TaskbarStockTooltip'
@@ -149,7 +150,10 @@ export function TrayHoverSummary({ interactive = false }: { interactive?: boolea
         >
           {interactive ? '今日合计' : '今日收益合计'}
           <b className={valueClass(todayProfitTotal)}>
-            {formatMoneyProfit(todayProfitTotal, 'CNY')}
+            <AnimatedNumber
+              value={todayProfitTotal}
+              formattedValue={formatMoneyProfit(todayProfitTotal, 'CNY')}
+            />
           </b>
         </span>
       </header>
@@ -196,13 +200,20 @@ export function TrayHoverSummary({ interactive = false }: { interactive?: boolea
                 <div className="tray-summary-stock">
                   <strong>{stock.name}</strong>
                   <b className={valueClass(quote?.change)}>
-                    {formatPrice(quote?.latest)}（{formatSigned(quote?.change)}）
+                    <AnimatedNumber value={quote?.latest} formatValue={formatPrice} />（
+                    <AnimatedNumber value={quote?.change} formatValue={formatSigned} />）
                   </b>
                 </div>
                 <span>
                   今日
                   <b className={valueClass(positionMetrics.todayProfit)}>
-                    {formatMoneyProfit(positionMetrics.todayProfit, positionMetrics.currency)}
+                    <AnimatedNumber
+                      value={positionMetrics.todayProfit}
+                      formattedValue={formatMoneyProfit(
+                        positionMetrics.todayProfit,
+                        positionMetrics.currency
+                      )}
+                    />
                   </b>
                   <b className={valueClass(positionMetrics.todayProfitPercent)}>
                     {formatPercent(positionMetrics.todayProfitPercent)}
@@ -211,12 +222,27 @@ export function TrayHoverSummary({ interactive = false }: { interactive?: boolea
               </div>
               <div className="tray-summary-profit">
                 <span>
-                  持仓 <b>{formatMoney(positionMetrics.marketValue, positionMetrics.currency)}</b>
+                  持仓{' '}
+                  <b>
+                    <AnimatedNumber
+                      value={positionMetrics.marketValue}
+                      formattedValue={formatMoney(
+                        positionMetrics.marketValue,
+                        positionMetrics.currency
+                      )}
+                    />
+                  </b>
                 </span>
                 <span>
                   {hasPosition ? null : '累计收益'}
                   <b className={valueClass(displayedTotalProfit)}>
-                    {formatMoneyProfit(displayedTotalProfit, displayedProfitCurrency)}
+                    <AnimatedNumber
+                      value={displayedTotalProfit}
+                      formattedValue={formatMoneyProfit(
+                        displayedTotalProfit,
+                        displayedProfitCurrency
+                      )}
+                    />
                   </b>
                   {hasPosition ? (
                     <b className={valueClass(positionMetrics.profitPercent)}>
@@ -234,10 +260,17 @@ export function TrayHoverSummary({ interactive = false }: { interactive?: boolea
                     </span>
                     <span>
                       {tMetrics.direction === 'reverse' ? '基准' : '成本'}{' '}
-                      {formatCost(tMetrics.averageCost)}
+                      <AnimatedNumber value={tMetrics.averageCost} formatValue={formatCost} />
                     </span>
                     <span className={valueClass(tMetrics.floatingProfit)}>
-                      浮动 {formatMoneyProfit(tMetrics.floatingProfit, positionMetrics.currency)}
+                      浮动{' '}
+                      <AnimatedNumber
+                        value={tMetrics.floatingProfit}
+                        formattedValue={formatMoneyProfit(
+                          tMetrics.floatingProfit,
+                          positionMetrics.currency
+                        )}
+                      />
                       {tMetrics.floatingProfitRate === null ? null : (
                         <small className="tray-summary-floating-rate">
                           ({formatPercent(tMetrics.floatingProfitRate)})

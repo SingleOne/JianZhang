@@ -19,6 +19,7 @@ import {
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AppTitlebar, MarketTradingState } from './components/AppTitlebar'
 import { AppButton } from './components/AppButton'
+import { AnimatedNumber } from './components/AnimatedNumber'
 import { useConfirmDialog } from './components/ConfirmDialog'
 import type { GitHubSyncUploadPhase } from './components/SettingsMenu'
 import { SearchBar } from './components/SearchBar'
@@ -1866,7 +1867,10 @@ export default function App() {
                     <span className={cardDirectionClass(portfolioSummary.todayProfit)}>
                       <small>今日总收益</small>
                       <strong className={directionClass(portfolioSummary.todayProfit)}>
-                        {formatMoneyProfit(portfolioSummary.todayProfit, 'CNY')}
+                        <AnimatedNumber
+                          value={portfolioSummary.todayProfit}
+                          formattedValue={formatMoneyProfit(portfolioSummary.todayProfit, 'CNY')}
+                        />
                       </strong>
                       <em className={directionClass(portfolioSummary.todayProfitPercent)}>
                         {formatPercent(portfolioSummary.todayProfitPercent)}
@@ -1875,7 +1879,10 @@ export default function App() {
                     <span className={cardDirectionClass(portfolioSummary.totalProfit)}>
                       <small>持仓收益</small>
                       <strong className={directionClass(portfolioSummary.totalProfit)}>
-                        {formatMoneyProfit(portfolioSummary.totalProfit, 'CNY')}
+                        <AnimatedNumber
+                          value={portfolioSummary.totalProfit}
+                          formattedValue={formatMoneyProfit(portfolioSummary.totalProfit, 'CNY')}
+                        />
                       </strong>
                       <em className={directionClass(portfolioSummary.profitPercent)}>
                         {formatPercent(portfolioSummary.profitPercent)}

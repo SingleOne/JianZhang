@@ -698,16 +698,19 @@ html.tray-mode #root {
 }
 
 .taskbar-tooltip-position-grid b.is-up,
+.taskbar-tooltip-alert-list .is-up,
 .taskbar-tooltip-t-summary .is-up {
   color: #c92733;
 }
 
 .taskbar-tooltip-position-grid b.is-down,
+.taskbar-tooltip-alert-list .is-down,
 .taskbar-tooltip-t-summary .is-down {
   color: #087c57;
 }
 
 .taskbar-tooltip-position-grid b.is-flat,
+.taskbar-tooltip-alert-list .is-flat,
 .taskbar-tooltip-t-summary .is-flat {
   color: var(--stock-popover-secondary);
 }
@@ -915,6 +918,7 @@ html[data-theme='dark'].tray-mode #root {
 :root[data-theme='dark'] .taskbar-tooltip-price-row.is-up,
 :root[data-theme='dark'] .taskbar-tooltip-price-row .taskbar-tooltip-today-profit.is-up,
 :root[data-theme='dark'] .taskbar-tooltip-position-grid b.is-up,
+:root[data-theme='dark'] .taskbar-tooltip-alert-list .is-up,
 :root[data-theme='dark'] .taskbar-tooltip-t-summary .is-up,
 :root[data-theme='dark'] .taskbar-tooltip-alert-list .is-gte b,
 :root[data-theme='dark'] .taskbar-tooltip-alert-list .is-sell b,
@@ -925,6 +929,7 @@ html[data-theme='dark'].tray-mode #root {
 :root[data-theme='dark'] .taskbar-tooltip-price-row.is-down,
 :root[data-theme='dark'] .taskbar-tooltip-price-row .taskbar-tooltip-today-profit.is-down,
 :root[data-theme='dark'] .taskbar-tooltip-position-grid b.is-down,
+:root[data-theme='dark'] .taskbar-tooltip-alert-list .is-down,
 :root[data-theme='dark'] .taskbar-tooltip-t-summary .is-down,
 :root[data-theme='dark'] .taskbar-tooltip-alert-list .is-lte b,
 :root[data-theme='dark'] .taskbar-tooltip-alert-list .is-buy b,
@@ -943,6 +948,7 @@ html[data-theme='dark'].tray-mode #root {
 :root[data-theme='dark'] .taskbar-tooltip-price-row.is-flat,
 :root[data-theme='dark'] .taskbar-tooltip-price-row .taskbar-tooltip-today-profit.is-flat,
 :root[data-theme='dark'] .taskbar-tooltip-position-grid b.is-flat,
+:root[data-theme='dark'] .taskbar-tooltip-alert-list .is-flat,
 :root[data-theme='dark'] .taskbar-tooltip-t-summary .is-flat {
   color: var(--stock-popover-secondary);
 }

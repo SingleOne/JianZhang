@@ -11,6 +11,7 @@ import type { getMenuBarQuoteStatus } from '../lib/menu-bar'
 import { STOCK_QUOTE_DATA_STATE_LABELS } from '../lib/quote-state'
 import { getTriggeredStockAlertDirection } from '../lib/stock-alerts'
 import type { getTraySummaryStocks } from '../lib/tray-summary'
+import { AnimatedNumber } from './AnimatedNumber'
 import { AppButton } from './AppButton'
 import { TAlertBadges } from './TAlertBadges'
 import { TFloatingProfitAlertBadge } from './TFloatingProfitAlertBadge'
@@ -75,12 +76,12 @@ export function MenuBarStockRow({
             <span className="menu-bar-quote-values">
               <b className={valueClass(quote?.change)}>
                 <span className="menu-bar-animated-value" data-menu-bar-value="price">
-                  {formatCurrency(quote?.latest)}
+                  <AnimatedNumber value={quote?.latest} formatValue={formatCurrency} />
                 </span>
               </b>
               <span className={valueClass(quote?.change)}>
                 <span className="menu-bar-animated-value" data-menu-bar-value="change">
-                  {formatSigned(quote?.change)}
+                  <AnimatedNumber value={quote?.change} formatValue={formatSigned} />
                 </span>
               </span>
               <b className={valueClass(quote?.changePercent)}>
@@ -93,7 +94,13 @@ export function MenuBarStockRow({
                 title="今日涨跌额"
               >
                 <span className="menu-bar-animated-value" data-menu-bar-value="todayProfit">
-                  {formatMoneyProfit(positionMetrics.todayProfit, positionMetrics.currency)}
+                  <AnimatedNumber
+                    value={positionMetrics.todayProfit}
+                    formattedValue={formatMoneyProfit(
+                      positionMetrics.todayProfit,
+                      positionMetrics.currency
+                    )}
+                  />
                 </span>
               </span>
             </span>

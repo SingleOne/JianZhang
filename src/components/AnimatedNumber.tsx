@@ -6,6 +6,7 @@ type NumberValue = number | null | undefined
 interface AnimatedNumberProps {
   value: NumberValue
   formatValue?: (value: NumberValue) => string
+  formattedValue?: string
   className?: string
   durationMs?: number
 }
@@ -26,10 +27,11 @@ function formatNumber(value: NumberValue): string {
 export const AnimatedNumber = memo(function AnimatedNumber({
   value,
   formatValue = formatNumber,
+  formattedValue,
   className = '',
   durationMs = 1000
 }: AnimatedNumberProps) {
-  const text = formatValue(value)
+  const text = formattedValue ?? formatValue(value)
   const [display, setDisplay] = useState<NumberDisplay>(() => ({
     value,
     text,
