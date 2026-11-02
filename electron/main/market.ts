@@ -20,6 +20,7 @@ import type {
   WatchStock
 } from '../../src/shared/types'
 import {
+  calculateAverageTradePrice,
   marketCapabilitiesForQuoteId,
   marketFromQuoteId,
   marketLabelForQuoteId,
@@ -69,6 +70,7 @@ interface EastmoneyQuoteItem {
   f23?: number | '-'
   f115?: number | '-'
   f124?: number | '-'
+  f352?: number | '-'
 }
 
 interface EastmoneyOrderBookData {
@@ -304,6 +306,10 @@ function toEastmoneyQuote(
 ): StockQuote {
   const quoteId = typeof item.f13 === 'number' && item.f12 ? `${item.f13}.${item.f12}` : ''
   const identity = stockMarketIdentity(quoteId)
+  const amount = rawNumber(item.f6)
+  const volume = rawNumber(item.f5)
+  const averagePrice =
+    item.f352 === 0 ? null : scaledQuotePrice(item.f352, identity.market, quoteId)
   return {
     code: item.f12 ?? '',
     name: item.f14 ?? '',
@@ -313,14 +319,15 @@ function toEastmoneyQuote(
     volumeUnit: identity.volumeUnit,
     source,
     latest: scaledQuotePrice(item.f2, identity.market, quoteId),
+    averagePrice: averagePrice ?? calculateAverageTradePrice(amount, volume, identity.volumeUnit),
     changePercent: scaled(item.f3),
     change: scaledQuotePrice(item.f4, identity.market, quoteId),
     open: scaledQuotePrice(item.f17, identity.market, quoteId),
     high: scaledQuotePrice(item.f15, identity.market, quoteId),
     low: scaledQuotePrice(item.f16, identity.market, quoteId),
     previousClose: scaledQuotePrice(item.f18, identity.market, quoteId),
-    volume: rawNumber(item.f5),
-    amount: rawNumber(item.f6),
+    volume,
+    amount,
     turnoverRate: scaled(item.f8),
     totalMarketValue: rawNumber(item.f20),
     priceEarningsRatioTtm: scaled(item.f115),
@@ -649,6 +656,9 @@ async function fetchTencentQuotes(stocks: WatchStock[], caller: string): Promise
     const summary = fields[35]?.split('/') ?? []
     const identity = stockMarketIdentity(stock.quoteId, stock.instrumentType)
     const totalMarketValueYi = quoteNumber(fields[45])
+    const volume = quoteNumber(fields[36] || fields[6])
+    const amount = quoteNumber(identity.market === 'CN' ? summary[2] : fields[37])
+    const averagePrice = identity.market === 'CN' ? quoteNumber(fields[51]) : null
     return [
       {
         code: stock.code,
@@ -659,14 +669,18 @@ async function fetchTencentQuotes(stocks: WatchStock[], caller: string): Promise
         volumeUnit: identity.volumeUnit,
         source: 'tencent',
         latest: quoteNumber(fields[3]),
+        averagePrice:
+          averagePrice !== null && averagePrice > 0
+            ? averagePrice
+            : calculateAverageTradePrice(amount, volume, identity.volumeUnit),
         changePercent: quoteNumber(fields[32]),
         change: quoteNumber(fields[31]),
         open: quoteNumber(fields[5]),
         high: quoteNumber(fields[33]),
         low: quoteNumber(fields[34]),
         previousClose: quoteNumber(fields[4]),
-        volume: quoteNumber(fields[36] || fields[6]),
-        amount: quoteNumber(summary[2]),
+        volume,
+        amount,
         turnoverRate: quoteNumber(fields[38]),
         // Tencent reports market value in hundreds of millions of the market currency.
         totalMarketValue: totalMarketValueYi === null ? null : totalMarketValueYi * 100_000_000,
@@ -703,6 +717,7 @@ async function fetchSinaQuotes(stocks: WatchStock[], caller: string): Promise<St
     const change = latest !== null && previousClose !== null ? latest - previousClose : null
     const rawVolume = quoteNumber(fields[8])
     const identity = stockMarketIdentity(stock.quoteId, stock.instrumentType)
+    const amount = quoteNumber(fields[9])
     return [
       {
         code: stock.code,
@@ -713,6 +728,7 @@ async function fetchSinaQuotes(stocks: WatchStock[], caller: string): Promise<St
         volumeUnit: identity.volumeUnit,
         source: 'sina',
         latest,
+        averagePrice: calculateAverageTradePrice(amount, rawVolume, 'share'),
         changePercent: change !== null && previousClose ? (change / previousClose) * 100 : null,
         change,
         open: quoteNumber(fields[1]),
@@ -723,7 +739,7 @@ async function fetchSinaQuotes(stocks: WatchStock[], caller: string): Promise<St
           rawVolume !== null && !MARKET_INDEX_QUOTE_IDS.has(stock.quoteId)
             ? rawVolume / 100
             : rawVolume,
-        amount: quoteNumber(fields[9]),
+        amount,
         turnoverRate: null,
         updatedAt: now,
         dataAt: zonedDateTimeToIso(`${fields[30]} ${fields[31]}`, 'CN')

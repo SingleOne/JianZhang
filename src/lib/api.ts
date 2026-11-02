@@ -50,7 +50,7 @@ import {
 } from '../shared/user-data-backup'
 import { DEMO_SECTORS, DEMO_STOCKS, DEMO_VALUES } from './demo-data'
 import { createStateClient } from './state-client'
-import { stockMarketIdentity } from '../shared/stock-market'
+import { calculateAverageTradePrice, stockMarketIdentity } from '../shared/stock-market'
 import { previewCorporateAction, reversalEntries } from './portfolio-ledger'
 
 function normalizeDemoCompletionNotifications(
@@ -306,6 +306,7 @@ function makeDemoQuotes(watchlist: WatchStock[]): StockQuote[] {
   const now = new Date().toISOString()
   return watchlist.map((stock, index) => {
     const known = DEMO_VALUES[stock.quoteId]
+    const identity = stockMarketIdentity(stock.quoteId, stock.instrumentType)
     const sector = makeDemoSectorQuote(stock.quoteId)
     const radarSignals =
       index === 0
@@ -322,8 +323,9 @@ function makeDemoQuotes(watchlist: WatchStock[]): StockQuote[] {
         : undefined
     if (known)
       return {
-        ...stockMarketIdentity(stock.quoteId, stock.instrumentType),
+        ...identity,
         ...known,
+        averagePrice: calculateAverageTradePrice(known.amount, known.volume, identity.volumeUnit),
         totalMarketValue: known.latest === null ? null : known.latest * 1_000_000_000,
         sector,
         radarSignals,
@@ -332,20 +334,23 @@ function makeDemoQuotes(watchlist: WatchStock[]): StockQuote[] {
         dataAt: now
       }
     const base = 24 + index * 7.31
+    const volume = 182300
+    const amount = 486320000
     return {
       code: stock.code,
       name: stock.name,
       quoteId: stock.quoteId,
-      ...stockMarketIdentity(stock.quoteId, stock.instrumentType),
+      ...identity,
       latest: base,
+      averagePrice: calculateAverageTradePrice(amount, volume, identity.volumeUnit),
       change: 0.18,
       changePercent: 0.76,
       open: base - 0.22,
       high: base + 0.64,
       low: base - 0.51,
       previousClose: base - 0.18,
-      volume: 182300,
-      amount: 486320000,
+      volume,
+      amount,
       turnoverRate: 1.26,
       totalMarketValue: base * 1_000_000_000,
       sector,

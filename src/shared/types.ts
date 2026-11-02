@@ -1540,6 +1540,7 @@ export interface StockQuote {
   volumeUnit?: import('./stock-market').StockVolumeUnit
   source?: StockQuoteSource
   latest: number | null
+  averagePrice?: number | null
   change: number | null
   changePercent: number | null
   open: number | null

@@ -98,6 +98,7 @@ export function stockQuoteEqual(left: StockQuote, right: StockQuote): boolean {
     left.code === right.code &&
     left.name === right.name &&
     left.latest === right.latest &&
+    left.averagePrice === right.averagePrice &&
     left.change === right.change &&
     left.changePercent === right.changePercent &&
     left.open === right.open &&

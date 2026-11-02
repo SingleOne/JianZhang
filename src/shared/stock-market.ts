@@ -133,6 +133,16 @@ export function volumeUnitForMarket(market: StockMarket): StockVolumeUnit {
   return market === 'CN' ? 'lot' : 'share'
 }
 
+export function calculateAverageTradePrice(
+  amount: number | null,
+  volume: number | null,
+  volumeUnit: StockVolumeUnit
+): number | null {
+  return amount !== null && volume !== null && volume > 0
+    ? amount / (volume * (volumeUnit === 'lot' ? 100 : 1))
+    : null
+}
+
 export function marketLabelForQuoteId(quoteId: string): string {
   const exchange = exchangeFromQuoteId(quoteId)
   if (exchange === 'HKEX') return '港股'

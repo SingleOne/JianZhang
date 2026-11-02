@@ -484,11 +484,6 @@ export function StockQuoteDetails({
     }
   }, [autoRefresh, market, quoteId, refreshSeconds, tradingCalendar])
 
-  const volumeUnit = quote?.volumeUnit ?? volumeUnitForMarket(market)
-  const averagePrice =
-    quote?.amount != null && quote.volume != null && quote.volume > 0
-      ? quote.amount / (quote.volume * (volumeUnit === 'lot' ? 100 : 1))
-      : null
   const holdingDays = getPositionHoldingDays(
     stock?.position,
     tradingCalendar.closedDates,
@@ -636,7 +631,7 @@ export function StockQuoteDetails({
         <div>
           <dt>均价</dt>
           <dd>
-            <AnimatedNumber value={averagePrice} formatValue={formatCurrency} />
+            <AnimatedNumber value={quote?.averagePrice} formatValue={formatCurrency} />
           </dd>
         </div>
       </dl>
