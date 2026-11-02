@@ -29,6 +29,7 @@ import {
 } from '../shared/stock-market'
 import { applyAppThemePreference } from '../lib/theme'
 import { observeContentHeight } from '../lib/observe-content-height'
+import { isMarketOpen, millisecondsUntilNextMarketOpen } from '../shared/market-hours'
 import type {
   AppState,
   KlineBar,
@@ -420,6 +421,14 @@ export function StockQuoteDetails({
 }) {
   const [intraday, setIntraday] = useState<KlineResult | null>(null)
   const [orderBook, setOrderBook] = useState<StockOrderBook | null>(null)
+  const stock = state.watchlist.find((item) => item.quoteId === quoteId)
+  const quote = quotes.find((item) => item.quoteId === quoteId)
+  const market = stock?.market ?? marketFromQuoteId(quoteId)
+  const tradingCalendar = state.settings.tradingCalendar.markets[market]
+  const autoRefresh = state.settings.autoRefreshQuotes
+  const refreshSeconds = stock?.isPriority
+    ? state.settings.priorityRefreshSeconds
+    : state.settings.regularRefreshSeconds
 
   useEffect(() => {
     let active = true
@@ -431,30 +440,55 @@ export function StockQuoteDetails({
         if (active) setIntraday(null)
       }
     )
-    if (marketCapabilitiesForQuoteId(quoteId).orderBook) {
-      void stockApi.getOrderBook(quoteId).then(
-        (result) => {
-          if (active) setOrderBook(result)
-        },
-        () => {
-          if (active) setOrderBook(null)
-        }
-      )
-    }
     return () => {
       active = false
     }
   }, [quoteId])
 
-  const stock = state.watchlist.find((item) => item.quoteId === quoteId)
-  const quote = quotes.find((item) => item.quoteId === quoteId)
-  const market = stock?.market ?? marketFromQuoteId(quoteId)
+  useEffect(() => {
+    if (!marketCapabilitiesForQuoteId(quoteId).orderBook) return
+    let active = true
+    let refreshTimer: number | undefined
+    const refreshMilliseconds = Math.max(3, refreshSeconds) * 1000
+
+    const scheduleRefresh = () => {
+      if (!active || !autoRefresh) return
+      const now = new Date()
+      refreshTimer = window.setTimeout(
+        () => {
+          if (isMarketOpen(market, new Date(), tradingCalendar)) {
+            refresh()
+          } else {
+            scheduleRefresh()
+          }
+        },
+        isMarketOpen(market, now, tradingCalendar)
+          ? refreshMilliseconds
+          : millisecondsUntilNextMarketOpen(market, now, tradingCalendar)
+      )
+    }
+    const refresh = () => {
+      void stockApi
+        .getOrderBook(quoteId)
+        .then((result) => {
+          if (active) setOrderBook(result)
+        })
+        .catch(() => undefined)
+        .finally(scheduleRefresh)
+    }
+
+    refresh()
+    return () => {
+      active = false
+      window.clearTimeout(refreshTimer)
+    }
+  }, [autoRefresh, market, quoteId, refreshSeconds, tradingCalendar])
+
   const volumeUnit = quote?.volumeUnit ?? volumeUnitForMarket(market)
   const averagePrice =
     quote?.amount != null && quote.volume != null && quote.volume > 0
       ? quote.amount / (quote.volume * (volumeUnit === 'lot' ? 100 : 1))
       : null
-  const tradingCalendar = state.settings.tradingCalendar.markets[market]
   const holdingDays = getPositionHoldingDays(
     stock?.position,
     tradingCalendar.closedDates,
