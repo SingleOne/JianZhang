@@ -658,7 +658,8 @@ async function fetchTencentQuotes(stocks: WatchStock[], caller: string): Promise
     const totalMarketValueYi = quoteNumber(fields[45])
     const volume = quoteNumber(fields[36] || fields[6])
     const amount = quoteNumber(identity.market === 'CN' ? summary[2] : fields[37])
-    const averagePrice = identity.market === 'CN' ? quoteNumber(fields[51]) : null
+    const averagePriceIndex = { CN: 51, HK: 73, US: 67 }[identity.market]
+    const averagePrice = quoteNumber(fields[averagePriceIndex])
     return [
       {
         code: stock.code,
