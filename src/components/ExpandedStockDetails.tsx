@@ -2747,6 +2747,7 @@ export function ExpandedStockDetails({
                         <CandlestickChart
                           bars={data.bars}
                           market={market}
+                          quote={priceTab === 'trend' ? quote : undefined}
                           variant={priceTab === 'fiveDay' ? 'fiveDay' : 'intraday'}
                           onHoverBar={priceTab === 'trend' ? undefined : handleHoverBar}
                           marketInsightOverlay={

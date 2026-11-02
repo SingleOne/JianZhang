@@ -27,6 +27,7 @@ import {
   stockMarketIdentity,
   type StockMarket
 } from '../../src/shared/stock-market'
+import { marketDateTimeInput } from '../../src/shared/market-hours'
 import type { MarketRequestLogger } from './market-request-logger'
 import type { SectorBinding } from './sector-market-cache'
 import { eastmoneyHistorySession } from './eastmoney-history-session'
@@ -1188,23 +1189,34 @@ function toIntradayKlineResult(
 ): KlineResult {
   if (lines.length === 0) throw new Error('行情服务未返回分时数据')
 
-  const tradingDate = lines.at(-1)?.slice(0, 10) ?? ''
-  const bars = lines
-    .filter((line) => line.startsWith(tradingDate))
-    .map((line) => {
-      const [time, open, close, high, low, volume, amount] = line.split(',')
-      return {
-        time,
-        open: Number(open),
-        close: Number(close),
-        high: Number(high),
-        low: Number(low),
-        volume: Number(volume),
-        amount: Number(amount)
-      }
-    })
+  const market = marketFromQuoteId(quoteId)
+  const bars = lines.map((line) => {
+    const [time, open, close, high, low, volume, amount, averagePrice] = line.split(',')
+    return {
+      time:
+        market === 'US'
+          ? marketDateTimeInput(market, new Date(`${time.replace(' ', 'T')}:00+08:00`)).replace(
+              'T',
+              ' '
+            )
+          : time,
+      open: Number(open),
+      close: Number(close),
+      high: Number(high),
+      low: Number(low),
+      volume: Number(volume),
+      amount: Number(amount),
+      averagePrice: quoteNumber(averagePrice)
+    }
+  })
+  const tradingDate = bars.at(-1)?.time.slice(0, 10) ?? ''
 
-  return { quoteId, name: name ?? '', tradingDate, bars }
+  return {
+    quoteId,
+    name: name ?? '',
+    tradingDate,
+    bars: bars.filter((bar) => bar.time.startsWith(tradingDate))
+  }
 }
 
 function toHistoricalKlineResult(

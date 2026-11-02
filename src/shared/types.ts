@@ -1601,6 +1601,7 @@ export interface KlineBar {
   low: number
   volume: number
   amount: number
+  averagePrice?: number | null
   changePercent?: number
   turnoverRate?: number
 }

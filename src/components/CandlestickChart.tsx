@@ -7,6 +7,7 @@ import {
   LineStyle,
   LineSeries,
   type HistogramData,
+  type ISeriesApi,
   type LineData,
   type MouseEventParams,
   type SeriesMarker,
@@ -18,7 +19,8 @@ import { useEffect, useRef } from 'react'
 import { useResolvedAppTheme } from '../hooks/useResolvedAppTheme'
 import { formatAmount, formatPrice, formatVolume } from '../lib/format'
 import { getChartThemeColors, type ChartThemeColors } from '../lib/theme'
-import type { KlineBar } from '../shared/types'
+import type { KlineBar, StockQuote } from '../shared/types'
+import { marketDateTimeInput } from '../shared/market-hours'
 import type { StockMarket } from '../shared/stock-market'
 import { volumeUnitForMarket } from '../shared/stock-market'
 
@@ -31,6 +33,7 @@ interface ChartReferenceOverlay {
 interface CandlestickChartProps {
   bars: KlineBar[]
   market: StockMarket
+  quote?: StockQuote
   variant?: 'intraday' | 'sectorIntraday' | 'fiveDay'
   onHoverBar?: (bar: KlineBar | null) => void
   marketInsightOverlay?: ChartReferenceOverlay | null
@@ -111,7 +114,9 @@ function intradayAveragePrice(bars: KlineBar[], market: StockMarket): Map<UTCTim
     if (!isRegularBar(bar)) continue
     cumulativeAmount += bar.amount
     cumulativeShares += bar.volume * (market === 'CN' ? 100 : 1)
-    if (cumulativeShares > 0) {
+    if (bar.averagePrice != null && bar.averagePrice > 0) {
+      result.set(toTimestamp(bar.time), bar.averagePrice)
+    } else if (cumulativeShares > 0) {
       result.set(toTimestamp(bar.time), cumulativeAmount / cumulativeShares)
     }
   }
@@ -133,9 +138,27 @@ function intradayLineData(
 function intradayAverageData(
   slots: UTCTimestamp[],
   bars: KlineBar[],
-  market: StockMarket
+  market: StockMarket,
+  latestAveragePrice?: number | null,
+  latestAverageAt?: string
 ): LinePoint[] {
-  const averages = intradayAveragePrice(bars.slice(0, -1), market)
+  const averages = intradayAveragePrice(bars, market)
+  if (latestAveragePrice != null && latestAveragePrice > 0 && latestAverageAt) {
+    const date = new Date(latestAverageAt)
+    if (!Number.isNaN(date.getTime())) {
+      const quoteMinute = marketDateTimeInput(market, date).replace('T', ' ')
+      const quoteTime = toTimestamp(quoteMinute)
+      const latestBar = bars.at(-1)
+      if (
+        latestBar &&
+        quoteMinute.slice(11) >= '09:30' &&
+        quoteTime >= toTimestamp(latestBar.time) &&
+        slots.includes(quoteTime)
+      ) {
+        averages.set(quoteTime, latestAveragePrice)
+      }
+    }
+  }
   return slots.map((time) => {
     const value = averages.get(time)
     return value === undefined ? { time } : { time, value }
@@ -202,6 +225,7 @@ function intradayExtremaMarkers(bars: KlineBar[], theme: ChartThemeColors): Seri
 export default function CandlestickChart({
   bars,
   market,
+  quote,
   variant = 'intraday',
   onHoverBar,
   marketInsightOverlay = null
@@ -212,10 +236,13 @@ export default function CandlestickChart({
   const volumeTooltipRef = useRef<HTMLDivElement>(null)
   const auctionZoneRef = useRef<HTMLDivElement>(null)
   const auctionBoundaryRef = useRef<HTMLDivElement>(null)
+  const averagePriceLineRef = useRef<ISeriesApi<'Line'> | null>(null)
   const isIntraday = variant !== 'fiveDay'
   const showAuction = variant === 'intraday' && market === 'CN'
   const volumeUnit = volumeUnitForMarket(market)
   const resolvedTheme = useResolvedAppTheme()
+  const latestAveragePrice = quote?.averagePrice
+  const latestAverageAt = quote?.dataAt
 
   useEffect(() => {
     const priceContainer = priceContainerRef.current
@@ -335,7 +362,7 @@ export default function CandlestickChart({
         lastValueVisible: false,
         crosshairMarkerVisible: false
       })
-      averagePriceLine.setData(intradayAverageData(sessionSlots, chartBars, market))
+      averagePriceLineRef.current = averagePriceLine
 
       if (marketInsightOverlay) {
         const priceLines = [
@@ -516,12 +543,25 @@ export default function CandlestickChart({
 
       const tooltip = tooltipRef.current
       const point = param.point
-      if (!tooltip || !bar || !point || point.x < 0 || point.y < 0) {
+      const averagePriceLine = averagePriceLineRef.current
+      const averagePoint = averagePriceLine ? param.seriesData.get(averagePriceLine) : undefined
+      const averagePrice =
+        averagePoint && 'value' in averagePoint && typeof averagePoint.value === 'number'
+          ? averagePoint.value
+          : undefined
+      if (
+        !tooltip ||
+        (!bar && averagePrice === undefined) ||
+        !point ||
+        point.x < 0 ||
+        point.y < 0
+      ) {
         hideTooltip()
         return
       }
 
-      tooltip.textContent = `${bar.time.slice(11, 16)}  价格 ${formatPrice(bar.close)}`
+      const time = bar ? bar.time.slice(11, 16) : timeLabel(param.time!, false)
+      tooltip.textContent = `${time}${bar ? `  价格 ${formatPrice(bar.close)}` : ''}  均价 ${formatPrice(averagePrice)}`
       placeTooltip(tooltip, point, priceContainer)
     }
     const handleVolumeCrosshairMove = (param: MouseEventParams<Time>) => {
@@ -594,12 +634,36 @@ export default function CandlestickChart({
       hideTooltip()
       hideVolumeTooltip()
       if (!isIntraday) onHoverBar?.(null)
+      averagePriceLineRef.current = null
       priceChart.remove()
       volumeChart?.remove()
     }
   }, [
     bars,
     isIntraday,
+    market,
+    marketInsightOverlay,
+    onHoverBar,
+    resolvedTheme,
+    showAuction,
+    variant,
+    volumeUnit
+  ])
+
+  useEffect(() => {
+    const averagePriceLine = averagePriceLineRef.current
+    if (!averagePriceLine) return
+    const chartBars = showAuction ? bars : bars.filter(isRegularBar)
+    if (chartBars.length === 0) return
+    const slots = intradaySessionSlots(chartBars, market, showAuction)
+    averagePriceLine.setData(
+      intradayAverageData(slots, chartBars, market, latestAveragePrice, latestAverageAt)
+    )
+  }, [
+    bars,
+    isIntraday,
+    latestAveragePrice,
+    latestAverageAt,
     market,
     marketInsightOverlay,
     onHoverBar,
