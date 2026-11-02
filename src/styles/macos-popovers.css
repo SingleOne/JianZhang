@@ -349,7 +349,7 @@
 :root.macos-popover[data-theme] .is-inline .taskbar-tooltip-details > div {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 4px 8px;
 }
 

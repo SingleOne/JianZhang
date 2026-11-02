@@ -433,7 +433,7 @@ html.tray-mode #root {
 .taskbar-tooltip-details > div {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 4px 8px;
 }
 
@@ -442,9 +442,15 @@ html.tray-mode #root {
 }
 
 .taskbar-tooltip-details dd {
+  display: flex;
+  align-items: center;
   margin: 0;
   color: var(--stock-popover-text);
   font-weight: 600;
+}
+
+.taskbar-tooltip-details .animated-number {
+  line-height: inherit;
 }
 
 .taskbar-tooltip-sparkline dd {
