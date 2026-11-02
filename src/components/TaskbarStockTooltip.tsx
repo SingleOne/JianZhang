@@ -60,6 +60,13 @@ function formatLargeOrderVolume(volume: number | null | undefined): string {
   return volume >= 10_000 ? `${(volume / 10_000).toFixed(2)}万` : volume.toLocaleString('zh-CN')
 }
 
+function formatTaskbarVolume(volume: number | null | undefined, unit: StockVolumeUnit): string {
+  if (volume !== null && volume !== undefined && unit === 'lot' && volume < 10_000) {
+    return `${volume.toLocaleString('zh-CN')}手`
+  }
+  return formatVolume(volume, unit)
+}
+
 function FiveLevelOrderBook({ orderBook }: { orderBook: StockOrderBook | null }) {
   return (
     <div className="taskbar-tooltip-order-book">
@@ -223,19 +230,19 @@ export function MiniPriceSparkline({
         <span className="taskbar-tooltip-period-heading">
           <span>最近15分钟</span>
           {hasVolume ? (
-            <span title="最近15分钟成交量合计">{formatVolume(volumeTotal, volumeUnit)}</span>
+            <span title="最近15分钟成交量合计">{formatTaskbarVolume(volumeTotal, volumeUnit)}</span>
           ) : null}
         </span>
         {hasVolume ? (
           <span className="taskbar-tooltip-volume-heading">
             最新量{intervalMinutes === 5 ? '（5分钟）' : ''}{' '}
-            {formatVolume(latestVolume, volumeUnit)}
+            {formatTaskbarVolume(latestVolume, volumeUnit)}
           </span>
         ) : null}
       </dt>
       <dd>
         <svg
-          aria-label={`最近15分钟价格从 ${formatPrice(prices[0])} 变化至 ${formatPrice(prices.at(-1))}，最高 ${formatPrice(maximum)}，最低 ${formatPrice(minimum)}${hasVolume ? `，每${intervalMinutes === 1 ? '' : intervalMinutes}分钟成交量，合计 ${formatVolume(volumeTotal, volumeUnit)}，最新一根 ${formatVolume(latestVolume, volumeUnit)}` : ''}`}
+          aria-label={`最近15分钟价格从 ${formatPrice(prices[0])} 变化至 ${formatPrice(prices.at(-1))}，最高 ${formatPrice(maximum)}，最低 ${formatPrice(minimum)}${hasVolume ? `，每${intervalMinutes === 1 ? '' : intervalMinutes}分钟成交量，合计 ${formatTaskbarVolume(volumeTotal, volumeUnit)}，最新一根 ${formatTaskbarVolume(latestVolume, volumeUnit)}` : ''}`}
           role="img"
           viewBox={`0 0 ${width} ${height}`}
           preserveAspectRatio={expanded ? 'none' : undefined}
