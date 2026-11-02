@@ -449,6 +449,11 @@ export function StockQuoteDetails({
   const stock = state.watchlist.find((item) => item.quoteId === quoteId)
   const quote = quotes.find((item) => item.quoteId === quoteId)
   const market = stock?.market ?? marketFromQuoteId(quoteId)
+  const volumeUnit = quote?.volumeUnit ?? volumeUnitForMarket(market)
+  const averagePrice =
+    quote?.amount != null && quote.volume != null && quote.volume > 0
+      ? quote.amount / (quote.volume * (volumeUnit === 'lot' ? 100 : 1))
+      : null
   const tradingCalendar = state.settings.tradingCalendar.markets[market]
   const holdingDays = getPositionHoldingDays(
     stock?.position,
@@ -593,6 +598,12 @@ export function StockQuoteDetails({
         <div>
           <dt>换手</dt>
           <dd>{formatPercent(quote?.turnoverRate).replace(/^\+/, '')}</dd>
+        </div>
+        <div>
+          <dt>均价</dt>
+          <dd>
+            <AnimatedNumber value={averagePrice} formatValue={formatCurrency} />
+          </dd>
         </div>
       </dl>
 
