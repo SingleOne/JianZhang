@@ -136,7 +136,7 @@
 
   & .panel-heading-side {
     margin-left: auto;
-    align-self: stretch;
+    align-self: flex-start;
   }
 
   & .panel-heading h1 {

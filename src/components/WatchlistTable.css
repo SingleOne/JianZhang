@@ -151,7 +151,6 @@
 .portfolio-summary {
   display: flex;
   align-items: stretch;
-  height: 100%;
   gap: 4px;
   padding-left: 12px;
   border-left: 1px solid #d8dee8;
@@ -161,7 +160,7 @@
   min-width: 94px;
   display: grid;
   grid-template-rows: repeat(3, auto);
-  align-content: space-between;
+  align-content: start;
   gap: 2px;
   padding: 5px 10px;
   background: #f8fafc;
