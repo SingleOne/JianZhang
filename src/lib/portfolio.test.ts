@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   StockPosition,
   StockQuote,
+  StockTradingBook,
   TTradingAccount,
   TTradeRecord,
   WatchStock
@@ -240,6 +241,146 @@ describe('portfolio calculations', () => {
       )
     ).toBe(0)
   })
+
+  it('reuses sale proceeds for a partial buyback regardless of trade purpose', () => {
+    const position: StockPosition = {
+      quantity: 1_500,
+      cost: 15.835816666666666,
+      openedToday: false,
+      openedOn: '2026-07-01'
+    }
+    const tradingAccount = {
+      ...account([
+        {
+          id: 'buyback',
+          side: 'buy',
+          purpose: 'base',
+          tradedAt: '2026-07-31T10:17',
+          price: 16.02,
+          quantity: 500,
+          fees: { ...EMPTY_FEES, commission: 1 },
+          note: ''
+        },
+        {
+          id: 'sell-first',
+          side: 'sell',
+          purpose: 't',
+          tradedAt: '2026-07-31T09:49',
+          price: 16,
+          quantity: 600,
+          fees: { ...EMPTY_FEES, commission: 1, stampDuty: 4.8 },
+          note: ''
+        }
+      ]),
+      position
+    }
+    const currentQuote = quote({ latest: 16.35, previousClose: 15.51 })
+    const metrics = calculatePositionMetrics(position, currentQuote, tradingAccount)
+
+    expect(metrics.todayCostBasis).toBeCloseTo(24_816)
+    expect(metrics.todayProfit).toBeCloseTo(1_292.2)
+    expect(metrics.todayProfitPercent).toBeCloseTo(5.207124)
+
+    const book: StockTradingBook = {
+      quoteId: currentQuote.quoteId,
+      accounts: { first: tradingAccount, second: { ...account([]), position } },
+      tBatches: []
+    }
+    const stock: WatchStock = {
+      code: currentQuote.code,
+      name: currentQuote.name,
+      quoteId: currentQuote.quoteId,
+      marketLabel: '沪A',
+      showInTaskbar: false,
+      isPriority: true,
+      showRadarSignals: true,
+      position: { ...position, quantity: 3_000 }
+    }
+    const combined = calculatePositionMetrics(stock.position, currentQuote, book)
+    const summary = calculatePortfolioSummary([stock], [currentQuote], {
+      [stock.quoteId]: book
+    })
+    for (const result of [combined, summary]) {
+      expect(result.todayCostBasis).toBeCloseTo(48_081)
+      expect(result.todayProfit).toBeCloseTo(2_552.2)
+      expect(result.todayProfitPercent).toBeCloseTo((2_552.2 / 48_081) * 100)
+    }
+  })
+
+  it.each<{
+    name: string
+    sides: TTradeRecord['side'][]
+    quantities: number[]
+    positionQuantity: number
+    basis: number
+    profit: number
+  }>([
+    {
+      name: 'repeated sell-first round trips',
+      sides: ['sell', 'buy', 'sell', 'buy'],
+      quantities: [100, 100, 100, 100],
+      positionQuantity: 1_000,
+      basis: 10_000,
+      profit: 1_000
+    },
+    {
+      name: 'repeated buy-first round trips',
+      sides: ['buy', 'sell', 'buy', 'sell'],
+      quantities: [100, 100, 100, 100],
+      positionQuantity: 1_000,
+      basis: 11_000,
+      profit: 1_000
+    },
+    {
+      name: 'purchases exceeding earlier sale proceeds',
+      sides: ['sell', 'buy'],
+      quantities: [100, 200],
+      positionQuantity: 1_100,
+      basis: 11_000,
+      profit: 1_100
+    },
+    {
+      name: 'closing an overnight position',
+      sides: ['sell'],
+      quantities: [1_000],
+      positionQuantity: 0,
+      basis: 10_000,
+      profit: 0
+    },
+    {
+      name: 'opening and closing a position today',
+      sides: ['buy', 'sell'],
+      quantities: [100, 100],
+      positionQuantity: 0,
+      basis: 1_000,
+      profit: 0
+    }
+  ])(
+    'uses peak additional capital for $name',
+    ({ sides, quantities, positionQuantity, basis, profit }) => {
+      const trades: TTradeRecord[] = sides.map((side, index) => ({
+        id: `trade-${index}`,
+        side,
+        purpose: 'base',
+        tradedAt: `2026-07-31T10:0${index}`,
+        price: 10,
+        quantity: quantities[index],
+        fees: EMPTY_FEES,
+        note: ''
+      }))
+      const metrics = calculatePositionMetrics(
+        positionQuantity > 0
+          ? { quantity: positionQuantity, cost: 10, openedToday: false, openedOn: '2026-07-01' }
+          : undefined,
+        quote({ latest: 11, previousClose: 10 }),
+        account(trades.reverse())
+      )
+
+      expect(metrics.todayCostBasis).toBe(basis)
+      expect(metrics.todayProfit).toBe(profit)
+      expect(metrics.todayProfitPercent).toBeCloseTo((profit / basis) * 100)
+    }
+  )
 
   it('aggregates priced positions without losing the total position count', () => {
     const stocks: WatchStock[] = [

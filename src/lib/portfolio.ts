@@ -190,6 +190,7 @@ export function calculatePositionMetrics(
     let sellQuantity = 0
     let buyCost = 0
     let sellProceeds = 0
+    let peakAdditionalCapital = 0
 
     for (const trade of todayTrades) {
       const amount = trade.price * trade.quantity
@@ -201,6 +202,8 @@ export function calculatePositionMetrics(
         sellQuantity += trade.quantity
         sellProceeds += amount - fees
       }
+      // Sale proceeds can fund later purchases without adding capital again.
+      peakAdditionalCapital = Math.max(peakAdditionalCapital, buyCost - sellProceeds)
     }
 
     const openingQuantity = Math.max(0, currentQuantity - buyQuantity + sellQuantity)
@@ -214,8 +217,8 @@ export function calculatePositionMetrics(
     const currentValue = currentQuantity === 0 ? 0 : marketValue
 
     if (openingValue !== null && currentValue !== null) {
-      todayCostBasis = openingValue + buyCost
-      todayProfit = currentValue + sellProceeds - todayCostBasis
+      todayCostBasis = openingValue + peakAdditionalCapital
+      todayProfit = currentValue + sellProceeds - openingValue - buyCost
     }
   }
 
