@@ -5,6 +5,7 @@ import {
 } from './market-calendar'
 import { isAfterMarketClose, marketDateKey } from './market-hours'
 import { marketFromQuoteId, stockMarketIdentity, type StockMarket } from './stock-market'
+import { normalizeStopLoss, type StopLossRule, type StopLossSnapshot } from './stop-loss'
 import { normalizeWatchlistAddedDate } from './watchlist-date'
 export type {
   StockCurrency,
@@ -55,6 +56,7 @@ export interface WatchStock {
   position?: StockPosition
   positionSnapshots?: StockPositionSnapshot[]
   alertRules?: StockAlertRule[]
+  stopLoss?: StopLossRule
   groupIds?: string[]
   /** 添加当天的本地日期，格式为 YYYY-MM-DD。 */
   addedAt?: string
@@ -404,6 +406,8 @@ export function synchronizeWatchlistGroupMemberships(
 
 export function normalizeWatchlist(stocks: readonly WatchStock[]): WatchStock[] {
   return stocks.map((stock) => {
+    const { stopLoss, ...metadata } = stock
+    const normalizedStopLoss = normalizeStopLoss(stopLoss)
     const identity = stockMarketIdentity(stock.quoteId, stock.instrumentType)
     const normalizeCostRate = (value: number | undefined) =>
       typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
@@ -420,7 +424,8 @@ export function normalizeWatchlist(stocks: readonly WatchStock[]): WatchStock[] 
         }
       : undefined
     return {
-      ...stock,
+      ...metadata,
+      ...(normalizedStopLoss ? { stopLoss: normalizedStopLoss } : {}),
       ...identity,
       addedAt: normalizeWatchlistAddedDate(
         typeof stock.addedAt === 'string' ? stock.addedAt : undefined
@@ -3131,6 +3136,8 @@ export interface StockDesktopApi {
   applyGitHubGistRestore: (importId: string, version: string) => Promise<void>
   hideWindow: () => Promise<void>
   quitApp: () => Promise<void>
+  getStopLossSnapshots: () => Promise<StopLossSnapshot[]>
+  onStopLossUpdated: (callback: (snapshots: StopLossSnapshot[]) => void) => () => void
   onQuotesUpdated: (callback: (quotes: StockQuote[]) => void) => () => void
   onStateUpdated: (callback: (state: AppState) => void) => () => void
   onTaskbarLayout: (callback: (layout: TaskbarLayout) => void) => () => void

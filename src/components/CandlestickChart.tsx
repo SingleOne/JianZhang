@@ -7,6 +7,7 @@ import {
   LineStyle,
   LineSeries,
   type HistogramData,
+  type IPriceLine,
   type ISeriesApi,
   type LineData,
   type MouseEventParams,
@@ -36,6 +37,7 @@ interface CandlestickChartProps {
   quote?: StockQuote
   variant?: 'intraday' | 'sectorIntraday' | 'fiveDay'
   onHoverBar?: (bar: KlineBar | null) => void
+  referenceLine?: { price: number; title: string } | null
   marketInsightOverlay?: ChartReferenceOverlay | null
 }
 
@@ -228,7 +230,8 @@ export default function CandlestickChart({
   quote,
   variant = 'intraday',
   onHoverBar,
-  marketInsightOverlay = null
+  marketInsightOverlay = null,
+  referenceLine = null
 }: CandlestickChartProps) {
   const priceContainerRef = useRef<HTMLDivElement>(null)
   const volumeContainerRef = useRef<HTMLDivElement>(null)
@@ -236,6 +239,8 @@ export default function CandlestickChart({
   const volumeTooltipRef = useRef<HTMLDivElement>(null)
   const auctionZoneRef = useRef<HTMLDivElement>(null)
   const auctionBoundaryRef = useRef<HTMLDivElement>(null)
+  const priceSeriesRef = useRef<ISeriesApi<'Line'> | null>(null)
+  const referencePriceLineRef = useRef<IPriceLine | null>(null)
   const averagePriceLineRef = useRef<ISeriesApi<'Line'> | null>(null)
   const isIntraday = variant !== 'fiveDay'
   const showAuction = variant === 'intraday' && market === 'CN'
@@ -321,6 +326,7 @@ export default function CandlestickChart({
       crosshairMarkerBorderColor: theme.accent,
       crosshairMarkerBackgroundColor: theme.background
     })
+    priceSeriesRef.current = priceLine
     priceLine.setData(
       isIntraday
         ? intradayLineData(sessionSlots, barsByTime, isRegularBar)
@@ -634,6 +640,8 @@ export default function CandlestickChart({
       hideTooltip()
       hideVolumeTooltip()
       if (!isIntraday) onHoverBar?.(null)
+      priceSeriesRef.current = null
+      referencePriceLineRef.current = null
       averagePriceLineRef.current = null
       priceChart.remove()
       volumeChart?.remove()
@@ -664,6 +672,37 @@ export default function CandlestickChart({
     isIntraday,
     latestAveragePrice,
     latestAverageAt,
+    market,
+    marketInsightOverlay,
+    onHoverBar,
+    resolvedTheme,
+    showAuction,
+    variant,
+    volumeUnit
+  ])
+
+  const referencePrice = referenceLine?.price
+  const referenceTitle = referenceLine?.title
+  useEffect(() => {
+    const series = priceSeriesRef.current
+    if (!series) return
+    if (referencePriceLineRef.current) series.removePriceLine(referencePriceLineRef.current)
+    referencePriceLineRef.current =
+      referencePrice !== undefined
+        ? series.createPriceLine({
+            price: referencePrice,
+            title: referenceTitle,
+            color: getChartThemeColors(resolvedTheme).amber,
+            lineWidth: 1,
+            lineStyle: LineStyle.Dashed,
+            axisLabelVisible: true
+          })
+        : null
+  }, [
+    referencePrice,
+    referenceTitle,
+    bars,
+    isIntraday,
     market,
     marketInsightOverlay,
     onHoverBar,

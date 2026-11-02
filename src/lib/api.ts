@@ -1,3 +1,4 @@
+import { evaluateStopLosses, updateStopLossReferences } from '../shared/stop-loss'
 import { normalizeAccountState } from '../shared/stock-accounts'
 import {
   DEFAULT_APP_SETTINGS,
@@ -1015,6 +1016,10 @@ const demoApi: StockDesktopApi = {
   },
   async saveState(state) {
     const normalized = normalizeAccountState(state)
+    normalized.watchlist = updateStopLossReferences(
+      normalized,
+      makeDemoQuotes(normalized.watchlist)
+    )
     localStorage.setItem('jianzhang-demo-state-v1', JSON.stringify(normalized))
     return normalized
   },
@@ -1154,6 +1159,24 @@ const demoApi: StockDesktopApi = {
   },
   async hideWindow() {},
   async quitApp() {},
+  async getStopLossSnapshots() {
+    const state = loadDemoState()
+    return evaluateStopLosses(state, makeDemoQuotes(state.watchlist))
+  },
+  onStopLossUpdated(callback) {
+    let active = true
+    const publish = () => {
+      if (active) {
+        const state = loadDemoState()
+        callback(evaluateStopLosses(state, makeDemoQuotes(state.watchlist)))
+      }
+    }
+    const timer = window.setInterval(publish, 1000)
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
+  },
   onQuotesUpdated: noSubscribe,
   onStateUpdated: noSubscribe,
   onTaskbarLayout: noSubscribe,

@@ -1,3 +1,6 @@
+import type { MarketCalendarDates } from '../shared/market-calendar'
+import { StopLossEditor } from './StopLossEditor'
+import type { StopLossRule } from '../shared/stop-loss'
 import type { StockTradingBook } from '../shared/types'
 import { BellRing, Plus, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
@@ -22,10 +25,11 @@ import type {
 interface StockAlertDialogProps {
   stock: WatchStock
   quote: StockQuote | undefined
+  calendar?: MarketCalendarDates
   account: TTradingAccount | StockTradingBook | undefined
   exchangeRates: ExchangeRateSettings
   profitOverride: PositionProfitOverride | undefined
-  onSave: (rules: StockAlertRule[]) => void
+  onSave: (rules: StockAlertRule[], stopLoss?: StopLossRule) => void
   onClose: () => void
 }
 
@@ -39,12 +43,14 @@ function valueClass(value: number | null | undefined): string {
 export function StockAlertDialog({
   stock,
   quote,
+  calendar,
   account,
   exchangeRates,
   profitOverride,
   onSave,
   onClose
 }: StockAlertDialogProps) {
+  const [stopLoss, setStopLoss] = useState(stock.stopLoss)
   const capabilities = marketCapabilitiesForQuoteId(stock.quoteId)
   const currency = stock.currency ?? stockMarketIdentity(stock.quoteId).currency
   const currencySymbol = STOCK_CURRENCY_SYMBOLS[currency]
@@ -137,7 +143,8 @@ export function StockAlertDialog({
               rules.map(({ target, ...rule }) => ({
                 ...rule,
                 target: Number(target)
-              }))
+              })),
+              stopLoss
             )
           }}
         >
@@ -161,6 +168,14 @@ export function StockAlertDialog({
               </span>
             ) : null}
           </div>
+
+          <StopLossEditor
+            stock={stock}
+            quote={quote}
+            calendar={calendar}
+            rule={stopLoss}
+            onChange={setStopLoss}
+          />
 
           <div className="stock-alert-list-heading">
             <span>

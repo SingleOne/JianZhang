@@ -1,3 +1,4 @@
+import { withStopLoss } from './stop-loss'
 import { normalizeAccountCorporateActions, normalizeAccountState } from './stock-accounts'
 import { createStatePatch, reuseUnchangedState } from './state-changes'
 import {
@@ -139,5 +140,27 @@ export function normalizeStateChanges(previous: AppState, input: AppState): AppS
       next.watchlist
     )
   }
+  next.watchlist = next.watchlist.map((stock) => {
+    if (!stock.stopLoss) return stock
+    if ((stock.position?.quantity ?? 0) <= 0) return withStopLoss(stock, undefined)
+    const before = previousStocks.get(stock.quoteId)?.stopLoss
+    const rule = stock.stopLoss
+    if (
+      before?.mode === 'trailingClose' &&
+      rule.mode === 'trailingClose' &&
+      before.resetId === rule.resetId
+    ) {
+      const referencePrice = Math.max(before.referencePrice, rule.referencePrice)
+      const quoteDate = [before.quoteDate, rule.quoteDate]
+        .filter((date): date is string => Boolean(date))
+        .sort()
+        .at(-1)
+      return {
+        ...stock,
+        stopLoss: { ...rule, referencePrice, ...(quoteDate ? { quoteDate } : {}) }
+      }
+    }
+    return stock
+  })
   return reuseUnchangedState(previous, next)
 }

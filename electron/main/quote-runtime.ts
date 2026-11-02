@@ -1,3 +1,4 @@
+import { updateStopLossReferences } from '../../src/shared/stop-loss'
 import { getActiveStockTBatches } from '../../src/shared/stock-t-batches'
 import {
   applyTAlertTriggersToAccounts,
@@ -422,10 +423,19 @@ export class QuoteRuntime {
         currentState.settings.exchangeRates,
         currentState.portfolioPerformanceAdjustments ?? {}
       )
-      if (tAlertUpdate.changed || stockAlertUpdate.changed) {
+      const stopLossWatchlist = updateStopLossReferences(
+        { ...currentState, watchlist: stockAlertUpdate.watchlist },
+        result.quotes,
+        now
+      )
+      if (
+        tAlertUpdate.changed ||
+        stockAlertUpdate.changed ||
+        stopLossWatchlist !== stockAlertUpdate.watchlist
+      ) {
         const nextState = {
           ...currentState,
-          watchlist: stockAlertUpdate.watchlist,
+          watchlist: stopLossWatchlist,
           stockTradingBooks: tAlertUpdate.accounts
         }
         this.dependencies.setState(nextState)

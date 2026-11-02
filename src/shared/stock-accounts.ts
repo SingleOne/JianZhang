@@ -1,3 +1,4 @@
+import { withStopLoss } from './stop-loss'
 import { currencyForMarket, marketFromQuoteId, STOCK_MARKET_LABELS } from './stock-market'
 import {
   DEFAULT_APP_SETTINGS,
@@ -339,10 +340,11 @@ export function normalizeAccountState(state: AppState): AppState {
   }
   const watchlist = state.watchlist.map((stock) => {
     const { positionSnapshots: _legacySnapshots, ...metadata } = stock
-    return {
+    const next = {
       ...metadata,
       position: aggregateAccountPositions(listStockAccountBooks(stockTradingBooks[stock.quoteId]))
     }
+    return withStopLoss(next, next.stopLoss)
   })
   const { tTradingAccounts: _oldBooks, corporateActionRecords: _oldRecords, ...rest } = state
   return {

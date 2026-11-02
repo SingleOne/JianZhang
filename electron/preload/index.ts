@@ -1,3 +1,4 @@
+import type { StopLossSnapshot } from '../../src/shared/stop-loss'
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   CacheCategoryId,
@@ -130,6 +131,8 @@ const api: StockDesktopBridge = {
     ipcRenderer.invoke('github-sync:gist:restore-apply', importId, version),
   hideWindow: () => ipcRenderer.invoke('app:hide'),
   quitApp: () => ipcRenderer.invoke('app:quit'),
+  getStopLossSnapshots: () => ipcRenderer.invoke('stop-loss:get'),
+  onStopLossUpdated: (callback) => subscribe<StopLossSnapshot[]>('stop-loss:updated', callback),
   onQuotesUpdated: (callback) => subscribe<StockQuote[]>('quotes:updated', callback),
   onStateChanged: (callback) => subscribe<AppStateUpdate>('state:changed', callback),
   onTaskbarLayout: (callback) => subscribe<TaskbarLayout>('taskbar:layout', callback),

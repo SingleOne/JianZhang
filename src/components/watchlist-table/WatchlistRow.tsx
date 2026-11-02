@@ -1,3 +1,5 @@
+import { evaluateStopLoss } from '../../shared/stop-loss'
+import '../StopLoss.css'
 import type { StockTradingBook } from '../../shared/types'
 import { stockApi } from '../../lib/api'
 import { stockTOverview } from '../../lib/stock-accounts'
@@ -314,6 +316,7 @@ export const WatchlistRow = memo(function WatchlistRow({
   const sinceAddedPerformance = calculateSinceAddedPerformance(stock, quote)
   const sinceAddedDirection = valueClass(sinceAddedPerformance?.changePercent)
   const dividendYield = calculatePreviousCloseDividendYield(dividendFinancing, quote)
+  const stopLoss = evaluateStopLoss(stock, quote, new Date(), tradingCalendar.markets[market])
   const hasPosition = (stock.position?.quantity ?? 0) > 0
   const currentCycleProfit = hasPosition ? metrics.totalProfit : null
   const displayedTotalProfit = hasPosition ? metrics.totalProfit : cumulativeProfit
@@ -506,7 +509,7 @@ export const WatchlistRow = memo(function WatchlistRow({
               </>
             ) : null}
             <button
-              className={`row-action-button is-alert-action ${stockAlertClass || (enabledStockAlertCount > 0 ? 'is-active' : '')}`}
+              className={`row-action-button is-alert-action ${stockAlertClass || (enabledStockAlertCount > 0 || stock.stopLoss ? 'is-active' : '')}`}
               type="button"
               onClick={(event) => {
                 event.stopPropagation()
@@ -516,7 +519,7 @@ export const WatchlistRow = memo(function WatchlistRow({
               title={
                 enabledStockAlertCount > 0
                   ? `已启用 ${enabledStockAlertCount} 条股价提醒`
-                  : '设置股价、涨幅或收益率提醒'
+                  : '设置股价提醒或持仓止损线'
               }
             >
               <BellRing size={15} />
@@ -577,6 +580,21 @@ export const WatchlistRow = memo(function WatchlistRow({
                             追踪
                           </button>
                         ) : null}
+                        {stopLoss ? (
+                          <AppButton
+                            variant="plain"
+                            className={`stop-loss-badge ${stopLoss.reached ? 'is-reached' : ''}`}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              onOpenStockAlert(stock)
+                            }}
+                            aria-label={`${stock.name} 止损价 ${formatPrice(stopLoss.stopPrice)}，${stopLoss.reached === null ? '等待有效行情' : stopLoss.reached ? '已达到止损线' : '未达到止损线'}`}
+                            title={`止损价 ${formatPrice(stopLoss.stopPrice)}；${stopLoss.reached === null ? '等待有效行情' : stopLoss.reached ? '已达到止损线' : '未达到止损线'}`}
+                          >
+                            止 {formatPrice(stopLoss.stopPrice)}
+                          </AppButton>
+                        ) : null}
+
                         <FiveLevelAlertBadges
                           alerts={
                             overview.summaries.length ? quote?.fiveLevelLargeOrders : undefined

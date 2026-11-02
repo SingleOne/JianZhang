@@ -1,3 +1,6 @@
+import { evaluateStopLoss } from '../shared/stop-loss'
+import { AppSwitch } from './AppFormControls'
+import './StopLoss.css'
 import type { StockTradingBook } from '../shared/types'
 import './ExpandedStockDetails.css'
 import {
@@ -1936,6 +1939,10 @@ export function ExpandedStockDetails({
 }: ExpandedStockDetailsProps) {
   const market = marketFromQuoteId(stock.quoteId)
   const isAStock = market === 'CN'
+  const [showStopLoss, setShowStopLoss] = useState(
+    () => localStorage.getItem('jianzhang-show-stop-loss') !== 'false'
+  )
+  const stopLoss = evaluateStopLoss(stock, quote, new Date(), tradingCalendar.markets[market])
   const capabilities = marketCapabilitiesForQuoteId(stock.quoteId)
   const marketCalendar = tradingCalendar.markets[market]
   const volumeUnit = volumeUnitForMarket(market)
@@ -2623,6 +2630,30 @@ export function ExpandedStockDetails({
                   ) : null}
                   {priceTab === 'trend' ? <span className="legend-average-price">VWAP</span> : null}
                   <span className="legend-volume">成交量</span>
+                  {priceTab === 'trend' && stopLoss ? (
+                    <>
+                      <AppSwitch
+                        label="止损线"
+                        className="stop-loss-switch"
+                        checked={showStopLoss}
+                        onChange={(event) => {
+                          setShowStopLoss(event.target.checked)
+                          localStorage.setItem(
+                            'jianzhang-show-stop-loss',
+                            String(event.target.checked)
+                          )
+                        }}
+                      />
+                      <span className={`stop-loss-badge ${stopLoss.reached ? 'is-reached' : ''}`}>
+                        {formatPrice(stopLoss.stopPrice)} ·{' '}
+                        {stopLoss.reached === null
+                          ? '等待有效行情'
+                          : stopLoss.reached
+                            ? '已触线'
+                            : `距止损 ${Math.abs(stopLoss.distancePercent!).toFixed(2)}%`}
+                      </span>
+                    </>
+                  ) : null}
                   {priceTab === 'daily' && capabilities.chipDistribution ? (
                     <button
                       className={`chip-distribution-toggle ${chipDistributionEnabled ? 'is-active' : ''}`}
@@ -2748,6 +2779,11 @@ export function ExpandedStockDetails({
                           bars={data.bars}
                           market={market}
                           quote={priceTab === 'trend' ? quote : undefined}
+                          referenceLine={
+                            priceTab === 'trend' && showStopLoss && stopLoss
+                              ? { price: stopLoss.stopPrice, title: '止损线' }
+                              : null
+                          }
                           variant={priceTab === 'fiveDay' ? 'fiveDay' : 'intraday'}
                           onHoverBar={priceTab === 'trend' ? undefined : handleHoverBar}
                           marketInsightOverlay={

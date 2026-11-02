@@ -1,3 +1,4 @@
+import { withStopLoss, type StopLossRule } from './shared/stop-loss'
 import { applyAccountSecurityConversion } from './lib/stock-accounts'
 import { SecuritiesAccountProvider } from './components/SecuritiesAccountContext'
 import {
@@ -1203,9 +1204,9 @@ export default function App() {
   )
 
   const updateStockAlerts = useCallback(
-    (quoteId: string, alertRules: StockAlertRule[]) => {
+    (quoteId: string, alertRules: StockAlertRule[], stopLoss?: StopLossRule) => {
       const nextWatchlist = state.watchlist.map((stock) =>
-        stock.quoteId === quoteId ? { ...stock, alertRules } : stock
+        stock.quoteId === quoteId ? withStopLoss({ ...stock, alertRules }, stopLoss) : stock
       )
       void persist({ ...state, watchlist: nextWatchlist })
     },

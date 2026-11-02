@@ -14,6 +14,7 @@ import {
   type TriggeredTFloatingProfitAlert
 } from '../../src/lib/t-alerts'
 import { applyStockAlertTriggers, type TriggeredStockAlert } from '../../src/lib/stock-alerts'
+import { evaluateStopLosses, updateStopLossReferences } from '../../src/shared/stop-loss'
 import { parseConfigDocument } from '../../src/shared/config'
 import {
   applyAppStateUpdate,
@@ -285,6 +286,7 @@ const CHANNELS = [
   'trading-calendar:refresh',
   'exchange-rates:refresh',
   'state:save',
+  'stop-loss:get',
   'completion-notifications:get',
   'completion-notifications:save',
   'cache:summary',
@@ -493,6 +495,9 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
   handle('sector-index:get', (_event, quoteId: string) => dependencies.getSectorIndex(quoteId))
   handle('trading-calendar:refresh', () => dependencies.refreshTradingCalendar())
   handle('exchange-rates:refresh', () => dependencies.refreshExchangeRates())
+  handle('stop-loss:get', () =>
+    evaluateStopLosses(dependencies.getState(), dependencies.getQuotes())
+  )
   handle('state:save', async (_event, update: AppStateUpdate) => {
     const currentState = dependencies.getState()
     const nextState = applyAppStateUpdate(currentState, update)
@@ -536,7 +541,10 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
     )
     const savedState = {
       ...normalizedState,
-      watchlist: stockAlertUpdate.watchlist,
+      watchlist: updateStopLossReferences(
+        { ...normalizedState, watchlist: stockAlertUpdate.watchlist },
+        dependencies.getQuotes()
+      ),
       stockTradingBooks: tAlertUpdate.accounts
     }
     dependencies.setState(savedState)

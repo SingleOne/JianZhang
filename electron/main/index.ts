@@ -1,3 +1,4 @@
+import { evaluateStopLosses } from '../../src/shared/stop-loss'
 import {
   accountFeeSettings,
   getStockAccountBook,
@@ -296,6 +297,15 @@ function applyPreparedUserDataBackup(
 }
 
 function sendToWindows(channel: string, payload: unknown): void {
+  if (channel === 'state:updated' || channel === 'quotes:updated') {
+    windowManager?.sendToWindows(
+      'stop-loss:updated',
+      evaluateStopLosses(
+        channel === 'state:updated' ? (payload as AppState) : state,
+        channel === 'quotes:updated' ? (payload as StockQuote[]) : getLatestQuotes()
+      )
+    )
+  }
   if (channel === 'state:updated') {
     const next = payload as AppState
     const update = createAppStateUpdate(publishedState, next)

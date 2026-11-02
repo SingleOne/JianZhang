@@ -1,3 +1,4 @@
+import type { StopLossRule } from '../shared/stop-loss'
 import { useSecuritiesAccountState } from './SecuritiesAccountContext'
 import {
   ArrowDown,
@@ -186,7 +187,7 @@ interface WatchlistTableProps {
     record: CorporateActionRecord
   ) => string | void
   onUpdateCorporateActionRecord: (record: CorporateActionRecord) => void
-  onUpdateStockAlerts: (quoteId: string, rules: StockAlertRule[]) => void
+  onUpdateStockAlerts: (quoteId: string, rules: StockAlertRule[], stopLoss?: StopLossRule) => void
   stockTrackingProfiles: StockTrackingProfiles
   onStartTracking: (quoteId: string) => void
   onUpdateTracking: (profile: StockTrackingProfile) => void
@@ -1635,10 +1636,11 @@ export function WatchlistTable({
             quote={quotes.find((quote) => quote.quoteId === stockAlertStock.quoteId)}
             account={stockTradingBooks[stockAlertStock.quoteId]}
             exchangeRates={exchangeRates}
+            calendar={tradingCalendar.markets[marketFromQuoteId(stockAlertStock.quoteId)]}
             profitOverride={positionProfitOverrides[stockAlertStock.quoteId]}
             onClose={() => setStockAlertStock(null)}
-            onSave={(rules) => {
-              onUpdateStockAlerts(stockAlertStock.quoteId, rules)
+            onSave={(rules, stopLoss) => {
+              onUpdateStockAlerts(stockAlertStock.quoteId, rules, stopLoss)
               setStockAlertStock(null)
             }}
           />

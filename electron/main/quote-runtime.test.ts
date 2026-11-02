@@ -77,7 +77,11 @@ function stockQuote(stock: WatchStock): StockQuote {
   }
 }
 
-function createRuntime(state: AppState, publishQuotes = vi.fn()): QuoteRuntime {
+function createRuntime(
+  state: AppState,
+  publishQuotes = vi.fn(),
+  overrides: Partial<ConstructorParameters<typeof QuoteRuntime>[0]> = {}
+): QuoteRuntime {
   return new QuoteRuntime({
     getState: () => state,
     setState: vi.fn(),
@@ -97,7 +101,8 @@ function createRuntime(state: AppState, publishQuotes = vi.fn()): QuoteRuntime {
     marketRequestLogger: { logQuoteCycle: vi.fn() } as never,
     initialQuotes: [],
     scheduleQuoteSnapshot: vi.fn(),
-    disposeQuoteSnapshotCache: vi.fn()
+    disposeQuoteSnapshotCache: vi.fn(),
+    ...overrides
   })
 }
 
@@ -210,5 +215,47 @@ describe('QuoteRuntime tracking review quotes', () => {
     const refreshed = await runtime.refreshStock(stock.quoteId, 'second')
 
     expect(refreshed[0].radarSignals).toEqual(withRadar.radarSignals)
+  })
+})
+
+describe('QuoteRuntime stop loss persistence', () => {
+  it('commits a new high before broadcasting and avoids duplicate writes', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-02T02:00:00Z'))
+    try {
+      const stock = {
+        ...watchStock('600000', false),
+        position: { quantity: 100, cost: 10, openedToday: false },
+        stopLoss: { mode: 'trailingClose' as const, percent: 5, referencePrice: 10 }
+      }
+      let state = { ...appState(trackingProfile()), watchlist: [stock] }
+      const events: string[] = []
+      const persistState = vi.fn(() => {
+        events.push('persist')
+        expect(state.watchlist[0].stopLoss?.referencePrice).toBe(12)
+      })
+      const runtime = createRuntime(state, vi.fn(), {
+        getState: () => state,
+        setState: (next) => {
+          state = next as typeof state
+        },
+        persistState,
+        sendToWindows: (channel) => {
+          events.push(channel)
+        }
+      })
+      vi.mocked(fetchQuotes).mockResolvedValue({
+        source: 'eastmoney-primary',
+        quotes: [{ ...stockQuote(stock), previousClose: 12, dataAt: new Date().toISOString() }]
+      })
+      await runtime.refreshStock(stock.quoteId)
+      expect(state.watchlist[0].stopLoss?.referencePrice).toBe(12)
+      expect(events.indexOf('persist')).toBeLessThan(events.indexOf('quotes:updated'))
+      await runtime.refreshStock(stock.quoteId)
+      expect(persistState).toHaveBeenCalledOnce()
+      runtime.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
