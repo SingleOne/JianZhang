@@ -1,9 +1,19 @@
+import { useAppData } from './lib/data-center/hooks'
+import {
+  changeStock,
+  changeSettings,
+  saveTradingBook,
+  saveTrackingProfileMutation,
+  removeWatchStock,
+  withUnchangedData,
+  type StateMutation
+} from './lib/data-center/mutations'
+import { createStatePatch } from './shared/state-changes'
 import { withStopLoss, type StopLossRule } from './shared/stop-loss'
 import { applyAccountSecurityConversion } from './lib/stock-accounts'
 import { SecuritiesAccountProvider } from './components/SecuritiesAccountContext'
 import {
   upsertStockAccount,
-  upsertStockTradingBook,
   normalizeAccountState,
   corporateApplicationKey,
   listStockAccountBooks
@@ -32,13 +42,7 @@ import { SearchBar } from './components/SearchBar'
 import { StartupOverlay } from './components/StartupOverlay'
 import { useInitialRenderReady } from './hooks/useInitialRenderReady'
 import { TitlebarToolsMenu } from './components/TitlebarToolsMenu'
-import {
-  dataCenter,
-  getInitialBootstrap,
-  initialState,
-  isDesktopRuntime,
-  stockApi
-} from './lib/api'
+import { dataCenter, getInitialBootstrap, isDesktopRuntime, stockApi } from './lib/api'
 import {
   APP_COMPLETION_NOTIFICATION_EVENT,
   type AppCompletionNotification,
@@ -56,11 +60,7 @@ import {
   startStockTracking,
   stopStockTracking
 } from './lib/stock-tracking'
-import {
-  getDailyScanWatchlistGroup,
-  getTrackingWatchlistGroup,
-  synchronizeWatchlistGroupMemberships
-} from './shared/types'
+import { getDailyScanWatchlistGroup, getTrackingWatchlistGroup } from './shared/types'
 import packageInfo from '../package.json'
 import type {
   AppSettings,
@@ -89,7 +89,6 @@ import type {
   StockPosition,
   StockAlertRule,
   StockTrackingConclusionResult,
-  StockTrackingArchiveIndex,
   StockTrackingCycleSummary,
   StockTrackingProfile,
   StockTrackingSource,
@@ -194,8 +193,8 @@ const AiAssistantDrawer = __JIANZHANG_AI_MODULE_ENABLED__
 export default function App() {
   const [activeTitlebarPanel, setActiveTitlebarPanel] = useState<TitlebarPanelId | null>(null)
   const confirm = useConfirmDialog()
-  const [state, setState] = useState<AppState>(initialState)
-  const [trackingArchiveIndex, setTrackingArchiveIndex] = useState<StockTrackingArchiveIndex>({})
+  const state = useAppData((snapshot) => snapshot.state)
+  const trackingArchiveIndex = useAppData((snapshot) => snapshot.trackingArchiveIndex)
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null)
   const [stockSelectionRequest, setStockSelectionRequest] = useState<StockSelectionRequest | null>(
     null
@@ -370,8 +369,6 @@ export default function App() {
   useEffect(() => {
     getInitialBootstrap()
       .then((bootstrap) => {
-        setState(bootstrap.state)
-        setTrackingArchiveIndex(bootstrap.trackingArchiveIndex)
         setSource(bootstrap.source)
         if (bootstrap.warning) reportError(bootstrap.warning)
         setSelectedQuoteId((current) =>
@@ -395,11 +392,9 @@ export default function App() {
       })
       .catch(() => undefined)
 
-    const unsubscribeState = stockApi.onStateUpdated(setState)
     const unsubscribeSelection = stockApi.onSelectStock(handleStockSelection)
     const unsubscribeError = stockApi.onDataError(reportError)
     return () => {
-      unsubscribeState()
       unsubscribeSelection()
       unsubscribeError()
     }
@@ -573,29 +568,13 @@ export default function App() {
     [fundamentalOverview]
   )
   const persist = useCallback(
-    async (nextState: AppState, refreshDemoQuotes = true, rethrowSaveError = false) => {
-      const synchronizedState = {
-        ...nextState,
-        watchlist: synchronizeWatchlistGroupMemberships(
-          nextState.watchlist,
-          nextState.watchlistGroups,
-          nextState.stockTrackingProfiles
-        )
-      }
-      setState(synchronizedState)
+    async (mutate: StateMutation, refreshDemoQuotes = true, rethrowSaveError = false) => {
       try {
-        const saved = await stockApi.saveState(synchronizedState)
-        setState(saved)
+        const saved = await dataCenter.commands.update(mutate)
         if (!isDesktopRuntime && refreshDemoQuotes) await stockApi.refreshQuotes()
         return saved
       } catch (reason) {
         reportError(reason instanceof Error ? reason.message : '设置保存失败')
-        if (isDesktopRuntime) {
-          void stockApi.getBootstrap().then((bootstrap) => {
-            setState(bootstrap.state)
-            setTrackingArchiveIndex(bootstrap.trackingArchiveIndex)
-          })
-        }
         if (rethrowSaveError) throw reason
         return null
       }
@@ -604,8 +583,16 @@ export default function App() {
   )
 
   const commitAccountState = useCallback(
-    async (next: AppState) => Boolean(await persist(next)),
-    [persist]
+    async (next: AppState) => {
+      try {
+        await stockApi.saveState(next)
+        return true
+      } catch (reason) {
+        reportError(reason instanceof Error ? reason.message : '保存失败')
+        return false
+      }
+    },
+    [reportError]
   )
 
   const requestWatchlistStockPosition = useCallback(
@@ -624,94 +611,90 @@ export default function App() {
 
   const addStock = useCallback(
     (result: SearchResult, options: StockAddOptions = {}) => {
-      const existing = state.watchlist.find((stock) => stock.quoteId === result.quoteId)
-      if (existing && !options.startTracking && !options.targetGroups?.length) {
-        requestWatchlistStockPosition(existing.quoteId, 'stock-add')
-        return
-      }
-      const targetGroups = options.targetGroups ?? []
-      const knownGroupIds = new Set(state.watchlistGroups.map((group) => group.id))
-      const nextGroups = [
-        ...state.watchlistGroups,
-        ...targetGroups.filter((group) => !knownGroupIds.has(group.id))
-      ]
-      const groupIds = new Set(existing?.groupIds ?? [])
-      targetGroups.forEach((group) => groupIds.add(group.id))
-      const knownQuote = dataCenter.getSnapshot().quotesById.get(result.quoteId)
-      const addedAt = watchlistAddedDate()
-      const nextStock = existing
-        ? { ...existing, groupIds: [...groupIds] }
-        : {
-            ...result,
-            showInTaskbar: false,
-            isPriority: false,
-            showRadarSignals: true,
-            groupIds: [...groupIds],
-            addedAt,
-            addedPrice:
-              knownQuote?.latest !== null && knownQuote?.latest !== undefined
-                ? knownQuote.latest
-                : undefined
-          }
-      const nextTrackingProfiles = { ...state.stockTrackingProfiles }
-      if (options.startTracking && options.source) {
-        nextTrackingProfiles[result.quoteId] = startStockTracking(
-          nextTrackingProfiles[result.quoteId],
-          nextStock,
-          options.source,
-          dataCenter.getSnapshot().quotesById.get(result.quoteId)
-        )
-      }
-      const nextState = {
-        ...state,
-        watchlistGroups: nextGroups,
-        watchlist: existing
-          ? state.watchlist.map((stock) => (stock.quoteId === result.quoteId ? nextStock : stock))
-          : [...state.watchlist, nextStock],
-        stockTrackingProfiles: nextTrackingProfiles
-      }
       requestWatchlistStockPosition(result.quoteId, 'stock-add')
-      void persist(nextState, false)
+      let added = false
+      void persist((current) => {
+        const existing = current.watchlist.find((stock) => stock.quoteId === result.quoteId)
+        if (existing && !options.startTracking && !options.targetGroups?.length) return current
+        added = !existing
+        const targetGroups = options.targetGroups ?? []
+        const knownGroupIds = new Set(current.watchlistGroups.map((group) => group.id))
+        const groupIds = new Set(existing?.groupIds ?? [])
+        targetGroups.forEach((group) => groupIds.add(group.id))
+        const quote = dataCenter.getSnapshot().quotesById.get(result.quoteId)
+        const stock = existing
+          ? { ...existing, groupIds: [...groupIds] }
+          : {
+              ...result,
+              showInTaskbar: false,
+              isPriority: false,
+              showRadarSignals: true,
+              groupIds: [...groupIds],
+              addedAt: watchlistAddedDate(),
+              addedPrice: quote?.latest ?? undefined
+            }
+        return {
+          ...current,
+          watchlistGroups: [
+            ...current.watchlistGroups,
+            ...targetGroups.filter((group) => !knownGroupIds.has(group.id))
+          ],
+          watchlist: existing
+            ? current.watchlist.map((item) => (item.quoteId === result.quoteId ? stock : item))
+            : [...current.watchlist, stock],
+          stockTrackingProfiles:
+            options.startTracking && options.source
+              ? {
+                  ...current.stockTrackingProfiles,
+                  [result.quoteId]: startStockTracking(
+                    current.stockTrackingProfiles[result.quoteId],
+                    stock,
+                    options.source,
+                    quote
+                  )
+                }
+              : current.stockTrackingProfiles
+        }
+      }, false)
         .then(async (saved) => {
-          if (!saved || existing) return
+          if (!saved || !added) return
           const incoming = await stockApi.refreshQuote(result.quoteId)
-          const refreshedQuote = incoming.find((quote) => quote.quoteId === result.quoteId)
-          const refreshedPrice = refreshedQuote?.latest
-          const profile = saved.stockTrackingProfiles[result.quoteId]
-          if (refreshedPrice === null || refreshedPrice === undefined) return
-          const savedStock = saved.watchlist.find((stock) => stock.quoteId === result.quoteId)
-          const shouldSaveAddedPrice = Boolean(savedStock && !savedStock.addedPrice)
-          const shouldSaveTrackingPrice = Boolean(options.source && profile)
-          if (!shouldSaveAddedPrice && !shouldSaveTrackingPrice) return
-          const sources = profile?.sources.map((source) =>
-            source.id === options.source?.id && !source.detail?.startPrice
-              ? { ...source, detail: { ...source.detail, startPrice: refreshedPrice } }
-              : source
-          )
-          const nextSaved = {
-            ...saved,
-            watchlist: shouldSaveAddedPrice
-              ? saved.watchlist.map((stock) =>
-                  stock.quoteId === result.quoteId
-                    ? { ...stock, addedPrice: refreshedPrice }
-                    : stock
-                )
-              : saved.watchlist,
-            stockTrackingProfiles:
-              profile && sources
-                ? {
-                    ...saved.stockTrackingProfiles,
-                    [result.quoteId]: { ...profile, sources }
-                  }
-                : saved.stockTrackingProfiles
-          }
-          await persist(nextSaved, false)
+          const price = incoming.find((quote) => quote.quoteId === result.quoteId)?.latest
+          if (price == null) return
+          await persist((current) => {
+            const stock = current.watchlist.find((item) => item.quoteId === result.quoteId)
+            const addedStock = saved.watchlist.find((item) => item.quoteId === result.quoteId)
+            if (!stock || stock !== addedStock) return current
+            const profile = current.stockTrackingProfiles[result.quoteId]
+            return {
+              ...current,
+              watchlist: current.watchlist.map((item) =>
+                item.quoteId === result.quoteId && item.addedPrice == null
+                  ? { ...item, addedPrice: price }
+                  : item
+              ),
+              stockTrackingProfiles:
+                profile && options.source
+                  ? {
+                      ...current.stockTrackingProfiles,
+                      [result.quoteId]: {
+                        ...profile,
+                        sources: profile.sources.map((source) =>
+                          source.id === options.source?.id && source.detail?.startPrice == null
+                            ? { ...source, detail: { ...source.detail, startPrice: price } }
+                            : source
+                        )
+                      }
+                    }
+                  : current.stockTrackingProfiles
+            }
+          }, false)
         })
-        .catch((reason: unknown) => {
+        .catch((reason: unknown) =>
           reportError(reason instanceof Error ? reason.message : '新股票行情获取失败')
-        })
+        )
     },
-    [persist, reportError, requestWatchlistStockPosition, state]
+    [persist, reportError, requestWatchlistStockPosition]
   )
 
   const addDailyMarketScanStock = useCallback(
@@ -780,45 +763,35 @@ export default function App() {
 
   const saveTrackingProfile = useCallback(
     (profile: StockTrackingProfile) => {
-      const trackingGroup = getTrackingWatchlistGroup(state.watchlistGroups)
-      const nextGroups = state.watchlistGroups.some((group) => group.id === trackingGroup.id)
-        ? state.watchlistGroups
-        : [...state.watchlistGroups, trackingGroup]
-      const nextWatchlist = state.watchlist.map((stock) => {
-        if (stock.quoteId !== profile.quoteId) return stock
-        const groupIds = new Set(stock.groupIds ?? [])
-        if (profile.status === 'tracking') groupIds.add(trackingGroup.id)
-        else groupIds.delete(trackingGroup.id)
-        return { ...stock, groupIds: [...groupIds] }
-      })
-      void persist({
-        ...state,
-        watchlist: nextWatchlist,
-        watchlistGroups: nextGroups,
-        stockTrackingProfiles: {
-          ...state.stockTrackingProfiles,
-          [profile.quoteId]: profile
-        }
-      })
+      void persist(
+        withUnchangedData(
+          state,
+          (current) => current.stockTrackingProfiles[profile.quoteId],
+          saveTrackingProfileMutation(profile)
+        )
+      )
     },
     [persist, state]
   )
 
   const startManualTracking = useCallback(
     (quoteId: string) => {
-      const stock = state.watchlist.find((item) => item.quoteId === quoteId)
-      if (!stock) return
-      const nextProfile = startStockTracking(
-        state.stockTrackingProfiles[quoteId],
-        stock,
-        createStockTrackingSource('manual', {
-          startPrice: dataCenter.getSnapshot().quotesById.get(quoteId)?.latest ?? undefined
-        }),
-        dataCenter.getSnapshot().quotesById.get(quoteId)
-      )
-      saveTrackingProfile(nextProfile)
+      const source = createStockTrackingSource('manual', {
+        startPrice: dataCenter.getSnapshot().quotesById.get(quoteId)?.latest ?? undefined
+      })
+      void persist((current) => {
+        const stock = current.watchlist.find((item) => item.quoteId === quoteId)
+        if (!stock) return current
+        const profile = startStockTracking(
+          current.stockTrackingProfiles[quoteId],
+          stock,
+          source,
+          dataCenter.getSnapshot().quotesById.get(quoteId)
+        )
+        return saveTrackingProfileMutation(profile)(current)
+      })
     },
-    [saveTrackingProfile, state.stockTrackingProfiles, state.watchlist]
+    [persist]
   )
 
   const stopTracking = useCallback(
@@ -828,40 +801,27 @@ export default function App() {
       summary: string,
       deletePreviousArchives = false
     ) => {
-      const profile = state.stockTrackingProfiles[quoteId]
-      if (!profile) return
-      const stoppedProfile = stopStockTracking(
-        profile,
-        result,
-        summary,
-        dataCenter.getSnapshot().quotesById.get(quoteId)
-      )
-      const { [quoteId]: _stoppedProfile, ...activeProfiles } = state.stockTrackingProfiles
-      const nextState = {
-        ...state,
-        stockTrackingProfiles: activeProfiles,
-        watchlist: synchronizeWatchlistGroupMemberships(
-          state.watchlist,
-          state.watchlistGroups,
-          activeProfiles
-        )
-      }
-      setState(nextState)
-      void stockApi
-        .archiveStockTrackingCycle(nextState, stoppedProfile, deletePreviousArchives)
-        .then((saved) => {
-          setState(saved.state)
-          setTrackingArchiveIndex(saved.archiveIndex)
+      void dataCenter.commands
+        .archive((current) => {
+          const profile = current.stockTrackingProfiles[quoteId]
+          if (!profile) throw new Error('该股票已停止追踪，请刷新后查看')
+          const { [quoteId]: _removed, ...stockTrackingProfiles } = current.stockTrackingProfiles
+          return {
+            state: { ...current, stockTrackingProfiles },
+            profile: stopStockTracking(
+              profile,
+              result,
+              summary,
+              dataCenter.getSnapshot().quotesById.get(quoteId)
+            ),
+            deletePreviousArchives
+          }
         })
-        .catch((reason: unknown) => {
+        .catch((reason: unknown) =>
           reportError(reason instanceof Error ? reason.message : '停止追踪失败')
-          void stockApi.getBootstrap().then((bootstrap) => {
-            setState(bootstrap.state)
-            setTrackingArchiveIndex(bootstrap.trackingArchiveIndex)
-          })
-        })
+        )
     },
-    [reportError, state]
+    [reportError]
   )
 
   const restartTracking = useCallback(
@@ -873,19 +833,10 @@ export default function App() {
 
   const removeStock = useCallback(
     (quoteId: string) => {
-      const nextWatchlist = state.watchlist.filter((stock) => stock.quoteId !== quoteId)
       setSelectedQuoteId((current) => (current === quoteId ? null : current))
-      void persist({
-        ...state,
-        watchlist: nextWatchlist,
-        portfolioPerformanceAdjustments: Object.fromEntries(
-          Object.entries(state.portfolioPerformanceAdjustments ?? {}).filter(
-            ([adjustedQuoteId]) => adjustedQuoteId !== quoteId
-          )
-        )
-      })
+      void persist(removeWatchStock(quoteId))
     },
-    [persist, state]
+    [persist]
   )
 
   const removeTrackedStock = useCallback(
@@ -902,46 +853,29 @@ export default function App() {
         tone: 'danger'
       })
       if (!confirmed) return
-      const stoppedProfile = profile
-        ? stopStockTracking(
-            profile,
-            'unverified',
-            '从股票列表中删除时停止追踪',
-            dataCenter.getSnapshot().quotesById.get(quoteId)
-          )
-        : undefined
-      const { [quoteId]: _removedProfile, ...activeProfiles } = state.stockTrackingProfiles
       setSelectedQuoteId((current) => (current === quoteId ? null : current))
-      const nextState = {
-        ...state,
-        watchlist: state.watchlist.filter((item) => item.quoteId !== quoteId),
-        portfolioPerformanceAdjustments: Object.fromEntries(
-          Object.entries(state.portfolioPerformanceAdjustments ?? {}).filter(
-            ([adjustedQuoteId]) => adjustedQuoteId !== quoteId
-          )
-        ),
-        stockTrackingProfiles: activeProfiles
-      }
-      if (!stoppedProfile) {
-        void persist(nextState)
-        return
-      }
-      setState(nextState)
-      void stockApi
-        .archiveStockTrackingCycle(nextState, stoppedProfile, false)
-        .then((saved) => {
-          setState(saved.state)
-          setTrackingArchiveIndex(saved.archiveIndex)
+      try {
+        await dataCenter.commands.archive((current) => {
+          const profile = current.stockTrackingProfiles[quoteId]
+          const { [quoteId]: _removed, ...stockTrackingProfiles } = current.stockTrackingProfiles
+          return {
+            state: { ...removeWatchStock(quoteId)(current), stockTrackingProfiles },
+            profile: profile
+              ? stopStockTracking(
+                  profile,
+                  'unverified',
+                  '从股票列表中删除时停止追踪',
+                  dataCenter.getSnapshot().quotesById.get(quoteId)
+                )
+              : undefined,
+            deletePreviousArchives: false
+          }
         })
-        .catch((reason: unknown) => {
-          reportError(reason instanceof Error ? reason.message : '删除股票并停止追踪失败')
-          void stockApi.getBootstrap().then((bootstrap) => {
-            setState(bootstrap.state)
-            setTrackingArchiveIndex(bootstrap.trackingArchiveIndex)
-          })
-        })
+      } catch (reason) {
+        reportError(reason instanceof Error ? reason.message : '删除股票并停止追踪失败')
+      }
     },
-    [confirm, persist, reportError, state]
+    [confirm, reportError, state]
   )
 
   const deleteTrackingArchiveCycle = useCallback(
@@ -954,9 +888,7 @@ export default function App() {
       })
       if (!confirmed) return false
       try {
-        setTrackingArchiveIndex(
-          await stockApi.deleteStockTrackingArchiveCycle(cycle.quoteId, cycle.cycleId)
-        )
+        await stockApi.deleteStockTrackingArchiveCycle(cycle.quoteId, cycle.cycleId)
         return true
       } catch (reason) {
         reportError(reason instanceof Error ? reason.message : '删除追踪周期失败')
@@ -978,7 +910,7 @@ export default function App() {
       })
       if (!confirmed) return false
       try {
-        setTrackingArchiveIndex(await stockApi.deleteAllStockTrackingArchives(quoteId))
+        await stockApi.deleteAllStockTrackingArchives(quoteId)
         return true
       } catch (reason) {
         reportError(reason instanceof Error ? reason.message : '清空历史追踪档案失败')
@@ -990,79 +922,93 @@ export default function App() {
 
   const savePortfolioPerformanceAdjustments = useCallback(
     async (adjustments: PortfolioPerformanceAdjustments, accountId?: string) => {
-      if (!accountId) return false
-      let next = state
-      for (const parent of Object.values(state.stockTradingBooks))
-        for (const book of listStockAccountBooks(parent)) {
-          if (book.accountId === accountId)
-            next = upsertStockAccount(
-              next,
-              { ...book, performanceAdjustmentCny: adjustments[book.quoteId] ?? 0 },
-              book.position,
-              false
-            )
-        }
-      return Boolean(await persist(next, false))
+      return Boolean(
+        await persist((state) => {
+          if (!accountId) return state
+          let next = state
+          for (const parent of Object.values(state.stockTradingBooks))
+            for (const book of listStockAccountBooks(parent)) {
+              if (book.accountId === accountId)
+                next = upsertStockAccount(
+                  next,
+                  { ...book, performanceAdjustmentCny: adjustments[book.quoteId] ?? 0 },
+                  book.position,
+                  false
+                )
+            }
+          return next
+        }, false)
+      )
     },
-    [persist, state]
+    [persist]
   )
 
   const savePortfolioPerformanceCache = useCallback(
     async (cache: PortfolioPerformanceCache) =>
-      Boolean(await persist({ ...state, portfolioPerformanceCache: cache }, false)),
-    [persist, state]
+      Boolean(
+        await persist((current) => ({ ...current, portfolioPerformanceCache: cache }), false)
+      ),
+    [persist]
   )
 
   const toggleTaskbar = useCallback(
     (quoteId: string) => {
-      const nextWatchlist = state.watchlist.map((stock) =>
-        stock.quoteId === quoteId ? { ...stock, showInTaskbar: !stock.showInTaskbar } : stock
+      void persist(
+        changeStock(quoteId, (stock) => ({ ...stock, showInTaskbar: !stock.showInTaskbar }))
       )
-      void persist({ ...state, watchlist: nextWatchlist })
     },
-    [persist, state]
+    [persist]
   )
 
   const togglePriority = useCallback(
     (quoteId: string) => {
-      const nextWatchlist = state.watchlist.map((stock) =>
-        stock.quoteId === quoteId && !stock.position
-          ? { ...stock, isPriority: !stock.isPriority }
-          : stock
+      void persist(
+        changeStock(quoteId, (stock) =>
+          stock.position ? stock : { ...stock, isPriority: !stock.isPriority }
+        )
       )
-      void persist({ ...state, watchlist: nextWatchlist })
     },
-    [persist, state]
+    [persist]
   )
 
   const updatePosition = useCallback(
-    async (quoteId: string, book: StockTradingBook, showRadarSignals: boolean) => {
-      const nextWatchlist = state.watchlist.map((stock) =>
-        stock.quoteId === quoteId
-          ? {
-              ...stock,
-              showRadarSignals,
-              isPriority: Object.values(book.accounts).some((account) => account.position)
-                ? true
-                : stock.isPriority
-            }
-          : stock
+    async (_quoteId: string, book: StockTradingBook, showRadarSignals: boolean) => {
+      return Boolean(
+        await persist(
+          withUnchangedData(
+            state,
+            (current) => current.stockTradingBooks[book.quoteId],
+            saveTradingBook(book, showRadarSignals)
+          ),
+          true,
+          true
+        )
       )
-      const nextState = { ...state, watchlist: nextWatchlist }
-      return Boolean(await persist(upsertStockTradingBook(nextState, book), true, true))
     },
     [persist, state]
   )
 
   const updateTTrading = useCallback(
     (quoteId: string, account: TTradingAccount, position: StockPosition | undefined) => {
-      void persist(upsertStockAccount(state, { ...account, quoteId }, position))
+      void persist(
+        withUnchangedData(
+          state,
+          (current) => current.stockTradingBooks[quoteId],
+          (current) => upsertStockAccount(current, { ...account, quoteId }, position)
+        )
+      )
     },
     [persist, state]
   )
   const updateStockTradingBook = useCallback(
     (book: StockTradingBook) => {
-      void persist(upsertStockTradingBook(state, book))
+      void persist(
+        withUnchangedData(
+          state,
+          (current) => current.stockTradingBooks[book.quoteId],
+          saveTradingBook(book)
+        )
+      )
     },
     [persist, state]
   )
@@ -1076,7 +1022,7 @@ export default function App() {
     ) => {
       const accountId = account.accountId
       if (!accountId) return '请选择股票账户'
-      try {
+      const mutate: StateMutation = (current) => {
         const hasConversion = account.ledger.entries.some(
           (entry) =>
             entry.kind === 'securityConversion' &&
@@ -1085,15 +1031,35 @@ export default function App() {
             entry.targetQuoteId !== quoteId
         )
         const next = hasConversion
-          ? applyAccountSecurityConversion(state, account, record)
-          : upsertStockAccount(state, account, position, false)
-        void persist({
+          ? applyAccountSecurityConversion(current, account, record)
+          : upsertStockAccount(current, account, position, false)
+        return {
           ...next,
           corporateActionApplications: {
             ...next.corporateActionApplications,
             [corporateApplicationKey(accountId, record.id)]: { ...record, accountId }
           }
-        })
+        }
+      }
+      try {
+        mutate(dataCenter.getSnapshot().state)
+        const affectedQuoteIds = new Set([
+          quoteId,
+          ...account.ledger.entries.flatMap((entry) =>
+            entry.kind === 'securityConversion' &&
+            entry.corporateActionId === record.id &&
+            entry.targetQuoteId
+              ? [entry.targetQuoteId]
+              : []
+          )
+        ])
+        void persist(
+          withUnchangedData(
+            state,
+            (current) => [...affectedQuoteIds].map((id) => current.stockTradingBooks[id]),
+            mutate
+          )
+        )
       } catch (reason) {
         return reason instanceof Error ? reason.message : '公司行动入账失败'
       }
@@ -1103,85 +1069,107 @@ export default function App() {
 
   const updateCorporateActionRecord = useCallback(
     (record: CorporateActionRecord) => {
-      void persist({
-        ...state,
-        corporateActionApplications: {
-          ...state.corporateActionApplications,
-          [corporateApplicationKey(record.accountId!, record.id)]: record
+      void persist((state) => {
+        return {
+          ...state,
+          corporateActionApplications: {
+            ...state.corporateActionApplications,
+            [corporateApplicationKey(record.accountId!, record.id)]: record
+          }
         }
       })
     },
-    [persist, state]
+    [persist]
   )
 
   const updateStockAlerts = useCallback(
     (quoteId: string, alertRules: StockAlertRule[], stopLoss?: StopLossRule) => {
-      const nextWatchlist = state.watchlist.map((stock) =>
-        stock.quoteId === quoteId ? withStopLoss({ ...stock, alertRules }, stopLoss) : stock
-      )
-      void persist({ ...state, watchlist: nextWatchlist })
+      void persist((state) => {
+        const nextWatchlist = state.watchlist.map((stock) =>
+          stock.quoteId === quoteId ? withStopLoss({ ...stock, alertRules }, stopLoss) : stock
+        )
+        return { ...state, watchlist: nextWatchlist }
+      })
     },
-    [persist, state]
+    [persist]
   )
 
   const reorderWatchlist = useCallback(
     (sourceQuoteId: string, targetQuoteId: string) => {
-      const sourceIndex = state.watchlist.findIndex((stock) => stock.quoteId === sourceQuoteId)
-      const targetIndex = state.watchlist.findIndex((stock) => stock.quoteId === targetQuoteId)
-      if (sourceIndex === -1 || targetIndex === -1 || sourceIndex === targetIndex) return
-      const nextWatchlist = [...state.watchlist]
-      const [movedStock] = nextWatchlist.splice(sourceIndex, 1)
-      nextWatchlist.splice(targetIndex, 0, movedStock)
-      void persist({ ...state, watchlist: nextWatchlist })
+      void persist((state) => {
+        const sourceIndex = state.watchlist.findIndex((stock) => stock.quoteId === sourceQuoteId)
+        const targetIndex = state.watchlist.findIndex((stock) => stock.quoteId === targetQuoteId)
+        if (sourceIndex === -1 || targetIndex === -1 || sourceIndex === targetIndex) return state
+        const nextWatchlist = [...state.watchlist]
+        const [movedStock] = nextWatchlist.splice(sourceIndex, 1)
+        nextWatchlist.splice(targetIndex, 0, movedStock)
+        return { ...state, watchlist: nextWatchlist }
+      })
     },
-    [persist, state]
+    [persist]
   )
 
   const pinStock = useCallback(
     (quoteId: string) => {
-      const currentIndex = state.watchlist.findIndex((stock) => stock.quoteId === quoteId)
-      if (currentIndex <= 0) return
-      const nextWatchlist = [...state.watchlist]
-      const [pinnedStock] = nextWatchlist.splice(currentIndex, 1)
-      nextWatchlist.unshift(pinnedStock)
-      void persist({ ...state, watchlist: nextWatchlist })
+      void persist((state) => {
+        const currentIndex = state.watchlist.findIndex((stock) => stock.quoteId === quoteId)
+        if (currentIndex <= 0) return state
+        const nextWatchlist = [...state.watchlist]
+        const [pinnedStock] = nextWatchlist.splice(currentIndex, 1)
+        nextWatchlist.unshift(pinnedStock)
+        return { ...state, watchlist: nextWatchlist }
+      })
     },
-    [persist, state]
+    [persist]
   )
 
   const updateColumnOrder = useCallback(
     (columnOrder: WatchlistColumnId[]) => {
-      void persist({ ...state, columnOrder })
+      void persist((state) => {
+        return { ...state, columnOrder }
+      })
     },
-    [persist, state]
+    [persist]
   )
 
   const updateWatchlistGroups = useCallback(
     (watchlistGroups: WatchlistGroup[], groupIdsByQuoteId: Record<string, string[]>) => {
-      const nextWatchlist = state.watchlist.map((stock) => ({
-        ...stock,
-        groupIds: groupIdsByQuoteId[stock.quoteId] ?? stock.groupIds ?? []
-      }))
-      void persist({ ...state, watchlistGroups, watchlist: nextWatchlist })
+      void persist((state) => {
+        const nextWatchlist = state.watchlist.map((stock) => ({
+          ...stock,
+          groupIds: groupIdsByQuoteId[stock.quoteId] ?? stock.groupIds ?? []
+        }))
+        return { ...state, watchlistGroups, watchlist: nextWatchlist }
+      })
     },
-    [persist, state]
+    [persist]
   )
 
   const updateStockGroups = useCallback(
     (quoteId: string, groupIds: string[]) => {
-      const nextWatchlist = state.watchlist.map((stock) =>
-        stock.quoteId === quoteId ? { ...stock, groupIds: [...new Set(groupIds)] } : stock
-      )
-      void persist({ ...state, watchlist: nextWatchlist })
+      void persist((state) => {
+        const nextWatchlist = state.watchlist.map((stock) =>
+          stock.quoteId === quoteId ? { ...stock, groupIds: [...new Set(groupIds)] } : stock
+        )
+        return { ...state, watchlist: nextWatchlist }
+      })
     },
-    [persist, state]
+    [persist]
   )
 
   const updateSettings = useCallback(
     (settings: AppSettings) => {
-      void persist({ ...state, settings })
+      const changes = Object.fromEntries(
+        Object.keys(settings).flatMap((key) => {
+          const name = key as keyof AppSettings
+          return createStatePatch(state.settings[name], settings[name])
+            ? [[name, settings[name]]]
+            : []
+        })
+      ) as Partial<AppSettings>
+      void persist(changeSettings(changes))
     },
-    [persist, state]
+    [persist, state.settings]
   )
 
   const refreshCacheSummary = useCallback(() => {
@@ -1365,7 +1353,7 @@ export default function App() {
       if (result.importId) {
         reportSuccess('用户数据导入完成，应用正在重启')
       } else {
-        const saved = await persist(result.state)
+        const saved = await persist((current) => ({ ...result.state!, revision: current.revision }))
         if (!saved) return false
         reportSuccess(`已导入 ${saved.watchlist.length} 只股票及全部设置`)
       }
@@ -1552,10 +1540,6 @@ export default function App() {
     setCalendarRefreshing(true)
     try {
       const tradingCalendar = await stockApi.refreshTradingCalendar()
-      setState((current) => ({
-        ...current,
-        settings: { ...current.settings, tradingCalendar }
-      }))
       const failedMarkets = (['CN', 'HK', 'US'] as const).filter(
         (market) => tradingCalendar.markets[market].lastError
       )
@@ -1575,10 +1559,6 @@ export default function App() {
     setExchangeRatesRefreshing(true)
     try {
       const exchangeRates = await stockApi.refreshExchangeRates()
-      setState((current) => ({
-        ...current,
-        settings: { ...current.settings, exchangeRates }
-      }))
       reportSuccess(`人民币汇率中间价已更新至 ${exchangeRates.rateDate ?? '最新公布日'}`)
     } catch (reason) {
       reportError(reason instanceof Error ? reason.message : '官方汇率刷新失败')
@@ -1989,9 +1969,9 @@ export default function App() {
               onClose={() => closeTitlebarPanel('account-manager')}
               onSave={async (accounts) =>
                 Boolean(
-                  await persist(
+                  await persist((current) =>
                     normalizeAccountState({
-                      ...state,
+                      ...current,
                       securitiesAccounts: accounts
                     })
                   )
@@ -2007,7 +1987,9 @@ export default function App() {
               onClose={() => closeTitlebarPanel('fee-scheme-manager')}
               onSave={async (feeSchemes, fixedFeeDefaults) =>
                 Boolean(
-                  await persist(normalizeAccountState({ ...state, feeSchemes, fixedFeeDefaults }))
+                  await persist((current) =>
+                    normalizeAccountState({ ...current, feeSchemes, fixedFeeDefaults })
+                  )
                 )
               }
             />

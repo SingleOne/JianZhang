@@ -1,12 +1,26 @@
-import type { AppState, BootstrapResult, StockDesktopApi, StockQuote } from '../../shared/types'
+import type {
+  AppState,
+  BootstrapResult,
+  StockDesktopApi,
+  StockQuote,
+  StockTrackingArchiveIndex
+} from '../../shared/types'
 import { getMarketIndexStocks } from '../../shared/types'
 import { reconcileStockQuotes } from '../quote-state'
 import { createSnapshotStore } from './store'
+import {
+  createMutationQueue,
+  prepareStateMutation,
+  type StateMutation,
+  type WriteStatus
+} from './mutations'
 
 export interface AppDataSnapshot {
   state: AppState
   quotes: StockQuote[]
   quotesById: ReadonlyMap<string, StockQuote>
+  trackingArchiveIndex: StockTrackingArchiveIndex
+  writes: WriteStatus
 }
 
 /** Owns shared renderer snapshots; the existing state client owns IPC revision handling. */
@@ -14,15 +28,24 @@ export function createDataCenter(transport: StockDesktopApi, initialState: AppSt
   const store = createSnapshotStore<AppDataSnapshot>({
     state: initialState,
     quotes: [],
-    quotesById: new Map()
+    quotesById: new Map(),
+    trackingArchiveIndex: {},
+    writes: { pendingCount: 0, activeOperation: null, lastError: null }
   })
   let quoteEventVersion = 0
   let bootstrapRequest: Promise<BootstrapResult> | null = null
   let activeQuoteIds: Set<string> | undefined
+  let confirmedState = initialState
+  let archiveVersion = 0
+  const receiveArchives = (trackingArchiveIndex: StockTrackingArchiveIndex) => {
+    archiveVersion += 1
+    store.publish({ ...store.getSnapshot(), trackingArchiveIndex })
+  }
 
   const receiveState = (state: AppState) => {
     const current = store.getSnapshot()
-    if ((state.revision ?? 0) < (current.state.revision ?? 0)) return
+    if ((state.revision ?? 0) < (confirmedState.revision ?? 0)) return
+    confirmedState = state
     const ids = new Set([
       ...state.watchlist.map((stock) => stock.quoteId),
       ...Object.values(state.stockTrackingProfiles).map((profile) => profile.quoteId),
@@ -61,14 +84,21 @@ export function createDataCenter(transport: StockDesktopApi, initialState: AppSt
   const getBootstrap = (): Promise<BootstrapResult> => {
     if (bootstrapRequest) return bootstrapRequest
     const version = quoteEventVersion
+    const knownArchiveVersion = archiveVersion
     bootstrapRequest = transport
       .getBootstrap()
       .then((result) => {
         receiveState(result.state)
         // A push arriving while bootstrap is in flight is newer than its snapshot.
         if (version === quoteEventVersion) receiveQuotes(result.quotes)
+        if (knownArchiveVersion === archiveVersion) receiveArchives(result.trackingArchiveIndex)
         const current = store.getSnapshot()
-        return { ...result, state: current.state, quotes: current.quotes }
+        return {
+          ...result,
+          state: current.state,
+          quotes: current.quotes,
+          trackingArchiveIndex: current.trackingArchiveIndex
+        }
       })
       .finally(() => {
         bootstrapRequest = null
@@ -92,20 +122,82 @@ export function createDataCenter(transport: StockDesktopApi, initialState: AppSt
     return quotes
   }
 
-  // Compatibility facade lets components migrate independently without extra IPC listeners.
+  const enqueue = createMutationQueue({
+    onStatus: (writes) => store.publish({ ...store.getSnapshot(), writes }),
+    recover: async () => {
+      // Restore the latest confirmed state, never a snapshot captured before the failed write.
+      receiveState(confirmedState)
+      await getBootstrap()
+    }
+  })
+  const preview = (mutate: StateMutation) => {
+    const next = prepareStateMutation(confirmedState, mutate)
+    // An optimistic deletion must not discard quotes needed if saving fails.
+    store.publish({ ...store.getSnapshot(), state: next })
+    return next
+  }
+  const update = (mutate: StateMutation, name = '保存数据') =>
+    enqueue(name, async () => {
+      const next = preview(mutate)
+      if (next === confirmedState) return confirmedState
+      const saved = await transport.saveState(next)
+      receiveState(saved)
+      return confirmedState
+    })
+  const legacyMutation =
+    (next: AppState): StateMutation =>
+    (current) => {
+      if (next.revision !== current.revision) throw new Error('数据已在后台更新，请重试刚才的操作')
+      return next
+    }
+  const archive = (
+    prepare: (state: AppState) => {
+      state: AppState
+      profile: Parameters<StockDesktopApi['archiveStockTrackingCycle']>[1] | undefined
+      deletePreviousArchives: boolean
+    }
+  ) =>
+    enqueue('归档追踪记录', async () => {
+      const command = prepare(confirmedState)
+      const next = preview(() => command.state)
+      const result = command.profile
+        ? await transport.archiveStockTrackingCycle(
+            next,
+            command.profile,
+            command.deletePreviousArchives
+          )
+        : {
+            state: await transport.saveState(next),
+            archiveIndex: store.getSnapshot().trackingArchiveIndex
+          }
+      receiveState(result.state)
+      receiveArchives(result.archiveIndex)
+      return { ...result, state: confirmedState }
+    })
+
+  // Compatibility facade routes all local writes through the same queue.
   const api: StockDesktopApi = {
     ...transport,
     getBootstrap,
-    async saveState(state) {
-      const saved = await transport.saveState(state)
-      receiveState(saved)
-      return store.getSnapshot().state
-    },
-    async archiveStockTrackingCycle(...args) {
-      const result = await transport.archiveStockTrackingCycle(...args)
-      receiveState(result.state)
-      return { ...result, state: store.getSnapshot().state }
-    },
+    saveState: (state) => update(legacyMutation(state)),
+    archiveStockTrackingCycle: (state, profile, deletePreviousArchives) =>
+      archive((current) => ({
+        state: legacyMutation(state)(current),
+        profile,
+        deletePreviousArchives
+      })),
+    deleteStockTrackingArchiveCycle: (quoteId, cycleId) =>
+      enqueue('删除追踪周期', async () => {
+        const index = await transport.deleteStockTrackingArchiveCycle(quoteId, cycleId)
+        receiveArchives(index)
+        return index
+      }),
+    deleteAllStockTrackingArchives: (quoteId) =>
+      enqueue('清空追踪档案', async () => {
+        const index = await transport.deleteAllStockTrackingArchives(quoteId)
+        receiveArchives(index)
+        return index
+      }),
     refreshQuotes: () => refreshQuotes(() => transport.refreshQuotes()),
     refreshQuote: (quoteId) => refreshQuotes(() => transport.refreshQuote(quoteId), true),
     refreshQuotesByIds: (quoteIds) =>
@@ -124,6 +216,7 @@ export function createDataCenter(transport: StockDesktopApi, initialState: AppSt
     getSnapshot: store.getSnapshot,
     select: store.select,
     api,
+    commands: { update, archive },
     dispose() {
       unsubscribeState()
       unsubscribeQuotes()

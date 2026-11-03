@@ -735,8 +735,9 @@ const demoApi: StockDesktopApi = {
         : (archives[profile.quoteId] ?? []).filter((cycle) => cycle.cycleId !== profile.cycleId))
     ]
     saveDemoTrackingArchives(archives)
-    localStorage.setItem('jianzhang-demo-state-v1', JSON.stringify(state))
-    return { state, archiveIndex: demoTrackingArchiveIndex() }
+    const saved = { ...state, revision: (state.revision ?? 0) + 1 }
+    localStorage.setItem('jianzhang-demo-state-v1', JSON.stringify(saved))
+    return { state: saved, archiveIndex: demoTrackingArchiveIndex() }
   },
   async deleteStockTrackingArchiveCycle(quoteId, cycleId) {
     const archives = loadDemoTrackingArchives()
@@ -1029,6 +1030,7 @@ const demoApi: StockDesktopApi = {
   },
   async saveState(state) {
     const normalized = normalizeAccountState(state)
+    normalized.revision = (state.revision ?? 0) + 1
     normalized.watchlist = updateStopLossReferences(
       normalized,
       makeDemoQuotes(normalized.watchlist)

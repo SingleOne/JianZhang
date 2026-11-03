@@ -8,6 +8,8 @@ import {
   type StockQuote
 } from '../../shared/types'
 import { createDataCenter } from './center'
+import { startStockTracking, createStockTrackingSource } from '../stock-tracking'
+import { changeStock, changeSettings, removeWatchStock, withUnchangedData } from './mutations'
 
 function quote(quoteId: string, latest: number): StockQuote {
   return {
@@ -59,10 +61,14 @@ function setup() {
   const stopQuotes = vi.fn()
   const getBootstrap = vi.fn<StockDesktopApi['getBootstrap']>().mockResolvedValue(bootstrap)
   const saveState = vi.fn<StockDesktopApi['saveState']>()
+  const archiveStockTrackingCycle = vi.fn<StockDesktopApi['archiveStockTrackingCycle']>()
+  const deleteAllStockTrackingArchives = vi.fn<StockDesktopApi['deleteAllStockTrackingArchives']>()
   const refreshQuotesByIds = vi.fn<StockDesktopApi['refreshQuotesByIds']>()
   const transport = {
     getBootstrap,
     saveState,
+    archiveStockTrackingCycle,
+    deleteAllStockTrackingArchives,
     refreshQuotesByIds,
     onStateUpdated: vi.fn((listener: typeof pushState) => {
       pushState = listener
@@ -81,6 +87,8 @@ function setup() {
     bootstrap,
     getBootstrap,
     saveState,
+    archiveStockTrackingCycle,
+    deleteAllStockTrackingArchives,
     refreshQuotesByIds,
     stopState,
     stopQuotes,
@@ -89,7 +97,178 @@ function setup() {
   }
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason: Error) => void
+  const promise = new Promise<T>((done, fail) => {
+    resolve = done
+    reject = fail
+  })
+  return { promise, resolve, reject }
+}
+
 describe('window data center', () => {
+  it('queues archive and archive deletion with ordinary state writes', async () => {
+    const f = setup()
+    const save = deferred<AppState>()
+    const archive = deferred<Awaited<ReturnType<StockDesktopApi['archiveStockTrackingCycle']>>>()
+    const archiveStarted = deferred<void>()
+    f.saveState.mockReturnValueOnce(save.promise)
+    f.archiveStockTrackingCycle.mockImplementationOnce(() => {
+      archiveStarted.resolve()
+      return archive.promise
+    })
+    f.deleteAllStockTrackingArchives.mockResolvedValue({})
+    const first = f.center.commands.update(
+      changeStock('A', (stock) => ({ ...stock, isPriority: true }))
+    )
+    const profile = startStockTracking(
+      undefined,
+      f.state.watchlist[0],
+      createStockTrackingSource('manual', {}),
+      undefined
+    )
+    const second = f.center.commands.archive((current) => ({
+      state: current,
+      profile,
+      deletePreviousArchives: false
+    }))
+    const third = f.center.api.deleteAllStockTrackingArchives('A')
+    await Promise.resolve()
+    expect(f.archiveStockTrackingCycle).not.toHaveBeenCalled()
+    save.resolve({ ...f.saveState.mock.calls[0][0], revision: 2 })
+    await first
+    await archiveStarted.promise
+    expect(f.archiveStockTrackingCycle.mock.calls[0][0].revision).toBe(2)
+    expect(f.archiveStockTrackingCycle.mock.calls[0][0].watchlist[0].isPriority).toBe(true)
+    expect(f.deleteAllStockTrackingArchives).not.toHaveBeenCalled()
+    const archiveIndex = {
+      A: { quoteId: 'A', code: 'A', name: 'A', marketLabel: '沪A', cycles: [] }
+    }
+    archive.resolve({
+      state: { ...f.archiveStockTrackingCycle.mock.calls[0][0], revision: 3 },
+      archiveIndex
+    })
+    await second
+    expect(f.center.getSnapshot().trackingArchiveIndex).toBe(archiveIndex)
+    await third
+    expect(f.center.getSnapshot().trackingArchiveIndex).toEqual({})
+  })
+
+  it('serializes commands against the previous confirmed result', async () => {
+    const f = setup()
+    const firstSave = deferred<AppState>()
+    f.saveState
+      .mockReturnValueOnce(firstSave.promise)
+      .mockImplementationOnce(async (next) => ({ ...next, revision: 3 }))
+    const first = f.center.commands.update(
+      changeStock('A', (stock) => ({ ...stock, showInTaskbar: true }))
+    )
+    const second = f.center.commands.update(
+      changeStock('B', (stock) => ({ ...stock, isPriority: true }))
+    )
+    await Promise.resolve()
+    expect(f.saveState).toHaveBeenCalledTimes(1)
+    expect(f.center.getSnapshot().writes.pendingCount).toBe(2)
+    firstSave.resolve({ ...f.saveState.mock.calls[0][0], revision: 2 })
+    await Promise.all([first, second])
+    expect(f.saveState.mock.calls[1][0].revision).toBe(2)
+    expect(f.center.getSnapshot().state.watchlist[0].showInTaskbar).toBe(true)
+    expect(f.center.getSnapshot().state.watchlist[1].isPriority).toBe(true)
+    expect(f.center.getSnapshot().writes.pendingCount).toBe(0)
+  })
+
+  it('retains quotes through optimistic deletion and restores on failure', async () => {
+    const f = setup()
+    await f.center.api.getBootstrap()
+    const save = deferred<AppState>()
+    f.saveState.mockReturnValueOnce(save.promise)
+    const pending = f.center.commands.update(removeWatchStock('A'))
+    const rejected = expect(pending).rejects.toThrow('failed')
+    await Promise.resolve()
+    expect(f.center.getSnapshot().state.watchlist.some((stock) => stock.quoteId === 'A')).toBe(
+      false
+    )
+    expect(f.center.getSnapshot().quotesById.has('A')).toBe(true)
+    save.reject(new Error('failed'))
+    await rejected
+    expect(f.center.getSnapshot().state).toBe(f.state)
+    expect(f.center.getSnapshot().quotesById.has('A')).toBe(true)
+  })
+
+  it('keeps newer background changes and runs the next command without replaying a failed write', async () => {
+    const f = setup()
+    const save = deferred<AppState>()
+    f.saveState
+      .mockReturnValueOnce(save.promise)
+      .mockImplementationOnce(async (next) => ({ ...next, revision: 3 }))
+    const first = f.center.commands.update(
+      changeStock('A', (stock) => ({ ...stock, showInTaskbar: true }))
+    )
+    const rejected = expect(first).rejects.toThrow('conflict')
+    const second = f.center.commands.update(
+      changeStock('B', (stock) => ({ ...stock, isPriority: true }))
+    )
+    await Promise.resolve()
+    f.pushState({ ...f.state, revision: 2, columnOrder: [] })
+    save.reject(new Error('conflict'))
+    await rejected
+    await second
+    expect(f.saveState).toHaveBeenCalledTimes(2)
+    expect(f.center.getSnapshot().state.columnOrder).toEqual([])
+    expect(f.center.getSnapshot().state.watchlist[0].showInTaskbar).toBe(false)
+    expect(f.center.getSnapshot().state.watchlist[1].isPriority).toBe(true)
+  })
+
+  it('blocks queued writes while recovery fails and resumes after synchronization', async () => {
+    const f = setup()
+    f.saveState
+      .mockRejectedValueOnce(new Error('save failed'))
+      .mockImplementationOnce(async (next) => ({ ...next, revision: 2 }))
+    f.getBootstrap.mockRejectedValue(new Error('offline'))
+    await expect(f.center.commands.update(changeSettings({ theme: 'dark' }))).rejects.toThrow(
+      'save failed'
+    )
+    await expect(f.center.commands.update(changeSettings({ theme: 'light' }))).rejects.toThrow(
+      'offline'
+    )
+    expect(f.saveState).toHaveBeenCalledTimes(1)
+    f.getBootstrap.mockResolvedValue(f.bootstrap)
+    await f.center.commands.update(changeSettings({ theme: 'dark' }))
+    expect(f.saveState).toHaveBeenCalledTimes(2)
+    expect(f.center.getSnapshot().writes.lastError).toBeNull()
+  })
+
+  it('rejects a draft if its selected data changes while queued', async () => {
+    const f = setup()
+    const save = deferred<AppState>()
+    f.saveState.mockReturnValueOnce(save.promise)
+    const first = f.center.commands.update(
+      changeStock('A', (stock) => ({ ...stock, showInTaskbar: true }))
+    )
+    const second = f.center.commands.update(
+      withUnchangedData(
+        f.state,
+        (state) => state.watchlist[0],
+        changeStock('A', (stock) => ({ ...stock, isPriority: true }))
+      )
+    )
+    const rejected = expect(second).rejects.toThrow('相关数据已更新')
+    await Promise.resolve()
+    save.resolve({ ...f.saveState.mock.calls[0][0], revision: 2 })
+    await first
+    await rejected
+    expect(f.saveState).toHaveBeenCalledTimes(1)
+    expect(f.center.getSnapshot().state.watchlist[0].showInTaskbar).toBe(true)
+  })
+
+  it('rejects obsolete full-state saves without calling the transport', async () => {
+    const f = setup()
+    f.pushState({ ...f.state, revision: 2 })
+    await expect(f.center.api.saveState(f.state)).rejects.toThrow('数据已在后台更新')
+    expect(f.saveState).not.toHaveBeenCalled()
+  })
+
   it('does not resurrect removed stocks from a pending refresh response', async () => {
     const fixture = setup()
     await fixture.center.api.getBootstrap()
@@ -203,12 +382,12 @@ describe('window data center', () => {
     const fixture = setup()
     const updated = { ...fixture.state, revision: 2 }
     fixture.saveState.mockResolvedValueOnce(updated)
-    await fixture.center.api.saveState(updated)
+    await fixture.center.commands.update((current) => ({ ...current, columnOrder: [] }))
     expect(fixture.center.getSnapshot().state).toBe(updated)
     fixture.saveState.mockRejectedValueOnce(new Error('保存失败'))
-    await expect(fixture.center.api.saveState({ ...updated, revision: 3 })).rejects.toThrow(
-      '保存失败'
-    )
+    await expect(
+      fixture.center.commands.update((current) => ({ ...current, columnOrder: [] }))
+    ).rejects.toThrow('保存失败')
     expect(fixture.center.getSnapshot().state).toBe(updated)
   })
 })

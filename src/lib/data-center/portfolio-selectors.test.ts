@@ -48,7 +48,13 @@ function fixture(): AppDataSnapshot {
     turnoverRate: 1,
     updatedAt: '2026-11-03 10:00:00'
   }))
-  return { state, quotes, quotesById: new Map(quotes.map((quote) => [quote.quoteId, quote])) }
+  return {
+    state,
+    quotes,
+    trackingArchiveIndex: {},
+    writes: { pendingCount: 0, activeOperation: null, lastError: null },
+    quotesById: new Map(quotes.map((quote) => [quote.quoteId, quote]))
+  }
 }
 
 function withQuotes(snapshot: AppDataSnapshot, quotes: StockQuote[]): AppDataSnapshot {
