@@ -131,10 +131,10 @@ export function TaskbarTicker() {
                 onMouseLeave={() => void stockApi.setTaskbarTooltip(null)}
               >
                 <span className="taskbar-stock-name">{stock.name}</span>
-                {stopLoss ? (
+                {stopLoss?.reached ? (
                   <span
-                    className={`stop-loss-marker ${stopLoss.reached ? 'is-reached' : ''}`}
-                    aria-label={`止损价 ${formatPrice(stopLoss.stopPrice)}，${stopLoss.reached === null ? '等待有效行情' : stopLoss.reached ? '已达到止损线' : '未达到止损线'}`}
+                    className="stop-loss-marker is-reached"
+                    aria-label={`止损价 ${formatPrice(stopLoss.stopPrice)}，已达到止损线`}
                   >
                     止
                   </span>
