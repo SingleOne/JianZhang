@@ -6,6 +6,7 @@ import {
   HistogramSeries,
   LineStyle,
   LineSeries,
+  type AutoscaleInfo,
   type HistogramData,
   type IPriceLine,
   type ISeriesApi,
@@ -698,6 +699,16 @@ export default function CandlestickChart({
             axisLabelVisible: true
           })
         : null
+    series.applyOptions({
+      autoscaleInfoProvider: (original: () => AutoscaleInfo | null) => {
+        const info = original()
+        if (referencePrice !== undefined && info?.priceRange) {
+          info.priceRange.minValue = Math.min(info.priceRange.minValue, referencePrice)
+          info.priceRange.maxValue = Math.max(info.priceRange.maxValue, referencePrice)
+        }
+        return info
+      }
+    })
   }, [
     referencePrice,
     referenceTitle,

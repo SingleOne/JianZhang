@@ -5,8 +5,11 @@ import {
   createSeriesMarkers,
   CrosshairMode,
   HistogramSeries,
+  LineStyle,
   LineSeries,
+  type AutoscaleInfo,
   type IChartApi,
+  type IPriceLine,
   type ISeriesApi,
   type MouseEventParams,
   type SeriesMarker,
@@ -43,6 +46,7 @@ interface PeriodKlineChartProps {
   bars: KlineBar[]
   period: HistoricalPeriod
   market: StockMarket
+  referenceLine?: { price: number; title: string } | null
   onHoverBar?: (bar: KlineBar | null) => void
   onRequestMore?: (period: HistoricalPeriod) => void
   requestedVisibleBars?: number
@@ -147,6 +151,7 @@ export default function PeriodKlineChart({
   bars,
   period,
   market,
+  referenceLine = null,
   onHoverBar,
   onRequestMore,
   requestedVisibleBars,
@@ -164,6 +169,7 @@ export default function PeriodKlineChart({
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const candlesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
+  const referencePriceLineRef = useRef<IPriceLine | null>(null)
   const volumeRef = useRef<ISeriesApi<'Histogram'> | null>(null)
   const movingAverageRefs = useRef<Record<MovingAveragePeriod, ISeriesApi<'Line'> | null>>({
     5: null,
@@ -451,6 +457,7 @@ export default function PeriodKlineChart({
       chart.remove()
       chartRef.current = null
       candlesRef.current = null
+      referencePriceLineRef.current = null
       volumeRef.current = null
       movingAverageRefs.current = {
         5: null,
@@ -511,6 +518,35 @@ export default function PeriodKlineChart({
       isAligningRangeRef.current = false
     })
   }, [bars, height, period, resolvedTheme])
+
+  const referencePrice = referenceLine?.price
+  const referenceTitle = referenceLine?.title
+  useEffect(() => {
+    const candles = candlesRef.current
+    if (!candles) return
+    if (referencePriceLineRef.current) candles.removePriceLine(referencePriceLineRef.current)
+    referencePriceLineRef.current =
+      referencePrice !== undefined
+        ? candles.createPriceLine({
+            price: referencePrice,
+            title: referenceTitle,
+            color: getChartThemeColors(resolvedTheme).amber,
+            lineWidth: 1,
+            lineStyle: LineStyle.Dashed,
+            axisLabelVisible: true
+          })
+        : null
+    candles.applyOptions({
+      autoscaleInfoProvider: (original: () => AutoscaleInfo | null) => {
+        const info = original()
+        if (referencePrice !== undefined && info?.priceRange) {
+          info.priceRange.minValue = Math.min(info.priceRange.minValue, referencePrice)
+          info.priceRange.maxValue = Math.max(info.priceRange.maxValue, referencePrice)
+        }
+        return info
+      }
+    })
+  }, [referencePrice, referenceTitle, ctrlWheelZoomOnly, height, market, period, resolvedTheme])
 
   useEffect(() => {
     const chart = chartRef.current

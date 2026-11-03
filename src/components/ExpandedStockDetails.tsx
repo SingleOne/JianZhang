@@ -1,5 +1,4 @@
 import { evaluateStopLoss } from '../shared/stop-loss'
-import { AppSwitch } from './AppFormControls'
 import './StopLoss.css'
 import type { StockTradingBook } from '../shared/types'
 import './ExpandedStockDetails.css'
@@ -2630,20 +2629,24 @@ export function ExpandedStockDetails({
                   ) : null}
                   {priceTab === 'trend' ? <span className="legend-average-price">VWAP</span> : null}
                   <span className="legend-volume">成交量</span>
-                  {priceTab === 'trend' && stopLoss ? (
+                  {(priceTab === 'trend' || isHistorical) && stopLoss ? (
                     <>
-                      <AppSwitch
-                        label="止损线"
-                        className="stop-loss-switch"
-                        checked={showStopLoss}
-                        onChange={(event) => {
-                          setShowStopLoss(event.target.checked)
-                          localStorage.setItem(
-                            'jianzhang-show-stop-loss',
-                            String(event.target.checked)
-                          )
+                      <AppButton
+                        variant="plain"
+                        className={`chip-distribution-toggle ${showStopLoss ? 'is-active' : ''}`}
+                        role="switch"
+                        aria-checked={showStopLoss}
+                        onClick={() => {
+                          const enabled = !showStopLoss
+                          setShowStopLoss(enabled)
+                          localStorage.setItem('jianzhang-show-stop-loss', String(enabled))
                         }}
-                      />
+                      >
+                        <span aria-hidden="true">
+                          <i />
+                        </span>
+                        止损线
+                      </AppButton>
                       <span className={`stop-loss-badge ${stopLoss.reached ? 'is-reached' : ''}`}>
                         {formatPrice(stopLoss.stopPrice)} ·{' '}
                         {stopLoss.reached === null
@@ -2655,7 +2658,8 @@ export function ExpandedStockDetails({
                     </>
                   ) : null}
                   {priceTab === 'daily' && capabilities.chipDistribution ? (
-                    <button
+                    <AppButton
+                      variant="plain"
                       className={`chip-distribution-toggle ${chipDistributionEnabled ? 'is-active' : ''}`}
                       type="button"
                       role="switch"
@@ -2666,7 +2670,7 @@ export function ExpandedStockDetails({
                         <i />
                       </span>
                       筹码分布
-                    </button>
+                    </AppButton>
                   ) : null}
                 </div>
               ) : null}
@@ -2745,6 +2749,11 @@ export function ExpandedStockDetails({
                       {historicalPeriod ? (
                         <PeriodKlineChart
                           bars={data.bars}
+                          referenceLine={
+                            showStopLoss && stopLoss
+                              ? { price: stopLoss.stopPrice, title: '止损线' }
+                              : null
+                          }
                           period={historicalPeriod}
                           market={market}
                           onHoverBar={handleHoverBar}

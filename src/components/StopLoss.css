@@ -51,10 +51,19 @@
 }
 
 .stock-name-line .stop-loss-badge {
-  padding: 2px 5px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--surface);
-  font-weight: 400;
+  gap: 4px;
+  padding: 3px 7px;
+  color: var(--amber, #b45309);
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  background: var(--amber-soft, #fff3d6);
+  font-weight: 700;
   white-space: nowrap;
+}
+.stock-name-line .stop-loss-badge.is-reached {
+  color: var(--green);
+  background: var(--green-soft);
+}
+.stock-name-line .stop-loss-badge:hover {
+  box-shadow: 0 0 0 2px var(--amber-soft, #fff3d6);
 }

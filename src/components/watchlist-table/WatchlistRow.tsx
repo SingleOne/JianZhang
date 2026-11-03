@@ -12,6 +12,7 @@ import {
   GripVertical,
   MonitorUp,
   PencilLine,
+  ShieldAlert,
   Star,
   Trash2
 } from 'lucide-react'
@@ -591,7 +592,8 @@ export const WatchlistRow = memo(function WatchlistRow({
                             aria-label={`${stock.name} 止损价 ${formatPrice(stopLoss.stopPrice)}，${stopLoss.reached === null ? '等待有效行情' : stopLoss.reached ? '已达到止损线' : '未达到止损线'}`}
                             title={`止损价 ${formatPrice(stopLoss.stopPrice)}；${stopLoss.reached === null ? '等待有效行情' : stopLoss.reached ? '已达到止损线' : '未达到止损线'}`}
                           >
-                            止 {formatPrice(stopLoss.stopPrice)}
+                            <ShieldAlert size={14} aria-hidden="true" />
+                            {stopLoss.reached ? '已触线' : '止损'} {formatPrice(stopLoss.stopPrice)}
                           </AppButton>
                         ) : null}
 
