@@ -15,7 +15,7 @@
   grid-row: 1;
 }
 .stock-alert-target.stop-loss-target input {
-  padding-right: 68px;
+  padding-right: 84px;
 }
 .stop-loss-editor > .stop-loss-reset {
   grid-column: 6;
@@ -34,11 +34,10 @@
 .stop-loss-editor [role='alert'] {
   color: var(--red);
 }
-.stop-loss-preview {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
+.stop-loss-editor > .stop-loss-preview {
+  grid-column: 5;
+  grid-row: 1;
+  min-width: 0;
 }
 .stop-loss-badge {
   display: inline-flex;

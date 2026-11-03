@@ -87,25 +87,25 @@ export function StopLossEditor({
             }
           }}
         />
-        <span>止损比例</span>
+        <span>止损比例 %</span>
       </label>
       <AppButton className="stop-loss-reset" onClick={() => reset()}>
         重设基准
       </AppButton>
       {snapshot ? (
-        <div className="stop-loss-preview" aria-live="polite">
+        <div className="stock-alert-status stop-loss-preview" aria-live="polite">
           <span>
-            {rule?.mode === 'trailingClose' ? '已记录最高收盘价' : '锁定成本'}{' '}
+            {rule?.mode === 'trailingClose' ? '最高收盘价' : '锁定成本'}{' '}
             {formatPrice(snapshot.referencePrice)}
           </span>
           <strong>止损价 {formatPrice(snapshot.stopPrice)}</strong>
-          <span>
+          <small>
             {snapshot.reached === null
               ? '等待有效行情'
               : snapshot.reached
                 ? '已达到止损线'
                 : '未达到止损线'}
-          </span>
+          </small>
         </div>
       ) : null}
       <p>
