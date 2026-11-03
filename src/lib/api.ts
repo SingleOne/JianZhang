@@ -1,4 +1,5 @@
 import { evaluateStopLosses, updateStopLossReferences } from '../shared/stop-loss'
+import { createDataCenter } from './data-center/center'
 import { normalizeAccountState } from '../shared/stock-accounts'
 import {
   DEFAULT_APP_SETTINGS,
@@ -1192,13 +1193,17 @@ const demoApi: StockDesktopApi = {
 }
 
 const desktopApi = window.stockApi ? createStateClient(window.stockApi) : undefined
-export const stockApi: StockDesktopApi = import.meta.env.PROD
-  ? desktopApi!
-  : (desktopApi ?? demoApi)
 export const isDesktopRuntime = Boolean(window.stockApi)
 export const initialState = normalizeAccountState(
   import.meta.env.PROD ? DESKTOP_INITIAL_STATE : DEFAULT_STATE
 )
+export const dataCenter = createDataCenter(
+  import.meta.env.PROD ? desktopApi! : (desktopApi ?? demoApi),
+  initialState
+)
+export const stockApi: StockDesktopApi = dataCenter.api
+
+if (import.meta.hot) import.meta.hot.dispose(() => dataCenter.dispose())
 
 let initialBootstrapPromise: Promise<BootstrapResult> | null = null
 

@@ -1,6 +1,7 @@
 import { stockTOverview } from '../lib/stock-accounts'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { getInitialBootstrap, initialState, stockApi } from '../lib/api'
+import { getInitialBootstrap, stockApi } from '../lib/api'
+import { useAppData } from '../lib/data-center/hooks'
 import { formatPercent, formatPrice } from '../lib/format'
 import { getTriggeredStockAlertDirection } from '../lib/stock-alerts'
 import { getTaskbarVisibleStocks } from '../lib/taskbar-visibility'
@@ -9,7 +10,6 @@ import { evaluateStopLoss } from '../shared/stop-loss'
 import { applyAppThemePreference } from '../lib/theme'
 import { observeContentHeight } from '../lib/observe-content-height'
 import { useInitialRenderReady } from '../hooks/useInitialRenderReady'
-import type { AppState, StockQuote } from '../shared/types'
 import { AnimatedNumber } from './AnimatedNumber'
 import { FiveLevelAlertBadges } from './FiveLevelAlertBadges'
 import { TAlertBadges } from './TAlertBadges'
@@ -22,8 +22,8 @@ function directionClass(changePercent: number | null | undefined): string {
 }
 
 export function TaskbarTicker() {
-  const [state, setState] = useState<AppState>(initialState)
-  const [quotes, setQuotes] = useState<StockQuote[]>([])
+  const state = useAppData((snapshot) => snapshot.state)
+  const quotes = useAppData((snapshot) => snapshot.quotes)
   const [initialized, setInitialized] = useState(false)
   const tickerRef = useRef<HTMLDivElement>(null)
 
@@ -36,20 +36,13 @@ export function TaskbarTicker() {
   useEffect(() => {
     let active = true
 
-    const unsubscribeQuotes = stockApi.onQuotesUpdated(setQuotes)
-    const unsubscribeState = stockApi.onStateUpdated(setState)
-
-    void getInitialBootstrap().then((bootstrap) => {
+    void getInitialBootstrap().then(() => {
       if (!active) return
-      setState(bootstrap.state)
-      setQuotes(bootstrap.quotes)
       setInitialized(true)
     })
 
     return () => {
       active = false
-      unsubscribeQuotes()
-      unsubscribeState()
     }
   }, [])
 
