@@ -945,6 +945,30 @@
   opacity: 1;
 }
 
+.stock-alert-rule > .app-select {
+  min-width: 0;
+}
+
+.stock-alert-stop-loss {
+  grid-template-columns: 28px 128px minmax(0, 1fr) 32px;
+}
+
+.stock-alert-stop-loss > .stock-alert-rule-index,
+.stock-alert-stop-loss > .stock-alert-metric,
+.stock-alert-stop-loss > .stock-alert-delete {
+  grid-row: 1;
+}
+
+.stock-alert-stop-loss > .stock-alert-delete {
+  grid-column: 4;
+}
+
+.stock-alert-error {
+  margin: 0;
+  color: var(--red);
+  font-size: 12px;
+}
+
 .stock-alert-rule-index {
   width: 24px;
   height: 24px;
@@ -977,12 +1001,12 @@
   box-shadow: 0 0 0 3px rgba(75, 126, 232, 0.1);
 }
 
-.stock-alert-rule .stock-alert-operator.is-gte {
+.stock-alert-rule .stock-alert-operator.is-gte .app-select-trigger {
   color: var(--red);
   font-weight: 700;
 }
 
-.stock-alert-rule .stock-alert-operator.is-lte {
+.stock-alert-rule .stock-alert-operator.is-lte .app-select-trigger {
   color: var(--green);
   font-weight: 700;
 }

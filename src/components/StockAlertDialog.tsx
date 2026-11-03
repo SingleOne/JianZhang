@@ -1,10 +1,13 @@
 import type { MarketCalendarDates } from '../shared/market-calendar'
 import { StopLossEditor } from './StopLossEditor'
-import type { StopLossRule } from '../shared/stop-loss'
+import { createStopLossRule, type StopLossRule } from '../shared/stop-loss'
 import type { StockTradingBook } from '../shared/types'
 import { BellRing, Plus, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
+import { AppButton } from './AppButton'
+import { AppInput, AppSwitch } from './AppFormControls'
+import { AppSelect } from './AppSelect'
 import { formatPercent, formatPrice } from '../lib/format'
 import { calculatePositionMetrics, type PositionProfitOverride } from '../lib/portfolio'
 import { STOCK_ALERT_METRIC_LABELS } from '../lib/stock-alerts'
@@ -33,7 +36,8 @@ interface StockAlertDialogProps {
   onClose: () => void
 }
 
-type DraftRule = Omit<StockAlertRule, 'target'> & { target: string }
+type PriceDraftRule = Omit<StockAlertRule, 'target'> & { target: string }
+type DraftRule = PriceDraftRule | { id: string; metric: 'stopLoss' }
 
 function valueClass(value: number | null | undefined): string {
   if (value === null || value === undefined || value === 0) return 'is-flat'
@@ -51,6 +55,8 @@ export function StockAlertDialog({
   onClose
 }: StockAlertDialogProps) {
   const [stopLoss, setStopLoss] = useState(stock.stopLoss)
+  const [stopLossError, setStopLossError] = useState('')
+  const hasPosition = (stock.position?.quantity ?? 0) > 0
   const capabilities = marketCapabilitiesForQuoteId(stock.quoteId)
   const currency = stock.currency ?? stockMarketIdentity(stock.quoteId).currency
   const currencySymbol = STOCK_CURRENCY_SYMBOLS[currency]
@@ -64,14 +70,17 @@ export function StockAlertDialog({
   const availableMetrics = Object.entries(STOCK_ALERT_METRIC_LABELS).filter(
     ([metric]) => metric !== 'profitPercent' || capabilities.profitAlert
   )
-  const [rules, setRules] = useState<DraftRule[]>(() =>
-    (stock.alertRules ?? [])
+  const [rules, setRules] = useState<DraftRule[]>(() => [
+    ...(stock.alertRules ?? [])
       .filter((rule) => rule.metric !== 'profitPercent' || capabilities.profitAlert)
       .map((rule) => ({
         ...rule,
         target: String(rule.target)
-      }))
-  )
+      })),
+    ...(stock.stopLoss && hasPosition
+      ? [{ id: crypto.randomUUID(), metric: 'stopLoss' as const }]
+      : [])
+  ])
 
   const currentValue = (metric: StockAlertMetric): number | null => {
     if (metric === 'price') return quote?.latest ?? null
@@ -93,13 +102,74 @@ export function StockAlertDialog({
     ])
   }
 
-  const updateRule = (ruleId: string, changes: Partial<DraftRule>) => {
+  const updateRule = (ruleId: string, changes: Partial<PriceDraftRule>) => {
     setRules((current) =>
       current.map((rule) =>
-        rule.id === ruleId ? { ...rule, ...changes, status: 'armed', triggeredAt: undefined } : rule
+        rule.id === ruleId && rule.metric !== 'stopLoss'
+          ? { ...rule, ...changes, status: 'armed', triggeredAt: undefined }
+          : rule
       )
     )
   }
+
+  const changeMetric = (ruleId: string, metric: DraftRule['metric']) => {
+    const previous = rules.find((rule) => rule.id === ruleId)!
+    if (previous.metric === metric) return
+    if (metric === 'stopLoss') {
+      setStopLoss(createStopLossRule(stock, quote, 'trailingClose', 5, new Date(), calendar))
+    } else if (previous.metric === 'stopLoss') {
+      setStopLoss(undefined)
+    }
+    setStopLossError('')
+    setRules((current) =>
+      current.map((rule): DraftRule => {
+        if (rule.id !== ruleId) return rule
+        if (metric === 'stopLoss') return { id: rule.id, metric }
+        const value = currentValue(metric)
+        return {
+          ...(rule.metric === 'stopLoss' ? { id: rule.id, operator: 'gte', enabled: true } : rule),
+          metric,
+          target: value === null ? '' : String(value),
+          status: 'armed',
+          triggeredAt: undefined
+        }
+      })
+    )
+  }
+
+  const metricSelect = (rule: DraftRule, index: number) => (
+    <AppSelect
+      className="stock-alert-metric"
+      value={rule.metric}
+      options={[
+        ...availableMetrics.map(([value, label]) => ({ value: value as StockAlertMetric, label })),
+        ...(hasPosition && !rules.some((item) => item.id !== rule.id && item.metric === 'stopLoss')
+          ? [{ value: 'stopLoss' as const, label: '止损线' }]
+          : [])
+      ]}
+      onChange={(metric) => changeMetric(rule.id, metric)}
+      label={`提醒条件 ${index + 1} 指标`}
+      portal
+    />
+  )
+
+  const deleteButton = (rule: DraftRule, index: number) => (
+    <AppButton
+      variant="icon"
+      className="stock-alert-delete"
+      onClick={() => {
+        if (rule.metric === 'stopLoss') {
+          setStopLoss(undefined)
+          setStopLossError('')
+        }
+        setRules((current) => current.filter((item) => item.id !== rule.id))
+      }}
+      title="删除提醒条件"
+      aria-label={`删除提醒条件 ${index + 1}`}
+    >
+      <Trash2 size={15} />
+    </AppButton>
+  )
 
   return createPortal(
     <div className="position-dialog-backdrop" role="presentation" onMouseDown={onClose}>
@@ -125,25 +195,29 @@ export function StockAlertDialog({
               </small>
             </span>
           </div>
-          <button
+          <AppButton
+            variant="plain"
             className="icon-button dialog-close"
             type="button"
             onClick={onClose}
             aria-label="关闭"
           >
             <X size={18} />
-          </button>
+          </AppButton>
         </header>
 
         <form
           className="stock-alert-form"
           onSubmit={(event) => {
             event.preventDefault()
+            if (rules.some((rule) => rule.metric === 'stopLoss') && !stopLoss) {
+              setStopLossError('请先设置有效的止损基准后再保存。')
+              return
+            }
             onSave(
-              rules.map(({ target, ...rule }) => ({
-                ...rule,
-                target: Number(target)
-              })),
+              rules.flatMap((rule) =>
+                rule.metric === 'stopLoss' ? [] : [{ ...rule, target: Number(rule.target) }]
+              ),
               stopLoss
             )
           }}
@@ -169,27 +243,43 @@ export function StockAlertDialog({
             ) : null}
           </div>
 
-          <StopLossEditor
-            stock={stock}
-            quote={quote}
-            calendar={calendar}
-            rule={stopLoss}
-            onChange={setStopLoss}
-          />
-
           <div className="stock-alert-list-heading">
             <span>
               <strong>提醒条件</strong>
               <small>条件首次满足时发送 Windows 系统通知；行情离开阈值后会自动恢复监控。</small>
             </span>
-            <button className="secondary-button stock-alert-add" type="button" onClick={addRule}>
+            <AppButton
+              variant="plain"
+              className="secondary-button stock-alert-add"
+              type="button"
+              onClick={addRule}
+            >
               <Plus size={14} />
               添加条件
-            </button>
+            </AppButton>
           </div>
 
           <div className="stock-alert-list">
             {rules.map((rule, index) => {
+              if (rule.metric === 'stopLoss') {
+                return (
+                  <div className="stock-alert-rule stock-alert-stop-loss is-enabled" key={rule.id}>
+                    <span className="stock-alert-rule-index">{index + 1}</span>
+                    {metricSelect(rule, index)}
+                    <StopLossEditor
+                      stock={stock}
+                      quote={quote}
+                      calendar={calendar}
+                      rule={stopLoss}
+                      onChange={(next) => {
+                        setStopLoss(next)
+                        setStopLossError('')
+                      }}
+                    />
+                    {deleteButton(rule, index)}
+                  </div>
+                )
+              }
               const actualValue = currentValue(rule.metric)
               const targetValue = Number(rule.target)
               const percentageRule = rule.metric !== 'price'
@@ -206,39 +296,20 @@ export function StockAlertDialog({
                   key={rule.id}
                 >
                   <span className="stock-alert-rule-index">{index + 1}</span>
-                  <select
-                    value={rule.metric}
-                    onChange={(event) => {
-                      const metric = event.target.value as StockAlertMetric
-                      const nextValue = currentValue(metric)
-                      updateRule(rule.id, {
-                        metric,
-                        target: nextValue === null ? '' : String(nextValue)
-                      })
-                    }}
-                    aria-label={`提醒条件 ${index + 1} 指标`}
-                  >
-                    {availableMetrics.map(([metric, label]) => (
-                      <option value={metric} key={metric}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                  <select
+                  {metricSelect(rule, index)}
+                  <AppSelect
                     className={`stock-alert-operator is-${rule.operator}`}
                     value={rule.operator}
-                    onChange={(event) =>
-                      updateRule(rule.id, {
-                        operator: event.target.value as StockAlertRule['operator']
-                      })
-                    }
-                    aria-label={`提醒条件 ${index + 1} 比较方式`}
-                  >
-                    <option value="gte">达到或高于</option>
-                    <option value="lte">达到或低于</option>
-                  </select>
+                    options={[
+                      { value: 'gte', label: '达到或高于' },
+                      { value: 'lte', label: '达到或低于' }
+                    ]}
+                    onChange={(operator) => updateRule(rule.id, { operator })}
+                    label={`提醒条件 ${index + 1} 比较方式`}
+                    portal
+                  />
                   <label className="stock-alert-target">
-                    <input
+                    <AppInput
                       className={
                         percentageRule
                           ? valueClass(Number.isFinite(targetValue) ? targetValue : 0)
@@ -267,25 +338,13 @@ export function StockAlertDialog({
                       </small>
                     ) : null}
                   </span>
-                  <label className="stock-alert-enable">
-                    <input
-                      type="checkbox"
-                      checked={rule.enabled}
-                      onChange={(event) => updateRule(rule.id, { enabled: event.target.checked })}
-                    />
-                    <span>启用</span>
-                  </label>
-                  <button
-                    className="icon-button stock-alert-delete"
-                    type="button"
-                    onClick={() =>
-                      setRules((current) => current.filter((item) => item.id !== rule.id))
-                    }
-                    title="删除提醒条件"
-                    aria-label={`删除提醒条件 ${index + 1}`}
-                  >
-                    <Trash2 size={15} />
-                  </button>
+                  <AppSwitch
+                    className="stock-alert-enable"
+                    label="启用"
+                    checked={rule.enabled}
+                    onChange={(event) => updateRule(rule.id, { enabled: event.target.checked })}
+                  />
+                  {deleteButton(rule, index)}
                 </div>
               )
             })}
@@ -294,19 +353,31 @@ export function StockAlertDialog({
                 {capabilities.profitAlert
                   ? '还没有提醒条件。点击“添加条件”后，可分别设置股价、当日涨幅或持仓收益率阈值。'
                   : '还没有提醒条件。点击“添加条件”后，可设置股价或当日涨跌幅阈值。'}
+                {hasPosition ? '也可在条件选择框中选择“止损线”。' : null}
               </div>
             ) : null}
           </div>
 
+          {stopLossError ? (
+            <p className="stock-alert-error" role="alert">
+              {stopLossError}
+            </p>
+          ) : null}
+
           <footer className="position-dialog-actions stock-alert-actions">
             <small>提醒依赖实时行情刷新，应用最小化到托盘后仍会继续监控。</small>
             <span>
-              <button className="secondary-button compact-button" type="button" onClick={onClose}>
+              <AppButton
+                variant="plain"
+                className="secondary-button compact-button"
+                type="button"
+                onClick={onClose}
+              >
                 取消
-              </button>
-              <button className="primary-button compact-button" type="submit">
+              </AppButton>
+              <AppButton variant="plain" className="primary-button compact-button" type="submit">
                 保存提醒
-              </button>
+              </AppButton>
             </span>
           </footer>
         </form>

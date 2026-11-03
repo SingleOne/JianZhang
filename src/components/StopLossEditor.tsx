@@ -4,7 +4,7 @@ import { createStopLossRule, evaluateStopLoss, type StopLossRule } from '../shar
 import type { StockQuote, WatchStock } from '../shared/types'
 import { formatPrice } from '../lib/format'
 import { AppButton } from './AppButton'
-import { AppInput, AppSwitch } from './AppFormControls'
+import { AppInput } from './AppFormControls'
 import { AppSelect } from './AppSelect'
 import './StopLoss.css'
 
@@ -34,8 +34,15 @@ export function StopLossEditor({
   const [percent, setPercent] = useState(String(rule?.percent ?? 5))
   const [error, setError] = useState('')
   if ((stock.position?.quantity ?? 0) <= 0) return null
-  const reset = (nextMode = mode) => {
-    const next = createStopLossRule(stock, quote, nextMode, Number(percent), new Date(), calendar)
+  const reset = (nextMode = mode, nextPercent = percent) => {
+    const next = createStopLossRule(
+      stock,
+      quote,
+      nextMode,
+      Number(nextPercent),
+      new Date(),
+      calendar
+    )
     if (!next) {
       setError(
         nextMode === 'trailingClose'
@@ -51,25 +58,14 @@ export function StopLossEditor({
   const snapshot = evaluateStopLoss({ ...stock, stopLoss: rule }, quote, new Date(), calendar)
   return (
     <section className="stop-loss-editor" aria-label="止损线设置">
-      <AppSwitch
-        label="启用止损线"
-        className="stop-loss-switch"
-        checked={Boolean(rule)}
-        onChange={(event) => {
-          if (event.target.checked) reset()
-          else {
-            onChange(undefined)
-            setError('')
-          }
-        }}
-      />
       <div className="stop-loss-fields">
         <AppSelect
           label="止损线模式"
           value={mode}
+          portal
           options={MODES}
           onChange={(value) => {
-            if (!rule || reset(value)) setMode(value)
+            if (reset(value) || !rule) setMode(value)
           }}
         />
         <label>
@@ -79,18 +75,20 @@ export function StopLossEditor({
             min="0.01"
             max="99.99"
             step="0.01"
-            required={Boolean(rule)}
-            disabled={!rule}
+            required
             value={percent}
             onChange={(event) => {
               const value = event.target.value
               setPercent(value)
               const number = Number(value)
-              if (rule && number > 0 && number < 100) onChange({ ...rule, percent: number })
+              if (number > 0 && number < 100) {
+                if (rule) onChange({ ...rule, percent: number })
+                else reset(mode, value)
+              }
             }}
           />
         </label>
-        {rule ? <AppButton onClick={() => reset()}>重设基准</AppButton> : null}
+        <AppButton onClick={() => reset()}>重设基准</AppButton>
       </div>
       {snapshot ? (
         <div className="stop-loss-preview" aria-live="polite">
@@ -109,9 +107,11 @@ export function StopLossEditor({
         </div>
       ) : null}
       <p>
-        按当前汇总持仓设置。关闭或清仓后删除配置；保存后各模块共用计算结果。重设基准可能降低止损价。
+        按当前汇总持仓设置。删除条件或清仓后删除配置；保存后各模块共用计算结果。重设基准可能降低止损价。
       </p>
-      {error ? <p role="alert">{error}</p> : null}
+      {error || !rule ? (
+        <p role="alert">{error || '请刷新有效行情后重设基准，或选择成本价固定模式。'}</p>
+      ) : null}
     </section>
   )
 }

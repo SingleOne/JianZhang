@@ -1,10 +1,13 @@
 .stop-loss-editor {
-  display: grid;
-  gap: 12px;
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  display: contents;
   font-size: 12px;
+}
+.stop-loss-editor > * {
+  grid-column: 2 / -2;
+}
+.stop-loss-editor > .stop-loss-fields {
+  grid-column: 3;
+  grid-row: 1;
 }
 .stop-loss-editor p {
   margin: 0;
@@ -12,7 +15,7 @@
   color: var(--muted);
 }
 .stop-loss-editor [role='alert'] {
-  color: var(--green);
+  color: var(--red);
 }
 .stop-loss-fields,
 .stop-loss-preview {
@@ -32,15 +35,6 @@
 .stop-loss-fields input {
   width: 110px;
   font-size: 12px;
-}
-.stop-loss-switch {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-}
-.stop-loss-switch input {
-  accent-color: var(--text);
 }
 .stop-loss-badge {
   display: inline-flex;
