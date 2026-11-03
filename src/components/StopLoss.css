@@ -5,9 +5,26 @@
 .stop-loss-editor > * {
   grid-column: 2 / -2;
 }
-.stop-loss-editor > .stop-loss-fields {
+.stop-loss-editor > .stop-loss-mode {
   grid-column: 3;
   grid-row: 1;
+  min-width: 0;
+}
+.stop-loss-editor > .stop-loss-target {
+  grid-column: 4;
+  grid-row: 1;
+}
+.stock-alert-target.stop-loss-target input {
+  padding-right: 68px;
+}
+.stop-loss-editor > .stop-loss-reset {
+  grid-column: 6;
+  grid-row: 1;
+  width: 100%;
+  height: 34px;
+  padding: 0 4px;
+  font-size: 12px;
+  white-space: nowrap;
 }
 .stop-loss-editor p {
   margin: 0;
@@ -17,24 +34,11 @@
 .stop-loss-editor [role='alert'] {
   color: var(--red);
 }
-.stop-loss-fields,
 .stop-loss-preview {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
-}
-.stop-loss-fields > .app-select {
-  min-width: 180px;
-}
-.stop-loss-fields label {
-  display: grid;
-  gap: 6px;
-  font-size: 12px;
-}
-.stop-loss-fields input {
-  width: 110px;
-  font-size: 12px;
 }
 .stop-loss-badge {
   display: inline-flex;

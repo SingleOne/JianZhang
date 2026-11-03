@@ -949,10 +949,6 @@
   min-width: 0;
 }
 
-.stock-alert-stop-loss {
-  grid-template-columns: 28px 128px minmax(0, 1fr) 32px;
-}
-
 .stock-alert-stop-loss > .stock-alert-rule-index,
 .stock-alert-stop-loss > .stock-alert-metric,
 .stock-alert-stop-loss > .stock-alert-delete {
@@ -960,7 +956,7 @@
 }
 
 .stock-alert-stop-loss > .stock-alert-delete {
-  grid-column: 4;
+  grid-column: -2;
 }
 
 .stock-alert-error {

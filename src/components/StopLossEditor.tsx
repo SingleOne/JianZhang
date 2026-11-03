@@ -58,38 +58,40 @@ export function StopLossEditor({
   const snapshot = evaluateStopLoss({ ...stock, stopLoss: rule }, quote, new Date(), calendar)
   return (
     <section className="stop-loss-editor" aria-label="止损线设置">
-      <div className="stop-loss-fields">
-        <AppSelect
-          label="止损线模式"
-          value={mode}
-          portal
-          options={MODES}
-          onChange={(value) => {
-            if (reset(value) || !rule) setMode(value)
+      <AppSelect
+        className="stop-loss-mode"
+        label="止损线模式"
+        value={mode}
+        portal
+        options={MODES}
+        onChange={(value) => {
+          if (reset(value) || !rule) setMode(value)
+        }}
+      />
+      <label className="stock-alert-target stop-loss-target">
+        <AppInput
+          type="number"
+          min="0.01"
+          max="99.99"
+          step="0.01"
+          required
+          value={percent}
+          aria-label="止损比例（%）"
+          onChange={(event) => {
+            const value = event.target.value
+            setPercent(value)
+            const number = Number(value)
+            if (number > 0 && number < 100) {
+              if (rule) onChange({ ...rule, percent: number })
+              else reset(mode, value)
+            }
           }}
         />
-        <label>
-          止损比例（%）
-          <AppInput
-            type="number"
-            min="0.01"
-            max="99.99"
-            step="0.01"
-            required
-            value={percent}
-            onChange={(event) => {
-              const value = event.target.value
-              setPercent(value)
-              const number = Number(value)
-              if (number > 0 && number < 100) {
-                if (rule) onChange({ ...rule, percent: number })
-                else reset(mode, value)
-              }
-            }}
-          />
-        </label>
-        <AppButton onClick={() => reset()}>重设基准</AppButton>
-      </div>
+        <span>止损比例</span>
+      </label>
+      <AppButton className="stop-loss-reset" onClick={() => reset()}>
+        重设基准
+      </AppButton>
       {snapshot ? (
         <div className="stop-loss-preview" aria-live="polite">
           <span>
