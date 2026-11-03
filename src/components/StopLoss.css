@@ -51,8 +51,11 @@
 }
 
 .stock-name-line .stop-loss-badge {
-  gap: 4px;
-  padding: 3px 7px;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  justify-content: center;
+  padding: 0;
   color: var(--amber, #b45309);
   border: 1px solid currentColor;
   border-radius: 6px;
