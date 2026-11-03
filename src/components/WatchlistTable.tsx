@@ -1,3 +1,5 @@
+import { useAppData } from '../lib/data-center/hooks'
+import { selectPortfolio } from '../lib/data-center/portfolio-selectors'
 import type { StopLossRule } from '../shared/stop-loss'
 import { useSecuritiesAccountState } from './SecuritiesAccountContext'
 import {
@@ -23,11 +25,7 @@ import {
   useRef,
   useState
 } from 'react'
-import {
-  calculatePositionMetrics,
-  type PortfolioSummary,
-  type PositionProfitOverride
-} from '../lib/portfolio'
+import { calculatePositionMetrics } from '../lib/portfolio'
 import { calculatePortfolioQualitySummary } from '../lib/portfolio-quality'
 import { calculatePortfolioPerformanceReport } from '../lib/portfolio-performance'
 import { toStockTradingBook } from '../lib/stock-t-trading'
@@ -44,7 +42,6 @@ import type {
   MarketTradeFeeSettings,
   StockAlertRule,
   StockPosition,
-  StockQuote,
   StockSelectionRequest,
   StockTrackingConclusionResult,
   StockTrackingProfile,
@@ -124,6 +121,8 @@ const WatchlistGroupDialog = lazy(() =>
   }))
 )
 
+const EMPTY_CUMULATIVE_PROFIT: Readonly<Record<string, number | null>> = {}
+
 const DIVIDEND_FINANCING_SORT_OPTIONS = [
   { metric: 'ratio', label: '分红融资比' },
   { metric: 'yield', label: '股息率' }
@@ -133,7 +132,6 @@ interface WatchlistTableProps {
   onInitialRender: () => void
   watchlist: WatchStock[]
   watchlistGroups: WatchlistGroup[]
-  quotes: StockQuote[]
   dividendFinancingByCode: ReadonlyMap<string, DividendFinancingRankingItem>
   dividendFinancingSnapshotDate?: string
   dividendFinancingStaleReason?: string | null
@@ -158,12 +156,8 @@ interface WatchlistTableProps {
   marketTradeFees: MarketTradeFeeSettings
   tPlanDefaults: TPlanDefaultSettings
   tFloatingProfitAlertDefaultThreshold: number
-  portfolioSummary: PortfolioSummary
-  portfolioExposureText: string
   tradingCalendar: TradingCalendarSettings
   exchangeRates: ExchangeRateSettings
-  positionProfitOverrides: Readonly<Record<string, PositionProfitOverride>>
-  cumulativeProfitByQuoteId: Readonly<Record<string, number | null>>
   onSelect: (quoteId: string) => void
   onStockSelectionPositioned: (request: StockSelectionRequest) => void
   onDetailNavigationHandled: (requestId: string) => void
@@ -283,7 +277,6 @@ export function WatchlistTable({
   onInitialRender,
   watchlist,
   watchlistGroups,
-  quotes,
   dividendFinancingByCode,
   dividendFinancingSnapshotDate,
   dividendFinancingStaleReason,
@@ -308,12 +301,8 @@ export function WatchlistTable({
   marketTradeFees,
   tPlanDefaults,
   tFloatingProfitAlertDefaultThreshold,
-  portfolioSummary,
-  portfolioExposureText,
   tradingCalendar,
   exchangeRates,
-  positionProfitOverrides,
-  cumulativeProfitByQuoteId,
   onSelect,
   onStockSelectionPositioned,
   onDetailNavigationHandled,
@@ -340,13 +329,23 @@ export function WatchlistTable({
   onDailyKlineIndicatorChange,
   onRemove
 }: WatchlistTableProps) {
+  const quotes = useAppData((snapshot) => snapshot.quotes)
+  const accountState = useSecuritiesAccountState()
+  const portfolio = useAppData((snapshot) => selectPortfolio(snapshot, accountState))
+  const portfolioSummary = portfolio.summary
+  const portfolioExposureText = portfolio.exposureText
+  const positionProfitOverrides = portfolio.overrides
+  const cumulativeProfitByQuoteId = useAppData(
+    (snapshot) =>
+      snapshot.state.portfolioPerformanceCache?.cumulativeProfitByQuoteId ?? EMPTY_CUMULATIVE_PROFIT
+  )
+
   useEffect(() => {
     onInitialRender()
   }, [onInitialRender])
 
   const [sort, setSort] = useState<SortState | null>(null)
-  const { securitiesAccounts, feeSchemes, settings, portfolioPerformanceAdjustments } =
-    useSecuritiesAccountState()
+  const { securitiesAccounts, feeSchemes, settings, portfolioPerformanceAdjustments } = accountState
   const feeState = useMemo(
     () => ({ securitiesAccounts, feeSchemes, settings }),
     [securitiesAccounts, feeSchemes, settings]
@@ -469,18 +468,21 @@ export function WatchlistTable({
         fundamentalPeerComparison: capabilities.fundamentals
           ? fundamentalPeerComparisonsByCode.get(stock.code)
           : undefined,
-        metrics: calculatePositionMetrics(
-          stock.position,
-          quote,
-          stockTradingBooks[stock.quoteId],
-          exchangeRates,
-          positionProfitOverrides[stock.quoteId]
-        ),
+        metrics:
+          portfolio.metrics.get(stock.quoteId) ??
+          calculatePositionMetrics(
+            stock.position,
+            quote,
+            stockTradingBooks[stock.quoteId],
+            exchangeRates,
+            positionProfitOverrides[stock.quoteId]
+          ),
         cumulativeProfit: cumulativeProfitByQuoteId[stock.quoteId],
         manualIndex
       }
     })
   }, [
+    portfolio.metrics,
     dividendFinancingByCode,
     cumulativeProfitByQuoteId,
     fundamentalPeerComparisonsByCode,
@@ -1391,7 +1393,6 @@ export function WatchlistTable({
           {displayedRows.map(
             ({
               stock,
-              quote,
               dividendFinancing,
               fundamentalScreening,
               fundamentalPeerComparison,
@@ -1409,7 +1410,6 @@ export function WatchlistTable({
               >
                 <WatchlistRow
                   stock={stock}
-                  quote={quote}
                   dividendFinancing={dividendFinancing}
                   dividendFinancingSnapshotDate={dividendFinancingSnapshotDate}
                   fundamentalScreening={fundamentalScreening}

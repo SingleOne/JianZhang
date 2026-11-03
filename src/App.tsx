@@ -20,29 +20,36 @@ import {
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AppTitlebar, MarketTradingState } from './components/AppTitlebar'
 import { AppButton } from './components/AppButton'
-import { AnimatedNumber } from './components/AnimatedNumber'
+import {
+  MarketIndexSummary,
+  PortfolioSummaryCards,
+  PositionCount,
+  QuoteUpdateStatus
+} from './components/MarketSummary'
 import { useConfirmDialog } from './components/ConfirmDialog'
 import type { GitHubSyncUploadPhase } from './components/SettingsMenu'
 import { SearchBar } from './components/SearchBar'
 import { StartupOverlay } from './components/StartupOverlay'
 import { useInitialRenderReady } from './hooks/useInitialRenderReady'
 import { TitlebarToolsMenu } from './components/TitlebarToolsMenu'
-import { getInitialBootstrap, initialState, isDesktopRuntime, stockApi } from './lib/api'
+import {
+  dataCenter,
+  getInitialBootstrap,
+  initialState,
+  isDesktopRuntime,
+  stockApi
+} from './lib/api'
 import {
   APP_COMPLETION_NOTIFICATION_EVENT,
   type AppCompletionNotification,
   type StockDetailNavigationRequest
 } from './lib/completion-notifications'
-import { formatMoneyProfit, formatPercent, formatPrice, formatUpdateTime } from './lib/format'
 import {
   DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA,
   evaluateFundamentalCompany,
   type FundamentalScreeningEvaluation
 } from './lib/fundamental-screening'
-import { calculatePortfolioSummary } from './lib/portfolio'
 import { watchlistAddedDate } from './shared/watchlist-date'
-import { calculateCurrentPositionProfitOverrides } from './lib/portfolio-performance'
-import { reconcileStockQuotes } from './lib/quote-state'
 import { applyAppThemePreference } from './lib/theme'
 import {
   createStockTrackingSource,
@@ -52,7 +59,6 @@ import {
 import {
   getDailyScanWatchlistGroup,
   getTrackingWatchlistGroup,
-  MARKET_INDEX_OPTIONS,
   synchronizeWatchlistGroupMemberships
 } from './shared/types'
 import packageInfo from '../package.json'
@@ -87,7 +93,6 @@ import type {
   StockTrackingCycleSummary,
   StockTrackingProfile,
   StockTrackingSource,
-  StockQuote,
   StockSelectionRequest,
   TTradingAccount,
   StockTradingBook,
@@ -165,8 +170,6 @@ const EMPTY_DATA_SNAPSHOT_STATE: DataSnapshotRuntimeState = {
   staleReason: null
 }
 
-const EMPTY_CUMULATIVE_PROFIT_BY_QUOTE_ID: Readonly<Record<string, number | null>> = {}
-
 const INITIAL_OPTIONAL_MODULES_STATE: OptionalModulesState = {
   marketInsight: {
     status: __JIANZHANG_MARKET_INSIGHT_ENABLED__ ? 'initializing' : 'disabled',
@@ -188,22 +191,11 @@ const AiAssistantDrawer = __JIANZHANG_AI_MODULE_ENABLED__
     )
   : null
 
-function directionClass(value: number | null | undefined): string {
-  if (value === null || value === undefined || value === 0) return 'is-flat'
-  return value > 0 ? 'is-up' : 'is-down'
-}
-
-function cardDirectionClass(value: number | null | undefined): string {
-  if (value === null || value === undefined || value === 0) return 'is-card-flat'
-  return value > 0 ? 'is-card-up' : 'is-card-down'
-}
-
 export default function App() {
   const [activeTitlebarPanel, setActiveTitlebarPanel] = useState<TitlebarPanelId | null>(null)
   const confirm = useConfirmDialog()
   const [state, setState] = useState<AppState>(initialState)
   const [trackingArchiveIndex, setTrackingArchiveIndex] = useState<StockTrackingArchiveIndex>({})
-  const [quotes, setQuotes] = useState<StockQuote[]>([])
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null)
   const [stockSelectionRequest, setStockSelectionRequest] = useState<StockSelectionRequest | null>(
     null
@@ -300,10 +292,6 @@ export default function App() {
     })
   }, [])
 
-  const updateQuotes = useCallback((incoming: StockQuote[]) => {
-    setQuotes((current) => reconcileStockQuotes(current, incoming))
-  }, [])
-
   const handleWatchlistInitialRender = useCallback(() => setWatchlistRendered(true), [])
 
   const reportError = useCallback((message: string) => {
@@ -384,7 +372,6 @@ export default function App() {
       .then((bootstrap) => {
         setState(bootstrap.state)
         setTrackingArchiveIndex(bootstrap.trackingArchiveIndex)
-        setQuotes(bootstrap.quotes)
         setSource(bootstrap.source)
         if (bootstrap.warning) reportError(bootstrap.warning)
         setSelectedQuoteId((current) =>
@@ -408,17 +395,15 @@ export default function App() {
       })
       .catch(() => undefined)
 
-    const unsubscribeQuotes = stockApi.onQuotesUpdated(updateQuotes)
     const unsubscribeState = stockApi.onStateUpdated(setState)
     const unsubscribeSelection = stockApi.onSelectStock(handleStockSelection)
     const unsubscribeError = stockApi.onDataError(reportError)
     return () => {
-      unsubscribeQuotes()
       unsubscribeState()
       unsubscribeSelection()
       unsubscribeError()
     }
-  }, [handleStockSelection, refreshGitHubGist, reportError, updateQuotes])
+  }, [handleStockSelection, refreshGitHubGist, reportError])
 
   useEffect(() => {
     let active = true
@@ -587,77 +572,6 @@ export default function App() {
       ),
     [fundamentalOverview]
   )
-  const positionProfitOverrides = useMemo(
-    () =>
-      calculateCurrentPositionProfitOverrides(
-        state.watchlist,
-        quotes,
-        state.stockTradingBooks,
-        state.settings.exchangeRates,
-        state.portfolioPerformanceAdjustments ?? {}
-      ),
-    [
-      quotes,
-      state.portfolioPerformanceAdjustments,
-      state.settings.exchangeRates,
-      state.stockTradingBooks,
-      state.watchlist
-    ]
-  )
-  const cumulativeProfitByQuoteId =
-    state.portfolioPerformanceCache?.cumulativeProfitByQuoteId ??
-    EMPTY_CUMULATIVE_PROFIT_BY_QUOTE_ID
-  const portfolioSummary = useMemo(
-    () =>
-      calculatePortfolioSummary(
-        state.watchlist,
-        quotes,
-        state.stockTradingBooks,
-        state.settings.exchangeRates,
-        positionProfitOverrides
-      ),
-    [
-      positionProfitOverrides,
-      quotes,
-      state.settings.exchangeRates,
-      state.stockTradingBooks,
-      state.watchlist
-    ]
-  )
-  const portfolioExposureText = useMemo(() => {
-    const total = portfolioSummary.marketValue ?? 0
-    if (total <= 0) return ''
-    const marketLabels = { CN: 'A股', HK: '港股', US: '美股' } as const
-    const marketText = (['CN', 'HK', 'US'] as const)
-      .filter((market) => (portfolioSummary.marketValues[market] ?? 0) > 0)
-      .map(
-        (market) =>
-          `${marketLabels[market]} ${(((portfolioSummary.marketValues[market] ?? 0) / total) * 100).toFixed(1)}%`
-      )
-      .join(' · ')
-    const currencyText = (['CNY', 'HKD', 'USD'] as const)
-      .filter((currency) => (portfolioSummary.currencyValues[currency] ?? 0) > 0)
-      .map(
-        (currency) =>
-          `${currency} ${(((portfolioSummary.currencyValues[currency] ?? 0) / total) * 100).toFixed(1)}%`
-      )
-      .join(' · ')
-    return [marketText, currencyText].filter(Boolean).join(' ｜ ')
-  }, [portfolioSummary])
-  const marketIndexQuotes = useMemo(() => {
-    const selectedIds = new Set(state.settings.marketIndexIds)
-    const quotesById = new Map(quotes.map((quote) => [quote.quoteId, quote]))
-    return MARKET_INDEX_OPTIONS.filter((index) => selectedIds.has(index.id)).map((index) => ({
-      index,
-      quote: quotesById.get(index.quoteId)
-    }))
-  }, [quotes, state.settings.marketIndexIds])
-  const lastUpdated = quotes.reduce<string | undefined>((latest, quote) => {
-    const quoteDataAt = quote.dataAt ?? quote.updatedAt
-    if (!latest || quoteDataAt > latest) return quoteDataAt
-    return latest
-  }, undefined)
-
   const persist = useCallback(
     async (nextState: AppState, refreshDemoQuotes = true, rethrowSaveError = false) => {
       const synchronizedState = {
@@ -672,7 +586,7 @@ export default function App() {
       try {
         const saved = await stockApi.saveState(synchronizedState)
         setState(saved)
-        if (!isDesktopRuntime && refreshDemoQuotes) updateQuotes(await stockApi.refreshQuotes())
+        if (!isDesktopRuntime && refreshDemoQuotes) await stockApi.refreshQuotes()
         return saved
       } catch (reason) {
         reportError(reason instanceof Error ? reason.message : '设置保存失败')
@@ -686,7 +600,7 @@ export default function App() {
         return null
       }
     },
-    [reportError, updateQuotes]
+    [reportError]
   )
 
   const commitAccountState = useCallback(
@@ -723,7 +637,7 @@ export default function App() {
       ]
       const groupIds = new Set(existing?.groupIds ?? [])
       targetGroups.forEach((group) => groupIds.add(group.id))
-      const knownQuote = quotes.find((quote) => quote.quoteId === result.quoteId)
+      const knownQuote = dataCenter.getSnapshot().quotesById.get(result.quoteId)
       const addedAt = watchlistAddedDate()
       const nextStock = existing
         ? { ...existing, groupIds: [...groupIds] }
@@ -745,7 +659,7 @@ export default function App() {
           nextTrackingProfiles[result.quoteId],
           nextStock,
           options.source,
-          quotes.find((quote) => quote.quoteId === result.quoteId)
+          dataCenter.getSnapshot().quotesById.get(result.quoteId)
         )
       }
       const nextState = {
@@ -761,7 +675,6 @@ export default function App() {
         .then(async (saved) => {
           if (!saved || existing) return
           const incoming = await stockApi.refreshQuote(result.quoteId)
-          updateQuotes(incoming)
           const refreshedQuote = incoming.find((quote) => quote.quoteId === result.quoteId)
           const refreshedPrice = refreshedQuote?.latest
           const profile = saved.stockTrackingProfiles[result.quoteId]
@@ -798,7 +711,7 @@ export default function App() {
           reportError(reason instanceof Error ? reason.message : '新股票行情获取失败')
         })
     },
-    [persist, quotes, reportError, requestWatchlistStockPosition, state, updateQuotes]
+    [persist, reportError, requestWatchlistStockPosition, state]
   )
 
   const addDailyMarketScanStock = useCallback(
@@ -899,13 +812,13 @@ export default function App() {
         state.stockTrackingProfiles[quoteId],
         stock,
         createStockTrackingSource('manual', {
-          startPrice: quotes.find((quote) => quote.quoteId === quoteId)?.latest ?? undefined
+          startPrice: dataCenter.getSnapshot().quotesById.get(quoteId)?.latest ?? undefined
         }),
-        quotes.find((quote) => quote.quoteId === quoteId)
+        dataCenter.getSnapshot().quotesById.get(quoteId)
       )
       saveTrackingProfile(nextProfile)
     },
-    [quotes, saveTrackingProfile, state.stockTrackingProfiles, state.watchlist]
+    [saveTrackingProfile, state.stockTrackingProfiles, state.watchlist]
   )
 
   const stopTracking = useCallback(
@@ -921,7 +834,7 @@ export default function App() {
         profile,
         result,
         summary,
-        quotes.find((quote) => quote.quoteId === quoteId)
+        dataCenter.getSnapshot().quotesById.get(quoteId)
       )
       const { [quoteId]: _stoppedProfile, ...activeProfiles } = state.stockTrackingProfiles
       const nextState = {
@@ -948,7 +861,7 @@ export default function App() {
           })
         })
     },
-    [quotes, reportError, state]
+    [reportError, state]
   )
 
   const restartTracking = useCallback(
@@ -962,7 +875,6 @@ export default function App() {
     (quoteId: string) => {
       const nextWatchlist = state.watchlist.filter((stock) => stock.quoteId !== quoteId)
       setSelectedQuoteId((current) => (current === quoteId ? null : current))
-      setQuotes((current) => current.filter((quote) => quote.quoteId !== quoteId))
       void persist({
         ...state,
         watchlist: nextWatchlist,
@@ -995,12 +907,11 @@ export default function App() {
             profile,
             'unverified',
             '从股票列表中删除时停止追踪',
-            quotes.find((quote) => quote.quoteId === quoteId)
+            dataCenter.getSnapshot().quotesById.get(quoteId)
           )
         : undefined
       const { [quoteId]: _removedProfile, ...activeProfiles } = state.stockTrackingProfiles
       setSelectedQuoteId((current) => (current === quoteId ? null : current))
-      setQuotes((current) => current.filter((quote) => quote.quoteId !== quoteId))
       const nextState = {
         ...state,
         watchlist: state.watchlist.filter((item) => item.quoteId !== quoteId),
@@ -1030,7 +941,7 @@ export default function App() {
           })
         })
     },
-    [confirm, persist, quotes, reportError, state]
+    [confirm, persist, reportError, state]
   )
 
   const deleteTrackingArchiveCycle = useCallback(
@@ -1451,7 +1362,6 @@ export default function App() {
       })
       if (!confirmed) return false
 
-      const importedQuoteIds = new Set(result.state.watchlist.map((stock) => stock.quoteId))
       if (result.importId) {
         reportSuccess('用户数据导入完成，应用正在重启')
       } else {
@@ -1460,7 +1370,6 @@ export default function App() {
         reportSuccess(`已导入 ${saved.watchlist.length} 只股票及全部设置`)
       }
       setSelectedQuoteId(null)
-      setQuotes((current) => current.filter((quote) => importedQuoteIds.has(quote.quoteId)))
       return true
     },
     [confirm, persist, reportSuccess]
@@ -1627,7 +1536,7 @@ export default function App() {
   const refreshNow = async () => {
     setRefreshing(true)
     try {
-      updateQuotes(await stockApi.refreshQuotes())
+      await stockApi.refreshQuotes()
     } catch (reason) {
       reportError(reason instanceof Error ? reason.message : '刷新失败')
     } finally {
@@ -1635,12 +1544,9 @@ export default function App() {
     }
   }
 
-  const recalculatePortfolioPerformanceStock = useCallback(
-    async (quoteId: string) => {
-      updateQuotes(await stockApi.refreshQuote(quoteId))
-    },
-    [updateQuotes]
-  )
+  const recalculatePortfolioPerformanceStock = useCallback(async (quoteId: string) => {
+    await stockApi.refreshQuote(quoteId)
+  }, [])
 
   const refreshTradingCalendar = async () => {
     setCalendarRefreshing(true)
@@ -1828,7 +1734,7 @@ export default function App() {
                       <span>
                         {state.watchlist.length} 只股票 ·{' '}
                         {state.watchlist.filter((stock) => stock.isPriority).length} 只重点 ·{' '}
-                        {portfolioSummary.positionCount} 只有持仓
+                        <PositionCount /> 只有持仓
                       </span>
                       <span>点击股票行展开行情详情</span>
                     </span>
@@ -1849,54 +1755,10 @@ export default function App() {
                       点击查看 <ArrowUpRight size={13} />
                     </small>
                   </AppButton>
-                  {marketIndexQuotes.length > 0 ? (
-                    <div
-                      className="market-index-summary panel-market-index-summary"
-                      aria-label="大盘指数行情"
-                    >
-                      {marketIndexQuotes.map(({ index, quote }) => (
-                        <span
-                          className={`market-index-card ${cardDirectionClass(quote?.changePercent)}`}
-                          title={`${index.name} ${formatPrice(quote?.latest)} ${formatPercent(quote?.changePercent)}`}
-                          key={index.id}
-                        >
-                          <small>{index.name}</small>
-                          <strong>{formatPrice(quote?.latest)}</strong>
-                          <em className={directionClass(quote?.changePercent)}>
-                            {formatPercent(quote?.changePercent)}
-                          </em>
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
+                  <MarketIndexSummary />
                 </div>
                 <div className="panel-heading-side">
-                  <div className="portfolio-summary" aria-label="全部持仓收益汇总">
-                    <span className={cardDirectionClass(portfolioSummary.todayProfit)}>
-                      <small>今日总收益</small>
-                      <strong className={directionClass(portfolioSummary.todayProfit)}>
-                        <AnimatedNumber
-                          value={portfolioSummary.todayProfit}
-                          formattedValue={formatMoneyProfit(portfolioSummary.todayProfit, 'CNY')}
-                        />
-                      </strong>
-                      <em className={directionClass(portfolioSummary.todayProfitPercent)}>
-                        {formatPercent(portfolioSummary.todayProfitPercent)}
-                      </em>
-                    </span>
-                    <span className={cardDirectionClass(portfolioSummary.totalProfit)}>
-                      <small>持仓收益</small>
-                      <strong className={directionClass(portfolioSummary.totalProfit)}>
-                        <AnimatedNumber
-                          value={portfolioSummary.totalProfit}
-                          formattedValue={formatMoneyProfit(portfolioSummary.totalProfit, 'CNY')}
-                        />
-                      </strong>
-                      <em className={directionClass(portfolioSummary.profitPercent)}>
-                        {formatPercent(portfolioSummary.profitPercent)}
-                      </em>
-                    </span>
-                  </div>
+                  <PortfolioSummaryCards state={state} />
                 </div>
               </div>
               {!initializing ? (
@@ -1905,7 +1767,6 @@ export default function App() {
                     onInitialRender={handleWatchlistInitialRender}
                     watchlist={state.watchlist}
                     watchlistGroups={state.watchlistGroups}
-                    quotes={quotes}
                     dividendFinancingByCode={dividendFinancingByCode}
                     dividendFinancingSnapshotDate={dividendFinancingOverview?.snapshotDate}
                     dividendFinancingStaleReason={
@@ -1940,12 +1801,8 @@ export default function App() {
                     tFloatingProfitAlertDefaultThreshold={
                       state.settings.tFloatingProfitAlertDefaultThreshold
                     }
-                    portfolioSummary={portfolioSummary}
-                    portfolioExposureText={portfolioExposureText}
                     tradingCalendar={state.settings.tradingCalendar}
                     exchangeRates={state.settings.exchangeRates}
-                    positionProfitOverrides={positionProfitOverrides}
-                    cumulativeProfitByQuoteId={cumulativeProfitByQuoteId}
                     onSelect={selectWatchlistStock}
                     onStockSelectionPositioned={handleStockSelectionPositioned}
                     onDetailNavigationHandled={handleDetailNavigationHandled}
@@ -1987,7 +1844,7 @@ export default function App() {
           <MarketTradingState tradingCalendar={state.settings.tradingCalendar} />
           <span className="status-separator" />
           <span>
-            {error ? '行情连接异常，保留最近数据' : `最近更新 ${formatUpdateTime(lastUpdated)}`}
+            <QuoteUpdateStatus error={error} />
           </span>
           {githubUploadNotice ? (
             <>
@@ -2108,7 +1965,6 @@ export default function App() {
               archiveIndex={trackingArchiveIndex}
               watchlist={state.watchlist}
               watchlistGroups={state.watchlistGroups}
-              quotes={quotes}
               onUpdateProfile={saveTrackingProfile}
               onStopTracking={stopTracking}
               onRestartTracking={restartTracking}
@@ -2166,7 +2022,6 @@ export default function App() {
           <Suspense fallback={null}>
             <PortfolioPerformanceDialog
               watchlist={state.watchlist}
-              quotes={quotes}
               accounts={state.stockTradingBooks}
               exchangeRates={state.settings.exchangeRates}
               adjustments={state.portfolioPerformanceAdjustments ?? {}}

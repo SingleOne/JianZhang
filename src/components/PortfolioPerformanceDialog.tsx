@@ -1,3 +1,4 @@
+import { useAppData } from '../lib/data-center/hooks'
 import { useSecuritiesAccountState } from './SecuritiesAccountContext'
 import { listStockAccountBooks, getStockAccountBook } from '../shared/stock-accounts'
 import type { StockTradingBook, StockTradingBooks } from '../shared/types'
@@ -36,7 +37,6 @@ import type {
   ExchangeRateSettings,
   PortfolioPerformanceAdjustments,
   PortfolioPerformanceCache,
-  StockQuote,
   WatchStock
 } from '../shared/types'
 import './PortfolioPerformanceDialog.css'
@@ -44,7 +44,6 @@ import PortfolioPerformanceCyclesDialog from './PortfolioPerformanceCyclesDialog
 
 interface PortfolioPerformanceDialogProps {
   watchlist: WatchStock[]
-  quotes: StockQuote[]
   accounts: StockTradingBooks
   exchangeRates: ExchangeRateSettings
   adjustments: PortfolioPerformanceAdjustments
@@ -189,7 +188,6 @@ function SummaryValue({
 
 export default function PortfolioPerformanceDialog({
   watchlist,
-  quotes,
   accounts,
   exchangeRates,
   adjustments,
@@ -199,6 +197,7 @@ export default function PortfolioPerformanceDialog({
   onSaveTradingBook,
   onClose
 }: PortfolioPerformanceDialogProps) {
+  const quotes = useAppData((snapshot) => snapshot.quotes)
   const [dimension, setDimension] = useState<PerformanceDimension>('stock')
   const [sort, setSort] = useState<PortfolioPerformanceSort | null>(null)
   const [editingAdjustmentQuoteId, setEditingAdjustmentQuoteId] = useState<string | null>(null)

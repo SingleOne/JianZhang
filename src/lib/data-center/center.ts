@@ -1,4 +1,5 @@
 import type { AppState, BootstrapResult, StockDesktopApi, StockQuote } from '../../shared/types'
+import { getMarketIndexStocks } from '../../shared/types'
 import { reconcileStockQuotes } from '../quote-state'
 import { createSnapshotStore } from './store'
 
@@ -17,15 +18,37 @@ export function createDataCenter(transport: StockDesktopApi, initialState: AppSt
   })
   let quoteEventVersion = 0
   let bootstrapRequest: Promise<BootstrapResult> | null = null
+  let activeQuoteIds: Set<string> | undefined
 
   const receiveState = (state: AppState) => {
     const current = store.getSnapshot()
     if ((state.revision ?? 0) < (current.state.revision ?? 0)) return
-    if (state !== current.state) store.publish({ ...current, state })
+    const ids = new Set([
+      ...state.watchlist.map((stock) => stock.quoteId),
+      ...Object.values(state.stockTrackingProfiles).map((profile) => profile.quoteId),
+      ...getMarketIndexStocks(state.settings.marketIndexIds).map((stock) => stock.quoteId)
+    ])
+    activeQuoteIds = ids
+    const quotes = current.quotes.filter((quote) => ids.has(quote.quoteId))
+    const removed = quotes.length !== current.quotes.length
+    if (state !== current.state || removed) {
+      store.publish({
+        ...current,
+        state,
+        quotes: removed ? quotes : current.quotes,
+        quotesById: removed
+          ? new Map(quotes.map((quote) => [quote.quoteId, quote]))
+          : current.quotesById
+      })
+    }
   }
   const receiveQuotes = (incoming: StockQuote[]) => {
     const current = store.getSnapshot()
-    const quotes = reconcileStockQuotes(current.quotes, incoming)
+    // Until bootstrap establishes ownership, keep early pushes. Afterwards an old response
+    // must not resurrect a stock removed while the request was in flight.
+    const ids = activeQuoteIds
+    const accepted = ids ? incoming.filter((quote) => ids.has(quote.quoteId)) : incoming
+    const quotes = reconcileStockQuotes(current.quotes, accepted)
     if (quotes === current.quotes) return
     store.publish({ ...current, quotes, quotesById: new Map(quotes.map((q) => [q.quoteId, q])) })
   }

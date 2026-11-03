@@ -290,7 +290,8 @@ export function calculatePortfolioSummary(
   quotes: StockQuote[],
   stockTradingBooks: StockTradingBooks,
   exchangeRates: ExchangeRateSettings = DEFAULT_EXCHANGE_RATE_SETTINGS,
-  profitOverrides: Readonly<Record<string, PositionProfitOverride>> = {}
+  profitOverrides: Readonly<Record<string, PositionProfitOverride>> = {},
+  cachedMetrics?: ReadonlyMap<string, PositionMetrics>
 ): PortfolioSummary {
   const quoteMap = new Map(quotes.map((quote) => [quote.quoteId, quote]))
   let positionCount = 0
@@ -308,13 +309,15 @@ export function calculatePortfolioSummary(
 
   for (const stock of watchlist) {
     if (stock.position) positionCount += 1
-    const metrics = calculatePositionMetrics(
-      stock.position,
-      quoteMap.get(stock.quoteId),
-      stockTradingBooks[stock.quoteId],
-      exchangeRates,
-      profitOverrides[stock.quoteId]
-    )
+    const metrics =
+      cachedMetrics?.get(stock.quoteId) ??
+      calculatePositionMetrics(
+        stock.position,
+        quoteMap.get(stock.quoteId),
+        stockTradingBooks[stock.quoteId],
+        exchangeRates,
+        profitOverrides[stock.quoteId]
+      )
     if (stock.position && metrics.cnyMarketValue !== null) {
       marketValuePositionCount += 1
       marketValue += metrics.cnyMarketValue

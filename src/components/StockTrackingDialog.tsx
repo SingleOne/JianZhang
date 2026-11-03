@@ -1,3 +1,4 @@
+import { useAppData } from '../lib/data-center/hooks'
 import { Binoculars, History, Play, Search, Trash2, X } from 'lucide-react'
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -7,7 +8,6 @@ import { calculateStockTrackingPerformance } from '../lib/stock-tracking-perform
 import { formatPercent } from '../lib/format'
 import type {
   DailyKlineIndicator,
-  StockQuote,
   StockTrackingArchiveIndex,
   StockTrackingConclusionResult,
   StockTrackingCycleSummary,
@@ -58,7 +58,6 @@ interface StockTrackingDialogProps {
   archiveIndex: StockTrackingArchiveIndex
   watchlist: WatchStock[]
   watchlistGroups: WatchlistGroup[]
-  quotes: StockQuote[]
   onUpdateProfile: (profile: StockTrackingProfile) => void
   onStopTracking: (
     quoteId: string,
@@ -138,7 +137,6 @@ export function StockTrackingDialog({
   archiveIndex,
   watchlist,
   watchlistGroups,
-  quotes,
   onUpdateProfile,
   onStopTracking,
   onRestartTracking,
@@ -154,6 +152,7 @@ export function StockTrackingDialog({
   onDailyKlineIndicatorChange,
   onClose
 }: StockTrackingDialogProps) {
+  const quotes = useAppData((snapshot) => snapshot.quotes)
   const [query, setQuery] = useState('')
   const deferredQuery = useDeferredValue(query)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('tracking')
@@ -167,11 +166,9 @@ export function StockTrackingDialog({
   const [archiveError, setArchiveError] = useState('')
   const [groupPopover, setGroupPopover] = useState<GroupPopoverState | null>(null)
   const [groupDialogOpen, setGroupDialogOpen] = useState(false)
-  const [trackingQuotes, setTrackingQuotes] = useState<StockQuote[]>([])
   const archiveCacheRef = useRef(new Map<string, StockTrackingProfile>())
   const archiveRequestsRef = useRef(new Map<string, Promise<StockTrackingProfile>>())
   const stockRowsRef = useRef<TrackingStockRow[]>([])
-  const quotesRef = useRef(quotes)
   const groupAnchorRef = useRef<HTMLButtonElement | null>(null)
   const groupPopoverRef = useRef<HTMLDivElement>(null)
 
@@ -219,8 +216,8 @@ export function StockTrackingDialog({
   }, [groupPopover])
 
   const detailQuoteMap = useMemo(
-    () => new Map([...trackingQuotes, ...quotes].map((quote) => [quote.quoteId, quote] as const)),
-    [quotes, trackingQuotes]
+    () => new Map(quotes.map((quote) => [quote.quoteId, quote] as const)),
+    [quotes]
   )
   const watchlistQuoteIds = useMemo(
     () => new Set(watchlist.map((stock) => stock.quoteId)),
@@ -301,7 +298,6 @@ export function StockTrackingDialog({
   )
   const selectedRow = filteredRows.find((row) => row.quoteId === selectedQuoteId) ?? filteredRows[0]
   stockRowsRef.current = stockRows
-  quotesRef.current = quotes
   const selectedProfile = detailMode === 'history' ? archiveProfile : selectedRow?.activeProfile
   const activeGroupStock = groupPopover
     ? watchlist.find((stock) => stock.quoteId === groupPopover.quoteId)
@@ -313,27 +309,12 @@ export function StockTrackingDialog({
   useEffect(() => {
     if (!open) return
     const openingRows = stockRowsRef.current
-    const openingQuotes = quotesRef.current
     const quoteIds = openingRows.map((row) => row.quoteId)
-    setTrackingQuotes(openingQuotes)
     setSelectedQuoteId((current) =>
       openingRows.some((row) => row.quoteId === current) ? current : (openingRows[0]?.quoteId ?? '')
     )
     if (quoteIds.length === 0) return
-    let active = true
-    void stockApi
-      .refreshQuotesByIds(quoteIds)
-      .then((refreshedQuotes) => {
-        if (!active) return
-        const quoteMap = new Map(
-          [...openingQuotes, ...refreshedQuotes].map((quote) => [quote.quoteId, quote] as const)
-        )
-        setTrackingQuotes([...quoteMap.values()])
-      })
-      .catch(() => undefined)
-    return () => {
-      active = false
-    }
+    void stockApi.refreshQuotesByIds(quoteIds).catch(() => undefined)
   }, [open])
 
   const selectedRowQuoteId = selectedRow?.quoteId

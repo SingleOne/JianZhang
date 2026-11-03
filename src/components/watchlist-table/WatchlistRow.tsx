@@ -1,3 +1,4 @@
+import { useStockQuote } from '../../lib/data-center/hooks'
 import { evaluateStopLoss } from '../../shared/stop-loss'
 import '../StopLoss.css'
 import type { StockTradingBook } from '../../shared/types'
@@ -57,7 +58,6 @@ import type {
   DividendFinancingRankingItem,
   ExchangeRateSettings,
   FundamentalSnapshot,
-  StockQuote,
   StockPosition,
   StockTrackingConclusionResult,
   StockTrackingProfile,
@@ -144,7 +144,6 @@ export function todayRadarSignals(signals: StockRadarSignal[] | undefined): Stoc
 
 interface WatchlistRowProps {
   stock: WatchStock
-  quote: StockQuote | undefined
   metrics: PositionMetrics
   cumulativeProfit: number | null | undefined
   dividendFinancing: DividendFinancingRankingItem | undefined
@@ -221,7 +220,6 @@ interface WatchlistRowProps {
 
 export const WatchlistRow = memo(function WatchlistRow({
   stock,
-  quote,
   metrics,
   cumulativeProfit,
   dividendFinancing,
@@ -285,6 +283,7 @@ export const WatchlistRow = memo(function WatchlistRow({
   onRestartTracking,
   onRemove
 }: WatchlistRowProps) {
+  const quote = useStockQuote(stock.quoteId)
   const market = marketFromQuoteId(stock.quoteId)
   const capabilities = marketCapabilitiesForQuoteId(stock.quoteId)
   const isAStock = market === 'CN'

@@ -31,7 +31,15 @@ function quote(quoteId: string, latest: number): StockQuote {
 function setup() {
   const state: AppState = {
     revision: 1,
-    watchlist: [],
+    watchlist: ['A', 'B'].map((quoteId) => ({
+      quoteId,
+      code: quoteId,
+      name: quoteId,
+      marketLabel: '沪A',
+      showInTaskbar: false,
+      isPriority: false,
+      showRadarSignals: false
+    })),
     watchlistGroups: [],
     stockTrackingProfiles: {},
     stockTradingBooks: {},
@@ -82,6 +90,45 @@ function setup() {
 }
 
 describe('window data center', () => {
+  it('does not resurrect removed stocks from a pending refresh response', async () => {
+    const fixture = setup()
+    await fixture.center.api.getBootstrap()
+    let resolve!: (quotes: StockQuote[]) => void
+    fixture.refreshQuotesByIds.mockReturnValue(
+      new Promise((done) => {
+        resolve = done
+      })
+    )
+    const pending = fixture.center.api.refreshQuotesByIds(['A'])
+    fixture.pushState({
+      ...fixture.state,
+      revision: 2,
+      watchlist: fixture.state.watchlist.slice(1)
+    })
+    resolve([quote('A', 12)])
+    await pending
+    expect(fixture.center.getSnapshot().quotes.map((q) => q.quoteId)).toEqual(['B'])
+    expect(fixture.center.getSnapshot().quotesById.has('A')).toBe(false)
+  })
+
+  it('filters an old bootstrap snapshot using the latest stock ownership', async () => {
+    const fixture = setup()
+    let resolve!: (result: BootstrapResult) => void
+    fixture.getBootstrap.mockReturnValue(
+      new Promise((done) => {
+        resolve = done
+      })
+    )
+    const pending = fixture.center.api.getBootstrap()
+    fixture.pushState({
+      ...fixture.state,
+      revision: 2,
+      watchlist: fixture.state.watchlist.slice(1)
+    })
+    resolve(fixture.bootstrap)
+    expect((await pending).quotes.map((q) => q.quoteId)).toEqual(['B'])
+  })
+
   it('merges a partial response without changing its legacy return value', async () => {
     const fixture = setup()
     await fixture.center.api.getBootstrap()

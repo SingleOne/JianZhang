@@ -684,6 +684,25 @@ function makeDemoShareholderSnapshot(quoteId: string): ShareholderSnapshot {
   }
 }
 
+function demoQuoteStocks(state: AppState): WatchStock[] {
+  const tracked = Object.values(state.stockTrackingProfiles).map((profile) => ({
+    quoteId: profile.quoteId,
+    code: profile.code,
+    name: profile.name,
+    marketLabel: profile.marketLabel,
+    showInTaskbar: false,
+    isPriority: false,
+    showRadarSignals: false
+  }))
+  return [
+    ...new Map(
+      [...tracked, ...state.watchlist, ...getMarketIndexStocks(state.settings.marketIndexIds)].map(
+        (stock) => [stock.quoteId, stock]
+      )
+    ).values()
+  ]
+}
+
 const demoApi: StockDesktopApi = {
   platform: 'other',
   async getMarketChangeDistribution() {
@@ -695,11 +714,10 @@ const demoApi: StockDesktopApi = {
   notifyInitialRender() {},
   async getBootstrap(): Promise<BootstrapResult> {
     const state = loadDemoState()
-    const marketIndices = getMarketIndexStocks(state.settings.marketIndexIds)
     return {
       state,
       trackingArchiveIndex: demoTrackingArchiveIndex(),
-      quotes: makeDemoQuotes([...state.watchlist, ...marketIndices]),
+      quotes: makeDemoQuotes(demoQuoteStocks(state)),
       source: 'demo'
     }
   },
@@ -944,17 +962,11 @@ const demoApi: StockDesktopApi = {
   },
   async refreshQuotes() {
     const state = loadDemoState()
-    return makeDemoQuotes([
-      ...state.watchlist,
-      ...getMarketIndexStocks(state.settings.marketIndexIds)
-    ])
+    return makeDemoQuotes(demoQuoteStocks(state))
   },
   async refreshQuote() {
     const state = loadDemoState()
-    return makeDemoQuotes([
-      ...state.watchlist,
-      ...getMarketIndexStocks(state.settings.marketIndexIds)
-    ])
+    return makeDemoQuotes(demoQuoteStocks(state))
   },
   async refreshQuotesByIds(quoteIds) {
     const state = loadDemoState()
