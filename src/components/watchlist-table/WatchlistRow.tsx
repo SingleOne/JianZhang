@@ -586,7 +586,7 @@ export const WatchlistRow = memo(function WatchlistRow({
                           >
                             <AppButton
                               variant="plain"
-                              className={`stop-loss-badge ${stopLoss.reached ? 'is-reached' : ''}`}
+                              className={`stop-loss-badge stop-loss-marker ${stopLoss.reached ? 'is-reached' : ''}`}
                               onClick={(event) => {
                                 event.stopPropagation()
                                 onOpenStockAlert(stock)

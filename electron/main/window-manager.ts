@@ -2,6 +2,8 @@ import { app, BrowserWindow, Menu, MenuItem, nativeTheme, screen, Tray } from 'e
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { getTaskbarVisibleStocks, shouldShowTaskbarTicker } from '../../src/lib/taskbar-visibility'
+import { evaluateStopLoss } from '../../src/shared/stop-loss'
+import { marketFromQuoteId } from '../../src/shared/stock-market'
 import type {
   AppState,
   AutoRefreshQuoteScope,
@@ -270,6 +272,12 @@ export class WindowManager {
       if (window === this.taskbarTooltipWindow && !window.isVisible()) continue
       window.webContents.send(channel, payload)
     }
+    if (
+      (channel === 'quotes:updated' || channel === 'state:changed') &&
+      this.trayPopupWindow?.isVisible()
+    ) {
+      this.positionTrayPopupWindow()
+    }
   }
 
   sync(): void {
@@ -446,12 +454,29 @@ export class WindowManager {
   }
 
   private trayPopupSize(): { width: number; height: number } {
-    const selectedCount = this.taskbarVisibleStocks().length
+    const stocks = this.taskbarVisibleStocks()
+    const selectedCount = stocks.length
     const columns = selectedCount > 1 ? 2 : 1
     const rows = Math.ceil(selectedCount / columns)
+    const quoteMap = new Map(this.dependencies.getQuotes().map((quote) => [quote.quoteId, quote]))
+    const calendar = this.dependencies.getState().settings.tradingCalendar.markets
+    const now = new Date()
+    const stopLossRows = new Set<number>()
+    stocks.forEach((stock, index) => {
+      if (
+        evaluateStopLoss(
+          stock,
+          quoteMap.get(stock.quoteId),
+          now,
+          calendar[stock.market ?? marketFromQuoteId(stock.quoteId)]
+        )?.reached
+      ) {
+        stopLossRows.add(Math.floor(index / columns))
+      }
+    })
     return {
       width: (columns === 2 ? 638 : 369) + FLOATING_WINDOW_SHADOW_PADDING * 2,
-      height: 35 + rows * 78 + FLOATING_WINDOW_SHADOW_PADDING * 2
+      height: 35 + rows * 78 + stopLossRows.size * 22 + FLOATING_WINDOW_SHADOW_PADDING * 2
     }
   }
 

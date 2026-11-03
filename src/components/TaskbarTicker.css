@@ -169,6 +169,28 @@ html.tray-mode #root {
   color: var(--stock-popover-secondary);
 }
 
+.tray-summary-stop-loss {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--stock-popover-secondary);
+  white-space: nowrap;
+}
+
+.tray-summary-stop-loss b {
+  flex: none;
+  color: #087c57;
+  font-weight: 600;
+}
+
+.tray-summary-stop-loss > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .tray-summary-panel .is-up {
   color: #c92733;
 }
@@ -870,6 +892,10 @@ html[data-theme='dark'].tray-mode #root {
 }
 
 :root[data-theme='dark'] .tray-summary-panel .is-down {
+  color: #51d39e;
+}
+
+:root[data-theme='dark'] .tray-summary-stop-loss b {
   color: #51d39e;
 }
 

@@ -20,6 +20,7 @@ import {
 } from '../lib/portfolio'
 import { calculateCurrentPositionProfitOverride } from '../lib/portfolio-performance'
 import { formatStockAlertValue, STOCK_ALERT_METRIC_LABELS } from '../lib/stock-alerts'
+import { evaluateStopLoss } from '../shared/stop-loss'
 import {
   marketCapabilitiesForQuoteId,
   marketFromQuoteId,
@@ -537,11 +538,13 @@ export function StockQuoteDetails({
   const triggeredStockAlerts =
     stock?.alertRules?.filter((rule) => rule.enabled && rule.status === 'triggered') ?? []
   const fiveLevelAlerts = overview.summaries.length ? (quote?.fiveLevelLargeOrders ?? []) : []
+  const stopLoss = stock ? evaluateStopLoss(stock, quote, new Date(), tradingCalendar) : null
   const alertCount =
     triggeredStockAlerts.length +
     tAlertBadges.length +
     fiveLevelAlerts.length +
-    (floatingProfitAlert ? 1 : 0)
+    (floatingProfitAlert ? 1 : 0) +
+    (stopLoss?.reached ? 1 : 0)
 
   return (
     <article className={`taskbar-stock-tooltip${embedded ? ' is-inline' : ''}`}>
@@ -740,6 +743,15 @@ export function StockQuoteDetails({
       {alertCount > 0 ? (
         <section className="taskbar-tooltip-section taskbar-tooltip-alert-section">
           <ul className="taskbar-tooltip-alert-list">
+            {stopLoss?.reached ? (
+              <li className="is-lte">
+                <b>止损提醒</b>
+                <span>
+                  已达到止损线，止损价 {formatPrice(stopLoss.stopPrice)}，当前{' '}
+                  <AnimatedNumber value={stopLoss.latest} formatValue={formatPrice} />
+                </span>
+              </li>
+            ) : null}
             {triggeredStockAlerts.map((rule) => {
               const actualValue =
                 rule.metric === 'price'

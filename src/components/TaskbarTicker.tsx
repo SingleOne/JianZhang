@@ -5,6 +5,7 @@ import { formatPercent, formatPrice } from '../lib/format'
 import { getTriggeredStockAlertDirection } from '../lib/stock-alerts'
 import { getTaskbarVisibleStocks } from '../lib/taskbar-visibility'
 import { marketFromQuoteId } from '../shared/stock-market'
+import { evaluateStopLoss } from '../shared/stop-loss'
 import { applyAppThemePreference } from '../lib/theme'
 import { observeContentHeight } from '../lib/observe-content-height'
 import { useInitialRenderReady } from '../hooks/useInitialRenderReady'
@@ -13,6 +14,7 @@ import { AnimatedNumber } from './AnimatedNumber'
 import { FiveLevelAlertBadges } from './FiveLevelAlertBadges'
 import { TAlertBadges } from './TAlertBadges'
 import { TFloatingProfitAlertBadge } from './TFloatingProfitAlertBadge'
+import './StopLoss.css'
 
 function directionClass(changePercent: number | null | undefined): string {
   if (changePercent === null || changePercent === undefined || changePercent === 0) return 'is-flat'
@@ -70,6 +72,12 @@ export function TaskbarTicker() {
         alertBadges: overview.badges,
         floatingAlerts: overview.floatingAlerts,
         fiveLevelAlerts: overview.summaries.length ? quote?.fiveLevelLargeOrders : undefined,
+        stopLoss: evaluateStopLoss(
+          stock,
+          quote,
+          new Date(),
+          state.settings.tradingCalendar.markets[stock.market ?? marketFromQuoteId(stock.quoteId)]
+        ),
         stockAlertDirection: getTriggeredStockAlertDirection(stock.alertRules)
       }
     })
@@ -98,7 +106,15 @@ export function TaskbarTicker() {
         className={`taskbar-ticker ${selectedStocks.length === 1 ? 'is-single' : ''}`}
       >
         {selectedStocks.map(
-          ({ stock, quote, alertBadges, floatingAlerts, fiveLevelAlerts, stockAlertDirection }) => {
+          ({
+            stock,
+            quote,
+            alertBadges,
+            floatingAlerts,
+            fiveLevelAlerts,
+            stockAlertDirection,
+            stopLoss
+          }) => {
             const direction = directionClass(quote?.changePercent)
             return (
               <div
@@ -115,6 +131,14 @@ export function TaskbarTicker() {
                 onMouseLeave={() => void stockApi.setTaskbarTooltip(null)}
               >
                 <span className="taskbar-stock-name">{stock.name}</span>
+                {stopLoss ? (
+                  <span
+                    className={`stop-loss-marker ${stopLoss.reached ? 'is-reached' : ''}`}
+                    aria-label={`止损价 ${formatPrice(stopLoss.stopPrice)}，${stopLoss.reached === null ? '等待有效行情' : stopLoss.reached ? '已达到止损线' : '未达到止损线'}`}
+                  >
+                    止
+                  </span>
+                ) : null}
                 <strong>
                   <AnimatedNumber value={quote?.latest} formatValue={formatPrice} />
                 </strong>

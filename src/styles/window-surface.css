@@ -41,7 +41,8 @@ html.taskbar-tooltip-mode #root {
     transition-duration: 0.01ms !important;
   }
 
-  .t-alert-badge {
+  .t-alert-badge,
+  .stop-loss-marker.is-reached {
     animation-duration: 850ms !important;
     animation-iteration-count: infinite !important;
   }

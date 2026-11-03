@@ -481,6 +481,7 @@
   }
 
   .t-alert-badge,
+  .stop-loss-marker.is-reached,
   .t-plan-alert-action.is-triggered {
     animation-duration: 850ms !important;
     animation-iteration-count: infinite !important;

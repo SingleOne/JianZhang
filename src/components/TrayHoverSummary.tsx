@@ -16,6 +16,8 @@ import { applyAppThemePreference } from '../lib/theme'
 import { observeContentHeight } from '../lib/observe-content-height'
 import { createMenuBarDisclosureAnimator } from '../lib/menu-bar-disclosure-animation'
 import type { AppState, StockQuote } from '../shared/types'
+import { evaluateStopLoss } from '../shared/stop-loss'
+import { marketFromQuoteId } from '../shared/stock-market'
 import { AnimatedNumber } from './AnimatedNumber'
 import { AppButton } from './AppButton'
 import { MenuBarStockRow } from './MenuBarStockRow'
@@ -190,6 +192,12 @@ export function TrayHoverSummary({ interactive = false }: { interactive?: boolea
             )
           }
           const hasPosition = (stock.position?.quantity ?? 0) > 0
+          const stopLoss = evaluateStopLoss(
+            stock,
+            quote,
+            new Date(),
+            state.settings.tradingCalendar.markets[stock.market ?? marketFromQuoteId(stock.quoteId)]
+          )
           const displayedTotalProfit = hasPosition
             ? positionMetrics.totalProfit
             : state.portfolioPerformanceCache?.cumulativeProfitByQuoteId[stock.quoteId]
@@ -282,6 +290,15 @@ export function TrayHoverSummary({ interactive = false }: { interactive?: boolea
               ) : (
                 <div className="tray-summary-t is-empty">暂无进行中的 T 仓</div>
               )}
+              {stopLoss?.reached ? (
+                <div className="tray-summary-stop-loss">
+                  <b>止损提醒</b>
+                  <span>
+                    ≤ {formatPrice(stopLoss.stopPrice)}，当前{' '}
+                    <AnimatedNumber value={stopLoss.latest} formatValue={formatPrice} />
+                  </span>
+                </div>
+              ) : null}
             </section>
           )
         })}

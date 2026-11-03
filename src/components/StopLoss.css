@@ -50,23 +50,41 @@
   color: var(--green);
 }
 
-.stock-name-line .stop-loss-badge {
+.stop-loss-marker {
   width: 20px;
   height: 20px;
   flex: 0 0 auto;
   justify-content: center;
   padding: 0;
-  color: var(--amber, #b45309);
+  color: var(--text, #111827);
   border: 1px solid currentColor;
   border-radius: 6px;
-  background: var(--amber-soft, #fff3d6);
+  background: transparent;
+  font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
 }
-.stock-name-line .stop-loss-badge.is-reached {
-  color: var(--green);
-  background: var(--green-soft);
+.stop-loss-marker.is-reached {
+  --t-alert-ring: rgba(8, 124, 87, 0.42);
+  color: var(--green, #087c57);
+  background: var(--green-soft, rgba(8, 124, 87, 0.12));
+  animation: t-alert-flash 850ms ease-in-out infinite;
 }
-.stock-name-line .stop-loss-badge:hover {
-  box-shadow: 0 0 0 2px var(--amber-soft, #fff3d6);
+.stock-name-line .stop-loss-marker:hover {
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 15%, transparent);
+}
+.taskbar-quote .stop-loss-marker {
+  display: inline-flex;
+  align-items: center;
+  width: 18px;
+  height: 18px;
+  text-shadow: none;
+}
+:root[data-theme='dark'] .taskbar-quote .stop-loss-marker:not(.is-reached) {
+  color: #f8fafc;
+}
+:root[data-theme='dark'] .taskbar-quote .stop-loss-marker.is-reached {
+  --t-alert-ring: rgba(53, 201, 139, 0.42);
+  color: #51d39e;
+  background: rgba(53, 201, 139, 0.12);
 }
