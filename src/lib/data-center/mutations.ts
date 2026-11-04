@@ -3,11 +3,21 @@ import type {
   AppSettings,
   StockTradingBook,
   WatchStock,
-  StockTrackingProfile
+  StockTrackingProfile,
+  SecuritiesAccounts,
+  BrokerFeeSchemes,
+  CnFixedFeeRates
 } from '../../shared/types'
-import { upsertStockTradingBook } from '../../shared/stock-accounts'
+import {
+  upsertStockTradingBook,
+  flattenStockAccountBooks,
+  normalizeAccountState
+} from '../../shared/stock-accounts'
 import { createStatePatch } from '../../shared/state-changes'
 import { getTrackingWatchlistGroup, synchronizeWatchlistGroupMemberships } from '../../shared/types'
+import { validateFeeConfiguration } from '../../shared/fee-schemes'
+import { getActiveStockTBatches } from '../../shared/stock-t-batches'
+import { getBatchTrades } from '../trade-records'
 
 export type StateMutation = (current: AppState) => AppState
 
@@ -17,7 +27,14 @@ export function withUnchangedData<T>(
   select: (state: AppState) => T,
   mutate: StateMutation
 ): StateMutation {
-  const expected = select(base)
+  return withUnchangedValue(select(base), select, mutate)
+}
+
+export function withUnchangedValue<T>(
+  expected: T,
+  select: (state: AppState) => T,
+  mutate: StateMutation
+): StateMutation {
   return (current) => {
     if (createStatePatch(expected, select(current))) {
       throw new Error('相关数据已更新，请重新确认后保存')
@@ -35,14 +52,17 @@ export interface WriteStatus {
 export function prepareStateMutation(current: AppState, mutate: StateMutation): AppState {
   const next = mutate(current)
   if (next === current) return current
+  const watchlist = synchronizeWatchlistGroupMemberships(
+    next.watchlist,
+    next.watchlistGroups,
+    next.stockTrackingProfiles
+  )
   return {
     ...next,
     revision: current.revision,
-    watchlist: synchronizeWatchlistGroupMemberships(
-      next.watchlist,
-      next.watchlistGroups,
-      next.stockTrackingProfiles
-    )
+    watchlist: watchlist.every((stock, index) => stock === next.watchlist[index])
+      ? next.watchlist
+      : watchlist
   }
 }
 
@@ -58,6 +78,53 @@ export function changeStock(
 
 export function changeSettings(changes: Partial<AppSettings>): StateMutation {
   return (current) => ({ ...current, settings: { ...current.settings, ...changes } })
+}
+
+export function saveFeeConfiguration(
+  feeSchemes: BrokerFeeSchemes,
+  fixedFeeDefaults: CnFixedFeeRates
+): StateMutation {
+  return (current) => {
+    validateFeeConfiguration(current.securitiesAccounts!, feeSchemes, fixedFeeDefaults)
+    return normalizeAccountState({ ...current, feeSchemes, fixedFeeDefaults })
+  }
+}
+
+export function saveSecuritiesAccounts(accounts: SecuritiesAccounts): StateMutation {
+  return (current) => {
+    validateFeeConfiguration(accounts, current.feeSchemes!, current.fixedFeeDefaults!)
+    const books = Object.values(flattenStockAccountBooks(current.stockTradingBooks))
+    for (const previous of Object.values(current.securitiesAccounts ?? {})) {
+      const next = accounts[previous.id]
+      const accountBooks = books.filter((book) => book.accountId === previous.id)
+      if (
+        !next &&
+        (accountBooks.length ||
+          Object.values(current.corporateActionApplications).some(
+            (record) => record.accountId === previous.id
+          ))
+      ) {
+        throw new Error('该账户已有业务记录，可以停用并保留历史。')
+      }
+      if (
+        previous.enabled &&
+        next &&
+        !next.enabled &&
+        accountBooks.some(
+          (book) =>
+            (book.position?.quantity ?? 0) > 0 ||
+            getActiveStockTBatches(current.stockTradingBooks[book.quoteId]).some((batch) =>
+              getBatchTrades(current.stockTradingBooks[book.quoteId], batch).some(
+                (trade) => trade.accountId === previous.id
+              )
+            )
+        )
+      ) {
+        throw new Error('该账户仍有持仓或未结算 T 批次，请先处理后再停用。')
+      }
+    }
+    return normalizeAccountState({ ...current, securitiesAccounts: accounts })
+  }
 }
 
 export function removeWatchStock(quoteId: string): StateMutation {

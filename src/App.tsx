@@ -1,4 +1,4 @@
-import { useAppData } from './lib/data-center/hooks'
+import { useAppStateField, useAppSettings } from './lib/data-center/hooks'
 import {
   changeStock,
   changeSettings,
@@ -6,15 +6,15 @@ import {
   saveTrackingProfileMutation,
   removeWatchStock,
   withUnchangedData,
+  withUnchangedValue,
+  saveFeeConfiguration,
+  saveSecuritiesAccounts,
   type StateMutation
 } from './lib/data-center/mutations'
-import { createStatePatch } from './shared/state-changes'
 import { withStopLoss, type StopLossRule } from './shared/stop-loss'
 import { applyAccountSecurityConversion } from './lib/stock-accounts'
-import { SecuritiesAccountProvider } from './components/SecuritiesAccountContext'
 import {
   upsertStockAccount,
-  normalizeAccountState,
   corporateApplicationKey,
   listStockAccountBooks
 } from './shared/stock-accounts'
@@ -64,7 +64,6 @@ import { getDailyScanWatchlistGroup, getTrackingWatchlistGroup } from './shared/
 import packageInfo from '../package.json'
 import type {
   AppSettings,
-  AppState,
   CacheCategoryId,
   CacheClearResult,
   CacheSummary,
@@ -193,8 +192,19 @@ const AiAssistantDrawer = __JIANZHANG_AI_MODULE_ENABLED__
 export default function App() {
   const [activeTitlebarPanel, setActiveTitlebarPanel] = useState<TitlebarPanelId | null>(null)
   const confirm = useConfirmDialog()
-  const state = useAppData((snapshot) => snapshot.state)
-  const trackingArchiveIndex = useAppData((snapshot) => snapshot.trackingArchiveIndex)
+  const watchlist = useAppStateField('watchlist')
+  const stockTrackingProfiles = useAppStateField('stockTrackingProfiles')
+  const settings = useAppSettings([
+    'theme',
+    'priorityRefreshSeconds',
+    'regularRefreshSeconds',
+    'showChipDistribution',
+    'showBollingerBands',
+    'dailyKlineIndicator',
+    'tradingCalendar',
+    'exchangeRates'
+  ])
+  const state = { watchlist, stockTrackingProfiles, settings }
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null)
   const [stockSelectionRequest, setStockSelectionRequest] = useState<StockSelectionRequest | null>(
     null
@@ -582,19 +592,6 @@ export default function App() {
     [reportError]
   )
 
-  const commitAccountState = useCallback(
-    async (next: AppState) => {
-      try {
-        await stockApi.saveState(next)
-        return true
-      } catch (reason) {
-        reportError(reason instanceof Error ? reason.message : '保存失败')
-        return false
-      }
-    },
-    [reportError]
-  )
-
   const requestWatchlistStockPosition = useCallback(
     (quoteId: string, requestSource: string, expandDetails = false) => {
       setSelectedQuoteId(null)
@@ -699,8 +696,12 @@ export default function App() {
 
   const addDailyMarketScanStock = useCallback(
     (result: SearchResult, row: DailyMarketScanRow) => {
-      const dailyScanGroup = getDailyScanWatchlistGroup(state.watchlistGroups)
-      const trackingGroup = getTrackingWatchlistGroup(state.watchlistGroups)
+      const dailyScanGroup = getDailyScanWatchlistGroup(
+        dataCenter.getSnapshot().state.watchlistGroups
+      )
+      const trackingGroup = getTrackingWatchlistGroup(
+        dataCenter.getSnapshot().state.watchlistGroups
+      )
       addStock(result, {
         startTracking: true,
         targetGroups: [dailyScanGroup, trackingGroup],
@@ -713,7 +714,7 @@ export default function App() {
         })
       })
     },
-    [addStock, state.watchlistGroups]
+    [addStock]
   )
 
   const addDividendFinancingStock = useCallback(
@@ -724,7 +725,7 @@ export default function App() {
     ) => {
       addStock(result, {
         startTracking: true,
-        targetGroups: [getTrackingWatchlistGroup(state.watchlistGroups)],
+        targetGroups: [getTrackingWatchlistGroup(dataCenter.getSnapshot().state.watchlistGroups)],
         source: createStockTrackingSource('dividendFinancing', {
           snapshotDate,
           dividendRatio: item.ratio,
@@ -732,7 +733,7 @@ export default function App() {
         })
       })
     },
-    [addStock, state.watchlistGroups]
+    [addStock]
   )
 
   const addFundamentalScreeningStock = useCallback(
@@ -744,7 +745,7 @@ export default function App() {
       const { company } = evaluation
       addStock(result, {
         startTracking: true,
-        targetGroups: [getTrackingWatchlistGroup(state.watchlistGroups)],
+        targetGroups: [getTrackingWatchlistGroup(dataCenter.getSnapshot().state.watchlistGroups)],
         source: createStockTrackingSource('fundamentalScreening', {
           snapshotDate,
           industryName: company.industryName,
@@ -758,20 +759,20 @@ export default function App() {
         })
       })
     },
-    [addStock, state.watchlistGroups]
+    [addStock]
   )
 
   const saveTrackingProfile = useCallback(
     (profile: StockTrackingProfile) => {
       void persist(
         withUnchangedData(
-          state,
+          dataCenter.getSnapshot().state,
           (current) => current.stockTrackingProfiles[profile.quoteId],
           saveTrackingProfileMutation(profile)
         )
       )
     },
-    [persist, state]
+    [persist]
   )
 
   const startManualTracking = useCallback(
@@ -841,8 +842,9 @@ export default function App() {
 
   const removeTrackedStock = useCallback(
     async (quoteId: string) => {
-      const stock = state.watchlist.find((item) => item.quoteId === quoteId)
-      const profile = state.stockTrackingProfiles[quoteId]
+      const current = dataCenter.getSnapshot().state
+      const stock = current.watchlist.find((item) => item.quoteId === quoteId)
+      const profile = current.stockTrackingProfiles[quoteId]
       if (!stock) return
       const confirmed = await confirm({
         title: profile ? '删除股票并停止追踪' : '从股票列表中删除',
@@ -875,7 +877,7 @@ export default function App() {
         reportError(reason instanceof Error ? reason.message : '删除股票并停止追踪失败')
       }
     },
-    [confirm, reportError, state]
+    [confirm, reportError]
   )
 
   const deleteTrackingArchiveCycle = useCallback(
@@ -900,7 +902,7 @@ export default function App() {
 
   const deleteAllTrackingArchives = useCallback(
     async (quoteId: string) => {
-      const archive = trackingArchiveIndex[quoteId]
+      const archive = dataCenter.getSnapshot().trackingArchiveIndex[quoteId]
       if (!archive) return false
       const confirmed = await confirm({
         title: '清空历史追踪档案',
@@ -917,7 +919,7 @@ export default function App() {
         return false
       }
     },
-    [confirm, reportError, trackingArchiveIndex]
+    [confirm, reportError]
   )
 
   const savePortfolioPerformanceAdjustments = useCallback(
@@ -976,7 +978,7 @@ export default function App() {
       return Boolean(
         await persist(
           withUnchangedData(
-            state,
+            dataCenter.getSnapshot().state,
             (current) => current.stockTradingBooks[book.quoteId],
             saveTradingBook(book, showRadarSignals)
           ),
@@ -985,32 +987,32 @@ export default function App() {
         )
       )
     },
-    [persist, state]
+    [persist]
   )
 
   const updateTTrading = useCallback(
     (quoteId: string, account: TTradingAccount, position: StockPosition | undefined) => {
       void persist(
         withUnchangedData(
-          state,
+          dataCenter.getSnapshot().state,
           (current) => current.stockTradingBooks[quoteId],
           (current) => upsertStockAccount(current, { ...account, quoteId }, position)
         )
       )
     },
-    [persist, state]
+    [persist]
   )
   const updateStockTradingBook = useCallback(
     (book: StockTradingBook) => {
       void persist(
         withUnchangedData(
-          state,
+          dataCenter.getSnapshot().state,
           (current) => current.stockTradingBooks[book.quoteId],
           saveTradingBook(book)
         )
       )
     },
-    [persist, state]
+    [persist]
   )
 
   const applyCorporateAction = useCallback(
@@ -1055,7 +1057,7 @@ export default function App() {
         ])
         void persist(
           withUnchangedData(
-            state,
+            dataCenter.getSnapshot().state,
             (current) => [...affectedQuoteIds].map((id) => current.stockTradingBooks[id]),
             mutate
           )
@@ -1064,7 +1066,7 @@ export default function App() {
         return reason instanceof Error ? reason.message : '公司行动入账失败'
       }
     },
-    [persist, state]
+    [persist]
   )
 
   const updateCorporateActionRecord = useCallback(
@@ -1158,18 +1160,10 @@ export default function App() {
   )
 
   const updateSettings = useCallback(
-    (settings: AppSettings) => {
-      const changes = Object.fromEntries(
-        Object.keys(settings).flatMap((key) => {
-          const name = key as keyof AppSettings
-          return createStatePatch(state.settings[name], settings[name])
-            ? [[name, settings[name]]]
-            : []
-        })
-      ) as Partial<AppSettings>
+    (changes: Partial<AppSettings>) => {
       void persist(changeSettings(changes))
     },
-    [persist, state.settings]
+    [persist]
   )
 
   const refreshCacheSummary = useCallback(() => {
@@ -1276,37 +1270,34 @@ export default function App() {
   const updateChipDistributionEnabled = useCallback(
     (enabled: boolean) => {
       updateSettings({
-        ...state.settings,
         showChipDistribution: enabled
       })
     },
-    [state.settings, updateSettings]
+    [updateSettings]
   )
 
   const updateBollingerBandsEnabled = useCallback(
     (enabled: boolean) => {
       updateSettings({
-        ...state.settings,
         showBollingerBands: enabled
       })
     },
-    [state.settings, updateSettings]
+    [updateSettings]
   )
 
   const updateDailyKlineIndicator = useCallback(
     (indicator: DailyKlineIndicator) => {
       updateSettings({
-        ...state.settings,
         dailyKlineIndicator: indicator
       })
     },
-    [state.settings, updateSettings]
+    [updateSettings]
   )
 
   const exportConfig = useCallback(async () => {
     setConfigBusy(true)
     try {
-      const result = await stockApi.exportConfig(state)
+      const result = await stockApi.exportConfig(dataCenter.getSnapshot().state)
       if (!result.canceled) {
         const apiKeyMessage = result.apiKeyCount
           ? `，包含 ${result.apiKeyCount} 个明文 AI API Key，请妥善保管`
@@ -1318,7 +1309,7 @@ export default function App() {
     } finally {
       setConfigBusy(false)
     }
-  }, [reportError, reportSuccess, state])
+  }, [reportError, reportSuccess])
 
   const applyImportedData = useCallback(
     async (
@@ -1579,7 +1570,7 @@ export default function App() {
   }
 
   return (
-    <SecuritiesAccountProvider state={state} onSave={commitAccountState}>
+    <>
       {startupVisible ? (
         <StartupOverlay
           initializing={initializing}
@@ -1657,7 +1648,6 @@ export default function App() {
                   onToggle={() => toggleTitlebarMenu('settings')}
                   onManageAccounts={() => setActiveTitlebarPanel('account-manager')}
                   onManageFeeSchemes={() => setActiveTitlebarPanel('fee-scheme-manager')}
-                  settings={state.settings}
                   onChange={updateSettings}
                   onImportConfig={importConfig}
                   onExportConfig={exportConfig}
@@ -1738,15 +1728,13 @@ export default function App() {
                   <MarketIndexSummary />
                 </div>
                 <div className="panel-heading-side">
-                  <PortfolioSummaryCards state={state} />
+                  <PortfolioSummaryCards />
                 </div>
               </div>
               {!initializing ? (
                 <Suspense fallback={null}>
                   <WatchlistTable
                     onInitialRender={handleWatchlistInitialRender}
-                    watchlist={state.watchlist}
-                    watchlistGroups={state.watchlistGroups}
                     dividendFinancingByCode={dividendFinancingByCode}
                     dividendFinancingSnapshotDate={dividendFinancingOverview?.snapshotDate}
                     dividendFinancingStaleReason={
@@ -1764,25 +1752,9 @@ export default function App() {
                         ? fundamentalDataState.staleReason
                         : null
                     }
-                    columnOrder={state.columnOrder}
-                    priorityRefreshSeconds={state.settings.priorityRefreshSeconds}
-                    regularRefreshSeconds={state.settings.regularRefreshSeconds}
-                    chipDistributionEnabled={state.settings.showChipDistribution}
-                    bollingerBandsEnabled={state.settings.showBollingerBands}
-                    dailyKlineIndicator={state.settings.dailyKlineIndicator}
                     selectedQuoteId={selectedQuoteId}
                     stockSelectionRequest={stockSelectionRequest}
                     detailNavigationRequest={detailNavigationRequest}
-                    stockTradingBooks={state.stockTradingBooks}
-                    corporateActionApplications={state.corporateActionApplications}
-                    tTradingFees={state.settings.tTradingFees}
-                    marketTradeFees={state.settings.marketTradeFees}
-                    tPlanDefaults={state.settings.tPlanDefaults}
-                    tFloatingProfitAlertDefaultThreshold={
-                      state.settings.tFloatingProfitAlertDefaultThreshold
-                    }
-                    tradingCalendar={state.settings.tradingCalendar}
-                    exchangeRates={state.settings.exchangeRates}
                     onSelect={selectWatchlistStock}
                     onStockSelectionPositioned={handleStockSelectionPositioned}
                     onDetailNavigationHandled={handleDetailNavigationHandled}
@@ -1794,7 +1766,6 @@ export default function App() {
                     onApplyCorporateAction={applyCorporateAction}
                     onUpdateCorporateActionRecord={updateCorporateActionRecord}
                     onUpdateStockAlerts={updateStockAlerts}
-                    stockTrackingProfiles={state.stockTrackingProfiles}
                     onStartTracking={startManualTracking}
                     onUpdateTracking={saveTrackingProfile}
                     onStopTracking={stopTracking}
@@ -1941,10 +1912,6 @@ export default function App() {
           <Suspense fallback={null}>
             <StockTrackingDialog
               open={activeTitlebarPanel === 'tracking'}
-              profiles={state.stockTrackingProfiles}
-              archiveIndex={trackingArchiveIndex}
-              watchlist={state.watchlist}
-              watchlistGroups={state.watchlistGroups}
               onUpdateProfile={saveTrackingProfile}
               onStopTracking={stopTracking}
               onRestartTracking={restartTracking}
@@ -1954,9 +1921,7 @@ export default function App() {
               onViewStock={viewWatchlistStockFromTracking}
               onUpdateWatchlistGroups={updateWatchlistGroups}
               onUpdateStockGroups={updateStockGroups}
-              bollingerBandsEnabled={state.settings.showBollingerBands}
               onBollingerBandsEnabledChange={updateBollingerBandsEnabled}
-              dailyKlineIndicator={state.settings.dailyKlineIndicator}
               onDailyKlineIndicatorChange={updateDailyKlineIndicator}
               onClose={() => closeTitlebarPanel('tracking')}
             />
@@ -1965,33 +1930,39 @@ export default function App() {
         {activeTitlebarPanel === 'account-manager' ? (
           <Suspense fallback={null}>
             <SecuritiesAccountManager
-              state={state}
               onClose={() => closeTitlebarPanel('account-manager')}
-              onSave={async (accounts) =>
-                Boolean(
-                  await persist((current) =>
-                    normalizeAccountState({
-                      ...current,
-                      securitiesAccounts: accounts
-                    })
+              onSave={async (accounts, expected) => {
+                const saved = await persist(
+                  withUnchangedValue(
+                    expected,
+                    (current) => current.securitiesAccounts,
+                    saveSecuritiesAccounts(accounts)
                   )
                 )
-              }
+                return saved?.securitiesAccounts ?? null
+              }}
             />
           </Suspense>
         ) : null}
         {activeTitlebarPanel === 'fee-scheme-manager' ? (
           <Suspense fallback={null}>
             <FeeSchemeManager
-              state={state}
               onClose={() => closeTitlebarPanel('fee-scheme-manager')}
-              onSave={async (feeSchemes, fixedFeeDefaults) =>
-                Boolean(
-                  await persist((current) =>
-                    normalizeAccountState({ ...current, feeSchemes, fixedFeeDefaults })
+              onSave={async (feeSchemes, fixedFeeDefaults, expected) => {
+                const saved = await persist(
+                  withUnchangedValue(
+                    expected,
+                    (current) => ({
+                      feeSchemes: current.feeSchemes,
+                      fixedFeeDefaults: current.fixedFeeDefaults
+                    }),
+                    saveFeeConfiguration(feeSchemes, fixedFeeDefaults)
                   )
                 )
-              }
+                return saved
+                  ? { feeSchemes: saved.feeSchemes!, fixedFeeDefaults: saved.fixedFeeDefaults! }
+                  : null
+              }}
             />
           </Suspense>
         ) : null}
@@ -2003,10 +1974,6 @@ export default function App() {
         {activeTitlebarPanel === 'portfolio-performance' ? (
           <Suspense fallback={null}>
             <PortfolioPerformanceDialog
-              watchlist={state.watchlist}
-              accounts={state.stockTradingBooks}
-              exchangeRates={state.settings.exchangeRates}
-              adjustments={state.portfolioPerformanceAdjustments ?? {}}
               onSaveAdjustments={savePortfolioPerformanceAdjustments}
               onSavePerformanceCache={savePortfolioPerformanceCache}
               onRecalculateStock={recalculatePortfolioPerformanceStock}
@@ -2026,6 +1993,6 @@ export default function App() {
           </Suspense>
         ) : null}
       </div>
-    </SecuritiesAccountProvider>
+    </>
   )
 }

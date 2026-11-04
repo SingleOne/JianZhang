@@ -1,4 +1,4 @@
-import { useSecuritiesAccountState } from '../../../components/SecuritiesAccountContext'
+import { useAccountFeeData, useAppStateField } from '../../../lib/data-center/hooks'
 import { listAccountsForMarket, resolveAccountSelection } from '../../../shared/stock-accounts'
 import { STOCK_MARKET_LABELS, type StockMarket } from '../../../shared/stock-market'
 import {
@@ -59,7 +59,9 @@ export function TradeImportPanel({
   imageUnderstandingAvailable,
   onError
 }: TradeImportPanelProps) {
-  const accountState = useSecuritiesAccountState()
+  const feeData = useAccountFeeData()
+  const watchlist = useAppStateField('watchlist')
+  const accountState = { ...feeData, watchlist }
   const confirm = useConfirmDialog()
   const documentInputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)

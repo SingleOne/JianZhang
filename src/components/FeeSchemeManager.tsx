@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useAppStateField, useAppSettings } from '../lib/data-center/hooks'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Plus, X } from 'lucide-react'
-import { ACCOUNT_MARKETS, normalizeAccountState } from '../shared/stock-accounts'
+import { ACCOUNT_MARKETS } from '../shared/stock-accounts'
 import { STOCK_MARKET_LABELS } from '../shared/stock-market'
 import {
   createCnFeeScheme,
@@ -9,7 +10,7 @@ import {
   DEFAULT_CN_FIXED_FEE_RATES,
   validateFeeConfiguration
 } from '../shared/fee-schemes'
-import type { AppState, BrokerFeeSchemes, CnFixedFeeRates, StockMarket } from '../shared/types'
+import type { BrokerFeeSchemes, CnFixedFeeRates, StockMarket } from '../shared/types'
 import { AppButton } from './AppButton'
 import { AppSelect } from './AppSelect'
 import {
@@ -31,21 +32,27 @@ const MARKET_OPTIONS = ACCOUNT_MARKETS.map((value) => ({
 }))
 
 export function FeeSchemeManager({
-  state,
   onSave,
   onClose
 }: {
-  state: AppState
-  onSave: (schemes: BrokerFeeSchemes, defaults: CnFixedFeeRates) => Promise<boolean>
+  onSave: (
+    schemes: BrokerFeeSchemes,
+    defaults: CnFixedFeeRates,
+    expected: { feeSchemes: BrokerFeeSchemes; fixedFeeDefaults: CnFixedFeeRates }
+  ) => Promise<{ feeSchemes: BrokerFeeSchemes; fixedFeeDefaults: CnFixedFeeRates } | null>
   onClose: () => void
 }) {
-  const [initial] = useState(() => normalizeAccountState(state))
+  const securitiesAccounts = useAppStateField('securitiesAccounts')!
+  const feeSchemes = useAppStateField('feeSchemes')!
+  const fixedFeeDefaults = useAppStateField('fixedFeeDefaults')!
+  const draftBase = useRef({ feeSchemes, fixedFeeDefaults })
+  const settings = useAppSettings(['tTradingFees', 'marketTradeFees'])
   const [schemes, setSchemes] = useState<FeeSchemeDrafts>(() =>
     Object.fromEntries(
-      Object.entries(initial.feeSchemes!).map(([id, scheme]) => [id, feeSchemeDraft(scheme)])
+      Object.entries(feeSchemes).map(([id, scheme]) => [id, feeSchemeDraft(scheme)])
     )
   )
-  const [defaults, setDefaults] = useState(() => fixedFeeDraft(initial.fixedFeeDefaults!))
+  const [defaults, setDefaults] = useState(() => fixedFeeDraft(fixedFeeDefaults))
   const [showDefaults, setShowDefaults] = useState(false)
   const [market, setMarket] = useState<StockMarket>('CN')
   const [selectedId, setSelectedId] = useState(
@@ -67,7 +74,7 @@ export function FeeSchemeManager({
     }
   }, [onClose, saving])
   const selected = schemes[selectedId]
-  const accounts = Object.values(initial.securitiesAccounts!)
+  const accounts = Object.values(securitiesAccounts)
   const boundAccounts = accounts.filter((account) => account.feeSchemeId === selectedId)
   const changed = () => {
     setSaved(false)
@@ -90,7 +97,7 @@ export function FeeSchemeManager({
         (market === 'CN'
           ? feeSchemeDraft(createCnFeeScheme(id, name, parseFixedFeeDraft(defaults)))
           : feeSchemeDraft(
-              Object.values(createDefaultFeeSchemes(state.settings)).find(
+              Object.values(createDefaultFeeSchemes(settings)).find(
                 (scheme) => scheme.market === market
               )!
             ))
@@ -134,7 +141,7 @@ export function FeeSchemeManager({
           )
         }
       }
-      validateFeeConfiguration(initial.securitiesAccounts!, validatedSchemes, validatedDefaults)
+      validateFeeConfiguration(securitiesAccounts, validatedSchemes, validatedDefaults)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '请检查费用配置')
       return
@@ -143,8 +150,24 @@ export function FeeSchemeManager({
     setSaved(false)
     setError('')
     try {
-      if (await onSave(validatedSchemes, validatedDefaults)) setSaved(true)
-      else setError('费用方案保存失败，请重试')
+      const savedConfiguration = await onSave(
+        validatedSchemes,
+        validatedDefaults,
+        draftBase.current
+      )
+      if (savedConfiguration) {
+        draftBase.current = savedConfiguration
+        setSchemes(
+          Object.fromEntries(
+            Object.entries(savedConfiguration.feeSchemes).map(([id, scheme]) => [
+              id,
+              feeSchemeDraft(scheme)
+            ])
+          )
+        )
+        setDefaults(fixedFeeDraft(savedConfiguration.fixedFeeDefaults))
+        setSaved(true)
+      } else setError('费用方案保存失败；若配置已更新，请重新打开后编辑')
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '保存失败')
     } finally {

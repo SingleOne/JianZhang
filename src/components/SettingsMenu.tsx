@@ -1,3 +1,4 @@
+import { useAppStateField } from '../lib/data-center/hooks'
 import {
   CloudDownload,
   CloudUpload,
@@ -62,8 +63,7 @@ interface SettingsMenuProps {
   onToggle: () => void
   onManageAccounts: () => void
   onManageFeeSchemes: () => void
-  settings: AppSettings
-  onChange: (settings: AppSettings) => void
+  onChange: (settings: Partial<AppSettings>) => void
   onImportConfig: () => void
   onExportConfig: () => void
   configBusy: boolean
@@ -170,7 +170,6 @@ export function SettingsMenu({
   onToggle,
   onManageAccounts,
   onManageFeeSchemes,
-  settings,
   onChange,
   onImportConfig,
   onExportConfig,
@@ -202,6 +201,7 @@ export function SettingsMenu({
   onRefreshCacheSummary,
   onClearCaches
 }: SettingsMenuProps) {
+  const settings = useAppStateField('settings')
   const isMacOS = stockApi.platform === 'macos'
   const [activeTab, setActiveTab] = useState<SettingsTab>('market')
   const [githubPasswordEditing, setGitHubPasswordEditing] = useState(false)
@@ -263,7 +263,6 @@ export function SettingsMenu({
     if (selected) selectedIds.add(indexId)
     else selectedIds.delete(indexId)
     onChange({
-      ...settings,
       marketIndexIds: MARKET_INDEX_OPTIONS.filter((index) => selectedIds.has(index.id)).map(
         (index) => index.id
       )
@@ -277,7 +276,6 @@ export function SettingsMenu({
     value: number
   ) => {
     onChange({
-      ...settings,
       tPlanDefaults: {
         ...settings.tPlanDefaults,
         [side]: settings.tPlanDefaults[side].map((level, levelIndex) =>
@@ -293,7 +291,6 @@ export function SettingsMenu({
     if (value.trim() && Number.isFinite(parsed) && parsed > 0) manualOverrides[currency] = parsed
     else delete manualOverrides[currency]
     onChange({
-      ...settings,
       exchangeRates: { ...settings.exchangeRates, manualOverrides }
     })
   }
@@ -356,7 +353,7 @@ export function SettingsMenu({
                     value={settings.priorityRefreshSeconds}
                     onChange={(event) => {
                       const value = Math.min(300, Math.max(3, Number(event.target.value) || 3))
-                      onChange({ ...settings, priorityRefreshSeconds: value })
+                      onChange({ priorityRefreshSeconds: value })
                     }}
                     aria-label="重点关注股票刷新间隔秒数"
                   />
@@ -376,7 +373,7 @@ export function SettingsMenu({
                     value={settings.regularRefreshSeconds}
                     onChange={(event) => {
                       const value = Math.min(300, Math.max(3, Number(event.target.value) || 3))
-                      onChange({ ...settings, regularRefreshSeconds: value })
+                      onChange({ regularRefreshSeconds: value })
                     }}
                     aria-label="其余股票刷新间隔秒数"
                   />
@@ -457,7 +454,6 @@ export function SettingsMenu({
                     onChange={(event) => {
                       const value = event.target.valueAsNumber
                       onChange({
-                        ...settings,
                         referenceAnnualRatePercent:
                           Number.isFinite(value) && value >= 0 ? value : null
                       })
@@ -547,7 +543,7 @@ export function SettingsMenu({
                     value={settings.tFloatingProfitAlertDefaultThreshold}
                     onChange={(event) => {
                       const value = Math.max(1, Number(event.target.value) || 1)
-                      onChange({ ...settings, tFloatingProfitAlertDefaultThreshold: value })
+                      onChange({ tFloatingProfitAlertDefaultThreshold: value })
                     }}
                     aria-label="T仓浮动盈亏提醒默认金额"
                   />
@@ -576,7 +572,7 @@ export function SettingsMenu({
                         aria-checked={selected}
                         onClick={() => {
                           applyAppThemePreference(option.value)
-                          onChange({ ...settings, theme: option.value })
+                          onChange({ theme: option.value })
                         }}
                         key={option.value}
                       >
@@ -596,9 +592,7 @@ export function SettingsMenu({
                   className="switch-input"
                   type="checkbox"
                   checked={settings.showTaskbarTicker}
-                  onChange={(event) =>
-                    onChange({ ...settings, showTaskbarTicker: event.target.checked })
-                  }
+                  onChange={(event) => onChange({ showTaskbarTicker: event.target.checked })}
                 />
               </label>
               {isMacOS ? (
@@ -618,7 +612,6 @@ export function SettingsMenu({
                       value={settings.taskbarPositionPercent}
                       onChange={(event) => {
                         onChange({
-                          ...settings,
                           taskbarPositionPercent: Number(event.target.value)
                         })
                       }}
@@ -641,9 +634,7 @@ export function SettingsMenu({
                   className="switch-input"
                   type="checkbox"
                   checked={settings.startWithWindows}
-                  onChange={(event) =>
-                    onChange({ ...settings, startWithWindows: event.target.checked })
-                  }
+                  onChange={(event) => onChange({ startWithWindows: event.target.checked })}
                 />
               </label>
               <label className="setting-row">
@@ -659,9 +650,7 @@ export function SettingsMenu({
                   className="switch-input"
                   type="checkbox"
                   checked={settings.minimizeToTray}
-                  onChange={(event) =>
-                    onChange({ ...settings, minimizeToTray: event.target.checked })
-                  }
+                  onChange={(event) => onChange({ minimizeToTray: event.target.checked })}
                 />
               </label>
             </>

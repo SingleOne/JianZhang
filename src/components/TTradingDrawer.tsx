@@ -1,3 +1,4 @@
+import { useAccountFeeData } from '../lib/data-center/hooks'
 import {
   calculateAccountTradeFees,
   getAccountTradeFeeContext,
@@ -60,7 +61,6 @@ import { splitTradeForOverflow } from '../lib/split-trade'
 import { TradeSplitSource } from './TradeSplitSource'
 import { PositionBoundaryBadge } from './PositionBoundaryBadge'
 import { TradingAccountPicker } from './TradingAccountPicker'
-import { useSecuritiesAccountState } from './SecuritiesAccountContext'
 import {
   accountFeeSettings,
   defaultAccountId,
@@ -459,7 +459,7 @@ function TBaseLedgerCard({ accounts, stock, onApply, renderTradeEditor }: TBaseL
 }
 
 export function TTradingDrawer(props: TTradingDrawerProps) {
-  const state = useSecuritiesAccountState()
+  const state = useAccountFeeData()
   const market = props.stock.market ?? marketFromQuoteId(props.stock.quoteId)
   const currency = props.stock.currency ?? currencyForMarket(market)
   const owners = useMemo(

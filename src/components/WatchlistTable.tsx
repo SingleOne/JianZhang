@@ -1,7 +1,11 @@
-import { useAppData } from '../lib/data-center/hooks'
+import {
+  useAppStateField,
+  useAppSetting,
+  useAppData,
+  useAccountFeeData
+} from '../lib/data-center/hooks'
 import { selectPortfolio } from '../lib/data-center/portfolio-selectors'
 import type { StopLossRule } from '../shared/stop-loss'
-import { useSecuritiesAccountState } from './SecuritiesAccountContext'
 import {
   ArrowDown,
   ArrowLeft,
@@ -34,24 +38,16 @@ import type { StockDetailNavigationRequest } from '../lib/completion-notificatio
 import { hasDividendFinancingLabel } from '../lib/dividend-financing'
 import type {
   CorporateActionRecord,
-  CorporateActionRecords,
   DailyKlineIndicator,
   DividendFinancingRankingItem,
-  ExchangeRateSettings,
   FundamentalSnapshot,
-  MarketTradeFeeSettings,
   StockAlertRule,
   StockPosition,
   StockSelectionRequest,
   StockTrackingConclusionResult,
   StockTrackingProfile,
-  StockTrackingProfiles,
-  TPlanDefaultSettings,
   TTradingAccount,
-  StockTradingBooks,
   StockTradingBook,
-  TTradingFeeSettings,
-  TradingCalendarSettings,
   StockMarket,
   WatchlistColumnId,
   WatchlistGroup,
@@ -130,8 +126,6 @@ const DIVIDEND_FINANCING_SORT_OPTIONS = [
 
 interface WatchlistTableProps {
   onInitialRender: () => void
-  watchlist: WatchStock[]
-  watchlistGroups: WatchlistGroup[]
   dividendFinancingByCode: ReadonlyMap<string, DividendFinancingRankingItem>
   dividendFinancingSnapshotDate?: string
   dividendFinancingStaleReason?: string | null
@@ -141,23 +135,9 @@ interface WatchlistTableProps {
   fundamentalGeneratedAt?: string
   fundamentalSnapshotSchemaVersion?: FundamentalSnapshot['schemaVersion']
   fundamentalStaleReason?: string | null
-  columnOrder: WatchlistColumnId[]
-  priorityRefreshSeconds: number
-  regularRefreshSeconds: number
-  chipDistributionEnabled: boolean
-  bollingerBandsEnabled: boolean
-  dailyKlineIndicator: DailyKlineIndicator
   selectedQuoteId: string | null
   stockSelectionRequest: StockSelectionRequest | null
   detailNavigationRequest: StockDetailNavigationRequest | null
-  stockTradingBooks: StockTradingBooks
-  corporateActionApplications: CorporateActionRecords
-  tTradingFees: TTradingFeeSettings
-  marketTradeFees: MarketTradeFeeSettings
-  tPlanDefaults: TPlanDefaultSettings
-  tFloatingProfitAlertDefaultThreshold: number
-  tradingCalendar: TradingCalendarSettings
-  exchangeRates: ExchangeRateSettings
   onSelect: (quoteId: string) => void
   onStockSelectionPositioned: (request: StockSelectionRequest) => void
   onDetailNavigationHandled: (requestId: string) => void
@@ -182,7 +162,6 @@ interface WatchlistTableProps {
   ) => string | void
   onUpdateCorporateActionRecord: (record: CorporateActionRecord) => void
   onUpdateStockAlerts: (quoteId: string, rules: StockAlertRule[], stopLoss?: StopLossRule) => void
-  stockTrackingProfiles: StockTrackingProfiles
   onStartTracking: (quoteId: string) => void
   onUpdateTracking: (profile: StockTrackingProfile) => void
   onStopTracking: (
@@ -275,8 +254,6 @@ const RADAR_SIGNAL_DESCRIPTIONS: Record<string, string> = {
 
 export function WatchlistTable({
   onInitialRender,
-  watchlist,
-  watchlistGroups,
   dividendFinancingByCode,
   dividendFinancingSnapshotDate,
   dividendFinancingStaleReason,
@@ -286,23 +263,9 @@ export function WatchlistTable({
   fundamentalGeneratedAt,
   fundamentalSnapshotSchemaVersion,
   fundamentalStaleReason,
-  columnOrder,
-  priorityRefreshSeconds,
-  regularRefreshSeconds,
-  chipDistributionEnabled,
-  bollingerBandsEnabled,
-  dailyKlineIndicator,
   selectedQuoteId,
   stockSelectionRequest,
   detailNavigationRequest,
-  stockTradingBooks,
-  corporateActionApplications,
-  tTradingFees,
-  marketTradeFees,
-  tPlanDefaults,
-  tFloatingProfitAlertDefaultThreshold,
-  tradingCalendar,
-  exchangeRates,
   onSelect,
   onStockSelectionPositioned,
   onDetailNavigationHandled,
@@ -314,7 +277,6 @@ export function WatchlistTable({
   onApplyCorporateAction,
   onUpdateCorporateActionRecord,
   onUpdateStockAlerts,
-  stockTrackingProfiles,
   onStartTracking,
   onUpdateTracking,
   onStopTracking,
@@ -329,9 +291,25 @@ export function WatchlistTable({
   onDailyKlineIndicatorChange,
   onRemove
 }: WatchlistTableProps) {
+  const watchlist = useAppStateField('watchlist')
+  const watchlistGroups = useAppStateField('watchlistGroups')
+  const columnOrder = useAppStateField('columnOrder')
+  const stockTradingBooks = useAppStateField('stockTradingBooks')
+  const corporateActionApplications = useAppStateField('corporateActionApplications')
+  const priorityRefreshSeconds = useAppSetting('priorityRefreshSeconds')
+  const regularRefreshSeconds = useAppSetting('regularRefreshSeconds')
+  const chipDistributionEnabled = useAppSetting('showChipDistribution')
+  const bollingerBandsEnabled = useAppSetting('showBollingerBands')
+  const dailyKlineIndicator = useAppSetting('dailyKlineIndicator')
+  const tTradingFees = useAppSetting('tTradingFees')
+  const marketTradeFees = useAppSetting('marketTradeFees')
+  const tPlanDefaults = useAppSetting('tPlanDefaults')
+  const tFloatingProfitAlertDefaultThreshold = useAppSetting('tFloatingProfitAlertDefaultThreshold')
+  const tradingCalendar = useAppSetting('tradingCalendar')
+  const exchangeRates = useAppSetting('exchangeRates')
+
   const quotes = useAppData((snapshot) => snapshot.quotes)
-  const accountState = useSecuritiesAccountState()
-  const portfolio = useAppData((snapshot) => selectPortfolio(snapshot, accountState))
+  const portfolio = useAppData((snapshot) => selectPortfolio(snapshot))
   const portfolioSummary = portfolio.summary
   const portfolioExposureText = portfolio.exposureText
   const positionProfitOverrides = portfolio.overrides
@@ -345,7 +323,8 @@ export function WatchlistTable({
   }, [onInitialRender])
 
   const [sort, setSort] = useState<SortState | null>(null)
-  const { securitiesAccounts, feeSchemes, settings, portfolioPerformanceAdjustments } = accountState
+  const { securitiesAccounts, feeSchemes, settings } = useAccountFeeData()
+  const portfolioPerformanceAdjustments = useAppStateField('portfolioPerformanceAdjustments')
   const feeState = useMemo(
     () => ({ securitiesAccounts, feeSchemes, settings }),
     [securitiesAccounts, feeSchemes, settings]
@@ -1420,7 +1399,6 @@ export function WatchlistTable({
                   fundamentalGeneratedAt={fundamentalGeneratedAt}
                   fundamentalSnapshotSchemaVersion={fundamentalSnapshotSchemaVersion}
                   fundamentalStaleReason={fundamentalStaleReason}
-                  tradingAccount={stockTradingBooks[stock.quoteId]}
                   feeState={feeState}
                   corporateActionApplications={corporateActionApplications}
                   manualIndex={manualIndex}
@@ -1433,7 +1411,6 @@ export function WatchlistTable({
                   chipDistributionEnabled={chipDistributionEnabled}
                   bollingerBandsEnabled={bollingerBandsEnabled}
                   dailyKlineIndicator={dailyKlineIndicator}
-                  trackingProfile={stockTrackingProfiles[stock.quoteId]}
                   selected={selectedQuoteId === stock.quoteId}
                   detailNavigationRequest={
                     detailNavigationRequest?.quoteId === stock.quoteId

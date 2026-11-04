@@ -1,15 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useAppStateField } from '../lib/data-center/hooks'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Plus } from 'lucide-react'
-import {
-  ACCOUNT_MARKETS,
-  flattenStockAccountBooks,
-  normalizeAccountState
-} from '../shared/stock-accounts'
+import { ACCOUNT_MARKETS, flattenStockAccountBooks } from '../shared/stock-accounts'
 import { STOCK_MARKET_LABELS } from '../shared/stock-market'
 import { FIXED_FEE_CODES, validateFeeConfiguration } from '../shared/fee-schemes'
 import type {
-  AppState,
   CnFixedFeeRates,
   FixedFeeCode,
   SecuritiesAccount,
@@ -56,17 +52,23 @@ function accountDrafts(accounts: SecuritiesAccounts): AccountDrafts {
 }
 
 export function SecuritiesAccountManager({
-  state,
   onSave,
   onClose
 }: {
-  state: AppState
-  onSave: (accounts: SecuritiesAccounts) => Promise<boolean>
+  onSave: (
+    accounts: SecuritiesAccounts,
+    expected: SecuritiesAccounts
+  ) => Promise<SecuritiesAccounts | null>
   onClose: () => void
 }) {
-  const [initial] = useState(() => normalizeAccountState(state))
-  const [accounts, setAccounts] = useState(() => accountDrafts(initial.securitiesAccounts!))
-  const schemes = initial.feeSchemes!
+  const securitiesAccounts = useAppStateField('securitiesAccounts')!
+  const feeSchemes = useAppStateField('feeSchemes')!
+  const fixedFeeDefaults = useAppStateField('fixedFeeDefaults')!
+  const stockTradingBooks = useAppStateField('stockTradingBooks')
+  const corporateActionApplications = useAppStateField('corporateActionApplications')
+  const draftBase = useRef(securitiesAccounts)
+  const [accounts, setAccounts] = useState(() => accountDrafts(securitiesAccounts))
+  const schemes = feeSchemes
   const [selectedId, setSelectedId] = useState(
     () => Object.values(accounts).find((a) => a.market === 'CN')?.id ?? ''
   )
@@ -88,7 +90,7 @@ export function SecuritiesAccountManager({
   }, [onClose, saving])
   const selected = accounts[selectedId]
   const boundScheme = selected ? schemes[selected.feeSchemeId] : undefined
-  const books = Object.values(flattenStockAccountBooks(state.stockTradingBooks))
+  const books = Object.values(flattenStockAccountBooks(stockTradingBooks))
   const changed = () => {
     setSaved(false)
     setError('')
@@ -133,8 +135,8 @@ export function SecuritiesAccountManager({
         (book) =>
           book.accountId === selectedId &&
           ((book.position?.quantity ?? 0) > 0 ||
-            getActiveStockTBatches(state.stockTradingBooks[book.quoteId]).some((batch) =>
-              getBatchTrades(state.stockTradingBooks[book.quoteId], batch).some(
+            getActiveStockTBatches(stockTradingBooks[book.quoteId]).some((batch) =>
+              getBatchTrades(stockTradingBooks[book.quoteId], batch).some(
                 (trade) => trade.accountId === selectedId
               )
             ))
@@ -148,9 +150,7 @@ export function SecuritiesAccountManager({
   const remove = () => {
     if (
       books.some((book) => book.accountId === selectedId) ||
-      Object.values(state.corporateActionApplications).some(
-        (record) => record.accountId === selectedId
-      )
+      Object.values(corporateActionApplications).some((record) => record.accountId === selectedId)
     ) {
       setError('该账户已有业务记录，可以停用并保留历史。')
       return
@@ -192,7 +192,7 @@ export function SecuritiesAccountManager({
           fixedFeeOverrides: Object.keys(overrides).length ? overrides : undefined
         }
       }
-      validateFeeConfiguration(validated, schemes, initial.fixedFeeDefaults!)
+      validateFeeConfiguration(validated, schemes, fixedFeeDefaults)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '请检查费用配置')
       return
@@ -201,10 +201,12 @@ export function SecuritiesAccountManager({
     setSaved(false)
     setError('')
     try {
-      if (await onSave(validated)) {
-        setAccounts(accountDrafts(validated))
+      const savedAccounts = await onSave(validated, draftBase.current)
+      if (savedAccounts) {
+        draftBase.current = savedAccounts
+        setAccounts(accountDrafts(savedAccounts))
         setSaved(true)
-      } else setError('账户保存失败，请重试')
+      } else setError('账户保存失败；若配置已更新，请重新打开后编辑')
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '保存失败')
     } finally {

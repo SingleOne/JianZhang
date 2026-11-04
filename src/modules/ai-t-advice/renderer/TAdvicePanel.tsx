@@ -1,7 +1,4 @@
-import {
-  StockAccountBoundary,
-  useStockAccountScope
-} from '../../../components/SecuritiesAccountContext'
+import { StockAccountBoundary, useStockAccountScope } from '../../../components/StockAccountScope'
 import {
   AlertCircle,
   Ban,

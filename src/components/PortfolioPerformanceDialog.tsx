@@ -1,7 +1,6 @@
-import { useAppData } from '../lib/data-center/hooks'
-import { useSecuritiesAccountState } from './SecuritiesAccountContext'
+import { useAppData, useAppStateField, useAppSetting } from '../lib/data-center/hooks'
 import { listStockAccountBooks, getStockAccountBook } from '../shared/stock-accounts'
-import type { StockTradingBook, StockTradingBooks } from '../shared/types'
+import type { StockTradingBook } from '../shared/types'
 import {
   ArrowDown,
   ArrowUp,
@@ -33,20 +32,13 @@ import {
   type PortfolioPerformanceSort,
   type PortfolioPerformanceSortKey
 } from '../lib/portfolio-performance-sort'
-import type {
-  ExchangeRateSettings,
-  PortfolioPerformanceAdjustments,
-  PortfolioPerformanceCache,
-  WatchStock
-} from '../shared/types'
+import type { PortfolioPerformanceAdjustments, PortfolioPerformanceCache } from '../shared/types'
+const EMPTY_ADJUSTMENTS: PortfolioPerformanceAdjustments = {}
+
 import './PortfolioPerformanceDialog.css'
 import PortfolioPerformanceCyclesDialog from './PortfolioPerformanceCyclesDialog'
 
 interface PortfolioPerformanceDialogProps {
-  watchlist: WatchStock[]
-  accounts: StockTradingBooks
-  exchangeRates: ExchangeRateSettings
-  adjustments: PortfolioPerformanceAdjustments
   onSaveAdjustments: (
     adjustments: PortfolioPerformanceAdjustments,
     accountId?: string
@@ -187,22 +179,23 @@ function SummaryValue({
 }
 
 export default function PortfolioPerformanceDialog({
-  watchlist,
-  accounts,
-  exchangeRates,
-  adjustments,
   onSaveAdjustments,
   onSavePerformanceCache,
   onRecalculateStock,
   onSaveTradingBook,
   onClose
 }: PortfolioPerformanceDialogProps) {
+  const watchlist = useAppStateField('watchlist')
+  const accounts = useAppStateField('stockTradingBooks')
+  const exchangeRates = useAppSetting('exchangeRates')
+  const adjustments = useAppStateField('portfolioPerformanceAdjustments') ?? EMPTY_ADJUSTMENTS
+
   const quotes = useAppData((snapshot) => snapshot.quotes)
   const [dimension, setDimension] = useState<PerformanceDimension>('stock')
   const [sort, setSort] = useState<PortfolioPerformanceSort | null>(null)
   const [editingAdjustmentQuoteId, setEditingAdjustmentQuoteId] = useState<string | null>(null)
   const [adjustmentDraft, setAdjustmentDraft] = useState('')
-  const accountState = useSecuritiesAccountState()
+  const securitiesAccounts = useAppStateField('securitiesAccounts')
   const [accountFilter, setAccountFilter] = useState('all')
   const [adjustmentError, setAdjustmentError] = useState('')
   const [savingAdjustments, setSavingAdjustments] = useState(false)
@@ -247,16 +240,9 @@ export default function PortfolioPerformanceDialog({
         visibleBooks,
         exchangeRates,
         adjustments,
-        accountState.securitiesAccounts
+        securitiesAccounts
       ),
-    [
-      visibleBooks,
-      adjustments,
-      exchangeRates,
-      quotes,
-      visibleWatchlist,
-      accountState.securitiesAccounts
-    ]
+    [visibleBooks, adjustments, exchangeRates, quotes, visibleWatchlist, securitiesAccounts]
   )
   useEffect(() => {
     if (accountFilter !== 'all') return
@@ -534,7 +520,7 @@ export default function PortfolioPerformanceDialog({
                 value={accountFilter}
                 options={[
                   { value: 'all', label: '全部账户汇总' },
-                  ...Object.values(accountState.securitiesAccounts ?? {}).map((account) => ({
+                  ...Object.values(securitiesAccounts ?? {}).map((account) => ({
                     value: account.id,
                     label: `${account.name}${account.enabled ? '' : '（已停用）'}`
                   }))

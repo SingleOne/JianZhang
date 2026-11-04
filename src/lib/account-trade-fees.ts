@@ -21,7 +21,12 @@ export interface AccountTradeFeeContext {
   scheme: BrokerFeeScheme
   fixedFeeOverrides?: Partial<CnFixedFeeRates>
 }
-export type AccountFeeState = Pick<AppState, 'securitiesAccounts' | 'feeSchemes' | 'settings'>
+export type AccountFeeState = Pick<AppState, 'securitiesAccounts' | 'feeSchemes'> & {
+  settings: Pick<
+    AppState['settings'],
+    'tTradingFees' | 'marketTradeFees' | 'lastUsedAccountIdByMarket'
+  >
+}
 
 export function getAccountTradeFeeContext(
   state: Pick<AppState, 'securitiesAccounts' | 'feeSchemes'>,

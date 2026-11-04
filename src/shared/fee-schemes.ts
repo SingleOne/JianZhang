@@ -106,7 +106,9 @@ export function feeSchemeFromLegacy(
   }
 }
 
-export function createDefaultFeeSchemes(settings = DEFAULT_APP_SETTINGS): BrokerFeeSchemes {
+export function createDefaultFeeSchemes(
+  settings: Pick<AppSettings, 'tTradingFees' | 'marketTradeFees'> = DEFAULT_APP_SETTINGS
+): BrokerFeeSchemes {
   return Object.fromEntries(
     (['CN', 'HK', 'US'] as const).map((market) => {
       const fees: AccountFeeSettings =

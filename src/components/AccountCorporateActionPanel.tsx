@@ -1,5 +1,6 @@
+import { useAppStateField } from '../lib/data-center/hooks'
 import CorporateActionPanel, { type CorporateActionPanelProps } from './CorporateActionPanel'
-import { useSecuritiesAccountState, useStockAccountScope } from './SecuritiesAccountContext'
+import { useStockAccountScope } from './StockAccountScope'
 import { listAccountsForMarket } from '../shared/stock-accounts'
 import { marketFromQuoteId } from '../shared/stock-market'
 import type { StockTradingBook, TTradingAccount } from '../shared/types'
@@ -11,9 +12,9 @@ type PanelProps = Omit<
   account?: StockTradingBook | TTradingAccount
 }
 export default function AccountCorporateActionPanel(props: PanelProps) {
-  const state = useSecuritiesAccountState()
+  const securitiesAccounts = useAppStateField('securitiesAccounts')
   const market = props.stock.market ?? marketFromQuoteId(props.stock.quoteId)
-  if (listAccountsForMarket(state.securitiesAccounts, market, true).length) {
+  if (listAccountsForMarket(securitiesAccounts, market, true).length) {
     return <CorporateActionWithAccounts {...props} />
   }
   return <CorporateActionPanel {...props} account={undefined} />
@@ -28,7 +29,7 @@ function CorporateActionWithAccounts(props: PanelProps) {
       stock={scope.stock}
       account={scope.book}
       accountDisabled={!scope.owner.enabled}
-      accountOptions={listAccountsForMarket(scope.state.securitiesAccounts, market, true).map(
+      accountOptions={listAccountsForMarket(scope.securitiesAccounts, market, true).map(
         (owner) => ({
           value: owner.id,
           label: `${owner.name}${owner.enabled ? '' : '（已停用）'}`

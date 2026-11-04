@@ -1,7 +1,7 @@
+import { useAppStateField } from '../../../lib/data-center/hooks'
 import { AppInput } from '../../../components/AppFormControls'
 import { AppSelect, type AppSelectOption } from '../../../components/AppSelect'
 import { AppTable, type AppTableColumn } from '../../../components/AppTable'
-import { useSecuritiesAccountState } from '../../../components/SecuritiesAccountContext'
 import { listAccountsForMarket } from '../../../shared/stock-accounts'
 import { tradeImportItemMarket } from '../shared/trade-import-defaults'
 import type { AiTradeImportEntryKind, AiTradeImportItem } from '../shared/types'
@@ -66,7 +66,7 @@ export function TradeImportTable({
   onUpdate,
   onMapStock
 }: TradeImportTableProps) {
-  const accountState = useSecuritiesAccountState()
+  const securitiesAccounts = useAppStateField('securitiesAccounts')
   const columns: AppTableColumn<AiTradeImportItem>[] = [
     {
       key: 'selected',
@@ -125,7 +125,7 @@ export function TradeImportTable({
             options={[
               { value: '', label: '请选择账户' },
               ...(market
-                ? listAccountsForMarket(accountState.securitiesAccounts, market).map((account) => ({
+                ? listAccountsForMarket(securitiesAccounts, market).map((account) => ({
                     value: account.id,
                     label: account.name
                   }))

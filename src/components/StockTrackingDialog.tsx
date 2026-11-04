@@ -1,4 +1,4 @@
-import { useAppData } from '../lib/data-center/hooks'
+import { useAppStateField, useAppSetting, useAppData } from '../lib/data-center/hooks'
 import { Binoculars, History, Play, Search, Trash2, X } from 'lucide-react'
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -8,14 +8,11 @@ import { calculateStockTrackingPerformance } from '../lib/stock-tracking-perform
 import { formatPercent } from '../lib/format'
 import type {
   DailyKlineIndicator,
-  StockTrackingArchiveIndex,
   StockTrackingConclusionResult,
   StockTrackingCycleSummary,
   StockTrackingProfile,
-  StockTrackingProfiles,
   StockTrackingSourceType,
-  WatchlistGroup,
-  WatchStock
+  WatchlistGroup
 } from '../shared/types'
 import { AppSelect, type AppSelectOption } from './AppSelect'
 import { StockGroupQuickPopover } from './StockGroupQuickPopover'
@@ -54,10 +51,6 @@ interface TrackingStockRow {
 
 interface StockTrackingDialogProps {
   open: boolean
-  profiles: StockTrackingProfiles
-  archiveIndex: StockTrackingArchiveIndex
-  watchlist: WatchStock[]
-  watchlistGroups: WatchlistGroup[]
   onUpdateProfile: (profile: StockTrackingProfile) => void
   onStopTracking: (
     quoteId: string,
@@ -75,9 +68,7 @@ interface StockTrackingDialogProps {
     groupIdsByQuoteId: Record<string, string[]>
   ) => void
   onUpdateStockGroups: (quoteId: string, groupIds: string[]) => void
-  bollingerBandsEnabled: boolean
   onBollingerBandsEnabledChange: (enabled: boolean) => void
-  dailyKlineIndicator: DailyKlineIndicator
   onDailyKlineIndicatorChange: (indicator: DailyKlineIndicator) => void
   onClose: () => void
 }
@@ -133,10 +124,6 @@ function formatCycleDate(value: string): string {
 
 export function StockTrackingDialog({
   open,
-  profiles,
-  archiveIndex,
-  watchlist,
-  watchlistGroups,
   onUpdateProfile,
   onStopTracking,
   onRestartTracking,
@@ -146,12 +133,17 @@ export function StockTrackingDialog({
   onViewStock,
   onUpdateWatchlistGroups,
   onUpdateStockGroups,
-  bollingerBandsEnabled,
   onBollingerBandsEnabledChange,
-  dailyKlineIndicator,
   onDailyKlineIndicatorChange,
   onClose
 }: StockTrackingDialogProps) {
+  const profiles = useAppStateField('stockTrackingProfiles')
+  const archiveIndex = useAppData((snapshot) => snapshot.trackingArchiveIndex)
+  const watchlist = useAppStateField('watchlist')
+  const watchlistGroups = useAppStateField('watchlistGroups')
+  const bollingerBandsEnabled = useAppSetting('showBollingerBands')
+  const dailyKlineIndicator = useAppSetting('dailyKlineIndicator')
+
   const quotes = useAppData((snapshot) => snapshot.quotes)
   const [query, setQuery] = useState('')
   const deferredQuery = useDeferredValue(query)

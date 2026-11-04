@@ -8,7 +8,6 @@ import { reuseUnchangedState } from '../../shared/state-changes'
 import { marketDateKey } from '../../shared/market-hours'
 import { marketFromQuoteId } from '../../shared/stock-market'
 import type { AppDataSnapshot } from './center'
-import type { AppState } from '../../shared/types'
 
 function sameInputs(left: readonly unknown[], right: readonly unknown[]) {
   return (
@@ -43,8 +42,7 @@ export function createPortfolioSelector() {
       override: PositionProfitOverride | undefined
     }
   >()
-  let previousSnapshot: AppDataSnapshot | undefined
-  let previousState: AppState | undefined
+  let previousInputs: readonly unknown[] | undefined
   let result:
     | {
         metrics: ReadonlyMap<string, ReturnType<typeof calculatePositionMetrics>>
@@ -54,10 +52,19 @@ export function createPortfolioSelector() {
       }
     | undefined
 
-  return (snapshot: AppDataSnapshot, state = snapshot.state) => {
-    if (previousSnapshot === snapshot && previousState === state && result) return result
-    previousSnapshot = snapshot
-    previousState = state
+  return (snapshot: AppDataSnapshot) => {
+    const { state } = snapshot
+    const now = new Date()
+    const inputs = [
+      state.watchlist,
+      state.stockTradingBooks,
+      state.settings.exchangeRates,
+      state.portfolioPerformanceAdjustments,
+      snapshot.quotes,
+      ...(['CN', 'HK', 'US'] as const).map((market) => marketDateKey(now, market))
+    ]
+    if (previousInputs && sameInputs(previousInputs, inputs) && result) return result
+    previousInputs = inputs
     const { quotes, quotesById } = snapshot
     const ids = new Set(state.watchlist.map((stock) => stock.quoteId))
     for (const id of cache.keys()) if (!ids.has(id)) cache.delete(id)
@@ -69,7 +76,7 @@ export function createPortfolioSelector() {
       const rates = state.settings.exchangeRates
       const rawAdjustment = state.portfolioPerformanceAdjustments?.[stock.quoteId]
       const adjustment = Number.isFinite(rawAdjustment) ? rawAdjustment! : 0
-      const day = marketDateKey(new Date(), marketFromQuoteId(stock.quoteId))
+      const day = marketDateKey(now, marketFromQuoteId(stock.quoteId))
       // These calculations consume price, previous close and currency, not fetch timestamps.
       const inputs = [
         stock,

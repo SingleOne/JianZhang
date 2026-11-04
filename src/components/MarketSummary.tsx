@@ -1,6 +1,6 @@
 import { useAppData } from '../lib/data-center/hooks'
 import { selectPortfolio } from '../lib/data-center/portfolio-selectors'
-import { MARKET_INDEX_OPTIONS, type AppState } from '../shared/types'
+import { MARKET_INDEX_OPTIONS } from '../shared/types'
 import { formatMoneyProfit, formatPercent, formatPrice, formatUpdateTime } from '../lib/format'
 import { AnimatedNumber } from './AnimatedNumber'
 
@@ -46,8 +46,8 @@ export function MarketIndexSummary() {
     </>
   )
 }
-export function PortfolioSummaryCards({ state }: { state: AppState }) {
-  const portfolioSummary = useAppData((snapshot) => selectPortfolio(snapshot, state).summary)
+export function PortfolioSummaryCards() {
+  const portfolioSummary = useAppData((snapshot) => selectPortfolio(snapshot).summary)
   return (
     <div className="portfolio-summary" aria-label="全部持仓收益汇总">
       <span className={cardDirectionClass(portfolioSummary.todayProfit)}>

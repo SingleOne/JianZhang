@@ -62,6 +62,18 @@ function withQuotes(snapshot: AppDataSnapshot, quotes: StockQuote[]): AppDataSna
 }
 
 describe('shared portfolio projections', () => {
+  it('retains the projection for changes outside its business dependencies', () => {
+    const select = createPortfolioSelector()
+    const initial = fixture()
+    const before = select(initial)
+    const next = {
+      ...initial,
+      writes: { ...initial.writes, pendingCount: 1 },
+      trackingArchiveIndex: {},
+      state: { ...initial.state, settings: { ...initial.state.settings, theme: 'dark' as const } }
+    }
+    expect(select(next)).toBe(before)
+  })
   it('preserves unrelated stock metrics and matches the original summary calculation', () => {
     const select = createPortfolioSelector()
     const initial = fixture()
@@ -101,7 +113,7 @@ describe('shared portfolio projections', () => {
     expect(after.summary).toBe(before.summary)
   })
 
-  it('uses the current optimistic business state during the staged migration', () => {
+  it('uses the current optimistic business state from the center snapshot', () => {
     const select = createPortfolioSelector()
     const snapshot = fixture()
     const committed = select(snapshot)
@@ -111,7 +123,7 @@ describe('shared portfolio projections', () => {
         index === 0 ? { ...stock, position: { ...stock.position!, quantity: 200 } } : stock
       )
     }
-    const optimistic = select(snapshot, edited)
+    const optimistic = select({ ...snapshot, state: edited })
     expect(optimistic.metrics.get('1.600000')?.marketValue).toBe(2400)
     expect(optimistic.metrics.get('1.600001')).toBe(committed.metrics.get('1.600001'))
     const restored = select(snapshot)

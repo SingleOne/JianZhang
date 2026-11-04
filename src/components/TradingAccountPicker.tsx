@@ -1,3 +1,4 @@
+import { useAppStateField } from '../lib/data-center/hooks'
 import { Check, X } from 'lucide-react'
 import { useCallback, useEffect, useId, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
@@ -10,7 +11,6 @@ import {
   FIXED_FEE_CODES,
   FIXED_FEE_LABELS
 } from '../shared/fee-schemes'
-import { useSecuritiesAccountState } from './SecuritiesAccountContext'
 import { AppButton } from './AppButton'
 import './TradingAccountPicker.css'
 
@@ -98,7 +98,7 @@ function TradingAccountDialog({
   onChange,
   onClose
 }: TradingAccountPickerProps & { onClose: () => void }) {
-  const state = useSecuritiesAccountState()
+  const feeSchemes = useAppStateField('feeSchemes')
   const titleId = useId()
   const descriptionId = useId()
   const dialogRef = useRef<HTMLElement>(null)
@@ -224,7 +224,7 @@ function TradingAccountDialog({
                 </span>
                 <span className="trading-account-picker-fees">
                   <span className="trading-account-picker-fee-grid">
-                    {accountFeeRows(owner, state.feeSchemes!).map(([label, amount]) => (
+                    {accountFeeRows(owner, feeSchemes!).map(([label, amount]) => (
                       <span key={label}>
                         <span>{label}</span>
                         <span>{amount}</span>

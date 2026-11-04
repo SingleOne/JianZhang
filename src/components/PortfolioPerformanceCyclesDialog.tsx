@@ -1,3 +1,4 @@
+import { useAppSettings } from '../lib/data-center/hooks'
 import { History, ReceiptText, X } from 'lucide-react'
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -21,7 +22,6 @@ import type {
   WatchStock
 } from '../shared/types'
 import { AppButton } from './AppButton'
-import { useSecuritiesAccountState } from './SecuritiesAccountContext'
 import { Tooltip } from './Tooltip'
 import './PortfolioPerformanceCyclesDialog.css'
 
@@ -415,7 +415,12 @@ export default function PortfolioPerformanceCyclesDialog({
   onSaveTradingBook,
   onClose
 }: PortfolioPerformanceCyclesDialogProps) {
-  const { settings } = useSecuritiesAccountState()
+  const settings = useAppSettings([
+    'referenceAnnualRatePercent',
+    'tPlanDefaults',
+    'marketTradeFees',
+    'tradingCalendar'
+  ])
   const referenceAnnualRatePercent = settings.referenceAnnualRatePercent
   const market = marketFromQuoteId(stock.quoteId)
   const [recordFilter, setRecordFilter] = useState<{

@@ -9,7 +9,13 @@ import {
 } from '../../shared/types'
 import { createDataCenter } from './center'
 import { startStockTracking, createStockTrackingSource } from '../stock-tracking'
-import { changeStock, changeSettings, removeWatchStock, withUnchangedData } from './mutations'
+import {
+  changeStock,
+  changeSettings,
+  removeWatchStock,
+  withUnchangedData,
+  withUnchangedValue
+} from './mutations'
 
 function quote(quoteId: string, latest: number): StockQuote {
   return {
@@ -108,6 +114,23 @@ function deferred<T>() {
 }
 
 describe('window data center', () => {
+  it('rejects a configuration draft whose baseline changed before save was requested', async () => {
+    const f = setup()
+    const expected = { feeSchemes: f.state.feeSchemes, fixedFeeDefaults: f.state.fixedFeeDefaults }
+    f.pushState({ ...f.state, revision: 2, feeSchemes: {} })
+    await expect(
+      f.center.commands.update(
+        withUnchangedValue(
+          expected,
+          (state) => ({ feeSchemes: state.feeSchemes, fixedFeeDefaults: state.fixedFeeDefaults }),
+          (state) => ({ ...state, ...expected })
+        )
+      )
+    ).rejects.toThrow('相关数据已更新')
+    expect(f.saveState).not.toHaveBeenCalled()
+    expect(f.center.getSnapshot().state.feeSchemes).toEqual({})
+  })
+
   it('queues archive and archive deletion with ordinary state writes', async () => {
     const f = setup()
     const save = deferred<AppState>()

@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useAccountFeeData, useAppStateField, useStockTradingBook } from '../lib/data-center/hooks'
+import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
   accountFeeSettings,
@@ -7,40 +8,9 @@ import {
   resolveAccountSelection
 } from '../shared/stock-accounts'
 import { currencyForMarket, marketFromQuoteId, STOCK_MARKET_LABELS } from '../shared/stock-market'
-import type { AppState, TTradingAccount, WatchStock } from '../shared/types'
+import type { TTradingAccount, WatchStock } from '../shared/types'
 import { AppSelect } from './AppSelect'
 import './SecuritiesAccounts.css'
-
-type AccountContextState = AppState & {
-  commitAccountState: (state: AppState) => Promise<boolean>
-}
-const AccountContext = createContext<AccountContextState | null>(null)
-
-export function SecuritiesAccountProvider({
-  state,
-  children,
-  onSave
-}: {
-  state: AppState
-  children: ReactNode
-  onSave: (state: AppState) => Promise<boolean>
-}) {
-  const value = useMemo<AccountContextState>(
-    () => ({
-      ...state,
-      commitAccountState: onSave
-    }),
-    [onSave, state]
-  )
-
-  return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>
-}
-
-export function useSecuritiesAccountState(): AccountContextState {
-  const state = useContext(AccountContext)
-  if (!state) throw new Error('股票账户上下文尚未加载')
-  return state
-}
 
 function AccountRequiredDialog({ message, onClose }: { message: string; onClose: () => void }) {
   useEffect(() => {
@@ -88,9 +58,9 @@ export function StockAccountBoundary({
   children: ReactNode
   onClose?: () => void
 }) {
-  const state = useSecuritiesAccountState()
+  const securitiesAccounts = useAppStateField('securitiesAccounts')
   const market = stock.market ?? marketFromQuoteId(stock.quoteId)
-  if (listAccountsForMarket(state.securitiesAccounts, market, true).length) return children
+  if (listAccountsForMarket(securitiesAccounts, market, true).length) return children
   const message = `${STOCK_MARKET_LABELS[market]}暂无股票账户，请在设置的“管理股票账户”中新增账户。`
   return onClose ? (
     <AccountRequiredDialog message={message} onClose={onClose} />
@@ -100,7 +70,8 @@ export function StockAccountBoundary({
 }
 
 export function useStockAccountScope(stock: WatchStock, preferredId?: string) {
-  const state = useSecuritiesAccountState()
+  const state = useAccountFeeData()
+  const tradingBook = useStockTradingBook(stock.quoteId)
   const market = stock.market ?? marketFromQuoteId(stock.quoteId)
   const [selection, setSelection] = useState(() => {
     return preferredId && state.securitiesAccounts?.[preferredId]?.market === market
@@ -115,7 +86,11 @@ export function useStockAccountScope(stock: WatchStock, preferredId?: string) {
       : resolveAccountSelection(state, market) ||
         listAccountsForMarket(state.securitiesAccounts, market, true)[0].id
   const owner = state.securitiesAccounts![accountId]
-  const existing = getStockAccountBook(state.stockTradingBooks, stock.quoteId, accountId)
+  const existing = getStockAccountBook(
+    tradingBook ? { [stock.quoteId]: tradingBook } : {},
+    stock.quoteId,
+    accountId
+  )
   const book: TTradingAccount = existing ?? {
     accountId,
     accountName: owner.name,
@@ -150,7 +125,7 @@ export function useStockAccountScope(stock: WatchStock, preferredId?: string) {
     </div>
   )
   return {
-    state,
+    securitiesAccounts: state.securitiesAccounts,
     owner,
     book,
     accountId,
@@ -159,8 +134,6 @@ export function useStockAccountScope(stock: WatchStock, preferredId?: string) {
     ),
     select,
     selector,
-    markDirty: () => {},
-    saved: () => {},
     stock: { ...stock, position: book.position, positionSnapshots: book.positionSnapshots },
     fees: accountFeeSettings(owner, state.settings, state.feeSchemes, stock.quoteId)
   }

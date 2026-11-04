@@ -91,11 +91,13 @@ export function listAccountsForMarket(
 }
 
 export function resolveAccountSelection(
-  state: Pick<AppState, 'settings' | 'securitiesAccounts'>,
+  state: Pick<AppState, 'securitiesAccounts'> & {
+    settings: Pick<AppState['settings'], 'lastUsedAccountIdByMarket'>
+  },
   market: StockMarket,
   preferredId?: string
 ): string {
-  const accounts = state.securitiesAccounts ?? createDefaultAccounts(state.settings)
+  const accounts = state.securitiesAccounts ?? createDefaultAccounts()
   for (const id of [
     preferredId,
     state.settings.lastUsedAccountIdByMarket?.[market],
@@ -108,7 +110,7 @@ export function resolveAccountSelection(
 
 export function accountFeeSettings(
   account: SecuritiesAccount | undefined,
-  settings = DEFAULT_APP_SETTINGS,
+  settings: Pick<AppState['settings'], 'tTradingFees' | 'marketTradeFees'> = DEFAULT_APP_SETTINGS,
   schemes: BrokerFeeSchemes = createDefaultFeeSchemes(settings),
   quoteId = ''
 ) {

@@ -1,4 +1,4 @@
-import { useSecuritiesAccountState } from './SecuritiesAccountContext'
+import { useAccountFeeData, useAppStateField } from '../lib/data-center/hooks'
 import './PositionDialogResponsive.css'
 import { reconcileStockTBatches } from '../lib/stock-t-trading'
 import type { ReactNode } from 'react'
@@ -422,7 +422,7 @@ function TradeRecordList({
   onCancelEdit,
   onDelete
 }: TradeRecordListProps) {
-  const { securitiesAccounts } = useSecuritiesAccountState()
+  const securitiesAccounts = useAppStateField('securitiesAccounts')
   return (
     <div className="trade-record-scroll">
       {error ? (
@@ -779,7 +779,7 @@ export function PositionEditor({
   accountDisabled = false
 }: PositionEditorProps) {
   const confirm = useConfirmDialog()
-  const accountState = useSecuritiesAccountState()
+  const accountState = useAccountFeeData()
   const market = marketFromQuoteId(stock.quoteId)
   const feeContext = getAccountTradeFeeContext(
     accountState,

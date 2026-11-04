@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { PositionEditor, type PositionEditorProps } from './PositionEditor'
 import { TTradingDrawer, type TTradingDrawerProps } from './TTradingDrawer'
-import { StockAccountBoundary, useStockAccountScope } from './SecuritiesAccountContext'
+import { StockAccountBoundary, useStockAccountScope } from './StockAccountScope'
 import type { StockTradingBook, TTradingAccount } from '../shared/types'
 import { reconcileStockTBatches, toStockTradingBook } from '../lib/stock-t-trading'
 import { calculatePortfolioLedgerPosition } from '../lib/portfolio-ledger'

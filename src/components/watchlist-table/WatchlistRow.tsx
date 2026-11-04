@@ -1,7 +1,10 @@
-import { useStockQuote } from '../../lib/data-center/hooks'
+import {
+  useStockQuote,
+  useStockTradingBook,
+  useStockTrackingProfile
+} from '../../lib/data-center/hooks'
 import { evaluateStopLoss } from '../../shared/stop-loss'
 import '../StopLoss.css'
-import type { StockTradingBook } from '../../shared/types'
 import { stockApi } from '../../lib/api'
 import { stockTOverview } from '../../lib/stock-accounts'
 import type { AccountFeeState } from '../../lib/account-trade-fees'
@@ -154,7 +157,6 @@ interface WatchlistRowProps {
   fundamentalGeneratedAt: string | undefined
   fundamentalSnapshotSchemaVersion: FundamentalSnapshot['schemaVersion'] | undefined
   fundamentalStaleReason: string | null | undefined
-  tradingAccount: TTradingAccount | StockTradingBook | undefined
   feeState?: AccountFeeState
   corporateActionApplications: CorporateActionRecords
   manualIndex: number
@@ -167,7 +169,6 @@ interface WatchlistRowProps {
   chipDistributionEnabled: boolean
   bollingerBandsEnabled: boolean
   dailyKlineIndicator: DailyKlineIndicator
-  trackingProfile?: StockTrackingProfile
   selected: boolean
   detailNavigationRequest: StockDetailNavigationRequest | null
   closing: boolean
@@ -230,7 +231,6 @@ export const WatchlistRow = memo(function WatchlistRow({
   fundamentalGeneratedAt,
   fundamentalSnapshotSchemaVersion,
   fundamentalStaleReason,
-  tradingAccount,
   feeState,
   corporateActionApplications,
   manualIndex,
@@ -243,7 +243,6 @@ export const WatchlistRow = memo(function WatchlistRow({
   chipDistributionEnabled,
   bollingerBandsEnabled,
   dailyKlineIndicator,
-  trackingProfile,
   selected,
   detailNavigationRequest,
   closing,
@@ -284,6 +283,8 @@ export const WatchlistRow = memo(function WatchlistRow({
   onRemove
 }: WatchlistRowProps) {
   const quote = useStockQuote(stock.quoteId)
+  const tradingAccount = useStockTradingBook(stock.quoteId)
+  const trackingProfile = useStockTrackingProfile(stock.quoteId)
   const market = marketFromQuoteId(stock.quoteId)
   const capabilities = marketCapabilitiesForQuoteId(stock.quoteId)
   const isAStock = market === 'CN'
