@@ -1,8 +1,9 @@
+import { useDetailResource } from '../lib/data-center/detail-hooks'
 import { useAppStateField, useAppSetting, useAppData } from '../lib/data-center/hooks'
 import { Binoculars, History, Play, Search, Trash2, X } from 'lucide-react'
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { stockApi } from '../lib/api'
+import { dataCenter, stockApi } from '../lib/api'
 import { STOCK_TRACKING_SOURCE_LABELS } from '../lib/stock-tracking'
 import { calculateStockTrackingPerformance } from '../lib/stock-tracking-performance'
 import { formatPercent } from '../lib/format'
@@ -153,13 +154,8 @@ export function StockTrackingDialog({
   const [selectedQuoteId, setSelectedQuoteId] = useState('')
   const [detailMode, setDetailMode] = useState<DetailMode>('current')
   const [selectedCycleId, setSelectedCycleId] = useState('')
-  const [archiveProfile, setArchiveProfile] = useState<StockTrackingProfile | null>(null)
-  const [archiveLoading, setArchiveLoading] = useState(false)
-  const [archiveError, setArchiveError] = useState('')
   const [groupPopover, setGroupPopover] = useState<GroupPopoverState | null>(null)
   const [groupDialogOpen, setGroupDialogOpen] = useState(false)
-  const archiveCacheRef = useRef(new Map<string, StockTrackingProfile>())
-  const archiveRequestsRef = useRef(new Map<string, Promise<StockTrackingProfile>>())
   const stockRowsRef = useRef<TrackingStockRow[]>([])
   const groupAnchorRef = useRef<HTMLButtonElement | null>(null)
   const groupPopoverRef = useRef<HTMLDivElement>(null)
@@ -290,6 +286,18 @@ export function StockTrackingDialog({
   )
   const selectedRow = filteredRows.find((row) => row.quoteId === selectedQuoteId) ?? filteredRows[0]
   stockRowsRef.current = stockRows
+  const effectiveCycleId = selectedRow?.cycles.some((cycle) => cycle.cycleId === selectedCycleId)
+    ? selectedCycleId
+    : selectedRow?.cycles[0]?.cycleId
+  const archive = useDetailResource(
+    selectedRow && effectiveCycleId
+      ? dataCenter.details.trackingArchive(selectedRow.quoteId, effectiveCycleId)
+      : undefined,
+    open && detailMode === 'history'
+  )
+  const archiveProfile = archive.data
+  const archiveLoading = archive.loading
+  const archiveError = archive.error
   const selectedProfile = detailMode === 'history' ? archiveProfile : selectedRow?.activeProfile
   const activeGroupStock = groupPopover
     ? watchlist.find((stock) => stock.quoteId === groupPopover.quoteId)
@@ -316,55 +324,8 @@ export function StockTrackingDialog({
     if (!selectedRowQuoteId) return
     setDetailMode(selectedRowHasActiveProfile ? 'current' : 'history')
     setSelectedCycleId(selectedRowFirstCycleId)
-    setArchiveProfile(null)
-    setArchiveError('')
     setGroupPopover(null)
   }, [selectedRowFirstCycleId, selectedRowHasActiveProfile, selectedRowQuoteId])
-
-  useEffect(() => {
-    if (!selectedRow || detailMode !== 'history') return
-    const cycleId = selectedRow.cycles.some((cycle) => cycle.cycleId === selectedCycleId)
-      ? selectedCycleId
-      : (selectedRow.cycles[0]?.cycleId ?? '')
-    if (cycleId !== selectedCycleId) setSelectedCycleId(cycleId)
-    if (!cycleId) {
-      setArchiveProfile(null)
-      return
-    }
-    const cacheKey = `${selectedRow.quoteId}:${cycleId}`
-    const cached = archiveCacheRef.current.get(cacheKey)
-    if (cached) {
-      setArchiveProfile(cached)
-      setArchiveError('')
-      return
-    }
-    let request = archiveRequestsRef.current.get(cacheKey)
-    if (!request) {
-      request = stockApi.getStockTrackingArchiveCycle(selectedRow.quoteId, cycleId)
-      archiveRequestsRef.current.set(cacheKey, request)
-      void request.finally(() => archiveRequestsRef.current.delete(cacheKey))
-    }
-    let active = true
-    setArchiveLoading(true)
-    setArchiveError('')
-    void request
-      .then((profile) => {
-        archiveCacheRef.current.set(cacheKey, profile)
-        if (active) setArchiveProfile(profile)
-      })
-      .catch((reason: unknown) => {
-        if (active) {
-          setArchiveProfile(null)
-          setArchiveError(reason instanceof Error ? reason.message : '追踪档案加载失败')
-        }
-      })
-      .finally(() => {
-        if (active) setArchiveLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [detailMode, selectedCycleId, selectedRow])
 
   const marketData = useStockTrackingMarketData(open ? selectedProfile?.quoteId : undefined)
   const selectedPerformance = useMemo(
@@ -639,11 +600,7 @@ export function StockTrackingDialog({
                               onClick={() => {
                                 void onDeleteArchiveCycle(cycle).then((deleted) => {
                                   if (!deleted) return
-                                  archiveCacheRef.current.delete(
-                                    `${cycle.quoteId}:${cycle.cycleId}`
-                                  )
                                   if (selectedCycleId === cycle.cycleId) {
-                                    setArchiveProfile(null)
                                     setSelectedCycleId('')
                                   }
                                 })

@@ -1,12 +1,7 @@
+import { useOrderBookResource } from '../lib/data-center/detail-hooks'
 import { AlertCircle, RefreshCw } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { stockApi } from '../lib/api'
 import { formatPrice, formatUpdateTime } from '../lib/format'
-import {
-  isBeijingAutoRefreshTime,
-  millisecondsUntilNextAutoRefreshWindow
-} from '../shared/market-hours'
-import type { OrderBookLevel, StockOrderBook, WatchStock } from '../shared/types'
+import type { OrderBookLevel, WatchStock } from '../shared/types'
 
 interface OrderBookPanelProps {
   stock: WatchStock
@@ -44,53 +39,11 @@ function OrderBookRow({
 }
 
 export function OrderBookPanel({ stock, refreshSeconds, autoRefresh }: OrderBookPanelProps) {
-  const [data, setData] = useState<StockOrderBook | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [refreshVersion, setRefreshVersion] = useState(0)
-
-  useEffect(() => {
-    const refreshMilliseconds = Math.max(3, refreshSeconds) * 1000
-    let refreshTimer: number | undefined
-    let active = true
-
-    const scheduleRefresh = () => {
-      if (!autoRefresh) return
-      refreshTimer = window.setTimeout(
-        () => {
-          if (isBeijingAutoRefreshTime()) {
-            setRefreshVersion((current) => current + 1)
-          } else {
-            scheduleRefresh()
-          }
-        },
-        isBeijingAutoRefreshTime() ? refreshMilliseconds : millisecondsUntilNextAutoRefreshWindow()
-      )
-    }
-
-    setLoading(true)
-    setError('')
-    stockApi
-      .getOrderBook(stock.quoteId)
-      .then((result) => {
-        if (!active) return
-        setData(result)
-        setError(result.refreshError ?? '')
-      })
-      .catch((reason: unknown) => {
-        if (active) setError(reason instanceof Error ? reason.message : '五档盘口加载失败')
-      })
-      .finally(() => {
-        if (!active) return
-        setLoading(false)
-        scheduleRefresh()
-      })
-
-    return () => {
-      active = false
-      window.clearTimeout(refreshTimer)
-    }
-  }, [autoRefresh, refreshSeconds, refreshVersion, stock.quoteId])
+  const { data, loading, error, refresh } = useOrderBookResource(
+    stock.quoteId,
+    refreshSeconds,
+    autoRefresh
+  )
 
   const previousClose = data?.previousClose ?? null
   const asks = data?.asks.slice().reverse() ?? []
@@ -108,7 +61,7 @@ export function OrderBookPanel({ stock, refreshSeconds, autoRefresh }: OrderBook
           type="button"
           aria-label="刷新五档盘口"
           title="刷新五档盘口"
-          onClick={() => setRefreshVersion((current) => current + 1)}
+          onClick={() => refresh()}
         >
           <RefreshCw size={13} className={loading ? 'is-spinning' : ''} />
         </button>

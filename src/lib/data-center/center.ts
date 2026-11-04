@@ -8,6 +8,7 @@ import type {
 import { getMarketIndexStocks } from '../../shared/types'
 import { reconcileStockQuotes } from '../quote-state'
 import { createSnapshotStore } from './store'
+import { createDetailCenter } from './details'
 import {
   createMutationQueue,
   prepareStateMutation,
@@ -25,6 +26,7 @@ export interface AppDataSnapshot {
 
 /** Owns shared renderer snapshots; the existing state client owns IPC revision handling. */
 export function createDataCenter(transport: StockDesktopApi, initialState: AppState) {
+  const details = createDetailCenter(transport)
   const store = createSnapshotStore<AppDataSnapshot>({
     state: initialState,
     quotes: [],
@@ -172,12 +174,38 @@ export function createDataCenter(transport: StockDesktopApi, initialState: AppSt
           }
       receiveState(result.state)
       receiveArchives(result.archiveIndex)
+      if (command.profile) details.invalidate(command.profile.quoteId, ['tracking-archives'])
       return { ...result, state: confirmedState }
     })
 
   // Compatibility facade routes all local writes through the same queue.
   const api: StockDesktopApi = {
     ...transport,
+    getKline: (quoteId, period, limit) => details.kline(quoteId, period, limit).request(),
+    getFundsFlow: (quoteId) => details.fundsFlow(quoteId).request(),
+    getSectorIndex: (quoteId) => details.sector(quoteId).request(),
+    getOrderBook: (quoteId) => details.orderBook(quoteId).request(),
+    getShareholderSnapshot: (quoteId, force) => details.shareholders(quoteId).request(force),
+    getCompanyReports: (quoteId, force) => details.reports(quoteId).request(force),
+    getGlobalFundamentals: (quoteId, force) => details.fundamentals(quoteId).request(force),
+    getValuationHistory: (quoteId) => details.valuations(quoteId).request(),
+    listCorporateActions: (quoteId, force) => details.corporateActions(quoteId).request(force),
+    getStockTrackingArchiveCycle: (quoteId, cycleId) =>
+      details.trackingArchive(quoteId, cycleId).request(),
+    async clearStockCaches(quoteId, categoryIds) {
+      const result = await transport.clearStockCaches(quoteId, categoryIds)
+      details.invalidate(quoteId, result.cleared)
+      return result
+    },
+    async clearCaches(categoryIds) {
+      const result = await transport.clearCaches(categoryIds)
+      // A partially cleared disk cache still invalidates all requested renderer entries.
+      const categories = categoryIds.flatMap((id) =>
+        id === 'temporary-market' ? ['klines', 'market-details'] : [id]
+      )
+      details.invalidate(undefined, categories)
+      return result
+    },
     getBootstrap,
     saveState: (state) => update(legacyMutation(state)),
     archiveStockTrackingCycle: (state, profile, deletePreviousArchives) =>
@@ -190,12 +218,14 @@ export function createDataCenter(transport: StockDesktopApi, initialState: AppSt
       enqueue('删除追踪周期', async () => {
         const index = await transport.deleteStockTrackingArchiveCycle(quoteId, cycleId)
         receiveArchives(index)
+        details.trackingArchive(quoteId, cycleId).invalidate()
         return index
       }),
     deleteAllStockTrackingArchives: (quoteId) =>
       enqueue('清空追踪档案', async () => {
         const index = await transport.deleteAllStockTrackingArchives(quoteId)
         receiveArchives(index)
+        details.invalidate(quoteId, ['tracking-archives'])
         return index
       }),
     refreshQuotes: () => refreshQuotes(() => transport.refreshQuotes()),
@@ -217,7 +247,9 @@ export function createDataCenter(transport: StockDesktopApi, initialState: AppSt
     select: store.select,
     api,
     commands: { update, archive },
+    details,
     dispose() {
+      details.dispose()
       unsubscribeState()
       unsubscribeQuotes()
     }

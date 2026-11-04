@@ -178,7 +178,6 @@ export function DailyMarketScanStockDetails({
       <div className="daily-scan-temporary-note">临时查看：此处产生的状态不会写入主表或保存。</div>
       <ExpandedStockDetails
         stock={stock}
-        cacheScope="daily-scan"
         quote={quote}
         dividendFinancing={dividendFinancing}
         dividendFinancingSnapshotDate={dividendFinancingSnapshotDate}

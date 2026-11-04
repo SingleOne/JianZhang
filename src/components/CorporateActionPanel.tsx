@@ -15,7 +15,8 @@ import {
 } from '../lib/corporate-actions'
 import { appendPortfolioLedgerEntries } from '../shared/types'
 import { exchangeRateForCurrency } from '../shared/exchange-rates'
-import { stockApi } from '../lib/api'
+import { dataCenter, stockApi } from '../lib/api'
+import { useDetailResource } from '../lib/data-center/detail-hooks'
 import { emitCompletionNotification } from '../lib/completion-notifications'
 import { calculatePortfolioLedgerMetrics } from '../lib/portfolio-ledger'
 import { recordsForAccount } from '../shared/stock-accounts'
@@ -57,6 +58,7 @@ export interface CorporateActionPanelProps {
 }
 
 type TimelineView = 'announcements' | 'records'
+const EMPTY_CANDIDATES: CorporateActionCandidate[] = []
 const TIMELINE_VIEW_OPTIONS = [
   { value: 'announcements', label: '公司行动公告' },
   { value: 'records', label: '账户处理记录' }
@@ -333,12 +335,15 @@ export default function CorporateActionPanel({
 }: CorporateActionPanelProps) {
   const fieldId = useId()
   const [timelineView, setTimelineView] = useState<TimelineView>('announcements')
-  const [candidates, setCandidates] = useState<CorporateActionCandidate[]>([])
-  const [source, setSource] = useState('')
-  const [fetchedAt, setFetchedAt] = useState('')
-  const [warning, setWarning] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const sharedCandidates = dataCenter.details.corporateActions(stock.quoteId)
+  const resource = useDetailResource(sharedCandidates, !hidden)
+  const candidates = resource.data?.candidates ?? EMPTY_CANDIDATES
+  const source = resource.data?.source ?? ''
+  const fetchedAt = resource.data?.fetchedAt ?? ''
+  const warning = resource.data?.warning ?? ''
+  const loading = resource.loading
+  const [actionError, setError] = useState('')
+  const error = actionError || resource.error
   const [selected, setSelected] = useState<CorporateActionCandidate | null>(null)
   const [draft, setDraft] = useState<ConfirmationDraft | null>(null)
   const [previewResult, setPreviewResult] = useState<{
@@ -370,14 +375,9 @@ export default function CorporateActionPanel({
 
   const load = useCallback(
     async (forceRefresh = false) => {
-      setLoading(true)
       setError('')
       try {
-        const result = await stockApi.listCorporateActions(stock.quoteId, forceRefresh)
-        setCandidates(result.candidates)
-        setSource(result.source)
-        setFetchedAt(result.fetchedAt)
-        setWarning(result.warning ?? '')
+        const result = await sharedCandidates.request(forceRefresh)
         if (forceRefresh) {
           emitCompletionNotification({
             quoteId: stock.quoteId,
@@ -389,11 +389,9 @@ export default function CorporateActionPanel({
         }
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : '公司行动获取失败')
-      } finally {
-        setLoading(false)
       }
     },
-    [stock.name, stock.quoteId]
+    [sharedCandidates, stock.name, stock.quoteId]
   )
 
   useEffect(() => {
@@ -406,8 +404,8 @@ export default function CorporateActionPanel({
     setSummarizingId(null)
     setAiFeedback(null)
     setCollapsedAiSummaries({})
-    void load()
-  }, [load])
+    setError('')
+  }, [stock.quoteId])
 
   const accountRecords = useMemo(
     () => (account?.accountId ? recordsForAccount(records, account.accountId) : {}),
@@ -693,13 +691,16 @@ export default function CorporateActionPanel({
         return
       }
       const summary = await stockApi.generateCorporateActionSummary(candidate)
-      setCandidates((current) =>
-        current.map((item) =>
-          item.id === candidate.id && item.contentHash === summary.contentHash
-            ? { ...item, aiSummary: summary }
-            : item
-        )
-      )
+      const current = sharedCandidates.getSnapshot().data
+      if (current)
+        sharedCandidates.update({
+          ...current,
+          candidates: current.candidates.map((item) =>
+            item.id === candidate.id && item.contentHash === summary.contentHash
+              ? { ...item, aiSummary: summary }
+              : item
+          )
+        })
       setCollapsedAiSummaries((current) => ({ ...current, [candidate.id]: false }))
     } catch (reason) {
       setAiFeedback({

@@ -1,6 +1,7 @@
+import { useDetailResource } from '../lib/data-center/detail-hooks'
 import { Landmark } from 'lucide-react'
-import { useEffect, useId, useMemo, useState } from 'react'
-import { stockApi } from '../lib/api'
+import { useId, useMemo } from 'react'
+import { dataCenter } from '../lib/api'
 import { formatAmount, formatSignedAmount } from '../lib/format'
 import {
   createStockValuationAnalysis,
@@ -10,7 +11,6 @@ import type {
   FundamentalCompany,
   StockPriceCashFlowAnalysis,
   StockQuote,
-  StockValuationHistory,
   StockValuationMetricAnalysis
 } from '../shared/types'
 
@@ -149,31 +149,13 @@ export function InvestmentValueMetrics({
   staleReason
 }: InvestmentValueMetricsProps) {
   const headingId = useId()
-  const [valuationHistory, setValuationHistory] = useState<StockValuationHistory | null>(null)
-  const [valuationError, setValuationError] = useState('')
+  const valuation = useDetailResource(dataCenter.details.valuations(quoteId))
+  const valuationHistory = valuation.data ?? null
+  const valuationError = valuation.error
   const valuationAnalysis = useMemo(
     () => createStockValuationAnalysis(quoteId, quote, company, valuationHistory),
     [company, quote, quoteId, valuationHistory]
   )
-
-  useEffect(() => {
-    let active = true
-    setValuationHistory(null)
-    setValuationError('')
-    void stockApi
-      .getValuationHistory(quoteId)
-      .then((history) => {
-        if (active) setValuationHistory(history)
-      })
-      .catch((reason: unknown) => {
-        if (active) {
-          setValuationError(reason instanceof Error ? reason.message : '历史估值数据暂不可用')
-        }
-      })
-    return () => {
-      active = false
-    }
-  }, [quoteId])
 
   const latestReport = company?.annualReports.at(-1)
   const balanceSheet = company?.latestBalanceSheet

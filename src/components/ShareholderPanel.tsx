@@ -1,12 +1,12 @@
+import { useDetailResource } from '../lib/data-center/detail-hooks'
 import { Building2, Database, RefreshCw, TriangleAlert, UserRound, UsersRound } from 'lucide-react'
 import './ShareholderPanel.css'
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
-import { stockApi } from '../lib/api'
+import { lazy, Suspense, useMemo, useState } from 'react'
+import { dataCenter } from '../lib/api'
 import { formatAmount, formatSignedAmount } from '../lib/format'
-import type { ShareholderHolding, ShareholderSnapshot, WatchStock } from '../shared/types'
+import type { ShareholderHolding, WatchStock } from '../shared/types'
 
 const ShareholderCountChart = lazy(() => import('./ShareholderCountChart'))
-const shareholderCache = new Map<string, ShareholderSnapshot>()
 
 type HoldingList = 'all' | 'free'
 
@@ -77,51 +77,13 @@ function HoldingTable({ rows }: { rows: ShareholderHolding[] }) {
 }
 
 export function ShareholderPanel({ stock }: { stock: WatchStock }) {
-  const [snapshot, setSnapshot] = useState<ShareholderSnapshot | null>(
-    () => shareholderCache.get(stock.quoteId) ?? null
-  )
-  const [loading, setLoading] = useState(!snapshot)
-  const [error, setError] = useState('')
+  const {
+    data: snapshot,
+    loading,
+    error,
+    refresh
+  } = useDetailResource(dataCenter.details.shareholders(stock.quoteId))
   const [activeList, setActiveList] = useState<HoldingList>('all')
-
-  useEffect(() => {
-    let active = true
-    const cached = shareholderCache.get(stock.quoteId) ?? null
-    setSnapshot(cached)
-    setLoading(!cached)
-    setError('')
-    void stockApi
-      .getShareholderSnapshot(stock.quoteId)
-      .then((result) => {
-        if (!active) return
-        shareholderCache.set(stock.quoteId, result)
-        setSnapshot(result)
-      })
-      .catch((reason) => {
-        if (!active) return
-        setError(reason instanceof Error ? reason.message : '股东信息获取失败')
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [stock.quoteId])
-
-  const refresh = useCallback(async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const result = await stockApi.getShareholderSnapshot(stock.quoteId, true)
-      shareholderCache.set(stock.quoteId, result)
-      setSnapshot(result)
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '股东信息更新失败')
-    } finally {
-      setLoading(false)
-    }
-  }, [stock.quoteId])
 
   const holdings = useMemo(
     () => (activeList === 'all' ? snapshot?.topShareholders : snapshot?.topFreeShareholders) ?? [],

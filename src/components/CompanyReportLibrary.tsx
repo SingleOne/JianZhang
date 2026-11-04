@@ -1,3 +1,4 @@
+import { useDetailResource } from '../lib/data-center/detail-hooks'
 import {
   BookOpen,
   ExternalLink,
@@ -7,15 +8,13 @@ import {
   Sparkles,
   TriangleAlert
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { COMPANY_REPORT_TYPE_LABELS } from '../lib/company-reports'
-import { stockApi } from '../lib/api'
+import { dataCenter, stockApi } from '../lib/api'
 import { emitCompletionNotification } from '../lib/completion-notifications'
 import type { FundamentalScreeningEvaluation } from '../lib/fundamental-screening'
-import type { CompanyReportItem, CompanyReportLibraryResult, WatchStock } from '../shared/types'
+import type { CompanyReportItem, WatchStock } from '../shared/types'
 import './CompanyReportLibrary.css'
-
-const reportLibraryCache = new Map<string, CompanyReportLibraryResult>()
 
 const REPORT_VARIANT_LABELS = {
   full: '全文',
@@ -268,35 +267,17 @@ function ReportRow({
 }
 
 export function CompanyReportLibrary({ stock }: { stock: WatchStock }) {
-  const [snapshot, setSnapshot] = useState<CompanyReportLibraryResult | null>(
-    () => reportLibraryCache.get(stock.quoteId) ?? null
-  )
-  const [loading, setLoading] = useState(!snapshot)
-  const [error, setError] = useState('')
+  const sharedReports = dataCenter.details.reports(stock.quoteId)
+  const resource = useDetailResource(sharedReports)
+  const { data: snapshot, loading } = resource
+  const [actionError, setActionError] = useState({ quoteId: '', message: '' })
+  const setError = (message: string) => setActionError({ quoteId: stock.quoteId, message })
+  const error = (actionError.quoteId === stock.quoteId ? actionError.message : '') || resource.error
   const [summarizingId, setSummarizingId] = useState<string | null>(null)
-
-  const loadReports = useCallback(
-    async (forceRefresh = false) => {
-      setLoading(true)
-      setError('')
-      try {
-        const result = await stockApi.getCompanyReports(stock.quoteId, forceRefresh)
-        reportLibraryCache.set(stock.quoteId, result)
-        setSnapshot(result)
-      } catch (reason) {
-        setError(reason instanceof Error ? reason.message : '公司财报目录获取失败')
-      } finally {
-        setLoading(false)
-      }
-    },
-    [stock.quoteId]
-  )
-
-  useEffect(() => {
-    const cached = reportLibraryCache.get(stock.quoteId)
-    setSnapshot(cached ?? null)
-    if (!cached) void loadReports()
-  }, [loadReports, stock.quoteId])
+  const loadReports = () => {
+    setError('')
+    resource.refresh()
+  }
 
   const baseReports = useMemo(
     () => snapshot?.reports.filter((report) => report.variant === 'full') ?? [],
@@ -321,17 +302,14 @@ export function CompanyReportLibrary({ stock }: { stock: WatchStock }) {
     setError('')
     try {
       const summary = await stockApi.generateCompanyReportSummary(report)
-      setSnapshot((current) => {
-        if (!current) return current
-        const next = {
+      const current = sharedReports.getSnapshot().data
+      if (current)
+        sharedReports.update({
           ...current,
           reports: current.reports.map((item) =>
             item.id === report.id ? { ...item, summary } : item
           )
-        }
-        reportLibraryCache.set(stock.quoteId, next)
-        return next
-      })
+        })
       emitCompletionNotification({
         quoteId: stock.quoteId,
         target: 'reports',
@@ -356,7 +334,7 @@ export function CompanyReportLibrary({ stock }: { stock: WatchStock }) {
           </small>
           <strong>{stock.name}财报库</strong>
         </span>
-        <button type="button" onClick={() => void loadReports(true)} disabled={loading}>
+        <button type="button" onClick={() => void loadReports()} disabled={loading}>
           <RefreshCw size={15} className={loading ? 'is-spinning' : ''} />
           {loading ? '查询中' : '更新目录'}
         </button>

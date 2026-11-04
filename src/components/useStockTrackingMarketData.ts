@@ -1,17 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
-import { stockApi } from '../lib/api'
+import { useMemo } from 'react'
+import { useKlineResource } from '../lib/data-center/detail-hooks'
 import {
   calculateRealtimeVolumeRatio,
   type RealtimeVolumeRatioPoint
 } from '../lib/stock-tracking-metrics'
-import {
-  INTRADAY_REFRESH_MILLISECONDS,
-  isMarketOpen,
-  millisecondsUntilNextMarketOpen
-} from '../shared/market-hours'
 import { marketFromQuoteId } from '../shared/stock-market'
 import type { MarketCalendarDates } from '../shared/market-calendar'
-import type { KlineBar, KlineResult } from '../shared/types'
+import type { KlineBar } from '../shared/types'
 
 export interface StockTrackingMarketData {
   dailyBars: KlineBar[]
@@ -23,110 +18,45 @@ export interface StockTrackingMarketData {
   realtimeError: string
 }
 
-interface MarketDataState {
-  quoteId: string
-  daily: KlineResult | null
-  intraday: KlineResult | null
-  loading: boolean
-  error: string
-}
-
-const EMPTY_STATE: MarketDataState = {
-  quoteId: '',
-  daily: null,
-  intraday: null,
-  loading: false,
-  error: ''
-}
-
-function errorMessage(reason: unknown, fallback: string): string {
-  return reason instanceof Error ? reason.message : fallback
-}
-
 export function useStockTrackingMarketData(
   quoteId?: string,
   marketCalendar?: MarketCalendarDates
 ): StockTrackingMarketData {
-  const [refreshVersion, setRefreshVersion] = useState(0)
-  const [state, setState] = useState<MarketDataState>(EMPTY_STATE)
-
-  useEffect(() => {
-    if (!quoteId) return
-    const market = marketFromQuoteId(quoteId)
-    let active = true
-    let refreshTimer: number | undefined
-
-    const scheduleRefresh = () => {
-      refreshTimer = window.setTimeout(
-        () => {
-          if (isMarketOpen(market, new Date(), marketCalendar)) {
-            setRefreshVersion((current) => current + 1)
-          } else {
-            scheduleRefresh()
-          }
-        },
-        isMarketOpen(market, new Date(), marketCalendar)
-          ? INTRADAY_REFRESH_MILLISECONDS
-          : millisecondsUntilNextMarketOpen(market, new Date(), marketCalendar)
-      )
-    }
-
-    setState((current) => ({
-      quoteId,
-      daily: current.quoteId === quoteId ? current.daily : null,
-      intraday: current.quoteId === quoteId ? current.intraday : null,
-      loading: true,
-      error: ''
-    }))
-
-    void Promise.allSettled([
-      stockApi.getKline(quoteId, 'daily', 500),
-      stockApi.getKline(quoteId, 'intraday')
-    ]).then(([dailyResult, intradayResult]) => {
-      if (!active) return
-      const errors: string[] = []
-      if (dailyResult.status === 'rejected') {
-        errors.push(errorMessage(dailyResult.reason, '近5日成交量加载失败'))
-      }
-      if (intradayResult.status === 'rejected') {
-        errors.push(errorMessage(intradayResult.reason, '实时分时数据加载失败'))
-      }
-      setState((current) => ({
-        quoteId,
-        daily: dailyResult.status === 'fulfilled' ? dailyResult.value : current.daily,
-        intraday: intradayResult.status === 'fulfilled' ? intradayResult.value : current.intraday,
-        loading: false,
-        error: errors.join('；')
-      }))
-      scheduleRefresh()
-    })
-
-    return () => {
-      active = false
-      window.clearTimeout(refreshTimer)
-    }
-  }, [marketCalendar, quoteId, refreshVersion])
-
-  const currentState = state.quoteId === quoteId ? state : EMPTY_STATE
+  const daily = useKlineResource(quoteId, 'daily', 500, Boolean(quoteId), true, marketCalendar)
+  const intraday = useKlineResource(
+    quoteId,
+    'intraday',
+    undefined,
+    Boolean(quoteId),
+    true,
+    marketCalendar
+  )
   return useMemo(() => {
-    const dailyBars = currentState.daily?.bars ?? []
-    const intraday = currentState.intraday
-    const realtimeVolumeRatioPoints = intraday
-      ? calculateRealtimeVolumeRatio(
-          intraday.bars,
-          dailyBars,
-          intraday.tradingDate,
-          marketFromQuoteId(quoteId ?? '')
-        )
-      : []
+    const dailyBars = daily.data?.bars ?? []
+    const result = intraday.data
     return {
       dailyBars,
-      realtimeVolumeRatioPoints,
-      realtimeTradingDate: intraday?.tradingDate ?? '',
-      realtimeIntervalMinutes: intraday?.intervalMinutes,
-      realtimeFallbackReason: intraday?.fallbackReason,
-      realtimeLoading: currentState.loading,
-      realtimeError: currentState.error
+      realtimeVolumeRatioPoints: result
+        ? calculateRealtimeVolumeRatio(
+            result.bars,
+            dailyBars,
+            result.tradingDate,
+            marketFromQuoteId(quoteId ?? '')
+          )
+        : [],
+      realtimeTradingDate: result?.tradingDate ?? '',
+      realtimeIntervalMinutes: result?.intervalMinutes,
+      realtimeFallbackReason: result?.fallbackReason,
+      realtimeLoading: daily.loading || intraday.loading,
+      realtimeError: [daily.error, intraday.error].filter(Boolean).join('；')
     }
-  }, [currentState, quoteId])
+  }, [
+    daily.data,
+    daily.error,
+    daily.loading,
+    intraday.data,
+    intraday.error,
+    intraday.loading,
+    quoteId
+  ])
 }

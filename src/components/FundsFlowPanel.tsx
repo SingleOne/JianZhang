@@ -1,26 +1,10 @@
+import { useFundsFlowResource } from '../lib/data-center/detail-hooks'
 import { AlertCircle, RefreshCw, TrendingUp } from 'lucide-react'
-import { lazy, Suspense, useEffect, useState } from 'react'
-import { stockApi } from '../lib/api'
+import { lazy, Suspense } from 'react'
 import { formatSignedAmount } from '../lib/format'
-import {
-  FUNDS_FLOW_REFRESH_MILLISECONDS,
-  isBeijingAutoRefreshTime,
-  millisecondsUntilNextAutoRefreshWindow
-} from '../shared/market-hours'
-import type { FundsFlowResult, WatchStock } from '../shared/types'
+import type { WatchStock } from '../shared/types'
 
 const FundsFlowChart = lazy(() => import('./FundsFlowChart'))
-
-interface FundsFlowCacheEntry {
-  data: FundsFlowResult
-  cachedAt: number
-}
-
-const fundsFlowCache = new Map<string, FundsFlowCacheEntry>()
-
-export function clearFundsFlowCache(quoteId: string): void {
-  fundsFlowCache.delete(quoteId)
-}
 
 interface FundsFlowPanelProps {
   stock: WatchStock
@@ -32,64 +16,7 @@ function valueClass(value: number | null | undefined): string {
 }
 
 export function FundsFlowPanel({ stock }: FundsFlowPanelProps) {
-  const [data, setData] = useState<FundsFlowResult | null>(
-    () => fundsFlowCache.get(stock.quoteId)?.data ?? null
-  )
-  const [loading, setLoading] = useState(!data)
-  const [error, setError] = useState('')
-  const [refreshVersion, setRefreshVersion] = useState(0)
-
-  useEffect(() => {
-    const cached = fundsFlowCache.get(stock.quoteId)
-    const refreshMilliseconds = FUNDS_FLOW_REFRESH_MILLISECONDS
-    let refreshTimer: number | undefined
-    let active = true
-
-    const scheduleRefresh = () => {
-      refreshTimer = window.setTimeout(
-        () => {
-          if (isBeijingAutoRefreshTime()) {
-            setRefreshVersion((current) => current + 1)
-          } else {
-            scheduleRefresh()
-          }
-        },
-        isBeijingAutoRefreshTime() ? refreshMilliseconds : millisecondsUntilNextAutoRefreshWindow()
-      )
-    }
-
-    if (refreshVersion === 0 && cached && Date.now() - cached.cachedAt < refreshMilliseconds) {
-      setData(cached.data)
-      setError('')
-      setLoading(false)
-      scheduleRefresh()
-      return () => window.clearTimeout(refreshTimer)
-    }
-
-    if (!cached) setLoading(true)
-    setError('')
-    stockApi
-      .getFundsFlow(stock.quoteId)
-      .then((result) => {
-        if (!active) return
-        fundsFlowCache.set(stock.quoteId, { data: result, cachedAt: Date.now() })
-        setData(result)
-      })
-      .catch((reason: unknown) => {
-        if (active) setError(reason instanceof Error ? reason.message : '资金流向加载失败')
-      })
-      .finally(() => {
-        if (!active) return
-        setLoading(false)
-        scheduleRefresh()
-      })
-
-    return () => {
-      active = false
-      window.clearTimeout(refreshTimer)
-    }
-  }, [refreshVersion, stock.quoteId])
-
+  const { data, loading, error, refresh } = useFundsFlowResource(stock.quoteId)
   const latest = data?.points.at(-1)
   const summary = [
     ['主力净额', latest?.main],
@@ -117,7 +44,7 @@ export function FundsFlowPanel({ stock }: FundsFlowPanelProps) {
         <button
           className="secondary-button chart-retry-button"
           type="button"
-          onClick={() => setRefreshVersion((current) => current + 1)}
+          onClick={() => refresh()}
         >
           <RefreshCw size={14} />
           重新获取
@@ -132,7 +59,7 @@ export function FundsFlowPanel({ stock }: FundsFlowPanelProps) {
         <div className="funds-flow-warning">
           <AlertCircle size={14} />
           <span>资金流刷新失败，当前显示最近一次数据</span>
-          <button type="button" onClick={() => setRefreshVersion((current) => current + 1)}>
+          <button type="button" onClick={() => refresh()}>
             重试
           </button>
         </div>

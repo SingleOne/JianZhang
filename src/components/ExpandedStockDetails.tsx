@@ -1,3 +1,4 @@
+import { useKlineResource } from '../lib/data-center/detail-hooks'
 import { evaluateStopLoss } from '../shared/stop-loss'
 import './StopLoss.css'
 import type { StockTradingBook } from '../shared/types'
@@ -86,17 +87,11 @@ import {
   type FundamentalScreeningEvaluation
 } from '../lib/fundamental-screening'
 import {
-  INTRADAY_REFRESH_MILLISECONDS,
-  isMarketOpen,
-  millisecondsUntilNextMarketOpen
-} from '../shared/market-hours'
-import {
   marketCapabilitiesForQuoteId,
   marketFromQuoteId,
   type StockMarketCapabilities,
   volumeUnitForMarket
 } from '../shared/stock-market'
-import { LruCache } from '../shared/lru-cache'
 import type { StockCacheCategoryId } from '../shared/stock-cache'
 import type {
   DividendFinancingRankingItem,
@@ -106,7 +101,6 @@ import type {
   ExchangeRateSettings,
   KlineBar,
   KlinePeriod,
-  KlineResult,
   StockQuote,
   StockPosition,
   StockTrackingConclusionResult,
@@ -115,7 +109,7 @@ import type {
   TradingCalendarSettings,
   WatchStock
 } from '../shared/types'
-import { FundsFlowPanel, clearFundsFlowCache } from './FundsFlowPanel'
+import { FundsFlowPanel } from './FundsFlowPanel'
 import { AppButton } from './AppButton'
 import { ChipDistributionPanel } from './ChipDistributionPanel'
 import { CompanyReportLibrary, FundamentalReadingGuide } from './CompanyReportLibrary'
@@ -171,13 +165,6 @@ type DetailTab =
   | 't-advice'
 type HistoricalPeriod = Extract<KlinePeriod, 'daily' | 'weekly' | 'monthly'>
 
-interface KlineCacheEntry {
-  data: KlineResult
-  cachedAt: number
-  requestedLimit?: number
-}
-
-const klineCache = new LruCache<string, KlineCacheEntry>(100)
 const PRICE_TABS: Array<{ id: PriceTab; label: string; description: string }> = [
   { id: 'trend', label: '分时', description: '集合竞价与盘中分时线' },
   { id: 'fiveDay', label: '五日', description: '五日分时线' },
@@ -221,10 +208,6 @@ function supportsDetailTab(tab: DetailTab, capabilities: StockMarketCapabilities
 
 function apiPeriod(tab: PriceTab): KlinePeriod {
   return tab === 'trend' ? 'intraday' : tab
-}
-
-function cacheKey(cacheScope: string, quoteId: string, tab: PriceTab): string {
-  return `${cacheScope}:${quoteId}:${tab}`
 }
 
 function signedValueClass(value: number): string {
@@ -1854,7 +1837,6 @@ function FundamentalPanel({
 
 interface ExpandedStockDetailsProps {
   stock: WatchStock
-  cacheScope?: string
   quote?: StockQuote
   dividendFinancing?: DividendFinancingRankingItem
   dividendFinancingSnapshotDate?: string
@@ -1901,7 +1883,6 @@ interface ExpandedStockDetailsProps {
 
 export function ExpandedStockDetails({
   stock,
-  cacheScope = 'watchlist',
   quote,
   dividendFinancing,
   dividendFinancingSnapshotDate,
@@ -1945,17 +1926,10 @@ export function ExpandedStockDetails({
   const capabilities = marketCapabilitiesForQuoteId(stock.quoteId)
   const marketCalendar = tradingCalendar.markets[market]
   const volumeUnit = volumeUnitForMarket(market)
-  const initialTrend = klineCache.get(cacheKey(cacheScope, stock.quoteId, 'trend'))?.data
   const [activeTab, setActiveTab] = useState<DetailTab>('market')
   const [activeMarketTab, setActiveMarketTab] = useState<MarketTab>('trend')
   const priceTab = activeTab === 'market' && isPriceTab(activeMarketTab) ? activeMarketTab : null
   const [aiAnalysisType, setAiAnalysisType] = useState<AiAnalysisType>('short-term')
-  const [dataByTab, setDataByTab] = useState<Partial<Record<PriceTab, KlineResult>>>(() =>
-    initialTrend ? { trend: initialTrend } : {}
-  )
-  const [loadingTab, setLoadingTab] = useState<PriceTab | null>(initialTrend ? null : 'trend')
-  const [errors, setErrors] = useState<Partial<Record<PriceTab, string>>>({})
-  const [refreshVersion, setRefreshVersion] = useState(0)
   const [stockCacheDialogOpen, setStockCacheDialogOpen] = useState(false)
   const [cacheRevisions, setCacheRevisions] = useState<
     Partial<Record<StockCacheCategoryId, number>>
@@ -2101,106 +2075,21 @@ export function ExpandedStockDetails({
     }
   }, [activeTab, aiEnabled, aiStatusLoaded])
 
-  useEffect(() => {
-    if (!priceTab) return
-
-    const tab = priceTab
-    const key = cacheKey(cacheScope, stock.quoteId, tab)
-    const cached = klineCache.get(key)
-    const isLiveChart = tab === 'trend' || tab === 'fiveDay'
-    const requestedLimit = isHistoricalTab(tab) ? activeHistoricalLimit : undefined
-    const cacheHasRequestedRange =
-      requestedLimit === undefined || (cached?.requestedLimit ?? 0) >= requestedLimit
-    const freshness = isLiveChart ? INTRADAY_REFRESH_MILLISECONDS : 5 * 60 * 1000
-    let refreshTimer: number | undefined
-    let active = true
-
-    const scheduleRefresh = () => {
-      if (!isLiveChart) return
-      refreshTimer = window.setTimeout(
-        () => {
-          if (isMarketOpen(market, new Date(), marketCalendar)) {
-            setRefreshVersion((current) => current + 1)
-          } else {
-            scheduleRefresh()
-          }
-        },
-        isMarketOpen(market, new Date(), marketCalendar)
-          ? freshness
-          : millisecondsUntilNextMarketOpen(market, new Date(), marketCalendar)
-      )
-    }
-
-    if (
-      refreshVersion === 0 &&
-      cached &&
-      cacheHasRequestedRange &&
-      Date.now() - cached.cachedAt < freshness
-    ) {
-      setDataByTab((current) => ({ ...current, [tab]: cached.data }))
-      setErrors((current) => ({ ...current, [tab]: '' }))
-      setLoadingTab(null)
-      scheduleRefresh()
-      return () => window.clearTimeout(refreshTimer)
-    }
-
-    setLoadingTab(tab)
-    setErrors((current) => ({ ...current, [tab]: '' }))
-    stockApi
-      .getKline(stock.quoteId, apiPeriod(tab), requestedLimit)
-      .then((result) => {
-        if (!active) return
-        const isFiveMinuteFallback = tab === 'trend' && result.intervalMinutes === 5
-        const hasOneMinuteCache = Boolean(cached && cached.data.intervalMinutes !== 5)
-        if (isFiveMinuteFallback && hasOneMinuteCache) {
-          setErrors((current) => ({
-            ...current,
-            [tab]: result.fallbackReason || '1分钟分时数据刷新失败'
-          }))
-          return
-        }
-        klineCache.set(key, { data: result, cachedAt: Date.now(), requestedLimit })
-        setDataByTab((current) => ({ ...current, [tab]: result }))
-      })
-      .catch((reason: unknown) => {
-        if (!active) return
-        setErrors((current) => ({
-          ...current,
-          [tab]:
-            reason instanceof Error
-              ? reason.message
-              : `${PRICE_TABS.find((item) => item.id === tab)?.label}加载失败`
-        }))
-      })
-      .finally(() => {
-        if (!active) return
-        setLoadingTab(null)
-        scheduleRefresh()
-      })
-
-    return () => {
-      active = false
-      window.clearTimeout(refreshTimer)
-    }
-  }, [
-    activeHistoricalLimit,
-    priceTab,
-    cacheScope,
-    market,
-    marketCalendar,
-    refreshVersion,
-    stock.quoteId
-  ])
-
-  const data = priceTab ? (dataByTab[priceTab] ?? null) : null
-  const error = priceTab ? (errors[priceTab] ?? '') : ''
+  const chart = useKlineResource(
+    stock.quoteId,
+    priceTab ? apiPeriod(priceTab) : null,
+    activeHistoricalLimit
+  )
+  const dailyChart = useKlineResource(stock.quoteId, 'daily', historyLimits.daily, false)
+  const data = chart.data ?? null
+  const error = chart.error
   const tabMeta = priceTab ? PRICE_TABS.find((item) => item.id === priceTab) : undefined
-  const isLoading = priceTab !== null && loadingTab === priceTab
+  const isLoading = priceTab !== null && chart.loading
   const historicalPeriod = priceTab && isHistoricalTab(priceTab) ? priceTab : null
   const isHistorical = historicalPeriod !== null
   const dailyBars = useMemo(
-    () => dataByTab.daily?.bars ?? EMPTY_KLINE_BARS,
-    [dataByTab.daily?.bars]
+    () => dailyChart.data?.bars ?? EMPTY_KLINE_BARS,
+    [dailyChart.data?.bars]
   )
   const chipAutoRange = useMemo(() => findChipAutoRange(dailyBars), [dailyBars])
   const chipDataStatus =
@@ -2208,17 +2097,17 @@ export function ExpandedStockDetails({
       ? chipAutoRange
         ? ('ready' as const)
         : ('missing-turnover' as const)
-      : loadingTab === 'daily' || (priceTab === 'daily' && !dataByTab.daily && !errors.daily)
+      : dailyChart.loading || (priceTab === 'daily' && !dailyChart.data && !dailyChart.error)
         ? ('loading' as const)
-        : errors.daily
+        : dailyChart.error
           ? ('failed' as const)
           : ('empty' as const)
   const chipStatusDetail =
     chipDataStatus === 'failed'
-      ? errors.daily
+      ? dailyChart.error
       : chipDataStatus === 'missing-turnover'
-        ? dataByTab.daily?.fallbackReason
-          ? `${dataByTab.daily.fallbackReason}；备用数据未提供完整换手率。`
+        ? dailyChart.data?.fallbackReason
+          ? `${dailyChart.data.fallbackReason}；备用数据未提供完整换手率。`
           : undefined
         : undefined
   const chipVisibleRange = chipAutoRangeMode ? chipAutoRange : (dailyVisibleRange ?? chipAutoRange)
@@ -2314,26 +2203,10 @@ export function ExpandedStockDetails({
     setChipRangeRequestKey((current) => current + 1)
   }
 
-  const retryCurrentTab = () => {
-    if (priceTab) klineCache.delete(cacheKey(cacheScope, stock.quoteId, priceTab))
-    setRefreshVersion((current) => current + 1)
-  }
+  const retryCurrentTab = chart.refresh
 
   const handleStockCachesCleared = async (ids: StockCacheCategoryId[]): Promise<string | null> => {
-    if (ids.includes('klines')) {
-      for (const scope of new Set([cacheScope, 'watchlist', 'daily-scan'])) {
-        for (const tab of PRICE_TABS) klineCache.delete(cacheKey(scope, stock.quoteId, tab.id))
-      }
-      setDataByTab({})
-      setHoveredBar(null)
-      setErrors({})
-      setRefreshVersion((current) => current + 1)
-    }
-    if (ids.includes('market-details')) {
-      clearFundsFlowCache(stock.quoteId)
-      const sector = await import('./SectorIndexPanel')
-      sector.clearSectorIndexCache(stock.quoteId)
-    }
+    if (ids.includes('klines')) setHoveredBar(null)
     if (ids.includes('market-insight')) setMarketInsightSnapshot(null)
     setCacheRevisions((current) => {
       const next = { ...current }

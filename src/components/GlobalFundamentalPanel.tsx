@@ -1,16 +1,15 @@
+import { useDetailResource } from '../lib/data-center/detail-hooks'
 import { ExternalLink, RefreshCw, TriangleAlert } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { stockApi } from '../lib/api'
+import { useMemo, useState } from 'react'
+import { dataCenter, stockApi } from '../lib/api'
 import type {
   GlobalFinancialMetric,
   GlobalFinancialMetricId,
   GlobalFinancialPeriod,
-  GlobalFundamentalSnapshot,
   WatchStock
 } from '../shared/types'
 import './GlobalFundamentalPanel.css'
 
-const snapshotCache = new Map<string, GlobalFundamentalSnapshot>()
 const CARD_METRICS: GlobalFinancialMetricId[] = [
   'revenue',
   'netIncome',
@@ -73,34 +72,15 @@ function formatDate(value: string): string {
 }
 
 export default function GlobalFundamentalPanel({ stock }: { stock: WatchStock }) {
-  const [snapshot, setSnapshot] = useState<GlobalFundamentalSnapshot | null>(
-    () => snapshotCache.get(stock.quoteId) ?? null
-  )
-  const [loading, setLoading] = useState(!snapshot)
-  const [error, setError] = useState('')
-
-  const loadSnapshot = useCallback(
-    async (forceRefresh = false) => {
-      setLoading(true)
-      setError('')
-      try {
-        const result = await stockApi.getGlobalFundamentals(stock.quoteId, forceRefresh)
-        snapshotCache.set(stock.quoteId, result)
-        setSnapshot(result)
-      } catch (reason) {
-        setError(reason instanceof Error ? reason.message : '官方财务数据获取失败')
-      } finally {
-        setLoading(false)
-      }
-    },
-    [stock.quoteId]
-  )
-
-  useEffect(() => {
-    const cached = snapshotCache.get(stock.quoteId)
-    setSnapshot(cached ?? null)
-    if (!cached) void loadSnapshot()
-  }, [loadSnapshot, stock.quoteId])
+  const resource = useDetailResource(dataCenter.details.fundamentals(stock.quoteId))
+  const { data: snapshot, loading } = resource
+  const [actionError, setActionError] = useState({ quoteId: '', message: '' })
+  const setError = (message: string) => setActionError({ quoteId: stock.quoteId, message })
+  const error = (actionError.quoteId === stock.quoteId ? actionError.message : '') || resource.error
+  const loadSnapshot = () => {
+    setError('')
+    resource.refresh()
+  }
 
   const latestPeriod = useMemo(
     () => snapshot?.periods.find((period) => period.periodType === 'ttm') ?? snapshot?.periods[0],
@@ -130,7 +110,7 @@ export default function GlobalFundamentalPanel({ stock }: { stock: WatchStock })
           </small>
           <strong>{stock.name}结构化财务概览</strong>
         </span>
-        <button type="button" onClick={() => void loadSnapshot(true)} disabled={loading}>
+        <button type="button" onClick={() => void loadSnapshot()} disabled={loading}>
           <RefreshCw size={15} className={loading ? 'is-spinning' : ''} />
           {loading ? '更新中' : '更新数据'}
         </button>
