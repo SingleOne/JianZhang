@@ -2695,15 +2695,15 @@
   background: rgba(91, 140, 255, 0.14);
   border: 1px solid rgba(91, 140, 255, 0.48);
 }
-:root[data-theme='dark'] .portfolio-quality-table-scroller {
+:root[data-theme='dark'] .portfolio-quality-table {
   border: 1px solid var(--border);
 }
-:root[data-theme='dark'] .portfolio-quality-table-scroller th {
+:root[data-theme='dark'] .portfolio-quality-table th {
   color: var(--muted);
   background: var(--surface-muted);
   border-bottom: 1px solid var(--border);
 }
-:root[data-theme='dark'] .portfolio-quality-table-scroller td {
+:root[data-theme='dark'] .portfolio-quality-table td {
   border-bottom: 1px solid var(--border);
 }
 :root[data-theme='dark'] .portfolio-quality-filter-empty {

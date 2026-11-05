@@ -119,6 +119,7 @@ export function PortfolioQualityDialog({
     [industryFilter, riskFilter, riskTagFilter, summary.holdings, valueFilter]
   )
   const hasHoldingFilters = Boolean(valueFilter || riskFilter || riskTagFilter || industryFilter)
+  const hasStaleSnapshot = Boolean(fundamentalStaleReason || dividendStaleReason)
   const pricedIndustries = summary.industries.filter((industry) => industry.marketValue > 0)
   const topIndustryPercent = pricedIndustries[0]?.percent ?? null
   const topThreeIndustryPercent =
@@ -139,19 +140,29 @@ export function PortfolioQualityDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="portfolio-quality-title"
+        aria-describedby={hasStaleSnapshot ? 'portfolio-quality-stale-notice' : undefined}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="portfolio-quality-header">
           <span className="portfolio-quality-title-icon" aria-hidden="true">
             <ChartPie size={21} />
           </span>
-          <span>
-            <h2 id="portfolio-quality-title">持仓质量概览</h2>
-            <small>
-              基本面快照 {fundamentalSnapshotDate ?? '暂无'} · 分红融资快照{' '}
-              {dividendSnapshotDate ?? '暂无'}
-            </small>
-          </span>
+          <div className="portfolio-quality-header-content">
+            <div className="portfolio-quality-title-copy">
+              <h2 id="portfolio-quality-title">持仓质量概览</h2>
+              <small>
+                基本面快照 {fundamentalSnapshotDate ?? '暂无'} · 分红融资快照{' '}
+                {dividendSnapshotDate ?? '暂无'}
+              </small>
+            </div>
+            {hasStaleSnapshot ? (
+              <div className="portfolio-quality-stale-notice" id="portfolio-quality-stale-notice">
+                <strong>当前分析包含已过期快照</strong>
+                {fundamentalStaleReason ? <span>基本面：{fundamentalStaleReason}</span> : null}
+                {dividendStaleReason ? <span>分红融资：{dividendStaleReason}</span> : null}
+              </div>
+            ) : null}
+          </div>
           <button
             className="icon-button portfolio-quality-close"
             type="button"
@@ -164,14 +175,6 @@ export function PortfolioQualityDialog({
         </header>
 
         <div className="portfolio-quality-body">
-          {fundamentalStaleReason || dividendStaleReason ? (
-            <div className="portfolio-quality-stale-notice">
-              <strong>当前分析包含已过期快照</strong>
-              {fundamentalStaleReason ? <span>基本面：{fundamentalStaleReason}</span> : null}
-              {dividendStaleReason ? <span>分红融资：{dividendStaleReason}</span> : null}
-            </div>
-          ) : null}
-
           <div className="portfolio-quality-summary">
             <span>
               <small>全部持仓</small>
@@ -312,7 +315,7 @@ export function PortfolioQualityDialog({
           </section>
 
           <section
-            className="portfolio-quality-section"
+            className="portfolio-quality-section portfolio-quality-industry"
             aria-labelledby="portfolio-industry-heading"
           >
             <div className="portfolio-quality-section-heading">
@@ -351,6 +354,11 @@ export function PortfolioQualityDialog({
                       {formatShare(industry.percent)}
                     </strong>
                     <span
+                      className={`portfolio-industry-risk ${riskPercent && riskPercent > 0 ? 'has-risk' : ''}`}
+                    >
+                      风险 {formatShare(riskPercent)}
+                    </span>
+                    <span
                       className="portfolio-industry-value-bar"
                       aria-label={`${industry.name}行业内价值类型分布`}
                     >
@@ -365,11 +373,6 @@ export function PortfolioQualityDialog({
                           />
                         ) : null
                       })}
-                    </span>
-                    <span
-                      className={`portfolio-industry-risk ${riskPercent && riskPercent > 0 ? 'has-risk' : ''}`}
-                    >
-                      风险 {formatShare(riskPercent)}
                     </span>
                   </button>
                 )
@@ -402,7 +405,7 @@ export function PortfolioQualityDialog({
                 ) : null}
               </span>
             </div>
-            <div className="portfolio-quality-table-scroller">
+            <div className="portfolio-quality-table">
               <table>
                 <thead>
                   <tr>
