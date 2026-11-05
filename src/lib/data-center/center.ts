@@ -10,6 +10,8 @@ import { reconcileStockQuotes } from '../quote-state'
 import { createSnapshotStore } from './store'
 import { createDetailCenter } from './details'
 import { createDailyScanCenter } from './daily-scan'
+import { createRuntimeResources } from './runtime-resources'
+import { createCompletionNotifications } from './completion-notifications'
 import {
   createMutationQueue,
   prepareStateMutation,
@@ -29,6 +31,8 @@ export interface AppDataSnapshot {
 export function createDataCenter(transport: StockDesktopApi, initialState: AppState) {
   const details = createDetailCenter(transport)
   const dailyScan = createDailyScanCenter(transport, details)
+  const runtime = createRuntimeResources(transport, details)
+  const completionNotifications = createCompletionNotifications(transport, details)
   const store = createSnapshotStore<AppDataSnapshot>({
     state: initialState,
     quotes: [],
@@ -183,6 +187,29 @@ export function createDataCenter(transport: StockDesktopApi, initialState: AppSt
   // Compatibility facade routes all local writes through the same queue.
   const api: StockDesktopApi = {
     ...transport,
+    getOptionalModulesState: () => runtime.modules.request(true),
+    onOptionalModulesStateUpdated(callback) {
+      const stop = runtime.modules.subscribe(() => {
+        const next = runtime.modules.getSnapshot().data
+        if (next) callback(next)
+      })
+      const release = runtime.retainModules()
+      return () => {
+        stop()
+        release()
+      }
+    },
+    getCacheSummary: () => runtime.cache.request(true),
+    getGitHubSyncSettings: () => runtime.github.request(true),
+    completeGitHubLogin: runtime.completeGitHubLogin,
+    refreshGitHubGist: runtime.refreshGitHubGist,
+    saveGitHubSyncPassword: runtime.saveGitHubSyncPassword,
+    disconnectGitHub: runtime.disconnectGitHub,
+    uploadUserDataToGitHub: runtime.uploadUserDataToGitHub,
+    downloadUserDataFromGitHub: runtime.downloadUserDataFromGitHub,
+    applyGitHubGistRestore: runtime.applyGitHubGistRestore,
+    getCompletionNotifications: completionNotifications.get,
+    saveCompletionNotifications: completionNotifications.replace,
     getDailyMarketScanResult: () => dailyScan.result.request(true),
     getDailyMarketScanState: () => dailyScan.state.request(true),
     runDailyMarketScan: dailyScan.run,
@@ -211,10 +238,12 @@ export function createDataCenter(transport: StockDesktopApi, initialState: AppSt
     async clearStockCaches(quoteId, categoryIds) {
       const result = await transport.clearStockCaches(quoteId, categoryIds)
       details.invalidate(quoteId, result.cleared)
+      runtime.refreshCache()
       return result
     },
     async clearCaches(categoryIds) {
-      const result = await transport.clearCaches(categoryIds)
+      runtime.cache.invalidate()
+      const result = await transport.clearCaches(categoryIds).finally(() => runtime.refreshCache())
       // A partially cleared disk cache still invalidates all requested renderer entries.
       if (categoryIds.includes('data-snapshots')) dailyScan.clear()
       const categories = categoryIds.flatMap((id) =>
@@ -279,7 +308,11 @@ export function createDataCenter(transport: StockDesktopApi, initialState: AppSt
     commands: { update, archive },
     details,
     dailyScan,
+    runtime,
+    completionNotifications,
     dispose() {
+      runtime.dispose()
+      completionNotifications.dispose()
       dailyScan.dispose()
       details.dispose()
       unsubscribeState()

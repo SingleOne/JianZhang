@@ -1,4 +1,5 @@
 import { useAppStateField } from '../lib/data-center/hooks'
+import { useCacheSummary, useGitHubSyncSettings } from '../lib/data-center/runtime-hooks'
 import {
   CloudDownload,
   CloudUpload,
@@ -23,10 +24,8 @@ import {
   type AppSettings,
   type AppThemePreference,
   type CacheCategoryId,
-  type CacheSummary,
   type DataSnapshotRuntimeState,
   type GitHubDeviceAuthorization,
-  type GitHubSyncSettings,
   type MarketIndexId
 } from '../shared/types'
 import { applyAppThemePreference } from '../lib/theme'
@@ -67,7 +66,6 @@ interface SettingsMenuProps {
   onImportConfig: () => void
   onExportConfig: () => void
   configBusy: boolean
-  githubSyncSettings: GitHubSyncSettings
   githubSyncPassword: string | null
   githubGistLoading: boolean
   githubSyncPasswordSaving: boolean
@@ -89,7 +87,6 @@ interface SettingsMenuProps {
   exchangeRatesRefreshing: boolean
   fundamentalDataState: DataSnapshotRuntimeState
   onUpdateFundamentalData: () => void
-  cacheSummary: CacheSummary | null
   cacheBusy: boolean
   onRefreshCacheSummary: () => void
   onClearCaches: (categoryIds: CacheCategoryId[]) => void
@@ -174,7 +171,6 @@ export function SettingsMenu({
   onImportConfig,
   onExportConfig,
   configBusy,
-  githubSyncSettings,
   githubSyncPassword,
   githubGistLoading,
   githubSyncPasswordSaving,
@@ -196,12 +192,13 @@ export function SettingsMenu({
   exchangeRatesRefreshing,
   fundamentalDataState,
   onUpdateFundamentalData,
-  cacheSummary,
   cacheBusy,
   onRefreshCacheSummary,
   onClearCaches
 }: SettingsMenuProps) {
   const settings = useAppStateField('settings')
+  const cacheSummary = useCacheSummary(open)
+  const githubSyncSettings = useGitHubSyncSettings(open)
   const isMacOS = stockApi.platform === 'macos'
   const [activeTab, setActiveTab] = useState<SettingsTab>('market')
   const [githubPasswordEditing, setGitHubPasswordEditing] = useState(false)

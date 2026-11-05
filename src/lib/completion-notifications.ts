@@ -4,6 +4,17 @@ export type { AppCompletionNotification, CompletionNotificationTarget } from '..
 
 export const APP_COMPLETION_NOTIFICATION_EVENT = 'app:completion-notification'
 
+export function subscribeCompletionNotifications(
+  receive: (notification: AppCompletionNotification) => void
+): () => void {
+  const listener = (event: Event) => {
+    const notification = (event as CustomEvent<AppCompletionNotification>).detail
+    if (notification) receive(notification)
+  }
+  window.addEventListener(APP_COMPLETION_NOTIFICATION_EVENT, listener)
+  return () => window.removeEventListener(APP_COMPLETION_NOTIFICATION_EVENT, listener)
+}
+
 export interface StockDetailNavigationRequest {
   id: string
   quoteId: string

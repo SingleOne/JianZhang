@@ -1,5 +1,9 @@
 import { useAppStateField, useAppSettings } from './lib/data-center/hooks'
 import {
+  useOptionalModulesState,
+  useCompletionNotifications
+} from './lib/data-center/runtime-hooks'
+import {
   changeStock,
   changeSettings,
   saveTradingBook,
@@ -27,7 +31,7 @@ import {
   Signal,
   WifiOff
 } from 'lucide-react'
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { AppTitlebar, MarketTradingState } from './components/AppTitlebar'
 import { AppButton } from './components/AppButton'
 import {
@@ -49,7 +53,6 @@ import {
   updateFundamentalData as runFundamentalDataUpdate
 } from './lib/data-center/market-data-resources'
 import {
-  APP_COMPLETION_NOTIFICATION_EVENT,
   type AppCompletionNotification,
   type StockDetailNavigationRequest
 } from './lib/completion-notifications'
@@ -71,15 +74,12 @@ import type {
   AppSettings,
   CacheCategoryId,
   CacheClearResult,
-  CacheSummary,
   ConfigImportResult,
   CorporateActionRecord,
   DailyKlineIndicator,
   DividendFinancingRankingItem,
   DailyMarketScanRow,
   GitHubDeviceAuthorization,
-  GitHubSyncSettings,
-  OptionalModulesState,
   PortfolioPerformanceCache,
   PortfolioPerformanceAdjustments,
   SearchResult,
@@ -155,18 +155,6 @@ type TitlebarPanelId =
   | 'account-manager'
   | 'fee-scheme-manager'
 
-const INITIAL_OPTIONAL_MODULES_STATE: OptionalModulesState = {
-  marketInsight: {
-    status: __JIANZHANG_MARKET_INSIGHT_ENABLED__ ? 'initializing' : 'disabled',
-    error: null
-  },
-  ai: { status: __JIANZHANG_AI_MODULE_ENABLED__ ? 'initializing' : 'disabled', error: null },
-  aiTAdvice: {
-    status: __JIANZHANG_AI_T_ADVICE_MODULE_ENABLED__ ? 'initializing' : 'disabled',
-    error: null
-  }
-}
-
 // AI UI remains behind build-time boundaries so share builds can omit it completely.
 const AiAssistantDrawer = __JIANZHANG_AI_MODULE_ENABLED__
   ? lazy(() =>
@@ -196,10 +184,7 @@ export default function App() {
   const [stockSelectionRequest, setStockSelectionRequest] = useState<StockSelectionRequest | null>(
     null
   )
-  const [completionNotifications, setCompletionNotifications] = useState<
-    AppCompletionNotification[]
-  >([])
-  const dismissedCompletionNotificationIds = useRef(new Set<string>())
+  const completionNotifications = useCompletionNotifications()
   const [detailNavigationRequest, setDetailNavigationRequest] =
     useState<StockDetailNavigationRequest | null>(null)
   const [source, setSource] = useState<'eastmoney' | 'demo'>('eastmoney')
@@ -221,19 +206,11 @@ export default function App() {
     return () => window.clearTimeout(preloadTimer)
   }, [])
   const [configBusy, setConfigBusy] = useState(false)
-  const [cacheSummary, setCacheSummary] = useState<CacheSummary | null>(null)
   const [cacheBusy, setCacheBusy] = useState(false)
   const [githubSyncBusy, setGitHubSyncBusy] = useState(false)
   const [githubSyncUploadPhase, setGitHubSyncUploadPhase] = useState<GitHubSyncUploadPhase>('idle')
   const [githubUploadNotice, setGitHubUploadNotice] = useState('')
   const [githubSyncDownloading, setGitHubSyncDownloading] = useState(false)
-  const [githubSyncSettings, setGitHubSyncSettings] = useState<GitHubSyncSettings>({
-    oauthAvailable: false,
-    connected: false,
-    hasStoredPassword: false,
-    syncPasswordReady: false,
-    requiresRemoteRestore: false
-  })
   const [githubSyncPassword, setGitHubSyncPassword] = useState<string | null>(null)
   const [githubGistLoading, setGitHubGistLoading] = useState(false)
   const [githubSyncPasswordSaving, setGitHubSyncPasswordSaving] = useState(false)
@@ -250,9 +227,7 @@ export default function App() {
       state.watchlist.map((stock) => stock.code),
       !initializing
     )
-  const [optionalModulesState, setOptionalModulesState] = useState<OptionalModulesState>(
-    INITIAL_OPTIONAL_MODULES_STATE
-  )
+  const optionalModulesState = useOptionalModulesState()
   const [aiAssistantContext, setAiAssistantContext] = useState<{
     quoteId: string
     quoteName?: string
@@ -335,7 +310,6 @@ export default function App() {
           stockApi.refreshGitHubGist(),
           stockApi.getGitHubSyncPassword()
         ])
-        setGitHubSyncSettings(settings)
         setGitHubSyncPassword(password)
         if (announce) {
           reportSuccess(
@@ -346,7 +320,7 @@ export default function App() {
         }
       } catch (reason) {
         const message = reason instanceof Error ? reason.message : '无法读取 GitHub Gist'
-        setGitHubSyncSettings(await stockApi.getGitHubSyncSettings())
+        await stockApi.getGitHubSyncSettings()
         setGitHubSyncError(message)
         if (announce) reportError(`GitHub 已连接，但${message}`)
       } finally {
@@ -374,7 +348,6 @@ export default function App() {
 
     Promise.all([stockApi.getGitHubSyncSettings(), stockApi.getGitHubSyncPassword()])
       .then(([settings, password]) => {
-        setGitHubSyncSettings(settings)
         setGitHubSyncPassword(password)
         if (settings.connected) {
           void refreshGitHubGist(false)
@@ -391,30 +364,6 @@ export default function App() {
   }, [handleStockSelection, refreshGitHubGist, reportError])
 
   useEffect(() => {
-    let active = true
-    const unsubscribe = stockApi.onOptionalModulesStateUpdated((moduleState) => {
-      if (active) setOptionalModulesState(moduleState)
-    })
-    stockApi
-      .getOptionalModulesState()
-      .then((moduleState) => {
-        if (active) setOptionalModulesState(moduleState)
-      })
-      .catch(() => undefined)
-    return () => {
-      active = false
-      unsubscribe()
-    }
-  }, [])
-
-  useEffect(() => {
-    stockApi
-      .getCacheSummary()
-      .then(setCacheSummary)
-      .catch(() => undefined)
-  }, [])
-
-  useEffect(() => {
     if (!error) return
     const timer = window.setTimeout(() => setError(''), 4200)
     return () => window.clearTimeout(timer)
@@ -425,42 +374,6 @@ export default function App() {
     const timer = window.setTimeout(() => setNotice(''), 4200)
     return () => window.clearTimeout(timer)
   }, [notice])
-
-  useEffect(() => {
-    stockApi
-      .getCompletionNotifications()
-      .then((saved) => {
-        setCompletionNotifications((current) => {
-          const currentIds = new Set(current.map((item) => item.id))
-          const merged = [
-            ...current,
-            ...saved.filter(
-              (item) =>
-                !currentIds.has(item.id) && !dismissedCompletionNotificationIds.current.has(item.id)
-            )
-          ]
-          void stockApi.saveCompletionNotifications(merged)
-          return merged
-        })
-      })
-      .catch(() => undefined)
-  }, [])
-
-  useEffect(() => {
-    const addCompletionNotification = (event: Event) => {
-      const notification = (event as CustomEvent<AppCompletionNotification>).detail
-      if (!notification) return
-      dismissedCompletionNotificationIds.current.delete(notification.id)
-      setCompletionNotifications((current) => {
-        const next = [notification, ...current.filter((item) => item.id !== notification.id)]
-        void stockApi.saveCompletionNotifications(next)
-        return next
-      })
-    }
-    window.addEventListener(APP_COMPLETION_NOTIFICATION_EVENT, addCompletionNotification)
-    return () =>
-      window.removeEventListener(APP_COMPLETION_NOTIFICATION_EVENT, addCompletionNotification)
-  }, [])
 
   useEffect(() => {
     const openWithStockContext = (event: Event) => {
@@ -1101,7 +1014,6 @@ export default function App() {
     setCacheBusy(true)
     stockApi
       .getCacheSummary()
-      .then(setCacheSummary)
       .catch((reason) => reportError(reason instanceof Error ? reason.message : '缓存统计读取失败'))
       .finally(() => setCacheBusy(false))
   }, [cacheBusy, reportError])
@@ -1112,7 +1024,11 @@ export default function App() {
       setCacheBusy(true)
       try {
         const categories = categoryIds
-          .map((id) => cacheSummary?.categories.find((category) => category.id === id))
+          .map((id) =>
+            dataCenter.runtime.cache
+              .getSnapshot()
+              .data?.categories.find((category) => category.id === id)
+          )
           .filter((category): category is NonNullable<typeof category> => Boolean(category))
         const includesSnapshots = categories.some((category) => category.group === 'separate')
         const categoryLabels = categories.map((category) => category.label).join('、')
@@ -1139,7 +1055,7 @@ export default function App() {
         setCacheBusy(false)
       }
     },
-    [cacheBusy, cacheSummary, confirm, reportError, reportSuccess]
+    [cacheBusy, confirm, reportError, reportSuccess]
   )
 
   const selectWatchlistStock = useCallback((quoteId: string) => {
@@ -1147,12 +1063,7 @@ export default function App() {
   }, [])
 
   const openCompletionNotification = useCallback((notification: AppCompletionNotification) => {
-    dismissedCompletionNotificationIds.current.add(notification.id)
-    setCompletionNotifications((current) => {
-      const next = current.filter((item) => item.id !== notification.id)
-      void stockApi.saveCompletionNotifications(next)
-      return next
-    })
+    void dataCenter.completionNotifications.dismiss(notification.id).catch(() => undefined)
     setSelectedQuoteId(notification.quoteId)
     setDetailNavigationRequest({
       id: notification.id,
@@ -1302,8 +1213,7 @@ export default function App() {
       const authorization = await stockApi.startGitHubLogin()
       setGitHubDeviceAuthorization(authorization)
       reportSuccess(`GitHub 授权网页已打开，验证码 ${authorization.userCode} 已复制`)
-      const result = await stockApi.completeGitHubLogin(authorization.loginId)
-      setGitHubSyncSettings(result.settings)
+      await stockApi.completeGitHubLogin(authorization.loginId)
       setGitHubDeviceAuthorization(null)
       reportSuccess('GitHub Gist 授权已保存，正在自动查找用户数据 Gist')
       await refreshGitHubGist()
@@ -1320,7 +1230,7 @@ export default function App() {
   const disconnectGitHub = useCallback(async () => {
     setGitHubSyncBusy(true)
     try {
-      setGitHubSyncSettings(await stockApi.disconnectGitHub())
+      await stockApi.disconnectGitHub()
       setGitHubSyncError('')
       setGitHubDeviceAuthorization(null)
       reportSuccess('已断开 GitHub 连接')
@@ -1347,7 +1257,7 @@ export default function App() {
       setGitHubSyncBusy(true)
       setGitHubSyncPasswordSaving(true)
       try {
-        setGitHubSyncSettings(await stockApi.saveGitHubSyncPassword(password))
+        await stockApi.saveGitHubSyncPassword(password)
         setGitHubSyncPassword(password.trim())
         setGitHubSyncError('')
         reportSuccess('GitHub Gist 同步密码已保存到本机')
@@ -1367,7 +1277,7 @@ export default function App() {
 
   const refreshGitHubSyncSettings = useCallback(async () => {
     try {
-      setGitHubSyncSettings(await stockApi.getGitHubSyncSettings())
+      await stockApi.getGitHubSyncSettings()
     } catch (reason) {
       reportError(reason instanceof Error ? reason.message : '无法读取本地档案信息')
     }
@@ -1381,9 +1291,9 @@ export default function App() {
     setNotice('')
     setGitHubUploadNotice('')
     try {
-      if (!githubSyncSettings.syncPasswordReady) throw new Error('请先设置并保存 Gist 同步密码')
+      if (!dataCenter.runtime.github.getSnapshot().data?.syncPasswordReady)
+        throw new Error('请先设置并保存 Gist 同步密码')
       const latestSettings = await stockApi.refreshGitHubGist()
-      setGitHubSyncSettings(latestSettings)
       const localUpdatedAt = latestSettings.localDataUpdatedAt
         ? Date.parse(latestSettings.localDataUpdatedAt)
         : Number.NaN
@@ -1410,7 +1320,6 @@ export default function App() {
         onConfirm: async () => {
           setGitHubSyncUploadPhase('uploading')
           const result = await stockApi.uploadUserDataToGitHub(latestSettings.requiresRemoteRestore)
-          setGitHubSyncSettings(await stockApi.getGitHubSyncSettings())
           setGitHubUploadNotice(
             `用户数据已加密上传到 GitHub Gist，版本 ${result.version.slice(0, 7)}`
           )
@@ -1425,14 +1334,13 @@ export default function App() {
       setGitHubSyncUploadPhase('idle')
       setGitHubSyncBusy(false)
     }
-  }, [confirm, githubSyncSettings.syncPasswordReady, reportError])
+  }, [confirm, reportError])
 
   const downloadUserDataFromGitHub = useCallback(async () => {
     setGitHubSyncBusy(true)
     setGitHubSyncDownloading(true)
     try {
       const result = await stockApi.downloadUserDataFromGitHub()
-      setGitHubSyncSettings(await stockApi.getGitHubSyncSettings())
       await applyImportedData(result, 'default')
     } catch (reason) {
       reportError(reason instanceof Error ? reason.message : 'GitHub 下载失败')
@@ -1580,7 +1488,6 @@ export default function App() {
                   onImportConfig={importConfig}
                   onExportConfig={exportConfig}
                   configBusy={configBusy}
-                  githubSyncSettings={githubSyncSettings}
                   githubSyncPassword={githubSyncPassword}
                   githubGistLoading={githubGistLoading}
                   githubSyncPasswordSaving={githubSyncPasswordSaving}
@@ -1602,7 +1509,6 @@ export default function App() {
                   exchangeRatesRefreshing={exchangeRatesRefreshing}
                   fundamentalDataState={fundamentalDataState}
                   onUpdateFundamentalData={updateFundamentalData}
-                  cacheSummary={cacheSummary}
                   cacheBusy={cacheBusy}
                   onRefreshCacheSummary={refreshCacheSummary}
                   onClearCaches={clearCaches}
