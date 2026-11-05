@@ -105,6 +105,8 @@ describe('inline menu bar stock details', () => {
     expect(html).toContain('贵州茅台')
     expect(html).toContain('1,247.52')
     expect(html).not.toContain('最近15分钟')
+    expect(html).not.toContain('累计收益')
+    expect(html).not.toContain('menu-bar-cumulative-profit')
     expect(html).not.toContain('<article')
     expect(html.match(/<button/g)).toHaveLength(1)
   })
@@ -141,6 +143,7 @@ describe('inline menu bar stock details', () => {
     const html = renderToStaticMarkup(createElement('div', null, row(0, false), row(1, true)))
     expect(html.match(/aria-expanded="true"/g)).toHaveLength(1)
     expect(html.match(/<article/g)).toHaveLength(1)
+    expect(html.match(/class="menu-bar-cumulative-profit"/g)).toHaveLength(1)
     const ids = [...html.matchAll(/aria-controls="([^"]+)"/g)].map((match) => match[1])
     expect(new Set(ids).size).toBe(2)
     ids.forEach((id) => expect(html).toContain(`id="${id}"`))
@@ -192,13 +195,14 @@ describe('inline menu bar stock details', () => {
       expect(header).toContain('累计收益')
       expect(header).toContain(`<b class="${color}">${amount}</b>`)
       expect(header).not.toContain('animated-number')
-      for (const expanded of [false, true]) {
-        const title = renderToStaticMarkup(row(index, expanded)).split('</button>')[0]
-        expect(title).toContain('累计收益（人民币）')
-        expect(title).toContain(`<b class="${color}">`)
-        expect(title).toContain('data-menu-bar-value="cumulativeProfit"')
-        expect(title).toContain(amount)
-      }
+      const title = renderToStaticMarkup(row(index, true)).split('</button>')[0]
+      expect(title).toContain('累计收益（人民币）')
+      expect(title).toContain(`<b class="${color}">`)
+      expect(title).toContain('animated-number')
+      expect(title).toContain(amount)
+      const collapsed = renderToStaticMarkup(row(index, false))
+      expect(collapsed).not.toContain('累计收益')
+      expect(collapsed).not.toContain(amount)
     }
   )
 
@@ -213,7 +217,7 @@ describe('inline menu bar stock details', () => {
         createElement(MenuBarStockRow, {
           summary: { ...summaries[0], cumulativeProfit },
           status: 'closed',
-          expanded: false,
+          expanded: true,
           onToggle: () => {}
         })
       )

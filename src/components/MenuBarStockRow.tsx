@@ -67,21 +67,19 @@ export function MenuBarStockRow({
                 <span className="menu-bar-stock-time">
                   {formatUpdateTime(quote?.dataAt ?? quote?.updatedAt)}
                 </span>
+                <span className="menu-bar-cumulative-profit" title="累计收益（人民币）">
+                  <span className="menu-bar-cumulative-label">累计收益</span>
+                  <b className={valueClass(cumulativeProfit)}>
+                    <AnimatedNumber
+                      value={cumulativeProfit}
+                      formattedValue={formatMoneyProfit(cumulativeProfit, 'CNY')}
+                    />
+                  </b>
+                </span>
               </>
             ) : (
               <span className={`menu-bar-status is-${status}`}>{statusLabel}</span>
             )}
-            <span className="menu-bar-cumulative-profit" title="累计收益（人民币）">
-              <span className="menu-bar-cumulative-label">累计收益</span>
-              <b className={valueClass(cumulativeProfit)}>
-                <span className="menu-bar-animated-value" data-menu-bar-value="cumulativeProfit">
-                  <AnimatedNumber
-                    value={cumulativeProfit}
-                    formattedValue={formatMoneyProfit(cumulativeProfit, 'CNY')}
-                  />
-                </span>
-              </b>
-            </span>
           </span>
           {expanded ? null : (
             <span className="menu-bar-quote-values">
