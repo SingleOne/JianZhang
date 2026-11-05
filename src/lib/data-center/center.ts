@@ -9,6 +9,7 @@ import { getMarketIndexStocks } from '../../shared/types'
 import { reconcileStockQuotes } from '../quote-state'
 import { createSnapshotStore } from './store'
 import { createDetailCenter } from './details'
+import { createDailyScanCenter } from './daily-scan'
 import {
   createMutationQueue,
   prepareStateMutation,
@@ -27,6 +28,7 @@ export interface AppDataSnapshot {
 /** Owns shared renderer snapshots; the existing state client owns IPC revision handling. */
 export function createDataCenter(transport: StockDesktopApi, initialState: AppState) {
   const details = createDetailCenter(transport)
+  const dailyScan = createDailyScanCenter(transport, details)
   const store = createSnapshotStore<AppDataSnapshot>({
     state: initialState,
     quotes: [],
@@ -181,6 +183,20 @@ export function createDataCenter(transport: StockDesktopApi, initialState: AppSt
   // Compatibility facade routes all local writes through the same queue.
   const api: StockDesktopApi = {
     ...transport,
+    getDailyMarketScanResult: () => dailyScan.result.request(true),
+    getDailyMarketScanState: () => dailyScan.state.request(true),
+    runDailyMarketScan: dailyScan.run,
+    onDailyMarketScanProgress(callback) {
+      const stop = dailyScan.state.subscribe(() => {
+        const current = dailyScan.state.getSnapshot().data
+        if (current) callback(current)
+      })
+      const release = dailyScan.retain()
+      return () => {
+        stop()
+        release()
+      }
+    },
     getKline: (quoteId, period, limit) => details.kline(quoteId, period, limit).request(),
     getFundsFlow: (quoteId) => details.fundsFlow(quoteId).request(),
     getSectorIndex: (quoteId) => details.sector(quoteId).request(),
@@ -200,6 +216,7 @@ export function createDataCenter(transport: StockDesktopApi, initialState: AppSt
     async clearCaches(categoryIds) {
       const result = await transport.clearCaches(categoryIds)
       // A partially cleared disk cache still invalidates all requested renderer entries.
+      if (categoryIds.includes('data-snapshots')) dailyScan.clear()
       const categories = categoryIds.flatMap((id) =>
         id === 'temporary-market'
           ? ['klines', 'market-details']
@@ -210,7 +227,9 @@ export function createDataCenter(transport: StockDesktopApi, initialState: AppSt
                 'dividend-state',
                 'fundamental',
                 'fundamental-overview',
-                'fundamental-state'
+                'fundamental-state',
+                'daily-scan-result',
+                'daily-scan-state'
               ]
             : [id]
       )
@@ -259,7 +278,9 @@ export function createDataCenter(transport: StockDesktopApi, initialState: AppSt
     api,
     commands: { update, archive },
     details,
+    dailyScan,
     dispose() {
+      dailyScan.dispose()
       details.dispose()
       unsubscribeState()
       unsubscribeQuotes()

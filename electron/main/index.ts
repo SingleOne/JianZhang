@@ -947,6 +947,7 @@ if (!hasSingleInstanceLock) {
         completionNotificationStore!.save(notifications),
       getCacheSummary: () => cacheMaintenanceService!.getSummary(),
       clearCaches: async (categoryIds) => {
+        if (categoryIds.includes('data-snapshots')) dailyMarketScanService!.clearForCache()
         const result = await cacheMaintenanceService!.clear(categoryIds)
         setTimeout(() => {
           app.relaunch()

@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { Fragment, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { stockApi } from '../lib/api'
+import { useDailyMarketScan } from '../lib/data-center/daily-scan-hooks'
 import {
   DAILY_MARKET_SCAN_SIGNAL_LABELS,
   dailyMarketScanBoardLabel
@@ -29,7 +29,6 @@ import type {
   DailyMarketScanResult,
   DailyMarketScanRow,
   DailyMarketScanSignalType,
-  DailyMarketScanState,
   DividendFinancingRankingItem,
   ExchangeRateSettings,
   SearchResult,
@@ -65,17 +64,6 @@ const VIEW_OPTIONS: { id: ScanView; label: string }[] = [
   { id: 'bollingerNarrowing', label: '布林带收窄' },
   { id: 'bollingerExpansion', label: '布林带扩张' }
 ]
-
-const EMPTY_STATE: DailyMarketScanState = {
-  running: false,
-  progress: {
-    stage: 'idle',
-    message: '尚未执行收盘扫描。',
-    completed: 0,
-    total: 0
-  },
-  error: null
-}
 
 interface DailyMarketScanDialogProps {
   open: boolean
@@ -210,41 +198,18 @@ export function DailyMarketScanDialog({
   onViewStock,
   onClose
 }: DailyMarketScanDialogProps) {
-  const [result, setResult] = useState<DailyMarketScanResult | null>(null)
-  const [scanState, setScanState] = useState<DailyMarketScanState>(EMPTY_STATE)
+  const scan = useDailyMarketScan(open)
+  const { result, scanState, loading } = scan
   const [selectedSignals, setSelectedSignals] = useState<DailyMarketScanSignalType[]>([])
   const [sort, setSort] = useState<ScanSort>({ key: 'volumeRatio', direction: 'desc' })
   const [page, setPage] = useState(1)
   const [query, setQuery] = useState('')
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [actionMessage, setActionMessage] = useState('')
   const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!open) return
-    let active = true
-    setLoading(true)
-    setError('')
-    const unsubscribe = stockApi.onDailyMarketScanProgress((state) => {
-      if (active) setScanState(state)
-    })
-    Promise.all([stockApi.getDailyMarketScanResult(), stockApi.getDailyMarketScanState()])
-      .then(([snapshot, state]) => {
-        if (!active) return
-        setResult(snapshot)
-        setScanState(state)
-      })
-      .catch((reason: unknown) => {
-        if (active) setError(reason instanceof Error ? reason.message : '收盘扫描结果读取失败')
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-    return () => {
-      active = false
-      unsubscribe()
-    }
+    if (open) setError('')
   }, [open])
 
   const deferredQuery = useDeferredValue(query)
@@ -299,8 +264,7 @@ export function DailyMarketScanDialog({
     setError('')
     setActionMessage('')
     try {
-      const snapshot = await stockApi.runDailyMarketScan()
-      setResult(snapshot)
+      await scan.run()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '收盘扫描失败')
     }
@@ -379,10 +343,10 @@ export function DailyMarketScanDialog({
           </div>
         ) : null}
 
-        {error || scanState.error ? (
+        {error || scan.error || scanState.error ? (
           <div className="daily-scan-error">
             <AlertCircle size={15} />
-            {error || scanState.error}
+            {error || scan.error || scanState.error}
           </div>
         ) : null}
 

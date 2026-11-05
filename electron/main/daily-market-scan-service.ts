@@ -52,6 +52,7 @@ export class DailyMarketScanService {
   private snapshot: DailyMarketScanResult | null = null
   private state: DailyMarketScanState = EMPTY_STATE
   private runningTask: Promise<DailyMarketScanResult> | null = null
+  private generation = 0
   private initialization: Promise<void> | null = null
 
   constructor(private readonly dependencies: DailyMarketScanDependencies) {
@@ -85,9 +86,10 @@ export class DailyMarketScanService {
 
   run(): Promise<DailyMarketScanResult> {
     if (this.runningTask) return this.runningTask
+    const version = this.generation
     const task = this.initialization
-      ? this.initialization.then(() => this.execute())
-      : this.execute()
+      ? this.initialization.then(() => this.execute(version))
+      : this.execute(version)
     this.runningTask = task
     task.then(
       () => this.finishTask(task),
@@ -96,7 +98,18 @@ export class DailyMarketScanService {
     return task
   }
 
-  private async execute(): Promise<DailyMarketScanResult> {
+  clearForCache(): void {
+    this.generation += 1
+    this.snapshot = null
+    this.setState(EMPTY_STATE)
+  }
+
+  private assertGeneration(version: number): void {
+    if (version !== this.generation) throw new Error('扫描已因缓存清理失效')
+  }
+
+  private async execute(version: number): Promise<DailyMarketScanResult> {
+    this.assertGeneration(version)
     this.setState({
       running: true,
       progress: {
@@ -110,6 +123,7 @@ export class DailyMarketScanService {
 
     try {
       const market = await this.dependencies.fetchActiveQuotes(DAILY_MARKET_SCAN_MINIMUM_AMOUNT)
+      this.assertGeneration(version)
       this.setState({
         running: true,
         progress: {
@@ -121,7 +135,8 @@ export class DailyMarketScanService {
         error: null
       })
 
-      const { loaded, failed } = await this.loadKlines(market.quotes)
+      const { loaded, failed } = await this.loadKlines(market.quotes, version)
+      this.assertGeneration(version)
       this.setState({
         running: true,
         progress: {
@@ -154,6 +169,7 @@ export class DailyMarketScanService {
         signalCount: rows.reduce((total, row) => total + row.signals.length, 0),
         rows
       }
+      this.assertGeneration(version)
       this.saveSnapshot(result)
       this.snapshot = result
       this.setState({
@@ -168,6 +184,7 @@ export class DailyMarketScanService {
       })
       return result
     } catch (reason) {
+      this.assertGeneration(version)
       const message = reason instanceof Error ? reason.message : '收盘扫描失败'
       this.setState({
         running: false,
@@ -182,7 +199,10 @@ export class DailyMarketScanService {
     }
   }
 
-  private async loadKlines(quotes: readonly DailyMarketActiveQuote[]): Promise<{
+  private async loadKlines(
+    quotes: readonly DailyMarketActiveQuote[],
+    version: number
+  ): Promise<{
     loaded: LoadedKline[]
     failed: number
   }> {
@@ -201,7 +221,7 @@ export class DailyMarketScanService {
           failed += 1
         }
         completed += 1
-        if (completed === quotes.length || completed % 10 === 0) {
+        if (version === this.generation && (completed === quotes.length || completed % 10 === 0)) {
           this.setState({
             running: true,
             progress: {
@@ -248,12 +268,18 @@ export class DailyMarketScanService {
   }
 
   private async loadSnapshot(): Promise<void> {
+    const version = this.generation
     if (!existsSync(this.snapshotPath)) return
     try {
       const snapshot = JSON.parse(
         await readFile(this.snapshotPath, 'utf8')
       ) as DailyMarketScanResult
-      if (snapshot.schemaVersion !== 1 || !Array.isArray(snapshot.rows)) return
+      if (
+        version !== this.generation ||
+        snapshot.schemaVersion !== 1 ||
+        !Array.isArray(snapshot.rows)
+      )
+        return
       this.snapshot = snapshot
       this.setState({
         running: false,
