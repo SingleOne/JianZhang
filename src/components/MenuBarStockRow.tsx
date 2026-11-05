@@ -35,7 +35,7 @@ export function MenuBarStockRow({
   onToggle,
   children
 }: MenuBarStockRowProps) {
-  const { stock, quote, positionMetrics, alertBadges, floatingAlerts } = summary
+  const { stock, quote, cumulativeProfit, positionMetrics, alertBadges, floatingAlerts } = summary
   const priceAlert = getTriggeredStockAlertDirection(stock.alertRules)
   const statusLabel = STOCK_QUOTE_DATA_STATE_LABELS[status]
 
@@ -71,6 +71,17 @@ export function MenuBarStockRow({
             ) : (
               <span className={`menu-bar-status is-${status}`}>{statusLabel}</span>
             )}
+            <span className="menu-bar-cumulative-profit" title="累计收益（人民币）">
+              <span className="menu-bar-cumulative-label">累计收益</span>
+              <b className={valueClass(cumulativeProfit)}>
+                <span className="menu-bar-animated-value" data-menu-bar-value="cumulativeProfit">
+                  <AnimatedNumber
+                    value={cumulativeProfit}
+                    formattedValue={formatMoneyProfit(cumulativeProfit, 'CNY')}
+                  />
+                </span>
+              </b>
+            </span>
           </span>
           {expanded ? null : (
             <span className="menu-bar-quote-values">

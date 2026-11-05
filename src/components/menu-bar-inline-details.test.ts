@@ -26,7 +26,7 @@ vi.mock('../lib/data-center/hooks', () => ({
   })
 }))
 
-const state = {
+const state: AppState = {
   settings: DEFAULT_APP_SETTINGS,
   watchlist: [
     {
@@ -34,18 +34,32 @@ const state = {
       code: '600519',
       name: '贵州茅台',
       marketLabel: '沪A',
-      showInTaskbar: true
+      showInTaskbar: true,
+      isPriority: false,
+      showRadarSignals: true,
+      position: { quantity: 100, cost: 1000, openedToday: false }
     },
     {
       quoteId: '0.300750',
       code: '300750',
       name: '宁德时代',
       marketLabel: '深A',
-      showInTaskbar: true
+      showInTaskbar: true,
+      isPriority: false,
+      showRadarSignals: true
     }
   ],
-  stockTradingBooks: {}
-} as AppState
+  watchlistGroups: [],
+  stockTrackingProfiles: {},
+  columnOrder: [],
+  corporateActionApplications: {},
+  stockTradingBooks: {},
+  portfolioPerformanceCache: {
+    schemaVersion: 1,
+    generatedAt: '2026-11-05T10:00:00+08:00',
+    cumulativeProfitByQuoteId: { '1.600519': 1250.5, '0.300750': -4500.25 }
+  }
+}
 const quotes = [
   {
     quoteId: '1.600519',
@@ -167,6 +181,47 @@ describe('inline menu bar stock details', () => {
       expect(collapsed.match(value)?.[1]).toBe(embedded.match(value)?.[1])
     }
   })
+
+  it.each([
+    { index: 0, amount: '+¥1,250.50', color: 'is-up' },
+    { index: 1, amount: '-¥4,500.25', color: 'is-down' }
+  ])(
+    'shows cached cumulative profit for stock $index in both title layouts',
+    ({ index, amount, color }) => {
+      const header = renderToStaticMarkup(details(index, false)).split('</header>')[0]
+      expect(header).toContain('累计收益')
+      expect(header).toContain(`<b class="${color}">${amount}</b>`)
+      expect(header).not.toContain('animated-number')
+      for (const expanded of [false, true]) {
+        const title = renderToStaticMarkup(row(index, expanded)).split('</button>')[0]
+        expect(title).toContain('累计收益（人民币）')
+        expect(title).toContain(`<b class="${color}">`)
+        expect(title).toContain('data-menu-bar-value="cumulativeProfit"')
+        expect(title).toContain(amount)
+      }
+    }
+  )
+
+  it.each([
+    { cumulativeProfit: 0, amount: '+¥0.00' },
+    { cumulativeProfit: null, amount: '--' },
+    { cumulativeProfit: undefined, amount: '--' }
+  ])(
+    'keeps zero or missing cumulative profit neutral: $cumulativeProfit',
+    ({ cumulativeProfit, amount }) => {
+      const html = renderToStaticMarkup(
+        createElement(MenuBarStockRow, {
+          summary: { ...summaries[0], cumulativeProfit },
+          status: 'closed',
+          expanded: false,
+          onToggle: () => {}
+        })
+      )
+      const cumulative = html.match(/class="menu-bar-cumulative-profit"[\s\S]*?<\/b>/)?.[0]
+      expect(cumulative).toContain('class="is-flat"')
+      expect(cumulative).toContain(amount)
+    }
+  )
 })
 
 describe('expanded inline price chart', () => {

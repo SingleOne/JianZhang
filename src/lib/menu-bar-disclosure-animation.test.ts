@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMenuBarDisclosureAnimator } from './menu-bar-disclosure-animation'
 
-const fields = ['price', 'change', 'changePercent', 'todayProfit']
+const fields = ['price', 'change', 'changePercent', 'todayProfit', 'cumulativeProfit']
 const animations: {
   element: TestElement
   keyframes: Keyframe[]
@@ -120,7 +120,7 @@ function stockRow(quoteId: string, initiallyExpanded: boolean) {
         lineHeight: expanded ? '30px' : '18px',
         letterSpacing: expanded ? '-0.5px' : 'normal'
       })
-      const container = expanded ? details : row
+      const container = expanded && field !== 'cumulativeProfit' ? details : row
       container.append(value)
     })
     row.append(details)
@@ -160,10 +160,10 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('menu bar disclosure animation', () => {
-  it('moves all four numbers into the expanded layout and restores them on completion', async () => {
+  it('moves all five numbers into the expanded layout and restores them on completion', async () => {
     const { row, render, animator } = setup()
     animator.transition(() => render(true))
-    expect(row.querySelectorAll('[data-menu-bar-flight]')).toHaveLength(4)
+    expect(row.querySelectorAll('[data-menu-bar-flight]')).toHaveLength(5)
     expect(
       row.querySelectorAll('[data-menu-bar-value]').every((value) => value.style.opacity === '0')
     ).toBe(true)
@@ -188,7 +188,7 @@ describe('menu bar disclosure animation', () => {
     expect(exit.attributes.id).toBeUndefined()
     expect(exit.querySelectorAll('[id]')).toHaveLength(0)
     expect(exit.querySelectorAll('[data-menu-bar-value]')).toHaveLength(0)
-    expect(row.querySelectorAll('[data-menu-bar-flight]')).toHaveLength(4)
+    expect(row.querySelectorAll('[data-menu-bar-flight]')).toHaveLength(5)
     animator.cancel()
     expect(row.children).not.toContain(exit)
     expect(row.querySelectorAll('[data-menu-bar-flight]')).toHaveLength(0)
@@ -199,7 +199,9 @@ describe('menu bar disclosure animation', () => {
     const { row, render, animator } = setup()
     animator.transition(() => render(true))
     const previousAnimations = [...animations]
-    const price = row.querySelectorAll('[data-menu-bar-flight]')[0]
+    const price = row
+      .querySelectorAll('[data-menu-bar-flight]')
+      .find((value) => value.dataset.menuBarFlight === 'price')!
     price.bounds = rect(80, 54, 60, 24)
     Object.assign(price.style, {
       fontSize: '20px',
@@ -209,7 +211,9 @@ describe('menu bar disclosure animation', () => {
     })
     row.bounds = rect(10, 20, 540, 140)
     animator.transition(() => render(false))
-    const nextPrice = row.querySelectorAll('[data-menu-bar-flight]')[0]
+    const nextPrice = row
+      .querySelectorAll('[data-menu-bar-flight]')
+      .find((value) => value.dataset.menuBarFlight === 'price')!
     const flight = animations.find((animation) => animation.element === nextPrice)!
     expect(flight.keyframes[0]).toMatchObject({
       transform: 'translate(-170px, 24px)',
@@ -222,7 +226,7 @@ describe('menu bar disclosure animation', () => {
       true
     )
     expect(row.querySelectorAll('[data-menu-bar-flight]')).not.toContain(price)
-    expect(row.querySelectorAll('[data-menu-bar-flight]')).toHaveLength(4)
+    expect(row.querySelectorAll('[data-menu-bar-flight]')).toHaveLength(5)
     animator.cancel()
   })
 
@@ -231,7 +235,9 @@ describe('menu bar disclosure animation', () => {
     (expanded) => {
       const { row, render, animator } = setup(expanded)
       animator.transition(() => render(!expanded))
-      const price = row.querySelectorAll('[data-menu-bar-flight]')[0]
+      const price = row
+        .querySelectorAll('[data-menu-bar-flight]')
+        .find((value) => value.dataset.menuBarFlight === 'price')!
       const flight = animations.find((animation) => animation.element === price)!
       expect(flight.keyframes[0]).toMatchObject({
         fontSize: expanded ? '24px' : '15px',
@@ -260,8 +266,8 @@ describe('menu bar disclosure animation', () => {
       render(false)
       second.render(true)
     })
-    expect(row.querySelectorAll('[data-menu-bar-flight]')).toHaveLength(4)
-    expect(second.row.querySelectorAll('[data-menu-bar-flight]')).toHaveLength(4)
+    expect(row.querySelectorAll('[data-menu-bar-flight]')).toHaveLength(5)
+    expect(second.row.querySelectorAll('[data-menu-bar-flight]')).toHaveLength(5)
     animator.cancel()
     expect(panel.querySelectorAll('[data-menu-bar-flight]')).toHaveLength(0)
   })

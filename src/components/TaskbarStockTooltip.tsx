@@ -514,6 +514,12 @@ export function StockQuoteDetails({
             <span className="taskbar-tooltip-market">{stock?.marketLabel ?? '实时行情'}</span>
           </span>
           <span className="taskbar-tooltip-header-meta">
+            <span className="taskbar-tooltip-cumulative-profit" title="累计收益（人民币）">
+              <span>累计收益</span>
+              <b className={valueClass(cumulativeProfit)}>
+                {formatMoneyProfit(cumulativeProfit, 'CNY')}
+              </b>
+            </span>
             <span className="taskbar-tooltip-update-time">
               {formatUpdateTime(quote?.dataAt ?? quote?.updatedAt)}
             </span>

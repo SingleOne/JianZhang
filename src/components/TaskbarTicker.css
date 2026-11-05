@@ -324,10 +324,33 @@ html.tray-mode #root {
 }
 
 .taskbar-tooltip-header-meta {
-  flex: none;
+  min-width: 0;
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 7px;
+}
+
+.taskbar-tooltip-cumulative-profit {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  color: var(--stock-popover-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.taskbar-tooltip-cumulative-profit .is-up {
+  color: #c92733;
+}
+
+.taskbar-tooltip-cumulative-profit .is-down {
+  color: #087c57;
+}
+
+.taskbar-tooltip-cumulative-profit .is-flat {
+  color: var(--stock-popover-secondary);
 }
 
 .taskbar-tooltip-update-time {
@@ -956,6 +979,7 @@ html[data-theme='dark'].tray-mode #root {
 }
 
 :root[data-theme='dark'] .taskbar-tooltip-price-row.is-up,
+:root[data-theme='dark'] .taskbar-tooltip-cumulative-profit .is-up,
 :root[data-theme='dark'] .taskbar-tooltip-price-row .taskbar-tooltip-today-profit.is-up,
 :root[data-theme='dark'] .taskbar-tooltip-position-grid b.is-up,
 :root[data-theme='dark'] .taskbar-tooltip-alert-list .is-up,
@@ -967,6 +991,7 @@ html[data-theme='dark'].tray-mode #root {
 }
 
 :root[data-theme='dark'] .taskbar-tooltip-price-row.is-down,
+:root[data-theme='dark'] .taskbar-tooltip-cumulative-profit .is-down,
 :root[data-theme='dark'] .taskbar-tooltip-price-row .taskbar-tooltip-today-profit.is-down,
 :root[data-theme='dark'] .taskbar-tooltip-position-grid b.is-down,
 :root[data-theme='dark'] .taskbar-tooltip-alert-list .is-down,

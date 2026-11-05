@@ -13,6 +13,7 @@ export function getTraySummaryStocks(
     | 'securitiesAccounts'
     | 'feeSchemes'
     | 'portfolioPerformanceAdjustments'
+    | 'portfolioPerformanceCache'
   > & {
     settings: Pick<
       AppState['settings'],
@@ -44,6 +45,7 @@ export function getTraySummaryStocks(
     return {
       stock,
       quote,
+      cumulativeProfit: state.portfolioPerformanceCache?.cumulativeProfitByQuoteId[stock.quoteId],
       positionMetrics: calculatePositionMetrics(
         stock.position,
         quote,
