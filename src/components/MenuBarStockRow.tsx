@@ -59,7 +59,9 @@ export function MenuBarStockRow({
       >
         <span className="menu-bar-quote-row">
           <span className="menu-bar-stock-identity">
-            <strong className="menu-bar-stock-name">{stock.name}</strong>
+            <strong className="menu-bar-stock-name" data-menu-bar-value="stockName">
+              {stock.name}
+            </strong>
             <span className="menu-bar-stock-code">{stock.code}</span>
             {expanded ? (
               <>

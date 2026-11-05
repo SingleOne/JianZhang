@@ -103,6 +103,7 @@ describe('inline menu bar stock details', () => {
     expect(html).toContain('aria-expanded="false"')
     expect(html).toContain('hidden=""')
     expect(html).toContain('贵州茅台')
+    expect(html).toContain('data-menu-bar-value="stockName">贵州茅台</strong>')
     expect(html).toContain('1,247.52')
     expect(html).not.toContain('最近15分钟')
     expect(html).not.toContain('累计收益')
@@ -130,6 +131,7 @@ describe('inline menu bar stock details', () => {
       expect(html).toContain(label)
     }
     expect(html.match(/贵州茅台<\//g)).toHaveLength(1)
+    expect(html).toContain('data-menu-bar-value="stockName">贵州茅台</strong>')
     expect(html).toContain('menu-bar-stock-market">沪A')
     expect(html).toContain('menu-bar-stock-time')
     expect(html).toContain('1,247.52')

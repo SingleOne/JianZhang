@@ -39,7 +39,9 @@ function readRows(panel: HTMLElement): Map<string, RowSnapshot> {
               fontStyle: style.fontStyle,
               lineHeight: style.lineHeight,
               fontVariantNumeric: style.fontVariantNumeric,
-              letterSpacing: style.letterSpacing === 'normal' ? '0px' : style.letterSpacing
+              letterSpacing: style.letterSpacing === 'normal' ? '0px' : style.letterSpacing,
+              whiteSpace: style.whiteSpace,
+              overflowWrap: style.overflowWrap
             }
           })
         }
@@ -169,7 +171,6 @@ export function createMenuBarDisclosureAnimator(panel: HTMLElement) {
           ...target.typography,
           color: target.color,
           textAlign: 'left',
-          whiteSpace: 'nowrap',
           transformOrigin: 'top left',
           pointerEvents: 'none',
           zIndex: '2'

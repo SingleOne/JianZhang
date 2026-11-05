@@ -139,7 +139,7 @@ html.menu-bar-mode[data-theme='dark'] #root {
   align-items: baseline;
   gap: 4px;
   margin-left: auto;
-  font-size: 12px;
+  font-size: 14px;
   white-space: nowrap;
   animation: menu-bar-cumulative-reveal 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
