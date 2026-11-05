@@ -36,7 +36,8 @@ import {
   type FundamentalScreeningCriteria,
   type FundamentalScreeningEvaluation
 } from '../lib/fundamental-screening'
-import { isDesktopRuntime, stockApi } from '../lib/api'
+import { isDesktopRuntime } from '../lib/api'
+import { useFundamentalData, updateFundamentalData } from '../lib/data-center/market-data-resources'
 import type {
   DataSnapshotRuntimeState,
   FundamentalChangeItem,
@@ -45,7 +46,6 @@ import type {
   FundamentalChangeScreeningStatus,
   FundamentalChangeType,
   FundamentalCompany,
-  FundamentalSnapshot,
   SearchResult,
   StockTrackingProfiles,
   WatchStock
@@ -106,8 +106,6 @@ const FUNDAMENTAL_RISK_TAG_DESCRIPTIONS: Record<FundamentalRiskTag, string> = {
 
 interface FundamentalScreeningDialogProps {
   open: boolean
-  cachedSnapshot: FundamentalSnapshot | null
-  cachedChangeReport: FundamentalChangeReport | null
   dataState: DataSnapshotRuntimeState
   watchlist: WatchStock[]
   trackingProfiles: StockTrackingProfiles
@@ -117,8 +115,6 @@ interface FundamentalScreeningDialogProps {
     snapshotDate: string | undefined
   ) => void
   onViewStock: (quoteId: string) => void
-  onSnapshotChange: (snapshot: FundamentalSnapshot) => void
-  onChangeReportChange: (report: FundamentalChangeReport | null) => void
   onClose: () => void
 }
 
@@ -612,26 +608,21 @@ function FundamentalChangeReportPanel({
 
 export function FundamentalScreeningDialog({
   open,
-  cachedSnapshot,
-  cachedChangeReport,
   dataState,
   watchlist,
   trackingProfiles,
   onAddStock,
   onViewStock,
-  onSnapshotChange,
-  onChangeReportChange,
   onClose
 }: FundamentalScreeningDialogProps) {
   const confirm = useConfirmDialog()
-  const [snapshot, setSnapshot] = useState<FundamentalSnapshot | null>(cachedSnapshot)
-  const [changeReport, setChangeReport] = useState<FundamentalChangeReport | null>(
-    cachedChangeReport
-  )
+  const resource = useFundamentalData(open)
+  const snapshot = resource.data?.snapshot ?? null
+  const changeReport = resource.data?.changeReport ?? null
+  const loading = resource.loading
+  const loadError = resource.error
   const [viewMode, setViewMode] = useState<FundamentalViewMode>('screening')
   const [onlyWatchlistChanges, setOnlyWatchlistChanges] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [loadError, setLoadError] = useState('')
   const [criteria, setCriteria] = useState<FundamentalScreeningCriteria>(
     DEFAULT_FUNDAMENTAL_SCREENING_CRITERIA
   )
@@ -646,39 +637,6 @@ export function FundamentalScreeningDialog({
   const [expandedCode, setExpandedCode] = useState('')
   const [updating, setUpdating] = useState(false)
   const [actionMessage, setActionMessage] = useState('')
-
-  useEffect(() => {
-    if (!open) return
-    if (cachedSnapshot) {
-      setSnapshot(cachedSnapshot)
-      setChangeReport(cachedChangeReport)
-      setLoadError('')
-    }
-    let active = true
-    setLoading(!cachedSnapshot)
-    setLoadError('')
-    Promise.all([stockApi.getFundamentalSnapshot(), stockApi.getFundamentalChangeReport()])
-      .then(([data, changes]) => {
-        if (!active) return
-        setSnapshot(data)
-        setChangeReport(changes)
-        if (!cachedSnapshot && data) {
-          onSnapshotChange(data)
-          onChangeReportChange(changes)
-        }
-      })
-      .catch((reason: unknown) => {
-        if (active) {
-          setLoadError(reason instanceof Error ? reason.message : '基本面财务数据读取失败')
-        }
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [cachedChangeReport, cachedSnapshot, onChangeReportChange, onSnapshotChange, open])
 
   useEffect(() => {
     if (!open) return
@@ -891,11 +849,7 @@ export function FundamentalScreeningDialog({
     setUpdating(true)
     setActionMessage('')
     try {
-      const result = await stockApi.runFundamentalUpdate()
-      setSnapshot(result.snapshot)
-      setChangeReport(result.changeReport)
-      onSnapshotChange(result.snapshot)
-      onChangeReportChange(result.changeReport)
+      const result = await updateFundamentalData()
       setActionMessage(`基本面数据已更新，共 ${result.snapshot.rows.length} 家公司`)
     } catch (reason) {
       setActionMessage(reason instanceof Error ? reason.message : '基本面财务数据更新失败')

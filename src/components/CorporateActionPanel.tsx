@@ -17,6 +17,7 @@ import { appendPortfolioLedgerEntries } from '../shared/types'
 import { exchangeRateForCurrency } from '../shared/exchange-rates'
 import { dataCenter, stockApi } from '../lib/api'
 import { useDetailResource } from '../lib/data-center/detail-hooks'
+import { aiSettingsResource, aiStatusResource } from '../lib/data-center/optional-resources'
 import { emitCompletionNotification } from '../lib/completion-notifications'
 import { calculatePortfolioLedgerMetrics } from '../lib/portfolio-ledger'
 import { recordsForAccount } from '../shared/stock-accounts'
@@ -661,8 +662,9 @@ export default function CorporateActionPanel({
   }
 
   const summarizeCandidate = async (candidate: CorporateActionCandidate) => {
-    const aiApi = window.aiApi
-    if (!aiApi) {
+    const settingsResource = aiSettingsResource()
+    const statusResource = aiStatusResource()
+    if (!settingsResource || !statusResource) {
       setAiFeedback({
         candidateId: candidate.id,
         tone: 'error',
@@ -673,7 +675,10 @@ export default function CorporateActionPanel({
     setSummarizingId(candidate.id)
     setAiFeedback(null)
     try {
-      const [settings, status] = await Promise.all([aiApi.getSettings(), aiApi.getStatus()])
+      const [settings, status] = await Promise.all([
+        settingsResource.request(),
+        statusResource.request()
+      ])
       if (!settings.enabled) {
         setAiFeedback({
           candidateId: candidate.id,

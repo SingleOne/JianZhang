@@ -16,6 +16,50 @@ function deferred<T>() {
 afterEach(() => vi.useRealTimers())
 
 describe('detail resources', () => {
+  it('reloads invalidated infinite-TTL data while preserving its successful timestamp on failure', async () => {
+    const cache = createResourceCache()
+    const load = vi
+      .fn<() => Promise<number>>()
+      .mockResolvedValueOnce(1)
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(2)
+    const resource = cache.get('A', load, { ...options, maxAge: Infinity })
+    await resource.request()
+    const updatedAt = resource.getSnapshot().updatedAt
+    cache.invalidate(undefined, ['klines'], true)
+    expect(resource.getSnapshot().data).toBe(1)
+    expect(resource.getSnapshot().updatedAt).toBe(updatedAt)
+    await expect(resource.request()).rejects.toThrow('offline')
+    expect(resource.getSnapshot()).toEqual({ data: 1, loading: false, error: 'offline', updatedAt })
+    await expect(resource.request()).resolves.toBe(2)
+    cache.dispose()
+  })
+
+  it('retires both an old read and its queued force refresh when preserving data', async () => {
+    const cache = createResourceCache()
+    const old = deferred<number>()
+    const load = vi
+      .fn<() => Promise<number>>()
+      .mockReturnValueOnce(old.promise)
+      .mockResolvedValue(3)
+    const resource = cache.get('A', load, { ...options, maxAge: Infinity })
+    resource.update(1)
+    resource.invalidate(true)
+    const first = resource.request()
+    const forced = resource.request(true)
+    const rejected = expect(first).rejects.toThrow('该请求已失效')
+    const forcedRejected = expect(forced).rejects.toThrow('该请求已失效')
+    await Promise.resolve()
+    resource.invalidate(true)
+    await expect(resource.request()).resolves.toBe(3)
+    old.resolve(2)
+    await rejected
+    await forcedRejected
+    expect(load).toHaveBeenCalledTimes(2)
+    expect(resource.getSnapshot().data).toBe(3)
+    cache.dispose()
+  })
+
   it('shares requests and fresh snapshots for the same key, while isolating other keys', async () => {
     const cache = createResourceCache()
     const pending = deferred<number>()

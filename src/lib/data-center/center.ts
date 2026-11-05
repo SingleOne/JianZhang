@@ -201,7 +201,18 @@ export function createDataCenter(transport: StockDesktopApi, initialState: AppSt
       const result = await transport.clearCaches(categoryIds)
       // A partially cleared disk cache still invalidates all requested renderer entries.
       const categories = categoryIds.flatMap((id) =>
-        id === 'temporary-market' ? ['klines', 'market-details'] : [id]
+        id === 'temporary-market'
+          ? ['klines', 'market-details']
+          : id === 'data-snapshots'
+            ? [
+                'dividend-financing',
+                'dividend-overview',
+                'dividend-state',
+                'fundamental',
+                'fundamental-overview',
+                'fundamental-state'
+              ]
+            : [id]
       )
       details.invalidate(undefined, categories)
       return result

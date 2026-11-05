@@ -16,7 +16,7 @@ export interface DetailResource<T> {
   subscribe: (listener: () => void) => () => void
   retain: (demand?: RefreshDemand) => () => void
   request: (force?: boolean) => Promise<T>
-  invalidate: () => void
+  invalidate: (preserveData?: boolean) => void
   update: (data: T) => void
 }
 
@@ -66,6 +66,7 @@ export function createResourceCache(maxEntries = 200) {
     let pendingForce = false
     let forcedRequest: Promise<T> | undefined
     let generation = 0
+    let cacheValid = false
     let timer: ReturnType<typeof setTimeout> | undefined
     const publish = (next: ResourceSnapshot<T>) => {
       snapshot = next
@@ -116,6 +117,7 @@ export function createResourceCache(maxEntries = 200) {
       }
       if (
         !force &&
+        cacheValid &&
         snapshot.data !== undefined &&
         Date.now() - snapshot.updatedAt < options.maxAge
       ) {
@@ -128,6 +130,7 @@ export function createResourceCache(maxEntries = 200) {
         .then((data) => {
           if (version !== generation) throw new Error('该请求已失效')
           options.validate?.(data, snapshot.data)
+          cacheValid = true
           publish({
             data,
             loading: false,
@@ -179,16 +182,23 @@ export function createResourceCache(maxEntries = 200) {
         }
       },
       request,
-      invalidate() {
+      invalidate(preserveData = false) {
         generation += 1
+        cacheValid = false
         pending = undefined
         forcedRequest = undefined
         stopTimer()
-        publish({ data: undefined, loading: false, error: '', updatedAt: 0 })
+        publish({
+          data: preserveData ? snapshot.data : undefined,
+          loading: false,
+          error: '',
+          updatedAt: preserveData ? snapshot.updatedAt : 0
+        })
         if (consumers.size) void request().catch(() => undefined)
       },
       update(data) {
         generation += 1
+        cacheValid = true
         pending = undefined
         forcedRequest = undefined
         publish({
@@ -216,13 +226,13 @@ export function createResourceCache(maxEntries = 200) {
   }
   return {
     get,
-    invalidate(quoteId?: string, categories?: readonly string[]) {
+    invalidate(quoteId?: string, categories?: readonly string[], preserveData = false) {
       for (const entry of [...entries.values()]) {
         if (
           (quoteId === undefined || entry.options.quoteId === quoteId) &&
           (!categories || categories.includes(entry.options.category))
         )
-          entry.resource.invalidate()
+          entry.resource.invalidate(preserveData)
       }
     },
     dispose() {

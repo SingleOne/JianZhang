@@ -12,6 +12,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { isDesktopRuntime, stockApi } from '../lib/api'
+import { useDividendData, updateDividendData } from '../lib/data-center/market-data-resources'
 import type {
   DataSnapshotRuntimeState,
   DividendFinancingChangeItem,
@@ -19,7 +20,6 @@ import type {
   DividendFinancingMarket,
   DividendFinancingQualityScoreBreakdown,
   DividendFinancingRankingItem,
-  DividendFinancingSnapshot,
   DividendFinancingUpdateProgress,
   SearchResult,
   StockTrackingProfiles,
@@ -50,8 +50,6 @@ type SortKey =
 
 interface DividendFinancingRankingDialogProps {
   open: boolean
-  cachedSnapshot: DividendFinancingSnapshot | null
-  cachedChangeReport: DividendFinancingChangeReport | null
   dataState: DataSnapshotRuntimeState
   watchlist: WatchStock[]
   trackingProfiles: StockTrackingProfiles
@@ -61,8 +59,6 @@ interface DividendFinancingRankingDialogProps {
     snapshotDate: string | undefined
   ) => void
   onViewStock: (quoteId: string) => void
-  onSnapshotChange: (snapshot: DividendFinancingSnapshot) => void
-  onChangeReportChange: (report: DividendFinancingChangeReport | null) => void
   onClose: () => void
 }
 
@@ -494,23 +490,20 @@ function VisualizationPanel({
 
 export function DividendFinancingRankingDialog({
   open,
-  cachedSnapshot,
-  cachedChangeReport,
   dataState,
   watchlist,
   trackingProfiles,
   onAddStock,
   onViewStock,
-  onSnapshotChange,
-  onChangeReportChange,
   onClose
 }: DividendFinancingRankingDialogProps) {
   const confirm = useConfirmDialog()
-  const [snapshot, setSnapshot] = useState<DividendFinancingSnapshot | null>(null)
-  const [changeReport, setChangeReport] = useState<DividendFinancingChangeReport | null>(null)
+  const resource = useDividendData(open)
+  const snapshot = resource.data?.snapshot ?? null
+  const changeReport = resource.data?.changeReport ?? null
+  const loading = resource.loading
+  const loadError = resource.error
   const [viewMode, setViewMode] = useState<ViewMode>('ranking')
-  const [loading, setLoading] = useState(false)
-  const [loadError, setLoadError] = useState('')
   const [query, setQuery] = useState('')
   const [threshold, setThreshold] = useState(0)
   const [market, setMarket] = useState<MarketFilter>('ALL')
@@ -537,40 +530,6 @@ export function DividendFinancingRankingDialog({
   }, [onClose])
 
   useEffect(() => stockApi.onDividendFinancingUpdateProgress(setUpdateProgress), [])
-
-  useEffect(() => {
-    if (!open) return
-    if (cachedSnapshot) {
-      setSnapshot(cachedSnapshot)
-      setChangeReport(cachedChangeReport)
-      setLoadError('')
-      setLoading(false)
-      return
-    }
-    let active = true
-    setLoading(true)
-    setLoadError('')
-    Promise.all([
-      stockApi.getDividendFinancingSnapshot(),
-      stockApi.getDividendFinancingChangeReport()
-    ])
-      .then(([data, changes]) => {
-        if (!active) return
-        setSnapshot(data)
-        setChangeReport(changes)
-        if (data) onSnapshotChange(data)
-        onChangeReportChange(changes)
-      })
-      .catch((reason: unknown) => {
-        if (active) setLoadError(reason instanceof Error ? reason.message : '分红融资榜读取失败')
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [cachedChangeReport, cachedSnapshot, onChangeReportChange, onSnapshotChange, open])
 
   useEffect(() => {
     if (!open) return
@@ -716,11 +675,7 @@ export function DividendFinancingRankingDialog({
     setUpdating(true)
     setActionMessage('')
     try {
-      const result = await stockApi.runDividendFinancingUpdate()
-      setSnapshot(result.snapshot)
-      setChangeReport(result.changeReport)
-      onSnapshotChange(result.snapshot)
-      onChangeReportChange(result.changeReport)
+      const result = await updateDividendData()
       setActionMessage(`数据已更新，报告保存于 ${result.reportPath}`)
     } catch (reason) {
       setActionMessage(reason instanceof Error ? reason.message : '更新脚本运行失败')
@@ -777,7 +732,7 @@ export function DividendFinancingRankingDialog({
           </button>
         </header>
 
-        {loading ? (
+        {loading && !snapshot ? (
           <div className="dividend-ranking-loading">
             <span className="search-loader" />
             正在读取榜单数据…

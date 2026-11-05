@@ -44,6 +44,11 @@ import { useInitialRenderReady } from './hooks/useInitialRenderReady'
 import { TitlebarToolsMenu } from './components/TitlebarToolsMenu'
 import { dataCenter, getInitialBootstrap, isDesktopRuntime, stockApi } from './lib/api'
 import {
+  useMarketDataState,
+  useMarketDataOverviews,
+  updateFundamentalData as runFundamentalDataUpdate
+} from './lib/data-center/market-data-resources'
+import {
   APP_COMPLETION_NOTIFICATION_EVENT,
   type AppCompletionNotification,
   type StockDetailNavigationRequest
@@ -70,15 +75,8 @@ import type {
   ConfigImportResult,
   CorporateActionRecord,
   DailyKlineIndicator,
-  DataSnapshotRuntimeState,
-  DividendFinancingChangeReport,
-  DividendFinancingOverview,
   DividendFinancingRankingItem,
-  DividendFinancingSnapshot,
   DailyMarketScanRow,
-  FundamentalChangeReport,
-  FundamentalOverview,
-  FundamentalSnapshot,
   GitHubDeviceAuthorization,
   GitHubSyncSettings,
   OptionalModulesState,
@@ -156,17 +154,6 @@ type TitlebarPanelId =
   | 'market-change-distribution'
   | 'account-manager'
   | 'fee-scheme-manager'
-
-const EMPTY_DATA_SNAPSHOT_STATE: DataSnapshotRuntimeState = {
-  status: 'missing',
-  progressMessage: null,
-  error: null,
-  snapshotDate: null,
-  generatedAt: null,
-  recordCount: 0,
-  periodLabel: null,
-  staleReason: null
-}
 
 const INITIAL_OPTIONAL_MODULES_STATE: OptionalModulesState = {
   marketInsight: {
@@ -256,20 +243,13 @@ export default function App() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [loadedDialogs, setLoadedDialogs] = useState<Set<DeferredDialogId>>(() => new Set())
-  const [dividendFinancingSnapshot, setDividendFinancingSnapshot] =
-    useState<DividendFinancingSnapshot | null>(null)
-  const [dividendFinancingOverview, setDividendFinancingOverview] =
-    useState<DividendFinancingOverview | null>(null)
-  const [dividendFinancingChangeReport, setDividendFinancingChangeReport] =
-    useState<DividendFinancingChangeReport | null>(null)
-  const [fundamentalSnapshot, setFundamentalSnapshot] = useState<FundamentalSnapshot | null>(null)
-  const [fundamentalOverview, setFundamentalOverview] = useState<FundamentalOverview | null>(null)
-  const [fundamentalChangeReport, setFundamentalChangeReport] =
-    useState<FundamentalChangeReport | null>(null)
-  const [dividendFinancingState, setDividendFinancingState] =
-    useState<DataSnapshotRuntimeState>(EMPTY_DATA_SNAPSHOT_STATE)
-  const [fundamentalDataState, setFundamentalDataState] =
-    useState<DataSnapshotRuntimeState>(EMPTY_DATA_SNAPSHOT_STATE)
+  const { dividendState: dividendFinancingState, fundamentalState: fundamentalDataState } =
+    useMarketDataState()
+  const { dividend: dividendFinancingOverview, fundamental: fundamentalOverview } =
+    useMarketDataOverviews(
+      state.watchlist.map((stock) => stock.code),
+      !initializing
+    )
   const [optionalModulesState, setOptionalModulesState] = useState<OptionalModulesState>(
     INITIAL_OPTIONAL_MODULES_STATE
   )
@@ -433,56 +413,6 @@ export default function App() {
       .then(setCacheSummary)
       .catch(() => undefined)
   }, [])
-
-  useEffect(() => {
-    let active = true
-    const unsubscribeDividendState = stockApi.onDividendFinancingStateUpdated((snapshotState) => {
-      if (!active) return
-      setDividendFinancingState(snapshotState)
-    })
-    const unsubscribeFundamentalState = stockApi.onFundamentalStateUpdated((snapshotState) => {
-      if (!active) return
-      setFundamentalDataState(snapshotState)
-    })
-    Promise.all([stockApi.getDividendFinancingState(), stockApi.getFundamentalState()])
-      .then(([dividendState, fundamentalState]) => {
-        if (!active) return
-        setDividendFinancingState(dividendState)
-        setFundamentalDataState(fundamentalState)
-      })
-      .catch(() => undefined)
-    return () => {
-      active = false
-      unsubscribeDividendState()
-      unsubscribeFundamentalState()
-    }
-  }, [])
-
-  useEffect(() => {
-    if (initializing) return
-    let active = true
-    const codes = state.watchlist.map((stock) => stock.code)
-    Promise.all([
-      stockApi.getDividendFinancingOverview(codes),
-      stockApi.getFundamentalOverview(codes)
-    ])
-      .then(([dividendOverview, nextFundamentalOverview]) => {
-        if (!active) return
-        setDividendFinancingOverview(dividendOverview)
-        setFundamentalOverview(nextFundamentalOverview)
-      })
-      .catch(() => undefined)
-    return () => {
-      active = false
-    }
-  }, [
-    dividendFinancingState.generatedAt,
-    dividendFinancingState.status,
-    fundamentalDataState.generatedAt,
-    fundamentalDataState.status,
-    initializing,
-    state.watchlist
-  ])
 
   useEffect(() => {
     if (!error) return
@@ -1560,9 +1490,7 @@ export default function App() {
 
   const updateFundamentalData = async () => {
     try {
-      const result = await stockApi.runFundamentalUpdate()
-      setFundamentalSnapshot(result.snapshot)
-      setFundamentalChangeReport(result.changeReport)
+      const result = await runFundamentalDataUpdate()
       reportSuccess(`基本面数据已更新，共 ${result.snapshot.rows.length} 家公司`)
     } catch (reason) {
       reportError(reason instanceof Error ? reason.message : '基本面数据更新失败')
@@ -1851,15 +1779,11 @@ export default function App() {
           <Suspense fallback={null}>
             <DividendFinancingRankingDialog
               open={activeTitlebarPanel === 'dividend-ranking'}
-              cachedSnapshot={dividendFinancingSnapshot}
-              cachedChangeReport={dividendFinancingChangeReport}
               dataState={dividendFinancingState}
               watchlist={state.watchlist}
               trackingProfiles={state.stockTrackingProfiles}
               onAddStock={addDividendFinancingStock}
               onViewStock={viewWatchlistStockFromRanking}
-              onSnapshotChange={setDividendFinancingSnapshot}
-              onChangeReportChange={setDividendFinancingChangeReport}
               onClose={() => closeTitlebarPanel('dividend-ranking')}
             />
           </Suspense>
@@ -1868,15 +1792,11 @@ export default function App() {
           <Suspense fallback={null}>
             <FundamentalScreeningDialog
               open={activeTitlebarPanel === 'fundamental-screening'}
-              cachedSnapshot={fundamentalSnapshot}
-              cachedChangeReport={fundamentalChangeReport}
               dataState={fundamentalDataState}
               watchlist={state.watchlist}
               trackingProfiles={state.stockTrackingProfiles}
               onAddStock={addFundamentalScreeningStock}
               onViewStock={viewWatchlistStockFromFundamentals}
-              onSnapshotChange={setFundamentalSnapshot}
-              onChangeReportChange={setFundamentalChangeReport}
               onClose={() => closeTitlebarPanel('fundamental-screening')}
             />
           </Suspense>
