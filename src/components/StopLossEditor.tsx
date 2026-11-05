@@ -14,8 +14,19 @@ const MODES = [
     label: '收盘价移动',
     description: '已记录的最高收盘价，只上移不下移'
   },
+  {
+    value: 'trailingHigh' as const,
+    label: '最高价移动',
+    description: '设置后观察到的最高价，只上移不下移'
+  },
   { value: 'fixedCost' as const, label: '成本价固定', description: '锁定设置时的汇总持仓成本' }
 ]
+
+const REFERENCE_LABELS: Record<StopLossRule['mode'], string> = {
+  trailingClose: '最高收盘价',
+  trailingHigh: '设置后最高价',
+  fixedCost: '锁定成本'
+}
 
 export function StopLossEditor({
   stock,
@@ -47,7 +58,9 @@ export function StopLossEditor({
       setError(
         nextMode === 'trailingClose'
           ? '请先刷新行情，取得有效的昨日收盘价；比例须大于 0 且小于 100。'
-          : '当前成本须为正数，比例须大于 0 且小于 100。'
+          : nextMode === 'trailingHigh'
+            ? '请先刷新行情，取得有效的最新价；比例须大于 0 且小于 100。'
+            : '当前成本须为正数，比例须大于 0 且小于 100。'
       )
       return false
     }
@@ -95,8 +108,7 @@ export function StopLossEditor({
       {snapshot ? (
         <div className="stock-alert-status stop-loss-preview" aria-live="polite">
           <span>
-            {rule?.mode === 'trailingClose' ? '最高收盘价' : '锁定成本'}{' '}
-            {formatPrice(snapshot.referencePrice)}
+            {REFERENCE_LABELS[snapshot.mode]} {formatPrice(snapshot.referencePrice)}
           </span>
           <strong>止损价 {formatPrice(snapshot.stopPrice)}</strong>
           <small>

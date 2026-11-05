@@ -4,12 +4,14 @@ import { marketDateKey } from './market-hours'
 import { marketFromQuoteId } from './stock-market'
 import { stockQuoteDataState } from '../lib/quote-state'
 
-/** Presence means enabled. The single reference is a high close or a locked cost. */
+/** Presence means enabled. The reference is a high close, observed high or locked cost. */
 export interface StopLossRule {
-  mode: 'trailingClose' | 'fixedCost'
+  mode: 'trailingClose' | 'trailingHigh' | 'fixedCost'
   percent: number
   referencePrice: number
   resetId?: string
+  /** Only trailingHigh uses the activation boundary to exclude earlier prices. */
+  startedAt?: string
   /** Date of the quote whose previousClose was last processed, not a coverage cursor. */
   quoteDate?: string
 }
@@ -32,12 +34,16 @@ export interface StopLossSnapshot {
 export function normalizeStopLoss(value: StopLossRule | undefined): StopLossRule | undefined {
   if (
     !value ||
-    (value.mode !== 'trailingClose' && value.mode !== 'fixedCost') ||
+    (value.mode !== 'trailingClose' &&
+      value.mode !== 'trailingHigh' &&
+      value.mode !== 'fixedCost') ||
     !Number.isFinite(value.percent) ||
     value.percent <= 0 ||
     value.percent >= 100 ||
     !Number.isFinite(value.referencePrice) ||
-    value.referencePrice <= 0
+    value.referencePrice <= 0 ||
+    (value.mode === 'trailingHigh' &&
+      (typeof value.startedAt !== 'string' || !Number.isFinite(Date.parse(value.startedAt))))
   )
     return undefined
   return {
@@ -45,6 +51,7 @@ export function normalizeStopLoss(value: StopLossRule | undefined): StopLossRule
     percent: value.percent,
     referencePrice: value.referencePrice,
     ...(typeof value.resetId === 'string' ? { resetId: value.resetId } : {}),
+    ...(value.mode === 'trailingHigh' ? { startedAt: value.startedAt } : {}),
     ...(value.mode === 'trailingClose' &&
     typeof value.quoteDate === 'string' &&
     /^\d{4}-\d{2}-\d{2}$/.test(value.quoteDate)
@@ -89,18 +96,18 @@ export function createStopLossRule(
       referencePrice: stock.position!.cost,
       resetId: crypto.randomUUID()
     })
-  if (
-    !usableQuote(quote, now, calendar) ||
-    quote?.quoteId !== stock.quoteId ||
-    !quote.previousClose
-  )
+  if (!usableQuote(quote, now, calendar) || quote?.quoteId !== stock.quoteId) return undefined
+  const referencePrice = mode === 'trailingHigh' ? quote.latest : quote.previousClose
+  if (referencePrice === null || !Number.isFinite(referencePrice) || referencePrice <= 0)
     return undefined
   return normalizeStopLoss({
     mode,
     percent,
-    referencePrice: quote.previousClose,
+    referencePrice,
     resetId: crypto.randomUUID(),
-    quoteDate: marketDateKey(new Date(quote.dataAt!), marketFromQuoteId(stock.quoteId))
+    ...(mode === 'trailingHigh'
+      ? { startedAt: now.toISOString() }
+      : { quoteDate: marketDateKey(new Date(quote.dataAt!), marketFromQuoteId(stock.quoteId)) })
   })
 }
 
@@ -118,7 +125,7 @@ export function updateStopLossReferences(
       changed = true
       return withStopLoss(stock, undefined)
     }
-    if (rule.mode !== 'trailingClose') return stock
+    if (rule.mode === 'fixedCost') return stock
     const quote = quoteMap.get(stock.quoteId)
     if (
       !usableQuote(
@@ -126,10 +133,22 @@ export function updateStopLossReferences(
         now,
         state.settings.tradingCalendar.markets[marketFromQuoteId(stock.quoteId)]
       ) ||
-      !quote?.previousClose ||
-      !Number.isFinite(quote.previousClose) ||
-      quote.previousClose <= 0
+      !quote
     )
+      return stock
+    if (rule.mode === 'trailingHigh') {
+      if (
+        !rule.startedAt ||
+        Date.parse(quote.dataAt!) < Date.parse(rule.startedAt) ||
+        quote.latest === null ||
+        !Number.isFinite(quote.latest) ||
+        quote.latest <= rule.referencePrice
+      )
+        return stock
+      changed = true
+      return { ...stock, stopLoss: { ...rule, referencePrice: quote.latest } }
+    }
+    if (!quote.previousClose || !Number.isFinite(quote.previousClose) || quote.previousClose <= 0)
       return stock
     const quoteDate = marketDateKey(new Date(quote.dataAt!), marketFromQuoteId(stock.quoteId))
     if (rule.quoteDate && quoteDate < rule.quoteDate) return stock

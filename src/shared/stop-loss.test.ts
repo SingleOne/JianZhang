@@ -114,6 +114,85 @@ describe('stop loss calculation and lifecycle', () => {
       createStopLossRule(stock, quote({ dataAt: undefined }), 'trailingClose', 5, now)
     ).toBeUndefined()
   })
+  it('starts highest-price mode at the latest price and excludes pre-activation daily highs', () => {
+    const highest = createStopLossRule(
+      stock,
+      quote({ latest: 10, high: 16, previousClose: null }),
+      'trailingHigh',
+      5,
+      now
+    )!
+    expect(highest).toMatchObject({
+      mode: 'trailingHigh',
+      referencePrice: 10,
+      startedAt: now.toISOString()
+    })
+    expect(highest).not.toHaveProperty('quoteDate')
+    expect(
+      evaluateStopLoss({ ...stock, stopLoss: highest }, quote({ latest: 10 }), now)
+    ).toMatchObject({ stopPrice: 9.5, reached: false })
+    const initial = state([{ ...stock, stopLoss: highest }])
+    const later = new Date(now.getTime() + 1000)
+    const raised = updateStopLossReferences(
+      initial,
+      [quote({ latest: 11, high: 16, dataAt: later.toISOString() })],
+      later
+    )
+    expect(raised[0].stopLoss?.referencePrice).toBe(11)
+    const next = { ...initial, watchlist: raised }
+    expect(updateStopLossReferences(next, [quote({ latest: 11, high: 16 })], now)).toBe(raised)
+    expect(updateStopLossReferences(next, [quote({ latest: 10.5, high: 16 })], now)).toBe(raised)
+  })
+  it('rejects stale or pre-activation prices in highest-price mode', () => {
+    const highest = createStopLossRule(stock, quote({ latest: 10 }), 'trailingHigh', 5, now)!
+    const initial = state([{ ...stock, stopLoss: highest }])
+    for (const invalid of [
+      quote({ latest: 15, dataAt: new Date(now.getTime() - 1000).toISOString() }),
+      quote({ latest: 15, dataAt: '2026-11-02T01:00:00Z' }),
+      quote({ latest: 15, dataAt: 'invalid' }),
+      quote({ latest: 15, dataAt: undefined }),
+      quote({ latest: 15, dataAt: '2026-11-03T02:00:00Z' }),
+      quote({ latest: null }),
+      quote({ latest: Number.NaN }),
+      quote({ latest: Infinity })
+    ])
+      expect(updateStopLossReferences(initial, [invalid], now)).toBe(initial.watchlist)
+    expect(
+      createStopLossRule(stock, quote({ latest: null }), 'trailingHigh', 5, now)
+    ).toBeUndefined()
+    expect(createStopLossRule(stock, quote({ latest: -1 }), 'trailingHigh', 5, now)).toBeUndefined()
+    expect(
+      createStopLossRule(stock, quote({ dataAt: undefined }), 'trailingHigh', 5, now)
+    ).toBeUndefined()
+    expect(normalizeStopLoss({ ...highest, startedAt: 'invalid' })).toBeUndefined()
+    expect(normalizeStopLoss({ ...highest, startedAt: undefined })).toBeUndefined()
+  })
+  it('restarts the highest-price observation boundary on an explicit reset', () => {
+    const highest = createStopLossRule(stock, quote({ latest: 12 }), 'trailingHigh', 5, now)!
+    const enabled = { ...stock, stopLoss: highest }
+    const later = new Date(now.getTime() + 60_000)
+    const reset = createStopLossRule(
+      enabled,
+      quote({ latest: 10, high: 16 }),
+      'trailingHigh',
+      5,
+      later
+    )!
+    expect(reset.referencePrice).toBe(10)
+    expect(reset.startedAt).toBe(later.toISOString())
+    expect(reset.resetId).not.toBe(highest.resetId)
+    const initial = state([{ ...enabled, stopLoss: reset }])
+    expect(updateStopLossReferences(initial, [quote({ latest: 13 })], later)).toBe(
+      initial.watchlist
+    )
+    expect(
+      updateStopLossReferences(
+        initial,
+        [quote({ latest: 11, dataAt: later.toISOString() })],
+        later
+      )[0].stopLoss?.referencePrice
+    ).toBe(11)
+  })
   it('raises once, preserves saved highs on a fall, and does not replay missing history', () => {
     const initial = state()
     const raised = updateStopLossReferences(initial, [quote()], now)
@@ -140,38 +219,58 @@ describe('stop loss calculation and lifecycle', () => {
     expect(Object.hasOwn(updateStopLossReferences(initial, [], now)[0], 'stopLoss')).toBe(false)
     expect(evaluateStopLosses(initial, [quote()], now)).toEqual([])
   })
-  it('preserves high watermarks in both configuration and Gist backup documents', () => {
-    const initial = normalizeAccountState(state())
-    const config = parseConfigDocument(
-      JSON.parse(JSON.stringify(createConfigDocument(initial, 'test')))
-    )
-    const backup = parseUserDataBackupDocument(
-      JSON.parse(JSON.stringify(createUserDataBackupDocument(initial, 'test', [], {})))
-    )
-    expect(config.watchlist[0].stopLoss).toEqual(rule)
-    expect(backup.state.watchlist[0].stopLoss).toEqual(rule)
-    const disabled = normalizeAccountState({
-      ...initial,
-      watchlist: initial.watchlist.map((s) => withStopLoss(s, undefined))
-    })
-    expect(JSON.stringify(createUserDataBackupDocument(disabled, 'test', [], {}))).not.toContain(
-      'stopLoss'
-    )
-  })
+  it.each(['trailingClose', 'trailingHigh'] as const)(
+    'preserves %s high watermarks in configuration and Gist backup documents',
+    (mode) => {
+      const saved =
+        mode === 'trailingClose'
+          ? rule
+          : createStopLossRule(stock, quote({ latest: 12 }), mode, 5, now)!
+      const initial = normalizeAccountState(state([{ ...stock, stopLoss: saved }]))
+      const config = parseConfigDocument(
+        JSON.parse(JSON.stringify(createConfigDocument(initial, 'test')))
+      )
+      const backup = parseUserDataBackupDocument(
+        JSON.parse(JSON.stringify(createUserDataBackupDocument(initial, 'test', [], {})))
+      )
+      expect(config.watchlist[0].stopLoss).toEqual(saved)
+      expect(backup.state.watchlist[0].stopLoss).toEqual(saved)
+      expect(
+        updateStopLossReferences(backup.state, [quote({ latest: 10, previousClose: 10 })], now)[0]
+          .stopLoss?.referencePrice
+      ).toBe(12)
+      const disabled = normalizeAccountState({
+        ...initial,
+        watchlist: initial.watchlist.map((s) => withStopLoss(s, undefined))
+      })
+      expect(JSON.stringify(createUserDataBackupDocument(disabled, 'test', [], {}))).not.toContain(
+        'stopLoss'
+      )
+    }
+  )
   it('drops imported rules for empty portfolios and keeps legacy backups without rules', () => {
     const empty = normalizeAccountState(state([{ ...stock, position: undefined }]))
     expect(Object.hasOwn(empty.watchlist[0], 'stopLoss')).toBe(false)
     const legacy = normalizeAccountState(state([withStopLoss(stock, undefined)]))
     expect(Object.hasOwn(legacy.watchlist[0], 'stopLoss')).toBe(false)
   })
-  it('prevents a stale editor from reducing a saved high, while allowing an explicit reset', () => {
-    const before = normalizeAccountState(state())
-    const stale = {
-      ...before,
-      watchlist: [{ ...before.watchlist[0], stopLoss: { ...rule, percent: 6, referencePrice: 10 } }]
+  it.each(['trailingClose', 'trailingHigh'] as const)(
+    'protects %s highs from stale editors, while allowing explicit resets',
+    (mode) => {
+      const saved =
+        mode === 'trailingClose'
+          ? rule
+          : createStopLossRule(stock, quote({ latest: 12 }), mode, 5, now)!
+      const before = normalizeAccountState(state([{ ...stock, stopLoss: saved }]))
+      const stale = {
+        ...before,
+        watchlist: [
+          { ...before.watchlist[0], stopLoss: { ...saved, percent: 6, referencePrice: 10 } }
+        ]
+      }
+      expect(normalizeStateChanges(before, stale).watchlist[0].stopLoss?.referencePrice).toBe(12)
+      stale.watchlist[0].stopLoss = { ...stale.watchlist[0].stopLoss!, resetId: 'new' }
+      expect(normalizeStateChanges(before, stale).watchlist[0].stopLoss?.referencePrice).toBe(10)
     }
-    expect(normalizeStateChanges(before, stale).watchlist[0].stopLoss?.referencePrice).toBe(12)
-    stale.watchlist[0].stopLoss = { ...stale.watchlist[0].stopLoss!, resetId: 'new' }
-    expect(normalizeStateChanges(before, stale).watchlist[0].stopLoss?.referencePrice).toBe(10)
-  })
+  )
 })

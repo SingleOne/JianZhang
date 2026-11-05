@@ -146,8 +146,8 @@ export function normalizeStateChanges(previous: AppState, input: AppState): AppS
     const before = previousStocks.get(stock.quoteId)?.stopLoss
     const rule = stock.stopLoss
     if (
-      before?.mode === 'trailingClose' &&
-      rule.mode === 'trailingClose' &&
+      before?.mode === rule.mode &&
+      rule.mode !== 'fixedCost' &&
       before.resetId === rule.resetId
     ) {
       const referencePrice = Math.max(before.referencePrice, rule.referencePrice)
