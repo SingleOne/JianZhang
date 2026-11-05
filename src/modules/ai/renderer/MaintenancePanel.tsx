@@ -1,47 +1,54 @@
+import { useDetailResource } from '../../../lib/data-center/detail-hooks'
+import {
+  memoryMaintenanceResource,
+  memoryCandidatesResource,
+  reloadMemoryResource,
+  useResourceValue
+} from '../../../lib/data-center/memory-resources'
 import { useCallback, useEffect, useState } from 'react'
 import { AppButton } from '../../../components/AppButton'
 import type { AiApi, AiConversation } from '../shared/types'
-import type { MemoryCandidate, MemoryFact, MemoryMaintenanceStatus } from '../shared/memory-types'
+import type { MemoryCandidate, MemoryFact } from '../shared/memory-types'
 
 interface Props {
+  profileId: string
   api: AiApi
   conversation: AiConversation | null
   facts: MemoryFact[]
   onFactsChange: () => Promise<void>
 }
 
-export function MaintenancePanel({ api, conversation, facts, onFactsChange }: Props) {
-  const [status, setStatus] = useState<MemoryMaintenanceStatus | null>(null)
-  const [candidates, setCandidates] = useState<MemoryCandidate[]>([])
+const EMPTY_CANDIDATES: MemoryCandidate[] = []
+
+export function MaintenancePanel({ profileId, api, conversation, facts, onFactsChange }: Props) {
+  const statusResource = memoryMaintenanceResource(api, profileId, conversation?.id)
+  const candidatesResource = memoryCandidatesResource(api, profileId)
+  const status = useDetailResource(statusResource, false).data ?? null
+  const [candidates] = useResourceValue(candidatesResource, EMPTY_CANDIDATES)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
   const refresh = useCallback(async () => {
-    const [nextStatus, nextCandidates] = await Promise.all([
-      api.getMemoryMaintenanceStatus(conversation?.id),
-      api.listMemoryCandidates(),
+    await Promise.all([
+      reloadMemoryResource(statusResource),
+      reloadMemoryResource(candidatesResource),
       onFactsChange()
     ])
-    setStatus(nextStatus)
-    setCandidates(nextCandidates)
-  }, [api, conversation?.id, onFactsChange])
+  }, [statusResource, candidatesResource, onFactsChange])
 
   useEffect(() => {
     let alive = true
-    void Promise.all([api.getMemoryMaintenanceStatus(conversation?.id), api.listMemoryCandidates()])
-      .then(([nextStatus, nextCandidates]) => {
-        if (!alive) return
-        setStatus(nextStatus)
-        setCandidates(nextCandidates)
-      })
-      .catch((reason: unknown) => {
-        if (alive) setError(reason instanceof Error ? reason.message : '无法读取自动维护状态')
-      })
+    void Promise.all([statusResource.request(true), candidatesResource.request(true)]).catch(
+      (reason: unknown) => {
+        if (alive && (statusResource.getSnapshot().error || candidatesResource.getSnapshot().error))
+          setError(reason instanceof Error ? reason.message : '无法读取自动维护状态')
+      }
+    )
     return () => {
       alive = false
     }
-  }, [api, conversation?.id])
+  }, [statusResource, candidatesResource])
 
   const run = (action: () => Promise<void>) => {
     void (async () => {

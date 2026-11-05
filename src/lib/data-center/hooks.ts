@@ -16,6 +16,60 @@ export function useStockQuote(quoteId: string) {
   return useAppData((snapshot) => snapshot.quotesById.get(quoteId))
 }
 
+/** Auxiliary surfaces need only these business fields, never the entire AppState. */
+export function useAuxiliaryState() {
+  const watchlist = useAppStateField('watchlist')
+  const stockTradingBooks = useAppStateField('stockTradingBooks')
+  const securitiesAccounts = useAppStateField('securitiesAccounts')
+  const feeSchemes = useAppStateField('feeSchemes')
+  const portfolioPerformanceAdjustments = useAppStateField('portfolioPerformanceAdjustments')
+  const portfolioPerformanceCache = useAppStateField('portfolioPerformanceCache')
+  const settings = useAppSettings([
+    'theme',
+    'showTaskbarTicker',
+    'tradingCalendar',
+    'exchangeRates',
+    'autoRefreshQuotes',
+    'priorityRefreshSeconds',
+    'regularRefreshSeconds',
+    'tTradingFees',
+    'marketTradeFees',
+    'lastUsedAccountIdByMarket'
+  ])
+  return useMemo(
+    () => ({
+      watchlist,
+      stockTradingBooks,
+      securitiesAccounts,
+      feeSchemes,
+      portfolioPerformanceAdjustments,
+      portfolioPerformanceCache,
+      settings
+    }),
+    [
+      watchlist,
+      stockTradingBooks,
+      securitiesAccounts,
+      feeSchemes,
+      portfolioPerformanceAdjustments,
+      portfolioPerformanceCache,
+      settings
+    ]
+  )
+}
+
+export function useAuxiliaryQuotes() {
+  return useAppData(
+    (snapshot) =>
+      snapshot.state.watchlist
+        .filter((stock) => stock.showInTaskbar)
+        .map((stock) => snapshot.quotesById.get(stock.quoteId))
+        .filter((quote) => quote !== undefined),
+    (previous, next) =>
+      previous.length === next.length && previous.every((quote, index) => quote === next[index])
+  )
+}
+
 export function useAppSetting<Key extends keyof AppDataSnapshot['state']['settings']>(key: Key) {
   return useAppData((snapshot) => snapshot.state.settings[key])
 }

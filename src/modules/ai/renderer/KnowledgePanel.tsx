@@ -1,3 +1,10 @@
+import {
+  memoryLibrariesResource,
+  memoryDocumentsResource,
+  memoryJobsResource,
+  reloadMemoryResource,
+  useResourceValue
+} from '../../../lib/data-center/memory-resources'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AppButton } from '../../../components/AppButton'
 import { AppSelect, type AppSelectOption } from '../../../components/AppSelect'
@@ -12,6 +19,7 @@ import type {
 } from '../shared/memory-types'
 
 interface Props {
+  profileId: string
   api: AiApi
   conversation: AiConversation | null
   capabilities?: MemoryCapabilities
@@ -56,8 +64,13 @@ function jobStatus(job: MemoryDocumentProcessingJob): string {
   return '正在处理'
 }
 
+const EMPTY_LIBRARIES: MemoryLibrary[] = []
+const EMPTY_DOCUMENTS: MemoryDocument[] = []
+const EMPTY_JOBS: MemoryDocumentProcessingJob[] = []
+
 export function KnowledgePanel({
   api,
+  profileId,
   conversation,
   capabilities,
   binding,
@@ -66,10 +79,13 @@ export function KnowledgePanel({
 }: Props) {
   const confirm = useConfirmDialog()
   const fileRef = useRef<HTMLInputElement>(null)
-  const [libraries, setLibraries] = useState<MemoryLibrary[]>([])
+  const sharedLibraries = memoryLibrariesResource(api, profileId)
+  const [libraries] = useResourceValue(sharedLibraries, EMPTY_LIBRARIES)
   const [selectedId, setSelectedId] = useState('')
-  const [documents, setDocuments] = useState<MemoryDocument[]>([])
-  const [jobs, setJobs] = useState<MemoryDocumentProcessingJob[]>([])
+  const sharedDocuments = memoryDocumentsResource(api, profileId, selectedId)
+  const [documents] = useResourceValue(sharedDocuments, EMPTY_DOCUMENTS)
+  const sharedJobs = memoryJobsResource(api, profileId, selectedId)
+  const [jobs, setJobs] = useResourceValue(sharedJobs, EMPTY_JOBS)
   const [newName, setNewName] = useState('')
   const [rename, setRename] = useState('')
   const uploadTarget = useRef<MemoryDocument | null>(null)
@@ -84,7 +100,6 @@ export function KnowledgePanel({
   const pendingUpload = useRef<{ key: string; operationId: string } | null>(null)
   const mounted = useRef(true)
   const loadGeneration = useRef(0)
-  const jobsRef = useRef<MemoryDocumentProcessingJob[]>([])
   const supportsJobs = capabilities?.documentJobs === true
   const supportsOcr = capabilities?.ocrAvailable === true
   useEffect(() => {
@@ -111,57 +126,55 @@ export function KnowledgePanel({
 
   const refreshLibraries = useCallback(async () => {
     const generation = loadGeneration.current
-    const next = await api.listMemoryLibraries()
+    const next = await reloadMemoryResource(sharedLibraries)
     if (!mounted.current || generation !== loadGeneration.current) return
-    setLibraries(next)
+
     setSelectedId((current) =>
       next.some((item) => item.id === current) ? current : (next[0]?.id ?? '')
     )
-  }, [api])
+  }, [sharedLibraries])
 
   useEffect(() => {
     let alive = true
-    void api.listMemoryLibraries().then(
+    void sharedLibraries.request(true).then(
       (next) => {
         if (!alive) return
-        setLibraries(next)
+
         setSelectedId(next[0]?.id ?? '')
       },
       (reason: unknown) => {
-        if (alive) setError(reason instanceof Error ? reason.message : '无法读取资料库')
+        if (alive && sharedLibraries.getSnapshot().error)
+          setError(reason instanceof Error ? reason.message : '无法读取资料库')
       }
     )
     return () => {
       alive = false
     }
-  }, [api])
+  }, [sharedLibraries])
 
   useEffect(() => {
     let alive = true
     const generation = ++loadGeneration.current
-    setDocuments([])
+
     setJobs([])
     if (!selectedId) return
-    void api
-      .listMemoryDocuments(selectedId)
+    void sharedDocuments
+      .request(true)
       .then(async (nextDocuments) => {
         const nextJobs = await loadJobsForDocuments(nextDocuments)
+        if (sharedDocuments.getSnapshot().data !== nextDocuments) return
         if (!alive || generation !== loadGeneration.current) return
-        setDocuments(nextDocuments)
+
         setJobs(nextJobs)
       })
       .catch((reason: unknown) => {
-        if (alive && generation === loadGeneration.current)
+        if (alive && generation === loadGeneration.current && sharedDocuments.getSnapshot().error)
           setError(reason instanceof Error ? reason.message : '无法读取资料文件')
       })
     return () => {
       alive = false
     }
-  }, [api, loadJobsForDocuments, selectedId])
-
-  useEffect(() => {
-    jobsRef.current = jobs
-  }, [jobs])
+  }, [loadJobsForDocuments, selectedId, sharedDocuments, setJobs])
 
   const hasActiveJobs = jobs.some((item) => ACTIVE_JOB_STATES.has(item.state))
   useEffect(() => {
@@ -173,23 +186,30 @@ export function KnowledgePanel({
       if (polling) return
       polling = true
       try {
-        const activeJobs = jobsRef.current.filter((item) => ACTIVE_JOB_STATES.has(item.state))
+        const activeJobs = (sharedJobs.getSnapshot().data ?? EMPTY_JOBS).filter((item) =>
+          ACTIVE_JOB_STATES.has(item.state)
+        )
         const updates = await Promise.all(
           activeJobs.map((item) => api.getMemoryDocumentJob(item.id))
         )
         if (!alive || generation !== loadGeneration.current) return
-        const previous = new Map(jobsRef.current.map((item) => [item.id, item]))
+        const previous = new Map(
+          (sharedJobs.getSnapshot().data ?? EMPTY_JOBS).map((item) => [item.id, item])
+        )
         const updateIds = new Set(updates.map((item) => item.id))
-        const nextJobs = [...updates, ...jobsRef.current.filter((item) => !updateIds.has(item.id))]
+        const nextJobs = [
+          ...updates,
+          ...(sharedJobs.getSnapshot().data ?? EMPTY_JOBS).filter((item) => !updateIds.has(item.id))
+        ]
         const becameTerminal = updates.some((item) => {
           const old = previous.get(item.id)
           return old && !TERMINAL_JOB_STATES.has(old.state) && TERMINAL_JOB_STATES.has(item.state)
         })
         setJobs(nextJobs)
         if (becameTerminal) {
-          const nextDocuments = await api.listMemoryDocuments(selectedId)
+          await reloadMemoryResource(sharedDocuments)
           if (!alive || generation !== loadGeneration.current) return
-          setDocuments(nextDocuments)
+
           await refreshLibraries()
           onSourcesChange()
         }
@@ -205,7 +225,17 @@ export function KnowledgePanel({
       alive = false
       window.clearInterval(timer)
     }
-  }, [api, hasActiveJobs, onSourcesChange, refreshLibraries, selectedId, supportsJobs])
+  }, [
+    api,
+    hasActiveJobs,
+    onSourcesChange,
+    refreshLibraries,
+    selectedId,
+    supportsJobs,
+    sharedDocuments,
+    sharedJobs,
+    setJobs
+  ])
 
   const run = async (action: () => Promise<void>) => {
     setBusy(true)
@@ -265,7 +295,7 @@ export function KnowledgePanel({
       return
     await run(async () => {
       await api.deleteMemoryLibrary(selected.id, selected.revision)
-      setDocuments([])
+
       setJobs([])
       onSourcesChange()
       await Promise.all([refreshLibraries(), onBindingChange()])
@@ -312,11 +342,14 @@ export function KnowledgePanel({
       if (!mounted.current || generation !== loadGeneration.current) return
       uploadOperation.current = null
       setUploadProgress(null)
-      const nextDocuments = await api.listMemoryDocuments(selected.id)
+      const nextDocuments = await reloadMemoryResource(
+        memoryDocumentsResource(api, profileId, selected.id)
+      )
       const nextJobs = await loadJobsForDocuments(nextDocuments)
+      if (sharedDocuments.getSnapshot().data !== nextDocuments) return
       await refreshLibraries()
       if (!mounted.current || generation !== loadGeneration.current) return
-      setDocuments(nextDocuments)
+
       setJobs(
         result.processingJob && !nextJobs.some((job) => job.id === result.processingJob?.id)
           ? [result.processingJob, ...nextJobs]
@@ -338,9 +371,12 @@ export function KnowledgePanel({
     void run(async () => {
       if (!item.latestVersion) return
       await api.publishMemoryDocumentKeyword(item.id, item.latestVersion.id, item.revision)
-      const nextDocuments = await api.listMemoryDocuments(item.libraryId)
+      const nextDocuments = await reloadMemoryResource(
+        memoryDocumentsResource(api, profileId, item.libraryId)
+      )
       const nextJobs = await loadJobsForDocuments(nextDocuments)
-      setDocuments(nextDocuments)
+      if (sharedDocuments.getSnapshot().data !== nextDocuments) return
+
       setJobs(nextJobs)
       setMessage('已按关键词模式发布。')
     })
@@ -400,9 +436,12 @@ export function KnowledgePanel({
       return
     await run(async () => {
       rememberJob(await api.publishMemoryDocumentJob(job, { allowPartial, keywordOnly }))
-      const nextDocuments = await api.listMemoryDocuments(document.libraryId)
+      const nextDocuments = await reloadMemoryResource(
+        memoryDocumentsResource(api, profileId, document.libraryId)
+      )
       const nextJobs = await loadJobsForDocuments(nextDocuments)
-      setDocuments(nextDocuments)
+      if (sharedDocuments.getSnapshot().data !== nextDocuments) return
+
       setJobs(nextJobs)
       await refreshLibraries()
       onSourcesChange()
@@ -428,9 +467,12 @@ export function KnowledgePanel({
     await run(async () => {
       await api.deleteMemoryDocument(item.id, item.revision)
       onSourcesChange()
-      const nextDocuments = await api.listMemoryDocuments(item.libraryId)
+      const nextDocuments = await reloadMemoryResource(
+        memoryDocumentsResource(api, profileId, item.libraryId)
+      )
       const nextJobs = await loadJobsForDocuments(nextDocuments)
-      setDocuments(nextDocuments)
+      if (sharedDocuments.getSnapshot().data !== nextDocuments) return
+
       setJobs(nextJobs)
       await refreshLibraries()
       setMessage('文件已删除。')

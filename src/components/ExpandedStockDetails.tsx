@@ -1,4 +1,10 @@
-import { useKlineResource } from '../lib/data-center/detail-hooks'
+import {
+  aiStatusResource,
+  insightSettingsResource,
+  insightSnapshotResource,
+  retainInsightUpdates
+} from '../lib/data-center/optional-resources'
+import { useDetailResource, useKlineResource } from '../lib/data-center/detail-hooks'
 import { evaluateStopLoss } from '../shared/stop-loss'
 import './StopLoss.css'
 import type { StockTradingBook } from '../shared/types'
@@ -119,7 +125,7 @@ import { ShareholderPanel } from './ShareholderPanel'
 import { StockTrackingPanel } from './StockTrackingPanel'
 import { StockCacheDialog } from './StockCacheDialog'
 import type { KlineVisibleRange, KlineVisibleRangeSource } from './PeriodKlineChart'
-import type { MarketInsightSnapshot } from '../modules/market-insight/shared/types'
+
 import type { AiAnalysisType } from '../modules/ai/shared/types'
 
 const CandlestickChart = lazy(() => import('./CandlestickChart'))
@@ -1941,12 +1947,20 @@ export function ExpandedStockDetails({
   const [dailyVisibleRange, setDailyVisibleRange] = useState<KlineVisibleRange | null>(null)
   const [chipAutoRangeMode, setChipAutoRangeMode] = useState(true)
   const [chipRangeRequestKey, setChipRangeRequestKey] = useState(0)
-  const [marketInsightSnapshot, setMarketInsightSnapshot] = useState<MarketInsightSnapshot | null>(
-    null
+  const insightResource = __JIANZHANG_MARKET_INSIGHT_ENABLED__
+    ? insightSnapshotResource(stock.quoteId)
+    : undefined
+  const marketInsightSnapshot = useDetailResource(insightResource, false).data
+  const insightSettings = useDetailResource(
+    __JIANZHANG_MARKET_INSIGHT_ENABLED__ ? insightSettingsResource() : undefined
+  ).data
+  const showInsightOverlay = Boolean(insightSettings?.enabled && insightSettings.showChartOverlay)
+  const aiStatus = useDetailResource(
+    __JIANZHANG_AI_MODULE_ENABLED__ ? aiStatusResource() : undefined
   )
-  const [showInsightOverlay, setShowInsightOverlay] = useState(true)
-  const [aiEnabled, setAiEnabled] = useState(false)
-  const [aiStatusLoaded, setAiStatusLoaded] = useState(false)
+  const aiEnabled = aiStatus.data?.enabled ?? false
+  const aiStatusLoaded = !aiStatus.loading
+  useEffect(() => (__JIANZHANG_MARKET_INSIGHT_ENABLED__ ? retainInsightUpdates() : undefined), [])
   const activeHistoricalLimit =
     priceTab && isHistoricalTab(priceTab) ? historyLimits[priceTab] : undefined
 
@@ -2031,43 +2045,10 @@ export function ExpandedStockDetails({
   }, [activeTab, activeMarketTab, stock.quoteId])
 
   useEffect(() => {
-    setMarketInsightSnapshot(null)
     setDailyVisibleRange(null)
     setChipAutoRangeMode(true)
     setChipRangeRequestKey((current) => current + 1)
   }, [stock.quoteId])
-
-  useEffect(() => {
-    let active = true
-    const api = window.aiApi
-    if (AiAnalysisPanel && api) {
-      void api
-        .getStatus()
-        .then((status) => {
-          if (active) setAiEnabled(status.enabled)
-        })
-        .catch(() => {
-          if (active) setAiEnabled(false)
-        })
-        .finally(() => {
-          if (active) setAiStatusLoaded(true)
-        })
-    } else {
-      setAiStatusLoaded(true)
-    }
-    return () => {
-      active = false
-    }
-  }, [])
-
-  useEffect(() => {
-    const handleEnabledChange = (event: Event) => {
-      setAiEnabled(Boolean((event as CustomEvent<boolean>).detail))
-      setAiStatusLoaded(true)
-    }
-    window.addEventListener('ai:enabled-changed', handleEnabledChange)
-    return () => window.removeEventListener('ai:enabled-changed', handleEnabledChange)
-  }, [])
 
   useEffect(() => {
     if (aiStatusLoaded && !aiEnabled && (activeTab === 'ai' || activeTab === 't-advice')) {
@@ -2207,7 +2188,6 @@ export function ExpandedStockDetails({
 
   const handleStockCachesCleared = async (ids: StockCacheCategoryId[]): Promise<string | null> => {
     if (ids.includes('klines')) setHoveredBar(null)
-    if (ids.includes('market-insight')) setMarketInsightSnapshot(null)
     setCacheRevisions((current) => {
       const next = { ...current }
       for (const id of ids) next[id] = (next[id] ?? 0) + 1
@@ -2738,8 +2718,6 @@ export function ExpandedStockDetails({
             fundamentalCompany={fundamentalScreening?.company}
             fundamentalSnapshotDate={fundamentalSnapshotDate}
             fundamentalStaleReason={fundamentalStaleReason}
-            onSnapshotChanged={setMarketInsightSnapshot}
-            onChartOverlayEnabledChange={setShowInsightOverlay}
           />
         </Suspense>
       ) : null}

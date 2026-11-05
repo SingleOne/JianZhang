@@ -11,7 +11,7 @@ function colored(value: string, direction: number | null | undefined): string {
 }
 
 export function getMenuBarQuoteStatus(
-  state: AppState,
+  state: { settings: Pick<AppState['settings'], 'tradingCalendar'> },
   quote: StockQuote | undefined,
   now = new Date()
 ) {

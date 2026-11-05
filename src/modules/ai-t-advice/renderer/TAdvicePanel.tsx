@@ -9,16 +9,17 @@ import {
   ShieldAlert,
   Sparkles
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useDetailResource } from '../../../lib/data-center/detail-hooks'
+import {
+  tAdviceSettingsResource,
+  tAdviceHistoryResource,
+  saveTAdviceSettings
+} from '../../../lib/data-center/optional-resources'
 import { emitCompletionNotification } from '../../../lib/completion-notifications'
 import { formatPrice } from '../../../lib/format'
 import type { StockQuote, WatchStock } from '../../../shared/types'
-import type {
-  AiTAdvice,
-  AiTAdviceAction,
-  AiTAdviceProgressEvent,
-  AiTAdviceSettings
-} from '../shared/types'
+import type { AiTAdvice, AiTAdviceAction, AiTAdviceProgressEvent } from '../shared/types'
 
 interface TAdvicePanelProps {
   stock: WatchStock
@@ -136,36 +137,28 @@ function AdviceSummary({ advice }: { advice: AiTAdvice }) {
   )
 }
 
+const EMPTY_HISTORY: AiTAdvice[] = []
+
 function AccountTAdvicePanel({
   stock,
   quote,
   accountId
 }: TAdvicePanelProps & { accountId: string }) {
   const api = window.aiTAdviceApi
-  const [settings, setSettings] = useState<AiTAdviceSettings | null>(null)
-  const [history, setHistory] = useState<AiTAdvice[]>([])
+  const settingsState = useDetailResource(tAdviceSettingsResource())
+  const historyResource = tAdviceHistoryResource(stock.quoteId, accountId)
+  const historyState = useDetailResource(historyResource)
+  const settings = settingsState.data
+  const history = historyState.data ?? EMPTY_HISTORY
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState<AiTAdviceProgressEvent | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const load = useCallback(async () => {
-    if (!api) return
-    const [nextSettings, nextHistory] = await Promise.all([
-      api.getSettings(),
-      api.listHistory(stock.quoteId, accountId)
-    ])
-    setSettings(nextSettings)
-    setHistory(nextHistory)
-  }, [api, stock.quoteId, accountId])
-
   useEffect(() => {
     setError('')
     setProgress(null)
-    void load().catch((reason) =>
-      setError(reason instanceof Error ? reason.message : '做 T 参考加载失败')
-    )
-  }, [load])
+  }, [stock.quoteId, accountId])
 
   useEffect(() => {
     if (!api) return
@@ -174,6 +167,7 @@ function AccountTAdvicePanel({
     })
   }, [api, stock.quoteId, accountId])
 
+  const currentError = error || settingsState.error || historyState.error
   const latest = history[0] ?? null
   const olderHistory = useMemo(() => history.slice(1, 6), [history])
 
@@ -183,7 +177,7 @@ function AccountTAdvicePanel({
     setSaving(true)
     setError('')
     try {
-      setSettings(await api.saveSettings({ enabled: !settings.enabled }))
+      await saveTAdviceSettings({ enabled: !settings.enabled })
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '设置保存失败')
     } finally {
@@ -203,7 +197,8 @@ function AccountTAdvicePanel({
     setError('')
     try {
       const result = await api.generate(stock.quoteId, accountId)
-      setHistory((current) => [
+      const current = historyResource!.getSnapshot().data ?? []
+      historyResource!.update([
         result.advice,
         ...current.filter((item) => item.id !== result.advice.id)
       ])
@@ -228,7 +223,8 @@ function AccountTAdvicePanel({
     setError('')
     try {
       const dismissed = await api.dismiss(adviceId)
-      setHistory((current) => current.map((item) => (item.id === dismissed.id ? dismissed : item)))
+      const current = historyResource!.getSnapshot().data ?? []
+      historyResource!.update(current.map((item) => (item.id === dismissed.id ? dismissed : item)))
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '忽略参考失败')
     }
@@ -330,10 +326,10 @@ function AccountTAdvicePanel({
         </div>
       ) : null}
 
-      {error ? (
+      {currentError ? (
         <div className="ai-t-error">
           <AlertCircle size={16} />
-          {error}
+          {currentError}
         </div>
       ) : null}
       {olderHistory.length > 0 ? (
@@ -377,7 +373,7 @@ function TAdviceWithAccount(props: TAdvicePanelProps) {
       <AccountTAdvicePanel
         {...props}
         stock={scope.stock}
-        key={scope.accountId}
+        key={`${props.stock.quoteId}:${scope.accountId}`}
         accountId={scope.accountId}
       />
     </>

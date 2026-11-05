@@ -1,3 +1,15 @@
+import {
+  aiChatApi,
+  conversationListResource,
+  conversationResource,
+  retainChatUpdates
+} from '../../../lib/data-center/ai-chat'
+import { useDetailResource } from '../../../lib/data-center/detail-hooks'
+import {
+  aiStatusResource,
+  aiSettingsResource,
+  saveAiSettings
+} from '../../../lib/data-center/optional-resources'
 import { ChatSourcePreview } from './ChatSourcePreview'
 import { ChatMessageViewport } from './ChatMessageViewport'
 import {
@@ -46,7 +58,6 @@ import { TradeImportPanel } from './TradeImportPanel'
 import { MemoryPanel } from './MemoryPanel'
 import type {
   AiApi,
-  AiChatDeltaEvent,
   AiApiKeyProviderId,
   AiConnectionResult,
   AiConversation,
@@ -825,17 +836,31 @@ function AiSettingsPanel({
   )
 }
 
+const EMPTY_CONVERSATIONS: AiConversation[] = []
+const EMPTY_MESSAGES: AiMessage[] = []
+
 export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistantDrawerProps) {
-  const api = window.aiApi
+  const api = aiChatApi
   const confirm = useConfirmDialog()
   const [activeTab, setActiveTab] = useState<'chat' | 'import' | 'settings'>('chat')
-  const [status, setStatus] = useState<AiStatus | null>(null)
-  const [settings, setSettings] = useState<AiSettings | null>(null)
-  const [conversations, setConversations] = useState<AiConversation[]>([])
+  const sharedStatus = aiStatusResource()
+  const sharedSettings = aiSettingsResource()
+  const statusState = useDetailResource(sharedStatus, open)
+  const settingsState = useDetailResource(sharedSettings, open)
+  const status = statusState.data
+  const settings = settingsState.data
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
-  const [activeConversation, setActiveConversation] = useState<AiConversation | null>(null)
-  const [messages, setMessages] = useState<AiMessage[]>([])
   const [search, setSearch] = useState('')
+  const sharedConversations = conversationListResource(search)
+  const conversationListState = useDetailResource(sharedConversations, open)
+  const conversationState = useDetailResource(
+    activeConversationId ? conversationResource(activeConversationId) : undefined,
+    open
+  )
+  const conversations = conversationListState.data ?? EMPTY_CONVERSATIONS
+  const activeConversation = conversationState.data?.conversation ?? null
+  const messages = conversationState.data?.messages ?? EMPTY_MESSAGES
+  useEffect(retainChatUpdates, [])
   const [composer, setComposer] = useState('')
   const [mentionedStocks, setMentionedStocks] = useState<AiStockMention[]>([])
   const [mentionTrigger, setMentionTrigger] = useState<MentionTrigger | null>(null)
@@ -843,7 +868,13 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
   const [includeStockContext, setIncludeStockContext] = useState(true)
   const [onlineSearch, setOnlineSearch] = useState(false)
   const [sendingMessage, setSendingMessage] = useState(false)
-  const [error, setError] = useState('')
+  const [actionError, setError] = useState('')
+  const error =
+    actionError ||
+    statusState.error ||
+    settingsState.error ||
+    conversationListState.error ||
+    conversationState.error
   const [busy, setBusy] = useState(false)
   const [connectionResult, setConnectionResult] = useState<AiConnectionResult | null>(null)
   const [providerModels, setProviderModels] = useState<
@@ -895,44 +926,19 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
     settings && supportsImageUnderstanding(settings.providerId, settings.model)
   )
 
-  const loadConversations = useCallback(
-    async (query = '') => {
-      if (!api) return
-      const next = await api.listConversations(query)
-      setConversations(next)
-      setActiveConversationId((current) =>
-        current && next.some((conversation) => conversation.id === current)
-          ? current
-          : (next[0]?.id ?? null)
-      )
-    },
-    [api]
-  )
+  const aiEnabled = status?.enabled
+  useEffect(() => {
+    if (open && aiEnabled === false) setActiveTab('settings')
+  }, [open, aiEnabled])
 
   useEffect(() => {
-    if (!api || !open) return
-    let alive = true
-    void Promise.all([api.getStatus(), api.getSettings(), api.listConversations(search)])
-      .then(([nextStatus, nextSettings, nextConversations]) => {
-        if (!alive) return
-        setStatus(nextStatus)
-        setSettings(nextSettings)
-        setConversations(nextConversations)
-        if (!nextStatus.enabled) setActiveTab('settings')
-        setActiveConversationId((current) =>
-          current && nextConversations.some((conversation) => conversation.id === current)
-            ? current
-            : (nextConversations[0]?.id ?? null)
-        )
-      })
-      .catch(
-        (reason: unknown) =>
-          alive && setError(reason instanceof Error ? reason.message : '无法加载 AI 助手')
-      )
-    return () => {
-      alive = false
-    }
-  }, [api, open, search])
+    if (!open || conversationListState.loading || !conversationListState.data) return
+    setActiveConversationId((current) =>
+      current && conversations.some((item) => item.id === current)
+        ? current
+        : (conversations[0]?.id ?? null)
+    )
+  }, [open, conversations, conversationListState.data, conversationListState.loading])
 
   useEffect(() => {
     if (!api || !open || !context) return
@@ -946,10 +952,7 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
         quoteName: context.quoteName
       })
       .then((conversation) => {
-        setConversations((current) => [
-          conversation,
-          ...current.filter((item) => item.id !== conversation.id)
-        ])
+        setSearch('')
         setActiveConversationId(conversation.id)
         setIncludeStockContext(true)
         setActiveTab('chat')
@@ -964,28 +967,8 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
   }, [open])
 
   useEffect(() => {
-    if (!api || !activeConversationId) {
-      setActiveConversation(null)
-      setMessages([])
-      return
-    }
-    let alive = true
-    void api
-      .getConversation(activeConversationId)
-      .then((result) => {
-        if (!alive) return
-        setActiveConversation(result?.conversation ?? null)
-        setMessages(result?.messages ?? [])
-        setIncludeStockContext(result?.conversation?.scope === 'stock')
-      })
-      .catch(
-        (reason: unknown) =>
-          alive && setError(reason instanceof Error ? reason.message : '无法加载对话')
-      )
-    return () => {
-      alive = false
-    }
-  }, [activeConversationId, api])
+    setIncludeStockContext(activeConversation?.scope === 'stock')
+  }, [activeConversation?.id, activeConversation?.scope])
 
   useEffect(() => {
     setComposer('')
@@ -997,59 +980,6 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
   useEffect(() => {
     setActiveMentionIndex(0)
   }, [mentionTrigger?.query])
-
-  useEffect(() => {
-    if (!api) return
-    const pendingDeltas = new Map<string, AiChatDeltaEvent>()
-    let frame: number | null = null
-    const flushDeltas = () => {
-      frame = null
-      const updates = new Map(pendingDeltas)
-      pendingDeltas.clear()
-      setMessages((current) =>
-        current.map<AiMessage>((message) => {
-          const update = updates.get(message.id)
-          return update
-            ? {
-                ...message,
-                content: update.replace ? update.delta : `${message.content}${update.delta}`,
-                status: 'streaming',
-                activity: update.activity ?? 'thinking'
-              }
-            : message
-        })
-      )
-    }
-    const mergeMessage = (message: AiMessage) => {
-      if (message.conversationId !== activeConversationId) return
-      pendingDeltas.delete(message.id)
-      setMessages((current) =>
-        current.some((item) => item.id === message.id)
-          ? current.map((item) => (item.id === message.id ? message : item))
-          : [...current, message]
-      )
-      void loadConversations(search)
-    }
-    const unDelta = api.onChatDelta((event) => {
-      if (event.conversationId !== activeConversationId) return
-      const previous = pendingDeltas.get(event.messageId)
-      pendingDeltas.set(event.messageId, {
-        ...event,
-        delta: event.replace ? event.delta : `${previous?.delta ?? ''}${event.delta}`,
-        replace: event.replace || previous?.replace,
-        activity: event.activity ?? previous?.activity
-      })
-      if (frame === null) frame = window.requestAnimationFrame(flushDeltas)
-    })
-    const unCompleted = api.onChatCompleted(({ message }) => mergeMessage(message))
-    const unError = api.onChatError(({ message }) => mergeMessage(message))
-    return () => {
-      if (frame !== null) window.cancelAnimationFrame(frame)
-      unDelta()
-      unCompleted()
-      unError()
-    }
-  }, [activeConversationId, api, loadConversations, search])
 
   const openSource = useCallback(
     (url: string) => {
@@ -1066,7 +996,7 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
     if (!api) return
     try {
       const conversation = await api.createConversation()
-      setConversations((current) => [conversation, ...current])
+      setSearch('')
       setActiveConversationId(conversation.id)
       setIncludeStockContext(false)
     } catch (reason) {
@@ -1079,11 +1009,7 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
     const title = window.prompt('输入新的对话标题', conversation.title)
     if (!title?.trim()) return
     try {
-      const renamed = await api.renameConversation(conversation.id, title)
-      setConversations((current) =>
-        current.map((item) => (item.id === renamed.id ? renamed : item))
-      )
-      setActiveConversation((current) => (current?.id === renamed.id ? renamed : current))
+      await api.renameConversation(conversation.id, title)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '无法重命名对话')
     }
@@ -1100,7 +1026,6 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
     if (!confirmed) return
     try {
       await api.deleteConversation(conversation.id)
-      await loadConversations(search)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '无法删除对话')
     }
@@ -1117,10 +1042,7 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
     if (!confirmed) return
     try {
       await api.clearConversations()
-      setConversations([])
       setActiveConversationId(null)
-      setActiveConversation(null)
-      setMessages([])
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '无法清空对话')
     }
@@ -1135,7 +1057,7 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
     setMentionTrigger(null)
     setSendingMessage(true)
     try {
-      const result = await api.sendChat({
+      await api.sendChat({
         conversationId: activeConversation.id,
         content,
         includeStockContext,
@@ -1143,8 +1065,6 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
         officialSearch: officialSearchEnabled,
         webSearch: webSearchEnabled
       })
-      setMessages((current) => [...current, result.userMessage, result.assistantMessage])
-      await loadConversations(search)
     } catch (reason) {
       setComposer(content)
       setMentionedStocks(messageMentions)
@@ -1228,9 +1148,7 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
   const retryMessage = async (messageId: string) => {
     if (!api || !activeConversation) return
     try {
-      const result = await api.retryChat(activeConversation.id, messageId)
-      setMessages((current) => [...current, result.userMessage, result.assistantMessage])
-      await loadConversations(search)
+      await api.retryChat(activeConversation.id, messageId)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '无法重试')
     }
@@ -1240,10 +1158,7 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
     if (!api) return
     setBusy(true)
     try {
-      const saved = await api.saveSettings(nextSettings)
-      setSettings(saved)
-      setStatus(await api.getStatus())
-      window.dispatchEvent(new CustomEvent('ai:enabled-changed', { detail: saved.enabled }))
+      const saved = await saveAiSettings(nextSettings)
       if (!saved.enabled) setActiveTab('settings')
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '无法保存 AI 设置')
@@ -1258,7 +1173,7 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
     try {
       const result = await api.setCredential(providerId, key)
       setProviderModels((current) => ({ ...current, [providerId]: result.models }))
-      setStatus(await api.getStatus())
+      await sharedStatus!.request(true)
       setConnectionResult({
         ok: true,
         kind: 'success',
@@ -1288,7 +1203,7 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
         delete next[providerId]
         return next
       })
-      setStatus(await api.getStatus())
+      await sharedStatus!.request(true)
       setConnectionResult(null)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '无法清除 API Key')

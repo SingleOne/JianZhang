@@ -6,7 +6,25 @@ import { getTraySummaryStocks } from '../lib/tray-summary'
 import { MenuBarStockRow } from './MenuBarStockRow'
 import { MiniPriceSparkline, StockQuoteDetails } from './TaskbarStockTooltip'
 
-vi.mock('../lib/api', () => ({ stockApi: {}, initialState: {} }))
+vi.mock('../lib/api', () => ({
+  stockApi: {},
+  dataCenter: { details: { orderBook: () => undefined } }
+}))
+vi.mock('../lib/data-center/detail-hooks', () => ({
+  useDetailResource: () => ({ data: undefined }),
+  useKlineResource: () => ({ data: undefined })
+}))
+vi.mock('../lib/data-center/hooks', () => ({
+  useAppData: (select: (snapshot: { state: AppState }) => unknown) => select({ state }),
+  useStockQuote: (quoteId: string) => quotes.find((quote) => quote.quoteId === quoteId),
+  useStockTradingBook: (quoteId: string) => state.stockTradingBooks[quoteId],
+  useAppSettings: () => state.settings,
+  useAccountFeeData: () => ({
+    securitiesAccounts: state.securitiesAccounts,
+    feeSchemes: state.feeSchemes,
+    settings: state.settings
+  })
+}))
 
 const state = {
   settings: DEFAULT_APP_SETTINGS,
@@ -47,8 +65,6 @@ const summaries = getTraySummaryStocks(state, quotes)
 function details(index: number, embedded: boolean) {
   return createElement(StockQuoteDetails, {
     quoteId: summaries[index].stock.quoteId,
-    state,
-    quotes,
     embedded
   })
 }

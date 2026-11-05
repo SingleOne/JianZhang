@@ -9,6 +9,11 @@ import {
   Sparkles
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useDetailResource } from '../../../lib/data-center/detail-hooks'
+import {
+  shortAnalysisResource,
+  longAnalysisResource
+} from '../../../lib/data-center/optional-resources'
 import { AppButton } from '../../../components/AppButton'
 import { emitCompletionNotification } from '../../../lib/completion-notifications'
 import type { StockQuote, WatchStock } from '../../../shared/types'
@@ -202,10 +207,14 @@ export function AiAnalysisPanel({
   onAnalysisTypeChange
 }: AiAnalysisPanelProps) {
   const api = window.aiApi
-  const [shortTermResult, setShortTermResult] = useState<AiInterpretationResult | null>(null)
-  const [longTermResult, setLongTermResult] = useState<AiLongTermInterpretationResult | null>(null)
+  const shortResource = shortAnalysisResource(stock.quoteId)
+  const longResource = longAnalysisResource(stock.quoteId)
+  const shortState = useDetailResource(shortResource)
+  const longState = useDetailResource(longResource)
+  const shortTermResult = shortState.data
+  const longTermResult = longState.data
+  const restoring = shortState.loading || longState.loading
   const [loadingType, setLoadingType] = useState<AiAnalysisType | null>(null)
-  const [restoring, setRestoring] = useState(false)
   const [progress, setProgress] = useState<AiAnalysisProgressEvent | null>(null)
   const [errors, setErrors] = useState<Record<AiAnalysisType, string>>({
     'short-term': '',
@@ -213,34 +222,9 @@ export function AiAnalysisPanel({
   })
 
   useEffect(() => {
-    setShortTermResult(null)
-    setLongTermResult(null)
     setProgress(null)
     setErrors({ 'short-term': '', 'long-term': '' })
-    if (!api) return
-    let active = true
-    setRestoring(true)
-    void Promise.all([
-      api.getLatestInterpretation(stock.quoteId),
-      api.getLatestLongTermInterpretation(stock.quoteId)
-    ])
-      .then(([shortTerm, longTerm]) => {
-        if (!active) return
-        setShortTermResult(shortTerm)
-        setLongTermResult(longTerm)
-      })
-      .catch((reason: unknown) => {
-        if (!active) return
-        const message = reason instanceof Error ? reason.message : '无法读取上次 AI 分析'
-        setErrors({ 'short-term': message, 'long-term': message })
-      })
-      .finally(() => {
-        if (active) setRestoring(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [api, stock.quoteId])
+  }, [stock.quoteId])
 
   useEffect(() => {
     if (!api) return
@@ -249,6 +233,8 @@ export function AiAnalysisPanel({
     })
   }, [api, stock.quoteId])
 
+  const currentError =
+    errors[analysisType] || (analysisType === 'short-term' ? shortState.error : longState.error)
   const currentResult = analysisType === 'short-term' ? shortTermResult : longTermResult
   const loading = loadingType === analysisType
   const currentProgress = progress?.analysisType === analysisType ? progress : null
@@ -268,11 +254,9 @@ export function AiAnalysisPanel({
     setErrors((current) => ({ ...current, [requestedAnalysisType]: '' }))
     try {
       if (requestedAnalysisType === 'short-term') {
-        const result = await api.interpret(stock.quoteId)
-        setShortTermResult(result)
+        await shortResource!.request(true)
       } else {
-        const result = await api.interpretLongTerm(stock.quoteId)
-        setLongTermResult(result)
+        await longResource!.request(true)
       }
       emitCompletionNotification({
         quoteId: stock.quoteId,
@@ -364,10 +348,10 @@ export function AiAnalysisPanel({
         </p>
       </div>
 
-      {errors[analysisType] ? (
+      {currentError ? (
         <div className="ai-analysis-error">
           <AlertCircle size={16} />
-          {errors[analysisType]}
+          {currentError}
         </div>
       ) : null}
       {loading ? (

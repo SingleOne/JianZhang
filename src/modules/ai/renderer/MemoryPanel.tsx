@@ -1,14 +1,17 @@
+import { useDetailResource } from '../../../lib/data-center/detail-hooks'
+import {
+  memoryStatusResource,
+  memoryFactsResource,
+  changeMemoryIdentity,
+  reloadMemoryResource,
+  useResourceValue
+} from '../../../lib/data-center/memory-resources'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { BrainCircuit } from 'lucide-react'
 import { AppButton } from '../../../components/AppButton'
 import { AppSelect, type AppSelectOption } from '../../../components/AppSelect'
 import type { AiApi, AiConversation } from '../shared/types'
-import type {
-  MemoryFact,
-  MemorySearchResult,
-  MemorySourceDetail,
-  MemoryStatus
-} from '../shared/memory-types'
+import type { MemoryFact, MemorySearchResult, MemorySourceDetail } from '../shared/memory-types'
 import { KnowledgePanel } from './KnowledgePanel'
 import { MaintenancePanel } from './MaintenancePanel'
 
@@ -17,9 +20,13 @@ interface Props {
   conversation: AiConversation | null
 }
 
+const EMPTY_FACTS: MemoryFact[] = []
+
 export function MemoryPanel({ api, conversation }: Props) {
-  const [status, setStatus] = useState<MemoryStatus | null>(null)
-  const [facts, setFacts] = useState<MemoryFact[]>([])
+  const sharedStatus = memoryStatusResource(api)
+  const status = useDetailResource(sharedStatus, false).data ?? null
+  const sharedFacts = memoryFactsResource(api, status?.activeProfileId ?? '')
+  const [facts] = useResourceValue(sharedFacts, EMPTY_FACTS)
   const [results, setResults] = useState<MemorySearchResult[]>([])
   const [preview, setPreview] = useState<MemorySourceDetail | null>(null)
   const previewGeneration = useRef(0)
@@ -37,26 +44,22 @@ export function MemoryPanel({ api, conversation }: Props) {
 
   const refresh = useCallback(async () => {
     const generation = ++identityGeneration.current
-    const next = await api.getMemoryStatus()
+    const next = await reloadMemoryResource(sharedStatus)
     if (generation !== identityGeneration.current) return
-    setStatus(next)
     if (next.activeProfileId) {
-      const loaded = await api.listMemoryFacts()
-      if (generation === identityGeneration.current) setFacts(loaded)
-    } else setFacts([])
-  }, [api])
+      await reloadMemoryResource(memoryFactsResource(api, next.activeProfileId))
+    }
+  }, [api, sharedStatus])
 
   useEffect(() => {
     let alive = true
     const generation = ++identityGeneration.current
-    void api
-      .getMemoryStatus()
+    void sharedStatus
+      .request()
       .then(async (next) => {
         if (!alive || generation !== identityGeneration.current) return
-        setStatus(next)
         if (next.activeProfileId) {
-          const loaded = await api.listMemoryFacts()
-          if (alive && generation === identityGeneration.current) setFacts(loaded)
+          await memoryFactsResource(api, next.activeProfileId).request()
         }
       })
       .catch(
@@ -68,7 +71,7 @@ export function MemoryPanel({ api, conversation }: Props) {
     return () => {
       alive = false
     }
-  }, [api])
+  }, [api, sharedStatus])
 
   const run = async (action: () => Promise<void>) => {
     setBusy(true)
@@ -89,7 +92,7 @@ export function MemoryPanel({ api, conversation }: Props) {
       previewGeneration.current++
       setResults([])
       setPreview(null)
-      const profile = await api.connectMemory(name, url, token)
+      const profile = await changeMemoryIdentity(api, () => api.connectMemory(name, url, token))
       setToken('')
       await refresh()
       setMessage(`已连接 ${profile.displayName}，新建会话会使用此记忆身份。`)
@@ -100,7 +103,7 @@ export function MemoryPanel({ api, conversation }: Props) {
       previewGeneration.current++
       setResults([])
       setPreview(null)
-      await api.selectMemory(profileId)
+      await changeMemoryIdentity(api, () => api.selectMemory(profileId))
       await refresh()
     })
   const bind = () =>
@@ -322,6 +325,7 @@ export function MemoryPanel({ api, conversation }: Props) {
             <MaintenancePanel
               key={`maintenance:${active.id}`}
               api={api}
+              profileId={active.id}
               conversation={conversation}
               facts={facts}
               onFactsChange={refresh}
@@ -329,6 +333,7 @@ export function MemoryPanel({ api, conversation }: Props) {
             <KnowledgePanel
               key={active.id}
               api={api}
+              profileId={active.id}
               conversation={conversation}
               capabilities={active.capabilities}
               binding={binding?.profileId === active.id ? binding : undefined}

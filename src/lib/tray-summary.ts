@@ -5,7 +5,22 @@ import { calculateCurrentPositionProfitOverride } from './portfolio-performance'
 import { stockTOverview } from './stock-accounts'
 import { getTaskbarVisibleStocks } from './taskbar-visibility'
 
-export function getTraySummaryStocks(state: AppState, quotes: readonly StockQuote[]) {
+export function getTraySummaryStocks(
+  state: Pick<
+    AppState,
+    | 'watchlist'
+    | 'stockTradingBooks'
+    | 'securitiesAccounts'
+    | 'feeSchemes'
+    | 'portfolioPerformanceAdjustments'
+  > & {
+    settings: Pick<
+      AppState['settings'],
+      'exchangeRates' | 'tTradingFees' | 'marketTradeFees' | 'lastUsedAccountIdByMarket'
+    >
+  },
+  quotes: readonly StockQuote[]
+) {
   const quoteMap = new Map(quotes.map((quote) => [quote.quoteId, quote]))
   return getTaskbarVisibleStocks(state.watchlist).map((stock) => {
     const quote = quoteMap.get(stock.quoteId)

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { getInitialBootstrap, initialState, stockApi } from '../lib/api'
+import { getInitialBootstrap, stockApi } from '../lib/api'
 import {
   formatCost,
   formatMoney,
@@ -15,7 +15,7 @@ import { getMenuBarQuoteStatus } from '../lib/menu-bar'
 import { applyAppThemePreference } from '../lib/theme'
 import { observeContentHeight } from '../lib/observe-content-height'
 import { createMenuBarDisclosureAnimator } from '../lib/menu-bar-disclosure-animation'
-import type { AppState, StockQuote } from '../shared/types'
+import { useAuxiliaryState, useAuxiliaryQuotes } from '../lib/data-center/hooks'
 import { evaluateStopLoss } from '../shared/stop-loss'
 import { marketFromQuoteId } from '../shared/stock-market'
 import { AnimatedNumber } from './AnimatedNumber'
@@ -29,8 +29,8 @@ function valueClass(value: number | null | undefined): string {
 }
 
 export function TrayHoverSummary({ interactive = false }: { interactive?: boolean }) {
-  const [state, setState] = useState<AppState>(initialState)
-  const [quotes, setQuotes] = useState<StockQuote[]>([])
+  const state = useAuxiliaryState()
+  const quotes = useAuxiliaryQuotes()
   const [error, setError] = useState('')
   const [refreshing, setRefreshing] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -54,22 +54,9 @@ export function TrayHoverSummary({ interactive = false }: { interactive?: boolea
 
   useEffect(() => {
     let active = true
-    let receivedQuotes = false
-    let receivedState = false
-    const unsubscribeQuotes = stockApi.onQuotesUpdated((nextQuotes) => {
-      receivedQuotes = true
-      setQuotes(nextQuotes)
-    })
-    const unsubscribeState = stockApi.onStateUpdated((nextState) => {
-      receivedState = true
-      setState(nextState)
-    })
-
     void getInitialBootstrap()
-      .then((bootstrap) => {
+      .then(() => {
         if (!active) return
-        if (!receivedState) setState(bootstrap.state)
-        if (!receivedQuotes) setQuotes(bootstrap.quotes)
         setLoading(false)
       })
       .catch(() => {
@@ -81,8 +68,6 @@ export function TrayHoverSummary({ interactive = false }: { interactive?: boolea
 
     return () => {
       active = false
-      unsubscribeQuotes()
-      unsubscribeState()
     }
   }, [])
 
@@ -132,9 +117,8 @@ export function TrayHoverSummary({ interactive = false }: { interactive?: boolea
     setRefreshing(true)
     setError('')
     try {
-      const bootstrap = await stockApi.getBootstrap()
-      setState(bootstrap.state)
-      setQuotes(await stockApi.refreshQuotes())
+      await stockApi.getBootstrap()
+      await stockApi.refreshQuotes()
     } catch {
       setError('刷新失败，当前显示上次行情')
     } finally {
@@ -180,13 +164,7 @@ export function TrayHoverSummary({ interactive = false }: { interactive?: boolea
                 onToggle={() => toggleStock(stock.quoteId)}
               >
                 {expandedQuoteId === stock.quoteId ? (
-                  <StockQuoteDetails
-                    key={stock.quoteId}
-                    quoteId={stock.quoteId}
-                    state={state}
-                    quotes={quotes}
-                    embedded
-                  />
+                  <StockQuoteDetails key={stock.quoteId} quoteId={stock.quoteId} embedded />
                 ) : null}
               </MenuBarStockRow>
             )

@@ -1,8 +1,17 @@
 import { AlertCircle, Eye, EyeOff, RefreshCw, Radar, Radio } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FundamentalCompany, StockQuote, WatchStock } from '../../../shared/types'
 import { formatUpdateTime } from '../../../lib/format'
 import { InvestmentValueMetrics } from '../../../components/InvestmentValueMetrics'
+import { useDetailResource } from '../../../lib/data-center/detail-hooks'
+import {
+  insightSettingsResource,
+  insightStatusResource,
+  insightSnapshotResource,
+  changeInsightSettings,
+  refreshInsight,
+  retainInsightUpdates
+} from '../../../lib/data-center/optional-resources'
 import { marketInsightApi } from './api'
 import { IndicatorGrid } from './IndicatorGrid'
 import {
@@ -16,16 +25,7 @@ import {
 import { NewsTimeline } from './NewsTimeline'
 import { TPlanDistanceCard } from './TPlanDistanceCard'
 import { WatchEventList } from './WatchEventList'
-import type {
-  MarketInsightSettings,
-  MarketInsightSnapshot,
-  MarketInsightStatus
-} from '../shared/types'
-import {
-  getMarketInsightSettings,
-  saveMarketInsightSettings,
-  subscribeMarketInsightSettings
-} from './settings-store'
+import type { MarketInsightSettings } from '../shared/types'
 
 interface MarketInsightPanelProps {
   stock: WatchStock
@@ -33,8 +33,6 @@ interface MarketInsightPanelProps {
   fundamentalCompany?: FundamentalCompany
   fundamentalSnapshotDate?: string
   fundamentalStaleReason?: string | null
-  onSnapshotChanged: (snapshot: MarketInsightSnapshot | null) => void
-  onChartOverlayEnabledChange: (enabled: boolean) => void
 }
 
 const INTRADAY_SECTION_HINT =
@@ -47,176 +45,120 @@ export default function MarketInsightPanel({
   quote,
   fundamentalCompany,
   fundamentalSnapshotDate,
-  fundamentalStaleReason,
-  onSnapshotChanged,
-  onChartOverlayEnabledChange
+  fundamentalStaleReason
 }: MarketInsightPanelProps) {
-  const [status, setStatus] = useState<MarketInsightStatus | null>(null)
-  const [settings, setSettings] = useState<MarketInsightSettings | null>(null)
-  const [snapshot, setSnapshot] = useState<MarketInsightSnapshot | null>(null)
-  const [loading, setLoading] = useState(true)
+  const settingsState = useDetailResource(insightSettingsResource())
+  const statusState = useDetailResource(insightStatusResource())
+  const sharedSnapshot = insightSnapshotResource(stock.quoteId)
+  const snapshotState = useDetailResource(sharedSnapshot)
+  const settings = settingsState.data
+  const status = statusState.data ?? null
+  const snapshot = snapshotState.data
+  const [thresholdDraft, setThresholdDraft] = useState<
+    Partial<Pick<MarketInsightSettings, 'volumeSpikeRatio' | 'eventCooldownMinutes'>>
+  >({})
   const [refreshing, setRefreshing] = useState(false)
-  const [error, setError] = useState('')
-  const enabledRef = useRef<boolean | null>(null)
-
+  const [actionError, setActionError] = useState({ quoteId: '', message: '' })
+  const setError = (message: string) => setActionError({ quoteId: stock.quoteId, message })
+  const error =
+    (actionError.quoteId === stock.quoteId ? actionError.message : '') ||
+    snapshotState.error ||
+    settingsState.error ||
+    statusState.error
+  const loading = snapshotState.loading || settingsState.loading || statusState.loading
   const isWatching = settings?.watchedQuoteIds.includes(stock.quoteId) ?? false
-
-  const updateSnapshot = useCallback(
-    (nextSnapshot: MarketInsightSnapshot | null) => {
-      setSnapshot(nextSnapshot)
-      onSnapshotChanged(nextSnapshot)
-    },
-    [onSnapshotChanged]
-  )
-
-  const loadSnapshot = useCallback(
-    async (refresh = false, allowCreate = true) => {
-      if (refresh) setRefreshing(true)
-      else setLoading(true)
-      setError('')
-      try {
-        const nextSnapshot = refresh
-          ? await marketInsightApi.refresh(stock.quoteId)
-          : await marketInsightApi.getSnapshot(stock.quoteId)
-        updateSnapshot(nextSnapshot)
-        if (!nextSnapshot && !refresh && allowCreate) {
-          const created = await marketInsightApi.refresh(stock.quoteId)
-          updateSnapshot(created)
-        }
-      } catch (reason) {
-        setError(reason instanceof Error ? reason.message : '市场观察数据加载失败')
-      } finally {
-        setLoading(false)
-        setRefreshing(false)
-      }
-    },
-    [stock.quoteId, updateSnapshot]
-  )
+  const previousEnabled = useRef<boolean | undefined>(undefined)
+  useEffect(retainInsightUpdates, [])
 
   useEffect(() => {
     let active = true
-    Promise.all([
-      marketInsightApi.getStatus(),
-      getMarketInsightSettings(),
-      marketInsightApi.getSnapshot(stock.quoteId)
-    ])
-      .then(([nextStatus, nextSettings, initialSnapshot]) => {
-        if (!active) return
-        setStatus(nextStatus)
-        setSettings(nextSettings)
-        enabledRef.current = nextSettings.enabled
-        onChartOverlayEnabledChange(nextSettings.enabled && nextSettings.showChartOverlay)
-        updateSnapshot(initialSnapshot)
-        if (!initialSnapshot && nextStatus.enabled) void loadSnapshot(true)
-        else setLoading(false)
+    const reenabled = previousEnabled.current === false && settings?.enabled === true
+    previousEnabled.current = settings?.enabled
+    if (settings?.enabled) {
+      void (
+        reenabled
+          ? refreshInsight(stock.quoteId)
+          : sharedSnapshot
+              .request()
+              .then((current) => (current ? undefined : refreshInsight(stock.quoteId)))
+      ).catch((reason: unknown) => {
+        if (active)
+          setActionError({
+            quoteId: stock.quoteId,
+            message: reason instanceof Error ? reason.message : '市场观察数据加载失败'
+          })
       })
-      .catch((reason: unknown) => {
-        if (!active) return
-        setError(reason instanceof Error ? reason.message : '市场观察设置加载失败')
-        setLoading(false)
-      })
-    const unsubscribe = marketInsightApi.onUpdated((quoteId) => {
-      if (quoteId !== stock.quoteId) return
-      void Promise.all([marketInsightApi.getSnapshot(quoteId), marketInsightApi.getStatus()]).then(
-        ([nextSnapshot, nextStatus]) => {
-          if (!active) return
-          setStatus(nextStatus)
-          updateSnapshot(nextSnapshot)
-        }
-      )
-    })
-    const unsubscribeSettings = subscribeMarketInsightSettings((nextSettings) => {
-      if (!active) return
-      const wasEnabled = enabledRef.current
-      enabledRef.current = nextSettings.enabled
-      setSettings(nextSettings)
-      setStatus((current) =>
-        current
-          ? {
-              ...current,
-              enabled: nextSettings.enabled,
-              watchedQuoteIds: nextSettings.watchedQuoteIds
-            }
-          : current
-      )
-      onChartOverlayEnabledChange(nextSettings.enabled && nextSettings.showChartOverlay)
-      if (wasEnabled === false && nextSettings.enabled) void loadSnapshot(true)
-      if (!nextSettings.enabled) setLoading(false)
-    })
+    }
     return () => {
       active = false
-      unsubscribe()
-      unsubscribeSettings()
     }
-  }, [loadSnapshot, onChartOverlayEnabledChange, stock.quoteId, updateSnapshot])
+  }, [settings?.enabled, sharedSnapshot, stock.quoteId])
 
-  const saveSettings = useCallback(async (nextSettings: MarketInsightSettings) => {
-    const normalized = await saveMarketInsightSettings(nextSettings)
-    setStatus((current) =>
-      current
-        ? { ...current, enabled: normalized.enabled, watchedQuoteIds: normalized.watchedQuoteIds }
-        : current
-    )
-  }, [])
-
-  const toggleWatching = async () => {
-    if (!settings) return
+  const loadSnapshot = async () => {
+    setRefreshing(true)
     setError('')
     try {
-      const watchedQuoteIds = isWatching
-        ? settings.watchedQuoteIds.filter((quoteId) => quoteId !== stock.quoteId)
-        : [...settings.watchedQuoteIds, stock.quoteId]
-      await saveSettings({ ...settings, watchedQuoteIds })
-      if (!isWatching) await loadSnapshot(true)
+      await refreshInsight(stock.quoteId)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '市场观察数据加载失败')
+    } finally {
+      setRefreshing(false)
+    }
+  }
+  const toggleWatching = async () => {
+    setError('')
+    try {
+      const next = await changeInsightSettings((current) => ({
+        ...current,
+        watchedQuoteIds: current.watchedQuoteIds.includes(stock.quoteId)
+          ? current.watchedQuoteIds.filter((id) => id !== stock.quoteId)
+          : [...current.watchedQuoteIds, stock.quoteId]
+      }))
+      if (next.watchedQuoteIds.includes(stock.quoteId)) await loadSnapshot()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '盯盘设置保存失败')
     }
   }
-
   const toggleOverlay = async () => {
-    if (!settings) return
     try {
-      const nextSettings = { ...settings, showChartOverlay: !settings.showChartOverlay }
-      await saveSettings(nextSettings)
-      onChartOverlayEnabledChange(nextSettings.showChartOverlay)
+      await changeInsightSettings((current) => ({
+        ...current,
+        showChartOverlay: !current.showChartOverlay
+      }))
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '图表叠加设置保存失败')
     }
   }
-
   const toggleOlderNews = async () => {
-    if (!settings) return
     try {
-      await saveSettings({ ...settings, includeOlderNews: !settings.includeOlderNews })
+      await changeInsightSettings((current) => ({
+        ...current,
+        includeOlderNews: !current.includeOlderNews
+      }))
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '要闻查询范围保存失败')
     }
   }
-
   const acknowledge = async (eventId: string) => {
     try {
       await marketInsightApi.acknowledgeEvent(eventId)
-      const events = await marketInsightApi.listEvents(stock.quoteId)
-      if (snapshot) updateSnapshot({ ...snapshot, events })
+      sharedSnapshot.invalidate()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '事件确认失败')
     }
   }
-
   const clearExpiredEvents = async () => {
     try {
       await marketInsightApi.clearExpiredEvents(stock.quoteId)
-      const events = await marketInsightApi.listEvents(stock.quoteId)
-      if (snapshot) updateSnapshot({ ...snapshot, events })
+      sharedSnapshot.invalidate()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '过期事件清理失败')
     }
   }
-
   const saveThresholds = async () => {
-    if (!settings) return
     try {
-      await saveSettings(settings)
+      await changeInsightSettings((current) => ({ ...current, ...thresholdDraft }))
+      setThresholdDraft({})
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '观察阈值保存失败')
     }
@@ -288,7 +230,7 @@ export default function MarketInsightPanel({
           <button
             className="secondary-button"
             type="button"
-            onClick={() => void loadSnapshot(true)}
+            onClick={() => void loadSnapshot()}
             disabled={refreshing || !status?.enabled}
           >
             <RefreshCw size={14} className={refreshing ? 'is-spinning' : ''} />
@@ -327,9 +269,12 @@ export default function MarketInsightPanel({
               type="number"
               min="1"
               step="0.1"
-              value={settings.volumeSpikeRatio}
+              value={thresholdDraft.volumeSpikeRatio ?? settings.volumeSpikeRatio}
               onChange={(event) =>
-                setSettings({ ...settings, volumeSpikeRatio: Number(event.target.value) })
+                setThresholdDraft({
+                  ...thresholdDraft,
+                  volumeSpikeRatio: Number(event.target.value)
+                })
               }
             />
           </label>
@@ -339,9 +284,12 @@ export default function MarketInsightPanel({
               type="number"
               min="1"
               step="1"
-              value={settings.eventCooldownMinutes}
+              value={thresholdDraft.eventCooldownMinutes ?? settings.eventCooldownMinutes}
               onChange={(event) =>
-                setSettings({ ...settings, eventCooldownMinutes: Number(event.target.value) })
+                setThresholdDraft({
+                  ...thresholdDraft,
+                  eventCooldownMinutes: Number(event.target.value)
+                })
               }
             />
             分钟

@@ -86,6 +86,7 @@ export function createDetailCenter(transport: StockDesktopApi) {
       { quoteId, category: 'tracking-archives', maxAge: Infinity }
     )
   return {
+    resource: cache.get,
     kline,
     fundsFlow,
     sector,

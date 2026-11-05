@@ -1,6 +1,6 @@
 import { stockTOverview } from '../lib/stock-accounts'
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { initialState, stockApi } from '../lib/api'
+import { getInitialBootstrap, stockApi } from '../lib/api'
 import {
   formatCost,
   formatCurrency,
@@ -31,14 +31,17 @@ import {
 import { applyAppThemePreference } from '../lib/theme'
 import { observeContentHeight } from '../lib/observe-content-height'
 import { isMarketOpen, millisecondsUntilNextMarketOpen } from '../shared/market-hours'
-import type {
-  AppState,
-  KlineBar,
-  KlineResult,
-  StockOrderBook,
-  StockQuote,
-  TaskbarLayout
-} from '../shared/types'
+import { dataCenter } from '../lib/api'
+import {
+  useAppData,
+  useAppSetting,
+  useAppSettings,
+  useStockQuote,
+  useStockTradingBook,
+  useAccountFeeData
+} from '../lib/data-center/hooks'
+import { useDetailResource, useKlineResource } from '../lib/data-center/detail-hooks'
+import type { KlineBar, StockOrderBook, TaskbarLayout } from '../shared/types'
 import { AppThemeController } from './AppThemeController'
 import { AppButton } from './AppButton'
 import { AnimatedNumber } from './AnimatedNumber'
@@ -346,54 +349,36 @@ export function TaskbarStockTooltip() {
 
 function TaskbarTooltipContent({ quoteId }: { quoteId: string }) {
   const shellRef = useRef<HTMLDivElement>(null)
-  const [state, setState] = useState<AppState>(initialState)
+  const theme = useAppSetting('theme')
   const [stateReady, setStateReady] = useState(false)
-  const [quotes, setQuotes] = useState<StockQuote[]>([])
   const [layout, setLayout] = useState<TaskbarLayout>({
     taskbarHeight: 48,
     taskbarEdge: 'bottom'
   })
 
   useEffect(() => {
-    if (stateReady) applyAppThemePreference(state.settings.theme)
-  }, [stateReady, state.settings.theme])
+    if (stateReady) applyAppThemePreference(theme)
+  }, [stateReady, theme])
 
   useEffect(() => {
     let active = true
-    let receivedQuotesEvent = false
-    let receivedStateEvent = false
     let receivedLayoutEvent = false
 
-    const unsubscribeQuotes = stockApi.onQuotesUpdated((nextQuotes) => {
-      receivedQuotesEvent = true
-      setQuotes(nextQuotes)
-    })
-    const unsubscribeState = stockApi.onStateUpdated((nextState) => {
-      receivedStateEvent = true
-      setState(nextState)
-      setStateReady(true)
-    })
     const unsubscribeLayout = stockApi.onTaskbarLayout((nextLayout) => {
       receivedLayoutEvent = true
       setLayout(nextLayout)
     })
 
-    void Promise.all([stockApi.getBootstrap(), stockApi.getTaskbarLayout()]).then(
-      ([bootstrap, taskbarLayout]) => {
+    void Promise.all([getInitialBootstrap(), stockApi.getTaskbarLayout()]).then(
+      ([, taskbarLayout]) => {
         if (!active) return
-        if (!receivedStateEvent) {
-          setState(bootstrap.state)
-          setStateReady(true)
-        }
-        if (!receivedQuotesEvent) setQuotes(bootstrap.quotes)
+        setStateReady(true)
         if (!receivedLayoutEvent) setLayout(taskbarLayout)
       }
     )
 
     return () => {
       active = false
-      unsubscribeQuotes()
-      unsubscribeState()
       unsubscribeLayout()
     }
   }, [])
@@ -411,86 +396,62 @@ function TaskbarTooltipContent({ quoteId }: { quoteId: string }) {
       ref={shellRef}
     >
       <AppThemeController />
-      <StockQuoteDetails quoteId={quoteId} state={state} quotes={quotes} />
+      <StockQuoteDetails quoteId={quoteId} />
     </div>
   )
 }
 
 export function StockQuoteDetails({
   quoteId,
-  state,
-  quotes,
   embedded = false
 }: {
   quoteId: string
-  state: AppState
-  quotes: readonly StockQuote[]
   embedded?: boolean
 }) {
-  const [intraday, setIntraday] = useState<KlineResult | null>(null)
-  const [orderBook, setOrderBook] = useState<StockOrderBook | null>(null)
-  const stock = state.watchlist.find((item) => item.quoteId === quoteId)
-  const quote = quotes.find((item) => item.quoteId === quoteId)
+  const stock = useAppData((snapshot) =>
+    snapshot.state.watchlist.find((item) => item.quoteId === quoteId)
+  )
+  const quote = useStockQuote(quoteId)
+  const account = useStockTradingBook(quoteId)
+  const feeState = useAccountFeeData()
+  const settings = useAppSettings([
+    'tradingCalendar',
+    'autoRefreshQuotes',
+    'priorityRefreshSeconds',
+    'regularRefreshSeconds',
+    'exchangeRates'
+  ])
+  const adjustment = useAppData(
+    (snapshot) => snapshot.state.portfolioPerformanceAdjustments?.[quoteId] ?? 0
+  )
+  const cumulativeProfit = useAppData(
+    (snapshot) => snapshot.state.portfolioPerformanceCache?.cumulativeProfitByQuoteId[quoteId]
+  )
   const market = stock?.market ?? marketFromQuoteId(quoteId)
-  const tradingCalendar = state.settings.tradingCalendar.markets[market]
-  const autoRefresh = state.settings.autoRefreshQuotes
+  const tradingCalendar = settings.tradingCalendar.markets[market]
   const refreshSeconds = stock?.isPriority
-    ? state.settings.priorityRefreshSeconds
-    : state.settings.regularRefreshSeconds
-
-  useEffect(() => {
-    let active = true
-    void stockApi.getKline(quoteId, 'intraday').then(
-      (result) => {
-        if (active) setIntraday(result)
-      },
-      () => {
-        if (active) setIntraday(null)
-      }
-    )
-    return () => {
-      active = false
-    }
-  }, [quoteId])
-
-  useEffect(() => {
-    if (!marketCapabilitiesForQuoteId(quoteId).orderBook) return
-    let active = true
-    let refreshTimer: number | undefined
-    const refreshMilliseconds = Math.max(3, refreshSeconds) * 1000
-
-    const scheduleRefresh = () => {
-      if (!active || !autoRefresh) return
-      const now = new Date()
-      refreshTimer = window.setTimeout(
-        () => {
-          if (isMarketOpen(market, new Date(), tradingCalendar)) {
-            refresh()
-          } else {
-            scheduleRefresh()
+    ? settings.priorityRefreshSeconds
+    : settings.regularRefreshSeconds
+  const demand = useMemo(
+    () =>
+      settings.autoRefreshQuotes
+        ? {
+            interval: Math.max(3, refreshSeconds) * 1000,
+            canRefresh: () => isMarketOpen(market, new Date(), tradingCalendar),
+            nextWindow: () => millisecondsUntilNextMarketOpen(market, new Date(), tradingCalendar)
           }
-        },
-        isMarketOpen(market, now, tradingCalendar)
-          ? refreshMilliseconds
-          : millisecondsUntilNextMarketOpen(market, now, tradingCalendar)
-      )
-    }
-    const refresh = () => {
-      void stockApi
-        .getOrderBook(quoteId)
-        .then((result) => {
-          if (active) setOrderBook(result)
-        })
-        .catch(() => undefined)
-        .finally(scheduleRefresh)
-    }
-
-    refresh()
-    return () => {
-      active = false
-      window.clearTimeout(refreshTimer)
-    }
-  }, [autoRefresh, market, quoteId, refreshSeconds, tradingCalendar])
+        : undefined,
+    [settings.autoRefreshQuotes, refreshSeconds, market, tradingCalendar]
+  )
+  // Keep the tooltip's original one-shot sparkline behavior.
+  const intraday = useKlineResource(quoteId, 'intraday', undefined, true, false).data
+  const orderBook = useDetailResource(
+    marketCapabilitiesForQuoteId(quoteId).orderBook
+      ? dataCenter.details.orderBook(quoteId)
+      : undefined,
+    true,
+    demand
+  ).data
 
   const holdingDays = getPositionHoldingDays(
     stock?.position,
@@ -504,12 +465,11 @@ export function StockQuoteDetails({
     () => recentFifteenMinuteBars(currentIntraday?.bars ?? []),
     [currentIntraday]
   )
-  const account = state.stockTradingBooks[quoteId]
   const availablePositionQuantity = getAvailablePositionQuantity(stock?.position, account, market)
   const overview = stockTOverview(account, quote?.latest, {
     market,
     instrumentType: stock?.instrumentType,
-    feeState: state
+    feeState
   })
   const tAlertBadges = overview.badges
   const floatingProfitAlert = overview.floatingAlert
@@ -518,21 +478,19 @@ export function StockQuoteDetails({
         stock,
         quote,
         account,
-        state.settings.exchangeRates,
-        state.portfolioPerformanceAdjustments?.[stock.quoteId] ?? 0
+        settings.exchangeRates,
+        adjustment
       )
     : undefined
   const positionMetrics = calculatePositionMetrics(
     stock?.position,
     quote,
     account,
-    state.settings.exchangeRates,
+    settings.exchangeRates,
     positionProfitOverride
   )
   const hasPosition = (stock?.position?.quantity ?? 0) > 0
-  const displayedTotalProfit = hasPosition
-    ? positionMetrics.totalProfit
-    : state.portfolioPerformanceCache?.cumulativeProfitByQuoteId[quoteId]
+  const displayedTotalProfit = hasPosition ? positionMetrics.totalProfit : cumulativeProfit
   const displayedProfitCurrency = hasPosition ? positionMetrics.currency : 'CNY'
   const displayedProfitPercent = hasPosition ? positionMetrics.profitPercent : null
   const triggeredStockAlerts =

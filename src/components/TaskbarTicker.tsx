@@ -1,7 +1,7 @@
 import { stockTOverview } from '../lib/stock-accounts'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { getInitialBootstrap, stockApi } from '../lib/api'
-import { useAppData } from '../lib/data-center/hooks'
+import { useAuxiliaryState, useAuxiliaryQuotes } from '../lib/data-center/hooks'
 import { formatPercent, formatPrice } from '../lib/format'
 import { getTriggeredStockAlertDirection } from '../lib/stock-alerts'
 import { getTaskbarVisibleStocks } from '../lib/taskbar-visibility'
@@ -22,8 +22,8 @@ function directionClass(changePercent: number | null | undefined): string {
 }
 
 export function TaskbarTicker() {
-  const state = useAppData((snapshot) => snapshot.state)
-  const quotes = useAppData((snapshot) => snapshot.quotes)
+  const state = useAuxiliaryState()
+  const quotes = useAuxiliaryQuotes()
   const [initialized, setInitialized] = useState(false)
   const tickerRef = useRef<HTMLDivElement>(null)
 
