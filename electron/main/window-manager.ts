@@ -269,7 +269,6 @@ export class WindowManager {
       this.trayPopupWindow
     ]) {
       if (!window || window.isDestroyed()) continue
-      if (window === this.taskbarTooltipWindow && !window.isVisible()) continue
       window.webContents.send(channel, payload)
     }
     if (

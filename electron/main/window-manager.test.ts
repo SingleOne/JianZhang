@@ -363,4 +363,37 @@ describe('Windows taskbar details', () => {
     expect(tooltip.isVisible()).toBe(false)
     expect(manager.getTaskbarTooltipQuoteId()).toBeNull()
   })
+
+  it.each(['state:changed', 'quotes:updated'])(
+    'keeps the reusable tooltip synchronized with %s while hidden and visible',
+    (channel) => {
+      const { tooltip } = openTooltip()
+      const payload =
+        channel === 'state:changed'
+          ? { baseRevision: 0, revision: 1, patch: null }
+          : [{ quoteId: anchor.quoteId, latest: 10 }]
+      manager.setTaskbarTooltip(null)
+      tooltip.webContents.send.mockClear()
+
+      manager.sendToWindows(channel, payload)
+      expect(tooltip.isVisible()).toBe(false)
+      expect(tooltip.webContents.send).toHaveBeenCalledTimes(1)
+      expect(tooltip.webContents.send).toHaveBeenCalledWith(channel, payload)
+
+      manager.setTaskbarTooltip({ quoteId: anchor.quoteId, left: 0, width: 100 })
+      expect(windows).toHaveLength(2)
+      expect(windows[1]).toBe(tooltip)
+      expect(tooltip.isVisible()).toBe(true)
+      tooltip.webContents.send.mockClear()
+
+      manager.sendToWindows(channel, payload)
+      expect(tooltip.webContents.send).toHaveBeenCalledTimes(1)
+      expect(tooltip.webContents.send).toHaveBeenCalledWith(channel, payload)
+
+      tooltip.destroy()
+      tooltip.webContents.send.mockClear()
+      manager.sendToWindows(channel, payload)
+      expect(tooltip.webContents.send).not.toHaveBeenCalled()
+    }
+  )
 })
