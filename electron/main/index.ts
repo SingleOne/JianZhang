@@ -24,6 +24,7 @@ import {
 } from '../../src/shared/market-hours'
 import { marketFromQuoteId } from '../../src/shared/stock-market'
 import { createAppStateUpdate } from '../../src/shared/state-changes'
+import { watchlistAddedDate } from '../../src/shared/watchlist-date'
 import { formatStockAlertNotification, type TriggeredStockAlert } from '../../src/lib/stock-alerts'
 import {
   formatTFloatingProfitAlertNotification,
@@ -428,6 +429,51 @@ async function initializeAiModule(marketInsightReady: Promise<boolean>): Promise
     if (isQuitting) return false
     const runtime = installAi({
       getState: () => state,
+      searchStocks,
+      addWatchlistStock: (result) => {
+        if (state.watchlist.some((stock) => stock.quoteId === result.quoteId)) {
+          return { added: false }
+        }
+        const stock: WatchStock = {
+          ...result,
+          showInTaskbar: false,
+          isPriority: false,
+          showRadarSignals: true,
+          groupIds: [],
+          addedAt: watchlistAddedDate(),
+          addedPrice:
+            getLatestQuotes().find((quote) => quote.quoteId === result.quoteId)?.latest ?? undefined
+        }
+        state = stateStore!.normalize({ ...state, watchlist: [...state.watchlist, stock] }, state)
+        persistState()
+        sendToWindows('state:updated', state)
+        windowManager?.updateTrayMenu()
+        windowManager?.syncTaskbarWindow()
+        const addedStock = state.watchlist.find((item) => item.quoteId === result.quoteId)!
+        void quoteRuntime!
+          .refreshStock(result.quoteId, 'ai:watchlist-add')
+          .then((quotes) => {
+            const price = quotes.find((quote) => quote.quoteId === result.quoteId)?.latest
+            const current = state.watchlist.find((item) => item.quoteId === result.quoteId)
+            if (price == null || current !== addedStock || current.addedPrice != null) return
+            state = {
+              ...state,
+              watchlist: state.watchlist.map((item) =>
+                item === addedStock ? { ...item, addedPrice: price } : item
+              )
+            }
+            persistState()
+            sendToWindows('state:updated', state)
+          })
+          .catch((error: unknown) => {
+            sendToWindows(
+              'data:error',
+              error instanceof Error ? error.message : '添加后行情更新失败'
+            )
+          })
+        void quoteRuntime!.primeSectorBindings(true)
+        return { added: true }
+      },
       getMarketInsightSnapshot: async (quoteId) => {
         await marketInsightReady
         return marketInsightRuntime?.getSnapshot(quoteId) ?? null

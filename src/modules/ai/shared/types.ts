@@ -25,6 +25,7 @@ import type {
   GlobalFundamentalSnapshot,
   KlinePeriod,
   KlineResult,
+  SearchResult,
   SectorIndexResult,
   ShareholderSnapshot,
   StockOrderBook,
@@ -650,6 +651,8 @@ export interface AiProvider {
 
 export interface AiModuleDependencies {
   getState: () => AppState
+  searchStocks: (query: string) => Promise<SearchResult[]>
+  addWatchlistStock: (stock: SearchResult) => { added: boolean }
   getMarketInsightSnapshot: (quoteId: string) => Promise<MarketInsightSnapshot | null> | null
   refreshMarketInsightSnapshot: (quoteId: string) => Promise<MarketInsightSnapshot | null> | null
   searchOfficialStockNews: (input: {

@@ -80,6 +80,7 @@ import { MINIMAX_SEARCH_TOOL, MiniMaxSearchSession } from './web-search/minimax'
 import { WebSearchSources, webPageUrl } from './web-search/sources'
 import { PdfDocumentReader } from './documents/pdf-reader'
 import { PDF_DOCUMENT_TOOL, PdfDocumentSession } from './documents/tool'
+import { ADD_WATCHLIST_STOCK_TOOL, executeAddWatchlistStock } from './watchlist/tool'
 import { MemoryBridge } from './memory/bridge'
 import { TurnSourceRegistry } from './citations/registry'
 import {
@@ -1276,6 +1277,7 @@ export class AiService {
           ? sourceRegistry.buildMemoryContext(prepared)
           : undefined
       const tools = [
+        ADD_WATCHLIST_STOCK_TOOL,
         ...(pdfAvailable ? [PDF_DOCUMENT_TOOL] : []),
         ...(stockDataSession
           ? [STOCK_DATA_TOOL, ...(stockSearchSession ? [STOCK_INFORMATION_SEARCH_TOOL] : [])]
@@ -1339,6 +1341,9 @@ export class AiService {
         controller.signal,
         tools.length
           ? async (call, signal) => {
+              if (call.name === ADD_WATCHLIST_STOCK_TOOL.name) {
+                return executeAddWatchlistStock(call, signal, this.dependencies)
+              }
               if (pdfAvailable && call.name === PDF_DOCUMENT_TOOL.name) {
                 const output = await pdfSession.execute(call, signal)
                 sourceRegistry.registerWeb(pdfSession.citations())
