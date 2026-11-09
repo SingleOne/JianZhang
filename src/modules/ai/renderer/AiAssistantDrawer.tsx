@@ -105,13 +105,15 @@ function messageContextRefs(message: AiMessage) {
   return message.contextRef ? [message.contextRef] : []
 }
 
+const MESSAGE_TIME_FORMATTER = new Intl.DateTimeFormat('zh-CN', {
+  month: 'numeric',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit'
+})
+
 function formatMessageTime(value: string): string {
-  return new Date(value).toLocaleString('zh-CN', {
-    month: 'numeric',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+  return MESSAGE_TIME_FORMATTER.format(new Date(value))
 }
 
 const MARKDOWN_PLUGINS = [remarkGfm]
@@ -392,6 +394,99 @@ function ConversationList({
   )
 }
 
+interface ChatMessageProps {
+  api: AiApi
+  conversationId: string
+  message: AiMessage
+  isGenerating: boolean
+  onRetry: (messageId: string) => void
+  onOpenSource: (url: string) => void
+}
+
+const ChatMessage = memo(function ChatMessage({
+  api,
+  conversationId,
+  message,
+  isGenerating,
+  onRetry,
+  onOpenSource
+}: ChatMessageProps) {
+  return (
+    <article className={`ai-message is-${message.role} is-${message.status}`}>
+      <div className="ai-message-avatar">
+        {message.role === 'assistant' ? <Bot size={15} /> : '我'}
+      </div>
+      <div className="ai-message-content">
+        <div className="ai-message-meta">
+          <span>{message.role === 'assistant' ? 'AI 助手' : '你'}</span>
+          <time>{formatMessageTime(message.createdAt)}</time>
+          {messageContextRefs(message).map((context) => (
+            <small key={`${context.source ?? 'legacy'}:${context.snapshotId}`}>
+              {context.source === 'mention' ? '@' : '上下文：'}
+              {context.quoteName ?? context.quoteId}
+              {message.role === 'assistant' && context.datasetIds?.length
+                ? ` · 已读取 ${context.datasetIds.length} 类数据`
+                : ''}
+            </small>
+          ))}
+          {message.officialSearch ? <small>联网搜索</small> : null}
+          {message.webSearch ? <small>网页搜索</small> : null}
+        </div>
+        {message.role === 'assistant' ? (
+          <MarkdownMessage
+            onOpenSource={onOpenSource}
+            content={
+              message.content ||
+              (message.status === 'pending' || message.status === 'streaming'
+                ? message.activity === 'searching'
+                  ? '正在搜索网页…'
+                  : message.activity === 'fetching'
+                    ? '正在读取资料…'
+                    : message.officialSearch
+                      ? '正在联网搜索股票信息…'
+                      : '正在生成…'
+                : '')
+            }
+          />
+        ) : (
+          <p className="ai-message-body">{message.content}</p>
+        )}
+        {message.role === 'assistant' && message.citations?.length ? (
+          <MessageSources
+            citations={message.citations}
+            onOpenSource={onOpenSource}
+            api={api}
+            conversationId={conversationId}
+            messageId={message.id}
+          />
+        ) : null}
+        {message.status === 'error' ? (
+          <div className="ai-message-error">
+            <AlertCircle size={13} />
+            <span>{message.errorMessage ?? '生成失败'}</span>
+            <button type="button" onClick={() => onRetry(message.id)}>
+              <RotateCcw size={13} />
+              重试
+            </button>
+          </div>
+        ) : null}
+        {message.status === 'stopped' ? (
+          <button className="ai-message-retry" type="button" onClick={() => onRetry(message.id)}>
+            <RotateCcw size={13} />
+            重新生成
+          </button>
+        ) : null}
+        {message.status === 'completed' && message.role === 'assistant' && !isGenerating ? (
+          <button className="ai-message-retry" type="button" onClick={() => onRetry(message.id)}>
+            <RotateCcw size={13} />
+            重新生成
+          </button>
+        ) : null}
+      </div>
+    </article>
+  )
+})
+
 interface ChatThreadProps {
   api: AiApi
   conversation: AiConversation | null
@@ -443,91 +538,15 @@ function ChatThread({
         {conversation ? (
           messages.length > 0 ? (
             messages.map((message) => (
-              <article
-                className={`ai-message is-${message.role} is-${message.status}`}
+              <ChatMessage
                 key={message.id}
-              >
-                <div className="ai-message-avatar">
-                  {message.role === 'assistant' ? <Bot size={15} /> : '我'}
-                </div>
-                <div className="ai-message-content">
-                  <div className="ai-message-meta">
-                    <span>{message.role === 'assistant' ? 'AI 助手' : '你'}</span>
-                    <time>{formatMessageTime(message.createdAt)}</time>
-                    {messageContextRefs(message).map((context) => (
-                      <small key={`${context.source ?? 'legacy'}:${context.snapshotId}`}>
-                        {context.source === 'mention' ? '@' : '上下文：'}
-                        {context.quoteName ?? context.quoteId}
-                        {message.role === 'assistant' && context.datasetIds?.length
-                          ? ` · 已读取 ${context.datasetIds.length} 类数据`
-                          : ''}
-                      </small>
-                    ))}
-                    {message.officialSearch ? <small>联网搜索</small> : null}
-                    {message.webSearch ? <small>网页搜索</small> : null}
-                  </div>
-                  {message.role === 'assistant' ? (
-                    <MarkdownMessage
-                      onOpenSource={onOpenSource}
-                      content={
-                        message.content ||
-                        (message.status === 'pending' || message.status === 'streaming'
-                          ? message.activity === 'searching'
-                            ? '正在搜索网页…'
-                            : message.activity === 'fetching'
-                              ? '正在读取资料…'
-                              : message.officialSearch
-                                ? '正在联网搜索股票信息…'
-                                : '正在生成…'
-                          : '')
-                      }
-                    />
-                  ) : (
-                    <p className="ai-message-body">{message.content}</p>
-                  )}
-                  {message.role === 'assistant' && message.citations?.length ? (
-                    <MessageSources
-                      citations={message.citations}
-                      onOpenSource={onOpenSource}
-                      api={api}
-                      conversationId={conversation.id}
-                      messageId={message.id}
-                    />
-                  ) : null}
-                  {message.status === 'error' ? (
-                    <div className="ai-message-error">
-                      <AlertCircle size={13} />
-                      <span>{message.errorMessage ?? '生成失败'}</span>
-                      <button type="button" onClick={() => onRetry(message.id)}>
-                        <RotateCcw size={13} />
-                        重试
-                      </button>
-                    </div>
-                  ) : null}
-                  {message.status === 'stopped' ? (
-                    <button
-                      className="ai-message-retry"
-                      type="button"
-                      onClick={() => onRetry(message.id)}
-                    >
-                      <RotateCcw size={13} />
-                      重新生成
-                    </button>
-                  ) : null}
-                  {message.status === 'completed' &&
-                  message.role === 'assistant' &&
-                  !isGenerating ? (
-                    <button
-                      className="ai-message-retry"
-                      type="button"
-                      onClick={() => onRetry(message.id)}
-                    >
-                      <RotateCcw size={13} />
-                      重新生成
-                    </button>
-                  ) : null}
-                </div>
-              </article>
+                api={api}
+                conversationId={conversation.id}
+                message={message}
+                isGenerating={isGenerating}
+                onRetry={onRetry}
+                onOpenSource={onOpenSource}
+              />
             ))
           ) : (
             <div className="ai-thread-empty">
@@ -1145,14 +1164,17 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
     }
   }
 
-  const retryMessage = async (messageId: string) => {
-    if (!api || !activeConversation) return
-    try {
-      await api.retryChat(activeConversation.id, messageId)
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '无法重试')
-    }
-  }
+  const retryMessage = useCallback(
+    async (messageId: string) => {
+      if (!api || !activeConversationId) return
+      try {
+        await api.retryChat(activeConversationId, messageId)
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : '无法重试')
+      }
+    },
+    [api, activeConversationId]
+  )
 
   const saveSettings = async (nextSettings: AiSettings) => {
     if (!api) return
@@ -1347,7 +1369,7 @@ export function AiAssistantDrawer({ open, onClose, context, stocks }: AiAssistan
                 conversation={activeConversation}
                 messages={messages}
                 onCancel={() => activeConversation && void api.cancelChat(activeConversation.id)}
-                onRetry={(messageId) => void retryMessage(messageId)}
+                onRetry={retryMessage}
                 onExport={() => void exportConversation()}
                 onOpenSource={openSource}
               />

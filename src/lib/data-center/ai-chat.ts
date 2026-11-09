@@ -2,6 +2,8 @@ import { dataCenter } from '../api'
 import type { AiApi, AiChatDeltaEvent, AiMessage } from '../../modules/ai/shared/types'
 
 const transport = window.aiApi
+const STREAM_RENDER_INTERVAL = 40
+const STREAM_BUFFER_DURATION = 120
 let flushChatDeltas: (() => void) | undefined
 export const conversationListResource = (query = '') =>
   transport
@@ -98,11 +100,22 @@ export function retainChatUpdates() {
   if (consumers === 1) {
     const deltas = new Map<string, AiChatDeltaEvent>()
     let frame: number | undefined
-    const flush = () => {
+    let lastFrameAt: number | undefined
+    const flush = (timestamp?: number) => {
       if (frame !== undefined) window.cancelAnimationFrame(frame)
       frame = undefined
+      if (
+        timestamp !== undefined &&
+        lastFrameAt !== undefined &&
+        timestamp - lastFrameAt < STREAM_RENDER_INTERVAL
+      ) {
+        frame = window.requestAnimationFrame(flush)
+        return
+      }
+      lastFrameAt = timestamp
       const updates = [...deltas.values()]
       const ids = new Set(updates.map((event) => event.conversationId))
+      let hasBufferedText = false
       for (const id of ids) {
         const resource = conversationResource(id)!
         const current = resource.getSnapshot().data
@@ -111,18 +124,33 @@ export function retainChatUpdates() {
           const update = updates.find(
             (event) => event.conversationId === id && event.messageId === message.id
           )
-          if (update) deltas.delete(message.id)
-          return update
-            ? {
-                ...message,
-                content: update.replace ? update.delta : `${message.content}${update.delta}`,
-                status: 'streaming' as const,
-                activity: update.activity ?? ('thinking' as const)
-              }
-            : message
+          if (!update) return message
+          const characters = Array.from(update.delta)
+          const count =
+            timestamp === undefined
+              ? characters.length
+              : Math.max(
+                  1,
+                  Math.ceil((characters.length * STREAM_RENDER_INTERVAL) / STREAM_BUFFER_DURATION)
+                )
+          const visible = characters.slice(0, count).join('')
+          const remaining = characters.slice(count).join('')
+          if (remaining) {
+            deltas.set(message.id, { ...update, delta: remaining, replace: false })
+            hasBufferedText = true
+          } else {
+            deltas.delete(message.id)
+          }
+          return {
+            ...message,
+            content: update.replace ? visible : `${message.content}${visible}`,
+            status: 'streaming' as const,
+            activity: update.activity ?? ('thinking' as const)
+          }
         })
         resource.update({ ...current, messages })
       }
+      if (hasBufferedText) frame = window.requestAnimationFrame(flush)
     }
     flushChatDeltas = flush
     const complete = ({ message }: { message: AiMessage }) => {
