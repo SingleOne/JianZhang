@@ -23,6 +23,7 @@ import { Fragment, lazy, memo, Suspense, type DragEvent, useCallback, useState }
 import {
   formatAmount,
   formatCost,
+  formatDateTime,
   formatMoney,
   formatMoneyProfit,
   formatPercent,
@@ -559,12 +560,25 @@ export const WatchlistRow = memo(function WatchlistRow({
                           </span>
                         ) : null}
                         {quoteExpired ? (
-                          <span
-                            className="stock-quote-expired-badge"
-                            title={`${quoteSourceLabel}行情已超过 5 分钟未更新 · 行情时间 ${quote?.dataAt ?? '未知'} · 请求时间 ${quote?.updatedAt ?? '未知'}`}
+                          <Tooltip
+                            content={
+                              <>
+                                {quoteSourceLabel}行情已超过 5 分钟未更新
+                                <br />
+                                行情时间 {formatDateTime(quote?.dataAt)}
+                                <br />
+                                请求时间 {formatDateTime(quote?.updatedAt)}
+                              </>
+                            }
                           >
-                            过期
-                          </span>
+                            <AppButton
+                              variant="plain"
+                              className="stock-quote-expired-badge"
+                              onKeyDown={(event) => event.stopPropagation()}
+                            >
+                              过期
+                            </AppButton>
+                          </Tooltip>
                         ) : null}
                         {trackingProfile?.status === 'tracking' ? (
                           <button
