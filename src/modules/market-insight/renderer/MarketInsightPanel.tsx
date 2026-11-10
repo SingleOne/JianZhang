@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FundamentalCompany, StockQuote, WatchStock } from '../../../shared/types'
 import { formatUpdateTime } from '../../../lib/format'
 import { InvestmentValueMetrics } from '../../../components/InvestmentValueMetrics'
+import { AppButton } from '../../../components/AppButton'
+import { AppInput } from '../../../components/AppFormControls'
 import { useDetailResource } from '../../../lib/data-center/detail-hooks'
 import {
   insightSettingsResource,
@@ -23,11 +25,11 @@ import {
   VOLATILITY_INDICATOR_EXPLANATIONS
 } from './indicator-explanations'
 import { NewsTimeline } from './NewsTimeline'
-import { TPlanDistanceCard } from './TPlanDistanceCard'
 import { WatchEventList } from './WatchEventList'
 import type { MarketInsightSettings } from '../shared/types'
 
 interface MarketInsightPanelProps {
+  view?: 'observation' | 'news'
   stock: WatchStock
   quote?: StockQuote
   fundamentalCompany?: FundamentalCompany
@@ -41,6 +43,7 @@ const ORDER_BOOK_SECTION_HINT =
   '汇总买卖五档可见委托量及其变化，并对比个股相对行业、大盘的强弱、换手率与主力资金短窗变化。盘口仅反映当前可见委托。'
 
 export default function MarketInsightPanel({
+  view = 'observation',
   stock,
   quote,
   fundamentalCompany,
@@ -142,7 +145,7 @@ export default function MarketInsightPanel({
   const acknowledge = async (eventId: string) => {
     try {
       await marketInsightApi.acknowledgeEvent(eventId)
-      sharedSnapshot.invalidate()
+      sharedSnapshot.invalidate(true)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '事件确认失败')
     }
@@ -150,7 +153,7 @@ export default function MarketInsightPanel({
   const clearExpiredEvents = async () => {
     try {
       await marketInsightApi.clearExpiredEvents(stock.quoteId)
-      sharedSnapshot.invalidate()
+      sharedSnapshot.invalidate(true)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '过期事件清理失败')
     }
@@ -180,13 +183,15 @@ export default function MarketInsightPanel({
   if (settings && !settings.enabled) {
     return (
       <div className="market-insight-panel" role="tabpanel">
-        <InvestmentValueMetrics
-          quoteId={stock.quoteId}
-          quote={quote}
-          company={fundamentalCompany}
-          snapshotDate={fundamentalSnapshotDate}
-          staleReason={fundamentalStaleReason}
-        />
+        {view === 'observation' ? (
+          <InvestmentValueMetrics
+            quoteId={stock.quoteId}
+            quote={quote}
+            company={fundamentalCompany}
+            snapshotDate={fundamentalSnapshotDate}
+            staleReason={fundamentalStaleReason}
+          />
+        ) : null}
         <div className="insight-disabled-state" role="status">
           <Radar size={26} />
           <span>
@@ -202,40 +207,29 @@ export default function MarketInsightPanel({
     <div className="market-insight-panel" role="tabpanel">
       <header className="insight-header">
         <div>
-          <strong>市场观察</strong>
+          <strong>{view === 'news' ? '市场资讯' : '市场观察'}</strong>
           <span>
             <Radio size={12} />
             数据截止 {snapshot?.dataCutoffAt ?? quote?.updatedAt ?? '--'} · 更新 {refreshedLabel}
           </span>
         </div>
         <div className="insight-actions">
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={toggleOverlay}
-            disabled={!settings}
-          >
-            {settings?.showChartOverlay ? <EyeOff size={14} /> : <Eye size={14} />}
-            {settings?.showChartOverlay ? '隐藏图表叠加' : '显示图表叠加'}
-          </button>
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={toggleWatching}
-            disabled={!settings}
-          >
-            <Radar size={14} />
-            {isWatching ? '关闭该股票盯盘' : '开启该股票盯盘'}
-          </button>
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={() => void loadSnapshot()}
-            disabled={refreshing || !status?.enabled}
-          >
+          {view === 'observation' ? (
+            <>
+              <AppButton onClick={toggleOverlay} disabled={!settings}>
+                {settings?.showChartOverlay ? <EyeOff size={14} /> : <Eye size={14} />}
+                {settings?.showChartOverlay ? '隐藏图表叠加' : '显示图表叠加'}
+              </AppButton>
+              <AppButton onClick={toggleWatching} disabled={!settings}>
+                <Radar size={14} />
+                {isWatching ? '关闭该股票盯盘' : '开启该股票盯盘'}
+              </AppButton>
+            </>
+          ) : null}
+          <AppButton onClick={() => void loadSnapshot()} disabled={refreshing || !status?.enabled}>
             <RefreshCw size={14} className={refreshing ? 'is-spinning' : ''} />
             立即刷新
-          </button>
+          </AppButton>
         </div>
       </header>
 
@@ -260,12 +254,12 @@ export default function MarketInsightPanel({
         </span>
       </div>
 
-      {settings ? (
+      {view === 'observation' && settings ? (
         <div className="insight-threshold-settings">
           <strong>观察阈值</strong>
           <label>
             成交量倍数
-            <input
+            <AppInput
               type="number"
               min="1"
               step="0.1"
@@ -280,7 +274,7 @@ export default function MarketInsightPanel({
           </label>
           <label>
             冷却
-            <input
+            <AppInput
               type="number"
               min="1"
               step="1"
@@ -294,9 +288,7 @@ export default function MarketInsightPanel({
             />
             分钟
           </label>
-          <button className="secondary-button" type="button" onClick={() => void saveThresholds()}>
-            保存阈值
-          </button>
+          <AppButton onClick={() => void saveThresholds()}>保存阈值</AppButton>
         </div>
       ) : null}
 
@@ -306,8 +298,21 @@ export default function MarketInsightPanel({
           {error}
         </div>
       ) : null}
-      {loading && !snapshot ? <div className="chart-loading">正在计算确定性市场指标…</div> : null}
-      {snapshot ? (
+      {loading && !snapshot ? (
+        <div className="chart-loading">
+          {view === 'news' ? '正在加载市场资讯…' : '正在计算确定性市场指标…'}
+        </div>
+      ) : null}
+      {snapshot && view === 'news' ? (
+        <NewsTimeline
+          quoteId={stock.quoteId}
+          news={snapshot.news}
+          status={status}
+          includeOlderNews={settings?.includeOlderNews ?? false}
+          onToggleOlderNews={() => void toggleOlderNews()}
+          onOpenSource={(url) => void openSource(url)}
+        />
+      ) : snapshot ? (
         <div className="insight-content">
           <IndicatorGrid
             title="短期技术面"
@@ -357,15 +362,6 @@ export default function MarketInsightPanel({
             events={snapshot.events}
             onAcknowledge={(eventId) => void acknowledge(eventId)}
             onClearExpired={() => void clearExpiredEvents()}
-          />
-          <TPlanDistanceCard distances={snapshot.existingTPlanDistances} />
-          <NewsTimeline
-            quoteId={stock.quoteId}
-            news={snapshot.news}
-            status={status}
-            includeOlderNews={settings?.includeOlderNews ?? false}
-            onToggleOlderNews={() => void toggleOlderNews()}
-            onOpenSource={(url) => void openSource(url)}
           />
           <p className="insight-disclaimer">
             窗口指标使用已闭合 K

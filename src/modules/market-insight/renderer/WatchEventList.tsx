@@ -1,4 +1,5 @@
 import { Check, CircleAlert } from 'lucide-react'
+import { AppButton } from '../../../components/AppButton'
 import type { WatchEvent } from '../shared/types'
 
 interface WatchEventListProps {
@@ -14,9 +15,9 @@ export function WatchEventList({ events, onAcknowledge, onClearExpired }: WatchE
       <div className="insight-section-heading">
         <h3>当前观察事件</h3>
         {expiredCount > 0 ? (
-          <button type="button" onClick={onClearExpired}>
+          <AppButton variant="plain" onClick={onClearExpired}>
             清除已过期（{expiredCount}）
-          </button>
+          </AppButton>
         ) : null}
       </div>
       {events.length === 0 ? (
@@ -34,14 +35,10 @@ export function WatchEventList({ events, onAcknowledge, onClearExpired }: WatchE
                 <span>{event.facts.join(' · ')}</span>
               </div>
               {event.status === 'active' ? (
-                <button
-                  type="button"
-                  className="secondary-button insight-event-ack"
-                  onClick={() => onAcknowledge(event.id)}
-                >
+                <AppButton className="insight-event-ack" onClick={() => onAcknowledge(event.id)}>
                   <Check size={13} />
                   确认已读
-                </button>
+                </AppButton>
               ) : (
                 <small>{event.status === 'acknowledged' ? '已确认' : '已过期'}</small>
               )}

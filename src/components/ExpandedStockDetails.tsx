@@ -28,6 +28,7 @@ import {
   Info,
   Landmark,
   Layers,
+  Newspaper,
   Radar,
   RefreshCw,
   Sparkles,
@@ -167,6 +168,7 @@ type DetailTab =
   | 'tracking'
   | 'funds'
   | 'insight'
+  | 'news'
   | 'ai'
   | 't-advice'
 type HistoricalPeriod = Extract<KlinePeriod, 'daily' | 'weekly' | 'monthly'>
@@ -207,7 +209,7 @@ function supportsDetailTab(tab: DetailTab, capabilities: StockMarketCapabilities
   if (tab === 'reports') return capabilities.companyReports
   if (tab === 'corporateActions') return capabilities.corporateActions
   if (tab === 'funds') return capabilities.fundsFlow
-  if (tab === 'insight') return capabilities.marketInsight
+  if (tab === 'insight' || tab === 'news') return capabilities.marketInsight
   if (tab === 'ai') return capabilities.aiAnalysis
   return capabilities.aiTAdvice
 }
@@ -1994,7 +1996,7 @@ export function ExpandedStockDetails({
         ? true
         : detailNavigationTarget === 'reports'
           ? capabilities.companyReports
-          : detailNavigationTarget === 'insight'
+          : detailNavigationTarget === 'insight' || detailNavigationTarget === 'news'
             ? capabilities.marketInsight
             : detailNavigationTarget === 'corporate-actions'
               ? capabilities.corporateActions
@@ -2020,8 +2022,8 @@ export function ExpandedStockDetails({
       setActiveTab('tracking')
     } else if (detailNavigationTarget === 'reports') {
       setActiveTab('reports')
-    } else if (detailNavigationTarget === 'insight') {
-      setActiveTab('insight')
+    } else if (detailNavigationTarget === 'insight' || detailNavigationTarget === 'news') {
+      setActiveTab(detailNavigationTarget)
     } else if (detailNavigationTarget === 'corporate-actions') {
       setActiveTab('corporateActions')
     } else if (detailNavigationTarget === 't-advice') {
@@ -2313,7 +2315,8 @@ export function ExpandedStockDetails({
           选股追踪
         </button>
         {MarketInsightPanel && capabilities.marketInsight ? (
-          <button
+          <AppButton
+            variant="plain"
             className={activeTab === 'insight' ? 'is-active' : ''}
             type="button"
             role="tab"
@@ -2322,7 +2325,19 @@ export function ExpandedStockDetails({
           >
             <Radar size={15} />
             市场观察
-          </button>
+          </AppButton>
+        ) : null}
+        {MarketInsightPanel && capabilities.marketInsight ? (
+          <AppButton
+            variant="plain"
+            className={activeTab === 'news' ? 'is-active' : ''}
+            role="tab"
+            aria-selected={activeTab === 'news'}
+            onClick={(event) => changeDetailTab('news', event.currentTarget)}
+          >
+            <Newspaper size={15} />
+            市场资讯
+          </AppButton>
         ) : null}
         {capabilities.shareholders ? (
           <button
@@ -2709,10 +2724,19 @@ export function ExpandedStockDetails({
         <Suspense fallback={<div className="chart-loading">正在初始化做 T 参考…</div>}>
           <AiTAdvicePanel stock={stock} quote={quote} />
         </Suspense>
-      ) : capabilities.marketInsight && MarketInsightPanel ? (
-        <Suspense fallback={<div className="chart-loading">正在初始化市场观察…</div>}>
+      ) : capabilities.marketInsight &&
+        MarketInsightPanel &&
+        (activeTab === 'insight' || activeTab === 'news') ? (
+        <Suspense
+          fallback={
+            <div className="chart-loading">
+              正在初始化{activeTab === 'news' ? '市场资讯' : '市场观察'}…
+            </div>
+          }
+        >
           <MarketInsightPanel
             key={cacheRevisions['market-insight'] ?? 0}
+            view={activeTab === 'news' ? 'news' : 'observation'}
             stock={stock}
             quote={quote}
             fundamentalCompany={fundamentalScreening?.company}

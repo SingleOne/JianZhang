@@ -1,6 +1,7 @@
 import { ExternalLink, RefreshCw, Sparkles } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { AppButton } from '../../../components/AppButton'
+import { AppInput } from '../../../components/AppFormControls'
 import { emitCompletionNotification } from '../../../lib/completion-notifications'
 import { newsSummaryKey } from '../shared/news-summary'
 import type { MarketInsightStatus, MarketNewsItem, MarketNewsSummary } from '../shared/types'
@@ -43,7 +44,7 @@ function NewsRow({
       setGeneratedSummary(result)
       emitCompletionNotification({
         quoteId,
-        target: 'insight',
+        target: 'news',
         message: `${item.title} AI 总结已生成`
       })
     } catch (reason) {
@@ -56,16 +57,27 @@ function NewsRow({
 
   return (
     <div className="insight-news-item">
+      <AppButton
+        variant="plain"
+        className="insight-news-source"
+        onClick={() => onOpenSource(item.url)}
+        title={`打开原文：${item.title}`}
+      >
+        <strong>{item.title}</strong>
+        <ExternalLink size={14} />
+      </AppButton>
+      <AppButton
+        variant="plain"
+        className="insight-news-summary-action"
+        onClick={() => void summarize()}
+        disabled={generating}
+        aria-label={`${generating ? '正在总结' : summary ? '重新总结' : 'AI 总结'}：${item.title}`}
+        title="读取官方资讯原文，使用当前 AI 模型生成总结并保存到本地"
+      >
+        {generating ? <RefreshCw size={14} className="is-spinning" /> : <Sparkles size={14} />}
+        {generating ? '总结中' : summary ? '重新总结' : 'AI 总结'}
+      </AppButton>
       <div className="insight-news-copy">
-        <AppButton
-          variant="plain"
-          className="insight-news-source"
-          onClick={() => onOpenSource(item.url)}
-          title={`打开原文：${item.title}`}
-        >
-          <strong>{item.title}</strong>
-          <ExternalLink size={14} />
-        </AppButton>
         <span>
           {item.source} · {new Date(item.publishedAt).toLocaleString('zh-CN', { hour12: false })}
         </span>
@@ -85,17 +97,6 @@ function NewsRow({
           </p>
         ) : null}
       </div>
-      <AppButton
-        variant="plain"
-        className="insight-news-summary-action"
-        onClick={() => void summarize()}
-        disabled={generating}
-        aria-label={`${generating ? '正在总结' : summary ? '重新总结' : 'AI 总结'}：${item.title}`}
-        title="读取官方资讯原文，使用当前 AI 模型生成总结并保存到本地"
-      >
-        {generating ? <RefreshCw size={14} className="is-spinning" /> : <Sparkles size={14} />}
-        {generating ? '总结中' : summary ? '重新总结' : 'AI 总结'}
-      </AppButton>
     </div>
   )
 }
@@ -130,7 +131,7 @@ export function NewsTimeline({
       <div className="insight-section-heading">
         <h3>市场资讯</h3>
         <label className="insight-news-range-toggle">
-          <input type="checkbox" checked={includeOlderNews} onChange={onToggleOlderNews} />
+          <AppInput type="checkbox" checked={includeOlderNews} onChange={onToggleOlderNews} />
           查询近 30 天要闻及交易所通知
           <span>下次查询生效</span>
         </label>
@@ -139,7 +140,8 @@ export function NewsTimeline({
         <p className="insight-news-status">{status.newsMessage}</p>
       ) : null}
       <div className="insight-news-tabs" role="tablist" aria-label="要闻、公告与交易所通知分类">
-        <button
+        <AppButton
+          variant="plain"
           className={activeTab === 'news' ? 'is-active' : ''}
           type="button"
           role="tab"
@@ -147,8 +149,9 @@ export function NewsTimeline({
           onClick={() => setActiveTab('news')}
         >
           要闻 {headlines.length}
-        </button>
-        <button
+        </AppButton>
+        <AppButton
+          variant="plain"
           className={activeTab === 'announcement' ? 'is-active' : ''}
           type="button"
           role="tab"
@@ -156,8 +159,9 @@ export function NewsTimeline({
           onClick={() => setActiveTab('announcement')}
         >
           公告 {companyAnnouncements.length}
-        </button>
-        <button
+        </AppButton>
+        <AppButton
+          variant="plain"
           className={activeTab === 'exchange' ? 'is-active' : ''}
           type="button"
           role="tab"
@@ -165,7 +169,7 @@ export function NewsTimeline({
           onClick={() => setActiveTab('exchange')}
         >
           交易所通知 {exchangeNotices.length}
-        </button>
+        </AppButton>
       </div>
       {visibleItems.length === 0 ? (
         <p className="insight-empty">

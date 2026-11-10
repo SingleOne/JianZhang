@@ -128,7 +128,7 @@ export function changeInsightSettings(
     const next = normalizeMarketInsightSettings(change(current))
     await (await insightApi()).saveSettings(next)
     resource.update(next)
-    insightStatusResource().invalidate()
+    insightStatusResource().invalidate(true)
     return next
   })
   insightSettingsWrite = task.then(
@@ -140,7 +140,7 @@ export function changeInsightSettings(
 
 export async function refreshInsight(quoteId: string) {
   await insightSnapshotResource(quoteId).request(true)
-  insightStatusResource().invalidate()
+  insightStatusResource().invalidate(true)
 }
 
 let insightConsumers = 0
@@ -154,8 +154,8 @@ export function retainInsightUpdates() {
       if (version !== insightSubscriptionVersion || !insightConsumers) return
       unsubscribeInsight = api.onUpdated((quoteId) => {
         if (!insightRefreshes.has(quoteId))
-          dataCenter.details.invalidate(quoteId, ['market-insight'])
-        insightStatusResource().invalidate()
+          dataCenter.details.invalidate(quoteId, ['market-insight'], true)
+        insightStatusResource().invalidate(true)
       })
     })
   }

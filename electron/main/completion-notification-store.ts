@@ -7,6 +7,7 @@ const MAX_NOTIFICATIONS = 100
 const STOCK_TARGETS: readonly string[] = [
   'reports',
   'insight',
+  'news',
   'corporate-actions',
   'ai-short-term',
   'ai-long-term',

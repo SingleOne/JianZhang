@@ -3036,12 +3036,19 @@
 }
 
 .insight-news-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 9px;
   width: 100%;
   color: inherit;
   background: transparent;
   font: inherit;
   text-align: left;
   text-decoration: none;
+}
+
+.insight-news-copy {
+  grid-column: 1 / -1;
 }
 
 .insight-news-source {
@@ -3070,7 +3077,6 @@
 .insight-news-summary-action {
   display: inline-flex;
   align-items: center;
-  align-self: flex-start;
   justify-content: center;
   gap: 5px;
   flex: 0 0 auto;

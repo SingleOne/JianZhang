@@ -40,7 +40,7 @@ describe('CompletionNotificationStore', () => {
       {
         id: 'news-summary',
         quoteId: '0.000876',
-        target: 'insight',
+        target: 'news',
         message: '资讯 AI 总结已生成',
         createdAt: '2026-08-13T12:00:00.000Z'
       }

@@ -3,7 +3,8 @@ import type { AiApi } from '../../modules/ai/shared/types'
 import type { MemoryStatus } from '../../modules/ai/shared/memory-types'
 import type {
   MarketInsightApi,
-  MarketInsightSettings
+  MarketInsightSettings,
+  MarketInsightSnapshot
 } from '../../modules/market-insight/shared/types'
 
 vi.mock('../api', async () => {
@@ -137,6 +138,40 @@ describe('optional module resources', () => {
     await refreshInsight('A')
     expect(insightSnapshotResource('A').getSnapshot().data?.quoteId).toBe('A')
     release()
+  })
+
+  it('keeps the displayed insight snapshot while an update rereads the latest data', async () => {
+    let emit: (quoteId: string) => void = () => undefined
+    const previous = { quoteId: 'A', generatedAt: '2026-11-10T01:00:00.000Z' }
+    const next = { ...previous, generatedAt: '2026-11-10T01:01:00.000Z' }
+    const reread = deferred<MarketInsightSnapshot>()
+    const api = {
+      getSnapshot: vi.fn().mockResolvedValueOnce(previous).mockReturnValueOnce(reread.promise),
+      onUpdated: vi.fn((listener: (quoteId: string) => void) => {
+        emit = listener
+        return vi.fn()
+      })
+    }
+    window.marketInsightApi = api as unknown as MarketInsightApi
+    const { retainInsightUpdates, insightSnapshotResource } = await import('./optional-resources')
+    const releaseUpdates = retainInsightUpdates()
+    const resource = insightSnapshotResource('A')
+    await resource.request()
+    const releaseSnapshot = resource.retain()
+    const displayed: Array<MarketInsightSnapshot | null | undefined> = []
+    const unsubscribe = resource.subscribe(() => displayed.push(resource.getSnapshot().data))
+
+    emit('A')
+    expect(resource.getSnapshot()).toMatchObject({ data: previous, loading: true })
+    reread.resolve(next as MarketInsightSnapshot)
+    await resource.request()
+    expect(resource.getSnapshot().data).toEqual(next)
+    expect(displayed.length).toBeGreaterThan(0)
+    expect(displayed.every((snapshot) => snapshot != null)).toBe(true)
+
+    unsubscribe()
+    releaseSnapshot()
+    releaseUpdates()
   })
 
   it('retires memory identity keys so a late old response cannot populate a switched-back profile', async () => {

@@ -2871,7 +2871,13 @@ export function normalizePortfolioPerformanceCache(
 }
 
 export type CompletionNotificationTarget =
-  'reports' | 'corporate-actions' | 'ai-short-term' | 'ai-long-term' | 't-advice' | 'insight'
+  | 'reports'
+  | 'corporate-actions'
+  | 'ai-short-term'
+  | 'ai-long-term'
+  | 't-advice'
+  | 'insight'
+  | 'news'
 
 export type StockDetailNavigationTarget = CompletionNotificationTarget | 'trend' | 'tracking'
 
