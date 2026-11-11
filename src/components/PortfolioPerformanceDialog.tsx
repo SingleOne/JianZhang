@@ -13,7 +13,7 @@ import {
   Save,
   X
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AppButton } from './AppButton'
 import { AppSelect } from './AppSelect'
@@ -32,7 +32,7 @@ import {
   type PortfolioPerformanceSort,
   type PortfolioPerformanceSortKey
 } from '../lib/portfolio-performance-sort'
-import type { PortfolioPerformanceAdjustments, PortfolioPerformanceCache } from '../shared/types'
+import type { PortfolioPerformanceAdjustments } from '../shared/types'
 const EMPTY_ADJUSTMENTS: PortfolioPerformanceAdjustments = {}
 
 import './PortfolioPerformanceDialog.css'
@@ -43,7 +43,6 @@ interface PortfolioPerformanceDialogProps {
     adjustments: PortfolioPerformanceAdjustments,
     accountId?: string
   ) => Promise<boolean>
-  onSavePerformanceCache: (cache: PortfolioPerformanceCache) => Promise<boolean>
   onRecalculateStock: (quoteId: string) => Promise<void>
   onSaveTradingBook: (
     quoteId: string,
@@ -180,7 +179,6 @@ function SummaryValue({
 
 export default function PortfolioPerformanceDialog({
   onSaveAdjustments,
-  onSavePerformanceCache,
   onRecalculateStock,
   onSaveTradingBook,
   onClose
@@ -202,7 +200,6 @@ export default function PortfolioPerformanceDialog({
   const [recalculatingQuoteId, setRecalculatingQuoteId] = useState<string | null>(null)
   const [recalculationErrorQuoteId, setRecalculationErrorQuoteId] = useState<string | null>(null)
   const [cycleDetailQuoteId, setCycleDetailQuoteId] = useState<string | null>(null)
-  const savedCumulativeProfitSignatureRef = useRef<string | null>(null)
   const visibleBooks = useMemo(
     () =>
       accountFilter === 'all'
@@ -244,27 +241,6 @@ export default function PortfolioPerformanceDialog({
       ),
     [visibleBooks, adjustments, exchangeRates, quotes, visibleWatchlist, securitiesAccounts]
   )
-  useEffect(() => {
-    if (accountFilter !== 'all') return
-    const cumulativeProfitByQuoteId = Object.fromEntries(
-      report.stockRows.map((row) => [row.id, row.cumulative.cny.totalProfit])
-    )
-    const signature = JSON.stringify(cumulativeProfitByQuoteId)
-    if (signature === savedCumulativeProfitSignatureRef.current) return
-    savedCumulativeProfitSignatureRef.current = signature
-    const clearFailedSignature = () => {
-      if (savedCumulativeProfitSignatureRef.current === signature) {
-        savedCumulativeProfitSignatureRef.current = null
-      }
-    }
-    void onSavePerformanceCache({
-      schemaVersion: 1,
-      generatedAt: report.generatedAt,
-      cumulativeProfitByQuoteId
-    }).then((saved) => {
-      if (!saved) clearFailedSignature()
-    }, clearFailedSignature)
-  }, [accountFilter, onSavePerformanceCache, report])
   const dimensionRows = useMemo(() => {
     if (dimension === 'stock') return report.stockRows
     if (dimension === 'market') return report.marketRows
@@ -492,7 +468,7 @@ export default function PortfolioPerformanceDialog({
           </div>
 
           <div className="portfolio-performance-attribution-note">
-            当前周期收益及各收益分项仅统计仍有持仓账户的当前周期，包含本周期部分卖出的已实现收益；已清仓周期仅计入累计收益并保留在周期明细中。证券价格贡献按历史加权购入汇率折算；汇率贡献按当前或卖出证券价值的汇率变化计算。手动调整随所属周期计入累计收益。
+            当前周期收益及各收益分项统计仍有持仓账户的当前周期，包含本周期部分卖出的已实现收益。累计收益汇总各账户最近一次收益基准重置后已清仓周期的净收益，收益调整在所属周期清仓后计入。证券价格贡献按历史加权购入汇率折算。汇率贡献按当前或卖出证券价值的汇率变化计算。
           </div>
 
           <div className="portfolio-performance-toolbar">

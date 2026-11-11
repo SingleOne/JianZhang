@@ -5,6 +5,7 @@ import {
   WATCHLIST_COLUMN_ORDER_VERSION,
   getMarketIndexStocks,
   normalizeAppSettings,
+  normalizePortfolioPerformanceCache,
   normalizeTTradingAccounts,
   normalizeStockTrackingProfiles,
   normalizeWatchlist,
@@ -22,6 +23,31 @@ const EMPTY_FEES = {
   transfer: 0,
   stampDuty: 0
 }
+
+describe('portfolio performance cache normalization', () => {
+  it('discards the previous cumulative-profit definition and keeps closed-cycle caches', () => {
+    const watchlist = normalizeWatchlist([
+      {
+        quoteId: '1.600000',
+        code: '600000',
+        name: '浦发银行',
+        marketLabel: '沪A',
+        showInTaskbar: true,
+        isPriority: false,
+        showRadarSignals: true
+      }
+    ])
+    const cache = {
+      schemaVersion: 2,
+      generatedAt: '2026-11-11T02:00:00.000Z',
+      cumulativeProfitByQuoteId: { '1.600000': 200 }
+    }
+    expect(
+      normalizePortfolioPerformanceCache({ ...cache, schemaVersion: 1 }, watchlist)
+    ).toBeUndefined()
+    expect(normalizePortfolioPerformanceCache(cache, watchlist)).toEqual(cache)
+  })
+})
 
 function trade(id: string, tradedAt: string): TTrade {
   return {

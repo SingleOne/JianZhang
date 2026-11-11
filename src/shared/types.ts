@@ -2825,7 +2825,7 @@ export interface AppState {
 export type PortfolioPerformanceAdjustments = Record<string, number>
 
 export interface PortfolioPerformanceCache {
-  schemaVersion: 1
+  schemaVersion: 2
   generatedAt: string
   cumulativeProfitByQuoteId: Record<string, number | null>
 }
@@ -2849,7 +2849,7 @@ export function normalizePortfolioPerformanceCache(
   if (!value || typeof value !== 'object') return undefined
   const cache = value as Partial<PortfolioPerformanceCache>
   if (
-    cache.schemaVersion !== 1 ||
+    cache.schemaVersion !== 2 ||
     typeof cache.generatedAt !== 'string' ||
     !Number.isFinite(Date.parse(cache.generatedAt)) ||
     !cache.cumulativeProfitByQuoteId ||
@@ -2860,7 +2860,7 @@ export function normalizePortfolioPerformanceCache(
   }
   const quoteIds = new Set(watchlist.map((stock) => stock.quoteId))
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: cache.generatedAt,
     cumulativeProfitByQuoteId: Object.fromEntries(
       Object.entries(cache.cumulativeProfitByQuoteId).filter(

@@ -760,7 +760,10 @@ function quantityAfterEntry(entry: PortfolioLedgerEntry, quantity: number): numb
   return quantity
 }
 
-function splitPerformanceCycles(account: TTradingAccount): MutablePerformanceCycle[] {
+function splitPerformanceCycles(
+  account: TTradingAccount
+): (MutablePerformanceCycle &
+  Pick<PortfolioPerformanceCycleResult, 'status' | 'includedInCumulative'>)[] {
   const cycles: MutablePerformanceCycle[] = []
   let current: MutablePerformanceCycle | undefined
   let quantity = 0
@@ -818,7 +821,23 @@ function splitPerformanceCycles(account: TTradingAccount): MutablePerformanceCyc
     }
   }
   finishCurrent()
-  return cycles
+  let latestResetIndex = -1
+  for (let index = cycles.length - 1; index >= 0; index -= 1) {
+    if (!cycles[index].startedByPerformanceReset) continue
+    latestResetIndex = index
+    break
+  }
+  return cycles.map((cycle, index) => {
+    const status: PortfolioPerformanceCycleStatus =
+      index < latestResetIndex
+        ? 'excluded'
+        : cycle.sequence === 0
+          ? 'unassigned'
+          : cycle.endingQuantity > 0.000_001
+            ? 'open'
+            : 'closed'
+    return { ...cycle, status, includedInCumulative: status === 'closed' }
+  })
 }
 
 export function performanceCycleDateKey(value: string, market: StockMarket): string {
@@ -869,12 +888,6 @@ export function calculatePortfolioPerformanceCycles(
   const market = stock.market ?? marketFromQuoteId(stock.quoteId)
   const today = marketDateKey(options.asOf ?? new Date(), market)
   const referenceAnnualRatePercent = options.referenceAnnualRatePercent ?? null
-  let latestResetIndex = -1
-  for (let index = cycles.length - 1; index >= 0; index -= 1) {
-    if (!cycles[index].startedByPerformanceReset) continue
-    latestResetIndex = index
-    break
-  }
   const latestCycleIndex = cycles.length - 1
   return cycles.map((cycle, index) => {
     const dailyOutflows = new Map<string, number>()
@@ -896,14 +909,6 @@ export function calculatePortfolioPerformanceCycles(
       }
     )
     if (!calculation) throw new Error('持仓周期收益计算失败')
-    const includedInCumulative = latestResetIndex < 0 || index >= latestResetIndex
-    const status: PortfolioPerformanceCycleStatus = !includedInCumulative
-      ? 'excluded'
-      : cycle.sequence === 0
-        ? 'unassigned'
-        : index === latestCycleIndex && cycle.endingQuantity > 0.000_001
-          ? 'open'
-          : 'closed'
     const savedQuantity = (account.accountId ? account.position : stock.position)?.quantity ?? 0
     let returnUnavailableReason = calculation.capitalUnavailableReason
     if (cycle.sequence === 0) {
@@ -968,8 +973,8 @@ export function calculatePortfolioPerformanceCycles(
       startedAt: cycle.startedAt,
       endedAt: cycle.endedAt,
       startedByPerformanceReset: cycle.startedByPerformanceReset,
-      includedInCumulative,
-      status,
+      includedInCumulative: cycle.includedInCumulative,
+      status: cycle.status,
       endingQuantity: rounded(cycle.endingQuantity),
       peakCapitalCny: calculation.peakCapitalCny,
       returnPercent,
@@ -1196,13 +1201,21 @@ export function calculatePortfolioPerformanceReport(
           account?.performanceAdjustmentCny ?? manualAdjustment
         )
         if (!currentCycle) return []
+        const cycles = account ? splitPerformanceCycles(account) : []
+        const closedCycles = cycles.filter((cycle) => cycle.includedInCumulative)
+        const latestCycleClosed = cycles.at(-1)?.includedInCumulative === true
         const cumulative = stockPerformance(
           stock,
           quoteMap.get(stock.quoteId),
           account,
           exchangeRates,
-          account?.performanceAdjustmentCny ?? manualAdjustment,
-          { resetOnHoldingCycleOpen: false }
+          latestCycleClosed ? (account?.performanceAdjustmentCny ?? manualAdjustment) : 0,
+          {
+            entries: closedCycles.flatMap((cycle) => cycle.entries),
+            resetOnHoldingCycleOpen: false,
+            checkPositionMismatch: latestCycleClosed,
+            includeUnrealized: false
+          }
         )
         if (!cumulative) return []
         return [

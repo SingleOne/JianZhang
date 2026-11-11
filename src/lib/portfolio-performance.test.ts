@@ -174,8 +174,8 @@ describe('current position profit', () => {
       { '116.00700': book },
       exchangeRates()
     )
-    expect(report.stockRows[0].cumulative.native[0].totalProfit).toBe(627)
-    expect(report.stockRows[0].cumulative.cny.totalProfit).toBe(656.43)
+    expect(report.stockRows[0].cumulative.native[0].totalProfit).toBe(490)
+    expect(report.stockRows[0].cumulative.cny.totalProfit).toBe(515.75)
     for (const row of [
       ...report.stockRows,
       ...report.marketRows,
@@ -863,8 +863,8 @@ describe('portfolio performance report', () => {
           expect(row.currentCycle.issueCounts.positionMismatch).toBe(
             savedQuantity > 0 ? 1 : undefined
           )
-          expect(row.cumulative.excludedStockCount).toBe(1)
-          expect(row.cumulative.cny.totalProfit).toBeNull()
+          expect(row.cumulative.excludedStockCount).toBe(savedQuantity > 0 ? 1 : 0)
+          expect(row.cumulative.cny.totalProfit).toBe(savedQuantity > 0 ? null : 0)
         }
       }
     }
@@ -981,7 +981,7 @@ describe('portfolio performance report', () => {
       tradeFees: 0,
       totalProfit: 68.4
     })
-    expect(report.stocks[0].cumulative.cny.totalProfit).toBe(68.4)
+    expect(report.stocks[0].cumulative.cny.totalProfit).toBe(0)
 
     const cycles = calculatePortfolioPerformanceCycles(
       stock(60),
@@ -993,7 +993,7 @@ describe('portfolio performance report', () => {
     expect(cycles[0]).toMatchObject({ status: 'excluded', includedInCumulative: false })
     expect(cycles[1]).toMatchObject({
       status: 'open',
-      includedInCumulative: true,
+      includedInCumulative: false,
       startedByPerformanceReset: true
     })
   })
@@ -1056,11 +1056,11 @@ describe('portfolio performance report', () => {
     expect(report.stocks[0].currentCycle.cny.totalProfit).toBeCloseTo(59.98)
     expect(report.stocks[0].cumulative.native[0]).toMatchObject({
       realizedProfit: 500,
-      unrealizedProfit: 60,
-      tradeFees: 2,
-      totalProfit: 558
+      unrealizedProfit: 0,
+      tradeFees: 0,
+      totalProfit: 500
     })
-    expect(report.stocks[0].cumulative.cny.totalProfit).toBeCloseTo(584.98)
+    expect(report.stocks[0].cumulative.cny.totalProfit).toBe(525)
 
     const cycles = calculatePortfolioPerformanceCycles(
       stock(60),
@@ -1069,9 +1069,19 @@ describe('portfolio performance report', () => {
       exchangeRates()
     )
     expect(cycles).toHaveLength(2)
-    expect(cycles[0]).toMatchObject({ sequence: 1, status: 'closed', endingQuantity: 0 })
+    expect(cycles[0]).toMatchObject({
+      sequence: 1,
+      status: 'closed',
+      endingQuantity: 0,
+      includedInCumulative: true
+    })
     expect(cycles[0].cny.totalProfit).toBe(525)
-    expect(cycles[1]).toMatchObject({ sequence: 2, status: 'open', endingQuantity: 60 })
+    expect(cycles[1]).toMatchObject({
+      sequence: 2,
+      status: 'open',
+      endingQuantity: 60,
+      includedInCumulative: false
+    })
     expect(cycles[1].cny.totalProfit).toBeCloseTo(59.98)
   })
 
@@ -1113,6 +1123,112 @@ describe('portfolio performance report', () => {
     expect(report.portfolioRow.currentCycle.native[0].totalProfit).toBe(227.72)
     expect(report.portfolioRow.currentCycle.cny.manualAdjustment).toBe(25.5)
     expect(report.portfolioRow.currentCycle.cny.totalProfit).toBe(229.5)
-    expect(report.portfolioRow.cumulative.cny.totalProfit).toBe(229.5)
+    expect(report.portfolioRow.cumulative.cny.totalProfit).toBe(0)
+    expect(report.portfolioRow.cumulative.cny.manualAdjustment).toBe(0)
+  })
+})
+
+describe('closed-cycle cumulative performance', () => {
+  it('sums closed cycles across reopened accounts and includes a new cycle only after closing', () => {
+    const firstEntries = [
+      trade('first-buy', 'buy', 100, 10, 1, 0),
+      trade('first-close', 'sell', 100, 12, 1, 0),
+      trade('first-reopen', 'buy', 100, 10, 1, 0, '2026-04-03T02:00:00.000Z'),
+      trade('first-partial', 'sell', 40, 12, 1, 0, '2026-04-04T02:00:00.000Z'),
+      {
+        ...cashEntry('cashDividend', 30),
+        occurredAt: '2026-04-05T02:00:00.000Z',
+        marketDate: '2026-04-05',
+        exchangeRate: 1
+      }
+    ]
+    const first = {
+      ...account(firstEntries),
+      accountId: 'first',
+      position: stock(60).position,
+      performanceAdjustmentCny: 25.5
+    }
+    const second = {
+      ...account([
+        trade('second-buy', 'buy', 100, 10, 1, 0),
+        trade('second-close', 'sell', 100, 9, 1, 0),
+        trade('second-reopen', 'buy', 100, 10, 1, 0, '2026-04-03T02:00:00.000Z'),
+        trade('second-partial', 'sell', 50, 11, 1, 0, '2026-04-04T02:00:00.000Z')
+      ]),
+      accountId: 'second',
+      position: stock(50).position
+    }
+    const books = { '116.00700': { quoteId: '116.00700', accounts: { first, second } } }
+    const report = calculatePortfolioPerformanceReport(
+      [stock(110)],
+      [quote()],
+      books,
+      exchangeRates(1)
+    )
+    for (const row of [
+      ...report.stockRows,
+      ...report.marketRows,
+      ...report.currencyRows,
+      report.portfolioRow
+    ]) {
+      expect(row.cumulative.cny).toMatchObject({
+        realizedProfit: 100,
+        unrealizedProfit: 0,
+        dividendIncome: 0,
+        manualAdjustment: 0,
+        totalProfit: 100
+      })
+    }
+    expect(report.accountRows.map((row) => row.cumulative.cny.totalProfit)).toEqual([200, -100])
+
+    const closedFirst = {
+      ...first,
+      ...account([
+        ...firstEntries,
+        trade('first-final', 'sell', 60, 13, 1, 0, '2026-04-06T02:00:00.000Z')
+      ]),
+      position: undefined
+    }
+    const afterClosing = calculatePortfolioPerformanceReport(
+      [stock(50)],
+      [],
+      { '116.00700': { ...books['116.00700'], accounts: { first: closedFirst, second } } },
+      exchangeRates(null)
+    )
+    expect(afterClosing.stockRows[0].cumulative.cny).toMatchObject({
+      realizedProfit: 360,
+      unrealizedProfit: 0,
+      dividendIncome: 30,
+      manualAdjustment: 25.5,
+      totalProfit: 415.5
+    })
+  })
+
+  it('returns zero before the first close even with partial sales, adjustments and missing quotes or FX', () => {
+    const entries = [
+      trade('buy', 'buy', 100, 10, undefined, 5),
+      trade('partial', 'sell', 40, 14, 0.95, 3)
+    ]
+    const report = calculatePortfolioPerformanceReport(
+      [stock(60)],
+      [],
+      { '116.00700': account(entries) },
+      exchangeRates(null),
+      { '116.00700': 25.5 }
+    )
+    expect(report.stocks[0].currentCycle.complete).toBe(false)
+    expect(report.stocks[0].cumulative).toMatchObject({
+      complete: true,
+      issues: [],
+      cny: { totalProfit: 0, realizedProfit: 0, unrealizedProfit: 0, manualAdjustment: 0 }
+    })
+    expect(
+      calculatePortfolioPerformanceCycles(
+        stock(60),
+        undefined,
+        account(entries),
+        exchangeRates(null)
+      )
+    ).toMatchObject([{ status: 'open', includedInCumulative: false }])
   })
 })

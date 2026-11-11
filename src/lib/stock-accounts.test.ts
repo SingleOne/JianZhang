@@ -102,7 +102,7 @@ const quote: StockQuote = {
 }
 
 describe('independent account ledgers', () => {
-  it('adds realized and unrealized results independently and counts the security once', () => {
+  it('adds only closed-cycle results to cumulative performance and counts the security once', () => {
     const current = state(
       book('default:CN', [
         trade('a-buy', 'buy', 10, '2026-01-02T10:00'),
@@ -118,8 +118,9 @@ describe('independent account ledgers', () => {
     )
     expect(report.stockRows[0].cumulative.stockCount).toBe(1)
     expect(report.stockRows[0].cumulative.cny.realizedProfit).toBe(2000)
-    expect(report.stockRows[0].cumulative.cny.unrealizedProfit).toBe(1000)
-    expect(report.stockRows[0].cumulative.cny.totalProfit).toBe(3000)
+    expect(report.stockRows[0].cumulative.cny.unrealizedProfit).toBe(0)
+    expect(report.stockRows[0].cumulative.cny.totalProfit).toBe(2000)
+    expect(report.stockRows[0].currentCycle.cny.totalProfit).toBe(1000)
     expect(report.accountRows).toHaveLength(2)
   })
 

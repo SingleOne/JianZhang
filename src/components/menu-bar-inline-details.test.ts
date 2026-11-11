@@ -55,7 +55,7 @@ const state: AppState = {
   corporateActionApplications: {},
   stockTradingBooks: {},
   portfolioPerformanceCache: {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: '2026-11-05T10:00:00+08:00',
     cumulativeProfitByQuoteId: { '1.600519': 1250.5, '0.300750': -4500.25 }
   }

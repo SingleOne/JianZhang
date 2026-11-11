@@ -178,7 +178,7 @@ function AccountCycles({
       <div className="portfolio-performance-cycles-account-heading">
         <h3>{performance.accountLabel}</h3>
         <span>
-          共 {cycles.length} 个收益周期 · 当前累计纳入 {includedCount} 个
+          共 {cycles.length} 个收益周期 · 累计纳入 {includedCount} 个已清仓周期
         </span>
       </div>
       <div className="portfolio-performance-cycles-summary">
@@ -209,7 +209,7 @@ function AccountCycles({
           <thead>
             <tr>
               <th>
-                <Tooltip content="各账户累计收益从该账户最近一次收益基准重置后开始计算；重置前周期仍保留展示，但不计入该账户当前累计。持仓天数按自然日计算，包含起止当天；持仓中计算至今天。">
+                <Tooltip content="累计收益汇总各账户最近一次收益基准重置后已清仓周期的净收益。持仓天数按自然日计算，包含起止当天。持仓中计算至今天。">
                   <span tabIndex={0}>周期</span>
                 </Tooltip>
               </th>

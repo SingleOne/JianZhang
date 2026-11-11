@@ -63,6 +63,7 @@ import {
 } from './lib/fundamental-screening'
 import { watchlistAddedDate } from './shared/watchlist-date'
 import { applyAppThemePreference } from './lib/theme'
+import { calculatePortfolioPerformanceReport } from './lib/portfolio-performance'
 import {
   createStockTrackingSource,
   startStockTracking,
@@ -169,6 +170,8 @@ export default function App() {
   const confirm = useConfirmDialog()
   const watchlist = useAppStateField('watchlist')
   const stockTrackingProfiles = useAppStateField('stockTrackingProfiles')
+  const stockTradingBooks = useAppStateField('stockTradingBooks')
+  const portfolioPerformanceAdjustments = useAppStateField('portfolioPerformanceAdjustments')
   const settings = useAppSettings([
     'theme',
     'priorityRefreshSeconds',
@@ -788,13 +791,41 @@ export default function App() {
     [persist]
   )
 
-  const savePortfolioPerformanceCache = useCallback(
-    async (cache: PortfolioPerformanceCache) =>
-      Boolean(
-        await persist((current) => ({ ...current, portfolioPerformanceCache: cache }), false)
-      ),
-    [persist]
-  )
+  useEffect(() => {
+    if (initializing) return
+    void persist((current) => {
+      const report = calculatePortfolioPerformanceReport(
+        current.watchlist,
+        [],
+        current.stockTradingBooks,
+        current.settings.exchangeRates,
+        current.portfolioPerformanceAdjustments
+      )
+      const cumulativeProfitByQuoteId = Object.fromEntries(
+        report.stockRows.map((row) => [row.id, row.cumulative.cny.totalProfit])
+      )
+      if (
+        current.portfolioPerformanceCache?.schemaVersion === 2 &&
+        JSON.stringify(current.portfolioPerformanceCache.cumulativeProfitByQuoteId) ===
+          JSON.stringify(cumulativeProfitByQuoteId)
+      ) {
+        return current
+      }
+      const cache: PortfolioPerformanceCache = {
+        schemaVersion: 2,
+        generatedAt: report.generatedAt,
+        cumulativeProfitByQuoteId
+      }
+      return { ...current, portfolioPerformanceCache: cache }
+    }, false)
+  }, [
+    initializing,
+    persist,
+    watchlist,
+    stockTradingBooks,
+    settings.exchangeRates,
+    portfolioPerformanceAdjustments
+  ])
 
   const toggleTaskbar = useCallback(
     (quoteId: string) => {
@@ -1801,7 +1832,6 @@ export default function App() {
           <Suspense fallback={null}>
             <PortfolioPerformanceDialog
               onSaveAdjustments={savePortfolioPerformanceAdjustments}
-              onSavePerformanceCache={savePortfolioPerformanceCache}
               onRecalculateStock={recalculatePortfolioPerformanceStock}
               onSaveTradingBook={updatePosition}
               onClose={() => closeTitlebarPanel('portfolio-performance')}
