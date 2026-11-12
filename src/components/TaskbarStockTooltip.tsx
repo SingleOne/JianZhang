@@ -681,32 +681,28 @@ export function StockQuoteDetails({
       {overview.summaries.map(({ batch, trades, feeContext, metrics: tMetrics }) => {
         const closingSide = tMetrics.direction === 'reverse' ? 'buy' : 'sell'
         const latest = quote?.latest
-        const nearestLevel =
+        const levels = getTPlanRows(
+          batch,
+          trades,
+          closingSide,
+          feeState.settings.tTradingFees,
+          stock?.marketLabel ?? marketLabelForQuoteId(quoteId),
+          {
+            market,
+            marketTradeFees: feeState.settings.marketTradeFees,
+            accountFeeContext: feeContext,
+            stampDutyExempt: stock?.instrumentType === 'etf',
+            instrumentType: stock?.instrumentType
+          }
+        ).flatMap(({ index, quantity, targetPrice, fullPositionProfit }) =>
+          quantity > 0 && targetPrice !== null ? [{ index, targetPrice, fullPositionProfit }] : []
+        )
+        const nextLevel =
           latest == null
             ? undefined
-            : getTPlanRows(
-                batch,
-                trades,
-                closingSide,
-                feeState.settings.tTradingFees,
-                stock?.marketLabel ?? marketLabelForQuoteId(quoteId),
-                {
-                  market,
-                  marketTradeFees: feeState.settings.marketTradeFees,
-                  accountFeeContext: feeContext,
-                  stampDutyExempt: stock?.instrumentType === 'etf',
-                  instrumentType: stock?.instrumentType
-                }
-              )
-                .flatMap(({ index, quantity, targetPrice, fullPositionProfit }) =>
-                  quantity > 0 && targetPrice !== null
-                    ? [{ index, targetPrice, fullPositionProfit }]
-                    : []
-                )
-                .sort(
-                  (left, right) =>
-                    Math.abs(left.targetPrice - latest) - Math.abs(right.targetPrice - latest)
-                )[0]
+            : (levels.find((level) =>
+                closingSide === 'buy' ? latest >= level.targetPrice : latest <= level.targetPrice
+              ) ?? levels.at(-1))
 
         return (
           <section className="taskbar-tooltip-section" key={batch.id}>
@@ -718,14 +714,14 @@ export function StockQuoteDetails({
               </span>
               <span>
                 {closingSide === 'buy' ? '买入' : '卖出'}{' '}
-                {nearestLevel ? `T${nearestLevel.index + 1}` : '--'}
-                {nearestLevel ? (
+                {nextLevel ? `T${nextLevel.index + 1}` : '--'}
+                {nextLevel ? (
                   <>
-                    <AnimatedNumber value={nearestLevel.targetPrice} formatValue={formatPrice} />
+                    <AnimatedNumber value={nextLevel.targetPrice} formatValue={formatPrice} />
                     <AnimatedNumber
-                      value={nearestLevel.fullPositionProfit}
-                      formattedValue={`(${formatMoneyProfit(nearestLevel.fullPositionProfit, currency)})`}
-                      className={valueClass(nearestLevel.fullPositionProfit)}
+                      value={nextLevel.fullPositionProfit}
+                      formattedValue={`(${formatMoneyProfit(nextLevel.fullPositionProfit, currency)})`}
+                      className={valueClass(nextLevel.fullPositionProfit)}
                     />
                   </>
                 ) : null}
