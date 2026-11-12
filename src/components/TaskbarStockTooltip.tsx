@@ -675,7 +675,7 @@ export function StockQuoteDetails({
         </div>
       </section>
 
-      {overview.summaries.map(({ account: owner, batch, metrics: tMetrics }) => {
+      {overview.summaries.map(({ batch, metrics: tMetrics }) => {
         const closingSide = tMetrics.direction === 'reverse' ? 'buy' : 'sell'
         const levels = closingSide === 'buy' ? (batch.buyLevels ?? []) : batch.sellLevels
         const latest = quote?.latest
@@ -690,7 +690,16 @@ export function StockQuoteDetails({
                     level.targetPercent,
                     { market, instrumentType: stock?.instrumentType }
                   )
-                  return level.quantity > 0 && targetPrice !== null ? [{ index, targetPrice }] : []
+                  return level.quantity > 0 && targetPrice !== null
+                    ? [
+                        {
+                          index,
+                          targetPrice,
+                          targetPercent:
+                            closingSide === 'buy' ? -level.targetPercent : level.targetPercent
+                        }
+                      ]
+                    : []
                 })
                 .sort(
                   (left, right) =>
@@ -698,20 +707,25 @@ export function StockQuoteDetails({
                 )[0]
 
         return (
-          <section className="taskbar-tooltip-section" key={owner.accountId}>
+          <section className="taskbar-tooltip-section" key={batch.id}>
             <div className="taskbar-tooltip-t-summary">
-              <strong>
-                {owner.accountName} · {tMetrics.direction === 'reverse' ? '反T' : '正T'}
-              </strong>
+              <strong>{tMetrics.direction === 'reverse' ? '反T' : '正T'}</strong>
               <span>剩余 {formatShares(tMetrics.remainingQuantity)}</span>
               <span>
                 成本 <AnimatedNumber value={tMetrics.averageCost} formatValue={formatCost} />
               </span>
               <span>
-                最近{closingSide === 'buy' ? '买入' : '卖出'}{' '}
+                {closingSide === 'buy' ? '买入' : '卖出'}{' '}
                 {nearestLevel ? `T${nearestLevel.index + 1}` : '--'}
                 {nearestLevel ? (
-                  <AnimatedNumber value={nearestLevel.targetPrice} formatValue={formatPrice} />
+                  <>
+                    <AnimatedNumber value={nearestLevel.targetPrice} formatValue={formatPrice} />
+                    <AnimatedNumber
+                      value={nearestLevel.targetPercent}
+                      formattedValue={`(${formatPercent(nearestLevel.targetPercent)})`}
+                      className={valueClass(nearestLevel.targetPercent)}
+                    />
+                  </>
                 ) : null}
               </span>
               <span className={valueClass(tMetrics.floatingProfit)}>
