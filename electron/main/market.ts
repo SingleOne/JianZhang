@@ -7,6 +7,7 @@ import {
 import { get as httpsGet } from 'node:https'
 import type {
   FundsFlowResult,
+  KlineAdjustment,
   KlineBar,
   KlineDateRange,
   KlinePeriod,
@@ -1259,6 +1260,9 @@ interface TencentKlineData {
   qfqday?: TencentKlineRow[]
   qfqweek?: TencentKlineRow[]
   qfqmonth?: TencentKlineRow[]
+  hfqday?: TencentKlineRow[]
+  hfqweek?: TencentKlineRow[]
+  hfqmonth?: TencentKlineRow[]
   day?: TencentKlineRow[]
   week?: TencentKlineRow[]
   month?: TencentKlineRow[]
@@ -1346,13 +1350,14 @@ async function fetchTencentKline(
   quoteId: string,
   period: KlinePeriod,
   limit: number,
-  caller: string
+  caller: string,
+  adjustment: KlineAdjustment = 'forward'
 ): Promise<KlineResult> {
   const failures: string[] = []
   for (const useWebNode of [false, true]) {
     const host = useWebNode ? 'web.ifzq.gtimg.cn' : 'ifzq.gtimg.cn'
     try {
-      return await fetchTencentKlineFrom(quoteId, period, limit, caller, useWebNode)
+      return await fetchTencentKlineFrom(quoteId, period, limit, caller, useWebNode, adjustment)
     } catch (error) {
       failures.push(`${host}：${error instanceof Error ? error.message : '请求失败'}`)
     }
@@ -1365,9 +1370,15 @@ async function fetchTencentKlineFrom(
   period: KlinePeriod,
   limit: number,
   caller: string,
-  useWebNode: boolean
+  useWebNode: boolean,
+  adjustment: KlineAdjustment
 ): Promise<KlineResult> {
   const symbol = toTencentSymbol(quoteId)
+  const tencentPeriod = period === 'daily' ? 'day' : period === 'weekly' ? 'week' : 'month'
+  const adjustmentParam = adjustment === 'forward' ? 'qfq' : adjustment === 'backward' ? 'hfq' : ''
+  const historicalKey = `${adjustmentParam}${tencentPeriod}` as const
+  const historicalRows = (source: TencentKlineData | undefined): TencentKlineRow[] =>
+    source?.[historicalKey] ?? source?.[tencentPeriod] ?? []
   const origin = `https://${useWebNode ? 'web.ifzq.gtimg.cn' : 'ifzq.gtimg.cn'}`
   const url = new URL(
     period === 'fiveDay' || period === 'intraday'
@@ -1380,8 +1391,7 @@ async function fetchTencentKlineFrom(
     const minutePeriod = period === 'intraday' ? 'm1' : 'm5'
     url.searchParams.set('param', `${symbol},${minutePeriod},,${period === 'fiveDay' ? 240 : 480}`)
   } else {
-    const tencentPeriod = period === 'daily' ? 'day' : period === 'weekly' ? 'week' : 'month'
-    url.searchParams.set('param', `${symbol},${tencentPeriod},,,${limit},qfq`)
+    url.searchParams.set('param', `${symbol},${tencentPeriod},,,${limit},${adjustmentParam}`)
   }
 
   const payload = await requestJson<{
@@ -1400,9 +1410,7 @@ async function fetchTencentKlineFrom(
       const source = value.data?.[symbol]
       if (period === 'intraday') return source?.m1?.length ?? 0
       if (period === 'fiveDay') return source?.m5?.length ?? 0
-      if (period === 'daily') return (source?.qfqday ?? source?.day)?.length ?? 0
-      if (period === 'weekly') return (source?.qfqweek ?? source?.week)?.length ?? 0
-      return (source?.qfqmonth ?? source?.month)?.length ?? 0
+      return historicalRows(source).length
     }
   })
   if (payload.code !== 0) throw new Error(payload.msg || '腾讯行情 K 线请求失败')
@@ -1414,18 +1422,14 @@ async function fetchTencentKlineFrom(
     rows = source?.m1 ?? []
   } else if (period === 'fiveDay') {
     rows = source?.m5 ?? []
-  } else if (period === 'daily') {
-    rows = source?.qfqday ?? source?.day ?? []
-  } else if (period === 'weekly') {
-    rows = source?.qfqweek ?? source?.week ?? []
   } else {
-    rows = source?.qfqmonth ?? source?.month ?? []
+    rows = historicalRows(source)
   }
 
   const result: KlineResult = {
     ...toTencentKlineResult(quoteId, quote?.[1], rows),
     source: 'tencent',
-    adjustment: period === 'fiveDay' || period === 'intraday' ? 'none' : 'forward',
+    adjustment: period === 'fiveDay' || period === 'intraday' ? 'none' : adjustment,
     fetchedAt: new Date().toISOString()
   }
   if (period !== 'intraday') return result
@@ -1670,13 +1674,17 @@ async function fetchHistoricalKline(
   klt: '5' | '101' | '102' | '103',
   limit: number,
   caller: string,
-  dateRange?: KlineDateRange
+  dateRange?: KlineDateRange,
+  adjustment: KlineAdjustment = 'forward'
 ): Promise<KlineResult> {
   const createUrl = (origin: string) => {
     const url = new URL('/api/qt/stock/kline/get', origin)
     url.searchParams.set('secid', quoteId)
     url.searchParams.set('klt', klt)
-    url.searchParams.set('fqt', EASTMONEY_FIXED_PARAMS.historicalKline.fqt)
+    url.searchParams.set(
+      'fqt',
+      klt === '5' || adjustment === 'none' ? '0' : adjustment === 'backward' ? '2' : '1'
+    )
     url.searchParams.set('lmt', String(limit))
     if (dateRange) url.searchParams.set('beg', dateRange.startDate.replaceAll('-', ''))
     url.searchParams.set(
@@ -1722,7 +1730,7 @@ async function fetchHistoricalKline(
     return {
       ...toHistoricalKlineResult(quoteId, payload.data?.name, payload.data?.klines ?? []),
       source: source === 'eastmoney-delay' ? 'eastmoney-mirror' : 'eastmoney-primary',
-      adjustment: klt === '5' ? 'none' : 'forward',
+      adjustment: klt === '5' ? 'none' : adjustment,
       fetchedAt: new Date().toISOString()
     } satisfies KlineResult
   }
@@ -1783,18 +1791,40 @@ async function fetchEastmoneyKline(
   period: NonIntradayKlinePeriod,
   limit?: number,
   caller = 'kline',
-  dateRange?: KlineDateRange
+  dateRange?: KlineDateRange,
+  adjustment: KlineAdjustment = 'forward'
 ): Promise<KlineResult> {
   const requestedLimit = limit === undefined ? 0 : Math.max(1, Math.round(limit))
   switch (period) {
     case 'fiveDay':
       return fetchHistoricalKline(quoteId, '5', 240, caller)
     case 'daily':
-      return fetchHistoricalKline(quoteId, '101', requestedLimit || 120, caller, dateRange)
+      return fetchHistoricalKline(
+        quoteId,
+        '101',
+        requestedLimit || 120,
+        caller,
+        dateRange,
+        adjustment
+      )
     case 'weekly':
-      return fetchHistoricalKline(quoteId, '102', requestedLimit || 104, caller)
+      return fetchHistoricalKline(
+        quoteId,
+        '102',
+        requestedLimit || 104,
+        caller,
+        undefined,
+        adjustment
+      )
     case 'monthly':
-      return fetchHistoricalKline(quoteId, '103', requestedLimit || 60, caller)
+      return fetchHistoricalKline(
+        quoteId,
+        '103',
+        requestedLimit || 60,
+        caller,
+        undefined,
+        adjustment
+      )
   }
 }
 
@@ -1803,7 +1833,8 @@ export async function fetchKline(
   period: KlinePeriod = 'intraday',
   limit?: number,
   caller = 'kline',
-  dateRange?: KlineDateRange
+  dateRange?: KlineDateRange,
+  adjustment: KlineAdjustment = 'forward'
 ): Promise<KlineResult> {
   if (period === 'intraday') return fetchIntradayKline(quoteId, caller)
 
@@ -1818,7 +1849,7 @@ export async function fetchKline(
   let primaryError: unknown
 
   try {
-    const result = await fetchEastmoneyKline(quoteId, period, limit, caller, dateRange)
+    const result = await fetchEastmoneyKline(quoteId, period, limit, caller, dateRange, adjustment)
     return dateRange ? filterKlineDateRange(result, dateRange) : result
   } catch (error) {
     primaryError = error
@@ -1830,7 +1861,7 @@ export async function fetchKline(
   }
 
   try {
-    const result = await fetchTencentKline(quoteId, period, requestedLimit, caller)
+    const result = await fetchTencentKline(quoteId, period, requestedLimit, caller, adjustment)
     const resolved = {
       ...result,
       fallbackReason:

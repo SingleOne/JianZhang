@@ -61,6 +61,7 @@ import type {
   GitHubLoginResult,
   GitHubSyncSettings,
   GitHubSyncUploadResult,
+  KlineAdjustment,
   KlinePeriod,
   KlineResult,
   ManualCorporateActionRequest,
@@ -165,7 +166,12 @@ interface IpcHandlerDependencies {
   captureStockTrackingMetrics: () => Promise<void>
   restartQuoteSchedule: () => void
   primeSectorBindings: (refreshWhenReady: boolean) => Promise<void>
-  getKline: (quoteId: string, period: KlinePeriod, limit?: number) => Promise<KlineResult>
+  getKline: (
+    quoteId: string,
+    period: KlinePeriod,
+    limit?: number,
+    adjustment?: KlineAdjustment
+  ) => Promise<KlineResult>
   getDailyMarketScanResult: () => DailyMarketScanResult | null
   getDailyMarketScanState: () => DailyMarketScanState
   runDailyMarketScan: () => Promise<DailyMarketScanResult>
@@ -481,8 +487,10 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
   handle('quotes:refresh-by-ids', (_event, quoteIds: string[]) =>
     dependencies.refreshStocks(quoteIds, 'tracking-review')
   )
-  handle('kline:get', (_event, quoteId: string, period: KlinePeriod, limit?: number) =>
-    dependencies.getKline(quoteId, period, limit)
+  handle(
+    'kline:get',
+    (_event, quoteId: string, period: KlinePeriod, limit?: number, adjustment?: KlineAdjustment) =>
+      dependencies.getKline(quoteId, period, limit, adjustment)
   )
   handle('daily-market-scan:get', () => dependencies.getDailyMarketScanResult())
   handle('daily-market-scan:state:get', () => dependencies.getDailyMarketScanState())

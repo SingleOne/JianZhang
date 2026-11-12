@@ -94,7 +94,8 @@ const api: StockDesktopBridge = {
   refreshQuotes: () => ipcRenderer.invoke('quotes:refresh'),
   refreshQuote: (quoteId) => ipcRenderer.invoke('quotes:refresh-one', quoteId),
   refreshQuotesByIds: (quoteIds) => ipcRenderer.invoke('quotes:refresh-by-ids', quoteIds),
-  getKline: (quoteId, period, limit) => ipcRenderer.invoke('kline:get', quoteId, period, limit),
+  getKline: (quoteId, period, limit, adjustment) =>
+    ipcRenderer.invoke('kline:get', quoteId, period, limit, adjustment),
   getDailyMarketScanResult: () => ipcRenderer.invoke('daily-market-scan:get'),
   getDailyMarketScanState: () => ipcRenderer.invoke('daily-market-scan:state:get'),
   runDailyMarketScan: () => ipcRenderer.invoke('daily-market-scan:run'),

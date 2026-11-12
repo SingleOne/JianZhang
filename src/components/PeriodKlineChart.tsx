@@ -486,6 +486,7 @@ export default function PeriodKlineChart({
 
     const currentRange = chart.timeScale().getVisibleLogicalRange()
     const currentSpan = currentRange ? currentRange.to - currentRange.from : null
+    isAligningRangeRef.current = true
     barsByTimeRef.current = new Map(bars.map((bar) => [toTimestamp(bar.time), bar]))
     dataLengthRef.current = bars.length
 
@@ -510,7 +511,6 @@ export default function PeriodKlineChart({
     const visibleSpan = currentSpan ?? Math.min(INITIAL_VISIBLE_BARS[period], bars.length)
     const latestEdge = bars.length - 0.5
     const nextRange = { from: latestEdge - visibleSpan, to: latestEdge }
-    isAligningRangeRef.current = true
     chart.timeScale().setVisibleLogicalRange(nextRange)
     updateMarkersRef.current(nextRange)
     reportVisibleRangeRef.current(nextRange, 'programmatic')

@@ -1,4 +1,9 @@
-import type { KlineDateRange, KlinePeriod, KlineResult } from '../../src/shared/types'
+import type {
+  KlineAdjustment,
+  KlineDateRange,
+  KlinePeriod,
+  KlineResult
+} from '../../src/shared/types'
 import type { MarketCalendarDates } from '../../src/shared/market-calendar'
 import { LruCache } from '../../src/shared/lru-cache'
 import type { HistoricalKlineCache } from './historical-kline-cache'
@@ -24,8 +29,13 @@ function liveCacheKey(quoteId: string, period: KlinePeriod): string {
   return `${quoteId}:${period}`
 }
 
-function requestKey(quoteId: string, period: KlinePeriod, limit: number): string {
-  return `${quoteId}:${period}:${limit}`
+function requestKey(
+  quoteId: string,
+  period: KlinePeriod,
+  limit: number,
+  adjustment: KlineAdjustment = 'forward'
+): string {
+  return `${quoteId}:${period}:${limit}:${adjustment}`
 }
 
 function rangeLimit(range: KlineDateRange): number {
@@ -45,7 +55,8 @@ export class KlineHub {
       period: KlinePeriod,
       limit: number | undefined,
       caller: string,
-      dateRange?: KlineDateRange
+      dateRange?: KlineDateRange,
+      adjustment?: KlineAdjustment
     ) => Promise<KlineResult>,
     private readonly historicalCache: HistoricalKlineCache,
     private readonly getCalendar: (quoteId: string) => MarketCalendarDates | readonly string[],
@@ -59,15 +70,26 @@ export class KlineHub {
     quoteId: string,
     period: KlinePeriod,
     limit: number | undefined,
-    caller: string
+    caller: string,
+    adjustment: KlineAdjustment = 'forward'
   ): Promise<KlineResult> {
     const normalizedLimit = requestedLimit(period, limit)
-    const cached = this.getCached(quoteId, period, normalizedLimit)
+    const effectiveAdjustment = isHistoricalPeriod(period) ? adjustment : 'none'
+    const cached = this.getCached(quoteId, period, normalizedLimit, effectiveAdjustment)
     if (cached) return Promise.resolve({ ...cached, fromCache: true })
 
-    const key = requestKey(quoteId, period, normalizedLimit)
+    const key = requestKey(quoteId, period, normalizedLimit, effectiveAdjustment)
     return (
-      this.requests.get(key) ?? this.startRequest(key, quoteId, period, normalizedLimit, caller)
+      this.requests.get(key) ??
+      this.startRequest(
+        key,
+        quoteId,
+        period,
+        normalizedLimit,
+        caller,
+        undefined,
+        effectiveAdjustment
+      )
     )
   }
 
@@ -90,9 +112,14 @@ export class KlineHub {
     })
   }
 
-  private getCached(quoteId: string, period: KlinePeriod, limit: number): KlineResult | null {
+  private getCached(
+    quoteId: string,
+    period: KlinePeriod,
+    limit: number,
+    adjustment: KlineAdjustment
+  ): KlineResult | null {
     if (isHistoricalPeriod(period)) {
-      return this.historicalCache.get(quoteId, period, limit, this.getCalendar(quoteId))
+      return this.historicalCache.get(quoteId, period, limit, this.getCalendar(quoteId), adjustment)
     }
 
     const cached = this.liveCache.get(liveCacheKey(quoteId, period))
@@ -108,9 +135,12 @@ export class KlineHub {
     period: KlinePeriod,
     limit: number,
     caller: string,
-    dateRange?: KlineDateRange
+    dateRange?: KlineDateRange,
+    adjustment: KlineAdjustment = 'forward'
   ): Promise<KlineResult> {
-    const request = this.enqueue(() => this.load(quoteId, period, limit, caller, dateRange))
+    const request = this.enqueue(() =>
+      this.load(quoteId, period, limit, caller, dateRange, adjustment)
+    )
     this.requests.set(key, request)
     request.then(
       () => this.finishRequest(key, request),
@@ -124,10 +154,11 @@ export class KlineHub {
     period: KlinePeriod,
     limit: number,
     caller: string,
-    dateRange?: KlineDateRange
+    dateRange?: KlineDateRange,
+    adjustment: KlineAdjustment = 'forward'
   ): Promise<KlineResult> {
     if (dateRange) return this.fetchKline(quoteId, period, limit, caller, dateRange)
-    const cached = this.getCached(quoteId, period, limit)
+    const cached = this.getCached(quoteId, period, limit, adjustment)
     if (cached) return { ...cached, fromCache: true }
 
     if (!isHistoricalPeriod(period)) {
@@ -136,13 +167,13 @@ export class KlineHub {
       return data
     }
 
-    const fallback = this.historicalCache.getFallback(quoteId, period)
+    const fallback = this.historicalCache.getFallback(quoteId, period, adjustment)
     try {
-      const data = await this.fetchKline(quoteId, period, limit, caller)
+      const data = await this.fetchKline(quoteId, period, limit, caller, undefined, adjustment)
       if (this.historicalCache.shouldKeepFallback(period, data)) {
         return fallback ? { ...fallback, fromCache: true } : data
       }
-      return this.historicalCache.save(quoteId, period, limit, data)
+      return this.historicalCache.save(quoteId, period, limit, data, adjustment)
     } catch (reason) {
       if (fallback) return { ...fallback, fromCache: true }
       throw reason

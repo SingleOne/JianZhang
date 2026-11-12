@@ -106,6 +106,7 @@ import type {
   CorporateActionRecords,
   DailyKlineIndicator,
   ExchangeRateSettings,
+  KlineAdjustment,
   KlineBar,
   KlinePeriod,
   StockQuote,
@@ -118,6 +119,7 @@ import type {
 } from '../shared/types'
 import { FundsFlowPanel } from './FundsFlowPanel'
 import { AppButton } from './AppButton'
+import { AppSelect, type AppSelectOption } from './AppSelect'
 import { ChipDistributionPanel } from './ChipDistributionPanel'
 import { CompanyReportLibrary, FundamentalReadingGuide } from './CompanyReportLibrary'
 import { InvestmentValueMetrics } from './InvestmentValueMetrics'
@@ -131,6 +133,12 @@ import type { AiAnalysisType } from '../modules/ai/shared/types'
 
 const CandlestickChart = lazy(() => import('./CandlestickChart'))
 const PeriodKlineChart = lazy(() => import('./PeriodKlineChart'))
+
+const KLINE_ADJUSTMENT_OPTIONS = [
+  { value: 'forward', label: '前复权' },
+  { value: 'backward', label: '后复权' },
+  { value: 'none', label: '不复权' }
+] satisfies readonly AppSelectOption<KlineAdjustment>[]
 const SectorIndexPanel = lazy(() => import('./SectorIndexPanel'))
 const GlobalFundamentalPanel = lazy(() => import('./GlobalFundamentalPanel'))
 const CorporateActionPanel = lazy(() => import('./AccountCorporateActionPanel'))
@@ -1936,6 +1944,11 @@ export function ExpandedStockDetails({
   const volumeUnit = volumeUnitForMarket(market)
   const [activeTab, setActiveTab] = useState<DetailTab>('market')
   const [activeMarketTab, setActiveMarketTab] = useState<MarketTab>('trend')
+  const [klineAdjustment, setKlineAdjustment] = useState<KlineAdjustment>(() => {
+    const saved = localStorage.getItem('jianzhang-kline-adjustment')
+    return saved === 'backward' || saved === 'none' ? saved : 'forward'
+  })
+  const showChipDistribution = chipDistributionEnabled && klineAdjustment === 'forward'
   const priceTab = activeTab === 'market' && isPriceTab(activeMarketTab) ? activeMarketTab : null
   const [aiAnalysisType, setAiAnalysisType] = useState<AiAnalysisType>('short-term')
   const [stockCacheDialogOpen, setStockCacheDialogOpen] = useState(false)
@@ -2044,13 +2057,13 @@ export function ExpandedStockDetails({
 
   useEffect(() => {
     setHoveredBar(null)
-  }, [activeTab, activeMarketTab, stock.quoteId])
+  }, [activeTab, activeMarketTab, stock.quoteId, klineAdjustment])
 
   useEffect(() => {
     setDailyVisibleRange(null)
     setChipAutoRangeMode(true)
     setChipRangeRequestKey((current) => current + 1)
-  }, [stock.quoteId])
+  }, [stock.quoteId, klineAdjustment])
 
   useEffect(() => {
     if (aiStatusLoaded && !aiEnabled && (activeTab === 'ai' || activeTab === 't-advice')) {
@@ -2061,7 +2074,11 @@ export function ExpandedStockDetails({
   const chart = useKlineResource(
     stock.quoteId,
     priceTab ? apiPeriod(priceTab) : null,
-    activeHistoricalLimit
+    activeHistoricalLimit,
+    true,
+    priceTab === 'trend' || priceTab === 'fiveDay',
+    undefined,
+    klineAdjustment
   )
   const dailyChart = useKlineResource(stock.quoteId, 'daily', historyLimits.daily, false)
   const data = chart.data ?? null
@@ -2161,14 +2178,14 @@ export function ExpandedStockDetails({
   }, [])
 
   useEffect(() => {
-    if (!chipDistributionEnabled || priceTab !== 'daily' || !chipAutoRange) return
+    if (!showChipDistribution || priceTab !== 'daily' || !chipAutoRange) return
     if (chipAutoRange.reachedThreshold || dailyBars.length < historyLimits.daily) return
     const estimatedLimit = estimateChipHistoryLimit(dailyBars, MAX_HISTORY_LIMITS.daily)
     if (estimatedLimit === null) return
     setHistoryLimits((current) =>
       current.daily >= estimatedLimit ? current : { ...current, daily: estimatedLimit }
     )
-  }, [priceTab, chipAutoRange, chipDistributionEnabled, dailyBars, historyLimits.daily])
+  }, [priceTab, chipAutoRange, showChipDistribution, dailyBars, historyLimits.daily])
 
   const toggleChipDistribution = () => {
     const enabled = !chipDistributionEnabled
@@ -2455,8 +2472,13 @@ export function ExpandedStockDetails({
                   {STOCK_QUOTE_SOURCE_LABELS[data.source]}
                 </em>
               ) : null}
-              {data?.adjustment === 'forward' ? (
-                <em className="overview-data-badge">前复权</em>
+              {isHistorical && data?.adjustment ? (
+                <em className="overview-data-badge">
+                  {
+                    KLINE_ADJUSTMENT_OPTIONS.find((option) => option.value === data.adjustment)
+                      ?.label
+                  }
+                </em>
               ) : null}
               {data?.fromCache ? <em className="overview-data-badge is-cache">本地缓存</em> : null}
             </div>
@@ -2487,6 +2509,20 @@ export function ExpandedStockDetails({
               ) : null}
             </div>
             <div className="overview-header-actions">
+              {isHistorical ? (
+                <AppSelect<KlineAdjustment>
+                  className="kline-adjustment-select"
+                  label="K线复权方式"
+                  value={klineAdjustment}
+                  options={KLINE_ADJUSTMENT_OPTIONS}
+                  portal
+                  onChange={(adjustment) => {
+                    setHoveredBar(null)
+                    setKlineAdjustment(adjustment)
+                    localStorage.setItem('jianzhang-kline-adjustment', adjustment)
+                  }}
+                />
+              ) : null}
               {priceTab ? (
                 <div className="chart-legend" aria-label="图表图例">
                   <span className={isHistorical ? 'legend-candlestick' : 'legend-price'}>
@@ -2497,7 +2533,8 @@ export function ExpandedStockDetails({
                   ) : null}
                   {priceTab === 'trend' ? <span className="legend-average-price">VWAP</span> : null}
                   <span className="legend-volume">成交量</span>
-                  {(priceTab === 'trend' || isHistorical) && stopLoss ? (
+                  {(priceTab === 'trend' || (isHistorical && klineAdjustment !== 'backward')) &&
+                  stopLoss ? (
                     <>
                       <AppButton
                         variant="plain"
@@ -2528,10 +2565,12 @@ export function ExpandedStockDetails({
                   {priceTab === 'daily' && capabilities.chipDistribution ? (
                     <AppButton
                       variant="plain"
-                      className={`chip-distribution-toggle ${chipDistributionEnabled ? 'is-active' : ''}`}
+                      className={`chip-distribution-toggle ${showChipDistribution ? 'is-active' : ''}`}
                       type="button"
                       role="switch"
-                      aria-checked={chipDistributionEnabled}
+                      aria-checked={showChipDistribution}
+                      disabled={klineAdjustment !== 'forward'}
+                      title={klineAdjustment !== 'forward' ? '筹码分布仅支持前复权日 K' : undefined}
                       onClick={toggleChipDistribution}
                     >
                       <span aria-hidden="true">
@@ -2562,7 +2601,7 @@ export function ExpandedStockDetails({
                 ))}
               </div>
               <div
-                className={`chart-panel ${priceTab === 'trend' && capabilities.orderBook ? 'has-order-book' : ''} ${historicalPeriod ? 'has-kline-indicator-toolbar' : ''} ${priceTab === 'daily' && chipDistributionEnabled && capabilities.chipDistribution ? 'has-chip-distribution' : ''}`}
+                className={`chart-panel ${priceTab === 'trend' && capabilities.orderBook ? 'has-order-book' : ''} ${historicalPeriod ? 'has-kline-indicator-toolbar' : ''} ${priceTab === 'daily' && showChipDistribution && capabilities.chipDistribution ? 'has-chip-distribution' : ''}`}
               >
                 <div className="chart-content">
                   {(error && data) || isFiveMinuteFallback ? (
@@ -2586,7 +2625,7 @@ export function ExpandedStockDetails({
                   {isLoading && data && isHistorical ? (
                     <div className="chart-history-loading">
                       {priceTab === 'daily' &&
-                      chipDistributionEnabled &&
+                      showChipDistribution &&
                       chipAutoRangeMode &&
                       chipAutoRange &&
                       !chipAutoRange.reachedThreshold
@@ -2616,9 +2655,10 @@ export function ExpandedStockDetails({
                     <Suspense fallback={<div className="chart-loading">正在初始化图表…</div>}>
                       {historicalPeriod ? (
                         <PeriodKlineChart
+                          key={`${historicalPeriod}:${klineAdjustment}`}
                           bars={data.bars}
                           referenceLine={
-                            showStopLoss && stopLoss
+                            showStopLoss && stopLoss && klineAdjustment !== 'backward'
                               ? { price: stopLoss.stopPrice, title: '止损线' }
                               : null
                           }
@@ -2628,7 +2668,7 @@ export function ExpandedStockDetails({
                           onRequestMore={requestMoreHistory}
                           requestedVisibleBars={
                             historicalPeriod === 'daily' &&
-                            chipDistributionEnabled &&
+                            showChipDistribution &&
                             chipAutoRangeMode
                               ? chipAutoRange?.barCount
                               : undefined
@@ -2647,9 +2687,7 @@ export function ExpandedStockDetails({
                           trackingStoppedAt={
                             historicalPeriod === 'daily' ? trackingProfile?.stoppedAt : undefined
                           }
-                          height={
-                            historicalPeriod === 'daily' && chipDistributionEnabled ? 360 : 320
-                          }
+                          height={historicalPeriod === 'daily' && showChipDistribution ? 360 : 320}
                         />
                       ) : (
                         <CandlestickChart
@@ -2683,7 +2721,7 @@ export function ExpandedStockDetails({
                     autoRefresh={autoRefreshOrderBook}
                   />
                 ) : priceTab === 'daily' &&
-                  chipDistributionEnabled &&
+                  showChipDistribution &&
                   capabilities.chipDistribution ? (
                   <ChipDistributionPanel
                     key={cacheRevisions['market-details'] ?? 0}

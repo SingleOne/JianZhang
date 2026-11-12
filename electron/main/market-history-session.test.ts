@@ -63,6 +63,38 @@ describe('historical K-line session recovery', () => {
     expect(netFetch).not.toHaveBeenCalled()
   })
 
+  it.each(['daily', 'weekly', 'monthly'] as const)(
+    'passes every adjustment to the primary and mirror for %s',
+    async (period) => {
+      for (const [adjustment, fqt] of [
+        ['forward', '1'],
+        ['backward', '2'],
+        ['none', '0']
+      ] as const) {
+        historyFetch.mockResolvedValueOnce(new Response(JSON.stringify(klinePayload())))
+        await expect(
+          fetchKline('1.600000', period, 120, 'test', undefined, adjustment)
+        ).resolves.toMatchObject({ adjustment, source: 'eastmoney-primary' })
+        expect(new URL(historyFetch.mock.lastCall![0]).searchParams.get('fqt')).toBe(fqt)
+
+        historyFetch.mockRejectedValue(new Error('primary unavailable'))
+        refresh.mockResolvedValue(false)
+        await expect(
+          fetchKline('1.600000', period, 120, 'test', undefined, adjustment)
+        ).resolves.toMatchObject({ adjustment, source: 'eastmoney-mirror' })
+        expect(new URL(httpsGet.mock.lastCall![0]).searchParams.get('fqt')).toBe(fqt)
+      }
+    }
+  )
+
+  it('keeps five-day minute bars unadjusted regardless of the historical selection', async () => {
+    historyFetch.mockResolvedValueOnce(new Response(JSON.stringify(klinePayload())))
+    await expect(
+      fetchKline('1.600000', 'fiveDay', 120, 'test', undefined, 'backward')
+    ).resolves.toMatchObject({ adjustment: 'none' })
+    expect(new URL(historyFetch.mock.lastCall![0]).searchParams.get('fqt')).toBe('0')
+  })
+
   it('refreshes a rejected session and retries primary before using the mirror', async () => {
     historyFetch
       .mockRejectedValueOnce(new Error('net::ERR_EMPTY_RESPONSE'))
@@ -169,6 +201,43 @@ describe('historical K-line session recovery', () => {
         'ifzq.gtimg.cn'
       ])
     })
+
+    it.each(['daily', 'weekly', 'monthly'] as const)(
+      'preserves the adjustment on both Tencent nodes for %s',
+      async (period) => {
+        const tencentPeriod = period === 'daily' ? 'day' : period === 'weekly' ? 'week' : 'month'
+        for (const [adjustment, prefix] of [
+          ['forward', 'qfq'],
+          ['backward', 'hfq'],
+          ['none', '']
+        ] as const) {
+          // Include all modes with distinct prices to detect a wrong response field.
+          const source = Object.assign(
+            {},
+            ...['qfq', 'hfq', ''].map((key, index) => ({
+              [`${key}${tencentPeriod}`]: [
+                ['2026-10-09', '10.00', String(10 + index), '12.30', '9.90', '100']
+              ]
+            }))
+          )
+          const body = JSON.stringify({ code: 0, data: { sh600000: source } })
+          netFetch
+            .mockResolvedValueOnce(new Response('WAF', { status: 501 }))
+            .mockResolvedValueOnce(new Response(body))
+
+          const result = await fetchKline('1.600000', period, 120, 'test', undefined, adjustment)
+          const requests = netFetch.mock.calls.slice(-2).map(([url]) => new URL(url))
+          expect(requests[0].searchParams.get('param')).toBe(
+            `sh600000,${tencentPeriod},,,120,${prefix}`
+          )
+          expect(requests[1].search).toBe(requests[0].search)
+          expect(result.adjustment).toBe(adjustment)
+          expect(result.bars[0].close).toBe(
+            adjustment === 'forward' ? 10 : adjustment === 'backward' ? 11 : 12
+          )
+        }
+      }
+    )
 
     it.each([
       ['1.600000', 'daily', 'qfqday', 120, 'sh600000'],

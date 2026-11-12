@@ -1,10 +1,18 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, utimesSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  unlinkSync,
+  utimesSync
+} from 'node:fs'
 import { join } from 'node:path'
 import { isAfterMarketClose, isMarketOpen, marketDateKey } from '../../src/shared/market-hours'
 import type { MarketCalendarDates } from '../../src/shared/market-calendar'
 import { marketFromQuoteId } from '../../src/shared/stock-market'
 import { LruCache } from '../../src/shared/lru-cache'
-import type { KlinePeriod, KlineResult } from '../../src/shared/types'
+import type { KlineAdjustment, KlinePeriod, KlineResult } from '../../src/shared/types'
 import { atomicWriteJsonSync } from './file-storage'
 
 type HistoricalKlinePeriod = Extract<KlinePeriod, 'daily' | 'weekly' | 'monthly'>
@@ -22,12 +30,21 @@ const TRADING_CACHE_MAX_AGE_MILLISECONDS = 5 * 60 * 1000
 const CLOSED_CACHE_MAX_AGE_MILLISECONDS = 18 * 60 * 60 * 1000
 const DEFAULT_DISK_RETENTION_MILLISECONDS = 90 * 24 * 60 * 60 * 1000
 
-function cacheKey(quoteId: string, period: HistoricalKlinePeriod): string {
-  return `${quoteId}:${period}`
+function cacheKey(
+  quoteId: string,
+  period: HistoricalKlinePeriod,
+  adjustment: KlineAdjustment
+): string {
+  return `${quoteId}:${period}:${adjustment}`
 }
 
-function cacheFileName(quoteId: string, period: HistoricalKlinePeriod): string {
-  return `${quoteId.replaceAll('.', '_')}-${period}.json`
+function cacheFileName(
+  quoteId: string,
+  period: HistoricalKlinePeriod,
+  adjustment: KlineAdjustment
+): string {
+  const suffix = adjustment === 'forward' ? '' : `-${adjustment}`
+  return `${quoteId.replaceAll('.', '_')}-${period}${suffix}.json`
 }
 
 function isFresh(
@@ -94,24 +111,31 @@ export class HistoricalKlineCache {
     quoteId: string,
     period: HistoricalKlinePeriod,
     requestedLimit: number,
-    calendar: MarketCalendarDates | readonly string[]
+    calendar: MarketCalendarDates | readonly string[],
+    adjustment: KlineAdjustment = 'forward'
   ): KlineResult | null {
-    const entry = this.read(quoteId, period)
+    const entry = this.read(quoteId, period, adjustment)
     if (!entry || entry.requestedLimit < requestedLimit || !isFresh(entry, this.now(), calendar)) {
       return null
     }
     return entry.data
   }
 
-  getFallback(quoteId: string, period: HistoricalKlinePeriod): KlineResult | null {
-    return this.read(quoteId, period)?.data ?? null
+  getFallback(
+    quoteId: string,
+    period: HistoricalKlinePeriod,
+    adjustment: KlineAdjustment = 'forward'
+  ): KlineResult | null {
+    return this.read(quoteId, period, adjustment)?.data ?? null
   }
 
   clear(quoteId: string): void {
     for (const period of ['daily', 'weekly', 'monthly'] as const) {
-      const path = join(this.directory, cacheFileName(quoteId, period))
-      if (existsSync(path)) unlinkSync(path)
-      this.entries.delete(cacheKey(quoteId, period))
+      for (const adjustment of ['forward', 'backward', 'none'] as const) {
+        const path = join(this.directory, cacheFileName(quoteId, period, adjustment))
+        if (existsSync(path)) unlinkSync(path)
+        this.entries.delete(cacheKey(quoteId, period, adjustment))
+      }
     }
   }
 
@@ -119,9 +143,10 @@ export class HistoricalKlineCache {
     quoteId: string,
     period: HistoricalKlinePeriod,
     requestedLimit: number,
-    data: KlineResult
+    data: KlineResult,
+    adjustment: KlineAdjustment = 'forward'
   ): KlineResult {
-    const previous = this.read(quoteId, period)
+    const previous = this.read(quoteId, period, adjustment)
     const merged = mergeKlineData(previous?.data, data)
     const entry: HistoricalKlineCacheEntry = {
       version: 1,
@@ -131,20 +156,28 @@ export class HistoricalKlineCache {
       cachedAt: this.now(),
       data: merged
     }
-    this.entries.set(cacheKey(quoteId, period), entry)
-    const path = join(this.directory, cacheFileName(quoteId, period))
+    this.entries.set(cacheKey(quoteId, period, adjustment), entry)
+    const path = join(this.directory, cacheFileName(quoteId, period, adjustment))
     atomicWriteJsonSync(path, entry, false)
     this.touch(path)
     return merged
   }
 
   shouldKeepFallback(period: HistoricalKlinePeriod, data: KlineResult): boolean {
-    return period === 'daily' && !hasCompleteTurnover(data)
+    return (
+      period === 'daily' &&
+      (data.adjustment ?? 'forward') === 'forward' &&
+      !hasCompleteTurnover(data)
+    )
   }
 
-  private read(quoteId: string, period: HistoricalKlinePeriod): HistoricalKlineCacheEntry | null {
-    const key = cacheKey(quoteId, period)
-    const path = join(this.directory, cacheFileName(quoteId, period))
+  private read(
+    quoteId: string,
+    period: HistoricalKlinePeriod,
+    adjustment: KlineAdjustment
+  ): HistoricalKlineCacheEntry | null {
+    const key = cacheKey(quoteId, period, adjustment)
+    const path = join(this.directory, cacheFileName(quoteId, period, adjustment))
     if (this.entries.has(key)) {
       this.touch(path)
       return this.entries.get(key) ?? null
@@ -152,7 +185,12 @@ export class HistoricalKlineCache {
     try {
       const entry = JSON.parse(readFileSync(path, 'utf8')) as HistoricalKlineCacheEntry
       const normalized =
-        entry.version === 1 && entry.quoteId === quoteId && entry.period === period ? entry : null
+        entry.version === 1 &&
+        entry.quoteId === quoteId &&
+        entry.period === period &&
+        (entry.data.adjustment ?? 'forward') === adjustment
+          ? entry
+          : null
       this.entries.set(key, normalized)
       if (normalized) this.touch(path)
       return normalized

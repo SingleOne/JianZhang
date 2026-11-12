@@ -9,7 +9,7 @@ import {
   millisecondsUntilNextAutoRefreshWindow
 } from '../../shared/market-hours'
 import { marketFromQuoteId } from '../../shared/stock-market'
-import type { KlinePeriod } from '../../shared/types'
+import type { KlineAdjustment, KlinePeriod } from '../../shared/types'
 import type { MarketCalendarDates } from '../../shared/market-calendar'
 import type { DetailResource, RefreshDemand, ResourceSnapshot } from './resource'
 import { useAppSetting } from './hooks'
@@ -46,7 +46,8 @@ export function useKlineResource(
   limit?: number,
   enabled = true,
   live = period === 'intraday' || period === 'fiveDay',
-  calendarOverride?: MarketCalendarDates
+  calendarOverride?: MarketCalendarDates,
+  adjustment: KlineAdjustment = 'forward'
 ) {
   const calendars = useAppSetting('tradingCalendar')
   const market = quoteId ? marketFromQuoteId(quoteId) : 'CN'
@@ -63,7 +64,7 @@ export function useKlineResource(
     [live, market, calendar]
   )
   return useDetailResource(
-    quoteId && period ? dataCenter.details.kline(quoteId, period, limit) : undefined,
+    quoteId && period ? dataCenter.details.kline(quoteId, period, limit, adjustment) : undefined,
     enabled,
     demand
   )

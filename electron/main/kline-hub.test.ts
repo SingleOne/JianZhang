@@ -2,7 +2,12 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { KlinePeriod, KlineResult } from '../../src/shared/types'
+import type {
+  KlineAdjustment,
+  KlineDateRange,
+  KlinePeriod,
+  KlineResult
+} from '../../src/shared/types'
 import { HistoricalKlineCache } from './historical-kline-cache'
 import { KlineHub } from './kline-hub'
 
@@ -85,6 +90,55 @@ describe('KlineHub', () => {
     await hub.getDailyRange('1.600000', dateRange, 'tracking:test')
 
     expect(fetchKline).toHaveBeenCalledWith('1.600000', 'daily', 3, 'tracking:test', dateRange)
+  })
+
+  it('coalesces only matching adjustments and caches each mode separately', async () => {
+    const fetchKline = vi.fn(
+      async (
+        quoteId: string,
+        _period: KlinePeriod,
+        _limit: number | undefined,
+        _caller: string,
+        _range?: KlineDateRange,
+        adjustment: KlineAdjustment = 'forward'
+      ) => ({
+        ...result(quoteId),
+        adjustment,
+        bars: [{ ...result(quoteId).bars[0], turnoverRate: 1 }]
+      })
+    )
+    const hub = new KlineHub(fetchKline, new HistoricalKlineCache(directory), () => [], 60_000)
+
+    const forward = hub.get('1.600000', 'daily', 120, 'first')
+    const forwardAgain = hub.get('1.600000', 'daily', 120, 'second', 'forward')
+    const backward = hub.get('1.600000', 'daily', 120, 'third', 'backward')
+    const unadjusted = hub.get('1.600000', 'daily', 120, 'fourth', 'none')
+    expect(forwardAgain).toBe(forward)
+    expect(backward).not.toBe(forward)
+    await expect(Promise.all([forward, backward, unadjusted])).resolves.toMatchObject([
+      { adjustment: 'forward' },
+      { adjustment: 'backward' },
+      { adjustment: 'none' }
+    ])
+
+    for (const adjustment of ['forward', 'backward', 'none'] as const) {
+      await expect(hub.get('1.600000', 'daily', 120, 'cached', adjustment)).resolves.toMatchObject({
+        adjustment,
+        fromCache: true
+      })
+    }
+    expect(fetchKline).toHaveBeenCalledTimes(3)
+  })
+
+  it('does not use another adjustment as a fallback after a request fails', async () => {
+    const cache = new HistoricalKlineCache(directory)
+    cache.save('1.600000', 'daily', 120, result('1.600000'))
+    const fetchKline = vi.fn().mockRejectedValue(new Error('network unavailable'))
+    const hub = new KlineHub(fetchKline, cache, () => [], 60_000)
+
+    await expect(hub.get('1.600000', 'daily', 120, 'test', 'backward')).rejects.toThrow(
+      'network unavailable'
+    )
   })
 
   it('keeps different network requests in the global serial queue', async () => {

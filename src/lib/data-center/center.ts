@@ -224,7 +224,8 @@ export function createDataCenter(transport: StockDesktopApi, initialState: AppSt
         release()
       }
     },
-    getKline: (quoteId, period, limit) => details.kline(quoteId, period, limit).request(),
+    getKline: (quoteId, period, limit, adjustment) =>
+      details.kline(quoteId, period, limit, adjustment).request(),
     getFundsFlow: (quoteId) => details.fundsFlow(quoteId).request(),
     getSectorIndex: (quoteId) => details.sector(quoteId).request(),
     getOrderBook: (quoteId) => details.orderBook(quoteId).request(),

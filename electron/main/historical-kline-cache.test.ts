@@ -86,4 +86,51 @@ describe('HistoricalKlineCache', () => {
 
     expect(cache.getFallback('1.600000', 'daily')?.name).toBe('磁盘数据')
   })
+
+  it('isolates adjustment modes in memory, on disk and when clearing a stock', () => {
+    const cache = new HistoricalKlineCache(directory, 150, 90 * DAY, () => now)
+    for (const adjustment of ['forward', 'backward', 'none'] as const) {
+      const data = { ...result('1.600000', adjustment), adjustment }
+      data.bars[0].close = adjustment === 'backward' ? 100 : adjustment === 'none' ? 20 : 10
+      cache.save('1.600000', 'daily', 120, data, adjustment)
+    }
+
+    const reloaded = new HistoricalKlineCache(directory, 150, 90 * DAY, () => now)
+    for (const adjustment of ['forward', 'backward', 'none'] as const) {
+      expect(cache.get('1.600000', 'daily', 120, [], adjustment)?.name).toBe(adjustment)
+      expect(reloaded.getFallback('1.600000', 'daily', adjustment)).toEqual(
+        cache.getFallback('1.600000', 'daily', adjustment)
+      )
+      expect(reloaded.getFallback('1.600000', 'daily', adjustment)?.bars[0].close).toBe(
+        adjustment === 'backward' ? 100 : adjustment === 'none' ? 20 : 10
+      )
+    }
+
+    reloaded.clear('1.600000')
+    const cleared = new HistoricalKlineCache(directory)
+    for (const adjustment of ['forward', 'backward', 'none'] as const) {
+      expect(reloaded.getFallback('1.600000', 'daily', adjustment)).toBeNull()
+      expect(cleared.getFallback('1.600000', 'daily', adjustment)).toBeNull()
+    }
+  })
+
+  it('uses legacy cache files only for forward adjustment', () => {
+    const cache = new HistoricalKlineCache(directory, 150, 90 * DAY, () => now)
+    cache.save('1.600000', 'daily', 120, result('1.600000', '旧缓存'))
+    const reloaded = new HistoricalKlineCache(directory, 150, 90 * DAY, () => now)
+    expect(reloaded.getFallback('1.600000', 'daily')?.name).toBe('旧缓存')
+    expect(reloaded.getFallback('1.600000', 'daily', 'backward')).toBeNull()
+    expect(reloaded.getFallback('1.600000', 'daily', 'none')).toBeNull()
+  })
+
+  it('requires complete turnover only for forward daily bars used by chip distribution', () => {
+    const cache = new HistoricalKlineCache(directory)
+    const data = result('1.600000')
+    delete data.bars[0].turnoverRate
+    expect(cache.shouldKeepFallback('daily', data)).toBe(true)
+    expect(cache.shouldKeepFallback('daily', { ...data, adjustment: 'forward' })).toBe(true)
+    expect(cache.shouldKeepFallback('daily', { ...data, adjustment: 'backward' })).toBe(false)
+    expect(cache.shouldKeepFallback('daily', { ...data, adjustment: 'none' })).toBe(false)
+    expect(cache.shouldKeepFallback('weekly', data)).toBe(false)
+  })
 })

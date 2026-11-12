@@ -12,6 +12,7 @@ import {
   DEFAULT_WATCHLIST_COLUMN_ORDER,
   WATCHLIST_COLUMN_ORDER_VERSION,
   type AppState,
+  type KlineAdjustment,
   type KlinePeriod,
   type StockQuote,
   type StockDetailNavigationTarget,
@@ -211,8 +212,17 @@ const orderBookHub = new OrderBookHub(fetchOrderBook)
 const RETAINED_SYSTEM_NOTIFICATION_LIMIT = 100
 const retainedSystemNotifications: Notification[] = []
 
-async function getKline(quoteId: string, period: KlinePeriod, limit?: number, caller = 'kline') {
-  return klineHub?.get(quoteId, period, limit, caller) ?? fetchKline(quoteId, period, limit, caller)
+async function getKline(
+  quoteId: string,
+  period: KlinePeriod,
+  limit?: number,
+  caller = 'kline',
+  adjustment: KlineAdjustment = 'forward'
+) {
+  return (
+    klineHub?.get(quoteId, period, limit, caller, adjustment) ??
+    fetchKline(quoteId, period, limit, caller, undefined, adjustment)
+  )
 }
 
 function getFundsFlow(quoteId: string, caller = 'funds-flow') {
@@ -966,8 +976,8 @@ if (!hasSingleInstanceLock) {
       restartQuoteSchedule: () => quoteRuntime!.restartSchedule(),
       primeSectorBindings: (refreshWhenReady) =>
         quoteRuntime!.primeSectorBindings(refreshWhenReady),
-      getKline: (quoteId, period, limit) =>
-        getKline(quoteId, period, limit, `detail:kline:${period}`),
+      getKline: (quoteId, period, limit, adjustment) =>
+        getKline(quoteId, period, limit, `detail:kline:${period}`, adjustment),
       getDailyMarketScanResult: () => dailyMarketScanService!.getResult(),
       getDailyMarketScanState: () => dailyMarketScanService!.getState(),
       runDailyMarketScan: () => dailyMarketScanService!.run(),

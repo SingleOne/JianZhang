@@ -1,4 +1,4 @@
-import type { KlinePeriod, StockDesktopApi } from '../../shared/types'
+import type { KlineAdjustment, KlinePeriod, StockDesktopApi } from '../../shared/types'
 import {
   INTRADAY_REFRESH_MILLISECONDS,
   FUNDS_FLOW_REFRESH_MILLISECONDS
@@ -7,13 +7,23 @@ import { createResourceCache } from './resource'
 
 export function createDetailCenter(transport: StockDesktopApi) {
   const cache = createResourceCache()
-  const kline = (quoteId: string, period: KlinePeriod, limit?: number) =>
-    cache.get(
-      JSON.stringify(['kline', quoteId, period, limit ?? null]),
-      () => transport.getKline(quoteId, period, limit),
+  const kline = (
+    quoteId: string,
+    period: KlinePeriod,
+    limit?: number,
+    adjustment: KlineAdjustment = 'forward'
+  ) => {
+    const effectiveAdjustment = period === 'intraday' || period === 'fiveDay' ? 'none' : adjustment
+    return cache.get(
+      JSON.stringify(['kline', quoteId, period, limit ?? null, effectiveAdjustment]),
+      () => transport.getKline(quoteId, period, limit, effectiveAdjustment),
       {
         quoteId,
         category: 'klines',
+        previousDataKey:
+          period === 'intraday' || period === 'fiveDay'
+            ? undefined
+            : JSON.stringify(['kline', quoteId, period, effectiveAdjustment]),
         maxAge:
           period === 'intraday' || period === 'fiveDay'
             ? INTRADAY_REFRESH_MILLISECONDS
@@ -30,6 +40,7 @@ export function createDetailCenter(transport: StockDesktopApi) {
         }
       }
     )
+  }
   const fundsFlow = (quoteId: string) =>
     cache.get(JSON.stringify(['funds', quoteId]), () => transport.getFundsFlow(quoteId), {
       quoteId,

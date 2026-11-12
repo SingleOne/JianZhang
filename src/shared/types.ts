@@ -1598,6 +1598,8 @@ export interface StockRadarSignal {
 
 export type KlinePeriod = 'intraday' | 'fiveDay' | 'daily' | 'weekly' | 'monthly'
 
+export type KlineAdjustment = 'forward' | 'backward' | 'none'
+
 export interface KlineBar {
   time: string
   open: number
@@ -1619,7 +1621,7 @@ export interface KlineResult {
   intervalMinutes?: 1 | 5
   fallbackReason?: string
   source?: StockQuoteSource
-  adjustment?: 'forward' | 'none'
+  adjustment?: KlineAdjustment
   fetchedAt?: string
   fromCache?: boolean
 }
@@ -3103,7 +3105,12 @@ export interface StockDesktopApi {
   refreshQuotes: () => Promise<StockQuote[]>
   refreshQuote: (quoteId: string) => Promise<StockQuote[]>
   refreshQuotesByIds: (quoteIds: string[]) => Promise<StockQuote[]>
-  getKline: (quoteId: string, period: KlinePeriod, limit?: number) => Promise<KlineResult>
+  getKline: (
+    quoteId: string,
+    period: KlinePeriod,
+    limit?: number,
+    adjustment?: KlineAdjustment
+  ) => Promise<KlineResult>
   getDailyMarketScanResult: () => Promise<DailyMarketScanResult | null>
   getDailyMarketScanState: () => Promise<DailyMarketScanState>
   runDailyMarketScan: () => Promise<DailyMarketScanResult>

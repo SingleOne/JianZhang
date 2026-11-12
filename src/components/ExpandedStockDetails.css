@@ -3260,6 +3260,12 @@
   gap: 13px;
 }
 
+.app-select.kline-adjustment-select {
+  width: 108px;
+  min-width: 108px;
+  flex-shrink: 0;
+}
+
 .market-overview-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);

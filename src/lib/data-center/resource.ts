@@ -24,6 +24,7 @@ interface ResourceOptions<T> {
   maxAge: number
   quoteId: string
   category: string
+  previousDataKey?: string
   validate?: (next: T, previous: T | undefined) => void
   warning?: (data: T) => string
 }
@@ -59,7 +60,21 @@ export function createResourceCache(maxEntries = 200) {
       entries.set(key, existing)
       return existing.resource as DetailResource<T>
     }
-    let snapshot: ResourceSnapshot<T> = { data: undefined, loading: false, error: '', updatedAt: 0 }
+    let previousData: T | undefined
+    if (options.previousDataKey) {
+      for (const entry of entries.values()) {
+        if (entry.options.previousDataKey !== options.previousDataKey) continue
+        const data = entry.resource.getSnapshot().data
+        if (data !== undefined) previousData = data as T
+      }
+    }
+    // Previous data keeps consumers mounted while this new request still loads in full.
+    let snapshot: ResourceSnapshot<T> = {
+      data: previousData,
+      loading: false,
+      error: '',
+      updatedAt: 0
+    }
     const listeners = new Set<() => void>()
     const consumers = new Map<object, RefreshDemand | undefined>()
     let pending: Promise<T> | undefined

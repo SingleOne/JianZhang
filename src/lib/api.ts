@@ -988,8 +988,11 @@ const demoApi: StockDesktopApi = {
     ]
     return makeDemoQuotes(requestableStocks.filter((stock) => requestedIds.has(stock.quoteId)))
   },
-  async getKline(quoteId, period, limit) {
-    return makeDemoKline(quoteId, period, limit)
+  async getKline(quoteId, period, limit, adjustment = 'forward') {
+    return {
+      ...makeDemoKline(quoteId, period, limit),
+      adjustment: period === 'intraday' || period === 'fiveDay' ? 'none' : adjustment
+    }
   },
   async getDailyMarketScanResult() {
     return DEMO_DAILY_MARKET_SCAN_RESULT
