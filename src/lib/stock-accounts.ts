@@ -162,6 +162,8 @@ export function stockTOverview(
     return {
       account,
       batch,
+      trades,
+      feeContext: context,
       metrics: context
         ? calculateTBatchForecastMetrics(
             batch,

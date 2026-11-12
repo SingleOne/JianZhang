@@ -19,12 +19,14 @@ import {
   getPositionHoldingDays
 } from '../lib/portfolio'
 import { calculateCurrentPositionProfitOverride } from '../lib/portfolio-performance'
-import { tPlanTargetPrice } from '../lib/t-alerts'
+import { getTPlanRows } from '../lib/t-alerts'
 import { formatStockAlertValue, STOCK_ALERT_METRIC_LABELS } from '../lib/stock-alerts'
 import { evaluateStopLoss } from '../shared/stop-loss'
 import {
+  currencyForMarket,
   marketCapabilitiesForQuoteId,
   marketFromQuoteId,
+  marketLabelForQuoteId,
   STOCK_CURRENCY_SYMBOLS,
   volumeUnitForMarket,
   type StockVolumeUnit
@@ -429,6 +431,7 @@ export function StockQuoteDetails({
     (snapshot) => snapshot.state.portfolioPerformanceCache?.cumulativeProfitByQuoteId[quoteId]
   )
   const market = stock?.market ?? marketFromQuoteId(quoteId)
+  const currency = stock?.currency ?? currencyForMarket(market)
   const tradingCalendar = settings.tradingCalendar.markets[market]
   const refreshSeconds = stock?.isPriority
     ? settings.priorityRefreshSeconds
@@ -675,32 +678,31 @@ export function StockQuoteDetails({
         </div>
       </section>
 
-      {overview.summaries.map(({ batch, metrics: tMetrics }) => {
+      {overview.summaries.map(({ batch, trades, feeContext, metrics: tMetrics }) => {
         const closingSide = tMetrics.direction === 'reverse' ? 'buy' : 'sell'
-        const levels = closingSide === 'buy' ? (batch.buyLevels ?? []) : batch.sellLevels
         const latest = quote?.latest
         const nearestLevel =
           latest == null
             ? undefined
-            : levels
-                .flatMap((level, index) => {
-                  const targetPrice = tPlanTargetPrice(
-                    tMetrics.averageCost,
-                    closingSide,
-                    level.targetPercent,
-                    { market, instrumentType: stock?.instrumentType }
-                  )
-                  return level.quantity > 0 && targetPrice !== null
-                    ? [
-                        {
-                          index,
-                          targetPrice,
-                          targetPercent:
-                            closingSide === 'buy' ? -level.targetPercent : level.targetPercent
-                        }
-                      ]
+            : getTPlanRows(
+                batch,
+                trades,
+                closingSide,
+                feeState.settings.tTradingFees,
+                stock?.marketLabel ?? marketLabelForQuoteId(quoteId),
+                {
+                  market,
+                  marketTradeFees: feeState.settings.marketTradeFees,
+                  accountFeeContext: feeContext,
+                  stampDutyExempt: stock?.instrumentType === 'etf',
+                  instrumentType: stock?.instrumentType
+                }
+              )
+                .flatMap(({ index, quantity, targetPrice, fullPositionProfit }) =>
+                  quantity > 0 && targetPrice !== null
+                    ? [{ index, targetPrice, fullPositionProfit }]
                     : []
-                })
+                )
                 .sort(
                   (left, right) =>
                     Math.abs(left.targetPrice - latest) - Math.abs(right.targetPrice - latest)
@@ -721,9 +723,9 @@ export function StockQuoteDetails({
                   <>
                     <AnimatedNumber value={nearestLevel.targetPrice} formatValue={formatPrice} />
                     <AnimatedNumber
-                      value={nearestLevel.targetPercent}
-                      formattedValue={`(${formatPercent(nearestLevel.targetPercent)})`}
-                      className={valueClass(nearestLevel.targetPercent)}
+                      value={nearestLevel.fullPositionProfit}
+                      formattedValue={`(${formatMoneyProfit(nearestLevel.fullPositionProfit, currency)})`}
+                      className={valueClass(nearestLevel.fullPositionProfit)}
                     />
                   </>
                 ) : null}
