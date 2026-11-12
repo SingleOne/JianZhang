@@ -2248,6 +2248,42 @@ export function ExpandedStockDetails({
     })
   }
 
+  const stopLossStatus = stopLoss
+    ? `${formatPrice(stopLoss.stopPrice)} · ${
+        stopLoss.reached === null
+          ? '等待有效行情'
+          : stopLoss.reached
+            ? '已触线'
+            : `距止损 ${Math.abs(stopLoss.distancePercent!).toFixed(2)}%`
+      }`
+    : ''
+  const stopLossControls = stopLoss ? (
+    <>
+      <AppButton
+        variant="plain"
+        className={`chip-distribution-toggle ${showStopLoss ? 'is-active' : ''}`}
+        role="switch"
+        aria-checked={showStopLoss}
+        onClick={() => {
+          const enabled = !showStopLoss
+          setShowStopLoss(enabled)
+          localStorage.setItem('jianzhang-show-stop-loss', String(enabled))
+        }}
+      >
+        <span aria-hidden="true">
+          <i />
+        </span>
+        止损线
+      </AppButton>
+      <span
+        className={`stop-loss-badge ${stopLoss.reached ? 'is-reached' : ''}`}
+        title={stopLossStatus}
+      >
+        {stopLossStatus}
+      </span>
+    </>
+  ) : null
+
   return (
     <section className="stock-details" aria-label={`${stock.name} 行情详情`}>
       <div className="detail-tabs" role="tablist" aria-label="行情详情类型">
@@ -2533,35 +2569,7 @@ export function ExpandedStockDetails({
                   ) : null}
                   {priceTab === 'trend' ? <span className="legend-average-price">VWAP</span> : null}
                   <span className="legend-volume">成交量</span>
-                  {(priceTab === 'trend' || (isHistorical && klineAdjustment !== 'backward')) &&
-                  stopLoss ? (
-                    <>
-                      <AppButton
-                        variant="plain"
-                        className={`chip-distribution-toggle ${showStopLoss ? 'is-active' : ''}`}
-                        role="switch"
-                        aria-checked={showStopLoss}
-                        onClick={() => {
-                          const enabled = !showStopLoss
-                          setShowStopLoss(enabled)
-                          localStorage.setItem('jianzhang-show-stop-loss', String(enabled))
-                        }}
-                      >
-                        <span aria-hidden="true">
-                          <i />
-                        </span>
-                        止损线
-                      </AppButton>
-                      <span className={`stop-loss-badge ${stopLoss.reached ? 'is-reached' : ''}`}>
-                        {formatPrice(stopLoss.stopPrice)} ·{' '}
-                        {stopLoss.reached === null
-                          ? '等待有效行情'
-                          : stopLoss.reached
-                            ? '已触线'
-                            : `距止损 ${Math.abs(stopLoss.distancePercent!).toFixed(2)}%`}
-                      </span>
-                    </>
-                  ) : null}
+                  {priceTab === 'trend' ? stopLossControls : null}
                   {priceTab === 'daily' && capabilities.chipDistribution ? (
                     <AppButton
                       variant="plain"
@@ -2681,6 +2689,9 @@ export function ExpandedStockDetails({
                           onBollingerBandsEnabledChange={onBollingerBandsEnabledChange}
                           dailyKlineIndicator={dailyKlineIndicator}
                           onDailyKlineIndicatorChange={onDailyKlineIndicatorChange}
+                          indicatorActions={
+                            klineAdjustment !== 'backward' ? stopLossControls : undefined
+                          }
                           trackingStartedAt={
                             historicalPeriod === 'daily' ? trackingProfile?.startedAt : undefined
                           }

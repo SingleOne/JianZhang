@@ -16,7 +16,7 @@ import {
   type Time,
   type UTCTimestamp
 } from 'lightweight-charts'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useResolvedAppTheme } from '../hooks/useResolvedAppTheme'
 import { formatPrice } from '../lib/format'
 import {
@@ -56,6 +56,7 @@ interface PeriodKlineChartProps {
   onBollingerBandsEnabledChange: (enabled: boolean) => void
   dailyKlineIndicator: DailyKlineIndicator
   onDailyKlineIndicatorChange: (indicator: DailyKlineIndicator) => void
+  indicatorActions?: ReactNode
   trackingStartedAt?: string
   trackingStoppedAt?: string
   ctrlWheelZoomOnly?: boolean
@@ -161,6 +162,7 @@ export default function PeriodKlineChart({
   onBollingerBandsEnabledChange,
   dailyKlineIndicator,
   onDailyKlineIndicatorChange,
+  indicatorActions,
   trackingStartedAt,
   trackingStoppedAt,
   ctrlWheelZoomOnly = false,
@@ -696,6 +698,9 @@ export default function PeriodKlineChart({
         ) : (
           <span className="kline-indicator-disabled-label">叠加指标已关闭</span>
         )}
+        {indicatorActions ? (
+          <div className="kline-indicator-actions">{indicatorActions}</div>
+        ) : null}
       </div>
     </div>
   )

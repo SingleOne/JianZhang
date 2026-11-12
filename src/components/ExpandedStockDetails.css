@@ -4357,6 +4357,24 @@
   border-radius: 7px;
 }
 
+.kline-indicator-actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.kline-indicator-actions > .chip-distribution-toggle {
+  flex: 0 0 auto;
+}
+
+.kline-indicator-actions > .stop-loss-badge {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .kline-indicator-selector button {
   min-width: 42px;
   padding: 2px 7px;
