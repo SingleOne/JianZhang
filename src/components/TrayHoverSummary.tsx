@@ -295,9 +295,6 @@ export function TrayHoverSummary({ interactive = false }: { interactive?: boolea
             <AppButton variant="plain" disabled={refreshing} onClick={() => void refresh()}>
               {refreshing ? '刷新中…' : '立即刷新'}
             </AppButton>
-            <AppButton variant="plain" onClick={() => void stockApi.closeMenuBarPanel()}>
-              收起
-            </AppButton>
           </div>
         </footer>
       ) : null}

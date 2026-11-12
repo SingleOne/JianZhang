@@ -59,10 +59,31 @@ export function MenuBarStockRow({
       >
         <span className="menu-bar-quote-row">
           <span className="menu-bar-stock-identity">
-            <strong className="menu-bar-stock-name" data-menu-bar-value="stockName">
-              {stock.name}
-            </strong>
-            <span className="menu-bar-stock-code">{stock.code}</span>
+            <span className="menu-bar-stock-heading">
+              <strong className="menu-bar-stock-name" data-menu-bar-value="stockName">
+                {stock.name}
+              </strong>
+              <span className="menu-bar-stock-code">{stock.code}</span>
+              {expanded ? null : (
+                <span className={`menu-bar-status is-${status}`}>{statusLabel}</span>
+              )}
+              {priceAlert || alertBadges.length > 0 || floatingAlerts.length > 0 ? (
+                <span className="menu-bar-alerts">
+                  <TAlertBadges badges={alertBadges} compact />
+                  {floatingAlerts.map((item) => (
+                    <TFloatingProfitAlertBadge
+                      key={item.account.accountId}
+                      accountName={item.account.accountName}
+                      batch={item.batch}
+                      floatingProfit={item.metrics.floatingProfit}
+                      currency={positionMetrics.currency}
+                      compact
+                    />
+                  ))}
+                  {priceAlert ? <span className="menu-bar-alert">股价提醒</span> : null}
+                </span>
+              ) : null}
+            </span>
             {expanded ? (
               <>
                 <span className="menu-bar-stock-market">{stock.marketLabel}</span>
@@ -79,9 +100,7 @@ export function MenuBarStockRow({
                   </b>
                 </span>
               </>
-            ) : (
-              <span className={`menu-bar-status is-${status}`}>{statusLabel}</span>
-            )}
+            ) : null}
           </span>
           {expanded ? null : (
             <span className="menu-bar-quote-values">
@@ -118,22 +137,6 @@ export function MenuBarStockRow({
           )}
           <ChevronRight className="menu-bar-expand-icon" size={14} aria-hidden="true" />
         </span>
-        {priceAlert || alertBadges.length > 0 || floatingAlerts.length > 0 ? (
-          <span className="menu-bar-alerts">
-            <TAlertBadges badges={alertBadges} compact />
-            {floatingAlerts.map((item) => (
-              <TFloatingProfitAlertBadge
-                key={item.account.accountId}
-                accountName={item.account.accountName}
-                batch={item.batch}
-                floatingProfit={item.metrics.floatingProfit}
-                currency={positionMetrics.currency}
-                compact
-              />
-            ))}
-            {priceAlert ? <span className="menu-bar-alert">股价提醒</span> : null}
-          </span>
-        ) : null}
       </AppButton>
       <div
         id={detailsId}

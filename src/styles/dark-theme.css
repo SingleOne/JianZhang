@@ -3408,6 +3408,14 @@
 :root[data-theme='dark'] .t-batch-summary em {
   color: var(--muted);
 }
+:root[data-theme='dark'] .t-batch-summary strong.is-up,
+:root[data-theme='dark'] .t-batch-summary .t-floating-profit-rate.is-up {
+  color: var(--red);
+}
+:root[data-theme='dark'] .t-batch-summary strong.is-down,
+:root[data-theme='dark'] .t-batch-summary .t-floating-profit-rate.is-down {
+  color: var(--green);
+}
 :root[data-theme='dark'] .t-batch-summary strong.is-flat {
   color: var(--muted);
 }

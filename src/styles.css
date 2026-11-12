@@ -160,12 +160,14 @@ tr:focus-visible {
 .titlebar-command-slot {
   min-width: 0;
   flex: 1 1 auto;
-  -webkit-app-region: no-drag;
-  user-select: auto;
 }
 
-.titlebar-command-slot * {
+.titlebar-command-main .search-composer,
+.titlebar-command-main .search-composer *,
+.titlebar-command-actions > *,
+.titlebar-command-actions > * * {
   -webkit-app-region: no-drag;
+  user-select: auto;
 }
 
 .titlebar-command-bar {

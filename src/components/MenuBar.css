@@ -76,13 +76,21 @@ html.menu-bar-mode[data-theme='dark'] #root {
   background: transparent;
 }
 
+.menu-bar-stock-heading {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+}
+
 .menu-bar-stock-name {
-  min-width: 0;
+  flex: 0 0 auto;
   padding: 0;
   font-size: 13px;
   font-weight: 700;
   text-align: left;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
 }
 
 .menu-bar-quote-row {
@@ -127,10 +135,14 @@ html.menu-bar-mode[data-theme='dark'] #root {
 
 .menu-bar-stock-identity {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 0 6px;
   min-width: 0;
+}
+
+.is-expanded .menu-bar-stock-identity {
+  flex-wrap: wrap;
 }
 
 .menu-bar-cumulative-profit {
@@ -168,8 +180,10 @@ html.menu-bar-mode[data-theme='dark'] #root {
 
 .menu-bar-stock-code,
 .menu-bar-status {
+  flex: 0 0 auto;
   color: #657187;
   font-size: 12px;
+  white-space: nowrap;
 }
 
 .menu-bar-status.is-stale,
@@ -179,16 +193,20 @@ html.menu-bar-mode[data-theme='dark'] #root {
 
 .menu-bar-alerts {
   display: flex;
-  flex-wrap: wrap;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 4px;
-  min-width: 0;
-  max-width: 100%;
+  white-space: nowrap;
+}
+
+.menu-bar-alerts > *,
+.menu-bar-alerts .t-alert-badge {
+  flex-shrink: 0;
 }
 
 .menu-bar-alerts .t-alert-badges.is-compact {
-  flex-wrap: wrap;
-  max-width: 100%;
+  flex-wrap: nowrap;
 }
 
 .menu-bar-hint,
@@ -237,8 +255,6 @@ html.menu-bar-mode[data-theme='dark'] #root {
     grid-column: 1;
     grid-row: 2;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    white-space: normal;
-    overflow-wrap: anywhere;
   }
 
   .menu-bar-quote-values > b:first-child {
