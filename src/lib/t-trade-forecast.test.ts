@@ -35,6 +35,43 @@ function context(minimum: number): AccountTradeFeeContext {
 }
 
 describe('T forecasts use the prediction account current fee scheme', () => {
+  it.each(['forward', 'reverse'] as const)(
+    'uses a two-decimal target price for %s T plan profits',
+    (direction) => {
+      const isReverse = direction === 'reverse'
+      const plan = {
+        ...batch,
+        direction,
+        buyLevels: [{ quantity: 100, targetPercent: 2 }],
+        sellLevels: [{ quantity: 100, targetPercent: 2 }]
+      }
+      const openingTrade: TTradeRecord = {
+        ...trades[0],
+        side: isReverse ? 'sell' : 'buy',
+        price: isReverse ? 16.22 : 16.21,
+        quantity: 200,
+        fees: { ...trades[0].fees, commission: 1 }
+      }
+      const rows = getTPlanRows(
+        plan,
+        [openingTrade],
+        isReverse ? 'buy' : 'sell',
+        DEFAULT_APP_SETTINGS.tTradingFees,
+        '深A',
+        {
+          market: 'CN',
+          marketTradeFees: DEFAULT_APP_SETTINGS.marketTradeFees,
+          accountFeeContext: context(0)
+        }
+      )
+
+      expect(rows[0].targetPrice).toBe(isReverse ? 15.89 : 16.54)
+      expect(rows[0].expectedProfit).toBeCloseTo(32.5)
+      expect(rows[0].cumulativeProfit).toBeCloseTo(32.5)
+      expect(rows[0].fullPositionProfit).toBeCloseTo(65)
+    }
+  )
+
   it('keeps historical execution fees and changes plan net profit with the prediction account minimum', () => {
     const options = {
       market: 'CN' as const,

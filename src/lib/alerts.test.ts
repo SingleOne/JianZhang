@@ -76,6 +76,28 @@ describe('T plan alerts', () => {
 
   afterEach(() => vi.useRealTimers())
 
+  it('triggers buy and sell alerts at their rounded two-decimal target prices', () => {
+    const batch = {
+      ...tBatch(),
+      buyLevels: [{ quantity: 100, targetPercent: 3, alertStatus: 'armed' as const }],
+      sellLevels: [{ quantity: 100, targetPercent: 3, alertStatus: 'armed' as const }]
+    }
+    const trade = {
+      ...tTrade(),
+      price: 16.21,
+      quantity: 200,
+      fees: { ...EMPTY_FEES, commission: 1 }
+    }
+
+    const sell = applyTAlertTriggers(batch, [trade], 16.7, { market: 'CN' }).batch
+    const buy = applyTAlertTriggers(batch, [trade], 15.73, { market: 'CN' }).batch
+
+    expect(sell.sellLevels[0].alertStatus).toBe('triggered')
+    expect(buy.buyLevels?.[0].alertStatus).toBe('triggered')
+    expect(getTriggeredTAlertBadges(sell, [trade])[0].targetPrice).toBe(16.7)
+    expect(getTriggeredTAlertBadges(buy, [trade])[0].targetPrice).toBe(15.73)
+  })
+
   it('shows only the highest triggered sell level and rearms levels after price falls', () => {
     const first = applyTAlertTriggers(tBatch(), [tTrade()], 10.31)
     expect(first.batch.sellLevels.slice(0, 3).map((level) => level.alertStatus)).toEqual([

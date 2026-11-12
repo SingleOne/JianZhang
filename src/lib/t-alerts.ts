@@ -94,7 +94,7 @@ export function tPlanTargetPrice(
 ): number | null {
   if (averageCost === null) return null
   return tPlanTradablePrice(
-    averageCost * (side === 'buy' ? 1 - targetPercent / 100 : 1 + targetPercent / 100),
+    roundMoney(averageCost * (side === 'buy' ? 1 - targetPercent / 100 : 1 + targetPercent / 100)),
     side,
     priceRule
   )
