@@ -857,11 +857,11 @@
   font-size: 12px;
 }
 
-.t-plan-table.is-buy .t-plan-table-heading strong {
+.t-plan-table.is-opening-plan .t-plan-table-heading strong {
   color: #087c57;
 }
 
-.t-plan-table.is-sell .t-plan-table-heading strong {
+.t-plan-table.is-emphasized .t-plan-table-heading strong {
   color: #c92733;
 }
 

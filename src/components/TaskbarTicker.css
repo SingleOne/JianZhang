@@ -768,9 +768,8 @@ html.tray-mode #root {
 
 .taskbar-tooltip-t-summary {
   display: grid;
-  grid-template-columns: minmax(0, 0.7fr) auto auto auto minmax(0, 1.6fr);
+  grid-template-columns: max-content max-content max-content minmax(0, 1fr) max-content;
   align-items: center;
-  justify-content: space-between;
   gap: 6px 12px;
   color: var(--stock-popover-secondary);
   font-size: 12px;
@@ -778,6 +777,7 @@ html.tray-mode #root {
 }
 
 .taskbar-tooltip-t-summary > span {
+  min-width: 0;
   display: flex;
   align-items: center;
   flex-wrap: wrap;

@@ -3596,10 +3596,10 @@
 :root[data-theme='dark'] .t-plan-table-heading strong {
   color: var(--text);
 }
-:root[data-theme='dark'] .t-plan-table.is-buy .t-plan-table-heading strong {
+:root[data-theme='dark'] .t-plan-table.is-opening-plan .t-plan-table-heading strong {
   color: #35c98b;
 }
-:root[data-theme='dark'] .t-plan-table.is-sell .t-plan-table-heading strong {
+:root[data-theme='dark'] .t-plan-table.is-emphasized .t-plan-table-heading strong {
   color: #ff6b75;
 }
 :root[data-theme='dark'] .t-plan-table-heading small {
