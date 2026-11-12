@@ -69,8 +69,8 @@ export function MenuBarStockRow({
                 <span className="menu-bar-stock-time">
                   {formatUpdateTime(quote?.dataAt ?? quote?.updatedAt)}
                 </span>
-                <span className="menu-bar-cumulative-profit" title="累计收益（人民币）">
-                  <span className="menu-bar-cumulative-label">累计收益</span>
+                <span className="menu-bar-cumulative-profit" title="已清仓收益（人民币）">
+                  <span className="menu-bar-cumulative-label">已清仓收益</span>
                   <b className={valueClass(cumulativeProfit)}>
                     <AnimatedNumber
                       value={cumulativeProfit}

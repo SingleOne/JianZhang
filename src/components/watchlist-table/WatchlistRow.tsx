@@ -964,7 +964,7 @@ export const WatchlistRow = memo(function WatchlistRow({
                           </span>
                         </span>
                         <span className="holding-profit-tooltip-row">
-                          累计收益：
+                          已清仓收益：
                           <span className={valueClass(cumulativeProfit)}>
                             {formatMoneyProfit(cumulativeProfit, 'CNY')}
                           </span>
@@ -1006,7 +1006,7 @@ export const WatchlistRow = memo(function WatchlistRow({
                         ) : (
                           <HoldingProfitValue
                             className="cumulative-profit-label"
-                            value="累计收益"
+                            value="已清仓收益"
                           />
                         )
                       ) : null}

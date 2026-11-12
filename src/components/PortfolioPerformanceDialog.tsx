@@ -70,7 +70,7 @@ const SORTABLE_COLUMNS: {
   { key: 'label', label: '汇总对象' },
   { key: 'native', label: '当前周期原币', note: '先按币种组合，再按各币种原币收益排序' },
   { key: 'totalProfit', label: '当前周期收益' },
-  { key: 'cumulativeProfit', label: '累计收益' },
+  { key: 'cumulativeProfit', label: '已清仓收益' },
   { key: 'realizedProfit', label: '已实现' },
   { key: 'unrealizedProfit', label: '未实现' },
   { key: 'dividendIncome', label: '税前分红' },
@@ -439,7 +439,7 @@ export default function PortfolioPerformanceDialog({
               }
             />
             <SummaryValue
-              label="累计收益小计"
+              label="已清仓收益小计"
               value={portfolio.cumulative.cny.totalProfit}
               note={
                 portfolio.cumulative.cny.manualAdjustment !== 0
@@ -468,7 +468,7 @@ export default function PortfolioPerformanceDialog({
           </div>
 
           <div className="portfolio-performance-attribution-note">
-            当前周期收益及各收益分项统计仍有持仓账户的当前周期，包含本周期部分卖出的已实现收益。累计收益汇总各账户最近一次收益基准重置后已清仓周期的净收益，收益调整在所属周期清仓后计入。证券价格贡献按历史加权购入汇率折算。汇率贡献按当前或卖出证券价值的汇率变化计算。
+            当前周期收益及各收益分项统计仍有持仓账户的当前周期，包含本周期部分卖出的已实现收益。已清仓收益汇总各账户最近一次收益基准重置后已清仓周期的净收益，收益调整在所属周期清仓后计入。证券价格贡献按历史加权购入汇率折算。汇率贡献按当前或卖出证券价值的汇率变化计算。
           </div>
 
           <div className="portfolio-performance-toolbar">

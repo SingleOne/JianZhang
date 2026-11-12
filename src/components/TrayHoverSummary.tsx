@@ -220,7 +220,7 @@ export function TrayHoverSummary({ interactive = false }: { interactive?: boolea
                   </b>
                 </span>
                 <span>
-                  {hasPosition ? null : '累计收益'}
+                  {hasPosition ? null : '已清仓收益'}
                   <b className={valueClass(displayedTotalProfit)}>
                     <AnimatedNumber
                       value={displayedTotalProfit}

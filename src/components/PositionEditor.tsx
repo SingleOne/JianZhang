@@ -1034,9 +1034,9 @@ export function PositionEditor({
         const resetsPerformance = await confirm({
           title: '选择收益计算方式',
           message:
-            '本次持仓校准是否按券商持仓成本重置收益基准？重置后，校准前的交易仍保留展示，但不再计入校准后的当前收益；保留历史累计收益则继续累计。',
+            '本次持仓校准是否按券商持仓成本重置收益基准？重置后，校准前的交易仍保留展示，但不再计入校准后的当前收益；保留历史已清仓收益则继续累计。',
           confirmLabel: '重置收益基准（推荐）',
-          cancelLabel: '保留历史累计收益',
+          cancelLabel: '保留历史已清仓收益',
           dismissible: false
         })
         const recordedAt = new Date()

@@ -183,7 +183,7 @@ function AccountCycles({
       </div>
       <div className="portfolio-performance-cycles-summary">
         <SummaryValue
-          label="累计收益"
+          label="已清仓收益"
           value={cumulative.totalProfit}
           note={
             cumulative.manualAdjustment !== 0
@@ -209,7 +209,7 @@ function AccountCycles({
           <thead>
             <tr>
               <th>
-                <Tooltip content="累计收益汇总各账户最近一次收益基准重置后已清仓周期的净收益。持仓天数按自然日计算，包含起止当天。持仓中计算至今天。">
+                <Tooltip content="已清仓收益汇总各账户最近一次收益基准重置后已清仓周期的净收益。持仓天数按自然日计算，包含起止当天。持仓中计算至今天。">
                   <span tabIndex={0}>周期</span>
                 </Tooltip>
               </th>

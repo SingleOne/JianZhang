@@ -106,7 +106,7 @@ describe('inline menu bar stock details', () => {
     expect(html).toContain('data-menu-bar-value="stockName">贵州茅台</strong>')
     expect(html).toContain('1,247.52')
     expect(html).not.toContain('最近15分钟')
-    expect(html).not.toContain('累计收益')
+    expect(html).not.toContain('已清仓收益')
     expect(html).not.toContain('menu-bar-cumulative-profit')
     expect(html).not.toContain('<article')
     expect(html.match(/<button/g)).toHaveLength(1)
@@ -194,16 +194,16 @@ describe('inline menu bar stock details', () => {
     'shows cached cumulative profit for stock $index in both title layouts',
     ({ index, amount, color }) => {
       const header = renderToStaticMarkup(details(index, false)).split('</header>')[0]
-      expect(header).toContain('累计收益')
+      expect(header).toContain('已清仓收益')
       expect(header).toContain(`<b class="${color}">${amount}</b>`)
       expect(header).not.toContain('animated-number')
       const title = renderToStaticMarkup(row(index, true)).split('</button>')[0]
-      expect(title).toContain('累计收益（人民币）')
+      expect(title).toContain('已清仓收益（人民币）')
       expect(title).toContain(`<b class="${color}">`)
       expect(title).toContain('animated-number')
       expect(title).toContain(amount)
       const collapsed = renderToStaticMarkup(row(index, false))
-      expect(collapsed).not.toContain('累计收益')
+      expect(collapsed).not.toContain('已清仓收益')
       expect(collapsed).not.toContain(amount)
     }
   )
