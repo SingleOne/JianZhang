@@ -3572,14 +3572,16 @@
 :root[data-theme='dark'] .t-plan-table {
   background: var(--surface);
   border: 1px solid var(--border);
+  border-top: 3px solid var(--border-strong);
 }
 :root[data-theme='dark'] .t-plan-table.is-buy {
   --t-alert-ring: rgba(53, 201, 139, 0.42);
-  border-top: 3px solid var(--border-strong);
 }
 :root[data-theme='dark'] .t-plan-table.is-sell {
   --t-alert-ring: rgba(255, 107, 117, 0.42);
-  border-top: 3px solid rgba(255, 107, 117, 0.48);
+}
+:root[data-theme='dark'] .t-plan-table.is-emphasized {
+  border-top-color: rgba(255, 107, 117, 0.48);
 }
 :root[data-theme='dark'] .t-plan-table.is-emphasized.is-buy {
   box-shadow: 0 3px 14px rgba(0, 4, 13, 0.18);

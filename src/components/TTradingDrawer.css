@@ -810,17 +810,20 @@
   overflow: hidden;
   background: var(--surface);
   border: 1px solid #dfe5ed;
+  border-top: 3px solid #5aa985;
   border-radius: 8px;
 }
 
 .t-plan-table.is-buy {
   --t-alert-ring: rgba(8, 124, 87, 0.42);
-  border-top: 3px solid #5aa985;
 }
 
 .t-plan-table.is-sell {
   --t-alert-ring: rgba(201, 39, 51, 0.42);
-  border-top: 3px solid #db6b75;
+}
+
+.t-plan-table.is-emphasized {
+  border-top-color: #db6b75;
 }
 
 .t-plan-table.is-emphasized.is-buy {

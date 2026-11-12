@@ -440,7 +440,7 @@
 
 :root.macos-popover[data-theme] .is-inline .taskbar-tooltip-t-summary {
   display: grid;
-  grid-template-columns: minmax(0, 0.7fr) auto auto minmax(0, 1.6fr);
+  grid-template-columns: minmax(0, 0.7fr) auto auto auto minmax(0, 1.6fr);
   gap: 6px 12px;
   white-space: normal;
 }

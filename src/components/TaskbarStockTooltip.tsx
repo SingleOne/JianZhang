@@ -19,6 +19,7 @@ import {
   getPositionHoldingDays
 } from '../lib/portfolio'
 import { calculateCurrentPositionProfitOverride } from '../lib/portfolio-performance'
+import { tPlanTargetPrice } from '../lib/t-alerts'
 import { formatStockAlertValue, STOCK_ALERT_METRIC_LABELS } from '../lib/stock-alerts'
 import { evaluateStopLoss } from '../shared/stop-loss'
 import {
@@ -674,35 +675,65 @@ export function StockQuoteDetails({
         </div>
       </section>
 
-      {overview.summaries.map(({ account: owner, metrics: tMetrics }) => (
-        <section className="taskbar-tooltip-section" key={owner.accountId}>
-          <div className="taskbar-tooltip-t-summary">
-            <strong>
-              {owner.accountName} · {tMetrics.direction === 'reverse' ? '反T' : '正T'}
-            </strong>
-            <span>剩余 {formatShares(tMetrics.remainingQuantity)}</span>
-            <span>
-              成本 <AnimatedNumber value={tMetrics.averageCost} formatValue={formatCost} />
-            </span>
-            <span className={valueClass(tMetrics.floatingProfit)}>
-              浮动{' '}
-              <AnimatedNumber
-                value={tMetrics.floatingProfit}
-                formattedValue={formatMoneyProfit(
-                  tMetrics.floatingProfit,
-                  positionMetrics.currency
-                )}
-              />
-              {tMetrics.floatingProfitRate !== null ? (
-                <span className={valueClass(tMetrics.floatingProfitRate)}>
-                  {' '}
-                  ({formatPercent(tMetrics.floatingProfitRate)})
-                </span>
-              ) : null}
-            </span>
-          </div>
-        </section>
-      ))}
+      {overview.summaries.map(({ account: owner, batch, metrics: tMetrics }) => {
+        const closingSide = tMetrics.direction === 'reverse' ? 'buy' : 'sell'
+        const levels = closingSide === 'buy' ? (batch.buyLevels ?? []) : batch.sellLevels
+        const latest = quote?.latest
+        const nearestLevel =
+          latest == null
+            ? undefined
+            : levels
+                .flatMap((level, index) => {
+                  const targetPrice = tPlanTargetPrice(
+                    tMetrics.averageCost,
+                    closingSide,
+                    level.targetPercent,
+                    { market, instrumentType: stock?.instrumentType }
+                  )
+                  return level.quantity > 0 && targetPrice !== null ? [{ index, targetPrice }] : []
+                })
+                .sort(
+                  (left, right) =>
+                    Math.abs(left.targetPrice - latest) - Math.abs(right.targetPrice - latest)
+                )[0]
+
+        return (
+          <section className="taskbar-tooltip-section" key={owner.accountId}>
+            <div className="taskbar-tooltip-t-summary">
+              <strong>
+                {owner.accountName} · {tMetrics.direction === 'reverse' ? '反T' : '正T'}
+              </strong>
+              <span>剩余 {formatShares(tMetrics.remainingQuantity)}</span>
+              <span>
+                成本 <AnimatedNumber value={tMetrics.averageCost} formatValue={formatCost} />
+              </span>
+              <span>
+                最近{closingSide === 'buy' ? '买入' : '卖出'}{' '}
+                {nearestLevel ? `T${nearestLevel.index + 1}` : '--'}
+                {nearestLevel ? (
+                  <AnimatedNumber value={nearestLevel.targetPrice} formatValue={formatPrice} />
+                ) : null}
+              </span>
+              <span className={valueClass(tMetrics.floatingProfit)}>
+                浮动{' '}
+                <AnimatedNumber
+                  value={tMetrics.floatingProfit}
+                  formattedValue={formatMoneyProfit(
+                    tMetrics.floatingProfit,
+                    positionMetrics.currency
+                  )}
+                />
+                {tMetrics.floatingProfitRate !== null ? (
+                  <span className={valueClass(tMetrics.floatingProfitRate)}>
+                    {' '}
+                    ({formatPercent(tMetrics.floatingProfitRate)})
+                  </span>
+                ) : null}
+              </span>
+            </div>
+          </section>
+        )
+      })}
 
       {alertCount > 0 ? (
         <section className="taskbar-tooltip-section taskbar-tooltip-alert-section">

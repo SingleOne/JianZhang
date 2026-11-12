@@ -768,7 +768,7 @@ html.tray-mode #root {
 
 .taskbar-tooltip-t-summary {
   display: grid;
-  grid-template-columns: minmax(0, 0.7fr) auto auto minmax(0, 1.6fr);
+  grid-template-columns: minmax(0, 0.7fr) auto auto auto minmax(0, 1.6fr);
   align-items: center;
   justify-content: space-between;
   gap: 6px 12px;
