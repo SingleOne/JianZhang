@@ -1,13 +1,12 @@
-import { net } from 'electron'
-import { BROWSER_USER_AGENT } from './http-user-agent'
+import { version } from '../../package.json'
+import { OfficialSourceHttpError, requestOfficialSourceBytes } from './official-source-request'
 
 const SEC_TICKERS_URL = 'https://www.sec.gov/files/company_tickers_exchange.json'
+const SEC_TICKERS_FALLBACK_URL = 'https://www.sec.gov/files/company_tickers.json'
 const SEC_DATA_BASE_URL = 'https://data.sec.gov'
-const SEC_REQUEST_INTERVAL_MILLISECONDS = 150
 const SEC_CONTACT_EMAIL = 'SingleOne@users.noreply.github.com'
-const SEC_USER_AGENT =
-  process.env.JIANZHANG_SEC_USER_AGENT?.trim() ||
-  `${BROWSER_USER_AGENT} JianZhangDesktop (${SEC_CONTACT_EMAIL})`
+// Declare the application directly; keep the contact address in From for both connections.
+const SEC_USER_AGENT = process.env.JIANZHANG_SEC_USER_AGENT?.trim() || `JianZhangDesktop/${version}`
 const SEC_HEADERS = {
   Accept: 'application/json',
   'Accept-Encoding': 'gzip, deflate',
@@ -21,24 +20,14 @@ export const SEC_DOCUMENT_HEADERS = {
   'User-Agent': SEC_USER_AGENT
 }
 
-let nextSecRequestAt = 0
-let secRequestSchedule: Promise<void> = Promise.resolve()
-
-async function waitForSecRequestSlot(): Promise<void> {
-  const scheduled = secRequestSchedule.then(async () => {
-    const waitMilliseconds = Math.max(0, nextSecRequestAt - Date.now())
-    if (waitMilliseconds > 0) {
-      await new Promise<void>((resolve) => setTimeout(resolve, waitMilliseconds))
-    }
-    nextSecRequestAt = Date.now() + SEC_REQUEST_INTERVAL_MILLISECONDS
-  })
-  secRequestSchedule = scheduled
-  await scheduled
-}
-
-function secRequestFailure(message: string, status: number): Error {
-  const rateLimitHint = status === 403 ? '（访问频率受限，请稍后重试）' : ''
-  return new Error(`${message}：HTTP ${status}${rateLimitHint}`)
+class SecHttpError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    const hint = status === 403 ? '（访问被拒绝，请检查网络连接或稍后重试）' : ''
+    super(`${message}：HTTP ${status}${hint}`)
+  }
 }
 
 export interface SecIssuer {
@@ -130,6 +119,17 @@ export class SecEdgarClient {
       this.issuerIndex = this.getJson<{ fields?: string[]; data?: Array<Array<string | number>> }>(
         SEC_TICKERS_URL
       )
+        .catch(async (error: unknown) => {
+          if (!(error instanceof SecHttpError) || error.status !== 403) throw error
+          const tickers =
+            await this.getJson<Record<string, { cik_str: number; ticker: string; title: string }>>(
+              SEC_TICKERS_FALLBACK_URL
+            )
+          return {
+            fields: ['cik', 'name', 'ticker', 'exchange'],
+            data: Object.values(tickers).map((item) => [item.cik_str, item.title, item.ticker, ''])
+          }
+        })
         .then((payload) => {
           const fields = payload.fields ?? []
           const cikIndex = fields.indexOf('cik')
@@ -172,22 +172,26 @@ export class SecEdgarClient {
   }
 
   private async getJson<T>(url: string): Promise<T> {
-    await waitForSecRequestSlot()
-    const response = await net.fetch(url, {
-      headers: SEC_HEADERS,
-      signal: AbortSignal.timeout(20_000)
-    })
-    if (!response.ok) throw secRequestFailure('请求 SEC EDGAR 失败', response.status)
-    return response.json() as Promise<T>
+    return JSON.parse(await this.requestText(url, SEC_HEADERS, 20_000, '请求 SEC EDGAR 失败')) as T
   }
 
   private async getText(url: string): Promise<string> {
-    await waitForSecRequestSlot()
-    const response = await net.fetch(url, {
-      headers: SEC_DOCUMENT_HEADERS,
-      signal: AbortSignal.timeout(30_000)
-    })
-    if (!response.ok) throw secRequestFailure('请求 SEC EDGAR 披露正文失败', response.status)
-    return response.text()
+    return this.requestText(url, SEC_DOCUMENT_HEADERS, 30_000, '请求 SEC EDGAR 披露正文失败')
+  }
+
+  private async requestText(
+    url: string,
+    headers: Record<string, string>,
+    timeout: number,
+    failureMessage: string
+  ): Promise<string> {
+    try {
+      const { bytes } = await requestOfficialSourceBytes(url, { headers }, timeout)
+      return new TextDecoder().decode(bytes)
+    } catch (error) {
+      if (error instanceof OfficialSourceHttpError)
+        throw new SecHttpError(failureMessage, error.status)
+      throw error
+    }
   }
 }

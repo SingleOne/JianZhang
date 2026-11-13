@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { netFetch } = vi.hoisted(() => ({
   netFetch: vi.fn()
@@ -11,17 +11,21 @@ vi.mock('electron', () => ({
 import { HkexNewsClient } from './hkex-news-client'
 
 function textResponse(value: string): Response {
-  return {
-    ok: true,
-    status: 200,
-    text: vi.fn(async () => value)
-  } as unknown as Response
+  return new Response(value)
 }
 
 describe('HkexNewsClient', () => {
   beforeEach(() => {
     netFetch.mockReset()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('Unexpected network fallback')
+      })
+    )
   })
+
+  afterEach(() => vi.unstubAllGlobals())
 
   it('parses a JSONP stock response with trailing line breaks', async () => {
     netFetch.mockResolvedValue(

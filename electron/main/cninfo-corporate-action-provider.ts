@@ -1,7 +1,14 @@
 import { createHash } from 'node:crypto'
-import { net } from 'electron'
 import pdfParse from 'pdf-parse'
 import { BROWSER_USER_AGENT } from './http-user-agent'
+import { requestOfficialSourceBytes } from './official-source-request'
+import {
+  CninfoClient,
+  cninfoMarketParams,
+  isCninfoForbidden,
+  type CninfoAnnouncement,
+  type CninfoAnnouncementResponse
+} from './cninfo-client'
 import {
   extractCnCorporateActionEffects,
   extractCorporateActionDates,
@@ -15,8 +22,6 @@ import {
   type CorporateActionProvider
 } from './corporate-action-provider'
 
-const STOCK_LIST_URL = 'https://www.cninfo.com.cn/new/data/szse_stock.json'
-const ANNOUNCEMENT_URL = 'https://www.cninfo.com.cn/new/hisAnnouncement/query'
 const PDF_BASE_URL = 'https://static.cninfo.com.cn/'
 const PAGE_SIZE = 30
 const SEARCH_KEYWORDS = [
@@ -28,13 +33,6 @@ const SEARCH_KEYWORDS = [
   '派息',
   '配股'
 ] as const
-const API_REQUEST_HEADERS = {
-  Accept: 'application/json, text/plain, */*',
-  Origin: 'https://www.cninfo.com.cn',
-  Referer: 'https://www.cninfo.com.cn/',
-  'User-Agent': BROWSER_USER_AGENT,
-  'X-Requested-With': 'XMLHttpRequest'
-}
 const DOCUMENT_REQUEST_HEADERS = {
   Accept: 'application/pdf, application/octet-stream;q=0.9, */*;q=0.8',
   Referer: 'https://www.cninfo.com.cn/',
@@ -47,25 +45,6 @@ const RIGHTS_IMPLEMENTATION_KEYWORDS = /发行|实施|结果|股份变动|获配
 const NON_ACTIONABLE_TITLE =
   /预案|草案|议案|政策|税率|说明|指引|规则|董事会决议|股东大会决议|提示性公告|问询函|回复公告|取消|终止|(?:权益分派|利润分配|分红派息|派息).*后.*调整/
 const BODY_FETCH_CONCURRENCY = 3
-
-interface CninfoStock {
-  code?: string
-  orgId?: string
-  category?: string
-}
-
-interface CninfoAnnouncementPayload {
-  secCode?: string
-  announcementId?: string
-  announcementTitle?: string
-  announcementTime?: number
-  adjunctUrl?: string
-}
-
-interface CninfoAnnouncementResponse {
-  announcements?: CninfoAnnouncementPayload[] | null
-  totalAnnouncement?: number
-}
 
 export interface CninfoCorporateActionAnnouncement {
   id: string
@@ -125,36 +104,48 @@ async function mapInBatches<T, R>(
 }
 
 export class CninfoCorporateActionClient implements CninfoCorporateActionClientLike {
-  private stockOrganizations: Promise<Map<string, string>> | null = null
+  constructor(private readonly client = new CninfoClient()) {}
 
   async listAnnouncements(
     code: string,
     periodStart: string,
     periodEnd: string
   ): Promise<CninfoCorporateActionAnnouncement[]> {
-    const organizations = await this.getStockOrganizations()
-    const orgId = organizations.get(code)
-    if (!orgId) throw new Error(`巨潮资讯未找到股票 ${code}`)
-    const announcements = new Map<string, CninfoCorporateActionAnnouncement>()
-    for (const keyword of SEARCH_KEYWORDS) {
-      const pages = await this.fetchAllPages(code, orgId, keyword, periodStart, periodEnd)
-      for (const item of pages.flatMap((page) => page.announcements ?? [])) {
-        if (
-          item.secCode !== code ||
-          !item.announcementId ||
-          !item.announcementTitle ||
-          typeof item.announcementTime !== 'number' ||
-          !item.adjunctUrl
-        ) {
-          continue
-        }
-        announcements.set(item.announcementId, {
-          id: item.announcementId,
-          title: normalizeTitle(item.announcementTitle),
-          publishedAt: new Date(item.announcementTime).toISOString(),
-          url: new URL(item.adjunctUrl, PDF_BASE_URL).toString()
-        })
+    const organization = await this.client.getOrganization(code)
+    if (!organization) throw new Error(`巨潮资讯未找到股票 ${code}`)
+    let items: CninfoAnnouncement[] = []
+    try {
+      for (const keyword of SEARCH_KEYWORDS) {
+        const pages = await this.fetchAllPages(
+          code,
+          organization.orgId,
+          keyword,
+          periodStart,
+          periodEnd
+        )
+        items.push(...pages.flatMap((page) => page.announcements ?? []))
       }
+    } catch (error) {
+      if (!isCninfoForbidden(error)) throw error
+      items = await this.client.searchAnnouncements(code, organization, periodStart, periodEnd)
+    }
+    const announcements = new Map<string, CninfoCorporateActionAnnouncement>()
+    for (const item of items) {
+      if (
+        (item.orgId ? item.orgId !== organization.orgId : item.secCode !== code) ||
+        !item.announcementId ||
+        !item.announcementTitle ||
+        typeof item.announcementTime !== 'number' ||
+        !item.adjunctUrl
+      ) {
+        continue
+      }
+      announcements.set(item.announcementId, {
+        id: item.announcementId,
+        title: normalizeTitle(item.announcementTitle),
+        publishedAt: new Date(item.announcementTime).toISOString(),
+        url: new URL(item.adjunctUrl, PDF_BASE_URL).toString()
+      })
     }
     return [...announcements.values()].sort((left, right) =>
       right.publishedAt.localeCompare(left.publishedAt)
@@ -162,12 +153,12 @@ export class CninfoCorporateActionClient implements CninfoCorporateActionClientL
   }
 
   async getDocumentText(url: string): Promise<string> {
-    const response = await net.fetch(url, {
-      headers: DOCUMENT_REQUEST_HEADERS,
-      signal: AbortSignal.timeout(45_000)
-    })
-    if (!response.ok) throw new Error(`请求巨潮资讯公告失败：HTTP ${response.status}`)
-    const buffer = Buffer.from(await response.arrayBuffer())
+    const { bytes } = await requestOfficialSourceBytes(
+      url,
+      { headers: DOCUMENT_REQUEST_HEADERS },
+      45_000
+    )
+    const buffer = Buffer.from(bytes)
     return normalizeDocumentText((await pdfParse(buffer)).text)
   }
 
@@ -196,7 +187,7 @@ export class CninfoCorporateActionClient implements CninfoCorporateActionClientL
     periodEnd: string,
     pageNumber: number
   ): Promise<CninfoAnnouncementResponse> {
-    const { column, plate } = this.marketParams(code, orgId)
+    const { column, plate } = cninfoMarketParams(code, orgId)
     const body = new URLSearchParams({
       pageNum: String(pageNumber),
       pageSize: String(PAGE_SIZE),
@@ -213,53 +204,7 @@ export class CninfoCorporateActionClient implements CninfoCorporateActionClientL
       sortType: 'desc',
       isHLtitle: 'true'
     })
-    const response = await net.fetch(ANNOUNCEMENT_URL, {
-      method: 'POST',
-      headers: {
-        ...API_REQUEST_HEADERS,
-        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
-      },
-      body: body.toString(),
-      signal: AbortSignal.timeout(15_000)
-    })
-    if (!response.ok) throw new Error(`请求巨潮资讯失败：HTTP ${response.status}`)
-    return response.json() as Promise<CninfoAnnouncementResponse>
-  }
-
-  private getStockOrganizations(): Promise<Map<string, string>> {
-    if (!this.stockOrganizations) {
-      this.stockOrganizations = net
-        .fetch(STOCK_LIST_URL, {
-          headers: API_REQUEST_HEADERS,
-          signal: AbortSignal.timeout(15_000)
-        })
-        .then(async (response) => {
-          if (!response.ok) throw new Error(`请求巨潮资讯股票列表失败：HTTP ${response.status}`)
-          return response.json() as Promise<{ stockList?: CninfoStock[] }>
-        })
-        .then(
-          (payload) =>
-            new Map(
-              (payload.stockList ?? [])
-                .filter(
-                  (item): item is CninfoStock & { code: string; orgId: string } =>
-                    item.category === 'A股' && Boolean(item.code && item.orgId)
-                )
-                .map((item) => [item.code, item.orgId])
-            )
-        )
-        .catch((reason) => {
-          this.stockOrganizations = null
-          throw reason
-        })
-    }
-    return this.stockOrganizations
-  }
-
-  private marketParams(code: string, orgId: string): { column: string; plate: string } {
-    if (orgId.includes('bj')) return { column: 'szse', plate: 'bj' }
-    if (code.startsWith('6')) return { column: 'sse', plate: 'sh' }
-    return { column: 'szse', plate: 'sz' }
+    return this.client.queryAnnouncements(body)
   }
 }
 

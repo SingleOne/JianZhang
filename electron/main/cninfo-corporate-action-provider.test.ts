@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { net } from 'electron'
 
 vi.mock('electron', () => ({
@@ -16,7 +16,54 @@ import {
   type CninfoCorporateActionClientLike
 } from './cninfo-corporate-action-provider'
 
+beforeEach(() => {
+  vi.mocked(net.fetch).mockReset()
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response(null, { status: 403 }))
+  )
+})
+
+afterEach(() => vi.unstubAllGlobals())
+
 describe('CninfoCorporateActionProvider', () => {
+  it('recovers company actions through official search when historical queries return 403', async () => {
+    vi.mocked(net.fetch).mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes('szse_stock.json')) {
+        return Response.json({
+          stockList: [{ code: '920002', orgId: 'gfbj0873843', zwjc: '万达轴承', category: 'A股' }]
+        })
+      }
+      if (url.includes('hisAnnouncement')) return new Response(null, { status: 403 })
+      const item = {
+        secCode: '873843',
+        orgId: 'gfbj0873843',
+        announcementId: 'distribution',
+        announcementTitle: '<em>万达轴承</em>：2025年年度权益分派实施公告',
+        announcementTime: Date.parse('2026-06-15T00:00:00+08:00'),
+        adjunctUrl: 'finalpage/2026-06-15/distribution.PDF'
+      }
+      return Response.json({
+        totalAnnouncement: 2,
+        announcements: [item, { ...item, announcementId: 'unrelated', orgId: 'other-issuer' }]
+      })
+    })
+
+    const items = await new CninfoCorporateActionClient().listAnnouncements(
+      '920002',
+      '2024-11-13',
+      '2026-11-13'
+    )
+
+    expect(items).toEqual([
+      expect.objectContaining({ id: 'distribution', title: '万达轴承：2025年年度权益分派实施公告' })
+    ])
+    expect(
+      vi.mocked(net.fetch).mock.calls.filter(([url]) => String(url).includes('hisAnnouncement'))
+    ).toHaveLength(1)
+  })
+
   it('keeps implementation announcements and rejects proposal-stage announcements', () => {
     expect(isCnCorporateActionImplementationTitle('2025年年度权益分派实施公告')).toBe(true)
     expect(isCnCorporateActionImplementationTitle('现金红利发放公告')).toBe(true)

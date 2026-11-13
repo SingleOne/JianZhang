@@ -45,10 +45,23 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
+  vi.unstubAllGlobals()
   await rm(directory, { recursive: true, force: true })
 })
 
 describe('official PDF document reader', () => {
+  it('reads the official PDF through Node after a Chromium 403', async () => {
+    parsedPages(['公司公告正文'])
+    vi.mocked(net.fetch).mockResolvedValueOnce(new Response(null, { status: 403 }))
+    const nodeFetch = vi.fn(async () => new Response('%PDF-1.7 mock'))
+    vi.stubGlobal('fetch', nodeFetch)
+
+    const document = await new PdfDocumentReader(directory).read(url, new AbortController().signal)
+
+    expect(document.markdown).toContain('公司公告正文')
+    expect(nodeFetch).toHaveBeenCalledWith(url, expect.objectContaining({ redirect: 'manual' }))
+  })
+
   it('keeps physical page numbers and reuses the disk cache across readers', async () => {
     parsedPages(['公告正文\n金额单位：万元 [资料1]', null, '风险提示'])
     vi.mocked(net.fetch).mockResolvedValueOnce(new Response('%PDF-1.7 mock'))

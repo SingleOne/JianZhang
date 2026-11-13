@@ -1,4 +1,3 @@
-import { net } from 'electron'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import pdfParse from 'pdf-parse'
@@ -18,6 +17,7 @@ import type { CompanyReportService } from './company-report-service'
 import { reportCodeFromQuoteId } from './company-report-provider'
 import { SecEdgarClient, type SecSubmissionsRecent } from './sec-edgar-client'
 import { BROWSER_USER_AGENT } from './http-user-agent'
+import { requestOfficialSourceBytes } from './official-source-request'
 
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000
 const MONTH_NUMBERS: Record<string, string> = {
@@ -190,15 +190,17 @@ export class GlobalFundamentalService {
     period: GlobalFinancialPeriod | null
     standard: 'HKFRS' | 'IFRS' | '未识别'
   }> {
-    const response = await net.fetch(report.url, {
-      headers: {
-        Referer: 'https://www1.hkexnews.hk/',
-        'User-Agent': BROWSER_USER_AGENT
+    const { bytes } = await requestOfficialSourceBytes(
+      report.url,
+      {
+        headers: {
+          Referer: 'https://www1.hkexnews.hk/',
+          'User-Agent': BROWSER_USER_AGENT
+        }
       },
-      signal: AbortSignal.timeout(60_000)
-    })
-    if (!response.ok) throw new Error(`HKEXnews 财报下载失败：HTTP ${response.status}`)
-    const text = (await pdfParse(Buffer.from(await response.arrayBuffer()))).text
+      60_000
+    )
+    const text = (await pdfParse(Buffer.from(bytes))).text
     const extracted = extractHkexFinancialMetrics(text)
     const periodEnd = this.reportingPeriodEnd(`${report.title}\n${text.slice(0, 30_000)}`)
     const standard = /Hong Kong Financial Reporting Standards|HKFRS/i.test(text)

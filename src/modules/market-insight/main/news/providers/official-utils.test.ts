@@ -56,10 +56,18 @@ describe('official news requests', () => {
     expect(nodeFetch.mock.calls[0][1]?.body).toBe('')
   })
 
-  it('keeps HTTP rejections visible without retrying through another connection', async () => {
+  it('retries an HTTP 403 once through the independent connection', async () => {
     vi.mocked(net.fetch).mockResolvedValue(new Response('forbidden', { status: 403 }))
+    nodeFetch.mockResolvedValue(new Response('recovered'))
 
-    await expect(requestText(url)).rejects.toThrow('HTTP 403')
+    expect(await requestText(url)).toBe('recovered')
+    expect(nodeFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps rate limiting visible without another connection', async () => {
+    vi.mocked(net.fetch).mockResolvedValue(new Response('rate limited', { status: 429 }))
+
+    await expect(requestText(url)).rejects.toThrow('HTTP 429')
     expect(nodeFetch).not.toHaveBeenCalled()
   })
 

@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { net, shell } from 'electron'
+import { shell } from 'electron'
+import { requestOfficialSourceBytes } from './official-source-request'
 import pdfParse from 'pdf-parse'
 import {
   extractCorporateActionDates,
@@ -357,18 +358,20 @@ export class CorporateActionService {
       const parsed = new URL(url)
       if (parsed.protocol !== 'https:' || !OFFICIAL_HOSTS.has(parsed.hostname)) return candidate
       try {
-        const response = await net.fetch(url, {
-          headers:
-            candidate.market === 'HK'
-              ? {
-                  Referer: 'https://www1.hkexnews.hk/',
-                  'User-Agent': BROWSER_USER_AGENT
-                }
-              : { ...SEC_DOCUMENT_HEADERS, Referer: 'https://www.sec.gov/' },
-          signal: AbortSignal.timeout(45_000)
-        })
-        if (!response.ok) return candidate
-        const buffer = Buffer.from(await response.arrayBuffer())
+        const { bytes } = await requestOfficialSourceBytes(
+          url,
+          {
+            headers:
+              candidate.market === 'HK'
+                ? {
+                    Referer: 'https://www1.hkexnews.hk/',
+                    'User-Agent': BROWSER_USER_AGENT
+                  }
+                : { ...SEC_DOCUMENT_HEADERS, Referer: 'https://www.sec.gov/' }
+          },
+          45_000
+        )
+        const buffer = Buffer.from(bytes)
         text = parsed.pathname.toLowerCase().endsWith('.pdf')
           ? (await pdfParse(buffer)).text
           : this.extractHtmlText(buffer.toString('utf8'))

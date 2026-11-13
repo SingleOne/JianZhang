@@ -1,4 +1,4 @@
-import { net, shell } from 'electron'
+import { shell } from 'electron'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import pdfParse from 'pdf-parse'
@@ -25,6 +25,7 @@ import { HkexCompanyReportProvider } from './hkex-company-report-provider'
 import { SecCompanyReportProvider } from './sec-company-report-provider'
 import { SEC_DOCUMENT_HEADERS, SecEdgarClient } from './sec-edgar-client'
 import { BROWSER_USER_AGENT } from './http-user-agent'
+import { requestOfficialSourceBytes } from './official-source-request'
 
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000
 const SUMMARY_PROMPT = `你是上市公司定期报告摘要助手。只能依据用户提供的官方财报原文摘录，不得补充外部信息或猜测未披露内容。
@@ -89,15 +90,17 @@ export class CompanyReportService {
     runStructuredTask: RunStructuredTask
   ): Promise<CompanyReportSummary> {
     this.validateReportUrl(report.url)
-    const response = await net.fetch(report.url, {
-      headers: {
-        ...(report.market === 'US' ? SEC_DOCUMENT_HEADERS : { 'User-Agent': BROWSER_USER_AGENT }),
-        Referer: this.refererForReport(report)
+    const { bytes } = await requestOfficialSourceBytes(
+      report.url,
+      {
+        headers: {
+          ...(report.market === 'US' ? SEC_DOCUMENT_HEADERS : { 'User-Agent': BROWSER_USER_AGENT }),
+          Referer: this.refererForReport(report)
+        }
       },
-      signal: AbortSignal.timeout(60_000)
-    })
-    if (!response.ok) throw new Error(`财报原文下载失败：HTTP ${response.status}`)
-    const buffer = Buffer.from(await response.arrayBuffer())
+      60_000
+    )
+    const buffer = Buffer.from(bytes)
     const text =
       report.format === 'html'
         ? this.extractHtmlText(buffer.toString('utf8'))

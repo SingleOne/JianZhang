@@ -1,13 +1,11 @@
-import { net } from 'electron'
 import { BROWSER_USER_AGENT } from '../../../../../../electron/main/http-user-agent'
+import { requestOfficialSourceBytes } from '../../../../../../electron/main/official-source-request'
 import type { MarketNewsItem } from '../../../shared/types'
 
 const DEFAULT_HEADERS = {
   Accept: 'application/json, text/plain, text/html, */*',
   'User-Agent': BROWSER_USER_AGENT
 }
-
-class NewsHttpError extends Error {}
 
 export async function requestBytes(
   url: string,
@@ -22,26 +20,7 @@ export async function requestBytes(
     // An empty POST still needs a zero-length body on some official endpoints.
     body: init.body ?? (init.method?.toUpperCase() === 'POST' ? '' : undefined)
   }
-  const signal = () =>
-    init.signal
-      ? AbortSignal.any([init.signal, AbortSignal.timeout(timeoutMilliseconds)])
-      : AbortSignal.timeout(timeoutMilliseconds)
-  const read = async (response: Response) => {
-    if (!response.ok)
-      throw new NewsHttpError(`请求 ${new URL(url).hostname} 失败：HTTP ${response.status}`)
-    return {
-      bytes: new Uint8Array(await response.arrayBuffer()),
-      contentType: response.headers.get('content-type') ?? ''
-    }
-  }
-  try {
-    return await read(await net.fetch(url, { ...options, signal: signal() }))
-  } catch (error) {
-    if (error instanceof NewsHttpError || init.signal?.aborted) throw error
-    // Chromium follows system PAC/WPAD settings. Node provides a separate route
-    // when proxy resolution or the Chromium connection stalls.
-    return read(await fetch(url, { ...options, signal: signal() }))
-  }
+  return requestOfficialSourceBytes(url, options, timeoutMilliseconds)
 }
 
 export async function requestText(url: string, init: RequestInit = {}): Promise<string> {

@@ -1,5 +1,5 @@
-import { net } from 'electron'
 import { BROWSER_USER_AGENT } from './http-user-agent'
+import { requestOfficialSourceBytes } from './official-source-request'
 
 const HKEX_BASE_URL = 'https://www1.hkexnews.hk'
 const HKEX_SEARCH_URL = `${HKEX_BASE_URL}/search/titleSearchServlet.do`
@@ -53,12 +53,9 @@ export class HkexNewsClient {
       name: code,
       market: 'SEHK'
     }).toString()
-    const response = await net.fetch(url.toString(), {
-      headers: HKEX_HEADERS,
-      signal: AbortSignal.timeout(15_000)
-    })
-    if (!response.ok) throw new Error(`请求 HKEXnews 失败：HTTP ${response.status}`)
-    const payload = (await response.text())
+    const { bytes } = await requestOfficialSourceBytes(url.toString(), { headers: HKEX_HEADERS })
+    const payload = new TextDecoder()
+      .decode(bytes)
       .trim()
       .replace(/^callback\(/, '')
       .replace(/\);?$/, '')
@@ -94,12 +91,12 @@ export class HkexNewsClient {
       rowRange: '100',
       lang: 'EN'
     }).toString()
-    const response = await net.fetch(url.toString(), {
-      headers: HKEX_HEADERS,
-      signal: AbortSignal.timeout(20_000)
-    })
-    if (!response.ok) throw new Error(`请求 HKEXnews 失败：HTTP ${response.status}`)
-    const payload = (await response.json()) as HkexSearchResponse
+    const { bytes } = await requestOfficialSourceBytes(
+      url.toString(),
+      { headers: HKEX_HEADERS },
+      20_000
+    )
+    const payload = JSON.parse(new TextDecoder().decode(bytes)) as HkexSearchResponse
     return payload.result ? (JSON.parse(payload.result) as HkexSearchItem[]) : []
   }
 }

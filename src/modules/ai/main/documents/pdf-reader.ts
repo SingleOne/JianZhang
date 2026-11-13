@@ -1,4 +1,3 @@
-import { net } from 'electron'
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -6,6 +5,7 @@ import pdfParse from 'pdf-parse'
 import { atomicWriteJsonSync } from '../../../../../electron/main/file-storage'
 import { BROWSER_USER_AGENT } from '../../../../../electron/main/http-user-agent'
 import { SEC_DOCUMENT_HEADERS } from '../../../../../electron/main/sec-edgar-client'
+import { fetchOfficialSource } from '../../../../../electron/main/official-source-request'
 import { neutralizeHistoricalCitationMarkers } from '../citations/markers'
 import { isOfficialStockSourceUrl } from '../official-source'
 import { webPageUrl } from '../web-search/sources'
@@ -149,16 +149,20 @@ export class PdfDocumentReader {
     for (let redirect = 0; redirect <= 3; redirect++) {
       requestSignal.throwIfAborted()
       const sec = url.hostname === 'www.sec.gov' || url.hostname === 'sec.gov'
-      const response = await net.fetch(url.href, {
-        redirect: 'manual',
-        signal: requestSignal,
-        headers: {
-          ...(sec ? SEC_DOCUMENT_HEADERS : { 'User-Agent': BROWSER_USER_AGENT }),
-          Referer: url.hostname.endsWith('cninfo.com.cn')
-            ? 'https://www.cninfo.com.cn/'
-            : `${url.origin}/`
-        }
-      })
+      const response = await fetchOfficialSource(
+        url.href,
+        {
+          redirect: 'manual',
+          signal: requestSignal,
+          headers: {
+            ...(sec ? SEC_DOCUMENT_HEADERS : { 'User-Agent': BROWSER_USER_AGENT }),
+            Referer: url.hostname.endsWith('cninfo.com.cn')
+              ? 'https://www.cninfo.com.cn/'
+              : `${url.origin}/`
+          }
+        },
+        60_000
+      )
       if (response.status >= 300 && response.status < 400 && response.headers.get('location')) {
         await response.body?.cancel()
         url = officialPdfUrl(new URL(response.headers.get('location')!, url).href)
