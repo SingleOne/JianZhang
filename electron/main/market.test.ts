@@ -14,6 +14,7 @@ vi.mock('./eastmoney-history-session', () => ({
   eastmoneyHistorySession: {
     getSession: async () => ({ fetch: netFetch }),
     getCookieHeader: historyCookies,
+    verification: { required: false, check: vi.fn() },
     refresh: historyRefresh,
     generation: 0
   }
@@ -28,11 +29,7 @@ import {
 } from './market'
 
 function jsonResponse(value: unknown): Response {
-  return {
-    ok: true,
-    status: 200,
-    json: vi.fn(async () => value)
-  } as unknown as Response
+  return new Response(JSON.stringify(value))
 }
 
 function textResponse(value: string): Response {

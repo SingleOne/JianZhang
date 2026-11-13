@@ -1,9 +1,9 @@
-import { net } from 'electron'
 import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import type { StockValuationHistory } from '../../src/shared/types'
 import { atomicWriteJsonSync } from './file-storage'
 import { BROWSER_USER_AGENT } from './http-user-agent'
+import { fetchEastmoney, readEastmoneyJson } from './eastmoney-request'
 
 interface ValuationHistoryCacheEntry extends StockValuationHistory {
   version: 2
@@ -58,17 +58,16 @@ export class ValuationHistoryService {
       client: 'WEB',
       filter: `(SECURITY_CODE="${code}")`
     }).toString()
-    const response = await net.fetch(url.toString(), {
+    const response = await fetchEastmoney(url.toString(), {
       headers: {
         Referer: 'https://data.eastmoney.com/',
         'User-Agent': BROWSER_USER_AGENT
       }
     })
-    if (!response.ok) throw new Error(`历史估值接口返回 ${response.status}`)
-    const payload = (await response.json()) as {
+    const payload = await readEastmoneyJson<{
       success?: boolean
       result?: { data?: EastmoneyValuationRow[] }
-    }
+    }>(response, url.toString())
     const rows = payload.result?.data ?? []
     if (!payload.success || rows.length === 0) throw new Error('历史估值数据暂不可用')
 

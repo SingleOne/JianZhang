@@ -1,4 +1,4 @@
-import { net, type Session } from 'electron'
+import { net } from 'electron'
 import {
   parseMarketChangeDistribution,
   type EastmoneyMarketChangeData,
@@ -32,6 +32,8 @@ import { marketDateTimeInput } from '../../src/shared/market-hours'
 import type { MarketRequestLogger } from './market-request-logger'
 import type { SectorBinding } from './sector-market-cache'
 import { eastmoneyHistorySession } from './eastmoney-history-session'
+import { fetchEastmoney, parseEastmoneyJson, readEastmoneyJson } from './eastmoney-request'
+import { hasEastmoneyChallenge, isEastmoneyUrl } from './eastmoney-verification'
 import {
   EASTMONEY_FIELDS,
   EASTMONEY_FIXED_PARAMS,
@@ -151,7 +153,6 @@ interface MarketRequestOptions<T> {
   requestedCount?: number
   maxAttempts?: number
   attempt?: number
-  session?: Session
   headers?: Record<string, string>
   returnedCount?: (value: T) => number
 }
@@ -205,10 +206,15 @@ async function requestJson<T>(url: string, options: MarketRequestOptions<T>): Pr
             headers: options.headers ?? EASTMONEY_HEADERS,
             signal: AbortSignal.timeout(12_000)
           }
-          const response = options.session
-            ? await options.session.fetch(url, { ...init, credentials: 'include' })
+          const response = isEastmoneyUrl(url)
+            ? await fetchEastmoney(url, init)
             : await net.fetch(url, init)
 
+          if (isEastmoneyUrl(url)) {
+            const checkEmpty =
+              options.dataType !== 'stock-search' && !options.dataType.startsWith('radar-')
+            return readEastmoneyJson<T>(response, url, checkEmpty)
+          }
           if (!response.ok) throw new Error(`行情服务返回 ${response.status}`)
           return (await response.json()) as T
         },
@@ -227,51 +233,73 @@ async function requestJsonWithHost<T>(
   host: string,
   options: MarketRequestOptions<T>
 ): Promise<T> {
-  return trackedRequest(
-    { ...options, attempt: 1 },
-    () =>
-      new Promise((resolve, reject) => {
-        const request = httpsGet(
-          url,
-          {
-            headers: { ...(options.headers ?? EASTMONEY_HEADERS), Host: host },
-            timeout: 12_000
-          },
-          (response) => {
-            const chunks: Buffer[] = []
-            response.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
-            response.on('end', () => {
-              const status = response.statusCode ?? 0
-              if (status < 200 || status >= 300) {
-                reject(new Error(`行情服务返回 ${status}`))
-                return
-              }
-              try {
-                resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')) as T)
-              } catch (error) {
-                reject(error)
-              }
-            })
-          }
-        )
-        request.on('timeout', () => request.destroy(new Error('行情服务请求超时')))
-        request.on('error', reject)
-      }),
-    options.returnedCount
-  )
+  const cookieUrl = new URL(url)
+  cookieUrl.hostname = host
+  if (eastmoneyHistorySession.verification.required) {
+    throw new Error('东方财富正在等待手动安全验证')
+  }
+  const cookieHeaders = await eastmoneyHistorySession.getCookieHeader(cookieUrl.toString())
+  try {
+    return await trackedRequest(
+      { ...options, attempt: 1 },
+      () =>
+        new Promise((resolve, reject) => {
+          const request = httpsGet(
+            url,
+            {
+              headers: { ...cookieHeaders, ...(options.headers ?? EASTMONEY_HEADERS), Host: host },
+              timeout: 12_000
+            },
+            (response) => {
+              const chunks: Buffer[] = []
+              response.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
+              response.on('end', () => {
+                const status = response.statusCode ?? 0
+                try {
+                  resolve(
+                    parseEastmoneyJson<T>(
+                      cookieUrl.toString(),
+                      status,
+                      Buffer.concat(chunks).toString('utf8')
+                    )
+                  )
+                } catch (error) {
+                  reject(error)
+                }
+              })
+            }
+          )
+          request.on('timeout', () => request.destroy(new Error('行情服务请求超时')))
+          request.on('error', reject)
+        }),
+      options.returnedCount
+    )
+  } catch (error) {
+    eastmoneyHistorySession.verification.check(cookieUrl.toString())
+    throw error
+  }
 }
 
 async function requestText(url: string, options: MarketTextRequestOptions): Promise<string> {
   return trackedRequest(
     { ...options, attempt: 1 },
     async () => {
-      const response = await net.fetch(url, {
+      const fetcher = isEastmoneyUrl(url) ? fetchEastmoney : net.fetch
+      const response = await fetcher(url, {
         headers: options.headers ?? EASTMONEY_HEADERS,
         signal: AbortSignal.timeout(12_000)
       })
 
-      if (!response.ok) throw new Error(`行情服务返回 ${response.status}`)
-      return new TextDecoder(options.encoding ?? 'utf-8').decode(await response.arrayBuffer())
+      const text = new TextDecoder(options.encoding ?? 'utf-8').decode(await response.arrayBuffer())
+      if (isEastmoneyUrl(url) && hasEastmoneyChallenge(text)) {
+        eastmoneyHistorySession.verification.check(url, true, response.url)
+        throw new Error('东方财富需要手动安全验证')
+      }
+      if (!response.ok) {
+        if (isEastmoneyUrl(url)) eastmoneyHistorySession.verification.check(url)
+        throw new Error(`行情服务返回 ${response.status}`)
+      }
+      return text
     },
     options.returnedCount
   )
@@ -1700,7 +1728,6 @@ async function fetchHistoricalKline(
     type HistoricalKlinePayload = {
       data?: { name?: string; klines?: string[] }
     }
-    const browserSession = await eastmoneyHistorySession.getSession()
     if (!host) primarySessionGeneration = eastmoneyHistorySession.generation
     const payload = host
       ? await requestJsonWithHost<HistoricalKlinePayload>(url.toString(), host, {
@@ -1723,7 +1750,6 @@ async function fetchHistoricalKline(
           requestedCount: 1,
           maxAttempts: 1,
           attempt,
-          session: browserSession,
           returnedCount: (value) => value.data?.klines?.length ?? 0
         })
 

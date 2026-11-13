@@ -1,12 +1,14 @@
 import { BrowserWindow, session, type Session } from 'electron'
 import { BROWSER_USER_AGENT } from './http-user-agent'
+import { EastmoneyVerification } from './eastmoney-verification'
 
-const HISTORY_SESSION_PARTITION = 'jianzhang-eastmoney-history'
+const HISTORY_SESSION_PARTITION = 'persist:jianzhang-eastmoney'
 const SESSION_PAGE_URL = 'https://quote.eastmoney.com/sh600000.html'
 const SESSION_REFRESH_INTERVAL = 60_000
 const SESSION_LOAD_TIMEOUT = 12_000
 
 export class EastmoneyHistorySession {
+  readonly verification = new EastmoneyVerification(() => this.getOrCreateSession())
   private browserSession: Session | null = null
   private bootstrapWindow: BrowserWindow | null = null
   private refreshPromise: Promise<boolean> | null = null
@@ -33,6 +35,7 @@ export class EastmoneyHistorySession {
 
   async refresh(expectedGeneration: number): Promise<boolean> {
     if (this.disposed) return false
+    if (this.verification.required) return false
     if (this.refreshPromise) return this.refreshPromise
     if (expectedGeneration !== this.sessionGeneration) return true
     if (Date.now() - this.lastRefreshAt < SESSION_REFRESH_INTERVAL) return false
@@ -51,6 +54,7 @@ export class EastmoneyHistorySession {
 
   dispose(): void {
     this.disposed = true
+    this.verification.dispose()
     if (this.bootstrapWindow && !this.bootstrapWindow.isDestroyed()) {
       this.bootstrapWindow.destroy()
     }
@@ -71,7 +75,6 @@ export class EastmoneyHistorySession {
 
   private async loadSessionPage(): Promise<void> {
     const browserSession = this.getOrCreateSession()
-    await browserSession.clearStorageData({ storages: ['cookies'] })
     if (this.disposed) throw new Error('东方财富行情会话已关闭')
 
     // Execute the quote site's scripts so its own browser session can obtain valid cookies.

@@ -15,6 +15,7 @@ vi.mock('./eastmoney-history-session', () => ({
   eastmoneyHistorySession: {
     getSession: async () => ({ fetch: historyFetch }),
     getCookieHeader: getCookies,
+    verification: { required: false, check: vi.fn() },
     refresh,
     generation: 0
   }

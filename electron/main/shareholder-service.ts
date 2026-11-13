@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import type { ShareholderSnapshot } from '../../src/shared/types'
 import { atomicWriteJsonSync } from './file-storage'
 import { BROWSER_USER_AGENT } from './http-user-agent'
+import { fetchEastmoney, readEastmoneyJson } from './eastmoney-request'
 import {
   eastmoneyShareholderCode,
   normalizeEastmoneyShareholderPayload,
@@ -18,11 +19,6 @@ interface ShareholderCacheEntry {
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000
 type ShareholderFetch = (url: string, init?: RequestInit) => Promise<Response>
 
-const fetchWithElectron: ShareholderFetch = async (url, init) => {
-  const { net } = await import('electron')
-  return net.fetch(url, init)
-}
-
 export class ShareholderService {
   private readonly directory: string
   private readonly memory = new Map<string, ShareholderCacheEntry>()
@@ -31,7 +27,7 @@ export class ShareholderService {
   constructor(
     rootDirectory: string,
     private readonly now: () => number = Date.now,
-    private readonly fetcher: ShareholderFetch = fetchWithElectron
+    private readonly fetcher: ShareholderFetch = fetchEastmoney
   ) {
     this.directory = join(rootDirectory, 'shareholders')
     mkdirSync(this.directory, { recursive: true })
@@ -73,11 +69,10 @@ export class ShareholderService {
         },
         signal: AbortSignal.timeout(15_000)
       })
-      if (!response.ok) throw new Error(`股东信息接口返回 ${response.status}`)
       const fetchedAt = new Date(this.now()).toISOString()
       const snapshot = normalizeEastmoneyShareholderPayload(
         quoteId,
-        (await response.json()) as EastmoneyShareholderPayload,
+        await readEastmoneyJson<EastmoneyShareholderPayload>(response, url.toString()),
         fetchedAt
       )
       const entry: ShareholderCacheEntry = {

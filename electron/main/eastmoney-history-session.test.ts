@@ -84,7 +84,8 @@ describe('EastmoneyHistorySession', () => {
       })
     )
     expect(windowDestroyed).toHaveBeenCalledTimes(1)
-    expect(clearStorageData).toHaveBeenCalledWith({ storages: ['cookies'] })
+    expect(fromPartition).toHaveBeenCalledWith('persist:jianzhang-eastmoney')
+    expect(clearStorageData).not.toHaveBeenCalled()
   })
 
   it('reuses a newer generation and limits repeated failed-session refreshes', async () => {

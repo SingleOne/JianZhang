@@ -9,6 +9,13 @@ const { netFetch, httpsGet } = vi.hoisted(() => ({
 
 vi.mock('electron', () => ({ net: { fetch: netFetch } }))
 vi.mock('node:https', () => ({ get: httpsGet }))
+vi.mock('./eastmoney-history-session', () => ({
+  eastmoneyHistorySession: {
+    getSession: async () => ({ fetch: netFetch }),
+    getCookieHeader: async () => ({}),
+    verification: { required: false, check: vi.fn() }
+  }
+}))
 
 import { fetchQuotes } from './market'
 
@@ -106,7 +113,7 @@ describe('fetchQuotes sector isolation', () => {
         const [market, code] = quoteId.split('.')
         return { f12: code, f13: Number(market), f14: 'TestStock', f2: 1050 }
       })
-      return { ok: true, json: async () => ({ data: { diff } }) } as Response
+      return new Response(JSON.stringify({ data: { diff } }))
     })
 
     const result = await fetchQuotes([stock, board], [], 'quote-cycle:manual')

@@ -830,6 +830,16 @@ if (!hasSingleInstanceLock) {
       scheduleQuoteSnapshot: (quotes) => quoteSnapshotCache.scheduleSave(quotes),
       disposeQuoteSnapshotCache: () => quoteSnapshotCache.dispose()
     })
+    eastmoneyHistorySession.verification.configure({
+      getParentWindow: () => windowManager?.getMainWindow() ?? null,
+      onRequired: (message) => sendToWindows('data:error', message),
+      onVerified: () => {
+        void quoteRuntime?.refreshAll('eastmoney-verified').catch((error: unknown) => {
+          sendToWindows('data:error', error instanceof Error ? error.message : '验证后行情刷新失败')
+        })
+      },
+      onError: (message) => sendToWindows('data:error', message)
+    })
     tradingCalendarRuntime = new TradingCalendarRuntime({
       getState: () => state,
       saveState: (nextState) => {
