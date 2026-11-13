@@ -325,6 +325,152 @@ html:root[data-theme] body {
   &
     .stock-details
     :is(
+      .market-overview-header,
+      .fundamental-detail-conclusion-card,
+      .global-fundamental-header,
+      .company-report-header,
+      .corporate-action-header,
+      .stock-tracking-tab .stock-tracking-editor-header,
+      .insight-header
+    ) {
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+    border-radius: 12px;
+    color: var(--text-primary);
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--accent) 9%, var(--surface)),
+      var(--surface)
+    );
+
+    & strong {
+      color: var(--text-primary);
+      font-size: 16px;
+    }
+
+    &
+      :is(
+        .fundamental-detail-conclusion-copy,
+        .global-fundamental-header > span,
+        .company-report-header > span:nth-child(2),
+        .corporate-action-header > div:first-child,
+        .insight-header > div:first-child
+      ) {
+      display: grid;
+      flex: 1;
+      gap: 3px;
+      min-width: 0;
+    }
+
+    & :is(small, .fundamental-detail-conclusion-copy > em) {
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-style: normal;
+    }
+
+    &
+      :is(
+        .fundamental-detail-actions,
+        .corporate-action-actions,
+        .stock-tracking-editor-actions,
+        .insight-actions
+      ) {
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-left: auto;
+    }
+
+    &
+      :is(
+        .fundamental-stock-update-button,
+        .fundamental-reading-guide-button,
+        .global-fundamental-header > button,
+        .company-report-header > button,
+        .secondary-button,
+        .primary-button,
+        .app-select-trigger
+      ) {
+      height: 32px;
+      min-height: 32px;
+      gap: 5px;
+      padding: 0 11px;
+      border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
+      border-radius: 8px;
+      color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+      box-shadow: none;
+      font-size: 12px;
+      font-weight: 700;
+
+      &:hover:not(:disabled) {
+        border-color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+      }
+
+      &:disabled {
+        color: var(--subtle);
+        background: var(--surface-muted);
+        border-color: var(--border);
+        opacity: 0.62;
+        cursor: wait;
+      }
+    }
+  }
+
+  & .stock-details :is(.fundamental-detail-icon, .company-report-header-icon) {
+    display: none;
+  }
+
+  & .stock-details :is(.corporate-action-header, .insight-header) > div:first-child > span {
+    order: -1;
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+
+  & .stock-details .market-overview-header > div:first-child {
+    gap: 3px 6px;
+
+    & > span {
+      flex-basis: 100%;
+      order: -2;
+      color: var(--text-secondary);
+    }
+
+    & > strong {
+      flex-basis: 100%;
+      order: -1;
+    }
+  }
+
+  & .stock-details .stock-tracking-tab .stock-tracking-editor-identity {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    flex: 1;
+    gap: 3px 8px;
+    min-width: 0;
+
+    & > small {
+      grid-area: 1 / 1 / 2 / -1;
+    }
+
+    & > strong {
+      grid-area: 2 / 1;
+    }
+
+    & > .stock-tracking-status {
+      grid-area: 2 / 2;
+      justify-self: start;
+    }
+  }
+
+  &
+    .stock-details
+    :is(
       .overview-item,
       .chart-panel,
       .order-book-panel,
@@ -368,6 +514,16 @@ html:root[data-theme] body {
 
   & :is(.stock-details, [aria-modal='true']) td {
     border-color: var(--border);
+  }
+}
+
+@media (max-width: 1200px) {
+  html:root[data-theme] body .stock-details .market-overview-header {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    & > .market-chart-tabs {
+      grid-area: 2 / 1 / 3 / -1;
+    }
   }
 }
 
