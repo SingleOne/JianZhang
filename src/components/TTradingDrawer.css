@@ -271,15 +271,15 @@
   cursor: pointer;
 }
 
-.t-base-ledger-card .t-trade-amount strong.is-up {
+.t-transaction-ledger-card .t-trade-amount strong.is-up {
   color: var(--red);
 }
 
-.t-base-ledger-card .t-trade-amount strong.is-down {
+.t-transaction-ledger-card .t-trade-amount strong.is-down {
   color: var(--green);
 }
 
-.t-base-ledger-card .t-trade-actions .icon-button:disabled {
+.t-transaction-ledger-card .t-trade-actions .icon-button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }

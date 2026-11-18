@@ -1,0 +1,163 @@
+.t-transaction-ledger-card .t-batch-summary {
+  flex-wrap: wrap;
+}
+
+.t-transaction-ledger-card .t-batch-summary .secondary-button {
+  font-size: 12px;
+}
+
+.t-transaction-ledger-card .t-batch-summary strong.is-up {
+  color: var(--red);
+}
+
+.t-transaction-ledger-card .t-batch-summary strong.is-down {
+  color: var(--green);
+}
+
+.t-transaction-ledger-card .t-batch-summary strong.is-flat,
+.t-transaction-ledger-card .t-trade-amount strong.is-flat {
+  color: var(--muted);
+}
+
+.t-transaction-ledger-card .t-trade-side {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.t-transaction-empty {
+  padding: 22px;
+  color: var(--muted);
+  text-align: center;
+  font-size: 12px;
+}
+
+.t-transaction-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 260;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(15 23 42 / 46%);
+  backdrop-filter: blur(3px);
+}
+
+.t-transaction-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(1160px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-menu);
+  font-size: 12px;
+}
+
+.t-transaction-dialog-header,
+.t-transaction-dialog-footer {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+}
+
+.t-transaction-dialog-header {
+  border-bottom: 1px solid var(--border);
+}
+
+.t-transaction-dialog-header > span {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.t-transaction-dialog-header > span > svg {
+  color: var(--blue);
+}
+
+.t-transaction-dialog-header > span > span {
+  display: grid;
+  gap: 5px;
+}
+
+.t-transaction-dialog-header strong {
+  font-size: 16px;
+}
+
+.t-transaction-dialog-header small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.t-transaction-dialog-content {
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 18px;
+}
+
+.t-transaction-dialog-content .t-trade-list {
+  min-width: 650px;
+  border-color: var(--border);
+}
+
+.t-transaction-dialog .t-trade-row {
+  grid-template-columns: 115px minmax(220px, 1fr) minmax(120px, 0.5fr) 62px;
+}
+
+.t-transaction-dialog .t-trade-row small {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.t-transaction-dialog .t-trade-amount strong.is-up {
+  color: var(--red);
+}
+
+.t-transaction-dialog .t-trade-amount strong.is-down {
+  color: var(--green);
+}
+
+.t-transaction-dialog .t-trade-amount strong.is-flat {
+  color: var(--muted);
+}
+
+.t-transaction-dialog .t-trade-side.is-adjustment,
+.t-transaction-ledger-card .t-trade-side.is-adjustment {
+  color: var(--muted);
+  background: var(--surface-muted);
+}
+
+.t-transaction-dialog-footer {
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.t-transaction-dialog-footer > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.t-transaction-dialog-footer .secondary-button {
+  font-size: 12px;
+}
+
+@media (max-width: 700px) {
+  .t-transaction-backdrop {
+    padding: 12px;
+  }
+  .t-transaction-dialog {
+    max-height: calc(100vh - 24px);
+  }
+  .t-transaction-dialog-footer {
+    flex-wrap: wrap;
+  }
+}

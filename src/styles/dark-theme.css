@@ -3503,11 +3503,23 @@
 :root[data-theme='dark'] .t-trade-row strong {
   color: var(--text);
 }
-:root[data-theme='dark'] .t-base-ledger-card .t-trade-amount strong.is-up {
+:root[data-theme='dark']
+  :is(.t-transaction-ledger-card, .t-transaction-dialog)
+  .t-trade-amount
+  strong.is-up {
   color: var(--red);
 }
-:root[data-theme='dark'] .t-base-ledger-card .t-trade-amount strong.is-down {
+:root[data-theme='dark']
+  :is(.t-transaction-ledger-card, .t-transaction-dialog)
+  .t-trade-amount
+  strong.is-down {
   color: var(--green);
+}
+:root[data-theme='dark']
+  :is(.t-transaction-ledger-card, .t-transaction-dialog)
+  .t-trade-amount
+  strong.is-flat {
+  color: var(--muted);
 }
 :root[data-theme='dark'] .t-trade-row small {
   color: var(--muted);

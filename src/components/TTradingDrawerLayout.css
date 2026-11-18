@@ -32,7 +32,7 @@
   grid-row: 3;
 }
 
-.t-base-ledger-card {
+.t-transaction-ledger-card {
   min-width: 0;
   grid-column: 1 / -1;
 }
@@ -46,7 +46,7 @@
 }
 
 .t-active-batch-card .t-card-heading,
-.t-base-ledger-card .t-card-heading {
+.t-transaction-ledger-card .t-card-heading {
   flex-wrap: wrap;
 }
 
@@ -163,7 +163,7 @@
   grid-column: auto;
 }
 
-.t-trading-ledger-history > .t-base-ledger-card:only-child {
+.t-trading-ledger-history > .t-transaction-ledger-card:only-child {
   grid-column: 1 / -1;
 }
 

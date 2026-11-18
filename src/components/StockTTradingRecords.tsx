@@ -88,7 +88,7 @@ interface Props {
   onApply: (book: StockTradingBook) => void
   onEditTrade: (trade: TTradeRecord) => void
   renderTradeEditor: (trade: TTrade, onComplete: () => void) => ReactNode
-  baseLedger: ReactNode
+  transactionLedger: ReactNode
 }
 
 function valueClass(value: number | null | undefined) {
@@ -532,8 +532,16 @@ function ActiveBatchCard({
 }
 
 export function StockTTradingRecords(props: Props) {
-  const { book, stock, quote, onApply, onEditTrade, planDefaults, exchangeRates, baseLedger } =
-    props
+  const {
+    book,
+    stock,
+    quote,
+    onApply,
+    onEditTrade,
+    planDefaults,
+    exchangeRates,
+    transactionLedger
+  } = props
   const confirm = useConfirmDialog()
   const [error, setError] = useState('')
   const [calibratingId, setCalibratingId] = useState<string | null>(null)
@@ -585,7 +593,7 @@ export function StockTTradingRecords(props: Props) {
         />
       ))}
       <div className="t-trading-ledger-history">
-        {baseLedger}
+        {transactionLedger}
         {history.length ? (
           <section className="t-card t-history-card">
             <div className="t-card-heading">
