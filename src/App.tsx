@@ -1583,7 +1583,7 @@ export default function App() {
                   >
                     <span>
                       <ChartColumn size={15} />
-                      涨跌幅分布
+                      市场概览
                     </span>
                     <strong>全市场 A 股</strong>
                     <small>

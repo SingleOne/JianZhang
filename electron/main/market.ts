@@ -4,6 +4,12 @@ import {
   type EastmoneyMarketChangeData,
   type MarketChangeDistribution
 } from '../../src/shared/market-change-distribution'
+import {
+  EASTMONEY_MARKET_OVERVIEW_QUOTE_IDS,
+  parseMarketFundsFlow,
+  type EastmoneyMarketFundsFlowItem,
+  type MarketFundsFlow
+} from '../../src/shared/market-funds-flow'
 import { get as httpsGet } from 'node:https'
 import type {
   FundsFlowResult,
@@ -600,6 +606,60 @@ export function fetchMarketChangeDistribution(
       marketChangeTask = null
     })
   marketChangeTask = task
+  return task
+}
+
+let marketFundsFlowCache: MarketFundsFlow | null = null
+let marketFundsFlowTask: Promise<MarketFundsFlow> | null = null
+
+async function loadMarketFundsFlow(): Promise<MarketFundsFlow> {
+  const fetchFrom = async (origin: string, source: string, fallbackFrom?: string) => {
+    const url = new URL('/api/qt/ulist.np/get', origin)
+    url.searchParams.set('fltt', '2')
+    url.searchParams.set('secids', EASTMONEY_MARKET_OVERVIEW_QUOTE_IDS.join(','))
+    url.searchParams.set('fields', 'f5,f12,f13,f62,f64,f65,f70,f71,f124')
+    const payload = await requestJson<{
+      rc?: number
+      data?: { diff?: EastmoneyMarketFundsFlowItem[] }
+    }>(url.toString(), {
+      dataType: 'market-funds-flow',
+      caller: 'market-funds-flow',
+      source,
+      fallbackFrom,
+      requestedCount: EASTMONEY_MARKET_OVERVIEW_QUOTE_IDS.length,
+      maxAttempts: 1,
+      returnedCount: (value) => value.data?.diff?.length ?? 0
+    })
+    if (payload.rc !== 0 || !payload.data?.diff?.length) {
+      throw new Error('行情服务未返回沪深主力资金数据')
+    }
+    return parseMarketFundsFlow(payload.data.diff, new Date().toISOString())
+  }
+  try {
+    return await fetchFrom('https://push2.eastmoney.com', 'eastmoney-primary')
+  } catch {
+    return fetchFrom('https://push2delay.eastmoney.com', 'eastmoney-delay', 'eastmoney-primary')
+  }
+}
+
+export function fetchMarketFundsFlow(forceRefresh = false): Promise<MarketFundsFlow> {
+  if (marketFundsFlowTask) return marketFundsFlowTask
+  if (
+    !forceRefresh &&
+    marketFundsFlowCache &&
+    Date.now() - Date.parse(marketFundsFlowCache.fetchedAt) < 60_000
+  ) {
+    return Promise.resolve(marketFundsFlowCache)
+  }
+  const task = loadMarketFundsFlow()
+    .then((result) => {
+      marketFundsFlowCache = result
+      return result
+    })
+    .finally(() => {
+      marketFundsFlowTask = null
+    })
+  marketFundsFlowTask = task
   return task
 }
 

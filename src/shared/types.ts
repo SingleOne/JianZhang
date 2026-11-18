@@ -3055,6 +3055,9 @@ export interface StockDesktopApi {
   getMarketChangeDistribution: (
     forceRefresh?: boolean
   ) => Promise<import('./market-change-distribution').MarketChangeDistribution>
+  getMarketFundsFlow: (
+    forceRefresh?: boolean
+  ) => Promise<import('./market-funds-flow').MarketFundsFlow>
   getDividendFinancingOverview: (codes: string[]) => Promise<DividendFinancingOverview | null>
   getDividendFinancingSnapshot: () => Promise<DividendFinancingSnapshot | null>
   getDividendFinancingState: () => Promise<DataSnapshotRuntimeState>

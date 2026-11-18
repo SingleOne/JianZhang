@@ -41,6 +41,7 @@ import type { MarketInsightRuntime } from '../../src/modules/market-insight/main
 import {
   fetchDailyMarketActiveQuotes,
   fetchMarketChangeDistribution,
+  fetchMarketFundsFlow,
   fetchFundsFlow,
   fetchKline,
   fetchOrderBook,
@@ -895,6 +896,7 @@ if (!hasSingleInstanceLock) {
       persistState,
       getQuotes: getLatestQuotes,
       getMarketChangeDistribution: fetchMarketChangeDistribution,
+      getMarketFundsFlow: fetchMarketFundsFlow,
       getStartupWarning: () => startupWarning,
       getStockTrackingArchiveIndex: () => stockTrackingArchiveStore!.getIndex(),
       getStockTrackingArchiveCycle: (quoteId, cycleId) =>

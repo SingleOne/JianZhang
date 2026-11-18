@@ -53,6 +53,7 @@ const api: StockDesktopBridge = {
   searchStocks: (query) => ipcRenderer.invoke('stocks:search', query),
   getMarketChangeDistribution: (forceRefresh) =>
     ipcRenderer.invoke('market-change-distribution:get', forceRefresh),
+  getMarketFundsFlow: (forceRefresh) => ipcRenderer.invoke('market-funds-flow:get', forceRefresh),
   getDividendFinancingOverview: (codes) =>
     ipcRenderer.invoke('dividend-financing:overview:get', codes),
   getDividendFinancingSnapshot: () => ipcRenderer.invoke('dividend-financing:get'),
