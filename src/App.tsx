@@ -1583,9 +1583,8 @@ export default function App() {
                   >
                     <span>
                       <ChartColumn size={15} />
-                      市场概览
+                      <strong>全市场概览</strong>
                     </span>
-                    <strong>全市场 A 股</strong>
                     <small>
                       点击查看 <ArrowUpRight size={13} />
                     </small>

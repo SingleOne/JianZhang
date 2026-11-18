@@ -617,7 +617,7 @@ async function loadMarketFundsFlow(): Promise<MarketFundsFlow> {
     const url = new URL('/api/qt/ulist.np/get', origin)
     url.searchParams.set('fltt', '2')
     url.searchParams.set('secids', EASTMONEY_MARKET_OVERVIEW_QUOTE_IDS.join(','))
-    url.searchParams.set('fields', 'f5,f12,f13,f62,f64,f65,f70,f71,f124')
+    url.searchParams.set('fields', 'f5,f6,f12,f13,f62,f64,f65,f70,f71,f124')
     const payload = await requestJson<{
       rc?: number
       data?: { diff?: EastmoneyMarketFundsFlowItem[] }

@@ -144,6 +144,19 @@ export default function MarketChangeDistributionDialog({ onClose }: { onClose: (
                     </strong>
                   </span>
                   <span>
+                    <small>沪深 A 股成交总额</small>
+                    <strong>
+                      {fundsFlow.totalTurnoverAmount === null ? (
+                        <small>暂无数据</small>
+                      ) : (
+                        <>
+                          {formatAmount(fundsFlow.totalTurnoverAmount)}
+                          <small>元</small>
+                        </>
+                      )}
+                    </strong>
+                  </span>
+                  <span>
                     <small>主力流入</small>
                     <strong className={fundsFlow.mainInflow > 0 ? 'is-up' : 'is-flat'}>
                       {formatAmount(fundsFlow.mainInflow)}

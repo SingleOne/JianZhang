@@ -23,6 +23,7 @@ vi.mock('./eastmoney-history-session', () => ({
 import {
   fetchDailyMarketActiveQuotes,
   fetchKline,
+  fetchMarketFundsFlow,
   fetchOrderBook,
   fetchQuotes,
   searchStocks
@@ -764,6 +765,66 @@ describe('fetchQuotes investment valuation fields', () => {
         direction: 'up'
       }
     ])
+  })
+})
+
+describe('fetchMarketFundsFlow', () => {
+  beforeEach(() => {
+    netFetch.mockReset()
+  })
+
+  it.each([
+    {
+      scenario: 'sums only the same-day A-share quotes',
+      shenzhenAmount: 700_000_000_000,
+      dayOffset: 0,
+      expectedAmount: 1_300_000_000_000,
+      expectedVolume: 900_000_000
+    },
+    {
+      scenario: 'preserves volume when one turnover amount is missing',
+      shenzhenAmount: '-',
+      dayOffset: 0,
+      expectedAmount: null,
+      expectedVolume: 900_000_000
+    },
+    {
+      scenario: 'omits turnover metrics when the quote dates differ',
+      shenzhenAmount: 700_000_000_000,
+      dayOffset: -1,
+      expectedAmount: null,
+      expectedVolume: null
+    }
+  ])('$scenario', async ({ shenzhenAmount, dayOffset, expectedAmount, expectedVolume }) => {
+    const timestamp = Date.parse('2026-08-28T15:00:00+08:00') / 1000
+    const funds = { f6: 800_000_000_000, f62: 3, f64: 4, f65: 2, f70: 2, f71: 1, f124: timestamp }
+    netFetch.mockResolvedValueOnce(
+      jsonResponse({
+        rc: 0,
+        data: {
+          diff: [
+            { ...funds, f13: 1, f12: '000001' },
+            { ...funds, f13: 0, f12: '399001' },
+            { f13: 1, f12: '000002', f5: 400_000_000, f6: 600_000_000_000, f124: timestamp },
+            {
+              f13: 0,
+              f12: '399107',
+              f5: 500_000_000,
+              f6: shenzhenAmount,
+              f124: timestamp + dayOffset * 86_400
+            }
+          ]
+        }
+      })
+    )
+
+    await expect(fetchMarketFundsFlow(true)).resolves.toMatchObject({
+      totalTurnoverAmount: expectedAmount,
+      totalVolumeLots: expectedVolume,
+      mainNetInflow: 6
+    })
+    const fields = new URL(netFetch.mock.calls[0][0]).searchParams.get('fields')
+    expect(fields?.split(',')).toContain('f6')
   })
 })
 

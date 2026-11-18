@@ -6,15 +6,6 @@
   font-size: 12px;
 }
 
-.t-transaction-ledger-card .t-batch-summary strong.is-up {
-  color: var(--red);
-}
-
-.t-transaction-ledger-card .t-batch-summary strong.is-down {
-  color: var(--green);
-}
-
-.t-transaction-ledger-card .t-batch-summary strong.is-flat,
 .t-transaction-ledger-card .t-trade-amount strong.is-flat {
   color: var(--muted);
 }

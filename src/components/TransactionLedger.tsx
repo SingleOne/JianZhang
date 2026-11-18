@@ -156,13 +156,6 @@ export function TransactionLedger({
   )
   const pageCount = Math.max(1, Math.ceil(entries.length / PAGE_SIZE))
   const currentPage = Math.min(page, pageCount - 1)
-  const cashAmounts = entries.flatMap(({ entry }) => {
-    if (isCashEntry(entry)) return [cashAmount(entry)]
-    if (entry.kind === 'cashAdjustment') return [entry.amount]
-    if (entry.kind === 'corporateActionFee') return [-entry.amount]
-    return []
-  })
-  const cashNet = cashAmounts.reduce((sum, amount) => sum + amount, 0)
 
   useEffect(() => {
     if (!showAll) return
@@ -496,14 +489,6 @@ export function TransactionLedger({
             <small>底仓、T 仓及公司行动等全部流水 · 最近 {Math.min(5, entries.length)} 条</small>
           </span>
           <div className="t-batch-summary">
-            {cashAmounts.length > 0 ? (
-              <span>
-                <small>现金净收入</small>
-                <strong className={valueClass(cashNet)}>
-                  {formatMoneyProfit(cashNet, currency)}
-                </strong>
-              </span>
-            ) : null}
             <em>{entries.length} 笔流水</em>
             <AppButton
               ref={viewAllRef}

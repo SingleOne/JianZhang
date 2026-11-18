@@ -1,14 +1,15 @@
 import { marketDateKey } from './market-hours'
 
 const FUNDS_FLOW_QUOTE_IDS = ['1.000001', '0.399001']
-const A_SHARE_VOLUME_QUOTE_IDS = ['1.000002', '0.399107']
+const A_SHARE_TURNOVER_QUOTE_IDS = ['1.000002', '0.399107']
 export const EASTMONEY_MARKET_OVERVIEW_QUOTE_IDS = [
   ...FUNDS_FLOW_QUOTE_IDS,
-  ...A_SHARE_VOLUME_QUOTE_IDS
+  ...A_SHARE_TURNOVER_QUOTE_IDS
 ]
 
 export interface EastmoneyMarketFundsFlowItem {
   f5?: number | '-'
+  f6?: number | '-'
   f12?: string
   f13?: number
   f62?: number | '-'
@@ -24,6 +25,7 @@ export interface MarketFundsFlow {
   dataAt: string
   tradingDate: string
   totalVolumeLots: number | null
+  totalTurnoverAmount: number | null
   mainInflow: number
   mainOutflow: number
   mainNetInflow: number
@@ -40,6 +42,19 @@ function readQuoteDate(timestamp: EastmoneyMarketFundsFlowItem['f124']): Date | 
   if (typeof timestamp !== 'number' || timestamp <= 0) return null
   const date = new Date(timestamp * 1000)
   return Number.isFinite(date.getTime()) ? date : null
+}
+
+function sumTurnoverField(
+  quotes: (EastmoneyMarketFundsFlowItem | undefined)[],
+  field: 'f5' | 'f6'
+): number | null {
+  let total = 0
+  for (const quote of quotes) {
+    const value = quote?.[field]
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return null
+    total += value
+  }
+  return total
 }
 
 export function parseMarketFundsFlow(
@@ -67,20 +82,18 @@ export function parseMarketFundsFlow(
     throw new Error('沪深资金数据日期不一致，请稍后刷新重试')
   }
   const tradingDate = markets[0].tradingDate
-  // These two quotes cover Shanghai and Shenzhen A shares. Eastmoney reports f5 in lots.
-  const [shanghaiVolume, shenzhenVolume] = A_SHARE_VOLUME_QUOTE_IDS.map((quoteId) => {
+  // Use the same Shanghai/Shenzhen A-share quotes for f5 (lots) and f6 (yuan).
+  const turnoverQuotes = A_SHARE_TURNOVER_QUOTE_IDS.map((quoteId) => {
     const item = quotes.get(quoteId)
     const date = readQuoteDate(item?.f124)
-    const volume = item?.f5
-    if (!date || marketDateKey(date, 'CN') !== tradingDate) return null
-    return typeof volume === 'number' && Number.isFinite(volume) && volume >= 0 ? volume : null
+    return date && marketDateKey(date, 'CN') === tradingDate ? item : undefined
   })
   return {
     fetchedAt,
     dataAt: new Date(Math.min(...markets.map((market) => market.timestamp))).toISOString(),
     tradingDate,
-    totalVolumeLots:
-      shanghaiVolume === null || shenzhenVolume === null ? null : shanghaiVolume + shenzhenVolume,
+    totalVolumeLots: sumTurnoverField(turnoverQuotes, 'f5'),
+    totalTurnoverAmount: sumTurnoverField(turnoverQuotes, 'f6'),
     mainInflow: markets.reduce((sum, market) => sum + market.inflow, 0),
     mainOutflow: markets.reduce((sum, market) => sum + market.outflow, 0),
     mainNetInflow: markets.reduce((sum, market) => sum + market.netInflow, 0)
