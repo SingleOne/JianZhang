@@ -12,8 +12,7 @@ const { render, dispose, preferences, icon } = vi.hoisted(() => ({
 
 vi.mock('electron', () => ({
   systemPreferences: {
-    getAnimationSettings: () => ({ prefersReducedMotion: preferences.reducedMotion }),
-    getUserDefault: () => 'Dark'
+    getAnimationSettings: () => ({ prefersReducedMotion: preferences.reducedMotion })
   }
 }))
 vi.mock('./tray-icons', () => ({ createMenuBarIcon: () => icon }))
@@ -30,8 +29,23 @@ const tray = { setTitle: vi.fn(), setImage: vi.fn() }
 const onResize = vi.fn()
 let animator: MenuBarTitleAnimator
 
-function stock(quoteId = '1.600519', title = '贵州茅台 1247.52 +3.96%'): MenuBarPresentation {
-  return { quoteId, title, titles: [title, '宁德时代 367.81 -8.05%'], tooltip: title }
+function stock(quoteId = '1.600519', values?: string): MenuBarPresentation {
+  const stockTitles = [
+    {
+      quoteId: '1.600519',
+      label: '贵州茅台',
+      values: '\u001b[31m1247.52\u001b[0m \u001b[31m+3.96%\u001b[0m'
+    },
+    {
+      quoteId: '0.300750',
+      label: '宁德时代',
+      values: '\u001b[32m367.81\u001b[0m \u001b[32m-8.05%\u001b[0m'
+    }
+  ]
+  const selected = stockTitles.find((title) => title.quoteId === quoteId)!
+  if (values !== undefined) selected.values = values
+  const title = `${selected.label} ${selected.values}`
+  return { quoteId, title, stockTitles, tooltip: title }
 }
 
 beforeEach(() => {
@@ -61,12 +75,12 @@ describe('macOS menu bar stock transitions', () => {
     await update()
     expect(render).toHaveBeenLastCalledWith(expect.objectContaining({ previousTitle: null }))
 
-    const next = stock('0.300750', '宁德时代 367.81 -8.05%')
+    const next = stock('0.300750')
     await update(next)
     expect(render).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        previousTitle: stock().title,
-        title: next.title,
+        previousTitle: '贵州茅台',
+        title: '宁德时代',
         minimumWidth: 240
       })
     )
@@ -75,27 +89,61 @@ describe('macOS menu bar stock transitions', () => {
     expect(tray.setImage).toHaveBeenLastCalledWith(last)
     expect(vi.getTimerCount()).toBe(0)
 
-    await update({ ...next, title: '宁德时代 368.00 -8.00%' })
+    await update(stock('0.300750', '368.00 -8.00%'))
     expect(render).toHaveBeenLastCalledWith(expect.objectContaining({ previousTitle: null }))
+    expect(tray.setTitle).toHaveBeenLastCalledWith('368.00 -8.00% ', { fontType: 'monospaced' })
+  })
+
+  it('keeps neutral names in template frames and colored values in native text', async () => {
+    await update()
+    expect(render).toHaveBeenLastCalledWith({
+      title: '贵州茅台',
+      previousTitle: null,
+      titles: ['贵州茅台', '宁德时代'],
+      minimumWidth: 0,
+      icon: 'data:image/png;base64,icon'
+    })
+    expect(tray.setTitle).toHaveBeenLastCalledWith(stock().stockTitles[0].values, {
+      fontType: 'monospaced'
+    })
+
+    await update(stock('0.300750'))
+    expect(tray.setTitle).toHaveBeenLastCalledWith(stock().stockTitles[1].values + ' ', {
+      fontType: 'monospaced'
+    })
+  })
+
+  it('reserves native value width after a longer quote and resets it with the selection', async () => {
+    await update(stock('1.600519', '123456.78 +123.45%'))
+    await update()
+    expect(tray.setTitle).toHaveBeenLastCalledWith(stock().stockTitles[0].values + '    ', {
+      fontType: 'monospaced'
+    })
+    animator.update(stock(), true, true)
+    await Promise.resolve()
+    expect(tray.setTitle).toHaveBeenLastCalledWith(stock().stockTitles[0].values, {
+      fontType: 'monospaced'
+    })
   })
 
   it('coalesces incoming prices instead of cutting off the active stock animation', async () => {
     await update()
-    const next = stock('0.300750', '宁德时代 367.81 -8.05%')
+    const next = stock('0.300750')
     await update(next)
     const calls = render.mock.calls.length
-    await update({ ...next, title: '宁德时代 368.00 -8.00%' })
-    await update({ ...next, title: '宁德时代 369.00 -7.80%' })
+    await update(stock('0.300750', '368.00 -8.00%'))
+    await update(stock('0.300750', '369.00 -7.80%'))
     expect(render).toHaveBeenCalledTimes(calls)
 
     await vi.advanceTimersByTimeAsync(288)
     expect(render).toHaveBeenCalledTimes(calls + 1)
     expect(render).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        title: '宁德时代 369.00 -7.80%',
+        title: '宁德时代',
         previousTitle: null
       })
     )
+    expect(tray.setTitle).toHaveBeenLastCalledWith('369.00 -7.80% ', { fontType: 'monospaced' })
   })
 
   it('respects reduced motion while retaining fixed-width rendering', async () => {

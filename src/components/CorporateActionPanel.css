@@ -1,5 +1,6 @@
 .corporate-action-panel {
   display: grid;
+  align-content: start;
   gap: 14px;
   min-height: 260px;
   color: var(--text-primary);

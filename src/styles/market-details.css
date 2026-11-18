@@ -329,6 +329,7 @@ html:root[data-theme] body {
       .fundamental-detail-conclusion-card,
       .global-fundamental-header,
       .company-report-header,
+      .shareholder-header,
       .corporate-action-header,
       .stock-tracking-tab .stock-tracking-editor-header,
       .insight-header
@@ -356,6 +357,7 @@ html:root[data-theme] body {
         .fundamental-detail-conclusion-copy,
         .global-fundamental-header > span,
         .company-report-header > span:nth-child(2),
+        .shareholder-header > span:nth-child(2),
         .corporate-action-header > div:first-child,
         .insight-header > div:first-child
       ) {
@@ -390,6 +392,7 @@ html:root[data-theme] body {
         .fundamental-reading-guide-button,
         .global-fundamental-header > button,
         .company-report-header > button,
+        .shareholder-header > button,
         .secondary-button,
         .primary-button,
         .app-select-trigger
@@ -421,7 +424,9 @@ html:root[data-theme] body {
     }
   }
 
-  & .stock-details :is(.fundamental-detail-icon, .company-report-header-icon) {
+  &
+    .stock-details
+    :is(.fundamental-detail-icon, .company-report-header-icon, .shareholder-header-icon) {
     display: none;
   }
 
@@ -432,6 +437,7 @@ html:root[data-theme] body {
   }
 
   & .stock-details .market-overview-header > div:first-child {
+    align-items: center;
     gap: 3px 6px;
 
     & > span {
@@ -441,7 +447,6 @@ html:root[data-theme] body {
     }
 
     & > strong {
-      flex-basis: 100%;
       order: -1;
     }
   }

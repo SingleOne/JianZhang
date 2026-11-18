@@ -5,6 +5,13 @@ import { MenuBarTitleRenderer } from './menu-bar-title-renderer'
 
 const TRANSITION_MS = 280
 
+function visibleLength(value: string): number {
+  return value
+    .split('\u001b[')
+    .map((part, index) => (index === 0 ? part : part.slice(part.indexOf('m') + 1)))
+    .join('').length
+}
+
 export class MenuBarTitleAnimator {
   private readonly renderer = new MenuBarTitleRenderer()
   private readonly icon = createMenuBarIcon()
@@ -14,6 +21,7 @@ export class MenuBarTitleAnimator {
   private pending: MenuBarPresentation | null = null
   private imageMode = false
   private width = 0
+  private valueWidth = 0
 
   constructor(
     private readonly tray: Tray,
@@ -23,9 +31,11 @@ export class MenuBarTitleAnimator {
   update(presentation: MenuBarPresentation, rotating: boolean, selectionChanged = false): void {
     if (selectionChanged) {
       this.width = 0
+      this.valueWidth = 0
       this.imageMode = false
     }
-    const imageMode = rotating && presentation.quoteId !== null && presentation.titles.length > 1
+    const imageMode =
+      rotating && presentation.quoteId !== null && presentation.stockTitles.length > 1
     // Finish a stock transition before applying another quote for that stock.
     if (
       this.timer &&
@@ -41,6 +51,7 @@ export class MenuBarTitleAnimator {
     if (!imageMode) {
       this.imageMode = false
       this.width = 0
+      this.valueWidth = 0
       this.current = presentation
       this.renderer.dispose()
       this.tray.setImage(this.icon)
@@ -52,14 +63,20 @@ export class MenuBarTitleAnimator {
       this.imageMode &&
       this.current?.quoteId !== presentation.quoteId &&
       !systemPreferences.getAnimationSettings().prefersReducedMotion
-    const previousTitle = animate ? this.current!.title : null
+    const title = presentation.stockTitles.find(({ quoteId }) => quoteId === presentation.quoteId)!
+    const previousTitle = animate
+      ? this.current!.stockTitles.find(({ quoteId }) => quoteId === this.current!.quoteId)!.label
+      : null
+    const valueWidth = Math.max(
+      this.valueWidth,
+      ...presentation.stockTitles.map(({ values }) => visibleLength(values))
+    )
     void this.renderer
       .render({
-        title: presentation.title,
+        title: title.label,
         previousTitle,
-        titles: presentation.titles,
+        titles: presentation.stockTitles.map(({ label }) => label),
         minimumWidth: this.width,
-        dark: systemPreferences.getUserDefault('AppleInterfaceStyle', 'string') === 'Dark',
         icon: this.icon.toDataURL({ scaleFactor: 2 })
       })
       .then((frames) => {
@@ -67,7 +84,12 @@ export class MenuBarTitleAnimator {
         this.current = presentation
         this.imageMode = true
         this.width = frames[0].getSize().width
-        this.tray.setTitle('')
+        this.valueWidth = valueWidth
+        // Keep colored quotes in native text: a template image can only contain
+        // neutral content. Monospaced padding reserves the widest quote's space.
+        this.tray.setTitle(title.values + ' '.repeat(valueWidth - visibleLength(title.values)), {
+          fontType: 'monospaced'
+        })
         this.tray.setImage(frames[0])
         this.onResize()
         if (frames.length === 1) return

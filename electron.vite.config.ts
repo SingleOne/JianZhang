@@ -1,6 +1,7 @@
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'node:path'
+import { macMenuBarTextPlugin } from './scripts/mac-menu-bar-text-plugin'
 
 const marketInsightModuleEnabled = process.env.JIANZHANG_MARKET_INSIGHT_MODULE !== '0'
 const aiModuleEnabled = process.env.JIANZHANG_AI_MODULE !== '0'
@@ -24,7 +25,10 @@ const buildConstants = {
 export default defineConfig({
   main: {
     define: buildConstants,
-    plugins: [externalizeDepsPlugin()],
+    plugins: [
+      externalizeDepsPlugin(),
+      macMenuBarTextPlugin(resolve(__dirname, 'electron/native/menu-bar-text.mm'))
+    ],
     build: {
       rollupOptions: {
         input: {

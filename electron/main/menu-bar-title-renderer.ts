@@ -5,29 +5,12 @@ interface TitleFrameRequest {
   previousTitle: string | null
   titles: string[]
   minimumWidth: number
-  dark: boolean
   icon: string
 }
 
 // This function runs in an isolated, hidden renderer. All content is drawn as text,
 // never interpreted as HTML; only the resulting local PNGs leave the renderer.
 async function rasterizeTitleFrames(request: TitleFrameRequest): Promise<string[][]> {
-  const foreground = request.dark ? '#ffffff' : '#1d1d1f'
-  const colors = {
-    '31': request.dark ? '#ff6b75' : '#c92733',
-    '32': request.dark ? '#51d39e' : '#087c57'
-  }
-  const segments = (title: string) => {
-    const parts = title.split('\u001b[')
-    return parts.map((part, index) => {
-      if (index === 0) return { text: part, color: foreground }
-      const end = part.indexOf('m')
-      return {
-        text: part.slice(end + 1),
-        color: colors[part.slice(0, end) as keyof typeof colors] ?? foreground
-      }
-    })
-  }
   const canvas = document.createElement('canvas')
   const context = canvas.getContext('2d')!
   const font = '13px -apple-system, BlinkMacSystemFont, sans-serif'
@@ -38,11 +21,7 @@ async function rasterizeTitleFrames(request: TitleFrameRequest): Promise<string[
   const charWidth = (char: string) =>
     /[0-9]/.test(char) ? digitWidth : context.measureText(char).width
   const textWidth = (title: string) =>
-    segments(title).reduce(
-      (width, segment) =>
-        width + Array.from(segment.text).reduce((sum, char) => sum + charWidth(char), 0),
-      0
-    )
+    Array.from(title).reduce((width, char) => width + charWidth(char), 0)
   const width = Math.max(
     request.minimumWidth,
     Math.ceil(
@@ -67,21 +46,23 @@ async function rasterizeTitleFrames(request: TitleFrameRequest): Promise<string[
       context.scale(scale, scale)
       context.drawImage(icon, 0, 3, 16, 16)
       context.globalCompositeOperation = 'source-in'
-      context.fillStyle = foreground
+      context.fillStyle = '#000000'
       context.fillRect(0, 0, 16, 22)
       context.globalCompositeOperation = 'source-over'
       context.font = font
       context.textBaseline = 'middle'
+      context.strokeStyle = '#000000'
+      context.lineWidth = 0.5
+      context.lineJoin = 'round'
       const draw = (title: string, opacity: number, offset: number) => {
         context.globalAlpha = opacity
         let x = 22
-        for (const segment of segments(title)) {
-          context.fillStyle = segment.color
-          for (const char of segment.text) {
-            const advance = charWidth(char)
-            context.fillText(char, x + (advance - context.measureText(char).width) / 2, 11 + offset)
-            x += advance
-          }
+        for (const char of title) {
+          const advance = charWidth(char)
+          const glyphX = x + (advance - context.measureText(char).width) / 2
+          context.strokeText(char, glyphX, 11 + offset)
+          context.fillText(char, glyphX, 11 + offset)
+          x += advance
         }
       }
       if (request.previousTitle !== null) draw(request.previousTitle, 1 - progress, -6 * progress)
@@ -122,6 +103,9 @@ export class MenuBarTitleRenderer {
       representations.forEach((dataURL, index) =>
         image.addRepresentation({ scaleFactor: index + 1, dataURL })
       )
+      // macOS resolves the neutral icon/name against the actual menu bar background,
+      // including wallpaper changes that do not change the system's dark mode.
+      image.setTemplateImage(true)
       return image
     })
   }

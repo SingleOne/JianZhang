@@ -3,9 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_APP_SETTINGS, type AppState } from '../../src/shared/types'
 import { MacMenuBar } from './mac-menu-bar'
 
-const { updateTitle, disposeTitle, theme, destroyTray } = vi.hoisted(() => ({
+const { updateTitle, disposeTitle, installStyle, theme, destroyTray } = vi.hoisted(() => ({
   updateTitle: vi.fn(),
   disposeTitle: vi.fn(),
+  installStyle: vi.fn(),
   theme: { events: null as EventEmitter | null },
   destroyTray: vi.fn()
 }))
@@ -24,6 +25,7 @@ vi.mock('electron', () => {
   }
 })
 vi.mock('./tray-icons', () => ({ createMenuBarIcon: vi.fn() }))
+vi.mock('./menu-bar-text-style', () => ({ installMenuBarTextStyle: installStyle }))
 vi.mock('./menu-bar-title-animator', () => ({
   MenuBarTitleAnimator: class {
     update = updateTitle
@@ -56,6 +58,13 @@ afterEach(() => {
 })
 
 describe('menu bar rotation lifecycle', () => {
+  it('installs native outlines before setting the first menu bar title', () => {
+    expect(installStyle).toHaveBeenCalledOnce()
+    expect(installStyle.mock.invocationCallOrder[0]).toBeLessThan(
+      updateTitle.mock.invocationCallOrder[0]
+    )
+  })
+
   it('applies rotation settings immediately even when the title has not changed', () => {
     state.settings.menuBarRotationSeconds = 5
     menuBar.sync()

@@ -20,6 +20,7 @@ module.exports = {
   appId: 'com.jianzhang.stock',
   productName: '见涨',
   asar: true,
+  asarUnpack: ['out/main/menu-bar-text.node'],
   ...(macMode === 'dist' ? { forceCodeSigning: true } : {}),
   directories: {
     output: macMode ? `release/mac-${macMode}` : 'release'

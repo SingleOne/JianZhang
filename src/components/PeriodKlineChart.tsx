@@ -59,7 +59,6 @@ interface PeriodKlineChartProps {
   indicatorActions?: ReactNode
   trackingStartedAt?: string
   trackingStoppedAt?: string
-  ctrlWheelZoomOnly?: boolean
   height?: number
 }
 
@@ -165,7 +164,6 @@ export default function PeriodKlineChart({
   indicatorActions,
   trackingStartedAt,
   trackingStoppedAt,
-  ctrlWheelZoomOnly = false,
   height = 320
 }: PeriodKlineChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -188,7 +186,7 @@ export default function PeriodKlineChart({
   const bollingerByTimeRef = useRef(new Map<UTCTimestamp, BollingerBandPoint>())
   const dataLengthRef = useRef(0)
   const lastRequestedLengthRef = useRef(-1)
-  const isAligningRangeRef = useRef(false)
+  const isUpdatingRangeRef = useRef(false)
   const onHoverBarRef = useRef(onHoverBar)
   const onRequestMoreRef = useRef(onRequestMore)
   const onVisibleRangeChangeRef = useRef(onVisibleRangeChange)
@@ -248,12 +246,13 @@ export default function PeriodKlineChart({
         borderColor: theme.border,
         rightOffset: 0,
         barSpacing: period === 'monthly' ? 9 : 7,
+        fixLeftEdge: true,
         fixRightEdge: true,
         lockVisibleTimeRangeOnResize: true,
         tickMarkFormatter: (time: Time) => dateLabel(time, period)
       },
-      handleScroll: ctrlWheelZoomOnly ? CTRL_WHEEL_HANDLE_SCROLL : false,
-      handleScale: ctrlWheelZoomOnly ? CTRL_WHEEL_HANDLE_SCALE : true,
+      handleScroll: CTRL_WHEEL_HANDLE_SCROLL,
+      handleScale: CTRL_WHEEL_HANDLE_SCALE,
       crosshair: {
         mode: CrosshairMode.Normal,
         vertLine: { color: theme.text, width: 1, labelBackgroundColor: theme.border },
@@ -418,26 +417,14 @@ export default function PeriodKlineChart({
     chart.subscribeCrosshairMove(handleCrosshairMove)
 
     const handleVisibleRangeChange = (range: { from: number; to: number } | null) => {
-      if (!range || isAligningRangeRef.current || dataLengthRef.current === 0) return
-      const latestEdge = dataLengthRef.current - 0.5
-      const visibleSpan = Math.max(5, range.to - range.from)
-      const alignedFrom = latestEdge - visibleSpan
-      const alignedRange = { from: alignedFrom, to: latestEdge }
+      if (!range || isUpdatingRangeRef.current || dataLengthRef.current === 0) return
 
-      updateMarkers(alignedRange)
-      reportVisibleRange(alignedRange, 'user')
+      updateMarkers(range)
+      reportVisibleRange(range, 'user')
 
-      if (alignedFrom < 12 && lastRequestedLengthRef.current !== dataLengthRef.current) {
+      if (range.from < 12 && lastRequestedLengthRef.current !== dataLengthRef.current) {
         lastRequestedLengthRef.current = dataLengthRef.current
         onRequestMoreRef.current?.(period)
-      }
-
-      if (Math.abs(range.to - latestEdge) > 0.05) {
-        isAligningRangeRef.current = true
-        chart.timeScale().setVisibleLogicalRange(alignedRange)
-        requestAnimationFrame(() => {
-          isAligningRangeRef.current = false
-        })
       }
     }
     chart.timeScale().subscribeVisibleLogicalRangeChange(handleVisibleRangeChange)
@@ -446,9 +433,7 @@ export default function PeriodKlineChart({
       chart.applyOptions({ width: Math.floor(entry.contentRect.width) })
     })
     resizeObserver.observe(container)
-    const disableCtrlWheelZoom = ctrlWheelZoomOnly
-      ? enableCtrlWheelZoom(chart, container, () => dataLengthRef.current)
-      : () => undefined
+    const disableCtrlWheelZoom = enableCtrlWheelZoom(chart, container, () => dataLengthRef.current)
 
     return () => {
       disableCtrlWheelZoom()
@@ -473,7 +458,7 @@ export default function PeriodKlineChart({
       reportVisibleRangeRef.current = () => {}
       updateMarkersRef.current = () => {}
     }
-  }, [ctrlWheelZoomOnly, height, market, period, resolvedTheme])
+  }, [height, market, period, resolvedTheme])
 
   useEffect(() => {
     setHoveredMovingAverages(undefined)
@@ -488,7 +473,10 @@ export default function PeriodKlineChart({
 
     const currentRange = chart.timeScale().getVisibleLogicalRange()
     const currentSpan = currentRange ? currentRange.to - currentRange.from : null
-    isAligningRangeRef.current = true
+    const previousFirstTime = barsByTimeRef.current.keys().next().value
+    const indexOffset = bars.findIndex((bar) => toTimestamp(bar.time) === previousFirstTime)
+    const followsLatest = currentRange && currentRange.to >= dataLengthRef.current - 1
+    isUpdatingRangeRef.current = true
     barsByTimeRef.current = new Map(bars.map((bar) => [toTimestamp(bar.time), bar]))
     dataLengthRef.current = bars.length
 
@@ -512,12 +500,16 @@ export default function PeriodKlineChart({
 
     const visibleSpan = currentSpan ?? Math.min(INITIAL_VISIBLE_BARS[period], bars.length)
     const latestEdge = bars.length - 0.5
-    const nextRange = { from: latestEdge - visibleSpan, to: latestEdge }
+    // Prepending history shifts logical indices; keep the same candles in view.
+    const nextRange =
+      currentRange && indexOffset >= 0 && !followsLatest
+        ? { from: currentRange.from + indexOffset, to: currentRange.to + indexOffset }
+        : { from: latestEdge - visibleSpan, to: latestEdge }
     chart.timeScale().setVisibleLogicalRange(nextRange)
     updateMarkersRef.current(nextRange)
     reportVisibleRangeRef.current(nextRange, 'programmatic')
     requestAnimationFrame(() => {
-      isAligningRangeRef.current = false
+      isUpdatingRangeRef.current = false
     })
   }, [bars, height, period, resolvedTheme])
 
@@ -548,7 +540,7 @@ export default function PeriodKlineChart({
         return info
       }
     })
-  }, [referencePrice, referenceTitle, ctrlWheelZoomOnly, height, market, period, resolvedTheme])
+  }, [referencePrice, referenceTitle, height, market, period, resolvedTheme])
 
   useEffect(() => {
     const chart = chartRef.current
@@ -608,12 +600,12 @@ export default function PeriodKlineChart({
     const visibleBars = Math.min(dataLengthRef.current, Math.max(1, requestedVisibleBars))
     const latestEdge = dataLengthRef.current - 0.5
     const range = { from: latestEdge - visibleBars, to: latestEdge }
-    isAligningRangeRef.current = true
+    isUpdatingRangeRef.current = true
     chart.timeScale().setVisibleLogicalRange(range)
     updateMarkersRef.current(range)
     reportVisibleRangeRef.current(range, 'programmatic')
     requestAnimationFrame(() => {
-      isAligningRangeRef.current = false
+      isUpdatingRangeRef.current = false
     })
   }, [bars.length, requestedVisibleBars, visibleRangeRequestKey])
 

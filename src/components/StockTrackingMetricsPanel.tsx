@@ -246,7 +246,6 @@ export function StockTrackingMetricsPanel({
                 }
                 trackingStartedAt={trackingStartedAt}
                 trackingStoppedAt={trackingStoppedAt}
-                ctrlWheelZoomOnly
                 height={320}
               />
             </div>

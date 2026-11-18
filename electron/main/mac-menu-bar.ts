@@ -5,6 +5,7 @@ import { getMenuBarPresentation } from '../../src/lib/menu-bar'
 import { getTaskbarVisibleStocks } from '../../src/lib/taskbar-visibility'
 import { createMenuBarIcon } from './tray-icons'
 import { MenuBarTitleAnimator } from './menu-bar-title-animator'
+import { installMenuBarTextStyle } from './menu-bar-text-style'
 
 interface MacMenuBarDependencies {
   getState: () => AppState
@@ -32,6 +33,7 @@ export class MacMenuBar {
   }
 
   constructor(private readonly dependencies: MacMenuBarDependencies) {
+    installMenuBarTextStyle()
     this.tray.setIgnoreDoubleClickEvents(true)
     this.tray.on('click', () => {
       // Clicking the status item blurs the panel before this event arrives.

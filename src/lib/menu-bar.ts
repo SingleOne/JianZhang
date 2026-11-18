@@ -33,7 +33,12 @@ export function getMenuBarPresentation(
   const stocks = getTraySummaryStocks(state, quotes)
   const { settings } = state
   if (!settings.showTaskbarTicker || stocks.length === 0) {
-    return { title: '', tooltip: '见涨 · 点击查看行情，右键打开菜单', quoteId: null, titles: [] }
+    return {
+      title: '',
+      tooltip: '见涨 · 点击查看行情，右键打开菜单',
+      quoteId: null,
+      stockTitles: []
+    }
   }
   const fixedIndex = Math.max(
     0,
@@ -54,7 +59,7 @@ export function getMenuBarPresentation(
     })
     .join('\n')
   if (settings.menuBarDisplayMode === 'icon') {
-    return { title: hasAlert ? '!' : '', tooltip, quoteId: null, titles: [] }
+    return { title: hasAlert ? '!' : '', tooltip, quoteId: null, stockTitles: [] }
   }
   if (settings.menuBarDisplayMode === 'profit') {
     const total = getTrayTodayProfitTotal(stocks)
@@ -65,36 +70,31 @@ export function getMenuBarPresentation(
           item.positionMetrics.holdingCostBasis !== null) &&
         item.positionMetrics.cnyTodayProfit === null
     )
-    const statuses = stocks.map((item) => getMenuBarQuoteStatus(state, item.quote, now))
-    const suffix = statuses.includes('stale')
-      ? ' · 过期'
-      : incomplete
-        ? ' · 不完整'
-        : statuses.includes('unknown')
-          ? ' · 时间未知'
-          : ''
     return {
-      title: `${alertPrefix}今日 ${colored(formatMoneyProfit(total, 'CNY'), total)}${suffix}`,
-      tooltip: `所选股票今日收益合计（人民币）\n${tooltip}`,
+      title: `${alertPrefix}今日 ${colored(formatMoneyProfit(total, 'CNY'), total)}`,
+      tooltip: `所选股票今日收益合计（人民币）${incomplete ? ' · 不完整' : ''}\n${tooltip}`,
       quoteId: null,
-      titles: []
+      stockTitles: []
     }
   }
-  const titles = stocks.map(({ stock, quote }) => {
+  const stockTitles = stocks.map(({ stock, quote }) => {
     const name = Array.from(
       stock.name.replaceAll('\u001b', '').replaceAll('\r', '').replaceAll('\n', '')
     )
       .slice(0, 6)
       .join('')
-    const status = getMenuBarQuoteStatus(state, quote, now)
-    const statusSuffix = status === 'live' ? '' : ` · ${STOCK_QUOTE_DATA_STATE_LABELS[status]}`
-    return `${alertPrefix}${name} ${colored(formatPrice(quote?.latest), quote?.changePercent)} ${colored(formatPercent(quote?.changePercent), quote?.changePercent)}${statusSuffix}`
+    return {
+      quoteId: stock.quoteId,
+      label: `${alertPrefix}${name}`,
+      values: `${colored(formatPrice(quote?.latest), quote?.changePercent)} ${colored(formatPercent(quote?.changePercent), quote?.changePercent)}`
+    }
   })
+  const title = stockTitles[(fixedIndex + rotationIndex) % stocks.length]
   return {
-    title: titles[(fixedIndex + rotationIndex) % stocks.length],
+    title: `${title.label} ${title.values}`,
     tooltip,
     quoteId: selected.stock.quoteId,
-    titles
+    stockTitles
   }
 }
 
