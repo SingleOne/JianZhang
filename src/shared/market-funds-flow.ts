@@ -1,7 +1,7 @@
 import { marketDateKey } from './market-hours'
 
 const FUNDS_FLOW_QUOTE_IDS = ['1.000001', '0.399001']
-const A_SHARE_TURNOVER_QUOTE_IDS = ['1.000002', '0.399107']
+export const A_SHARE_TURNOVER_QUOTE_IDS = ['1.000002', '0.399107'] as const
 export const EASTMONEY_MARKET_OVERVIEW_QUOTE_IDS = [
   ...FUNDS_FLOW_QUOTE_IDS,
   ...A_SHARE_TURNOVER_QUOTE_IDS
@@ -29,6 +29,19 @@ export interface MarketFundsFlow {
   mainInflow: number
   mainOutflow: number
   mainNetInflow: number
+}
+
+export const MARKET_TURNOVER_RANGES = [20, 60] as const
+
+export interface MarketTurnoverPoint {
+  date: string
+  amount: number
+}
+
+export interface MarketTurnoverHistory {
+  fetchedAt: string
+  source: 'eastmoney-primary' | 'eastmoney-mirror' | 'tencent'
+  points: MarketTurnoverPoint[]
 }
 
 function readAmount(value: number | '-' | undefined, signed = false): number {

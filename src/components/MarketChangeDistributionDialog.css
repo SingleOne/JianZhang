@@ -107,6 +107,28 @@
   border-top: 0;
   padding-top: 0;
 }
+.market-turnover-ranges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.market-turnover-ranges > button {
+  min-height: 28px;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+.market-turnover-chart {
+  height: 184px;
+}
+
+.market-turnover-source {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
 
 .market-distribution-summary {
   display: grid;

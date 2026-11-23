@@ -5,10 +5,14 @@ import {
   type MarketChangeDistribution
 } from '../../src/shared/market-change-distribution'
 import {
+  A_SHARE_TURNOVER_QUOTE_IDS,
   EASTMONEY_MARKET_OVERVIEW_QUOTE_IDS,
+  MARKET_TURNOVER_RANGES,
   parseMarketFundsFlow,
   type EastmoneyMarketFundsFlowItem,
-  type MarketFundsFlow
+  type MarketFundsFlow,
+  type MarketTurnoverHistory,
+  type MarketTurnoverPoint
 } from '../../src/shared/market-funds-flow'
 import { get as httpsGet } from 'node:https'
 import type {
@@ -34,7 +38,11 @@ import {
   stockMarketIdentity,
   type StockMarket
 } from '../../src/shared/stock-market'
-import { marketDateTimeInput } from '../../src/shared/market-hours'
+import {
+  beijingDateKey,
+  isAfterMarketClose,
+  marketDateTimeInput
+} from '../../src/shared/market-hours'
 import type { MarketRequestLogger } from './market-request-logger'
 import type { SectorBinding } from './sector-market-cache'
 import { eastmoneyHistorySession } from './eastmoney-history-session'
@@ -1763,7 +1771,8 @@ async function fetchHistoricalKline(
   limit: number,
   caller: string,
   dateRange?: KlineDateRange,
-  adjustment: KlineAdjustment = 'forward'
+  adjustment: KlineAdjustment = 'forward',
+  requireAmount = false
 ): Promise<KlineResult> {
   const createUrl = (origin: string) => {
     const url = new URL('/api/qt/stock/kline/get', origin)
@@ -1813,8 +1822,12 @@ async function fetchHistoricalKline(
           returnedCount: (value) => value.data?.klines?.length ?? 0
         })
 
+    const result = toHistoricalKlineResult(quoteId, payload.data?.name, payload.data?.klines ?? [])
+    if (requireAmount && !result.bars.some(({ amount }) => Number.isFinite(amount) && amount > 0)) {
+      throw new Error('东方财富历史行情未返回成交额')
+    }
     return {
-      ...toHistoricalKlineResult(quoteId, payload.data?.name, payload.data?.klines ?? []),
+      ...result,
       source: source === 'eastmoney-delay' ? 'eastmoney-mirror' : 'eastmoney-primary',
       adjustment: klt === '5' ? 'none' : adjustment,
       fetchedAt: new Date().toISOString()
@@ -1854,6 +1867,125 @@ async function fetchHistoricalKline(
       )
     }
   }
+}
+
+const [, MARKET_TURNOVER_LIMIT] = MARKET_TURNOVER_RANGES
+const MARKET_TURNOVER_CALLER = 'market-turnover-history'
+let marketTurnoverHistoryCache: MarketTurnoverHistory | null = null
+let marketTurnoverHistoryTask: Promise<MarketTurnoverHistory> | null = null
+
+async function fetchTencentDailyTurnover(quoteId: string): Promise<MarketTurnoverPoint[]> {
+  const symbol = toTencentSymbol(quoteId)
+  const url = new URL('https://web.ifzq.gtimg.cn/appstock/app/day/query')
+  url.searchParams.set('code', symbol)
+  const payload = await requestJson<{
+    code: number
+    data?: Record<string, { data?: { date: string; data: string[] }[] }>
+  }>(url.toString(), {
+    dataType: MARKET_TURNOVER_CALLER,
+    caller: MARKET_TURNOVER_CALLER,
+    source: 'tencent-web',
+    fallbackFrom: 'eastmoney-delay',
+    headers: TENCENT_HEADERS,
+    maxAttempts: 1
+  })
+  if (payload.code !== 0) throw new Error('腾讯行情未返回成交额')
+  // Each day/query row ends with the cumulative turnover in yuan.
+  return (payload.data?.[symbol]?.data ?? []).flatMap(({ date, data }) => {
+    const [time, , , amount] = (data.at(-1) ?? '').trim().split(/\s+/)
+    if (time !== '1500') return []
+    return [
+      {
+        date: date.replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3'),
+        amount: Number(amount)
+      }
+    ]
+  })
+}
+
+async function loadMarketTurnoverHistory(): Promise<MarketTurnoverHistory> {
+  const now = new Date()
+  const today = beijingDateKey(now)
+  const includeToday = isAfterMarketClose('CN', now)
+  const combine = (
+    [shanghai, shenzhen]: [MarketTurnoverPoint[], MarketTurnoverPoint[]],
+    source: MarketTurnoverHistory['source']
+  ): MarketTurnoverHistory => {
+    const shenzhenByDate = new Map(shenzhen.map(({ date, amount }) => [date, amount]))
+    const points = shanghai
+      .flatMap(({ date, amount }) => {
+        if (date > today || (date === today && !includeToday)) return []
+        const shenzhenAmount = shenzhenByDate.get(date)
+        if (
+          shenzhenAmount === undefined ||
+          !Number.isFinite(shenzhenAmount) ||
+          !Number.isFinite(amount) ||
+          shenzhenAmount <= 0 ||
+          amount <= 0
+        ) {
+          return []
+        }
+        return [{ date, amount: amount + shenzhenAmount }]
+      })
+      .sort((left, right) => left.date.localeCompare(right.date))
+      .slice(-MARKET_TURNOVER_LIMIT)
+    if (!points.length) throw new Error('行情服务未返回同日的沪深成交额')
+    return { source, points, fetchedAt: new Date().toISOString() }
+  }
+
+  try {
+    const [shanghai, shenzhen] = await Promise.all([
+      fetchHistoricalKline(
+        A_SHARE_TURNOVER_QUOTE_IDS[0],
+        '101',
+        MARKET_TURNOVER_LIMIT + 1,
+        MARKET_TURNOVER_CALLER,
+        undefined,
+        'none',
+        true
+      ),
+      fetchHistoricalKline(
+        A_SHARE_TURNOVER_QUOTE_IDS[1],
+        '101',
+        MARKET_TURNOVER_LIMIT + 1,
+        MARKET_TURNOVER_CALLER,
+        undefined,
+        'none',
+        true
+      )
+    ])
+    const source =
+      shanghai.source === 'eastmoney-mirror' || shenzhen.source === 'eastmoney-mirror'
+        ? 'eastmoney-mirror'
+        : 'eastmoney-primary'
+    const readPoints = ({ bars }: KlineResult) =>
+      bars.map(({ time, amount }) => ({ date: time.slice(0, 10), amount }))
+    return combine([readPoints(shanghai), readPoints(shenzhen)], source)
+  } catch {
+    const results = await Promise.all(A_SHARE_TURNOVER_QUOTE_IDS.map(fetchTencentDailyTurnover))
+    return combine([results[0], results[1]], 'tencent')
+  }
+}
+
+export function fetchMarketTurnoverHistory(forceRefresh = false): Promise<MarketTurnoverHistory> {
+  if (marketTurnoverHistoryTask) return marketTurnoverHistoryTask
+  if (
+    !forceRefresh &&
+    marketTurnoverHistoryCache &&
+    Date.now() - Date.parse(marketTurnoverHistoryCache.fetchedAt) < 60_000
+  ) {
+    return Promise.resolve(marketTurnoverHistoryCache)
+  }
+  const task = loadMarketTurnoverHistory()
+    .then((result) => {
+      marketTurnoverHistoryCache = result
+      return result
+    })
+    .finally(() => {
+      marketTurnoverHistoryTask = null
+    })
+  marketTurnoverHistoryTask = task
+  return task
 }
 
 type NonIntradayKlinePeriod = Exclude<KlinePeriod, 'intraday'>

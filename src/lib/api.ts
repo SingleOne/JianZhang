@@ -711,6 +711,9 @@ const demoApi: StockDesktopApi = {
   async getMarketFundsFlow() {
     throw new Error('沪深主力资金流向需要在桌面应用中查看')
   },
+  async getMarketTurnoverHistory() {
+    throw new Error('沪深成交额趋势需要在桌面应用中查看')
+  },
   async showMainWindow() {},
   async closeMenuBarPanel() {},
   async resizeMenuBarPanel() {},

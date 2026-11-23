@@ -118,6 +118,9 @@ interface IpcHandlerDependencies {
   getMarketFundsFlow: (
     forceRefresh?: boolean
   ) => Promise<import('../../src/shared/market-funds-flow').MarketFundsFlow>
+  getMarketTurnoverHistory: (
+    forceRefresh?: boolean
+  ) => Promise<import('../../src/shared/market-funds-flow').MarketTurnoverHistory>
   getDividendFinancingOverview: (codes: string[]) => DividendFinancingOverview | null
   getDividendFinancingSnapshot: () => Promise<DividendFinancingSnapshot | null>
   getDividendFinancingState: () => DataSnapshotRuntimeState
@@ -255,6 +258,7 @@ const CHANNELS = [
   'stocks:search',
   'market-change-distribution:get',
   'market-funds-flow:get',
+  'market-turnover-history:get',
   'dividend-financing:overview:get',
   'dividend-financing:get',
   'dividend-financing:state:get',
@@ -423,6 +427,9 @@ export function registerIpcHandlers(dependencies: IpcHandlerDependencies): () =>
   )
   handle('market-funds-flow:get', (_event, forceRefresh?: boolean) =>
     dependencies.getMarketFundsFlow(forceRefresh === true)
+  )
+  handle('market-turnover-history:get', (_event, forceRefresh?: boolean) =>
+    dependencies.getMarketTurnoverHistory(forceRefresh === true)
   )
   handle('dividend-financing:overview:get', (_event, codes: string[]) =>
     dependencies.getDividendFinancingOverview(codes)

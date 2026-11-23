@@ -54,6 +54,8 @@ const api: StockDesktopBridge = {
   getMarketChangeDistribution: (forceRefresh) =>
     ipcRenderer.invoke('market-change-distribution:get', forceRefresh),
   getMarketFundsFlow: (forceRefresh) => ipcRenderer.invoke('market-funds-flow:get', forceRefresh),
+  getMarketTurnoverHistory: (forceRefresh) =>
+    ipcRenderer.invoke('market-turnover-history:get', forceRefresh),
   getDividendFinancingOverview: (codes) =>
     ipcRenderer.invoke('dividend-financing:overview:get', codes),
   getDividendFinancingSnapshot: () => ipcRenderer.invoke('dividend-financing:get'),

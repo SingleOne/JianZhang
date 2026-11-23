@@ -42,6 +42,7 @@ import {
   fetchDailyMarketActiveQuotes,
   fetchMarketChangeDistribution,
   fetchMarketFundsFlow,
+  fetchMarketTurnoverHistory,
   fetchFundsFlow,
   fetchKline,
   fetchOrderBook,
@@ -897,6 +898,7 @@ if (!hasSingleInstanceLock) {
       getQuotes: getLatestQuotes,
       getMarketChangeDistribution: fetchMarketChangeDistribution,
       getMarketFundsFlow: fetchMarketFundsFlow,
+      getMarketTurnoverHistory: fetchMarketTurnoverHistory,
       getStartupWarning: () => startupWarning,
       getStockTrackingArchiveIndex: () => stockTrackingArchiveStore!.getIndex(),
       getStockTrackingArchiveCycle: (quoteId, cycleId) =>

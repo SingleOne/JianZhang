@@ -7,8 +7,10 @@ import {
   MARKET_CHANGE_BUCKETS,
   type MarketChangeDistribution
 } from '../shared/market-change-distribution'
-import type { MarketFundsFlow } from '../shared/market-funds-flow'
+import type { MarketFundsFlow, MarketTurnoverHistory } from '../shared/market-funds-flow'
+import { beijingDateKey, isAfterMarketClose } from '../shared/market-hours'
 import { AppButton } from './AppButton'
+import MarketTurnoverTrend from './MarketTurnoverTrend'
 import { Tooltip } from './Tooltip'
 import './MarketChangeDistributionDialog.css'
 
@@ -23,6 +25,9 @@ export default function MarketChangeDistributionDialog({ onClose }: { onClose: (
   const [fundsFlow, setFundsFlow] = useState<MarketFundsFlow | null>(null)
   const [fundsLoading, setFundsLoading] = useState(true)
   const [fundsError, setFundsError] = useState<string | null>(null)
+  const [turnoverHistory, setTurnoverHistory] = useState<MarketTurnoverHistory | null>(null)
+  const [turnoverLoading, setTurnoverLoading] = useState(true)
+  const [turnoverError, setTurnoverError] = useState<string | null>(null)
   const aliveRef = useRef(false)
   const closeRef = useRef<HTMLButtonElement>(null)
   const loadDistribution = useCallback(async (forceRefresh = false) => {
@@ -53,10 +58,27 @@ export default function MarketChangeDistributionDialog({ onClose }: { onClose: (
     }
   }, [])
 
+  const loadTurnoverHistory = useCallback(async (forceRefresh = false) => {
+    setTurnoverLoading(true)
+    setTurnoverError(null)
+    try {
+      const result = await stockApi.getMarketTurnoverHistory(forceRefresh)
+      if (aliveRef.current) setTurnoverHistory(result)
+    } catch (reason) {
+      if (aliveRef.current) setTurnoverError(reason instanceof Error ? reason.message : '加载失败')
+    } finally {
+      if (aliveRef.current) setTurnoverLoading(false)
+    }
+  }, [])
+
   const load = useCallback(
     (forceRefresh = false) =>
-      Promise.all([loadDistribution(forceRefresh), loadFundsFlow(forceRefresh)]),
-    [loadDistribution, loadFundsFlow]
+      Promise.all([
+        loadDistribution(forceRefresh),
+        loadFundsFlow(forceRefresh),
+        loadTurnoverHistory(forceRefresh)
+      ]),
+    [loadDistribution, loadFundsFlow, loadTurnoverHistory]
   )
 
   useEffect(() => {
@@ -82,7 +104,10 @@ export default function MarketChangeDistributionDialog({ onClose }: { onClose: (
 
   const maximum = Math.max(1, ...(data?.counts ?? []))
   const validCount = data?.total ?? 0
-  const refreshing = loading || fundsLoading
+  const refreshing = loading || fundsLoading || turnoverLoading
+  const now = new Date()
+  const turnoverIsIntraday =
+    fundsFlow?.tradingDate === beijingDateKey(now) && !isAfterMarketClose('CN', now)
   return createPortal(
     <div
       className="market-distribution-backdrop"
@@ -144,7 +169,9 @@ export default function MarketChangeDistributionDialog({ onClose }: { onClose: (
                     </strong>
                   </span>
                   <span>
-                    <small>沪深 A 股成交总额</small>
+                    <small>
+                      {turnoverIsIntraday ? '沪深 A 股成交总额（盘中）' : '沪深 A 股成交总额'}
+                    </small>
                     <strong>
                       {fundsFlow.totalTurnoverAmount === null ? (
                         <small>暂无数据</small>
@@ -205,6 +232,11 @@ export default function MarketChangeDistributionDialog({ onClose }: { onClose: (
               </p>
             )}
           </section>
+          <MarketTurnoverTrend
+            history={turnoverHistory}
+            loading={turnoverLoading}
+            error={turnoverError}
+          />
           <section aria-labelledby="market-distribution-section-title" aria-busy={loading}>
             <div className="market-distribution-section-heading">
               <h3 id="market-distribution-section-title">涨跌幅分布</h3>
