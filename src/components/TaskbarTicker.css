@@ -668,9 +668,9 @@ html.tray-mode #root {
 }
 
 .taskbar-tooltip-order-side {
+  --taskbar-tooltip-order-row-height: 16px;
+  --taskbar-tooltip-order-row-gap: 2px;
   min-width: 0;
-  display: grid;
-  gap: 2px;
 }
 
 .taskbar-tooltip-order-side:first-child {
@@ -682,15 +682,77 @@ html.tray-mode #root {
   border-left: 1px solid var(--stock-popover-separator);
 }
 
+.taskbar-tooltip-order-list {
+  display: grid;
+  gap: var(--taskbar-tooltip-order-row-gap);
+}
+
+.taskbar-tooltip-order-ladder {
+  --taskbar-tooltip-order-row-step: calc(
+    var(--taskbar-tooltip-order-row-height) + var(--taskbar-tooltip-order-row-gap)
+  );
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.taskbar-tooltip-order-viewport {
+  height: calc(5 * var(--taskbar-tooltip-order-row-step) - var(--taskbar-tooltip-order-row-gap));
+  overflow: hidden;
+}
+
+.taskbar-tooltip-order-track[data-direction] {
+  animation: taskbar-tooltip-order-scroll 350ms ease-in-out both;
+}
+
+.taskbar-tooltip-order-track[data-direction='down'] {
+  animation-direction: reverse;
+}
+
+.taskbar-tooltip-order-track .taskbar-tooltip-order-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.taskbar-tooltip-order-track .taskbar-tooltip-order-row > span:first-child {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+@keyframes taskbar-tooltip-order-scroll {
+  from {
+    transform: translateY(0);
+  }
+
+  to {
+    transform: translateY(calc(-1 * var(--taskbar-tooltip-order-row-step)));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .taskbar-tooltip-order-track[data-direction] {
+    animation-duration: 1ms;
+  }
+
+  .taskbar-tooltip-order-track .taskbar-tooltip-order-row[aria-hidden='true'] {
+    visibility: hidden;
+  }
+}
+
 .taskbar-tooltip-order-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: baseline;
   gap: 0;
+}
+
+.taskbar-tooltip-order-ranks,
+.taskbar-tooltip-order-row {
   color: var(--stock-popover-secondary);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  line-height: 16px;
+  line-height: var(--taskbar-tooltip-order-row-height);
   text-align: left;
   white-space: nowrap;
 }

@@ -44,7 +44,7 @@ import {
   useAccountFeeData
 } from '../lib/data-center/hooks'
 import { useDetailResource, useKlineResource } from '../lib/data-center/detail-hooks'
-import type { KlineBar, StockOrderBook, TaskbarLayout } from '../shared/types'
+import type { KlineBar, OrderBookLevel, StockOrderBook, TaskbarLayout } from '../shared/types'
 import { AppThemeController } from './AppThemeController'
 import { AppButton } from './AppButton'
 import { AnimatedNumber } from './AnimatedNumber'
@@ -56,6 +56,7 @@ const EXPANDED_SPARKLINE_WIDTH = 360
 const EXPANDED_SPARKLINE_PADDING = 4
 const FIFTEEN_MINUTES = 15 * 60_000
 const ORDER_BOOK_LEVEL_LABELS = ['一', '二', '三', '四', '五']
+const EMPTY_ORDER_LEVELS: readonly OrderBookLevel[] = []
 
 function valueClass(value: number | null | undefined): string {
   if (value === null || value === undefined || value === 0) return 'is-flat'
@@ -74,32 +75,134 @@ function formatTaskbarVolume(volume: number | null | undefined, unit: StockVolum
   return formatVolume(volume, unit)
 }
 
-function FiveLevelOrderBook({ orderBook }: { orderBook: StockOrderBook | null }) {
+interface OrderBookRowsProps {
+  label: string
+  levels: readonly OrderBookLevel[]
+}
+
+function OrderBookRow({
+  label,
+  level,
+  animatePrice = false
+}: {
+  label?: string
+  level?: OrderBookLevel
+  animatePrice?: boolean
+}) {
+  const price = level?.price
+  return (
+    <div className="taskbar-tooltip-order-row" aria-hidden={label === undefined || undefined}>
+      <span>{label}</span>
+      <span>
+        {price === 0 ? (
+          '-'
+        ) : animatePrice ? (
+          <AnimatedNumber value={price} formatValue={formatPrice} />
+        ) : (
+          formatPrice(price)
+        )}
+      </span>
+      <span>{formatLargeOrderVolume(level?.volume)}</span>
+    </div>
+  )
+}
+
+type OrderBookScrollDirection = 'up' | 'down'
+
+function orderBookScrollDirection(
+  previousLevels: readonly OrderBookLevel[],
+  levels: readonly OrderBookLevel[]
+): OrderBookScrollDirection | null {
+  const previousBest = previousLevels[0]?.price
+  const best = levels[0]?.price
+  if (best && best === previousLevels[1]?.price) return 'up'
+  if (previousBest && previousBest === levels[1]?.price) return 'down'
+  return null
+}
+
+function ScrollingOrderBookSide({ label, levels }: OrderBookRowsProps) {
+  const [display, setDisplay] = useState<{
+    levels: readonly OrderBookLevel[]
+    motion: {
+      direction: OrderBookScrollDirection
+      exitingLevel: OrderBookLevel | undefined
+    } | null
+    revision: number
+  }>({ levels, motion: null, revision: 0 })
+
+  if (display.levels !== levels) {
+    const direction = orderBookScrollDirection(display.levels, levels)
+    setDisplay({
+      levels,
+      motion: direction
+        ? {
+            direction,
+            exitingLevel:
+              display.levels[direction === 'up' ? 0 : ORDER_BOOK_LEVEL_LABELS.length - 1]
+          }
+        : null,
+      revision: display.revision + (direction ? 1 : 0)
+    })
+  }
+
+  const direction = display.motion?.direction
+  const exitingRow = <OrderBookRow level={display.motion?.exitingLevel} />
+
+  return (
+    <div className="taskbar-tooltip-order-ladder">
+      <div className="taskbar-tooltip-order-list taskbar-tooltip-order-ranks" aria-hidden="true">
+        {ORDER_BOOK_LEVEL_LABELS.map((levelLabel) => (
+          <span key={levelLabel}>{label + levelLabel}</span>
+        ))}
+      </div>
+      <div className="taskbar-tooltip-order-viewport">
+        <div
+          key={display.revision}
+          className="taskbar-tooltip-order-list taskbar-tooltip-order-track"
+          data-direction={direction}
+          onAnimationEnd={() => setDisplay({ ...display, motion: null })}
+        >
+          {direction === 'up' ? exitingRow : null}
+          {ORDER_BOOK_LEVEL_LABELS.map((levelLabel, index) => (
+            <OrderBookRow key={levelLabel} label={label + levelLabel} level={levels[index]} />
+          ))}
+          {direction === 'down' ? exitingRow : null}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function FiveLevelOrderBook({
+  orderBook,
+  embedded
+}: {
+  orderBook: StockOrderBook | null
+  embedded: boolean
+}) {
   return (
     <div className="taskbar-tooltip-order-book">
       <dt>五档盘口（手）</dt>
       <dd>
         {[
-          { side: 'buy', label: '买', levels: orderBook?.bids },
-          { side: 'sell', label: '卖', levels: orderBook?.asks }
+          { side: 'buy', label: '买', levels: orderBook?.bids ?? EMPTY_ORDER_LEVELS },
+          { side: 'sell', label: '卖', levels: orderBook?.asks ?? EMPTY_ORDER_LEVELS }
         ].map(({ side, label, levels }) => (
           <div className={`taskbar-tooltip-order-side is-${side}`} key={side}>
-            {ORDER_BOOK_LEVEL_LABELS.map((levelLabel, index) => (
-              <div className="taskbar-tooltip-order-row" key={levelLabel}>
-                <span>
-                  {label}
-                  {levelLabel}
-                </span>
-                <span>
-                  {levels?.[index]?.price === 0 ? (
-                    '-'
-                  ) : (
-                    <AnimatedNumber value={levels?.[index]?.price} formatValue={formatPrice} />
-                  )}
-                </span>
-                <span>{formatLargeOrderVolume(levels?.[index]?.volume)}</span>
+            {embedded ? (
+              <div className="taskbar-tooltip-order-list">
+                {ORDER_BOOK_LEVEL_LABELS.map((levelLabel, index) => (
+                  <OrderBookRow
+                    key={levelLabel}
+                    label={label + levelLabel}
+                    level={levels[index]}
+                    animatePrice
+                  />
+                ))}
               </div>
-            ))}
+            ) : (
+              <ScrollingOrderBookSide label={label} levels={levels} />
+            )}
           </div>
         ))}
       </dd>
@@ -622,7 +725,7 @@ export function StockQuoteDetails({
           intervalMinutes={currentIntraday?.intervalMinutes}
           expanded
         />
-        <FiveLevelOrderBook orderBook={currentOrderBook} />
+        <FiveLevelOrderBook orderBook={currentOrderBook} embedded={embedded} />
       </dl>
 
       <section className="taskbar-tooltip-section">
